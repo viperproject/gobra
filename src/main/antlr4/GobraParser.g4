@@ -61,16 +61,18 @@ typeOf: TYPE_OF L_PAREN expression R_PAREN;
 
 isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 
-ghostTypeLit: sType;
+ghostTypeLit: sqType;
 
-sType: kind=(SEQ | SET | MSET) L_BRACKET type_ R_BRACKET;
+sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
+        | kind=DICT L_BRACKET type_ R_BRACKET type_;
 
 seqUpdExp: L_BRACKET (seqUpdClause (COMMA seqUpdClause)*) R_BRACKET;
 
 seqUpdClause: expression ASSIGN expression;
 
 specification
-    : (specStatement eos)+? PURE?
+    : ((specStatement) eos)* PURE
+    | ((specStatement | PURE) eos)*
     ;
 
 specStatement
@@ -78,12 +80,11 @@ specStatement
     | kind=PRESERVES assertion
     | kind=POST assertion
     | kind=DEC terminationMeasure
-    | kind=PURE
     ;
 
-functionDecl: specification? FUNC IDENTIFIER (signature block?);
+functionDecl: specification FUNC IDENTIFIER (signature block?);
 
-methodDecl: specification? FUNC receiver IDENTIFIER ( signature block?);
+methodDecl: specification FUNC receiver IDENTIFIER ( signature block?);
 
 assertion:
     | expression
@@ -122,7 +123,7 @@ mpredicateDecl: PRED receiver IDENTIFIER parameters predicateBody;
 
 implementationProof: type_ IMPL type_ L_CURLY (implementationProofPredicateAlias eos)* (methodImplementationProof eos)*  R_CURLY;
 
-methodImplementationProof: PURE? receiver IDENTIFIER signature block?;
+methodImplementationProof: PURE? nonLocalReceiver IDENTIFIER signature block?;
 
 selection: primaryExpr DOT IDENTIFIER
             | type_ DOT IDENTIFIER;
@@ -143,6 +144,8 @@ shortVarDecl: maybeAddressableIdentifierList DECLARE_ASSIGN expressionList;
 
 receiver: 	L_PAREN maybeAddressableIdentifier? STAR? IDENTIFIER R_PAREN;
 
+nonLocalReceiver: 	L_PAREN IDENTIFIER? STAR? typeName R_PAREN;
+
 
 
 // Added ghost parameters
@@ -151,6 +154,13 @@ parameterDecl: GHOST? identifierList? ELLIPSIS? type_;
 // Added unfolding
 unaryExpr:
 	primaryExpr
+	| kind=(
+    LEN
+    | CAP
+    | DOM
+    | RANGE
+	) L_PAREN expression R_PAREN
+	| unfolding
 	| unary_op = (
 		PLUS
 		| MINUS
@@ -160,7 +170,7 @@ unaryExpr:
 		| AMPERSAND
 		| RECEIVE
 	) expression
-	| unfolding ;
+    ;
 
 unfolding: UNFOLDING predicateAccess IN expression;
 
@@ -259,8 +269,8 @@ interfaceType:
 predicateSpec: PRED IDENTIFIER parameters;
 
 methodSpec:
-	{noTerminatorAfterParams(2)}? GHOST? specification? IDENTIFIER parameters result
-	| GHOST? specification? IDENTIFIER parameters;
+	{noTerminatorAfterParams(2)}? GHOST? specification IDENTIFIER parameters result
+	| GHOST? specification IDENTIFIER parameters;
 
 // Added ghostTypeLiterals
 type_: typeName | typeLit | ghostTypeLit | L_PAREN type_ R_PAREN;

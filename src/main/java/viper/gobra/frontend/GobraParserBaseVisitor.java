@@ -150,7 +150,7 @@ public class GobraParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> imple
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSType(GobraParser.STypeContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSqType(GobraParser.SqTypeContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -291,6 +291,13 @@ public class GobraParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> imple
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public T visitReceiver(GobraParser.ReceiverContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitNonLocalReceiver(GobraParser.NonLocalReceiverContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *

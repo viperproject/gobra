@@ -10,7 +10,8 @@ import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.tree.TerminalNode
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
 import org.bitbucket.inkytonik.kiama.util.{Position, Positions, Source}
-import viper.gobra.ast.frontend.{PAssignee, PCompositeKey, PDefLikeId, PExpression, _}
+import viper.gobra.ast.frontend.{PAssignee, PCompositeKey, PDefLikeId, PExpression, PMethodReceiveName, _}
+import viper.gobra.util.{Binary, Hexadecimal, Octal}
 import viper.gobra.frontend.GobraParser._
 
 import scala.collection.mutable.ListBuffer
@@ -61,6 +62,15 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitUnaryExpr(ctx: GobraParser.UnaryExprContext): PExpression = {
     if (ctx.primaryExpr() != null) {
       visitPrimaryExpr(ctx.primaryExpr())
+    } else if (has(ctx.kind)) {
+      val exp = visitExpression(ctx.expression())
+      val inv : (PExpression => PExpression) = ctx.kind.getType match {
+        case GobraParser.CAP => PCapacity
+        case GobraParser.LEN => PLength
+        case GobraParser.DOM => PMapKeys
+        case GobraParser.RANGE => PMapValues
+      }
+      inv(exp).newpos(ctx)
     } else if (ctx.unary_op != null) {
       val e = visitExpression(ctx.expression())
       ctx.unary_op.getType match {
@@ -347,9 +357,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitInteger(ctx: GobraParser.IntegerContext): PIntLit = {
     if(ctx.DECIMAL_LIT() != null){
       PIntLit(BigInt(ctx.DECIMAL_LIT().getText)).newpos(ctx)
-    } else {
-      fail(ctx)
-    }
+    } else if (ctx.BINARY_LIT() != null) {
+      PIntLit(BigInt(ctx.BINARY_LIT().getText.drop(2), 2), Binary).newpos(ctx)
+    } else if (ctx.HEX_LIT() != null) {
+      PIntLit(BigInt(ctx.HEX_LIT().getText.drop(2), 16), Hexadecimal)
+    } else if (ctx.OCTAL_LIT() != null) {
+      PIntLit(BigInt(ctx.OCTAL_LIT().getText.drop(2), 8), Octal)
+    } else fail_msg(ctx, "This number format is not supported yet.")
   }
 
   override def visitBasicLit(ctx: GobraParser.BasicLitContext): PBasicLiteral = {
@@ -572,7 +586,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   def visitMaybeAddressableIdnDef(ctx: MaybeAddressableIdentifierContext): (PIdnDef, Boolean) = {
-    (idnDef(ctx.IDENTIFIER()), has(ctx.ADDR_MOD()))
+    (idnDef(ctx.IDENTIFIER()).newpos(ctx), has(ctx.ADDR_MOD()))
   }
 
   /**
@@ -583,7 +597,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitReceiver(ctx: ReceiverContext): PReceiver = {
     val typeName = PNamedOperand(idnUse(ctx.IDENTIFIER()).newpos(ctx.IDENTIFIER())).newpos(ctx.IDENTIFIER())
-    val recvType = if (has(ctx.STAR())) PMethodReceiveName(typeName).newpos(ctx) else PMethodReceivePointer(typeName).newpos(ctx)
+    val recvType = if (has(ctx.STAR())) PMethodReceivePointer(typeName).newpos(ctx)  else PMethodReceiveName(typeName).newpos(ctx)
 
     if (has(ctx.maybeAddressableIdentifier())) {
       val (id, addr) = visitMaybeAddressableIdnDef(ctx.maybeAddressableIdentifier())
@@ -612,6 +626,125 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitFpredicateDecl(ctx: FpredicateDeclContext): PFPredicateDecl = {
+    val id = withWildcards{
+      idnDef(ctx.IDENTIFIER()).newpos(ctx.IDENTIFIER())
+    }
+    val params = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
+    val body = visitExpression(ctx.predicateBody().expression())
+    PFPredicateDecl(id, params.flatten, Some(body)).newpos(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitMpredicateDecl(ctx: MpredicateDeclContext): PMPredicateDecl = {
+    val id = withWildcards{
+      idnDef(ctx.IDENTIFIER()).newpos(ctx.IDENTIFIER())
+    }
+    val receiver = visitReceiver(ctx.receiver())
+    val params = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
+    val body = visitExpression(ctx.predicateBody().expression())
+    PMPredicateDecl(id, receiver, params.flatten, Some(body)).newpos(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitImplementationProofPredicateAlias(ctx: ImplementationProofPredicateAliasContext): PImplementationProofPredicateAlias = {
+    val left = idnUse(ctx.IDENTIFIER()).newpos(ctx)
+    val right = if (has(ctx.operandName())) {
+      visitOperandName(ctx.operandName())
+    } else {
+      val id = idnUse(ctx.selection().IDENTIFIER()).newpos(ctx)
+      if (has(ctx.selection().primaryExpr())) PDot(visitPrimaryExpr(ctx.selection().primaryExpr()), id).newpos(ctx)  else
+        PDot(visitType_(ctx.selection().type_()), id).newpos(ctx)
+    }
+    PImplementationProofPredicateAlias(left, right).newpos(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitNonLocalReceiver(ctx: NonLocalReceiverContext): PParameter = {
+    val name = visitTypeName(ctx.typeName())
+    val typ = if (has(ctx.STAR())) PDeref(name).newpos(ctx) else name
+    if (has(ctx.IDENTIFIER())) PNamedParameter(idnDef(ctx.IDENTIFIER()).newpos(ctx), typ).newpos(ctx)
+    else PUnnamedParameter(typ).newpos(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitMethodImplementationProof(ctx: MethodImplementationProofContext): PMethodImplementationProof = {
+    val id = idnUse(ctx.IDENTIFIER()).newpos(ctx)
+    val receiver = visitNonLocalReceiver(ctx.nonLocalReceiver())
+    val (args, result) = visitSignature(ctx.signature())
+    val isPure = has(ctx.PURE())
+    val body = if (has(ctx.block())) Some((PBodyParameterInfo(Vector.empty).newpos(ctx), visitBlock(ctx.block()))) else None
+    PMethodImplementationProof(id, receiver, args, result, isPure = isPure, body).newpos(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitImplementationProof(ctx: ImplementationProofContext): PImplementationProof = {
+    val subT = visitType_(ctx.type_(0))
+    val superT = visitType_(ctx.type_(1))
+    val alias = for (a <- ctx.implementationProofPredicateAlias().asScala.toVector) yield visitImplementationProofPredicateAlias(a)
+    val memberProofs = for (m <- ctx.methodImplementationProof().asScala.toVector) yield visitMethodImplementationProof(m)
+    PImplementationProof(subT, superT, alias, memberProofs).newpos(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitGhostMember(ctx: GhostMemberContext): Vector[PGhostMember] = {
+    if (ctx.fpredicateDecl() != null) {
+      Vector(visitFpredicateDecl(ctx.fpredicateDecl()))
+    } else if (ctx.mpredicateDecl() != null) {
+      Vector(visitMpredicateDecl(ctx.mpredicateDecl()))
+    } else if (ctx.implementationProof() != null) {
+      Vector(visitImplementationProof(ctx.implementationProof()))
+    }else if (ctx.GHOST() != null) {
+      if (ctx.methodDecl() != null) {
+        Vector(PExplicitGhostMember(visitMethodDecl(ctx.methodDecl())).newpos(ctx))
+      } else if (ctx.functionDecl() != null) {
+        Vector(PExplicitGhostMember(visitFunctionDecl(ctx.functionDecl())).newpos(ctx))
+      } else if (ctx.varDecl() != null) {
+        visitVarDecl(ctx.varDecl()).map(PExplicitGhostMember(_))
+      } else if (ctx.typeDecl() != null) {
+        visitTypeDecl(ctx.typeDecl()).map(PExplicitGhostMember(_))
+      } else {
+        visitConstDecl(ctx.constDecl()).map(PExplicitGhostMember(_))
+      }
+    } else fail(ctx)
+  }
+
+  /**
     * Visit a parse tree produced by `GobraParser`.
     *
     * @param ctx the parse tree
@@ -622,8 +755,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val importDecls = for (importDecl <- ctx.importDecl().asScala.toVector) yield visitImportDecl(importDecl)
     val functionDecls = for (funcDecl <- ctx.functionDecl().asScala.toVector) yield visitFunctionDecl(funcDecl)
     val methodDecls = for (methodDecl <- ctx.methodDecl().asScala.toVector) yield visitMethodDecl(methodDecl)
+    val ghostMembers = for (gMember <- ctx.ghostMember().asScala.toVector) yield visitGhostMember(gMember)
     val decls = for (decl <- ctx.declaration().asScala.toVector) yield visitDeclaration(decl)
-    PProgram(packageClause, importDecls.flatten, functionDecls ++ methodDecls ++ decls.flatten).newpos(ctx)
+    PProgram(packageClause, importDecls.flatten, functionDecls ++ methodDecls ++ decls.flatten ++ ghostMembers.flatten).newpos(ctx)
   }
 
   /**
@@ -817,7 +951,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val preserves = groups.getOrElse(GobraParser.PRESERVES, Vector.empty).map(s => visitExpression(s.assertion().expression()))
     val posts = groups.getOrElse(GobraParser.POST, Vector.empty).map(s => visitExpression(s.assertion().expression()))
     val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).map(s => visitTerminationMeasure(s.terminationMeasure()))
-    val isPure = groups.getOrElse(GobraParser.PURE, Vector.empty).nonEmpty || has(ctx.PURE)
+    val isPure = has(ctx.PURE()) && !ctx.PURE().isEmpty
 
     PFunctionSpec(pres, preserves, posts, terms, isPure = isPure).newpos(ctx)
   }
@@ -882,7 +1016,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     if (ctx.primaryExpr() != null ) {
       visitPrimaryExpr(ctx.primaryExpr()) match {
         case invoke : PInvoke => PPredicateAccess(invoke, PFullPerm().at(invoke)).newpos(ctx)
-        case PAccess(invoke: PInvoke, perm) => PPredicateAccess(invoke, perm)
+        case PAccess(invoke: PInvoke, perm) => PPredicateAccess(invoke, perm).newpos(ctx)
         case _ => fail_msg(ctx, "Expected invocation")
       }
     } else fail(ctx)
@@ -1171,13 +1305,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitSType(ctx: STypeContext): PGhostLiteralType = {
-    val typ = visitType_(ctx.type_())
-    ctx.kind.getType match {
-      case GobraParser.SEQ => PSequenceType(typ).newpos(ctx)
-      case GobraParser.SET => PSetType(typ).newpos(ctx)
-      case GobraParser.MSET => PMultisetType(typ).newpos(ctx)
+  override def visitSqType(ctx: SqTypeContext): PGhostLiteralType = {
+    val typ = visitType_(ctx.type_(0))
+    val kind : (PType => PGhostLiteralType) = ctx.kind.getType match {
+      case GobraParser.SEQ => PSequenceType
+      case GobraParser.SET => PSetType
+      case GobraParser.MSET => PMultisetType
+      case GobraParser.DICT => PMathematicalMapType(_, visitType_(ctx.type_(1)))
+      case GobraParser.OPT => POptionType
     }
+    kind(typ).newpos(ctx)
 
   }
 
@@ -1188,8 +1325,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitGhostTypeLit(ctx: GhostTypeLitContext): PGhostLiteralType = {
-    if(ctx.sType() != null) {
-      visitSType(ctx.sType())
+    if(ctx.sqType() != null) {
+      visitSqType(ctx.sqType())
     } else fail(ctx)
   }
 

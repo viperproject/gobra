@@ -125,11 +125,11 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitGhostTypeLit(GobraParser.GhostTypeLitContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link GobraParser#sType}.
+	 * Visit a parse tree produced by {@link GobraParser#sqType}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitSType(GobraParser.STypeContext ctx);
+	T visitSqType(GobraParser.SqTypeContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#seqUpdExp}.
 	 * @param ctx the parse tree
@@ -250,6 +250,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitReceiver(GobraParser.ReceiverContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#nonLocalReceiver}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitNonLocalReceiver(GobraParser.NonLocalReceiverContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#parameterDecl}.
 	 * @param ctx the parse tree

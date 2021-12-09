@@ -15,7 +15,7 @@ object ViperChopper {
   /** chops 'choppee' into independent Viper programs */
   def chop(choppee: vpr.Program)(
     isolate: Option[vpr.Method => Boolean] = None,
-    bound: Option[Int] = Some(5),
+    bound: Option[Int] = Some(1),
     mergePenalty: MergePenalty[SCC.Component[Vertex]] = Cut.Penalty.Default
   ): Vector[vpr.Program] = {
 
@@ -25,7 +25,6 @@ object ViperChopper {
 
     val edges = choppee.members.flatMap(Edges.dependencies).distinct
 
-    // TODO: move into separate method
     val requiredVertices = isolatedVertices.getOrElse {
       choppee.collect {
         case m: vpr.Method => Vertex.Method(m.name)
@@ -125,7 +124,6 @@ object ViperChopper {
       require(bound.forall(_ > 0), s"Got $bound as the size of the cut, but expected positive number")
 
       val start = smallestCut(nodes, forest)
-      println("start: " + start.size)
       val filtered = isolate match {
         case None => start
         case Some(f) => start.filter(_.exists(f))
@@ -156,7 +154,7 @@ object ViperChopper {
 
       } while(performedUpdate)
 
-      println("final: " + x.size)
+      println(s"Chopped verification condition into ${x.size} parts. Maximum number of parts is ${start.size}.")
 
       x.toVector
     }

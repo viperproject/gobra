@@ -51,7 +51,6 @@ object BackendVerifier {
     }
 
     val verificationResults =  if (config.shouldChop) {
-      println("Maps: " + config.isolate)
       val isolate = {
         def hit(x: SourcePosition, target: SourcePosition): Boolean = {
           (target.end match {
@@ -66,7 +65,7 @@ object BackendVerifier {
           case _ => false
         }}
       }
-      val programs: Vector[vpr.Program] = if (isolate.isDefined) ViperChopper.chop(task.program)(isolate = isolate) else Vector(task.program)
+      val programs: Vector[vpr.Program] = ViperChopper.chop(task.program)(isolate = isolate, bound = Some(config.choppingUpperBound))
       programs.zipWithIndex.foreach{ case (chopped, idx) =>
         config.reporter report ChoppedViperMessage(config.inputFiles.head, idx, () => chopped, () => task.backtrack)
       }
@@ -78,11 +77,13 @@ object BackendVerifier {
       //   verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
       // }
 
-      programs.zipWithIndex.foldLeft(Future.successful(Vector(silver.verifier.Success)): Future[Vector[VerificationResult]]){ case (res, (program, idx)) =>
+      programs.zipWithIndex.foldLeft(Future.successful(Vector(silver.verifier.Success)): Future[Vector[VerificationResult]]) { case (res, (program, idx)) =>
         val programID = s"_programID_${config.inputFiles.head.getFileName}_$idx"
         for {
           acc <- res
-          next <- verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
+          next <- verifier
+            .verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
+            .andThen(_ => println(s"Verified (${idx + 1})"))
         } yield acc :+ next
       }
     } else {

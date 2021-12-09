@@ -31,6 +31,7 @@ case class Config(
                    reporter: GobraReporter = StdIOReporter(),
                    backend: ViperBackend = ViperBackends.SiliconBackend,
                    isolate: Option[Vector[SourcePosition]] = None,
+                   choppingUpperBound: Int = 1,
                    // backendConfig is used for the ViperServer
                    backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig,
                    z3Exe: Option[String] = None,
@@ -187,10 +188,10 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
-  val doChop: ScallopOption[Boolean] = toggle(
+  val chopUpperBound: ScallopOption[Int] = opt[Int](
     name = "chop",
-    descrYes = "Perform the chopping step",
-    default = Some(false),
+    descr = "Number of parts the generated verification condition is split into (at most)",
+    default = Some(1),
     noshort = true
   )
 
@@ -286,7 +287,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     validateFilesIsDirectory(include)
   }
 
-  val cutInputWithIdxs = input.map(_.map{ arg =>
+  val cutInputWithIdxs: ScallopOption[List[(String, List[Int])]] = input.map(_.map{ arg =>
     val pattern = """(.*)@(\d+(?:,\d+)*)""".r
     arg match {
       case pattern(prefix, idxs) =>
@@ -295,7 +296,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       case _ => (arg, List.empty[Int])
     }
   })
-  val cutInput = cutInputWithIdxs.map(_.map(_._1))
+  val cutInput: ScallopOption[List[String]] = cutInputWithIdxs.map(_.map(_._1))
 
   validateInput(cutInput, include)
 
@@ -303,7 +304,11 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
   lazy val inputFiles: Vector[Path] = InputConverter.convert(cutInput.toOption.getOrElse(List()), includeDirs)
-  lazy val isolated: Option[Vector[SourcePosition]] = InputConverter.isolatedPosition(cutInputWithIdxs.toOption).map(_.toVector)
+  lazy val isolated: Option[Vector[SourcePosition]] =
+    InputConverter.isolatedPosition(cutInputWithIdxs.toOption) match {
+      case Nil => None
+      case positions => Some(positions.toVector)
+    }
 
   /** set log level */
 
@@ -316,7 +321,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   def shouldDesugar: Boolean = shouldTypeCheck
   def shouldViperEncode: Boolean = shouldDesugar
   def shouldVerify: Boolean = shouldViperEncode
-  def shouldChop: Boolean = doChop.getOrElse(false) || isolated.exists(_.nonEmpty)
+  def shouldChop: Boolean = chopUpperBound.toOption.exists(_ > 1) || isolated.exists(_.nonEmpty)
 
   private object InputConverter {
 
@@ -390,13 +395,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       }
     }
 
-    def isolatedPosition(cutInputWithIdxs: Option[List[(String, List[Int])]]): Option[List[SourcePosition]] = {
+    def isolatedPosition(cutInputWithIdxs: Option[List[(String, List[Int])]]): List[SourcePosition] = {
       cutInputWithIdxs.map(_.flatMap { case (input, idxs) =>
         isGoFilePath(input) match { // only go files can have a position
           case Right(file) => idxs.map(idx => SourcePosition(file.toPath, idx, 0))
           case _ => List.empty
         }
-      })
+      }).getOrElse(List.empty)
     }
   }
 
@@ -412,6 +417,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       printVpr = printVpr()),
     backend = backend(),
     isolate = isolated,
+    choppingUpperBound = chopUpperBound(),
     z3Exe = z3Exe.toOption,
     boogieExe = boogieExe.toOption,
     logLevel = logLevel(),

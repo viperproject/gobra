@@ -25,7 +25,6 @@ type NumError struct {
 requires p > 0
 requires acc(e, p)
 ensures acc(e, p)
-decreases _
 func (e *NumError) Error(ghost p perm) string /*{
 	return "strconv." + e.Func + ": " + "parsing " + Quote(e.Num) + ": " + e.Err.Error()
 }*/

@@ -1,0 +1,40 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// subset of `termination-fail-01.gobra` representing a minimal example of Silicon filtering out one of the two
+// verification errors and thus reporting only one instead of both of them.
+
+package termination
+
+ghost
+requires n >= 0
+decreases
+pure func factorialPure(n int) int {
+	//:: ExpectedOutput(pure_function_termination_error)
+	return n == 0? 1 :  1 * factorialPure(n-1)
+}
+
+type list struct {
+	next *list
+	value int
+}
+
+pred List(self *list) {
+	acc(&self.value) && acc(&self.next) && (self.next != nil ==> List(self.next))
+}
+
+requires List(x)
+ensures List(x)
+decreases
+func length(x *list) int {
+	unfold List(x)
+	if x.next == nil {
+		fold List(x)
+		return 1
+	} else {
+		//:: ExpectedOutput(function_termination_error)
+		var y int = 1 + length(x.next)
+		fold List(x)
+		return y
+	}
+}

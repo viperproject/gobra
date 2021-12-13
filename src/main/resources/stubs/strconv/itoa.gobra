@@ -115,7 +115,7 @@ const digits = "0123456789abcdefghijklmnopqrstuvwxyz"
 requires append_ ==> forall i int :: 0 <= i && i < len(dst) ==> acc(&dst[i])
 requires 2 <= base && base <= len(digits)
 ensures append_ ==> forall i int :: 0 <= i && i < len(d) ==> acc(&d[i])
-decreases
+decreases _
 func formatBits(dst []byte, u uint64, base int, neg, append_ bool) (d []byte, s string) // {
 //	if base < 2 || base > len(digits) {
 //		panic("strconv: illegal AppendInt/FormatInt base")

@@ -42,14 +42,15 @@ pure func (e *NumError) Unwrap() error { return e.Err }
 
 // ParseUint is like ParseInt but for unsigned numbers.
 requires base == 0 || (2 <= base && base <= 36)
-decreases
+decreases _
 func ParseUint(s string, base int, bitSize int) (uint64, error)
 
 // ParseInt interprets a string s in the given base (0, 2 to 36) and
 // bit size (0 to 64) and returns the corresponding value i.
 requires base == 0 || (2 <= base && base <= 36)
-decreases
+decreases _
 func ParseInt(s string, base int, bitSize int) (i int64, err error) 
 
 // Atoi is equivalent to ParseInt(s, 10, 0), converted to type int.
+decreases _
 func Atoi(s string) (int, error) 

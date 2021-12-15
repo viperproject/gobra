@@ -11,10 +11,7 @@ func test1() {
 	Set(s) // slice must be unpacked
 }
 
-func test2() {
-	//:: ExpectedOutput(type_error)
-	Set(1...) // only slices can be unpacked
-}
+// See variadic-parse-fail1.gobra
 
 func test3() {
 	arr := [5]int{1, 2, 3, 4, 5}

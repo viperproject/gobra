@@ -4,7 +4,7 @@
 package pkg
 
 func example1() {
-  ghost s := mset[1..10]
+  ghost s := mset[1 .. 10]
   assert s == mset ( seq [ 1 .. 10 ] )
 }
 
@@ -16,7 +16,7 @@ func example2() {
   assert mset[1 .. 2] == mset[int] { 1 }
 
   // could we do without the first assertion?
-  assert seq[1..10] == seq[int] { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
+  assert seq[1 .. 10] == seq[int] { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
   assert 3 in mset[1 .. 10]
   assert 2 + 3 in mset[1 .. 10]
   assert !(42 in mset[1 .. 10])

@@ -20,8 +20,8 @@ func example4() {
 }
 
 func example5() {
-  assert len(seq[1..4]) == 3
-  assert seq[1..4] ++ seq[4..8] == seq[1..8]
+  assert len(seq[1 .. 4]) == 3
+  assert seq[1 .. 4] ++ seq[4 .. 8] == seq[1 .. 8]
 }
 
 requires x <= y

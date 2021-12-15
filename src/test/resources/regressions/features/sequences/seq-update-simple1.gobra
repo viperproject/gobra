@@ -26,18 +26,18 @@ func example4(ghost xs seq[bool], x1 int, x2 int, v1 bool, v2 bool) {
 }
 
 func example5() {
-  assert seq[1..5][2 = 10] == seq[int] { 1, 2, 10, 4 }
+  assert seq[1 .. 5][2 = 10] == seq[int] { 1, 2, 10, 4 }
 }
 
 func example6() {
-  assert seq[1..5][0 = 10, 1 = 20, 3 = 40, 2 = 30] == seq[int] { 10, 20, 30, 40 }
-  assert seq[1..5][0 = 10, 1 = 20][3 = 40, 2 = 30] == seq[1..5][0 = 10, 1 = 20, 3 = 40, 2 = 30]
+  assert seq[1 .. 5][0 = 10, 1 = 20, 3 = 40, 2 = 30] == seq[int] { 10, 20, 30, 40 }
+  assert seq[1 .. 5][0 = 10, 1 = 20][3 = 40, 2 = 30] == seq[1 .. 5][0 = 10, 1 = 20, 3 = 40, 2 = 30]
 }
 
 func example7() {
-  assert seq[1..5][2 = 10, 2 = 20, 2 = 40, 2 = 80] == seq[int] { 1, 2, 80, 4 }
+  assert seq[1 .. 5][2 = 10, 2 = 20, 2 = 40, 2 = 80] == seq[int] { 1, 2, 80, 4 }
 }
 
 func example8() {
-  assert seq[1..5][1 = 20, 2 = 40, 1 = 60, 2 = 80] == seq[int] { 1, 60, 80, 4 }
+  assert seq[1 .. 5][1 = 20, 2 = 40, 1 = 60, 2 = 80] == seq[int] { 1, 60, 80, 4 }
 }

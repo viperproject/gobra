@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package variadic
+
+func Set(...int)
+
+
+func test2() {
+	//:: ExpectedOutput(parser_error)
+	Set(1...) // only slices can be unpacked
+}

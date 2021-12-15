@@ -18,16 +18,15 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{Source => _, _}
 import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
-import org.antlr.v4.runtime.{BailErrorStrategy, BaseErrorListener, CharStreams, CommonTokenStream, ConsoleErrorListener, DefaultErrorStrategy, DiagnosticErrorListener, ParserRuleContext, RecognitionException, Recognizer, Token}
+import org.antlr.v4.runtime.{BailErrorStrategy, CharStreams, CommonTokenStream, ConsoleErrorListener, DefaultErrorStrategy, ParserRuleContext}
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
-import viper.gobra.frontend.GobraParser.{ExprOnlyContext, FunctionDeclContext, ImportDeclContext, SourceFileContext, StmtOnlyContext, Type_Context, VOCABULARY}
+import viper.gobra.frontend.GobraParser.{ExprOnlyContext, FunctionDeclContext, ImportDeclContext, SourceFileContext, StmtOnlyContext, Type_Context}
 import viper.gobra.frontend.old.{GoLexer, GoParser}
 import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable.ListBuffer
 import scala.io.BufferedSource
-import scala.jdk.CollectionConverters.IterableHasAsScala
 import scala.util.matching.Regex
 
 object Parser {
@@ -468,12 +467,18 @@ object Parser {
         val parseAst : Node = time("ANTLR_TRANSLATE", source.name) {
           try translator.translate(tree)
           catch {
-            case e: TranslationException =>
+            case e: TranslationFailure =>
               val pos = source match {
-                case fileSource: FromFileSource => Some(SourcePosition(fileSource.path, e.start.line, e.start.column))
+                case fileSource: FromFileSource => Some(SourcePosition(fileSource.path, e.cause.startPos.line, e.cause.endPos.column))
                 case _ => None
               }
-              return Left(Vector(ParserError(e.msg + e.getStackTrace.toVector(2), pos)))
+              return Left(Vector(ParserError(e.msg + e.getStackTrace.toVector(1), pos)))
+            case e : UnsupportedOperatorException =>
+              val pos = source match {
+                case fileSource: FromFileSource => Some(SourcePosition(fileSource.path, e.cause.startPos.line, e.cause.endPos.column))
+                case _ => None
+              }
+              return Left(Vector(ParserError(e.msg + e.getStackTrace.toVector(0), pos)))
             case e =>
               val pos = source match {
                 case fileSource: FromFileSource => Some(SourcePosition(fileSource.path, 0, 0))

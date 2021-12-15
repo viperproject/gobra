@@ -174,8 +174,23 @@ unfolding: UNFOLDING predicateAccess IN expression;
 // Added ++ operator
 expression:
 	primaryExpr
-	| unaryExpr
-	| expression mul_op = (
+	| call_op=(
+    LEN
+    | CAP
+    | DOM
+    | RANGE
+	) L_PAREN expression R_PAREN
+	| unfolding
+	| unary_op = (
+		PLUS
+		| MINUS
+		| EXCLAMATION
+		| CARET
+		| STAR
+		| AMPERSAND
+		| RECEIVE
+	) expression
+		| expression mul_op = (
 		STAR
 		| DIV
 		| MOD

@@ -93,11 +93,13 @@ object Parser {
           config.reporter report ParsedInputMessage(source.path, () => ast)
           Right(ast)
         case Left(errors) =>
-          val groupedErrors = errors.groupBy{ _.position.get.file }
+          // On parse failure, ANTLR sometimes throws out of bounds exceptions, ignore these for now.
+          val (parserErrors, _) = errors.partition(_.position.nonEmpty)
+          val groupedErrors = parserErrors.filter(_.position.nonEmpty).groupBy{ _.position.get.file}
           groupedErrors.foreach{ case (p, pErrors) =>
             config.reporter report ParserErrorMessage(p, pErrors)
           }
-          Left(errors)
+          Left(parserErrors)
       }
     }
 
@@ -462,6 +464,8 @@ object Parser {
               new ParserRuleContext()
           }
       }
+      //println(tokens.getTokens.asScala.map(tok => VOCABULARY.getSymbolicName(tok.getType)))
+      //println(tree.toStringTree(this))
       if(errors.isEmpty) {
         val translator = new ParseTreeTranslator(pom, source, specOnly)
         val parseAst : Node = time("ANTLR_TRANSLATE", source.name) {
@@ -472,24 +476,45 @@ object Parser {
                 case fileSource: FromFileSource => Some(SourcePosition(fileSource.path, e.cause.startPos.line, e.cause.endPos.column))
                 case _ => None
               }
-              return Left(Vector(ParserError(e.msg + e.getStackTrace.toVector(1), pos)))
+              return Left(Vector(ParserError(e.getMessage + " " + e.getStackTrace.toVector(1), pos)))
             case e : UnsupportedOperatorException =>
               val pos = source match {
                 case fileSource: FromFileSource => Some(SourcePosition(fileSource.path, e.cause.startPos.line, e.cause.endPos.column))
                 case _ => None
               }
-              return Left(Vector(ParserError(e.msg + e.getStackTrace.toVector(0), pos)))
+              return Left(Vector(ParserError(e.getMessage + " " + e.getStackTrace.toVector(0), pos)))
             case e =>
               val pos = source match {
                 case fileSource: FromFileSource => Some(SourcePosition(fileSource.path, 0, 0))
                 case _ => None
               }
-              return Left(Vector(ParserError(e.getMessage + e.getStackTrace.take(4).mkString("Array(", ", ", ")"), pos)))
+              return Left(Vector(ParserError(e.getMessage + " " + e.getStackTrace.take(4).mkString("Array(", ", ", ")"), pos)))
           }
         }
         if (translator.warnings.nonEmpty){
           println(translator.warnings.mkString("Warnings: (", ", ", ")"))
         }
+        /*
+        parseAst match {
+          case program: PProgram =>
+            val positions = new Positions
+            val pom = new PositionManager(positions)
+            val parsers = new SyntaxAnalyzer(pom, specOnly)
+            val gobraAst = parsers.parseAll(parsers.program, source) match {
+              case Success(result, next) => result
+              case ns@NoSuccess(label, next) => {
+                val pos = next.position
+                pom.positions.setStart(ns, pos)
+                pom.positions.setFinish(ns, pos)
+                val messages = message(ns, label)
+                val errors = pom.translate(messages, ParserError)
+                return Left(errors.map(e => e.copy(message = "Gobra reported: " + e.message)))
+              }
+            }
+            assert(program == gobraAst)
+          case _ =>
+        }
+        */
         Right(parseAst)
       } else {
         Left(errors.toVector)

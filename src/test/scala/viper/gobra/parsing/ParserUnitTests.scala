@@ -571,13 +571,6 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should parse a simple sequence range expression") {
-    frontend.parseExpOrFail("seq[1..5]") should matchPattern {
-      case PRangeSequence(PIntLit(low, Decimal), PIntLit(high, Decimal))
-        if low == BigInt(1) && high == BigInt(5) =>
-    }
-  }
-
-  test("Parser: should parse a simple sequence range expression with spaces") {
     frontend.parseExpOrFail("seq[1 .. 5]") should matchPattern {
       case PRangeSequence(PIntLit(low, Decimal), PIntLit(high, Decimal))
         if low == BigInt(1) && high == BigInt(5) =>
@@ -676,7 +669,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should parse a membership expression with a sequence range expression") {
-    frontend.parseExpOrFail("x + 12 in seq[1..100]") should matchPattern {
+    frontend.parseExpOrFail("x + 12 in seq[1 .. 100]") should matchPattern {
       case PIn(
         PAdd(PNamedOperand(PIdnUse("x")), PIntLit(a, Decimal)),
         PRangeSequence(PIntLit(b, Decimal), PIntLit(c, Decimal))
@@ -797,7 +790,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should parse indexed expression with sequence range expressions") {
-    frontend.parseExpOrFail("seq[1..10][2]") should matchPattern {
+    frontend.parseExpOrFail("seq[1 .. 10][2]") should matchPattern {
       case PIndexedExp(
         PRangeSequence(PIntLit(low, Decimal), PIntLit(high, Decimal)),
         PIntLit(i, Decimal)
@@ -815,7 +808,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: shouldn't parse a chain of sequence range operations") {
-    frontend.parseExp("seq[1..10][11..20]") should matchPattern {
+    frontend.parseExp("seq[1 .. 10][11..20]") should matchPattern {
       case Left(_) =>
     }
   }
@@ -1767,7 +1760,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse a set conversion expression with a more complex body expression") {
-    frontend.parseExpOrFail("set(seq[int] { 1 } ++ seq[2..3])") should matchPattern {
+    frontend.parseExpOrFail("set(seq[int] { 1 } ++ seq[2 .. 3])") should matchPattern {
       case PSetConversion(
         PSequenceAppend(
           PCompositeLit(
@@ -2069,7 +2062,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse a simple multiset range expression") {
-    frontend.parseExpOrFail("mset[1..10]") should matchPattern {
+    frontend.parseExpOrFail("mset[1 .. 10]") should matchPattern {
       case PMultisetConversion(PRangeSequence(PIntLit(low, Decimal), PIntLit(high, Decimal)))
         if low == BigInt(1) && high == BigInt(10) =>
     }

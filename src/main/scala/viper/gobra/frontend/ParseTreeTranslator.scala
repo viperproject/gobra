@@ -133,6 +133,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         case GobraParser.RANGE => PMapValues
       }
       call(exp).at(ctx)
+    } else if (has(ctx.new_())) {
+      val typ = visitType_(ctx.new_().type_())
+      PNew(typ).at(ctx)
+    } else if (has(ctx.make())) {
+      val typ = visitType_(ctx.make().type_())
+      val args = visitExpressionList(ctx.make().expressionList())
+      PMake(typ, args).at(ctx)
     } else if (has(ctx.unfolding())) {
       visitUnfolding(ctx.unfolding())
     } else if (ctx.unary_op != null) {
@@ -166,6 +173,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
           ctx.add_op.getType match {
             case GobraParser.PLUS => PAdd
             case GobraParser.MINUS => PSub
+            case GobraParser.OR => PBitOr
+            case GobraParser.CARET => PBitXor
             case GobraParser.PLUS_PLUS => PSequenceAppend
             case op =>
               throw UnsupportedOperatorException(ctx.add_op, "addition")
@@ -306,6 +315,22 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
+  override def visitSConversion(ctx: SConversionContext): PGhostCollectionExp = {
+    val exp = visitExpression(ctx.expression())
+    val conversion = ctx.kind.getType match {
+      case GobraParser.SEQ => PSequenceConversion
+      case GobraParser.SET => PSetConversion
+      case GobraParser.MSET => PMultisetConversion
+    }
+    conversion(exp).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
   override def visitGhostPrimaryExpr(ctx: GhostPrimaryExprContext): PGhostExpression = {
     if (ctx.range() != null) {
       val low = visitExpression(ctx.range().expression(0))
@@ -320,7 +345,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       visitAccess(ctx.access())
     } else if (has(ctx.typeOf())) {
       PTypeOf(visitExpression(ctx.typeOf().expression())).at(ctx.typeOf())
-    } else if (has(ctx.isComparable)) {
+    } else if (has(ctx.isComparable())) {
       PIsComparable(visitExpression(ctx.isComparable.expression())).at(ctx.isComparable)
     } else if (has(ctx.old())) {
       visitOld(ctx.old())
@@ -329,6 +354,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       val triggers = visitTriggers(ctx.triggers())
       val body = visitExpression(ctx.expression())
       PForall(vars, triggers, body).at(ctx)
+    } else if (has(ctx.sConversion())) {
+      visitSConversion(ctx.sConversion)
     } else fail(ctx)
   }
 
@@ -442,6 +469,19 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
+  override def visitMapType(ctx: MapTypeContext): PMapType = {
+    val key = visitType_(ctx.type_())
+    val elem = visitType_(ctx.elementType().type_())
+
+    PMapType(key, elem).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
   override def visitLiteralType(ctx: LiteralTypeContext): PLiteralType = {
     if (ctx.typeName() != null) {
       visitTypeNameNoPredeclared(ctx.typeName())
@@ -453,7 +493,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       visitSliceType(ctx.sliceType())
     } else if (has(ctx.arrayType())) {
       visitArrayType(ctx.arrayType())
-    } else fail(ctx, "This literal type is not supported")
+    } else if (has(ctx.ELLIPSIS())){
+      val typ = visitType_(ctx.elementType().type_())
+      PImplicitSizeArrayType(typ).at(ctx)
+    } else if (has(ctx.mapType())) {
+      visitMapType(ctx.mapType())
+    } else fail(ctx, "This literal type is not supported.")
+
+
 
   }
 
@@ -652,8 +699,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
     val sig = visitSignature(ctx.signature())
     val paramInfo = PBodyParameterInfo(Vector.empty).at(ctx)
-    val block = if (ctx.block() == null || specOnly) PBlock(Vector.empty) else visitBlock(ctx.block())
-    val body = if (ctx.block() == null || specOnly) None else Some((paramInfo, block))
+    val body = if (ctx.blockWithBodyParameterInfo() == null || specOnly) None else Some(visitBlockWithBodyParameterInfo(ctx.blockWithBodyParameterInfo()))
     PMethodDecl(id, receiver,sig._1, sig._2, spec, body).at(ctx)
   }
 
@@ -998,6 +1044,19 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitBlockWithBodyParameterInfo(ctx: BlockWithBodyParameterInfoContext): (PBodyParameterInfo, PBlock) = {
+    val shareable = if (has(ctx.SHARE())) (for (id <- ctx.identifierList().IDENTIFIER().asScala.toVector) yield idnUse(id).at(id)) else Vector.empty
+    val paramInfo = PBodyParameterInfo(shareable)
+    val body =   if (has(ctx.statementList())) PBlock(visitStatementList(ctx.statementList())).at(ctx) else PBlock(Vector.empty).at(ctx)
+    (paramInfo, body)
+  }
+
+  /**
     * Visit a parse tree produced by `GobraParser`.
     *
     * @param ctx the parse tree
@@ -1009,9 +1068,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       idnDef(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())
     }
     val sig = visitSignature(ctx.signature())
-    val paramInfo = PBodyParameterInfo(Vector.empty).at(ctx)
-    val block = if (ctx.block() == null || specOnly) PBlock(Vector.empty) else visitBlock(ctx.block())
-    val body = if (ctx.block() == null || specOnly) None else Some((paramInfo, block))
+    val body = if (ctx.blockWithBodyParameterInfo() == null || specOnly) None else Some(visitBlockWithBodyParameterInfo(ctx.blockWithBodyParameterInfo()))
     PFunctionDecl(id, sig._1, sig._2, spec, body).at(ctx)
   }
 
@@ -1025,6 +1082,22 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     if (ctx.statementList() != null) PBlock(visitStatementList(ctx.statementList())).at(ctx) else PBlock(Vector.empty).at(ctx)
   }
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitIncDecStmt(ctx: IncDecStmtContext): PAssignmentWithOp = {
+    val exp = visitExpression(ctx.expression()) match {
+      case assignee : PAssignee => assignee
+      case _ => fail(ctx.expression(), "Increment/Decrement-statements must have an assignee as operand.")
+    }
+    if (has(ctx.PLUS_PLUS()))
+      PAssignmentWithOp(PIntLit(1).at(ctx.PLUS_PLUS()), PAddOp().at(ctx.PLUS_PLUS()), exp).at(ctx) else
+      PAssignmentWithOp(PIntLit(1).at(ctx.MINUS_MINUS()), PSubOp().at(ctx.MINUS_MINUS()), exp).at(ctx)
+  }
+
   override def visitSimpleStmt(ctx: GobraParser.SimpleStmtContext): PSimpleStmt = {
     if (ctx.shortVarDecl() != null){
       visitShortVarDecl(ctx.shortVarDecl())
@@ -1032,6 +1105,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       visitAssignment(ctx.assignment())
     } else if (ctx.expressionStmt() != null){
       PExpressionStmt(visitExpression(ctx.expressionStmt().expression())).at(ctx)
+    } else if (has(ctx.incDecStmt())) {
+      visitIncDecStmt(ctx.incDecStmt())
     } else fail(ctx)
 
   }
@@ -1182,7 +1257,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         }
         PAssForRange(range, assignees, block).at(ctx)
       }
-    } else fail(ctx)
+    } else {
+      PForStmt(None, PBoolLit(true).at(ctx.FOR()), None, spec, block).at(ctx)
+    }
 
   }
 
@@ -1226,16 +1303,40 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @param ctx the parse tree
     * @return the visitor result
     */
-  override def visitAssignment(ctx: GobraParser.AssignmentContext): PAssignment = {
+  override def visitAssignment(ctx: GobraParser.AssignmentContext): PSimpleStmt = {
     allowWildcards = true
-    val left =  visitExpressionList(ctx.expressionList(0)) match {
-      case v : Vector[PAssignee] => v
-      case _ => fail(ctx)
+    val left = visitExpressionList(ctx.expressionList(0)) match {
+      case v: Vector[PAssignee] => v
+      case _ => fail(ctx, "Assignee List contains non-assignable expressions.")
     }
     allowWildcards = false
-    val right =  visitExpressionList(ctx.expressionList(1))
-    PAssignment(right, left)
-      .at(ctx)
+    val right = visitExpressionList(ctx.expressionList(1))
+    if (has(ctx.assign_op().ass_op)) {
+      val ass_op = ctx.assign_op().ass_op.getType match {
+        case GobraParser.PLUS => PAddOp()
+        case GobraParser.MINUS => PSubOp()
+        case GobraParser.STAR =>  PMulOp()
+        case GobraParser.DIV => PDivOp()
+        case GobraParser.MOD => PModOp()
+        case GobraParser.AMPERSAND => PBitAndOp()
+        case GobraParser.OR => PBitOrOp()
+        case GobraParser.CARET => PBitXorOp()
+        case GobraParser.BIT_CLEAR => PBitClearOp()
+        case GobraParser.LSHIFT => PShiftLeftOp()
+        case GobraParser.RSHIFT => PShiftRightOp()
+      }
+      PAssignmentWithOp(right match {
+        case Vector(r) => r
+        case Vector(_, _*) => fail(ctx.expressionList(0), "Assignments with operators can only have one right-hand expression.")
+      }, ass_op, left match {
+        case Vector(l) => l
+        case Vector(_, _*) => fail(ctx.expressionList(0), "Assignments with operators can only have one left-hand expression.")
+      }).at(ctx)
+    }
+    else {
+      PAssignment(right, left)
+        .at(ctx)
+    }
   }
 
   /**
@@ -1350,6 +1451,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       visitArrayType(ctx.arrayType())
     } else if (has(ctx.functionType())) {
       visitFunctionType(ctx.functionType())
+    } else if (has(ctx.mapType())) {
+      visitMapType(ctx.mapType())
     } else fail(ctx)
   }
 
@@ -1615,5 +1718,5 @@ class TranslationException(cause : NamedPositionable, msg : String)  extends Exc
 
 case class TranslationFailure(cause: NamedPositionable, msg : String = "") extends TranslationException(cause, s"Translation of ${cause.name} ${cause.text} failed${if (msg.nonEmpty) ": " + msg else "."}")
 case class TranslationWarning(cause: NamedPositionable, msg : String = "") extends TranslationException(cause, s"Warning in ${cause.name} ${cause.text}${if (msg.nonEmpty) ": " + msg else "."}")
-case class UnsupportedOperatorException(cause: NamedPositionable, typ : String, msg : String = "") extends TranslationException(cause, s"Unsupported $typ operation: ${cause.text}")
+case class UnsupportedOperatorException(cause: NamedPositionable, typ : String, msg : String = "") extends TranslationException(cause, s"Unsupported $typ operation: ${cause.text}.")
 

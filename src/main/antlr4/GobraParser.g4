@@ -82,9 +82,11 @@ specStatement
     | kind=DEC terminationMeasure
     ;
 
-functionDecl: specification FUNC IDENTIFIER (signature block?);
+functionDecl: specification FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
 
-methodDecl: specification FUNC receiver IDENTIFIER ( signature block?);
+methodDecl: specification FUNC receiver IDENTIFIER ( signature blockWithBodyParameterInfo?);
+
+blockWithBodyParameterInfo: L_CURLY (SHARE identifierList eos)? statementList? R_CURLY;
 
 assertion:
     | expression
@@ -181,6 +183,8 @@ expression:
     | RANGE
 	) L_PAREN expression R_PAREN
 	| unfolding
+	| new_
+	| make
 	| unary_op = (
 		PLUS
 		| MINUS
@@ -223,6 +227,10 @@ expression:
 	|<assoc=right> expression IMPLIES expression
 	|<assoc=right> expression QMARK expression COLON expression;
 
+make: MAKE L_PAREN type_ (COMMA expressionList)? R_PAREN;
+
+new_: NEW L_PAREN type_ R_PAREN;
+
 // Added ghost statements
 statement:
     ghostStatement
@@ -246,7 +254,7 @@ specForStmt: loopSpec forStmt;
 
 loopSpec: (INV expression eos)* (DEC terminationMeasure eos)?;
 
-terminationMeasure: expressionList (IF expression);
+terminationMeasure: expressionList (IF expression)?;
 
 // Added true, false as literals
 basicLit:
@@ -272,7 +280,10 @@ primaryExpr:
 		| seqUpdExp
 		| typeAssertion
 		| arguments
+		| predConstructArgs
 	);
+
+predConstructArgs: L_PRED expressionList COMMA? R_PRED;
 
 // Added predicate spec and method specifications
 interfaceType:
@@ -315,6 +326,21 @@ ifStmt:
 	IF (simpleStmt? SEMI)? expression block (
 		ELSE (ifStmt | block)
 	)?;
+
+// Introduce name for operator
+assign_op: ass_op=(
+		PLUS
+		| MINUS
+		| OR
+		| CARET
+		| STAR
+		| DIV
+		| MOD
+		| LSHIFT
+		| RSHIFT
+		| AMPERSAND
+		| BIT_CLEAR
+	)? ASSIGN;
 
 // same for switch
 exprSwitchStmt:

@@ -32,7 +32,6 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     val lines = input.split("\n")
     var message = lines(line - 1)
     message += "\n"
-    print(charPositionInLine)
     for (i <- 0 until charPositionInLine) {
       message += " "
     }

@@ -215,8 +215,7 @@ object GobraRunner extends GobraFrontend with StrictLogging {
     try {
       val scallopGobraconfig = new ScallopGobraConfig(args.toSeq)
       val config = scallopGobraconfig.config
-      val nThreads = Math.max(DefaultGobraExecutionContext.minimalThreadPoolSize, Runtime.getRuntime.availableProcessors())
-      val executor: GobraExecutionContext = new DefaultGobraExecutionContext(nThreads)
+      val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
       val verifier = createVerifier()
       val resultFuture = verifier.verify(config)(executor)
       val result = Await.result(resultFuture, Duration.Inf)

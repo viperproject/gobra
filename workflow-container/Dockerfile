@@ -48,10 +48,13 @@ ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true
 ARG SILVER_REF
 ARG CARBON_REF
 ARG SILICON_REF
+ARG VIPERSERVER_REF
+
 # Check build arguments:
 RUN if [ -z "$SILVER_REF" ]; then echo "SILVER_REF is required" && exit 1 ; fi
 RUN if [ -z "$CARBON_REF" ]; then echo "CARBON_REF is required" && exit 1 ; fi
 RUN if [ -z "$SILICON_REF" ]; then echo "SILICON_REF is required" && exit 1 ; fi
+RUN if [ -z "$VIPERSERVER_REF" ]; then echo "VIPERSERVER_REF is required" && exit 1 ; fi
 
 # Setup silver
 RUN git clone https://github.com/viperproject/silver.git ./silver && \
@@ -73,13 +76,22 @@ RUN git clone https://github.com/viperproject/silicon.git ./silicon && \
 	ln -s ../silver silver && \
 	cd ..
 
+# Setup Viperserver
+RUN git clone https://github.com/viperproject/viperserver.git ./viperserver && \
+    cd viperserver && \
+	git checkout $VIPERSERVER_REF && \
+	ln -s ../silver silver && \
+	ln -s ../silicon silicon && \
+	ln -s ../carbon carbon && \
+	cd ..
+
 # Setup gobra
 WORKDIR /build/gobra/
 COPY build.sbt /build/gobra/
 COPY project /build/gobra/project
 COPY conf /build/gobra/conf
 COPY src /build/gobra/src
-RUN ln -s ../silver silver && ln -s ../silicon silicon && ln -s ../carbon carbon
+RUN ln -s ../silver silver && ln -s ../silicon silicon && ln -s ../carbon carbon && ln -s ../viperserver viperserver
 
 RUN sbt assembly
 

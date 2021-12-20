@@ -1,0 +1,41 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+requires x > 0 && y > 0
+ensures ret > 0
+trusted
+func positiveSumCorrectSpec(x int, y int) (ret int) {
+	return x + y
+}
+
+requires x < 0 && y < 0
+ensures ret > 0
+trusted
+func positiveSumIncorrectSpec(x int, y int) (ret int) {
+	return x + y
+}
+
+requires x > 0 && y > 0
+ensures ret > 0
+func positiveSumWithoutTrusted(x int, y int) (ret int) {
+	return x + y
+}
+
+trusted
+ensures ret < 0
+func testPositiveSumWithoutTrusted() (ret int) {
+    return positiveSumWithoutTrusted(-10, 12)
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures ret < 0
+func test1() (ret int){
+    return positiveSumCorrectSpec(10, 10);
+}
+
+func test2() int{
+    //:: ExpectedOutput(precondition_error:assertion_error)
+    return positiveSumCorrectSpec(-10, 10);
+}

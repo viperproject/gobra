@@ -399,6 +399,18 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitMethodExpr(ctx: MethodExprContext): PDot = {
+    val recv = visitType_(ctx.receiverType().type_())
+    val id = idnUse(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())
+    PDot(recv, id).at(ctx)
+  }
+
+  /**
     * Visit a parse tree produced by `GobraParser`.
     *
     * @param ctx the parse tree
@@ -444,6 +456,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       } else fail(ctx)
     } else if (has(ctx.conversion())) {
       visitConversion(ctx.conversion())
+    } else if (has(ctx.methodExpr())) {
+      visitMethodExpr(ctx.methodExpr())
     } else fail(ctx)
   }
 
@@ -1204,7 +1218,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         case GobraParser.FOLD => PFold(predicateAccess).at(ctx)
         case GobraParser.UNFOLD => PUnfold(predicateAccess).at(ctx)
       }
-    }  else fail(ctx)
+    }  else if (has(ctx.kind)) {
+      val expr = visitExpression(ctx.expression())
+      val kind = ctx.kind.getType match {
+        case GobraParser.ASSERT => PAssert
+        case GobraParser.ASSUME => PAssume
+        case GobraParser.INHALE => PInhale
+        case GobraParser.EXHALE => PExhale
+      }
+      kind(expr).at(ctx)
+    } else fail(ctx)
   }
 
   /**
@@ -1322,6 +1345,105 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     PGoStmt(expr).at(ctx)
   }
 
+  def visitLabelDef(node: TerminalNode) : PLabelDef = {
+    PLabelDef(node.toString).at(node)
+  }
+
+  def visitLabelUse(node: TerminalNode) : PLabelUse = {
+    PLabelUse(node.toString).at(node)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitLabeledStmt(ctx: LabeledStmtContext): PLabeledStmt = {
+    val label = visitLabelDef(ctx.IDENTIFIER())
+    val stmt = if(has(ctx.statement())) visitStatement(ctx.statement()) else PEmptyStmt().at(ctx)
+    PLabeledStmt(label, stmt).at(ctx)
+  }
+
+
+  def visitExprDefaultClause(ctx: ExprCaseClauseContext): PExprSwitchDflt = {
+    PExprSwitchDflt(PBlock(visitStatementList(ctx.statementList())).at(ctx.statementList())).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitExprCaseClause(ctx: ExprCaseClauseContext): PExprSwitchCase = {
+    val body = PBlock(visitStatementList(ctx.statementList())).at(ctx)
+    val left = visitExpressionList(ctx.exprSwitchCase().expressionList())
+    PExprSwitchCase(left, body).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitExprSwitchStmt(ctx: ExprSwitchStmtContext): PExprSwitchStmt = {
+    val pre = if (has(ctx.simpleStmt())) Some(visitSimpleStmt(ctx.simpleStmt())) else None
+    val expr = if (has(ctx.expression())) visitExpression(ctx.expression()) else PBoolLit(true).at(ctx.SWITCH())
+    val (dflt, cases) = ctx.exprCaseClause().asScala.toVector.partitionMap(clause =>
+      if (has(clause.exprSwitchCase().DEFAULT())) Left(visitExprDefaultClause(clause).body)
+      else Right(visitExprCaseClause(clause))
+    )
+    PExprSwitchStmt(pre, expr, cases, dflt).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeList(ctx: TypeListContext): Vector[PExpressionOrType] = {
+    val types = if (has(ctx.type_())) for (typ <- ctx.type_().asScala.toVector) yield visitType_(typ) else Vector.empty
+    if (has(ctx.NIL_LIT())) types.appended(PNilLit()) else types
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeCaseClause(ctx: TypeCaseClauseContext): PTypeSwitchCase = {
+    val body = PBlock(visitStatementList(ctx.statementList())).at(ctx)
+    val left = visitTypeList(ctx.typeSwitchCase().typeList())
+    PTypeSwitchCase(left, body).at(ctx)
+  }
+
+  def visitTypeDefaultClause(ctx: TypeCaseClauseContext): PTypeSwitchDflt = {
+    val body  = PBlock(visitStatementList(ctx.statementList())).at(ctx.statementList())
+    PTypeSwitchDflt(body).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeSwitchStmt(ctx: TypeSwitchStmtContext): PTypeSwitchStmt = {
+    val pre = if (has(ctx.simpleStmt())) Some(visitSimpleStmt(ctx.simpleStmt())) else None
+    val binder = if (has(ctx.typeSwitchGuard().IDENTIFIER())) Some(idnDef(ctx.typeSwitchGuard().IDENTIFIER())) else None
+    val expr = visitPrimaryExpr(ctx.typeSwitchGuard().primaryExpr())
+    val (dflt, cases) = ctx.typeCaseClause().asScala.toVector.partitionMap(clause =>
+      if (has(clause.typeSwitchCase().DEFAULT())) Left(visitTypeDefaultClause(clause).body)
+      else Right(visitTypeCaseClause(clause))
+    )
+    PTypeSwitchStmt(pre, expr, binder, cases, dflt).at(ctx)
+
+  }
+
   override def visitStatement(ctx: GobraParser.StatementContext): PStatement = {
     if (has(ctx.declaration())) {
       PSeq(visitDeclarationStmt(ctx.declaration())).at(ctx)
@@ -1337,6 +1459,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       visitSpecForStmt(ctx.specForStmt())
     } else if (has(ctx.goStmt())) {
       visitGoStmt(ctx.goStmt())
+    } else if (has(ctx.labeledStmt())) {
+      visitLabeledStmt(ctx.labeledStmt())
+    } else if (has(ctx.gotoStmt())) {
+      PGoto(visitLabelDef(ctx.gotoStmt().IDENTIFIER())).at(ctx)
+    } else if (has(ctx.block())) {
+      visitBlock(ctx.block())
+    } else if (has(ctx.switchStmt())) {
+      if (has(ctx.switchStmt().exprSwitchStmt()))
+        visitExprSwitchStmt(ctx.switchStmt().exprSwitchStmt())
+      else visitTypeSwitchStmt(ctx.switchStmt().typeSwitchStmt())
     } else fail(ctx)
   }
 
@@ -1347,6 +1479,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @return the visitor result
     */
   override def visitStatementList(ctx: GobraParser.StatementListContext): Vector[PStatement] = {
+    if (ctx == null) return Vector.empty
     for (stmt <- ctx.statement().asScala.toVector) yield visitStatement(stmt)
   }
 

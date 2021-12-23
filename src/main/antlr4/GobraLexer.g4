@@ -8,6 +8,8 @@ TRUE        : 'true';
 FALSE       : 'false';
 ASSERT      : 'assert';
 ASSUME      : 'assume';
+INHALE      : 'inhale';
+EXHALE      : 'exhale';
 PRE         : 'requires';
 PRESERVES   : 'preserves';
 POST        : 'ensures';

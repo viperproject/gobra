@@ -17,7 +17,8 @@ maybeAddressableIdentifier: IDENTIFIER ADDR_MOD?;
 ghostStatement:
     GHOST statement |
     ASSERT expression |
-    fold_stmt=(FOLD | UNFOLD) predicateAccess
+    fold_stmt=(FOLD | UNFOLD) predicateAccess |
+    kind=(ASSUME | ASSERT | INHALE | EXHALE) expression
     ;
 
 boundVariables
@@ -263,7 +264,7 @@ specForStmt: loopSpec forStmt;
 
 loopSpec: (INV expression eos)* (DEC terminationMeasure eos)?;
 
-terminationMeasure: expressionList (IF expression)?;
+terminationMeasure: expressionList? (IF expression)?;
 
 // Added true, false as literals
 basicLit:
@@ -352,6 +353,10 @@ literalType:
 	| ghostTypeLit
 	| typeName;
 
+// Added Deflate
+//exprCaseClause: exprSwitchCase COLON statementList?;
+
+
 // ANTLR Grammar fixes
 
 // distinguish low,high cap
@@ -371,6 +376,15 @@ ifStmt:
 		ELSE (ifStmt | block)
 	)?;
 
+
+// same for switch
+exprSwitchStmt:
+	SWITCH (simpleStmt? SEMI)? expression? L_CURLY exprCaseClause* R_CURLY;
+
+typeSwitchStmt:
+	SWITCH (simpleStmt? SEMI)? typeSwitchGuard L_CURLY typeCaseClause* R_CURLY;
+
+
 // Introduce name for operator
 assign_op: ass_op=(
 		PLUS
@@ -385,13 +399,6 @@ assign_op: ass_op=(
 		| AMPERSAND
 		| BIT_CLEAR
 	)? ASSIGN;
-
-// same for switch
-exprSwitchStmt:
-	SWITCH (simpleStmt? SEMI)? expression? L_CURLY exprCaseClause* R_CURLY;
-
-typeSwitchStmt:
-	SWITCH (simpleStmt? SEMI)? typeSwitchGuard L_CURLY typeCaseClause* R_CURLY;
 
 // allow "import ("import1";"import2") without semicolon at the end
 eos:

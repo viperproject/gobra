@@ -49,7 +49,9 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
   def resolve(n: PExpressionOrType): Option[ap.Pattern] = n match {
 
     case n: PNamedOperand =>
-      entity(n.id) match {
+      { val e = entity(n.id)
+
+        e match {
         case s: st.NamedType => Some(ap.NamedType(n.id, s))
         case s: st.Variable => Some(ap.LocalVariable(n.id, s))
         case s: st.Constant => Some(ap.Constant(n.id, s))
@@ -59,12 +61,13 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         // built-in members
         case s: st.BuiltInFunction => Some(ap.BuiltInFunction(n.id, s))
         case s: st.BuiltInFPredicate => Some(ap.BuiltInPredicate(n.id, s))
+        case s : st.BuiltInType => Some(ap.BuiltInType(n.id, s))
         // interface method and predicate when referenced inside of the interface definition
         // (otherwise a receiver would be present)
         case s: st.MethodSpec => Some(ap.ImplicitlyReceivedInterfaceMethod(n.id, s))
         case s: st.MPredicateSpec => Some(ap.ImplicitlyReceivedInterfacePredicate(n.id, s))
-        case _ => None
-      }
+        case s => None
+      }}
 
     case n: PDeref =>
       exprOrType(n.base) match {
@@ -103,6 +106,9 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case Right(t) if n.args.length == 1 => Some(ap.Conversion(t, n.args.head))
         case Left(e) =>
           resolve(e) match {
+            case Some(p: ap.BuiltInType) if n.args.length == 1 =>
+              // TODO: More elegenat version to get the Types
+              Some(ap.Conversion(predefinedTypesMap(p.id.name) , n.args.head))
             case Some(p: ap.FunctionKind) => Some(ap.FunctionCall(p, n.args))
             case Some(p: ap.PredicateKind) => Some(ap.PredicateCall(p, n.args))
             case _ if exprType(e).isInstanceOf[PredT] => Some(ap.PredExprInstance(e, n.args))
@@ -122,5 +128,25 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
     case _ => None
   }
 
+  val predefinedTypesMap = Map(
+    "bool" -> PBoolType(),
+      "string" -> PStringType(),
+      "perm" -> PPermissionType(),
+      // signed integer types
+      "rune" -> PRune(),
+      "int" -> PIntType(),
+      "int8" -> PInt8Type(),
+      "int16" -> PInt16Type(),
+      "int32" -> PInt32Type(),
+      "int64" -> PInt64Type(),
+      // unsigned integer types
+      "byte" -> PByte(),
+      "uint" -> PUIntType(),
+      "uint8" -> PUInt8Type(),
+      "uint16" -> PUInt16Type(),
+      "uint32" -> PUInt32Type(),
+      "uint64" -> PUInt64Type(),
+      "uintptr" -> PUIntPtr(),
+  )
 
 }

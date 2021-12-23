@@ -1517,6 +1517,9 @@ object Desugar {
             case Some(_: ap.NamedType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
+            case Some(_: ap.BuiltInType) =>
+              val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
+              unit(in.DefinedTExpr(name)(src))
             case p => Violation.violation(s"encountered unexpected pattern: $p")
           }
 
@@ -1542,6 +1545,9 @@ object Desugar {
             case Some(p: ap.FieldSelection) => fieldSelectionD(ctx)(p)(src)
             case Some(p: ap.Constant) => unit[in.Expr](globalConstD(p.symb)(src))
             case Some(_: ap.NamedType) =>
+              val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
+              unit(in.DefinedTExpr(name)(src))
+            case Some(_: ap.BuiltInType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
             case Some(p) => Violation.violation(s"only field selections, global constants, and types can be desugared to an expression, but got $p")

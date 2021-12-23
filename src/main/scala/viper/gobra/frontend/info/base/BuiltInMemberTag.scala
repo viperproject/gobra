@@ -6,6 +6,9 @@
 
 package viper.gobra.frontend.info.base
 
+import viper.gobra.frontend.info.base.Type.{BooleanT, IntT, PermissionT, StringT, Type}
+import viper.gobra.util.TypeBounds
+
 
 /**
   * Module to add built-in functions, methods, fpredicates, and mpredicates to Gobra.
@@ -34,6 +37,10 @@ object BuiltInMemberTag {
     override def ghost: Boolean = true
   }
 
+  sealed trait BuiltInTypeTag extends ActualBuiltInMember {
+    def typ: Type
+  }
+
   sealed trait BuiltInFunctionTag extends BuiltInMemberTag {
     def isPure: Boolean
   }
@@ -42,6 +49,109 @@ object BuiltInMemberTag {
     def isPure: Boolean
   }
   sealed trait BuiltInMPredicateTag extends GhostBuiltInMember
+
+  /** Built-in Type Tags */
+
+
+  case object BoolType extends BuiltInTypeTag {
+    override def identifier: String = "bool"
+    override def name: String = "BoolType"
+    override def ghost: Boolean = false
+    override def typ: Type = BooleanT
+  }
+  case object StringType extends BuiltInTypeTag {
+    override def identifier: String = "string"
+    override def name: String = "StringType"
+    override def ghost: Boolean = false
+    override def typ: Type = StringT
+  }
+  case object PermissionType extends BuiltInTypeTag {
+    override def identifier: String = "perm"
+    override def name: String = "PermissionType"
+    override def ghost: Boolean = true
+    override def typ: Type = PermissionT
+  }
+  // signed integer types
+  case object Rune extends BuiltInTypeTag {
+    override def identifier: String = "rune"
+    override def name: String = "Rune"
+    override def ghost: Boolean = false
+    override def typ: Type = IntT(TypeBounds.Rune)
+  }
+  case object IntType extends BuiltInTypeTag {
+    override def identifier: String = "int"
+    override def name: String = "IntType"
+    override def ghost: Boolean = false
+    // TODO: Get the right type
+    override def typ: Type = IntT(TypeBounds.SignedInteger32)
+  }
+  case object Int8Type extends BuiltInTypeTag {
+    override def identifier: String = "int8"
+    override def name: String = "Int8Type"
+    override def ghost: Boolean = false
+    override def typ: Type = IntT(TypeBounds.SignedInteger8)
+  }
+  case object Int16Type extends BuiltInTypeTag {
+    override def identifier: String = "int16"
+    override def name: String = "Int16Type"
+    override def ghost: Boolean = false
+    override def typ: Type = IntT(TypeBounds.SignedInteger16)
+  }
+  case object Int32Type extends BuiltInTypeTag {
+    override def identifier: String = "int32"
+    override def name: String = "Int32Type"
+    override def ghost: Boolean = false
+    override def typ: Type = IntT(TypeBounds.SignedInteger32)
+  }
+  case object Int64Type extends BuiltInTypeTag {
+    override def identifier: String = "int64"
+    override def name: String = "Int64Type"
+    override def ghost: Boolean = false
+    override def typ: Type = IntT(TypeBounds.SignedInteger64)
+  }
+  // unsigned integer types
+  case object Byte extends BuiltInTypeTag {
+    override def identifier: String = "byte"
+    override def name: String = "Byte"
+    override def ghost: Boolean = false
+    override def typ: Type = IntT(TypeBounds.Byte)
+  }
+  case object UIntType extends BuiltInTypeTag {
+    override def identifier: String = "uint"
+    override def name: String = "UIntType"
+    override def ghost: Boolean = false
+    override def typ: Type = IntT(TypeBounds.UnsignedInteger32)
+  }
+  case object UInt8Type extends BuiltInTypeTag {
+    override def identifier: String = "uint8"
+    override def name: String = "UInt8Type"
+    override def ghost: Boolean = false
+    override def typ: Type = IntT(TypeBounds.UnsignedInteger8)
+  }
+  case object UInt16Type extends BuiltInTypeTag {
+    override def identifier: String = "uint16"
+    override def name: String = "UInt16Type"
+    override def ghost: Boolean = false
+    override def typ: Type = IntT(TypeBounds.UnsignedInteger16)
+  }
+  case object UInt32Type extends BuiltInTypeTag {
+    override def identifier: String = "uint32"
+    override def name: String = "UInt32Type"
+    override def ghost: Boolean = false
+    override def typ: Type = IntT(TypeBounds.UnsignedInteger32)
+  }
+  case object UInt64Type extends BuiltInTypeTag {
+    override def identifier: String = "uint64"
+    override def name: String = "UInt64Type"
+    override def ghost: Boolean = false
+    override def typ: Type = IntT(TypeBounds.UnsignedInteger64)
+  }
+  case object UIntPtr extends BuiltInTypeTag {
+    override def identifier: String = "uintptr"
+    override def name: String = "UIntPtr"
+    override def ghost: Boolean = false
+    override def typ: Type = IntT(TypeBounds.UIntPtr)
+  }
 
 
   /** Built-in Function Tags */
@@ -165,6 +275,25 @@ object BuiltInMemberTag {
     * Returns a vector of tags belonging to built-in members that should be considered during name resolution
     */
   def builtInMembers(): Vector[BuiltInMemberTag] = Vector(
+    // types
+    BoolType,
+    StringType,
+    PermissionType,
+    // signed integer types
+    Rune,
+    IntType,
+    Int8Type,
+    Int16Type,
+    Int32Type,
+    Int64Type,
+    // unsigned integer types
+    Byte,
+    UIntType,
+    UInt8Type,
+    UInt16Type,
+    UInt32Type,
+    UInt64Type,
+    UIntPtr,
     // functions
     CloseFunctionTag,
     AppendFunctionTag,

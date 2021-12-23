@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Entity, Environments}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.ExternalTypeInfo
-import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag}
+import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, BuiltInTypeTag}
 
 
 object SymbolTable extends Environments[Entity] {
@@ -250,6 +250,10 @@ object SymbolTable extends Environments[Entity] {
   case class BuiltInFPredicate(tag: BuiltInFPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInGhostEntity
   case class BuiltInMPredicate(tag: BuiltInMPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInGhostEntity with BuiltInMethodLike with GhostTypeMember
 
+  // TODO: Find out if this is correct
+  case class BuiltInType(tag: BuiltInTypeTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInActualEntity {
+    def isPure: Boolean = true
+  }
 
 
 

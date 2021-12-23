@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.BuiltInMemberTag
-import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag}
+import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag, BuiltInTypeTag}
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type.StructT
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -134,6 +134,7 @@ trait NameResolution { this: TypeInfoImpl =>
         case _: BuiltInMethodTag => None
         case tag: BuiltInFPredicateTag => Some(BuiltInFPredicate(tag, n, this))
         case tag: BuiltInMPredicateTag => Some(BuiltInMPredicate(tag, n, this))
+        case tag: BuiltInTypeTag => Some(BuiltInType(tag, n, this))
       }
       entity match {
         case Some(e) => Some((m.identifier, e))

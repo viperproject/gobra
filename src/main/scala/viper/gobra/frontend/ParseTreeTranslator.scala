@@ -356,6 +356,15 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       PForall(vars, triggers, body).at(ctx)
     } else if (has(ctx.sConversion())) {
       visitSConversion(ctx.sConversion)
+    } else if (has(ctx.optionNone())) {
+      val typ = visitType_(ctx.optionNone().type_())
+      POptionNone(typ).at(ctx)
+    } else if (has(ctx.optionSome())) {
+      val exp = visitExpression(ctx.optionSome().expression())
+      POptionSome(exp).at(ctx)
+    } else if (has(ctx.optionGet())) {
+      val exp = visitExpression(ctx.optionGet().expression())
+      POptionGet(exp).at(ctx)
     } else fail(ctx)
   }
 
@@ -370,6 +379,22 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val exp = visitExpression(ctx.expression())
 
     PInvoke(typ, Vector(exp)).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitPredConstructArgs(ctx: PredConstructArgsContext): Vector[Option[PExpression]] = {
+    val exprs = withWildcards {
+       visitExpressionList(ctx.expressionList())
+    }
+    exprs.map {
+      case PNamedOperand(PIdnUse("_")) => None
+      case e => Some(e)
+    }
   }
 
   /**
@@ -407,6 +432,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       } else if (has(ctx.typeAssertion())) {
         val typ = visitType_(ctx.typeAssertion().type_())
         PTypeAssertion(pe, typ).at(ctx)
+      } else if (has(ctx.predConstructArgs())) {
+        val args = visitPredConstructArgs(ctx.predConstructArgs())
+        val id = pe match {
+          case recvWithId@PDot(_, _) => PDottedBase(recvWithId).at(recvWithId)
+          case PNamedOperand(identifier@PIdnUse(_)) => PFPredBase(identifier).at(identifier)
+          case _ => fail(ctx.primaryExpr(), "Wrong base type for predicate constructor.")
+        }
+        PPredConstructor(id, args).at(ctx)
       } else fail(ctx)
     } else if (has(ctx.conversion())) {
       visitConversion(ctx.conversion())
@@ -1436,6 +1469,27 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@inheritDoc  }
     *
     * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitPredTypeParams(ctx: PredTypeParamsContext): Vector[PType] = {
+    for (typ <- ctx.type_().asScala.toVector) yield visitType_(typ)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitPredType(ctx: PredTypeContext): PPredType = {
+    val params = visitPredTypeParams(ctx.predTypeParams())
+    PPredType(params).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitTypeLit(ctx: GobraParser.TypeLitContext): PTypeLit = {
@@ -1453,6 +1507,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       visitFunctionType(ctx.functionType())
     } else if (has(ctx.mapType())) {
       visitMapType(ctx.mapType())
+    } else if (has(ctx.predType())) {
+      visitPredType(ctx.predType())
     } else fail(ctx)
   }
 
@@ -1479,11 +1535,24 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@inheritDoc  }
     *
     * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitGhostSliceType(ctx: GhostSliceTypeContext): PGhostSliceType = {
+    val typ = visitType_(ctx.elementType().type_())
+    PGhostSliceType(typ).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitGhostTypeLit(ctx: GhostTypeLitContext): PGhostLiteralType = {
     if(ctx.sqType() != null) {
       visitSqType(ctx.sqType())
+    } else if (has(ctx.ghostSliceType())) {
+      visitGhostSliceType(ctx.ghostSliceType())
     } else fail(ctx)
   }
 

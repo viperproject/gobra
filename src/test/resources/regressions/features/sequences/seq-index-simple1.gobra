@@ -19,7 +19,7 @@ func example3() {
 }
 
 requires 0 < n
-ensures seq[0..n][n - 1] == n - 1
+ensures seq[0 ..n][n - 1] == n - 1
 func example4(ghost n int) {
 }
 

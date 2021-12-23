@@ -2516,10 +2516,16 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse a fpredicate constructor with wildcard") {
+    frontend.parseExpOrFail("p!<x, _, y!>") should matchPattern {
+      case PPredConstructor(PFPredBase(PIdnUse("p")), Vector(Some(PNamedOperand(PIdnUse("x"))), None, Some(PNamedOperand(PIdnUse("y"))))) =>
+    }
+  }
+
 
   /* ** Parser tests related to explicit ghost statements */
 
-  test("Parser: should be able to parse an exlicit short var decl") {
+  test("Parser: should be able to parse an explicit short var decl") {
     frontend.parseStmtOrFail("ghost res := test(s)") should matchPattern {
       case PExplicitGhostStatement(PShortVarDecl(
         Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector(PNamedOperand(PIdnUse("s"))))),

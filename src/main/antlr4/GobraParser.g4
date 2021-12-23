@@ -43,7 +43,14 @@ ghostPrimaryExpr: range
                 | isComparable
                 | old
                 | sConversion
+                | optionNone | optionSome | optionGet 
                 | FORALL boundVariables COLON COLON triggers expression;
+
+optionSome: SOME L_PAREN expression R_PAREN;
+
+optionNone: NONE L_BRACKET type_ R_BRACKET;
+
+optionGet: GET L_PAREN expression R_PAREN;
 
 sConversion: kind=(SET | SEQ | MSET) L_PAREN expression R_PAREN;
 
@@ -61,7 +68,9 @@ typeOf: TYPE_OF L_PAREN expression R_PAREN;
 
 isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 
-ghostTypeLit: sqType;
+ghostTypeLit: sqType | ghostSliceType;
+
+ghostSliceType: GHOST L_BRACKET R_BRACKET elementType;
 
 sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
         | kind=DICT L_BRACKET type_ R_BRACKET type_;
@@ -283,7 +292,7 @@ primaryExpr:
 		| predConstructArgs
 	);
 
-predConstructArgs: L_PRED expressionList COMMA? R_PRED;
+predConstructArgs: L_PRED expressionList? COMMA? R_PRED;
 
 // Added predicate spec and method specifications
 interfaceType:
@@ -297,6 +306,22 @@ methodSpec:
 
 // Added ghostTypeLiterals
 type_: typeName | typeLit | ghostTypeLit | L_PAREN type_ R_PAREN;
+
+// Added pred types
+typeLit:
+	arrayType
+	| structType
+	| pointerType
+	| functionType
+	| interfaceType
+	| sliceType
+	| mapType
+	| channelType
+	| predType;
+
+predType: PRED predTypeParams;
+
+predTypeParams: L_PAREN (type_ (COMMA type_)* COMMA?)? R_PAREN;
 
 // Ditto
 literalType:

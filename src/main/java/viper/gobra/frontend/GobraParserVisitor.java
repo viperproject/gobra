@@ -1,4 +1,4 @@
-// Generated from /home/nico/Documents/repositories/projects/eth/BA/gobraHome/gobra/src/main/antlr4/GobraParser.g4 by ANTLR 4.9.1
+// Generated from /home/nico/Documents/repositories/projects/eth/BA/gobraHome/gobra/src/main/antlr4/GobraParser.g4 by ANTLR 4.9.2
 package viper.gobra.frontend;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -71,6 +71,24 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitGhostPrimaryExpr(GobraParser.GhostPrimaryExprContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#optionSome}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitOptionSome(GobraParser.OptionSomeContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#optionNone}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitOptionNone(GobraParser.OptionNoneContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#optionGet}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitOptionGet(GobraParser.OptionGetContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#sConversion}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -124,6 +142,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitGhostTypeLit(GobraParser.GhostTypeLitContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#ghostSliceType}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitGhostSliceType(GobraParser.GhostSliceTypeContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#sqType}.
 	 * @param ctx the parse tree
@@ -364,6 +388,24 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitType_(GobraParser.Type_Context ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#typeLit}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTypeLit(GobraParser.TypeLitContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#predType}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPredType(GobraParser.PredTypeContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#predTypeParams}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPredTypeParams(GobraParser.PredTypeParamsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#literalType}.
 	 * @param ctx the parse tree
@@ -682,12 +724,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitTypeName(GobraParser.TypeNameContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#typeLit}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitTypeLit(GobraParser.TypeLitContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#arrayType}.
 	 * @param ctx the parse tree

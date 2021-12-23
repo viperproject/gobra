@@ -123,11 +123,11 @@ ghostMember: fpredicateDecl
             | varDecl
             );
 
-fpredicateDecl: PRED IDENTIFIER parameters predicateBody;
+fpredicateDecl: PRED IDENTIFIER parameters predicateBody?;
 
 predicateBody: L_CURLY expression eos R_CURLY;
 
-mpredicateDecl: PRED receiver IDENTIFIER parameters predicateBody;
+mpredicateDecl: PRED receiver IDENTIFIER parameters predicateBody?;
 
 implementationProof: type_ IMPL type_ L_CURLY (implementationProofPredicateAlias eos)* (methodImplementationProof eos)*  R_CURLY;
 

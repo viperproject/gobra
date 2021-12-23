@@ -151,6 +151,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         case GobraParser.CARET => PBitNegation
         case GobraParser.STAR => PDeref
         case GobraParser.AMPERSAND => PReference
+        case GobraParser.RECEIVE => PReceive
         case _ => throw UnsupportedOperatorException(ctx.unary_op, "unary")
       }
       unary(e).at(ctx)
@@ -747,8 +748,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       idnDef(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())
     }
     val params = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
-    val body = visitExpression(ctx.predicateBody().expression())
-    PFPredicateDecl(id, params.flatten, Some(body)).at(ctx)
+    val body = if (has(ctx.predicateBody())) Some(visitExpression(ctx.predicateBody().expression())) else None
+    PFPredicateDecl(id, params.flatten, body).at(ctx)
   }
 
   /**
@@ -1131,6 +1132,18 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       PAssignmentWithOp(PIntLit(1).at(ctx.MINUS_MINUS()), PSubOp().at(ctx.MINUS_MINUS()), exp).at(ctx)
   }
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitSendStmt(ctx: SendStmtContext): PSendStmt = {
+    val channel = visitExpression(ctx.channel)
+    val msg = visitExpression(ctx.expression(1))
+    PSendStmt(channel, msg).at(ctx)
+  }
+
   override def visitSimpleStmt(ctx: GobraParser.SimpleStmtContext): PSimpleStmt = {
     if (ctx.shortVarDecl() != null){
       visitShortVarDecl(ctx.shortVarDecl())
@@ -1140,6 +1153,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       PExpressionStmt(visitExpression(ctx.expressionStmt().expression())).at(ctx)
     } else if (has(ctx.incDecStmt())) {
       visitIncDecStmt(ctx.incDecStmt())
+    } else if (has(ctx.sendStmt())) {
+      visitSendStmt(ctx.sendStmt())
     } else fail(ctx)
 
   }
@@ -1274,7 +1289,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       PForStmt(None, visitExpression(ctx.expression()), None, spec, block).at(ctx)
     } else if(has(ctx.forClause())){
       val pre = if (has(ctx.forClause().initStmt)) Some(visitSimpleStmt(ctx.forClause().initStmt)) else None
-      val post = if (has(ctx.forClause().initStmt)) Some(visitSimpleStmt(ctx.forClause().postStmt)) else None
+      val post = if (has(ctx.forClause().postStmt)) Some(visitSimpleStmt(ctx.forClause().postStmt)) else None
       val cond = if (has(ctx.forClause().expression())) visitExpression(ctx.forClause().expression()) else PBoolLit(true).at(ctx)
       PForStmt(pre, cond, post, spec, block).at(ctx)
     } else if (has(ctx.rangeClause())) {
@@ -1296,6 +1311,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   }
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitGoStmt(ctx: GoStmtContext): PGoStmt = {
+    val expr = visitExpression(ctx.expression())
+    PGoStmt(expr).at(ctx)
+  }
+
   override def visitStatement(ctx: GobraParser.StatementContext): PStatement = {
     if (has(ctx.declaration())) {
       PSeq(visitDeclarationStmt(ctx.declaration())).at(ctx)
@@ -1309,6 +1335,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       visitIfStmt(ctx.ifStmt())
     } else if (has(ctx.specForStmt())) {
       visitSpecForStmt(ctx.specForStmt())
+    } else if (has(ctx.goStmt())) {
+      visitGoStmt(ctx.goStmt())
     } else fail(ctx)
   }
 
@@ -1490,6 +1518,24 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@inheritDoc  }
     *
     * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitChannelType(ctx: ChannelTypeContext): PChannelType = {
+    val elem = visitType_(ctx.elementType().type_())
+    val channel = if (!(has(ctx.RECEIVE()))) {
+      PBiChannelType
+    } else if (ctx.CHAN().startPos < ctx.RECEIVE().startPos) {     // CHAN RECEIVE : chan <-
+      PSendChannelType
+    } else  { // RECEIVE CHAN : <- chan
+      PRecvChannelType
+    }
+    channel(elem).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitTypeLit(ctx: GobraParser.TypeLitContext): PTypeLit = {
@@ -1509,6 +1555,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       visitMapType(ctx.mapType())
     } else if (has(ctx.predType())) {
       visitPredType(ctx.predType())
+    } else if (has(ctx.channelType())) {
+      visitChannelType(ctx.channelType())
     } else fail(ctx)
   }
 
@@ -1577,9 +1625,27 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       }
     } else if (ctx.ghostTypeLit() != null) {
         visitGhostTypeLit(ctx.ghostTypeLit())
-    } else {
-      fail(ctx, "in visitType_")
-    }
+    } else if (ctx.predefined != null) {
+      val t = ctx.predefined.getType match {
+        case GobraParser.BOOL => PBoolType()
+        case GobraParser.STRING  => PStringType()
+        case GobraParser.PERM  => PPermissionType()
+        case GobraParser.RUNE  => PRune()
+        case GobraParser.INT  => PIntType()
+        case GobraParser.INT8  => PInt8Type()
+        case GobraParser.INT16  => PInt16Type()
+        case GobraParser.INT32  => PInt32Type()
+        case GobraParser.INT64  => PInt64Type()
+        case GobraParser.BYTE  =>  PByte()
+        case GobraParser.UINT  => PUIntType()
+        case GobraParser.UINT8  => PUInt8Type()
+        case GobraParser.UINT16  => PUInt16Type()
+        case GobraParser.UINT32  => PUInt32Type()
+        case GobraParser.UINT64  => PUInt64Type()
+        case GobraParser.UINTPTR  => PUIntPtr()
+      }
+      t.at(ctx)
+    } else fail(ctx)
   }
 
   /**

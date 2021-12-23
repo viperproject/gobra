@@ -3,7 +3,8 @@
 
 package ints
 
-ghost pure func int64(x int32) int64
+// int64 is a reserved word in Gobra
+// ghost pure func int64(x int32) int64
 
 func wrongAssign1(x int32) (ret int64) {
 	//:: ExpectedOutput(type_error)

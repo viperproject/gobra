@@ -305,8 +305,27 @@ methodSpec:
 	| GHOST? specification IDENTIFIER parameters;
 
 // Added ghostTypeLiterals
-type_: typeName | typeLit | ghostTypeLit | L_PAREN type_ R_PAREN;
-
+type_: typeName | typeLit | ghostTypeLit | L_PAREN type_ R_PAREN
+        | predefined=(
+               BOOL |
+                 STRING |
+                 PERM |
+                // signed integer types
+                 RUNE |
+                 INT |
+                 INT8 |
+                 INT16 |
+                 INT32 |
+                 INT64 |
+                // unsigned integer types
+                 BYTE |
+                 UINT |
+                 UINT8 |
+                 UINT16 |
+                 UINT32 |
+                 UINT64 |
+                 UINTPTR
+        );
 // Added pred types
 typeLit:
 	arrayType

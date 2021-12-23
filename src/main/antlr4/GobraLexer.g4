@@ -57,4 +57,24 @@ DOT_DOT     : '..';
 SHARED      : 'shared';
 EXCLUSIVE   : 'exclusive';
 PREDICATE   : 'predicate';
+
+// Types
+       BOOL: 'bool';
+         STRING: 'string';
+         PERM: 'perm';
+        // signed integer types
+         RUNE: 'rune';
+         INT: 'int';
+         INT8: 'int8';
+         INT16: 'int16';
+         INT32: 'int32';
+         INT64: 'int64';
+        // unsigned integer types
+         BYTE: 'byte';
+         UINT: 'uint';
+         UINT8: 'uint8';
+         UINT16: 'uint16';
+         UINT32: 'uint32';
+         UINT64: 'uint64';
+         UINTPTR: 'uintptr';
 // END GOBRA

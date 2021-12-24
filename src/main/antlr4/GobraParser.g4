@@ -45,7 +45,8 @@ ghostPrimaryExpr: range
                 | old
                 | sConversion
                 | optionNone | optionSome | optionGet 
-                | FORALL boundVariables COLON COLON triggers expression;
+                | FORALL boundVariables COLON COLON triggers expression
+                | permission=(WRITEPERM | NOPERM);
 
 optionSome: SOME L_PAREN expression R_PAREN;
 

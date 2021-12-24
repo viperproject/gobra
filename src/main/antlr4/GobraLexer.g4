@@ -59,6 +59,9 @@ DOT_DOT     : '..';
 SHARED      : 'shared';
 EXCLUSIVE   : 'exclusive';
 PREDICATE   : 'predicate';
+WRITEPERM   : 'writePerm';
+NOPERM      : 'noPerm';
+
 
 // Types
        BOOL: 'bool';

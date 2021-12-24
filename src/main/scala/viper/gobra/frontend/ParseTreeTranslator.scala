@@ -189,6 +189,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
             case GobraParser.OR => PBitOr
             case GobraParser.CARET => PBitXor
             case GobraParser.PLUS_PLUS => PSequenceAppend
+            case GobraParser.WAND => PMagicWand
             case op =>
               throw UnsupportedOperatorException(ctx.add_op, "addition")
           }
@@ -365,11 +366,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       PIsComparable(visitGobraExpression(ctx.isComparable.expression())).at(ctx.isComparable)
     } else if (has(ctx.old())) {
       visitOld(ctx.old())
-    } else if (has(ctx.FORALL())) {
+    } else if (has(ctx.quantifier)) {
       val vars = visitBoundVariables(ctx.boundVariables())
       val triggers = visitTriggers(ctx.triggers())
       val body = visitGobraExpression(ctx.expression())
-      PForall(vars, triggers, body).at(ctx)
+      (ctx.quantifier.getType match {
+        case GobraParser.FORALL => PForall
+        case GobraParser.EXISTS => PExists
+      })(vars, triggers, body).at(ctx)
     } else if (has(ctx.sConversion())) {
       visitSConversion(ctx.sConversion)
     } else if (has(ctx.optionNone())) {
@@ -1483,6 +1487,35 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   }
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitPackageStmt(ctx: PackageStmtContext): PPackageWand = {
+    val w = visitGobraExpression(ctx.expression()) match {
+      case w : PMagicWand => w
+      case e => fail(ctx,s"expected a magic wand but instead got $e")
+    }
+    val b = if (has(ctx.block())) Some(visitBlock(ctx.block())) else None
+    PPackageWand(w,b).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitApplyStmt(ctx: ApplyStmtContext): PApplyWand = {
+    val w = visitGobraExpression(ctx.expression()) match {
+      case w : PMagicWand => w
+      case e => fail(ctx,s"expected a magic wand but instead got $e")
+    }
+    PApplyWand(w).at(ctx)
+  }
+
   override def visitStatement(ctx: GobraParser.StatementContext): PStatement = {
     if (has(ctx.declaration())) {
       PSeq(visitDeclarationStmt(ctx.declaration())).at(ctx)
@@ -1508,6 +1541,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       if (has(ctx.switchStmt().exprSwitchStmt()))
         visitExprSwitchStmt(ctx.switchStmt().exprSwitchStmt())
       else visitTypeSwitchStmt(ctx.switchStmt().typeSwitchStmt())
+    } else if (has(ctx.applyStmt())) {
+      visitApplyStmt(ctx.applyStmt())
+    } else if (has(ctx.packageStmt())) {
+      visitPackageStmt(ctx.packageStmt())
     } else fail(ctx)
   }
 
@@ -1764,6 +1801,26 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@inheritDoc  }
     *
     * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitDomainType(ctx: DomainTypeContext): PDomainType = {
+    val (funcs, axioms) = ctx.domainClause().asScala.toVector.partitionMap(clause =>
+      if (has(clause.FUNC())) {
+        val id = visitIdentifier(clause.IDENTIFIER(), Disallow, PIdnDef).asInstanceOf[PIdnDef]
+        val (params, result) = visitSignature(clause.signature())
+        Left(PDomainFunction(id, params, result).at(clause))
+      } else {
+        val expr = visitGobraExpression(clause.expression())
+        Right(PDomainAxiom(expr).at(clause))
+      }
+    )
+    PDomainType(funcs, axioms).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitGhostTypeLit(ctx: GhostTypeLitContext): PGhostLiteralType = {
@@ -1771,6 +1828,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       visitSqType(ctx.sqType())
     } else if (has(ctx.ghostSliceType())) {
       visitGhostSliceType(ctx.ghostSliceType())
+    } else if (has(ctx.domainType())) {
+      visitDomainType(ctx.domainType())
     } else fail(ctx)
   }
 

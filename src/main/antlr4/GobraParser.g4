@@ -45,7 +45,7 @@ ghostPrimaryExpr: range
                 | old
                 | sConversion
                 | optionNone | optionSome | optionGet 
-                | FORALL boundVariables COLON COLON triggers expression
+                | quantifier=(FORALL | EXISTS) boundVariables COLON COLON triggers expression
                 | permission=(WRITEPERM | NOPERM);
 
 optionSome: SOME L_PAREN expression R_PAREN;
@@ -70,7 +70,11 @@ typeOf: TYPE_OF L_PAREN expression R_PAREN;
 
 isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 
-ghostTypeLit: sqType | ghostSliceType;
+ghostTypeLit: sqType | ghostSliceType | domainType;
+
+domainType: DOM L_CURLY (domainClause eos)* R_CURLY;
+
+domainClause: FUNC IDENTIFIER signature | AXIOM L_CURLY expression eos R_CURLY;
 
 ghostSliceType: GHOST L_BRACKET R_BRACKET elementType;
 
@@ -215,7 +219,7 @@ expression:
 		| AMPERSAND
 		| BIT_CLEAR
 	) expression
-	| expression add_op = (PLUS | MINUS | OR | CARET | PLUS_PLUS ) expression
+	| expression add_op = (PLUS | MINUS | OR | CARET | PLUS_PLUS | WAND) expression
     | expression p42_op = (
         UNION
         | INTERSECTION
@@ -246,6 +250,8 @@ new_: NEW L_PAREN type_ R_PAREN;
 // Added ghost statements
 statement:
     ghostStatement
+    | packageStmt
+    | applyStmt
 	| declaration
 	| labeledStmt
 	| simpleStmt
@@ -261,6 +267,10 @@ statement:
 	| selectStmt
 	| specForStmt
 	| deferStmt;
+
+applyStmt: APPLY expression;
+
+packageStmt: PACKAGE expression block?;
 
 specForStmt: loopSpec forStmt;
 

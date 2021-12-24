@@ -29,7 +29,7 @@ type myBox struct{ i int }
 
 requires acc(&x.f) && acc(&x.max, 1/2) && x.hasNext()
 //:: ExpectedOutput(postcondition_error:assertion_error)
-ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 && typeOf(y) == myBox
+ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 && typeOf(y) == type[myBox]
 ensures  y.(myBox) == myBox{old(x.f)}
 func (x *counter) next() (y interface{}) { // omitted result assignment
   x.f += 1

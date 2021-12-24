@@ -157,6 +157,19 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       unary(e).at(ctx)
     } else {
       disableWildcards {
+        // handling for type equality
+        if (has(ctx.expression(0).type_()) || has(ctx.expression(1).type_())) {
+          val l = if (has(ctx.expression(0).type_())) visitType_(ctx.expression(0).type_()) else visitExpression(ctx.expression(0))
+          val r = if (has(ctx.expression(1).type_())) visitType_(ctx.expression(1).type_()) else visitExpression(ctx.expression(1))
+          val eq_op = if (has(ctx.rel_op)) {
+            ctx.rel_op.getType match {
+              case GobraParser.EQUALS => PEquals
+              case GobraParser.NOT_EQUALS => PUnequals
+              case _ => fail(ctx.rel_op, "Types may only be compared with == or !=.")
+            }
+          } else fail(ctx, "Type expressions may only appear in type comparisons.")
+          return eq_op(l,r).at(ctx)
+        }
         val left = visitExpression(ctx.expression(0))
         val right = visitExpression(ctx.expression(1))
 
@@ -185,6 +198,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
             case GobraParser.STAR => PMul
             case GobraParser.DIV => PDiv
             case GobraParser.MOD => PMod
+            case GobraParser.LSHIFT => PShiftLeft
+            case GobraParser.RSHIFT => PShiftRight
+            case GobraParser.AMPERSAND => PBitAnd
+            case GobraParser.BIT_CLEAR => PBitClear
             case op => throw UnsupportedOperatorException(ctx.mul_op, "multiplication")
           }
         } else if (ctx.p41_op != null) {
@@ -778,8 +795,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
     val receiver = visitReceiver(ctx.receiver())
     val params = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
-    val body = visitExpression(ctx.predicateBody().expression())
-    PMPredicateDecl(id, receiver, params.flatten, Some(body)).at(ctx)
+    val body = if (has(ctx.predicateBody())) Some(visitExpression(ctx.predicateBody().expression())) else None
+    PMPredicateDecl(id, receiver, params.flatten, body).at(ctx)
   }
 
   /**
@@ -807,7 +824,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitNonLocalReceiver(ctx: NonLocalReceiverContext): PParameter = {
-    val name = visitTypeName(ctx.typeName())
+    val name = if (has(ctx.typeName().qualifiedIdent())) {
+      val base = ctx.typeName().qualifiedIdent().IDENTIFIER(0)
+      val id = ctx.typeName().qualifiedIdent().IDENTIFIER(1)
+      PDot(PNamedOperand(idnUse(base).at(base)).at(base), idnUse(id).at(id)).at(ctx.typeName())
+    } else visitTypeName(ctx.typeName())
     val typ = if (has(ctx.STAR())) PDeref(name).at(ctx) else name
     if (has(ctx.IDENTIFIER())) PNamedParameter(idnDef(ctx.IDENTIFIER()).at(ctx), typ).at(ctx)
     else PUnnamedParameter(typ).at(ctx)
@@ -1278,8 +1299,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     enableWildcards {
       visitExpressionList(ctx.expressionList())
     } match {
-        case Vector(PNamedOperand(PIdnUse("_"))) => PWildcardMeasure(cond)
-        case exprs => PTupleTerminationMeasure(exprs, cond)
+        case Vector(PNamedOperand(PIdnUse("_"))) => PWildcardMeasure(cond).at(ctx)
+        case exprs => PTupleTerminationMeasure(exprs, cond).at(
+          if (!has(ctx.expression())) ctx.parent.asInstanceOf[ParserRuleContext]
+          else ctx
+        )
     }
   }
 
@@ -1878,8 +1902,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   implicit class PositionableParserRuleContext[P <: ParserRuleContext](ctx: P) extends NamedPositionable {
-    val startPos : Position = Position(ctx.start.getLine, ctx.start.getCharPositionInLine+1, source)
-    val endPos : Position = Position(ctx.stop.getLine, ctx.stop.getCharPositionInLine+ctx.stop.getText.length+1, source)
+    val startPos : Position = Position(ctx.getStart.getLine, ctx.getStart.getCharPositionInLine+1, source)
+    val endPos : Position = Position(ctx.getStop.getLine, ctx.getStop.getCharPositionInLine+ctx.getStop.getText.length+1, source)
     val name : String = GobraParser.ruleNames.array(ctx.getRuleIndex)
     val text : String = ctx.getText
   }

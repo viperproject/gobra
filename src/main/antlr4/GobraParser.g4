@@ -185,7 +185,7 @@ unfolding: UNFOLDING predicateAccess IN expression;
 
 // Added ++ operator
 expression:
-	primaryExpr
+	TYPE L_BRACKET type_ R_BRACKET
 	| call_op=(
     LEN
     | CAP
@@ -204,7 +204,8 @@ expression:
 		| AMPERSAND
 		| RECEIVE
 	) expression
-		| expression mul_op = (
+	| primaryExpr
+	| expression mul_op = (
 		STAR
 		| DIV
 		| MOD
@@ -278,6 +279,7 @@ basicLit:
 	| RUNE_LIT;
 
 // Added ghostPrimaryExprs
+// Fixed arguments matching on the next line
 primaryExpr:
 	operand
 	| conversion
@@ -289,7 +291,7 @@ primaryExpr:
 		| slice_
 		| seqUpdExp
 		| typeAssertion
-		| arguments
+		| {noTerminatorBetween(1)}? arguments
 		| predConstructArgs
 	);
 

@@ -443,12 +443,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitIfStmt(GobraParser.IfStmtContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link GobraParser#assign_op}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitAssign_op(GobraParser.Assign_opContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link GobraParser#exprSwitchStmt}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -460,6 +454,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitTypeSwitchStmt(GobraParser.TypeSwitchStmtContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#assign_op}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAssign_op(GobraParser.Assign_opContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#eos}.
 	 * @param ctx the parse tree

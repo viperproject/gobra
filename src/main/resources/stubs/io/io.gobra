@@ -1,0 +1,173 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/io/io.go
+
+// (tlino) only some interfaces are supported at the moment
+
+// Package io provides basic interfaces to I/O primitives.
+// Its primary job is to wrap existing implementations of such primitives,
+// such as those in package os, into shared public interfaces that
+// abstract the functionality, plus some other related primitives.
+//
+// Because these interfaces and primitives wrap lower-level operations with
+// various implementations, unless otherwise informed clients should not
+// assume they are safe for parallel execution.
+package io
+
+import (
+	"errors"
+	"sync"
+)
+
+// Seek whence values.
+const (
+	SeekStart   = 0 // seek relative to the origin of the file
+	SeekCurrent = 1 // seek relative to the current offset
+	SeekEnd     = 2 // seek relative to the end
+)
+
+// Reader is the interface that wraps the basic Read method.
+//
+// Read reads up to len(p) bytes into p. It returns the number of bytes
+// read (0 <= n <= len(p)) and any error encountered. Even if Read
+// returns n < len(p), it may use all of p as scratch space during the call.
+// If some data is available but not len(p) bytes, Read conventionally
+// returns what is available instead of waiting for more.
+//
+// When Read encounters an error or end-of-file condition after
+// successfully reading n > 0 bytes, it returns the number of
+// bytes read. It may return the (non-nil) error from the same call
+// or return the error (and n == 0) from a subsequent call.
+// An instance of this general case is that a Reader returning
+// a non-zero number of bytes at the end of the input stream may
+// return either err == EOF or err == nil. The next Read should
+// return 0, EOF.
+//
+// Callers should always process the n > 0 bytes returned before
+// considering the error err. Doing so correctly handles I/O errors
+// that happen after reading some bytes and also both of the
+// allowed EOF behaviors.
+//
+// Implementations of Read are discouraged from returning a
+// zero byte count with a nil error, except when len(p) == 0.
+// Callers should treat a return of 0 and nil as indicating that
+// nothing happened; in particular it does not indicate EOF.
+//
+// Implementations must not retain p.
+type Reader interface {
+	Read(p []byte) (n int, err error)
+}
+
+// Writer is the interface that wraps the basic Write method.
+//
+// Write writes len(p) bytes from p to the underlying data stream.
+// It returns the number of bytes written from p (0 <= n <= len(p))
+// and any error encountered that caused the write to stop early.
+// Write must return a non-nil error if it returns n < len(p).
+// Write must not modify the slice data, even temporarily.
+//
+// Implementations must not retain p.
+type Writer interface {
+	Write(p []byte) (n int, err error)
+}
+
+// Closer is the interface that wraps the basic Close method.
+//
+// The behavior of Close after the first call is undefined.
+// Specific implementations may document their own behavior.
+type Closer interface {
+	Close() error
+}
+
+// Seeker is the interface that wraps the basic Seek method.
+//
+// Seek sets the offset for the next Read or Write to offset,
+// interpreted according to whence:
+// SeekStart means relative to the start of the file,
+// SeekCurrent means relative to the current offset, and
+// SeekEnd means relative to the end.
+// Seek returns the new offset relative to the start of the
+// file or an error, if any.
+//
+// Seeking to an offset before the start of the file is an error.
+// Seeking to any positive offset may be allowed, but if the new offset exceeds
+// the size of the underlying object the behavior of subsequent I/O operations
+// is implementation-dependent.
+type Seeker interface {
+	Seek(offset int64, whence int) (int64, error)
+}
+
+
+// ReaderFrom is the interface that wraps the ReadFrom method.
+//
+// ReadFrom reads data from r until EOF or error.
+// The return value n is the number of bytes read.
+// Any error except EOF encountered during the read is also returned.
+//
+// The Copy function uses ReaderFrom if available.
+type ReaderFrom interface {
+	ReadFrom(r Reader) (n int64, err error)
+}
+
+// WriterTo is the interface that wraps the WriteTo method.
+//
+// WriteTo writes data to w until there's no more data to write or
+// when an error occurs. The return value n is the number of bytes
+// written. Any error encountered during the write is also returned.
+//
+// The Copy function uses WriterTo if available.
+type WriterTo interface {
+	WriteTo(w Writer) (n int64, err error)
+}
+
+// ReaderAt is the interface that wraps the basic ReadAt method.
+//
+// ReadAt reads len(p) bytes into p starting at offset off in the
+// underlying input source. It returns the number of bytes
+// read (0 <= n <= len(p)) and any error encountered.
+//
+// When ReadAt returns n < len(p), it returns a non-nil error
+// explaining why more bytes were not returned. In this respect,
+// ReadAt is stricter than Read.
+//
+// Even if ReadAt returns n < len(p), it may use all of p as scratch
+// space during the call. If some data is available but not len(p) bytes,
+// ReadAt blocks until either all the data is available or an error occurs.
+// In this respect ReadAt is different from Read.
+//
+// If the n = len(p) bytes returned by ReadAt are at the end of the
+// input source, ReadAt may return either err == EOF or err == nil.
+//
+// If ReadAt is reading from an input source with a seek offset,
+// ReadAt should not affect nor be affected by the underlying
+// seek offset.
+//
+// Clients of ReadAt can execute parallel ReadAt calls on the
+// same input source.
+//
+// Implementations must not retain p.
+type ReaderAt interface {
+	ReadAt(p []byte, off int64) (n int, err error)
+}
+
+// WriterAt is the interface that wraps the basic WriteAt method.
+//
+// WriteAt writes len(p) bytes from p to the underlying data stream
+// at offset off. It returns the number of bytes written from p (0 <= n <= len(p))
+// and any error encountered that caused the write to stop early.
+// WriteAt must return a non-nil error if it returns n < len(p).
+//
+// If WriteAt is writing to a destination with a seek offset,
+// WriteAt should not affect nor be affected by the underlying
+// seek offset.
+//
+// Clients of WriteAt can execute parallel WriteAt calls on the same
+// destination if the ranges do not overlap.
+//
+// Implementations must not retain p.
+type WriterAt interface {
+	WriteAt(p []byte, off int64) (n int, err error)
+}

@@ -103,8 +103,14 @@ class ExpressionsImpl extends Expressions {
 
   override def trigger(trigger: in.Trigger)(ctx: Context) : CodeWriter[vpr.Trigger] = {
     val (pos, info, errT) = trigger.vprMeta
-    for { expr <- sequence(trigger.exprs map (translate(_)(ctx))) }
+    for { expr <- sequence(trigger.exprs map (triggerExpr(_)(ctx))) }
       yield vpr.Trigger(expr)(pos, info, errT)
+  }
+
+  def triggerExpr(expr: in.TriggerExpr)(ctx: Context): CodeWriter[vpr.Exp] = expr match {
+      // use predicate access encoding but then take just the predicate access, i.e. remove `acc` and the permission amount:
+    case in.Accessible.Predicate(op) => for { pa <- ctx.predicate.predicateAccess(ctx)(op, in.FullPerm(op.info)) } yield pa.loc
+    case e: in.Expr => translate(e)(ctx)
   }
 
   def quantifier(vars: Vector[in.BoundVar], triggers: Vector[in.Trigger], body: in.Expr)(ctx: Context) : CodeWriter[(Seq[vpr.LocalVarDecl], Seq[vpr.Trigger], vpr.Exp)] = {

@@ -156,7 +156,7 @@ varSpec:
 
 shortVarDecl: maybeAddressableIdentifierList DECLARE_ASSIGN expressionList;
 
-receiver: 	L_PAREN maybeAddressableIdentifier? STAR? IDENTIFIER R_PAREN;
+receiver: 	L_PAREN maybeAddressableIdentifier? type_ COMMA? R_PAREN;
 
 nonLocalReceiver: 	L_PAREN IDENTIFIER? STAR? typeName R_PAREN;
 

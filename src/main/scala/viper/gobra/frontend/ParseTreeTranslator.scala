@@ -7,7 +7,7 @@
 
 package viper.gobra.frontend
 import org.antlr.v4.runtime.{ParserRuleContext, Token}
-import org.antlr.v4.runtime.tree.TerminalNode
+import org.antlr.v4.runtime.tree.{ParseTree, RuleNode, TerminalNode}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
 import org.bitbucket.inkytonik.kiama.util.{Position, Positions, Source}
 import viper.gobra.ast.frontend.{PAssignee, PCompositeKey, PDefLikeId, PExpression, PMethodReceiveName, _}
@@ -254,7 +254,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitAccess(ctx: AccessContext): PAccess = {
     val expr = visitGobraExpression(ctx.expression(0))
     if(ctx.IDENTIFIER() != null){
-      idnUseOrWildcard(ctx.IDENTIFIER(), AsPWildcard).at(ctx.IDENTIFIER()) match {
+      visitIdentifier[PUseLikeId, PIdnUse](ctx.IDENTIFIER(), AsPWildcard, PIdnUse) match {
         case id : PIdnUse => PAccess(expr, PNamedOperand(id).at(ctx.IDENTIFIER())).at(ctx.IDENTIFIER())
         case PWildcard() => PAccess(expr, PWildcardPerm().at(ctx.IDENTIFIER())).at(ctx.IDENTIFIER())
         case _ => fail(ctx.IDENTIFIER())
@@ -293,7 +293,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitBoundVariableDecl(ctx: BoundVariableDeclContext): Vector[PBoundVariable] = {
     val typ = visitType_(ctx.elementType().type_())
-    for (id <- ctx.IDENTIFIER().asScala.toVector) yield PBoundVariable(idnDef(id).at(ctx), typ.copy).at(id)
+    for (id <- ctx.IDENTIFIER().asScala.toVector) yield PBoundVariable(visitIdentifier(id, Disallow, PIdnDef), typ.copy).at(id)
   }
 
   /**
@@ -430,7 +430,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitMethodExpr(ctx: MethodExprContext): PDot = {
     val recv = visitType_(ctx.receiverType().type_())
-    val id = idnUse(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())
+    //val id = idnUse(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())
+    val id = visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnUse)
     PDot(recv, id).at(ctx)
   }
 
@@ -453,7 +454,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
           case _ => PInvoke(pe, visitArguments(ctx.arguments())).at(ctx)
         }
       } else if(ctx.DOT() != null) {
-        PDot(pe, idnUse(ctx.IDENTIFIER()).at(ctx)).at(ctx)
+        //PDot(pe, idnUse(ctx.IDENTIFIER()).at(ctx)).at(ctx)
+        PDot(pe, visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnUse)).at(ctx)
       } else if (ctx.index() != null) {
         PIndexedExp(pe, visitGobraExpression(ctx.index().expression())).at(ctx)
       } else if (ctx.slice_() != null) {
@@ -592,7 +594,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     } else if (ctx.literalValue() != null) {
       PLitCompositeVal(visitLiteralValue(ctx.literalValue())).at(ctx)
     } else if (ctx.IDENTIFIER() != null) {
-      PIdentifierKey(idnUse(ctx.IDENTIFIER()).at(ctx)).at(ctx)
+      PIdentifierKey(visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnUse)).at(ctx)
     } else fail(ctx)
 
   }
@@ -696,26 +698,26 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   def visitGobraOperandName(ctx: GobraParser.OperandNameContext, wildcardRule: WildcardRule = Disallow): PNameOrDot = {
     if (ctx.DOT() != null){
-      PDot(PNamedOperand(idnUse(ctx.IDENTIFIER(0)).at(ctx.IDENTIFIER(0))).at(ctx.IDENTIFIER(0)), idnUse(ctx.IDENTIFIER(1)).at(ctx)).at(ctx)
+      PDot(PNamedOperand(visitIdentifier(ctx.IDENTIFIER(0), Disallow, PIdnUse)).at(ctx.IDENTIFIER(0)), visitIdentifier(ctx.IDENTIFIER(1), Disallow, PIdnUse)).at(ctx)
     } else {
       wildcardRule match {
-        case Disallow => PNamedOperand(idnUse(ctx.IDENTIFIER(0)).at(ctx.IDENTIFIER(0))).at(ctx)
+        case Disallow => PNamedOperand(visitIdentifier(ctx.IDENTIFIER(0), Disallow, PIdnUse)).at(ctx)
         case _ => fail(ctx, "A named operand cannot be a wildcard.")
       }
     }
   }
 
   def visitUnkIdentifierList(list: Vector[TerminalNode], wildcardRule: WildcardRule = Disallow): Vector[PIdnUnk] = {
-    for (id <- list) yield idnUnk(id, wildcardRule).at(id)
+    for (id <- list) yield visitIdentifier(id, wildcardRule, PIdnUnk)
   }
 
   def visitUnkLikeIdentifierList(list: Vector[TerminalNode], wildcardRule: WildcardRule = Disallow): Vector[PUnkLikeId] = {
-    for (id <- list) yield idnUnkOrWildcard(id, wildcardRule).at(id)
+    for (id <- list) yield visitIdentifier[PUnkLikeId, PIdnUnk](id, wildcardRule, PIdnUnk)
   }
 
 
   def visitDefLikeIdentifierList(list : Vector[TerminalNode], wildcardRule: WildcardRule = Disallow): Vector[PDefLikeId] = {
-    for (id <- list) yield idnDefOrWildcard(id, wildcardRule).at(id)
+    for (id <- list) yield visitIdentifier[PDefLikeId, PIdnDef](id, wildcardRule, PIdnDef)
   }
 
   override def visitShortVarDecl(ctx: GobraParser.ShortVarDeclContext): PShortVarDecl = {
@@ -753,7 +755,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   def visitMaybeAddressableIdnDef(ctx: MaybeAddressableIdentifierContext): (PIdnDef, Boolean) = {
-    (idnDef(ctx.IDENTIFIER()).at(ctx), has(ctx.ADDR_MOD()))
+    (visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnDef), has(ctx.ADDR_MOD()))
   }
 
   /**
@@ -763,8 +765,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitReceiver(ctx: ReceiverContext): PReceiver = {
-    val typeName = PNamedOperand(idnUse(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())).at(ctx.IDENTIFIER())
-    val recvType = if (has(ctx.STAR())) PMethodReceivePointer(typeName).at(ctx)  else PMethodReceiveName(typeName).at(ctx)
+    //val typeName = PNamedOperand(visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnUse)).at(ctx.IDENTIFIER())
+    //val recvType = if (has(ctx.STAR())) PMethodReceivePointer(typeName).at(ctx)  else PMethodReceiveName(typeName).at(ctx)
+    val recvType = visitType_(ctx.type_()) match {
+      case t : PNamedOperand => PMethodReceiveName(t).at(t)
+      case PDeref(t : PNamedOperand) => PMethodReceivePointer(t).at(t)
+      case f => fail(ctx.type_(), s"Excpected declared type or pointer to declared type but got: $f.")
+    }
 
     if (has(ctx.maybeAddressableIdentifier())) {
       val (id, addr) = visitMaybeAddressableIdnDef(ctx.maybeAddressableIdentifier())
@@ -782,7 +789,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty)
     val receiver = visitReceiver(ctx.receiver())
 
-    val id = idnDef(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())
+    //val id = idnDef(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())
+    // Go allows _ here
+    val id = visitIdentifier(ctx.IDENTIFIER(), AsIdentifier, PIdnDef)
     val sig = visitSignature(ctx.signature())
     val paramInfo = PBodyParameterInfo(Vector.empty).at(ctx)
     val body = if (ctx.blockWithBodyParameterInfo() == null || specOnly) None else Some(visitBlockWithBodyParameterInfo(ctx.blockWithBodyParameterInfo()))
@@ -796,9 +805,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitFpredicateDecl(ctx: FpredicateDeclContext): PFPredicateDecl = {
-    val id = withWildcards{
-      idnDef(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())
-    }
+    //val id_ = withWildcards{
+    //  idnDef(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())
+    //}
+    // Go allows _ here
+    val id = visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnDef)
     val params = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
     val body = if (has(ctx.predicateBody())) Some(visitGobraExpression(ctx.predicateBody().expression())) else None
     PFPredicateDecl(id, params.flatten, body).at(ctx)
@@ -811,9 +822,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitMpredicateDecl(ctx: MpredicateDeclContext): PMPredicateDecl = {
-    val id = withWildcards{
-      idnDef(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())
-    }
+    //val id_ = withWildcards{
+    //  idnDef(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())
+    //}
+    // Go allows _ here
+    val id = visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnDef)
     val receiver = visitReceiver(ctx.receiver())
     val params = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
     val body = if (has(ctx.predicateBody())) Some(visitGobraExpression(ctx.predicateBody().expression())) else None
@@ -827,11 +840,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitImplementationProofPredicateAlias(ctx: ImplementationProofPredicateAliasContext): PImplementationProofPredicateAlias = {
-    val left = idnUse(ctx.IDENTIFIER()).at(ctx)
+    val left = visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnUse)
     val right = if (has(ctx.operandName())) {
       visitGobraOperandName(ctx.operandName())
     } else {
-      val id = idnUse(ctx.selection().IDENTIFIER()).at(ctx)
+      //val id = idnUse(ctx.selection().IDENTIFIER()).at(ctx)
+      val id = visitIdentifier(ctx.selection().IDENTIFIER(), Disallow, PIdnUse)
       if (has(ctx.selection().primaryExpr())) PDot(visitGobraPrimaryExpr(ctx.selection().primaryExpr()), id).at(ctx)  else
         PDot(visitType_(ctx.selection().type_()), id).at(ctx)
     }
@@ -848,10 +862,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val name = if (has(ctx.typeName().qualifiedIdent())) {
       val base = ctx.typeName().qualifiedIdent().IDENTIFIER(0)
       val id = ctx.typeName().qualifiedIdent().IDENTIFIER(1)
-      PDot(PNamedOperand(idnUse(base).at(base)).at(base), idnUse(id).at(id)).at(ctx.typeName())
+      PDot(PNamedOperand(visitIdentifier(base, Disallow, PIdnUse)).at(base), visitIdentifier(id, Disallow, PIdnUse)).at(ctx.typeName())
     } else visitTypeName(ctx.typeName())
     val typ = if (has(ctx.STAR())) PDeref(name).at(ctx) else name
-    if (has(ctx.IDENTIFIER())) PNamedParameter(idnDef(ctx.IDENTIFIER()).at(ctx), typ).at(ctx)
+    if (has(ctx.IDENTIFIER())) PNamedParameter(visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnDef), typ).at(ctx)
     else PUnnamedParameter(typ).at(ctx)
   }
 
@@ -862,7 +876,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitMethodImplementationProof(ctx: MethodImplementationProofContext): PMethodImplementationProof = {
-    val id = idnUse(ctx.IDENTIFIER()).at(ctx)
+    val id = visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnUse)
     val receiver = visitNonLocalReceiver(ctx.nonLocalReceiver())
     val (args, result) = visitSignature(ctx.signature())
     val isPure = has(ctx.PURE())
@@ -920,12 +934,18 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitSourceFile(ctx: GobraParser.SourceFileContext): PProgram = {
     val packageClause = visitPackageClause(ctx.packageClause())
-    val importDecls = for (importDecl <- ctx.importDecl().asScala.toVector) yield visitImportDecl(importDecl)
-    val functionDecls = for (funcDecl <- ctx.functionDecl().asScala.toVector) yield visitFunctionDecl(funcDecl)
-    val methodDecls = for (methodDecl <- ctx.methodDecl().asScala.toVector) yield visitMethodDecl(methodDecl)
-    val ghostMembers = for (gMember <- ctx.ghostMember().asScala.toVector) yield visitGhostMember(gMember)
-    val decls = for (decl <- ctx.declaration().asScala.toVector) yield visitDeclaration(decl)
-    PProgram(packageClause, importDecls.flatten, functionDecls ++ methodDecls ++ decls.flatten ++ ghostMembers.flatten).at(ctx)
+    val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
+
+    // Don't parse if the identifier is blank
+    val functionDecls= ctx.functionDecl().asScala.toVector.collect{
+      case f if f.IDENTIFIER().getText != "_" => visitFunctionDecl(f)
+    }
+    val methodDecls= ctx.methodDecl().asScala.toVector.collect{
+      case m if m.IDENTIFIER().getText != "_" => visitMethodDecl(m)
+    }
+    val ghostMembers = ctx.ghostMember().asScala.toVector.flatMap(visitGhostMember)
+    val decls = ctx.declaration().asScala.toVector.flatMap(visitDeclaration)
+    PProgram(packageClause, importDecls, functionDecls ++ methodDecls ++ decls ++ ghostMembers).at(ctx)
   }
 
   /**
@@ -964,7 +984,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     if(ctx.DOT() != null){
       PUnqualifiedImport(path).at(ctx)
     } else if (ctx.IDENTIFIER() != null) {
-      PExplicitQualifiedImport(idnDefOrWildcard(ctx.IDENTIFIER()).at(ctx), path).at(ctx)
+      PExplicitQualifiedImport(visitIdentifier(ctx.IDENTIFIER(), AsPWildcard, PIdnDef), path).at(ctx)
     } else {
       PImplicitQualifiedImport(path).at(ctx)
     }
@@ -1023,9 +1043,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitTypeSpec(ctx: GobraParser.TypeSpecContext): PTypeDecl = {
-    val left = withWildcards{
-      idnDef(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())
-    }
+    val left = visitIdentifier(ctx.IDENTIFIER(), AsIdentifier, PIdnDef)
     val right = visitType_(ctx.type_())
     if (ctx.ASSIGN() != null) {
       PTypeAlias(right, left).at(ctx)
@@ -1140,7 +1158,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitBlockWithBodyParameterInfo(ctx: BlockWithBodyParameterInfoContext): (PBodyParameterInfo, PBlock) = {
-    val shareable = if (has(ctx.SHARE())) (for (id <- ctx.identifierList().IDENTIFIER().asScala.toVector) yield idnUse(id).at(id)) else Vector.empty
+    val shareable = if (has(ctx.SHARE())) (for (id <- ctx.identifierList().IDENTIFIER().asScala.toVector) yield visitIdentifier(id, Disallow, PIdnUse)) else Vector.empty
     val paramInfo = PBodyParameterInfo(shareable)
     val body =   if (has(ctx.statementList())) PBlock(visitStatementList(ctx.statementList())).at(ctx) else PBlock(Vector.empty).at(ctx)
     (paramInfo, body)
@@ -1154,9 +1172,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitFunctionDecl(ctx: GobraParser.FunctionDeclContext): PFunctionDecl = {
     val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty)
-    val id = withWildcards{
-      idnDef(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())
-    }
+    val id = visitIdentifier(ctx.IDENTIFIER(), AsIdentifier, PIdnDef)
     val sig = visitSignature(ctx.signature())
     val body = if (ctx.blockWithBodyParameterInfo() == null || specOnly) None else Some(visitBlockWithBodyParameterInfo(ctx.blockWithBodyParameterInfo()))
     PFunctionDecl(id, sig._1, sig._2, spec, body).at(ctx)
@@ -1316,13 +1332,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitTerminationMeasure(ctx: TerminationMeasureContext): PTerminationMeasure = {
-    val cond = if (has(ctx.expression())) Some(visitGobraExpression(ctx.expression())) else None
+    val cond = if (has(ctx.expression())) Some(visitGobraExpression(ctx.expression())).pos() else None
     visitGobraExpressionList(ctx.expressionList(), AsBlankIdentifier) match {
         case Vector(PBlankIdentifier()) => PWildcardMeasure(cond).at(ctx)
-        case exprs => PTupleTerminationMeasure(exprs, cond).at(
-          if (!has(ctx.expression())) ctx.parent.asInstanceOf[ParserRuleContext]
-          else ctx
-        )
+        case exprs@Vector(_, _*) => PTupleTerminationMeasure(exprs, cond).at(ctx)
+        case Vector() => PTupleTerminationMeasure(Vector.empty, cond).at(ctx.parent match {
+          case s : SpecStatementContext => s.DEC()
+          case l : LoopSpecContext => l.DEC()
+        })
     }
   }
 
@@ -1334,9 +1351,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitLoopSpec(ctx: LoopSpecContext): PLoopSpec = {
     val invs = for (inv <- ctx.expression().asScala.toVector) yield visitGobraExpression(inv)
-    val decs = if (has(ctx.terminationMeasure())) Some(visitTerminationMeasure(ctx.terminationMeasure())) else None
+    val decs = if (has(ctx.terminationMeasure())) Some(visitTerminationMeasure(ctx.terminationMeasure())).pos() else None
 
-    PLoopSpec(invs, decs)
+    PLoopSpec(invs, decs).at(ctx)
   }
 
   /**
@@ -1352,27 +1369,27 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val block = visitBlock(ctx.block())
 
     if (has(ctx.expression())) {
-      PForStmt(None, visitGobraExpression(ctx.expression()), None, spec, block).at(ctx)
+      PForStmt(None, visitGobraExpression(ctx.expression()), None, spec, block).at(specCtx)
     } else if(has(ctx.forClause())){
-      val pre = if (has(ctx.forClause().initStmt)) Some(visitSimpleStmt(ctx.forClause().initStmt)) else None
-      val post = if (has(ctx.forClause().postStmt)) Some(visitSimpleStmt(ctx.forClause().postStmt)) else None
-      val cond = if (has(ctx.forClause().expression())) visitGobraExpression(ctx.forClause().expression()) else PBoolLit(true).at(ctx)
-      PForStmt(pre, cond, post, spec, block).at(ctx)
+      val pre = if (has(ctx.forClause().initStmt)) Some(visitSimpleStmt(ctx.forClause().initStmt)).pos() else None
+      val post = if (has(ctx.forClause().postStmt)) Some(visitSimpleStmt(ctx.forClause().postStmt)).pos() else None
+      val cond = if (has(ctx.forClause().expression())) visitGobraExpression(ctx.forClause().expression()) else PBoolLit(true).at(ctx.forClause().expression())
+      PForStmt(pre, cond, post, spec, block).at(specCtx)
     } else if (has(ctx.rangeClause())) {
       val expr = visitGobraExpression(ctx.rangeClause().expression())
       val range = PRange(expr).at(ctx.rangeClause())
       if (has(ctx.rangeClause().DECLARE_ASSIGN())) {
         val idList = visitUnkIdentifierList(ctx.rangeClause().identifierList().IDENTIFIER().asScala.toVector)
-        PShortForRange(range, idList, block).at(ctx)
+        PShortForRange(range, idList, block).at(specCtx)
       } else {
-        val assignees = visitGobraExpressionList(ctx.rangeClause().expressionList()) match {
+        val assignees = visitGobraExpressionList(ctx.rangeClause().expressionList(), AsBlankIdentifier) match {
           case v : Vector[PAssignee] => v
           case _ => fail(ctx)
         }
-        PAssForRange(range, assignees, block).at(ctx)
+        PAssForRange(range, assignees, block).at(specCtx)
       }
     } else {
-      PForStmt(None, PBoolLit(true).at(ctx.FOR()), None, spec, block).at(ctx)
+      PForStmt(None, PBoolLit(true).at(ctx.FOR()), None, spec, block).at(specCtx)
     }
 
   }
@@ -1459,7 +1476,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
   override def visitTypeCaseClause(ctx: TypeCaseClauseContext): PTypeSwitchCase = {
-    val body = PBlock(PPos(visitStatementList(ctx.statementList())).at(ctx.statementList()).get).at(ctx)
+    val body = PBlock(visitStatementList(ctx.statementList())).at(ctx.statementList())
     val left = visitTypeList(ctx.typeSwitchCase().typeList())
     PTypeSwitchCase(left, body).at(ctx)
   }
@@ -1477,7 +1494,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitTypeSwitchStmt(ctx: TypeSwitchStmtContext): PTypeSwitchStmt = {
     val pre = if (has(ctx.simpleStmt())) Some(visitSimpleStmt(ctx.simpleStmt())) else None
-    val binder = if (has(ctx.typeSwitchGuard().IDENTIFIER())) Some(idnDef(ctx.typeSwitchGuard().IDENTIFIER())) else None
+    val binder = if (has(ctx.typeSwitchGuard().IDENTIFIER())) Some(visitIdentifier(ctx.typeSwitchGuard().IDENTIFIER(), Disallow, PIdnDef)) else None
     val expr = visitGobraPrimaryExpr(ctx.typeSwitchGuard().primaryExpr())
     val (dflt, cases) = ctx.typeCaseClause().asScala.toVector.partitionMap(clause =>
       if (has(clause.typeSwitchCase().DEFAULT())) Left(visitTypeDefaultClause(clause).body)
@@ -1615,7 +1632,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitMethodSpec(ctx: GobraParser.MethodSpecContext): PMethodSig = {
     val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty)
-    val id = idnDef(ctx.IDENTIFIER()).at(ctx)
+    // The name of each explicitly specified method must be unique and not blank.
+    val id = visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnDef)
     val args = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
     val result = if (ctx.result() != null) visitResult(ctx.result()) else PResult(Vector.empty).at(ctx)
     PMethodSig(id, args.flatten, result, spec, isGhost = false).at(ctx)
@@ -1628,7 +1646,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitPredicateSpec(ctx: PredicateSpecContext): PMPredicateSig = {
-    val id = idnDef(ctx.IDENTIFIER())
+    val id = visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnDef)
     val args = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
     PMPredicateSig(id, args.flatten).at(ctx)
   }
@@ -1642,7 +1660,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitInterfaceType(ctx: GobraParser.InterfaceTypeContext): PInterfaceType = {
     val methodDecls = for (meth <- ctx.methodSpec().asScala.toVector) yield visitMethodSpec(meth).at(ctx)
     val embedded = for (typ <- ctx.typeName().asScala.toVector) yield
-      PInterfaceName(PNamedOperand(idnUse(typ.IDENTIFIER()).at(typ)).at(typ)).at(typ)
+      PInterfaceName(PNamedOperand(visitIdentifier(typ.IDENTIFIER(), Disallow, PIdnUse)).at(typ)).at(typ)
     val predicateDecls = for (pred <- ctx.predicateSpec().asScala.toVector) yield visitPredicateSpec(pred)
     PInterfaceType(embedded, methodDecls, predicateDecls).at(ctx)
   }
@@ -1850,7 +1868,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       } else {
         val base = ctx.typeName().qualifiedIdent().IDENTIFIER(0)
         val id = ctx.typeName().qualifiedIdent().IDENTIFIER(1)
-        PDot(PNamedOperand(idnUse(base).at(base)).at(base), idnUse(id).at(id)).at(ctx.typeName())
+        PDot(PNamedOperand(visitIdentifier(base, Disallow, PIdnUse)).at(base), visitIdentifier(id, Disallow, PIdnUse)).at(ctx.typeName())
       }
     } else if (ctx.ghostTypeLit() != null) {
         visitGhostTypeLit(ctx.ghostTypeLit())
@@ -1884,7 +1902,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitQualifiedIdent(ctx: QualifiedIdentContext): PDot = {
-    PDot(PNamedOperand(idnUse(ctx.IDENTIFIER(0)).at(ctx)).at(ctx.IDENTIFIER(0)), idnUse(ctx.IDENTIFIER(1)).at(ctx.IDENTIFIER(1))).at(ctx)
+    PDot(PNamedOperand(visitIdentifier(ctx.IDENTIFIER(0), Disallow, PIdnUse)).at(ctx.IDENTIFIER(0)), visitIdentifier(ctx.IDENTIFIER(1), Disallow, PIdnUse)).at(ctx)
   }
 
   def visitTypeIdentifier(typ: TerminalNode): Either[PPredeclaredType, PNamedOperand] = {
@@ -1904,7 +1922,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       case "bool" => Left(PBoolType().at(typ))
       case "string" => Left(PStringType().at(typ))
       case "rune" => Left(PRune().at(typ))
-      case _ => Right(PNamedOperand(idnUse(typ).at(typ)).at(typ))
+      case _ => Right(PNamedOperand(visitIdentifier(typ, Disallow, PIdnUse)).at(typ))
     }
   }
 
@@ -1954,7 +1972,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitParameterDecl(ctx: GobraParser.ParameterDeclContext): Vector[PParameter] = {
     val typ = if (has(ctx.ELLIPSIS())) PVariadicType(visitType_(ctx.type_())).at(ctx) else visitType_(ctx.type_())
     val params = if(ctx.identifierList() != null) {
-      for (id <- ctx.identifierList().IDENTIFIER().asScala.toVector) yield PNamedParameter(idnDef(id).at(ctx), typ.copy).at(id)
+      for (id <- ctx.identifierList().IDENTIFIER().asScala.toVector) yield PNamedParameter(visitIdentifier(id, Disallow, PIdnDef), typ.copy).at(id)
     } else {
       Vector[PActualParameter](PUnnamedParameter(typ).at(ctx.type_()))
     }
@@ -1963,6 +1981,37 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       params.map(PExplicitGhostParameter(_).at(ctx))
     } else params
   }
+
+  def visitNodeOrNone[P <: PNode, C <: ParserRuleContext](ctx : C) : Option[P] = {
+    if (ctx != null) {
+      Some(visitNode(ctx)).pos()
+    } else None
+  }
+
+  def visitNode[P <: AnyRef](ctx : ParserRuleContext) : P = {
+    super.visit(ctx) match {
+      case p : PNode => p.at(ctx).asInstanceOf[P]
+      case n => n.asInstanceOf[P]
+    }
+  }
+
+  def visitListNode[P <: PNode](ctx : java.util.List[_ <: ParserRuleContext]) : Vector[P] = {
+    ctx.asScala.toVector.map(c => visitNode[P](c))
+  }
+
+  def visitNodeChildren[P <: AnyRef](ctx : RuleNode) : P = {
+    super.visitChildren(ctx).asInstanceOf[P]
+  }
+
+
+  def visitNodeIf[P <: PNode, C <: ParserRuleContext](ctx : java.util.List[C], cond : (C => Boolean)) : Vector[P] = {
+    ctx.asScala.toVector.collect {
+      case c if cond(c) => visitNode(c)
+    }.asInstanceOf[Vector[P]]
+  }
+
+  def always[C <: ParserRuleContext](c : C) : Boolean = true
+
 
 
   private def fail(cause : NamedPositionable, msg : String = "") = {
@@ -2027,16 +2076,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     a != null
   }
 
-  private def visitIdentifier(id: TerminalNode, wildcardRule: WildcardRule, idnNodeType : String => PIdnNode): PNode = {
+  private def visitIdentifier[N <: PNode, I <: N](id: TerminalNode, wildcardRule: WildcardRule, idnNodeType : String => I): N = {
     val name = id.getText
     if (name != "_") {
       idnNodeType(name).at(id)
     } else {
       wildcardRule match {
         case Disallow => fail(id, "The blank identifier is not allowed here.")
-        case AsPWildcard => PWildcard()
+        case AsPWildcard => PWildcard().asInstanceOf[N]
         case AsIdentifier => idnNodeType(name).at(id)
-        case AsBlankIdentifier => PBlankIdentifier().at(id)
+        case AsBlankIdentifier => PBlankIdentifier().at(id).asInstanceOf[N]
       }
     }
   }

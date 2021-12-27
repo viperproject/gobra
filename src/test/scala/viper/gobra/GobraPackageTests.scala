@@ -8,14 +8,14 @@ package viper.gobra
 
 import java.io.File
 import java.nio.file.Path
-
 import ch.qos.logback.classic.Level
+import org.bitbucket.inkytonik.kiama.util.Source
 import org.rogach.scallop.exceptions.ValidationFailure
 import org.rogach.scallop.throwError
+import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, ScallopGobraConfig}
 import viper.gobra.reporting.{NoopReporter, ParserError}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
-import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, DefaultAnnotatedTestInput, DefaultTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 
@@ -42,7 +42,7 @@ class GobraPackageTests extends GobraTests {
         .sortBy(_.toString)
         .toSeq
     } yield DefaultTestInput(s"$prefix/$pkgName (${file.getFileName.toString})", prefix, samePkgFiles, Seq())
-    DefaultAnnotatedTestInput(input.get)
+    GobraAnnotatedTestInput(input.get)
   }
 
   override val gobraInstanceUnderTest: SystemUnderTest =
@@ -65,15 +65,13 @@ class GobraPackageTests extends GobraTests {
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,
-          inputFiles = input.files.toVector,
+          inputs = input.files.toVector.map(FromFileSource(_)),
           includeDirs = Vector(currentDir),
           checkConsistency = true,
           z3Exe = z3Exe
         )
 
-        val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
         val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config)(executor), Duration.Inf))
-        executor.terminateAndAssertInexistanceOfTimeout()
 
         info(s"Time required: $elapsedMilis ms")
 
@@ -110,8 +108,9 @@ class GobraPackageTests extends GobraTests {
 
   private def equalConfigs(config1: Config, config2: Config): Vector[GobraTestOuput] = {
     def equalFiles(v1: Vector[Path], v2: Vector[Path]): Boolean = v1.sortBy(_.toString).equals(v2.sortBy(_.toString))
+    def equalSources(v1: Vector[Source], v2: Vector[Source]): Boolean = v1.map(_.name).sorted.equals(v2.map(_.name).sorted)
 
-    val equal = (equalFiles(config1.inputFiles, config2.inputFiles)
+    val equal = (equalSources(config1.inputs, config2.inputs)
       && equalFiles(config1.includeDirs, config2.includeDirs)
       && config1.logLevel == config2.logLevel)
     if (equal) Vector()

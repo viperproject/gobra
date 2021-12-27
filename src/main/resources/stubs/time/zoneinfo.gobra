@@ -39,6 +39,7 @@ type zoneTrans struct {
 //}
 
 ensures acc(res)
+decreases
 func FixedZone(name string, offset int) (res *Location) /*{
 	l := &Location{
 		name:       name,

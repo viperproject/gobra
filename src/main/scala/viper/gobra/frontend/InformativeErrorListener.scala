@@ -3,7 +3,7 @@ package viper.gobra.frontend
 import org.antlr.v4.runtime.tree.pattern.RuleTagToken
 import org.antlr.v4.runtime.{BaseErrorListener, CommonTokenStream, RecognitionException, Recognizer, Token, WritableToken}
 import org.bitbucket.inkytonik.kiama.util.Source
-import viper.gobra.frontend.Parser.FromFileSource
+ import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.reporting.ParserError
 import viper.silver.ast.SourcePosition
 

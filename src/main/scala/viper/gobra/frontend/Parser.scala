@@ -21,7 +21,6 @@ import org.antlr.v4.runtime.{BailErrorStrategy, CharStreams, CommonTokenStream, 
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, FunctionDeclContext, ImportDeclContext, SourceFileContext, StmtOnlyContext, Type_Context}
-import viper.gobra.frontend.old.{GoLexer, GoParser}
 import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable.ListBuffer
@@ -277,73 +276,6 @@ object Parser {
     })
   }
 
-  /*
-  def oldAntlrParseSources(sources: Vector[Path], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
-    val positions = new Positions
-    val pom = new PositionManager(positions)
-    val parsers = new SyntaxAnalyzer(pom, specOnly)
-
-    def parseSource(source: Path): Either[Vector[VerifierError], PProgram] = {
-      val charStream = CharStreams.fromPath(source)
-      val lexer = new GoLexer(charStream)
-      val tokens = new CommonTokenStream(lexer)
-      //println("lexer: " + (t1-t0))
-      val parser = new GoParser(tokens)
-      parser.getInterpreter.setPredictionMode(PredictionMode.SLL)
-      parser.setErrorHandler(new BailErrorStrategy)
-      var tree = try time ("ANTLR", source.getFileName.toString) { parser.sourceFile() }
-      catch {
-        case _: ParseCancellationException =>
-          // thrown by BailErrorStrategy
-          tokens.seek(0)
-          // rewind input stream
-          parser.reset()
-          // back to standard listeners/handlers
-          parser.addErrorListener(ConsoleErrorListener.INSTANCE)
-          parser.setErrorHandler(new DefaultErrorStrategy)
-          // full now with full LL(*)
-          parser.getInterpreter.setPredictionMode(PredictionMode.LL)
-          time ("ANTLR", source.getFileName.toString) { parser.sourceFile() }
-        //println("a")
-        //
-        //println("b")
-      }
-      if(true) {
-        val translator = new ParseTreeTranslator(pom, getSource(source))
-        Right(null)
-      } else {
-        Left(Vector.empty[VerifierError])
-      }
-    }
-
-    val parsedPrograms = {
-      val parserResults = sources.map(parseSource)
-      val (errors, programs) = parserResults.partitionMap(identity)
-
-      if (errors.nonEmpty) {
-        Left(errors.flatten)
-      } else {
-        // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
-        // of the same package has failed
-        assert(programs.nonEmpty)
-        assert{
-          val packageName = programs.head.packageClause.id.name
-          programs.forall(_.packageClause.id.name == packageName)
-        }
-
-        Right(programs)
-      }
-    }
-
-    parsedPrograms.map(programs => {
-      val clause = parsers.rewriter.deepclone(programs.head.packageClause)
-      val parsedPackage = PPackage(clause, programs, pom)
-      // The package parse tree node gets the position of the package clause:
-      pom.positions.dupPos(clause, parsedPackage)
-      parsedPackage
-    })
-  }
-  */
 
   def parseProgram(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], PProgram] = {
     val positions = new Positions

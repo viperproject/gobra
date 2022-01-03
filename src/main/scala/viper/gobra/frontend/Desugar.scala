@@ -1223,6 +1223,7 @@ object Desugar {
     }
 
     def forRangeMaps(visitedKeys: in.LocalVar, fstAssignee: in.Assignee, sndAssignee: in.Assignee, rangeExp: in.LocalVar, invs: Vector[in.Assertion], body: in.Stmt)(src: Source.Parser.Info): in.Stmt = {
+      // TODO: grant that whatever is inside the range clause is evaluated only once
       in.Seqn(Vector(
         in.Initialization(visitedKeys)(src),
         in.If(
@@ -1231,6 +1232,7 @@ object Desugar {
           els = in.Seqn(Vector())(src)
         )(src),
         in.While(
+          // TODO: Maybe remove first part of the cond
           cond = in.And(in.LessCmp(in.IntLit(0) (src), in.Length(rangeExp)(src))(src), in.LessCmp(in.Length(visitedKeys) (src), in.Length(rangeExp)(src))(src))(src),
           invs = invs :+ in.ExprAssertion(in.AtMostCmp(in.Length(visitedKeys)(src), in.Length(in.MapKeys(rangeExp, rangeExp.typ)(src))(src))(src))(src),
           // terminationMeasure = Some(in.TupleTerminationMeasure(Vector(in.Sub(in.Length(in.MapKeys(rangeExpVar, rangeTyp)(src))(src), in.Length(visitedKeys)(src))(src)), None)(src)),

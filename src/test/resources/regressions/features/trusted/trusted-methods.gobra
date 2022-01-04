@@ -26,6 +26,12 @@ func test1() (ret IntType){
     return i.negateIncorrectSpec()
 }
 
+trusted
+func (x IntType) methodWithNonSupportedFeature() IntType{
+	some non supported go feature
+	return 0
+}
+
 func test2() IntType{
     var i IntType = -2
     //:: ExpectedOutput(precondition_error:assertion_error)

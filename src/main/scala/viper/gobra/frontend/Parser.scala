@@ -442,13 +442,14 @@ object Parser {
       (idnDef <~ "=") ~ typ ^^ { case left ~ right => PTypeAlias(right, left)}
 
     lazy val functionDecl: Parser[PFunctionDecl] =
-      functionSpec() ~ ("func" ~> idnDef) ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
-        case spec ~ name ~ sig ~ body => PFunctionDecl(name, sig._1, sig._2, spec, body)
-      } | functionSpec(withTrusted = true) ~ ("func" ~> idnDef) ~ signature ~ nestedCurlyBracketsConsumer.? ^^ {
-        case spec ~ name ~ sig ~ _ => PFunctionDecl(name, sig._1, sig._2, spec, None)
-      }
+      for {
+        spec <- functionSpec
+        name <- "func" ~> idnDef
+        sig  <- signature
+        body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(blockWithBodyParameterInfo)
+      } yield PFunctionDecl(name, sig._1, sig._2, spec, body).at(spec)
 
-    def functionSpec(withTrusted: Boolean = false): Parser[PFunctionSpec] = {
+    lazy val functionSpec: Parser[PFunctionSpec] = {
       sealed trait FunctionSpecClause
       case class RequiresClause(exp: PExpression) extends FunctionSpecClause
       case class PreservesClause(exp: PExpression) extends FunctionSpecClause
@@ -462,16 +463,10 @@ object Parser {
         "preserves" ~> expression <~ eos ^^ PreservesClause |
         "ensures" ~> expression <~ eos ^^ EnsuresClause |
         "decreases" ~> terminationMeasure <~ eos  ^^ DecreasesClause |
+        "trusted" <~ eos ^^^ TrustedClause |
         "pure" <~ eos ^^^ PureClause
       }
-
-      val specClauses = if(withTrusted) {
-        functSpecClause | "trusted" <~ eos ^^^ TrustedClause
-      } else {
-        functSpecClause
-      }
-
-      specClauses.* ~ "pure".? ^^ {
+      functSpecClause.* ~ "pure".? ^^ {
         case clauses ~ pure =>
           val pres = clauses.collect{ case x: RequiresClause => x.exp }
           val preserves = clauses.collect{ case x: PreservesClause => x.exp }
@@ -488,11 +483,13 @@ object Parser {
         repsep(expression, ",") ~ ("if" ~> expression).? ^^ PTupleTerminationMeasure
 
     lazy val methodDecl: Parser[PMethodDecl] =
-      functionSpec() ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
-        case spec ~ rcv ~ name ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, spec, body)
-      } | functionSpec(withTrusted = true) ~ ("func" ~> receiver) ~ idnDef ~ signature ~ nestedCurlyBracketsConsumer.? ^^ {
-        case spec ~ rcv ~ name ~ sig ~ _ => PMethodDecl(name, rcv, sig._1, sig._2, spec, None)
-      }
+      for {
+        spec <- functionSpec
+        rcv  <- "func" ~> receiver
+        name <- idnDef
+        sig  <- signature
+        body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(blockWithBodyParameterInfo)
+      } yield PMethodDecl(name, rcv, sig._1, sig._2, spec, body).at(spec)
 
     /**
       * Statements
@@ -1130,7 +1127,7 @@ object Parser {
       declaredType ^^ PInterfaceName
 
     lazy val methodSpec: Parser[PMethodSig] =
-      "ghost".? ~ functionSpec() ~ idnDef ~ signature ^^ { case isGhost ~ spec ~ id ~ sig => PMethodSig(id, sig._1, sig._2, spec, isGhost.isDefined) }
+      "ghost".? ~ functionSpec ~ idnDef ~ signature ^^ { case isGhost ~ spec ~ id ~ sig => PMethodSig(id, sig._1, sig._2, spec, isGhost.isDefined) }
 
     lazy val predicateSpec: Parser[PMPredicateSig] =
       ("pred" ~> idnDef) ~ parameters ^^ PMPredicateSig

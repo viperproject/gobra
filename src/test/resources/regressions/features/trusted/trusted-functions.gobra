@@ -24,6 +24,12 @@ func positiveSumWithoutTrusted(x int, y int) (ret int) {
 }
 
 trusted
+func functionWithNonSupportedFeature() int{
+	some non supported go feature
+	return 0
+}
+
+trusted
 ensures ret < 0
 func testPositiveSumWithoutTrusted() (ret int) {
     return positiveSumWithoutTrusted(-10, 12)

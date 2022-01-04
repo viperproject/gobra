@@ -43,9 +43,14 @@ object ViperBackends {
   abstract class ViperServerBackend(initialServer: Option[ViperCoreServer] = None) extends ViperBackend {
     private var server: Option[ViperCoreServer] = initialServer
 
-    /** should be implemented by classes implementing this abstract class */
+    /** abstract method that should return the backend-specific configuration. The configuration will then be passed
+      * on to the ViperServer instance.
+      */
     def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig
 
+    /** returns a ViperServer instance with an underlying ViperCoreServer. A fresh ViperServer instance should be used
+      * for each verification. The underlying ViperCoreServer instance is reused if one already exists.
+      */
     def create(exePaths: Vector[String], config: Config)(implicit executionContext: GobraExecutionContext): ViperServer = {
       val initializedServer = getOrCreateServer(config)(executionContext)
       val executor = initializedServer.executor
@@ -55,6 +60,7 @@ object ViperBackends {
       new ViperServer(initializedServer, verifierConfig)(executor)
     }
 
+    /** returns an existing ViperCoreServer instance or otherwise creates a new one */
     protected def getOrCreateServer(config: Config)(executionContext: GobraExecutionContext): ViperCoreServer = {
       server.getOrElse({
         var serverConfig = List("--logLevel", config.logLevel.levelStr)
@@ -69,6 +75,7 @@ object ViperBackends {
       })
     }
 
+    /** resets the ViperCoreServer instance such that a new one will be created for the next verification */
     def resetServer(): Unit =
       server = None
   }

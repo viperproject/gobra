@@ -447,7 +447,8 @@ object Parser {
         name <- "func" ~> idnDef
         sig  <- signature
         body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(blockWithBodyParameterInfo)
-      } yield PFunctionDecl(name, sig._1, sig._2, spec, body).at(spec)
+        // Need to update the position range, since otherwise only the body bzw signature position is accounted for
+      } yield PFunctionDecl(name, sig._1, sig._2, spec, body).range(spec, if (body.isDefined) body.get._2 else sig._2)
 
     lazy val functionSpec: Parser[PFunctionSpec] = {
       sealed trait FunctionSpecClause
@@ -489,7 +490,8 @@ object Parser {
         name <- idnDef
         sig  <- signature
         body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(blockWithBodyParameterInfo)
-      } yield PMethodDecl(name, rcv, sig._1, sig._2, spec, body).at(spec)
+        // Need to update the position range, since otherwise only the body bzw signature position is accounted for
+      } yield PMethodDecl(name, rcv, sig._1, sig._2, spec, body).range(spec, if (body.isDefined) body.get._2 else sig._2)
 
     /**
       * Statements

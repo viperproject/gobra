@@ -447,8 +447,8 @@ object Parser {
         name <- "func" ~> idnDef
         sig  <- signature
         body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(blockWithBodyParameterInfo)
-        // Need to update the position range, since otherwise only the body bzw signature position is accounted for
-      } yield PFunctionDecl(name, sig._1, sig._2, spec, body).range(spec, if (body.isDefined) body.get._2 else sig._2)
+        // the start position has to be manually set as Kiama would otherwise only use the body's position as start & finish
+      } yield PFunctionDecl(name, sig._1, sig._2, spec, body).from(spec)
 
     lazy val functionSpec: Parser[PFunctionSpec] = {
       sealed trait FunctionSpecClause
@@ -490,8 +490,8 @@ object Parser {
         name <- idnDef
         sig  <- signature
         body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(blockWithBodyParameterInfo)
-        // Need to update the position range, since otherwise only the body bzw signature position is accounted for
-      } yield PMethodDecl(name, rcv, sig._1, sig._2, spec, body).range(spec, if (body.isDefined) body.get._2 else sig._2)
+        // the start position has to be manually set as Kiama would otherwise only use the body's position as start & finish
+      } yield PMethodDecl(name, rcv, sig._1, sig._2, spec, body).from(spec)
 
     /**
       * Statements
@@ -1495,6 +1495,25 @@ object Parser {
     implicit class PositionedPAstNode[N <: PNode](node: N) {
       def at(other: PNode): N = {
         pom.positions.dupPos(other, node)
+      }
+
+      /**
+        * Sets the start position of the current node to the start position of node `from`.
+        * The finish position of the current node remains unchanged.
+        */
+      def from(from: PNode): N = {
+        val fromPos = pom.positions.getStart(from)
+        Violation.violation(fromPos.isDefined, s"cannot copy positional information from a node without positional information")
+        // we keep the existing finish position of the current node (if it exists)
+        val toPos = pom.positions.getFinish(node)
+        // in order to be able to set start and finish position, we first have to remove the current positions:
+        // note: `resetAt` would be the perfect choice here but there seems to be a bug in the parameter type as it
+        // currently takes a `Seq[Any]` instead of `Any`. Thus, we use `resetAllAt` for now with a singleton sequence
+        pom.positions.resetAllAt(Seq(node))
+        pom.positions.setStart(node, fromPos.get)
+        // set finish position if it existed:
+        toPos.foreach(pos => pom.positions.setFinish(node, pos))
+        node
       }
 
       def range(from: PNode, to: PNode): N = {

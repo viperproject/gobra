@@ -10,6 +10,6 @@ import viper.gobra.util.GobraExecutionContext
 
 import scala.concurrent.Future
 
-trait Backend[I, C, R, P, O] {
-  def verify(id: I, config: C, reporter: R, program: P)(executor: GobraExecutionContext): Future[O]
+trait Backend[I, R, P, O] {
+  def verify(id: I, reporter: R, program: P)(executor: GobraExecutionContext): Future[O]
 }

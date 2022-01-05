@@ -12,17 +12,8 @@ import viper.silver.reporter.Reporter
 
 import scala.concurrent.Future
 
-object ViperVerifierConfig {
-  object EmptyConfig extends ViperVerifierConfig {val partialCommandLine: List[String] = Nil}
-  case class Config(partialCommandLine: List[String]) extends ViperVerifierConfig
-}
+trait ViperVerifier extends Backend[String, Reporter, silver.ast.Program, silver.verifier.VerificationResult] {
 
-trait ViperVerifierConfig {
-  val partialCommandLine: List[String]
-}
-
-trait ViperVerifier extends Backend[String, ViperVerifierConfig, Reporter, silver.ast.Program, silver.verifier.VerificationResult] {
-
-  def verify(programID: String, config: ViperVerifierConfig, reporter: Reporter, program: silver.ast.Program)(executor: GobraExecutionContext): Future[silver.verifier.VerificationResult]
+  def verify(programID: String, reporter: Reporter, program: silver.ast.Program)(executor: GobraExecutionContext): Future[silver.verifier.VerificationResult]
 
 }

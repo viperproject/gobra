@@ -14,7 +14,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessag
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import org.rogach.scallop.{ScallopConf, ScallopOption, listArgConverter, singleArgConverter}
 import org.slf4j.LoggerFactory
-import viper.gobra.backend.{ViperBackend, ViperBackends, ViperVerifierConfig}
+import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
@@ -29,7 +29,6 @@ case class Config(
                  includeDirs: Vector[Path] = Vector(),
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
-                 backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig,
                  z3Exe: Option[String] = None,
                  boogieExe: Option[String] = None,
                  logLevel: Level = LoggerDefaults.DefaultLevel,
@@ -132,8 +131,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   )(singleArgConverter({
     case "SILICON" => ViperBackends.SiliconBackend
     case "CARBON" => ViperBackends.CarbonBackend
-    case "VSWITHSILICON" => ViperBackends.ViperServerWithSilicon
-    case "VSWITHCARBON" => ViperBackends.ViperServerWithCarbon
+    case "VSWITHSILICON" => ViperBackends.ViperServerWithSilicon()
+    case "VSWITHCARBON" => ViperBackends.ViperServerWithCarbon()
     case _ => ViperBackends.SiliconBackend
   }))
 
@@ -307,9 +306,9 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   // cache file should only be usable when using viper server
   validateOpt (backend, cacheFile) {
-    case (Some(ViperBackends.ViperServerWithSilicon), Some(_)) => Right()
-    case (Some(ViperBackends.ViperServerWithCarbon), Some(_)) => Right()
-    case (_, None) => Right()
+    case (Some(_: ViperBackends.ViperServerWithSilicon), Some(_)) => Right(())
+    case (Some(_: ViperBackends.ViperServerWithCarbon), Some(_)) => Right(())
+    case (_, None) => Right(())
     case (_, Some(_)) => Left("Cache file can only be specified when the backend uses Viper Server")
   }
 

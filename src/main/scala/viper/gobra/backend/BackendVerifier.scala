@@ -50,7 +50,7 @@ object BackendVerifier {
     val verifier = config.backend.create(exePaths, config)
     val programID = s"_programID_${config.inputs.map(_.name).mkString("_")}"
 
-    val verificationResult = verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor)
+    val verificationResult = verifier.verify(programID, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor)
 
 
     verificationResult.map(

@@ -5,13 +5,38 @@
 // Copyright (c) 2011-2020 ETH Zurich.
 
 package viper.gobra.util
+
+
 import viper.gobra.util.ViperChopper.Cut.MergePenalty
 import viper.silver.{ast => vpr}
 import viper.gobra.util.ViperChopper.Vertex.Always
 
 import scala.collection.mutable
 
+object GobraChopperUtil {
+  import viper.silver.ast.SourcePosition
+  import viper.gobra.frontend.Config
+  import viper.gobra.reporting.Source
+  import viper.gobra.ast.frontend.{PFunctionDecl, PMethodDecl}
+
+  def computeIsolateMap(config: Config): Option[vpr.Method => Boolean] = {
+    def hit(x: SourcePosition, target: SourcePosition): Boolean = {
+      (target.end match {
+        case None => x.start.line == target.start.line
+        case Some(pos) => target.start.line <= x.start.line && x.start.line <= pos.line
+      }) && x.file.getFileName == target.file.getFileName
+    }
+
+    config.isolate.map { names => {
+      case Source(Source.Verifier.Info(_: PFunctionDecl, _, origin, _)) => names.exists(hit(_, origin.pos))
+      case Source(Source.Verifier.Info(_: PMethodDecl, _, origin, _)) => names.exists(hit(_, origin.pos))
+      case _ => false
+    }}
+  }
+}
+
 object ViperChopper {
+
   /** chops 'choppee' into independent Viper programs */
   def chop(choppee: vpr.Program)(
     isolate: Option[vpr.Method => Boolean] = None,

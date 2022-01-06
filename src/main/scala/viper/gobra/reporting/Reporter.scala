@@ -8,8 +8,11 @@ package viper.gobra.reporting
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Paths
+
 import ch.qos.logback.classic.Level
+import com.typesafe.scalalogging.Logger
 import org.apache.commons.io.FileUtils
+import org.slf4j.LoggerFactory
 import viper.gobra.frontend.LoggerDefaults
 import viper.gobra.util.{OutputUtil, Violation}
 
@@ -39,6 +42,10 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
                               debug: Boolean = false,
                               printInternal: Boolean = false,
                               printVpr: Boolean = false) extends GobraReporter {
+
+  lazy val logger: Logger =
+    Logger(LoggerFactory.getLogger(getClass.getName))
+
   override def report(msg: GobraMessage): Unit = msg match {
     case ParsedInputMessage(input, program) if unparse => write(input, "unparsed", program().formatted)
     case TypeCheckSuccessMessage(inputs, _, erasedGhostCode, goifiedGhostCode) =>
@@ -49,6 +56,7 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
     case AppliedInternalTransformsMessage(inputs, internal) if printInternal => write(inputs, "internal", internal().formatted)
     case m@GeneratedViperMessage(inputs, _, _) if printVpr => write(inputs, "vpr", m.vprAstFormatted)
     case m: ChoppedViperMessage if printVpr => write(m.inputs, s"chopped${m.idx}.vpr", m.vprAstFormatted)
+    case m: ChoppedProgressMessage => logger.info(m.toString)
     case CopyrightReport(text) => println(text)
     case _ => // ignore
   }

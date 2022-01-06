@@ -14,13 +14,12 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessag
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import org.rogach.scallop.{ScallopConf, ScallopOption, listArgConverter, singleArgConverter}
 import org.slf4j.LoggerFactory
-import viper.gobra.backend.{ViperBackend, ViperBackends, ViperVerifierConfig}
+import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
-
 
 object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
@@ -33,11 +32,10 @@ case class Config(
                  backend: ViperBackend = ViperBackends.SiliconBackend,
                  isolate: Option[Vector[SourcePosition]] = None,
                  choppingUpperBound: Int = 1,
-                 // backendConfig is used for the ViperServer
-                 backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig,
                  z3Exe: Option[String] = None,
                  boogieExe: Option[String] = None,
                  logLevel: Level = LoggerDefaults.DefaultLevel,
+                 cacheFile: Option[String] = None,
                  shouldParse: Boolean = true,
                  shouldTypeCheck: Boolean = true,
                  shouldDesugar: Boolean = true,
@@ -54,6 +52,7 @@ case class Config(
                  // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
                  cacheParser: Boolean = false
             ) {
+
   def merge(other: Config): Config = {
     // this config takes precedence over other config
     Config(
@@ -71,6 +70,7 @@ case class Config(
       boogieExe = boogieExe orElse other.boogieExe,
       logLevel = if (logLevel.isGreaterOrEqual(other.logLevel)) other.logLevel else logLevel, // take minimum
       // TODO merge strategy for following properties is unclear (maybe AND or OR)
+      cacheFile = cacheFile orElse other.cacheFile,
       shouldParse = shouldParse,
       shouldTypeCheck = shouldTypeCheck,
       shouldDesugar = shouldDesugar,
@@ -134,12 +134,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val backend: ScallopOption[ViperBackend] = opt[ViperBackend](
     name = "backend",
-    descr = "Specifies the used Viper backend, one of SILICON, CARBON (default: SILICON)",
+    descr = "Specifies the used Viper backend, one of VSWITHSILICON, VSWITHCARBON, SILICON, CARBON (default: SILICON)",
     default = Some(ViperBackends.SiliconBackend),
     noshort = true
   )(singleArgConverter({
     case "SILICON" => ViperBackends.SiliconBackend
     case "CARBON" => ViperBackends.CarbonBackend
+    case "VSWITHSILICON" => ViperBackends.ViperServerWithSilicon()
+    case "VSWITHCARBON" => ViperBackends.ViperServerWithCarbon()
     case _ => ViperBackends.SiliconBackend
   }))
 
@@ -225,6 +227,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     descrYes = "Find expressions that may lead to integer overflow",
     default = Some(false),
     noshort = false
+  )
+
+  val cacheFile: ScallopOption[String] = opt[String](
+    name = "cacheFile",
+    descr = "Cache file to be used by Viper Server",
+    default = None,
+    noshort = true
   )
 
   val int32Bit: ScallopOption[Boolean] = toggle(
@@ -325,6 +334,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   val cutInput: ScallopOption[List[String]] = cutInputWithIdxs.map(_.map(_._1))
 
   validateInput(cutInput, module, include)
+
+  // cache file should only be usable when using viper server
+  validateOpt (backend, cacheFile) {
+    case (Some(_: ViperBackends.ViperServerWithSilicon), Some(_)) => Right(())
+    case (Some(_: ViperBackends.ViperServerWithCarbon), Some(_)) => Right(())
+    case (_, None) => Right(())
+    case (_, Some(_)) => Left("Cache file can only be specified when the backend uses Viper Server")
+  }
 
   verify()
 
@@ -436,6 +453,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     z3Exe = z3Exe.toOption,
     boogieExe = boogieExe.toOption,
     logLevel = logLevel(),
+    cacheFile = cacheFile.toOption,
     shouldParse = shouldParse,
     shouldTypeCheck = shouldTypeCheck,
     shouldDesugar = shouldDesugar,

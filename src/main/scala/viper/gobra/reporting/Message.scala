@@ -10,7 +10,6 @@ import java.nio.file.Path
 import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.ast.frontend.{PPackage, PProgram}
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.Source.Verifier
 import viper.gobra.reporting.VerifierResult.Success
 import viper.silver
 import viper.silver.{ast => vpr}
@@ -67,6 +66,11 @@ case class GobraEntityFailureMessage(verifier: String, entity: vpr.Member, conce
     s"verifier=${verifier}, " +
     s"concerning=${concerning.toString}, " +
     s"failure=${result.toString})"
+}
+
+case class ChoppedProgressMessage(idx: Int, of: Int) extends GobraMessage {
+  override val name: String = "chopped_progress_message"
+  override def toString: String = s"$name(idx=$idx,of=$of)"
 }
 
 case class PreprocessedInputMessage(input: String, preprocessedContent: () => String) extends GobraMessage {

@@ -780,6 +780,7 @@ case class PFunctionSpec(
                       posts: Vector[PExpression],
                       terminationMeasures: Vector[PTerminationMeasure],
                       isPure: Boolean = false,
+                      isTrusted: Boolean = false
                       ) extends PSpecification
 
 case class PBodyParameterInfo(

@@ -20,7 +20,7 @@ import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
 import org.antlr.v4.runtime.{BailErrorStrategy, CharStreams, CommonTokenStream, ConsoleErrorListener, DefaultErrorStrategy, ParserRuleContext}
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
-import viper.gobra.frontend.GobraParser.{ExprOnlyContext, FunctionDeclContext, ImportDeclContext, SourceFileContext, StmtOnlyContext, Type_Context}
+import viper.gobra.frontend.GobraParser.{ExprOnlyContext, FunctionDeclContext, ImportDeclContext, SourceFileContext, StmtOnlyContext, TypeOnlyContext, Type_Context}
 import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable.ListBuffer
@@ -52,7 +52,7 @@ object Parser {
       .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
     val sources = input.map(Gobrafier.gobrafy)
     val legacyOverride = false
-    if (false) {
+    if (legacyOverride) {
       for {
         parseAst <- time("GOBRA", input(0).name) {parseSources(preprocessedSources, specOnly)(config)}
         postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
@@ -323,8 +323,8 @@ object Parser {
   def parseType(source : Source) : Either[Vector[ParserError], PType] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new antlrSyntaxAnalyzer[Type_Context, PType](source, ListBuffer.empty[ParserError],  pom, false)
-    parser.parse(parser.type_())
+    val parser = new antlrSyntaxAnalyzer[TypeOnlyContext, PType](source, ListBuffer.empty[ParserError],  pom, false)
+    parser.parse(parser.typeOnly())
   }
 
   private def translateParseResult[T](pom: PositionManager)(r: ParseResult[T]): Either[Messages, T] = {

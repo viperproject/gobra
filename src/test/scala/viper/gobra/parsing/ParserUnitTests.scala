@@ -1167,13 +1167,9 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
-  // TODO is this desirable?
-  test("Parser: should parse set intersection with missing right-hand side as set/seq inclusion") {
-    frontend.parseExpOrFail("s intersection") should matchPattern {
-      case PIn(
-        PNamedOperand(PIdnUse("s")),
-        PNamedOperand(PIdnUse("tersection")),
-      ) =>
+  test("Parser: should not parse set intersection with missing right-hand side as set/seq inclusion") {
+    frontend.parseExp("s intersection") should matchPattern {
+      case Left(_) =>
     }
   }
 

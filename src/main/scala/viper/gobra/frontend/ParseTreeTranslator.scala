@@ -24,6 +24,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   val warnings : ListBuffer[TranslationWarning] = ListBuffer.empty
 
 
+  /**
+    * Visit the rule
+    * typeOnly: type_ EOF;
+
+    */
+  override def visitTypeOnly(ctx: TypeOnlyContext): PType = visitType_(ctx.type_())
+
   def translate[Rule <: ParserRuleContext, Node](tree: Rule):  Node = {
     tree match {
       case tree: SourceFileContext => visitSourceFile(tree).asInstanceOf[Node]
@@ -32,7 +39,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       case tree: StmtOnlyContext => visitStmtOnly(tree).asInstanceOf[Node]
       case tree: FunctionDeclContext => visitFunctionDecl(tree).asInstanceOf[Node]
       case tree: ImportDeclContext => visitImportDecl(tree).asInstanceOf[Node]
-      case tree: Type_Context => visitType_(tree).asInstanceOf[Node]
+      case tree: TypeOnlyContext => visitTypeOnly(tree).asInstanceOf[Node]
     }
   }
 
@@ -541,16 +548,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
+    * Visits the rule
+    * mapType: MAP L_BRACKET type_ R_BRACKET elementType;
     */
   override def visitMapType(ctx: MapTypeContext): PMapType = {
-    val key = visitType_(ctx.type_())
-    val elem = visitType_(ctx.elementType().type_())
-
-    PMapType(key, elem).at(ctx)
+    visitChildren(ctx) match {
+      case ListBuffer(_, _, key : PType, _, ListBuffer(elem : PType)) => PMapType(key, elem).at(ctx)
+    }
   }
 
   /**
@@ -877,10 +881,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitMethodImplementationProof(ctx: MethodImplementationProofContext): PMethodImplementationProof = {
     val id = visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnUse)
-    val receiver = visitNonLocalReceiver(ctx.nonLocalReceiver())
+    val receiver : PParameter = visitNode(ctx.nonLocalReceiver())
     val (args, result) = visitSignature(ctx.signature())
     val isPure = has(ctx.PURE())
     val body = if (has(ctx.block())) Some((PBodyParameterInfo(Vector.empty).at(ctx), visitBlock(ctx.block()))) else None
+    body match {
+      case Some((a, b)) => pom.positions.dupRangePos(a, b, body)
+      case _ =>
+    }
     PMethodImplementationProof(id, receiver, args, result, isPure = isPure, body).at(ctx)
   }
 
@@ -891,10 +899,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitImplementationProof(ctx: ImplementationProofContext): PImplementationProof = {
-    val subT = visitType_(ctx.type_(0))
-    val superT = visitType_(ctx.type_(1))
-    val alias = for (a <- ctx.implementationProofPredicateAlias().asScala.toVector) yield visitImplementationProofPredicateAlias(a)
-    val memberProofs = for (m <- ctx.methodImplementationProof().asScala.toVector) yield visitMethodImplementationProof(m)
+    val subT : PType = visitNode(ctx.type_(0))
+    val superT : PType = visitType_(ctx.type_(1))
+    val alias = visitListNode(ctx.implementationProofPredicateAlias())
+    val memberProofs = visitListNode(ctx.methodImplementationProof())
     PImplementationProof(subT, superT, alias, memberProofs).at(ctx)
   }
 
@@ -1126,7 +1134,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   def visitGobraExpressionList(ctx: GobraParser.ExpressionListContext, wildcardRule: WildcardRule = Disallow): Vector[PExpression] = {
     if (!has(ctx)) Vector.empty else
-    for (expr <- ctx.expression().asScala.toVector) yield visitGobraExpression(expr, wildcardRule)
+      (for (expr <- ctx.expression().asScala.toVector) yield visitGobraExpression(expr, wildcardRule)).at(ctx)
   }
 
 
@@ -1419,7 +1427,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitLabeledStmt(ctx: LabeledStmtContext): PLabeledStmt = {
     val label = visitLabelDef(ctx.IDENTIFIER())
-    val stmt = if(has(ctx.statement())) visitStatement(ctx.statement()) else PEmptyStmt().at(ctx)
+    val stmt = if(has(ctx.statement())) visitStatement(ctx.statement()) else PEmptyStmt().at(label)
     PLabeledStmt(label, stmt).at(ctx)
   }
 
@@ -1703,7 +1711,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitMethodSpec(ctx: GobraParser.MethodSpecContext): PMethodSig = {
-    val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty)
+    val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty).at(ctx)
     // The name of each explicitly specified method must be unique and not blank.
     val id = visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnDef)
     val args = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
@@ -1730,7 +1738,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitInterfaceType(ctx: GobraParser.InterfaceTypeContext): PInterfaceType = {
-    val methodDecls = for (meth <- ctx.methodSpec().asScala.toVector) yield visitMethodSpec(meth).at(ctx)
+    val methodDecls = (for (meth <- ctx.methodSpec().asScala.toVector) yield visitMethodSpec(meth).at(ctx)).at(ctx)
     val embedded = for (typ <- ctx.typeName().asScala.toVector) yield
       PInterfaceName(PNamedOperand(visitIdentifier(typ.IDENTIFIER(), Disallow, PIdnUse)).at(typ)).at(typ)
     val predicateDecls = for (pred <- ctx.predicateSpec().asScala.toVector) yield visitPredicateSpec(pred)
@@ -1844,9 +1852,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitTypeLit(ctx: GobraParser.TypeLitContext): PTypeLit = {
-    val d : PTypeLit = visitNodeChild(ctx)
-    println(d.pretty(new DebugPrettyPrinter(pom)))
-    d
+    visitNodeChild(ctx)
   }
 
   /**
@@ -2059,12 +2065,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
-  def visitListNode[P <: PNode](ctx : java.util.List[ParserRuleContext], optional : Boolean = false, default : ParserRuleContext = new ParserRuleContext()) : Vector[P] = {
-    if (ctx.isEmpty && optional) {
-      Vector.empty.at(default)
-    } else {
-      val v = ctx.asScala.toVector.map(visitNode[P])
-      v.range(v.head, v.last)
+  def visitListNode[P <: PNode](ctx : java.util.List[_ <: ParserRuleContext], optional : Boolean = false, default : ParserRuleContext = new ParserRuleContext()) : Vector[P] = {
+    ctx.asScala.toVector.map(visitNode[P]) match {
+      case e@Vector() => e
+      case v => v.range(v.head, v.last)
     }
   }
 
@@ -2078,8 +2082,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @return
     */
   def visitNodeChild[P <: AnyRef](ctx : ParserRuleContext) : P = {
-    super.visitChildren(ctx) match {
-      case res : P => res
+    visitChildren(ctx) match {
+      case ListBuffer(res : P) => res
       case _ => fail(ctx, "Did not correctly implement visitor override or called for the wrong context type.")
     }
   }
@@ -2175,6 +2179,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   def has(a : AnyRef): Boolean = {
     a != null
   }
+
+
+  override def aggregateResult(aggregate: AnyRef, nextResult: AnyRef): AnyRef = {
+    val list = aggregate.asInstanceOf[ListBuffer[AnyRef]]
+    list :+ nextResult
+  }
+
+  override def defaultResult(): AnyRef = ListBuffer.empty[AnyRef]
 
   private def visitIdentifier[N <: PNode, I <: N](id: TerminalNode, wildcardRule: WildcardRule, idnNodeType : String => I): N = {
     val name = id.getText

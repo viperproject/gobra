@@ -65,6 +65,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitStmtOnly(GobraParser.StmtOnlyContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#typeOnly}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTypeOnly(GobraParser.TypeOnlyContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#ghostPrimaryExpr}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

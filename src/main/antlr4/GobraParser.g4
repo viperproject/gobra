@@ -38,6 +38,8 @@ exprOnly: expression EOF;
 
 stmtOnly: statement EOF;
 
+typeOnly: type_ EOF;
+
 ghostPrimaryExpr: range
                 | access
                 | typeOf

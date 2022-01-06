@@ -20,7 +20,7 @@ class SCCUnitTests extends AnyFunSuite with Matchers with Inside {
   
   test("Component 0: should find strongly connected components as expected") {
     compareChopped (ViperChopper.SCC.components(Seq("A"), Seq.empty), Vector(
-      new ViperChopper.SCC.Component(Seq("A"))
+      ViperChopper.SCC.Component(Seq("A"))
     ))
   }
     
@@ -34,10 +34,10 @@ class SCCUnitTests extends AnyFunSuite with Matchers with Inside {
       ("D", "E")
     )
     compareChopped (ViperChopper.SCC.components(vertices, edges), Vector(
-      new ViperChopper.SCC.Component(Seq("A")),
-      new ViperChopper.SCC.Component(Seq("B")),
-      new ViperChopper.SCC.Component(Seq("C", "D")),
-      new ViperChopper.SCC.Component(Seq("E"))
+      ViperChopper.SCC.Component(Seq("A")),
+      ViperChopper.SCC.Component(Seq("B")),
+      ViperChopper.SCC.Component(Seq("C", "D")),
+      ViperChopper.SCC.Component(Seq("E"))
     ))
   }
 
@@ -52,9 +52,9 @@ class SCCUnitTests extends AnyFunSuite with Matchers with Inside {
       ("D", "E")
     )
     compareChopped (ViperChopper.SCC.components(vertices, edges), Vector(
-      new ViperChopper.SCC.Component(Seq("A")),
-      new ViperChopper.SCC.Component(Seq("D", "C", "B")),
-      new ViperChopper.SCC.Component(Seq("E"))
+      ViperChopper.SCC.Component(Seq("A")),
+      ViperChopper.SCC.Component(Seq("D", "C", "B")),
+      ViperChopper.SCC.Component(Seq("E"))
     ))
   }
 
@@ -67,11 +67,11 @@ class SCCUnitTests extends AnyFunSuite with Matchers with Inside {
       ("D", "E")
     )
     compareChopped (ViperChopper.SCC.components(vertices, edges), Vector(
-      new ViperChopper.SCC.Component(Seq("A")),
-      new ViperChopper.SCC.Component(Seq("B")),
-      new ViperChopper.SCC.Component(Seq("C")),
-      new ViperChopper.SCC.Component(Seq("D")),
-      new ViperChopper.SCC.Component(Seq("E"))
+      ViperChopper.SCC.Component(Seq("A")),
+      ViperChopper.SCC.Component(Seq("B")),
+      ViperChopper.SCC.Component(Seq("C")),
+      ViperChopper.SCC.Component(Seq("D")),
+      ViperChopper.SCC.Component(Seq("E"))
     ))
   }
 
@@ -85,42 +85,24 @@ class SCCUnitTests extends AnyFunSuite with Matchers with Inside {
       ("D", "E")
     )
     val choppedReference = Vector(
-      new ViperChopper.SCC.Component(Seq("A")),
-      new ViperChopper.SCC.Component(Seq("B")),
-      new ViperChopper.SCC.Component(Seq("C", "D")),
-      new ViperChopper.SCC.Component(Seq("E"))
+      ViperChopper.SCC.Component(Seq("A")),
+      ViperChopper.SCC.Component(Seq("B")),
+      ViperChopper.SCC.Component(Seq("C", "D")),
+      ViperChopper.SCC.Component(Seq("E"))
     )
     val (components, inverse, dag) = ViperChopper.SCC.compute(vertices, edges)
     compareChopped(components, choppedReference)
     inverse shouldEqual Map(
-      "A" -> new ViperChopper.SCC.Component(Seq("A")),
-      "B" -> new ViperChopper.SCC.Component(Seq("B")),
-      "C" -> new ViperChopper.SCC.Component(Seq("D", "C")),
-      "D" -> new ViperChopper.SCC.Component(Seq("D", "C")),
-      "E" -> new ViperChopper.SCC.Component(Seq("E")),
+      "A" -> ViperChopper.SCC.Component(Seq("A")),
+      "B" -> ViperChopper.SCC.Component(Seq("B")),
+      "C" -> ViperChopper.SCC.Component(Seq("D", "C")),
+      "D" -> ViperChopper.SCC.Component(Seq("D", "C")),
+      "E" -> ViperChopper.SCC.Component(Seq("E")),
     )
     dag shouldEqual Seq(
-      (new ViperChopper.SCC.Component(Seq("A")), new ViperChopper.SCC.Component(Seq("D", "C"))),
-      (new ViperChopper.SCC.Component(Seq("B")), new ViperChopper.SCC.Component(Seq("D", "C"))),
-      (new ViperChopper.SCC.Component(Seq("D", "C")), new ViperChopper.SCC.Component(Seq("E")))
-    )
-  }
-
-  test("Paths: should find subtree in forest as expected") {
-    val graph = Seq(
-      ("C", "A"),
-      ("C", "B"),
-      ("D", "C"),
-      ("G", "C"),
-      ("E", "D"),
-      ("F", "D"),
-      ("F", "G")
-    )
-    ViperChopper.Subtree.subtree("E", graph).toSet shouldEqual Set(
-      "A", "B", "C", "D", "E"
-    )
-    ViperChopper.Subtree.subtree("F", graph).toSet shouldEqual Set(
-      "A", "B", "C", "D", "F", "G"
+      (ViperChopper.SCC.Component(Seq("A")), ViperChopper.SCC.Component(Seq("D", "C"))),
+      (ViperChopper.SCC.Component(Seq("B")), ViperChopper.SCC.Component(Seq("D", "C"))),
+      (ViperChopper.SCC.Component(Seq("D", "C")), ViperChopper.SCC.Component(Seq("E")))
     )
   }
 }

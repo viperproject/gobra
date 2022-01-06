@@ -219,6 +219,13 @@ object ViperChopper {
           (price(lDiff) + price(rDiff)) * ((20 + price(inter)).toFloat / 20).toInt
         }
       }
+
+      object NoAlways extends NaturalMergePenalty[SCC.Component[Vertex]] {
+        override def penalty(l: Set[SCC.Component[Vertex]], r: Set[SCC.Component[Vertex]]): Int = {
+          val dflt = Default.penalty(l,r)
+          if (dflt <= 0) 1 else dflt
+        }
+      }
     }
   }
 

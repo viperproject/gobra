@@ -1,0 +1,137 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+decreases x
+func f(x int) int {
+	if x > 2 {
+		//:: ExpectedOutput(function_termination_error)
+		return f(f(0) + 3)
+	}
+	return 0
+}
+
+decreases n
+func simple(n int) {
+	//:: ExpectedOutput(function_termination_error)
+	simple(n)
+}
+
+// termination checking for mutual recursion
+ghost
+requires x >= 0
+decreases x
+func isEven(x int) bool {
+	if x == 0 {
+		return true
+	} else {
+		//:: ExpectedOutput(function_termination_error)
+		return !isOdd(x)
+	}
+}
+
+ghost
+requires y >= 0
+decreases y
+func isOdd(y int) bool {
+	if y == 0 {
+		return false
+	} else {
+		//:: ExpectedOutput(function_termination_error)
+		return !isEven(y)
+	}
+}
+
+decreases x if 1 <= x
+decreases _ if x <= -1
+func sign(x int) int {
+	if x == 0 {
+		return sign(x)
+	} else if 1 < x {
+		//:: ExpectedOutput(function_termination_error)
+		return sign(x)
+	} else if x < -1 {
+		return sign(x + 1)
+	} else {
+		return x
+	}
+}
+
+decreases n
+func factorial(n int) int {
+	if n == 0 {
+		return 1
+	} else {
+		//:: ExpectedOutput(function_termination_error)
+		return factorial(n-1)
+	}
+}
+
+ghost
+requires n >= 0
+decreases
+pure func factorialPure(n int) int {
+	//:: ExpectedOutput(pure_function_termination_error)
+	return n == 0? 1 :  1 * factorialPure(n-1)
+}
+
+decreases n
+pure func infinite(n int) int {
+	//:: ExpectedOutput(pure_function_termination_error)
+	return infinite(n)
+}
+
+type list struct {
+	next *list
+	value int
+}
+
+pred List(self *list) {
+	acc(&self.value) && acc(&self.next) && (self.next != nil ==> List(self.next))
+}
+
+requires List(x)
+ensures List(x)
+decreases
+func length(x *list) int {
+	unfold List(x)
+	if x.next == nil {
+		fold List(x)
+		return 1
+	} else {
+		//:: ExpectedOutput(function_termination_error)
+		var y int = 1 + length(x.next)
+		fold List(x)
+		return y
+	}
+}
+
+requires 0 <= n
+ensures res == n * (n+1)/2
+decreases
+func sum1(n int) (res int) {
+	res := 0
+	//:: ExpectedOutput(function_termination_error)
+	invariant i <= n+1
+	invariant res == (i-1) * i/2
+	for i := 0; i <= n; i++ {
+		res = res+i
+	}
+	return res
+}
+
+requires 0 <= n
+ensures res == n * (n+1)/2
+decreases
+func sum2(n int) (res int) {
+	res := 0
+	invariant i <= n+1
+	invariant res == (i-1) * i/2
+	//:: ExpectedOutput(loop_termination_error)
+	decreases i
+	for i := 0; i <= n; i++ {
+		res = res+i
+	}
+	return res
+}

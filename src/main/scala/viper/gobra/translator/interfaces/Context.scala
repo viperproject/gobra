@@ -39,6 +39,7 @@ trait Context {
   def predicate: Predicates
   def builtInMembers: BuiltInMembers
   def stmt: Statements
+  def measures: TerminationMeasures
 
   // lookup
   def table: LookupTable
@@ -86,6 +87,7 @@ trait Context {
           unknownValueN: UnknownValues = unknownValue,
           typeEncodingN: TypeEncoding = typeEncoding,
           assN: Assertions = ass,
+          measuresN: TerminationMeasures = measures,
           exprN: Expressions = expr,
           methodN: Methods = method,
           pureMethodN: PureMethods = pureMethod,
@@ -114,6 +116,7 @@ trait Context {
     // translators
     typeEncoding.finalize(col)
     ass.finalize(col)
+    measures.finalize(col)
     expr.finalize(col)
     method.finalize(col)
     pureMethod.finalize(col)

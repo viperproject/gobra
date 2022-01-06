@@ -138,7 +138,8 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
   }
 
   /** returns true iff node is contained in ghost code */
-  private[separation] def enclosingGhostContext(n: PNode): Boolean = isEnclosingExplicitGhost(n)
+  private[separation] def enclosingGhostContext(n: PNode): Boolean =
+    isEnclosingExplicitGhost(n) || isEnclosingDomain(n)
 
   /** returns true iff node does not contain ghost expression or id that is not contained in another statement */
   private[separation] lazy val noGhostPropagationFromChildren: PNode => Boolean =

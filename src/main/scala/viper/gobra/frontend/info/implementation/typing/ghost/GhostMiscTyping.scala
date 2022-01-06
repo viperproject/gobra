@@ -23,7 +23,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostMisc(misc: PGhostMisc) = misc match {
     case PBoundVariable(_, _) => noMessages
-    case PTrigger(exprs) => exprs.flatMap(isPureExpr)
+    case PTrigger(exprs) => exprs.flatMap(isWeaklyPureExpr)
     case PExplicitGhostParameter(_) => noMessages
     case p: PPredConstructorBase => p match {
       case PFPredBase(id) => entity(id) match {
@@ -258,12 +258,40 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case PFunctionSpec(pres, preserves, posts, _) =>
+    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _) =>
       pres.flatMap(assignableToSpec) ++ preserves.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
-      preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++ 
-      pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode))
+      preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
+      pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
+      terminationMeasures.flatMap(wellDefTerminationMeasure) ++
+      // if has conditional clause, all clauses must be conditional
+      // can only have one non-conditional clause
+      error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
+      // measures must have the same type
+      error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures))
 
-    case PLoopSpec(invariants) => invariants.flatMap(assignableToSpec)
+    case n@ PLoopSpec(invariants, terminationMeasure) =>
+      invariants.flatMap(assignableToSpec) ++ terminationMeasure.toVector.flatMap(wellDefTerminationMeasure) ++
+        error(n, "Termination measures of loops cannot be conditional.", terminationMeasure.exists(isConditional))
+  }
+
+  private def wellDefTerminationMeasure(measure: PTerminationMeasure): Messages = measure match {
+    case PTupleTerminationMeasure(tuple, cond) =>
+      tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p)) ++
+        cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p))
+    case PWildcardMeasure(cond) =>
+      cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p))
+  }
+
+  private def isConditional(measure: PTerminationMeasure): Boolean = measure match {
+    case PTupleTerminationMeasure(_, cond) => cond.nonEmpty
+    case PWildcardMeasure(cond) => cond.nonEmpty
+  }
+
+  private def hasSameMeasureType(measures: Vector[PTerminationMeasure]): Boolean = {
+    val tupleMeasureTypes =
+      measures.filter(_.isInstanceOf[PTupleTerminationMeasure])
+              .map(_.asInstanceOf[PTupleTerminationMeasure].tuple.map(typ))
+    tupleMeasureTypes forall (_.equals(tupleMeasureTypes.head))
   }
 
   def assignableToSpec(e: PExpression): Messages = {
@@ -272,7 +300,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def illegalPreconditionNode(n: PNode): Messages = {
     n match {
-      case n: POld => message(n, s"old not permitted in precondition")
+      case n@ (_: POld | _: PLabeledOld) => message(n, s"old not permitted in precondition")
       case _ => noMessages
     }
   }

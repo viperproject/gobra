@@ -19,6 +19,7 @@ pure func (m *Mutex) LockInv() pred()
 ghost
 requires inv() && acc(m) && *m == Mutex{}
 ensures m.LockP() && m.LockInv() == inv
+decreases
 func (m *Mutex) SetInv(ghost inv pred())
 
 requires acc(m.LockP(), _)
@@ -27,4 +28,5 @@ func (m *Mutex) Lock()
 
 requires acc(m.LockP(), _) && m.UnlockP() && m.LockInv()()
 ensures m.LockP()
+decreases
 func (m *Mutex) Unlock()

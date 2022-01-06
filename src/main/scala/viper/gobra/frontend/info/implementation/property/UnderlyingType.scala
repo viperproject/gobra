@@ -20,20 +20,26 @@ trait UnderlyingType { this: TypeInfoImpl =>
       case t => t
     }
 
-  lazy val underlyingTypeP: PType => Option[PType] =
+  lazy val underlyingTypeP: PType => Option[PType] = {
+    def inCtx(c: ExternalTypeInfo, rhs: PType): Option[PType] = c match {
+      case c: UnderlyingType => c.underlyingTypeP(rhs)
+      case _ => None
+    }
+
     attr[PType, Option[PType]] {
       case PNamedOperand(t) => entity(t) match {
-        case st.NamedType(decl, _, _) => underlyingTypeP(decl.right)
-        case st.TypeAlias(decl, _, _) => underlyingTypeP(decl.right)
+        case st.NamedType(decl, _, ctx) => inCtx(ctx, decl.right)
+        case st.TypeAlias(decl, _, ctx) => inCtx(ctx, decl.right)
         case _ => None // type not defined
       }
       case PDot(_, id) => entity(id) match {
-        case st.NamedType(decl, _, _) => underlyingTypeP(decl.right)
-        case st.TypeAlias(decl, _, _) => underlyingTypeP(decl.right)
+        case st.NamedType(decl, _, ctx) => inCtx(ctx, decl.right)
+        case st.TypeAlias(decl, _, ctx) => inCtx(ctx, decl.right)
         case _ => None // type not defined
       }
       case t => Some(t)
     }
+  }
 
   lazy val underlyingTypePE: PEmbeddedType => Either[PEmbeddedPointer, Option[PType]] =
     attr[PEmbeddedType, Either[PEmbeddedPointer, Option[PType]]] {

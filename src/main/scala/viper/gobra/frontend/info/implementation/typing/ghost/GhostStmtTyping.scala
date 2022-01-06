@@ -18,10 +18,13 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PExplicitGhostStatement(s) => error(n, "ghost error: expected ghostifiable statement", !s.isInstanceOf[PGhostifiableStatement])
     case PAssert(exp) => assignableToSpec(exp)
     case PExhale(exp) => assignableToSpec(exp)
-    case PAssume(exp) => assignableToSpec(exp)
+    case PAssume(exp) => assignableToSpec(exp) ++ isPureExpr(exp)
     case PInhale(exp) => assignableToSpec(exp)
     case PFold(acc) => wellDefFoldable(acc)
     case PUnfold(acc) => wellDefFoldable(acc)
+    case n@PPackageWand(wand, optBlock) => assignableToSpec(wand) ++
+      error(n, "ghost error: expected ghostifiable statement", !optBlock.forall(_.isInstanceOf[PGhostifiableStatement]))
+    case PApplyWand(wand) => assignableToSpec(wand)
   }
 
   private def wellDefFoldable(acc: PPredicateAccess): Messages =

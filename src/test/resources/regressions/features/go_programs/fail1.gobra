@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+// verification should succeed as lines starting with `//@` are treated as regular comments in `.gobra` files
+//@ ensures false
+func test() (res int) {
+	res = 42
+	return
+}

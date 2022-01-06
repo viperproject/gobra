@@ -22,12 +22,13 @@ func testEncodingBinary() {
 
 // Checks that files from package "net" are correctly parsed
 // 1: file net/ip.gobra
+requires forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i])
 func testNet1(ip net.IP) {
 	s, e := ip.MarshalText() 
 }
 
 // 2: file net/net.gobra
-requires opErr.mem()
+requires opErr.Mem()
 func testNet2(opErr *net.OpError) error {
 	return opErr.Unwrap()
 }

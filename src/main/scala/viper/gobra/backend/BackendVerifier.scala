@@ -67,7 +67,7 @@ object BackendVerifier {
       }
       val programs: Vector[vpr.Program] = ViperChopper.chop(task.program)(isolate = isolate, bound = Some(config.choppingUpperBound))
       programs.zipWithIndex.foreach{ case (chopped, idx) =>
-        config.reporter report ChoppedViperMessage(config.inputFiles.head, idx, () => chopped, () => task.backtrack)
+        config.reporter report ChoppedViperMessage(config.inputs.map(_.name), idx, () => chopped, () => task.backtrack)
       }
 
       val verifier = config.backend.create(exePaths)
@@ -78,7 +78,7 @@ object BackendVerifier {
       // }
 
       programs.zipWithIndex.foldLeft(Future.successful(Vector(silver.verifier.Success)): Future[Vector[VerificationResult]]) { case (res, (program, idx)) =>
-        val programID = s"_programID_${config.inputFiles.head.getFileName}_$idx"
+        val programID = s"_programID_${config.inputs.map(_.name).mkString("_")}_$idx"
         for {
           acc <- res
           next <- verifier
@@ -89,12 +89,12 @@ object BackendVerifier {
     } else {
       val verifier = config.backend.create(exePaths)
 
-      val programID = s"_programID_${config.inputFiles.head}"
+      val programID = s"_programID_${config.inputs.map(_.name).mkString("_")}"
 
       verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor).map(Vector(_))
     }
 
-    
+
     verificationResults.map{ results =>
       val result = results.foldLeft(silver.verifier.Success: VerificationResult){
         case (acc, silver.verifier.Success) => acc
@@ -111,7 +111,6 @@ object BackendVerifier {
   def convertVerificationResult(result: VerificationResult, backTrackInfo: BackTrackInfo): Result = result match {
     case silver.verifier.Success => Success
     case failure: silver.verifier.Failure =>
-
       val (verificationError, otherError) = failure.errors
         .partition(_.isInstanceOf[silver.verifier.VerificationError])
         .asInstanceOf[(Seq[silver.verifier.VerificationError], Seq[silver.verifier.AbstractError])]

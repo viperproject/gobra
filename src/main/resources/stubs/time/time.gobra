@@ -14,12 +14,15 @@ type Time struct {
 }
 
 // After reports whether the time instant t is after u.
+decreases
 pure func (t Time) After(u Time) bool
 
 // Before reports whether the time instant t is before u.
+decreases
 pure func (t Time) Before(u Time) bool
 
 // Equal reports whether t and u represent the same time instant.
+decreases
 func (t Time) Equal(u Time) bool
 
 // A Month specifies a month of the year (January = 1, ...).
@@ -53,6 +56,7 @@ ensures m == September ==> res == "September"
 ensures m == October ==> res == "October"
 ensures m == November ==> res == "November"
 ensures m == December ==> res == "December"
+decreases
 func (m Month) String() (res string)
 
 // A Weekday specifies a day of the week (Sunday = 0, ...).
@@ -78,52 +82,66 @@ ensures d == Wednesday ==> res == "Wednesday"
 ensures d == Thursday ==> res == "Thursday"
 ensures d == Friday ==> res == "Friday"
 ensures d == Saturday ==> res == "Saturday"
+decreases
 func (d Weekday) String() (res string)
 
 // IsZero reports whether t represents the zero time instant,
 // January 1, year 1, 00:00:00 UTC.
+decreases
 pure func (t Time) IsZero() bool
 
 // Date returns the year, month, and day in which t occurs.
+decreases
 func (t Time) Date() (year int, month Month, day int)
 
 // Year returns the year in which t occurs.
+decreases
 func (t Time) Year() int
 
 // Month returns the month of the year specified by t.
+decreases
 func (t Time) Month() Month
 
 // Day returns the day of the month specified by t.
+decreases
 func (t Time) Day() int
 
 // Weekday returns the day of the week specified by t.
+decreases
 func (t Time) Weekday() Weekday
 
+decreases
 func (t Time) ISOWeek() (year, week int)
 
 // Clock returns the hour, minute, and second within the day specified by t.
+decreases
 func (t Time) Clock() (hour, min, sec int)
 
 // Hour returns the hour within the day specified by t, in the range [0, 23].
 ensures 0 <= res && res <= 23
+decreases
 pure func (t Time) Hour() (res int)
 
 // Minute returns the minute offset within the hour specified by t, in the range [0, 59].
 ensures 0 <= res && res <= 59
+decreases
 pure func (t Time) Minute() (res int)
 
 // Second returns the second offset within the minute specified by t, in the range [0, 59].
 ensures 0 <= res && res <= 59
+decreases
 pure func (t Time) Second() (res int)
 
 // Nanosecond returns the nanosecond offset within the second specified by t,
 // in the range [0, 999999999].
 ensures 0 <= res && res <= 999999999
+decreases
 pure func (t Time) Nanosecond() (res int)
 
 // YearDay returns the day of the year specified by t, in the range [1,365] for non-leap years,
 // and [1,366] in leap years.
 ensures 1 <= res && res <= 365
+decreases
 func (t Time) YearDay() (res int)
 
 // A Duration represents the elapsed time between two instants
@@ -141,15 +159,19 @@ const (
 )
 
 // String returns a string representing the duration in the form "72h3m0.5s".
+decreases
 func (d Duration) String() string
 
 // Nanoseconds returns the duration as an integer nanosecond count.
+decreases
 func (d Duration) Nanoseconds() int64 { return int64(d) }
 
 // Microseconds returns the duration as an integer microsecond count.
+decreases
 func (d Duration) Microseconds() int64 { return int64(d) / 1000 }
 
 // Milliseconds returns the duration as an integer millisecond count.
+decreases
 func (d Duration) Milliseconds() int64 { return int64(d) / 1000000 }
 
 // Seconds returns the duration as a floating point number of seconds.
@@ -167,36 +189,46 @@ func (d Duration) Hours() float64
 // If m <= 0, Truncate returns d unchanged.
 ensures m <= 0 ==> res == d
 ensures m > 0 ==> res == d - d%m // leads to violation in the desugarer
+decreases
 pure func (d Duration) Truncate(m Duration) (res Duration)
 
 // Round returns the result of rounding d to the nearest multiple of m.
+decreases
 pure func (d Duration) Round(m Duration) Duration
 
 // Add returns the time t+d.
+decreases
 func (t Time) Add(d Duration) Time
 
 // Sub returns the duration t-u.
+decreases
 func (t Time) Sub(u Time) Duration
 
 // Since returns the time elapsed since t.
 // It is shorthand for time.Now().Sub(t).
+decreases
 func Since(t Time) Duration
 
 // Until returns the duration until t.
 // It is shorthand for t.Sub(time.Now()).
+decreases
 func Until(t Time) Duration
 
 // AddDate returns the time corresponding to adding the
 // given number of years, months, and days to t.
+decreases
 func (t Time) AddDate(years int, months int, days int) Time
 
 // Now returns the current local time.
+decreases
 func Now() Time
 
 // UTC returns t with the location set to UTC.
+decreases
 func (t Time) UTC() Time
 
 // Local returns t with the location set to local time.
+decreases
 func (t Time) Local() Time /*{
 	t.setLoc(Local)
 	return t
@@ -207,26 +239,32 @@ func (t Time) Local() Time /*{
 // purposes.
 requires acc(loc)
 ensures acc(loc)
+decreases
 func (t Time) In(loc *Location) Time
 
 // Location returns the time zone information associated with t.
 // ensures t.loc == nil ==> res == UTC // UTC is currently commented because it is a global var
 ensures t.loc != nil ==> res == t.loc
+decreases
 func (t Time) Location() (res *Location)
 
 // Zone computes the time zone in effect at time t, returning the abbreviated
 // name of the zone (such as "CET") and its offset in seconds east of UTC.
+decreases
 func (t Time) Zone() (name string, offset int) 
 
 // Unix returns t as a Unix time, the number of seconds elapsed
 // since January 1, 1970 UTC.
+decreases
 func (t Time) Unix() int64
 
 // UnixNano returns t as a Unix time, the number of nanoseconds elapsed
 // since January 1, 1970 UTC.
+decreases
 func (t Time) UnixNano() int64
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface.
+decreases
 func (t Time) MarshalBinary() ([]byte, error) 
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
@@ -235,10 +273,12 @@ requires p > 0
 requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
 ensures acc(t)
 ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+decreases
 func (t *Time) UnmarshalBinary(data []byte, ghost p perm) error
 
 // GobEncode implements the gob.GobEncoder interface.
 ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+decreases
 func (t Time) GobEncode() (res []byte, error)
 
 // GobDecode implements the gob.GobDecoder interface.
@@ -247,10 +287,12 @@ requires p > 0
 requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
 ensures acc(t)
 ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+decreases
 func (t *Time) GobDecode(data []byte, ghost p perm) error
 
 // MarshalJSON implements the json.Marshaler interface.
 ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+decreases
 func (t Time) MarshalJSON() (res []byte, error)
 
 // UnmarshalJSON implements the json.Unmarshaler interface.
@@ -259,10 +301,12 @@ requires p > 0
 requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
 ensures acc(t)
 ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+decreases
 func (t *Time) UnmarshalJSON(data []byte, ghost p perm) error
 
 // MarshalText implements the encoding.TextMarshaler interface.
 ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+decreases
 func (t Time) MarshalText() (res []byte, error)
 
 // UnmarshalText implements the encoding.TextUnmarshaler interface.
@@ -271,10 +315,12 @@ requires p > 0
 requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
 ensures acc(t)
 ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+decreases
 func (t *Time) UnmarshalText(data []byte, ghost p perm) error
 
 // Unix returns the local Time corresponding to the given Unix time,
 // sec seconds and nsec nanoseconds since January 1, 1970 UTC.
+decreases
 func Unix(sec int64, nsec int64) Time
 
 // Date returns the Time corresponding to yyyy-mm-dd hh:mm:ss + nsec nanoseconds
@@ -282,10 +328,13 @@ func Unix(sec int64, nsec int64) Time
 requires p > 0
 requires acc(loc, p)
 ensures acc(loc, p)
+decreases
 func Date(year int, month Month, day, hour, min, sec, nsec int, loc *Location, ghost p perm) Time
 
 // Truncate returns the result of rounding t down to a multiple of d (since the zero time).
+decreases
 func (t Time) Truncate(d Duration) Time
 
 // Round returns the result of rounding t to the nearest multiple of d (since the zero time).
+decreases
 func (t Time) Round(d Duration) Time

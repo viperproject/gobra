@@ -49,12 +49,20 @@ object Parser {
   def parse(input: Vector[Source], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val preprocessedSources = input
       .map{ Gobrafier.gobrafy }
+      .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
     val sources = input.map(Gobrafier.gobrafy)
-    for {
-      //parseAst <- time("GOBRA", input{0}.getFileName().toString()) {parseSources(preprocessedSources, specOnly)(config)}
-      parseAst <- time("ANTLR_FULL", sources.map(_.name).mkString(", ")) {antlrParseSources(sources, specOnly)(config)}
-      postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
-    } yield postprocessedAst
+    val legacyOverride = false
+    if (false) {
+      for {
+        parseAst <- time("GOBRA", input(0).name) {parseSources(preprocessedSources, specOnly)(config)}
+        postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
+      } yield postprocessedAst
+    } else {
+      for {
+        parseAst <- time("ANTLR_FULL", sources.map(_.name).mkString(", ")) {antlrParseSources(sources, specOnly)(config)}
+        postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
+      } yield postprocessedAst
+    }
   }
 
   private def time[R](parser : String, filename : String)(block: => R): R = {
@@ -810,7 +818,7 @@ object Parser {
       "continue" ~> labelUse.? ^^ PContinue
 
     lazy val gotoStmt: Parser[PGoto] =
-      "goto" ~> labelDef ^^ PGoto
+      "goto" ~> labelUse ^^ PGoto
 
     lazy val deferStmt: Parser[PDeferStmt] =
       "defer" ~> expression ^^ PDeferStmt

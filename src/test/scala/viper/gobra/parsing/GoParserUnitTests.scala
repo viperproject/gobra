@@ -21,6 +21,8 @@ import scala.reflect.ClassTag
 class GoParserUnitTests extends AnyFunSuite with Matchers with Inside {
   private val frontend = new TestFrontend()
 
+
+  // Testcases from Go source code
   val valids = Vector(
     "package p\n",
     "package p;",

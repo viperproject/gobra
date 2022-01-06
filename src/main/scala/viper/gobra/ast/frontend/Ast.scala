@@ -271,7 +271,7 @@ case class PBreak(label: Option[PLabelUse]) extends PActualStatement
 
 case class PContinue(label: Option[PLabelUse]) extends PActualStatement
 
-case class PGoto(label: PLabelDef) extends PActualStatement
+case class PGoto(label: PLabelUse) extends PActualStatement
 
 case class PDeferStmt(exp: PExpression) extends PActualStatement
 

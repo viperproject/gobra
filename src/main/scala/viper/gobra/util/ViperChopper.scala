@@ -39,7 +39,7 @@ object ViperChopper {
 
     val (components, _, componentDAG) = SCC.compute(vertices, edges)
     val componentIsolate = isolatedVertices.map{ s => (x: SCC.Component[Vertex]) => x.nodes.exists(s.contains) }
-    val subtrees = Cut.boundedCut(components, componentDAG)(componentIsolate, bound, mergePenalty)
+    val subtrees = Cut.boundedCut(components, componentDAG.toVector)(componentIsolate, bound, mergePenalty)
 
     val alwaysIncludedVertices = edges.collect{ case (e: Vertex, Always) => e }.toSet
     val programs = subtrees.map(subtree => subtree.flatMap(_.nodes) ++ alwaysIncludedVertices)
@@ -108,19 +108,20 @@ object ViperChopper {
 
   object Cut {
 
-    def smallestCut[T](nodes: Vector[T], forest: Seq[Edge[T]]): Vector[Set[T]] = {
+    private def smallestCut[T](nodes: Vector[T], forest: Vector[Edge[T]]): Vector[Set[T]] = {
       val roots = {
         val negatives = forest.map(_._2).toSet ++ Set(Vertex.Always)
         nodes.filterNot(negatives.contains)
       }
 
-      def DFS (current: T): Vector[T] =
-        current +: forest.toVector.collect{ case (`current`, succ) => DFS(succ) }.flatten
+      val forestM = forest.groupMap(_._1)(_._2)
+      def reachable (current: T): Vector[T] =
+        current +: forestM.get(current).fold(Vector.empty[T])(_.flatMap(reachable))
 
-      roots map (x => DFS(x).toSet)
+      roots map (x => reachable(x).toSet)
     }
 
-    def boundedCut[T](nodes: Vector[T], forest: Seq[Edge[T]])(
+    def boundedCut[T](nodes: Vector[T], forest: Vector[Edge[T]])(
       isolate: Option[T => Boolean],
       bound: Option[Int],
       mergePenalty: MergePenalty[T]
@@ -128,16 +129,15 @@ object ViperChopper {
       require(bound.forall(_ > 0), s"Got $bound as the size of the cut, but expected positive number")
 
       val t1 = System.nanoTime()
-      val start = smallestCut(nodes, forest)
+      val (mappedNodes, mappedForest, rev) = mergePenalty.init(nodes, forest)
+      val start = smallestCut(mappedNodes, mappedForest)
       val filtered = isolate match {
         case None => start
-        case Some(f) => start.filter(_.exists(f))
+        case Some(f) => start.filter(_.exists(node => f(mergePenalty.inverse(node, rev))))
       }
 
       val t2 = System.nanoTime()
-      val (mapped, rev) = mergePenalty.init(filtered)
-
-      val entries = mapped.zipWithIndex.map{ case (l,r) => (r,l) }
+      val entries = filtered.zipWithIndex.map{ case (set,idx) => (idx,mergePenalty.toProgram(set)) }
       val sets = mutable.Map(entries:_*)
       var counter = entries.size // not used as key in map
       def isAlive(x: (Int, Int)): Boolean = sets.contains(x._1) && sets.contains(x._2)
@@ -162,7 +162,6 @@ object ViperChopper {
           counter += 1
 
           for ((idx, rep) <- sets) {
-            // println(s"Computing $lIdx and $idx")
             val (penalty, newNewRep) = mergePenalty.penaltyAndMerge(rep, newRep)
             queue.enqueue((penalty, (idx, newIdx), newNewRep))
           }
@@ -182,21 +181,26 @@ object ViperChopper {
     }
 
     sealed trait MergePenalty[T] {
-      type Rep
-      type Rev
-      def init(x: Vector[Set[T]]): (Vector[Rep], Rev)
-      def finish(y: Vector[Rep], m: Rev): Vector[Set[T]]
-      def penaltyAndMerge(l: Rep, r: Rep): (Int, Rep)
+      type Node
+      type Program
+      type Mapping
+
+      def init(nodes: Vector[T], forest: Vector[Edge[T]]): (Vector[Node], Vector[Edge[Node]], Mapping)
+      def inverse(node: Node, m: Mapping): T
+      def toProgram(set: Set[Node]): Program
+      def finish(y: Vector[Program], m: Mapping): Vector[Set[T]]
+      def penaltyAndMerge(l: Program, r: Program): (Int, Program)
     }
 
     object Penalty {
 
-      object Default extends MergePenalty[SCC.Component[Vertex]] {
+      trait DefaultImpl extends MergePenalty[SCC.Component[Vertex]] {
 
-        override type Rep = List[(Int, Int)]
-        override type Rev = Map[Int, SCC.Component[Vertex]]
+        override type Node = (Int,Int)
+        override type Program = List[(Int, Int)]
+        override type Mapping = Map[Int, SCC.Component[Vertex]]
 
-        override def init(x: Vector[Set[SCC.Component[Vertex]]]): (Vector[List[(Int,Int)]], Map[Int, SCC.Component[Vertex]]) = {
+        override def init(nodes: Vector[SCC.Component[Vertex]], forest: Vector[Edge[SCC.Component[Vertex]]]): (Vector[Node], Vector[Edge[Node]], Mapping) = {
           var m = Map.empty[Int, SCC.Component[Vertex]]
           var rev = Map.empty[SCC.Component[Vertex], (Int,Int)]
           var counter = 0
@@ -214,12 +218,12 @@ object ViperChopper {
             })
           }
 
-          val y = for (set <- x) yield {
-            set.map(get).toList.sorted
-          }
-
-          (y, m)
+          (nodes.map(get), forest.map{ case (l,r) => (get(l), get(r))}, m)
         }
+
+        override def inverse(node: Node, m: Mapping): SCC.Component[Vertex] = m(node._1)
+
+        override def toProgram(set: Set[(Int, Int)]): List[(Int, Int)] = set.toList.sorted
 
         override def finish(y: Vector[List[(Int, Int)]], m: Map[Int, SCC.Component[Vertex]]): Vector[Set[SCC.Component[Vertex]]] = {
 
@@ -271,20 +275,15 @@ object ViperChopper {
         }
       }
 
-      object NoAlways extends MergePenalty[SCC.Component[Vertex]] {
-        override type Rep = Default.Rep
-        override type Rev = Default.Rev
+      object Default extends DefaultImpl
 
-        override def init(x: Vector[Set[SCC.Component[Vertex]]]): (Vector[Rep], Rev) =
-          Default.init(x)
+      object NoAlways extends DefaultImpl {
 
-        override def finish(y: Vector[Rep], m: Rev): Vector[Set[SCC.Component[Vertex]]] =
-          Default.finish(y,m)
-
-        override def penaltyAndMerge(l: Rep, r: Rep): (Int, Rep) = {
+        override def penaltyAndMerge(l: Program, r: Program): (Int, Program) = {
           val (penalty, rep) = Default.penaltyAndMerge(l,r)
           (if (penalty <= 0) 1 else penalty, rep)
         }
+
       }
     }
   }

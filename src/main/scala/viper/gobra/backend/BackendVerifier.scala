@@ -52,7 +52,7 @@ object BackendVerifier {
       val programID = s"_programID_${config.inputs.map(_.name).mkString("_")}"
 
       if (!config.shouldChop) {
-        verifier.verify(programID, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor).map(Vector(_))
+        verifier.verify(programID, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor)
       } else {
 
         val programs = ChopperUtil.computeChoppedPrograms(task)(config)
@@ -64,27 +64,23 @@ object BackendVerifier {
         //   verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
         // }
 
-        programs.zipWithIndex.foldLeft(Future.successful(Vector(silver.verifier.Success)): Future[Vector[VerificationResult]]) { case (res, (program, idx)) =>
+        programs.zipWithIndex.foldLeft(Future.successful(silver.verifier.Success): Future[VerificationResult]) { case (res, (program, idx)) =>
           val programSubID = s"${programID}_$idx"
           for {
             acc <- res
             next <- verifier
               .verify(programSubID, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
               .andThen(_ => config.reporter report ChoppedProgressMessage(idx+1, num))
-          } yield acc :+ next
+          } yield (acc, next) match {
+            case (acc, silver.verifier.Success) => acc
+            case (silver.verifier.Success, res) => res
+            case (l: silver.verifier.Failure, r: silver.verifier.Failure) => silver.verifier.Failure(l.errors ++ r.errors)
+          }
         }
       }
     }
 
-
-    verificationResults.map{ results =>
-      val result = results.foldLeft(silver.verifier.Success: VerificationResult){
-        case (acc, silver.verifier.Success) => acc
-        case (silver.verifier.Success, res) => res
-        case (l: silver.verifier.Failure, r: silver.verifier.Failure) => silver.verifier.Failure(l.errors ++ r.errors)
-      }
-      convertVerificationResult(result, task.backtrack)
-    }
+    verificationResults.map(convertVerificationResult(_, task.backtrack))
   }
 
   /**

@@ -13,28 +13,6 @@ import viper.gobra.util.ViperChopper.Vertex.Always
 
 import scala.collection.mutable
 
-object GobraChopperUtil {
-  import viper.silver.ast.SourcePosition
-  import viper.gobra.frontend.Config
-  import viper.gobra.reporting.Source
-  import viper.gobra.ast.frontend.{PFunctionDecl, PMethodDecl}
-
-  def computeIsolateMap(config: Config): Option[vpr.Method => Boolean] = {
-    def hit(x: SourcePosition, target: SourcePosition): Boolean = {
-      (target.end match {
-        case None => x.start.line == target.start.line
-        case Some(pos) => target.start.line <= x.start.line && x.start.line <= pos.line
-      }) && x.file.getFileName == target.file.getFileName
-    }
-
-    config.isolate.map { names => {
-      case Source(Source.Verifier.Info(_: PFunctionDecl, _, origin, _)) => names.exists(hit(_, origin.pos))
-      case Source(Source.Verifier.Info(_: PMethodDecl, _, origin, _)) => names.exists(hit(_, origin.pos))
-      case _ => false
-    }}
-  }
-}
-
 object ViperChopper {
 
   /** chops 'choppee' into independent Viper programs */
@@ -167,16 +145,15 @@ object ViperChopper {
         } yield (a,b)
 
         if (combinations.nonEmpty) { // there is more than one program in x
-          val (a,b) = combinations.minBy(identity)(mergePenalty)
+          val (a, b) = combinations.minBy(identity)(mergePenalty)
 
-          if (mergePenalty.alwaysMerge(a,b) || !bound.forall(x.size <= _)) {
+          if (mergePenalty.alwaysMerge(a, b) || !bound.forall(x.size <= _)) {
             x.remove(a)
             x.remove(b)
             x.add(a ++ b)
             performedUpdate = true
           }
         }
-
       } while(performedUpdate)
 
       println(s"Chopped verification condition into ${x.size} parts. Maximum number of parts is ${filtered.size}.")
@@ -213,7 +190,7 @@ object ViperChopper {
           }.sum
 
           val lDiff = l.diff(r).flatMap(_.nodes)
-          val rDiff = r.diff(r).flatMap(_.nodes)
+          val rDiff = r.diff(l).flatMap(_.nodes)
           val inter = l.intersect(r).flatMap(_.nodes)
 
           (price(lDiff) + price(rDiff)) * ((20 + price(inter)).toFloat / 20).toInt
@@ -243,7 +220,7 @@ object ViperChopper {
     case class DomainType(v: vpr.DomainType) extends Vertex
     case object Always extends Vertex // if something always has to be included
 
-    /** Returns the subprogram induces by the set of vertices. */
+    /** Returns the subprogram induced by the set of vertices. */
     def inverse(program: vpr.Program): Set[Vertex] => vpr.Program = {
       val methodTable = program.methods.map(n => (n.name, n)).toMap
       val functionTable = program.functions.map(n => (n.name, n)).toMap

@@ -11,6 +11,7 @@ import viper.gobra.util.ViperChopper.Cut.MergePenalty
 import viper.silver.{ast => vpr}
 import viper.gobra.util.ViperChopper.Vertex.Always
 
+import scala.annotation.tailrec
 import scala.collection.mutable
 
 object ViperChopper {
@@ -126,81 +127,163 @@ object ViperChopper {
     ): Vector[Set[T]] = {
       require(bound.forall(_ > 0), s"Got $bound as the size of the cut, but expected positive number")
 
+      val t1 = System.nanoTime()
       val start = smallestCut(nodes, forest)
       val filtered = isolate match {
         case None => start
         case Some(f) => start.filter(_.exists(f))
       }
-      val x = mutable.Set(filtered:_*)
 
-      // remove always merge
-      var performedUpdate = false
-      do {
-        performedUpdate = false
+      val t2 = System.nanoTime()
+      val (mapped, rev) = mergePenalty.init(filtered)
 
-        val combinations = for {
-          (a, aIdx) <- x.zipWithIndex
-          (b, bIdx) <- x.zipWithIndex
-          if aIdx != bIdx
-        } yield (a,b)
+      val entries = mapped.zipWithIndex.map{ case (l,r) => (r,l) }
+      val sets = mutable.Map(entries:_*)
+      var counter = entries.size // not used as key in map
+      def isAlive(x: (Int, Int)): Boolean = sets.contains(x._1) && sets.contains(x._2)
 
-        if (combinations.nonEmpty) { // there is more than one program in x
-          val (a, b) = combinations.minBy(identity)(mergePenalty)
+      val init = for {
+        (aIdx, a) <- entries
+        (bIdx, b) <- entries
+        if aIdx < bIdx
+        (penalty, rep) = mergePenalty.penaltyAndMerge(a,b)
+      } yield (penalty, (aIdx, bIdx), rep)
 
-          if (mergePenalty.alwaysMerge(a, b) || !bound.forall(x.size <= _)) {
-            x.remove(a)
-            x.remove(b)
-            x.add(a ++ b)
-            performedUpdate = true
+      val queue = mutable.PriorityQueue(init:_*)(Ordering.by(- _._1))
+
+      while (queue.headOption.exists(_._1 <= 0) || bound.exists(sets.size > _)) {
+        var x = queue.dequeue()
+        while (!isAlive(x._2)) { x = queue.dequeue() }
+
+        if (x._1 <= 0 || bound.exists(sets.size > _)) {
+          val (_, (lIdx, rIdx), newRep) = x
+          sets.remove(lIdx); sets.remove(rIdx)
+          val newIdx = counter
+          counter += 1
+
+          for ((idx, rep) <- sets) {
+            // println(s"Computing $lIdx and $idx")
+            val (penalty, newNewRep) = mergePenalty.penaltyAndMerge(rep, newRep)
+            queue.enqueue((penalty, (idx, newIdx), newNewRep))
           }
-        }
-      } while(performedUpdate)
 
-      println(s"Chopped verification condition into ${x.size} parts. Maximum number of parts is ${filtered.size}.")
-
-      x.toVector
-    }
-
-    sealed trait MergePenalty[T] extends Ordering[(Set[T],Set[T])]{
-      /* Must be commutative, i.e. alwaysMerge(l,r) == alwaysMerge(r,l) */
-      def alwaysMerge(l: Set[T], r: Set[T]): Boolean
-    }
-
-    sealed trait NaturalMergePenalty[T] extends MergePenalty[T] {
-      def penalty(l: Set[T], r: Set[T]): Int
-
-      override def alwaysMerge(l: Set[T], r: Set[T]): Boolean = penalty(l, r) <= 0
-      override def compare(x: (Set[T], Set[T]), y: (Set[T], Set[T])): Int = penalty(x._1, x._2) compare penalty(y._1, y._2)
-    }
-
-    object Penalty {
-      object Default extends NaturalMergePenalty[SCC.Component[Vertex]] {
-        override def penalty(l: Set[SCC.Component[Vertex]], r: Set[SCC.Component[Vertex]]): Int = {
-
-          def price(xs: Set[Vertex]): Int = xs.toVector.map{
-            case _: Vertex.Method | _: Vertex.MethodSpec => 0
-            case _: Vertex.Field => 1
-            case _: Vertex.PredicateSig => 2
-            case _: Vertex.PredicateBody => 3
-            case _: Vertex.Function => 3
-            case _: Vertex.DomainFunction => 1
-            case _: Vertex.DomainType => 1
-            case _: Vertex.DomainAxiom => 4
-            case Vertex.Always => 0
-          }.sum
-
-          val lDiff = l.diff(r).flatMap(_.nodes)
-          val rDiff = r.diff(l).flatMap(_.nodes)
-          val inter = l.intersect(r).flatMap(_.nodes)
-
-          (price(lDiff) + price(rDiff)) * ((20 + price(inter)).toFloat / 20).toInt
+          sets.put(newIdx, newRep)
         }
       }
 
-      object NoAlways extends NaturalMergePenalty[SCC.Component[Vertex]] {
-        override def penalty(l: Set[SCC.Component[Vertex]], r: Set[SCC.Component[Vertex]]): Int = {
-          val dflt = Default.penalty(l,r)
-          if (dflt <= 0) 1 else dflt
+      val result = mergePenalty.finish(sets.values.toVector, rev)
+      val t3 = System.nanoTime()
+      val timeCutting = BigDecimal((t2 - t1) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP)
+      val timeMerging = BigDecimal((t3 - t2) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP)
+
+      println(s"Chopped verification condition into ${result.size} parts. Maximum number of parts is ${filtered.size}. (Time: ${timeCutting}s + ${timeMerging}s)")
+
+      result
+    }
+
+    sealed trait MergePenalty[T] {
+      type Rep
+      type Rev
+      def init(x: Vector[Set[T]]): (Vector[Rep], Rev)
+      def finish(y: Vector[Rep], m: Rev): Vector[Set[T]]
+      def penaltyAndMerge(l: Rep, r: Rep): (Int, Rep)
+    }
+
+    object Penalty {
+
+      object Default extends MergePenalty[SCC.Component[Vertex]] {
+
+        override type Rep = List[(Int, Int)]
+        override type Rev = Map[Int, SCC.Component[Vertex]]
+
+        override def init(x: Vector[Set[SCC.Component[Vertex]]]): (Vector[List[(Int,Int)]], Map[Int, SCC.Component[Vertex]]) = {
+          var m = Map.empty[Int, SCC.Component[Vertex]]
+          var rev = Map.empty[SCC.Component[Vertex], (Int,Int)]
+          var counter = 0
+
+          def get(component: SCC.Component[Vertex]): (Int, Int) = {
+            rev.getOrElse(component, {
+              val score = component.nodes.map(price).sum
+              val id = counter
+
+              counter += 1
+              rev += (component -> (id, score))
+              m += (id -> component)
+
+              (id, score)
+            })
+          }
+
+          val y = for (set <- x) yield {
+            set.map(get).toList.sorted
+          }
+
+          (y, m)
+        }
+
+        override def finish(y: Vector[List[(Int, Int)]], m: Map[Int, SCC.Component[Vertex]]): Vector[Set[SCC.Component[Vertex]]] = {
+
+          // For safety, we check that every key of the map is used at least once.
+          // If a key is not used, then this means that a component that was present
+          // in the beginning is not present in the result.
+          var safetyCheckSet = m.keySet
+
+          val result = for (set <- y) yield {
+            set.map{ case (id,_) =>
+              safetyCheckSet -= id
+              m(id)
+            }.toSet
+          }
+
+          assert(safetyCheckSet.isEmpty, "Some Methods got lost during the merge set of the chopper")
+
+          result
+        }
+
+        def price(xs: Vertex): Int = xs match {
+          case _: Vertex.Method | _: Vertex.MethodSpec => 0
+          case _: Vertex.Field => 1
+          case _: Vertex.PredicateSig => 2
+          case _: Vertex.PredicateBody => 3
+          case _: Vertex.Function => 3
+          case _: Vertex.DomainFunction => 1
+          case _: Vertex.DomainType => 1
+          case _: Vertex.DomainAxiom => 4
+          case Vertex.Always => 0
+        }
+
+        override def penaltyAndMerge(l: List[(Int,Int)], r: List[(Int,Int)]): (Int, List[(Int,Int)]) = {
+
+          @tailrec
+          def go(l: List[(Int,Int)], r: List[(Int,Int)], a: Int, b: Int, c: Int, acc: List[(Int,Int)]): (Int, Int, Int, List[(Int,Int)]) = {
+            (l, r) match {
+              case (xs, Nil) => (a + xs.map(_._2).sum, b, c, acc.reverse ++ xs)
+              case (Nil, ys) => (a, b + ys.map(_._2).sum, c, acc.reverse ++ ys)
+              case ((xId, xScore) :: xs, (yId, yScore) :: ys) =>
+                if (xId == yId)     go(xs, ys, a, b, c+xScore, (xId,xScore)::acc)
+                else if (xId < yId) go(xs, r,  a+xScore, b, c, (xId,xScore)::acc)
+                else                go(l,  ys, a, b+yScore, c, (yId,yScore)::acc)
+            }
+          }
+
+          val (leftPrice, rightPrice, sharedPrice, merged) = go(l, r, 0, 0, 0, Nil)
+          ((leftPrice + rightPrice) * ((20 + sharedPrice).toFloat / 20).toInt, merged)
+        }
+      }
+
+      object NoAlways extends MergePenalty[SCC.Component[Vertex]] {
+        override type Rep = Default.Rep
+        override type Rev = Default.Rev
+
+        override def init(x: Vector[Set[SCC.Component[Vertex]]]): (Vector[Rep], Rev) =
+          Default.init(x)
+
+        override def finish(y: Vector[Rep], m: Rev): Vector[Set[SCC.Component[Vertex]]] =
+          Default.finish(y,m)
+
+        override def penaltyAndMerge(l: Rep, r: Rep): (Int, Rep) = {
+          val (penalty, rep) = Default.penaltyAndMerge(l,r)
+          (if (penalty <= 0) 1 else penalty, rep)
         }
       }
     }

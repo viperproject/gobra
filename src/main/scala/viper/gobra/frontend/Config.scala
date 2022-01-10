@@ -322,6 +322,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     validateFilesIsDirectory(include)
   }
 
+  // List of input arguments together with their specified line numbers.
+  // Specified line numbers are removed from their corresponding input argument.
   val cutInputWithIdxs: ScallopOption[List[(String, List[Int])]] = input.map(_.map{ arg =>
     val pattern = """(.*)@(\d+(?:,\d+)*)""".r
     arg match {
@@ -428,7 +430,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
     def isolatedPosition(cutInputWithIdxs: Option[List[(String, List[Int])]]): List[SourcePosition] = {
       cutInputWithIdxs.map(_.flatMap { case (input, idxs) =>
-        isGoFilePath(input) match { // only go files can have a position
+        isGoFilePath(input) match { // only go and gobra files can have a position
           case Right(file) => idxs.map(idx => SourcePosition(file.toPath, idx, 0))
           case _ => List.empty
         }

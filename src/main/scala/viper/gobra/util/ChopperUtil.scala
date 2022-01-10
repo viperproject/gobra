@@ -10,7 +10,6 @@ import viper.silver.{ast => vpr}
 import viper.silver.ast.SourcePosition
 import viper.gobra.frontend.Config
 import viper.gobra.reporting.{ChoppedViperMessage, Source}
-import viper.gobra.ast.frontend.{PFunctionDecl, PMethodDecl}
 import viper.gobra.backend.BackendVerifier.Task
 
 object ChopperUtil {
@@ -27,7 +26,7 @@ object ChopperUtil {
     programs
   }
 
-  def computeIsolateMap(config: Config): Option[vpr.Method => Boolean] = {
+  def computeIsolateMap(config: Config): Option[vpr.Member => Boolean] = {
     def hit(x: SourcePosition, target: SourcePosition): Boolean = {
       (target.end match {
         case None => x.start.line == target.start.line
@@ -36,8 +35,10 @@ object ChopperUtil {
     }
 
     config.isolate.map { names => {
-      case Source(Source.Verifier.Info(_: PFunctionDecl, _, origin, _)) => names.exists(hit(_, origin.pos))
-      case Source(Source.Verifier.Info(_: PMethodDecl, _, origin, _)) => names.exists(hit(_, origin.pos))
+      case x@(_: vpr.Method | _: vpr.Function | _: vpr.Predicate) => x match {
+        case Source(Source.Verifier.Info(_, _, origin, _)) => names.exists(hit(_, origin.pos))
+        case _ => false
+      }
       case _ => false
     }}
   }

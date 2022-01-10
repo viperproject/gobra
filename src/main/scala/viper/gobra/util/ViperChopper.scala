@@ -15,9 +15,18 @@ import scala.collection.{immutable, mutable}
 
 object ViperChopper {
 
-  /** chops 'choppee' into independent Viper programs */
+  /**
+    * chops 'choppee' into multiple Viper programs.
+    * @param choppee Targeted program.
+    * @param isolate Specifies which members of the program should be verified.
+    *                If none, then all members that induce a proof obligation are verified.
+    * @param bound Specifies upper bound on the number of returned programs.
+    *              If none, then maximum number of programs is returned.
+    * @param penalty Specifies penalty of merging programs.
+    * @return Chopped programs.
+    */
   def chop(choppee: vpr.Program)(
-    isolate: Option[vpr.Method => Boolean] = None,
+    isolate: Option[vpr.Member => Boolean] = None,
     bound: Option[Int] = Some(1),
     penalty: Penalty[Vertex] = Penalty.Default
   ): Vector[vpr.Program] = {
@@ -29,6 +38,17 @@ object ViperChopper {
 
   object Cut {
 
+    /**
+      * Returns a set of chopped programs where the number of programs is bounded by `bound`.
+      * @param N Number of nodes.
+      * @param nodes Nodes that must be included.
+      * @param edges Edges of the dependency graph.
+      * @param idToVertex Mapping from node ids to vertices used for price computations.
+      * @param bound Specifies upper bound on the number of returned programs.
+      *              If none, then maximum number of programs is returned.
+      * @param penalty Specifies penalty of merging programs.
+      * @return Set of programs.
+      */
     def boundedCut[T](N: Int, nodes: Vector[Int], edges: Array[mutable.SortedSet[Int]], idToVertex: Int => Vertex)(
       bound: Option[Int],
       penalty: Penalty[Vertex]
@@ -45,13 +65,39 @@ object ViperChopper {
 
       println(s"Chopped verification condition into ${mergedPrograms.size} parts. Maximum number of parts is ${smallestPrograms.size}. (Time: ${timeCutting}s + ${timeMerging}s)")
 
+      // Safety check validating the result partially. Can be removed in a year if no error has been found.
+      {
+        val containedInResult = Array.ofDim[Boolean](N)
+        for (program <- mergedPrograms; node <- program) { containedInResult(node) = true }
+        // check all nodes of the smallest programs are present (no node should be lost)
+        val smallestProgramContainedInResult = smallestPrograms.forall(_.forall(containedInResult(_)))
+        assert(smallestProgramContainedInResult, "Chopper Error: Lost nodes during merging step.")
+        // checks all selected notes are present in the result
+        val selectedNodesContainedInResult = nodes.forall(containedInResult(_))
+        assert(selectedNodesContainedInResult, "Chopper Error: Not all isolated nodes present in solution.")
+
+      }
+
       mergedPrograms
     }
 
+    /**
+      * Returns the set of smallest possible programs.
+      * @param N Number of nodes.
+      * @param nodes Nodes that must be included.
+      * @param edges Edges of the dependency graph.
+      * @return Set of smallest possible programs.
+      */
     def smallestCut(N: Int, nodes: Vector[Int], edges: Array[mutable.SortedSet[Int]]): Vector[List[Int]] = {
 
       /**
+        * Computes which of the nodes in `nodes` are dominating, i.e. not reached by other nodes in `nodes`,
+        * and then returns for each dominating node, the set of reachable nodes in a separate sorted list.
         *
+        * This is done by applying dfs twice. The first run precomputes results that make the second run faster.
+        * The first run colors all nodes and computes the graph induced by the coloring,
+        * resulting in a smaller graph for the second run. All members of a color are sorted immediately to optimize
+        * intermediate results for the second run.
         */
 
       // Stores the color of nodes. A color of a node is only valid if the node was visited.
@@ -88,8 +134,11 @@ object ViperChopper {
         (members, neighbors)
       }
 
+      // Stores number of colors
       var numColors = 0
+      // Stores all nodes with a certain color
       val colorMembers = Array.ofDim[immutable.SortedSet[Int]](N)
+      // Stores the edges between colors
       val colorEdges = Array.ofDim[List[Int]](N)
       for (node <- nodes if !visited(node)) {
         val (members, neighbors) = dfs1(node, numColors)
@@ -118,41 +167,61 @@ object ViperChopper {
       (for (color <- 1 until numColors if !colorIsNotRoot(color)) yield dfs2(color).toList).toVector
     }
 
-    /** Merges programs  */
+    /**
+      * Merges set of programs into smaller set of programs bounded by `bound`.
+      * @param programs Vector of programs. A program is represented as a *sorted* list of node ids.
+      * @param bound Specifies upper bound on the number of returned programs.
+      *              If none, then maximum number of programs is returned.
+      * @param penalty Specifies penalty of merging programs.
+      * @return
+      */
     def mergePrograms[T](programs: Vector[List[T]])(
       bound: Option[Int],
       penalty: Penalty[T]
     )(implicit order: Ordering[T]): Vector[List[T]] = {
 
       /**
+        * A program is represented as a *sorted* list of node ids.
+        * `sets` contains the current set of programs, where we use the keys to index the programs.
+        * The code computes all combinations of merges together with their penalty and stores them in a priority queue.
+        * The priority queue uses the inverted penalties as the ranking.
         *
+        * Until the desired number of programs is reached, an element from the queue is popped and then:
+        * 1) the code checks whether the merge is still valid (i.e. none of the operands has already been merged).
+        * 2) the merge is computed.
+        * 3) both operands of the merge are marked as invalid.
+        * 4) all combinations of the merge result and all other programs are computed and added to the queue.
         */
 
       val start = programs.map(_.map(c => (c, penalty.price(c))))
       val entries = start.zipWithIndex.map{ case (p,idx) => (idx,p) }
-      val sets = mutable.Map(entries:_*)
+      val sets = mutable.Map(entries:_*) // current set of programs. Keys are used as indices.
       var counter = entries.size // not used as key in map
-      def isAlive(x: (Int, Int)): Boolean = sets.contains(x._1) && sets.contains(x._2)
+      def isAlive(x: (Int, Int)): Boolean = sets.contains(x._1) && sets.contains(x._2) // checks if merge is valid based on indices
 
+      // initial computation of all combinations
       val init = for {
         (aIdx, a) <- entries
         (bIdx, b) <- entries
         if aIdx < bIdx
         (price, rep) = penaltyAndMerge(a,b)(penalty)
-      } yield (price, (aIdx, bIdx), rep)
+      } yield (price, (aIdx, bIdx), rep) // penalty, both indices, and merge result (in this order)
 
       val queue = mutable.PriorityQueue(init:_*)(Ordering.by(- _._1))
 
       while (queue.headOption.exists(_._1 <= 0) || bound.exists(sets.size > _)) {
         var x = queue.dequeue()
-        while (!isAlive(x._2)) { x = queue.dequeue() }
+        while (!isAlive(x._2)) { x = queue.dequeue() } // dequeue until valid merge
 
+        // if head had penalty 0 before, this might be outdated now.
+        // Therefore, loop condition is checked again.
         if (x._1 <= 0 || bound.exists(sets.size > _)) {
           val (_, (lIdx, rIdx), newRep) = x
           sets.remove(lIdx); sets.remove(rIdx)
           val newIdx = counter
           counter += 1
 
+          // compute new combinations of merge result with current sets of programs.
           for ((idx, rep) <- sets) {
             val (price, newNewRep) = penaltyAndMerge(rep, newRep)(penalty)
             queue.enqueue((price, (idx, newIdx), newNewRep))
@@ -239,16 +308,19 @@ object ViperChopper {
   }
 
   object ViperGraph {
+
     /**
-      * Transforms program into a graph.
+      * Transforms program into a graph with int nodes.
       * @return
-      *   _1 : Number of nodes
-      *   _2 : Isolated nodes, i.e. nodes that must be included in on of the chopped programs.
-      *   _3 :
+      *   _1 : Number of nodes.
+      *   _2 : Isolated nodes, i.e. nodes that must be included in one of the chopped programs
+      *   _3 : Edges of the dependency graph
+      *   _4 : Map from node id's to their vertex representation
+      *   _5 : Function that takes a set of nodes and returns the corresponding Viper program.
       * */
     def toGraph(
                  program: vpr.Program,
-                 isolate: Option[vpr.Method => Boolean] = None
+                 isolate: Option[vpr.Member => Boolean] = None
                ): (Int, Vector[Int], Array[mutable.SortedSet[Int]], Int => Vertex, Set[Int] => vpr.Program) = {
 
       var vertexToId = Map.empty[Vertex, Int]
@@ -265,10 +337,13 @@ object ViperChopper {
       val members = program.members.toVector
       val vertexEdges = members.flatMap(Edges.dependencies)
       val edges = vertexEdges.map{ case (l,r) => (id(l),id(r)) }
-      val selector: vpr.Member => Boolean = isolate match {
-        case Some(f) => { case m: vpr.Method => f(m); case _ => false }
-        case None    => { case _: vpr.Method | _: vpr.Function | _: vpr.Predicate => true; case _ => false }
+      val selector: vpr.Member => Boolean = isolate.getOrElse{
+        // per default, isolated nodes are everything with a proof obligation, i.e. methods, functions, and predicates
+        // We could filter further by checking that the member was present in the input (i.e. not generated by Gora).
+        // However, this information is not stored reliably at this point in time.
+        case _: vpr.Method | _: vpr.Function | _: vpr.Predicate => true; case _ => false
       }
+      // The isotated nodes are always and all selected nodes
       val isolatedNodes = id(Always) +: members.filter(selector).map(m => id(Vertex.toVertex(m)))
 
       val vertices = Array.ofDim[Vertex](N)

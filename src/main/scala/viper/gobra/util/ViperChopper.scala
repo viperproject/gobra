@@ -33,7 +33,7 @@ object ViperChopper {
 
     val (n, isolatesIds, edges, idToVertex, inverse) = ViperGraph.toGraph(choppee, isolate)
     val programs = Cut.boundedCut(n, isolatesIds, edges, idToVertex)(bound, penalty)
-    programs map (list => inverse(list.toSet))
+    programs flatMap (list => inverse(list.toSet))
   }
 
   object Cut {
@@ -323,7 +323,7 @@ object ViperChopper {
     def toGraph(
                  program: vpr.Program,
                  isolate: Option[vpr.Member => Boolean] = None
-               ): (Int, Vector[Int], Array[mutable.SortedSet[Int]], Int => Vertex, Set[Int] => vpr.Program) = {
+               ): (Int, Vector[Int], Array[mutable.SortedSet[Int]], Int => Vertex, Set[Int] => Option[vpr.Program]) = {
 
       var vertexToId = Map.empty[Vertex, Int]
       var N = 0
@@ -346,7 +346,8 @@ object ViperChopper {
         case _: vpr.Method | _: vpr.Function | _: vpr.Predicate => true; case _ => false
       }
       // The isotated nodes are always and all selected nodes
-      val isolatedNodes = id(Always) +: members.filter(selector).map(m => id(Vertex.toVertex(m)))
+      val alwaysId = id(Always)
+      val isolatedNodes = alwaysId +: members.filter(selector).map(m => id(Vertex.toVertex(m)))
 
       val vertices = Array.ofDim[Vertex](N)
       for ((vertex, idx) <- vertexToId) { vertices(idx) = vertex }
@@ -356,7 +357,8 @@ object ViperChopper {
       for ((l,r) <- edges) { fastEdges(l).add(r) }
 
       val setOfVerticesToProgram = Vertex.inverse(program)
-      val setOfIdsToProgram = (set: Set[Int]) => setOfVerticesToProgram(set map idToVertex)
+      val setOfIdsToProgram = (set: Set[Int]) => 
+        if (set == Set(alwaysId)) None else Some(setOfVerticesToProgram(set map idToVertex))
 
       (N, isolatedNodes, fastEdges, idToVertex, setOfIdsToProgram)
     }

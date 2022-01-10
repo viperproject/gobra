@@ -72,10 +72,12 @@ object ViperChopper {
         // check all nodes of the smallest programs are present (no node should be lost)
         val smallestProgramContainedInResult = smallestPrograms.forall(_.forall(containedInResult(_)))
         assert(smallestProgramContainedInResult, "Chopper Error: Lost nodes during merging step.")
-        // checks all selected notes are present in the result
-        val selectedNodesContainedInResult = nodes.forall(containedInResult(_))
-        assert(selectedNodesContainedInResult, "Chopper Error: Not all isolated nodes present in solution.")
 
+        val containedInSmallest = Array.ofDim[Boolean](N)
+        for (program <- smallestPrograms; node <- program) { containedInSmallest(node) = true }
+        // checks all selected notes are present in the result
+        val selectedNodesContainedInSmallest = nodes.forall(containedInSmallest(_))
+        assert(selectedNodesContainedInSmallest, "Chopper Error: Not all selected nodes present in solution.")
       }
 
       mergedPrograms
@@ -164,7 +166,7 @@ object ViperChopper {
         result
       }
 
-      (for (color <- 1 until numColors if !colorIsNotRoot(color)) yield dfs2(color).toList).toVector
+      (for (color <- 0 until numColors if !colorIsNotRoot(color)) yield dfs2(color).toList).toVector
     }
 
     /**

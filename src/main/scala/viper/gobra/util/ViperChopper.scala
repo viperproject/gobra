@@ -158,7 +158,7 @@ object ViperChopper {
           val color = stack.pop()
           if (!visitedColor(color)) {
             visitedColor(color) = true
-            result ++= colorMembers(color) // using SSC, number of merges might go down
+            result ++= colorMembers(color) // using SCC, number of merges might go down
             stack.pushAll(colorEdges(color))
           }
         }

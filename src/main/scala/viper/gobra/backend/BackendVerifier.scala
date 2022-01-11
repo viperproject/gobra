@@ -6,19 +6,16 @@
 
 package viper.gobra.backend
 
-import viper.gobra.ast.frontend.{PFunctionDecl, PMethodDecl}
 import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon}
 import viper.gobra.frontend.Config
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
-import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, ChoppedViperMessage, Source}
-import viper.gobra.util.GobraExecutionContext
+import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, ChoppedProgressMessage}
+import viper.gobra.util.{ChopperUtil, GobraExecutionContext}
 import viper.silver
 import viper.silver.verifier.VerificationResult
 import viper.silver.{ast => vpr}
 
 import scala.concurrent.Future
-import viper.gobra.util.ViperChopper
-import viper.silver.ast.SourcePosition
 
 object BackendVerifier {
 
@@ -50,59 +47,40 @@ object BackendVerifier {
       case _ =>
     }
 
-    val verificationResults =  if (config.shouldChop) {
-      val isolate = {
-        def hit(x: SourcePosition, target: SourcePosition): Boolean = {
-          (target.end match {
-            case None => x.start.line == target.start.line
-            case Some(pos) => target.start.line <= x.start.line && x.start.line <= pos.line
-          }) && x.file.getFileName == target.file.getFileName
+    val verificationResults =  {
+      val verifier = config.backend.create(exePaths, config)
+      val programID = s"_programID_${config.inputs.map(_.name).mkString("_")}"
+
+      if (!config.shouldChop) {
+        verifier.verify(programID, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor)
+      } else {
+
+        val programs = ChopperUtil.computeChoppedPrograms(task)(config)
+        val num = programs.size
+
+        //// (Felix) Currently, Silicon cannot be invoked concurrently.
+        // val verificationResults = Future.traverse(programs.zipWithIndex) { case (program, idx) =>
+        //   val programID = s"_programID_${config.inputFiles.head.getFileName}_$idx"
+        //   verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
+        // }
+
+        programs.zipWithIndex.foldLeft(Future.successful(silver.verifier.Success): Future[VerificationResult]) { case (res, (program, idx)) =>
+          val programSubID = s"${programID}_$idx"
+          for {
+            acc <- res
+            next <- verifier
+              .verify(programSubID, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
+              .andThen(_ => config.reporter report ChoppedProgressMessage(idx+1, num))
+          } yield (acc, next) match {
+            case (acc, silver.verifier.Success) => acc
+            case (silver.verifier.Success, res) => res
+            case (l: silver.verifier.Failure, r: silver.verifier.Failure) => silver.verifier.Failure(l.errors ++ r.errors)
+          }
         }
-
-        config.isolate.map { names => (m: vpr.Method) => m match {
-          case Source(Source.Verifier.Info(_: PFunctionDecl, _, origin, _)) => names.exists(hit(_, origin.pos))
-          case Source(Source.Verifier.Info(_: PMethodDecl, _, origin, _)) => names.exists(hit(_, origin.pos))
-          case _ => false
-        }}
       }
-      val programs: Vector[vpr.Program] = ViperChopper.chop(task.program)(isolate = isolate, bound = Some(config.choppingUpperBound))
-      programs.zipWithIndex.foreach{ case (chopped, idx) =>
-        config.reporter report ChoppedViperMessage(config.inputFiles.head, idx, () => chopped, () => task.backtrack)
-      }
-
-      val verifier = config.backend.create(exePaths)
-
-      // val verificationResults = Future.traverse(programs.zipWithIndex) { case (program, idx) =>
-      //   val programID = s"_programID_${config.inputFiles.head.getFileName}_$idx"
-      //   verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
-      // }
-
-      programs.zipWithIndex.foldLeft(Future.successful(Vector(silver.verifier.Success)): Future[Vector[VerificationResult]]) { case (res, (program, idx)) =>
-        val programID = s"_programID_${config.inputFiles.head.getFileName}_$idx"
-        for {
-          acc <- res
-          next <- verifier
-            .verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
-            .andThen(_ => println(s"Verified (${idx + 1})"))
-        } yield acc :+ next
-      }
-    } else {
-      val verifier = config.backend.create(exePaths)
-
-      val programID = s"_programID_${config.inputFiles.head}"
-
-      verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor).map(Vector(_))
     }
 
-    
-    verificationResults.map{ results =>
-      val result = results.foldLeft(silver.verifier.Success: VerificationResult){
-        case (acc, silver.verifier.Success) => acc
-        case (silver.verifier.Success, res) => res
-        case (l: silver.verifier.Failure, r: silver.verifier.Failure) => silver.verifier.Failure(l.errors ++ r.errors)
-      }
-      convertVerificationResult(result, task.backtrack)
-    }
+    verificationResults.map(convertVerificationResult(_, task.backtrack))
   }
 
   /**

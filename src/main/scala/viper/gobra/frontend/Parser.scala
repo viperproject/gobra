@@ -6,21 +6,19 @@
 
 package viper.gobra.frontend
 
-import java.io.Reader
-import java.nio.file.{Files, Path}
 import org.apache.commons.text.StringEscapeUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.Cloner.{rewrite, topdown}
 import org.bitbucket.inkytonik.kiama.rewriting.PositionedRewriter.strategyWithName
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
-import org.bitbucket.inkytonik.kiama.util.{Filenames, IO, Positions, Source, StringSource}
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
+import org.bitbucket.inkytonik.kiama.util.{Positions, Source}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message}
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.reporting.{Source => _, _}
 import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
 
 import java.security.MessageDigest
-import scala.io.BufferedSource
 import scala.util.matching.Regex
 
 object Parser {
@@ -41,9 +39,8 @@ object Parser {
     *
     */
 
-  def parse(input: Vector[Path], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
+  def parse(input: Vector[Source], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val preprocessedSources = input
-      .map{ getSource }
       .map{ Gobrafier.gobrafy }
       .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
     for {
@@ -52,35 +49,31 @@ object Parser {
     } yield postprocessedAst
   }
 
-  private def getSource(path: Path): FromFileSource = {
-    val inputStream = Files.newInputStream(path)
-    val bufferedSource = new BufferedSource(inputStream)
-    val content = bufferedSource.mkString
-    bufferedSource.close()
-    FromFileSource(path, content)
-  }
-
+  type SourceCacheKey = String
   // cache maps a key (obtained by hasing file path and file content) to the parse result
-  private var sourceCache: Map[Array[Byte], (Either[Vector[VerifierError], PProgram], Positions)] = Map.empty
+  private var sourceCache: Map[SourceCacheKey, (Either[Vector[ParserError], PProgram], Positions)] = Map.empty
 
-  private def getCacheKey(filePath: String, fileContent: String): Array[Byte] = {
-    val key = filePath ++ fileContent
-    MessageDigest.getInstance("MD5").digest(key.getBytes)
+  /** computes the key for caching a particular source. This takes the name as well as content into account */
+  private def getCacheKey(source: Source): SourceCacheKey = {
+    val key = source.name ++ source.content
+    val bytes = MessageDigest.getInstance("MD5").digest(key.getBytes)
+    // convert `bytes` to a hex string representation such that we get equality on the key while performing cache lookups
+    bytes.map { "%02x".format(_) }.mkString
   }
 
   def flushCache(): Unit = {
     sourceCache = Map.empty
   }
 
-  private def parseSources(sources: Vector[FromFileSource], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[ParserError], PPackage] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
 
-    def parseSource(source: FromFileSource): Either[Vector[VerifierError], PProgram] = {
+    def parseSource(source: Source): Either[Vector[ParserError], PProgram] = {
       parsers.parseAll(parsers.program, source) match {
         case Success(ast, _) =>
-          config.reporter report ParsedInputMessage(source.path, () => ast)
+          config.reporter report ParsedInputMessage(source.name, () => ast)
           Right(ast)
 
         case ns@NoSuccess(label, next) =>
@@ -89,27 +82,21 @@ object Parser {
           pom.positions.setFinish(ns, pos)
           val messages = message(ns, label)
           val errors = pom.translate(messages, ParserError)
-          
-          val groupedErrors = errors.groupBy{ _.position.get.file }
-          groupedErrors.foreach{ case (p, pErrors) =>
-            config.reporter report ParserErrorMessage(p, pErrors)
-          }
-
           Left(errors)
 
         case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
     }
 
-    def parseSourceCached(source: FromFileSource): Either[Vector[VerifierError], PProgram] = {
+    def parseSourceCached(source: Source): Either[Vector[ParserError], PProgram] = {
       var cacheHit = true
-      def parseAndStore(): (Either[Vector[VerifierError], PProgram], Positions) = {
+      def parseAndStore(): (Either[Vector[ParserError], PProgram], Positions) = {
         cacheHit = false
         val res = parseSource(source)
-        sourceCache += getCacheKey(source.path.toString, source.content) -> (res, positions)
+        sourceCache += getCacheKey(source) -> (res, positions)
         (res, positions)
       }
-      val (res, pos) = sourceCache.getOrElse(getCacheKey(source.path.toString, source.content), parseAndStore())
+      val (res, pos) = sourceCache.getOrElse(getCacheKey(source), parseAndStore())
       if (cacheHit) {
         // a cached AST has been found in the cache. The position manager does not yet have any positions for nodes in
         // this AST. Therefore, the following strategy iterates over the entire AST and copies positional information
@@ -118,8 +105,8 @@ object Parser {
           case n: PNode =>
             val start = pos.getStart(n)
             val finish = pos.getFinish(n)
-            start.map(positions.setStart(n, _))
-            finish.map(positions.setFinish(n, _))
+            start.foreach(positions.setStart(n, _))
+            finish.foreach(positions.setFinish(n, _))
             Some(n): Option[Any]
           case n => Some(n)
         })
@@ -129,37 +116,51 @@ object Parser {
       }
     }
 
-    val parsedPrograms = {
-      val parsingFn = if (config.cacheParser) { parseSourceCached _ } else { parseSource _ }
-      val parserResults = sources.map(parsingFn)
+    def isErrorFree(parserResults: Vector[Either[Vector[ParserError], PProgram]]): Either[Vector[ParserError], Vector[PProgram]] = {
       val (errors, programs) = parserResults.partitionMap(identity)
-
-      if (errors.nonEmpty) {
-        Left(errors.flatten)
-      } else {
-        // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
-        // of the same package has failed
-        assert(programs.nonEmpty)
-        assert{
-          val packageName = programs.head.packageClause.id.name
-          programs.forall(_.packageClause.id.name == packageName)
-        }
-
-        Right(programs)
-      }
+      if (errors.isEmpty) Right(programs) else Left(errors.flatten)
     }
 
-    parsedPrograms.map(programs => {
+    def samePackage(programs: Vector[PProgram]): Either[Vector[ParserError], Vector[PProgram]] = {
+      require(programs.nonEmpty)
+      val pkgName = programs.head.packageClause.id.name
+      val differingPkgNameMsgs = programs.flatMap(p =>
+        error(
+          p.packageClause,
+          s"Files have differing package clauses, expected $pkgName but got ${p.packageClause.id.name}",
+          p.packageClause.id.name != pkgName))
+      if (differingPkgNameMsgs.isEmpty) Right(programs) else Left(pom.translate(differingPkgNameMsgs, ParserError))
+    }
+
+    def makePackage(programs: Vector[PProgram]): Either[Vector[ParserError], PPackage] = {
       val clause = parsers.rewriter.deepclone(programs.head.packageClause)
       val parsedPackage = PPackage(clause, programs, pom)
       // The package parse tree node gets the position of the package clause:
       pom.positions.dupPos(clause, parsedPackage)
-      parsedPackage
+      Right(parsedPackage)
+    }
+
+    val parsingFn = if (config.cacheParser) { parseSourceCached _ } else { parseSource _ }
+    val parserResults = sources.map(parsingFn)
+    val res = for {
+      // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
+      // of the same package has failed or users have entered an invalid collection of inputs
+      programs <- isErrorFree(parserResults)
+      programs <- samePackage(programs)
+      pkg <- makePackage(programs)
+    } yield pkg
+    // report potential errors:
+    res.left.map(errors => {
+      val groupedErrors = errors.groupBy{ _.position.get.file }
+      groupedErrors.foreach { case (p, pErrors) =>
+        config.reporter report ParserErrorMessage(p, pErrors)
+      }
+      errors
     })
   }
 
-  def parseProgram(source: Source, specOnly: Boolean = false): Either[Messages, PProgram] = {
-    val preprocessedSource = SemicolonPreprocessor.preprocess(source)
+  def parseProgram(source: Source, specOnly: Boolean = false)(config: Config): Either[Messages, PProgram] = {
+    val preprocessedSource = SemicolonPreprocessor.preprocess(source)(config)
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
@@ -220,15 +221,10 @@ object Parser {
     /**
       * Assumes that source corresponds to an existing file
       */
-    def preprocess(source: FromFileSource)(config: Config): FromFileSource = {
+    def preprocess(source: Source)(config: Config): Source = {
       val translatedContent = translate(source.content)
-      config.reporter report PreprocessedInputMessage(source.path, () => translatedContent)
-      FromFileSource(source.path, translatedContent)
-    }
-
-    def preprocess(source: Source): Source = {
-      val translatedContent = translate(source.content)
-      StringSource(translatedContent)
+      config.reporter report PreprocessedInputMessage(source.name, () => translatedContent)
+      source.transformContent(translatedContent)
     }
 
     private def translate(content: String): String =
@@ -259,20 +255,6 @@ object Parser {
     }
   }
 
-  case class FromFileSource(path: Path, content: String) extends Source {
-    override val name: String = path.getFileName.toString
-    val shortName : Option[String] = Some(Filenames.dropCurrentPath(name))
-    def reader : Reader = IO.stringreader(content)
-
-    def useAsFile[T](fn : String => T) : T = {
-      // copied from StringSource
-      val filename = Filenames.makeTempFilename(name)
-      IO.createFile(filename, content)
-      val t = fn(filename)
-      IO.deleteFile(filename)
-      t
-    }
-  }
 
   private class ImportPostprocessor(override val positions: Positions) extends PositionedRewriter {
     /**
@@ -460,10 +442,13 @@ object Parser {
       (idnDef <~ "=") ~ typ ^^ { case left ~ right => PTypeAlias(right, left)}
 
     lazy val functionDecl: Parser[PFunctionDecl] =
-      functionSpec ~ ("func" ~> idnDef) ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
-        case spec ~ name ~ sig ~ body =>
-          PFunctionDecl(name, sig._1, sig._2, spec, body)
-      }
+      for {
+        spec <- functionSpec
+        name <- "func" ~> idnDef
+        sig  <- signature
+        body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(blockWithBodyParameterInfo)
+        // the start position has to be manually set as Kiama would otherwise only use the body's position as start & finish
+      } yield PFunctionDecl(name, sig._1, sig._2, spec, body).from(spec)
 
     lazy val outline: Parser[POutline] =
       (functionSpec <~ "outline") ~ ("(" ~> repsep(statement, eos) <~ eos.? <~ ")") ^^ {
@@ -471,22 +456,22 @@ object Parser {
       }
 
     lazy val functionSpec: Parser[PFunctionSpec] = {
-
       sealed trait FunctionSpecClause
       case class RequiresClause(exp: PExpression) extends FunctionSpecClause
       case class PreservesClause(exp: PExpression) extends FunctionSpecClause
       case class EnsuresClause(exp: PExpression) extends FunctionSpecClause
       case class DecreasesClause(measure: PTerminationMeasure) extends FunctionSpecClause
       case object PureClause extends FunctionSpecClause
+      case object TrustedClause extends FunctionSpecClause
 
       lazy val functSpecClause: Parser[FunctionSpecClause] = {
         "requires" ~> expression <~ eos ^^ RequiresClause |
         "preserves" ~> expression <~ eos ^^ PreservesClause |
         "ensures" ~> expression <~ eos ^^ EnsuresClause |
         "decreases" ~> terminationMeasure <~ eos  ^^ DecreasesClause |
+        "trusted" <~ eos ^^^ TrustedClause |
         "pure" <~ eos ^^^ PureClause
       }
-
       functSpecClause.* ~ "pure".? ^^ {
         case clauses ~ pure =>
           val pres = clauses.collect{ case x: RequiresClause => x.exp }
@@ -494,7 +479,8 @@ object Parser {
           val posts = clauses.collect{ case x: EnsuresClause => x.exp }
           val terminationMeasure = clauses.collect{ case x: DecreasesClause => x.measure}
           val isPure = pure.nonEmpty || clauses.contains(PureClause)
-          PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure)
+          val isTrusted = clauses.contains(TrustedClause)
+          PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure, isTrusted)
       }
     }
 
@@ -503,9 +489,14 @@ object Parser {
         repsep(expression, ",") ~ ("if" ~> expression).? ^^ PTupleTerminationMeasure
 
     lazy val methodDecl: Parser[PMethodDecl] =
-      functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
-        case spec ~ rcv ~ name ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, spec, body)
-      }
+      for {
+        spec <- functionSpec
+        rcv  <- "func" ~> receiver
+        name <- idnDef
+        sig  <- signature
+        body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(blockWithBodyParameterInfo)
+        // the start position has to be manually set as Kiama would otherwise only use the body's position as start & finish
+      } yield PMethodDecl(name, rcv, sig._1, sig._2, spec, body).from(spec)
 
     /**
       * Statements
@@ -1518,6 +1509,25 @@ object Parser {
     implicit class PositionedPAstNode[N <: PNode](node: N) {
       def at(other: PNode): N = {
         pom.positions.dupPos(other, node)
+      }
+
+      /**
+        * Sets the start position of the current node to the start position of node `from`.
+        * The finish position of the current node remains unchanged.
+        */
+      def from(from: PNode): N = {
+        val fromPos = pom.positions.getStart(from)
+        Violation.violation(fromPos.isDefined, s"cannot copy positional information from a node without positional information")
+        // we keep the existing finish position of the current node (if it exists)
+        val toPos = pom.positions.getFinish(node)
+        // in order to be able to set start and finish position, we first have to remove the current positions:
+        // note: `resetAt` would be the perfect choice here but there seems to be a bug in the parameter type as it
+        // currently takes a `Seq[Any]` instead of `Any`. Thus, we use `resetAllAt` for now with a singleton sequence
+        pom.positions.resetAllAt(Seq(node))
+        pom.positions.setStart(node, fromPos.get)
+        // set finish position if it existed:
+        toPos.foreach(pos => pom.positions.setFinish(node, pos))
+        node
       }
 
       def range(from: PNode, to: PNode): N = {

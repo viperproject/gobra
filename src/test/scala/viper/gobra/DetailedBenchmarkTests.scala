@@ -146,8 +146,8 @@ class DetailedBenchmarkTests extends BenchmarkTests {
     override val phases: Seq[Phase] = lastStep.phases
 
     /**
-      * Reset any messages recorded internally (errors from previous program translations, etc.)
-      */
+     * Reset any messages recorded internally (errors from previous program translations, etc.)
+     */
     override def resetMessages(): Unit = {
       verifying.reset()
     }

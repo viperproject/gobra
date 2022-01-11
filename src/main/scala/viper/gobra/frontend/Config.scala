@@ -7,37 +7,35 @@
 package viper.gobra.frontend
 
 import java.io.File
-import java.nio.file.{Files, Path}
-
+import java.nio.file.{Files, Path, Paths}
 import ch.qos.logback.classic.{Level, Logger}
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import org.rogach.scallop.{ScallopConf, ScallopOption, listArgConverter, singleArgConverter}
 import org.slf4j.LoggerFactory
-import viper.gobra.backend.{ViperBackend, ViperBackends, ViperVerifierConfig}
+import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
-import viper.gobra.frontend.PackageResolver.{FileResource, RegularImport}
+import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
-
 
 object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
 }
 case class Config(
-                 inputFiles: Vector[Path],
+                 inputs: Vector[Source],
                  moduleName: String = "",
                  includeDirs: Vector[Path] = Vector(),
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
                  isolate: Option[Vector[SourcePosition]] = None,
                  choppingUpperBound: Int = 1,
-                 // backendConfig is used for the ViperServer
-                 backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig,
                  z3Exe: Option[String] = None,
                  boogieExe: Option[String] = None,
                  logLevel: Level = LoggerDefaults.DefaultLevel,
+                 cacheFile: Option[String] = None,
                  shouldParse: Boolean = true,
                  shouldTypeCheck: Boolean = true,
                  shouldDesugar: Boolean = true,
@@ -54,10 +52,11 @@ case class Config(
                  // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
                  cacheParser: Boolean = false
             ) {
+
   def merge(other: Config): Config = {
     // this config takes precedence over other config
     Config(
-      inputFiles = (inputFiles ++ other.inputFiles).distinct,
+      inputs = (inputs ++ other.inputs).distinct,
       moduleName = moduleName,
       includeDirs = (includeDirs ++ other.includeDirs).distinct,
       reporter = reporter,
@@ -71,6 +70,7 @@ case class Config(
       boogieExe = boogieExe orElse other.boogieExe,
       logLevel = if (logLevel.isGreaterOrEqual(other.logLevel)) other.logLevel else logLevel, // take minimum
       // TODO merge strategy for following properties is unclear (maybe AND or OR)
+      cacheFile = cacheFile orElse other.cacheFile,
       shouldParse = shouldParse,
       shouldTypeCheck = shouldTypeCheck,
       shouldDesugar = shouldDesugar,
@@ -134,12 +134,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val backend: ScallopOption[ViperBackend] = opt[ViperBackend](
     name = "backend",
-    descr = "Specifies the used Viper backend, one of SILICON, CARBON (default: SILICON)",
+    descr = "Specifies the used Viper backend, one of VSWITHSILICON, VSWITHCARBON, SILICON, CARBON (default: SILICON)",
     default = Some(ViperBackends.SiliconBackend),
     noshort = true
   )(singleArgConverter({
     case "SILICON" => ViperBackends.SiliconBackend
     case "CARBON" => ViperBackends.CarbonBackend
+    case "VSWITHSILICON" => ViperBackends.ViperServerWithSilicon()
+    case "VSWITHCARBON" => ViperBackends.ViperServerWithCarbon()
     case _ => ViperBackends.SiliconBackend
   }))
 
@@ -227,6 +229,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = false
   )
 
+  val cacheFile: ScallopOption[String] = opt[String](
+    name = "cacheFile",
+    descr = "Cache file to be used by Viper Server",
+    default = None,
+    noshort = true
+  )
+
   val int32Bit: ScallopOption[Boolean] = toggle(
     name = "int32",
     descrYes = "Run with 32-bit sized integers",
@@ -256,9 +265,23 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
                     includeOption: ScallopOption[List[File]]): Unit = validateOpt(inputOption, includeOption) { (inputOpt, includeOpt) =>
 
     def checkConversion(input: List[String], moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[Path]] = {
-      val msgs = InputConverter.validate(input)
-      if (msgs.isEmpty) Right(InputConverter.convert(input, moduleName, includeDirs))
-      else Left(s"The following errors have occurred: ${msgs.map(_.label).mkString(",")}")
+      def validateSources(sources: Vector[Source]): Either[Messages, Vector[Path]] = {
+        val (remainingSources, paths) = sources.partitionMap {
+          case FileSource(name, _) => Right(Paths.get(name))
+          case s => Left(s)
+        }
+        if (remainingSources.isEmpty) Right(paths)
+        else Left(message(remainingSources, s"Expected file sources but got ${remainingSources}"))
+      }
+
+      val inputValidationMsgs = InputConverter.validate(input)
+      val paths = for {
+        _ <- if (inputValidationMsgs.isEmpty) Right(()) else Left(inputValidationMsgs)
+        sources = InputConverter.convert(input, moduleName, includeDirs)
+        paths <- validateSources(sources)
+      } yield paths
+
+      paths.left.map(msgs => s"The following errors have occurred: ${msgs.map(_.label).mkString(",")}")
     }
 
     def atLeastOneFile(files: Vector[Path]): Either[String, Unit] = {
@@ -299,6 +322,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     validateFilesIsDirectory(include)
   }
 
+  // List of input arguments together with their specified line numbers.
+  // Specified line numbers are removed from their corresponding input argument.
   val cutInputWithIdxs: ScallopOption[List[(String, List[Int])]] = input.map(_.map{ arg =>
     val pattern = """(.*)@(\d+(?:,\d+)*)""".r
     arg match {
@@ -312,10 +337,18 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   validateInput(cutInput, module, include)
 
+  // cache file should only be usable when using viper server
+  validateOpt (backend, cacheFile) {
+    case (Some(_: ViperBackends.ViperServerWithSilicon), Some(_)) => Right(())
+    case (Some(_: ViperBackends.ViperServerWithCarbon), Some(_)) => Right(())
+    case (_, None) => Right(())
+    case (_, Some(_)) => Left("Cache file can only be specified when the backend uses Viper Server")
+  }
+
   verify()
 
   lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
-  lazy val inputFiles: Vector[Path] = InputConverter.convert(cutInput.toOption.getOrElse(List()), module.getOrElse(""), includeDirs)
+  lazy val inputs: Vector[Source] = InputConverter.convert(cutInput.toOption.getOrElse(List()), module.getOrElse(""), includeDirs)
   lazy val isolated: Option[Vector[SourcePosition]] =
     InputConverter.isolatedPosition(cutInputWithIdxs.toOption) match {
       case Nil => None
@@ -353,24 +386,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       }
     }
 
-    def convert(input: List[String], moduleName: String, includeDirs: Vector[Path]): Vector[Path] = {
+    def convert(input: List[String], moduleName: String, includeDirs: Vector[Path]): Vector[Source] = {
       val res = for {
         i <- identifyInput(input).toRight("invalid input")
-        files <- i match {
-          case Right(files) => Right(files)
-          case Left(_) =>
-            for {
-              // look for files in the current directory, i.e. use an empty importPath
-              resolvedResources <- PackageResolver.resolve(RegularImport(""), moduleName, includeDirs)
-              resolvedFiles = resolvedResources.flatMap({
-                case fileResource: FileResource => Some(fileResource.path)
-                case _ => None
-              })
-              // we do not need the underlying resources anymore as we are only using FileResources:
-              _ = resolvedResources.foreach(_.close())
-            } yield resolvedFiles
+        sources <- i match {
+          case Right(filePaths) => Right(filePaths.map(f => FileSource(f.toString)))
+          case Left(_) => PackageResolver.resolveSources(RegularImport(""), moduleName, includeDirs)
         }
-      } yield files
+      } yield sources
       assert(isInputOptional || res.isRight, s"validate function did not catch this problem: '${res.swap.getOrElse(None)}'")
       res.getOrElse(Vector())
     }
@@ -407,7 +430,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
     def isolatedPosition(cutInputWithIdxs: Option[List[(String, List[Int])]]): List[SourcePosition] = {
       cutInputWithIdxs.map(_.flatMap { case (input, idxs) =>
-        isGoFilePath(input) match { // only go files can have a position
+        isGoFilePath(input) match { // only go and gobra files can have a position
           case Right(file) => idxs.map(idx => SourcePosition(file.toPath, idx, 0))
           case _ => List.empty
         }
@@ -416,7 +439,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   }
 
   lazy val config: Config = Config(
-    inputFiles = inputFiles,
+    inputs = inputs,
     moduleName = module(),
     includeDirs = includeDirs,
     reporter = FileWriterReporter(
@@ -432,6 +455,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     z3Exe = z3Exe.toOption,
     boogieExe = boogieExe.toOption,
     logLevel = logLevel(),
+    cacheFile = cacheFile.toOption,
     shouldParse = shouldParse,
     shouldTypeCheck = shouldTypeCheck,
     shouldDesugar = shouldDesugar,

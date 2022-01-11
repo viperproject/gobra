@@ -33,7 +33,7 @@ object ViperChopper {
 
     val (n, isolatesIds, edges, idToVertex, inverse) = ViperGraph.toGraph(choppee, isolate)
     val programs = Cut.boundedCut(n, isolatesIds, edges, idToVertex)(bound, penalty)
-    programs flatMap (list => inverse(list.toSet))
+    programs flatMap (list => inverse(list))
   }
 
   object Cut {
@@ -52,23 +52,31 @@ object ViperChopper {
     def boundedCut[T](N: Int, nodes: Vector[Int], edges: Array[mutable.SortedSet[Int]], idToVertex: Int => Vertex)(
       bound: Option[Int],
       penalty: Penalty[Vertex]
-    ): Vector[List[Int]] = {
+    ): Vector[Set[Int]] = {
       require(bound.forall(_ > 0), s"Got $bound as the size of the cut, but expected positive number")
+
+      /**
+        * During intermediate steps, programs are represented as sorted lists of ints.
+        * This representation makes merging programs linear time, which is done by [[penaltyAndMerge]].
+        * Furthermore, by pairing a node with its contribution to the merge penalty,
+        * the merge penalty can, together with the merging, be computed in linear time, too.
+        */
 
       val t1 = System.nanoTime()
       val smallestPrograms = smallestCut(N, nodes, edges)
       val t2 = System.nanoTime()
       val mergedPrograms = mergePrograms(smallestPrograms)(bound, penalty.contravariantLift(idToVertex))
+      val result = mergedPrograms.map(_.toSet)
       val t3 = System.nanoTime()
       val timeCutting = BigDecimal((t2 - t1) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP)
       val timeMerging = BigDecimal((t3 - t2) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP)
 
-      println(s"Chopped verification condition into ${mergedPrograms.size} parts. Maximum number of parts is ${smallestPrograms.size}. (Time: ${timeCutting}s + ${timeMerging}s)")
+      println(s"Chopped verification condition into ${result.size} parts. Maximum number of parts is ${smallestPrograms.size}. (Time: ${timeCutting}s + ${timeMerging}s)")
 
       // Safety check validating the result partially. Can be removed in a year if no error has been found.
       {
         val containedInResult = Array.ofDim[Boolean](N)
-        for (program <- mergedPrograms; node <- program) { containedInResult(node) = true }
+        for (program <- result; node <- program) { containedInResult(node) = true }
         // check all nodes of the smallest programs are present (no node should be lost)
         val smallestProgramContainedInResult = smallestPrograms.forall(_.forall(containedInResult(_)))
         assert(smallestProgramContainedInResult, "Chopper Error: Lost nodes during merging step.")
@@ -80,17 +88,17 @@ object ViperChopper {
         assert(selectedNodesContainedInSmallest, "Chopper Error: Not all selected nodes present in solution.")
       }
 
-      mergedPrograms
+      result
     }
 
     /**
       * Returns the set of smallest possible programs.
       * @param N Number of nodes.
-      * @param nodes Nodes that must be included.
+      * @param nodes Nodes that must be included. The vector may be unsorted and may contain duplicates.
       * @param edges Edges of the dependency graph.
-      * @return Set of smallest possible programs.
+      * @return Set of smallest possible programs. A program is represented as a *sorted* list of node ids.
       */
-    def smallestCut(N: Int, nodes: Vector[Int], edges: Array[mutable.SortedSet[Int]]): Vector[List[Int]] = {
+    private def smallestCut(N: Int, nodes: Vector[Int], edges: Array[mutable.SortedSet[Int]]): Vector[List[Int]] = {
 
       /**
         * Computes which of the nodes in `nodes` are dominating, i.e. not reached by other nodes in `nodes`,
@@ -177,7 +185,7 @@ object ViperChopper {
       * @param penalty Specifies penalty of merging programs.
       * @return
       */
-    def mergePrograms[T](programs: Vector[List[T]])(
+    private def mergePrograms[T](programs: Vector[List[T]])(
       bound: Option[Int],
       penalty: Penalty[T]
     )(implicit order: Ordering[T]): Vector[List[T]] = {
@@ -236,6 +244,7 @@ object ViperChopper {
       sets.values.map(_.map(_._1)).toVector
     }
 
+    /** Merges two programs and computes their merge penalty. A program is represented as a *sorted* list of T. */
     private def penaltyAndMerge[T](l: List[(T, Int)], r: List[(T, Int)])(penalty: Penalty[_])
                                   (implicit order: Ordering[T]): (Int, List[(T, Int)]) = {
 
@@ -312,12 +321,13 @@ object ViperChopper {
   object ViperGraph {
 
     /**
-      * Transforms program into a graph with int nodes.
+      * Transforms program into a graph with int nodes, which enable faster algorithms.
       * @return
       *   _1 : Number of nodes.
-      *   _2 : Isolated nodes, i.e. nodes that must be included in one of the chopped programs
-      *   _3 : Edges of the dependency graph
-      *   _4 : Map from node id's to their vertex representation
+      *   _2 : Isolated nodes, i.e. nodes that must be included in one of the chopped programs.
+      *        Vector is not sorted and may contain duplicates.
+      *   _3 : Edges of the dependency graph.
+      *   _4 : Map from node id's to their vertex representation.
       *   _5 : Function that takes a set of nodes and returns the corresponding Viper program.
       * */
     def toGraph(
@@ -439,7 +449,11 @@ object ViperChopper {
   type Edge[T] = (T, T)
   object Edges {
 
-    /** Returns all dependencies induced by a member. */
+    /**
+      * Returns all dependencies induced by a member.
+      * The result is an unsorted sequence of edges.
+      * The edges are sorted at a later point, after the translation to int nodes (where it is cheaper).
+      * */
     def dependencies(member: vpr.Member): Seq[Edge[Vertex]] = {
       member match {
         case m: vpr.Method =>
@@ -471,9 +485,16 @@ object ViperChopper {
 
         case d: vpr.Domain =>
           d.axioms.flatMap { ax =>
+            /**
+              * For Axioms, we do not make the distinction between vertices that depend on the axiom
+              * and vertices that the axiom depends on. Instead, all vertices that are in a relation with the axiom
+              * are considered as dependencies in both directions (from and to the axiom).
+              * If no other related vertices can be identified, then the axiom is always included,
+              * as a conservative choice. We use that dependencies of `Always` are always included.
+              */
             val mid = Vertex.DomainAxiom(ax, d)
             val tos = usages(ax.exp)
-            val froms = tos // this is just an approximation for now. This could be improved.
+            val froms = tos
             val finalFroms = if (froms.nonEmpty) froms else Vector(Vertex.Always)
             finalFroms.map(_ -> mid) ++ tos.map(mid -> _)
           } ++ d.functions.flatMap { f =>
@@ -485,7 +506,12 @@ object ViperChopper {
       }
     }
 
-    /** Returns all entities referenced in the subtree of node `n`. */
+    /**
+      * Returns all entities referenced in the subtree of node `n`.
+      * The result is an unsorted sequence of vertices.
+      * The vertices are never sorted, and duplicates are fine.
+      * Note that they are sorted indirectly when the edges are sorted.
+      * */
     def usages(n: vpr.Node): Seq[Vertex] = {
 
       def deepType(t: vpr.Type): Seq[vpr.Type] = t +: (t match {

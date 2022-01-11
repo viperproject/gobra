@@ -599,7 +599,7 @@ object ViperChopper {
             strongConnect(s)
             lowLinks.update(v, Math.min(lowLinks(v), lowLinks(s)))
           } else if (onStack(s)) {
-            // s is already on the stack and therefore in the current SSC
+            // s is already on the stack and therefore in the current SCC
             lowLinks.update(v, Math.min(lowLinks(v), if (visited(s)) s else -1))
           }
         }

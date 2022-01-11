@@ -35,7 +35,7 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
         - silver -> ..\silver
         - silicon -> ..\silicon
         - carbon -> ..\carbon
-    - Change to `gobraHome/gobra-one` and create the links:
+    - Change to `gobraHome/gobra` and create the links:
         - silver -> ..\silver
         - silicon -> ..\silicon
         - carbon -> ..\carbon

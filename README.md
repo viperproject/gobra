@@ -39,6 +39,7 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
         - silver -> ..\silver
         - silicon -> ..\silicon
         - carbon -> ..\carbon
+        - viperserver -> ..\viperserver
 4. Install Z3 and Boogie. 
     Steps (iii) and (iv) are specific to Boogie and only necessary when using Carbon as verification backend. Gobra uses the Silicon verification backend by default.
     1. Get a Z3 executable. A precompiled executable can be downloaded [here](https://github.com/Z3Prover/z3/releases). 

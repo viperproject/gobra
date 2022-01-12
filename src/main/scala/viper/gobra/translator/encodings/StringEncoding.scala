@@ -267,6 +267,7 @@ class StringEncoding extends LeafTypeEncoding {
 
   /** Generates the function
     *   requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
+    *   decreases _
     *   pure func byteSliceToStrFunc(s []byte) string
     */
   private val byteSliceToStrFuncName: String = "byteSliceToStrFunc"

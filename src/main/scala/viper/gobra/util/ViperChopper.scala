@@ -650,17 +650,17 @@ object ViperChopper {
       }
 
       //// safety check, usually commented out
-      // val onStack = Array.ofDim[Boolean](N)
-      // val checkedCycles = Array.ofDim[Boolean](N)
-      // def noCycle(x: Int): Unit = {
-      //   assert(!onStack(x), "found cycle, but expected none.")
-      //   if (!checkedCycles(x)) {
-      //     checkedCycles(x) = true; onStack(x) = true
-      //     for (y <- csEdges(x)) { noCycle(y.proxy) }
-      //     onStack(x) = false
-      //   }
-      // }
-      // for (idx <- 0 until N) noCycle(idToComponent(idx).proxy)
+      val onStack = Array.ofDim[Boolean](N)
+      val checkedCycles = Array.ofDim[Boolean](N)
+      def noCycle(x: Int): Unit = {
+        assert(!onStack(x), "found cycle, but expected none.")
+        if (!checkedCycles(x)) {
+          checkedCycles(x) = true; onStack(x) = true
+          for (y <- csEdges(x)) { noCycle(y.proxy) }
+          onStack(x) = false
+        }
+      }
+      for (idx <- 0 until N) noCycle(idToComponent(idx).proxy)
 
       (cs, idToComponentF, csEdges)
     }

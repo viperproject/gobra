@@ -342,9 +342,9 @@ object ViperChopper {
         (lhsExclusivePrice + rhsExclusivePrice) * ((sharedThreshold + sharedPrice).toFloat / sharedThreshold).toInt
     }
 
-    object Default extends DefaultImpl(100)
+    object Default extends DefaultImpl(50)
 
-    object DefaultWithoutForcedMerge extends DefaultImpl(100) {
+    object DefaultWithoutForcedMerge extends DefaultImpl(50) {
       override def mergePenalty(lhsExclusivePrice: Int, rhsExclusivePrice: Int, sharedPrice: Int): Int =
         Math.max(super.mergePenalty(lhsExclusivePrice, rhsExclusivePrice, sharedPrice), 1)
     }

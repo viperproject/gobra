@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package floats
+
+ensures res == x + y
+func f(x float32, y float32) (res float32) {
+	return x + y
+}
+
+ensures res == x
+func g(x float64, y float64) (res float64) {
+	return x + y
+}

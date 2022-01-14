@@ -578,7 +578,6 @@ sealed trait PFloatType extends PType
 case class PFloat32() extends PPredeclaredType("float32") with PFloatType
 case class PFloat64() extends PPredeclaredType("float64") with PFloatType
 
-
 // TODO: add more types
 
 // TODO: ellipsis type

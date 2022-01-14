@@ -38,9 +38,15 @@ class FloatEncoding extends LeafTypeEncoding {
     vpr.Int
   }
 
-  /** TODO
+  /**
     * Encodes expressions as values that do not occupy some identifiable location in memory.
-    *
+    * X stands for either 32 or 64 below:
+    * [ dflt(x: floatX) ] -> defaultValueX()
+    * [ (x: floatX) + (y: floatX) ] -> addFloatX([ x ], [ y ])
+    * [ (x: floatX) - (y: floatX) ] -> subFloatX([ x ], [ y ])
+    * [ (x: floatX) * (y: floatX) ] -> mulFloatX([ x ], [ y ])
+    * [ (x: floatX) / (y: floatX) ] -> divFloatX([ x ], [ y ])
+    * [ int(x: floatX) ] -> fromIntToX([ x ])
     */
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
@@ -52,45 +58,21 @@ class FloatEncoding extends LeafTypeEncoding {
       case (e: in.DfltVal) :: ctx.Float64() / Exclusive =>
         unit(withSrc(vpr.FuncApp(func = defaultValue64, Seq()), e))
       case add @ in.Add(l, r) :: ctx.Float32() =>
-        for {
-          lEncoded <- goE(l)
-          rEncoded <- goE(r)
-        } yield withSrc(vpr.FuncApp(addFloat32, Seq(lEncoded, rEncoded)), add)
+        for { lE <- goE(l); rE <- goE(r) } yield withSrc(vpr.FuncApp(addFloat32, Seq(lE, rE)), add)
       case add @ in.Add(l, r) :: ctx.Float64() =>
-        for {
-          lEncoded <- goE(l)
-          rEncoded <- goE(r)
-        } yield withSrc(vpr.FuncApp(addFloat64, Seq(lEncoded, rEncoded)), add)
+        for { lE <- goE(l); rE <- goE(r) } yield withSrc(vpr.FuncApp(addFloat64, Seq(lE, rE)), add)
       case sub @ in.Sub(l :: ctx.Float32(), r :: ctx.Float32()) =>
-        for {
-          lEncoded <- goE(l)
-          rEncoded <- goE(r)
-        } yield withSrc(vpr.FuncApp(subFloat32, Seq(lEncoded, rEncoded)), sub)
+        for { lE <- goE(l); rE <- goE(r) } yield withSrc(vpr.FuncApp(subFloat32, Seq(lE, rE)), sub)
       case sub @ in.Sub(l :: ctx.Float64(), r :: ctx.Float64()) =>
-        for {
-          lEncoded <- goE(l)
-          rEncoded <- goE(r)
-        } yield withSrc(vpr.FuncApp(subFloat64, Seq(lEncoded, rEncoded)), sub)
+        for { lE <- goE(l); rE <- goE(r) } yield withSrc(vpr.FuncApp(subFloat64, Seq(lE, rE)), sub)
       case mul @ in.Mul(l :: ctx.Float32(), r :: ctx.Float32()) =>
-        for {
-          lEncoded <- goE(l)
-          rEncoded <- goE(r)
-        } yield withSrc(vpr.FuncApp(mulFloat32, Seq(lEncoded, rEncoded)), mul)
+        for { lE <- goE(l); rE <- goE(r) } yield withSrc(vpr.FuncApp(mulFloat32, Seq(lE, rE)), mul)
       case mul @ in.Mul(l :: ctx.Float64(), r :: ctx.Float64()) =>
-        for {
-          lEncoded <- goE(l)
-          rEncoded <- goE(r)
-        } yield withSrc(vpr.FuncApp(mulFloat64, Seq(lEncoded, rEncoded)), mul)
+        for { lE <- goE(l); rE <- goE(r) } yield withSrc(vpr.FuncApp(mulFloat64, Seq(lE, rE)), mul)
       case div @ in.Div(l :: ctx.Float32(), r :: ctx.Float32()) =>
-        for {
-          lEncoded <- goE(l)
-          rEncoded <- goE(r)
-        } yield withSrc(vpr.FuncApp(divFloat32, Seq(lEncoded, rEncoded)), div)
+        for { lE <- goE(l); rE <- goE(r) } yield withSrc(vpr.FuncApp(divFloat32, Seq(lE, rE)), div)
       case div @ in.Div(l :: ctx.Float64(), r :: ctx.Float64()) =>
-        for {
-          lEncoded <- goE(l)
-          rEncoded <- goE(r)
-        } yield withSrc(vpr.FuncApp(divFloat64, Seq(lEncoded, rEncoded)), div)
+        for { lE <- goE(l); rE <- goE(r) } yield withSrc(vpr.FuncApp(divFloat64, Seq(lE, rE)), div)
       case conv@in.Conversion(in.Float32T(_), expr :: ctx.Int()) =>
         for { e <- goE(expr) } yield withSrc(vpr.FuncApp(fromIntTo32, Seq(e)), conv)
       case conv@in.Conversion(in.Float64T(_), expr :: ctx.Int()) =>
@@ -119,6 +101,10 @@ class FloatEncoding extends LeafTypeEncoding {
   private var isUsed32: Boolean = false
   private var isUsed64: Boolean = false
 
+  /**
+    * Generates
+    *   function defaultValue32(): Int
+    */
   private lazy val defaultValue32 = vpr.Function(
     name = "defaultValue32",
     formalArgs = Seq(),
@@ -128,6 +114,10 @@ class FloatEncoding extends LeafTypeEncoding {
     body  = None
   )()
 
+  /**
+    * Generates
+    *   function defaultValue64(): Int
+    */
   private lazy val defaultValue64 = vpr.Function(
     name = "defaultValue64",
     formalArgs = Seq(),
@@ -137,6 +127,10 @@ class FloatEncoding extends LeafTypeEncoding {
     body  = None
   )()
 
+  /**
+    * Generates
+    *   function addFloat32(l: Int, r: Int): Int
+    */
   private lazy val addFloat32 = {
     val argL = vpr.LocalVarDecl("l", floatType32)()
     val argR = vpr.LocalVarDecl("r", floatType32)()
@@ -150,6 +144,10 @@ class FloatEncoding extends LeafTypeEncoding {
     )()
   }
 
+  /**
+    * Generates
+    *   function addFloat64(l: Int, r: Int): Int
+    */
   private lazy val addFloat64 = {
     val argL = vpr.LocalVarDecl("l", floatType64)()
     val argR = vpr.LocalVarDecl("r", floatType64)()
@@ -163,6 +161,10 @@ class FloatEncoding extends LeafTypeEncoding {
     )()
   }
 
+  /**
+    * Generates
+    *   function subFloat32(l: Int, r: Int): Int
+    */
   private lazy val subFloat32 = {
     val argL = vpr.LocalVarDecl("l", floatType32)()
     val argR = vpr.LocalVarDecl("r", floatType32)()
@@ -176,6 +178,10 @@ class FloatEncoding extends LeafTypeEncoding {
     )()
   }
 
+  /**
+    * Generates
+    *   function subFloat64(l: Int, r: Int): Int
+    */
   private lazy val subFloat64 = {
     val argL = vpr.LocalVarDecl("l", floatType64)()
     val argR = vpr.LocalVarDecl("r", floatType64)()
@@ -189,6 +195,10 @@ class FloatEncoding extends LeafTypeEncoding {
     )()
   }
 
+  /**
+    * Generates
+    *   function divFloat32(l: Int, r: Int): Int
+    */
   private lazy val divFloat32 = {
     val argL = vpr.LocalVarDecl("l", floatType32)()
     val argR = vpr.LocalVarDecl("r", floatType32)()
@@ -202,6 +212,10 @@ class FloatEncoding extends LeafTypeEncoding {
     )()
   }
 
+  /**
+    * Generates
+    *   function divFloat64(l: Int, r: Int): Int
+    */
   private lazy val divFloat64 = {
     val argL = vpr.LocalVarDecl("l", floatType64)()
     val argR = vpr.LocalVarDecl("r", floatType64)()
@@ -215,6 +229,10 @@ class FloatEncoding extends LeafTypeEncoding {
     )()
   }
 
+  /**
+    * Generates
+    *   function mulFloat32(l: Int, r: Int): Int
+    */
   private lazy val mulFloat32 = {
     val argL = vpr.LocalVarDecl("l", floatType32)()
     val argR = vpr.LocalVarDecl("r", floatType32)()
@@ -228,6 +246,10 @@ class FloatEncoding extends LeafTypeEncoding {
     )()
   }
 
+  /**
+    * Generates
+    *   function mulFloat64(l: Int, r: Int): Int
+    */
   private lazy val mulFloat64 = {
     val argL = vpr.LocalVarDecl("l", floatType64)()
     val argR = vpr.LocalVarDecl("r", floatType64)()
@@ -241,7 +263,10 @@ class FloatEncoding extends LeafTypeEncoding {
     )()
   }
 
-
+  /**
+    * Generates
+    *   function fromIntTo32(l: Int): Int
+    */
   private lazy val fromIntTo32 = {
     val arg = vpr.LocalVarDecl("n", floatType32)()
     vpr.Function(
@@ -254,6 +279,10 @@ class FloatEncoding extends LeafTypeEncoding {
     )()
   }
 
+  /**
+    * Generates
+    *   function fromIntTo64(l: Int): Int
+    */
   private lazy val fromIntTo64 = {
     val arg = vpr.LocalVarDecl("n", floatType64)()
     vpr.Function(

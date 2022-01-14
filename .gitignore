@@ -4,6 +4,7 @@ project/project/
 project/target/
 target/
 tmp/
+sync/
 
 carbon
 silver
@@ -13,3 +14,7 @@ logger.log
 
 *.go.*
 *.gobra.*
+.bloop/
+.metals/
+.vscode/
+project/

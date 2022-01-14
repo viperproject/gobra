@@ -38,6 +38,7 @@ class AssertionsImpl extends Assertions {
     val ret = ass match {
       case in.SepAnd(l, r) => for {vl <- goA(l); vr <- goA(r)} yield vpr.And(vl, vr)(pos, info, errT)
       case in.ExprAssertion(e) => goE(e)
+      case in.MagicWand(l, r) => for {vl <- goA(l); vr <- goA(r)} yield vpr.MagicWand(vl, vr)(pos, info, errT)
       case in.Implication(l, r) => for {vl <- goE(l); vr <- goA(r)} yield vpr.Implies(vl, vr)(pos, info, errT)
       case acc: in.Access =>
         acc.e match {

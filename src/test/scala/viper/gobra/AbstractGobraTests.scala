@@ -8,11 +8,12 @@ package viper.gobra
 
 import java.io.File
 import java.nio.file.Path
-
-import viper.silver.testing.AnnotationBasedTestSuite
+import viper.silver.testing.{AnnotationBasedTestSuite, DefaultAnnotatedTestInput, DefaultTestInput, TestAnnotationParser, TestInput}
 import viper.silver.utility.Paths
 
 abstract class AbstractGobraTests extends AnnotationBasedTestSuite {
+
+  val specificationCommentStart = "//@"
 
   val z3PropertyName = "GOBRATESTS_Z3_EXE"
 
@@ -36,6 +37,27 @@ abstract class AbstractGobraTests extends AnnotationBasedTestSuite {
       val targetPath: File = Paths.canonize(testDir)
       assert(targetPath.isDirectory, s"Invalid test directory '$testDir'")
       targetPath.toPath
+    }
+  }
+
+  override def buildTestInput(file: Path, prefix: String): DefaultAnnotatedTestInput =
+    GobraAnnotatedTestInput(file, prefix)
+
+  /** we override the default annotation parser because `//@` should not be treated as a comment */
+  object GobraAnnotatedTestInput extends TestAnnotationParser {
+    /**
+      * Creates an annotated test input by parsing all annotations in the files
+      * that belong to the given test input.
+      */
+    def apply(i: TestInput): DefaultAnnotatedTestInput =
+      DefaultAnnotatedTestInput(i.name, i.prefix, i.files, i.tags,
+        parseAnnotations(i.files))
+
+    def apply(file: Path, prefix: String): DefaultAnnotatedTestInput =
+      apply(DefaultTestInput(file, prefix))
+
+    override def isCommentStart(trimmedLine: String): Boolean = {
+      trimmedLine.startsWith(commentStart) && !trimmedLine.startsWith(specificationCommentStart)
     }
   }
 }

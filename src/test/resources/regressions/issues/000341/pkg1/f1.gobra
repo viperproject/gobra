@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg1
+
+import "net"
+
+type HostSVC uint16
+
+pred (h HostSVC) Mem() {
+	true
+}
+
+(HostSVC) implements net.Addr {
+	(e HostSVC) Network() string {
+		return e.Network()
+	}
+
+	(e HostSVC) String() string {
+		return e.String()
+	}
+}
+
+func (h HostSVC) String() string
+
+func (h HostSVC) Network() string {
+	return ""
+}

@@ -11,8 +11,8 @@ import viper.gobra.reporting.{GoCallPreconditionReason, PreconditionError, Sourc
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Statements
 import viper.gobra.translator.interfaces.{Collector, Context}
-import viper.gobra.translator.util.{Comments, ViperUtil => vu}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.translator.util.{Comments, ViperUtil => vu}
 import viper.gobra.util.Violation
 import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
@@ -92,7 +92,7 @@ class StatementsImpl extends Statements {
             e <- goS(els)
           } yield vpr.If(c, vu.toSeq(t), vu.toSeq(e))(pos, info, errT)
 
-      case in.While(cond, invs, body) =>
+      case in.While(cond, invs, terminationMeasure, body) =>
 
         for {
           (cws, vCond) <- split(goE(cond))
@@ -104,8 +104,10 @@ class StatementsImpl extends Statements {
           cpost = vpr.If(vCond, vu.toSeq(cpre), vu.nop(pos, info, errT))(pos, info, errT)
           ipost = ipre
 
+          measure <- option(terminationMeasure map ctx.measures.translateF(ctx))
+
           wh = vu.seqn(Vector(
-            cpre, ipre, vpr.While(vCond, vInvs, vu.seqn(Vector(vBody, cpost, ipost))(pos, info, errT))(pos, info, errT)
+            cpre, ipre, vpr.While(vCond, vInvs ++ measure, vu.seqn(Vector(vBody, cpost, ipost))(pos, info, errT))(pos, info, errT)
           ))(pos, info, errT)
         } yield wh
 
@@ -153,6 +155,14 @@ class StatementsImpl extends Statements {
 
       case fold: in.Fold => for {a <- ctx.ass.translate(fold.acc)(ctx) } yield vpr.Fold(a.asInstanceOf[vpr.PredicateAccessPredicate])(pos, info, errT)
       case unfold: in.Unfold => for { a <- ctx.ass.translate(unfold.acc)(ctx) } yield vpr.Unfold(a.asInstanceOf[vpr.PredicateAccessPredicate])(pos, info, errT)
+
+      case in.PackageWand(wand, blockOpt) => for {
+        w <- goA(wand)
+        s <- sequence(blockOpt.toVector.map(goS))
+      } yield vpr.Package(w.asInstanceOf[vpr.MagicWand], vu.seqn(s)(pos, info, errT))(pos, info, errT)
+
+      case in.ApplyWand(wand) =>
+        for {w <- goA(wand)} yield vpr.Apply(w.asInstanceOf[vpr.MagicWand])(pos, info, errT)
 
       case in.Return() => unit(vpr.Goto(Names.returnLabel)(pos, info, errT))
 

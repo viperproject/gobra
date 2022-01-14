@@ -36,7 +36,9 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
   lazy val goAddressable: Property[PExpression] = createBinaryProperty("addressable") {
     case PNamedOperand(id) => entity(id).isInstanceOf[Variable]
     case n: PDeref => resolve(n).exists(_.isInstanceOf[ap.Deref])
-    case PIndexedExp(b, _) => val bt = exprType(b); bt.isInstanceOf[SliceT] || bt.isInstanceOf[GhostSliceT] || (b.isInstanceOf[ArrayT] && goAddressable(b))
+    case PIndexedExp(b, _) =>
+      val bt = underlyingType(exprType(b))
+      bt.isInstanceOf[SliceT] || bt.isInstanceOf[GhostSliceT] || (bt.isInstanceOf[ArrayT] && goAddressable(b))
     case n: PDot => resolve(n) match {
       case Some(s: ap.FieldSelection) => goAddressable(s.base)
       case _ => false
@@ -91,7 +93,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case n: PUnfolding => AddrMod.unfolding(addressability(n.op))
       case _: POld | _: PLabeledOld => AddrMod.old
       case _: PConditional | _: PImplication | _: PForall | _: PExists => AddrMod.rValue
-      case _: PAccess | _: PPredicateAccess => AddrMod.rValue
+      case _: PAccess | _: PPredicateAccess | _: PMagicWand => AddrMod.rValue
       case _: PTypeOf | _: PIsComparable => AddrMod.rValue
       case _: PIn | _: PMultiplicity | _: PSequenceAppend |
            _: PGhostCollectionExp | _: PRangeSequence | _: PUnion | _: PIntersection |

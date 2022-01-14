@@ -25,34 +25,31 @@ import (
 
 // UDPAddr represents the address of a UDP end point.
 type UDPAddr struct {
-// TODO(Gobra): cannot have fields and types with the same identifier
-//	IP   IP
+	IP   IP
 	Port int
 	Zone string // IPv6 scoped addressing zone
 }
 
-pred (a *UDPAddr) mem() {
-    acc(a)
+pred (a *UDPAddr) Mem() {
+    acc(a) && (forall i int :: 0 <= i && i < len(a.IP) ==> acc(&(a.IP)[i]))
 }
 
 (*UDPAddr) implements Addr {
-	(e *UDPAddr) Network(ghost p perm) string {
-		return e.Network(p)
+	(e *UDPAddr) Network() string {
+		return e.Network()
 	}
 
-	(e *UDPAddr) String(ghost p perm) string {
-		return e.String(p)
+	(e *UDPAddr) String() string {
+		return e.String()
 	}
 }
 
 // Network returns the address's network name, "udp".
 ensures res == "udp"
-func (a *UDPAddr) Network(ghost p perm) (res string) { return "udp" }
+func (a *UDPAddr) Network() (res string) { return "udp" }
 
-requires p > 0
-requires acc(a.mem(), p)
-ensures acc(a.mem(), p)
-func (a *UDPAddr) String(ghost p perm) string // {
+preserves a != nil ==> acc(a.Mem(), 1/1000)
+func (a *UDPAddr) String() string // {
 //	if a == nil {
 //		return "<nil>"
 //	}
@@ -102,7 +99,7 @@ type UDPConn struct {
 //	conn
 }
 
-pred (u *UDPConn) mem() {
+pred (u *UDPConn) Mem() {
     acc(u)
 }
 
@@ -116,9 +113,9 @@ pred (u *UDPConn) mem() {
 //}
 
 // ReadFromUDP acts like ReadFrom but returns a UDPAddr.
-requires c.mem()
+requires c.Mem()
 requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
-ensures c.mem()
+ensures c.Mem()
 ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
 ensures 0 <= n && n <= len(b)
 func (c *UDPConn) ReadFromUDP(b []byte) (n int, addr *UDPAddr, err error) // {
@@ -130,10 +127,10 @@ func (c *UDPConn) ReadFromUDP(b []byte) (n int, addr *UDPAddr, err error) // {
 //}
 
 // readFromUDP implements ReadFromUDP.
-requires c.mem()
+requires c.Mem()
 requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
-requires addr.mem()
-ensures c.mem()
+requires addr.Mem()
+ensures c.Mem()
 ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
 ensures 0 <= retInt && retInt <= len(b)
 func (c *UDPConn) readFromUDP(b []byte, addr *UDPAddr) (retInt int, *UDPAddr, error) // {
@@ -148,9 +145,9 @@ func (c *UDPConn) readFromUDP(b []byte, addr *UDPAddr) (retInt int, *UDPAddr, er
 //}
 
 // ReadFrom implements the PacketConn ReadFrom method.
-requires c.mem()
+requires c.Mem()
 requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
-ensures c.mem()
+ensures c.Mem()
 ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
 ensures 0 <= retInt && retInt <= len(b)
 func (c *UDPConn) ReadFrom(b []byte) (retInt int, Addr, error) // {
@@ -178,12 +175,11 @@ func (c *UDPConn) ReadFrom(b []byte) (retInt int, Addr, error) // {
 //}
 
 // WriteToUDP acts like WriteTo but takes a UDPAddr.
-requires p > 0
-requires c.mem() && acc(addr.mem(), p)
-requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
-ensures c.mem() && acc(addr.mem(), p)
-ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
-func (c *UDPConn) WriteToUDP(b []byte, addr *UDPAddr, ghost p perm) (int, error) // {
+requires c.Mem() && acc(addr.Mem(), 1/1000)
+requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+ensures c.Mem() && acc(addr.Mem(), 1/1000)
+ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+func (c *UDPConn) WriteToUDP(b []byte, addr *UDPAddr) (int, error) // {
 //	if !c.ok() {
 //		return 0, syscall.EINVAL
 //	}
@@ -195,12 +191,11 @@ func (c *UDPConn) WriteToUDP(b []byte, addr *UDPAddr, ghost p perm) (int, error)
 //}
 
 // WriteTo implements the PacketConn WriteTo method.
-requires p > 0
-requires c.mem() && acc(addr.mem(), p)
-requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
-ensures c.mem() && acc(addr.mem(), p)
-ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
-func (c *UDPConn) WriteTo(b []byte, addr Addr, ghost p perm) (int, error) // {
+requires c.Mem() && acc(addr.Mem(), 1/1000)
+requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+ensures c.Mem() && acc(addr.Mem(), 1/1000)
+ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+func (c *UDPConn) WriteTo(b []byte, addr Addr) (int, error) // {
 //	if !c.ok() {
 //		return 0, syscall.EINVAL
 //	}

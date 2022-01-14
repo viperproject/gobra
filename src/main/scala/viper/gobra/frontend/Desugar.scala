@@ -38,7 +38,7 @@ object Desugar {
     val mainDesugarer = new Desugarer(pkg.positions, info)
     // combine all desugared results into one Viper program:
     val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
-    config.reporter report DesugaredMessage(config.inputFiles.head, () => internalProgram)
+    config.reporter report DesugaredMessage(config.inputs.map(_.name), () => internalProgram)
     internalProgram
   }
 
@@ -89,7 +89,10 @@ object Desugar {
     val combinedDefinedT = combineTableField(_.definedTypes)
     val combinedMethods = combineTableField(_.definedMethods)
     val combinedMPredicates = combineTableField(_.definedMPredicates)
-    val combinedImplementations = combineTableField(_.interfaceImplementations)
+    val combinedImplementations = {
+      val interfaceImplMaps = desugarers.flatMap(_.interfaceImplementations.toSeq)
+      interfaceImplMaps.groupMapReduce[in.InterfaceT, Set[in.Type]](_._1)(_._2)(_ ++ _)
+    }
     val combinedMemberProxies = computeMemberProxies(combinedMethods.values ++ combinedMPredicates.values, combinedImplementations, combinedDefinedT)
     val combineImpProofPredAliases = combineTableField(_.implementationProofPredicateAliases)
     val table = new in.LookupTable(
@@ -460,9 +463,10 @@ object Desugar {
         case _ =>
       }
 
-      // translate pre- and postconditions
+      // translate pre- and postconditions and termination measures
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx)
+      val terminationMeasures = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx)).res
 
       // p1' := p1; ... ; pn' := pn
       val argInits = argsWithSubs.flatMap{
@@ -499,7 +503,7 @@ object Desugar {
         in.Block(vars, body)(meta(s))
       }
 
-      in.Function(name, args, returns, pres, posts, bodyOpt)(fsrc)
+      in.Function(name, args, returns, pres, posts, terminationMeasures, bodyOpt)(fsrc)
     }
 
     def pureFunctionD(decl: PFunctionDecl): in.PureFunction = {
@@ -530,9 +534,10 @@ object Desugar {
         case _ =>
       }
 
-      // translate pre- and postconditions
+      // translate pre- and postconditions and termination measures
       val pres = decl.spec.pres map preconditionD(ctx)
       val posts = decl.spec.posts map postconditionD(ctx)
+      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx)).res
 
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
@@ -543,10 +548,8 @@ object Desugar {
           implicitConversion(res.typ, returns.head.typ, res)
       }
 
-      in.PureFunction(name, args, returns, pres, posts, bodyOpt)(fsrc)
+      in.PureFunction(name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
     }
-
-
 
     def methodD(decl: PMethodDecl): in.MethodMember =
       if (decl.spec.isPure) pureMethodD(decl) else {
@@ -609,9 +612,10 @@ object Desugar {
         case _ =>
       }
 
-      // translate pre- and postconditions
+      // translate pre- and postconditions and termination measures
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx)
+      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx)).res
 
       // s' := s
       val recvInits = (recvWithSubs match {
@@ -660,7 +664,7 @@ object Desugar {
         in.Block(vars, body)(meta(s))
       }
 
-      in.Method(recv, name, args, returns, pres, posts, bodyOpt)(fsrc)
+      in.Method(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
     }
 
     def pureMethodD(decl: PMethodDecl): in.PureMethod = {
@@ -702,6 +706,7 @@ object Desugar {
       // translate pre- and postconditions
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(ctx)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(ctx)
+      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx)).res
 
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
@@ -712,7 +717,7 @@ object Desugar {
           implicitConversion(res.typ, returns.head.typ, res)
       }
 
-      in.PureMethod(recv, name, args, returns, pres, posts, bodyOpt)(fsrc)
+      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
     }
 
     def fpredicateD(decl: PFPredicateDecl): in.FPredicate = {
@@ -835,13 +840,15 @@ object Desugar {
                 dPre <- maybeStmtD(ctx)(pre)(src)
                 (dCondPre, dCond) <- prelude(exprD(ctx)(cond))
                 (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
+                (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
+
                 dBody = blockD(ctx)(body)
                 dPost <- maybeStmtD(ctx)(post)(src)
 
                 wh = in.Seqn(
-                  Vector(dPre) ++ dCondPre ++ dInvPre ++ Vector(
-                    in.While(dCond, dInv, in.Seqn(
-                      Vector(dBody, dPost) ++ dCondPre ++ dInvPre
+                  Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(dCond, dInv, dTer, in.Seqn(
+                      Vector(dBody, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
                     )(src))(src)
                   )
                 )(src)
@@ -1844,7 +1851,7 @@ object Desugar {
         case MemberPath.Deref => in.Deref(e)(pinfo)
         case MemberPath.Ref => in.Ref(e)(pinfo)
         case MemberPath.Next(g) =>
-          in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(e.typ.addressability), info)(pinfo))(pinfo)
+          in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(e.typ.addressability), g.context)(pinfo))(pinfo)
       }}
     }
 
@@ -2101,8 +2108,6 @@ object Desugar {
       in.DefinedT(name, addrMod)
     }
 
-
-
     def registerInterface(t: Type.InterfaceT, dT: in.InterfaceT): Unit = {
       Violation.violation(t.decl.embedded.isEmpty, "embeddings in interfaces are currently not supported")
 
@@ -2136,13 +2141,13 @@ object Desugar {
           val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
           val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx)
           val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx)
+          val terminationMeasures = sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx)).res
 
           val mem = if (m.spec.isPure) {
-            in.PureMethod(recv, proxy, args, returns, pres, posts, None)(src)
+            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
           } else {
-            in.Method(recv, proxy, args, returns, pres, posts, None)(src)
+            in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
           }
-
           definedMethods += (proxy -> mem)
           AdditionalMembers.addMember(mem)
         }
@@ -2596,6 +2601,21 @@ object Desugar {
             } yield in.PredExprUnfold(predExpInstance.base.asInstanceOf[in.PredicateConstructor],  predExpInstance.args, access.p)(src)
             case _ => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
           }
+        case PPackageWand(wand, blockOpt) =>
+          for {
+            w <- goA(wand)
+            b <- option(blockOpt map stmtD(ctx))
+          } yield w match {
+            case w: in.MagicWand => in.PackageWand(w, b)(src)
+            case e => Violation.violation(s"Expected a magic wand, but got $e")
+          }
+        case PApplyWand(wand) =>
+          for {
+            w <- goA(wand)
+          } yield w match {
+            case w: in.MagicWand => in.ApplyWand(w)(src)
+            case e => Violation.violation(s"Expected a magic wand, but got $e")
+          }
         case PExplicitGhostStatement(actual) => stmtD(ctx)(actual)
         case _ => ???
       }
@@ -2801,6 +2821,29 @@ object Desugar {
       specificationD(ctx)(ass)
     }
 
+    def terminationMeasureD(ctx: FunctionContext)(measure: PTerminationMeasure): Writer[in.TerminationMeasure] = {
+      val src: Meta = meta(measure)
+
+      def goE(expr: PExpression): Writer[in.Node] = expr match {
+        case p: PInvoke => info.resolve(p) match {
+          case Some(x: ap.PredicateCall) => predicateCallAccD(ctx)(x)(src)
+          case Some(_: ap.FunctionCall) => exprD(ctx)(p)
+          case _ => violation(s"Unexpected expression $expr")
+        }
+        case _ => exprD(ctx)(expr)
+      }
+
+      measure match {
+        case PWildcardMeasure(cond) =>
+          for { c <- option(cond map exprD(ctx)) } yield in.WildcardMeasure(c)(src)
+        case PTupleTerminationMeasure(tuple, cond) =>
+          for {
+            t <- sequence(tuple map goE)
+            c <- option(cond map exprD(ctx))
+          } yield in.TupleTerminationMeasure(t, c)(src)
+      }
+    }
+
     def assertionD(ctx: FunctionContext)(n: PExpression): Writer[in.Assertion] = {
 
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
@@ -2816,6 +2859,9 @@ object Desugar {
             thn <- goA(n.thn)
             els <- goA(n.els)
           } yield in.SepAnd(in.Implication(cnd, thn)(src), in.Implication(in.Negation(cnd)(src), els)(src))(src)
+
+        case PMagicWand(left, right) =>
+          for {l <- goA(left); r <- goA(right)} yield in.MagicWand(l, r)(src)
 
         case n: PAnd => for {l <- goA(n.left); r <- goA(n.right)} yield in.SepAnd(l, r)(src)
 
@@ -2986,7 +3032,12 @@ object Desugar {
 
     def triggerD(ctx: FunctionContext)(trigger: PTrigger) : Writer[in.Trigger] = {
       val src: Meta = meta(trigger)
-      for { exprs <- sequence(trigger.exps map exprD(ctx)) } yield in.Trigger(exprs)(src)
+      for { exprs <- sequence(trigger.exps map triggerExprD(ctx)) } yield in.Trigger(exprs)(src)
+    }
+
+    def triggerExprD(ctx: FunctionContext)(triggerExp: PExpression): Writer[in.TriggerExpr] = info.resolve(triggerExp) match {
+      case Some(p: ap.PredicateCall) => for { pa <- predicateCallAccD(ctx)(p)(meta(triggerExp)) } yield in.Accessible.Predicate(pa)
+      case _ => exprD(ctx)(triggerExp)
     }
 
 
@@ -3161,7 +3212,10 @@ object Desugar {
       s"$DOMAIN_PREFIX$$$domainName"
     }
 
-    def label(n: String): String = s"${n}_$LABEL_PREFIX"
+    def label(n: String): String = n match {
+      case "#lhs" => "lhs"
+      case _ => s"${n}_$LABEL_PREFIX"
+    }
   }
 }
 

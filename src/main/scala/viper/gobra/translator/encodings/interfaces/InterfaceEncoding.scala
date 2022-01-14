@@ -18,6 +18,7 @@ import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.{Algorithms, Violation}
+import viper.silver.plugin.standard.termination
 import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
 
@@ -455,6 +456,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     * function typeOfFunc_I(itf: [itf{}]): Type
     *   ensures result == typeOf(itf)
     *   ensures behaviouralSubtype(result, [I])
+    *   decreases
     */
   private def typeOfWithSubtypeFactFunc(itfT: in.InterfaceT)(ctx: Context): vpr.Function = {
     typeOfWithSubtypeFactFuncMap.getOrElse(itfT.name, {
@@ -466,7 +468,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         name = s"${Names.typeOfFunc}_${itfT.name}",
         formalArgs = Seq(formal),
         typ = resT,
-        pres = Seq.empty,
+        pres = Seq(termination.DecreasesWildcard(None)()),
         posts = Seq(
           vpr.EqCmp(vpr.Result(resT)(), typeOf(formal.localVar)()(ctx))(),
           types.behavioralSubtype(vpr.Result(resT)(), types.typeToExpr(itfT)()(ctx))()(ctx)
@@ -663,7 +665,6 @@ class InterfaceEncoding extends LeafTypeEncoding {
   private def function(p: in.PureMethod)(ctx: Context): MemberWriter[Vector[vpr.Function]] = {
     Violation.violation(p.results.size == 1, s"expected a single result, but got ${p.results}")
     Violation.violation(p.posts.isEmpty, s"expected no postcondition, but got ${p.posts}")
-    Violation.violation(p.body.isEmpty, s"expected no body, but got ${p.body}")
 
     val itfT = p.receiver.typ.asInstanceOf[in.InterfaceT]
     val impls = ctx.table.implementations(itfT)
@@ -690,13 +691,14 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     for {
       vPres <- ml.sequence(p.pres map (ctx.ass.precondition(_)(ctx)))
+      body  <- ml.option(p.body.map(p => ml.pure(ctx.expr.translate(p)(ctx))(ctx)))
       func = vpr.Function(
         name = p.name.uniqueName,
         formalArgs = recvDecl +: argDecls,
         typ = resultType,
         pres = vPres,
         posts = cases.toVector map { case (impl, implProxy) => clause(impl, implProxy) },
-        body = None
+        body = body
       )()
     } yield Vector(func)
   }
@@ -723,6 +725,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       results = p.results,
       pres = Vector.empty,
       posts = Vector.empty,
+      terminationMeasures = Vector.empty,
       body = Some(body)
     )(p.info))(ctx)
 
@@ -760,6 +763,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       results = p.results,
       pres = Vector.empty,
       posts = Vector.empty,
+      terminationMeasures = Vector.empty,
       body = Some(body)
     )(p.info))(ctx)
 

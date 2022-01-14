@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred p(x int)
+
+// predicate instance is supported as trigger:
+requires forall x int :: { p(x) } (0 <= x ==> p(x))
+func client()

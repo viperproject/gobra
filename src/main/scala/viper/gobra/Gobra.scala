@@ -6,17 +6,17 @@
 
 package viper.gobra
 
-import java.nio.file.{Files, Path}
+import java.nio.file.Paths
 import java.util.concurrent.ExecutionException
-
 import com.typesafe.scalalogging.StrictLogging
+import org.bitbucket.inkytonik.kiama.util.Source
 import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
-import viper.gobra.ast.internal.transform.OverflowChecksTransform
+import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
-import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, CopyrightReport, VerifierError, VerifierResult}
+import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
@@ -24,7 +24,6 @@ import viper.silver.{ast => vpr}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
-
 
 object GoVerifier {
 
@@ -50,10 +49,10 @@ trait GoVerifier {
   }
 
   def verify(config: Config)(executor: GobraExecutionContext): Future[VerifierResult] = {
-    verify(config.inputFiles, config)(executor)
+    verify(config.inputs, config)(executor)
   }
 
-  protected[this] def verify(input: Vector[Path], config: Config)(executor: GobraExecutionContext): Future[VerifierResult]
+  protected[this] def verify(input: Vector[Source], config: Config)(executor: GobraExecutionContext): Future[VerifierResult]
 }
 
 trait GoIdeVerifier {
@@ -62,7 +61,7 @@ trait GoIdeVerifier {
 
 class Gobra extends GoVerifier with GoIdeVerifier {
 
-  override def verify(input: Vector[Path], config: Config)(executor: GobraExecutionContext): Future[VerifierResult] = {
+  override def verify(input: Vector[Source], config: Config)(executor: GobraExecutionContext): Future[VerifierResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
 
@@ -74,7 +73,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
       for {
         parsedPackage <- performParsing(input, finalConfig)
-        typeInfo <- performTypeChecking(parsedPackage, finalConfig)
+        typeInfo <- performTypeChecking(parsedPackage, input, finalConfig)
         program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
         program <- performInternalTransformations(program, finalConfig)
         viperTask <- performViperEncoding(program, finalConfig)
@@ -123,8 +122,8 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * The current config merged with the newly created config is then returned
     */
   def getAndMergeInFileConfig(config: Config): Config = {
-    val inFileConfigs = config.inputFiles.flatMap(path => {
-      val content = Files.readString(path)
+    val inFileConfigs = config.inputs.flatMap(input => {
+      val content = input.content
       val configs = for (m <- inFileConfigRegex.findAllMatchIn(content)) yield m.group(1)
       if (configs.isEmpty) {
         None
@@ -136,7 +135,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
         // modify all relative includeDirs such that they are resolved relatively to the current file:
         val resolvedConfig = inFileConfig.copy(includeDirs = inFileConfig.includeDirs.map(
           // it's important to convert includeDir to a string first as `path` might be a ZipPath and `includeDir` might not
-          includeDir => path.getParent.resolve(includeDir.toString)))
+          includeDir => Paths.get(input.name).getParent.resolve(includeDir.toString)))
         Some(resolvedConfig)
       }
     })
@@ -145,7 +144,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     inFileConfigs.foldLeft(config){ case (oldConfig, fileConfig) => oldConfig.merge(fileConfig) }
   }
 
-  private def performParsing(input: Vector[Path], config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def performParsing(input: Vector[Source], config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
       Parser.parse(input)(config)
     } else {
@@ -153,9 +152,9 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  private def performTypeChecking(parsedPackage: PPackage, config: Config): Either[Vector[VerifierError], TypeInfo] = {
+  private def performTypeChecking(parsedPackage: PPackage, input: Vector[Source], config: Config): Either[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
-      Info.check(parsedPackage, isMainContext = true)(config)
+      Info.check(parsedPackage, input, isMainContext = true)(config)
     } else {
       Left(Vector())
     }
@@ -174,12 +173,14 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * be easily extended to perform more transformations
     */
   private def performInternalTransformations(program: Program, config: Config): Either[Vector[VerifierError], Program] = {
+    val transformed = CGEdgesTerminationTransform.transform(program)
+
     if (config.checkOverflows) {
-      val result = OverflowChecksTransform.transform(program)
-      config.reporter report AppliedInternalTransformsMessage(config.inputFiles.head, () => result)
+      val result = OverflowChecksTransform.transform(transformed)
+      config.reporter report AppliedInternalTransformsMessage(config.inputs.map(_.name), () => result)
       Right(result)
     } else {
-      Right(program)
+      Right(transformed)
     }
   }
 
@@ -214,8 +215,7 @@ object GobraRunner extends GobraFrontend with StrictLogging {
     try {
       val scallopGobraconfig = new ScallopGobraConfig(args.toSeq)
       val config = scallopGobraconfig.config
-      val nThreads = Math.max(DefaultGobraExecutionContext.minimalThreadPoolSize, Runtime.getRuntime.availableProcessors())
-      val executor: GobraExecutionContext = new DefaultGobraExecutionContext(nThreads)
+      val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
       val verifier = createVerifier()
       val resultFuture = verifier.verify(config)(executor)
       val result = Await.result(resultFuture, Duration.Inf)

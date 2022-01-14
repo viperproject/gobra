@@ -29,6 +29,7 @@ trait TranslatorConfig {
   // translators
   def typeEncoding: TypeEncoding
   def ass: Assertions
+  def measures: TerminationMeasures
   def expr: Expressions
   def method: Methods
   def pureMethod: PureMethods

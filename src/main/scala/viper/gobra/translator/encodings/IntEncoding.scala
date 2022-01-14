@@ -16,6 +16,7 @@ import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
+import viper.silver.plugin.standard.termination
 
 class IntEncoding extends LeafTypeEncoding {
 
@@ -100,7 +101,7 @@ class IntEncoding extends LeafTypeEncoding {
       name = Names.bitwiseAnd,
       formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
       typ = vpr.Int,
-      pres = Seq.empty,
+      pres = Seq(termination.DecreasesWildcard(None)()),
       posts = Seq.empty,
       body = None
     )()
@@ -112,7 +113,7 @@ class IntEncoding extends LeafTypeEncoding {
       name = Names.bitwiseOr,
       formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
       typ = vpr.Int,
-      pres = Seq.empty,
+      pres = Seq(termination.DecreasesWildcard(None)()),
       posts = Seq.empty,
       body = None
     )()
@@ -124,7 +125,7 @@ class IntEncoding extends LeafTypeEncoding {
       name = Names.bitwiseXor,
       formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
       typ = vpr.Int,
-      pres = Seq.empty,
+      pres = Seq(termination.DecreasesWildcard(None)()),
       posts = Seq.empty,
       body = None
     )()
@@ -136,7 +137,7 @@ class IntEncoding extends LeafTypeEncoding {
       name = Names.bitClear,
       formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
       typ = vpr.Int,
-      pres = Seq.empty,
+      pres = Seq(termination.DecreasesWildcard(None)()),
       posts = Seq.empty,
       body = None
     )()
@@ -151,7 +152,7 @@ class IntEncoding extends LeafTypeEncoding {
       formalArgs = Seq(left, right),
       typ = vpr.Int,
       // if the value at the right is < 0, it panics
-      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())()),
+      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())(), termination.DecreasesWildcard(None)()),
       posts = Seq.empty,
       body = None
     )()
@@ -166,7 +167,7 @@ class IntEncoding extends LeafTypeEncoding {
       formalArgs = Seq(left, right),
       typ = vpr.Int,
       // if the value at the right is < 0, it panics
-      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())()),
+      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())(), termination.DecreasesWildcard(None)()),
       posts = Seq.empty,
       body = None
     )()
@@ -178,7 +179,7 @@ class IntEncoding extends LeafTypeEncoding {
       name = Names.bitwiseNeg,
       formalArgs = Seq(vpr.LocalVarDecl("exp", vpr.Int)()),
       typ = vpr.Int,
-      pres = Seq.empty,
+      pres = Seq(termination.DecreasesWildcard(None)()),
       posts = Seq.empty,
       body = None
     )()

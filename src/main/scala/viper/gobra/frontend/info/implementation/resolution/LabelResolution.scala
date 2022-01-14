@@ -62,6 +62,7 @@ trait LabelResolution { this: TypeInfoImpl =>
   /** returns the label definition for a label use. */
   lazy val label: PLabelNode => Entity =
     attr[PLabelNode, Entity] {
-      n => lookup(labelDefEnv(n), serialize(n), UnknownEntity())
+      case PLabelUse(PLabelNode.lhsLabel) => WandLhsLabel
+      case n => lookup(labelDefEnv(n), serialize(n), UnknownEntity())
     }
 }

@@ -258,4 +258,5 @@ object SymbolTable extends Environments[Entity] {
     */
 
   case class Label(decl: PLabeledStmt, ghost: Boolean) extends Entity with Product
+  case object WandLhsLabel extends Entity
 }

@@ -47,6 +47,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PStructClause => showStructClause(n)
     case n: PInterfaceClause => showInterfaceClause(n)
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
+    case n: PTerminationMeasure => showTerminationMeasure(n)
     case PPos(_) => emptyDoc
   }
 
@@ -107,20 +108,32 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showPure: Doc = "pure" <> line
+  def showTrusted: Doc = "trusted" <> line
   def showPre(pre: PExpression): Doc = "requires" <+> showExpr(pre)
   def showPreserves(preserves: PExpression): Doc = "preserves" <+> showExpr(preserves)
   def showPost(post: PExpression): Doc = "ensures" <+> showExpr(post)
   def showInv(inv: PExpression): Doc = "invariant" <+> showExpr(inv)
+  def showTerminationMeasure(measure: PTerminationMeasure): Doc = {
+    def showCond(cond: Option[PExpression]): Doc = opt(cond)("if" <+> showExpr(_))
+    def measureDoc(m: PTerminationMeasure): Doc = m match {
+      case PTupleTerminationMeasure(tuple, cond) => showExprList(tuple) <+> showCond(cond)
+      case PWildcardMeasure(cond) => "_" <+> showCond(cond)
+    }
+    "decreases" <+> measureDoc(measure)
+  }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, isPure) =>
+    case PFunctionSpec(pres, preserves, posts, measures, isPure, isTrusted) =>
       (if (isPure) showPure else emptyDoc) <>
+      (if (isTrusted) showTrusted else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
         hcat(preserves map (showPreserves(_) <> line)) <>
-        hcat(posts map (showPost(_) <> line))
+        hcat(posts map (showPost(_) <> line)) <>
+        hcat(measures map (showTerminationMeasure(_) <> line)) <>
+        line
 
-    case PLoopSpec(inv) =>
-      hcat(inv map (showInv(_) <> line))
+    case PLoopSpec(inv, measure) =>
+      hcat(inv map (showInv(_) <> line)) <> opt(measure)(showTerminationMeasure) <> line
   }
 
   def showBodyParameterInfoWithBlock(info: PBodyParameterInfo, block: PBlock): Doc = {
@@ -240,6 +253,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PInhale(exp) => "inhale" <+> showExpr(exp)
       case PUnfold(exp) => "unfold" <+> showExpr(exp)
       case PFold(exp) => "fold" <+> showExpr(exp)
+      case PPackageWand(wand, blockOpt) => "package" <+> showExpr(wand) <+> opt(blockOpt)(showStmt)
+      case PApplyWand(wand) => "apply" <+> showExpr(wand)
     }
   }
 
@@ -448,6 +463,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case n: PExpression if perm == PFullPerm() => "acc" <> parens(showExpr(n))
         case n: PExpression => "acc" <> parens(showExpr(n) <> "," <+> showExpr(perm))
       }
+      case PMagicWand(left, right) => showSubExpr(expr, left) <+> "--*" <+> showSubExpr(expr, right)
 
       case PTypeOf(exp) => "typeOf" <> parens(showExpr(exp))
       case PIsComparable(exp) => "isComparable" <> parens(showExprOrType(exp))

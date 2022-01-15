@@ -8,7 +8,7 @@ func f(x float32, y float32) (res float32) {
 	return x + y
 }
 
-ensures res == x
+ensures res == x * y
 func g(x float64, y float64) (res float64) {
-	return x + y
+	return x * y
 }

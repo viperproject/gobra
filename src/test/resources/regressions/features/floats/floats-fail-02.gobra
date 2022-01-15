@@ -14,3 +14,9 @@ ensures res != x + y || res != x - y || res != x * y || res != x / y
 func g(x float32, y float32) (res float32) {
 	return x + y
 }
+
+//:: ExpectedOutput(postcondition_error)
+ensures res == y
+func g(x float32, y float32) (res float32) {
+	return x + y - y
+}

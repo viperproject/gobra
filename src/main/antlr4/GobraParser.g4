@@ -340,7 +340,11 @@ type_: typeName | typeLit | ghostTypeLit | L_PAREN type_ R_PAREN
                  UINT16 |
                  UINT32 |
                  UINT64 |
-                 UINTPTR
+                 UINTPTR |
+                 FLOAT32 |
+                 FLOAT64 |
+                 COMPLEX64 |
+                 COMPLEX128
         );
 // Added pred types
 typeLit:

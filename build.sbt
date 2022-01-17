@@ -58,6 +58,7 @@ lazy val gobra = (project in file("."))
     ),
 
     fork := true,
+    cancelable in Global := true,
 
 
     // Test settings

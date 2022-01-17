@@ -47,12 +47,12 @@ object Parser {
     */
 
   def parse(input: Vector[Source], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
-    val preprocessedSources = input
-      .map{ Gobrafier.gobrafy }
-      .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
     val sources = input.map(Gobrafier.gobrafy)
     val legacyOverride = false
     if (legacyOverride) {
+      val preprocessedSources = input
+        .map{ Gobrafier.gobrafy }
+        .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
       for {
         parseAst <- time("GOBRA", input(0).name) {parseSources(preprocessedSources, specOnly)(config)}
         postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)

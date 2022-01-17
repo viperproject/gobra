@@ -85,4 +85,10 @@ NOPERM      : 'noPerm';
          UINT32: 'uint32';
          UINT64: 'uint64';
          UINTPTR: 'uintptr';
+         // float types
+         FLOAT32: 'float32';
+         FLOAT64: 'float64';
+         //  complex types
+         COMPLEX64: 'complex64';
+         COMPLEX128: 'complex128';
 // END GOBRA

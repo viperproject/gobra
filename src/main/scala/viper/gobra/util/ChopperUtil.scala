@@ -17,6 +17,8 @@ import viper.gobra.backend.BackendVerifier.Task
 
 object ChopperUtil {
 
+  val GobraChopperFileLocation = "GobraChopper.conf"
+
   /** Splits task program into multiple Viper programs depending on config. */
   def computeChoppedPrograms(task: Task)(config: Config): Vector[vpr.Program] = {
 
@@ -54,11 +56,16 @@ object ChopperUtil {
     }}
   }
 
+  /**
+    * If a configuration is present at [[GobraChopperFileLocation]],
+    * then a penalty object using this configuration is created and returned.
+    * Otherwise, if no configuration is present, the default configuration is returned.
+    * */
   def getPenalty: ViperChopper.Penalty[ViperChopper.Vertex] = {
     import scala.io.Source
     import viper.gobra.util.ViperChopper.Penalty
 
-    val file = new File("GobraChopper.conf")
+    val file = new File(GobraChopperFileLocation)
     if (!file.exists()) {
       Penalty.Default
     } else {

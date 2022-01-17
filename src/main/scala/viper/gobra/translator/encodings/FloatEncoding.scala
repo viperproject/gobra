@@ -8,9 +8,10 @@ package viper.gobra.translator.encodings
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.interfaces.{Collector, Context}
-import viper.gobra.translator.util.ViperWriter.CodeLevel._
+import viper.gobra.translator.util.ViperWriter.CodeLevel.unit
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 
@@ -41,12 +42,12 @@ class FloatEncoding extends LeafTypeEncoding {
   /**
     * Encodes expressions as values that do not occupy some identifiable location in memory.
     * X stands for either 32 or 64 below:
-    * [ dflt(x: floatX) ] -> defaultValueX()
+    * [ dflt(x: floatX) ] -> [ floatX(0) ]
     * [ (x: floatX) + (y: floatX) ] -> addFloatX([ x ], [ y ])
     * [ (x: floatX) - (y: floatX) ] -> subFloatX([ x ], [ y ])
     * [ (x: floatX) * (y: floatX) ] -> mulFloatX([ x ], [ y ])
     * [ (x: floatX) / (y: floatX) ] -> divFloatX([ x ], [ y ])
-    * [ int(x: floatX) ] -> fromIntToX([ x ])
+    * [ floatX(x: int) ] -> fromIntToX([ x ])
     */
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
@@ -54,9 +55,9 @@ class FloatEncoding extends LeafTypeEncoding {
 
     default(super.expr(ctx)) {
       case (e: in.DfltVal) :: ctx.Float32() / Exclusive =>
-        unit(withSrc(vpr.FuncApp(func = defaultValue32, Seq()), e))
+        unit(withSrc(vpr.FuncApp(fromIntTo32, Seq(vpr.IntLit(BigInt(0))())), e))
       case (e: in.DfltVal) :: ctx.Float64() / Exclusive =>
-        unit(withSrc(vpr.FuncApp(func = defaultValue64, Seq()), e))
+        unit(withSrc(vpr.FuncApp(fromIntTo64, Seq(vpr.IntLit(BigInt(0))())), e))
       case add @ in.Add(l, r) :: ctx.Float32() =>
         for { lE <- goE(l); rE <- goE(r) } yield withSrc(vpr.FuncApp(addFloat32, Seq(lE, rE)), add)
       case add @ in.Add(l, r) :: ctx.Float64() =>
@@ -82,7 +83,6 @@ class FloatEncoding extends LeafTypeEncoding {
 
   override def finalize(col: Collector): Unit = {
     if (isUsed32) {
-      col.addMember(defaultValue32)
       col.addMember(addFloat32)
       col.addMember(subFloat32)
       col.addMember(mulFloat32)
@@ -90,7 +90,6 @@ class FloatEncoding extends LeafTypeEncoding {
       col.addMember(fromIntTo32)
     }
     if (isUsed64) {
-      col.addMember(defaultValue64)
       col.addMember(addFloat64)
       col.addMember(subFloat64)
       col.addMember(mulFloat64)
@@ -100,32 +99,6 @@ class FloatEncoding extends LeafTypeEncoding {
   }
   private var isUsed32: Boolean = false
   private var isUsed64: Boolean = false
-
-  /**
-    * Generates
-    *   function defaultValue32(): Int
-    */
-  private lazy val defaultValue32 = vpr.Function(
-    name = "defaultValue32",
-    formalArgs = Seq(),
-    typ = floatType32,
-    pres  = Seq(),
-    posts = Seq(),
-    body  = None
-  )()
-
-  /**
-    * Generates
-    *   function defaultValue64(): Int
-    */
-  private lazy val defaultValue64 = vpr.Function(
-    name = "defaultValue64",
-    formalArgs = Seq(),
-    typ = floatType64,
-    pres  = Seq(),
-    posts = Seq(),
-    body  = None
-  )()
 
   /**
     * Generates

@@ -20,3 +20,9 @@ ensures res == y
 func h(x float32, y float32) (res float32) {
 	return x + y - y
 }
+
+//:: ExpectedOutput(postcondition_error)
+ensures res == x
+func i(x float32, y float32) (res float32) {
+	return x + y - y
+}

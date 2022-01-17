@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend.{PDeref, PDot, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PNamedOperand, PStructType, PType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInTypeTag
 import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelT, DeclaredT, FunctionT, GhostSliceT, IntT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StringT, StructT, Type}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -30,6 +31,8 @@ trait UnderlyingType { this: TypeInfoImpl =>
       case PNamedOperand(t) => entity(t) match {
         case st.NamedType(decl, _, ctx) => inCtx(ctx, decl.right)
         case st.TypeAlias(decl, _, ctx) => inCtx(ctx, decl.right)
+        // TODO: Properly implement this
+        case st.BuiltInType(bt : BuiltInTypeTag, _, _) => predefinedTypesMap.get(bt.identifier)
         case _ => None // type not defined
       }
       case PDot(_, id) => entity(id) match {

@@ -17,6 +17,6 @@ func g(x float32, y float32) (res float32) {
 
 //:: ExpectedOutput(postcondition_error)
 ensures res == y
-func g(x float32, y float32) (res float32) {
+func h(x float32, y float32) (res float32) {
 	return x + y - y
 }

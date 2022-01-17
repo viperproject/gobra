@@ -109,11 +109,12 @@ object Parser {
         case Left(errors) =>
           // On parse failure, ANTLR sometimes throws out of bounds exceptions, ignore these for now.
           val (parserErrors, _) = errors.partition(_.position.nonEmpty)
-          val groupedErrors = parserErrors.filter(_.position.nonEmpty).groupBy{ _.position.get.file}
-          groupedErrors.foreach{ case (p, pErrors) =>
-            config.reporter report ParserErrorMessage(p, pErrors)
-          }
-          Left(parserErrors)
+          val allErrors = true
+          val errorsToReport = if (allErrors) {
+            parserErrors
+          } else parserErrors.takeRight(1)
+
+          Left(errorsToReport)
       }
     }
 

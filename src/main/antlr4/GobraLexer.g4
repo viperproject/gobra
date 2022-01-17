@@ -1,6 +1,11 @@
 lexer grammar GobraLexer;
 import GoLexer;
 
+/*
+DECIMAL_FLOAT_LIT      : DECIMALS ('.'{_input.LA(1) != '.'}? DECIMALS? EXPONENT? | EXPONENT)
+                       | '.'{_input.LA(-1) != '.'}? DECIMALS EXPONENT?
+                       ;
+*/
 // BEGIN GOBRA
 //CURLIES : '{' (CURLIES|~[{}])* '}' ;
 

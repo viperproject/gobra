@@ -324,27 +324,47 @@ object ViperChopper {
         p.mergePenalty(exclusive1, exclusive2, shared)
     }
 
-    class DefaultImpl(sharedThreshold: Int) extends Penalty[Vertex] {
+    case class PenaltyConfig(
+                              method: Int,
+                              methodSpec: Int,
+                              function: Int,
+                              predicate: Int,
+                              predicateSig: Int,
+                              field: Int,
+                              domainType: Int,
+                              domainFunction: Int,
+                              domainAxiom: Int,
+                              sharedThreshold: Int
+                            )
+
+    val defaultPenaltyConfig: PenaltyConfig = PenaltyConfig(
+      method = 0, methodSpec = 0,function = 3, predicate = 3, predicateSig = 2, field = 1,
+      domainType = 1, domainFunction = 1, domainAxiom = 4,
+      sharedThreshold = 50
+    )
+
+    class DefaultImpl(conf: PenaltyConfig) extends Penalty[Vertex] {
 
       override def price(xs: Vertex): Int = xs match {
-        case _: Vertex.Method | _: Vertex.MethodSpec => 0
-        case _: Vertex.Field => 1
-        case _: Vertex.PredicateSig => 2
-        case _: Vertex.PredicateBody => 3
-        case _: Vertex.Function => 3
-        case _: Vertex.DomainFunction => 1
-        case _: Vertex.DomainType => 1
-        case _: Vertex.DomainAxiom => 4
+        case _: Vertex.Method         => conf.method
+        case _: Vertex.MethodSpec     => conf.methodSpec
+        case _: Vertex.Function       => conf.function
+        case _: Vertex.PredicateBody  => conf.predicate
+        case _: Vertex.PredicateSig   => conf.predicateSig
+        case _: Vertex.Field          => conf.field
+        case _: Vertex.DomainType     => conf.domainType
+        case _: Vertex.DomainFunction => conf.domainFunction
+        case _: Vertex.DomainAxiom    => conf.domainAxiom
         case Vertex.Always => 0
       }
 
       override def mergePenalty(lhsExclusivePrice: Int, rhsExclusivePrice: Int, sharedPrice: Int): Int =
-        (lhsExclusivePrice + rhsExclusivePrice) * ((sharedThreshold + sharedPrice).toFloat / sharedThreshold).toInt
+        (lhsExclusivePrice + rhsExclusivePrice) * ((conf.sharedThreshold + sharedPrice).toFloat / conf.sharedThreshold).toInt
     }
 
-    object Default extends DefaultImpl(50)
+    object Default extends DefaultImpl(defaultPenaltyConfig)
 
-    object DefaultWithoutForcedMerge extends DefaultImpl(50) {
+    object DefaultWithoutForcedMerge extends DefaultImpl(defaultPenaltyConfig) {
       override def mergePenalty(lhsExclusivePrice: Int, rhsExclusivePrice: Int, sharedPrice: Int): Int =
         Math.max(super.mergePenalty(lhsExclusivePrice, rhsExclusivePrice, sharedPrice), 1)
     }

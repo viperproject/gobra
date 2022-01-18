@@ -1615,15 +1615,7 @@ object Desugar {
           case PAnd(left, right) => for {l <- go(left); r <- go(right)} yield in.And(l, r)(src)
           case POr(left, right) => for {l <- go(left); r <- go(right)} yield in.Or(l, r)(src)
 
-          case PAdd(left, right) =>
-            for {
-              l <- go(left)
-              r <- go(right)
-              res = (info.typ(left), info.typ(right)) match {
-                case (StringT, StringT) => in.Concat(l, r)(src)
-                case _ => in.Add(l, r)(src)
-              }
-            } yield res
+          case PAdd(left, right) => for {l <- go(left); r <- go(right)} yield in.Add(l, r)(src)
           case PSub(left, right) => for {l <- go(left); r <- go(right)} yield in.Sub(l, r)(src)
           case PMul(left, right) => for {l <- go(left); r <- go(right)} yield in.Mul(l, r)(src)
           case PMod(left, right) => for {l <- go(left); r <- go(right)} yield in.Mod(l, r)(src)

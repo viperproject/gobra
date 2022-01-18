@@ -294,14 +294,12 @@ type DNSError struct {
 pred (e *DNSError) Mem() { acc(e) }
 
 preserves e != nil ==> acc(e, 1/1000)
-trusted
 func (e *DNSError) Error() string {
 	if e == nil {
 		return "<nil>"
 	}
 	s := "lookup " + e.Name
 	if e.Server != "" {
-		/* operation causes exception in Gobra */
 		s += " on " + e.Server
 	}
 	s += ": " + e.Err

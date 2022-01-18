@@ -552,6 +552,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PUInt32Type() => "uint32"
     case PUInt64Type() => "uint64"
     case PUIntPtr() => "uintptr"
+    case PFloat32() => "float32"
+    case PFloat64() => "float64"
     case PArrayType(len, elem) => brackets(showExpr(len)) <> showType(elem)
     case PSliceType(elem) => brackets(emptyDoc) <> showType(elem)
     case PVariadicType(elem) => "..." <> showType(elem)

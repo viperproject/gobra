@@ -486,6 +486,8 @@ case class DefinedTExpr(name: String)(val info: Source.Parser.Info) extends Type
 
 case class BoolTExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class StringTExpr()(val info: Source.Parser.Info) extends TypeExpr
+case class Float32TExpr()(val info: Source.Parser.Info) extends TypeExpr
+case class Float64TExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends TypeExpr
 case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
 case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
@@ -1118,6 +1120,16 @@ case class BoolT(addressability: Addressability) extends PrettyType("bool") {
 case class IntT(addressability: Addressability, kind: IntegerKind = UnboundedInteger) extends PrettyType(kind.name) {
   override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[IntT] && t.asInstanceOf[IntT].kind == kind
   override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability, kind)
+}
+
+case class Float32T(addressability: Addressability) extends PrettyType("float32") {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[Float32T]
+  override def withAddressability(newAddressability: Addressability): Float32T = Float32T(newAddressability)
+}
+
+case class Float64T(addressability: Addressability) extends PrettyType("float64") {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[Float64T]
+  override def withAddressability(newAddressability: Addressability): Float64T = Float64T(newAddressability)
 }
 
 case class StringT(addressability: Addressability) extends PrettyType("string") {

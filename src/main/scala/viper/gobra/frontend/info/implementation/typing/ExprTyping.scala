@@ -354,11 +354,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) => (l,r) match {
             case (StringT, StringT) => noMessages
+            case (Float32T, Float32T) => noMessages
+            case (Float64T, Float64T) => noMessages
             case _ if l == PermissionT || r == PermissionT =>
               assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
             case _ => assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
           }
           case (_: PAdd, StringT, StringT) => noMessages
+          case (_: PAdd | _: PSub | _: PMul | _: PDiv, l, r) if Set(l, r).intersect(Set(Float32T, Float64T)).nonEmpty =>
+            mergeableTypes.errors(l, r)(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r)
             if l == PermissionT || r == PermissionT || getTypeFromCtxt(n).contains(PermissionT) =>
               assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)

@@ -20,6 +20,8 @@ object TypeHead {
   case object BoolHD extends TypeHead
   case object StringHD extends TypeHead
   case class IntHD(kind: IntegerKind) extends TypeHead
+  case object Float32HD extends TypeHead
+  case object Float64HD extends TypeHead
   case object PointerHD extends TypeHead
   case class DefinedHD(name: String) extends TypeHead
   /** 'fields' stores for each field the name and whether the field is ghost. */
@@ -57,6 +59,8 @@ object TypeHead {
     case _: BoolT => BoolHD
     case _: StringT => StringHD
     case t: IntT => IntHD(t.kind)
+    case _: Float32T => Float32HD
+    case _: Float64T => Float64HD
     case _: PointerT => PointerHD
     case t: DefinedT => DefinedHD(t.name)
     case t: StructT => StructHD(t.fields.map(f => (f.name, f.ghost)))
@@ -83,6 +87,8 @@ object TypeHead {
     case _: BoolT => Vector.empty
     case _: StringT => Vector.empty
     case _: IntT => Vector.empty
+    case _: Float32T => Vector.empty
+    case _: Float64T => Vector.empty
     case t: PointerT => Vector(t.t)
     case _: DefinedT => Vector.empty
     case t: StructT => t.fields.map(_.typ)
@@ -109,6 +115,8 @@ object TypeHead {
     case _: BoolTExpr => Vector.empty
     case _: StringTExpr => Vector.empty
     case _: IntTExpr => Vector.empty
+    case _: Float32TExpr => Vector.empty
+    case _: Float64TExpr => Vector.empty
     case t: PointerTExpr => Vector(t.elems)
     case _: DefinedTExpr => Vector.empty
     case t: StructTExpr => t.fields.map(_._2)
@@ -129,6 +137,8 @@ object TypeHead {
     case _: BoolTExpr => BoolHD
     case _: StringTExpr => StringHD
     case t: IntTExpr => IntHD(t.kind)
+    case _: Float32TExpr => Float32HD
+    case _: Float64TExpr => Float64HD
     case _: PointerTExpr => PointerHD
     case t: DefinedTExpr => DefinedHD(t.name)
     case t: StructTExpr => StructHD(t.fields.map(t => (t._1, t._3)))
@@ -149,6 +159,8 @@ object TypeHead {
     case BoolHD => 0
     case StringHD => 0
     case _: IntHD => 0
+    case Float32HD => 0
+    case Float64HD => 0
     case PointerHD => 1
     case _: DefinedHD => 0
     case t: StructHD => t.fields.size

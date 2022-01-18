@@ -1157,7 +1157,10 @@ object Parser {
         exactWord("uint16") ^^^ PUInt16Type() |
         exactWord("uint32") ^^^ PUInt32Type() |
         exactWord("uint64") ^^^ PUInt64Type() |
-        exactWord("uintptr") ^^^ PUIntPtr()
+        exactWord("uintptr") ^^^ PUIntPtr() |
+        // floats
+        exactWord("float32") ^^^ PFloat32() |
+        exactWord("float64") ^^^ PFloat64()
 
     lazy val predeclaredTypeSeparate: Parser[PPredeclaredType] =
       exactWord("bool") ~ not("(" | ".") ^^^ PBoolType() |

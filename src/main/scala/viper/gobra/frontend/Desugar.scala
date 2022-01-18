@@ -2327,6 +2327,8 @@ object Desugar {
       case Type.BooleanT => in.BoolT(addrMod)
       case Type.StringT => in.StringT(addrMod)
       case Type.IntT(x) => in.IntT(addrMod, x)
+      case Type.Float32T => in.Float32T(addrMod)
+      case Type.Float64T => in.Float64T(addrMod)
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
       case Type.SliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
       case Type.MapT(keys, values) =>

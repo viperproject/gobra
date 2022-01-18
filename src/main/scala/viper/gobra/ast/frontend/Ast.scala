@@ -574,6 +574,9 @@ case class PUInt64Type() extends PPredeclaredType("uint64") with PIntegerType
 case class PByte() extends PPredeclaredType("byte") with PIntegerType
 case class PUIntPtr() extends PPredeclaredType("uintptr") with PIntegerType
 
+sealed trait PFloatType extends PType
+case class PFloat32() extends PPredeclaredType("float32") with PFloatType
+case class PFloat64() extends PPredeclaredType("float64") with PFloatType
 
 // TODO: add more types
 

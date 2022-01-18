@@ -43,7 +43,7 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val isEnclosingExplicitGhost: PNode => Boolean =
     down(false){ case _: PGhostifier[_] => true }
 
-  lazy val isEnclosingtGhost: PNode => Boolean =
+  lazy val isEnclosingGhost: PNode => Boolean =
     down(false){ case _: PGhostifier[_] | _: PGhostNode => true }
 
   lazy val isEnclosingDomain: PNode => Boolean =

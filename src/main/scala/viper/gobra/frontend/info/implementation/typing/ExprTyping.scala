@@ -351,7 +351,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PBinaryExp[_,_] =>
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
           case (_: PEquals | _: PUnequals, l, r) =>
-            if (isEnclosingtGhost(n)) ghostComparableTypes.errors(l, r)(n)
+            if (isEnclosingGhost(n)) ghostComparableTypes.errors(l, r)(n)
             else comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) => (l,r) match {

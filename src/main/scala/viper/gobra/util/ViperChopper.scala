@@ -62,27 +62,56 @@ object ViperChopper {
         * the merge penalty can, together with the merging, be computed in linear time, too.
         */
 
-      val t1 = System.nanoTime()
-      val smallestPrograms = smallestCut(N, nodes, edges)
-      val t2 = System.nanoTime()
-      val mergedPrograms = mergePrograms(smallestPrograms)(bound, penalty.contravariantLift(idToVertex))
-      val result = mergedPrograms.map(_.toSet)
-      val t3 = System.nanoTime()
-      val timeCutting = BigDecimal((t2 - t1) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP)
-      val timeMerging = BigDecimal((t3 - t2) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP)
+      var timeSCC = BigDecimal(0)
+      var timeCutting = BigDecimal(0)
+      var timeMerging = BigDecimal(0)
+      var maxNumberOfParts = 0
+      var forallSmallNode: (Int => Boolean) => Boolean = null // for the safety check
 
-      println(s"Chopped verification condition into ${result.size} parts. Maximum number of parts is ${smallestPrograms.size}. (Time: ${timeCutting}s + ${timeMerging}s)")
+      val result = {
+        if (nodes.size < 10) {
+          val t1 = System.nanoTime()
+          val smallestPrograms = smallestCut(N, nodes, edges, (x: Int) => x)
+          val t2 = System.nanoTime()
+          val mergedPrograms = mergePrograms(smallestPrograms)(bound, penalty.contravariantLift(idToVertex))
+          val res = mergedPrograms.map(_.toSet)
+          val t3 = System.nanoTime()
+          timeCutting = BigDecimal((t2 - t1) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP)
+          timeMerging = BigDecimal((t3 - t2) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP)
+          maxNumberOfParts = smallestPrograms.size
+          forallSmallNode = f => smallestPrograms.forall(_.forall(f))
+          res
+        } else {
+          val t0 = System.nanoTime()
+          val (_, idToSCC, sccEdges) = SCC.fastCompute(N, edges)
+          val sccNodes = nodes.map(idToSCC) // may contain duplicates, but smallestCut can deal with that
+          val t1 = System.nanoTime()
+          val smallestPrograms = smallestCut(N, sccNodes, sccEdges, (x: SCC.Component[Int]) => x.proxy)
+          val t2 = System.nanoTime()
+          val mergedPrograms = mergePrograms(smallestPrograms)(bound, penalty.contravariantSumLift(_.nodes.map(idToVertex)))
+          val res = mergedPrograms.map(_.toSet.flatMap((c: SCC.Component[Int]) => c.nodes))
+          val t3 = System.nanoTime()
+          timeSCC     = BigDecimal((t1 - t0) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP)
+          timeCutting = BigDecimal((t2 - t1) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP)
+          timeMerging = BigDecimal((t3 - t2) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP)
+          maxNumberOfParts = smallestPrograms.size
+          forallSmallNode = f => smallestPrograms.forall(_.forall(_.nodes.forall(f)))
+          res
+        }
+      }
+
+      println(s"Chopped verification condition into ${result.size} parts. Maximum number of parts is $maxNumberOfParts. (Time: ${timeSCC}s + ${timeCutting}s + ${timeMerging}s)")
 
       // Safety check validating the result partially. Can be removed in a year if no error has been found.
       {
         val containedInResult = Array.ofDim[Boolean](N)
         for (program <- result; node <- program) { containedInResult(node) = true }
         // check all nodes of the smallest programs are present (no node should be lost)
-        val smallestProgramContainedInResult = smallestPrograms.forall(_.forall(containedInResult(_)))
+        val smallestProgramContainedInResult = forallSmallNode(containedInResult(_))
         assert(smallestProgramContainedInResult, "Chopper Error: Lost nodes during merging step.")
 
         val containedInSmallest = Array.ofDim[Boolean](N)
-        for (program <- smallestPrograms; node <- program) { containedInSmallest(node) = true }
+        forallSmallNode{node => containedInSmallest(node) = true; true }
         // checks all selected notes are present in the result
         val selectedNodesContainedInSmallest = nodes.forall(containedInSmallest(_))
         assert(selectedNodesContainedInSmallest, "Chopper Error: Not all selected nodes present in solution.")
@@ -96,9 +125,10 @@ object ViperChopper {
       * @param N Number of nodes.
       * @param nodes Nodes that must be included. The vector may be unsorted and may contain duplicates.
       * @param edges Edges of the dependency graph.
+      * @param id Mapping from nodes to node ids. The result is used as the index for `edges`.
       * @return Set of smallest possible programs. A program is represented as a *sorted* list of node ids.
       */
-    private def smallestCut(N: Int, nodes: Vector[Int], edges: Array[mutable.SortedSet[Int]]): Vector[List[Int]] = {
+    private def smallestCut[T](N: Int, nodes: Vector[T], edges: Array[mutable.SortedSet[T]], id: T => Int): Vector[List[T]] = {
 
       /**
         * Computes which of the nodes in `nodes` are dominating, i.e. not reached by other nodes in `nodes`,
@@ -119,21 +149,22 @@ object ViperChopper {
       // Stores whether a color is not a root. Only valid if color was used.
       val colorIsNotRoot  = Array.ofDim[Boolean](N)
 
-      def dfs1(start: Int, color: Int): (immutable.SortedSet[Int], List[Int]) = {
-        val stack = mutable.Stack[Int](start)
-        var members = immutable.SortedSet.empty[Int] // nodes of current color
+      def dfs1(start: T, color: Int): (immutable.SortedSet[T], List[Int]) = {
+        val stack = mutable.Stack[T](start)
+        var members = immutable.SortedSet.empty[T](Ordering.by(id)) // nodes of current color
         var neighbors = List.empty[Int] // other colors reached from current color
         val isAlreadyNeighbor = Array.ofDim[Boolean](color) // Assumes that `color` is max color used so far
 
         while (stack.nonEmpty) {
           val node = stack.pop()
-          if (!visited(node)) {
-            visited(node) = true
+          val nodeId = id(node)
+          if (!visited(nodeId)) {
+            visited(nodeId) = true
             members += node
-            coloring(node) = color
-            stack.pushAll(edges(node))
+            coloring(nodeId) = color
+            stack.pushAll(edges(nodeId))
           } else {
-            val otherColor = coloring(node)
+            val otherColor = coloring(nodeId)
             if (otherColor != color && !isAlreadyNeighbor(otherColor)) {
               isAlreadyNeighbor(otherColor) = true
               colorIsNotRoot(otherColor) = true
@@ -147,20 +178,20 @@ object ViperChopper {
       // Stores number of colors
       var numColors = 0
       // Stores all nodes with a certain color
-      val colorMembers = Array.ofDim[immutable.SortedSet[Int]](N)
+      val colorMembers = Array.ofDim[immutable.SortedSet[T]](N)
       // Stores the edges between colors
       val colorEdges = Array.ofDim[List[Int]](N)
-      for (node <- nodes if !visited(node)) {
+      for (node <- nodes if !visited(id(node))) {
         val (members, neighbors) = dfs1(node, numColors)
         colorMembers(numColors) = members
         colorEdges(numColors) = neighbors
         numColors += 1
       }
 
-      def dfs2(startColor: Int): immutable.SortedSet[Int] = {
+      def dfs2(startColor: Int): immutable.SortedSet[T] = {
         val visitedColor  = Array.ofDim[Boolean](numColors)
         val stack = mutable.Stack[Int](startColor)
-        var result = immutable.SortedSet.empty[Int]
+        var result = immutable.SortedSet.empty[T](Ordering.by(id))
 
         while (stack.nonEmpty) {
           val color = stack.pop()
@@ -281,38 +312,59 @@ object ViperChopper {
     def price(x: T): Int
 
     /** contravariant map */
-    def contravariantLift[S](f: S => T): Penalty[S] = new Penalty.ExtPenalty(this, f)
+    def contravariantLift[S](f: S => T): Penalty[S] = new Penalty.SumPenalty(this, x => Some(f(x)))
+    def contravariantSumLift[S](f: S => Iterable[T]): Penalty[S] = new Penalty.SumPenalty(this, f)
   }
 
   object Penalty {
 
-    private class ExtPenalty[T,R](p: Penalty[R], f: T => R) extends Penalty[T] {
-      override def price(x: T): Int = p.price(f(x))
+    private class SumPenalty[T,R](p: Penalty[R], f: T => Iterable[R]) extends Penalty[T] {
+      override def price(x: T): Int = f(x).map(p.price).sum
       override def mergePenalty(exclusive1: Int, exclusive2: Int, shared: Int): Int =
         p.mergePenalty(exclusive1, exclusive2, shared)
     }
 
-    class DefaultImpl(sharedThreshold: Int) extends Penalty[Vertex] {
+    case class PenaltyConfig(
+                              method: Int,
+                              methodSpec: Int,
+                              function: Int,
+                              predicate: Int,
+                              predicateSig: Int,
+                              field: Int,
+                              domainType: Int,
+                              domainFunction: Int,
+                              domainAxiom: Int,
+                              sharedThreshold: Int
+                            )
+
+    val defaultPenaltyConfig: PenaltyConfig = PenaltyConfig(
+      method = 0, methodSpec = 0,function = 3, predicate = 3, predicateSig = 2, field = 1,
+      domainType = 1, domainFunction = 1, domainAxiom = 4,
+      sharedThreshold = 50
+    )
+
+    class DefaultImpl(conf: PenaltyConfig) extends Penalty[Vertex] {
 
       override def price(xs: Vertex): Int = xs match {
-        case _: Vertex.Method | _: Vertex.MethodSpec => 0
-        case _: Vertex.Field => 1
-        case _: Vertex.PredicateSig => 2
-        case _: Vertex.PredicateBody => 3
-        case _: Vertex.Function => 3
-        case _: Vertex.DomainFunction => 1
-        case _: Vertex.DomainType => 1
-        case _: Vertex.DomainAxiom => 4
+        case _: Vertex.Method         => conf.method
+        case _: Vertex.MethodSpec     => conf.methodSpec
+        case _: Vertex.Function       => conf.function
+        case _: Vertex.PredicateBody  => conf.predicate
+        case _: Vertex.PredicateSig   => conf.predicateSig
+        case _: Vertex.Field          => conf.field
+        case _: Vertex.DomainType     => conf.domainType
+        case _: Vertex.DomainFunction => conf.domainFunction
+        case _: Vertex.DomainAxiom    => conf.domainAxiom
         case Vertex.Always => 0
       }
 
       override def mergePenalty(lhsExclusivePrice: Int, rhsExclusivePrice: Int, sharedPrice: Int): Int =
-        (lhsExclusivePrice + rhsExclusivePrice) * ((sharedThreshold + sharedPrice).toFloat / sharedThreshold).toInt
+        (lhsExclusivePrice + rhsExclusivePrice) * ((conf.sharedThreshold + sharedPrice).toFloat / conf.sharedThreshold).toInt
     }
 
-    object Default extends DefaultImpl(100)
+    object Default extends DefaultImpl(defaultPenaltyConfig)
 
-    object DefaultWithoutForcedMerge extends DefaultImpl(100) {
+    object DefaultWithoutForcedMerge extends DefaultImpl(defaultPenaltyConfig) {
       override def mergePenalty(lhsExclusivePrice: Int, rhsExclusivePrice: Int, sharedPrice: Int): Int =
         Math.max(super.mergePenalty(lhsExclusivePrice, rhsExclusivePrice, sharedPrice), 1)
     }
@@ -367,7 +419,7 @@ object ViperChopper {
       for ((l,r) <- edges) { fastEdges(l).add(r) }
 
       val setOfVerticesToProgram = Vertex.inverse(program)
-      val setOfIdsToProgram = (set: Set[Int]) => 
+      val setOfIdsToProgram = (set: Set[Int]) =>
         if (set == Set(alwaysId)) None else Some(setOfVerticesToProgram(set map idToVertex))
 
       (N, isolatedNodes, fastEdges, idToVertex, setOfIdsToProgram)
@@ -533,128 +585,82 @@ object ViperChopper {
     }
   }
 
-
-  ////////////////////// Currently unused algorithms that might be used in the future //////////////////////
-
   object SCC {
 
-    case class Component[T](nodes: Seq[T])
+    case class Component[T](nodes: Iterable[T]) { val proxy: T = nodes.head }
+    implicit val orderingIntComponent: Ordering[Component[Int]] = Ordering.by(_.proxy)
 
-    def components[T](vertices: Seq[T], edges: Seq[Edge[T]]): Vector[Component[T]] = {
+    /**
+      * Computes the strongly connected components of a graph using Tarjan's algorithm.
+      * @param N Number of vertices in the graph.
+      * @param edges Edges of the graph.
+      * @return Vector containing the strongly connected components of the graph.
+      * */
+    def fastComponents(N: Int, edges: Array[mutable.SortedSet[Int]]): Vector[Component[Int]] = {
 
-      // Implements Tarjan's strongly connected components algorithm
       var index = 0
-      val stack = mutable.Stack[T]()
-      val indices = mutable.HashMap[T, Int]()
-      val lowLinks = mutable.HashMap[T, Int]()
-      val onStack = mutable.HashMap[T, Boolean]()
-      val components = mutable.ArrayBuffer[Component[T]]()
-
-      // helper function which performs most of the work
-      def strongConnect(v: T): Unit = {
-        // initialize all values needed for the current vertex
-        indices.addOne(v, index)
-        lowLinks.addOne(v, index)
-        index += 1
-        stack.push(v)
-        onStack.addOne(v, true)
-        // find all successors
-        val succs = edges.collect{ case (`v`, succ) => succ }
-        for (s <- succs) {
-          if (!indices.contains(s)) {
-            // successor has not been visited yet
-            strongConnect(s)
-            lowLinks.update(v, Math.min(lowLinks.getOrElse(v, -1), lowLinks.getOrElse(s, -1)))
-          } else if (onStack.getOrElse(s, false)) {
-            // s is already on the stack and therefore in the current SCC
-            lowLinks.update(v, Math.min(lowLinks.getOrElse(v, -1), indices.getOrElse(s, -1)))
-          }
-        }
-        // if v is a root node, create new SCC from stack
-        if (lowLinks.getOrElse(v, -1) == indices.getOrElse(v, -2)) {
-          val component = mutable.ArrayBuffer[T]()
-          var curr = v
-          do {
-            curr = stack.pop()
-            onStack.update(curr, false)
-            component += curr
-          } while (curr != v)
-          components += Component(component.toSeq)
-        }
-      }
-      // perform algorithm for all vertices
-      for (v <- vertices if !indices.contains(v)) strongConnect(v)
-      components.toVector
-    }
-
-    def compute[T](vertices: Seq[T], edges: Seq[Edge[T]]): (Vector[Component[T]], Map[T, Component[T]], Seq[Edge[Component[T]]]) = {
-      val cs = components(vertices, edges)
-      val inv = cs.flatMap(c => c.nodes.map(_ -> c)).toMap
-      val cgraph = edges.map{ case (l,r) => (inv(l), inv(r)) }.filter{ case (l,r) => l != r }.distinct
-      (cs, inv, cgraph)
-    }
-
-  }
-
-  object FastSCC {
-
-    case class Component(nodes: Vector[Int]) { val proxy: Int = nodes.head }
-    implicit val orderingComponent: Ordering[Component] = Ordering.by(_.proxy)
-
-    def components(N: Int, edges: Array[mutable.SortedSet[Int]]): Vector[Component] = {
-
-      // Implements Tarjan's strongly connected components algorithm
-      val stack = mutable.Stack[Int]()
+      val stack = mutable.Stack.empty[Int]
       val visited  = Array.ofDim[Boolean](N)
-      val lowLinks = Array.fill[Int](N)(-1)
+      val indices  = Array.ofDim[Int](N)
+      val lowLinks = Array.ofDim[Int](N)
       val onStack  = Array.ofDim[Boolean](N)
-      val components = mutable.ArrayBuffer[Component]()
+      var components = List.empty[Component[Int]]
 
-      // helper function which performs most of the work
-      def strongConnect(v: Int): Unit = {
-        // initialize all values needed for the current vertex
-        visited(v) = true
-        lowLinks(v) = v
-        stack.push(v)
-        onStack(v) = true
-        // find all successors
-        val succs = edges(v)
-        for (s <- succs) {
-          if (!visited(s)) {
-            // successor has not been visited yet
-            strongConnect(s)
-            lowLinks.update(v, Math.min(lowLinks(v), lowLinks(s)))
-          } else if (onStack(s)) {
-            // s is already on the stack and therefore in the current SCC
-            lowLinks.update(v, Math.min(lowLinks(v), if (visited(s)) s else -1))
+      def strongConnect(currentNode: Int): Unit = {
+
+        // set values for the current node
+        visited(currentNode) = true
+        indices(currentNode) = index
+        lowLinks(currentNode) = index
+        index += 1
+        stack.push(currentNode)
+        onStack(currentNode) = true
+
+        for (successor <- edges(currentNode)) {
+          if (!visited(successor)) {
+            // if a successor has not been visited yet, compute its lowLink (recursively)
+            strongConnect(successor)
+            lowLinks(currentNode) = Math.min(lowLinks(currentNode), lowLinks(successor))
+          } else if (onStack(successor)) {
+            // if successor is already on the stack, it is part of the current component
+            lowLinks(currentNode) = Math.min(lowLinks(currentNode), indices(successor))
           }
         }
-        // if v is a root node, create new SCC from stack
-        if (lowLinks(v) == (if (visited(v)) v else -2)) {
-          val component = mutable.ArrayBuffer[Int]()
-          var curr = v
+        // if v is a root node, create new component from stack
+        if (lowLinks(currentNode) == indices(currentNode)) {
+          var component = List.empty[Int]
+          var curr = currentNode
           do {
             curr = stack.pop()
-            onStack.update(curr, false)
-            component += curr
-          } while (curr != v)
-          components += Component(component.toVector)
+            onStack(curr) = false
+            component ::= curr
+          } while (curr != currentNode)
+          components ::= Component(component)
         }
       }
 
-      // perform algorithm for all vertices
+      // perform algorithm on all vertices
       for (v <- 0 until N if !visited(v)) { strongConnect(v) }
       components.toVector
     }
 
-    def compute(N: Int, edges: Array[mutable.SortedSet[Int]]): (Vector[Component], Int => Component, Array[mutable.SortedSet[Component]]) = {
-      val cs = components(N, edges)
+    /**
+      * Computes the strongly connected components of a graph using Tarjan's algorithm.
+      * @param N Number of vertices in the graph.
+      * @param edges Edges of the graph.
+      * @return
+      *    _1 : Vector containing the strongly connected components of the graph.
+      *    _2 : Mapping from node ids to the component that the node is contained in.
+      *    _3 : Edges between the components in the graph. This induced graph on components is acyclic.
+      * */
+    def fastCompute(N: Int, edges: Array[mutable.SortedSet[Int]]): (Vector[Component[Int]], Int => Component[Int], Array[mutable.SortedSet[Component[Int]]]) = {
+      val cs = fastComponents(N, edges)
 
-      val idToComponent = Array.ofDim[Component](N)
+      val idToComponent = Array.ofDim[Component[Int]](N)
       for (c <- cs; v <- c.nodes) { idToComponent(v) = c }
       val idToComponentF = idToComponent.apply _
 
-      val csEdges = Array.fill(N)(mutable.SortedSet.empty[Component])
+      val csEdges = Array.fill(N)(mutable.SortedSet.empty[Component[Int]])
       for (l <- 0 until N; r <- edges(l)) {
         val cl = idToComponent(l)
         val cr = idToComponent(r)
@@ -663,7 +669,78 @@ object ViperChopper {
         }
       }
 
+      //// safety check, usually commented out
+      // val onStack = Array.ofDim[Boolean](N)
+      // val checkedCycles = Array.ofDim[Boolean](N)
+      // def noCycle(x: Int): Unit = {
+      //   assert(!onStack(x), "found cycle, but expected none.")
+      //   if (!checkedCycles(x)) {
+      //     checkedCycles(x) = true; onStack(x) = true
+      //     for (y <- csEdges(x)) { noCycle(y.proxy) }
+      //     onStack(x) = false
+      //   }
+      // }
+      // for (idx <- 0 until N) noCycle(idToComponent(idx).proxy)
+
       (cs, idToComponentF, csEdges)
+    }
+
+    /**
+      * Computes the strongly connected components of a graph using Tarjan's algorithm.
+      * @param nodes Nodes of the graph.
+      * @param edges Edges of the graph.
+      * @return Vector containing the strongly connected components of the graph.
+      * */
+    def components[T](nodes: Seq[T], edges: Seq[Edge[T]]): Vector[Component[T]] = {
+      val (n, idEdges, _, rev) = toFastGraph(nodes, edges)
+      val idResult = fastComponents(n, idEdges)
+      idResult.map(c => Component(c.nodes map (rev(_))))
+    }
+
+    /**
+      * Computes the strongly connected components of a graph using Tarjan's algorithm.
+      * @param nodes Nodes of the graph.
+      * @param edges Edges of the graph.
+      * @return
+      *    _1 : Vector containing the strongly connected components of the graph.
+      *    _2 : Mapping from nodes to the component that the node is contained in.
+      *    _3 : Edges between the components in the graph. This induced graph on components is acyclic.
+      * */
+    def compute[T](nodes: Seq[T], edges: Seq[Edge[T]]): (Vector[Component[T]], Map[T, Component[T]], Seq[Edge[Component[T]]]) = {
+      val cs = components(nodes, edges)
+      val inv = cs.flatMap(c => c.nodes.map(_ -> c)).toMap
+      val cgraph = edges.map { case (l, r) => (inv(l), inv(r)) }.filter { case (l, r) => l != r }.distinct
+      (cs, inv, cgraph)
+    }
+
+    /**
+      * Translates a graph to a graph on node ids.
+      * @param nodes Nodes of the graph.
+      * @param edges Edges of the graph.
+      * @return
+      *    _1 : Number of nodes in the result graph.
+      *    _2 : Edges of the result graph.
+      *    _3 : Mapping from nodes to node ids.
+      *    _4 : Mapping from node ids to nodes.
+      * */
+    private def toFastGraph[T](nodes: Seq[T], edges: Seq[Edge[T]]): (Int, Array[mutable.SortedSet[Int]], T => Int, Int => T) = {
+      var counter = 0
+      val indices = mutable.HashMap[T, Int]()
+      def id(x: T): Int = indices.getOrElse(x, {
+        val index = counter
+        indices.put(x, index)
+        counter += 1
+        index
+      })
+
+      nodes.foreach(id)
+      val idEdges = edges.map{ case (l,r) => (id(l), id(r)) }
+      var rev = Map.empty[Int, T]
+      for ((t,idx) <- indices) rev += (idx -> t)
+      val fastIdEdges = Array.fill(counter)(mutable.SortedSet.empty[Int])
+      for ((l,r) <- idEdges) { fastIdEdges(l).add(r) }
+
+      (counter, fastIdEdges, id, rev(_))
     }
 
   }

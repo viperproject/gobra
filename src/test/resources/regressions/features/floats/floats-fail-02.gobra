@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package floats
+
+//:: ExpectedOutput(postcondition_error)
+ensures res == x - y || res == x * y || res == x / y
+func f(x float32, y float32) (res float32) {
+	return x + y
+}
+
+//:: ExpectedOutput(postcondition_error)
+ensures res != x + y || res != x - y || res != x * y || res != x / y
+func g(x float32, y float32) (res float32) {
+	return x + y
+}
+
+//:: ExpectedOutput(postcondition_error)
+ensures res == y
+func h(x float32, y float32) (res float32) {
+	return x + y - y
+}
+
+//:: ExpectedOutput(postcondition_error)
+ensures res == x
+func i(x float32, y float32) (res float32) {
+	return x + y - y
+}

@@ -347,8 +347,8 @@ object Parser {
     /**
       * Optionally consumes nested curly brackets with arbitrary content if `specOnly` is turned on, otherwise optionally applies the parser `p`
       */
-    def specOnlyParser[T](p: Parser[T]): Parser[Option[T]] =
-      if (specOnly) nestedCurlyBracketsConsumer.? ^^ (_.flatten)
+    def specOnlyParser[T](isPure: Boolean, p: Parser[T]): Parser[Option[T]] =
+      if (specOnly && !isPure) nestedCurlyBracketsConsumer.? ^^ (_.flatten)
       else p.?
 
     /**
@@ -446,7 +446,7 @@ object Parser {
         spec <- functionSpec
         name <- "func" ~> idnDef
         sig  <- signature
-        body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(blockWithBodyParameterInfo)
+        body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(spec.isPure, blockWithBodyParameterInfo)
         // the start position has to be manually set as Kiama would otherwise only use the body's position as start & finish
       } yield PFunctionDecl(name, sig._1, sig._2, spec, body).from(spec)
 
@@ -489,7 +489,7 @@ object Parser {
         rcv  <- "func" ~> receiver
         name <- idnDef
         sig  <- signature
-        body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(blockWithBodyParameterInfo)
+        body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(spec.isPure, blockWithBodyParameterInfo)
         // the start position has to be manually set as Kiama would otherwise only use the body's position as start & finish
       } yield PMethodDecl(name, rcv, sig._1, sig._2, spec, body).from(spec)
 

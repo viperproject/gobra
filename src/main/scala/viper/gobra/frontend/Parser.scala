@@ -1129,7 +1129,7 @@ object Parser {
       declaredType ^^ PInterfaceName
 
     lazy val methodSpec: Parser[PMethodSig] =
-      "ghost".? ~ functionSpec ~ idnDef ~ signature ^^ { case isGhost ~ spec ~ id ~ sig => PMethodSig(id, sig._1, sig._2, spec, isGhost.isDefined) }
+      ("ghost".? <~ eos.?) ~ functionSpec ~ idnDef ~ signature ^^ { case isGhost ~ spec ~ id ~ sig => PMethodSig(id, sig._1, sig._2, spec, isGhost.isDefined) }
 
     lazy val predicateSpec: Parser[PMPredicateSig] =
       ("pred" ~> idnDef) ~ parameters ^^ PMPredicateSig

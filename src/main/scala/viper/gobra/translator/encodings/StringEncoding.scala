@@ -64,7 +64,7 @@ class StringEncoding extends LeafTypeEncoding {
         unit(withSrc(vpr.DomainFuncApp(func = makeFunc(lit.s), Seq(), Map.empty), lit))
       case len @ in.Length(exp :: ctx.String()) =>
         for { e <- goE(exp) } yield withSrc(vpr.DomainFuncApp(func = lenFunc, Seq(e), Map.empty), len)
-      case concat @ in.Concat(l :: ctx.String(), r :: ctx.String()) =>
+      case concat @ in.Add(l :: ctx.String(), r :: ctx.String()) =>
         for {
           lEncoded <- goE(l)
           rEncoded <- goE(r)

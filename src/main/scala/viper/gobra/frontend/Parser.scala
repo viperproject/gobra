@@ -1032,7 +1032,7 @@ object Parser {
         ) <~ not("(" | "{")
 
     lazy val typ : Parser[PType] =
-      "(" ~> typ <~ ")" | typeLit | qualifiedType | namedType | ghostTypeLit
+      "(" ~> typ <~ ")" | typeLit | ghostTypeLit | qualifiedType | namedType
 
     lazy val ghostTyp : Parser[PGhostType] =
       "(" ~> ghostTyp <~ ")" | ghostTypeLit

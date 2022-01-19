@@ -8,7 +8,6 @@ package viper.gobra.translator.encodings
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.CodeLevel.unit

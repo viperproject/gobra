@@ -56,7 +56,7 @@ trait GoVerifier {
 }
 
 trait GoIdeVerifier {
-  protected[this] def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult]
+  protected[this] def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo, taskName: String = "gobra-task")(executor: GobraExecutionContext): Future[VerifierResult]
 }
 
 class Gobra extends GoVerifier with GoIdeVerifier {
@@ -68,9 +68,6 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     val task = Future {
 
       val finalConfig = getAndMergeInFileConfig(config)
-
-      config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
-
       for {
         parsedPackage <- performParsing(input, finalConfig)
         typeInfo <- performTypeChecking(parsedPackage, input, finalConfig)
@@ -87,10 +84,10 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  override def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {
+  override def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo, taskName: String = "gobra-task")(executor: GobraExecutionContext): Future[VerifierResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
-    val viperTask = BackendVerifier.Task(ast, backtrack)
+    val viperTask = BackendVerifier.Task(ast, backtrack, taskName)
     performVerification(viperTask, config)
       .map(BackTranslator.backTranslate(_)(config))
       .recoverWith {
@@ -154,7 +151,18 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performTypeChecking(parsedPackage: PPackage, input: Vector[Source], config: Config): Either[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
-      Info.check(parsedPackage, input, isMainContext = true)(config)
+      val typeInfo = Info.check(parsedPackage, input, isMainContext = true)(config)
+
+      // Store type info in Stats reporter, for later usage
+      typeInfo match {
+        case Right(typeInfo) => config.reporter match {
+          case r: StatsCollector => r.typeInfo = typeInfo
+          case _ =>
+        }
+        case _ =>
+      }
+
+      typeInfo
     } else {
       Left(Vector())
     }
@@ -212,44 +220,70 @@ class GobraFrontend {
 
 object GobraRunner extends GobraFrontend with StrictLogging {
   def main(args: Array[String]): Unit = {
+    val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
+
+    var errorCount = 0
+    var warningCount = 0
+
+    val verifier = createVerifier()
+    var exitCode = 0
+
     try {
       val scallopGobraconfig = new ScallopGobraConfig(args.toSeq)
       val config = scallopGobraconfig.config
-      val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
-      val verifier = createVerifier()
-      val resultFuture = verifier.verify(config)(executor)
-      val result = Await.result(resultFuture, Duration.Inf)
-      executor.terminate()
+      // Print copyright report
+      config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
+      config.inputPackageMap.foreach({ case (packageName, inputs) =>
+        logger.info("Verifying Package " + packageName)
+        val statsReporter = StatsCollector(config.reporter)
+        val resultFuture = verifier.verify(config.copy(inputs=inputs, reporter = statsReporter))(executor)
+        val result = Await.result(resultFuture, Duration.Inf)
 
-      result match {
-        case VerifierResult.Success =>
-          logger.info(s"${verifier.name} found no errors")
-          sys.exit(0)
-        case VerifierResult.Failure(errors) =>
-          logger.error(s"${verifier.name} has found ${errors.length} error(s):")
-          errors foreach (e => logger.error(s"\t${e.formattedMessage}"))
-          sys.exit(1)
-      }
+        val warnings = statsReporter.getWarnings
+        warningCount += warnings.size
+        warnings.foreach(m => logger.warn(m))
+
+        result match {
+          case VerifierResult.Success => logger.info(s"${verifier.name} found no errors")
+          case VerifierResult.Failure(errors) =>
+            logger.error(s"${verifier.name} has found ${errors.length} error(s) in package $packageName")
+            errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
+            errorCount += errors.length;
+        }
+      })
     } catch {
       case e: UglyErrorMessage =>
-        logger.error(s"Gobra has found 1 error(s):")
+        logger.error(s"${verifier.name} has found 1 error(s): ")
         logger.error(s"\t${e.error.formattedMessage}")
-        sys.exit(1)
-
+        errorCount += 1
+        exitCode = 1
       case e: LogicException =>
         logger.error("An assumption was violated during execution.")
         logger.error(e.getLocalizedMessage, e)
-        sys.exit(1)
-
+        exitCode = 1
       case e: KnownZ3BugException =>
         logger.error(e.getLocalizedMessage, e)
-        sys.exit(1)
-
+        exitCode = 1
       case e: Exception =>
         logger.error("An unknown Exception was thrown.")
         logger.error(e.getLocalizedMessage, e)
-        sys.exit(1)
-    }
+        exitCode = 1
+    } finally {
+      executor.terminate()
 
+      if(warningCount > 1) {
+        logger.warn(s"${verifier.name} has found $warningCount warnings(s)")
+      } else {
+        logger.info(s"${verifier.name} found no warnings")
+      }
+
+      if(errorCount > 1) {
+        logger.error(s"${verifier.name} has found $errorCount error(s)")
+        exitCode = 1
+      } else {
+        logger.info(s"${verifier.name} found no errors")
+      }
+      sys.exit(exitCode)
+    }
   }
 }

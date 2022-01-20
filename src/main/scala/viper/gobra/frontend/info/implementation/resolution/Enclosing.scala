@@ -33,6 +33,9 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val tryEnclosingUnorderedScope: PNode => Option[PUnorderedScope] =
     down[Option[PUnorderedScope]](None) { case x: PUnorderedScope => Some(x) }
 
+  lazy val enclosingProgram: PNode => PProgram =
+    down((_: PNode) => violation("Statement does not root in a Program")) { case m: PProgram  => m }
+
   lazy val enclosingCodeRootWithResult: PStatement => PCodeRootWithResult =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRootWithResult => m }
 

@@ -81,6 +81,8 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   override def codeRoot(n: PNode): PScope = enclosingCodeRoot(n)
 
+  override def program(n: PNode): PProgram = enclosingProgram(n)
+
   override def regular(n: PIdnNode): SymbolTable.Regular = entity(n) match {
     case r: Regular => r
     case _ => violation("found non-regular entity")

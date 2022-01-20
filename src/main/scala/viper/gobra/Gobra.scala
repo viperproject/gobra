@@ -284,11 +284,6 @@ object GobraRunner extends GobraFrontend with StrictLogging {
       } else {
         logger.info(s"${verifier.name} found no errors")
       }
-
-      if(statsCollector != null) {
-        print(statsCollector.getJsonReport(false))
-      }
-
       sys.exit(exitCode)
     }
   }

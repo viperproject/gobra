@@ -1432,11 +1432,13 @@ object Desugar {
     }
 
     def arguments(ft: FunctionT, args: Vector[in.Expr]): Vector[in.Expr] = {
+      Violation.violation(args.length == ft.args.length, s"expected same number of arguments and types")
       arguments(args zip ft.args)
     }
 
-    def arguments(pT: PredT, args: Vector[in.Expr]): Vector[in.Expr] = {
-      arguments(args zip pT.args)
+    def arguments(pt: PredT, args: Vector[in.Expr]): Vector[in.Expr] = {
+      Violation.violation(args.length == pt.args.length, s"expected same number of arguments and types")
+      arguments(args zip pt.args)
     }
 
     def arguments(args: Vector[(in.Expr, Type)]): Vector[in.Expr] = {
@@ -2934,9 +2936,8 @@ object Desugar {
         abstractType.typing(argsForTyping)
       }
 
-      val dArgs = {
-        /** not-yet implicitly converted args */
-        val args = p.args map pureExprD(ctx)
+      /** args must not include the receiver in the case of received predicates */
+      def convertArgs(args: Vector[in.Expr]): Vector[in.Expr] = {
         p.predicate match {
           case b: ap.BuiltInPredicateKind => arguments(getBuiltInPredType(b), args)
           case b: ap.Symbolic => b.symb match {
@@ -2947,43 +2948,50 @@ object Desugar {
         }
       }
 
+      /** not-yet implicitly converted args */
+      val dArgs = p.args map pureExprD(ctx)
+
       p.predicate match {
         case b: ap.Predicate =>
           val fproxy = fpredicateProxy(b.id, info)
-          unit(in.FPredicateAccess(fproxy, dArgs)(src))
+          unit(in.FPredicateAccess(fproxy, convertArgs(dArgs))(src))
 
         case b: ap.ReceivedPredicate =>
           val dRecv = pureExprD(ctx)(b.recv)
           val dRecvWithPath = applyMemberPathD(dRecv, b.path)(src)
           val proxy = mpredicateProxyD(b.id, info)
-          unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs)(src))
+          unit(in.MPredicateAccess(dRecvWithPath, proxy, convertArgs(dArgs))(src))
 
         case b: ap.PredicateExpr =>
           val dRecvWithPath = applyMemberPathD(dArgs.head, b.path)(src)
           val proxy = mpredicateProxyD(b.id, info)
-          unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
+          unit(in.MPredicateAccess(dRecvWithPath, proxy, convertArgs(dArgs.tail))(src))
 
         case _: ap.PredExprInstance => Violation.violation("this case should be handled somewhere else")
 
         case b: ap.ImplicitlyReceivedInterfacePredicate =>
           val proxy = mpredicateProxyD(b.id, info)
           val recvType = typeD(b.symb.itfType, Addressability.receiver)(src)
-          unit(in.MPredicateAccess(implicitThisD(recvType)(src), proxy, dArgs)(src))
+          unit(in.MPredicateAccess(implicitThisD(recvType)(src), proxy, convertArgs(dArgs))(src))
 
         case b: ap.BuiltInPredicate =>
           val fproxy = fpredicateProxy(b.id, info)
-          unit(in.FPredicateAccess(fproxy, dArgs)(src))
+          unit(in.FPredicateAccess(fproxy, convertArgs(dArgs))(src))
 
         case b: ap.BuiltInReceivedPredicate =>
           val dRecv = pureExprD(ctx)(b.recv)
           val dRecvWithPath = applyMemberPathD(dRecv, b.path)(src)
-          val proxy = mpredicateProxy(b.symb.tag, dRecvWithPath.typ, dArgs.map(_.typ))(src)
-          unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs)(src))
+          val convertedArgs = convertArgs(dArgs)
+          val proxy = mpredicateProxy(b.symb.tag, dRecvWithPath.typ, convertedArgs.map(_.typ))(src)
+          unit(in.MPredicateAccess(dRecvWithPath, proxy, convertedArgs)(src))
 
         case b: ap.BuiltInPredicateExpr =>
           val dRecvWithPath = applyMemberPathD(dArgs.head, b.path)(src)
-          val proxy = mpredicateProxy(b.symb.tag, dRecvWithPath.typ, dArgs.map(_.typ))(src)
-          unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
+          val convertedArgsWithoutRecv = convertArgs(dArgs.tail)
+          /** consists of the receiver type and the type of the converted arguments */
+          val argTypes = (dArgs.head +: convertedArgsWithoutRecv).map(_.typ)
+          val proxy = mpredicateProxy(b.symb.tag, dRecvWithPath.typ, argTypes)(src)
+          unit(in.MPredicateAccess(dRecvWithPath, proxy, convertedArgsWithoutRecv)(src))
       }
     }
 

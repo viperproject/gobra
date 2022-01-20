@@ -26,7 +26,7 @@ trait Implements { this: TypeInfoImpl =>
   }
 
   private var _requiredImplements: Set[(Type, Type.InterfaceT)] = Set.empty
-  def requiredImplements: Set[(Type, Type.InterfaceT)] = _requiredImplements
+  def localRequiredImplements: Set[(Type, Type.InterfaceT)] = _requiredImplements
   def addDemandedImplements(subT: Type, superT: Type): Unit = {
     underlyingType(superT) match {
       case itf: Type.InterfaceT if !itf.isEmpty && subT != NilType =>
@@ -36,7 +36,7 @@ trait Implements { this: TypeInfoImpl =>
   }
 
   override def interfaceImplementations: Map[Type.InterfaceT, Set[Type]] = {
-    requiredImplements.groupMap(_._2)(_._1)
+    localRequiredImplements.groupMap(_._2)(_._1)
   }
 
   def syntaxImplements(l: Type, r: Type): PropertyResult = (l, underlyingType(r)) match {

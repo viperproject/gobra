@@ -48,20 +48,20 @@ trait GoVerifier {
     this.getClass.getSimpleName
   }
 
-  def verify(config: Config)(executor: GobraExecutionContext): Future[VerifierResult] = {
-    verify(config.inputs, config)(executor)
+  def verify(config: Config, taskName: Option[String] = None)(executor: GobraExecutionContext): Future[VerifierResult] = {
+    verify(config.inputs, config, taskName.getOrElse(config.inputs.map(_.name).mkString(",")))(executor)
   }
 
-  protected[this] def verify(input: Vector[Source], config: Config)(executor: GobraExecutionContext): Future[VerifierResult]
+  protected[this] def verify(input: Vector[Source], config: Config, taskName: String)(executor: GobraExecutionContext): Future[VerifierResult]
 }
 
 trait GoIdeVerifier {
-  protected[this] def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo, taskName: String = "gobra-task")(executor: GobraExecutionContext): Future[VerifierResult]
+  protected[this] def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo, taskName: String)(executor: GobraExecutionContext): Future[VerifierResult]
 }
 
 class Gobra extends GoVerifier with GoIdeVerifier {
 
-  override def verify(input: Vector[Source], config: Config)(executor: GobraExecutionContext): Future[VerifierResult] = {
+  override def verify(input: Vector[Source], config: Config, taskName: String)(executor: GobraExecutionContext): Future[VerifierResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
 
@@ -70,7 +70,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       val finalConfig = getAndMergeInFileConfig(config)
       for {
         parsedPackage <- performParsing(input, finalConfig)
-        typeInfo <- performTypeChecking(parsedPackage, input, finalConfig)
+        typeInfo <- performTypeChecking(taskName, parsedPackage, input, finalConfig)
         program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
         program <- performInternalTransformations(program, finalConfig)
         viperTask <- performViperEncoding(program, finalConfig)
@@ -80,11 +80,11 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     task.flatMap{
       case Left(Vector()) => Future(VerifierResult.Success)
       case Left(errors)   => Future(VerifierResult.Failure(errors))
-      case Right((job, finalConfig)) => verifyAst(finalConfig, job.program, job.backtrack)(executor)
+      case Right((job, finalConfig)) => verifyAst(finalConfig, job.program, job.backtrack, taskName)(executor)
     }
   }
 
-  override def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo, taskName: String = "gobra-task")(executor: GobraExecutionContext): Future[VerifierResult] = {
+  override def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo, taskName: String)(executor: GobraExecutionContext): Future[VerifierResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
     val viperTask = BackendVerifier.Task(ast, backtrack, taskName)
@@ -149,16 +149,13 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  private def performTypeChecking(parsedPackage: PPackage, input: Vector[Source], config: Config): Either[Vector[VerifierError], TypeInfo] = {
+  private def performTypeChecking(taskName: String, parsedPackage: PPackage, input: Vector[Source], config: Config): Either[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
       val typeInfo = Info.check(parsedPackage, input, isMainContext = true)(config)
 
-      // Store type info in Stats reporter, for later usage
+      // Report type info for later usage
       typeInfo match {
-        case Right(typeInfo) => config.reporter match {
-          case r: StatsCollector => r.typeInfo = typeInfo
-          case _ =>
-        }
+        case Right(typeInfo) => config.reporter.report(TypeInfoMessage(typeInfo, taskName))
         case _ =>
       }
 
@@ -227,26 +224,30 @@ object GobraRunner extends GobraFrontend with StrictLogging {
 
     val verifier = createVerifier()
     var exitCode = 0
+    var statsCollector: StatsCollector = null
 
     try {
       val scallopGobraconfig = new ScallopGobraConfig(args.toSeq)
       val config = scallopGobraconfig.config
       // Print copyright report
       config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
-      config.inputPackageMap.foreach({ case (packageName, inputs) =>
-        logger.info("Verifying Package " + packageName)
-        val statsReporter = StatsCollector(config.reporter)
-        val resultFuture = verifier.verify(config.copy(inputs=inputs, reporter = statsReporter))(executor)
+      statsCollector = StatsCollector(config.reporter)
+
+      config.inputPackageMap.foreach({ case (pkg, inputs) =>
+        val pkgString = pkg.path + " - " + pkg.name
+
+        logger.info("Verifying Package " + pkgString)
+        val resultFuture = verifier.verify(config.copy(inputs=inputs, reporter = statsCollector), Some(pkgString))(executor)
         val result = Await.result(resultFuture, Duration.Inf)
 
-        val warnings = statsReporter.getWarnings
+        val warnings = statsCollector.getWarnings
         warningCount += warnings.size
         warnings.foreach(m => logger.warn(m))
 
         result match {
           case VerifierResult.Success => logger.info(s"${verifier.name} found no errors")
           case VerifierResult.Failure(errors) =>
-            logger.error(s"${verifier.name} has found ${errors.length} error(s) in package $packageName")
+            logger.error(s"${verifier.name} has found ${errors.length} error(s) in package $pkgString")
             errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
             errorCount += errors.length;
         }
@@ -283,6 +284,11 @@ object GobraRunner extends GobraFrontend with StrictLogging {
       } else {
         logger.info(s"${verifier.name} found no errors")
       }
+
+      if(statsCollector != null) {
+        print(statsCollector.getJsonReport(false))
+      }
+
       sys.exit(exitCode)
     }
   }

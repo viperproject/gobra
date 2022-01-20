@@ -11,7 +11,7 @@ import viper.silver.reporter.Time
 import scala.annotation.tailrec
 
 case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
-  var typeInfo: TypeInfo = _
+  var typeInfos: Map[String, TypeInfo] = Map()
 
   // Maps a gobra member name to a gobra member entry
   private var memberMap: Map[String, GobraMemberEntry] = Map()
@@ -23,6 +23,61 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   }
   case class ViperMemberEntry(member: Member, time: Time, success: Boolean, cached: Boolean)
   case class GobraMemberInfo(pkg: String, memberName: String, args: String, isTrusted: Boolean, isAbstract: Boolean, isBuiltIn: Boolean)
+
+  override val name: String = "StatsCollector"
+
+  override def report(msg: GobraMessage): Unit = {
+    msg match {
+        // Ignore messages about BuildInMembers
+      case GobraEntitySuccessMessage(_, _, _, info, _, _) if info.node.isInstanceOf[BuiltInMember] =>
+      case GobraEntityFailureMessage(_, _, _, info, _, _, _) if info.node.isInstanceOf[BuiltInMember] =>
+        // Capture typeInfo once it's available
+      case TypeInfoMessage(typeInfo, taskName) => this.synchronized({ typeInfos = typeInfos + (taskName -> typeInfo)})
+      case GobraEntitySuccessMessage(taskName, _, e, info, time, cached) =>
+        Violation.violation(typeInfos.contains(taskName), "No type info available for stats reporter")
+        getMemberInformation(info.pnode, typeInfos(taskName)) match {
+          case GobraMemberInfo(pkg, memberName, args, isTrusted, isAbstract, isBuiltIn) =>
+            addResult(pkg, memberName, args, ViperMemberEntry(e, time, success = true, cached = cached), isTrusted, isAbstract, isBuiltIn)
+        }
+      case GobraEntityFailureMessage(taskName, _, e, info, _, time, cached) =>
+        Violation.violation(typeInfos.contains(taskName), "No type info available for stats reporter")
+        getMemberInformation(info.pnode, typeInfos(taskName)) match {
+          case GobraMemberInfo(pkg, memberName, args, isTrusted, isAbstract, isBuiltIn) =>
+            addResult(pkg, memberName, args, ViperMemberEntry(e, time, success = false, cached = cached), isTrusted, isAbstract, isBuiltIn)
+        }
+      case _ =>
+    }
+    // Pass message to next reporter
+    reporter.report(msg)
+  }
+
+  def getJsonReport(shorten: Boolean): String = {
+    val json = "[\n" +
+      memberMap.map({ case (key, value) => s"""  {
+    "member_id": "$key",
+    "trusted": ${value.isTrusted},
+    "abstract": ${value.isAbstract},
+    "builtin": ${value.isBuiltIn},
+    "viper_members": [ """ + "\n" +
+          value.viperMembers.map(entry => s"""      {
+        "name": "${entry.member.name}",
+        "time": ${entry.time},
+        "success": ${entry.success},
+        "cached": ${entry.cached},
+      }""").mkString(", \n") + "\n    ],\n" + s"""    "dependencies": [""" + "\n" +
+        value.viperMembers
+            .flatMap(entry => getDependencies(entry.member))
+            .map(dep => viperMemberNameGobraMemberMap(dep))
+            .map({ case GobraMemberEntry(pkg, memberName, args,_,_,_,_) => "        \"" + pkg + "." + memberName + args + "\""})
+            .mkString(", \n") + "\n    ]\n  }"
+      }).mkString(", \n") + "\n]\n"
+
+    if(shorten) {
+      json.replaceAll("\\s", "")
+    } else {
+      json
+    }
+  }
 
   def getWarnings: List[String] = {
     var warnings: List[String] = List()
@@ -57,38 +112,13 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     }
   })
 
-  override val name: String = "StatsCollector"
-
-  override def report(msg: GobraMessage): Unit = {
-    msg match {
-        // Ignore messages about BuildInMembers
-      case GobraEntitySuccessMessage(_, _, info, _, _) if info.node.isInstanceOf[BuiltInMember] =>
-      case GobraEntityFailureMessage(_, _, info, _, _, _) if info.node.isInstanceOf[BuiltInMember] =>
-
-      case GobraEntitySuccessMessage(_, e, info, time, cached) =>
-        Violation.violation(typeInfo != null, "No type info available for stats reporter")
-        getMemberInformation(info.pnode) match {
-          case GobraMemberInfo(pkg, memberName, args, isTrusted, isAbstract, isBuiltIn) =>
-            addResult(pkg, memberName, args, ViperMemberEntry(e, time, success = true, cached = cached), isTrusted, isAbstract, isBuiltIn)
-        }
-      case GobraEntityFailureMessage(_, e, info, _, time, cached) =>
-        Violation.violation(typeInfo != null, "No type info available for stats reporter")
-        getMemberInformation(info.pnode) match {
-          case GobraMemberInfo(pkg, memberName, args, isTrusted, isAbstract, isBuiltIn) =>
-            addResult(pkg, memberName, args, ViperMemberEntry(e, time, success = false, cached = cached), isTrusted, isAbstract, isBuiltIn)
-        }
-      case _ =>
-    }
-    // Pass message to next reporter
-    reporter.report(msg)
-  }
 
   /**
    * Builds the member information for a given node out of the stored typeInfo
    *
    */
   @tailrec
-  private def getMemberInformation(p: PNode): GobraMemberInfo = {
+  private def getMemberInformation(p: PNode, typeInfo: TypeInfo): GobraMemberInfo = {
     val nodeTypeInfo =
       if (treeContains(typeInfo.tree, p)) {
         typeInfo
@@ -125,7 +155,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         // TODO does this make sense?
         GobraMemberInfo(pkgName, p.id.id.name, "(" + p.args.filter(e => e.isDefined).map(e => e.get.formattedShort).mkString(", ") + ")", isTrusted = false, isAbstract = false, isBuiltIn)
       // Fallback to the node's code root if we can't match the node
-      case p: PNode => getMemberInformation(nodeTypeInfo.codeRoot(p))
+      case p: PNode => getMemberInformation(nodeTypeInfo.codeRoot(p), typeInfo)
     }
   }
 

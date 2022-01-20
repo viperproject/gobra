@@ -22,7 +22,7 @@ object BackendVerifier {
   case class Task(
                    program: vpr.Program,
                    backtrack: BackTranslator.BackTrackInfo,
-                   name: String = "gobra-exec"
+                   name: String = "gobra-task"
                  )
 
   sealed trait Result
@@ -53,7 +53,7 @@ object BackendVerifier {
       val programID = s"_programID_${task.name}"
 
       if (!config.shouldChop) {
-        verifier.verify(programID, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor)
+        verifier.verify(programID, BacktranslatingReporter(config.reporter, task.backtrack, config, task.name), task.program)(executor)
       } else {
 
         val programs = ChopperUtil.computeChoppedPrograms(task)(config)
@@ -70,7 +70,7 @@ object BackendVerifier {
           for {
             acc <- res
             next <- verifier
-              .verify(programSubID, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
+              .verify(programSubID, BacktranslatingReporter(config.reporter, task.backtrack, config, task.name), program)(executor)
               .andThen(_ => config.reporter report ChoppedProgressMessage(idx+1, num))
           } yield (acc, next) match {
             case (acc, silver.verifier.Success) => acc

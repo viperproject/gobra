@@ -14,9 +14,9 @@ trait MessageBackTranslator {
   def translate(msg: Message): GobraMessage
 }
 
-case class BacktranslatingReporter(reporter: GobraReporter, backTrackInfo: BackTrackInfo, config: Config) extends SilverReporter {
+case class BacktranslatingReporter(reporter: GobraReporter, backTrackInfo: BackTrackInfo, config: Config, taskName: String) extends SilverReporter {
   override val name: String = reporter.name
-  private val msgTranslator: MessageBackTranslator = new DefaultMessageBackTranslator(backTrackInfo, config)
+  private val msgTranslator: MessageBackTranslator = new DefaultMessageBackTranslator(backTrackInfo, config, taskName)
 
   override def report(msg: Message): Unit = {
     reporter.report(msgTranslator.translate(msg))

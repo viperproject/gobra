@@ -14,6 +14,7 @@ import viper.gobra.reporting.VerifierResult.Success
 import viper.silver
 import viper.silver.{ast => vpr}
 import viper.silver.reporter.{Message, Time}
+import viper.gobra.frontend.info.{TypeInfo}
 
 /**
   * Messages reported by GobraReporter
@@ -50,7 +51,7 @@ sealed trait GobraEntityResultMessage extends GobraVerificationResultMessage {
   val concerning: Source.Verifier.Info
 }
 
-case class GobraEntitySuccessMessage(verifier: String, entity: vpr.Member, concerning: Source.Verifier.Info, time: Time, cached: Boolean) extends GobraEntityResultMessage {
+case class GobraEntitySuccessMessage(taskName: String, verifier: String, entity: vpr.Member, concerning: Source.Verifier.Info, time: Time, cached: Boolean) extends GobraEntityResultMessage {
   override val name: String = s"entity_success_message"
   val result: VerifierResult = Success
 
@@ -60,7 +61,7 @@ case class GobraEntitySuccessMessage(verifier: String, entity: vpr.Member, conce
     s"cached=${cached})"
 }
 
-case class GobraEntityFailureMessage(verifier: String, entity: vpr.Member, concerning: Source.Verifier.Info, result: VerifierResult, time: Time, cached: Boolean) extends GobraEntityResultMessage {
+case class GobraEntityFailureMessage(taskName: String, verifier: String, entity: vpr.Member, concerning: Source.Verifier.Info, result: VerifierResult, time: Time, cached: Boolean) extends GobraEntityResultMessage {
   override val name: String = s"entity_failure_message"
 
   override def toString: String = s"entity_failure_message(" +
@@ -97,6 +98,10 @@ case class ParserErrorMessage(input: Path, result: Vector[ParserError]) extends 
   override def toString: String = s"parser_error_message(" +
     s"file=${input}), " +
     s"errors=${result.map(_.toString).mkString(",")})"
+}
+
+case class TypeInfoMessage(typeInfo: TypeInfo, taskName: String) extends GobraMessage{
+  override val name: String = s"type_info_message"
 }
 
 sealed trait TypeCheckMessage extends GobraMessage {

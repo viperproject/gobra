@@ -29,7 +29,7 @@ case class PackageEntry(path: String, name: String) {
 
 }
 case class Config(
-                 var inputs: Vector[Source],
+                 inputs: Vector[Source],
                  recursive: Boolean = false,
                  inputPackageMap: Map[PackageEntry, Vector[Source]] = Map(),
                  moduleName: String = "",

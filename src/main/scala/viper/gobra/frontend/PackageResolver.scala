@@ -11,7 +11,7 @@ import java.nio.file.{FileSystem, FileSystemAlreadyExistsException, FileSystems,
 import java.util.Collections
 import org.apache.commons.io.FilenameUtils
 import org.apache.commons.lang3.SystemUtils
-import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
+import org.bitbucket.inkytonik.kiama.util.Source
 import viper.gobra.ast.frontend.PImplicitQualifiedImport
 import viper.gobra.frontend.Source.FromFileSource
 
@@ -114,13 +114,13 @@ object PackageResolver {
   }
 
   private def getIncludeResources(includeDirs: Vector[Path]): Vector[InputResource] = {
-    includeDirs.map(FileResource)
+    includeDirs.map(FileResource(_))
   }
 
-  private val getBuiltInResource: Option[InputResource] = getResource(builtInDirectory)
-  private val getStubResources: Vector[InputResource] = stubDirectories.flatMap(getResource)
+  private val getBuiltInResource: Option[InputResource] = getBuiltInResource(builtInDirectory)
+  private val getStubResources: Vector[InputResource] = stubDirectories.flatMap(getBuiltInResource(_))
 
-  private def getResource(path: String): Option[InputResource] = {
+  private def getBuiltInResource(path: String): Option[InputResource] = {
     val nullableResourceUri = getClass.getClassLoader.getResource(path).toURI
     for {
       resourceUri <- Option.when(nullableResourceUri != null)(nullableResourceUri)
@@ -130,14 +130,14 @@ object PackageResolver {
       // BaseJarResource provides an abstraction that internally uses an adhoc filesystem to enable file-like access
       // to these resources.
       resource <- resourceUri.getScheme match {
-        case s if s == fileUriScheme => Some(FileResource(Paths.get(resourceUri)))
+        case s if s == fileUriScheme => Some(FileResource(Paths.get(resourceUri), builtin = true))
         case s if s == jarUriScheme =>
           val fs = try {
             FileSystems.newFileSystem(resourceUri, Collections.emptyMap[String, Any]())
           } catch {
             case _: FileSystemAlreadyExistsException => FileSystems.getFileSystem(resourceUri)
           }
-          Some(JarResource(fs, path))
+          Some(JarResource(fs, path, builtin = true))
         case _ => None
       }
     } yield resource
@@ -232,7 +232,7 @@ object PackageResolver {
 
   private lazy val pkgClauseRegex = """(?:\/\/.*|\/\*(?:.|\n)*\*\/|package(?:\s|\n)+([a-zA-Z_][a-zA-Z0-9_]*))""".r
 
-  private def getPackageClause(file: InputResource): Option[String] = {
+  def getPackageClause(file: InputResource): Option[String] = {
     val inputStream = file.asStream()
     val bufferedSource = new BufferedSource(inputStream)
     val content = bufferedSource.mkString
@@ -246,6 +246,7 @@ object PackageResolver {
 
   trait InputResource extends Closeable {
     val path: Path
+    val builtin: Boolean
 
     def resolve(pathComponent: String): InputResource
 
@@ -278,7 +279,7 @@ object PackageResolver {
     def asSource(): Source
   }
 
-  case class FileResource(path: Path) extends InputResource {
+  case class FileResource(path: Path, builtin: Boolean = false) extends InputResource {
 
     override def resolve(pathComponent: String): FileResource =
       FileResource(path.resolve(pathComponent))
@@ -288,15 +289,15 @@ object PackageResolver {
         .map(p => FileResource(p))
     }
 
-    override def asSource(): FileSource = FileSource(path.toString)
+    override def asSource(): FromFileSource = FromFileSource(path, builtin)
   }
 
-  case class JarResource(filesystem: FileSystem, pathString: String) extends InputResource {
+  case class JarResource(filesystem: FileSystem, pathString: String, builtin: Boolean = false) extends InputResource {
     override def resolve(pathComponent: String): JarResource =
-      JarResource(filesystem, path.resolve(pathComponent).toString)
+      JarResource(filesystem, path.resolve(pathComponent).toString, builtin)
 
     override def listContent(): Vector[JarResource] =
-      Files.newDirectoryStream(path).asScala.toVector.map(p => JarResource(filesystem, p.toString))
+      Files.newDirectoryStream(path).asScala.toVector.map(p => JarResource(filesystem, p.toString, builtin))
 
     override val path: Path = filesystem.getPath(pathString)
 
@@ -304,7 +305,7 @@ object PackageResolver {
       val bufferedSource = new BufferedSource(asStream())
       val content = bufferedSource.mkString
       bufferedSource.close()
-      FromFileSource(path, content)
+      FromFileSource(path, content, builtin)
     }
   }
 }

@@ -21,14 +21,14 @@ object Source {
   implicit class TransformableSource[S <: Source](source: S) {
     def transformContent(newContent: String): Source = source match {
       case StringSource(_, name) => StringSource(newContent, name)
-      case FileSource(name, _) => FromFileSource(Paths.get(name), newContent)
-      case FromFileSource(path, _) => FromFileSource(path, newContent)
+      case FileSource(name, _) => FromFileSource(Paths.get(name), newContent, builtin = false)
+      case FromFileSource(path, _, builtin) => FromFileSource(path, newContent, builtin)
       case _ => Violation.violation(s"encountered unknown source ${source.name}")
     }
 
     def toPath: Path = source match {
       case FileSource(filename, _) => Paths.get(filename)
-      case FromFileSource(path, _) => path
+      case FromFileSource(path, _, _) => path
       case StringSource(_, _) =>
         // StringSource stores some name but there is no guarantee that it corresponds to a valid file path
         // there are the following ideas:
@@ -46,7 +46,7 @@ object Source {
     * @param path original file's path
     * @param content source's content after applying some transformations
     */
-  case class FromFileSource(path: Path, content: String) extends Source {
+  case class FromFileSource(path: Path, content: String, builtin: Boolean) extends Source {
     override val name: String = path.toString
     val shortName : Option[String] = Some(Filenames.dropCurrentPath(name))
 
@@ -63,12 +63,12 @@ object Source {
   }
 
   object FromFileSource {
-    def apply(path: Path): FromFileSource = {
+    def apply(path: Path, builtin: Boolean = false): FromFileSource = {
       val inputStream = Files.newInputStream(path)
       val bufferedSource = new BufferedSource(inputStream)
       val content = bufferedSource.mkString
       bufferedSource.close()
-      FromFileSource(path, content)
+      FromFileSource(path, content, builtin)
     }
   }
 }

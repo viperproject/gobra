@@ -21,7 +21,8 @@ object BackendVerifier {
 
   case class Task(
                    program: vpr.Program,
-                   backtrack: BackTranslator.BackTrackInfo
+                   backtrack: BackTranslator.BackTrackInfo,
+                   name: String = "gobra-exec"
                  )
 
   sealed trait Result
@@ -49,7 +50,7 @@ object BackendVerifier {
 
     val verificationResults =  {
       val verifier = config.backend.create(exePaths, config)
-      val programID = s"_programID_${config.inputs.map(_.name).mkString("_")}"
+      val programID = s"_programID_${task.name}"
 
       if (!config.shouldChop) {
         verifier.verify(programID, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor)

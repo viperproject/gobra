@@ -14,7 +14,7 @@ import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Stra
 import org.bitbucket.inkytonik.kiama.util.{Positions, Source}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.Source.TransformableSource
+import viper.gobra.frontend.Source.{FromFileSource, TransformableSource}
 import viper.gobra.reporting.{Source => _, _}
 import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
 
@@ -71,7 +71,7 @@ object Parser {
     val parsers = new SyntaxAnalyzer(pom, specOnly)
 
     def parseSource(source: Source): Either[Vector[ParserError], PProgram] = {
-      parsers.parseAll(parsers.program, source) match {
+      parsers.parseAll(parsers.program(isBuiltInSource(source)), source) match {
         case Success(ast, _) =>
           config.reporter report ParsedInputMessage(source.name, () => ast)
           Right(ast)
@@ -164,7 +164,14 @@ object Parser {
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
-    translateParseResult(pom)(parsers.parseAll(parsers.program, preprocessedSource))
+    translateParseResult(pom)(parsers.parseAll(parsers.program(isBuiltInSource(source)), preprocessedSource))
+  }
+
+  def isBuiltInSource(source: Source): Boolean = {
+    source match {
+      case FromFileSource(_, _, builtin) => builtin
+      case _ => false
+    }
   }
 
   def parseMember(source: Source, specOnly: Boolean = false): Either[Messages, Vector[PMember]] = {
@@ -295,7 +302,7 @@ object Parser {
         // note that the resolveImports strategy could be embedded in e.g. a logfail strategy to report a
         // failed strategy application
         val updatedImports = rewrite(topdown(attempt(resolveImports)))(prog.imports)
-        val updatedProg = PProgram(prog.packageClause, updatedImports, prog.declarations)
+        val updatedProg = PProgram(prog.packageClause, updatedImports, prog.declarations, prog.builtin)
         pkg.positions.positions.dupPos(prog, updatedProg)
       })
       // create a new package node with the updated programs
@@ -361,10 +368,10 @@ object Parser {
       * Member
       */
 
-    lazy val program: Parser[PProgram] =
+    def program(builtin: Boolean): Parser[PProgram] =
       (packageClause <~ eos) ~ importDecls ~ members ^^ {
         case pkgClause ~ importDecls ~ members =>
-          PProgram(pkgClause, importDecls.flatten, members.flatten)
+          PProgram(pkgClause, importDecls.flatten, members.flatten, builtin)
       }
 
     lazy val packageClause: Parser[PPackageClause] =

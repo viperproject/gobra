@@ -57,7 +57,10 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PTypeAlias => TypeAlias(decl, isGhost, this)
         case decl: PFunctionDecl => Function(decl, isGhost, this)
         case decl: PMethodDecl => MethodImpl(decl, isGhost, this)
-        case tree.parent.pair(spec: PMethodSig, tdef: PInterfaceType) => MethodSpec(spec, tdef, isGhost, this)
+        case tree.parent.pair(spec: PMethodSig, tdef: PInterfaceType) =>
+          // note that a ghost method is not wrapped in a ghost wrapper. Instead, `spec` has a ghost field.
+          // therefore, we do not use `isGhost` but `spec.isGhost`:
+          MethodSpec(spec, tdef, spec.isGhost, this)
 
         case decl: PFieldDecl => Field(decl, isGhost, this)
         case decl: PEmbeddedDecl => Embbed(decl, isGhost, this)

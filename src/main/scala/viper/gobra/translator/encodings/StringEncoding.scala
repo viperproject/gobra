@@ -64,7 +64,7 @@ class StringEncoding extends LeafTypeEncoding {
         unit(withSrc(vpr.DomainFuncApp(func = makeFunc(lit.s), Seq(), Map.empty), lit))
       case len @ in.Length(exp :: ctx.String()) =>
         for { e <- goE(exp) } yield withSrc(vpr.DomainFuncApp(func = lenFunc, Seq(e), Map.empty), len)
-      case concat @ in.Concat(l :: ctx.String(), r :: ctx.String()) =>
+      case concat @ in.Add(l :: ctx.String(), r :: ctx.String()) =>
         for {
           lEncoded <- goE(l)
           rEncoded <- goE(r)
@@ -267,6 +267,7 @@ class StringEncoding extends LeafTypeEncoding {
 
   /** Generates the function
     *   requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
+    *   decreases _
     *   pure func byteSliceToStrFunc(s []byte) string
     */
   private val byteSliceToStrFuncName: String = "byteSliceToStrFunc"
@@ -292,7 +293,7 @@ class StringEncoding extends LeafTypeEncoding {
         results = Vector(res),
         pres = Vector(pre),
         posts = Vector(),
-        terminationMeasures = Vector(),
+        terminationMeasures = Vector(in.WildcardMeasure(None)(info)),
         body = None
       )(info)
       val translatedFunc = ctx.pureMethod.pureFunction(func)(ctx)

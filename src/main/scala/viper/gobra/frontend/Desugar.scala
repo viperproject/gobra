@@ -1615,15 +1615,7 @@ object Desugar {
           case PAnd(left, right) => for {l <- go(left); r <- go(right)} yield in.And(l, r)(src)
           case POr(left, right) => for {l <- go(left); r <- go(right)} yield in.Or(l, r)(src)
 
-          case PAdd(left, right) =>
-            for {
-              l <- go(left)
-              r <- go(right)
-              res = (info.typ(left), info.typ(right)) match {
-                case (StringT, StringT) => in.Concat(l, r)(src)
-                case _ => in.Add(l, r)(src)
-              }
-            } yield res
+          case PAdd(left, right) => for {l <- go(left); r <- go(right)} yield in.Add(l, r)(src)
           case PSub(left, right) => for {l <- go(left); r <- go(right)} yield in.Sub(l, r)(src)
           case PMul(left, right) => for {l <- go(left); r <- go(right)} yield in.Mul(l, r)(src)
           case PMod(left, right) => for {l <- go(left); r <- go(right)} yield in.Mod(l, r)(src)
@@ -2327,6 +2319,8 @@ object Desugar {
       case Type.BooleanT => in.BoolT(addrMod)
       case Type.StringT => in.StringT(addrMod)
       case Type.IntT(x) => in.IntT(addrMod, x)
+      case Type.Float32T => in.Float32T(addrMod)
+      case Type.Float64T => in.Float64T(addrMod)
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
       case Type.SliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
       case Type.MapT(keys, values) =>

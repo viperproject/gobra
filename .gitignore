@@ -14,3 +14,7 @@ logger.log
 
 *.go.*
 *.gobra.*
+.bloop/
+.metals/
+.vscode/
+project/

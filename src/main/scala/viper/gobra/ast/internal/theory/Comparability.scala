@@ -33,6 +33,8 @@ object Comparability {
     case TypeHead.BoolHD => Kind.Comparable
     case TypeHead.StringHD => Kind.Comparable
     case _: TypeHead.IntHD => Kind.Comparable
+    case TypeHead.Float32HD => Kind.Comparable
+    case TypeHead.Float64HD => Kind.Comparable
     case TypeHead.PointerHD => Kind.Comparable
 
     case t: TypeHead.DefinedHD =>

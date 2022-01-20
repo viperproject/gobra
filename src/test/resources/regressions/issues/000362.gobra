@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+func foo(x []int) {
+	z := x
+	assert x == z
+}
+
+requires s == t
+func bar(s []int, t []int) { }
+
+requires s == nil
+func foobar(s []int) {
+	var a@ [0]int
+	assert s[:] != a[:]
+}

@@ -13,7 +13,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.VerifierResult.Success
 import viper.silver
 import viper.silver.{ast => vpr}
-import viper.silver.reporter.Message
+import viper.silver.reporter.{Message, Time}
 
 /**
   * Messages reported by GobraReporter
@@ -50,22 +50,24 @@ sealed trait GobraEntityResultMessage extends GobraVerificationResultMessage {
   val concerning: Source.Verifier.Info
 }
 
-case class GobraEntitySuccessMessage(verifier: String, entity: vpr.Member, concerning: Source.Verifier.Info) extends GobraEntityResultMessage {
+case class GobraEntitySuccessMessage(verifier: String, entity: vpr.Member, concerning: Source.Verifier.Info, time: Time, cached: Boolean) extends GobraEntityResultMessage {
   override val name: String = s"entity_success_message"
   val result: VerifierResult = Success
 
   override def toString: String = s"entity_success_message(" +
     s"verifier=${verifier}, " +
-    s"concerning=${concerning.toString})"
+    s"concerning=${concerning.toString}, " +
+    s"cached=${cached})"
 }
 
-case class GobraEntityFailureMessage(verifier: String, entity: vpr.Member, concerning: Source.Verifier.Info, result: VerifierResult) extends GobraEntityResultMessage {
+case class GobraEntityFailureMessage(verifier: String, entity: vpr.Member, concerning: Source.Verifier.Info, result: VerifierResult, time: Time, cached: Boolean) extends GobraEntityResultMessage {
   override val name: String = s"entity_failure_message"
 
   override def toString: String = s"entity_failure_message(" +
     s"verifier=${verifier}, " +
     s"concerning=${concerning.toString}, " +
-    s"failure=${result.toString})"
+    s"failure=${result.toString}, " +
+    s"cached=${cached})"
 }
 
 case class ChoppedProgressMessage(idx: Int, of: Int) extends GobraMessage {

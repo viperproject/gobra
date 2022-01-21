@@ -107,7 +107,6 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   def getWarnings(task: String): List[String] = {
     var warnings: List[String] = List()
     memberMap.keys.filter(_.startsWith(task)).foreach(g => {
-      //println(memberMap(g));
       memberMap(g).viperMembers.foreach(v => {
         val name = memberMap(g).pkg + "." + memberMap(g).memberName + memberMap(g).args
 
@@ -131,7 +130,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
       case None => memberMap = memberMap + (key -> GobraMemberEntry(taskName, pkg, memberName, args, List(entry), isTrusted, isAbstract, isBuiltIn))
     }
 
-    val viperKey = taskName + "-" + entry.member.name;
+    val viperKey = taskName + "-" + entry.member.name
 
     viperMemberNameGobraMemberMap.get(viperKey) match {
       // Viper methods should only correspond to a single Gobra method. If they somehow won't,
@@ -169,7 +168,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
     def formatArgs(args: Vector[PParameter]) = "(" + args.map(f => f.typ.formattedShort).mkString(", ") + ")"
 
-    val isNotImported = typeInfo.eq(nodeTypeInfo);
+    val isNotImported = typeInfo.eq(nodeTypeInfo)
 
     p match {
       case p: PDomainFunction =>
@@ -197,7 +196,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   }
 
   /**
-   * Checks whether a given Go Tree contains a given node
+   * Checks whether a Go Tree contains a node
    */
   def treeContains(tree: Info.GoTree, p: PNode): Boolean = {
     try {

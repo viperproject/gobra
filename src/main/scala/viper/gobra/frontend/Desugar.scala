@@ -2505,7 +2505,7 @@ object Desugar {
     }
 
     def receiverD(p: PReceiver, context: TypeInfo = info): (in.Parameter.In, Option[in.LocalVar]) = {
-      val src: Meta = meta(p)
+      val src: Meta = meta(p, context)
       p match {
         case PNamedReceiver(id, typ, _) =>
           val param = in.Parameter.In(idName(id, context), typeD(context.symbType(typ), Addressability.receiver)(src))(src)

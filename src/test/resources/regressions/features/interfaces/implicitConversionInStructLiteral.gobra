@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// tests whether arguments in a struct literal are implicitly converted to an interface if necessary
+
+type SomeInterface interface {}
+type SomeImplementation struct {}
+
+type StructWithItfField struct {
+    itf SomeInterface
+}
+
+func client1() StructWithItfField {
+    impl := SomeImplementation{}
+    return StructWithItfField{ impl }
+}
+
+func client2() StructWithItfField {
+    return StructWithItfField{ SomeImplementation{} }
+}

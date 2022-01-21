@@ -1982,10 +1982,8 @@ object Desugar {
 
           if (lit.elems.exists(_.key.isEmpty)) {
             // all elements are not keyed
-            val wArgs = fields.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) => exp match {
-              case PExpCompositeVal(ev) => exprD(ctx)(ev)
-              case PLitCompositeVal(lv) => literalValD(ctx)(lv, f.typ)
-            }}
+            val wArgs = fields.zip(lit.elems)
+              .map { case (f, PKeyedElement(_, exp)) => compositeValD(ctx)(exp, f.typ) }
 
             for {
               args <- sequence(wArgs)
@@ -1998,10 +1996,7 @@ object Desugar {
             val vMap = lit.elems.map {
               case PKeyedElement(Some(PIdentifierKey(key)), exp) =>
                 val f = fMap(key.name)
-                exp match {
-                  case PExpCompositeVal(ev) => f -> exprD(ctx)(ev)
-                  case PLitCompositeVal(lv) => f -> literalValD(ctx)(lv, f.typ)
-                }
+                f -> compositeValD(ctx)(exp, f.typ)
 
               case _ => Violation.violation("expected identifier as a key")
             }.toMap

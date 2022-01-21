@@ -2936,7 +2936,8 @@ object Desugar {
         abstractType.typing(argsForTyping)
       }
 
-      /** args must not include the receiver in the case of received predicates */
+      /** args must not include the receiver in the case of received predicates in order that the FunctionT corresponding
+        * to the given predicate symbol has the same amount of parameters / parameter types */
       def convertArgs(args: Vector[in.Expr]): Vector[in.Expr] = {
         p.predicate match {
           case b: ap.BuiltInPredicateKind => arguments(getBuiltInPredType(b), args)

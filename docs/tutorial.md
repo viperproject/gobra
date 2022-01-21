@@ -44,6 +44,7 @@ import (
 ```go
 requires ... // preconditions 
 ensures  ... // postconditions 
+trusted      // trusted flag (optional)
 func min(xs []int) int {
   ... // function body (optional)
 }
@@ -52,6 +53,7 @@ func min(xs []int) int {
 ```go
 requires ... // preconditions 
 ensures  ... // postconditions 
+trusted      // trusted flag (optional)
 func (xs *list) contains(value int) bool {
   ... // method body (optional)
 }
@@ -59,7 +61,7 @@ func (xs *list) contains(value int) bool {
 - Functions and methods can be annotated with pre and postconditions. If omitted, they default to `true`.
 - Functions and methods are verified modularly. A call only uses the specification of the callee and cannot peek inside the body.
 - The body (including `{}`) may be omitted. In this case, Gobra assumes that the specification holds.
-
+- A function or method can be annotated with the `trusted` flag. Gobra then assumes the specification holds and ignores the body.
 
 #### Predicates
 

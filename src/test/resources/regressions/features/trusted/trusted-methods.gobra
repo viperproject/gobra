@@ -1,0 +1,39 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+type IntType int
+
+requires x > 0
+ensures ret < 0
+trusted
+func (x IntType) negateCorrectSpec() (ret IntType) {
+    return -x
+}
+
+requires x > 0
+ensures ret > 0
+trusted
+func (x IntType) negateIncorrectSpec() (ret IntType) {
+    return -x
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures ret < 0
+func test1() (ret IntType){
+    var i IntType = 2
+    return i.negateIncorrectSpec()
+}
+
+trusted
+func (x IntType) methodWithNonSupportedFeature() IntType{
+	some non supported go feature
+	return 0
+}
+
+func test2() IntType{
+    var i IntType = -2
+    //:: ExpectedOutput(precondition_error:assertion_error)
+    return i.negateIncorrectSpec()
+}

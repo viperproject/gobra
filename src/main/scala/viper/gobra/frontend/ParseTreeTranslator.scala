@@ -1157,7 +1157,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
     PFunctionSpec(pres, preserves, posts, terms, isPure = isPure) match {
       // If we have empty specification, we can't get a position, for it.
-      case PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false) => PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty).at(ctx.parent.asInstanceOf[ParserRuleContext])
+      case PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, _) =>
+        PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty).at(ctx.parent.asInstanceOf[ParserRuleContext])
       case spec => spec.at(ctx)
     }
   }

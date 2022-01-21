@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type AnInterface interface {
+    pure getVal() int
+}
+
+type AnImplementation struct {}
+
+pure func (impl *AnImplementation) getVal() int {
+    return 42
+}
+
+pred somePredicate(param AnInterface) {
+    param.getVal() == 42
+}
+
+func client() {
+    impl := &AnImplementation{}
+    fold somePredicate(impl)
+    unfold somePredicate(impl)
+    // this also works with first class predicates:
+    fold somePredicate!<_!>(impl)
+    unfold somePredicate!<_!>(impl)
+    fold somePredicate!<impl!>()
+    unfold somePredicate!<impl!>()
+}

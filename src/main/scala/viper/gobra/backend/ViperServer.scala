@@ -49,19 +49,23 @@ object ViperServer {
   }
 }
 
+trait ViperVerifierConfig {
+  val partialCommandLine: List[String]
+}
+trait ViperServerWithSilicon extends ViperVerifierConfig
+trait ViperServerWithCarbon extends ViperVerifierConfig
+
 object ViperServerConfig {
   object EmptyConfigWithSilicon extends ViperServerWithSilicon {val partialCommandLine: List[String] = Nil}
   object EmptyConfigWithCarbon extends ViperServerWithCarbon {val partialCommandLine: List[String] = Nil}
   case class ConfigWithSilicon(partialCommandLine: List[String]) extends ViperServerWithSilicon
   case class ConfigWithCarbon(partialCommandLine: List[String]) extends ViperServerWithCarbon
 }
-trait ViperServerWithSilicon extends ViperVerifierConfig
-trait ViperServerWithCarbon extends ViperVerifierConfig
 
 class ViperServer(server: ViperCoreServer, backendConfig: ViperVerifierConfig)(implicit executor: VerificationExecutionContext) extends ViperVerifier {
   import ViperServer._
 
-  override def verify(programID: String, config: ViperVerifierConfig, reporter: Reporter, program: Program)(_ctx: GobraExecutionContext): Future[VerificationResult] = {
+  override def verify(programID: String, reporter: Reporter, program: Program)(_ctx: GobraExecutionContext): Future[VerificationResult] = {
     // convert ViperVerifierConfig to ViperBackendConfig:
 
     if(!server.isRunning) {

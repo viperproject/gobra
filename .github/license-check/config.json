@@ -50,7 +50,8 @@
   {
     "include": [
       "**/*.gobra",
-      "src/test/resources/**/*.go"
+      "src/test/resources/**/*.go",
+      "GobraChopper.conf"
     ],
     "exclude": [
       "project/project/**",

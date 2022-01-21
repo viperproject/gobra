@@ -130,14 +130,24 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: spec only function") {
+<<<<<<< HEAD
     frontend.parseFunctionDecl("func foo() { b.bar() }", specOnly = true) should matchPattern {
       case PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false), None) =>
+=======
+    frontend.parseMember("func foo() { b.bar() }", specOnly = true) should matchPattern {
+      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None)) =>
+>>>>>>> master
     }
   }
 
   test("Parser: spec only function with nested blocks") {
+<<<<<<< HEAD
     frontend.parseFunctionDecl("func foo() { if(true) { b.bar() } else { foo() } }", specOnly = true) should matchPattern {
       case PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false), None) =>
+=======
+    frontend.parseMember("func foo() { if(true) { b.bar() } else { foo() } }", specOnly = true) should matchPattern {
+      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None)) =>
+>>>>>>> master
     }
   }
 
@@ -169,8 +179,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: abstract function") {
     val modes: Set[Boolean] = Set(false, true)
     modes.foreach(specOnly => {
+<<<<<<< HEAD
       frontend.parseFunctionDecl("func bar()", specOnly) should matchPattern {
         case PFunctionDecl(PIdnDef("bar"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false), None) =>
+=======
+      frontend.parseMember("func bar()", specOnly) should matchPattern {
+        case Vector(PFunctionDecl(PIdnDef("bar"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None)) =>
+>>>>>>> master
       }
     })
   }

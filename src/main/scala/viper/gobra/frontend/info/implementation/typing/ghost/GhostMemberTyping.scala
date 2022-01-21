@@ -127,59 +127,63 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     * or a set of implementation proofs that have to be generated.
     **/
   def wellImplementationProofs: Either[Messages, Vector[(Type, InterfaceT, MethodImpl, MethodSpec)]] = {
-    if (isMainContext && requiredImplements.nonEmpty) {
-      // For every required implementation, check that there is at most one proof
-      // and if not all predicates are defined, then check that there is a proof.
+    // the main context reports missing implementation proof for all packages (i.e. all packages that have been parsed & typechecked so far)
+    if (isMainContext) {
+      val allRequiredImplements = localRequiredImplements ++ context.getContexts.flatMap(_.localRequiredImplements)
+      if (allRequiredImplements.nonEmpty) {
+        // For every required implementation, check that there is at most one proof
+        // and if not all predicates are defined, then check that there is a proof.
 
-      val providedImplProofs = localImplementationProofs ++ context.getContexts.flatMap(_.localImplementationProofs)
-      val groupedProofs = requiredImplements.toVector.map{ case (impl, itf) =>
-        (impl, itf, providedImplProofs.collect{ case (`impl`, `itf`, alias, proofs) => (alias, proofs) })
-      }
-      val multiples = groupedProofs.collect{ case (impl, itf, ls) if ls.size > 1 => (impl, itf) }
-      val msgs = if (multiples.nonEmpty) {
-        error(tree.root, s"There is more than one proof for ${multiples.mkString(", ")}")
-      } else {
-        // check that all predicates are defined
-        groupedProofs.flatMap{ case (impl, itf, ls) =>
-          if (ls.nonEmpty) noMessages //
-          else {
-            val superPredNames = memberSet(itf).collect{ case (n, m: MPredicateSpec) => (n, m) }
-            val allPredicatesDefined = PropertyResult.bigAnd(superPredNames.map{ case (name, symb) =>
-              val valid = tryMethodLikeLookup(impl, PIdnUse(name)).isDefined
-              failedProp({
-                val argTypes = symb.args map symb.context.typ
+        val providedImplProofs = localImplementationProofs ++ context.getContexts.flatMap(_.localImplementationProofs)
+        val groupedProofs = allRequiredImplements.toVector.map{ case (impl, itf) =>
+          (impl, itf, providedImplProofs.collect{ case (`impl`, `itf`, alias, proofs) => (alias, proofs) })
+        }
+        val multiples = groupedProofs.collect{ case (impl, itf, ls) if ls.size > 1 => (impl, itf) }
+        val msgs = if (multiples.nonEmpty) {
+          error(tree.root, s"There is more than one proof for ${multiples.mkString(", ")}")
+        } else {
+          // check that all predicates are defined
+          groupedProofs.flatMap{ case (impl, itf, ls) =>
+            if (ls.nonEmpty) noMessages //
+            else {
+              val superPredNames = memberSet(itf).collect{ case (n, m: MPredicateSpec) => (n, m) }
+              val allPredicatesDefined = PropertyResult.bigAnd(superPredNames.map{ case (name, symb) =>
+                val valid = tryMethodLikeLookup(impl, PIdnUse(name)).isDefined
+                failedProp({
+                  val argTypes = symb.args map symb.context.typ
 
-                s"predicate $name is not defined for type $impl. " +
-                  s"Either declare a predicate 'pred ($impl) $name(${argTypes.mkString(", ")})' " +
-                  s"or declare a predicate 'pred p($impl${if (argTypes.isEmpty) "" else ", "}${argTypes.mkString(", ")})' with some name p and add 'pred $name := p' to the implementation proof."
-              }, !valid)
-            })
-            allPredicatesDefined.asReason(tree.root,
-              s"The code requires that $impl implements the interface $itf. An implementation proof cannot be inferred because predicate definitions are missing."
-            )
+                  s"predicate $name is not defined for type $impl. " +
+                    s"Either declare a predicate 'pred ($impl) $name(${argTypes.mkString(", ")})' " +
+                    s"or declare a predicate 'pred p($impl${if (argTypes.isEmpty) "" else ", "}${argTypes.mkString(", ")})' with some name p and add 'pred $name := p' to the implementation proof."
+                }, !valid)
+              })
+              allPredicatesDefined.asReason(tree.root,
+                s"The code requires that $impl implements the interface $itf. An implementation proof cannot be inferred because predicate definitions are missing."
+              )
+            }
           }
         }
-      }
-      if (msgs.nonEmpty) Left(msgs)
-      else {
-        Right(
-          // missing implementation proofs
-          groupedProofs.flatMap{ case (impl, itf, ls) =>
-            val superMethNames = memberSet(itf).collect{ case (n, m: MethodSpec) => (n, m) }
-            val proofs = if (ls.isEmpty) Vector.empty else ls.head._2
-            val missingSuperMethNames = superMethNames.flatMap{
-              case (n, itfSymb) if !proofs.contains(n) =>
-                getMember(impl, n) match {
-                  case Some((implSymb: MethodImpl, _)) =>
-                    Some((itfSymb, implSymb))
-                  case _ => None
-                }
-              case _ => None
+        if (msgs.nonEmpty) Left(msgs)
+        else {
+          Right(
+            // missing implementation proofs
+            groupedProofs.flatMap{ case (impl, itf, ls) =>
+              val superMethNames = memberSet(itf).collect{ case (n, m: MethodSpec) => (n, m) }
+              val proofs = if (ls.isEmpty) Vector.empty else ls.head._2
+              val missingSuperMethNames = superMethNames.flatMap{
+                case (n, itfSymb) if !proofs.contains(n) =>
+                  getMember(impl, n) match {
+                    case Some((implSymb: MethodImpl, _)) =>
+                      Some((itfSymb, implSymb))
+                    case _ => None
+                  }
+                case _ => None
+              }
+              missingSuperMethNames.map{ case (itfSymb, implSymb) => (impl, itf, implSymb, itfSymb) }
             }
-            missingSuperMethNames.map{ case (itfSymb, implSymb) => (impl, itf, implSymb, itfSymb) }
-          }
-        )
-      }
+          )
+        }
+      } else Left(noMessages)
     } else Left(noMessages)
   }
 

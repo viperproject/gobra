@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.frontend.info.base.Type.{DeclaredT, IntT, PermissionT, PointerT, Single, SliceT, StringT, Type}
+import viper.gobra.frontend.info.base.Type.{DeclaredT, Float32T, Float64T, IntT, PermissionT, PointerT, Single, SliceT, StringT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait Convertibility extends BaseProperty { this: TypeInfoImpl =>
@@ -18,6 +18,8 @@ trait Convertibility extends BaseProperty { this: TypeInfoImpl =>
   } {
     case (Single(lst), Single(rst)) => (lst, rst) match {
       case (left, right) if assignableTo(left, right) => true
+      case (IntT(_), Float32T) => true
+      case (IntT(_), Float64T) => true
       case (IntT(_), IntT(_)) => true
       case (SliceT(IntT(config.typeBounds.Byte)), StringT) => true
       case (StringT, SliceT(IntT(config.typeBounds.Byte))) => true

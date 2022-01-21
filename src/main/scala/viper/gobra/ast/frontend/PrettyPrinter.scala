@@ -108,6 +108,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showPure: Doc = "pure" <> line
+  def showTrusted: Doc = "trusted" <> line
   def showPre(pre: PExpression): Doc = "requires" <+> showExpr(pre)
   def showPreserves(preserves: PExpression): Doc = "preserves" <+> showExpr(preserves)
   def showPost(post: PExpression): Doc = "ensures" <+> showExpr(post)
@@ -122,8 +123,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, measures, isPure) =>
+    case PFunctionSpec(pres, preserves, posts, measures, isPure, isTrusted) =>
       (if (isPure) showPure else emptyDoc) <>
+      (if (isTrusted) showTrusted else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
         hcat(preserves map (showPreserves(_) <> line)) <>
         hcat(posts map (showPost(_) <> line)) <>
@@ -550,6 +552,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PUInt32Type() => "uint32"
     case PUInt64Type() => "uint64"
     case PUIntPtr() => "uintptr"
+    case PFloat32Type() => "float32"
+    case PFloat64Type() => "float64"
     case PArrayType(len, elem) => brackets(showExpr(len)) <> showType(elem)
     case PSliceType(elem) => brackets(emptyDoc) <> showType(elem)
     case PVariadicType(elem) => "..." <> showType(elem)

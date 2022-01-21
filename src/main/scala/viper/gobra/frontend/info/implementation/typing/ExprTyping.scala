@@ -811,7 +811,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
 
-            case Some(ap.PredExprInstance(base, args)) =>
+            case Some(ap.PredExprInstance(base, args, _)) =>
               val index = args.indexWhere(_.eq(expr))
               violation(index >= 0, errorMessage)
               typ(base) match {

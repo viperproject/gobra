@@ -130,24 +130,14 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: spec only function") {
-<<<<<<< HEAD
     frontend.parseFunctionDecl("func foo() { b.bar() }", specOnly = true) should matchPattern {
-      case PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false), None) =>
-=======
-    frontend.parseMember("func foo() { b.bar() }", specOnly = true) should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None)) =>
->>>>>>> master
+      case PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None) =>
     }
   }
 
   test("Parser: spec only function with nested blocks") {
-<<<<<<< HEAD
     frontend.parseFunctionDecl("func foo() { if(true) { b.bar() } else { foo() } }", specOnly = true) should matchPattern {
-      case PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false), None) =>
-=======
-    frontend.parseMember("func foo() { if(true) { b.bar() } else { foo() } }", specOnly = true) should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None)) =>
->>>>>>> master
+      case PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None) =>
     }
   }
 
@@ -179,13 +169,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: abstract function") {
     val modes: Set[Boolean] = Set(false, true)
     modes.foreach(specOnly => {
-<<<<<<< HEAD
       frontend.parseFunctionDecl("func bar()", specOnly) should matchPattern {
-        case PFunctionDecl(PIdnDef("bar"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false), None) =>
-=======
-      frontend.parseMember("func bar()", specOnly) should matchPattern {
-        case Vector(PFunctionDecl(PIdnDef("bar"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None)) =>
->>>>>>> master
+        case PFunctionDecl(PIdnDef("bar"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None) =>
       }
     })
   }
@@ -2664,19 +2649,19 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse normal termination measure") {
     frontend.parseFunctionDecl("decreases n; func factorial (n int) int") should matchPattern {
-      case PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), None)), false), None) =>
+      case PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), None)), false, false), None) =>
     }
   }
 
   test("Parser: should be able to parse underscore termination measure") {
     frontend.parseFunctionDecl("decreases _; func factorial (n int) int") should matchPattern {
-      case PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PWildcardMeasure(None)), false), None) =>
+      case PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PWildcardMeasure(None)), false, false), None) =>
     }
   }
 
   test("Parser: should be able to parse conditional termination measure" ) {
     frontend.parseFunctionDecl("decreases n if n>1; decreases _ if n<2; func factorial (n int) int") should matchPattern {
-      case PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), Some(PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal)))), PWildcardMeasure(Some(PLess(PNamedOperand(PIdnUse("n")), PIntLit(two, Decimal))))), false), None) if one == 1 && two == 2 =>
+      case PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), Some(PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal)))), PWildcardMeasure(Some(PLess(PNamedOperand(PIdnUse("n")), PIntLit(two, Decimal))))), false, false), None) if one == 1 && two == 2 =>
     }
   }
 

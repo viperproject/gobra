@@ -230,13 +230,13 @@ object GobraRunner extends GobraFrontend with StrictLogging {
       val scallopGobraconfig = new ScallopGobraConfig(args.toSeq)
       val config = scallopGobraconfig.config
 
-      // Check if gobra directory is available
+      // Set up gobra directory
       val gobraDirectory = config.gobraDirectory.toAbsolutePath.toFile
       if(!gobraDirectory.isDirectory) {
         if(gobraDirectory.getParentFile.canWrite) {
           gobraDirectory.mkdir()
         } else {
-          Violation.violation("Couldn't create gobra directory " + config.gobraDirectory.toString)
+          Violation.violation("Couldn't create gobra directory " + config.gobraDirectory.toString + ", missing write permission to parent directory")
         }
       } else {
         if(!gobraDirectory.getParentFile.canWrite) {

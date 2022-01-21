@@ -25,12 +25,17 @@ object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
 }
 
+object Config {
+  val DefaultGobraDirectory: String = ".gobra"
+}
+
 case class PackageEntry(path: String, name: String) {
 
 }
 case class Config(
                  inputs: Vector[Source],
                  recursive: Boolean = false,
+                 gobraDirectory: Path = Path.of(Config.DefaultGobraDirectory),
                  inputPackageMap: Map[PackageEntry, Vector[Source]] = Map(),
                  moduleName: String = "",
                  includeDirs: Vector[Path] = Vector(),
@@ -70,6 +75,7 @@ case class Config(
     Config(
       inputs = (inputs ++ other.inputs).distinct,
       recursive = recursive,
+      gobraDirectory = gobraDirectory,
       inputPackageMap = newInputs,
       moduleName = moduleName,
       includeDirs = (includeDirs ++ other.includeDirs).distinct,
@@ -147,6 +153,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = Some(List.empty),
     short = 'p'
   )
+
+  val gobraDirectory: ScallopOption[Path] = opt[Path](
+    name = "gobraDirectory",
+    descr = "Directory in which gobra saves it's data like its cache or statistics",
+    default = Some(Path.of(Config.DefaultGobraDirectory)),
+    short = 'g'
+  )(singleArgConverter(arg => Path.of(arg)))
 
   val module: ScallopOption[String] = opt[String](
     name = "module",
@@ -480,6 +493,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   lazy val config: Config = Config(
     inputs = Vector(),
     recursive = recursive(),
+    gobraDirectory = gobraDirectory(),
     inputPackageMap = inputPackageMap,
     moduleName = module(),
     includeDirs = includeDirs,

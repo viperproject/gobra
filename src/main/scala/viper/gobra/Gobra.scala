@@ -19,7 +19,7 @@ import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
 import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
-import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext, Violation}
 import viper.silver.{ast => vpr}
 
 import scala.concurrent.duration.Duration
@@ -229,6 +229,21 @@ object GobraRunner extends GobraFrontend with StrictLogging {
     try {
       val scallopGobraconfig = new ScallopGobraConfig(args.toSeq)
       val config = scallopGobraconfig.config
+
+      // Check if gobra directory is available
+      val gobraDirectory = config.gobraDirectory.toAbsolutePath.toFile
+      if(!gobraDirectory.isDirectory) {
+        if(gobraDirectory.getParentFile.canWrite) {
+          gobraDirectory.mkdir()
+        } else {
+          Violation.violation("Couldn't create gobra directory " + config.gobraDirectory.toString)
+        }
+      } else {
+        if(!gobraDirectory.getParentFile.canWrite) {
+          Violation.violation("Couldn't write to gobra directory " + config.gobraDirectory.toString)
+        }
+      }
+
       // Print copyright report
       config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
       statsCollector = StatsCollector(config.reporter)
@@ -240,7 +255,7 @@ object GobraRunner extends GobraFrontend with StrictLogging {
         val resultFuture = verifier.verify(config.copy(inputs=inputs, reporter = statsCollector), Some(pkgString))(executor)
         val result = Await.result(resultFuture, Duration.Inf)
 
-        val warnings = statsCollector.getWarnings
+        val warnings = statsCollector.getWarnings(pkgString)
         warningCount += warnings.size
         warnings.foreach(m => logger.warn(m))
 
@@ -252,6 +267,8 @@ object GobraRunner extends GobraFrontend with StrictLogging {
             errorCount += errors.length;
         }
       })
+
+      statsCollector.writeJsonReportToFile(config.gobraDirectory.resolve("stats.json").toFile)
     } catch {
       case e: UglyErrorMessage =>
         logger.error(s"${verifier.name} has found 1 error(s): ")
@@ -272,12 +289,12 @@ object GobraRunner extends GobraFrontend with StrictLogging {
     } finally {
       executor.terminate()
 
+      // Write console summary
       if(warningCount > 1) {
         logger.warn(s"${verifier.name} has found $warningCount warnings(s)")
       } else {
         logger.info(s"${verifier.name} found no warnings")
       }
-
       if(errorCount > 1) {
         logger.error(s"${verifier.name} has found $errorCount error(s)")
         exitCode = 1

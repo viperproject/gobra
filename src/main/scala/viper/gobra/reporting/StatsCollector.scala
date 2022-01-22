@@ -103,10 +103,11 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         "cached": ${entry.cached},
       }""").mkString(", \n") + "\n    ],\n" + s"""    "dependencies": [""" + "\n" +
         value.viperMembers
-            .flatMap(entry => getDependencies(entry.member).filter(dep => viperMemberNameGobraMemberMap.contains(value.taskName + "-" + dep)))
-            .map(dep => viperMemberNameGobraMemberMap(value.taskName + "-" + dep))
-            .map({ case GobraMemberEntry(_, pkg, memberName, args,_,_,_,_) => "        \"" + pkg + "." + memberName + args + "\""})
-            .mkString(", \n") + "\n    ]\n  }"
+          .flatMap(entry => getDependencies(entry.member).filter(dep => viperMemberNameGobraMemberMap.contains(value.taskName + "-" + dep)))
+          .map(dep => viperMemberNameGobraMemberMap(value.taskName + "-" + dep))
+          .map({ case GobraMemberEntry(_, pkg, memberName, args,_,_,_,_) => "        \"" + pkg + "." + memberName + args + "\""})
+          .toSet
+          .mkString(", \n") + "\n    ]\n  }"
       }).mkString(", \n") + "\n]\n"
 
     if(shorten) {
@@ -158,7 +159,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     viperMemberNameGobraMemberMap.get(viperKey) match {
       // Viper methods should only correspond to a single Gobra method.
       case Some(_) =>
-        Violation.violation(viperMemberNameGobraMemberMap(viperKey).equals(memberMap(key)), "Viper method corresponds to multiple gobra methods: " + viperKey + " -> " + key)
+        Violation.violation(viperMemberNameGobraMemberMap(viperKey).equals(memberMap(key)),
+          "Viper method corresponds to multiple gobra methods: " + viperKey + " -> " + key)
       case None => viperMemberNameGobraMemberMap = viperMemberNameGobraMemberMap + (viperKey -> memberMap(key))
     }
   })
@@ -177,7 +179,6 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         // Try to find the correct typeInfo for the member
         val typeInfoOption = typeInfo.context.getContexts
           .map(externalTypeInfo => externalTypeInfo.getTypeInfo)
-          .map(externalTypeInfo => externalTypeInfo.getTypeInfo)
           .find(typeInfo => treeContains(typeInfo.tree, p))
         typeInfoOption match {
           case Some(typeInfo) => typeInfo
@@ -187,11 +188,12 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
     val pkgName = nodeTypeInfo.pkgName.formatted
 
-    // Check whether the program containing this node has the builtin tag
-    val isBuiltIn = nodeTypeInfo.program(p).builtin
-
     def formatArgs(args: Vector[PParameter]) = "(" + args.map(f => f.typ.formattedShort).mkString(", ") + ")"
 
+    // Check whether the program containing this node has the builtin tag
+    val isBuiltIn = nodeTypeInfo.program(p).builtin
+    // Check if a node comes from a import, used to declare it non abstract, since imports are per default always
+    // abstract and we don't want to generate unnecessary warnings
     val isNotImported = typeInfo.eq(nodeTypeInfo)
 
     p match {
@@ -212,7 +214,6 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
       case p: PMethodImplementationProof =>
         GobraMemberInfo(pkgName, p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), isTrusted = false, isAbstract = p.body.isEmpty && isNotImported, isBuiltIn)
       case p: PPredConstructor =>
-        // TODO does this make sense?
         GobraMemberInfo(pkgName, p.id.id.name, "(" + p.args.filter(e => e.isDefined).map(e => e.get.formattedShort).mkString(", ") + ")", isTrusted = false, isAbstract = false, isBuiltIn)
       // Fallback to the node's code root if we can't match the node
       case p: PNode => getMemberInformation(nodeTypeInfo.codeRoot(p), typeInfo)

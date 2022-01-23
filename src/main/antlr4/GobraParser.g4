@@ -89,7 +89,7 @@ seqUpdClause: expression ASSIGN expression;
 
 specification
     : ((specStatement) eos)* PURE
-    | ((specStatement | PURE) eos)*
+    | ((specStatement | PURE | TRUSTED) eos)*
     ;
 
 specStatement
@@ -137,7 +137,7 @@ predicateBody: L_CURLY expression eos R_CURLY;
 
 mpredicateDecl: PRED receiver IDENTIFIER parameters predicateBody?;
 
-implementationProof: type_ IMPL type_ L_CURLY (implementationProofPredicateAlias eos)* (methodImplementationProof eos)*  R_CURLY;
+implementationProof: type_ IMPL type_ (L_CURLY (implementationProofPredicateAlias eos)* (methodImplementationProof eos)*  R_CURLY)?;
 
 methodImplementationProof: PURE? nonLocalReceiver IDENTIFIER signature block?;
 

@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type someInterface interface {
+    ghost pure getValue() int
+}
+
+type someImplementation struct {
+    value int
+}
+// checks that `someImplementation` is indeed considered an implementation of `someInterface`, i.e., that the ghost
+// attribute in the interface and implementation is correctly handled.
+someImplementation implements someInterface
+
+ghost
+pure func (impl someImplementation) getValue() int {
+    return impl.value
+}

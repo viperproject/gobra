@@ -18,3 +18,8 @@ logger.log
 /src/main/java/viper/gobra/frontend/GobraParser.interp
 /src/main/java/viper/gobra/frontend/GobraParser.tokens
 /gen/
+
+.bloop/
+.metals/
+.vscode/
+project/

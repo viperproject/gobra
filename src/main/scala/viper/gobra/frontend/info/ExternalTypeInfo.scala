@@ -82,5 +82,9 @@ trait ExternalTypeInfo {
   /* memberset within a specific context */
   def localMemberSet(t: Type): AdvancedMemberSet[TypeMember]
 
+  /** returns all subtype relation found in the current package */
+  def localRequiredImplements: Set[(Type, InterfaceT)]
+
+  /** returns all implementation proofs found in the current package */
   def localImplementationProofs: Vector[(Type, InterfaceT, Vector[String], Vector[String])]
 }

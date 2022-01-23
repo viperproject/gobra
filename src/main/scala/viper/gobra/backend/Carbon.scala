@@ -16,7 +16,7 @@ import scala.concurrent.Future
 
 class Carbon(commandLineArguments: Seq[String]) extends ViperVerifier {
 
-  def verify(programID: String, config: ViperVerifierConfig, reporter:Reporter, program: Program)(executor: GobraExecutionContext): Future[VerificationResult] = {
+  override def verify(programID: String, reporter: Reporter, program: Program)(executor: GobraExecutionContext): Future[VerificationResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
     Future {

@@ -68,6 +68,11 @@ case class GobraEntityFailureMessage(verifier: String, entity: vpr.Member, conce
     s"failure=${result.toString})"
 }
 
+case class ChoppedProgressMessage(idx: Int, of: Int) extends GobraMessage {
+  override val name: String = "chopped_progress_message"
+  override def toString: String = s"$name(idx=$idx,of=$of)"
+}
+
 case class PreprocessedInputMessage(input: String, preprocessedContent: () => String) extends GobraMessage {
   override val name: String = s"preprocessed_input_message"
 
@@ -146,6 +151,16 @@ case class GeneratedViperMessage(inputs: Vector[String], vprAst: () => vpr.Progr
 
   override def toString: String = s"generated_viper_message(" +
     s"files=${inputs}, " +
+    s"vprFormated=$vprAstFormatted)"
+
+  lazy val vprAstFormatted: String = silver.ast.pretty.FastPrettyPrinter.pretty(vprAst())
+}
+
+case class ChoppedViperMessage(inputs: Vector[String], idx: Int, vprAst: () => vpr.Program, backtrack: () => BackTranslator.BackTrackInfo) extends GobraMessage {
+  override val name: String = s"chopped_viper_message"
+
+  override def toString: String = s"chopped_viper_message(" +
+    s"file=${inputs}, " +
     s"vprFormated=$vprAstFormatted)"
 
   lazy val vprAstFormatted: String = silver.ast.pretty.FastPrettyPrinter.pretty(vprAst())

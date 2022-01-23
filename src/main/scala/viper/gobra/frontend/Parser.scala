@@ -572,8 +572,8 @@ object Parser {
     /**
       * Optionally consumes nested curly brackets with arbitrary content if `specOnly` is turned on, otherwise optionally applies the parser `p`
       */
-    def specOnlyParser[T](p: Parser[T]): Parser[Option[T]] =
-      if (specOnly) nestedCurlyBracketsConsumer.? ^^ (_.flatten)
+    def specOnlyParser[T](isPure: Boolean, p: Parser[T]): Parser[Option[T]] =
+      if (specOnly && !isPure) nestedCurlyBracketsConsumer.? ^^ (_.flatten)
       else p.?
 
     /**
@@ -667,28 +667,31 @@ object Parser {
       (idnDef <~ "=") ~ typ ^^ { case left ~ right => PTypeAlias(right, left)}
 
     lazy val functionDecl: Parser[PFunctionDecl] =
-      functionSpec ~ ("func" ~> idnDef) ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
-        case spec ~ name ~ sig ~ body =>
-          PFunctionDecl(name, sig._1, sig._2, spec, body)
-      }
+      for {
+        spec <- functionSpec
+        name <- "func" ~> idnDef
+        sig  <- signature
+        body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(spec.isPure, blockWithBodyParameterInfo)
+        // the start position has to be manually set as Kiama would otherwise only use the body's position as start & finish
+      } yield PFunctionDecl(name, sig._1, sig._2, spec, body).from(spec)
 
     lazy val functionSpec: Parser[PFunctionSpec] = {
-
       sealed trait FunctionSpecClause
       case class RequiresClause(exp: PExpression) extends FunctionSpecClause
       case class PreservesClause(exp: PExpression) extends FunctionSpecClause
       case class EnsuresClause(exp: PExpression) extends FunctionSpecClause
       case class DecreasesClause(measure: PTerminationMeasure) extends FunctionSpecClause
       case object PureClause extends FunctionSpecClause
+      case object TrustedClause extends FunctionSpecClause
 
       lazy val functSpecClause: Parser[FunctionSpecClause] = {
         "requires" ~> expression <~ eos ^^ RequiresClause |
         "preserves" ~> expression <~ eos ^^ PreservesClause |
         "ensures" ~> expression <~ eos ^^ EnsuresClause |
         "decreases" ~> terminationMeasure <~ eos  ^^ DecreasesClause |
+        "trusted" <~ eos ^^^ TrustedClause |
         "pure" <~ eos ^^^ PureClause
       }
-
       functSpecClause.* ~ "pure".? ^^ {
         case clauses ~ pure =>
           val pres = clauses.collect{ case x: RequiresClause => x.exp }
@@ -696,7 +699,8 @@ object Parser {
           val posts = clauses.collect{ case x: EnsuresClause => x.exp }
           val terminationMeasure = clauses.collect{ case x: DecreasesClause => x.measure}
           val isPure = pure.nonEmpty || clauses.contains(PureClause)
-          PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure)
+          val isTrusted = clauses.contains(TrustedClause)
+          PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure, isTrusted)
       }
     }
 
@@ -705,9 +709,14 @@ object Parser {
         repsep(expression, ",") ~ ("if" ~> expression).? ^^ PTupleTerminationMeasure
 
     lazy val methodDecl: Parser[PMethodDecl] =
-      functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
-        case spec ~ rcv ~ name ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, spec, body)
-      }
+      for {
+        spec <- functionSpec
+        rcv  <- "func" ~> receiver
+        name <- idnDef
+        sig  <- signature
+        body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(spec.isPure, blockWithBodyParameterInfo)
+        // the start position has to be manually set as Kiama would otherwise only use the body's position as start & finish
+      } yield PMethodDecl(name, rcv, sig._1, sig._2, spec, body).from(spec)
 
     /**
       * Statements
@@ -1250,7 +1259,7 @@ object Parser {
         ) <~ not("(" | "{")
 
     lazy val typ : Parser[PType] =
-      "(" ~> typ <~ ")" | typeLit | qualifiedType | namedType | ghostTypeLit
+      "(" ~> typ <~ ")" | typeLit | ghostTypeLit | qualifiedType | namedType
 
     lazy val ghostTyp : Parser[PGhostType] =
       "(" ~> ghostTyp <~ ")" | ghostTypeLit
@@ -1347,7 +1356,7 @@ object Parser {
       declaredType ^^ PInterfaceName
 
     lazy val methodSpec: Parser[PMethodSig] =
-      "ghost".? ~ functionSpec ~ idnDef ~ signature ^^ { case isGhost ~ spec ~ id ~ sig => PMethodSig(id, sig._1, sig._2, spec, isGhost.isDefined) }
+      ("ghost".? <~ eos.?) ~ functionSpec ~ idnDef ~ signature ^^ { case isGhost ~ spec ~ id ~ sig => PMethodSig(id, sig._1, sig._2, spec, isGhost.isDefined) }
 
     lazy val predicateSpec: Parser[PMPredicateSig] =
       ("pred" ~> idnDef) ~ parameters ^^ PMPredicateSig
@@ -1375,7 +1384,10 @@ object Parser {
         exactWord("uint16") ^^^ PUInt16Type() |
         exactWord("uint32") ^^^ PUInt32Type() |
         exactWord("uint64") ^^^ PUInt64Type() |
-        exactWord("uintptr") ^^^ PUIntPtr()
+        exactWord("uintptr") ^^^ PUIntPtr() |
+        // floats
+        exactWord("float32") ^^^ PFloat32() |
+        exactWord("float64") ^^^ PFloat64()
 
     lazy val predeclaredTypeSeparate: Parser[PPredeclaredType] =
       exactWord("bool") ~ not("(" | ".") ^^^ PBoolType() |
@@ -1713,6 +1725,25 @@ object Parser {
     implicit class PositionedPAstNode[N <: PNode](node: N) {
       def at(other: PNode): N = {
         pom.positions.dupPos(other, node)
+      }
+
+      /**
+        * Sets the start position of the current node to the start position of node `from`.
+        * The finish position of the current node remains unchanged.
+        */
+      def from(from: PNode): N = {
+        val fromPos = pom.positions.getStart(from)
+        Violation.violation(fromPos.isDefined, s"cannot copy positional information from a node without positional information")
+        // we keep the existing finish position of the current node (if it exists)
+        val toPos = pom.positions.getFinish(node)
+        // in order to be able to set start and finish position, we first have to remove the current positions:
+        // note: `resetAt` would be the perfect choice here but there seems to be a bug in the parameter type as it
+        // currently takes a `Seq[Any]` instead of `Any`. Thus, we use `resetAllAt` for now with a singleton sequence
+        pom.positions.resetAllAt(Seq(node))
+        pom.positions.setStart(node, fromPos.get)
+        // set finish position if it existed:
+        toPos.foreach(pos => pom.positions.setFinish(node, pos))
+        node
       }
 
       def range(from: PNode, to: PNode): N = {

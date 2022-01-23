@@ -2,11 +2,12 @@ package viper.gobra.frontend
 
 import org.antlr.v4.runtime.misc.IntervalSet
 import org.antlr.v4.runtime.{BaseErrorListener, CommonTokenStream, FailedPredicateException, InputMismatchException, Lexer, NoViableAltException, Parser, RecognitionException, Recognizer, Token}
-import org.bitbucket.inkytonik.kiama.util.Source
+import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import viper.gobra.frontend.GobraParser.{CapContext, EosContext, ExpressionContext, FLOAT_LIT, ImplementationProofContext, RULE_blockWithBodyParameterInfo, RULE_eos, RULE_shortVarDecl, RULE_type_, RULE_varDecl, Slice_Context, TypeSpecContext, ruleNames}
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.reporting.ParserError
 import viper.silver.ast.SourcePosition
+import java.nio.file.Path
 
 import scala.collection.mutable.ListBuffer
 
@@ -23,7 +24,8 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     }
 
     val pos = source match {
-      case source : FromFileSource => Some(SourcePosition(source.path, line, charPositionInLine))
+      case source: FileSource => Some(SourcePosition(Path.of(source.name), line, charPositionInLine))
+      case source: FromFileSource => Some(SourcePosition(source.path, line, charPositionInLine))
       case _ => None
     }
     val message = error match {
@@ -33,7 +35,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
           case None => Some(ignored)
           case s => s
         }
-        None
+        Some(ignored)
       }
       case a => Some(ParserError(error.full, pos))
     }
@@ -47,7 +49,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     }
     val tokens = context.recognizer.getInputStream.asInstanceOf[CommonTokenStream]
     val input = tokens.getTokenSource.getInputStream.toString
-    val lines = input.split("\n")
+    val lines = input.split("\r?\n", -1)
     var message = lines(offendingToken.getLine - 1)
     val rest = message.length
     message += "\n"
@@ -87,6 +89,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
 
   def analyzeInputMismatch(implicit context: ParserErrorContext, exception: InputMismatchException): ErrorType = {
     (context.offendingSymbol.getType, context.recognizer.getContext) match {
+      case (Token.EOF, _) => EOFError()
       case (s, i : ImplementationProofContext) if context.recognizer.getExpectedTokens == IntervalSet.of(GobraParser.IMPL)=> {
         IgnoreError()
       }
@@ -207,10 +210,13 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     } required."
   }
 
-  case class RangeNoSpaces(hint : String = "tta")(implicit val context : ErrorContext) extends ErrorType {
+  case class RangeNoSpaces(hint : String = "")(implicit val context : ErrorContext) extends ErrorType {
     val msg = "Missing spaces"
   }
 
 
-
+  case class EOFError()(implicit val context : ErrorContext) extends ErrorType {
+    val msg = "Unexpectedly reached end of file."
+    override lazy val full: String = msg
+  }
 }

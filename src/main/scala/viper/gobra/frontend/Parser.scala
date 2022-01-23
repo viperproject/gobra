@@ -472,6 +472,7 @@ object Parser {
             case e : Exception => errors.append(ParserError(e.getMessage, None))
               new ParserRuleContext()
           }
+        case e => return Left(Vector(ParserError(e.getMessage, None)))
       }
       //println(tokens.getTokens.asScala.map(tok => VOCABULARY.getSymbolicName(tok.getType)))
       //println(tree.toStringTree(this))

@@ -11,6 +11,7 @@ import scala.util.Try
 lazy val silver = project in file("silver")
 lazy val silicon = project in file("silicon")
 lazy val carbon = project in file("carbon")
+lazy val server = project in file("viperserver")
 
 
 // Gobra specific project settings
@@ -18,6 +19,7 @@ lazy val gobra = (project in file("."))
   .dependsOn(silver % "compile->compile;test->test")
   .dependsOn(silicon % "compile->compile;test->test")
   .dependsOn(carbon % "compile->compile;test->test")
+  .dependsOn(server % "compile->compile;test->test")
   .settings(
     // General settings
     name := "Gobra",
@@ -55,7 +57,8 @@ lazy val gobra = (project in file("."))
       "-Dfile.encoding=UTF-8"
     ),
 
-    run / fork := true,
+    fork := true,
+    cancelable in Global := true,
 
 
     // Test settings

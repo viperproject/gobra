@@ -38,7 +38,7 @@ object Desugar {
     val mainDesugarer = new Desugarer(pkg.positions, info)
     // combine all desugared results into one Viper program:
     val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
-    config.reporter report DesugaredMessage(config.inputFiles.head, () => internalProgram)
+    config.reporter report DesugaredMessage(config.inputs.map(_.name), () => internalProgram)
     internalProgram
   }
 
@@ -3036,7 +3036,12 @@ object Desugar {
 
     def triggerD(ctx: FunctionContext)(trigger: PTrigger) : Writer[in.Trigger] = {
       val src: Meta = meta(trigger)
-      for { exprs <- sequence(trigger.exps map exprD(ctx)) } yield in.Trigger(exprs)(src)
+      for { exprs <- sequence(trigger.exps map triggerExprD(ctx)) } yield in.Trigger(exprs)(src)
+    }
+
+    def triggerExprD(ctx: FunctionContext)(triggerExp: PExpression): Writer[in.TriggerExpr] = info.resolve(triggerExp) match {
+      case Some(p: ap.PredicateCall) => for { pa <- predicateCallAccD(ctx)(p)(meta(triggerExp)) } yield in.Accessible.Predicate(pa)
+      case _ => exprD(ctx)(triggerExp)
     }
 
 

@@ -224,18 +224,16 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def tryPackageLookup(importTarget: AbstractImport, id: PIdnUse, errNode: PNode): Option[(Entity, Vector[MemberPath])] = {
     def parseAndTypeCheck(importTarget: AbstractImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
-      val pkgFiles = PackageResolver.resolve(importTarget, config.includeDirs).getOrElse(Vector())
+      val pkgSources = PackageResolver.resolveSources(importTarget, config.moduleName, config.includeDirs).getOrElse(Vector())
       val res = for {
-        nonEmptyPkgFiles <- if (pkgFiles.isEmpty)
+        nonEmptyPkgSources <- if (pkgSources.isEmpty)
           Left(Vector(NotFoundError(s"No source files for package '$importTarget' found")))
-          else Right(pkgFiles)
-        parsedProgram <- Parser.parse(nonEmptyPkgFiles.map(_.path), specOnly = true)(config)
+          else Right(pkgSources)
+        parsedProgram <- Parser.parse(nonEmptyPkgSources, specOnly = true)(config)
         // TODO maybe don't check whole file but only members that are actually used/imported
         // By parsing only declarations and their specification, there shouldn't be much left to type check anyways
         // Info.check would probably need some restructuring to type check only certain members
-        info <- Info.check(parsedProgram, context)(config)
-        // we do no longer need them, so we close them:
-        _ = pkgFiles.map(_.close())
+        info <- Info.check(parsedProgram, nonEmptyPkgSources, context)(config)
       } yield info
       res.fold(
         errs => context.addErrenousPackage(importTarget, errs),
@@ -252,7 +250,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         // alternativeErr is a function to compute the message only when needed
         val alternativeErr = () => context.getImportCycle(importTarget) match {
           case Some(cycle) => message(errNode, s"Package '$importTarget' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
-          case _ => message(errNode, s"Package '$importTarget' contains errors")
+          case _ => message(errNode, s"Package '$importTarget' contains errors: $errs")
         }
         notFoundErr.map(e => message(errNode, e.message))
           .getOrElse(alternativeErr())

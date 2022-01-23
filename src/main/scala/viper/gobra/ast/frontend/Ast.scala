@@ -6,13 +6,11 @@
 
 package viper.gobra.ast.frontend
 
-import java.nio.file.Paths
-
 import org.bitbucket.inkytonik.kiama.rewriting.Rewritable
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
-import viper.gobra.frontend.Parser.FromFileSource
+import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.reporting.VerifierError
 import viper.gobra.util.{Decimal, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
@@ -73,11 +71,7 @@ class PositionManager(val positions: Positions) extends Messaging(positions) {
   }
 
   def translate(start: Position, end: Position): SourcePosition = {
-    val path = start.source match {
-      case FileSource(filename, _) => Paths.get(filename)
-      case FromFileSource(path, _) => path
-      case _ => ???
-    }
+    val path = start.source.toPath
     new SourcePosition(
       path,
       LineColumnPosition(start.line, start.column),
@@ -277,7 +271,7 @@ case class PBreak(label: Option[PLabelUse]) extends PActualStatement
 
 case class PContinue(label: Option[PLabelUse]) extends PActualStatement
 
-case class PGoto(label: PLabelDef) extends PActualStatement
+case class PGoto(label: PLabelUse) extends PActualStatement
 
 case class PDeferStmt(exp: PExpression) extends PActualStatement
 
@@ -383,6 +377,11 @@ case class PBoolLit(lit: Boolean) extends PBasicLiteral
 // The base keeps track of the original representation of the literal. It has no effect on the value of `lit`, it should
 // only be read by pretty-printers
 case class PIntLit(lit: BigInt, base: NumBase = Decimal) extends PBasicLiteral with PNumExpression
+
+// Stand-in float literals
+case class PFloat32Lit(lit: String) extends PBasicLiteral with PNumExpression
+
+case class PFloat64Lit(lit: String) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 
@@ -584,6 +583,9 @@ case class PUIntPtr() extends PPredeclaredType("uintptr") with PIntegerType
 
 
 // TODO: add more types
+sealed trait PFloatType extends PType
+case class PFloat32Type() extends PPredeclaredType("float32") with PFloatType
+case class PFloat64Type() extends PPredeclaredType("float64") with PFloatType
 
 // TODO: ellipsis type
 

@@ -17,7 +17,8 @@ maybeAddressableIdentifier: IDENTIFIER ADDR_MOD?;
 ghostStatement:
     GHOST statement |
     ASSERT expression |
-    fold_stmt=(FOLD | UNFOLD) predicateAccess
+    fold_stmt=(FOLD | UNFOLD) predicateAccess |
+    kind=(ASSUME | ASSERT | INHALE | EXHALE) expression
     ;
 
 boundVariables
@@ -37,6 +38,8 @@ exprOnly: expression EOF;
 
 stmtOnly: statement EOF;
 
+typeOnly: type_ EOF;
+
 ghostPrimaryExpr: range
                 | access
                 | typeOf
@@ -44,7 +47,8 @@ ghostPrimaryExpr: range
                 | old
                 | sConversion
                 | optionNone | optionSome | optionGet 
-                | FORALL boundVariables COLON COLON triggers expression;
+                | quantifier=(FORALL | EXISTS) boundVariables COLON COLON triggers expression
+                | permission=(WRITEPERM | NOPERM);
 
 optionSome: SOME L_PAREN expression R_PAREN;
 
@@ -68,7 +72,11 @@ typeOf: TYPE_OF L_PAREN expression R_PAREN;
 
 isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 
-ghostTypeLit: sqType | ghostSliceType;
+ghostTypeLit: sqType | ghostSliceType | domainType;
+
+domainType: DOM L_CURLY (domainClause eos)* R_CURLY;
+
+domainClause: FUNC IDENTIFIER signature | AXIOM L_CURLY expression eos R_CURLY;
 
 ghostSliceType: GHOST L_BRACKET R_BRACKET elementType;
 
@@ -123,11 +131,11 @@ ghostMember: fpredicateDecl
             | varDecl
             );
 
-fpredicateDecl: PRED IDENTIFIER parameters predicateBody;
+fpredicateDecl: PRED IDENTIFIER parameters predicateBody?;
 
 predicateBody: L_CURLY expression eos R_CURLY;
 
-mpredicateDecl: PRED receiver IDENTIFIER parameters predicateBody;
+mpredicateDecl: PRED receiver IDENTIFIER parameters predicateBody?;
 
 implementationProof: type_ IMPL type_ L_CURLY (implementationProofPredicateAlias eos)* (methodImplementationProof eos)*  R_CURLY;
 
@@ -150,7 +158,7 @@ varSpec:
 
 shortVarDecl: maybeAddressableIdentifierList DECLARE_ASSIGN expressionList;
 
-receiver: 	L_PAREN maybeAddressableIdentifier? STAR? IDENTIFIER R_PAREN;
+receiver: 	L_PAREN maybeAddressableIdentifier? type_ COMMA? R_PAREN;
 
 nonLocalReceiver: 	L_PAREN IDENTIFIER? STAR? typeName R_PAREN;
 
@@ -184,12 +192,13 @@ unfolding: UNFOLDING predicateAccess IN expression;
 
 // Added ++ operator
 expression:
-	primaryExpr
+	TYPE L_BRACKET type_ R_BRACKET
 	| call_op=(
     LEN
     | CAP
     | DOM
     | RANGE
+    | PERM
 	) L_PAREN expression R_PAREN
 	| unfolding
 	| new_
@@ -203,7 +212,8 @@ expression:
 		| AMPERSAND
 		| RECEIVE
 	) expression
-		| expression mul_op = (
+	| primaryExpr
+	| expression mul_op = (
 		STAR
 		| DIV
 		| MOD
@@ -212,7 +222,7 @@ expression:
 		| AMPERSAND
 		| BIT_CLEAR
 	) expression
-	| expression add_op = (PLUS | MINUS | OR | CARET | PLUS_PLUS ) expression
+	| expression add_op = (PLUS | MINUS | OR | CARET | PLUS_PLUS | WAND) expression
     | expression p42_op = (
         UNION
         | INTERSECTION
@@ -243,6 +253,8 @@ new_: NEW L_PAREN type_ R_PAREN;
 // Added ghost statements
 statement:
     ghostStatement
+    | packageStmt
+    | applyStmt
 	| declaration
 	| labeledStmt
 	| simpleStmt
@@ -259,11 +271,15 @@ statement:
 	| specForStmt
 	| deferStmt;
 
+applyStmt: APPLY expression;
+
+packageStmt: PACKAGE expression block?;
+
 specForStmt: loopSpec forStmt;
 
 loopSpec: (INV expression eos)* (DEC terminationMeasure eos)?;
 
-terminationMeasure: expressionList (IF expression)?;
+terminationMeasure: expressionList? (IF expression)?;
 
 // Added true, false as literals
 basicLit:
@@ -277,6 +293,7 @@ basicLit:
 	| RUNE_LIT;
 
 // Added ghostPrimaryExprs
+// Fixed arguments matching on the next line
 primaryExpr:
 	operand
 	| conversion
@@ -288,7 +305,7 @@ primaryExpr:
 		| slice_
 		| seqUpdExp
 		| typeAssertion
-		| arguments
+		| {noTerminatorBetween(1)}? arguments
 		| predConstructArgs
 	);
 
@@ -305,7 +322,7 @@ methodSpec:
 	| GHOST? specification IDENTIFIER parameters;
 
 // Added ghostTypeLiterals
-type_: typeName | typeLit | ghostTypeLit | L_PAREN type_ R_PAREN;
+type_: typeName | typeLit | ghostTypeLit | L_PAREN type_ R_PAREN | PERM;
 
 // Added pred types
 typeLit:
@@ -333,6 +350,10 @@ literalType:
 	| ghostTypeLit
 	| typeName;
 
+// Added Deflate
+//exprCaseClause: exprSwitchCase COLON statementList?;
+
+
 // ANTLR Grammar fixes
 
 // distinguish low,high cap
@@ -352,6 +373,15 @@ ifStmt:
 		ELSE (ifStmt | block)
 	)?;
 
+
+// same for switch
+exprSwitchStmt:
+	SWITCH (simpleStmt? SEMI)? expression? L_CURLY exprCaseClause* R_CURLY;
+
+typeSwitchStmt:
+	SWITCH (simpleStmt? SEMI)? typeSwitchGuard L_CURLY typeCaseClause* R_CURLY;
+
+
 // Introduce name for operator
 assign_op: ass_op=(
 		PLUS
@@ -366,13 +396,6 @@ assign_op: ass_op=(
 		| AMPERSAND
 		| BIT_CLEAR
 	)? ASSIGN;
-
-// same for switch
-exprSwitchStmt:
-	SWITCH (simpleStmt? SEMI)? expression? L_CURLY exprCaseClause* R_CURLY;
-
-typeSwitchStmt:
-	SWITCH (simpleStmt? SEMI)? typeSwitchGuard L_CURLY typeCaseClause* R_CURLY;
 
 // allow "import ("import1";"import2") without semicolon at the end
 eos:

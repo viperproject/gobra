@@ -1,6 +1,11 @@
 lexer grammar GobraLexer;
 import GoLexer;
 
+/*
+DECIMAL_FLOAT_LIT      : DECIMALS ('.'{_input.LA(1) != '.'}? DECIMALS? EXPONENT? | EXPONENT)
+                       | '.'{_input.LA(-1) != '.'}? DECIMALS EXPONENT?
+                       ;
+*/
 // BEGIN GOBRA
 //CURLIES : '{' (CURLIES|~[{}])* '}' ;
 
@@ -8,6 +13,8 @@ TRUE        : 'true';
 FALSE       : 'false';
 ASSERT      : 'assert';
 ASSUME      : 'assume';
+INHALE      : 'inhale';
+EXHALE      : 'exhale';
 PRE         : 'requires';
 PRESERVES   : 'preserves';
 POST        : 'ensures';
@@ -31,6 +38,8 @@ UNION       : 'union';
 INTERSECTION: 'intersection';
 SETMINUS    : 'setminus';
 IMPLIES     : '==>';
+WAND        : '--*';
+APPLY       : 'apply';
 QMARK       : '?';
 L_PRED      : '!<';
 R_PRED      : '!>';
@@ -47,6 +56,7 @@ CAP         : 'cap';
 SOME        : 'some';
 GET         : 'get';
 DOM         : 'domain';
+AXIOM       : 'axiom';
 NONE        : 'none';
 PRED        : 'pred';
 TYPE_OF      : 'typeOf';
@@ -57,4 +67,8 @@ DOT_DOT     : '..';
 SHARED      : 'shared';
 EXCLUSIVE   : 'exclusive';
 PREDICATE   : 'predicate';
+WRITEPERM   : 'writePerm';
+NOPERM      : 'noPerm';
+
+PERM: 'perm';
 // END GOBRA

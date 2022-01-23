@@ -807,7 +807,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val id = visitIdentifier(ctx.IDENTIFIER(), AsIdentifier, PIdnDef)
     val sig = visitSignature(ctx.signature())
     val paramInfo = PBodyParameterInfo(Vector.empty).at(ctx)
-    val body = if (ctx.blockWithBodyParameterInfo() == null || specOnly) None else Some(visitBlockWithBodyParameterInfo(ctx.blockWithBodyParameterInfo()))
+    val body = if (ctx.blockWithBodyParameterInfo() == null || specOnly || spec.isTrusted) None else Some(visitBlockWithBodyParameterInfo(ctx.blockWithBodyParameterInfo()))
     PMethodDecl(id, receiver,sig._1, sig._2, spec, body).at(ctx)
   }
 
@@ -1154,10 +1154,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val posts = groups.getOrElse(GobraParser.POST, Vector.empty).toVector.map(s => visitGobraExpression(s.assertion().expression()))
     val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).toVector.map(s => visitTerminationMeasure(s.terminationMeasure()))
     val isPure = has(ctx.PURE()) && !ctx.PURE().isEmpty
+    val isTrusted = has(ctx.TRUSTED()) && !ctx.TRUSTED().isEmpty
 
-    PFunctionSpec(pres, preserves, posts, terms, isPure = isPure) match {
+    PFunctionSpec(pres, preserves, posts, terms, isPure = isPure, isTrusted = isTrusted) match {
       // If we have empty specification, we can't get a position, for it.
-      case PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false) => PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty).at(ctx.parent.asInstanceOf[ParserRuleContext])
+      case PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false) => PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty).at(ctx.parent.asInstanceOf[ParserRuleContext])
       case spec => spec.at(ctx)
     }
   }
@@ -1185,7 +1186,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty)
     val id = visitIdentifier(ctx.IDENTIFIER(), AsIdentifier, PIdnDef)
     val sig = visitSignature(ctx.signature())
-    val body = if (ctx.blockWithBodyParameterInfo() == null || specOnly) None else Some(visitBlockWithBodyParameterInfo(ctx.blockWithBodyParameterInfo()))
+    val body = if (ctx.blockWithBodyParameterInfo() == null || specOnly || spec.isTrusted) None else Some(visitBlockWithBodyParameterInfo(ctx.blockWithBodyParameterInfo()))
     PFunctionDecl(id, sig._1, sig._2, spec, body).at(ctx)
   }
 
@@ -1713,12 +1714,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitMethodSpec(ctx: GobraParser.MethodSpecContext): PMethodSig = {
+    val ghost = has(ctx.GHOST())
     val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty).at(ctx)
     // The name of each explicitly specified method must be unique and not blank.
     val id = visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnDef)
     val args = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
     val result = if (ctx.result() != null) visitResult(ctx.result()) else PResult(Vector.empty).at(ctx)
-    PMethodSig(id, args.flatten, result, spec, isGhost = false).at(ctx)
+    PMethodSig(id, args.flatten, result, spec, isGhost = ghost).at(ctx)
   }
 
   /**
@@ -1943,8 +1945,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         case GobraParser.UINT32 => PUInt32Type()
         case GobraParser.UINT64 => PUInt64Type()
         case GobraParser.UINTPTR => PUIntPtr()
-        case GobraParser.FLOAT32 => PFloat32Type()
-        case GobraParser.FLOAT64 => PFloat64Type()
+        case GobraParser.FLOAT32 => PFloat32()
+        case GobraParser.FLOAT64 => PFloat64()
         case _ => fail(ctx, s"${ctx.predefined.getText} is not supported yet.")
       }
       t.at(ctx)

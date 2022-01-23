@@ -69,6 +69,7 @@ EXCLUSIVE   : 'exclusive';
 PREDICATE   : 'predicate';
 WRITEPERM   : 'writePerm';
 NOPERM      : 'noPerm';
+TRUSTED     : 'trusted';
 
 
 // Types

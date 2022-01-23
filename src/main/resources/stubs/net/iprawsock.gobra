@@ -38,6 +38,8 @@ type IPAddr struct {
 }
 
 pred (a *IPAddr) Mem() {
+    // The second conjunct should be eventually replaced by a.IP.Mem().
+    // However, doing this at the moment requires changes in the VerifiedSCION codebase.
     acc(a) && forall i int :: 0 <= i && i < len(a.IP) ==> acc(&(a.IP)[i])
 }
 

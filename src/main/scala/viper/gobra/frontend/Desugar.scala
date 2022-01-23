@@ -1427,14 +1427,22 @@ object Desugar {
     }
 
     def arguments(symb: st.WithArguments, args: Vector[in.Expr]): Vector[in.Expr] = {
-      val c = args zip symb.args
-      val assignments = c.map{ case (from, pTo) => (from, typeD(symb.context.symbType(pTo.typ), Addressability.inParameter)(from.info)) }
-      assignments.map{ case (from, to) => implicitConversion(from.typ, to, from) }
+      val c = args zip symb.args.map(param => symb.context.symbType(param.typ))
+      arguments(c)
     }
 
     def arguments(ft: FunctionT, args: Vector[in.Expr]): Vector[in.Expr] = {
-      val c = args zip ft.args
-      val assignments = c.map{ case (from, pTo) => (from, typeD(pTo, Addressability.inParameter)(from.info)) }
+      Violation.violation(args.length == ft.args.length, s"expected same number of arguments and types")
+      arguments(args zip ft.args)
+    }
+
+    def arguments(pt: PredT, args: Vector[in.Expr]): Vector[in.Expr] = {
+      Violation.violation(args.length == pt.args.length, s"expected same number of arguments and types")
+      arguments(args zip pt.args)
+    }
+
+    def arguments(args: Vector[(in.Expr, Type)]): Vector[in.Expr] = {
+      val assignments = args.map{ case (from, pTo) => (from, typeD(pTo, Addressability.inParameter)(from.info)) }
       assignments.map{ case (from, to) => implicitConversion(from.typ, to, from) }
     }
 
@@ -1615,15 +1623,7 @@ object Desugar {
           case PAnd(left, right) => for {l <- go(left); r <- go(right)} yield in.And(l, r)(src)
           case POr(left, right) => for {l <- go(left); r <- go(right)} yield in.Or(l, r)(src)
 
-          case PAdd(left, right) =>
-            for {
-              l <- go(left)
-              r <- go(right)
-              res = (info.typ(left), info.typ(right)) match {
-                case (StringT, StringT) => in.Concat(l, r)(src)
-                case _ => in.Add(l, r)(src)
-              }
-            } yield res
+          case PAdd(left, right) => for {l <- go(left); r <- go(right)} yield in.Add(l, r)(src)
           case PSub(left, right) => for {l <- go(left); r <- go(right)} yield in.Sub(l, r)(src)
           case PMul(left, right) => for {l <- go(left); r <- go(right)} yield in.Mul(l, r)(src)
           case PMod(left, right) => for {l <- go(left); r <- go(right)} yield in.Mod(l, r)(src)
@@ -1759,7 +1759,8 @@ object Desugar {
                     in.PredT(dArgs.flatten.map(_.typ), Addressability.rValue)
                   case c => Violation.violation(s"This case should be unreachable, but got $c")
                 }
-                res <- w(idT, dArgs)
+                dImplicitlyConvertedArgs = (dArgs zip idT.args).map { case (optFrom, to) => optFrom.map(from => implicitConversion(from.typ, to, from)) }
+                res <- w(idT, dImplicitlyConvertedArgs)
               } yield res
             }
 
@@ -2279,7 +2280,6 @@ object Desugar {
         val results = implSymb.result.outs.zipWithIndex.map{ case (res, idx) => outParameterD(res, idx, implSymb.context.getTypeInfo)._1 }
 
         val src = meta(implSymb.decl, implSymb.context.getTypeInfo).createAnnotatedInfo(AutoImplProofAnnotation(implT.toString, itfT.toString))
-
         if (itfSymb.isPure) in.PureMethodSubtypeProof(subProxy, superT, superProxy, receiver, args, results, None)(src)
         else in.MethodSubtypeProof(subProxy, superT, superProxy, receiver, args, results, None)(src)
       }
@@ -2327,6 +2327,8 @@ object Desugar {
       case Type.BooleanT => in.BoolT(addrMod)
       case Type.StringT => in.StringT(addrMod)
       case Type.IntT(x) => in.IntT(addrMod, x)
+      case Type.Float32T => in.Float32T(addrMod)
+      case Type.Float64T => in.Float64T(addrMod)
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
       case Type.SliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
       case Type.MapT(keys, values) =>
@@ -2511,7 +2513,7 @@ object Desugar {
     }
 
     def receiverD(p: PReceiver, context: TypeInfo = info): (in.Parameter.In, Option[in.LocalVar]) = {
-      val src: Meta = meta(p)
+      val src: Meta = meta(p, context)
       p match {
         case PNamedReceiver(id, typ, _) =>
           val param = in.Parameter.In(idName(id, context), typeD(context.symbType(typ), Addressability.receiver)(src))(src)
@@ -2580,23 +2582,25 @@ object Desugar {
         case PExhale(exp) => for {e <- goA(exp)} yield in.Exhale(e)(src)
         case PFold(exp)   =>
           info.resolve(exp.pred) match {
-            case Some(_: ap.PredExprInstance) => for {
+            case Some(b: ap.PredExprInstance) => for {
               // the well-definedness checks guarantees that a pred expr instance in a Fold is in format predName{p1,...,pn}(a1, ...., am)
               e <- goA(exp)
               access = e.asInstanceOf[in.Access]
               predExpInstance = access.e.op.asInstanceOf[in.PredExprInstance]
-            } yield in.PredExprFold(predExpInstance.base.asInstanceOf[in.PredicateConstructor],  predExpInstance.args, access.p)(src)
+              args = arguments(b.typ, predExpInstance.args)
+            } yield in.PredExprFold(predExpInstance.base.asInstanceOf[in.PredicateConstructor], args, access.p)(src)
 
             case _ => for {e <- goA(exp)} yield in.Fold(e.asInstanceOf[in.Access])(src)
           }
         case PUnfold(exp) =>
           info.resolve(exp.pred) match {
-            case Some(_: ap.PredExprInstance) => for {
+            case Some(b: ap.PredExprInstance) => for {
               // the well-definedness checks guarantees that a pred expr instance in an Unfold is in format predName{p1,...,pn}(a1, ...., am)
               e <- goA(exp)
               access = e.asInstanceOf[in.Access]
               predExpInstance = access.e.op.asInstanceOf[in.PredExprInstance]
-            } yield in.PredExprUnfold(predExpInstance.base.asInstanceOf[in.PredicateConstructor],  predExpInstance.args, access.p)(src)
+              args = arguments(b.typ, predExpInstance.args)
+            } yield in.PredExprUnfold(predExpInstance.base.asInstanceOf[in.PredicateConstructor], args, access.p)(src)
             case _ => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
           }
         case PPackageWand(wand, blockOpt) =>
@@ -2897,11 +2901,12 @@ object Desugar {
             p <- permissionD(ctx)(perm)
           } yield in.Access(in.Accessible.Predicate(predAcc), p)(src)
 
-        case Some(_: ap.PredExprInstance) =>
+        case Some(b: ap.PredExprInstance) =>
           for {
             base <- exprD(ctx)(n.base.asInstanceOf[PExpression])
             args <- sequence(n.args.map(exprD(ctx)(_)))
-            predExprInstance = in.PredExprInstance(base, args)(src)
+            implicitlyConvertedArgs = arguments(b.typ, args)
+            predExprInstance = in.PredExprInstance(base, implicitlyConvertedArgs)(src)
             p <- permissionD(ctx)(perm)
           } yield in.Access(in.Accessible.PredExpr(predExprInstance), p)(src)
 
@@ -2911,45 +2916,77 @@ object Desugar {
 
     def predicateCallAccD(ctx: FunctionContext)(p: ap.PredicateCall)(src: Meta): Writer[in.PredicateAccess] = {
 
+      def getBuiltInPredType(pk: ap.BuiltInPredicateKind): FunctionT = {
+        val abstractType = info.typ(pk.symb.tag)
+        val argsForTyping = pk match {
+          case _: ap.BuiltInPredicate =>
+            p.args.map(info.typ)
+          case base: ap.BuiltInReceivedPredicate =>
+            Vector(info.typ(base.recv))
+          case base: ap.BuiltInPredicateExpr =>
+            Vector(info.symbType(base.typ))
+        }
+        Violation.violation(abstractType.typing.isDefinedAt(argsForTyping), s"cannot type built-in member ${pk.symb.tag} as it is not defined for arguments $argsForTyping")
+        abstractType.typing(argsForTyping)
+      }
+
+      /** args must not include the receiver in the case of received predicates in order that the FunctionT corresponding
+        * to the given predicate symbol has the same amount of parameters / parameter types */
+      def convertArgs(args: Vector[in.Expr]): Vector[in.Expr] = {
+        p.predicate match {
+          case b: ap.BuiltInPredicateKind => arguments(getBuiltInPredType(b), args)
+          case b: ap.Symbolic => b.symb match {
+            case psym: st.Predicate => arguments(psym, args)
+            case s => Violation.violation(s"expected a predicate symbol for a predicate call but got $s")
+          }
+          case p => Violation.violation(s"unexpected predicate kind, got $p")
+        }
+      }
+
+      /** not-yet implicitly converted args */
       val dArgs = p.args map pureExprD(ctx)
 
       p.predicate match {
         case b: ap.Predicate =>
           val fproxy = fpredicateProxy(b.id, info)
-          unit(in.FPredicateAccess(fproxy, dArgs)(src))
+          unit(in.FPredicateAccess(fproxy, convertArgs(dArgs))(src))
 
         case b: ap.ReceivedPredicate =>
           val dRecv = pureExprD(ctx)(b.recv)
           val dRecvWithPath = applyMemberPathD(dRecv, b.path)(src)
           val proxy = mpredicateProxyD(b.id, info)
-          unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs)(src))
+          unit(in.MPredicateAccess(dRecvWithPath, proxy, convertArgs(dArgs))(src))
 
         case b: ap.PredicateExpr =>
           val dRecvWithPath = applyMemberPathD(dArgs.head, b.path)(src)
           val proxy = mpredicateProxyD(b.id, info)
-          unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
+          unit(in.MPredicateAccess(dRecvWithPath, proxy, convertArgs(dArgs.tail))(src))
 
         case _: ap.PredExprInstance => Violation.violation("this case should be handled somewhere else")
 
         case b: ap.ImplicitlyReceivedInterfacePredicate =>
           val proxy = mpredicateProxyD(b.id, info)
           val recvType = typeD(b.symb.itfType, Addressability.receiver)(src)
-          unit(in.MPredicateAccess(implicitThisD(recvType)(src), proxy, dArgs)(src))
+          unit(in.MPredicateAccess(implicitThisD(recvType)(src), proxy, convertArgs(dArgs))(src))
 
         case b: ap.BuiltInPredicate =>
           val fproxy = fpredicateProxy(b.id, info)
-          unit(in.FPredicateAccess(fproxy, dArgs)(src))
+          unit(in.FPredicateAccess(fproxy, convertArgs(dArgs))(src))
 
         case b: ap.BuiltInReceivedPredicate =>
           val dRecv = pureExprD(ctx)(b.recv)
           val dRecvWithPath = applyMemberPathD(dRecv, b.path)(src)
-          val proxy = mpredicateProxy(b.symb.tag, dRecvWithPath.typ, dArgs.map(_.typ))(src)
-          unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs)(src))
+          val convertedArgs = convertArgs(dArgs)
+          val proxy = mpredicateProxy(b.symb.tag, dRecvWithPath.typ, convertedArgs.map(_.typ))(src)
+          unit(in.MPredicateAccess(dRecvWithPath, proxy, convertedArgs)(src))
 
         case b: ap.BuiltInPredicateExpr =>
           val dRecvWithPath = applyMemberPathD(dArgs.head, b.path)(src)
-          val proxy = mpredicateProxy(b.symb.tag, dRecvWithPath.typ, dArgs.map(_.typ))(src)
-          unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
+          val convertedArgsWithoutRecv = convertArgs(dArgs.tail)
+          /** consists of the receiver type and the type of the converted arguments */
+          val argTypes = (dArgs.head +: convertedArgsWithoutRecv).map(_.typ)
+          val proxy = mpredicateProxy(b.symb.tag, dRecvWithPath.typ, argTypes)(src)
+          unit(in.MPredicateAccess(dRecvWithPath, proxy, convertedArgsWithoutRecv)(src))
       }
     }
 
@@ -2970,7 +3007,8 @@ object Desugar {
           for {
             base <- goE(p.base)
             predInstArgs <- sequence(p.args map goE)
-          } yield in.Accessible.PredExpr(in.PredExprInstance(base, predInstArgs)(src))
+            implicitlyConvertedArgs = arguments(p.typ, predInstArgs)
+          } yield in.Accessible.PredExpr(in.PredExprInstance(base, implicitlyConvertedArgs)(src))
 
         case _ =>
           val argT = info.typ(acc)

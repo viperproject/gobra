@@ -464,6 +464,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case BoolTExpr() => "bool"
     case StringTExpr() => "string"
     case IntTExpr(kind) => kind.name
+    case Float32TExpr() => "float32"
+    case Float64TExpr() => "float64"
     case PermTExpr() => "perm"
     case PointerTExpr(elem) => "*" <> showExpr(elem)
     case StructTExpr(fs) => "struct" <> braces(showList(fs)(f => f._1 <> ":" <+> showExpr(f._2)))
@@ -566,6 +568,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case BoolT(_) => "bool"
     case IntT(_, kind) => kind.name
     case StringT(_) => "string"
+    case Float32T(_) => "float32"
+    case Float64T(_) => "float64"
     case VoidT => "void"
     case PermissionT(_) => "perm"
     case DefinedT(name, _) => name

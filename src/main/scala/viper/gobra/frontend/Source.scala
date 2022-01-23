@@ -6,11 +6,12 @@
 
 package viper.gobra.frontend
 
+import java.io.Reader
+import java.nio.file.{Files, Path, Paths}
+
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Source, StringSource}
 import viper.gobra.util.Violation
 
-import java.io.Reader
-import java.nio.file.{Files, Path, Paths}
 import scala.io.BufferedSource
 
 /**

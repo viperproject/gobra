@@ -1,0 +1,47 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package proofGenForImportPkg
+
+// the setup is as follows:
+// - ImplPkgState is a struct containing an interface fields
+// - LibraryFn calls an interface method and its postcondition relates the result to a pure function from that interface
+
+// this setup failed in an earlier version of Gobra because LibraryFn's postcondition uses an auxiliary function to
+// constrain the return value. This auxiliary function specifies for each implementation of the interface, what the
+// return value will be given that the dynamic type is of said implementation. In this specification, the implementation
+// proof of the given implementation is called. Not generating the implementation proof (for in this case SomeInterface)
+// results in an exception while constructing the Viper AST because the call references an inexistent function.
+// It is thus important that implementation proofs are generated for all missing ones not just in the current package
+// but also in imported and used packages.
+
+type ImplPkgState struct {
+    itf SomeInterface
+}
+
+type SomeInterface interface {
+    ensures SomeProperty(res)
+    GetValue() (res int)
+
+    ghost pure SomeProperty(val int) bool
+}
+
+type SomeImplementation struct {}
+(*SomeImplementation) implements SomeInterface
+
+ensures impl.SomeProperty(res)
+func (impl *SomeImplementation) GetValue() (res int) {
+    return 42
+}
+
+ghost
+pure func (impl *SomeImplementation) SomeProperty(val int) bool {
+    return val == 42
+}
+
+requires acc(s)
+ensures  acc(s)
+ensures  s.itf.SomeProperty(res)
+func (s *ImplPkgState) LibraryFn() (res int) {
+    return s.itf.GetValue()
+}

@@ -104,21 +104,25 @@ func LastIndexByte(s string, c byte) int /*{
 // SplitN slices s into substrings separated by sep and returns a slice of
 // the substrings between those separators.
 ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+decreases _
 func SplitN(s, sep string, n int) (res []string)
 
 // SplitAfterN slices s into substrings after each instance of sep and
 // returns a slice of those substrings.
 ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+decreases _
 func SplitAfterN(s, sep string, n int) (res []string)
 
 // Split slices s into all substrings separated by sep and returns a slice of
 // the substrings between those separators.
 ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+decreases _
 func Split(s, sep string) (res []string) //{ return genSplit(s, sep, 0, -1) }
 
 // SplitAfter slices s into all substrings after each instance of sep and
 // returns a slice of those substrings.
 ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+decreases _
 func SplitAfter(s, sep string) (res []string) /*{
 	return genSplit(s, sep, len(sep), -1)
 }*/
@@ -230,13 +234,16 @@ pure func Repeat(s string, count int) (res string) /*{
 */
 
 // ToUpper returns s with all Unicode letters mapped to their upper case.
+decreases _
 func ToUpper(s string) string
 
 // ToLower returns s with all Unicode letters mapped to their lower case.
+decreases _
 func ToLower(s string) string
 
 // ToTitle returns a copy of the string s with all Unicode letters mapped to
 // their Unicode title case.
+decreases _
 func ToTitle(s string) string // { return Map(unicode.ToTitle, s) }
 
 // ToUpperSpecial returns a copy of the string s with all Unicode letters mapped to their
@@ -351,6 +358,7 @@ func LastIndexFunc(s string, f func(rune) bool) int {
 
 // Trim returns a slice of the string s with all leading and
 // trailing Unicode code points contained in cutset removed.
+decreases _
 func Trim(s, cutset string) string /*{
 	if s == "" || cutset == "" {
 		return s
@@ -363,6 +371,7 @@ func Trim(s, cutset string) string /*{
 // Unicode code points contained in cutset removed.
 //
 // To remove a prefix, use TrimPrefix instead.
+decreases _
 func TrimLeft(s, cutset string) string /*{
 	if s == "" || cutset == "" {
 		return s
@@ -375,6 +384,7 @@ func TrimLeft(s, cutset string) string /*{
 // Unicode code points contained in cutset removed.
 //
 // To remove a suffix, use TrimSuffix instead.
+decreases _
 func TrimRight(s, cutset string) string /*{
 	if s == "" || cutset == "" {
 		return s
@@ -399,6 +409,7 @@ func TrimPrefix(s, prefix string) string /*{
 
 // TrimSuffix returns s without the provided trailing suffix string.
 // If s doesn't end with suffix, s is returned unchanged.
+decreases _
 func TrimSuffix(s, suffix string) string /*{
 	if HasSuffix(s, suffix) {
 		return s[:len(s)-len(suffix)] // (joao): slicing a string is still unsupported
@@ -422,4 +433,5 @@ func ReplaceAll(s, oldS, newS string) string {
 func EqualFold(s, t string) bool
 
 // Index returns the index of the first instance of substr in s, or -1 if substr is not present in s.
+decreases _
 func Index(s, substr string) int

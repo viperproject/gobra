@@ -509,8 +509,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   def visitFloat(node: TerminalNode): PBasicLiteral = {
-    //val decfloat = "(?:(?<dec1>[0-9]+[.][0-9]*)(?:[eE](?<decexp1>[+-]?[0-9]+)?))|(?:(?<dec2>[.][0-9]+)(?:[eE](?<decexp2>[+-]?[0-9]+))?)|(?:[0-9]+[eE][0-9]+)".r
-    PFloat64Lit(node.getText).at(node)
+    PFloatLit(BigDecimal(node.getText.replace("_", ""))).at(node)
   }
 
   override def visitBasicLit(ctx: GobraParser.BasicLitContext): PBasicLiteral = {

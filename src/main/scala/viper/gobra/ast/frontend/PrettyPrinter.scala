@@ -396,6 +396,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           case Hexadecimal => "0x"
         }
         prefix + lit.toString(base.base)
+      case PFloatLit(lit) => lit.toString()
       case PNilLit() => "nil"
       case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)

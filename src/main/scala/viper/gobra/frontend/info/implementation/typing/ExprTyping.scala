@@ -185,7 +185,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PIntLit => numExprWithinTypeBounds(n)
 
-    case _: PFloat32Lit | _: PFloat64Lit => ???
+    case _: PFloatLit => ???
 
     case n@PCompositeLit(t, lit) =>
       val simplifiedT = t match {

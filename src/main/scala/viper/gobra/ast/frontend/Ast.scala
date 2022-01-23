@@ -379,9 +379,7 @@ case class PBoolLit(lit: Boolean) extends PBasicLiteral
 case class PIntLit(lit: BigInt, base: NumBase = Decimal) extends PBasicLiteral with PNumExpression
 
 // Stand-in float literals
-case class PFloat32Lit(lit: String) extends PBasicLiteral with PNumExpression
-
-case class PFloat64Lit(lit: String) extends PBasicLiteral with PNumExpression
+case class PFloatLit(lit: BigDecimal) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 

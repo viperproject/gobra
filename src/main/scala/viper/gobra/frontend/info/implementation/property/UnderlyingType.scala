@@ -20,13 +20,18 @@ trait UnderlyingType { this: TypeInfoImpl =>
       case t => t
     }
 
-  lazy val underlyingTypeP: PType => Option[PType] = {
-    def inCtx(c: ExternalTypeInfo, rhs: PType): Option[PType] = c match {
-      case c: UnderlyingType => c.underlyingTypeP(rhs)
+  lazy val underlyingTypeP: PType => Option[PType] = t => {
+    underlyingTypeWithCtxP(t).map(_._1)
+  }
+
+  /** returns the underlying type with the context in which it occurs */
+  lazy val underlyingTypeWithCtxP: PType => Option[(PType, UnderlyingType)] = {
+    def inCtx(c: ExternalTypeInfo, rhs: PType): Option[(PType, UnderlyingType)] = c match {
+      case c: UnderlyingType => c.underlyingTypeWithCtxP(rhs)
       case _ => None
     }
 
-    attr[PType, Option[PType]] {
+    attr[PType, Option[(PType, UnderlyingType)]] {
       case PNamedOperand(t) => entity(t) match {
         case st.NamedType(decl, _, ctx) => inCtx(ctx, decl.right)
         case st.TypeAlias(decl, _, ctx) => inCtx(ctx, decl.right)
@@ -37,7 +42,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
         case st.TypeAlias(decl, _, ctx) => inCtx(ctx, decl.right)
         case _ => None // type not defined
       }
-      case t => Some(t)
+      case t => Some((t, this))
     }
   }
 

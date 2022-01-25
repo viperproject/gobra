@@ -53,7 +53,7 @@ object Parser {
   // cache maps a key (obtained by hasing file path and file content) to the parse result
   private var sourceCache: Map[SourceCacheKey, (Either[Vector[ParserError], PProgram], Positions)] = Map.empty
 
-  /** computes the key for caching a particular source. This takes the name, the specOnly flag, and the file's content into account */
+  /** computes the key for caching a particular source. This takes the name, the specOnly flag, and the file's contents into account */
   private def getCacheKey(source: Source, specOnly: Boolean): SourceCacheKey = {
     val key = source.name ++ (if (specOnly) "1" else "0") ++ source.content
     val bytes = MessageDigest.getInstance("MD5").digest(key.getBytes)

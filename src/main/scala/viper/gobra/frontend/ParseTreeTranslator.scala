@@ -32,14 +32,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitTypeOnly(ctx: TypeOnlyContext): PType = visitType_(ctx.type_())
 
   def translate[Rule <: ParserRuleContext, Node](tree: Rule):  Node = {
-    tree match {
-      case tree: SourceFileContext => visitSourceFile(tree).asInstanceOf[Node]
-      case tree: ExpressionContext => visitGobraExpression(tree).asInstanceOf[Node]
-      case tree: ExprOnlyContext => visitExprOnly(tree).asInstanceOf[Node]
-      case tree: StmtOnlyContext => visitStmtOnly(tree).asInstanceOf[Node]
-      case tree: FunctionDeclContext => visitFunctionDecl(tree).asInstanceOf[Node]
-      case tree: ImportDeclContext => visitImportDecl(tree).asInstanceOf[Node]
-      case tree: TypeOnlyContext => visitTypeOnly(tree).asInstanceOf[Node]
+    visit(tree) match {
+      case n : Node => n
+      case n => throw new RuntimeException(s"Wrong type parameters: Visiting ${tree.getClass.toString} yields ${n.getClass.toString}")
     }
   }
 
@@ -127,6 +122,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     allowWildcards = oldAllowWildCards
     res
   }
+
+
+  /**
+    * visits an expression
+    */
+  override def visitExpression(ctx: ExpressionContext): PExpression = visitGobraExpression(ctx, Disallow)
 
   def visitGobraExpression(ctx: GobraParser.ExpressionContext, wildcardRule: WildcardRule = Disallow): PExpression = {
     if (ctx.primaryExpr() != null){

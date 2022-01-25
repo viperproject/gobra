@@ -47,14 +47,12 @@ object Parser {
     */
 
   def parse(input: Vector[Source], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
-    val sources = input.map(Gobrafier.gobrafy).map(i => SemicolonPreprocessor.preprocess(i)(config))
-    val legacyOverride = false
-    if (legacyOverride) {
-      val preprocessedSources = input
-        .map{ Gobrafier.gobrafy }
-        .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
+    val sources = input
+      .map(Gobrafier.gobrafy)
+      .map(i => SemicolonPreprocessor.preprocess(i)(config))
+    if (config.legacyParser) {
       for {
-        parseAst <- time("GOBRA", input(0).name) {parseSources(preprocessedSources, specOnly)(config)}
+        parseAst <- time("GOBRA", input(0).name) {parseSources(sources, specOnly)(config)}
         postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
       } yield postprocessedAst
     } else {
@@ -101,7 +99,7 @@ object Parser {
 
     def parseSource(source: Source): Either[Vector[ParserError], PProgram] = {
       val errors = ListBuffer.empty[ParserError]
-      val parser = new antlrSyntaxAnalyzer[SourceFileContext, PProgram](source, errors, pom, specOnly)
+      val parser = new SyntaxAnalyzer[SourceFileContext, PProgram](source, errors, pom, specOnly)
       parser.parse(parser.sourceFile) match {
         case Right(ast) =>
           config.reporter report ParsedInputMessage(source.name, () => ast)
@@ -194,7 +192,7 @@ object Parser {
   def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[ParserError], PPackage] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parsers = new SyntaxAnalyzer(pom, specOnly)
+    val parsers = new CombinatorSyntaxAnalyzer(pom, specOnly)
 
     def parseSource(source: Source): Either[Vector[ParserError], PProgram] = {
       parsers.parseAll(parsers.program, source) match {
@@ -289,42 +287,42 @@ object Parser {
   def parseProgram(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], PProgram] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new antlrSyntaxAnalyzer[SourceFileContext, PProgram](source, ListBuffer.empty[ParserError],  pom, specOnly)
+    val parser = new SyntaxAnalyzer[SourceFileContext, PProgram](source, ListBuffer.empty[ParserError],  pom, specOnly)
     parser.parse(parser.sourceFile())
   }
 
   def parseFunction(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], PMember] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new antlrSyntaxAnalyzer[FunctionDeclContext, PMember](source, ListBuffer.empty[ParserError],  pom, specOnly)
+    val parser = new SyntaxAnalyzer[FunctionDeclContext, PMember](source, ListBuffer.empty[ParserError],  pom, specOnly)
     parser.parse(parser.functionDecl())
   }
 
   def parseStmt(source: Source): Either[Vector[ParserError], PStatement] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new antlrSyntaxAnalyzer[StmtOnlyContext, PStatement](source, ListBuffer.empty[ParserError],  pom, false)
+    val parser = new SyntaxAnalyzer[StmtOnlyContext, PStatement](source, ListBuffer.empty[ParserError],  pom, false)
     parser.parse(parser.stmtOnly())
   }
 
   def parseExpr(source: Source): Either[Vector[ParserError], PExpression] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new antlrSyntaxAnalyzer[ExprOnlyContext, PExpression](source, ListBuffer.empty[ParserError],  pom, false)
+    val parser = new SyntaxAnalyzer[ExprOnlyContext, PExpression](source, ListBuffer.empty[ParserError],  pom, false)
     parser.parse(parser.exprOnly())
   }
 
   def parseImportDecl(source: Source): Either[Vector[ParserError], Vector[PImport]] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new antlrSyntaxAnalyzer[ImportDeclContext, Vector[PImport]](source, ListBuffer.empty[ParserError],  pom, false)
+    val parser = new SyntaxAnalyzer[ImportDeclContext, Vector[PImport]](source, ListBuffer.empty[ParserError],  pom, false)
     parser.parse(parser.importDecl())
   }
 
   def parseType(source : Source) : Either[Vector[ParserError], PType] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new antlrSyntaxAnalyzer[TypeOnlyContext, PType](source, ListBuffer.empty[ParserError],  pom, false)
+    val parser = new SyntaxAnalyzer[TypeOnlyContext, PType](source, ListBuffer.empty[ParserError],  pom, false)
     parser.parse(parser.typeOnly())
   }
 
@@ -435,7 +433,7 @@ object Parser {
 
 
 
-  private class antlrSyntaxAnalyzer[Rule <: ParserRuleContext, Node <: AnyRef](tokens: CommonTokenStream, source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean = false) extends GobraParser(tokens){
+  private class SyntaxAnalyzer[Rule <: ParserRuleContext, Node <: AnyRef](tokens: CommonTokenStream, source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean = false) extends GobraParser(tokens){
 
 
     def this(source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean) = {
@@ -542,7 +540,7 @@ object Parser {
     }
   }
 
-  private class SyntaxAnalyzer(pom: PositionManager, specOnly: Boolean = false) extends Parsers(pom.positions) {
+  private class CombinatorSyntaxAnalyzer(pom: PositionManager, specOnly: Boolean = false) extends Parsers(pom.positions) {
 
     lazy val rewriter = new PRewriter(pom.positions)
 

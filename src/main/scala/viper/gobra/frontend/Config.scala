@@ -50,7 +50,7 @@ case class Config(
                  int32bit: Boolean = false,
                  // the following option is currently not controllable via CLI as it is meaningless without a constantly
                  // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
-                 cacheParser: Boolean = false ,
+                 cacheParser: Boolean = false,
                  legacyParser: Boolean = false,
 ) {
 
@@ -472,6 +472,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     int32bit = int32Bit(),
     shouldVerify = shouldVerify,
     shouldChop = shouldChop,
-    legacyParser = legacyParser.getOrElse(false)
+    legacyParser = legacyParser()
   )
 }

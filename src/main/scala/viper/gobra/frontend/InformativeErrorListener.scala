@@ -11,9 +11,7 @@ import viper.silver.ast.SourcePosition
 import java.nio.file.Path
 import scala.collection.mutable.ListBuffer
 
-class InformativeErrorListener(val messages: ListBuffer[ParserError], val source: Source) extends BaseErrorListener{
-
-  var ignoredImplementationProofError : Option[ParserError] = None
+class InformativeErrorListener(val messages: ListBuffer[ParserError], val source: Source) extends BaseErrorListener {
 
   override def syntaxError(recognizer: Recognizer[_, _], offendingSymbol: Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
     val error = recognizer match {
@@ -28,17 +26,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
       case source: FromFileSource => Some(SourcePosition(source.path, line, charPositionInLine))
       case _ => None
     }
-    val message = error match {
-      case i : IgnoreError => {
-        val ignored = ParserError(error.full, pos)
-        ignoredImplementationProofError = ignoredImplementationProofError match {
-          case None => Some(ignored)
-          case s => s
-        }
-        Some(ignored)
-      }
-      case a => Some(ParserError(error.full, pos))
-    }
+    val message = Some(ParserError(error.full, pos))
     messages.prependAll(message)
   }
 
@@ -104,10 +92,10 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     val ctx = parser.getContext
     ctx match {
       case slice : Slice_Context => {
-        // Missing either the second or second an third (or completely wrong)
+        // Missing either the second or second and third argument (or completely wrong)
         SliceMissingIndex()
       }
-      case _ : VarSpecContext | _ : Type_Context => GotAssignErrorType()
+      case _ : VarSpecContext | _ : Type_Context if context.offendingSymbol.getType == GobraParser.DECLARE_ASSIGN => GotAssignErrorType()
       case eos : EosContext => {
         parser.getTokenStream.LT(2).getType match {
           case GobraParser.DECLARE_ASSIGN => GotAssignErrorType()(context.copy(offendingSymbol = parser.getTokenStream.LT(2)))
@@ -187,8 +175,8 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
   }
 
   case class DefaultNoViable(e : NoViableAltException)(implicit val context: ParserErrorContext) extends ErrorType {
-    val msg : String = s"Wrong Syntax after '${e.getStartToken.getText}'."
-    override lazy val underlined: String = underlineError(context.copy(offendingSymbol = context.recognizer.getInputStream.LT(2)), restOfTheLine = true)
+    val msg : String = s"Wrong Syntax at '${e.getStartToken.getText}'."
+    override lazy val underlined: String = underlineError(context.copy(offendingSymbol = e.getStartToken), restOfTheLine = true)
   }
 
   case class DefaultFailedEOS()(implicit val context: ParserErrorContext) extends ErrorType {

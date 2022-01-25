@@ -120,9 +120,9 @@ sourceFile:
 		(functionDecl | methodDecl | declaration | ghostMember) eos
 	)* EOF;
 
-ghostMember: fpredicateDecl
+ghostMember: implementationProof
+            | fpredicateDecl
             | mpredicateDecl
-            | implementationProof
             | (GHOST | (GHOST eos)) (
             methodDecl 
             | functionDecl 
@@ -141,7 +141,7 @@ implementationProof: type_ IMPL type_ (L_CURLY (implementationProofPredicateAlia
 
 methodImplementationProof: PURE? nonLocalReceiver IDENTIFIER signature block?;
 
-selection: primaryExpr DOT IDENTIFIER
+selection: primaryExpr
             | type_ DOT IDENTIFIER;
 
 implementationProofPredicateAlias: PRED IDENTIFIER DECLARE_ASSIGN (selection | operandName);
@@ -200,7 +200,6 @@ expression:
     | RANGE
 	) L_PAREN expression R_PAREN
 	| unfolding
-	| new_
 	| make
 	| unary_op = (
 		PLUS
@@ -298,6 +297,7 @@ primaryExpr:
 	| conversion
 	| methodExpr
 	| ghostPrimaryExpr
+	| new_
 	| primaryExpr (
 		(DOT IDENTIFIER)
 		| index

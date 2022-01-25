@@ -17,7 +17,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Source.{FromFileSource, TransformableSource}
 import viper.gobra.reporting.{Source => _, _}
 import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
-import org.antlr.v4.runtime.{BailErrorStrategy, CharStreams, CommonTokenStream, ConsoleErrorListener, DefaultErrorStrategy, ParserRuleContext}
+import org.antlr.v4.runtime.{CharStreams, CommonTokenStream, DefaultErrorStrategy, ParserRuleContext}
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, FunctionDeclContext, ImportDeclContext, SourceFileContext, StmtOnlyContext, TypeOnlyContext, Type_Context}
@@ -47,7 +47,7 @@ object Parser {
     */
 
   def parse(input: Vector[Source], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
-    val sources = input.map(Gobrafier.gobrafy)
+    val sources = input.map(Gobrafier.gobrafy).map(i => SemicolonPreprocessor.preprocess(i)(config))
     val legacyOverride = false
     if (legacyOverride) {
       val preprocessedSources = input
@@ -449,30 +449,39 @@ object Parser {
         source, errors, pom, specOnly)
       getInterpreter.setPredictionMode(PredictionMode.SLL)
       removeErrorListeners()
-      setErrorHandler(new BailErrorStrategy)
+      setErrorHandler(new ReportFirstErrorStrategy)
+      addErrorListener(new InformativeErrorListener(errors, source))
     }
 
+    def parse_LL(rule : => Rule): ParserRuleContext = {
+      // thrown by ReportFirstErrorStrategy
+      tokens.seek(0)
+      // rewind input stream
+      reset()
+      val ll_errors = ListBuffer.empty[ParserError]
+      // back to standard listeners/handlers
+      removeErrorListeners()
+      addErrorListener(new InformativeErrorListener(ll_errors, source))
+      setErrorHandler(new DefaultErrorStrategy)
+      // full now with full LL(*)
+      getInterpreter.setPredictionMode(PredictionMode.LL)
+
+      val res = try time ("ANTLR_PARSE_LL", source.name) { rule }
+      catch {
+        case e : Exception => errors.append(ParserError(e.getMessage, Some(SourcePosition(source.toPath, 0, 0))))
+          new ParserRuleContext()
+      }
+      if (ll_errors.isEmpty) errors.clear()
+      res
+    }
 
     def parse(rule : => Rule): Either[Vector[ParserError], Node] = {
       val name = source.name
       val tree = try time ("ANTLR_PARSE_SLL", name) { rule }
       catch {
-        case _: ParseCancellationException =>
-          // thrown by BailErrorStrategy
-          tokens.seek(0)
-          // rewind input stream
-          reset()
-          // back to standard listeners/handlers
-          addErrorListener(new InformativeErrorListener(errors, source))
-          setErrorHandler(new DefaultErrorStrategy)
-          // full now with full LL(*)
-          getInterpreter.setPredictionMode(PredictionMode.LL)
-          try time ("ANTLR_PARSE_LL", name) { rule }
-          catch {
-            case e : Exception => errors.append(ParserError(e.getMessage, None))
-              new ParserRuleContext()
-          }
-        case e => return Left(Vector(ParserError(e.getMessage, None)))
+        case _: AmbiguityException  => parse_LL(rule) // Resolve `<IDENTIFIER> { }` ambiguities in switch/if-statements
+        case _: ParseCancellationException => parse_LL(rule) // For even faster parsing, replace with `new ParserRuleContext()`.
+        case e => errors.append(ParserError(e.getMessage, Some(SourcePosition(source.toPath, 0, 0)))); new ParserRuleContext()
       }
       //println(tokens.getTokens.asScala.map(tok => VOCABULARY.getSymbolicName(tok.getType)))
       //println(tree.toStringTree(this))

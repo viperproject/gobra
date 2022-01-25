@@ -1,8 +1,8 @@
 package main
 
+//:: ExpectedOutput(parser_error)
 const i := 10
 const j int := 10
-
 
 type A := int
 

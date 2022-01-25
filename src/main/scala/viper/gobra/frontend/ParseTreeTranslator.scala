@@ -140,9 +140,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         case GobraParser.RANGE => PMapValues
       }
       call(exp).at(ctx)
-    } else if (has(ctx.new_())) {
-      val typ = visitType_(ctx.new_().type_())
-      PNew(typ).at(ctx)
     } else if (has(ctx.make())) {
       val typ = visitType_(ctx.make().type_())
       val args = visitGobraExpressionList(ctx.make().expressionList())
@@ -445,13 +442,26 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitPrimaryExpr(ctx: PrimaryExprContext): PExpression = {
+    visitGobraPrimaryExpr(ctx)
+  }
+
+  /**
     * Visit a parse tree produced by `GobraParser`.
     *
     * @param ctx the parse tree
     * @return the visitor result
     */
   def visitGobraPrimaryExpr(ctx: GobraParser.PrimaryExprContext, wildcardRule: WildcardRule = Disallow): PExpression = {
-    if (ctx.operand() != null) {
+    if (ctx.new_() != null) {
+      val typ = visitType_(ctx.new_().type_())
+      PNew(typ).at(ctx)
+    } else if (ctx.operand() != null) {
       visitGobraOperand(ctx.operand(), wildcardRule)
     } else if (ctx.ghostPrimaryExpr() != null) {
       visitGhostPrimaryExpr(ctx.ghostPrimaryExpr())
@@ -497,14 +507,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitInteger(ctx: GobraParser.IntegerContext): PIntLit = {
-    val octal = raw"0[oO]?([0-7]+)".r
-    val hex = "0[xX]([0-9A-Fa-f]+)".r
-    val bin = "0[bB]([01]+)".r
+    val octal = raw"0[oO]?([0-7_]+)".r
+    val hex = "0[xX]([0-9A-Fa-f_]+)".r
+    val bin = "0[bB]([01_]+)".r
+    val dec = "([0-9_]+)".r
     visitChildren(ctx).asInstanceOf[Vector[String]].toList match {
       case octal(digits) :: Nil => PIntLit(BigInt(digits, 8), Octal).at(ctx)
       case hex(digits) :: Nil => PIntLit(BigInt(digits, 16), Hexadecimal).at(ctx)
       case bin(digits) :: Nil => PIntLit(BigInt(digits, 2), Binary).at(ctx)
-      case digits  :: Nil => PIntLit(BigInt(digits)).at(ctx)
+      case dec(digits) :: Nil => PIntLit(BigInt(digits)).at(ctx)
+      case _  :: Nil => fail(ctx, "This literal is not supported yet")
     }
   }
 
@@ -853,13 +865,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitImplementationProofPredicateAlias(ctx: ImplementationProofPredicateAliasContext): PImplementationProofPredicateAlias = {
     val left = visitIdentifier(ctx.IDENTIFIER(), Disallow, PIdnUse)
-    val right = if (has(ctx.operandName())) {
-      visitGobraOperandName(ctx.operandName())
-    } else {
-      //val id = idnUse(ctx.selection().IDENTIFIER()).at(ctx)
-      val id = visitIdentifier(ctx.selection().IDENTIFIER(), Disallow, PIdnUse)
-      if (has(ctx.selection().primaryExpr())) PDot(visitGobraPrimaryExpr(ctx.selection().primaryExpr()), id).at(ctx)  else
-        PDot(visitType_(ctx.selection().type_()), id).at(ctx)
+    val right = visitChildren(ctx.selection()) match {
+      case Vector(name : PNamedOperand) => name
+      case Vector(dot : PDot) => dot
+      case Vector(typ : PType, ".", _) => PDot(typ, visitIdentifier(ctx.selection().IDENTIFIER(), Disallow, PIdnUse).at(ctx.selection().IDENTIFIER())).at(ctx.selection())
+      case _ => fail(ctx, "must be either a selection or a named operand")
     }
     PImplementationProofPredicateAlias(left, right).at(ctx)
   }
@@ -1235,8 +1245,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitExpressionStmt(ctx: ExpressionStmtContext): PExpressionStmt = PExpressionStmt(visitGobraExpression(ctx.expression())).at(ctx)
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitEmptyStmt(ctx: EmptyStmtContext): PEmptyStmt = PEmptyStmt().at(ctx)
+
   override def visitSimpleStmt(ctx: GobraParser.SimpleStmtContext): PSimpleStmt = {
-    visitNodeChild(ctx)
+    visitNodeChild[PSimpleStmt](ctx)
   }
 
   /**

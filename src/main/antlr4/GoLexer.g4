@@ -34,6 +34,9 @@
  * https://golang.org/ref/spec
  */
 
+// Imported to Gobra from https://github.com/antlr/grammars-v4/tree/f3e4816e1a8ad4cdde9c67e3ee9fb232ecf58a2b/golang
+
+
 lexer grammar GoLexer;
 
 // Keywords

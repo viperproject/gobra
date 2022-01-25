@@ -389,19 +389,6 @@ low : expression;
 high: expression;
 cap: expression;
 
-// allow "if ; true {}"
-ifStmt:
-	IF (simpleStmt? SEMI)? expression block (
-		ELSE (ifStmt | block)
-	)?;
-
-
-// same for switch
-exprSwitchStmt:
-	SWITCH (simpleStmt? SEMI)? expression? L_CURLY exprCaseClause* R_CURLY;
-
-typeSwitchStmt:
-	SWITCH (simpleStmt? SEMI)? typeSwitchGuard L_CURLY typeCaseClause* R_CURLY;
 
 
 // Introduce name for operator

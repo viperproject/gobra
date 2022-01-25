@@ -1324,10 +1324,31 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     visitStatement(ctx.statement())
   }
 
+  /**
+    * Visits a terminated simple statement, used in if- and switch-statements to avoid
+    * problems with empty statements
+    * @param ctx the parse tree
+    *
+    */
+  override def visitTerminatedSimpleStmt(ctx: TerminatedSimpleStmtContext): PSimpleStmt = {
+    visitChildren(ctx) match {
+      case Vector(e : PEmptyStmt) => e
+      case Vector(s : PSimpleStmt, _) => s
+    }
+  }
+
+  /**
+    * visits an if clause
+    * //1
+    *
+    * @param clause
+    * @return
+    */
+
   def visitIfClause(clause: IfStmtContext) : PIfClause = {
-    val pre = if (clause.simpleStmt() != null) Some(visitSimpleStmt(clause.simpleStmt())) else None
+    val pre = visitNodeOrNone[PSimpleStmt](clause.terminatedSimpleStmt())
     val expr = visitGobraExpression(clause.expression())
-    // Not sure if this works...
+    // Emit a warning about syntax allowed by Gobra, but not by Go
     if (clause.expression().stop.getType == GobraParser.R_CURLY) warn(clause.expression(), "struct literals at the end of if clauses must be surrounded by parens!")
     val block = visitBlock(clause.block(0))
     PIfClause(pre, expr, block).at(clause)
@@ -1369,11 +1390,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
-  /**
-    * {@inheritDoc  }
+  /** Visits a loop specification.
     *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
+    * @param ctx the loop spec context
+    * @return a positioned PLoopSpec node
     */
   override def visitLoopSpec(ctx: LoopSpecContext): PLoopSpec = {
     val invs = for (inv <- ctx.expression().asScala.toVector) yield visitGobraExpression(inv)
@@ -1383,31 +1403,37 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
+    * Visits a for statement with specifications
+    * @param specCtx
+    * @return a positioned PStatement
     */
   override def visitSpecForStmt(specCtx: SpecForStmtContext): PStatement = {
+    // Visit the loop specifications
     val spec = visitLoopSpec(specCtx.loopSpec())
-
+    // Focus on the for statement now.
     val ctx = specCtx.forStmt()
     val block = visitBlock(ctx.block())
 
     if (has(ctx.expression())) {
+      // for <expression> {...}
       PForStmt(None, visitGobraExpression(ctx.expression()), None, spec, block).at(specCtx)
     } else if(has(ctx.forClause())){
-      val pre = if (has(ctx.forClause().initStmt)) Some(visitSimpleStmt(ctx.forClause().initStmt)).pos() else None
-      val post = if (has(ctx.forClause().postStmt)) Some(visitSimpleStmt(ctx.forClause().postStmt)).pos() else None
+      // for (<pre> ;)? <cond>? ; <post>? {...}
+      val pre = visitNodeOrNone[PSimpleStmt](ctx.forClause().initStmt)
+      // if there is no condition, generated a true literal
       val cond = if (has(ctx.forClause().expression())) visitGobraExpression(ctx.forClause().expression()) else PBoolLit(true).at(ctx.forClause().expression())
+      val post = visitNodeOrNone[PSimpleStmt](ctx.forClause().postStmt)
       PForStmt(pre, cond, post, spec, block).at(specCtx)
     } else if (has(ctx.rangeClause())) {
+      // for <assignees (:= | =)>? range <expr>
       val expr = visitGobraExpression(ctx.rangeClause().expression())
       val range = PRange(expr).at(ctx.rangeClause())
       if (has(ctx.rangeClause().DECLARE_ASSIGN())) {
+        // :=
         val idList = visitUnkIdentifierList(ctx.rangeClause().identifierList().IDENTIFIER().asScala.toVector)
         PShortForRange(range, idList, block).at(specCtx)
       } else {
+        // =
         val assignees = visitGobraExpressionList(ctx.rangeClause().expressionList(), AsBlankIdentifier) match {
           case v : Vector[PAssignee] => v
           case _ => fail(ctx)
@@ -1415,6 +1441,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         PAssForRange(range, assignees, block).at(specCtx)
       }
     } else {
+      // for { }
       PForStmt(None, PBoolLit(true).at(ctx.FOR()), None, spec, block).at(specCtx)
     }
 
@@ -1475,8 +1502,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
   override def visitExprSwitchStmt(ctx: ExprSwitchStmtContext): PExprSwitchStmt = {
-    val pre = if (has(ctx.simpleStmt())) Some(visitSimpleStmt(ctx.simpleStmt())) else None
+    val pre = visitNodeOrNone[PSimpleStmt](ctx.terminatedSimpleStmt())
+    // if the switch has no expression, generate a bool lit
     val expr = if (has(ctx.expression())) visitGobraExpression(ctx.expression()) else PBoolLit(true).at(ctx.SWITCH())
+    // iterate through the clauses, partitioning them into normal cases and the default case
     val (dflt, cases) = ctx.exprCaseClause().asScala.toVector.partitionMap(clause =>
       if (has(clause.exprSwitchCase().DEFAULT())) Left(visitExprDefaultClause(clause).body)
       else Right(visitExprCaseClause(clause))
@@ -1512,19 +1541,19 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     PTypeSwitchDflt(body).at(ctx)
   }
 
-  /**
-    * {@inheritDoc  }
+  /** Visits a type switch node
     *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
+    * @param ctx the type switch context
+    * @return a positioned PTypeSwitch
     */
   override def visitTypeSwitchStmt(ctx: TypeSwitchStmtContext): PTypeSwitchStmt = {
-    val pre = if (has(ctx.simpleStmt())) Some(visitSimpleStmt(ctx.simpleStmt())) else None
+    val pre = visitNodeOrNone[PSimpleStmt](ctx.terminatedSimpleStmt())
     val binder = if (has(ctx.typeSwitchGuard().IDENTIFIER())) Some(visitIdentifier(ctx.typeSwitchGuard().IDENTIFIER(), Disallow, PIdnDef)) else None
     val expr = visitGobraPrimaryExpr(ctx.typeSwitchGuard().primaryExpr())
+    // iterate through the cases and partition them into normal cases and the default case
     val (dflt, cases) = ctx.typeCaseClause().asScala.toVector.partitionMap(clause =>
-      if (has(clause.typeSwitchCase().DEFAULT())) Left(visitTypeDefaultClause(clause).body)
-      else Right(visitTypeCaseClause(clause))
+      if (has(clause.typeSwitchCase().DEFAULT())) Left(visitTypeDefaultClause(clause).body) // default : <statements>
+      else Right(visitTypeCaseClause(clause)) // case <types> : <statements>
     )
     PTypeSwitchStmt(pre, expr, binder, cases, dflt).at(ctx)
 
@@ -2114,8 +2143,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   /** Helper Function for optional Nodes
     *
     * @param ctx a context that might be null (signified with ? in the grammar)
-    * @tparam P
-    * @return
+    * @tparam P The PNode type
+    * @return a positioned Option of a positioned PNode
     */
   def visitNodeOrNone[P <: PNode](ctx : ParserRuleContext) : Option[P] = {
     if (ctx != null) {

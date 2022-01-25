@@ -26,6 +26,8 @@
  * A Go grammar for ANTLR 4 derived from the Go Language Specification https://golang.org/ref/spec
  */
 
+// Imported to Gobra from https://github.com/antlr/grammars-v4/tree/f3e4816e1a8ad4cdde9c67e3ee9fb232ecf58a2b/golang
+
 parser grammar GoParser;
 
 options {
@@ -106,6 +108,14 @@ simpleStmt:
 	| shortVarDecl
 	| emptyStmt;
 
+terminatedSimpleStmt:
+	sendStmt SEMI
+	| incDecStmt SEMI
+	| assignment SEMI
+	| expressionStmt SEMI
+	| shortVarDecl SEMI
+	| emptyStmt;
+
 expressionStmt: expression;
 
 sendStmt: channel = expression RECEIVE expression;
@@ -147,21 +157,21 @@ fallthroughStmt: FALLTHROUGH;
 deferStmt: DEFER expression;
 
 ifStmt:
-	IF (simpleStmt SEMI)? expression block (
+	IF terminatedSimpleStmt? expression block (
 		ELSE (ifStmt | block)
 	)?;
 
 switchStmt: exprSwitchStmt | typeSwitchStmt;
 
 exprSwitchStmt:
-	SWITCH (simpleStmt SEMI)? expression? L_CURLY exprCaseClause* R_CURLY;
+	SWITCH terminatedSimpleStmt? expression? L_CURLY exprCaseClause* R_CURLY;
 
 exprCaseClause: exprSwitchCase COLON statementList?;
 
 exprSwitchCase: CASE expressionList | DEFAULT;
 
 typeSwitchStmt:
-	SWITCH (simpleStmt SEMI)? typeSwitchGuard L_CURLY typeCaseClause* R_CURLY;
+	SWITCH terminatedSimpleStmt? typeSwitchGuard L_CURLY typeCaseClause* R_CURLY;
 
 typeSwitchGuard: (IDENTIFIER DECLARE_ASSIGN)? primaryExpr DOT L_PAREN TYPE R_PAREN;
 
@@ -182,7 +192,7 @@ recvStmt: (expressionList ASSIGN | identifierList DECLARE_ASSIGN)? recvExpr = ex
 forStmt: FOR (expression | forClause | rangeClause)? block;
 
 forClause:
-	initStmt = simpleStmt? SEMI expression? SEMI postStmt = simpleStmt?;
+	initStmt = terminatedSimpleStmt expression? SEMI postStmt = simpleStmt?;
 
 rangeClause: (
 		expressionList ASSIGN
@@ -372,5 +382,6 @@ eos:
 	SEMI
 	| EOF
 	| {lineTerminatorAhead()}?
-	| {checkPreviousTokenText("}")}?;
+	| {checkPreviousTokenText("}")}?
+	| {checkPreviousTokenText(")")}?;
 

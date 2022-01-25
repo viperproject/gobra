@@ -9,6 +9,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 
@@ -27,13 +28,26 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case PApplyWand(wand) => assignableToSpec(wand)
   }
 
-  private def wellDefFoldable(acc: PPredicateAccess): Messages =
+  private[typing] def wellDefFoldable(acc: PPredicateAccess): Messages = {
+    def isNonAbstract(p: st.Predicate): Messages = p match {
+      case fp: st.FPredicate => error(acc, s"abstract predicates are not foldable", fp.decl.body.isEmpty)
+      case st.MPredicateImpl(decl, _) => error(acc, s"abstract predicates are not foldable", decl.body.isEmpty)
+      case _: st.MPredicateSpec => noMessages // interface well-definedness will make sure that implementations implement the declared predicates
+    }
+
     resolve(acc.pred) match {
       case Some(_: ap.PredExprInstance) =>
         error(
           acc,
           s"expected a predicate constructor, but got ${acc.pred.base}",
           !acc.pred.base.isInstanceOf[PPredConstructor])
-      case _ => noMessages
+      case Some(ap.PredicateCall(pred, _)) => pred match {
+        case p: ap.SymbolicPredicateKind => isNonAbstract(p.symb)
+        case p: ap.BuiltInPredicateKind => error(acc, s"abstract predicates are not foldable", p.symb.tag.isAbstract)
+        case _: ap.PredExprInstance => error(acc, s"predicate expression calls are not foldable")
+      }
+
+      case _ => error(acc, s"unexpected predicate access")
     }
+  }
 }

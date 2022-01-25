@@ -2,53 +2,62 @@ parser grammar GobraParser;
 import GoParser;
 
 options {
-    tokenVocab = GobraLexer;
+	tokenVocab = GobraLexer;
 	superClass = GobraParserBase;
 }
 
 // New rules
 @members {boolean specOnly = false;}
 
-maybeAddressableIdentifierList: maybeAddressableIdentifier (COMMA maybeAddressableIdentifier)*;
-
-
-maybeAddressableIdentifier: IDENTIFIER ADDR_MOD?;
-
-ghostStatement:
-    GHOST statement |
-    ASSERT expression |
-    fold_stmt=(FOLD | UNFOLD) predicateAccess |
-    kind=(ASSUME | ASSERT | INHALE | EXHALE) expression
-    ;
-
-boundVariables
-    : boundVariableDecl (COMMA boundVariableDecl)* COMMA?
-    ;
-
-
-boundVariableDecl
-    : IDENTIFIER (COMMA IDENTIFIER)* elementType
-    ;
-
-predicateAccess: primaryExpr;
-
-access: ACCESS L_PAREN expression (COMMA (IDENTIFIER | expression))? R_PAREN;
-
+// Rules for fine-grained parsing. Without the EOF, they might only parse parts of the input
+// and succeed instead of failing
 exprOnly: expression EOF;
 
 stmtOnly: statement EOF;
 
 typeOnly: type_ EOF;
 
+
+// Identifier lists with added addressability modifiers
+maybeAddressableIdentifierList: maybeAddressableIdentifier (COMMA maybeAddressableIdentifier)*;
+
+
+maybeAddressableIdentifier: IDENTIFIER ADDR_MOD?;
+
+// Ghost statements
+
+ghostStatement:
+	GHOST statement |
+	ASSERT expression |
+	fold_stmt=(FOLD | UNFOLD) predicateAccess |
+	kind=(ASSUME | ASSERT | INHALE | EXHALE) expression
+	;
+
+// Ghost Primary Expressions
+
 ghostPrimaryExpr: range
-                | access
-                | typeOf
-                | isComparable
-                | old
-                | sConversion
-                | optionNone | optionSome | optionGet 
-                | quantifier=(FORALL | EXISTS) boundVariables COLON COLON triggers expression
-                | permission=(WRITEPERM | NOPERM);
+				| access
+				| typeOf
+				| isComparable
+				| old
+				| sConversion
+				| optionNone | optionSome | optionGet
+				| quantifier=(FORALL | EXISTS) boundVariables COLON COLON triggers expression
+				| permission=(WRITEPERM | NOPERM);
+
+boundVariables
+	: boundVariableDecl (COMMA boundVariableDecl)* COMMA?
+	;
+
+boundVariableDecl
+	: IDENTIFIER (COMMA IDENTIFIER)* elementType
+	;
+
+triggers: trigger*;
+
+trigger: L_CURLY expression (COMMA expression)* R_CURLY;
+
+predicateAccess: primaryExpr;
 
 optionSome: SOME L_PAREN expression R_PAREN;
 
@@ -58,19 +67,26 @@ optionGet: GET L_PAREN expression R_PAREN;
 
 sConversion: kind=(SET | SEQ | MSET) L_PAREN expression R_PAREN;
 
-triggers: trigger*;
-
-trigger: L_CURLY expression (COMMA expression)* R_CURLY;
-
 old: OLD (L_BRACKET oldLabelUse R_BRACKET)? L_PAREN expression R_PAREN;
 
 oldLabelUse: labelUse | LHS;
 
 labelUse: IDENTIFIER;
 
+isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
+
 typeOf: TYPE_OF L_PAREN expression R_PAREN;
 
-isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
+access: ACCESS L_PAREN expression (COMMA (IDENTIFIER | expression))? R_PAREN;
+
+range: kind=(SEQ | SET | MSET) L_BRACKET expression DOT_DOT expression R_BRACKET;
+
+// Added directly to primaryExpr
+seqUpdExp: L_BRACKET (seqUpdClause (COMMA seqUpdClause)*) R_BRACKET;
+
+seqUpdClause: expression ASSIGN expression;
+
+// Ghost Type Literals
 
 ghostTypeLit: sqType | ghostSliceType | domainType;
 
@@ -81,37 +97,57 @@ domainClause: FUNC IDENTIFIER signature | AXIOM L_CURLY expression eos R_CURLY;
 ghostSliceType: GHOST L_BRACKET R_BRACKET elementType;
 
 sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
-        | kind=DICT L_BRACKET type_ R_BRACKET type_;
+		| kind=DICT L_BRACKET type_ R_BRACKET type_;
 
-seqUpdExp: L_BRACKET (seqUpdClause (COMMA seqUpdClause)*) R_BRACKET;
-
-seqUpdClause: expression ASSIGN expression;
+// Specifications
 
 specification
-    : ((specStatement) eos)* PURE
-    | ((specStatement | PURE | TRUSTED) eos)*
-    ;
+	: ((specStatement) eos)* PURE
+	| ((specStatement | PURE | TRUSTED) eos)*
+	;
 
 specStatement
-    : kind=PRE assertion
-    | kind=PRESERVES assertion
-    | kind=POST assertion
-    | kind=DEC terminationMeasure
-    ;
+	: kind=PRE assertion
+	| kind=PRESERVES assertion
+	| kind=POST assertion
+	| kind=DEC terminationMeasure
+	;
+terminationMeasure: expressionList? (IF expression)?;
+
+assertion:
+	| expression
+	;
+
+blockWithBodyParameterInfo: L_CURLY (SHARE identifierList eos)? statementList? R_CURLY;
+
+// Implementation proofs
+implementationProof: type_ IMPL type_ (L_CURLY (implementationProofPredicateAlias eos)* (methodImplementationProof eos)*  R_CURLY)?;
+
+methodImplementationProof: PURE? nonLocalReceiver IDENTIFIER signature block?;
+
+nonLocalReceiver: L_PAREN IDENTIFIER? STAR? typeName R_PAREN;
+
+// Selection matches any primary Expression, make sure to check if it is truly a selection
+// This cannot be done in the parser because of precedence
+selection: primaryExpr
+			| type_ DOT IDENTIFIER;
+
+implementationProofPredicateAlias: PRED IDENTIFIER DECLARE_ASSIGN (selection | operandName);
+
+// Built-in methods baked into the parsr for now
+make: MAKE L_PAREN type_ (COMMA expressionList)? R_PAREN;
+
+new_: NEW L_PAREN type_ R_PAREN;
+
+
+// Changed Rules
+
+// Added specifications and parameterinfo
 
 functionDecl: specification FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
 
 methodDecl: specification FUNC receiver IDENTIFIER ( signature blockWithBodyParameterInfo?);
 
-blockWithBodyParameterInfo: L_CURLY (SHARE identifierList eos)? statementList? R_CURLY;
-
-assertion:
-    | expression
-    ;
-
-range: kind=(SEQ | SET | MSET) L_BRACKET expression DOT_DOT expression R_BRACKET;
-
-// Changed Rules
 
 // Ghost members
 
@@ -121,15 +157,15 @@ sourceFile:
 	)* EOF;
 
 ghostMember: implementationProof
-            | fpredicateDecl
-            | mpredicateDecl
-            | (GHOST | (GHOST eos)) (
-            methodDecl 
-            | functionDecl 
-            | constDecl
-            | typeDecl
-            | varDecl
-            );
+			| fpredicateDecl
+			| mpredicateDecl
+			| (GHOST | (GHOST eos)) (
+				methodDecl
+				| functionDecl
+				| constDecl
+				| typeDecl
+				| varDecl
+			);
 
 fpredicateDecl: PRED IDENTIFIER parameters predicateBody?;
 
@@ -137,18 +173,8 @@ predicateBody: L_CURLY expression eos R_CURLY;
 
 mpredicateDecl: PRED receiver IDENTIFIER parameters predicateBody?;
 
-implementationProof: type_ IMPL type_ (L_CURLY (implementationProofPredicateAlias eos)* (methodImplementationProof eos)*  R_CURLY)?;
 
-methodImplementationProof: PURE? nonLocalReceiver IDENTIFIER signature block?;
-
-selection: primaryExpr
-            | type_ DOT IDENTIFIER;
-
-implementationProofPredicateAlias: PRED IDENTIFIER DECLARE_ASSIGN (selection | operandName);
-
-
-// Addresability
-
+// Addressability
 
 varSpec:
 	maybeAddressableIdentifierList (
@@ -160,9 +186,6 @@ shortVarDecl: maybeAddressableIdentifierList DECLARE_ASSIGN expressionList;
 
 receiver: 	L_PAREN maybeAddressableIdentifier? type_ COMMA? R_PAREN;
 
-nonLocalReceiver: 	L_PAREN IDENTIFIER? STAR? typeName R_PAREN;
-
-
 
 // Added ghost parameters
 parameterDecl: GHOST? identifierList? ELLIPSIS? type_;
@@ -171,10 +194,10 @@ parameterDecl: GHOST? identifierList? ELLIPSIS? type_;
 unaryExpr:
 	primaryExpr
 	| kind=(
-    LEN
-    | CAP
-    | DOM
-    | RANGE
+		LEN
+		| CAP
+		| DOM
+		| RANGE
 	) L_PAREN expression R_PAREN
 	| unfolding
 	| unary_op = (
@@ -186,7 +209,7 @@ unaryExpr:
 		| AMPERSAND
 		| RECEIVE
 	) expression
-    ;
+	;
 
 unfolding: UNFOLDING predicateAccess IN expression;
 
@@ -194,10 +217,10 @@ unfolding: UNFOLDING predicateAccess IN expression;
 expression:
 	TYPE L_BRACKET type_ R_BRACKET
 	| call_op=(
-    LEN
-    | CAP
-    | DOM
-    | RANGE
+		LEN
+		| CAP
+		| DOM
+		| RANGE
 	) L_PAREN expression R_PAREN
 	| unfolding
 	| make
@@ -221,16 +244,16 @@ expression:
 		| BIT_CLEAR
 	) expression
 	| expression add_op = (PLUS | MINUS | OR | CARET | PLUS_PLUS | WAND) expression
-    | expression p42_op = (
-        UNION
-        | INTERSECTION
-        | SETMINUS
-    ) expression
+	| expression p42_op = (
+		UNION
+		| INTERSECTION
+		| SETMINUS
+	) expression
 	| expression p41_op = (
-    	IN
-    	| MULTI
-    	| SUBSET
-    ) expression
+		IN
+		| MULTI
+		| SUBSET
+	) expression
 	| expression rel_op = (
 		EQUALS
 		| NOT_EQUALS
@@ -244,15 +267,12 @@ expression:
 	|<assoc=right> expression IMPLIES expression
 	|<assoc=right> expression QMARK expression COLON expression;
 
-make: MAKE L_PAREN type_ (COMMA expressionList)? R_PAREN;
-
-new_: NEW L_PAREN type_ R_PAREN;
 
 // Added ghost statements
 statement:
-    ghostStatement
-    | packageStmt
-    | applyStmt
+	ghostStatement
+	| packageStmt
+	| applyStmt
 	| declaration
 	| labeledStmt
 	| simpleStmt
@@ -277,11 +297,10 @@ specForStmt: loopSpec forStmt;
 
 loopSpec: (INV expression eos)* (DEC terminationMeasure eos)?;
 
-terminationMeasure: expressionList? (IF expression)?;
 
 // Added true, false as literals
 basicLit:
-    TRUE
+	TRUE
 	| FALSE
 	| NIL_LIT
 	| integer
@@ -322,30 +341,30 @@ methodSpec:
 
 // Added ghostTypeLiterals
 type_: typeName | typeLit | ghostTypeLit | L_PAREN type_ R_PAREN
-        | predefined=(
-               BOOL |
-                 STRING |
-                 PERM |
-                // signed integer types
-                 RUNE |
-                 INT |
-                 INT8 |
-                 INT16 |
-                 INT32 |
-                 INT64 |
-                // unsigned integer types
-                 BYTE |
-                 UINT |
-                 UINT8 |
-                 UINT16 |
-                 UINT32 |
-                 UINT64 |
-                 UINTPTR |
-                 FLOAT32 |
-                 FLOAT64 |
-                 COMPLEX64 |
-                 COMPLEX128
-        );
+		| predefined=(
+			   BOOL |
+				 STRING |
+				 PERM |
+				// signed integer types
+				 RUNE |
+				 INT |
+				 INT8 |
+				 INT16 |
+				 INT32 |
+				 INT64 |
+				// unsigned integer types
+				 BYTE |
+				 UINT |
+				 UINT8 |
+				 UINT16 |
+				 UINT32 |
+				 UINT64 |
+				 UINTPTR |
+				 FLOAT32 |
+				 FLOAT64 |
+				 COMPLEX64 |
+				 COMPLEX128
+		);
 // Added pred types
 typeLit:
 	arrayType
@@ -391,7 +410,7 @@ cap: expression;
 
 
 
-// Introduce name for operator
+// Introduce label for operator
 assign_op: ass_op=(
 		PLUS
 		| MINUS

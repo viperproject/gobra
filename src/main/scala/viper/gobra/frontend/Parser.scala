@@ -53,9 +53,9 @@ object Parser {
   // cache maps a key (obtained by hasing file path and file content) to the parse result
   private var sourceCache: Map[SourceCacheKey, (Either[Vector[ParserError], PProgram], Positions)] = Map.empty
 
-  /** computes the key for caching a particular source. This takes the name as well as content into account */
-  private def getCacheKey(source: Source): SourceCacheKey = {
-    val key = source.name ++ source.content
+  /** computes the key for caching a particular source. This takes the name, the specOnly flag, and the file's content into account */
+  private def getCacheKey(source: Source, specOnly: Boolean): SourceCacheKey = {
+    val key = source.name ++ (if (specOnly) "1" else "0") ++ source.content
     val bytes = MessageDigest.getInstance("MD5").digest(key.getBytes)
     // convert `bytes` to a hex string representation such that we get equality on the key while performing cache lookups
     bytes.map { "%02x".format(_) }.mkString
@@ -93,10 +93,10 @@ object Parser {
       def parseAndStore(): (Either[Vector[ParserError], PProgram], Positions) = {
         cacheHit = false
         val res = parseSource(source)
-        sourceCache += getCacheKey(source) -> (res, positions)
+        sourceCache += getCacheKey(source, specOnly) -> (res, positions)
         (res, positions)
       }
-      val (res, pos) = sourceCache.getOrElse(getCacheKey(source), parseAndStore())
+      val (res, pos) = sourceCache.getOrElse(getCacheKey(source, specOnly), parseAndStore())
       if (cacheHit) {
         // a cached AST has been found in the cache. The position manager does not yet have any positions for nodes in
         // this AST. Therefore, the following strategy iterates over the entire AST and copies positional information

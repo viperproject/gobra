@@ -207,8 +207,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitBoundVariableDecl(ctx: BoundVariableDeclContext): Vector[PBoundVariable] = {
     val typ = visitType_(ctx.elementType().type_())
-    // Can't use visitListNode: Result is not of PNode type
-    for (id <- ctx.IDENTIFIER().asScala.toVector) yield PBoundVariable(idnDef.get(id), typ.copy).at(id)
+    idnDefList.get(ctx.IDENTIFIER().asScala).map(id => PBoundVariable(id, typ.copy).at(id))
   }
 
   /**
@@ -399,7 +398,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
           case _ => PInvoke(pe, visitArguments(ctx.arguments())).at(ctx)
         }
       } else if(ctx.DOT() != null) {
-        //PDot(pe, idnUse(ctx.IDENTIFIER()).at(ctx)).at(ctx)
         PDot(pe, idnUse.get(ctx.IDENTIFIER())).at(ctx)
       } else if (ctx.index() != null) {
         PIndexedExp(pe, visitExpression(ctx.index().expression())).at(ctx)
@@ -647,8 +645,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
-  def visitIdentifierList[A <: PIdnNode](list: Vector[TerminalNode], idn : PIdnNodeExtractor[A]) : Vector[A] = {
-    for (id <- list) yield idn.get(id)
+  /**
+    * Visits an identifier list and returns a vector of TerminalNodes that can be matched by the
+    * appropriate PIdnExtractor.
+    * @param ctx the parse tree
+    *     */
+  override def visitIdentifierList(ctx: IdentifierListContext): Iterable[TerminalNode] = {
+    ctx.IDENTIFIER().asScala.view
   }
 
 
@@ -665,8 +668,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitShortVarDecl(ctx: GobraParser.ShortVarDeclContext): PShortVarDecl = {
-    val (ids, addressable) = visitMaybeAddressableIdentifierList(ctx.maybeAddressableIdentifierList())
-    val vars = visitIdentifierList(ids, idnUnkLike)
+    val (idnUnkLikeList(vars), addressable) = visitMaybeAddressableIdentifierList(ctx.maybeAddressableIdentifierList())
     val right = visitExpressionList(ctx.expressionList())
     PShortVarDecl(right, vars, addressable).at(ctx)
   }
@@ -692,8 +694,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  def visitMaybeAddressableIdnDef(ctx: MaybeAddressableIdentifierContext): (PIdnDef, Boolean) = {
-    (idnDef.get(ctx.IDENTIFIER()), has(ctx.ADDR_MOD()))
+  override def visitMaybeAddressableIdentifier(ctx: MaybeAddressableIdentifierContext): (TerminalNode, Boolean) = {
+    (ctx.IDENTIFIER(), has(ctx.ADDR_MOD()))
   }
 
   /**
@@ -710,7 +712,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
 
     if (has(ctx.maybeAddressableIdentifier())) {
-      val (id, addr) = visitMaybeAddressableIdnDef(ctx.maybeAddressableIdentifier())
+      val (goIdnDef(id), addr) = visitMaybeAddressableIdentifier(ctx.maybeAddressableIdentifier())
       PNamedReceiver(id, recvType, addr).at(ctx)
     } else PUnnamedReceiver(recvType).at(ctx)
   }
@@ -724,8 +726,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitMethodDecl(ctx: GobraParser.MethodDeclContext): PMethodDecl = {
     val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty)
     val receiver = visitReceiver(ctx.receiver())
-    // Go allows _ here, the caller must make sure that methoddecls with _ are already handled because PMethodDecl doesn't allow the wildcard
-    val id = idnDef.get(ctx.IDENTIFIER())
+    // Go allows _ here, but PMethodDecl doesn't
+    val id = goIdnDef.get(ctx.IDENTIFIER())
     val sig = visitSignature(ctx.signature())
     val paramInfo = PBodyParameterInfo(Vector.empty).at(ctx)
     val body = if (ctx.blockWithBodyParameterInfo() == null || specOnly || spec.isTrusted) None else Some(visitBlockWithBodyParameterInfo(ctx.blockWithBodyParameterInfo()))
@@ -739,10 +741,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitFpredicateDecl(ctx: FpredicateDeclContext): PFPredicateDecl = {
-    //val id_ = withWildcards{
-    //  idnDef(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())
-    //}
-    // Go allows _ here
     val id = idnDef.get(ctx.IDENTIFIER())
     val params = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
     val body = if (has(ctx.predicateBody())) Some(visitExpression(ctx.predicateBody().expression())) else None
@@ -756,10 +754,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitMpredicateDecl(ctx: MpredicateDeclContext): PMPredicateDecl = {
-    //val id_ = withWildcards{
-    //  idnDef(ctx.IDENTIFIER()).at(ctx.IDENTIFIER())
-    //}
-    // Go allows _ here
     val id = idnDef.get(ctx.IDENTIFIER())
     val receiver = visitReceiver(ctx.receiver())
     val params = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
@@ -871,13 +865,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
 
     // Don't parse functions/methods if the identifier is blank
-    val functionDecls= ctx.functionDecl().asScala.toVector.collect{
-      case f if f.IDENTIFIER().getText != "_" => visitFunctionDecl(f)
-    }
-    //val _ = ctx.functionDecl().asScala.toVector.collect{ case f if f.IDENTIFIER().getText == "_" => visitFunctionDecl(f)}
-    val methodDecls= ctx.methodDecl().asScala.toVector.collect{
-      case m if m.IDENTIFIER().getText != "_" => visitMethodDecl(m)
-    }
+    val functionDecls= visitListNode[PFunctionDecl](ctx.functionDecl())
+    val methodDecls = visitListNode[PMethodDecl](ctx.methodDecl())
     val ghostMembers = ctx.ghostMember().asScala.toVector.flatMap(visitGhostMember)
     val decls = ctx.declaration().asScala.toVector.flatMap(visitDeclaration)
     PProgram(packageClause, importDecls, functionDecls ++ methodDecls ++ decls ++ ghostMembers).at(ctx)
@@ -943,7 +932,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitConstSpec(ctx: GobraParser.ConstSpecContext): PConstDecl = {
     val typ = if (ctx.type_() != null) Some(visitType_(ctx.type_())) else None
 
-    val left = visitIdentifierList(ctx.identifierList().IDENTIFIER().asScala.toVector, idnDefLike)
+    val idnDefLikeList(left) = visitIdentifierList(ctx.identifierList())
     val right = visitExpressionList(ctx.expressionList())
 
     PConstDecl(typ, right, left).at(ctx)
@@ -970,7 +959,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitTypeSpec(ctx: GobraParser.TypeSpecContext): PTypeDecl = {
-    val left = idnDef.get(ctx.IDENTIFIER())
+    val left = goIdnDef.get(ctx.IDENTIFIER())
     val right = visitType_(ctx.type_())
     if (ctx.ASSIGN() != null) {
       // <identifier> = <type> -> This is a type alias
@@ -998,12 +987,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitVarSpec(ctx: GobraParser.VarSpecContext): PVarDecl = {
-    val (ids, addressable) = visitMaybeAddressableIdentifierList(ctx.maybeAddressableIdentifierList())
-    val vars = visitIdentifierList(ids, idnDefLike)
+    val (idnDefLikeList(vars), addressable) = visitMaybeAddressableIdentifierList(ctx.maybeAddressableIdentifierList())
     val typ = if(has(ctx.type_())) Some(visitType_(ctx.type_())) else None
     val right = if (has(ctx.expressionList())) visitExpressionList(ctx.expressionList()) else Vector.empty
     PVarDecl(typ, right, vars, addressable).at(ctx)
-
   }
 
   /**
@@ -1093,7 +1080,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitBlockWithBodyParameterInfo(ctx: BlockWithBodyParameterInfoContext): (PBodyParameterInfo, PBlock) = {
-    val shareable = if (has(ctx.SHARE())) (for (id <- ctx.identifierList().IDENTIFIER().asScala.toVector) yield idnUse.get(id)) else Vector.empty
+    val shareable = if (has(ctx.SHARE())) idnUseList.get(visitIdentifierList(ctx.identifierList())) else Vector.empty
     val paramInfo = PBodyParameterInfo(shareable)
     val body =   if (has(ctx.statementList())) PBlock(visitStatementList(ctx.statementList())).at(ctx) else PBlock(Vector.empty).at(ctx)
     (paramInfo, body)
@@ -1108,9 +1095,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitFunctionDecl(ctx: GobraParser.FunctionDeclContext): PFunctionDecl = {
     // TODO : Make this more readable
     val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty)
-    // Go allows the blank identifier here, but PFunctionDecl doesn't, so the caller must make sure to
-    // handle functions with blank identifiers before visting them.
-    val id = idnDef.get(ctx.IDENTIFIER())
+    // Go allows the blank identifier here, but PFunctionDecl doesn't.
+    val id = goIdnDef.get(ctx.IDENTIFIER())
     val sig = visitSignature(ctx.signature())
     val body = if (ctx.blockWithBodyParameterInfo() == null || specOnly || spec.isTrusted) None else Some(visitBlockWithBodyParameterInfo(ctx.blockWithBodyParameterInfo()))
     PFunctionDecl(id, sig._1, sig._2, spec, body).at(ctx)
@@ -1365,7 +1351,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       val range = PRange(expr).at(ctx.rangeClause())
       if (has(ctx.rangeClause().DECLARE_ASSIGN())) {
         // :=
-        val idList = visitIdentifierList(ctx.rangeClause().identifierList().IDENTIFIER().asScala.toVector, idnUnk)
+        // identifiers should include the blank identifier, but this is currently not supported by PShortForRange
+        val goIdnUnkList(idList) = visitIdentifierList(ctx.rangeClause().identifierList())
         PShortForRange(range, idList, block).at(specCtx)
       } else {
         // =
@@ -1416,7 +1403,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
 
   def visitExprDefaultClause(ctx: ExprCaseClauseContext): PExprSwitchDflt = {
-    PExprSwitchDflt(PBlock(visitStatementList(ctx.statementList())).at(ctx.statementList())).at(ctx)
+    PExprSwitchDflt(PBlock(visitStatementList(ctx.statementList())).at(ctx)).at(ctx)
   }
 
   /**
@@ -1604,7 +1591,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         }
         PSelectAssRecv(expr, ass, body).at(ctx)
       } else if (has(ctx.commCase().recvStmt().DECLARE_ASSIGN())) {
-        val left = visitIdentifierList(ctx.commCase().recvStmt().identifierList().IDENTIFIER().asScala.toVector, idnUnk)
+        val idnUnkList(left) = visitIdentifierList(ctx.commCase().recvStmt().identifierList())
         PSelectShortRecv(expr, left, body).at(ctx)
       } else PSelectRecv(expr, body).at(ctx)
     } else PSelectDflt(body).at(ctx)
@@ -1757,10 +1744,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       val et = visitEmbeddedField(ctx.embeddedField())
       PEmbeddedDecl(et, PIdnDef(et.name).at(et)).at(ctx)
     } else {
-      // TODO : Refactor identifier handling
-      val ids = visitIdentifierList(ctx.identifierList().IDENTIFIER().asScala.toVector, idnDefLike)
+      val goIdnDefList(ids) = visitIdentifierList(ctx.identifierList())
       val t = visitType_(ctx.type_())
-      PFieldDecls(ids map (id => PFieldDecl(id.asInstanceOf[PIdnDef], t.copy).at(id))).at(ctx)
+      PFieldDecls(ids map (id => PFieldDecl(id, t.copy).at(id))).at(ctx)
     }
   }
 
@@ -2016,7 +2002,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val typ = if (has(ctx.ELLIPSIS())) PVariadicType(visitType_(ctx.type_())).at(ctx) else visitType_(ctx.type_())
     val params = if(ctx.identifierList() != null) {
       // "_" should be supported here to allow unused parameters for interfaces etc.
-      for (id <- ctx.identifierList().IDENTIFIER().asScala.toVector) yield PNamedParameter(idnDef.get(id), typ.copy).at(id)
+      goIdnDefList.get(visitIdentifierList(ctx.identifierList())).map(id => PNamedParameter(id, typ.copy).at(id))
     } else {
       Vector[PActualParameter](PUnnamedParameter(typ).at(ctx.type_()))
     }
@@ -2224,94 +2210,79 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   override def defaultResult(): ListBuffer[AnyRef] = ListBuffer.empty[AnyRef]
 
-  @deprecated("use PIdnNodeExtractor.get instead")
-  private def visitIdentifier[N <: PNode, I <: N](id: TerminalNode, wildcardRule: WildcardRule, idnNodeType : String => I): N = {
-    val name = id.getText
-    if (name != "_") {
-      idnNodeType(name).at(id)
-    } else {
-      wildcardRule match {
-        case Disallow => fail(id, "The blank identifier is not allowed here.")
-        case AsPWildcard => PWildcard().asInstanceOf[N]
-        case AsIdentifier => idnNodeType(name).at(id)
-        case AsBlankIdentifier => PBlankIdentifier().at(id).asInstanceOf[N]
+
+  /**
+    * This class extracts PIdnNodes from IDENTIFIER tokens
+    *
+    * @param constructor The constructor used to create the PIdnNode
+    * @param blankIdentifier A function to handle blank identifiers. If blank identifiers are not allowed, it should
+    *                        always return None, otherwise it should return the appropriate PIdnNode.
+    * @tparam N the type of the PIdnNode to return
+    */
+  case class PIdnNodeEx[N <: PNode](constructor : (String => N), blankIdentifier : ((TerminalNode) => Option[N])) {
+    def unapply(arg: TerminalNode) : Option[N] = {
+      arg.getText match {
+        case "_" => blankIdentifier(arg)
+        case a : String => Some(constructor(a).at(arg))
+        case _ => None
       }
     }
-  }
-
-  sealed trait PIdnNodeExtractor[N <: PNode] {
-    def unapply(arg : TerminalNode) : Option[N]
+    /**
+      * Directly extract a PIdnNode from an IDENTIFIER token. Fails if the token doesn't match.
+      * @param arg The IDENTIFIER to extract from
+      * @return A vector of PIdnNodes
+      */
     def get(arg : TerminalNode) : N = unapply(arg) match {
       case Some(value) => value
       case None => fail(arg)
     }
   }
 
-  private val idnDef = PIdnDefExtractor()
-  case class PIdnDefExtractor() extends PIdnNodeExtractor[PIdnDef] {
-    def unapply(arg: TerminalNode) : Option[PIdnDef] = {
-      arg.getText match {
-        case "_" => None
-        case a : String => Some(PIdnDef(a).at(arg))
-        case _ => None
-      }
+  /**
+    * This class extracts Vectors of PIdnNode from Lists of IDENTIFIER tokens
+    *
+    * @param extractor The extractor used for the individual identifiers
+    * @tparam N The type of the PIdnNode to return
+    */
+  case class PIdnNodeListEx[N <: PNode](extractor : PIdnNodeEx[N]) {
+    def unapply(arg : Iterable[TerminalNode]) : Option[Vector[N]] = {
+      Some(arg.map(extractor.get).toVector)
+    }
+
+    /**
+      * Directly extract a Vector of PIdnNode from a List of IDENTIFIER tokens. Fails if one of the tokens
+      * doen't match.
+      * @param arg An iterable of TerminalNodes
+      * @return A vector of PIdnNodes
+      */
+    def get(arg: Iterable[TerminalNode]) : Vector[N] = unapply(arg) match {
+      case Some(value) => value
+      case None => fail(arg.head)
     }
   }
 
-  private val idnDefLike = PIdnDefLikeExtractor()
-  case class PIdnDefLikeExtractor() extends PIdnNodeExtractor[PDefLikeId] {
-    def unapply(arg: TerminalNode) : Option[PDefLikeId] = {
-      arg.getText match {
-        case "_" => Some(PWildcard().at(arg))
-        case a : String => Some(PIdnDef(a).at(arg))
-        case _ => None
-      }
-    }
-  }
+  // Extractors for all the possible types of PIdnNodes
+  private val idnDef = PIdnNodeEx(PIdnDef, _ => None)
+  private val idnDefList = PIdnNodeListEx(idnDef)
+  private val idnDefLike = PIdnNodeEx(PIdnDef, term => Some(PWildcard().at(term)))
+  private val idnDefLikeList = PIdnNodeListEx(idnDefLike)
+  private val idnUnk = PIdnNodeEx(PIdnUnk, _ => None)
+  private val idnUnkList = PIdnNodeListEx(idnUnk)
+  private val idnUnkLike = PIdnNodeEx(PIdnUnk, term => Some(PWildcard().at(term)))
+  private val idnUnkLikeList = PIdnNodeListEx(idnUnkLike)
+  private val idnUse = PIdnNodeEx(PIdnUse, _ => None)
+  private val idnUseList = PIdnNodeListEx(idnUse)
+  private val idnUseLike = PIdnNodeEx(PIdnUse, term => Some(PWildcard().at(term)))
+  private val idnUseLikeList = PIdnNodeListEx(idnUseLike)
 
-  private val idnUnk = PIdnUnkExtractor()
-  case class PIdnUnkExtractor() extends PIdnNodeExtractor[PIdnUnk] {
-    def unapply(arg: TerminalNode) : Option[PIdnUnk] = {
-      arg.getText match {
-        case "_" => None
-        case a : String => Some(PIdnUnk(a).at(arg))
-        case _ => None
-      }
-    }
-  }
+  // These extractors may only be used where Go allows the blank identifier, but Gobra doesnt
+  // They generate a unique PIdnNode whose name starts with "_" to not overlap any other identifiers
+  private val goIdnDef = PIdnNodeEx(PIdnDef, term => Some(uniqueWildcard(PIdnDef, term).at(term)))
+  private val goIdnDefList = PIdnNodeListEx(goIdnDef)
+  private val goIdnUnk = PIdnNodeEx(PIdnUnk, term => Some(uniqueWildcard(PIdnUnk, term).at(term)))
+  private val goIdnUnkList = PIdnNodeListEx(goIdnUnk)
 
-  private val idnUnkLike = PIdnUnkLikeExtractor()
-  case class PIdnUnkLikeExtractor() extends PIdnNodeExtractor[PUnkLikeId] {
-    def unapply(arg: TerminalNode) : Option[PUnkLikeId] = {
-      arg.getText match {
-        case "_" => Some(PWildcard().at(arg))
-        case a : String => Some(PIdnUnk(a).at(arg))
-        case _ => None
-      }
-    }
-  }
-
-  private val idnUse = PIdnUseExtractor()
-  case class PIdnUseExtractor() extends PIdnNodeExtractor[PIdnUse] {
-    def unapply(arg: TerminalNode) : Option[PIdnUse] = {
-      arg.getText match {
-        case "_" => None
-        case a : String => Some(PIdnUse(a).at(arg))
-        case _ => None
-      }
-    }
-  }
-
-  private val idnUseLike = PIdnUseLikeExtractor()
-  case class PIdnUseLikeExtractor() extends PIdnNodeExtractor[PUseLikeId] {
-    def unapply(arg: TerminalNode) : Option[PUseLikeId] = {
-      arg.getText match {
-        case "_" => Some(PWildcard().at(arg))
-        case a : String => Some(PIdnUse(a).at(arg))
-        case _ => None
-      }
-    }
-  }
+  def uniqueWildcard[N](constructor : String => N, term : TerminalNode) : N = constructor("_"+term.getSymbol.getTokenIndex)
 
 
 

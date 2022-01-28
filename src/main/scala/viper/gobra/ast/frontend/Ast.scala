@@ -55,7 +55,7 @@ case class PProgram(
                      packageClause: PPackageClause,
                      imports: Vector[PImport],
                      declarations: Vector[PMember],
-                     builtin: Boolean = false
+                     isBuiltin: Boolean = false
                    ) extends PNode with PUnorderedScope // imports are in program scopes
 
 

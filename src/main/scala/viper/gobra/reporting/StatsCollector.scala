@@ -192,7 +192,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     def formatArgs(args: Vector[PParameter]) = "(" + args.map(f => f.typ.formattedShort).mkString(", ") + ")"
 
     // Check whether the program containing this node has the builtin tag
-    val isBuiltIn = nodeTypeInfo.program(p).builtin
+    val isBuiltIn = nodeTypeInfo.program(p).isBuiltin
     // Check if a node comes from a import, used to declare it non abstract, since imports are per default always
     // abstract and we don't want to generate unnecessary warnings
     val isNotImported = typeInfo.eq(nodeTypeInfo)

@@ -323,7 +323,7 @@ object Parser {
         // note that the resolveImports strategy could be embedded in e.g. a logfail strategy to report a
         // failed strategy application
         val updatedImports = rewrite(topdown(attempt(resolveImports)))(prog.imports)
-        val updatedProg = PProgram(prog.packageClause, updatedImports, prog.declarations, prog.builtin)
+        val updatedProg = PProgram(prog.packageClause, updatedImports, prog.declarations, prog.isBuiltin)
         pkg.positions.positions.dupPos(prog, updatedProg)
       })
       // create a new package node with the updated programs

@@ -380,7 +380,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       val typ = visitType_(ctx.new_().type_())
       PNew(typ).at(ctx)
     } else if (ctx.operand() != null) {
-      visitGobraOperand(ctx.operand(), wildcardRule)
+      visitOperand(ctx.operand())
     } else if (ctx.ghostPrimaryExpr() != null) {
       visitGhostPrimaryExpr(ctx.ghostPrimaryExpr())
     } else if (ctx.primaryExpr() != null) {
@@ -593,47 +593,34 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
-    * Visit a parse tree produced by `GobraParser`.
+    * Translates the rule
+    * operand: literal | operandName | L_PAREN expression R_PAREN;
     *
     * @param ctx the parse tree
     * @return the visitor result
     */
-  // TODO : Refactor. This is messy because of the way "_" is handled in the Gobra AST
-  def visitGobraOperand(ctx: GobraParser.OperandContext, wildcardRule: WildcardRule = Disallow): PExpression = {
-    if(ctx.operandName() != null) {
-      // _ are parsed as blank identifiers in left hand sides of assignments
-      wildcardRule match {
-        case Disallow => visitGobraOperandName(ctx.operandName(), wildcardRule)
-        case AsBlankIdentifier => if (ctx.operandName().DOT() == null && ctx.operandName().IDENTIFIER(0).getText == "_")
-          PBlankIdentifier().at(ctx)
-        else visitGobraOperandName(ctx.operandName())
-        case w => fail(ctx, s"Cannot use wildcardRule $w as an Operand.")
-      }
-
-    } else if (ctx.literal() != null) {
-      visitLiteral(ctx.literal())
-    } else if (ctx.expression() != null ) {
-      visitExpression(ctx.expression())
-    } else {
-      fail(ctx)
+  override def visitOperand(ctx: GobraParser.OperandContext): PExpression = {
+    visitChildren(ctx) match {
+      case Vector(e : PExpression) => e
+      case Vector("(", e : PExpression, ")") => e
+      case _ => fail(ctx)
     }
   }
 
   /**
-    * Visit a parse tree produced by `GobraParser`.
+    * Translates the rule
+    *
+    * operandName: IDENTIFIER (DOT IDENTIFIER)?;
     *
     * @param ctx the parse tree
     * @return the visitor result
     */
-
-  // TODO : Refactor. This is messy because of the way "_" is handled in the Gobra AST
-  def visitGobraOperandName(ctx: GobraParser.OperandNameContext, wildcardRule: WildcardRule = Disallow): PNameOrDot = {
-    if (ctx.DOT() != null){
-      PDot(PNamedOperand(idnUse.get(ctx.IDENTIFIER(0))).at(ctx.IDENTIFIER(0)), idnUse.get(ctx.IDENTIFIER(1))).at(ctx)
-    } else {
-      wildcardRule match {
-        case Disallow => PNamedOperand(idnUse.get(ctx.IDENTIFIER(0))).at(ctx)
-        case _ => fail(ctx, "A named operand cannot be a wildcard.")
+  override def visitOperandName(ctx: GobraParser.OperandNameContext): PExpression = {
+    visitChildren(ctx) match {
+      case Vector(idnUse(base), ".", idnUse(id)) => PDot(PNamedOperand(base).at(base), id).at(ctx)
+      case Vector(idnUseLike(id)) => id match {
+        case id@PIdnUse(_) => PNamedOperand(id).at(id)
+        case PWildcard() => PBlankIdentifier().at(ctx)
       }
     }
   }

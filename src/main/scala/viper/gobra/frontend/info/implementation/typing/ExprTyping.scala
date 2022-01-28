@@ -474,7 +474,17 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       })
 
-    case PBlankIdentifier() => noMessages
+    case b@PBlankIdentifier() => b match {
+      case tree.parent(p) => p match {
+        case PAssignment(_, _) => noMessages
+        case PAssForRange(_, _, _) => noMessages
+        case PSelectAssRecv(_, _, _) => noMessages
+        case x => error(b, s"blank identifier is not allowed in $x")
+      }
+      case _ => violation("blank identifier always has a parent")
+    }
+
+
 
     case PUnpackSlice(elem) => underlyingType(exprType(elem)) match {
       case _: SliceT => noMessages

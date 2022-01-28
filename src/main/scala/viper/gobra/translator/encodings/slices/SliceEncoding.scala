@@ -22,6 +22,7 @@ import viper.gobra.util.Violation
 import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
 import viper.silver.plugin.standard.termination
+
 class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
 
   import viper.gobra.translator.util.TypePatterns._
@@ -347,6 +348,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     *   ensures slen(result) == j - i
     *   ensures scap(result) == k - i
     *   ensures sarray(result) == a
+    *   decreases _
     * {
     *   sconstruct(a, i, j - i, k - i)
     * }
@@ -406,6 +408,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     *   ensures slen(result) == j - i
     *   ensures scap(result) == k - i
     *   ensures sarray(result) == sarray(s)
+    *   decreases _
     * {
     *   sfullSliceFromArray(sarray(s), soffset(s) + i, soffset(s) + j, soffset(s) + k)
     * }
@@ -523,6 +526,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     *   ensures slen(result) == j - i
     *   ensures scap(result) == scap(s) - i
     *   ensures sarray(result) == sarray(s)
+    *   decreases _
     * {
     *   sfullSliceFromSlice(s, i, j, scap(s))
     * }
@@ -577,6 +581,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     *   ensures slen(result) == 0
     *   ensures scap(result) == 0
     *   ensures sarray(result) == defaultArray[T]()
+    *   decreases _
     * {
     *   sconstruct(defaultArray[T](), 0, 0, 0)
     * }
@@ -592,6 +597,9 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val arrayT = in.ArrayT(1, typ, Shared)
       val dfltArray = in.DfltVal(arrayT)(Source.Parser.Internal)
       val dfltArrayT = arrayEmb.unbox(ctx.expr.translate(dfltArray)(ctx).res, arrayT)(dfltArray)(ctx)
+
+      // preconditions
+      val pre1 = synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
 
       // postconditions
       val result = vpr.Result(sliceTypT)()
@@ -613,7 +621,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         s"${Names.sliceDefaultFunc}_${Names.freshName}",
         Seq(),
         sliceTypT,
-        Seq(),
+        Seq(pre1),
         Seq(post1, post2, post3, post4),
         if (generateFunctionBodies) Some(body) else None
       )()

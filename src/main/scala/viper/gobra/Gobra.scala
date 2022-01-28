@@ -248,6 +248,15 @@ object GobraRunner extends GobraFrontend with StrictLogging {
       config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
       statsCollector = StatsCollector(config.reporter)
 
+      // write report to file on shutdown
+      Runtime.getRuntime.addShutdownHook(new Thread() {
+        override def run(): Unit = {
+          val statsFile = config.gobraDirectory.resolve("stats.json").toFile
+          logger.info("Writing report to " + statsFile.getPath)
+          statsCollector.writeJsonReportToFile(statsFile)
+        }
+      })
+
       config.inputPackageMap.foreach({ case (pkg, inputs) =>
         val pkgString = pkg.path + " - " + pkg.name
 
@@ -267,8 +276,6 @@ object GobraRunner extends GobraFrontend with StrictLogging {
             errorCount += errors.length;
         }
       })
-
-      statsCollector.writeJsonReportToFile(config.gobraDirectory.resolve("stats.json").toFile)
     } catch {
       case e: UglyErrorMessage =>
         logger.error(s"${verifier.name} has found 1 error(s): ")
@@ -289,11 +296,13 @@ object GobraRunner extends GobraFrontend with StrictLogging {
     } finally {
       executor.terminate()
 
+      logger.info("\n")
+      logger.info("Summary:")
+      logger.info("\n")
+
       // Write console summary
       if(warningCount > 1) {
         logger.warn(s"${verifier.name} has found $warningCount warnings(s)")
-      } else {
-        logger.info(s"${verifier.name} found no warnings")
       }
       if(errorCount > 1) {
         logger.error(s"${verifier.name} has found $errorCount error(s)")

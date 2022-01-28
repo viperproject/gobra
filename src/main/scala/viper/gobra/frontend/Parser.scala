@@ -19,6 +19,7 @@ import viper.gobra.reporting.{Source => _, _}
 import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
 
 import java.security.MessageDigest
+import java.nio.file.Path
 import scala.util.matching.Regex
 
 object Parser {
@@ -116,32 +117,52 @@ object Parser {
       }
     }
 
-    def isErrorFree(parserResults: Vector[Either[Vector[ParserError], PProgram]]): Either[Vector[ParserError], Vector[PProgram]] = {
-      val (errors, programs) = parserResults.partitionMap(identity)
-      if (errors.isEmpty) Right(programs) else Left(errors.flatten)
+    def isErrorFree(parserResults: Map[Path, Either[Vector[ParserError], PProgram]]): Either[Vector[ParserError], Map[Path, PProgram]] = {
+      val (errors, programs) = parserResults.partitionMap({
+        case (_, Left(value)) => Left(value)
+        case (key, Right(value)) => Right((key, value))
+      })
+      if (errors.isEmpty) Right(programs.toMap) else Left(errors.flatten.toVector)
     }
 
-    def samePackage(programs: Vector[PProgram]): Either[Vector[ParserError], Vector[PProgram]] = {
+    def samePackage(pathProgramMap: Map[Path, PProgram]): Either[Vector[ParserError], Map[Path, PProgram]] = {
+      val programs = pathProgramMap.values
       require(programs.nonEmpty)
       val pkgName = programs.head.packageClause.id.name
       val differingPkgNameMsgs = programs.flatMap(p =>
         error(
           p.packageClause,
           s"Files have differing package clauses, expected $pkgName but got ${p.packageClause.id.name}",
-          p.packageClause.id.name != pkgName))
-      if (differingPkgNameMsgs.isEmpty) Right(programs) else Left(pom.translate(differingPkgNameMsgs, ParserError))
+          p.packageClause.id.name != pkgName)).toVector
+      val expectedDir = pathProgramMap.head._1.getParent
+      val differentDirectoriesMsgs = pathProgramMap.flatMap({ case (path, p) =>
+        error(
+          p.packageClause,
+          s"Files are in different directories, expected $expectedDir but got ${path.getParent}",
+         path.getParent != expectedDir)
+      }).toVector
+
+      if (differingPkgNameMsgs.isEmpty && differentDirectoriesMsgs.isEmpty) {
+        Right(pathProgramMap)
+      } else {
+        Left(pom.translate(differingPkgNameMsgs ++ differentDirectoriesMsgs, ParserError))
+      }
     }
 
-    def makePackage(programs: Vector[PProgram]): Either[Vector[ParserError], PPackage] = {
-      val clause = parsers.rewriter.deepclone(programs.head.packageClause)
-      val parsedPackage = PPackage(clause, programs, pom)
+    def makePackage(programs: Map[Path, PProgram]): Either[Vector[ParserError], PPackage] = {
+      val clause = parsers.rewriter.deepclone(programs.head._2.packageClause)
+      val packageDir = programs.head._1.getParent
+
+      val parsedPackage = PPackage(clause, programs.values.toVector, pom, packageDir)
+
       // The package parse tree node gets the position of the package clause:
       pom.positions.dupPos(clause, parsedPackage)
       Right(parsedPackage)
     }
 
     val parsingFn = if (config.cacheParser) { parseSourceCached _ } else { parseSource _ }
-    val parserResults = sources.map(parsingFn)
+    val parserResults = sources.map(src => (Path.of(src.name), parsingFn(src))).toMap
+
     val res = for {
       // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
       // of the same package has failed or users have entered an invalid collection of inputs
@@ -306,7 +327,7 @@ object Parser {
         pkg.positions.positions.dupPos(prog, updatedProg)
       })
       // create a new package node with the updated programs
-      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions)
+      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.path)
       pkg.positions.positions.dupPos(pkg, updatedPkg)
       // check whether an error has occurred
       if (failedNodes.isEmpty) Right(updatedPkg)

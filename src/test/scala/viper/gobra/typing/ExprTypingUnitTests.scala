@@ -16,6 +16,7 @@ import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{DefaultInt, UnboundedInteger}
+import java.nio.file.Path
 
 class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
@@ -3386,7 +3387,8 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       val pkg = PPackage(
         PPackageClause(PPkgDef("pkg")),
         Vector(program),
-        new PositionManager(positions)
+        new PositionManager(positions),
+        Path.of("")
       )
       val tree = new Info.GoTree(pkg)
       val context = new Info.Context()

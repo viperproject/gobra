@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type S struct {
+	m map[int]int
+}
+
+requires acc(s.m)
+decreases
+pure func f(s S) int {
+	return (s.m)[0]
+}

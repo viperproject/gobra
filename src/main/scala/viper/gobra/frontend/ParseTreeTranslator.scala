@@ -17,6 +17,7 @@ import viper.gobra.frontend.TranslationHelpers._
 
 import scala.collection.mutable.ListBuffer
 import scala.jdk.CollectionConverters._
+import scala.reflect.runtime.universe.weakTypeTag
 
 class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boolean = false) extends GobraParserBaseVisitor[AnyRef] {
 
@@ -112,18 +113,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * visits an expression
     */
   override def visitExpression(ctx: ExpressionContext): PExpression = {
-    // First check for types in the operands. In this case this has to be an equality operation
-    if (has(ctx.rel_op) && (has(ctx.expression(0).type_()) || has(ctx.expression(1).type_()))) {
-      val l = if (has(ctx.expression(0).type_())) visitType_(ctx.expression(0).type_()) else visitExpression(ctx.expression(0))
-      val r = if (has(ctx.expression(1).type_())) visitType_(ctx.expression(1).type_()) else visitExpression(ctx.expression(1))
-      val eq_op = if (has(ctx.rel_op)) {
-        ctx.rel_op.getType match {
-          case GobraParser.EQUALS => PEquals
-          case GobraParser.NOT_EQUALS => PUnequals
-          case _ => fail(ctx.rel_op, "Types may only be compared with == or !=.")
-        }
-      } else fail(ctx, "Type expressions may only appear in type comparisons.")
-      return eq_op(l,r).at(ctx)
+    if (has(ctx.rel_op) && ctx.rel_op.getType == GobraParser.EQUALS) {
+      val l = if (has(ctx.expression(0).type_())) ctx.expression(0).type_() else ctx.expression(0)
+      val r = if (has(ctx.expression(1).type_())) ctx.expression(1).type_() else ctx.expression(1)
+      return PEquals(visitNode(l), visitNode(r)).at(ctx)
     }
     // Otherwise we have a normal expression
     visitChildren(ctx) match {
@@ -2059,7 +2052,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
 
   def visitNode[P <: AnyRef](ctx : ParserRuleContext) : P = {
-    visit(ctx).asInstanceOf[P]
+    visit(ctx) match {
+      case p : P => p
+      case e => fail(ctx, s"expected ${weakTypeTag[P].toString()} but got ${e}")
+    }
   }
 
   /** Helper Function for optional Nodes

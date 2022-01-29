@@ -307,7 +307,7 @@ object GobraRunner extends GobraFrontend with StrictLogging {
       if(errorCount > 1) {
         logger.error(s"${verifier.name} has found $errorCount error(s)")
         exitCode = 1
-      } else {
+      } else if(exitCode == 0){
         logger.info(s"${verifier.name} found no errors")
       }
       sys.exit(exitCode)

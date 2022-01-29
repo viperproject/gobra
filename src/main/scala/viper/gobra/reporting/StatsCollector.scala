@@ -101,8 +101,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         "cached": ${entry.cached},
       }""").mkString(", \n") + "\n    ],\n" + s"""    "dependencies": [""" + "\n" +
         value.viperMembers
-          .flatMap(entry => getDependencies(entry.member).filter(dep => viperMemberNameGobraMemberMap.contains(value.pkgDir + "-" + dep)))
-          .map(dep => viperMemberNameGobraMemberMap(value.pkgDir + "-" + dep))
+          .flatMap(entry => getDependencies(entry.member).filter(dep => viperMemberNameGobraMemberMap.contains(value.pkgDir + "-" + value.pkg + "-" + dep)))
+          .map(dep => viperMemberNameGobraMemberMap(value.pkgDir + "-" + value.pkg + "-" + dep))
           .map({ case GobraMemberEntry(_, pkg, memberName, args,_,_,_) => "        \"" + pkg + "." + memberName + args + "\""})
           .toSet
           .mkString(", \n") + "\n    ]\n  }"
@@ -121,10 +121,12 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
       memberMap(g).viperMembers.foreach(v => {
         val name = memberMap(g).pkg + "." + memberMap(g).memberName + memberMap(g).args
 
+        val pkgString = memberMap(g).pkgDir + "-" + memberMap(g).pkg
+
         // Check if any viper dependencies correspond to a trusted or abstract, non-builtin gobra member
         getDependencies(v.member)
-          .filter(dep => viperMemberNameGobraMemberMap.contains(memberMap(g).pkgDir + "-" + dep))
-          .foreach(dep => viperMemberNameGobraMemberMap.get(memberMap(g).pkgDir + "-" + dep) match {
+          .filter(dep => viperMemberNameGobraMemberMap.contains(pkgString + "-" + dep))
+          .foreach(dep => viperMemberNameGobraMemberMap.get(pkgString + "-" + dep) match {
           // Trusted implies abstracted, so we match trusted first
           case Some(GobraMemberEntry(_, pkg, memberName, args, _, true, _)) =>
             warnings = warnings.appended("Warning: Member " + name + " depends on trusted member " + pkg + "." + memberName + args + "\n")
@@ -154,7 +156,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
       case None => memberMap = memberMap + (key -> GobraMemberEntry(pkgDir, pkg, memberName, args, List(entry), isTrusted, isAbstract))
     }
 
-    val viperKey = pkgDir + "-" + entry.member.name
+    val viperKey = pkgDir + "-" + pkg + "-" + entry.member.name
 
     viperMemberNameGobraMemberMap.get(viperKey) match {
       // Viper methods should only correspond to a single Gobra method.

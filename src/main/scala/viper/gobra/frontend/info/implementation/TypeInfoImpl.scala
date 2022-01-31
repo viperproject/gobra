@@ -87,8 +87,23 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   }
 
   private var externallyAccessedMembers: Vector[PNode] = Vector()
+  // TODO: make this public instead of checking
   private def registerExternallyAccessedEntity(r: SymbolTable.Regular): SymbolTable.Regular = {
-    if (!externallyAccessedMembers.contains(r.rep)) externallyAccessedMembers = externallyAccessedMembers :+ r.rep
+    if (!externallyAccessedMembers.contains(r.rep)) {
+      externallyAccessedMembers = externallyAccessedMembers :+ r.rep
+      r.context match {
+        case ctx: TypeInfoImpl =>
+          ctx.relevantSubnodes(r.rep).flatMap(allChildren).foreach {
+            case n: PExpressionOrType => ctx.resolve(n) match {
+              case Some(s: AstPattern.Symbolic) => s.symb.context match {
+                case ctx2: TypeInfoImpl => ctx2.registerExternallyAccessedEntity(s.symb)
+              }
+              case _ =>
+            }
+            case _ =>
+          }
+      }
+    }
     r
   }
 
@@ -117,45 +132,21 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
     // predicates, methods, pure methods
     case decl@ PFunctionDecl(id, args, result, spec, _) =>
       if (decl.spec.isPure) tree.child(decl) else id +: result +: spec +: args
+    case decl: PDomainFunction => tree.child(decl)
     case sig:  PMethodSig => tree.child(sig)
     case decl@ PMethodDecl(id, receiver, args, result, spec, _) =>
       if (decl.spec.isPure) tree.child(decl) else id +: receiver +: result +: spec +: args
     case decl: PMPredicateDecl => tree.child(decl)
     case decl: PFPredicateDecl => tree.child(decl)
+    case sig:  PMPredicateSig => tree.child(sig)
     case impl: PMethodImplementationProof => tree.child(impl)
+    case alias: PImplementationProofPredicateAlias => tree.child(alias)
     case decl: PTypeDecl => tree.child(decl.right)
-    case _ => Vector()
-  }
-
-  // Todo: document
-  private lazy val usedMembers: Set[PNode] = {
-    var visited: Set[PNode] = Set()
-    // TODO: change to stack
-    var workSet: Vector[PNode] = externallyAccessedMembers
-    //println(s"set: $externallyAccessedMembers")
-    while (workSet.nonEmpty) {
-      val elem = workSet.head
-      val tail = workSet.tail
-      var newNodes: Vector[PNode] = Vector()
-
-      if (!visited.contains(elem)) {
-        visited = Set(elem) ++ visited
-        newNodes = relevantSubnodes(elem).flatMap(allChildren).flatMap {
-          case n: PExpressionOrType => resolve(n) match {
-            case Some(s: AstPattern.Symbolic) => Vector(s.symb.rep)
-            case _ => Vector()
-          }
-          case _ => Vector()
-        }
-      }
-      workSet = tail ++ newNodes
-    }
-
-    visited
+    case n => Vector()
   }
 
   override def isUsed(m: PMember): Boolean = {
-    usedMembers.contains(m)
+    externallyAccessedMembers.contains(m)
   }
 
   override def struct(n: PNode): Option[Type.StructT] =

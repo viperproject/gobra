@@ -29,10 +29,12 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def wellDefFoldable(acc: PPredicateAccess): Messages = {
-    def isNonAbstract(p: st.Predicate): Messages = p match {
-      case fp: st.FPredicate => error(acc, s"abstract predicates are not foldable", fp.decl.body.isEmpty)
-      case st.MPredicateImpl(decl, _) => error(acc, s"abstract predicates are not foldable", decl.body.isEmpty)
-      case _: st.MPredicateSpec => noMessages // interface well-definedness will make sure that implementations implement the declared predicates
+    def isAbstract(p: st.Predicate): Boolean = p match {
+      case fp: st.FPredicate => fp.decl.body.isEmpty
+      case mp: st.MPredicateImpl => mp.decl.body.isEmpty
+      case _: st.MPredicateSpec =>
+        // counter-intuitive: interface well-definedness will make sure that implementations implement the declared predicates
+        false
     }
 
     resolve(acc.pred) match {
@@ -42,7 +44,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
           s"expected a predicate constructor, but got ${acc.pred.base}",
           !acc.pred.base.isInstanceOf[PPredConstructor])
       case Some(ap.PredicateCall(pred, _)) => pred match {
-        case p: ap.SymbolicPredicateKind => isNonAbstract(p.symb)
+        case p: ap.SymbolicPredicateKind => error(acc, s"abstract predicates are not foldable", isAbstract(p.symb))
         case p: ap.BuiltInPredicateKind => error(acc, s"abstract predicates are not foldable", p.symb.tag.isAbstract)
         case _: ap.PredExprInstance => error(acc, s"predicate expression calls are not foldable")
       }

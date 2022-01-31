@@ -178,7 +178,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     // `visitedTypes` keeps track of the types that were already discovered and checked,
     // used for detecting cyclic definition chains
-    // `ctx` of type UnderlyingType represents in current context in which a lookup should happen
+    // `ctx` of type UnderlyingType represents the current context in which a lookup should happen
     // ExternalTypeInfo is not used as we need access to `underlyingTypeWithCtxP`, which is not exposed by the interface.
     def isCyclic: (PStructType, Set[String], UnderlyingType) => Boolean = (struct, visitedTypes, ctx) => {
       // the goal is to detect whether a struct type has infinity size and cause a corresponding error before

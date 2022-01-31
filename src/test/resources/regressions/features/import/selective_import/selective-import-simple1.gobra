@@ -35,3 +35,7 @@ func test5() {
 func test6() {
     pkg.Test8()
 }
+
+func test7() {
+    pkg.Test9()
+}

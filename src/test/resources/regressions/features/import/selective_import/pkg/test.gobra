@@ -56,3 +56,9 @@ func usedInBody()
 func Test8() {
     usedInBody()
 }
+
+pure func usedInBodyPure() int
+
+pure func Test9() int {
+    return usedInBodyPure()
+}

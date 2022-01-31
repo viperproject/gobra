@@ -5,6 +5,9 @@ package bug
 
 pred Test() { true }
 
+// This predicate should not be included in the final viper file
+pred TestNotIncluded() { true }
+
 
 ensures ret == true
 pure func f() (ret bool) {

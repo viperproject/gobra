@@ -86,6 +86,13 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
     case _ => violation("found non-regular entity")
   }
 
+  def registerImplProof(n: PImplementationProof): PImplementationProof = {
+    if (!externallyAccessedMembers.contains(n)) {
+      externallyAccessedMembers = externallyAccessedMembers :+ (n)
+    }
+    n
+  }
+
   private var externallyAccessedMembers: Vector[PNode] = Vector()
   // TODO: make this public instead of checking
   private def registerExternallyAccessedEntity(r: SymbolTable.Regular): SymbolTable.Regular = {
@@ -131,17 +138,29 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   private def relevantSubnodes(n: PNode): Vector[PNode] = n match {
     // predicates, methods, pure methods
     case decl@ PFunctionDecl(id, args, result, spec, _) =>
-      if (decl.spec.isPure) tree.child(decl) else id +: result +: spec +: args
+      // if (decl.spec.isPure) tree.child(decl) else id +: result +: spec +: args
+      tree.child(decl)
     case decl: PDomainFunction => tree.child(decl)
     case sig:  PMethodSig => tree.child(sig)
     case decl@ PMethodDecl(id, receiver, args, result, spec, _) =>
-      if (decl.spec.isPure) tree.child(decl) else id +: receiver +: result +: spec +: args
+      // Isn't this equivalent to tree.child(decl) because the parser will throw away the body in case of an imported non-pure function & method?
+      // if (decl.spec.isPure) tree.child(decl) else id +: receiver +: result +: spec +: args
+      tree.child(decl)
     case decl: PMPredicateDecl => tree.child(decl)
     case decl: PFPredicateDecl => tree.child(decl)
     case sig:  PMPredicateSig => tree.child(sig)
-    case impl: PMethodImplementationProof => tree.child(impl)
-    case alias: PImplementationProofPredicateAlias => tree.child(alias)
-    case decl: PTypeDecl => tree.child(decl.right)
+    case impl: PMethodImplementationProof =>
+      // tree.child(impl)
+      println("Here")
+      ???
+    case alias: PImplementationProofPredicateAlias =>
+      // tree.child(impl)
+      println("Here")
+      ???
+      //tree.child(alias)
+    case decl: PTypeDecl =>
+      println("Hello")
+      tree.child(decl.right)
     case n => Vector()
   }
 

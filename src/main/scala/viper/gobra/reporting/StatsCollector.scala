@@ -8,7 +8,7 @@ package viper.gobra.reporting
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.relation.NodeNotInTreeException
-import viper.gobra.ast.frontend.{PExpression, PDomainFunction, PFPredicateDecl, PFunctionDecl, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor}
+import viper.gobra.ast.frontend.{PDomainFunction, PExpression, PFPredicateDecl, PFunctionDecl, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor}
 import viper.gobra.ast.internal.BuiltInMember
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.util.Violation
@@ -81,7 +81,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
   def writeJsonReportToFile(file: File): Unit = {
     if((file.exists() && file.canWrite) || file.getParentFile.canWrite) {
-      FileUtils.writeStringToFile(file, getJsonReport(false), UTF_8)
+      FileUtils.writeStringToFile(file, getJsonReport(true), UTF_8)
     }
   }
 
@@ -101,32 +101,30 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         "cached": ${entry.cached}
       }""").mkString(", \n") + "\n    ],\n" + s"""    "dependencies": [""" + "\n" +
         value.viperMembers
-          .flatMap(entry => getDependencies(entry.member).filter(dep => viperMemberNameGobraMemberMap.contains(value.pkgDir + "-" + value.pkg + "-" + dep)))
-          .map(dep => viperMemberNameGobraMemberMap(value.pkgDir + "-" + value.pkg + "-" + dep))
-          .map({ case GobraMemberEntry(pkgDir, pkg, memberName, args,_,_,_) => "        \"" + pkgDir + " " + pkg + "." + memberName + args + "\""})
+          .flatMap(entry => getDependencies(entry.member))
+          .flatMap(dep => viperMemberNameGobraMemberMap.get(viperMemberKey(value.pkgDir, value.pkg, dep)))
+          .map(entry => "        \"" + gobraMemberKey(entry.pkgDir, entry.pkg, entry.memberName, entry.args) + "\"")
           .toSet
           .mkString(", \n") + "\n    ]\n  }"
       }).mkString(", \n") + "\n]\n"
 
     if(shorten) {
-      json.replaceAll("\\s", "")
+      // Replaces all spaces, except the ones inside of quotes
+      json.replaceAll("\\s+(?=([^\"]*\"[^\"]*\")*[^\"]*$)", "")
     } else {
       json
     }
   }
 
-  def getWarnings(task: String): List[String] = {
+  def getWarnings(pkgDir: String, pkg: String): Set[String] = {
     var warnings: List[String] = List()
-    memberMap.keys.filter(_.startsWith(task)).foreach(g => {
-      memberMap(g).viperMembers.foreach(v => {
-        val name = memberMap(g).pkg + "." + memberMap(g).memberName + memberMap(g).args
-
-        val pkgString = memberMap(g).pkgDir + "-" + memberMap(g).pkg
+    memberMap.values.filter(value => value.pkgDir == pkgDir && value.pkg == pkg).foreach(entry => {
+      entry.viperMembers.foreach(v => {
+        val name = entry.pkg + "." + entry.memberName + entry.args
 
         // Check if any viper dependencies correspond to a trusted or abstract, non-builtin gobra member
         getDependencies(v.member)
-          .filter(dep => viperMemberNameGobraMemberMap.contains(pkgString + "-" + dep))
-          .foreach(dep => viperMemberNameGobraMemberMap.get(pkgString + "-" + dep) match {
+          .foreach(dep => viperMemberNameGobraMemberMap.get(viperMemberKey(pkgDir, pkg, dep)) match {
           // Trusted implies abstracted, so we match trusted first
           case Some(GobraMemberEntry(_, pkg, memberName, args, _, true, _)) =>
             warnings = warnings.appended("Warning: Member " + name + " depends on trusted member " + pkg + "." + memberName + args + "\n")
@@ -136,7 +134,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         })
       })
     })
-    warnings
+    warnings.toSet
   }
 
   def addResult(pkgDir: String,
@@ -146,7 +144,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
                 entry: ViperMemberEntry,
                 isTrusted: Boolean,
                 isAbstract: Boolean): Unit = this.synchronized({
-    val key = pkgDir + " " + pkg + "." + memberName + args
+    val key = gobraMemberKey(pkgDir, pkg, memberName, args)
 
     memberMap.get(key) match {
       case Some(existing) =>
@@ -156,7 +154,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
       case None => memberMap = memberMap + (key -> GobraMemberEntry(pkgDir, pkg, memberName, args, List(entry), isTrusted, isAbstract))
     }
 
-    val viperKey = pkgDir + "-" + pkg + "-" + entry.member.name
+    val viperKey = viperMemberKey(pkgDir, pkg, entry.member.name)
 
     viperMemberNameGobraMemberMap.get(viperKey) match {
       // Viper methods should only correspond to a single Gobra method.
@@ -167,6 +165,9 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     }
   })
 
+  def gobraMemberKey(pkgDir: String, pkg: String, memberName: String, args: String): String = pkgDir + "-" + pkg + "." + memberName + args
+
+  def viperMemberKey(pkgDir: String, pkg: String, viperMemberName: String): String = pkgDir + "-" + pkg + "-" + viperMemberName
 
   /**
    * Builds the member information for a given node out of the stored typeInfo
@@ -191,10 +192,10 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     val pkgName = nodeTypeInfo.tree.originalRoot.packageClause.id.name
     val pkgDir = nodeTypeInfo.tree.originalRoot.path.toString
 
-    def formatArgs(args: Vector[PParameter]) =
+    def formatArgs(args: Vector[PParameter]): String =
       ("(" + args.map(f => f.typ.formattedShort).mkString(", ") + ")").replaceAll("\\s+", " ")
 
-    def formatPredConstructorArgs(args: Vector[Option[PExpression]]) =
+    def formatPredConstructorArgs(args: Vector[Option[PExpression]]): String =
       ("(" + args.filter(e => e.isDefined).map(e => e.get.formattedShort).mkString(", ") + ")").replaceAll("\\s+", " ")
 
     // Check whether the program containing this node has the builtin tag

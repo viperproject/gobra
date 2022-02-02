@@ -15,7 +15,7 @@ import viper.gobra.frontend.info.implementation.typing.BaseTyping
 
 trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
-  private[typing] def wellDefGhostMember(member: PGhostMember): Messages = member match {
+  protected[typing] def wellDefGhostMember(member: PGhostMember): Messages = member match {
     case PExplicitGhostMember(_) => noMessages
 
     case PFPredicateDecl(_, args, body) =>
@@ -29,8 +29,6 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case ip: PImplementationProof =>
       val subType = symbType(ip.subT)
       val superType = symbType(ip.superT)
-
-      registerImplProof(ip)
 
       val syntaxImplementsMsgs = syntaxImplements(subType, superType).asReason(ip, s"${ip.subT} does not implement the interface ${ip.superT}")
       if (syntaxImplementsMsgs.nonEmpty) syntaxImplementsMsgs

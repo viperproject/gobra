@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation
 
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
+import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.base.SymbolTable.{Regular, TypeMember, UnknownEntity, lookup}
@@ -166,6 +167,36 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   override def isUsed(m: PMember): Boolean = {
     externallyAccessedMembers.contains(m)
+  }
+
+  // private var _visitedInterfaces = ???
+  // TODO: pick better visibility
+  override def wellDefGhostMember(member: PGhostMember): Messages = {
+    member match {
+      case n: PImplementationProof => registerImplProof(n)
+      case _ =>
+    }
+    super.wellDefGhostMember(member)
+  }
+
+  override def syntaxImplements(l: Type.Type, r: Type.Type): PropertyResult = {
+    println("Implements")
+    val result = super.syntaxImplements(l, r)
+    result match {
+      case PropertyResult(None) =>
+        // TODO
+        // right now, every interface implementation and corresponding methods are added.
+        // we can make this better in the future, but it requires re-implementing detection of inference of
+        // implementation proofs at the concrete syntax level
+        println(s"l: $l, r: $r")
+        val interfaceMethodNames = memberSet(r).toMap.keys
+        println(s"interface names: $interfaceMethodNames")
+        val correspondingTypeMethods = interfaceMethodNames.flatMap(memberSet(l).lookup(_))
+        println(s"interface methods: $correspondingTypeMethods")
+        correspondingTypeMethods.foreach(registerExternallyAccessedEntity)
+      case PropertyResult(_) =>
+    }
+    result
   }
 
   override def struct(n: PNode): Option[Type.StructT] =

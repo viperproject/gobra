@@ -264,7 +264,7 @@ object GobraRunner extends GobraFrontend with StrictLogging {
         val resultFuture = verifier.verify(config.copy(inputs=inputs, reporter = statsCollector), Some(pkgString))(executor)
         val result = Await.result(resultFuture, Duration.Inf)
 
-        val warnings = statsCollector.getWarnings(pkgString)
+        val warnings = statsCollector.getWarnings(pkg.path, pkg.name)
         warningCount += warnings.size
         warnings.foreach(m => logger.warn(m))
 

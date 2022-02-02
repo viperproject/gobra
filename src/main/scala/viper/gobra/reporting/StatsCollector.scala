@@ -8,7 +8,7 @@ package viper.gobra.reporting
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.relation.NodeNotInTreeException
-import viper.gobra.ast.frontend.{PDomainFunction, PFPredicateDecl, PFunctionDecl, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor}
+import viper.gobra.ast.frontend.{PExpression, PDomainFunction, PFPredicateDecl, PFunctionDecl, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor}
 import viper.gobra.ast.internal.BuiltInMember
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.util.Violation
@@ -98,12 +98,12 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         "name": "${entry.member.name}",
         "time": ${entry.time},
         "success": ${entry.success},
-        "cached": ${entry.cached},
+        "cached": ${entry.cached}
       }""").mkString(", \n") + "\n    ],\n" + s"""    "dependencies": [""" + "\n" +
         value.viperMembers
           .flatMap(entry => getDependencies(entry.member).filter(dep => viperMemberNameGobraMemberMap.contains(value.pkgDir + "-" + value.pkg + "-" + dep)))
           .map(dep => viperMemberNameGobraMemberMap(value.pkgDir + "-" + value.pkg + "-" + dep))
-          .map({ case GobraMemberEntry(_, pkg, memberName, args,_,_,_) => "        \"" + pkg + "." + memberName + args + "\""})
+          .map({ case GobraMemberEntry(pkgDir, pkg, memberName, args,_,_,_) => "        \"" + pkgDir + " " + pkg + "." + memberName + args + "\""})
           .toSet
           .mkString(", \n") + "\n    ]\n  }"
       }).mkString(", \n") + "\n]\n"
@@ -191,7 +191,11 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     val pkgName = nodeTypeInfo.tree.originalRoot.packageClause.id.name
     val pkgDir = nodeTypeInfo.tree.originalRoot.path.toString
 
-    def formatArgs(args: Vector[PParameter]) = "(" + args.map(f => f.typ.formattedShort).mkString(", ") + ")"
+    def formatArgs(args: Vector[PParameter]) =
+      ("(" + args.map(f => f.typ.formattedShort).mkString(", ") + ")").replaceAll("\\s+", " ")
+
+    def formatPredConstructorArgs(args: Vector[Option[PExpression]]) =
+      ("(" + args.filter(e => e.isDefined).map(e => e.get.formattedShort).mkString(", ") + ")").replaceAll("\\s+", " ")
 
     // Check whether the program containing this node has the builtin tag
     val isBuiltIn = nodeTypeInfo.program(p).isBuiltin
@@ -217,7 +221,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
       case p: PMethodImplementationProof =>
         GobraMemberInfo(pkgDir, pkgName, p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), isTrusted = false, isAbstract = p.body.isEmpty && isNotImported, isBuiltIn)
       case p: PPredConstructor =>
-        GobraMemberInfo(pkgDir, pkgName, p.id.id.name, "(" + p.args.filter(e => e.isDefined).map(e => e.get.formattedShort).mkString(", ") + ")", isTrusted = false, isAbstract = false, isBuiltIn)
+        GobraMemberInfo(pkgDir, pkgName, p.id.id.name, formatPredConstructorArgs(p.args), isTrusted = false, isAbstract = false, isBuiltIn)
       // Fallback to the node's code root if we can't match the node
       case p: PNode => getMemberInformation(nodeTypeInfo.codeRoot(p), typeInfo)
     }

@@ -183,17 +183,33 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
     println("Implements")
     val result = super.syntaxImplements(l, r)
     result match {
-      case PropertyResult(None) =>
+      case PropertyResult(None) if l != Type.NilType => // And r not empty interface
         // TODO
         // right now, every interface implementation and corresponding methods are added.
         // we can make this better in the future, but it requires re-implementing detection of inference of
         // implementation proofs at the concrete syntax level
         println(s"l: $l, r: $r")
-        val interfaceMethodNames = memberSet(r).toMap.keys
+        val interfaceMethodNames = r match {
+          case c: Type.ContextualType => c.context match {
+            case t: TypeInfo with MemberResolution => t.memberSet(r).toMap.keys
+            case _ => ???
+          }
+
+        }
         println(s"interface names: $interfaceMethodNames")
-        val correspondingTypeMethods = interfaceMethodNames.flatMap(memberSet(l).lookup(_))
-        println(s"interface methods: $correspondingTypeMethods")
-        correspondingTypeMethods.foreach(registerExternallyAccessedEntity)
+        l match {
+          case c: Type.ContextualType => c.context match {
+            case tI: TypeInfoImpl =>
+              // val correspondingTypeMethods = interfaceMethodNames.flatMap(tI.memberSet(l).lookup(_))
+              // Non-optmizied version
+              val correspondingTypeMethods = tI.memberSet(l).toMap.values
+              println(s"corresponding methods: $correspondingTypeMethods")
+              correspondingTypeMethods.foreach(tI.registerExternallyAccessedEntity)
+            case _ => ???
+          }
+          case _ => // TODO: Do nothing?
+        }
+
       case PropertyResult(_) =>
     }
     result

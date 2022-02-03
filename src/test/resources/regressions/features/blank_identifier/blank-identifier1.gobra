@@ -3,7 +3,7 @@
 
 package main
 
-// constants may be declared with the balnk identifier
+// constants may be declared with the blank identifier
 const _ = false
 const const1, _ = 2, 1
 

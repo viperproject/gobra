@@ -30,6 +30,11 @@ sealed trait GobraVerificationResultMessage extends GobraMessage {
   val verifier: String
 }
 
+case class VerificationTaskFinishedMessage(taskName: String) extends GobraMessage {
+  override val name: String = s"verification_task_finished"
+  override def toString: String = s"verification_task_finished(taskName=$taskName)"
+}
+
 case class GobraOverallSuccessMessage(verifier: String) extends GobraVerificationResultMessage {
   override val name: String = s"overall_success_message"
   val result: VerifierResult = Success

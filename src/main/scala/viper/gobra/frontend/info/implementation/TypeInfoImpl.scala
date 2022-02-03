@@ -87,32 +87,38 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
     case _ => violation("found non-regular entity")
   }
 
-  def registerImplProof(n: PImplementationProof): PImplementationProof = {
-    if (!externallyAccessedMembers.contains(n)) {
-      externallyAccessedMembers = externallyAccessedMembers :+ (n)
-    }
-    n
-  }
-
   private var externallyAccessedMembers: Vector[PNode] = Vector()
-  // TODO: make this public instead of checking
   private def registerExternallyAccessedEntity(r: SymbolTable.Regular): SymbolTable.Regular = {
     if (!externallyAccessedMembers.contains(r.rep)) {
+      // println(s"Store ${r.rep}")
       externallyAccessedMembers = externallyAccessedMembers :+ r.rep
-      r.context match {
-        case ctx: TypeInfoImpl =>
-          ctx.relevantSubnodes(r.rep).flatMap(allChildren).foreach {
-            case n: PExpressionOrType => ctx.resolve(n) match {
-              case Some(s: AstPattern.Symbolic) => s.symb.context match {
-                case ctx2: TypeInfoImpl => ctx2.registerExternallyAccessedEntity(s.symb)
-              }
-              case _ =>
-            }
-            case _ =>
-          }
-      }
+      val deps = collectInternallyAccessedEntity(r.rep)
+      deps.foreach(registerExternallyAccessedEntity)
     }
     r
+  }
+
+  private def collectInternallyAccessedEntity(r: PNode): Vector[Regular] = {
+    allChildren(r) flatMap {
+      case n: PIdnNode =>
+        //println(s"cycle: $r; $n")
+        entity(n) match {
+        case reg: SymbolTable.Regular =>
+          reg match {
+            case named: SymbolTable.ActualTypeEntity =>
+              // If it is a named type and it is a dependency, collect all members and add them
+              val typ = symbType(named.decl.right)
+              val members = memberSet(typ).toMap.values
+              reg +: members.toVector
+              // Vector(reg)
+            case _ =>
+              Vector(reg)
+          }
+        case _ =>
+          Vector()
+      }
+      case _ => Vector()
+    }
   }
 
   override def externalRegular(n: PIdnNode): Option[SymbolTable.Regular] = {
@@ -135,84 +141,31 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
     res
   }
 
-  // TODO: computes every node that might contain a visible invocation to the importing package
-  private def relevantSubnodes(n: PNode): Vector[PNode] = n match {
-    // predicates, methods, pure methods
-    case decl@ PFunctionDecl(id, args, result, spec, _) =>
-      // if (decl.spec.isPure) tree.child(decl) else id +: result +: spec +: args
-      tree.child(decl)
-    case decl: PDomainFunction => tree.child(decl)
-    case sig:  PMethodSig => tree.child(sig)
-    case decl@ PMethodDecl(id, receiver, args, result, spec, _) =>
-      // Isn't this equivalent to tree.child(decl) because the parser will throw away the body in case of an imported non-pure function & method?
-      // if (decl.spec.isPure) tree.child(decl) else id +: receiver +: result +: spec +: args
-      tree.child(decl)
-    case decl: PMPredicateDecl => tree.child(decl)
-    case decl: PFPredicateDecl => tree.child(decl)
-    case sig:  PMPredicateSig => tree.child(sig)
-    case impl: PMethodImplementationProof =>
-      // tree.child(impl)
-      println("Here")
-      ???
-    case alias: PImplementationProofPredicateAlias =>
-      // tree.child(impl)
-      println("Here")
-      ???
-      //tree.child(alias)
-    case decl: PTypeDecl =>
-      println("Hello")
-      tree.child(decl.right)
-    case n => Vector()
-  }
+  private def collectImplementationProofs(): Unit = {
+    val implementationProofs = tree.root.programs.flatMap(_.declarations.collect{ case m: PImplementationProof => m})
+    externallyAccessedMembers = externallyAccessedMembers ++ implementationProofs
+    implementationProofs.flatMap(collectInternallyAccessedEntity).foreach(registerExternallyAccessedEntity)
 
-  override def isUsed(m: PMember): Boolean = {
-    externallyAccessedMembers.contains(m)
-  }
-
-  // private var _visitedInterfaces = ???
-  // TODO: pick better visibility
-  override def wellDefGhostMember(member: PGhostMember): Messages = {
-    member match {
-      case n: PImplementationProof => registerImplProof(n)
+    wellImplementationProofs match {
+      case Right(value) =>
+        value.foreach { x =>
+          registerExternallyAccessedEntity(x._3)
+          registerExternallyAccessedEntity(x._4)
+        }
       case _ =>
+
     }
-    super.wellDefGhostMember(member)
   }
 
-  override def syntaxImplements(l: Type.Type, r: Type.Type): PropertyResult = {
-    println("Implements")
-    val result = super.syntaxImplements(l, r)
-    result match {
-      case PropertyResult(None) if l != Type.NilType => // And r not empty interface
-        // TODO
-        // right now, every interface implementation and corresponding methods are added.
-        // we can make this better in the future, but it requires re-implementing detection of inference of
-        // implementation proofs at the concrete syntax level
-        println(s"l: $l, r: $r")
-        val interfaceMethodNames = r match {
-          case c: Type.ContextualType => c.context match {
-            case t: TypeInfo with MemberResolution => t.memberSet(r).toMap.keys
-            case _ => ???
-          }
-
-        }
-        println(s"interface names: $interfaceMethodNames")
-        l match {
-          case c: Type.ContextualType => c.context match {
-            case tI: TypeInfoImpl =>
-              // val correspondingTypeMethods = interfaceMethodNames.flatMap(tI.memberSet(l).lookup(_))
-              // Non-optmizied version
-              val correspondingTypeMethods = tI.memberSet(l).toMap.values
-              println(s"corresponding methods: $correspondingTypeMethods")
-              correspondingTypeMethods.foreach(tI.registerExternallyAccessedEntity)
-            case _ => ???
-          }
-          case _ => // TODO: Do nothing?
-        }
-
-      case PropertyResult(_) =>
+  private var _isUsedFirst = true
+  override def isUsed(m: PMember): Boolean = {
+    if (_isUsedFirst) {
+      collectImplementationProofs()
+      _isUsedFirst = false
     }
-    result
+    println(s"Member: ${externallyAccessedMembers.contains(m)}")
+    println(s"$m")
+    externallyAccessedMembers.contains(m)
   }
 
   override def struct(n: PNode): Option[Type.StructT] =

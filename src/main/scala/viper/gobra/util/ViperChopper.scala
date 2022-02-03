@@ -71,7 +71,7 @@ object ViperChopper {
       val result = {
         if (nodes.size < 10) {
           val t1 = System.nanoTime()
-          val smallestPrograms = smallestCut(N, nodes, edges, (x: Int) => x)
+          val smallestPrograms = smallestCutWithCycles(N, nodes, edges, (x: Int) => x)
           val t2 = System.nanoTime()
           val mergedPrograms = mergePrograms(smallestPrograms)(bound, penalty.contravariantLift(idToVertex))
           val res = mergedPrograms.map(_.toSet)
@@ -86,7 +86,7 @@ object ViperChopper {
           val (_, idToSCC, sccEdges) = SCC.fastCompute(N, edges)
           val sccNodes = nodes.map(idToSCC) // may contain duplicates, but smallestCut can deal with that
           val t1 = System.nanoTime()
-          val smallestPrograms = smallestCut(N, sccNodes, sccEdges, (x: SCC.Component[Int]) => x.proxy)
+          val smallestPrograms = smallestCutWithoutCycles(N, sccNodes, sccEdges, (x: SCC.Component[Int]) => x.proxy)
           val t2 = System.nanoTime()
           val mergedPrograms = mergePrograms(smallestPrograms)(bound, penalty.contravariantSumLift(_.nodes.map(idToVertex)))
           val res = mergedPrograms.map(_.toSet.flatMap((c: SCC.Component[Int]) => c.nodes))
@@ -124,88 +124,113 @@ object ViperChopper {
       * Returns the set of smallest possible programs.
       * @param N Number of nodes.
       * @param nodes Nodes that must be included. The vector may be unsorted and may contain duplicates.
-      * @param edges Edges of the dependency graph.
+      * @param edges Edges of the dependency graph. The graph must have no cycles.
       * @param id Mapping from nodes to node ids. The result is used as the index for `edges`.
       * @return Set of smallest possible programs. A program is represented as a *sorted* list of node ids.
       */
-    private def smallestCut[T](N: Int, nodes: Vector[T], edges: Array[mutable.SortedSet[T]], id: T => Int): Vector[List[T]] = {
+    private def smallestCutWithoutCycles[T](N: Int, nodes: Vector[T], edges: Array[mutable.SortedSet[T]], id: T => Int): Vector[List[T]] = {
 
       /**
         * Computes which of the nodes in `nodes` are dominating, i.e. not reached by other nodes in `nodes`,
         * and then returns for each dominating node, the set of reachable nodes in a separate sorted list.
-        *
-        * This is done by applying dfs twice. The first run precomputes results that make the second run faster.
-        * The first run colors all nodes and computes the graph induced by the coloring,
-        * resulting in a smaller graph for the second run. All members of a color are sorted immediately to optimize
-        * intermediate results for the second run.
         */
 
-      // Stores the color of nodes. A color of a node is only valid if the node was visited.
+      // Stores color of a node.
+      // Color 0 means that the node was never visited.
+      // Color 1 means that the node was visited, but not yet finalized.
       val coloring = Array.ofDim[Int](N)
 
-      // Stores whether a note was visited
-      val visited  = Array.ofDim[Boolean](N)
+      // Stores whether a node is not a root.
+      val notRoot = Array.ofDim[Boolean](N)
 
-      // Stores whether a color is not a root. Only valid if color was used.
-      val colorIsNotRoot  = Array.ofDim[Boolean](N)
+      // Stores all dependencies of a node (including itself).
+      // Serves as memorization table.
+      val reachableNodes = Array.ofDim[immutable.SortedSet[T]](N)
 
-      def dfs1(start: T, color: Int): (immutable.SortedSet[T], List[Int]) = {
+      def dfs(start: T): Unit = {
         val stack = mutable.Stack[T](start)
-        var members = immutable.SortedSet.empty[T](Ordering.by(id)) // nodes of current color
-        var neighbors = List.empty[Int] // other colors reached from current color
-        val isAlreadyNeighbor = Array.ofDim[Boolean](color) // Assumes that `color` is max color used so far
+        val color = id(start) + 2 // avoid 0 and 1
 
         while (stack.nonEmpty) {
           val node = stack.pop()
           val nodeId = id(node)
-          if (!visited(nodeId)) {
-            visited(nodeId) = true
-            members += node
-            coloring(nodeId) = color
-            stack.pushAll(edges(nodeId))
-          } else {
-            val otherColor = coloring(nodeId)
-            if (otherColor != color && !isAlreadyNeighbor(otherColor)) {
-              isAlreadyNeighbor(otherColor) = true
-              colorIsNotRoot(otherColor) = true
-              neighbors ::= otherColor
-            }
+
+          coloring(nodeId) match {
+            case 0 =>
+              coloring(nodeId) = 1
+              // visit this node again after visiting the children
+              stack.push(node)
+              stack.pushAll(edges(nodeId))
+            case 1 =>
+              coloring(nodeId) = color
+              // children were visited, so now the result can be computed
+              reachableNodes(nodeId) =
+                edges(nodeId).foldLeft(immutable.SortedSet[T](node)(Ordering.by(id))) {
+                  case (result, neighbor) => result ++ reachableNodes(id(neighbor))
+                }
+            case `color` =>
+              // node was visited in another call to dfs with the same argument ('nodes' may contain duplicates).
+            case _ =>
+              // node was visited in another call to dfs with a different argument.
+              notRoot(nodeId) = true
           }
         }
-        (members, neighbors)
       }
 
-      // Stores number of colors
-      var numColors = 0
-      // Stores all nodes with a certain color
-      val colorMembers = Array.ofDim[immutable.SortedSet[T]](N)
-      // Stores the edges between colors
-      val colorEdges = Array.ofDim[List[Int]](N)
-      for (node <- nodes if !visited(id(node))) {
-        val (members, neighbors) = dfs1(node, numColors)
-        colorMembers(numColors) = members
-        colorEdges(numColors) = neighbors
-        numColors += 1
-      }
+      for (node <- nodes) dfs(node)
+      for (node <- nodes; nodeId = id(node) if !notRoot(nodeId)) yield reachableNodes(nodeId).toList
+    }
 
-      def dfs2(startColor: Int): immutable.SortedSet[T] = {
-        val visitedColor  = Array.ofDim[Boolean](numColors)
-        val stack = mutable.Stack[Int](startColor)
-        var result = immutable.SortedSet.empty[T](Ordering.by(id))
+    /**
+      * Returns the set of smallest possible programs.
+      * @param N Number of nodes.
+      * @param nodes Nodes that must be included. The vector may be unsorted and may contain duplicates.
+      * @param edges Edges of the dependency graph. The graph may have cycles.
+      * @param id Mapping from nodes to node ids. The result is used as the index for `edges`.
+      * @return Set of smallest possible programs. A program is represented as a *sorted* list of node ids.
+      */
+    private def smallestCutWithCycles[T](N: Int, nodes: Vector[T], edges: Array[mutable.SortedSet[T]], id: T => Int): Vector[List[T]] = {
+
+      /**
+        * Computes which of the nodes in `nodes` are dominating, i.e. not reached by other nodes in `nodes`,
+        * and then returns for each dominating node, the set of reachable nodes in a separate sorted list.
+        */
+
+      // Stores color of a node. Color 0 means that the node was never visited.
+      val coloring = Array.ofDim[Int](N)
+
+      // Stores whether a node is not a root.
+      val notRoot = Array.ofDim[Boolean](N)
+
+      // Stores all dependencies of a node (including itself).
+      val reachableNodes = Array.ofDim[mutable.SortedSet[T]](N)
+
+      def dfs(start: T): Unit = {
+        val stack = mutable.Stack[T](start)
+        val result = mutable.SortedSet[T]()(Ordering.by(id))
+        val color = id(start) + 1 // avoid 0
 
         while (stack.nonEmpty) {
-          val color = stack.pop()
-          if (!visitedColor(color)) {
-            visitedColor(color) = true
-            result ++= colorMembers(color) // using SCC, number of merges might go down
-            stack.pushAll(colorEdges(color))
+          val node = stack.pop()
+          val nodeId = id(node)
+
+          coloring(nodeId) match {
+            case 0 =>
+              coloring(nodeId) = color
+              result.add(node)
+              stack.pushAll(edges(nodeId))
+            case `color` =>
+              // cycle or visited in another call to dfs with the same argument ('nodes' may contain duplicates).
+            case _ =>
+              // node was visited in another call of dfs with a different argument.
+              notRoot(nodeId) = true
           }
         }
-
-        result
+        reachableNodes(id(start)) = result
       }
 
-      (for (color <- 0 until numColors if !colorIsNotRoot(color)) yield dfs2(color).toList).toVector
+      for (node <- nodes) dfs(node)
+      for (node <- nodes; nodeId = id(node) if !notRoot(nodeId)) yield reachableNodes(nodeId).toList
     }
 
     /**
@@ -338,8 +363,8 @@ object ViperChopper {
                             )
 
     val defaultPenaltyConfig: PenaltyConfig = PenaltyConfig(
-      method = 0, methodSpec = 0,function = 3, predicate = 3, predicateSig = 2, field = 1,
-      domainType = 1, domainFunction = 1, domainAxiom = 4,
+      method = 0, methodSpec = 0, function = 20, predicate = 10, predicateSig = 2, field = 1,
+      domainType = 1, domainFunction = 1, domainAxiom = 5,
       sharedThreshold = 50
     )
 

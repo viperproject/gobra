@@ -10,7 +10,7 @@ import org.antlr.v4.runtime.{ParserRuleContext, Token}
 import org.antlr.v4.runtime.tree.{ParseTree, RuleNode, TerminalNode}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
 import org.bitbucket.inkytonik.kiama.util.{Position, Positions, Source}
-import viper.gobra.ast.frontend.{PAssignee, PCompositeKey, PDefLikeId, PExpression, PMethodReceiveName, _}
+import viper.gobra.ast.frontend.{PAssignee, PCompositeKey, PExpression, PMethodReceiveName, _}
 import viper.gobra.util.{Binary, Hexadecimal, Octal}
 import viper.gobra.frontend.GobraParser._
 import viper.gobra.frontend.TranslationHelpers._
@@ -29,11 +29,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   def translate[Rule <: ParserRuleContext, Node](tree: Rule):  Node = {
     visit(tree) match {
       case n : Node => n
-      case n => throw new RuntimeException(s"Wrong type parameters: Visiting ${tree.getClass.toString} yields ${n.getClass.toString}")
     }
   }
 
-
+  //region Partial parsing
   /**
     * Visit the rule
     * typeOnly: type_ EOF;
@@ -47,56 +46,1114 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
+  override def visitStmtOnly(ctx: StmtOnlyContext): PStatement = {
+    visitStatement(ctx.statement())
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
   override def visitExprOnly(ctx: ExprOnlyContext): PExpression = {
     visitExpression(ctx.expression())
   }
+  //endregion
 
+  //region Lexical Elements
+  //region Identifiers
   /**
+    * This class extracts PIdnNodes from IDENTIFIER tokens
     *
-    * @param ctx the parse tree
-    * @return the positioned PUnfolding
+    * @param constructor The constructor used to create the PIdnNode
+    * @param blankIdentifier A function to handle blank identifiers. If blank identifiers are not allowed, it should
+    *                        always return None, otherwise it should return the appropriate PIdnNode.
+    * @tparam N the type of the PIdnNode to return
     */
-
-  override def visitUnfolding(ctx: UnfoldingContext): PUnfolding = {
-    val pred = visitPredicateAccess(ctx.predicateAccess())
-    val op = visitExpression(ctx.expression())
-    PUnfolding(pred, op).at(ctx)
+  case class PIdnNodeEx[N <: PNode](constructor : (String => N), blankIdentifier : ((TerminalNode) => Option[N])) {
+    def unapply(arg: TerminalNode) : Option[N] = {
+      arg.getText match {
+        case "_" => blankIdentifier(arg)
+        case a : String => Some(constructor(a).at(arg))
+        case _ => None
+      }
+    }
+    /**
+      * Directly extract a PIdnNode from an IDENTIFIER token. Fails if the token doesn't match.
+      * @param arg The IDENTIFIER to extract from
+      * @return A vector of PIdnNodes
+      */
+    def get(arg : TerminalNode) : N = unapply(arg) match {
+      case Some(value) => value
+      case None => fail(arg)
+    }
   }
 
   /**
-    * visits a unary Expression
+    * This class extracts Vectors of PIdnNode from Lists of IDENTIFIER tokens
+    *
+    * @param extractor The extractor used for the individual identifiers
+    * @tparam N The type of the PIdnNode to return
     */
+  case class PIdnNodeListEx[N <: PNode](extractor : PIdnNodeEx[N]) {
+    def unapply(arg : Iterable[TerminalNode]) : Option[Vector[N]] = {
+      Some(arg.map(extractor.get).toVector)
+    }
 
-  override def visitUnaryExpr(ctx: GobraParser.UnaryExprContext): PExpression = {
-    if (ctx.primaryExpr() != null) {
-      visitPrimaryExpr(ctx.primaryExpr())
-    } else if (has(ctx.kind)) {
-      val exp = visitExpression(ctx.expression())
-      val inv : (PExpression => PExpression) = ctx.kind.getType match {
-        case GobraParser.CAP => PCapacity
-        case GobraParser.LEN => PLength
-        case GobraParser.DOM => PMapKeys
-        case GobraParser.RANGE => PMapValues
+    /**
+      * Directly extract a Vector of PIdnNode from a List of IDENTIFIER tokens. Fails if one of the tokens
+      * doen't match.
+      * @param arg An iterable of TerminalNodes
+      * @return A vector of PIdnNodes
+      */
+    def get(arg: Iterable[TerminalNode]) : Vector[N] = unapply(arg) match {
+      case Some(value) => value
+      case None => fail(arg.head)
+    }
+  }
+
+  // Extractors for all the possible types of PIdnNodes
+  private val idnDef = PIdnNodeEx(PIdnDef, _ => None)
+  private val idnDefList = PIdnNodeListEx(idnDef)
+  private val idnDefLike = PIdnNodeEx(PIdnDef, term => Some(PWildcard().at(term)))
+  private val idnDefLikeList = PIdnNodeListEx(idnDefLike)
+  private val idnUnk = PIdnNodeEx(PIdnUnk, _ => None)
+  private val idnUnkList = PIdnNodeListEx(idnUnk)
+  private val idnUnkLike = PIdnNodeEx(PIdnUnk, term => Some(PWildcard().at(term)))
+  private val idnUnkLikeList = PIdnNodeListEx(idnUnkLike)
+  private val idnUse = PIdnNodeEx(PIdnUse, _ => None)
+  private val idnUseList = PIdnNodeListEx(idnUse)
+  private val idnUseLike = PIdnNodeEx(PIdnUse, term => Some(PWildcard().at(term)))
+  private val idnUseLikeList = PIdnNodeListEx(idnUseLike)
+
+  // These extractors may only be used where Go allows the blank identifier, but Gobra doesnt
+  // They generate a unique PIdnNode whose name starts with "_" to not overlap any other identifiers
+  private val goIdnDef = PIdnNodeEx(PIdnDef, term => Some(uniqueWildcard(PIdnDef, term).at(term)))
+  private val goIdnDefList = PIdnNodeListEx(goIdnDef)
+  private val goIdnUnk = PIdnNodeEx(PIdnUnk, term => Some(uniqueWildcard(PIdnUnk, term).at(term)))
+  private val goIdnUnkList = PIdnNodeListEx(goIdnUnk)
+
+  def uniqueWildcard[N](constructor : String => N, term : TerminalNode) : N = constructor("_"+term.getSymbol.getTokenIndex)
+  //endregion
+  //region Literals
+  /**
+    * Visits integer literals. Supports octal, hex, binary, decimal and single-codepoint runes.
+    * @param ctx the parse tree
+    *     */
+  override def visitInteger(ctx: GobraParser.IntegerContext): PIntLit = {
+    val octal = raw"0[oO]?([0-7_]+)".r
+    val hex = "0[xX]([0-9A-Fa-f_]+)".r
+    val bin = "0[bB]([01_]+)".r
+    val dec = "([0-9_]+)".r
+    val runeChar = "'(.*)'".r
+    visitChildren(ctx).asInstanceOf[String] match {
+      case octal(digits) => PIntLit(BigInt(digits, 8), Octal).at(ctx)
+      case hex(digits) => PIntLit(BigInt(digits, 16), Hexadecimal).at(ctx)
+      case bin(digits) => PIntLit(BigInt(digits, 2), Binary).at(ctx)
+      case dec(digits)  => PIntLit(BigInt(digits)).at(ctx)
+      case runeChar(chars) => StringContext.processEscapes(chars).codePoints().toArray match {
+        case Array(i : Int) => PIntLit(BigInt(i)).at(ctx)
       }
-      inv(exp).at(ctx)
-    } else if (ctx.unary_op != null) {
-      val e = visitExpression(ctx.expression())
-      ctx.unary_op.getType match {
-        case GobraParser.PLUS => PAdd(PIntLit(0).at(ctx), e).at(ctx)
-        case GobraParser.MINUS => PSub(PIntLit(0).at(ctx), e).at(ctx)
-        case GobraParser.EXCLAMATION => PNegation(e).at(ctx)
-        case GobraParser.CARET => PBitNegation(e).at(ctx)
-        case GobraParser.STAR => PDeref(e).at(ctx)
-        case GobraParser.AMPERSAND => PReference(e).at(ctx)
-        case op =>
-          val (start, finish) = ctx.startFinish
-          throw UnsupportedOperatorException(ctx.unary_op, "unary", "")
+      case _  => fail(ctx, "This literal is not supported yet")
+    }
+  }
+
+  def visitFloat(node: TerminalNode): PBasicLiteral = {
+    PFloatLit(BigDecimal(node.getText.replace("_", ""))).at(node)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitString_(ctx: GobraParser.String_Context): PStringLit = {
+    visitChildren(ctx) match {
+      // The parsed string includes the delimiters, remove these
+      case str : String => PStringLit(str.substring(1,str.length-1)).at(ctx)
+    }
+  }
+  //endregion
+  //endregion
+
+  //region Types
+  /**
+    * Visit a parse tree produced by `GobraParser`.
+    *
+    * @param ctx the parse tree
+    * @return the visitor result
+    */
+  override def visitType_(ctx: GobraParser.Type_Context): PType = {
+    visitChildren(ctx) match {
+      case typ : PType => typ
+      case Vector(_, typ : PType, _) => typ
+      case _ => violation(s"could not translate '${ctx.getText}', got unexpected '${visitChildren(ctx)}'")
+    }
+  }
+
+  override def visitTypeName(ctx: GobraParser.TypeNameContext): PActualType = {
+    visitChildren(ctx) match {
+      case name : TerminalNode => visitTypeIdentifier(name)
+      case qualified : PDot => qualified
+    }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitQualifiedIdent(ctx: QualifiedIdentContext): PDot = {
+    visitChildren(ctx) match {
+      case Vector(idnUse(base), ".", idnUse(id)) => PDot(PNamedOperand(base).at(base), id).at(ctx)
+    }
+  }
+
+  def visitTypeIdentifier(typ: TerminalNode): PActualType = {
+    typ.getSymbol.getText match {
+      case "perm" => PPermissionType().at(typ)
+      case "int" => PIntType().at(typ)
+      case "int16" => PInt16Type().at(typ)
+      case "int32" => PInt32Type().at(typ)
+      case "int64" => PInt64Type().at(typ)
+      case "uint" => PUIntType().at(typ)
+      case "byte" => PByte().at(typ)
+      case "uint8" => PUInt8Type().at(typ)
+      case "uint16" => PUInt16Type().at(typ)
+      case "uint32" => PUInt32Type().at(typ)
+      case "uint64" => PUInt64Type().at(typ)
+      case "uintptr" => PUIntPtr().at(typ)
+      case "float32" => PFloat32().at(typ)
+      case "float64" => PFloat64().at(typ)
+      case "bool" => PBoolType().at(typ)
+      case "string" => PStringType().at(typ)
+      case "rune" => PRune().at(typ)
+      case _ => PNamedOperand(idnUse.get(typ)).at(typ)
+    }
+  }
+
+  /**
+    * Visits the rule
+    * arrayType: L_BRACKET arrayLength R_BRACKET elementType;
+    */
+  override def visitArrayType(ctx: ArrayTypeContext): PArrayType = {
+    visitChildren(ctx) match {
+      case Vector("[", len : PExpression, "]", elem : PType) => PArrayType(len, elem)
+      case _ => fail(ctx)
+    }
+  }
+
+  /**
+    * Visits the rule
+    * sliceType: L_BRACKET R_BRACKET elementType;
+    */
+  override def visitSliceType(ctx: SliceTypeContext): PSliceType = {
+    visitChildren(ctx) match {
+      case Vector("[", "]", typ : PType)  => PSliceType(typ).at(ctx)
+    }
+  }
+
+  //region Struct Types
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitStructType(ctx: StructTypeContext): PStructType = {
+    val decls = for (decl <- ctx.fieldDecl().asScala.toVector) yield visitFieldDecl(decl)
+    PStructType(decls).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitFieldDecl(ctx: FieldDeclContext): PStructClause = {
+    if (ctx.embeddedField() != null) {
+      val et = visitEmbeddedField(ctx.embeddedField())
+      PEmbeddedDecl(et, PIdnDef(et.name).at(et)).at(ctx)
+    } else {
+      val goIdnDefList(ids) = visitIdentifierList(ctx.identifierList())
+      val t = visitType_(ctx.type_())
+      PFieldDecls(ids map (id => PFieldDecl(id, t.copy).at(id))).at(ctx)
+    }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitEmbeddedField(ctx: EmbeddedFieldContext): PEmbeddedType = {
+    visitChildren(ctx) match {
+      case name : PNamedType => PEmbeddedName(name).at(ctx)
+      case Vector("*", name : PNamedType) => PEmbeddedPointer(name).at(ctx)
+    }
+  }
+  //endregion
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitPointerType(ctx: PointerTypeContext): PDeref = visitChildren(ctx) match {
+    case Vector("*", typ : PType) => PDeref(typ).at(ctx)
+  }
+
+  //region Function Types
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitFunctionType(ctx: FunctionTypeContext): PFunctionType = {
+    visitChildren(ctx) match {
+      case Vector("func", (args: Vector[PParameter] @unchecked, result : PResult)) => PFunctionType(args, result).at(ctx)
+    }
+  }
+
+  /**
+    * Visit a parse tree produced by `GobraParser`.
+    *
+    * @param ctx the parse tree
+    * @return the visitor result
+    */
+  override def visitSignature(ctx: GobraParser.SignatureContext): (Vector[PParameter], PResult) = {
+    val params : Vector[Vector[PParameter]] = (for (param <- ctx.parameters().parameterDecl().asScala.view)
+      yield visitParameterDecl(param)
+      ).toVector
+    val result = if (ctx.result() != null) visitResult(ctx.result()) else PResult(Vector.empty)
+    (params.flatten, result)
+  }
+
+  /**
+    * Visit a parse tree produced by `GobraParser`.
+    *
+    * @param ctx the parse tree
+    * @return the visitor result
+    */
+  // TODO : Refactor easy
+  override def visitResult(ctx: GobraParser.ResultContext): PResult = {
+    if (ctx.parameters() != null) {
+      val results = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
+      PResult(results.flatten).at(ctx)
+    } else {
+      PResult(Vector(PUnnamedParameter(visitType_(ctx.type_())).at(ctx))).at(ctx)
+    }
+  }
+
+  /**
+    * Visit a parse tree produced by `GobraParser`.
+    *
+    * @param ctx the parse tree
+    * @return the visitor result
+    */
+  override def visitParameterDecl(ctx: GobraParser.ParameterDeclContext): Vector[PParameter] = {
+    val typ = if (has(ctx.ELLIPSIS())) PVariadicType(visitType_(ctx.type_())).at(ctx) else visitType_(ctx.type_())
+    val params = if(ctx.identifierList() != null) {
+      // "_" should be supported here to allow unused parameters for interfaces etc.
+      goIdnDefList.get(visitIdentifierList(ctx.identifierList())).map(id => PNamedParameter(id, typ.copy).at(id))
+    } else {
+      Vector[PActualParameter](PUnnamedParameter(typ).at(ctx.type_()))
+    }
+
+    if (ctx.GHOST() != null) {
+      params.map(PExplicitGhostParameter(_).at(ctx))
+    } else params
+  }
+  //endregion
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitInterfaceType(ctx: GobraParser.InterfaceTypeContext): PInterfaceType = {
+    val methodDecls = (for (meth <- ctx.methodSpec().asScala.toVector) yield visitMethodSpec(meth).at(ctx)).at(ctx)
+    val embedded = for (typ <- ctx.typeName().asScala.toVector) yield
+      PInterfaceName(PNamedOperand(idnUse.get(typ.IDENTIFIER())).at(typ)).at(typ)
+    val predicateDecls = for (pred <- ctx.predicateSpec().asScala.toVector) yield visitPredicateSpec(pred)
+    PInterfaceType(embedded, methodDecls, predicateDecls).at(ctx)
+  }
+
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitMethodSpec(ctx: GobraParser.MethodSpecContext): PMethodSig = {
+    val ghost = has(ctx.GHOST())
+    val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty).at(ctx)
+    // The name of each explicitly specified method must be unique and not blank.
+    val id = idnDef.get(ctx.IDENTIFIER())
+    val args = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
+    val result = if (ctx.result() != null) visitResult(ctx.result()) else PResult(Vector.empty).at(ctx)
+    PMethodSig(id, args.flatten, result, spec, isGhost = ghost).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitPredicateSpec(ctx: PredicateSpecContext): PMPredicateSig = {
+    val id = idnDef.get(ctx.IDENTIFIER())
+    val args = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
+    PMPredicateSig(id, args.flatten).at(ctx)
+  }
+
+
+  /**
+    * Visits the rule
+    * mapType: MAP L_BRACKET type_ R_BRACKET elementType;
+    */
+  override def visitMapType(ctx: MapTypeContext): PMapType = {
+    visitChildren(ctx) match {
+      case Vector("map", "[", key : PType, "]", elem : PType) => PMapType(key, elem).at(ctx)
+    }
+  }
+
+  /**
+    * Visits channel types.
+    * @param ctx the channel context
+    *     */
+  override def visitChannelType(ctx: ChannelTypeContext): PChannelType = {
+    val res = visitChildren(ctx) match {
+      case Vector("chan", typ : PType) => PBiChannelType(typ)
+      case Vector("chan", "<-", typ : PType) => PSendChannelType(typ)
+      case Vector("<-", "chan", typ : PType) => PRecvChannelType(typ)
+    }
+    res.at(ctx)
+  }
+
+  //region Ghost types
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitSqType(ctx: SqTypeContext): PGhostLiteralType = {
+    visitChildren(ctx) match {
+      case Vector(kind : String, "[", typ : PType, "]") => (kind match {
+        case "seq" => PSequenceType(typ)
+        case "set" => PSetType(typ)
+        case "mset" => PMultisetType(typ)
+        case "option" => POptionType(typ)
+      }).at(ctx)
+      case Vector("dict", "[", keys : PType, "]", values : PType) => PMathematicalMapType(keys, values).at(ctx)
+    }
+  }
+
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitGhostSliceType(ctx: GhostSliceTypeContext): PGhostSliceType = {
+    val typ = visitType_(ctx.elementType().type_())
+    PGhostSliceType(typ).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitDomainType(ctx: DomainTypeContext): PDomainType = {
+    val (funcs, axioms) = ctx.domainClause().asScala.toVector.partitionMap(visitDomainClause)
+    PDomainType(funcs, axioms).at(ctx)
+  }
+
+  override def visitDomainClause(ctx: DomainClauseContext): Either[PDomainFunction, PDomainAxiom] = {
+    visitChildren(ctx) match {
+      case Vector("func", idnDef(id), (params : Vector[PParameter] @unchecked, result : PResult)) => Left(PDomainFunction(id, params, result).at(ctx))
+      case Vector("axiom", "{", expr : PExpression, _, "}") => Right(PDomainAxiom(expr).at(ctx))
+      case _ => fail(ctx)
+    }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitPredType(ctx: PredTypeContext): PPredType = visitChildren(ctx) match {
+    case Vector("pred", (params : Vector[PType] @unchecked)) => PPredType(params)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitPredTypeParams(ctx: PredTypeParamsContext): Vector[PType] = {
+    for (typ <- ctx.type_().asScala.toVector) yield visitType_(typ)
+  }
+
+  //endregion
+
+
+  //endregion
+
+  //region Blocks
+  /**
+    * Visit a parse tree produced by `GobraParser`.
+    *
+    * @param ctx the parse tree
+    * @return the visitor result
+    */
+  override def visitBlock(ctx: GobraParser.BlockContext): PBlock =  {
+    if (ctx.statementList() != null) PBlock(visitStatementList(ctx.statementList())).at(ctx) else PBlock(Vector.empty).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitBlockWithBodyParameterInfo(ctx: BlockWithBodyParameterInfoContext): (PBodyParameterInfo, PBlock) = {
+    val shareable = if (has(ctx.SHARE())) idnUseList.get(visitIdentifierList(ctx.identifierList())) else Vector.empty
+    val paramInfo = PBodyParameterInfo(shareable)
+    val body =   if (has(ctx.statementList())) PBlock(visitStatementList(ctx.statementList())).at(ctx) else PBlock(Vector.empty).at(ctx)
+    (paramInfo, body)
+  }
+
+  /**
+    * Visit a parse tree produced by `GobraParser`.
+    *
+    * @param ctx the parse tree
+    * @return the visitor result
+    */
+  override def visitStatementList(ctx: GobraParser.StatementListContext): Vector[PStatement] = {
+    if (ctx == null) return Vector.empty
+    for (stmt <- ctx.statement().asScala.toVector) yield visitStatement(stmt)
+  }
+  //endregion
+
+  //region Declarations
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitConstDecl(ctx: GobraParser.ConstDeclContext): Vector[PConstDecl] = {
+    visitListNode[PConstDecl](ctx.constSpec()) match {
+      // Make sure the first expression list is not empty
+      case Vector(PConstDecl(_, Vector(), _), _*) => fail(ctx)
+      case decls => decls
+    }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitConstSpec(ctx: GobraParser.ConstSpecContext): PConstDecl = {
+    val typ = if (ctx.type_() != null) Some(visitType_(ctx.type_())) else None
+
+    val idnDefLikeList(left) = visitIdentifierList(ctx.identifierList())
+    val right = visitExpressionList(ctx.expressionList())
+
+    PConstDecl(typ, right, left).at(ctx)
+  }
+
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeDecl(ctx: GobraParser.TypeDeclContext): Vector[PTypeDecl] = {
+    visitListNode[PTypeDecl](ctx.typeSpec())
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeSpec(ctx: GobraParser.TypeSpecContext): PTypeDecl = {
+    val left = goIdnDef.get(ctx.IDENTIFIER())
+    val right = visitType_(ctx.type_())
+    if (ctx.ASSIGN() != null) {
+      // <identifier> = <type> -> This is a type alias
+      PTypeAlias(right, left).at(ctx)
+    } else {
+      // <identifier <type> -> This is a type definition
+      PTypeDef(right, left).at(ctx)
+    }
+  }
+
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitVarDecl(ctx: GobraParser.VarDeclContext): Vector[PVarDecl] = {
+    visitListNode[PVarDecl](ctx.varSpec())
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitVarSpec(ctx: GobraParser.VarSpecContext): PVarDecl = {
+    val (idnDefLikeList(vars), addressable) = visitMaybeAddressableIdentifierList(ctx.maybeAddressableIdentifierList())
+    val typ = if(has(ctx.type_())) Some(visitType_(ctx.type_())) else None
+    val right = if (has(ctx.expressionList())) visitExpressionList(ctx.expressionList()) else Vector.empty
+    PVarDecl(typ, right, vars, addressable).at(ctx)
+  }
+
+  override def visitShortVarDecl(ctx: GobraParser.ShortVarDeclContext): PShortVarDecl = {
+    val (idnUnkLikeList(vars), addressable) = visitMaybeAddressableIdentifierList(ctx.maybeAddressableIdentifierList())
+    val right = visitExpressionList(ctx.expressionList())
+    PShortVarDecl(right, vars, addressable).at(ctx)
+  }
+
+
+  /**
+    * Visits an identifier list and returns a vector of TerminalNodes that can be matched by the
+    * appropriate PIdnExtractor.
+    * @param ctx the parse tree
+    *     */
+  override def visitIdentifierList(ctx: IdentifierListContext): Iterable[TerminalNode] = {
+    ctx.IDENTIFIER().asScala.view
+  }
+
+  /**
+    * Visits a list of identifiers that may have the addressability modifier `@`
+    */
+  override def visitMaybeAddressableIdentifierList(ctx: MaybeAddressableIdentifierListContext): (Vector[TerminalNode], Vector[Boolean]) = {
+    ctx.maybeAddressableIdentifier().asScala.toVector
+      .map(ctx => (ctx.IDENTIFIER(), has(ctx.ADDR_MOD())))
+      .unzip
+  }
+
+  /**
+    * Visits a single identifier that may have the addressability modifier `@`
+    */
+  override def visitMaybeAddressableIdentifier(ctx: MaybeAddressableIdentifierContext): (TerminalNode, Boolean) = {
+    (ctx.IDENTIFIER(), has(ctx.ADDR_MOD()))
+  }
+
+
+
+  // TODO : Move Blank identifier handling into the Type Checker
+  def visitAssignee(ctx: GobraParser.ExpressionContext): PAssignee = {
+    if (has(ctx.primaryExpr())) {
+      visitPrimaryExpr(ctx.primaryExpr()) match {
+        case a : PAssignee => a
+        case _ =>  fail(ctx, "not an assignee")
       }
-    } else if (has(ctx.unfolding())) {
-      visitUnfolding(ctx.unfolding())
+    } else visitNode[PExpression](ctx) match {
+      case a : PAssignee => a
+      case _ => fail(ctx, "not an assignee")
+    }
+  }
+
+  def visitAssigneeList(ctx : GobraParser.ExpressionListContext) : Vector[PAssignee] = {
+    if (!has(ctx)) Vector.empty else
+      (for (expr <- ctx.expression().asScala.view) yield visitAssignee(expr)).toVector.at(ctx)
+  }
+
+
+  /**
+    * Visit a parse tree produced by `GobraParser`.
+    *
+    * @param ctx the parse tree
+    * @return the visitor result
+    */
+  override def visitExpressionList(ctx: GobraParser.ExpressionListContext): Vector[PExpression] = {
+    if (!has(ctx)) Vector.empty else
+      (for (expr <- ctx.expression().asScala.toVector) yield visitExpression(expr)).at(ctx)
+  }
+
+  /**
+    * Visit a parse tree produced by `GobraParser`.
+    *
+    * @param ctx the parse tree
+    * @return the visitor result
+    */
+  override def visitFunctionDecl(ctx: GobraParser.FunctionDeclContext): PFunctionDecl = {
+    // TODO : Make this more readable
+    val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty)
+    // Go allows the blank identifier here, but PFunctionDecl doesn't.
+    val id = goIdnDef.get(ctx.IDENTIFIER())
+    val sig = visitSignature(ctx.signature())
+    val body = if (ctx.blockWithBodyParameterInfo() == null || specOnly || spec.isTrusted) None else Some(visitBlockWithBodyParameterInfo(ctx.blockWithBodyParameterInfo()))
+    PFunctionDecl(id, sig._1, sig._2, spec, body).at(ctx)
+  }
+
+  /**
+    * Visits Gobra specifications
+    *
+    * */
+  override def visitSpecification(ctx: GobraParser.SpecificationContext): PFunctionSpec = {
+    // Group the specifications by keyword
+    val groups = ctx.specStatement().asScala.view.groupBy(_.kind.getType)
+    // Get the respective groups
+    val pres = groups.getOrElse(GobraParser.PRE, Seq.empty).toVector.map(s => visitExpression(s.assertion().expression()))
+    val preserves = groups.getOrElse(GobraParser.PRESERVES, Vector.empty).toVector.map(s => visitExpression(s.assertion().expression()))
+    val posts = groups.getOrElse(GobraParser.POST, Vector.empty).toVector.map(s => visitExpression(s.assertion().expression()))
+    val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).toVector.map(s => visitTerminationMeasure(s.terminationMeasure()))
+    val isPure = has(ctx.PURE()) && !ctx.PURE().isEmpty
+    val isTrusted = has(ctx.TRUSTED()) && !ctx.TRUSTED().isEmpty
+
+    PFunctionSpec(pres, preserves, posts, terms, isPure = isPure, isTrusted = isTrusted) match {
+      // If we have empty specification, we can't get a position, for it.
+      case PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false) => PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty).at(ctx.parent.asInstanceOf[ParserRuleContext])
+      case spec => spec.at(ctx)
+    }
+  }
+
+  /**
+    * Visits a method declaration.
+    * */
+  override def visitMethodDecl(ctx: GobraParser.MethodDeclContext): PMethodDecl = {
+    val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty)
+    val receiver = visitReceiver(ctx.receiver())
+    // Go allows _ here, but PMethodDecl doesn't
+    val id = goIdnDef.get(ctx.IDENTIFIER())
+    val sig = visitSignature(ctx.signature())
+    val body = if (ctx.blockWithBodyParameterInfo() == null || specOnly || spec.isTrusted) None else Some(visitBlockWithBodyParameterInfo(ctx.blockWithBodyParameterInfo()))
+    PMethodDecl(id, receiver,sig._1, sig._2, spec, body).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitReceiver(ctx: ReceiverContext): PReceiver = {
+    val recvType = visitType_(ctx.type_()) match {
+      case t : PNamedOperand => PMethodReceiveName(t).at(t)
+      case PDeref(t : PNamedOperand) => PMethodReceivePointer(t).at(t)
+      case f => fail(ctx.type_(), s"Excpected declared type or pointer to declared type but got: $f.")
+    }
+
+    if (has(ctx.maybeAddressableIdentifier())) {
+      val (goIdnDef(id), addr) = visitMaybeAddressableIdentifier(ctx.maybeAddressableIdentifier())
+      PNamedReceiver(id, recvType, addr).at(ctx)
+    } else PUnnamedReceiver(recvType).at(ctx)
+  }
+
+  //region Ghost members
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  // TODO : Refactor
+  override def visitGhostMember(ctx: GhostMemberContext): Vector[PGhostMember] = {
+    if (ctx.fpredicateDecl() != null) {
+      Vector(visitFpredicateDecl(ctx.fpredicateDecl()))
+    } else if (ctx.mpredicateDecl() != null) {
+      Vector(visitMpredicateDecl(ctx.mpredicateDecl()))
+    } else if (ctx.implementationProof() != null) {
+      Vector(visitImplementationProof(ctx.implementationProof()))
+    }else if (ctx.GHOST() != null) {
+      if (ctx.methodDecl() != null) {
+        Vector(PExplicitGhostMember(visitMethodDecl(ctx.methodDecl())).at(ctx))
+      } else if (ctx.functionDecl() != null) {
+        Vector(PExplicitGhostMember(visitFunctionDecl(ctx.functionDecl())).at(ctx))
+      } else if (ctx.varDecl() != null) {
+        visitVarDecl(ctx.varDecl()).map(PExplicitGhostMember(_))
+      } else if (ctx.typeDecl() != null) {
+        visitTypeDecl(ctx.typeDecl()).map(PExplicitGhostMember(_))
+      } else {
+        visitConstDecl(ctx.constDecl()).map(PExplicitGhostMember(_))
+      }
     } else fail(ctx)
   }
 
+  //region Implementation proofs
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitImplementationProof(ctx: ImplementationProofContext): PImplementationProof = {
+    val subT : PType = visitNode(ctx.type_(0))
+    val superT : PType = visitType_(ctx.type_(1))
+    val alias = visitListNode[PImplementationProofPredicateAlias](ctx.implementationProofPredicateAlias())
+    val memberProofs = visitListNode[PMethodImplementationProof](ctx.methodImplementationProof())
+    PImplementationProof(subT, superT, alias, memberProofs).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitMethodImplementationProof(ctx: MethodImplementationProofContext): PMethodImplementationProof = {
+    val id = idnUse.get(ctx.IDENTIFIER())
+    val receiver : PParameter = visitNode(ctx.nonLocalReceiver())
+    val (args, result) = visitSignature(ctx.signature())
+    val isPure = has(ctx.PURE())
+    val body = if (has(ctx.block())) Some((PBodyParameterInfo(Vector.empty).at(ctx), visitBlock(ctx.block()))) else None
+    body match {
+      case Some((a, b)) => pom.positions.dupRangePos(a, b, body)
+      case _ =>
+    }
+    PMethodImplementationProof(id, receiver, args, result, isPure = isPure, body).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitNonLocalReceiver(ctx: NonLocalReceiverContext): PParameter = {
+    visitChildren(ctx) match {
+      case Vector("(", idnDef(name), "*", typ : PActualType, ")") => PNamedParameter(name, PDeref(typ).at(typ)).at(ctx)
+      case Vector("(", idnDef(name), typ : PActualType, ")") => PNamedParameter(name, typ).at(ctx)
+      case Vector("(", "*", typ : PActualType, ")") => PUnnamedParameter(PDeref(typ).at(typ)).at(ctx)
+      case Vector("(", typ : PActualType, ")") => PUnnamedParameter(typ).at(ctx)
+    }
+  }
+
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitImplementationProofPredicateAlias(ctx: ImplementationProofPredicateAliasContext): PImplementationProofPredicateAlias = {
+    val left = idnUse.get(ctx.IDENTIFIER())
+    val right = visitChildren(ctx.selection()) match {
+      case name : PNamedOperand => name
+      case dot : PDot => dot
+      case Vector(typ : PType, ".", _) => PDot(typ, idnUse.get(ctx.selection().IDENTIFIER())).at(ctx.selection())
+      case _ => fail(ctx, "must be either a selection or a named operand")
+    }
+    PImplementationProofPredicateAlias(left, right).at(ctx)
+  }
+  //endregion
+
+
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitMpredicateDecl(ctx: MpredicateDeclContext): PMPredicateDecl = {
+    val id = idnDef.get(ctx.IDENTIFIER())
+    val receiver = visitReceiver(ctx.receiver())
+    val params = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
+    val body = if (has(ctx.predicateBody())) Some(visitExpression(ctx.predicateBody().expression())) else None
+    PMPredicateDecl(id, receiver, params.flatten, body).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitFpredicateDecl(ctx: FpredicateDeclContext): PFPredicateDecl = {
+    val id = idnDef.get(ctx.IDENTIFIER())
+    val params = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
+    val body = if (has(ctx.predicateBody())) Some(visitExpression(ctx.predicateBody().expression())) else None
+    PFPredicateDecl(id, params.flatten, body).at(ctx)
+  }
+  //endregion
+
+  //endregion
+
+  //region Expressions
+
+  //region Operands
+  /**
+    * Translates the rule
+    * operand: literal | operandName | L_PAREN expression R_PAREN;
+    *
+    * @param ctx the parse tree
+    * @return the visitor result
+    */
+  override def visitOperand(ctx: GobraParser.OperandContext): PExpression = {
+    visitChildren(ctx) match {
+      case e : PExpression => e
+      case Vector("(", e : PExpression, ")") => e
+      case _ => fail(ctx)
+    }
+  }
+
+  /**
+    * Translates the rule
+    *
+    * operandName: IDENTIFIER (DOT IDENTIFIER)?;
+    *
+    * @param ctx the parse tree
+    * @return the visitor result
+    */
+  override def visitOperandName(ctx: GobraParser.OperandNameContext): PExpression = {
+    visitChildren(ctx) match {
+      case Vector(idnUse(base), ".", idnUse(id)) => PDot(PNamedOperand(base).at(base), id).at(ctx)
+      case idnUseLike(id) => id match {
+        case id@PIdnUse(_) => PNamedOperand(id).at(id)
+        case PWildcard() => PBlankIdentifier().at(ctx)
+      }
+      case _ => violation("Got unexpected operand production.")
+    }
+  }
+
+  override def visitBasicLit(ctx: GobraParser.BasicLitContext): PBasicLiteral = {
+    visitChildren(ctx) match {
+      case "true" => PBoolLit(true).at(ctx)
+      case "false" => PBoolLit(false).at(ctx)
+      case "nil" => PNilLit().at(ctx)
+      case _ if has(ctx.FLOAT_LIT()) => visitFloat(ctx.FLOAT_LIT())
+      case _ if has(ctx.RUNE_LIT()) => fail(ctx, "Runes not supported yet")
+      case lit : PBasicLiteral => lit
+    }
+  }
+
+  //endregion
+
+  //region Composite Literals
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitCompositeLit(ctx: CompositeLitContext): PCompositeLit = {
+    visitChildren(ctx) match {
+      case Vector(typ : PLiteralType, lit : PLiteralValue) => PCompositeLit(typ, lit).at(ctx)
+    }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitLiteralType(ctx: LiteralTypeContext): PLiteralType = {
+    visitChildren(ctx) match {
+      case t : PLiteralType => t
+      case Vector("[", "...", "]", elem: PType) => PImplicitSizeArrayType(elem).at(ctx)
+      case _ => violation(s"Got unexpected type production.")
+    }
+  }
+
+  /** Translates the rule
+    * literalValue: L_CURLY (elementList COMMA?)? R_CURLY;
+    *
+    * Not positioned
+    */
+  override def visitLiteralValue(ctx: LiteralValueContext): PLiteralValue = {
+    visitChildren(ctx) match {
+      case Vector(_, elems : Vector[PKeyedElement @unchecked], _*) => PLiteralValue(elems)
+      case _ => PLiteralValue(Vector.empty)
+    }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitElementList(ctx: ElementListContext): Vector[PKeyedElement] = {
+    visitListNode[PKeyedElement](ctx.keyedElement())
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitKeyedElement(ctx: KeyedElementContext): PKeyedElement = {
+    val key = visitNodeOrNone[PCompositeKey](ctx.key())
+    val elem = visitElement(ctx.element())
+
+    PKeyedElement(key, elem).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitKey(ctx: KeyContext): PCompositeKey = {
+    visitChildren(ctx) match {
+      case idnUse(id) => PIdentifierKey(id).at(ctx)
+      case lit : PLiteralValue => PLitCompositeVal(lit).at(ctx)
+      case n@PNamedOperand(id) => PIdentifierKey(id).at(n)
+      case n : PExpression => PExpCompositeVal(n).at(n)
+      case _ => fail(ctx, "Invalid key")
+    }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitElement(ctx: ElementContext): PCompositeVal = {
+    visitChildren(ctx) match {
+      case e : PExpression => PExpCompositeVal(e).at(e)
+      case lit : PLiteralValue => PLitCompositeVal(lit).at(lit)
+      case _ => fail(ctx)
+    }
+  }
+
+  //endregion
+
+  /** visits a function literal
+    * does not position itself
+    */
+  override def visitFunctionLit(ctx: FunctionLitContext): PFunctionLit = {
+    visitChildren(ctx) match {
+      case Vector(_, (params: Vector[PParameter] @unchecked, result : PResult), b : PBlock ) => PFunctionLit(params, result, b)
+    }
+  }
+
+  //region Primary Expressions
+  /**
+    * Visits the rule
+    * primaryExpr: operand | conversion | methodExpr | ghostPrimaryExpr | new_
+    *         | primaryExpr ( (DOT IDENTIFIER)| index| slice_| seqUpdExp| typeAssertion| arguments| predConstructArgs );
+    *
+    * @param ctx the parse tree
+    * @return the unpositioned visitor result
+    */
+  override def visitPrimaryExpr(ctx: PrimaryExprContext): PExpression = {
+    visitChildren(ctx) match {
+      case e : PExpression => e
+      case Vector(pe : PExpression, rest@_*) => rest match {
+        // (DOT IDENTIFIER)
+        case Vector(".", idnUse(id)) => PDot(pe, id).at(ctx)
+        // L_BRACKET expression R_BRACKET
+        case Vector(Vector("[", index : PExpression, "]")) => PIndexedExp(pe, index).at(ctx)
+        // slice_
+        case Vector((low: Option[PExpression] @unchecked, high : Option[PExpression] @unchecked, cap : Option[PExpression] @unchecked)) =>
+          PSliceExp(pe, low, high, cap).at(ctx)
+        // DOT L_PAREN type_ R_PAREN;
+        case Vector(Vector(".", "(", typ : PType, ")")) => PTypeAssertion(pe, typ).at(ctx)
+        // seqUpdExp
+        case Vector(Updates(upd)) =>
+          PGhostCollectionUpdate(pe, upd).at(ctx)
+        // arguments
+        case Vector(InvokeArgs(args)) => PInvoke(pe, args).at(ctx)
+        // predConstructArgs
+        case Vector(PredArgs(args)) => val id = pe match {
+          case recvWithId@PDot(_, _) => PDottedBase(recvWithId).at(recvWithId)
+          case PNamedOperand(identifier@PIdnUse(_)) => PFPredBase(identifier).at(identifier)
+          case _ => fail(ctx.primaryExpr(), "Wrong base type for predicate constructor.")
+        }
+          PPredConstructor(id, args).at(ctx)
+        case _ => fail(ctx)
+      }
+    }
+  }
+
+
+  /**
+    * Visits the rule
+    * type_ L_PAREN expression COMMA? R_PAREN;
+    * @param ctx the parse tree
+    *     */
+  override def visitConversion(ctx: ConversionContext): PInvoke= {
+    visitChildren(ctx) match {
+      case Vector(typ : PType, "(", exp : PExpression, _*) => PInvoke(typ, Vector(exp)).at(ctx)
+    }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitArguments(ctx: GobraParser.ArgumentsContext): InvokeArgs = {
+    val exprs : Vector[PExpression] = if (ctx.expressionList() != null) visitExpressionList(ctx.expressionList()) else Vector.empty
+    if (ctx.ELLIPSIS() != null) {
+      // We have ..., so the last parameter has to be unpacked
+      InvokeArgs(exprs.init.appended(PUnpackSlice(exprs.last).at(ctx)))
+    } else {
+      InvokeArgs(exprs)
+    }
+  }
+  case class InvokeArgs(args : Vector[PExpression])
+
+
+  /**
+    * Visits the rule
+    * predConstructArgs: L_PRED expressionList? COMMA? R_PRED
+    * @param ctx the parse tree
+    *     */
+  override def visitPredConstructArgs(ctx: PredConstructArgsContext): PredArgs = {
+    PredArgs( // Wrap this to ensure type safe pattern matching
+      visitExpressionList(ctx.expressionList()).map {
+        case PBlankIdentifier() => None
+        case e => Some(e)
+      }
+    )
+  }
+  case class PredArgs(args: Vector[Option[PExpression]])
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitMethodExpr(ctx: MethodExprContext): PDot = {
+    val recv = visitType_(ctx.receiverType().type_())
+    val id = idnUse.get(ctx.IDENTIFIER())
+    PDot(recv, id).at(ctx)
+  }
+
+  /**
+    * @param ctx the parse tree
+    *     */
+  override def visitNew_(ctx: New_Context): PNew = {
+    val typ : PType = visitNode(ctx.type_())
+    PNew(typ).at(ctx)
+  }
 
   /**
     * {@inheritDoc  }
@@ -110,147 +1167,37 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     PMake(typ, args).at(ctx)
   }
 
-  /**
-    * visits an expression
-    */
-  override def visitExpression(ctx: ExpressionContext): PExpression = {
-    if (has(ctx.rel_op) && ctx.rel_op.getType == GobraParser.EQUALS) {
-      val l = if (has(ctx.expression(0).type_())) ctx.expression(0).type_() else ctx.expression(0)
-      val r = if (has(ctx.expression(1).type_())) ctx.expression(1).type_() else ctx.expression(1)
-      return PEquals(visitNode(l), visitNode(r)).at(ctx)
-    }
-    // Otherwise we have a normal expression
-    visitChildren(ctx) match {
-      case e : PExpression => e // primaryExpression, unfolding etc
-      case Vector(l : PExpression, op : String, r : PExpression) => getBinOp(op, ctx)(l, r).at(ctx)
-      case Vector(call : String, "(", arg : PExpression, ")") => getUnaryOp(call, ctx)(arg).at(ctx)
-      case Vector("+", e : PExpression) => PAdd(PIntLit(0).at(ctx), e).at(ctx)
-      case Vector("-", e : PExpression) => PSub(PIntLit(0).at(ctx), e).at(ctx)
-      case Vector(op : String, e : PExpression) => getUnaryOp(op, ctx)(e).at(ctx)
-      case Vector(a : PExpression, "?", b : PExpression, ":", c : PExpression) =>  PConditional(a, b, c).at(ctx)
-      case x => violation(s"Expected expression but got ${x}")
-    }
-  }
 
 
   /**
-    * {@inheritDoc  }
+    * Visits the rule
+    * slice_: L_BRACKET ( low? COLON high? | low? COLON high COLON cap) R_BRACKET;
     *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
+    * @param ctx the parse tree
     */
-  override def visitArguments(ctx: GobraParser.ArgumentsContext): CallArgs = {
-    val exprs : Vector[PExpression] = if (ctx.expressionList() != null) visitExpressionList(ctx.expressionList()) else Vector.empty
-    if (ctx.ELLIPSIS() != null) {
-      // We have ..., so the last parameter has to be unpacked
-      CallArgs(exprs.init.appended(PUnpackSlice(exprs.last).at(ctx)))
-    } else {
-      CallArgs(exprs)
-    }
-  }
-  case class CallArgs(args : Vector[PExpression])
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitAccess(ctx: AccessContext): PAccess = {
-    visitChildren(ctx) match {
-      case Vector("acc", "(", expr : PExpression, ")") =>
-        PAccess(expr, PFullPerm().at(expr)).at(ctx)
-
-      case Vector("acc", "(", expr : PExpression, ",", idnUseLike(w : PWildcard), ")") =>
-        PAccess(expr, PWildcardPerm().at(w)).at(ctx)
-
-      case Vector("acc", "(", expr : PExpression, ",", idnUse(id), ")") =>
-        PAccess(expr, PNamedOperand(id).at(id)).at(id)
-
-      case Vector("acc", "(", expr : PExpression, ",", perm : PExpression, ")") =>
-        PAccess(expr, perm).at(ctx)
-      case _ => fail(ctx)
-    }
+  override def visitSlice_(ctx: Slice_Context): (Option[PExpression], Option[PExpression], Option[PExpression])  = {
+    val low = if (ctx.low() != null) Some(visitExpression(ctx.low().expression())).pos() else None
+    val high = if (ctx.high() != null) Some(visitExpression(ctx.high().expression())).pos()  else None
+    val cap = if (ctx.cap() != null) Some(visitExpression(ctx.cap().expression())).pos()  else None
+    (low, high, cap)
   }
 
   /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
+    * Visits the rule
+    * seqUpdExp: L_BRACKET (seqUpdClause (COMMA seqUpdClause)*) R_BRACKET;
+    * @param ctx the parse tree
     */
-  override def visitOld(ctx: OldContext): PGhostExpression = {
-    val expr = visitExpression(ctx.expression())
-    if (has(ctx.oldLabelUse())) {
-      // old [<label>] ( <expr )
-      val label = if (has(ctx.oldLabelUse().labelUse()))
-        PLabelUse(ctx.oldLabelUse().labelUse().IDENTIFIER().getText).at(ctx) else
-        PLabelUse(PLabelNode.lhsLabel).at(ctx)
-      PLabeledOld(label, expr).at(ctx)
-    } else {
-      // old ( <expr> )
-      POld(expr).at(ctx)
-    }
+  override def visitSeqUpdExp(ctx: SeqUpdExpContext): Updates = {
+    Updates( // Wrap this to ensure type safe matching
+      ctx.seqUpdClause().asScala.view.map { upd =>
+        PGhostCollectionUpdateClause(visitExpression(upd.expression(0)), visitExpression(upd.expression(1))).at(upd)
+      }.toVector
+    )
   }
+  // Wrapper class to distinguish from Vector[PExpression] in patterns
+  case class Updates(upd : Vector[PGhostCollectionUpdateClause])
 
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitBoundVariableDecl(ctx: BoundVariableDeclContext): Vector[PBoundVariable] = {
-    val typ = visitType_(ctx.elementType().type_())
-    idnDefList.get(ctx.IDENTIFIER().asScala).map(id => PBoundVariable(id, typ.copy).at(id))
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitBoundVariables(ctx: BoundVariablesContext): Vector[PBoundVariable] = {
-    // TODO: Implement visitListNode for non-PNode vectors
-    (for (v <- ctx.boundVariableDecl().asScala.toVector) yield visitBoundVariableDecl(v)).flatten
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitTriggers(ctx: TriggersContext): Vector[PTrigger] = {
-    visitListNode[PTrigger](ctx.trigger())
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitTrigger(ctx: TriggerContext): PTrigger = {
-    PTrigger(for (expr <- ctx.expression().asScala.toVector) yield visitExpression(expr)).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitSConversion(ctx: SConversionContext): PGhostCollectionExp = {
-    val exp = visitExpression(ctx.expression())
-    val conversion = ctx.kind.getType match {
-      case GobraParser.SEQ => PSequenceConversion
-      case GobraParser.SET => PSetConversion
-      case GobraParser.MSET => PMultisetConversion
-    }
-    conversion(exp).at(ctx)
-  }
-
+  //region Ghost primary expressions
   /**
     * {@inheritDoc  }
     *
@@ -305,181 +1252,19 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
-    * Visits the rule
-    * type_ L_PAREN expression COMMA? R_PAREN;
-    * @param ctx the parse tree
-    *     */
-  override def visitConversion(ctx: ConversionContext): PInvoke= {
-    visitChildren(ctx) match {
-      case Vector(typ : PType, "(", exp : PExpression, _*) => PInvoke(typ, Vector(exp)).at(ctx)
-    }
-  }
-
-
-  /**
-    * Visits the rule
-    * predConstructArgs: L_PRED expressionList? COMMA? R_PRED
-    * @param ctx the parse tree
-    *     */
-  override def visitPredConstructArgs(ctx: PredConstructArgsContext): PredArgs = {
-    PredArgs( // Wrap this to ensure type safe pattern matching
-      visitExpressionList(ctx.expressionList()).map {
-        case PBlankIdentifier() => None
-        case e => Some(e)
-      }
-    )
-  }
-  case class PredArgs(args: Vector[Option[PExpression]])
-
-  /**
     * {@inheritDoc  }
     *
     * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
+    * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitMethodExpr(ctx: MethodExprContext): PDot = {
-    val recv = visitType_(ctx.receiverType().type_())
-    val id = idnUse.get(ctx.IDENTIFIER())
-    PDot(recv, id).at(ctx)
-  }
-
-  /**
-    * @param ctx the parse tree
-    *     */
-  override def visitNew_(ctx: New_Context): PNew = {
-    val typ : PType = visitNode(ctx.type_())
-    PNew(typ).at(ctx)
-  }
-
-  /**
-    * Visits the rule
-    * primaryExpr: operand | conversion | methodExpr | ghostPrimaryExpr | new_
-    *         | primaryExpr ( (DOT IDENTIFIER)| index| slice_| seqUpdExp| typeAssertion| arguments| predConstructArgs );
-    *
-    * @param ctx the parse tree
-    * @return the unpositioned visitor result
-    */
-  override def visitPrimaryExpr(ctx: PrimaryExprContext): PExpression = {
-    visitChildren(ctx) match {
-      case e : PExpression => e
-      case Vector(pe : PExpression, rest@_*) => rest match {
-        // (DOT IDENTIFIER)
-        case Vector(".", idnUse(id)) => PDot(pe, id).at(ctx)
-        // L_BRACKET expression R_BRACKET
-        case Vector(Vector("[", index : PExpression, "]")) => PIndexedExp(pe, index).at(ctx)
-        // slice_
-        case Vector((low: Option[PExpression] @unchecked, high : Option[PExpression] @unchecked, cap : Option[PExpression] @unchecked)) =>
-          PSliceExp(pe, low, high, cap).at(ctx)
-        // DOT L_PAREN type_ R_PAREN;
-        case Vector(Vector(".", "(", typ : PType, ")")) => PTypeAssertion(pe, typ).at(ctx)
-        // seqUpdExp
-        case Vector(Updates(upd)) =>
-          PGhostCollectionUpdate(pe, upd).at(ctx)
-        // arguments
-        case Vector(CallArgs(args)) => PInvoke(pe, args).at(ctx)
-        // predConstructArgs
-        case Vector(PredArgs(args)) => val id = pe match {
-            case recvWithId@PDot(_, _) => PDottedBase(recvWithId).at(recvWithId)
-            case PNamedOperand(identifier@PIdnUse(_)) => PFPredBase(identifier).at(identifier)
-            case _ => fail(ctx.primaryExpr(), "Wrong base type for predicate constructor.")
-          }
-          PPredConstructor(id, args).at(ctx)
-        case _ => fail(ctx)
-      }
+  override def visitSConversion(ctx: SConversionContext): PGhostCollectionExp = {
+    val exp = visitExpression(ctx.expression())
+    val conversion = ctx.kind.getType match {
+      case GobraParser.SEQ => PSequenceConversion
+      case GobraParser.SET => PSetConversion
+      case GobraParser.MSET => PMultisetConversion
     }
-  }
-
-  /**
-    * Visits the rule
-    * slice_: L_BRACKET ( low? COLON high? | low? COLON high COLON cap) R_BRACKET;
-    *
-    * @param ctx the parse tree
-    */
-  override def visitSlice_(ctx: Slice_Context): (Option[PExpression], Option[PExpression], Option[PExpression])  = {
-    val low = if (ctx.low() != null) Some(visitExpression(ctx.low().expression())).pos() else None
-    val high = if (ctx.high() != null) Some(visitExpression(ctx.high().expression())).pos()  else None
-    val cap = if (ctx.cap() != null) Some(visitExpression(ctx.cap().expression())).pos()  else None
-    (low, high, cap)
-  }
-
-  /**
-    * Visits the rule
-    * seqUpdExp: L_BRACKET (seqUpdClause (COMMA seqUpdClause)*) R_BRACKET;
-    * @param ctx the parse tree
-    */
-  override def visitSeqUpdExp(ctx: SeqUpdExpContext): Updates = {
-    Updates( // Wrap this to ensure type safe matching
-      ctx.seqUpdClause().asScala.view.map { upd =>
-      PGhostCollectionUpdateClause(visitExpression(upd.expression(0)), visitExpression(upd.expression(1))).at(upd)
-    }.toVector
-    )
-  }
-  // Wrapper class to distinguish from Vector[PExpression] in patterns
-  case class Updates(upd : Vector[PGhostCollectionUpdateClause])
-
-
-  override def visitInteger(ctx: GobraParser.IntegerContext): PIntLit = {
-    val octal = raw"0[oO]?([0-7_]+)".r
-    val hex = "0[xX]([0-9A-Fa-f_]+)".r
-    val bin = "0[bB]([01_]+)".r
-    val dec = "([0-9_]+)".r
-    val runeChar = "'(.*)'".r
-    visitChildren(ctx).asInstanceOf[String] match {
-      case octal(digits) => PIntLit(BigInt(digits, 8), Octal).at(ctx)
-      case hex(digits) => PIntLit(BigInt(digits, 16), Hexadecimal).at(ctx)
-      case bin(digits) => PIntLit(BigInt(digits, 2), Binary).at(ctx)
-      case dec(digits)  => PIntLit(BigInt(digits)).at(ctx)
-      case runeChar(chars) => StringContext.processEscapes(chars).codePoints().toArray match {
-        case Array(i : Int) => PIntLit(BigInt(i)).at(ctx)
-      }
-      case _  => fail(ctx, "This literal is not supported yet")
-    }
-  }
-
-  def visitFloat(node: TerminalNode): PBasicLiteral = {
-    PFloatLit(BigDecimal(node.getText.replace("_", ""))).at(node)
-  }
-
-  override def visitBasicLit(ctx: GobraParser.BasicLitContext): PBasicLiteral = {
-    visitChildren(ctx) match {
-      case "true" => PBoolLit(true).at(ctx)
-      case "false" => PBoolLit(false).at(ctx)
-      case "nil" => PNilLit().at(ctx)
-      case _ if has(ctx.FLOAT_LIT()) => visitFloat(ctx.FLOAT_LIT())
-      case _ if has(ctx.RUNE_LIT()) => fail(ctx, "Runes not supported yet")
-      case lit : PBasicLiteral => lit
-    }
-  }
-
-  /**
-    * Visits the rule
-    * arrayType: L_BRACKET arrayLength R_BRACKET elementType;
-    */
-  override def visitArrayType(ctx: ArrayTypeContext): PArrayType = {
-    visitChildren(ctx) match {
-      case Vector("[", len : PExpression, "]", elem : PType) => PArrayType(len, elem)
-      case _ => fail(ctx)
-    }
-  }
-
-  /**
-    * Visits the rule
-    * sliceType: L_BRACKET R_BRACKET elementType;
-    */
-  override def visitSliceType(ctx: SliceTypeContext): PSliceType = {
-    visitChildren(ctx) match {
-      case Vector("[", "]", typ : PType)  => PSliceType(typ).at(ctx)
-    }
-  }
-
-  /**
-    * Visits the rule
-    * mapType: MAP L_BRACKET type_ R_BRACKET elementType;
-    */
-  override def visitMapType(ctx: MapTypeContext): PMapType = {
-    visitChildren(ctx) match {
-      case Vector("map", "[", key : PType, "]", elem : PType) => PMapType(key, elem).at(ctx)
-    }
+    conversion(exp).at(ctx)
   }
 
   /**
@@ -488,415 +1273,30 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitLiteralType(ctx: LiteralTypeContext): PLiteralType = {
-    visitChildren(ctx) match {
-      case t : PLiteralType => t
-      case Vector("[", "...", "]", elem: PType) => PImplicitSizeArrayType(elem).at(ctx)
-      case _ => violation(s"Got unexpected type production.")
-    }
-
-
-
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitKey(ctx: KeyContext): PCompositeKey = {
-    visitChildren(ctx) match {
-      case idnUse(id) => PIdentifierKey(id).at(ctx)
-      case lit : PLiteralValue => PLitCompositeVal(lit).at(ctx)
-      case n@PNamedOperand(id) => PIdentifierKey(id).at(n)
-      case n : PExpression => PExpCompositeVal(n).at(n)
-      case _ => fail(ctx, "Invalid key")
-    }
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitElement(ctx: ElementContext): PCompositeVal = {
-    visitChildren(ctx) match {
-      case e : PExpression => PExpCompositeVal(e).at(e)
-      case lit : PLiteralValue => PLitCompositeVal(lit).at(lit)
-      case _ => fail(ctx)
-    }
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitKeyedElement(ctx: KeyedElementContext): PKeyedElement = {
-    val key = visitNodeOrNone[PCompositeKey](ctx.key())
-    val elem = visitElement(ctx.element())
-
-    PKeyedElement(key, elem).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitElementList(ctx: ElementListContext): Vector[PKeyedElement] = {
-    visitListNode[PKeyedElement](ctx.keyedElement())
-  }
-
-  /** Translates the rule
-    * literalValue: L_CURLY (elementList COMMA?)? R_CURLY;
-    *
-    * Not positioned
-    */
-  override def visitLiteralValue(ctx: LiteralValueContext): PLiteralValue = {
-    visitChildren(ctx) match {
-      case Vector(_, elems : Vector[PKeyedElement @unchecked], _*) => PLiteralValue(elems)
-      case _ => PLiteralValue(Vector.empty)
-    }
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitCompositeLit(ctx: CompositeLitContext): PCompositeLit = {
-    visitChildren(ctx) match {
-      case Vector(typ : PLiteralType, lit : PLiteralValue) => PCompositeLit(typ, lit).at(ctx)
-    }
-  }
-
-  /** visits a function literal
-    * does not position itself
-    */
-  override def visitFunctionLit(ctx: FunctionLitContext): PFunctionLit = {
-    visitChildren(ctx) match {
-      case Vector(_, (params: Vector[PParameter] @unchecked, result : PResult), b : PBlock ) => PFunctionLit(params, result, b)
-    }
-  }
-
-
-
-  /**
-    * Translates the rule
-    * operand: literal | operandName | L_PAREN expression R_PAREN;
-    *
-    * @param ctx the parse tree
-    * @return the visitor result
-    */
-  override def visitOperand(ctx: GobraParser.OperandContext): PExpression = {
-    visitChildren(ctx) match {
-      case e : PExpression => e
-      case Vector("(", e : PExpression, ")") => e
-      case _ => fail(ctx)
-    }
-  }
-
-  /**
-    * Translates the rule
-    *
-    * operandName: IDENTIFIER (DOT IDENTIFIER)?;
-    *
-    * @param ctx the parse tree
-    * @return the visitor result
-    */
-  override def visitOperandName(ctx: GobraParser.OperandNameContext): PExpression = {
-    visitChildren(ctx) match {
-      case Vector(idnUse(base), ".", idnUse(id)) => PDot(PNamedOperand(base).at(base), id).at(ctx)
-      case idnUseLike(id) => id match {
-        case id@PIdnUse(_) => PNamedOperand(id).at(id)
-        case PWildcard() => PBlankIdentifier().at(ctx)
-      }
-      case _ => violation("Got unexpected operand production.")
-    }
-  }
-
-  /**
-    * Visits an identifier list and returns a vector of TerminalNodes that can be matched by the
-    * appropriate PIdnExtractor.
-    * @param ctx the parse tree
-    *     */
-  override def visitIdentifierList(ctx: IdentifierListContext): Iterable[TerminalNode] = {
-    ctx.IDENTIFIER().asScala.view
-  }
-
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitMaybeAddressableIdentifierList(ctx: MaybeAddressableIdentifierListContext): (Vector[TerminalNode], Vector[Boolean]) = {
-    ctx.maybeAddressableIdentifier().asScala.toVector
-      .map(ctx => (ctx.IDENTIFIER(), has(ctx.ADDR_MOD())))
-      .unzip
-  }
-
-  override def visitShortVarDecl(ctx: GobraParser.ShortVarDeclContext): PShortVarDecl = {
-    val (idnUnkLikeList(vars), addressable) = visitMaybeAddressableIdentifierList(ctx.maybeAddressableIdentifierList())
-    val right = visitExpressionList(ctx.expressionList())
-    PShortVarDecl(right, vars, addressable).at(ctx)
-  }
-
-  /**
-    * Visit a parse tree produced by `GobraParser`.
-    *
-    * @param ctx the parse tree
-    * @return the visitor result
-    */
-  override def visitSignature(ctx: GobraParser.SignatureContext): (Vector[PParameter], PResult) = {
-    val params : Vector[Vector[PParameter]] = (for (param <- ctx.parameters().parameterDecl().asScala.view)
-      yield visitParameterDecl(param)
-      ).toVector
-    val result = if (ctx.result() != null) visitResult(ctx.result()) else PResult(Vector.empty)
-    (params.flatten, result)
-  }
-
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitMaybeAddressableIdentifier(ctx: MaybeAddressableIdentifierContext): (TerminalNode, Boolean) = {
-    (ctx.IDENTIFIER(), has(ctx.ADDR_MOD()))
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitReceiver(ctx: ReceiverContext): PReceiver = {
-    val recvType = visitType_(ctx.type_()) match {
-      case t : PNamedOperand => PMethodReceiveName(t).at(t)
-      case PDeref(t : PNamedOperand) => PMethodReceivePointer(t).at(t)
-      case f => fail(ctx.type_(), s"Excpected declared type or pointer to declared type but got: $f.")
-    }
-
-    if (has(ctx.maybeAddressableIdentifier())) {
-      val (goIdnDef(id), addr) = visitMaybeAddressableIdentifier(ctx.maybeAddressableIdentifier())
-      PNamedReceiver(id, recvType, addr).at(ctx)
-    } else PUnnamedReceiver(recvType).at(ctx)
-  }
-
-  /**
-    * ``
-    *
-    * <p>The default implementation returns the result of calling
-    * `#` on `ctx`.</p>
-    */
-  override def visitMethodDecl(ctx: GobraParser.MethodDeclContext): PMethodDecl = {
-    val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty)
-    val receiver = visitReceiver(ctx.receiver())
-    // Go allows _ here, but PMethodDecl doesn't
-    val id = goIdnDef.get(ctx.IDENTIFIER())
-    val sig = visitSignature(ctx.signature())
-    val paramInfo = PBodyParameterInfo(Vector.empty).at(ctx)
-    val body = if (ctx.blockWithBodyParameterInfo() == null || specOnly || spec.isTrusted) None else Some(visitBlockWithBodyParameterInfo(ctx.blockWithBodyParameterInfo()))
-    PMethodDecl(id, receiver,sig._1, sig._2, spec, body).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitFpredicateDecl(ctx: FpredicateDeclContext): PFPredicateDecl = {
-    val id = idnDef.get(ctx.IDENTIFIER())
-    val params = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
-    val body = if (has(ctx.predicateBody())) Some(visitExpression(ctx.predicateBody().expression())) else None
-    PFPredicateDecl(id, params.flatten, body).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitMpredicateDecl(ctx: MpredicateDeclContext): PMPredicateDecl = {
-    val id = idnDef.get(ctx.IDENTIFIER())
-    val receiver = visitReceiver(ctx.receiver())
-    val params = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
-    val body = if (has(ctx.predicateBody())) Some(visitExpression(ctx.predicateBody().expression())) else None
-    PMPredicateDecl(id, receiver, params.flatten, body).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitImplementationProofPredicateAlias(ctx: ImplementationProofPredicateAliasContext): PImplementationProofPredicateAlias = {
-    val left = idnUse.get(ctx.IDENTIFIER())
-    val right = visitChildren(ctx.selection()) match {
-      case name : PNamedOperand => name
-      case dot : PDot => dot
-      case Vector(typ : PType, ".", _) => PDot(typ, idnUse.get(ctx.selection().IDENTIFIER())).at(ctx.selection())
-      case _ => fail(ctx, "must be either a selection or a named operand")
-    }
-    PImplementationProofPredicateAlias(left, right).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitNonLocalReceiver(ctx: NonLocalReceiverContext): PParameter = {
-    visitChildren(ctx) match {
-      case Vector("(", idnDef(name), "*", typ : PActualType, ")") => PNamedParameter(name, PDeref(typ).at(typ)).at(ctx)
-      case Vector("(", idnDef(name), typ : PActualType, ")") => PNamedParameter(name, typ).at(ctx)
-      case Vector("(", "*", typ : PActualType, ")") => PUnnamedParameter(PDeref(typ).at(typ)).at(ctx)
-      case Vector("(", typ : PActualType, ")") => PUnnamedParameter(typ).at(ctx)
-    }
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitMethodImplementationProof(ctx: MethodImplementationProofContext): PMethodImplementationProof = {
-    val id = idnUse.get(ctx.IDENTIFIER())
-    val receiver : PParameter = visitNode(ctx.nonLocalReceiver())
-    val (args, result) = visitSignature(ctx.signature())
-    val isPure = has(ctx.PURE())
-    val body = if (has(ctx.block())) Some((PBodyParameterInfo(Vector.empty).at(ctx), visitBlock(ctx.block()))) else None
-    body match {
-      case Some((a, b)) => pom.positions.dupRangePos(a, b, body)
-      case _ =>
-    }
-    PMethodImplementationProof(id, receiver, args, result, isPure = isPure, body).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitImplementationProof(ctx: ImplementationProofContext): PImplementationProof = {
-    val subT : PType = visitNode(ctx.type_(0))
-    val superT : PType = visitType_(ctx.type_(1))
-    val alias = visitListNode[PImplementationProofPredicateAlias](ctx.implementationProofPredicateAlias())
-    val memberProofs = visitListNode[PMethodImplementationProof](ctx.methodImplementationProof())
-    PImplementationProof(subT, superT, alias, memberProofs).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  // TODO : Refactor
-  override def visitGhostMember(ctx: GhostMemberContext): Vector[PGhostMember] = {
-    if (ctx.fpredicateDecl() != null) {
-      Vector(visitFpredicateDecl(ctx.fpredicateDecl()))
-    } else if (ctx.mpredicateDecl() != null) {
-      Vector(visitMpredicateDecl(ctx.mpredicateDecl()))
-    } else if (ctx.implementationProof() != null) {
-      Vector(visitImplementationProof(ctx.implementationProof()))
-    }else if (ctx.GHOST() != null) {
-      if (ctx.methodDecl() != null) {
-        Vector(PExplicitGhostMember(visitMethodDecl(ctx.methodDecl())).at(ctx))
-      } else if (ctx.functionDecl() != null) {
-        Vector(PExplicitGhostMember(visitFunctionDecl(ctx.functionDecl())).at(ctx))
-      } else if (ctx.varDecl() != null) {
-        visitVarDecl(ctx.varDecl()).map(PExplicitGhostMember(_))
-      } else if (ctx.typeDecl() != null) {
-        visitTypeDecl(ctx.typeDecl()).map(PExplicitGhostMember(_))
-      } else {
-        visitConstDecl(ctx.constDecl()).map(PExplicitGhostMember(_))
-      }
-    } else fail(ctx)
-  }
-
-  /**
-    * Visits a SourceFileContext. Declarations with blank identifiers are discarded.
-    * @param ctx the parse tree
-    * @return the visitor result
-    */
-  override def visitSourceFile(ctx: GobraParser.SourceFileContext): PProgram = {
-    val packageClause : PPackageClause = visitNode(ctx.packageClause())
-    val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
-
-    // Don't parse functions/methods if the identifier is blank
-    val functionDecls= visitListNode[PFunctionDecl](ctx.functionDecl())
-    val methodDecls = visitListNode[PMethodDecl](ctx.methodDecl())
-    val ghostMembers = ctx.ghostMember().asScala.toVector.flatMap(visitGhostMember)
-    val decls = ctx.declaration().asScala.toVector.flatMap(visitDeclaration(_).asInstanceOf[Vector[PDeclaration]])
-    PProgram(packageClause, importDecls, functionDecls ++ methodDecls ++ decls ++ ghostMembers).at(ctx)
-  }
-
-  /**
-    * Visists a package clause
-    * @param ctx the parse tree
-    * @return the positioned PPackageclause
-    */
-  override def visitPackageClause(ctx: GobraParser.PackageClauseContext): PPackageClause = {
-    PPackageClause(PPkgDef(ctx.packageName.getText).at(ctx)).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitString_(ctx: GobraParser.String_Context): PStringLit = {
-    visitChildren(ctx) match {
-      // The parsed string includes the delimiters, remove these
-      case str : String => PStringLit(str.substring(1,str.length-1)).at(ctx)
-    }
-  }
-
-  /**
-    * Visits and import Specification
-    */
-  override def visitImportSpec(ctx: GobraParser.ImportSpecContext): PImport = {
-    // Get the actual path
-    val path = visitString_(ctx.importPath().string_()).lit
-    if(ctx.DOT() != null){
-      // . "<path>"
-      PUnqualifiedImport(path).at(ctx)
-    } else if (ctx.IDENTIFIER() != null) {
-      // (<identifier> | _) "<path>"
-      PExplicitQualifiedImport(idnDefLike.get(ctx.IDENTIFIER()), path).at(ctx)
+  override def visitOld(ctx: OldContext): PGhostExpression = {
+    val expr = visitExpression(ctx.expression())
+    if (has(ctx.oldLabelUse())) {
+      // old [<label>] ( <expr )
+      val label = if (has(ctx.oldLabelUse().labelUse()))
+        PLabelUse(ctx.oldLabelUse().labelUse().IDENTIFIER().getText).at(ctx) else
+        PLabelUse(PLabelNode.lhsLabel).at(ctx)
+      PLabeledOld(label, expr).at(ctx)
     } else {
-      PImplicitQualifiedImport(path).at(ctx)
+      // old ( <expr> )
+      POld(expr).at(ctx)
     }
   }
 
 
-
   /**
-    * Visit an import declaration
+    * {@inheritDoc  }
     *
-    * @param ctx the parse tree
-    * @return the visitor result
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitImportDecl(ctx: GobraParser.ImportDeclContext): Vector[PImport] = {
-    visitListNode[PImport](ctx.importSpec())
+  override def visitBoundVariables(ctx: BoundVariablesContext): Vector[PBoundVariable] = {
+    // TODO: Implement visitListNode for non-PNode vectors
+    (for (v <- ctx.boundVariableDecl().asScala.toVector) yield visitBoundVariableDecl(v)).flatten
   }
 
   /**
@@ -905,13 +1305,20 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitConstSpec(ctx: GobraParser.ConstSpecContext): PConstDecl = {
-    val typ = if (ctx.type_() != null) Some(visitType_(ctx.type_())) else None
+  override def visitBoundVariableDecl(ctx: BoundVariableDeclContext): Vector[PBoundVariable] = {
+    val typ = visitType_(ctx.elementType().type_())
+    idnDefList.get(ctx.IDENTIFIER().asScala).map(id => PBoundVariable(id, typ.copy).at(id))
+  }
 
-    val idnDefLikeList(left) = visitIdentifierList(ctx.identifierList())
-    val right = visitExpressionList(ctx.expressionList())
 
-    PConstDecl(typ, right, left).at(ctx)
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTriggers(ctx: TriggersContext): Vector[PTrigger] = {
+    visitListNode[PTrigger](ctx.trigger())
   }
 
   /**
@@ -920,12 +1327,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitConstDecl(ctx: GobraParser.ConstDeclContext): Vector[PConstDecl] = {
-    visitListNode[PConstDecl](ctx.constSpec()) match {
-      // Make sure the first expression list is not empty
-      case Vector(PConstDecl(_, Vector(), _), _*) => fail(ctx)
-      case decls => decls
-    }
+  override def visitTrigger(ctx: TriggerContext): PTrigger = {
+    PTrigger(for (expr <- ctx.expression().asScala.toVector) yield visitExpression(expr)).at(ctx)
   }
 
   /**
@@ -934,263 +1337,116 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitTypeSpec(ctx: GobraParser.TypeSpecContext): PTypeDecl = {
-    val left = goIdnDef.get(ctx.IDENTIFIER())
-    val right = visitType_(ctx.type_())
-    if (ctx.ASSIGN() != null) {
-      // <identifier> = <type> -> This is a type alias
-      PTypeAlias(right, left).at(ctx)
-    } else {
-      // <identifier <type> -> This is a type definition
-      PTypeDef(right, left).at(ctx)
-    }
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitTypeDecl(ctx: GobraParser.TypeDeclContext): Vector[PTypeDecl] = {
-    visitListNode[PTypeDecl](ctx.typeSpec())
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitVarSpec(ctx: GobraParser.VarSpecContext): PVarDecl = {
-    val (idnDefLikeList(vars), addressable) = visitMaybeAddressableIdentifierList(ctx.maybeAddressableIdentifierList())
-    val typ = if(has(ctx.type_())) Some(visitType_(ctx.type_())) else None
-    val right = if (has(ctx.expressionList())) visitExpressionList(ctx.expressionList()) else Vector.empty
-    PVarDecl(typ, right, vars, addressable).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitVarDecl(ctx: GobraParser.VarDeclContext): Vector[PVarDecl] = {
-    visitListNode[PVarDecl](ctx.varSpec())
-  }
-
-
-
-
-  // TODO : Move Blank identifier handling into the Type Checker
-  def visitAssignee(ctx: GobraParser.ExpressionContext): PAssignee = {
-    if (has(ctx.primaryExpr())) {
-      visitPrimaryExpr(ctx.primaryExpr()) match {
-       case a : PAssignee => a
-       case _ =>  fail(ctx, "not an assignee")
-      }
-   } else visitNode[PExpression](ctx) match {
-      case a : PAssignee => a
-      case _ => fail(ctx, "not an assignee")
-    }
-  }
-
-  def visitAssigneeList(ctx : GobraParser.ExpressionListContext) : Vector[PAssignee] = {
-    if (!has(ctx)) Vector.empty else
-      (for (expr <- ctx.expression().asScala.view) yield visitAssignee(expr)).toVector.at(ctx)
-  }
-
-
-  /**
-    * Visit a parse tree produced by `GobraParser`.
-    *
-    * @param ctx the parse tree
-    * @return the visitor result
-    */
-  override def visitExpressionList(ctx: GobraParser.ExpressionListContext): Vector[PExpression] = {
-    if (!has(ctx)) Vector.empty else
-      (for (expr <- ctx.expression().asScala.toVector) yield visitExpression(expr)).at(ctx)
-  }
-
-
-
-  /**
-    * ``
-    *
-    * <p>The default implementation returns the result of calling
-    * `#` on `ctx`.</p>
-    */
-  override def visitSpecification(ctx: GobraParser.SpecificationContext): PFunctionSpec = {
-    // Group the specifications by keyword
-    val groups = ctx.specStatement().asScala.view.groupBy(_.kind.getType)
-    // Get the respective groups
-    val pres = groups.getOrElse(GobraParser.PRE, Seq.empty).toVector.map(s => visitExpression(s.assertion().expression()))
-    val preserves = groups.getOrElse(GobraParser.PRESERVES, Vector.empty).toVector.map(s => visitExpression(s.assertion().expression()))
-    val posts = groups.getOrElse(GobraParser.POST, Vector.empty).toVector.map(s => visitExpression(s.assertion().expression()))
-    val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).toVector.map(s => visitTerminationMeasure(s.terminationMeasure()))
-    val isPure = has(ctx.PURE()) && !ctx.PURE().isEmpty
-    val isTrusted = has(ctx.TRUSTED()) && !ctx.TRUSTED().isEmpty
-
-    PFunctionSpec(pres, preserves, posts, terms, isPure = isPure, isTrusted = isTrusted) match {
-      // If we have empty specification, we can't get a position, for it.
-      case PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false) => PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty).at(ctx.parent.asInstanceOf[ParserRuleContext])
-      case spec => spec.at(ctx)
-    }
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitBlockWithBodyParameterInfo(ctx: BlockWithBodyParameterInfoContext): (PBodyParameterInfo, PBlock) = {
-    val shareable = if (has(ctx.SHARE())) idnUseList.get(visitIdentifierList(ctx.identifierList())) else Vector.empty
-    val paramInfo = PBodyParameterInfo(shareable)
-    val body =   if (has(ctx.statementList())) PBlock(visitStatementList(ctx.statementList())).at(ctx) else PBlock(Vector.empty).at(ctx)
-    (paramInfo, body)
-  }
-
-  /**
-    * Visit a parse tree produced by `GobraParser`.
-    *
-    * @param ctx the parse tree
-    * @return the visitor result
-    */
-  override def visitFunctionDecl(ctx: GobraParser.FunctionDeclContext): PFunctionDecl = {
-    // TODO : Make this more readable
-    val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty)
-    // Go allows the blank identifier here, but PFunctionDecl doesn't.
-    val id = goIdnDef.get(ctx.IDENTIFIER())
-    val sig = visitSignature(ctx.signature())
-    val body = if (ctx.blockWithBodyParameterInfo() == null || specOnly || spec.isTrusted) None else Some(visitBlockWithBodyParameterInfo(ctx.blockWithBodyParameterInfo()))
-    PFunctionDecl(id, sig._1, sig._2, spec, body).at(ctx)
-  }
-
-  /**
-    * Visit a parse tree produced by `GobraParser`.
-    *
-    * @param ctx the parse tree
-    * @return the visitor result
-    */
-  override def visitBlock(ctx: GobraParser.BlockContext): PBlock =  {
-    if (ctx.statementList() != null) PBlock(visitStatementList(ctx.statementList())).at(ctx) else PBlock(Vector.empty).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitIncDecStmt(ctx: IncDecStmtContext): PAssignmentWithOp = {
-    val exp = visitExpression(ctx.expression()) match {
-      case assignee : PAssignee => assignee
-      case _ => fail(ctx.expression(), "Increment/Decrement-statements must have an assignee as operand.")
-    }
-    if (has(ctx.PLUS_PLUS()))
-      PAssignmentWithOp(PIntLit(1).at(ctx.PLUS_PLUS()), PAddOp().at(ctx.PLUS_PLUS()), exp).at(ctx) else
-      PAssignmentWithOp(PIntLit(1).at(ctx.MINUS_MINUS()), PSubOp().at(ctx.MINUS_MINUS()), exp).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitSendStmt(ctx: SendStmtContext): PSendStmt = {
+  override def visitAccess(ctx: AccessContext): PAccess = {
     visitChildren(ctx) match {
-      case Vector(channel : PExpression, "<-", msg : PExpression) => PSendStmt(channel, msg).at(ctx)
+      case Vector("acc", "(", expr : PExpression, ")") =>
+        PAccess(expr, PFullPerm().at(expr)).at(ctx)
+
+      case Vector("acc", "(", expr : PExpression, ",", idnUseLike(w : PWildcard), ")") =>
+        PAccess(expr, PWildcardPerm().at(w)).at(ctx)
+
+      case Vector("acc", "(", expr : PExpression, ",", idnUse(id), ")") =>
+        PAccess(expr, PNamedOperand(id).at(id)).at(id)
+
+      case Vector("acc", "(", expr : PExpression, ",", perm : PExpression, ")") =>
+        PAccess(expr, perm).at(ctx)
+      case _ => fail(ctx)
     }
   }
 
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitExpressionStmt(ctx: ExpressionStmtContext): PExpressionStmt = PExpressionStmt(visitExpression(ctx.expression())).at(ctx)
 
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitEmptyStmt(ctx: EmptyStmtContext): PEmptyStmt = PEmptyStmt().at(ctx)
+  //endregion
 
 
+
+  //endregion
+
   /**
-    * ``
-    *
-    * <p>The default implementation returns the result of calling
-    * `#` on `ctx`.</p>
+    * visits an expression
     */
-  override def visitReturnStmt(ctx: GobraParser.ReturnStmtContext): PReturn = {
+  override def visitExpression(ctx: ExpressionContext): PExpression = {
+    if (has(ctx.rel_op) && ctx.rel_op.getType == GobraParser.EQUALS) {
+      val l = if (has(ctx.expression(0).type_())) ctx.expression(0).type_() else ctx.expression(0)
+      val r = if (has(ctx.expression(1).type_())) ctx.expression(1).type_() else ctx.expression(1)
+      return PEquals(visitNode(l), visitNode(r)).at(ctx)
+    }
+    // Otherwise we have a normal expression
     visitChildren(ctx) match {
-      case "return" => PReturn(Vector.empty).at(ctx)
-      case Vector("return", exps :Vector[PExpression] @unchecked) => PReturn(exps).at(ctx)
+      case e : PExpression => e // primaryExpression, unfolding etc
+      case Vector(l : PExpression, op : String, r : PExpression) => getBinOp(op, ctx)(l, r).at(ctx)
+      case Vector(call : String, "(", arg : PExpression, ")") => getUnaryOp(call, ctx)(arg).at(ctx)
+      case Vector("+", e : PExpression) => PAdd(PIntLit(0).at(ctx), e).at(ctx)
+      case Vector("-", e : PExpression) => PSub(PIntLit(0).at(ctx), e).at(ctx)
+      case Vector(op : String, e : PExpression) => getUnaryOp(op, ctx)(e).at(ctx)
+      case Vector(a : PExpression, "?", b : PExpression, ":", c : PExpression) =>  PConditional(a, b, c).at(ctx)
+      case x => violation(s"Expected expression but got ${x}")
     }
   }
 
   /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
+    * visits a unary Expression
     */
-  override def visitPredicateAccess(ctx: PredicateAccessContext): PPredicateAccess = {
-    if (ctx.primaryExpr() != null ) {
-      visitPrimaryExpr(ctx.primaryExpr()) match {
-        case invoke : PInvoke => PPredicateAccess(invoke, PFullPerm().at(invoke)).at(ctx)
-        case PAccess(invoke: PInvoke, perm) => PPredicateAccess(invoke, perm).at(ctx)
-        case _ => fail(ctx, "Expected invocation")
+  override def visitUnaryExpr(ctx: GobraParser.UnaryExprContext): PExpression = {
+    if (ctx.primaryExpr() != null) {
+      visitPrimaryExpr(ctx.primaryExpr())
+    } else if (has(ctx.kind)) {
+      val exp = visitExpression(ctx.expression())
+      val inv : (PExpression => PExpression) = ctx.kind.getType match {
+        case GobraParser.CAP => PCapacity
+        case GobraParser.LEN => PLength
+        case GobraParser.DOM => PMapKeys
+        case GobraParser.RANGE => PMapValues
       }
-    } else fail(ctx)
-
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  // TODO : Refactor
-  override def visitGhostStatement(ctx: GobraParser.GhostStatementContext): PGhostStatement = {
-    if (ctx.GHOST() != null) {
-      PExplicitGhostStatement(visitStatement(ctx.statement())).at(ctx)
-    } else if (ctx.ASSERT() != null) {
-      PAssert(visitExpression(ctx.expression())).at(ctx)
-    } else if (ctx.fold_stmt != null) {
-      val predicateAccess = visitPredicateAccess(ctx.predicateAccess())
-      ctx.fold_stmt.getType match {
-        case GobraParser.FOLD => PFold(predicateAccess).at(ctx)
-        case GobraParser.UNFOLD => PUnfold(predicateAccess).at(ctx)
+      inv(exp).at(ctx)
+    } else if (ctx.unary_op != null) {
+      val e = visitExpression(ctx.expression())
+      ctx.unary_op.getType match {
+        case GobraParser.PLUS => PAdd(PIntLit(0).at(ctx), e).at(ctx)
+        case GobraParser.MINUS => PSub(PIntLit(0).at(ctx), e).at(ctx)
+        case GobraParser.EXCLAMATION => PNegation(e).at(ctx)
+        case GobraParser.CARET => PBitNegation(e).at(ctx)
+        case GobraParser.STAR => PDeref(e).at(ctx)
+        case GobraParser.AMPERSAND => PReference(e).at(ctx)
+        case _ =>
+          throw UnsupportedOperatorException(ctx.unary_op, "unary", s"${ctx.unary_op.getText}")
       }
-    }  else if (has(ctx.kind)) {
-      val expr = visitExpression(ctx.expression())
-      val kind = ctx.kind.getType match {
-        case GobraParser.ASSERT => PAssert
-        case GobraParser.ASSUME => PAssume
-        case GobraParser.INHALE => PInhale
-        case GobraParser.EXHALE => PExhale
-      }
-      kind(expr).at(ctx)
+    } else if (has(ctx.unfolding())) {
+      visitUnfolding(ctx.unfolding())
     } else fail(ctx)
   }
 
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitStmtOnly(ctx: StmtOnlyContext): PStatement = {
-    visitStatement(ctx.statement())
+  def getBinOp(op : String, ctx : ParserRuleContext) : (PExpression, PExpression) => PExpression = {
+    binOp.getOrElse("'"+op+"'", fail(ctx, "invalid binary expression"))
   }
+
+  def getUnaryOp(op : String, ctx : ParserRuleContext) : (PExpression => PExpression) = {
+    unaryOp.getOrElse("'"+op+"'", fail(ctx, "invalid unary expression"))
+  }
+
+
+  /**
+    *
+    * @param ctx the parse tree
+    * @return the positioned PUnfolding
+    */
+
+  override def visitUnfolding(ctx: UnfoldingContext): PUnfolding = {
+    val pred = visitPredicateAccess(ctx.predicateAccess())
+    val op = visitExpression(ctx.expression())
+    PUnfolding(pred, op).at(ctx)
+  }
+  //endregion
+
+  //region Statements
+  override def visitStatement(ctx: GobraParser.StatementContext): PStatement = {
+    visitChildren(ctx) match {
+      // Declaration statements are wrapped in sequences to constitute a statement
+      case decl : Vector[PDeclaration] @unchecked => PSeq(decl).at(ctx)
+      case s : PStatement => s
+      case _ => violation(s"Unexpected statement rule production: ${ctx.getText}")
+    }
+  }
+
 
   /**
     * Visits a terminated simple statement, used in if- and switch-statements to avoid
@@ -1206,22 +1462,121 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
-    * visits an if clause
-    * //1
+    * {@inheritDoc  }
     *
-    * @param clause
-    * @return
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
     */
+  override def visitEmptyStmt(ctx: EmptyStmtContext): PEmptyStmt = PEmptyStmt().at(ctx)
 
-  def visitIfClause(clause: IfStmtContext) : PIfClause = {
-    val pre = visitNodeOrNone[PSimpleStmt](clause.terminatedSimpleStmt())
-    val expr = visitExpression(clause.expression())
-    // Emit a warning about syntax allowed by Gobra, but not by Go
-    if (clause.expression().stop.getType == GobraParser.R_CURLY) warn(clause.expression(), "struct literals at the end of if clauses must be surrounded by parens!")
-    val block = visitBlock(clause.block(0))
-    PIfClause(pre, expr, block).at(clause)
+  //region Labeled statements
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitLabeledStmt(ctx: LabeledStmtContext): PLabeledStmt = {
+    val label = visitLabelDef(ctx.IDENTIFIER())
+    val stmt = visitNodeOrElse[PStatement](ctx.statement(), PEmptyStmt().at(label))
+    PLabeledStmt(label, stmt).at(ctx)
   }
 
+  def visitLabelDef(node: TerminalNode) : PLabelDef = {
+    PLabelDef(node.toString).at(node)
+  }
+
+  def visitLabelUse(node: TerminalNode) : PLabelUse = {
+    PLabelUse(node.toString).at(node)
+  }
+  //endregion
+
+  //region Expression statements
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitExpressionStmt(ctx: ExpressionStmtContext): PExpressionStmt = PExpressionStmt(visitExpression(ctx.expression())).at(ctx)
+  //endregion
+
+  //region Send statements
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitSendStmt(ctx: SendStmtContext): PSendStmt = {
+    visitChildren(ctx) match {
+      case Vector(channel : PExpression, "<-", msg : PExpression) => PSendStmt(channel, msg).at(ctx)
+    }
+  }
+  //endregion
+
+  //region IncDec statements
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitIncDecStmt(ctx: IncDecStmtContext): PAssignmentWithOp = {
+    val exp = visitExpression(ctx.expression()) match {
+      case assignee : PAssignee => assignee
+      case _ => fail(ctx.expression(), "Increment/Decrement-statements must have an assignee as operand.")
+    }
+    if (has(ctx.PLUS_PLUS()))
+      PAssignmentWithOp(PIntLit(1).at(ctx.PLUS_PLUS()), PAddOp().at(ctx.PLUS_PLUS()), exp).at(ctx) else
+      PAssignmentWithOp(PIntLit(1).at(ctx.MINUS_MINUS()), PSubOp().at(ctx.MINUS_MINUS()), exp).at(ctx)
+  }
+  //endregion
+
+  //region Assignments
+  /**
+    * Visit a parse tree produced by `GobraParser`.
+    *
+    * @param ctx the parse tree
+    * @return the visitor result
+    */
+  // TODO : Refactor easy
+  override def visitAssignment(ctx: GobraParser.AssignmentContext): PSimpleStmt = {
+    val left = visitAssigneeList(ctx.expressionList(0)) match {
+      case v: Vector[PAssignee] => v
+      case _ => fail(ctx, "Assignee List contains non-assignable expressions.")
+    }
+    val right = visitExpressionList(ctx.expressionList(1))
+    if (has(ctx.assign_op().ass_op)) {
+      val ass_op = ctx.assign_op().ass_op.getType match {
+        case GobraParser.PLUS => PAddOp()
+        case GobraParser.MINUS => PSubOp()
+        case GobraParser.STAR =>  PMulOp()
+        case GobraParser.DIV => PDivOp()
+        case GobraParser.MOD => PModOp()
+        case GobraParser.AMPERSAND => PBitAndOp()
+        case GobraParser.OR => PBitOrOp()
+        case GobraParser.CARET => PBitXorOp()
+        case GobraParser.BIT_CLEAR => PBitClearOp()
+        case GobraParser.LSHIFT => PShiftLeftOp()
+        case GobraParser.RSHIFT => PShiftRightOp()
+      }
+      PAssignmentWithOp(right match {
+        case Vector(r) => r
+        case Vector(_, _*) => fail(ctx.expressionList(0), "Assignments with operators can only have one right-hand expression.")
+      }, ass_op, left match {
+        case Vector(l) => l
+        case Vector(_, _*) | Vector() => fail(ctx.expressionList(0), "Assignments with operators can only have one left-hand expression.")
+      }).at(ctx)
+    }
+    else {
+      PAssignment(right, left)
+        .at(ctx)
+    }
+  }
+  //endregion
+
+  //region If statements
   /**
     * {@inheritDoc  }
     *
@@ -1244,51 +1599,115 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     PIfStmt(ifs,els).at(ctx)
   }
 
-  def visitMeasure(ctx: ExpressionListContext) : Vector[PExpression] = {
-    if (!has(ctx)) Vector.empty else {
-      ctx.expression().asScala.view.map{e : ExpressionContext =>
-        if (has(e.primaryExpr())) visitPrimaryExpr(e.primaryExpr())
-        else visitExpression(e)
-      }.toVector
-    }
+  /**
+    * visits an if clause
+    * //1
+    *
+    * @param clause
+    * @return
+    */
+
+  def visitIfClause(clause: IfStmtContext) : PIfClause = {
+    val pre = visitNodeOrNone[PSimpleStmt](clause.terminatedSimpleStmt())
+    val expr = visitExpression(clause.expression())
+    // Emit a warning about syntax allowed by Gobra, but not by Go
+    if (clause.expression().stop.getType == GobraParser.R_CURLY) warn(clause.expression(), "struct literals at the end of if clauses must be surrounded by parens!")
+    val block = visitBlock(clause.block(0))
+    PIfClause(pre, expr, block).at(clause)
+  }
+
+  //endregion
+
+  //region Switch statements
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitExprSwitchStmt(ctx: ExprSwitchStmtContext): PExprSwitchStmt = {
+    val pre = visitNodeOrNone[PSimpleStmt](ctx.terminatedSimpleStmt())
+    // if the switch has no expression, generate a bool lit
+    val expr = visitNodeOrElse[PExpression](ctx.expression(),PBoolLit(true).at(ctx.SWITCH()))
+    // iterate through the clauses, partitioning them into normal cases and the default case
+    val (dflt, cases) = ctx.exprCaseClause().asScala.toVector.partitionMap(clause =>
+      if (has(clause.exprSwitchCase().DEFAULT())) Left(visitExprDefaultClause(clause).body)
+      else Right(visitExprCaseClause(clause))
+    )
+    PExprSwitchStmt(pre, expr, cases, dflt).at(ctx)
+  }
+
+  def visitExprDefaultClause(ctx: ExprCaseClauseContext): PExprSwitchDflt = {
+    PExprSwitchDflt(PBlock(visitStatementList(ctx.statementList())).at(ctx)).at(ctx)
   }
 
   /**
     * {@inheritDoc  }
     *
     * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
+    * {@link #   visitChildren} on {@code ctx}.</p>
     */
-  override def visitTerminationMeasure(ctx: TerminationMeasureContext): PTerminationMeasure = {
-    val cond = if (has(ctx.expression())) Some(visitExpression(ctx.expression())).pos() else None
-    visitMeasure(ctx.expressionList()) match {
-        case Vector(PBlankIdentifier()) => PWildcardMeasure(cond).at(ctx)
-        case exprs@Vector(_, _*) => PTupleTerminationMeasure(exprs, cond).at(ctx)
-        case Vector() => PTupleTerminationMeasure(Vector.empty, cond).at(ctx.parent match {
-          case s : SpecStatementContext => s.DEC()
-          case l : LoopSpecContext => l.DEC()
-        })
-    }
+  override def visitExprCaseClause(ctx: ExprCaseClauseContext): PExprSwitchCase = {
+    val left = visitExpressionList(ctx.exprSwitchCase().expressionList())
+    val body = PBlock(visitStatementList(ctx.statementList())).at(ctx)
+    PExprSwitchCase(left, body).at(ctx)
   }
 
-  /** Visits a loop specification.
+  /** Visits a type switch node
     *
-    * @param ctx the loop spec context
-    * @return a positioned PLoopSpec node
+    * @param ctx the type switch context
+    * @return a positioned PTypeSwitch
     */
-  override def visitLoopSpec(ctx: LoopSpecContext): PLoopSpec = {
-    val invs = for (inv <- ctx.expression().asScala.toVector) yield visitExpression(inv)
-    val decs = if (has(ctx.terminationMeasure())) Some(visitTerminationMeasure(ctx.terminationMeasure())).pos() else None
+  override def visitTypeSwitchStmt(ctx: TypeSwitchStmtContext): PTypeSwitchStmt = {
+    val pre = visitNodeOrNone[PSimpleStmt](ctx.terminatedSimpleStmt())
+    val binder = if (has(ctx.typeSwitchGuard().IDENTIFIER())) Some(idnDef.get(ctx.typeSwitchGuard().IDENTIFIER())) else None
+    val expr = visitPrimaryExpr(ctx.typeSwitchGuard().primaryExpr())
+    // iterate through the cases and partition them into normal cases and the default case
+    val (dflt, cases) = ctx.typeCaseClause().asScala.toVector.partitionMap(clause =>
+      if (has(clause.typeSwitchCase().DEFAULT())) Left(visitTypeDefaultClause(clause).body) // default : <statements>
+      else Right(visitTypeCaseClause(clause)) // case <types> : <statements>
+    )
+    PTypeSwitchStmt(pre, expr, binder, cases, dflt).at(ctx)
 
-    PLoopSpec(invs, decs).at(ctx)
   }
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeList(ctx: TypeListContext): Vector[PExpressionOrType] = {
+    val types = visitListNode[PType](ctx.type_())
+    // Need to check whether this includes nil, since it's a predeclared identifier and not a type
+    if (has(ctx.NIL_LIT()) && !ctx.NIL_LIT().isEmpty) types.appended(PNilLit().at(ctx.NIL_LIT(0))) else types
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeCaseClause(ctx: TypeCaseClauseContext): PTypeSwitchCase = {
+    val body = PBlock(visitStatementList(ctx.statementList()))
+      .at(if (has(ctx.statementList())) ctx.statementList() else ctx) // If we have no statement list, we need to position at the context
+    val left = visitTypeList(ctx.typeSwitchCase().typeList())
+    PTypeSwitchCase(left, body).at(ctx)
+  }
+
+  def visitTypeDefaultClause(ctx: TypeCaseClauseContext): PTypeSwitchDflt = {
+    val body  = PBlock(visitStatementList(ctx.statementList())).at(ctx.statementList())
+    PTypeSwitchDflt(body).at(ctx)
+  }
+  //endregion
+
+  //region For statements
   /**
     * Visits a for statement with specifications
     * @param specCtx
     * @return a positioned PStatement
     */
-
   // TODO : Refactor
   override def visitSpecForStmt(specCtx: SpecForStmtContext): PStatement = {
     // Visit the loop specifications
@@ -1331,6 +1750,47 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   }
 
+  def visitMeasure(ctx: ExpressionListContext) : Vector[PExpression] = {
+    if (!has(ctx)) Vector.empty else {
+      ctx.expression().asScala.view.map{e : ExpressionContext =>
+        if (has(e.primaryExpr())) visitPrimaryExpr(e.primaryExpr())
+        else visitExpression(e)
+      }.toVector
+    }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTerminationMeasure(ctx: TerminationMeasureContext): PTerminationMeasure = {
+    val cond = if (has(ctx.expression())) Some(visitExpression(ctx.expression())).pos() else None
+    visitMeasure(ctx.expressionList()) match {
+      case Vector(PBlankIdentifier()) => PWildcardMeasure(cond).at(ctx)
+      case exprs@Vector(_, _*) => PTupleTerminationMeasure(exprs, cond).at(ctx)
+      case Vector() => PTupleTerminationMeasure(Vector.empty, cond).at(ctx.parent match {
+        case s : SpecStatementContext => s.DEC()
+        case l : LoopSpecContext => l.DEC()
+      })
+    }
+  }
+
+  /** Visits a loop specification.
+    *
+    * @param ctx the loop spec context
+    * @return a positioned PLoopSpec node
+    */
+  override def visitLoopSpec(ctx: LoopSpecContext): PLoopSpec = {
+    val invs = for (inv <- ctx.expression().asScala.toVector) yield visitExpression(inv)
+    val decs = if (has(ctx.terminationMeasure())) Some(visitTerminationMeasure(ctx.terminationMeasure())).pos() else None
+
+    PLoopSpec(invs, decs).at(ctx)
+  }
+  //endregion
+
+  //region Communicaton statements
   /**
     * {@inheritDoc  }
     *
@@ -1343,185 +1803,23 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
-  def visitLabelDef(node: TerminalNode) : PLabelDef = {
-    PLabelDef(node.toString).at(node)
-  }
-
-  def visitLabelUse(node: TerminalNode) : PLabelUse = {
-    PLabelUse(node.toString).at(node)
-  }
-
+  //region Select statements
   /**
     * {@inheritDoc  }
     *
     * <p>The default implementation returns the result of calling
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
-  override def visitLabeledStmt(ctx: LabeledStmtContext): PLabeledStmt = {
-    val label = visitLabelDef(ctx.IDENTIFIER())
-    val stmt = visitNodeOrElse[PStatement](ctx.statement(), PEmptyStmt().at(label))
-    PLabeledStmt(label, stmt).at(ctx)
-  }
+  override def visitSelectStmt(ctx: SelectStmtContext): PSelectStmt = {
+    val clauses = ctx.commClause().asScala.toVector.map(visitCommClause)
+    // TODO: Do this in one pass
+    val send = clauses collect { case v: PSelectSend => v }
+    val rec = clauses collect { case v: PSelectRecv => v }
+    val arec = clauses collect { case v: PSelectAssRecv => v }
+    val srec = clauses collect { case v: PSelectShortRecv => v }
+    val dflt = clauses collect { case v: PSelectDflt => v }
 
-
-  def visitExprDefaultClause(ctx: ExprCaseClauseContext): PExprSwitchDflt = {
-    PExprSwitchDflt(PBlock(visitStatementList(ctx.statementList())).at(ctx)).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitExprCaseClause(ctx: ExprCaseClauseContext): PExprSwitchCase = {
-    val left = visitExpressionList(ctx.exprSwitchCase().expressionList())
-    val body = PBlock(visitStatementList(ctx.statementList())).at(ctx)
-    PExprSwitchCase(left, body).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitExprSwitchStmt(ctx: ExprSwitchStmtContext): PExprSwitchStmt = {
-    val pre = visitNodeOrNone[PSimpleStmt](ctx.terminatedSimpleStmt())
-    // if the switch has no expression, generate a bool lit
-    val expr = visitNodeOrElse[PExpression](ctx.expression(),PBoolLit(true).at(ctx.SWITCH()))
-    // iterate through the clauses, partitioning them into normal cases and the default case
-    val (dflt, cases) = ctx.exprCaseClause().asScala.toVector.partitionMap(clause =>
-      if (has(clause.exprSwitchCase().DEFAULT())) Left(visitExprDefaultClause(clause).body)
-      else Right(visitExprCaseClause(clause))
-    )
-    PExprSwitchStmt(pre, expr, cases, dflt).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitTypeList(ctx: TypeListContext): Vector[PExpressionOrType] = {
-    val types = visitListNode[PType](ctx.type_())
-    // Need to check whether this includes nil, since it's a predeclared identifier and not a type
-    if (has(ctx.NIL_LIT()) && !ctx.NIL_LIT().isEmpty) types.appended(PNilLit().at(ctx.NIL_LIT(0))) else types
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitTypeCaseClause(ctx: TypeCaseClauseContext): PTypeSwitchCase = {
-    val body = PBlock(visitStatementList(ctx.statementList()))
-      .at(if (has(ctx.statementList())) ctx.statementList() else ctx) // If we have no statement list, we need to position at the context
-    val left = visitTypeList(ctx.typeSwitchCase().typeList())
-    PTypeSwitchCase(left, body).at(ctx)
-  }
-
-  def visitTypeDefaultClause(ctx: TypeCaseClauseContext): PTypeSwitchDflt = {
-    val body  = PBlock(visitStatementList(ctx.statementList())).at(ctx.statementList())
-    PTypeSwitchDflt(body).at(ctx)
-  }
-
-  /** Visits a type switch node
-    *
-    * @param ctx the type switch context
-    * @return a positioned PTypeSwitch
-    */
-  override def visitTypeSwitchStmt(ctx: TypeSwitchStmtContext): PTypeSwitchStmt = {
-    val pre = visitNodeOrNone[PSimpleStmt](ctx.terminatedSimpleStmt())
-    val binder = if (has(ctx.typeSwitchGuard().IDENTIFIER())) Some(idnDef.get(ctx.typeSwitchGuard().IDENTIFIER())) else None
-    val expr = visitPrimaryExpr(ctx.typeSwitchGuard().primaryExpr())
-    // iterate through the cases and partition them into normal cases and the default case
-    val (dflt, cases) = ctx.typeCaseClause().asScala.toVector.partitionMap(clause =>
-      if (has(clause.typeSwitchCase().DEFAULT())) Left(visitTypeDefaultClause(clause).body) // default : <statements>
-      else Right(visitTypeCaseClause(clause)) // case <types> : <statements>
-    )
-    PTypeSwitchStmt(pre, expr, binder, cases, dflt).at(ctx)
-
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitPackageStmt(ctx: PackageStmtContext): PPackageWand = {
-    visitChildren(ctx) match {
-      case Vector("package", w : PMagicWand) => PPackageWand(w,None).at(ctx)
-      case Vector("package", w : PMagicWand, b : PBlock) => PPackageWand(w,Some(b)).at(ctx)
-      case Vector(_, e, _*) => fail(ctx,s"expected a magic wand but instead got $e")
-    }
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitApplyStmt(ctx: ApplyStmtContext): PApplyWand = {
-    visitChildren(ctx) match {
-      case Vector("apply", w  : PMagicWand) => PApplyWand(w).at(ctx)
-      case e => fail(ctx, s"expected a magic wand but instead got $e")
-    }
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitGotoStmt(ctx: GotoStmtContext): PGoto = PGoto(visitLabelUse(ctx.IDENTIFIER())).at(ctx)
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitContinueStmt(ctx: ContinueStmtContext): PContinue = {
-    val label = if (has(ctx.IDENTIFIER())) Some(visitLabelUse(ctx.IDENTIFIER())) else None
-    PContinue(label).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitBreakStmt(ctx: BreakStmtContext): PBreak = {
-    val label = if (has(ctx.IDENTIFIER())) Some(visitLabelUse(ctx.IDENTIFIER())) else None
-    PBreak(label).at(ctx)
-  }
-
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitDeferStmt(ctx: DeferStmtContext): AnyRef = {
-    val expr : PExpression = visitExpression(ctx.expression())
-    PDeferStmt(expr).at(ctx)
-  }
-
-  override def visitStatement(ctx: GobraParser.StatementContext): PStatement = {
-    visitChildren(ctx) match {
-      // Declaration statements are wrapped in sequences to constitute a statement
-      case decl : Vector[PDeclaration] @unchecked => PSeq(decl).at(ctx)
-      case s : PStatement => s
-      case _ => fail(ctx, "failed to translate statement")
-    }
+    PSelectStmt(send, rec, arec, srec, dflt).at(ctx)
   }
 
   /**
@@ -1557,172 +1855,18 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       } else PSelectRecv(expr, body).at(ctx)
     } else PSelectDflt(body).at(ctx)
   }
+  //endregion
 
+  //endregion
+
+  //region Controlflow statements
   /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
+    * Visits a return statement
     */
-  override def visitSelectStmt(ctx: SelectStmtContext): PSelectStmt = {
-    val clauses = ctx.commClause().asScala.toVector.map(visitCommClause)
-    // TODO: Do this in one pass
-    val send = clauses collect { case v: PSelectSend => v }
-    val rec = clauses collect { case v: PSelectRecv => v }
-    val arec = clauses collect { case v: PSelectAssRecv => v }
-    val srec = clauses collect { case v: PSelectShortRecv => v }
-    val dflt = clauses collect { case v: PSelectDflt => v }
-
-    PSelectStmt(send, rec, arec, srec, dflt).at(ctx)
-  }
-
-
-  /**
-    * Visit a parse tree produced by `GobraParser`.
-    *
-    * @param ctx the parse tree
-    * @return the visitor result
-    */
-  override def visitStatementList(ctx: GobraParser.StatementListContext): Vector[PStatement] = {
-    if (ctx == null) return Vector.empty
-    for (stmt <- ctx.statement().asScala.toVector) yield visitStatement(stmt)
-  }
-
-
-
-  /**
-    * Visit a parse tree produced by `GobraParser`.
-    *
-    * @param ctx the parse tree
-    * @return the visitor result
-    */
-  // TODO : Refactor easy
-  override def visitAssignment(ctx: GobraParser.AssignmentContext): PSimpleStmt = {
-    val left = visitAssigneeList(ctx.expressionList(0)) match {
-      case v: Vector[PAssignee] => v
-      case _ => fail(ctx, "Assignee List contains non-assignable expressions.")
-    }
-    val right = visitExpressionList(ctx.expressionList(1))
-    if (has(ctx.assign_op().ass_op)) {
-      val ass_op = ctx.assign_op().ass_op.getType match {
-        case GobraParser.PLUS => PAddOp()
-        case GobraParser.MINUS => PSubOp()
-        case GobraParser.STAR =>  PMulOp()
-        case GobraParser.DIV => PDivOp()
-        case GobraParser.MOD => PModOp()
-        case GobraParser.AMPERSAND => PBitAndOp()
-        case GobraParser.OR => PBitOrOp()
-        case GobraParser.CARET => PBitXorOp()
-        case GobraParser.BIT_CLEAR => PBitClearOp()
-        case GobraParser.LSHIFT => PShiftLeftOp()
-        case GobraParser.RSHIFT => PShiftRightOp()
-      }
-      PAssignmentWithOp(right match {
-        case Vector(r) => r
-        case Vector(_, _*) => fail(ctx.expressionList(0), "Assignments with operators can only have one right-hand expression.")
-      }, ass_op, left match {
-        case Vector(l) => l
-        case Vector(_, _*) => fail(ctx.expressionList(0), "Assignments with operators can only have one left-hand expression.")
-      }).at(ctx)
-    }
-    else {
-      PAssignment(right, left)
-        .at(ctx)
-    }
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitMethodSpec(ctx: GobraParser.MethodSpecContext): PMethodSig = {
-    val ghost = has(ctx.GHOST())
-    val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty).at(ctx)
-    // The name of each explicitly specified method must be unique and not blank.
-    val id = idnDef.get(ctx.IDENTIFIER())
-    val args = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
-    val result = if (ctx.result() != null) visitResult(ctx.result()) else PResult(Vector.empty).at(ctx)
-    PMethodSig(id, args.flatten, result, spec, isGhost = ghost).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitPredicateSpec(ctx: PredicateSpecContext): PMPredicateSig = {
-    val id = idnDef.get(ctx.IDENTIFIER())
-    val args = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
-    PMPredicateSig(id, args.flatten).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitInterfaceType(ctx: GobraParser.InterfaceTypeContext): PInterfaceType = {
-    val methodDecls = (for (meth <- ctx.methodSpec().asScala.toVector) yield visitMethodSpec(meth).at(ctx)).at(ctx)
-    val embedded = for (typ <- ctx.typeName().asScala.toVector) yield
-      PInterfaceName(PNamedOperand(idnUse.get(typ.IDENTIFIER())).at(typ)).at(typ)
-    val predicateDecls = for (pred <- ctx.predicateSpec().asScala.toVector) yield visitPredicateSpec(pred)
-    PInterfaceType(embedded, methodDecls, predicateDecls).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitEmbeddedField(ctx: EmbeddedFieldContext): PEmbeddedType = {
+  override def visitReturnStmt(ctx: GobraParser.ReturnStmtContext): PReturn = {
     visitChildren(ctx) match {
-      case name : PNamedType => PEmbeddedName(name).at(ctx)
-      case Vector("*", name : PNamedType) => PEmbeddedPointer(name).at(ctx)
-    }
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitFieldDecl(ctx: FieldDeclContext): PStructClause = {
-    if (ctx.embeddedField() != null) {
-      val et = visitEmbeddedField(ctx.embeddedField())
-      PEmbeddedDecl(et, PIdnDef(et.name).at(et)).at(ctx)
-    } else {
-      val goIdnDefList(ids) = visitIdentifierList(ctx.identifierList())
-      val t = visitType_(ctx.type_())
-      PFieldDecls(ids map (id => PFieldDecl(id, t.copy).at(id))).at(ctx)
-    }
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitStructType(ctx: StructTypeContext): PStructType = {
-    val decls = for (decl <- ctx.fieldDecl().asScala.toVector) yield visitFieldDecl(decl)
-    PStructType(decls).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitFunctionType(ctx: FunctionTypeContext): PFunctionType = {
-    visitChildren(ctx) match {
-      case Vector("func", (args: Vector[PParameter], result : PResult)) => PFunctionType(args, result).at(ctx)
+      case "return" => PReturn(Vector.empty).at(ctx)
+      case Vector("return", exps :Vector[PExpression] @unchecked) => PReturn(exps).at(ctx)
     }
   }
 
@@ -1732,8 +1876,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
-  override def visitPredTypeParams(ctx: PredTypeParamsContext): Vector[PType] = {
-    for (typ <- ctx.type_().asScala.toVector) yield visitType_(typ)
+  override def visitBreakStmt(ctx: BreakStmtContext): PBreak = {
+    val label = if (has(ctx.IDENTIFIER())) Some(visitLabelUse(ctx.IDENTIFIER())) else None
+    PBreak(label).at(ctx)
   }
 
   /**
@@ -1742,18 +1887,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
-  override def visitPredType(ctx: PredTypeContext): PPredType = visitChildren(ctx) match {
-      case Vector("pred", (params : Vector[PType])) => PPredType(params)
-    }
-
-
-  override def visitChannelType(ctx: ChannelTypeContext): PChannelType = {
-    val res = visitChildren(ctx) match {
-      case Vector("chan", typ : PType) => PBiChannelType(typ)
-      case Vector("chan", "<-", typ : PType) => PSendChannelType(typ)
-      case Vector("<-", "chan", typ : PType) => PRecvChannelType(typ)
-    }
-    res.at(ctx)
+  override def visitContinueStmt(ctx: ContinueStmtContext): PContinue = {
+    val label = if (has(ctx.IDENTIFIER())) Some(visitLabelUse(ctx.IDENTIFIER())) else None
+    PContinue(label).at(ctx)
   }
 
   /**
@@ -1762,154 +1898,158 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
-  override def visitPointerType(ctx: PointerTypeContext): PDeref = visitChildren(ctx) match {
-    case Vector("*", typ : PType) => PDeref(typ).at(ctx)
+  override def visitGotoStmt(ctx: GotoStmtContext): PGoto = PGoto(visitLabelUse(ctx.IDENTIFIER())).at(ctx)
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitDeferStmt(ctx: DeferStmtContext): PDeferStmt = {
+    val expr : PExpression = visitExpression(ctx.expression())
+    PDeferStmt(expr).at(ctx)
   }
+  //endregion
 
-
-
+  //region Ghost statement
   /**
     * {@inheritDoc  }
     *
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitSqType(ctx: SqTypeContext): PGhostLiteralType = {
-    visitChildren(ctx) match {
-      case Vector(kind : String, "[", typ : PType, "]") => (kind match {
-        case "seq" => PSequenceType(typ)
-        case "set" => PSetType(typ)
-        case "mset" => PMultisetType(typ)
-        case "option" => POptionType(typ)
-      }).at(ctx)
-      case Vector("dict", "[", keys : PType, "]", values : PType) => PMathematicalMapType(keys, values).at(ctx)
-    }
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitGhostSliceType(ctx: GhostSliceTypeContext): PGhostSliceType = {
-    val typ = visitType_(ctx.elementType().type_())
-    PGhostSliceType(typ).at(ctx)
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitDomainType(ctx: DomainTypeContext): PDomainType = {
-    val (funcs, axioms) = ctx.domainClause().asScala.toVector.partitionMap(visitDomainClause)
-    PDomainType(funcs, axioms).at(ctx)
-  }
-
-  override def visitDomainClause(ctx: DomainClauseContext): Either[PDomainFunction, PDomainAxiom] = {
-    visitChildren(ctx) match {
-      case Vector("func", idnDef(id), (params : Vector[PParameter], result : PResult)) => Left(PDomainFunction(id, params, result).at(ctx))
-      case Vector("axiom", "{", expr : PExpression, _, "}") => Right(PDomainAxiom(expr).at(ctx))
-      case _ => fail(ctx)
-    }
-  }
-
-  /**
-    * Visit a parse tree produced by `GobraParser`.
-    *
-    * @param ctx the parse tree
-    * @return the visitor result
-    */
-  override def visitType_(ctx: GobraParser.Type_Context): PType = {
-    visitChildren(ctx) match {
-      case typ : PType => typ
-      case Vector(_, typ : PType, _) => typ
-      case _ => violation(s"could not translate '${ctx.getText}', got unexpected '${visitChildren(ctx)}'")
-      }
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitQualifiedIdent(ctx: QualifiedIdentContext): PDot = {
-    visitChildren(ctx) match {
-      case Vector(idnUse(base), ".", idnUse(id)) => PDot(PNamedOperand(base).at(base), id).at(ctx)
-    }
-  }
-
-  def visitTypeIdentifier(typ: TerminalNode): PActualType = {
-    typ.getSymbol.getText match {
-      case "perm" => PPermissionType().at(typ)
-      case "int" => PIntType().at(typ)
-      case "int16" => PInt16Type().at(typ)
-      case "int32" => PInt32Type().at(typ)
-      case "int64" => PInt64Type().at(typ)
-      case "uint" => PUIntType().at(typ)
-      case "byte" => PByte().at(typ)
-      case "uint8" => PUInt8Type().at(typ)
-      case "uint16" => PUInt16Type().at(typ)
-      case "uint32" => PUInt32Type().at(typ)
-      case "uint64" => PUInt64Type().at(typ)
-      case "uintptr" => PUIntPtr().at(typ)
-      case "float32" => PFloat32().at(typ)
-      case "float64" => PFloat64().at(typ)
-      case "bool" => PBoolType().at(typ)
-      case "string" => PStringType().at(typ)
-      case "rune" => PRune().at(typ)
-      case _ => PNamedOperand(idnUse.get(typ)).at(typ)
-    }
-  }
-
-  override def visitTypeName(ctx: GobraParser.TypeNameContext): PActualType = {
-    visitChildren(ctx) match {
-      case name : TerminalNode => visitTypeIdentifier(name)
-      case qualified : PDot => qualified
-    }
-   }
-
-  /**
-    * Visit a parse tree produced by `GobraParser`.
-    *
-    * @param ctx the parse tree
-    * @return the visitor result
-    */
-  // TODO : Refactor easy
-  override def visitResult(ctx: GobraParser.ResultContext): PResult = {
-    if (ctx.parameters() != null) {
-      val results = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
-      PResult(results.flatten).at(ctx)
-    } else {
-      PResult(Vector(PUnnamedParameter(visitType_(ctx.type_())).at(ctx))).at(ctx)
-    }
-  }
-
-  /**
-    * Visit a parse tree produced by `GobraParser`.
-    *
-    * @param ctx the parse tree
-    * @return the visitor result
-    */
-  override def visitParameterDecl(ctx: GobraParser.ParameterDeclContext): Vector[PParameter] = {
-    val typ = if (has(ctx.ELLIPSIS())) PVariadicType(visitType_(ctx.type_())).at(ctx) else visitType_(ctx.type_())
-    val params = if(ctx.identifierList() != null) {
-      // "_" should be supported here to allow unused parameters for interfaces etc.
-      goIdnDefList.get(visitIdentifierList(ctx.identifierList())).map(id => PNamedParameter(id, typ.copy).at(id))
-    } else {
-      Vector[PActualParameter](PUnnamedParameter(typ).at(ctx.type_()))
-    }
-
+  // TODO : Refactor
+  override def visitGhostStatement(ctx: GobraParser.GhostStatementContext): PGhostStatement = {
     if (ctx.GHOST() != null) {
-      params.map(PExplicitGhostParameter(_).at(ctx))
-    } else params
+      PExplicitGhostStatement(visitStatement(ctx.statement())).at(ctx)
+    } else if (ctx.ASSERT() != null) {
+      PAssert(visitExpression(ctx.expression())).at(ctx)
+    } else if (ctx.fold_stmt != null) {
+      val predicateAccess = visitPredicateAccess(ctx.predicateAccess())
+      ctx.fold_stmt.getType match {
+        case GobraParser.FOLD => PFold(predicateAccess).at(ctx)
+        case GobraParser.UNFOLD => PUnfold(predicateAccess).at(ctx)
+      }
+    }  else if (has(ctx.kind)) {
+      val expr = visitExpression(ctx.expression())
+      val kind = ctx.kind.getType match {
+        case GobraParser.ASSERT => PAssert
+        case GobraParser.ASSUME => PAssume
+        case GobraParser.INHALE => PInhale
+        case GobraParser.EXHALE => PExhale
+      }
+      kind(expr).at(ctx)
+    } else fail(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitPredicateAccess(ctx: PredicateAccessContext): PPredicateAccess = {
+    if (ctx.primaryExpr() != null ) {
+      visitPrimaryExpr(ctx.primaryExpr()) match {
+        case invoke : PInvoke => PPredicateAccess(invoke, PFullPerm().at(invoke)).at(ctx)
+        case PAccess(invoke: PInvoke, perm) => PPredicateAccess(invoke, perm).at(ctx)
+        case _ => fail(ctx, "Expected invocation")
+      }
+    } else fail(ctx)
+
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitApplyStmt(ctx: ApplyStmtContext): PApplyWand = {
+    visitChildren(ctx) match {
+      case Vector("apply", w  : PMagicWand) => PApplyWand(w).at(ctx)
+      case e => fail(ctx, s"expected a magic wand but instead got $e")
+    }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitPackageStmt(ctx: PackageStmtContext): PPackageWand = {
+    visitChildren(ctx) match {
+      case Vector("package", w : PMagicWand) => PPackageWand(w,None).at(ctx)
+      case Vector("package", w : PMagicWand, b : PBlock) => PPackageWand(w,Some(b)).at(ctx)
+      case Vector(_, e, _*) => fail(ctx,s"expected a magic wand but instead got $e")
+    }
   }
 
 
+  //endregion
+  //endregion
 
+  //region Packages
+  /**
+    * Visits a SourceFileContext. Declarations with blank identifiers are discarded.
+    * @param ctx the parse tree
+    * @return the visitor result
+    */
+  override def visitSourceFile(ctx: GobraParser.SourceFileContext): PProgram = {
+    val packageClause : PPackageClause = visitNode(ctx.packageClause())
+    val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
+
+    // Don't parse functions/methods if the identifier is blank
+    val functionDecls= visitListNode[PFunctionDecl](ctx.functionDecl())
+    val methodDecls = visitListNode[PMethodDecl](ctx.methodDecl())
+    val ghostMembers = ctx.ghostMember().asScala.toVector.flatMap(visitGhostMember)
+    val decls = ctx.declaration().asScala.toVector.flatMap(visitDeclaration(_).asInstanceOf[Vector[PDeclaration]])
+    PProgram(packageClause, importDecls, functionDecls ++ methodDecls ++ decls ++ ghostMembers).at(ctx)
+  }
+
+  /**
+    * Visists a package clause
+    * @param ctx the parse tree
+    * @return the positioned PPackageclause
+    */
+  override def visitPackageClause(ctx: GobraParser.PackageClauseContext): PPackageClause = {
+    PPackageClause(PPkgDef(ctx.packageName.getText).at(ctx)).at(ctx)
+  }
+
+  /**
+    * Visit an import declaration
+    *
+    * @param ctx the parse tree
+    * @return the visitor result
+    */
+  override def visitImportDecl(ctx: GobraParser.ImportDeclContext): Vector[PImport] = {
+    visitListNode[PImport](ctx.importSpec())
+  }
+
+  /**
+    * Visits and import Specification
+    */
+  override def visitImportSpec(ctx: GobraParser.ImportSpecContext): PImport = {
+    // Get the actual path
+    val path = visitString_(ctx.importPath().string_()).lit
+    if(ctx.DOT() != null){
+      // . "<path>"
+      PUnqualifiedImport(path).at(ctx)
+    } else if (ctx.IDENTIFIER() != null) {
+      // (<identifier> | _) "<path>"
+      PExplicitQualifiedImport(idnDefLike.get(ctx.IDENTIFIER()), path).at(ctx)
+    } else {
+      PImplicitQualifiedImport(path).at(ctx)
+    }
+  }
+
+
+  //endregion
+
+
+  //region Visitor overrides
   override def visitTerminal(node: TerminalNode): AnyRef = node.getSymbol.getType match {
     // Pass Identifiers up so they can be handled by the invoking rule
     case GobraParser.IDENTIFIER => node
@@ -1952,18 +2092,18 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       case (_, node) => node
     }
   }
+  //endregion
 
+  //region Visitor helpers
   /** Helper Function to avoid having to cast when visiting single nodes
     *
     * @param ctx a rule context
     * @tparam P
     * @return
     */
-
   def visitNode[P <: AnyRef](ctx : ParserRuleContext) : P = {
     visit(ctx) match {
-      case p : P => p
-      case e => fail(ctx, s"expected ${weakTypeTag[P].toString()} but got ${e}")
+      case p : P @unchecked => p
     }
   }
 
@@ -1992,7 +2132,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
-  def visitListNode[P <: PNode](ctx : java.util.List[_ <: ParserRuleContext], optional : Boolean = false, default : ParserRuleContext = new ParserRuleContext()) : Vector[P] = {
+  def visitListNode[P <: PNode](ctx : java.util.List[_ <: ParserRuleContext]) : Vector[P] = {
     ctx.asScala.view.map(visitNode[P]).toVector match {
       case e@Vector() => e
       case v => v.range(v.head, v.last)
@@ -2006,11 +2146,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       case c if cond(c) => visitNode(c)
     }.asInstanceOf[Vector[P]]
   }
+  //endregion
 
-  def always[C <: ParserRuleContext](c : C) : Boolean = true
-
-
-
+  //region Error reporting and positioning
   private def fail(cause : NamedPositionable, msg : String = "") = {
     throw TranslationFailure(cause, msg)
   }
@@ -2087,107 +2225,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
     //def copy: V = rewriter.deepclone(v)
   }
+  //endregion
 
 
   def has(a : AnyRef): Boolean = {
     a != null
   }
 
-
-  override def aggregateResult(aggregate: AnyRef, nextResult: AnyRef): AnyRef = {
-    val list = aggregate.asInstanceOf[ListBuffer[AnyRef]]
-    list :+ nextResult
-  }
-
-  override def defaultResult(): ListBuffer[AnyRef] = ListBuffer.empty[AnyRef]
-
-
-  /**
-    * This class extracts PIdnNodes from IDENTIFIER tokens
-    *
-    * @param constructor The constructor used to create the PIdnNode
-    * @param blankIdentifier A function to handle blank identifiers. If blank identifiers are not allowed, it should
-    *                        always return None, otherwise it should return the appropriate PIdnNode.
-    * @tparam N the type of the PIdnNode to return
-    */
-  case class PIdnNodeEx[N <: PNode](constructor : (String => N), blankIdentifier : ((TerminalNode) => Option[N])) {
-    def unapply(arg: TerminalNode) : Option[N] = {
-      arg.getText match {
-        case "_" => blankIdentifier(arg)
-        case a : String => Some(constructor(a).at(arg))
-        case _ => None
-      }
-    }
-    /**
-      * Directly extract a PIdnNode from an IDENTIFIER token. Fails if the token doesn't match.
-      * @param arg The IDENTIFIER to extract from
-      * @return A vector of PIdnNodes
-      */
-    def get(arg : TerminalNode) : N = unapply(arg) match {
-      case Some(value) => value
-      case None => fail(arg)
-    }
-  }
-
-  /**
-    * This class extracts Vectors of PIdnNode from Lists of IDENTIFIER tokens
-    *
-    * @param extractor The extractor used for the individual identifiers
-    * @tparam N The type of the PIdnNode to return
-    */
-  case class PIdnNodeListEx[N <: PNode](extractor : PIdnNodeEx[N]) {
-    def unapply(arg : Iterable[TerminalNode]) : Option[Vector[N]] = {
-      Some(arg.map(extractor.get).toVector)
-    }
-
-    /**
-      * Directly extract a Vector of PIdnNode from a List of IDENTIFIER tokens. Fails if one of the tokens
-      * doen't match.
-      * @param arg An iterable of TerminalNodes
-      * @return A vector of PIdnNodes
-      */
-    def get(arg: Iterable[TerminalNode]) : Vector[N] = unapply(arg) match {
-      case Some(value) => value
-      case None => fail(arg.head)
-    }
-  }
-
-  // Extractors for all the possible types of PIdnNodes
-  private val idnDef = PIdnNodeEx(PIdnDef, _ => None)
-  private val idnDefList = PIdnNodeListEx(idnDef)
-  private val idnDefLike = PIdnNodeEx(PIdnDef, term => Some(PWildcard().at(term)))
-  private val idnDefLikeList = PIdnNodeListEx(idnDefLike)
-  private val idnUnk = PIdnNodeEx(PIdnUnk, _ => None)
-  private val idnUnkList = PIdnNodeListEx(idnUnk)
-  private val idnUnkLike = PIdnNodeEx(PIdnUnk, term => Some(PWildcard().at(term)))
-  private val idnUnkLikeList = PIdnNodeListEx(idnUnkLike)
-  private val idnUse = PIdnNodeEx(PIdnUse, _ => None)
-  private val idnUseList = PIdnNodeListEx(idnUse)
-  private val idnUseLike = PIdnNodeEx(PIdnUse, term => Some(PWildcard().at(term)))
-  private val idnUseLikeList = PIdnNodeListEx(idnUseLike)
-
-  // These extractors may only be used where Go allows the blank identifier, but Gobra doesnt
-  // They generate a unique PIdnNode whose name starts with "_" to not overlap any other identifiers
-  private val goIdnDef = PIdnNodeEx(PIdnDef, term => Some(uniqueWildcard(PIdnDef, term).at(term)))
-  private val goIdnDefList = PIdnNodeListEx(goIdnDef)
-  private val goIdnUnk = PIdnNodeEx(PIdnUnk, term => Some(uniqueWildcard(PIdnUnk, term).at(term)))
-  private val goIdnUnkList = PIdnNodeListEx(goIdnUnk)
-
-  def uniqueWildcard[N](constructor : String => N, term : TerminalNode) : N = constructor("_"+term.getSymbol.getTokenIndex)
-
-
-
   class PRewriter(override val positions: Positions) extends PositionedRewriter with Cloner {
 
   }
 
-  def getBinOp(op : String, ctx : ParserRuleContext) : (PExpression, PExpression) => PExpression = {
-    binOp.getOrElse("'"+op+"'", fail(ctx, "invalid binary expression"))
-  }
-
-  def getUnaryOp(op : String, ctx : ParserRuleContext) : (PExpression => PExpression) = {
-    unaryOp.getOrElse("'"+op+"'", fail(ctx, "invalid unary expression"))
-  }
 
 
 }

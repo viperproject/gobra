@@ -93,7 +93,7 @@ class MapEncoding extends LeafTypeEncoding {
 
       case (lit: in.MapLit) :: ctx.Map(keys, values) =>
         val (pos, info, errT) = lit.vprMeta
-        val res = in.LocalVar(Names.freshName, lit.typ.withAddressability(Exclusive))(lit.info)
+        val res = in.LocalVar(Names.freshName(ctx), lit.typ.withAddressability(Exclusive))(lit.info)
         val vRes = ctx.typeEncoding.variable(ctx)(res)
 
         for {
@@ -198,7 +198,7 @@ class MapEncoding extends LeafTypeEncoding {
                 MapMakePreconditionError(info)
             } else unit(())
 
-            mapVar = in.LocalVar(Names.freshName, t.withAddressability(Exclusive))(makeStmt.info)
+            mapVar = in.LocalVar(Names.freshName(ctx), t.withAddressability(Exclusive))(makeStmt.info)
             mapVarVpr = ctx.typeEncoding.variable(ctx)(mapVar)
             _ <- local(mapVarVpr)
 
@@ -211,9 +211,9 @@ class MapEncoding extends LeafTypeEncoding {
 
       case l@ in.SafeMapLookup(resTarget, successTarget, indexedExp@ in.IndexedExp(_, _, _)) =>
         val (pos, info, errT) = l.vprMeta
-        val res = in.LocalVar(Names.freshName, indexedExp.typ.withAddressability(Addressability.Exclusive))(l.info)
+        val res = in.LocalVar(Names.freshName(ctx), indexedExp.typ.withAddressability(Addressability.Exclusive))(l.info)
         val vprRes = ctx.typeEncoding.variable(ctx)(res)
-        val ok = in.LocalVar(Names.freshName, in.BoolT(Addressability.Exclusive))(l.info)
+        val ok = in.LocalVar(Names.freshName(ctx), in.BoolT(Addressability.Exclusive))(l.info)
         val vprOk = ctx.typeEncoding.variable(ctx)(ok)
 
         seqn(
@@ -258,7 +258,7 @@ class MapEncoding extends LeafTypeEncoding {
     default(super.assignment(ctx)){
       case (in.Assignee(in.IndexedExp(m :: ctx.Map(keys, values), idx, _)), rhs, src) =>
         val (pos, info, errT) = src.vprMeta
-        val res = in.LocalVar(Names.freshName, in.IntT(Exclusive))(m.info)
+        val res = in.LocalVar(Names.freshName(ctx), in.IntT(Exclusive))(m.info)
         val vRes = ctx.typeEncoding.variable(ctx)(res)
         seqn(
           for {

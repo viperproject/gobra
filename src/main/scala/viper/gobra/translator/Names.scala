@@ -6,17 +6,15 @@
 
 package viper.gobra.translator
 
+import viper.gobra.ast.{internal => in}
+import viper.gobra.translator.interfaces.Context
+import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
 object Names {
   def returnLabel: String = "returnLabel"
 
-  private var freshCounter = 0
-  def freshName: String = {
-    val str = s"fn$$$$$freshCounter"
-    freshCounter += 1
-    str
-  }
+  def freshName(ctx: Context): String = s"fn$$$$${ctx.getAndIncrementFreshCounter}"
 
   /* sanitizes type name to a valid Viper name */
   def serializeType(t: vpr.Type): String = {
@@ -25,6 +23,37 @@ object Names {
       .replace("]", "")
       .replace(",", "") // a parameterized Viper type uses comma-space separated types if there are multiple
       .replace(" ", "")
+  }
+
+  def serializeType(typ: in.Type): String = typ match {
+    case _: in.BoolT => "Bool"
+    case _: in.StringT => "String"
+    case in.IntT(_, kind) => s"Int${kind.name}"
+    case in.VoidT => ""
+    case _: in.PermissionT => "Permission"
+    case in.SortT => "Sort"
+    case in.ArrayT(len, elemT, _) => s"Array$len${serializeType(elemT)}"
+    case in.SliceT(elemT, _) => s"Slice${serializeType(elemT)}"
+    case in.MapT(keyT, valueT, _) => s"Map${serializeType(keyT)}_${serializeType(valueT)}"
+    case in.SequenceT(elemT, _) => s"Sequence${serializeType(elemT)}"
+    case in.SetT(elemT, _) => s"Set${serializeType(elemT)}"
+    case in.MultisetT(elemT, _) => s"Multiset${serializeType(elemT)}"
+    case in.OptionT(elemT, _) => s"Option${serializeType(elemT)}"
+    case in.DefinedT(name, _) => s"Defined$name"
+    case in.PointerT(t, _) => s"Pointer${serializeType(t)}"
+    // we use a dollar sign to mark the beginning and end of the type list to avoid that `Tuple(Tuple(X), Y)` and `Tuple(Tuple(X, Y))` map to the same name:
+    case in.TupleT(ts, _) => s"Tuple$$${ts.map(serializeType).mkString("")}$$"
+    case in.PredT(ts, _) => s"Pred$$${ts.map(serializeType).mkString("")}$$"
+    case in.StructT(name, fields, _) => s"Struct$name${serializeFields(fields)}"
+    case in.InterfaceT(name, _) => s"Interface$name"
+    case in.ChannelT(elemT, _) => s"Channel${serializeType(elemT)}"
+    case t => Violation.violation(s"cannot stringify type $t")
+  }
+
+  def serializeFields(fields: Vector[in.Field]): String = {
+    val serializedFields = fields.map(f => s"${f.name}_${serializeType(f.typ)}").mkString("_")
+    // we use a dollar sign to mark the beginning and end of the type list to avoid that `Tuple(Tuple(X), Y)` and `Tuple(Tuple(X, Y))` map to the same name:
+    s"$$$serializedFields$$"
   }
 
 
@@ -71,6 +100,7 @@ object Names {
   def sharedArrayDomain: String = "ShArray"
   def arrayConversionFunc: String = "arrayConversion"
   def arrayDefaultFunc: String = "arrayDefault"
+  def arrayNilFunc: String = "arrayNil"
 
   // slices
   def fullSliceFromArray: String = "sfullSliceFromArray"

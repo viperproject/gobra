@@ -102,7 +102,7 @@ class StringEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = conv.vprMeta
 
         val sliceT = in.SliceT(in.IntT(Addressability.sliceElement, TypeBounds.Byte), Addressability.outParameter)
-        val slice = in.LocalVar(Names.freshName, sliceT)(conv.info)
+        val slice = in.LocalVar(Names.freshName(ctx), sliceT)(conv.info)
         val vprSlice = ctx.typeEncoding.variable(ctx)(slice)
         val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(conv.info)
         val post = in.SepForall(

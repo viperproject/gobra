@@ -36,7 +36,8 @@ case class ContextImpl(
                         predicate: Predicates,
                         builtInMembers: BuiltInMembers,
                         stmt: Statements,
-                        table: LookupTable
+                        table: LookupTable,
+                        initialFreshCounterValue: Int = 0
                       ) extends Context {
 
   def this(conf: TranslatorConfig, table: LookupTable) = {
@@ -91,6 +92,7 @@ case class ContextImpl(
                    predicateN: Predicates = predicate,
                    builtInMembersN: BuiltInMembers = builtInMembers,
                    stmtN: Statements = stmt,
+                   initialFreshCounterValueN: Int = freshCounter
                  ): Context = copy(
     fieldN,
     arrayN,
@@ -113,8 +115,18 @@ case class ContextImpl(
     pureMethodN,
     predicateN,
     builtInMembersN,
-    stmtN
+    stmtN,
+    initialFreshCounterValue = initialFreshCounterValueN
   )
 
   override def addVars(vars: LocalVarDecl*): Context = this
+
+
+  private var freshCounter: Int = initialFreshCounterValue
+  override def getFreshCounter: Int = freshCounter
+  override def getAndIncrementFreshCounter: Int = {
+    val value = freshCounter
+    freshCounter += 1
+    value
+  }
 }

@@ -70,6 +70,10 @@ trait Context {
 
   def addVars(vars: vpr.LocalVarDecl*): Context
 
+  // fresh variable counter
+  protected def getFreshCounter: Int
+  def getAndIncrementFreshCounter: Int
+
   /** copy constructor */
   def :=(
           fieldN: Fields = field,
@@ -93,35 +97,39 @@ trait Context {
           pureMethodN: PureMethods = pureMethod,
           predicateN: Predicates = predicate,
           builtInMembersN: BuiltInMembers = builtInMembers,
-          stmtN: Statements = stmt
+          stmtN: Statements = stmt,
+          initialFreshCounterValueN: Int = getFreshCounter
          ): Context
 
 
   def finalize(col : Collector): Unit = {
-    // components
-    field.finalize(col)
-    array.finalize(col)
-    seqToSet.finalize(col)
-    seqToMultiset.finalize(col)
-    seqMultiplicity.finalize(col)
-    option.finalize(col)
-    optionToSeq.finalize(col)
-    slice.finalize(col)
-    fixpoint.finalize(col)
-    tuple.finalize(col)
-    equality.finalize(col)
-    condition.finalize(col)
-    unknownValue.finalize(col)
+    val generators = Vector(
+      // components
+      field,
+      array,
+      seqToSet,
+      seqToMultiset,
+      seqMultiplicity,
+      option,
+      optionToSeq,
+      slice,
+      fixpoint,
+      tuple,
+      equality,
+      condition,
+      unknownValue,
 
-    // translators
-    typeEncoding.finalize(col)
-    ass.finalize(col)
-    measures.finalize(col)
-    expr.finalize(col)
-    method.finalize(col)
-    pureMethod.finalize(col)
-    predicate.finalize(col)
-    builtInMembers.finalize(col)
-    stmt.finalize(col)
+      // translators
+      typeEncoding,
+      ass,
+      measures,
+      expr,
+      method,
+      pureMethod,
+      predicate,
+      builtInMembers,
+      stmt
+    )
+    col.finalize(generators)
   }
 }

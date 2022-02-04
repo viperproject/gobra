@@ -243,22 +243,22 @@ class StructEncoding extends TypeEncoding {
 
   /**
     * Generates:
-    * function shStructDefault(): [Struct{F}@]
-    *   ensures AND (f: T) in F. [&result.f == dflt(T)]
+    * function shStructDefault(): [res: Struct{F}@]
+    *   ensures AND (f: T) in F. [&res.f == dflt(T)]
     */
   private val shDfltFunc: FunctionGenerator[Vector[in.Field]] = new FunctionGenerator[Vector[in.Field]] {
     override def genFunction(fs: Vector[in.Field])(ctx: Context): vpr.Function = {
       val resType = in.StructT("the name does not matter", fs, Shared)
       val vResType = typ(ctx)(resType)
       val src = in.DfltVal(resType)(Source.Parser.Internal)
-      val resDummy = in.LocalVar(Names.freshName, resType)(src.info)
+      val resDummy = in.LocalVar("res", resType)(src.info)
       val resFAccs = fs.map(f => in.Ref(in.FieldRef(resDummy, f)(src.info))(src.info))
       val fieldEq = resFAccs map (f => ctx.typeEncoding.equal(ctx)(f, in.DfltVal(f.typ)(src.info), src))
       val post = pure(sequence(fieldEq).map(VU.bigAnd(_)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)))(ctx).res
           .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
 
       vpr.Function(
-        name = s"${Names.sharedStructDfltFunc}_${Names.freshName}",
+        name = s"${Names.sharedStructDfltFunc}_${Names.serializeFields(fs)}",
         formalArgs = Seq.empty,
         typ = vResType,
         pres = Seq.empty,

@@ -9,9 +9,11 @@ package viper.gobra.translator.encodings.arrays
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.Source
+import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
-import viper.gobra.translator.encodings.TypeEncoding
+import viper.gobra.translator.encodings.{EmbeddingParameter, TypeEncoding}
+import viper.gobra.translator.encodings.arrays.ArrayEncoding.ComponentParameter
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
@@ -22,11 +24,14 @@ import scala.annotation.unused
 
 private[arrays] object ArrayEncoding {
   /** Parameter of array components. */
-  type ComponentParameter = (BigInt, in.Type)
+  case class ComponentParameter(len: BigInt, elemT: in.Type) extends EmbeddingParameter {
+    override val serialize: String = s"${len}_${Names.serializeType(elemT)}"
+    def arrayT(addressability: Addressability): in.ArrayT = in.ArrayT(len, elemT, addressability)
+  }
 
   /** Computes the component parameter. */
-  def cptParam(len: BigInt, t: in.Type)(@unused ctx: Context): ComponentParameter = {
-    (len, t)
+  def cptParam(len: BigInt, elemT: in.Type)(@unused ctx: Context): ComponentParameter = {
+    ComponentParameter(len, elemT)
   }
 }
 
@@ -178,14 +183,14 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
 
     case (e: in.DfltVal) :: ctx.Array(len, t) / Exclusive =>
       val (pos, info, errT) = e.vprMeta
-      unit(exDfltFunc(Vector.empty, (len, t))(pos, info, errT)(ctx))
+      unit(exDfltFunc(Vector.empty, cptParam(len, t)(ctx))(pos, info, errT)(ctx))
 
     case (e: in.DfltVal) :: ctx.Array(len, t) / Shared =>
-      unit(sh.nil((len, t))(e)(ctx))
+      unit(sh.nil(cptParam(len, t)(ctx))(e)(ctx))
 
     case (lit: in.ArrayLit) :: ctx.Array(len, t) => for {
       vLit <- ctx.expr.translate(in.SequenceLit(len, t, lit.elems)(lit.info))(ctx)
-    } yield ex.fromSeq(vLit, (len, t))(lit)(ctx)
+    } yield ex.fromSeq(vLit, cptParam(len, t)(ctx))(lit)(ctx)
 
     case n@ in.Length(e :: ctx.Array(len, t) / m) =>
       m match {
@@ -222,7 +227,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val (pos, info, errT) = loc.vprMeta
       for {
         arg <- ctx.typeEncoding.reference(ctx)(loc)
-      } yield conversionFunc(Vector(arg), (len, t))(pos, info, errT)(ctx)
+      } yield conversionFunc(Vector(arg), cptParam(len, t)(ctx))(pos, info, errT)(ctx)
   }
 
   /**
@@ -291,23 +296,23 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
 
   /**
     * Generates:
-    * function arrayConversion(x: [([n]T)@]): ([n]T)°
+    * function arrayConversion(x: [([n]T)@]): (res [n]T)°
     *   requires Footprint[x]
-    *   ensures  [x == result]
+    *   ensures  [x == res]
     * */
-  private val conversionFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
-    def genFunction(t: (BigInt, in.Type))(ctx: Context): vpr.Function = {
-      val argType = in.ArrayT(t._1, t._2, Shared)
+  private val conversionFunc: FunctionGenerator[ComponentParameter] = new FunctionGenerator[ComponentParameter]{
+    def genFunction(t: ComponentParameter)(ctx: Context): vpr.Function = {
+      val argType = t.arrayT(Shared)
       val x = in.LocalVar("x", argType)(Source.Parser.Internal)
       val resultType = argType.withAddressability(Exclusive)
       val vResultType = typ(ctx)(resultType)
-      val resultVar = in.LocalVar(Names.freshName, resultType)(Source.Parser.Internal)
+      val resultVar = in.LocalVar("res", resultType)(Source.Parser.Internal)
       val post = pure(equal(ctx)(x, resultVar, x))(ctx).res
         // replace resultVar with vpr.Result
         .transform{ case v: vpr.LocalVar if v.name == resultVar.id => vpr.Result(vResultType)() }
 
       vpr.Function(
-        name = s"${Names.arrayConversionFunc}_${Names.freshName}",
+        name = s"${Names.arrayConversionFunc}_${t.serialize}",
         formalArgs = Vector(variable(ctx)(x)),
         typ = vResultType,
         pres = Vector(pure(addressFootprint(ctx)(x, in.FullPerm(Source.Parser.Internal)))(ctx).res),
@@ -320,16 +325,16 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
 
   /**
     * Generates:
-    * function arrayDefault(): ([n]T)°
-    *   ensures len(result) == n
-    *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> [result[idx] == dflt(T)]
+    * function arrayDefault(): (res [n]T)°
+    *   ensures len(res) == n
+    *   ensures Forall idx :: {res[idx]} 0 <= idx < n ==> [res[idx] == dflt(T)]
     * */
-  private val exDfltFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
-    def genFunction(t: (BigInt, in.Type))(ctx: Context): vpr.Function = {
-      val resType = in.ArrayT(t._1, t._2, Exclusive)
+  private val exDfltFunc: FunctionGenerator[ComponentParameter] = new FunctionGenerator[ComponentParameter]{
+    def genFunction(t: ComponentParameter)(ctx: Context): vpr.Function = {
+      val resType = t.arrayT(Exclusive)
       val vResType = typ(ctx)(resType)
       val src = in.DfltVal(resType)(Source.Parser.Internal)
-      val resDummy = in.LocalVar(Names.freshName, resType)(src.info)
+      val resDummy = in.LocalVar("res", resType)(src.info)
       val idx = in.BoundVar("idx", in.IntT(Exclusive))(src.info)
       val vIdx = ctx.typeEncoding.variable(ctx)(idx)
       val resAccess = in.IndexedExp(resDummy, idx, resType)(src.info)
@@ -337,15 +342,15 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
       val idxEq = pure(ctx.typeEncoding.equal(ctx)(resAccess, in.DfltVal(resType.elems)(src.info), src))(ctx).res
         .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
-      val trigger = ex.get(vpr.Result(vResType)(), vIdx.localVar, cptParam(t._1, t._2)(ctx))(src)(ctx)
+      val trigger = ex.get(vpr.Result(vResType)(), vIdx.localVar, t)(src)(ctx)
       val arrayEq = vpr.Forall(
         Seq(vIdx),
         Seq(vpr.Trigger(Seq(trigger))()),
-        vpr.Implies(boundaryCondition(vIdx.localVar, t._1)(src), idxEq)()
+        vpr.Implies(boundaryCondition(vIdx.localVar, t.len)(src), idxEq)()
       )()
 
       vpr.Function(
-        name = s"${Names.arrayDefaultFunc}_${Names.freshName}",
+        name = s"${Names.arrayDefaultFunc}_${t.serialize}",
         formalArgs = Seq.empty,
         typ = vResType,
         pres = Seq.empty,
@@ -372,7 +377,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
 
     val (pos, info, errT) = src.vprMeta
 
-    val idx = in.BoundVar(Names.freshName, in.IntT(Exclusive))(src.info)
+    val idx = in.BoundVar(Names.freshName(ctx), in.IntT(Exclusive))(src.info)
     val vIdx = ctx.typeEncoding.variable(ctx)(idx)
 
     for {
@@ -395,7 +400,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         val (pos, info, errT) = e.vprMeta
         for {
           vS <- ctx.expr.translate(e)(ctx)
-          x = in.LocalVar(Names.freshName, e.typ)(e.info)
+          x = in.LocalVar(Names.freshName(ctx), e.typ)(e.info)
           vX = variable(ctx)(x)
           _ <- local(vX)
           _ <- bind(vX.localVar, vS)
@@ -406,7 +411,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         val (pos, info, errT) = e.vprMeta
         for {
           vS <- ctx.typeEncoding.reference(ctx)(loc)
-          x = in.LocalVar(Names.freshName, e.typ)(e.info)
+          x = in.LocalVar(Names.freshName(ctx), e.typ)(e.info)
           vX = variable(ctx)(x)
           _ <- local(vX)
           _ <- bind(vX.localVar, vS)

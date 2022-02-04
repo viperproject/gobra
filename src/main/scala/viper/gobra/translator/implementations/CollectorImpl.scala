@@ -7,15 +7,27 @@
 package viper.gobra.translator.implementations
 
 import viper.gobra.translator.interfaces.Collector
+import viper.gobra.translator.interfaces.translator.Generator
 import viper.silver.{ast => vpr}
 
 class CollectorImpl extends Collector {
+  protected var _visitedGenerators: Set[Generator] = Set.empty
   protected var _domains: List[vpr.Domain] = List.empty
   protected var _fields: List[vpr.Field] = List.empty
   protected var _predicates: List[vpr.Predicate] = List.empty
   protected var _functions: List[vpr.Function] = List.empty
   protected var _methods: List[vpr.Method]  = List.empty
   protected var _extensions: List[vpr.ExtensionMember] = List.empty
+
+  /** invokes finalize on each generator */
+  override def finalize(generators: Vector[Generator]): Unit = {
+    generators foreach { generator =>
+      if(!_visitedGenerators.contains(generator)) {
+        _visitedGenerators += generator
+        generator.finalize(this)
+      }
+    }
+  }
 
   override def addMember(m: vpr.Member): Unit = m match {
     case d: vpr.Domain => _domains ::= d

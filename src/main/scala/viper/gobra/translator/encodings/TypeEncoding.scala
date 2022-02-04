@@ -211,7 +211,7 @@ trait TypeEncoding extends Generator {
   def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     case newStmt@in.New(target, expr) if typ(ctx).isDefinedAt(expr.typ) =>
       val (pos, info, errT) = newStmt.vprMeta
-      val z = in.LocalVar(Names.freshName, target.typ.withAddressability(Exclusive))(newStmt.info)
+      val z = in.LocalVar(Names.freshName(ctx), target.typ.withAddressability(Exclusive))(newStmt.info)
       val zDeref = in.Deref(z)(newStmt.info)
       seqn(
         for {

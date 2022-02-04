@@ -258,7 +258,7 @@ class SequenceEncoding extends LeafTypeEncoding {
       )()
 
       vpr.Function(
-        name = s"${Names.emptySequenceFunc}_${Names.freshName}",
+        name = s"${Names.emptySequenceFunc}_${Names.serializeType(t)}",
         formalArgs = Vector(nDecl),
         typ = vResultType,
         pres = Vector(pre1),

@@ -71,7 +71,7 @@ object ViperChopper {
       val result = {
         if (nodes.size < 10) {
           val t1 = System.nanoTime()
-          val smallestPrograms = smallestCutWithCycles(N, nodes, edges, (x: Int) => x)
+          val smallestPrograms = smallestCutWithCycles(N, nodes, edges, identity[Int])
           val t2 = System.nanoTime()
           val mergedPrograms = mergePrograms(smallestPrograms)(bound, penalty.contravariantLift(idToVertex))
           val res = mergedPrograms.map(_.toSet)
@@ -86,6 +86,7 @@ object ViperChopper {
           val (_, idToSCC, sccEdges) = SCC.fastCompute(N, edges)
           val sccNodes = nodes.map(idToSCC) // may contain duplicates, but smallestCut can deal with that
           val t1 = System.nanoTime()
+          // SCC.fastCompute guarantees that sccEdges has no cycles
           val smallestPrograms = smallestCutWithoutCycles(N, sccNodes, sccEdges, (x: SCC.Component[Int]) => x.proxy)
           val t2 = System.nanoTime()
           val mergedPrograms = mergePrograms(smallestPrograms)(bound, penalty.contravariantSumLift(_.nodes.map(idToVertex)))
@@ -135,42 +136,44 @@ object ViperChopper {
         * and then returns for each dominating node, the set of reachable nodes in a separate sorted list.
         */
 
-      // Stores color of a node.
-      // Color 0 means that the node was never visited.
-      // Color 1 means that the node was visited, but not yet finalized.
-      val coloring = Array.ofDim[Int](N)
+      // Stores state of a node
+      sealed trait State
+      case object NotVisited extends State
+      case object NotFinalized extends State
+      case class  Finalized(startId: Int) extends State
+      val state = Array.fill[State](N)(NotVisited)
 
       // Stores whether a node is not a root.
       val notRoot = Array.ofDim[Boolean](N)
 
       // Stores all dependencies of a node (including itself).
-      // Serves as memorization table.
+      // Serves as memoization table.
       val reachableNodes = Array.ofDim[immutable.SortedSet[T]](N)
 
       def dfs(start: T): Unit = {
         val stack = mutable.Stack[T](start)
-        val color = id(start) + 2 // avoid 0 and 1
+        val startId = id(start)
 
         while (stack.nonEmpty) {
           val node = stack.pop()
           val nodeId = id(node)
 
-          coloring(nodeId) match {
-            case 0 =>
-              coloring(nodeId) = 1
+          state(nodeId) match {
+            case NotVisited =>
+              state(nodeId) = NotFinalized
               // visit this node again after visiting the children
               stack.push(node)
               stack.pushAll(edges(nodeId))
-            case 1 =>
-              coloring(nodeId) = color
+            case NotFinalized =>
+              state(nodeId) = Finalized(startId)
               // children were visited, so now the result can be computed
               reachableNodes(nodeId) =
                 edges(nodeId).foldLeft(immutable.SortedSet[T](node)(Ordering.by(id))) {
                   case (result, neighbor) => result ++ reachableNodes(id(neighbor))
                 }
-            case `color` =>
+            case Finalized(`startId`) =>
               // node was visited in another call to dfs with the same argument ('nodes' may contain duplicates).
-            case _ =>
+            case _: Finalized =>
               // node was visited in another call to dfs with a different argument.
               notRoot(nodeId) = true
           }

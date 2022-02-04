@@ -593,8 +593,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(p: ap.Conversion)) => typeSymbType(p.typ)
-      // TODO: Get the right type
-      case (Left(_), Some(p: ap.Conversion)) => actualTypeSymbType(p.typ.asInstanceOf[PActualType])
       case (Left(_), Some(_: ap.PredExprInstance)) =>
         // a PInvoke on a predicate expression instance must fully apply the predicate arguments
         AssertionT

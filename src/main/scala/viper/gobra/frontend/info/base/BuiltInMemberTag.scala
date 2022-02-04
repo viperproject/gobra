@@ -68,7 +68,7 @@ object BuiltInMemberTag {
   case object PermissionType extends BuiltInTypeTag {
     override def identifier: String = "perm"
     override def name: String = "PermissionType"
-    override def ghost: Boolean = true
+    override def ghost: Boolean = false
     override def typ: Type = PermissionT
   }
   // signed integer types

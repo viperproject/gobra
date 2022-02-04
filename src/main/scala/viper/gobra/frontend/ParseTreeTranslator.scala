@@ -491,11 +491,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitLiteralType(ctx: LiteralTypeContext): PLiteralType = {
     visitChildren(ctx) match {
       case t : PLiteralType => t
-      // TODO: Remove workaround after builtin types have been fixed
-      case Right(p : PDot) => p
-      case Left(p : PLiteralType) => p
       case Vector("[", "...", "]", elem: PType) => PImplicitSizeArrayType(elem).at(ctx)
-      case _ => fail(ctx, "This literal type is not supported.")
+      case _ => violation(s"Got unexpected type production.")
     }
 
 
@@ -620,6 +617,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         case id@PIdnUse(_) => PNamedOperand(id).at(id)
         case PWildcard() => PBlankIdentifier().at(ctx)
       }
+      case _ => violation("Got unexpected operand production.")
     }
   }
 
@@ -763,12 +761,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitNonLocalReceiver(ctx: NonLocalReceiverContext): PParameter = {
-    val name : PType = visit(ctx.typeName()) match {
-      case dotOrNamed : Either[PNamedType, PDot] @unchecked => dotOrNamed.merge
+    visitChildren(ctx) match {
+      case Vector("(", idnDef(name), "*", typ : PActualType, ")") => PNamedParameter(name, PDeref(typ).at(typ)).at(ctx)
+      case Vector("(", idnDef(name), typ : PActualType, ")") => PNamedParameter(name, typ).at(ctx)
+      case Vector("(", "*", typ : PActualType, ")") => PUnnamedParameter(PDeref(typ).at(typ)).at(ctx)
+      case Vector("(", typ : PActualType, ")") => PUnnamedParameter(typ).at(ctx)
     }
-    val typ = if (has(ctx.STAR())) PDeref(name).at(ctx) else name
-    if (has(ctx.IDENTIFIER())) PNamedParameter(idnDef.get(ctx.IDENTIFIER()), typ).at(ctx)
-    else PUnnamedParameter(typ).at(ctx)
   }
 
   /**
@@ -1682,15 +1680,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitEmbeddedField(ctx: EmbeddedFieldContext): PEmbeddedType = {
-    // TODO : revisit when builtin types are implemented
-    val name : PNamedType = visitNode[Either[PNamedType, PDot]](ctx.typeName()) match {
-      case Left(name : PNamedType) => name
-      case Right(_) => fail(ctx, "This type is not allowed here")
-    }
-    if (ctx.STAR() != null) {
-      PEmbeddedPointer(name).at(ctx)
-    } else {
-      PEmbeddedName(name).at(ctx)
+    visitChildren(ctx) match {
+      case name : PNamedType => PEmbeddedName(name).at(ctx)
+      case Vector("*", name : PNamedType) => PEmbeddedPointer(name).at(ctx)
     }
   }
 
@@ -1833,9 +1825,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitType_(ctx: GobraParser.Type_Context): PType = {
     visitChildren(ctx) match {
       case typ : PType => typ
-      case "perm" => PPermissionType().at(ctx)
       case Vector(_, typ : PType, _) => typ
-      case namedOrDot : Either[PNamedType, PDot] => namedOrDot.merge
       case _ => violation(s"could not translate '${ctx.getText}', got unexpected '${visitChildren(ctx)}'")
       }
   }
@@ -1852,49 +1842,33 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
-  def visitTypeIdentifier(typ: TerminalNode): Either[PPredeclaredType, PNamedOperand] = {
+  def visitTypeIdentifier(typ: TerminalNode): PActualType = {
     typ.getSymbol.getText match {
-      case "perm" => Left(PPermissionType().at(typ))
-      case "int" => Left(PIntType().at(typ))
-      case "int16" => Left(PInt16Type().at(typ))
-      case "int32" => Left(PInt32Type().at(typ))
-      case "int64" => Left(PInt64Type().at(typ))
-      case "uint" => Left(PUIntType().at(typ))
-      case "byte" => Left(PByte().at(typ))
-      case "uint8" => Left(PUInt8Type().at(typ))
-      case "uint16" => Left(PUInt16Type().at(typ))
-      case "uint32" => Left(PUInt32Type().at(typ))
-      case "uint64" => Left(PUInt64Type().at(typ))
-      case "uintptr" => Left(PUIntPtr().at(typ))
-      case "bool" => Left(PBoolType().at(typ))
-      case "string" => Left(PStringType().at(typ))
-      case "rune" => Left(PRune().at(typ))
-      case _ => Right(PNamedOperand(idnUse.get(typ)).at(typ))
+      case "perm" => PPermissionType().at(typ)
+      case "int" => PIntType().at(typ)
+      case "int16" => PInt16Type().at(typ)
+      case "int32" => PInt32Type().at(typ)
+      case "int64" => PInt64Type().at(typ)
+      case "uint" => PUIntType().at(typ)
+      case "byte" => PByte().at(typ)
+      case "uint8" => PUInt8Type().at(typ)
+      case "uint16" => PUInt16Type().at(typ)
+      case "uint32" => PUInt32Type().at(typ)
+      case "uint64" => PUInt64Type().at(typ)
+      case "uintptr" => PUIntPtr().at(typ)
+      case "float32" => PFloat32().at(typ)
+      case "float64" => PFloat64().at(typ)
+      case "bool" => PBoolType().at(typ)
+      case "string" => PStringType().at(typ)
+      case "rune" => PRune().at(typ)
+      case _ => PNamedOperand(idnUse.get(typ)).at(typ)
     }
   }
 
-  /**
-    * Visit a parse tree produced by `GobraParser`.
-    *
-    * @param ctx the parse tree
-    * @return the visitor result
-    */
-  // TODO : Revisit when builtin types are implemented
-  def visitTypeNameNoPredeclared(ctx: GobraParser.TypeNameContext): PLiteralType = {
-    if (ctx.IDENTIFIER() != null) visitTypeIdentifier(ctx.IDENTIFIER()) match {
-      case Left(value) => fail(ctx, ctx.IDENTIFIER().getText + value.formatted)
-      case Right(value) => value
-    }
-    else if (ctx.qualifiedIdent() != null) {
-      visitQualifiedIdent(ctx.qualifiedIdent())
-    } else fail(ctx, "Predeclared Type where not applicable")
-  }
-
-  override def visitTypeName(ctx: GobraParser.TypeNameContext): Either[PNamedType, PDot] = {
-    if (ctx.IDENTIFIER() != null) {
-      Left(visitTypeIdentifier(ctx.IDENTIFIER()).merge)
-    } else {
-      Right(visitNode[PDot](ctx.qualifiedIdent()))
+  override def visitTypeName(ctx: GobraParser.TypeNameContext): PActualType = {
+    visitChildren(ctx) match {
+      case name : TerminalNode => visitTypeIdentifier(name)
+      case qualified : PDot => qualified
     }
    }
 

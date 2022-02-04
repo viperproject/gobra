@@ -340,7 +340,7 @@ methodSpec:
 	| GHOST? specification IDENTIFIER parameters;
 
 // Added ghostTypeLiterals
-type_: typeName | typeLit | ghostTypeLit | L_PAREN type_ R_PAREN | PERM;
+type_: typeName | typeLit | ghostTypeLit | L_PAREN type_ R_PAREN;
 
 // Added pred types
 typeLit:

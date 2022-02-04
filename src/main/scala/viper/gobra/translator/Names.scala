@@ -44,7 +44,7 @@ object Names {
     // we use a dollar sign to mark the beginning and end of the type list to avoid that `Tuple(Tuple(X), Y)` and `Tuple(Tuple(X, Y))` map to the same name:
     case in.TupleT(ts, _) => s"Tuple$$${ts.map(serializeType).mkString("")}$$"
     case in.PredT(ts, _) => s"Pred$$${ts.map(serializeType).mkString("")}$$"
-    case in.StructT(name, fields, _) => s"Struct$name${serializeFields(fields)}"
+    case in.StructT(fields, _) => s"Struct${serializeFields(fields)}"
     case in.InterfaceT(name, _) => s"Interface$name"
     case in.ChannelT(elemT, _) => s"Channel${serializeType(elemT)}"
     case t => Violation.violation(s"cannot stringify type $t")

@@ -2349,9 +2349,7 @@ object Desugar {
 
       case t: Type.StructT =>
         val inFields: Vector[in.Field] = structD(t, addrMod)(src)
-
-        val structName = nm.struct(t)
-        registerType(in.StructT(structName, inFields, addrMod))
+        registerType(in.StructT(inFields, addrMod))
 
       case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
 
@@ -3076,15 +3074,6 @@ object Desugar {
       case _ => exprD(ctx)(triggerExp)
     }
 
-
-    //    private def origin(n: PNode): in.Origin = {
-//      val start = pom.positions.getStart(n).get
-//      val finish = pom.positions.getFinish(n).get
-//      val pos = pom.translate(start, finish)
-//      val code = pom.positions.substring(start, finish).get
-//      in.Origin(code, pos)
-//    }
-
     private def meta(n: PNode, context: TypeInfo = info): Source.Parser.Single = {
       val pom = context.getTypeInfo.tree.originalRoot.positions
       val start = pom.positions.getStart(n).get
@@ -3122,7 +3111,6 @@ object Desugar {
     private val METHODSPEC_PREFIX = "S"
     private val METHOD_PREFIX = "M"
     private val TYPE_PREFIX = "T"
-    private val STRUCT_PREFIX = "X"
     private val INTERFACE_PREFIX = "Y"
     private val DOMAIN_PREFIX = "D"
     private val LABEL_PREFIX = "L"
@@ -3196,17 +3184,6 @@ object Desugar {
     def inParam(idx: Int, s: PScope, context: ExternalTypeInfo): String = name(IN_PARAMETER_PREFIX)("P" + idx, s, context)
     def outParam(idx: Int, s: PScope, context: ExternalTypeInfo): String = name(OUT_PARAMETER_PREFIX)("P" + idx, s, context)
     def receiver(s: PScope, context: ExternalTypeInfo): String = name(RECEIVER_PREFIX)("R", s, context)
-
-    def struct(s: StructT): String = {
-      // we assume that structs are uniquely identified by the SourcePosition at which they were declared:
-      val pom = s.context.getTypeInfo.tree.originalRoot.positions
-      val start = pom.positions.getStart(s.decl).get
-      val finish = pom.positions.getFinish(s.decl).get
-      val pos = pom.translate(start, finish)
-      // replace characters that could be misinterpreted:
-      val structName = pos.toString.replace(".", "$")
-      s"$STRUCT_PREFIX$$$structName"
-    }
 
     def interface(s: InterfaceT): String = {
       if (s.isEmpty) {

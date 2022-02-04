@@ -248,7 +248,7 @@ class StructEncoding extends TypeEncoding {
     */
   private val shDfltFunc: FunctionGenerator[Vector[in.Field]] = new FunctionGenerator[Vector[in.Field]] {
     override def genFunction(fs: Vector[in.Field])(ctx: Context): vpr.Function = {
-      val resType = in.StructT("the name does not matter", fs, Shared)
+      val resType = in.StructT(fs, Shared)
       val vResType = typ(ctx)(resType)
       val src = in.DfltVal(resType)(Source.Parser.Internal)
       val resDummy = in.LocalVar("res", resType)(src.info)

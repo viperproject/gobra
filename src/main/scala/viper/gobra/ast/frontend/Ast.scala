@@ -111,7 +111,7 @@ sealed trait PGhostifiable extends PNode
 
 sealed trait PMember extends PNode
 
-sealed trait PDeclaration extends PNode with PMember
+sealed trait PDeclaration extends PNode with PMember with PStatement
 
 /** Member that can have a body */
 sealed trait PWithBody extends PNode {
@@ -148,7 +148,7 @@ case class PFunctionDecl(
                           result: PResult,
                           spec: PFunctionSpec,
                           body: Option[(PBodyParameterInfo, PBlock)]
-                        ) extends PActualMember with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember with PDeclaration
+                        ) extends PActualMember with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
 case class PMethodDecl(
                         id: PIdnDef,
@@ -157,7 +157,7 @@ case class PMethodDecl(
                         result: PResult,
                         spec: PFunctionSpec,
                         body: Option[(PBodyParameterInfo, PBlock)]
-                      ) extends PActualMember with PDependentDef with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember with PDeclaration
+                      ) extends PActualMember with PDependentDef with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
 sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration {
 
@@ -379,9 +379,7 @@ case class PBoolLit(lit: Boolean) extends PBasicLiteral
 case class PIntLit(lit: BigInt, base: NumBase = Decimal) extends PBasicLiteral with PNumExpression
 
 // Stand-in float literals
-case class PFloat32Lit(lit: String) extends PBasicLiteral with PNumExpression
-
-case class PFloat64Lit(lit: String) extends PBasicLiteral with PNumExpression
+case class PFloatLit(lit: BigDecimal) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 
@@ -581,11 +579,11 @@ case class PUInt64Type() extends PPredeclaredType("uint64") with PIntegerType
 case class PByte() extends PPredeclaredType("byte") with PIntegerType
 case class PUIntPtr() extends PPredeclaredType("uintptr") with PIntegerType
 
+sealed trait PFloatType extends PType
+case class PFloat32() extends PPredeclaredType("float32") with PFloatType
+case class PFloat64() extends PPredeclaredType("float64") with PFloatType
 
 // TODO: add more types
-sealed trait PFloatType extends PType
-case class PFloat32Type() extends PPredeclaredType("float32") with PFloatType
-case class PFloat64Type() extends PPredeclaredType("float64") with PFloatType
 
 // TODO: ellipsis type
 
@@ -790,6 +788,7 @@ case class PFunctionSpec(
                       posts: Vector[PExpression],
                       terminationMeasures: Vector[PTerminationMeasure],
                       isPure: Boolean = false,
+                      isTrusted: Boolean = false
                       ) extends PSpecification
 
 case class PBodyParameterInfo(

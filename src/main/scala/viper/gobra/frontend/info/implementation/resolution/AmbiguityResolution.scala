@@ -111,7 +111,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
               Some(ap.Conversion(predefinedTypesMap(p.id.name) , n.args.head))
             case Some(p: ap.FunctionKind) => Some(ap.FunctionCall(p, n.args))
             case Some(p: ap.PredicateKind) => Some(ap.PredicateCall(p, n.args))
-            case _ if exprType(e).isInstanceOf[PredT] => Some(ap.PredExprInstance(e, n.args))
+            case _ if exprType(e).isInstanceOf[PredT] => Some(ap.PredExprInstance(e, n.args, exprType(e).asInstanceOf[PredT]))
             case _ => None
           }
         case _ => violation(s"unexpected case reached: type conversion with arguments ${n.args}, expected single argument instead")

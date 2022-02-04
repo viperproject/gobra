@@ -25,6 +25,13 @@ trait Comparability extends BaseProperty { this: TypeInfoImpl =>
     case _ => false
   }
 
+  lazy val ghostComparableTypes: Property[(Type, Type)] = createFlatProperty[(Type, Type)] {
+    case (left, right) => s"$left is not comparable in ghost with $right"
+  } {
+    case (Single(left), Single(right)) => assignableTo(left, right) || assignableTo(right, left)
+    case _ => false
+  }
+
   lazy val comparableType: Property[Type] = createBinaryProperty("comparable") {
     case Single(st) => underlyingType(st) match {
       case t: StructT =>

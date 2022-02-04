@@ -39,6 +39,7 @@ func FormatInt(i int64, base int) string {
 }
 
 // Itoa is equivalent to FormatInt(int64(i), 10).
+decreases
 func Itoa(i int) string {
 	return FormatInt(int64(i), 10)
 }

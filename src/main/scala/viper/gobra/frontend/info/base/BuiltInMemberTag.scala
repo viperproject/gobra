@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.base
 
-import viper.gobra.frontend.info.base.Type.{BooleanT, IntT, PermissionT, StringT, Type}
+import viper.gobra.frontend.info.base.Type.{BooleanT, Float32T, Float64T, IntT, PermissionT, StringT, Type}
 import viper.gobra.util.TypeBounds
 
 
@@ -82,8 +82,7 @@ object BuiltInMemberTag {
     override def identifier: String = "int"
     override def name: String = "IntType"
     override def ghost: Boolean = false
-    // TODO: Get the right type
-    override def typ: Type = IntT(TypeBounds.SignedInteger32)
+    override def typ: Type = IntT(TypeBounds.DefaultInt)
   }
   case object Int8Type extends BuiltInTypeTag {
     override def identifier: String = "int8"
@@ -120,7 +119,7 @@ object BuiltInMemberTag {
     override def identifier: String = "uint"
     override def name: String = "UIntType"
     override def ghost: Boolean = false
-    override def typ: Type = IntT(TypeBounds.UnsignedInteger32)
+    override def typ: Type = IntT(TypeBounds.DefaultUInt)
   }
   case object UInt8Type extends BuiltInTypeTag {
     override def identifier: String = "uint8"
@@ -151,6 +150,20 @@ object BuiltInMemberTag {
     override def name: String = "UIntPtr"
     override def ghost: Boolean = false
     override def typ: Type = IntT(TypeBounds.UIntPtr)
+  }
+
+  case object Float32 extends BuiltInTypeTag {
+    override def identifier: String = "float32"
+    override def name: String = "Float32"
+    override def ghost: Boolean = false
+    override def typ: Type = Float32T
+  }
+
+  case object Float64 extends BuiltInTypeTag {
+    override def identifier: String = "float64"
+    override def name: String = "Float64"
+    override def ghost: Boolean = false
+    override def typ: Type = Float64T
   }
 
 
@@ -294,6 +307,9 @@ object BuiltInMemberTag {
     UInt32Type,
     UInt64Type,
     UIntPtr,
+    // float types
+    Float32,
+    Float64,
     // functions
     CloseFunctionTag,
     AppendFunctionTag,

@@ -187,7 +187,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PIntLit => numExprWithinTypeBounds(n)
 
-    case _: PFloat32Lit | _: PFloat64Lit => ???
+    case _: PFloatLit => ???
 
     case n@PCompositeLit(t, lit) =>
       val simplifiedT = t match {
@@ -366,15 +366,21 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PBinaryExp[_,_] =>
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
-          case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
+          case (_: PEquals | _: PUnequals, l, r) =>
+            if (isEnclosingGhost(n)) ghostComparableTypes.errors(l, r)(n)
+            else comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) => (l,r) match {
             case (StringT, StringT) => noMessages
+            case (Float32T, Float32T) => noMessages
+            case (Float64T, Float64T) => noMessages
             case _ if l == PermissionT || r == PermissionT =>
               assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
             case _ => assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
           }
           case (_: PAdd, StringT, StringT) => noMessages
+          case (_: PAdd | _: PSub | _: PMul | _: PDiv, l, r) if Set(l, r).intersect(Set(Float32T, Float64T)).nonEmpty =>
+            mergeableTypes.errors(l, r)(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r)
             if l == PermissionT || r == PermissionT || getTypeFromCtxt(n).contains(PermissionT) =>
               assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
@@ -482,7 +488,17 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       })
 
-    case PBlankIdentifier() => noMessages
+    case b@PBlankIdentifier() => b match {
+      case tree.parent(p) => p match {
+        case PAssignment(_, _) => noMessages
+        case PAssForRange(_, _, _) => noMessages
+        case PSelectAssRecv(_, _, _) => noMessages
+        case x => error(b, s"blank identifier is not allowed in $x")
+      }
+      case _ => violation("blank identifier always has a parent")
+    }
+
+
 
     case PUnpackSlice(elem) => underlyingType(exprType(elem)) match {
       case _: SliceT => noMessages
@@ -826,7 +842,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
 
-            case Some(ap.PredExprInstance(base, args)) =>
+            case Some(ap.PredExprInstance(base, args, _)) =>
               val index = args.indexWhere(_.eq(expr))
               violation(index >= 0, errorMessage)
               typ(base) match {

@@ -15,7 +15,7 @@ func example2(ghost xs seq[seq[bool]]) {
 }
 
 func example3() {
-  assert seq[1 .. 10][4] == 5
+  assert seq[1..10][4] == 5
 }
 
 requires 0 < n

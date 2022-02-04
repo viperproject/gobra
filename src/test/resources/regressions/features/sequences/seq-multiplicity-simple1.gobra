@@ -31,9 +31,9 @@ func example4() {
 }
 
 func example5() {
-  assert seq[1 .. 10] == seq[int] { 1, 2, 3, 4, 5, 6, 7, 8, 9 } // needed??
-  assert 4 # seq[1 .. 10] == 1
-  assert 42 # seq[1 .. 10] == 0
+  assert seq[1..10] == seq[int] { 1, 2, 3, 4, 5, 6, 7, 8, 9 } // needed??
+  assert 4 # seq[1..10] == 1
+  assert 42 # seq[1..10] == 0
 }
 
 func example6(ghost x int, ghost y int) {

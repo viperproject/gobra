@@ -2,17 +2,16 @@ package viper.gobra.frontend
 
 import org.antlr.v4.runtime.misc.IntervalSet
 import org.antlr.v4.runtime.{BaseErrorListener, CommonTokenStream, FailedPredicateException, InputMismatchException, Lexer, NoViableAltException, Parser, RecognitionException, Recognizer, Token}
-import org.bitbucket.inkytonik.kiama.util.Source
-import viper.gobra.frontend.GobraParser.{CapContext, EosContext, ExpressionContext, FLOAT_LIT, ImplementationProofContext, RULE_blockWithBodyParameterInfo, RULE_eos, RULE_shortVarDecl, RULE_type_, RULE_varDecl, Slice_Context, TypeSpecContext, ruleNames}
+import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
+import viper.gobra.frontend.GobraParser.{CapContext, EosContext, ExpressionContext, ImplementationProofContext, RULE_blockWithBodyParameterInfo, RULE_eos, RULE_shortVarDecl, RULE_type_, RULE_varDecl, Slice_Context, TypeSpecContext, Type_Context, VarSpecContext, ruleNames}
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.reporting.ParserError
 import viper.silver.ast.SourcePosition
 
+import java.nio.file.Path
 import scala.collection.mutable.ListBuffer
 
-class InformativeErrorListener(val messages: ListBuffer[ParserError], val source: Source) extends BaseErrorListener{
-
-  var ignoredImplementationProofError : Option[ParserError] = None
+class InformativeErrorListener(val messages: ListBuffer[ParserError], val source: Source) extends BaseErrorListener {
 
   override def syntaxError(recognizer: Recognizer[_, _], offendingSymbol: Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
     val error = recognizer match {
@@ -23,20 +22,11 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     }
 
     val pos = source match {
-      case source : FromFileSource => Some(SourcePosition(source.path, line, charPositionInLine))
+      case source: FileSource => Some(SourcePosition(Path.of(source.name), line, charPositionInLine))
+      case source: FromFileSource => Some(SourcePosition(source.path, line, charPositionInLine))
       case _ => None
     }
-    val message = error match {
-      case i : IgnoreError => {
-        val ignored = ParserError(error.full, pos)
-        ignoredImplementationProofError = ignoredImplementationProofError match {
-          case None => Some(ignored)
-          case s => s
-        }
-        None
-      }
-      case a => Some(ParserError(error.full, pos))
-    }
+    val message = Some(ParserError(error.full, pos))
     messages.prependAll(message)
   }
 
@@ -47,7 +37,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     }
     val tokens = context.recognizer.getInputStream.asInstanceOf[CommonTokenStream]
     val input = tokens.getTokenSource.getInputStream.toString
-    val lines = input.split("\n")
+    val lines = input.split("\r?\n", -1)
     var message = lines(offendingToken.getLine - 1)
     val rest = message.length
     message += "\n"
@@ -87,6 +77,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
 
   def analyzeInputMismatch(implicit context: ParserErrorContext, exception: InputMismatchException): ErrorType = {
     (context.offendingSymbol.getType, context.recognizer.getContext) match {
+      case (Token.EOF, _) => DefaultMismatch()
       case (s, i : ImplementationProofContext) if context.recognizer.getExpectedTokens == IntervalSet.of(GobraParser.IMPL)=> {
         IgnoreError()
       }
@@ -101,14 +92,17 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     val ctx = parser.getContext
     ctx match {
       case slice : Slice_Context => {
-        // Missing either the second or second an third (or completely wrong)
+        // Missing either the second or second and third argument (or completely wrong)
         SliceMissingIndex()
       }
+      case _ : VarSpecContext | _ : Type_Context if context.offendingSymbol.getType == GobraParser.DECLARE_ASSIGN => GotAssignErrorType()
       case eos : EosContext => {
         parser.getTokenStream.LT(2).getType match {
           case GobraParser.DECLARE_ASSIGN => GotAssignErrorType()(context.copy(offendingSymbol = parser.getTokenStream.LT(2)))
+          case _ => DefaultNoViable(exception)
         }
       }
+      case e : ExpressionContext if e.parent.isInstanceOf[CapContext] => SliceMissingIndex(3)
       case _ => DefaultNoViable(exception)
     }
   }
@@ -181,8 +175,8 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
   }
 
   case class DefaultNoViable(e : NoViableAltException)(implicit val context: ParserErrorContext) extends ErrorType {
-    val msg : String = s"Wrong Syntax after '${e.getStartToken.getText}'."
-    override lazy val underlined: String = underlineError(context.copy(offendingSymbol = context.recognizer.getInputStream.LT(2)), restOfTheLine = true)
+    val msg : String = s"Wrong Syntax at '${e.getStartToken.getText}'."
+    override lazy val underlined: String = underlineError(context.copy(offendingSymbol = e.getStartToken), restOfTheLine = true)
   }
 
   case class DefaultFailedEOS()(implicit val context: ParserErrorContext) extends ErrorType {
@@ -207,10 +201,13 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     } required."
   }
 
-  case class RangeNoSpaces(hint : String = "tta")(implicit val context : ErrorContext) extends ErrorType {
+  case class RangeNoSpaces(hint : String = "")(implicit val context : ErrorContext) extends ErrorType {
     val msg = "Missing spaces"
   }
 
 
-
+  case class EOFError()(implicit val context : ErrorContext) extends ErrorType {
+    val msg = "Unexpectedly reached end of file."
+    override lazy val full: String = msg
+  }
 }

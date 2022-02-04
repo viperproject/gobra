@@ -17,7 +17,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Source.{FromFileSource, TransformableSource}
 import viper.gobra.reporting.{Source => _, _}
 import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
-import org.antlr.v4.runtime.{BailErrorStrategy, CharStreams, CommonTokenStream, ConsoleErrorListener, DefaultErrorStrategy, ParserRuleContext}
+import org.antlr.v4.runtime.{CharStreams, CommonTokenStream, DefaultErrorStrategy, ParserRuleContext}
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, FunctionDeclContext, ImportDeclContext, SourceFileContext, StmtOnlyContext, TypeOnlyContext, Type_Context}
@@ -47,14 +47,12 @@ object Parser {
     */
 
   def parse(input: Vector[Source], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
-    val sources = input.map(Gobrafier.gobrafy)
-    val legacyOverride = false
-    if (legacyOverride) {
-      val preprocessedSources = input
-        .map{ Gobrafier.gobrafy }
-        .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
+    val sources = input
+      .map(Gobrafier.gobrafy)
+      .map(i => SemicolonPreprocessor.preprocess(i)(config))
+    if (config.legacyParser) {
       for {
-        parseAst <- time("GOBRA", input(0).name) {parseSources(preprocessedSources, specOnly)(config)}
+        parseAst <- time("GOBRA", input(0).name) {parseSources(sources, specOnly)(config)}
         postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
       } yield postprocessedAst
     } else {
@@ -101,7 +99,7 @@ object Parser {
 
     def parseSource(source: Source): Either[Vector[ParserError], PProgram] = {
       val errors = ListBuffer.empty[ParserError]
-      val parser = new antlrSyntaxAnalyzer[SourceFileContext, PProgram](source, errors, pom, specOnly)
+      val parser = new SyntaxAnalyzer[SourceFileContext, PProgram](source, errors, pom, specOnly)
       parser.parse(parser.sourceFile) match {
         case Right(ast) =>
           config.reporter report ParsedInputMessage(source.name, () => ast)
@@ -194,7 +192,7 @@ object Parser {
   def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[ParserError], PPackage] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parsers = new SyntaxAnalyzer(pom, specOnly)
+    val parsers = new CombinatorSyntaxAnalyzer(pom, specOnly)
 
     def parseSource(source: Source): Either[Vector[ParserError], PProgram] = {
       parsers.parseAll(parsers.program, source) match {
@@ -289,42 +287,42 @@ object Parser {
   def parseProgram(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], PProgram] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new antlrSyntaxAnalyzer[SourceFileContext, PProgram](source, ListBuffer.empty[ParserError],  pom, specOnly)
+    val parser = new SyntaxAnalyzer[SourceFileContext, PProgram](source, ListBuffer.empty[ParserError],  pom, specOnly)
     parser.parse(parser.sourceFile())
   }
 
   def parseFunction(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], PMember] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new antlrSyntaxAnalyzer[FunctionDeclContext, PMember](source, ListBuffer.empty[ParserError],  pom, specOnly)
+    val parser = new SyntaxAnalyzer[FunctionDeclContext, PMember](source, ListBuffer.empty[ParserError],  pom, specOnly)
     parser.parse(parser.functionDecl())
   }
 
   def parseStmt(source: Source): Either[Vector[ParserError], PStatement] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new antlrSyntaxAnalyzer[StmtOnlyContext, PStatement](source, ListBuffer.empty[ParserError],  pom, false)
+    val parser = new SyntaxAnalyzer[StmtOnlyContext, PStatement](source, ListBuffer.empty[ParserError],  pom, false)
     parser.parse(parser.stmtOnly())
   }
 
   def parseExpr(source: Source): Either[Vector[ParserError], PExpression] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new antlrSyntaxAnalyzer[ExprOnlyContext, PExpression](source, ListBuffer.empty[ParserError],  pom, false)
+    val parser = new SyntaxAnalyzer[ExprOnlyContext, PExpression](source, ListBuffer.empty[ParserError],  pom, false)
     parser.parse(parser.exprOnly())
   }
 
   def parseImportDecl(source: Source): Either[Vector[ParserError], Vector[PImport]] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new antlrSyntaxAnalyzer[ImportDeclContext, Vector[PImport]](source, ListBuffer.empty[ParserError],  pom, false)
+    val parser = new SyntaxAnalyzer[ImportDeclContext, Vector[PImport]](source, ListBuffer.empty[ParserError],  pom, false)
     parser.parse(parser.importDecl())
   }
 
   def parseType(source : Source) : Either[Vector[ParserError], PType] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new antlrSyntaxAnalyzer[TypeOnlyContext, PType](source, ListBuffer.empty[ParserError],  pom, false)
+    val parser = new SyntaxAnalyzer[TypeOnlyContext, PType](source, ListBuffer.empty[ParserError],  pom, false)
     parser.parse(parser.typeOnly())
   }
 
@@ -435,7 +433,7 @@ object Parser {
 
 
 
-  private class antlrSyntaxAnalyzer[Rule <: ParserRuleContext, Node <: AnyRef](tokens: CommonTokenStream, source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean = false) extends GobraParser(tokens){
+  private class SyntaxAnalyzer[Rule <: ParserRuleContext, Node <: AnyRef](tokens: CommonTokenStream, source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean = false) extends GobraParser(tokens){
 
 
     def this(source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean) = {
@@ -449,29 +447,39 @@ object Parser {
         source, errors, pom, specOnly)
       getInterpreter.setPredictionMode(PredictionMode.SLL)
       removeErrorListeners()
-      setErrorHandler(new BailErrorStrategy)
+      setErrorHandler(new ReportFirstErrorStrategy)
+      addErrorListener(new InformativeErrorListener(errors, source))
     }
 
+    def parse_LL(rule : => Rule): ParserRuleContext = {
+      // thrown by ReportFirstErrorStrategy
+      tokens.seek(0)
+      // rewind input stream
+      reset()
+      val ll_errors = ListBuffer.empty[ParserError]
+      // back to standard listeners/handlers
+      removeErrorListeners()
+      addErrorListener(new InformativeErrorListener(ll_errors, source))
+      setErrorHandler(new DefaultErrorStrategy)
+      // full now with full LL(*)
+      getInterpreter.setPredictionMode(PredictionMode.LL)
+
+      val res = try time ("ANTLR_PARSE_LL", source.name) { rule }
+      catch {
+        case e : Exception => errors.append(ParserError(e.getMessage, Some(SourcePosition(source.toPath, 0, 0))))
+          new ParserRuleContext()
+      }
+      if (ll_errors.isEmpty) errors.clear()
+      res
+    }
 
     def parse(rule : => Rule): Either[Vector[ParserError], Node] = {
       val name = source.name
       val tree = try time ("ANTLR_PARSE_SLL", name) { rule }
       catch {
-        case _: ParseCancellationException =>
-          // thrown by BailErrorStrategy
-          tokens.seek(0)
-          // rewind input stream
-          reset()
-          // back to standard listeners/handlers
-          addErrorListener(new InformativeErrorListener(errors, source))
-          setErrorHandler(new DefaultErrorStrategy)
-          // full now with full LL(*)
-          getInterpreter.setPredictionMode(PredictionMode.LL)
-          try time ("ANTLR_PARSE_LL", name) { rule }
-          catch {
-            case e : Exception => errors.append(ParserError(e.getMessage, None))
-              new ParserRuleContext()
-          }
+        case _: AmbiguityException  => parse_LL(rule) // Resolve `<IDENTIFIER> { }` ambiguities in switch/if-statements
+        case _: ParseCancellationException => parse_LL(rule) // For even faster parsing, replace with `new ParserRuleContext()`.
+        case e => errors.append(ParserError(e.getMessage, Some(SourcePosition(source.toPath, 0, 0)))); new ParserRuleContext()
       }
       //println(tokens.getTokens.asScala.map(tok => VOCABULARY.getSymbolicName(tok.getType)))
       //println(tree.toStringTree(this))
@@ -532,7 +540,7 @@ object Parser {
     }
   }
 
-  private class SyntaxAnalyzer(pom: PositionManager, specOnly: Boolean = false) extends Parsers(pom.positions) {
+  private class CombinatorSyntaxAnalyzer(pom: PositionManager, specOnly: Boolean = false) extends Parsers(pom.positions) {
 
     lazy val rewriter = new PRewriter(pom.positions)
 
@@ -572,8 +580,8 @@ object Parser {
     /**
       * Optionally consumes nested curly brackets with arbitrary content if `specOnly` is turned on, otherwise optionally applies the parser `p`
       */
-    def specOnlyParser[T](p: Parser[T]): Parser[Option[T]] =
-      if (specOnly) nestedCurlyBracketsConsumer.? ^^ (_.flatten)
+    def specOnlyParser[T](isPure: Boolean, p: Parser[T]): Parser[Option[T]] =
+      if (specOnly && !isPure) nestedCurlyBracketsConsumer.? ^^ (_.flatten)
       else p.?
 
     /**
@@ -667,28 +675,31 @@ object Parser {
       (idnDef <~ "=") ~ typ ^^ { case left ~ right => PTypeAlias(right, left)}
 
     lazy val functionDecl: Parser[PFunctionDecl] =
-      functionSpec ~ ("func" ~> idnDef) ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
-        case spec ~ name ~ sig ~ body =>
-          PFunctionDecl(name, sig._1, sig._2, spec, body)
-      }
+      for {
+        spec <- functionSpec
+        name <- "func" ~> idnDef
+        sig  <- signature
+        body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(spec.isPure, blockWithBodyParameterInfo)
+        // the start position has to be manually set as Kiama would otherwise only use the body's position as start & finish
+      } yield PFunctionDecl(name, sig._1, sig._2, spec, body).from(spec)
 
     lazy val functionSpec: Parser[PFunctionSpec] = {
-
       sealed trait FunctionSpecClause
       case class RequiresClause(exp: PExpression) extends FunctionSpecClause
       case class PreservesClause(exp: PExpression) extends FunctionSpecClause
       case class EnsuresClause(exp: PExpression) extends FunctionSpecClause
       case class DecreasesClause(measure: PTerminationMeasure) extends FunctionSpecClause
       case object PureClause extends FunctionSpecClause
+      case object TrustedClause extends FunctionSpecClause
 
       lazy val functSpecClause: Parser[FunctionSpecClause] = {
         "requires" ~> expression <~ eos ^^ RequiresClause |
         "preserves" ~> expression <~ eos ^^ PreservesClause |
         "ensures" ~> expression <~ eos ^^ EnsuresClause |
         "decreases" ~> terminationMeasure <~ eos  ^^ DecreasesClause |
+        "trusted" <~ eos ^^^ TrustedClause |
         "pure" <~ eos ^^^ PureClause
       }
-
       functSpecClause.* ~ "pure".? ^^ {
         case clauses ~ pure =>
           val pres = clauses.collect{ case x: RequiresClause => x.exp }
@@ -696,7 +707,8 @@ object Parser {
           val posts = clauses.collect{ case x: EnsuresClause => x.exp }
           val terminationMeasure = clauses.collect{ case x: DecreasesClause => x.measure}
           val isPure = pure.nonEmpty || clauses.contains(PureClause)
-          PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure)
+          val isTrusted = clauses.contains(TrustedClause)
+          PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure, isTrusted)
       }
     }
 
@@ -705,9 +717,14 @@ object Parser {
         repsep(expression, ",") ~ ("if" ~> expression).? ^^ PTupleTerminationMeasure
 
     lazy val methodDecl: Parser[PMethodDecl] =
-      functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
-        case spec ~ rcv ~ name ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, spec, body)
-      }
+      for {
+        spec <- functionSpec
+        rcv  <- "func" ~> receiver
+        name <- idnDef
+        sig  <- signature
+        body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(spec.isPure, blockWithBodyParameterInfo)
+        // the start position has to be manually set as Kiama would otherwise only use the body's position as start & finish
+      } yield PMethodDecl(name, rcv, sig._1, sig._2, spec, body).from(spec)
 
     /**
       * Statements
@@ -1250,7 +1267,7 @@ object Parser {
         ) <~ not("(" | "{")
 
     lazy val typ : Parser[PType] =
-      "(" ~> typ <~ ")" | typeLit | qualifiedType | namedType | ghostTypeLit
+      "(" ~> typ <~ ")" | typeLit | ghostTypeLit | qualifiedType | namedType
 
     lazy val ghostTyp : Parser[PGhostType] =
       "(" ~> ghostTyp <~ ")" | ghostTypeLit
@@ -1347,7 +1364,7 @@ object Parser {
       declaredType ^^ PInterfaceName
 
     lazy val methodSpec: Parser[PMethodSig] =
-      "ghost".? ~ functionSpec ~ idnDef ~ signature ^^ { case isGhost ~ spec ~ id ~ sig => PMethodSig(id, sig._1, sig._2, spec, isGhost.isDefined) }
+      ("ghost".? <~ eos.?) ~ functionSpec ~ idnDef ~ signature ^^ { case isGhost ~ spec ~ id ~ sig => PMethodSig(id, sig._1, sig._2, spec, isGhost.isDefined) }
 
     lazy val predicateSpec: Parser[PMPredicateSig] =
       ("pred" ~> idnDef) ~ parameters ^^ PMPredicateSig
@@ -1375,7 +1392,10 @@ object Parser {
         exactWord("uint16") ^^^ PUInt16Type() |
         exactWord("uint32") ^^^ PUInt32Type() |
         exactWord("uint64") ^^^ PUInt64Type() |
-        exactWord("uintptr") ^^^ PUIntPtr()
+        exactWord("uintptr") ^^^ PUIntPtr() |
+        // floats
+        exactWord("float32") ^^^ PFloat32() |
+        exactWord("float64") ^^^ PFloat64()
 
     lazy val predeclaredTypeSeparate: Parser[PPredeclaredType] =
       exactWord("bool") ~ not("(" | ".") ^^^ PBoolType() |
@@ -1713,6 +1733,25 @@ object Parser {
     implicit class PositionedPAstNode[N <: PNode](node: N) {
       def at(other: PNode): N = {
         pom.positions.dupPos(other, node)
+      }
+
+      /**
+        * Sets the start position of the current node to the start position of node `from`.
+        * The finish position of the current node remains unchanged.
+        */
+      def from(from: PNode): N = {
+        val fromPos = pom.positions.getStart(from)
+        Violation.violation(fromPos.isDefined, s"cannot copy positional information from a node without positional information")
+        // we keep the existing finish position of the current node (if it exists)
+        val toPos = pom.positions.getFinish(node)
+        // in order to be able to set start and finish position, we first have to remove the current positions:
+        // note: `resetAt` would be the perfect choice here but there seems to be a bug in the parameter type as it
+        // currently takes a `Seq[Any]` instead of `Any`. Thus, we use `resetAllAt` for now with a singleton sequence
+        pom.positions.resetAllAt(Seq(node))
+        pom.positions.setStart(node, fromPos.get)
+        // set finish position if it existed:
+        toPos.foreach(pos => pom.positions.setFinish(node, pos))
+        node
       }
 
       def range(from: PNode, to: PNode): N = {

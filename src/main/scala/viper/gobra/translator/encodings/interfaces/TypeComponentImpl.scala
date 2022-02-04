@@ -29,6 +29,8 @@ class TypeComponentImpl extends TypeComponent {
   private def serialize(head: TypeHead): String = head match {
 
     case BoolHD => "bool"
+    case Float32HD => "float32"
+    case Float64HD => "float64"
     case StringHD => "string"
     case PointerHD => "pointer"
     case ArrayHD => "array"

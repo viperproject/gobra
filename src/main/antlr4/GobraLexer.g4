@@ -1,11 +1,12 @@
 lexer grammar GobraLexer;
 import GoLexer;
 
-/*
+FLOAT_LIT : DECIMAL_FLOAT_LIT | HEX_FLOAT_LIT;
+
 DECIMAL_FLOAT_LIT      : DECIMALS ('.'{_input.LA(1) != '.'}? DECIMALS? EXPONENT? | EXPONENT)
-                       | '.'{_input.LA(-1) != '.'}? DECIMALS EXPONENT?
+                       | '.'{_input.index() <2 || _input.LA(-2) != '.'}? DECIMALS EXPONENT?
                        ;
-*/
+
 // BEGIN GOBRA
 //CURLIES : '{' (CURLIES|~[{}])* '}' ;
 
@@ -69,6 +70,6 @@ EXCLUSIVE   : 'exclusive';
 PREDICATE   : 'predicate';
 WRITEPERM   : 'writePerm';
 NOPERM      : 'noPerm';
+TRUSTED     : 'trusted';
 
-PERM: 'perm';
 // END GOBRA

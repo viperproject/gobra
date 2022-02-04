@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package mathmaps
+
+ghost
+requires key in domain(m)
+ensures  value in range(m)
+ensures  m == resM
+func test(m dict[string]int, key string) (value int, resM dict[string]int) {
+    value := m[key]
+    resM := m
+}

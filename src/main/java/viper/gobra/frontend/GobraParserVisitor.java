@@ -443,6 +443,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitLiteralType(GobraParser.LiteralTypeContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#implicitArray}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitImplicitArray(GobraParser.ImplicitArrayContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#slice_}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

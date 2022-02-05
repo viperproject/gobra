@@ -76,7 +76,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     *                        always return None, otherwise it should return the appropriate PIdnNode.
     * @tparam N the type of the PIdnNode to return
     */
-  case class PIdnNodeEx[N <: PNode](constructor : (String => N), blankIdentifier : ((TerminalNode) => Option[N])) {
+  case class PIdnNodeEx[N <: PNode](constructor : String => N, blankIdentifier : TerminalNode => Option[N]) {
     def unapply(arg: TerminalNode) : Option[N] = {
       arg.getText match {
         case "_" => blankIdentifier(arg)
@@ -176,13 +176,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
           case e : InvalidEscapeException => violation(s"Rune literal should not have been parsed: ${e}")
         }
       }
-
       case _  => fail(ctx, "This literal is not supported yet")
     }
   }
 
   def visitFloat(node: TerminalNode): PBasicLiteral = {
-    PFloatLit(BigDecimal(node.getText.replace("_", ""))).at(node)
+    val hex = "(0[xX].*)".r
+    node.getText.replace("_","") match {
+      // TODO : This only supports hex floats in the Double range (53 + 12 bits), Go requests up to 256 + 16 bits
+      case hex(float) => PFloatLit(BigDecimal(java.lang.Double.parseDouble(float))).at(node)
+      case float => PFloatLit(BigDecimal(float)).at(node)
+    }
   }
 
   /**
@@ -272,6 +276,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
+
+  /**
+    * Visits the rule
+    * implicitArray: L_BRACKET ELLIPSIS R_BRACKET elementType;
+    */
+  override def visitImplicitArray(ctx: ImplicitArrayContext): AnyRef = visitChildren(ctx) match {
+    case Vector("[", "...", "]", elem: PType) => PImplicitSizeArrayType(elem).at(ctx)
+  }
 
   /**
     * Visits the rule
@@ -524,7 +536,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
   override def visitPredType(ctx: PredTypeContext): PPredType = visitChildren(ctx) match {
-    case Vector("pred", (params : Vector[PType] @unchecked)) => PPredType(params)
+    case Vector("pred", params : Vector[PType] @unchecked) => PPredType(params)
   }
 
   /**
@@ -989,19 +1001,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitLiteralType(ctx: LiteralTypeContext): PLiteralType = {
-    visitChildren(ctx) match {
-      case t : PLiteralType => t
-      case Vector("[", "...", "]", elem: PType) => PImplicitSizeArrayType(elem).at(ctx)
-      case _ => unexpected(ctx)
-    }
-  }
 
   /** Translates the rule
     * literalValue: L_CURLY (elementList COMMA?)? R_CURLY;

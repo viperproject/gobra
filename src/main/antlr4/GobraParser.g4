@@ -364,16 +364,17 @@ predType: PRED predTypeParams;
 
 predTypeParams: L_PAREN (type_ (COMMA type_)* COMMA?)? R_PAREN;
 
-// Ditto
+// Added ghost time and outlined implicit size arrays
 literalType:
 	structType
 	| arrayType
-	| L_BRACKET ELLIPSIS R_BRACKET elementType
+	| implicitArray
 	| sliceType
 	| mapType
 	| ghostTypeLit
 	| typeName;
 
+implicitArray: L_BRACKET ELLIPSIS R_BRACKET elementType;
 // Added Deflate
 //exprCaseClause: exprSwitchCase COLON statementList?;
 

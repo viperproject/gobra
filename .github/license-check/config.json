@@ -16,7 +16,8 @@
       "project/project/**",
       "project/target/**",
       "target/**",
-      "src/test/resources/**/*.go"
+      "src/test/resources/**/*.go",
+      "src/main/java/**/*.java"
     ],
     "license": "./.github/license-check/headers/MPLv2-ETH.txt"
   },

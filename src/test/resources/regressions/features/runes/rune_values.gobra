@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package runes
+
+func main() {
+	assert 'a' == 97
+	assert 'ä' == 228
+	assert '本' == 26412
+    assert '\t' == 9
+    assert '\000' == 0
+    assert '\007' ==  7
+    assert '\377' == 255
+    assert '\x07' == 7
+    assert '\xff' == 255
+    assert '\u12e4' == 4836
+    assert '\U00101234' == 1053236
+}

@@ -321,7 +321,7 @@ sealed trait PUnaryExp extends PActualExpression {
 
 case class PBlankIdentifier() extends PAssignee
 
-case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNamedType with PNameOrDot{
+case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNamedType with PTypeName with PNameOrDot{
   override val name : String = id.name
 }
 
@@ -409,7 +409,7 @@ case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends P
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
-case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNameOrDot
+case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNameOrDot with PTypeName
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
 
@@ -551,6 +551,11 @@ sealed trait PType extends PNode with PExpressionOrType
 
 sealed trait PActualType extends PType
 
+sealed trait PTypeName extends PActualType with PNamedType{
+  def id : PIdnUse
+  val name: String = id.name
+}
+
 sealed trait PLiteralType extends PNode
 
 sealed trait PNamedType extends PActualType {
@@ -660,7 +665,7 @@ case class PInterfaceType(
 
 sealed trait PInterfaceClause extends PNode
 
-case class PInterfaceName(typ: PNamedOperand) extends PInterfaceClause
+case class PInterfaceName(typ: PTypeName) extends PInterfaceClause
 
 // Felix: I see `isGhost` as part of the declaration and not as port of the specification.
 //        In the past, I usually created some ghost wrapper for these cases, but I wanted to get rid of them in the future.

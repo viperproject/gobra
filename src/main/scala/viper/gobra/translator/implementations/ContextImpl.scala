@@ -92,7 +92,7 @@ case class ContextImpl(
                    predicateN: Predicates = predicate,
                    builtInMembersN: BuiltInMembers = builtInMembers,
                    stmtN: Statements = stmt,
-                   initialFreshCounterValueN: Int = freshCounter
+                   initialFreshCounterValueN: Int = getFreshVariableCounter
                  ): Context = copy(
     fieldN,
     arrayN,
@@ -122,11 +122,11 @@ case class ContextImpl(
   override def addVars(vars: LocalVarDecl*): Context = this
 
 
-  private var freshCounter: Int = initialFreshCounterValue
-  override def getFreshCounter: Int = freshCounter
-  override def getAndIncrementFreshCounter: Int = {
-    val value = freshCounter
-    freshCounter += 1
+  private var freshVariableCounter: Int = initialFreshCounterValue
+  override def getFreshVariableCounter: Int = freshVariableCounter
+  override def getAndIncrementFreshVariableCounter: Int = {
+    val value = freshVariableCounter
+    freshVariableCounter += 1
     value
   }
 }

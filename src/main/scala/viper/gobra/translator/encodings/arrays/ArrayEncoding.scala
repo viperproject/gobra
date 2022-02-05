@@ -14,7 +14,7 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.{EmbeddingParameter, TypeEncoding}
 import viper.gobra.translator.encodings.arrays.ArrayEncoding.ComponentParameter
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
@@ -45,11 +45,11 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
   private val ex: ExclusiveArrayComponent = new ExclusiveArrayComponentImpl
   private val sh: SharedArrayComponent = new SharedArrayComponentImpl
 
-  override def finalize(col: Collector): Unit = {
-    ex.finalize(col)
-    sh.finalize(col)
-    conversionFunc.finalize(col)
-    exDfltFunc.finalize(col)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    ex.finalize(addMemberFn)
+    sh.finalize(addMemberFn)
+    conversionFunc.finalize(addMemberFn)
+    exDfltFunc.finalize(addMemberFn)
   }
 
   /** Boxing in the context of the shared-array domain. */
@@ -296,16 +296,18 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
 
   /**
     * Generates:
-    * function arrayConversion(x: [([n]T)@]): (res [n]T)°
+    * function arrayConversion(x: [([n]T)@]): ([n]T)°
     *   requires Footprint[x]
-    *   ensures  [x == res]
+    *   ensures  [x == result]
     * */
   private val conversionFunc: FunctionGenerator[ComponentParameter] = new FunctionGenerator[ComponentParameter]{
     def genFunction(t: ComponentParameter)(ctx: Context): vpr.Function = {
       val argType = t.arrayT(Shared)
+      // variable name does not matter because it is the only argument
       val x = in.LocalVar("x", argType)(Source.Parser.Internal)
       val resultType = argType.withAddressability(Exclusive)
       val vResultType = typ(ctx)(resultType)
+      // variable name does not matter because it is turned into a vpr.Result
       val resultVar = in.LocalVar("res", resultType)(Source.Parser.Internal)
       val post = pure(equal(ctx)(x, resultVar, x))(ctx).res
         // replace resultVar with vpr.Result
@@ -325,16 +327,18 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
 
   /**
     * Generates:
-    * function arrayDefault(): (res [n]T)°
-    *   ensures len(res) == n
-    *   ensures Forall idx :: {res[idx]} 0 <= idx < n ==> [res[idx] == dflt(T)]
+    * function arrayDefault(): ([n]T)°
+    *   ensures len(result) == n
+    *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> [result[idx] == dflt(T)]
     * */
   private val exDfltFunc: FunctionGenerator[ComponentParameter] = new FunctionGenerator[ComponentParameter]{
     def genFunction(t: ComponentParameter)(ctx: Context): vpr.Function = {
       val resType = t.arrayT(Exclusive)
       val vResType = typ(ctx)(resType)
       val src = in.DfltVal(resType)(Source.Parser.Internal)
+      // variable name does not matter because it is turned into a vpr.Result
       val resDummy = in.LocalVar("res", resType)(src.info)
+      // variable name does not matter because it is the only variable occurring in the current scope
       val idx = in.BoundVar("idx", in.IntT(Exclusive))(src.info)
       val vIdx = ctx.typeEncoding.variable(ctx)(idx)
       val resAccess = in.IndexedExp(resDummy, idx, resType)(src.info)

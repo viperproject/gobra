@@ -13,10 +13,11 @@ import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.BuiltInMembers
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.PrimitiveGenerator
 import viper.gobra.util.Computation
 import viper.gobra.util.Violation.violation
+import viper.silver.{ast => vpr}
 
 import scala.annotation.unused
 import scala.language.postfixOps
@@ -30,11 +31,11 @@ class BuiltInMembersImpl extends BuiltInMembers {
   // the implementation uses 4 distinct generators (instead of a single one) such that the exposed
   // methods (i.e. method, function, fpredicate, and mpredicate) can return the translated 'regular' member.
 
-  override def finalize(col: Collector): Unit = {
-    methodGenerator.finalize(col)
-    functionGenerator.finalize(col)
-    fPredicateGenerator.finalize(col)
-    mPredicateGenerator.finalize(col)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    methodGenerator.finalize(addMemberFn)
+    functionGenerator.finalize(addMemberFn)
+    fPredicateGenerator.finalize(addMemberFn)
+    mPredicateGenerator.finalize(addMemberFn)
   }
 
   private def member(x: in.BuiltInMember)(ctx: Context): in.Member =

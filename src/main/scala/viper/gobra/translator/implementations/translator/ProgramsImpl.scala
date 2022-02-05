@@ -52,8 +52,8 @@ class ProgramsImpl extends Programs {
 
     val progW = for {
       membersWithCtxs <- sequence(program.members map goM)
-      ctxs = membersWithCtxs map { case (_, ctx) => ctx }
-      members = membersWithCtxs flatMap { case (m, _) => m }
+      (memberss, ctxs) = membersWithCtxs.unzip
+      members = memberss.flatten
 
       col = {
         val c = new CollectorImpl()

@@ -10,7 +10,7 @@ import viper.gobra.ast.internal.theory.{Comparability, TypeHead}
 import viper.gobra.ast.internal.theory.TypeHead._
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperUtil
 import viper.gobra.util.TypeBounds
 import viper.silver.{ast => vpr}
@@ -366,8 +366,8 @@ class TypeComponentImpl extends TypeComponent {
     )()
   }
 
-  override def finalize(collector: Collector): Unit = {
-    collector.addMember(genDomain)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    addMemberFn(genDomain)
   }
 
 }

@@ -21,15 +21,15 @@ class CollectorImpl extends Collector {
 
   /** invokes finalize on each generator */
   override def finalize(generators: Vector[Generator]): Unit = {
-    generators foreach { generator =>
+    for (generator <- generators) {
       if(!_visitedGenerators.contains(generator)) {
         _visitedGenerators += generator
-        generator.finalize(this)
+        generator.finalize(addMember)
       }
     }
   }
 
-  override def addMember(m: vpr.Member): Unit = m match {
+  private def addMember(m: vpr.Member): Unit = m match {
     case d: vpr.Domain => _domains ::= d
     case f: vpr.Field => _fields ::= f
     case p: vpr.Predicate => _predicates ::= p

@@ -12,8 +12,6 @@ trait Collector {
   /** invokes finalize on each generator */
   def finalize(generators: Vector[Generator]): Unit
 
-  def addMember(m: vpr.Member): Unit
-
   def domains: Seq[vpr.Domain]
   def fields: Seq[vpr.Field]
   def predicate: Seq[vpr.Predicate]

@@ -8,7 +8,7 @@ package viper.gobra.translator.encodings
 
 import viper.gobra.translator.interfaces.translator.Generator
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
 
 trait EmbeddingParameter {
@@ -36,8 +36,8 @@ object EmbeddingComponent {
 
   class Impl[P <: EmbeddingParameter](p: (vpr.Exp, P) => Context => vpr.Exp, t: P => Context => vpr.Type) extends EmbeddingComponent[P] {
 
-    override def finalize(col: Collector): Unit = {
-      generatedMember foreach col.addMember
+    override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+      generatedMember foreach addMemberFn
     }
 
     /** Returns the embedded type E. */

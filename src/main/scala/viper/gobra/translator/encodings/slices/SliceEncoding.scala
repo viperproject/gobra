@@ -15,7 +15,7 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import viper.gobra.translator.encodings.arrays.SharedArrayEmbedding
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
@@ -29,13 +29,13 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.{ViperUtil => vu}
 
-  override def finalize(col : Collector) : Unit = {
-    constructGenerator.finalize(col)
-    fullSliceFromArrayGenerator.finalize(col)
-    fullSliceFromSliceGenerator.finalize(col)
-    sliceFromArrayGenerator.finalize(col)
-    sliceFromSliceGenerator.finalize(col)
-    nilSliceGenerator.finalize(col)
+  override def finalize(addMemberFn: vpr.Member => Unit) : Unit = {
+    constructGenerator.finalize(addMemberFn)
+    fullSliceFromArrayGenerator.finalize(addMemberFn)
+    fullSliceFromSliceGenerator.finalize(addMemberFn)
+    sliceFromArrayGenerator.finalize(addMemberFn)
+    sliceFromSliceGenerator.finalize(addMemberFn)
+    nilSliceGenerator.finalize(addMemberFn)
   }
 
   /**

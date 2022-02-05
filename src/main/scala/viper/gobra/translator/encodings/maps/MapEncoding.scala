@@ -15,7 +15,7 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import viper.gobra.translator.encodings.maps.MapEncoding.{checkKeyComparability, comparabilityErrorT, repeatedKeyErrorT}
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeLevel._
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
@@ -303,10 +303,10 @@ class MapEncoding extends LeafTypeEncoding {
     }
   }
 
-  override def finalize(col: Collector): Unit = {
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     if (isUsed) {
-      col.addMember(genDomain())
-      col.addMember(underlyingMapField)
+      addMemberFn(genDomain())
+      addMemberFn(underlyingMapField)
     }
   }
 

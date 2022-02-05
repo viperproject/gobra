@@ -8,7 +8,7 @@ package viper.gobra.translator.implementations.components
 
 import viper.gobra.ast.internal.GlobalConst
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.interfaces.components.Fixpoint
 import viper.silver.ast.{Exp, Type, TypeVar}
 import viper.silver.{ast => vpr}
@@ -16,10 +16,10 @@ import viper.silver.{ast => vpr}
 class FixpointImpl extends Fixpoint {
 
   /**
-    * Finalizes translation. May add to collector.
+    * Finalizes translation. `addMemberFn` is called with any member that is part of the encoding.
     */
-  override def finalize(col: Collector): Unit = {
-    generatedDomains foreach col.addMember
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    generatedDomains foreach addMemberFn
   }
 
   override def create(gc: in.GlobalConstDecl)(ctx: Context): Unit = {

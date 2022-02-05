@@ -71,8 +71,8 @@ trait Context {
   def addVars(vars: vpr.LocalVarDecl*): Context
 
   // fresh variable counter
-  protected def getFreshCounter: Int
-  def getAndIncrementFreshCounter: Int
+  protected def getFreshVariableCounter: Int
+  def getAndIncrementFreshVariableCounter: Int
 
   /** copy constructor */
   def :=(
@@ -98,7 +98,7 @@ trait Context {
           predicateN: Predicates = predicate,
           builtInMembersN: BuiltInMembers = builtInMembers,
           stmtN: Statements = stmt,
-          initialFreshCounterValueN: Int = getFreshCounter
+          initialFreshCounterValueN: Int = getFreshVariableCounter
          ): Context
 
 

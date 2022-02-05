@@ -7,7 +7,7 @@
 package viper.gobra.translator.encodings.arrays
 
 import viper.gobra.translator.encodings.EmbeddingComponent
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.ast.{internal => in}
 import viper.silver.{ast => vpr}
 import ArrayEncoding.ComponentParameter
@@ -15,8 +15,8 @@ import viper.gobra.translator.encodings
 
 class ExclusiveArrayComponentImpl extends ExclusiveArrayComponent {
 
-  override def finalize(col: Collector): Unit = {
-    emb.finalize(col)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    emb.finalize(addMemberFn)
   }
 
   /** Embeds Sequences of fixed length as specified by ComponentParameter. */

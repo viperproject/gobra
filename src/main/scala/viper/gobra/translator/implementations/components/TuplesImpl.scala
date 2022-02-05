@@ -6,7 +6,6 @@
 
 package viper.gobra.translator.implementations.components
 
-import viper.gobra.translator.interfaces.Collector
 import viper.gobra.translator.interfaces.components.Tuples
 import viper.silver.{ast => vpr}
 
@@ -15,10 +14,10 @@ import scala.collection.mutable
 class TuplesImpl extends Tuples {
 
   /**
-    * Finalizes translation. May add to collector.
+    * Finalizes translation. `addMemberFn` is called with any member that is part of the encoding.
     */
-  override def finalize(col: Collector): Unit = {
-    generatedDomains foreach col.addMember
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    generatedDomains foreach addMemberFn
   }
 
   override def typ(args: Vector[vpr.Type]): vpr.DomainType = {

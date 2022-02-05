@@ -14,7 +14,7 @@ import viper.silver.{ast => vpr}
 object Names {
   def returnLabel: String = "returnLabel"
 
-  def freshName(ctx: Context): String = s"fn$$$$${ctx.getAndIncrementFreshCounter}"
+  def freshName(ctx: Context): String = s"fn$$$$${ctx.getAndIncrementFreshVariableCounter}"
 
   /* sanitizes type name to a valid Viper name */
   def serializeType(t: vpr.Type): String = {

@@ -6,7 +6,6 @@
 
 package viper.gobra.translator.implementations.components
 
-import viper.gobra.translator.interfaces.Collector
 import viper.gobra.translator.interfaces.components.{Arrays, Slices}
 import viper.silver.{ast => vpr}
 
@@ -363,10 +362,10 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
     vpr.DomainType(domain, Map(typeVar -> t))
   }
 
-  override def finalize(col : Collector) : Unit = {
+  override def finalize(addMemberFn: vpr.Member => Unit) : Unit = {
     if (generateDomain) {
-      col.addMember(domain)
-      col.addMember(sadd_func)
+      addMemberFn(domain)
+      addMemberFn(sadd_func)
     }
   }
 }

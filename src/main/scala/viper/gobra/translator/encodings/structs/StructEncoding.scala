@@ -12,7 +12,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.TypeEncoding
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
@@ -43,10 +43,10 @@ class StructEncoding extends TypeEncoding {
 
   private val sh: SharedStructComponent = new SharedStructComponentImpl
 
-  override def finalize(col: Collector): Unit = {
-    ex.finalize(col)
-    sh.finalize(col)
-    shDfltFunc.finalize(col)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    ex.finalize(addMemberFn)
+    sh.finalize(addMemberFn)
+    shDfltFunc.finalize(addMemberFn)
   }
 
   /**
@@ -243,14 +243,15 @@ class StructEncoding extends TypeEncoding {
 
   /**
     * Generates:
-    * function shStructDefault(): [res: Struct{F}@]
-    *   ensures AND (f: T) in F. [&res.f == dflt(T)]
+    * function shStructDefault(): [Struct{F}@]
+    *   ensures AND (f: T) in F. [&result.f == dflt(T)]
     */
   private val shDfltFunc: FunctionGenerator[Vector[in.Field]] = new FunctionGenerator[Vector[in.Field]] {
     override def genFunction(fs: Vector[in.Field])(ctx: Context): vpr.Function = {
       val resType = in.StructT(fs, Shared)
       val vResType = typ(ctx)(resType)
       val src = in.DfltVal(resType)(Source.Parser.Internal)
+      // variable name does not matter because it is turned into a vpr.Result
       val resDummy = in.LocalVar("res", resType)(src.info)
       val resFAccs = fs.map(f => in.Ref(in.FieldRef(resDummy, f)(src.info))(src.info))
       val fieldEq = resFAccs map (f => ctx.typeEncoding.equal(ctx)(f, in.DfltVal(f.typ)(src.info), src))

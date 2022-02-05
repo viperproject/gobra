@@ -7,13 +7,12 @@
 package viper.gobra.translator.implementations.components
 
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.Collector
 import viper.gobra.translator.interfaces.components.UnknownValues
 import viper.silver.{ast => vpr}
 
 class UnknownValuesImpl extends UnknownValues {
 
-  override def finalize(col: Collector): Unit = {
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     if (genFunctions.nonEmpty) {
       val domain = vpr.Domain(
         name = domainName,
@@ -22,7 +21,7 @@ class UnknownValuesImpl extends UnknownValues {
         axioms = Seq.empty
       )()
 
-      col.addMember(domain)
+      addMemberFn(domain)
     }
   }
 

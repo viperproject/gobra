@@ -7,7 +7,7 @@
 package viper.gobra.translator.encodings.arrays
 
 import viper.gobra.translator.encodings.EmbeddingComponent
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.ast.{internal => in}
 import viper.silver.{ast => vpr}
 import ArrayEncoding.ComponentParameter
@@ -19,9 +19,9 @@ import viper.gobra.translator.util.ViperWriter.CodeLevel.pure
 
 class SharedArrayComponentImpl extends SharedArrayComponent {
 
-  override def finalize(col: Collector): Unit = {
-    emb.finalize(col)
-    arrayNilFunc.finalize(col)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    emb.finalize(addMemberFn)
+    arrayNilFunc.finalize(addMemberFn)
   }
 
   /**

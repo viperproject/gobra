@@ -8,14 +8,14 @@ package viper.gobra.translator.implementations.components
 
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.interfaces.components.Fields
 import viper.gobra.translator.util.PrimitiveGenerator
 import viper.silver.{ast => vpr}
 
 class FieldsImpl extends Fields {
 
-  override def finalize(col: Collector): Unit = _fieldGenerator.finalize(col)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = _fieldGenerator.finalize(addMemberFn)
 
   private val _fieldGenerator: PrimitiveGenerator.PrimitiveGenerator[vpr.Type, vpr.Field] =
     PrimitiveGenerator.simpleGenerator(

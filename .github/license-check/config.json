@@ -16,8 +16,7 @@
       "project/project/**",
       "project/target/**",
       "target/**",
-      "src/test/resources/**/*.go",
-      "src/main/java/**/*.java"
+      "src/test/resources/**/*.go"
     ],
     "license": "./.github/license-check/headers/MPLv2-ETH.txt"
   },
@@ -90,7 +89,8 @@
       "docs/**",
       "artifact/content/paper.pdf",
       "artifact/content/tutorial.md",
-      "artifact/evaluation/**"
+      "artifact/evaluation/**",
+      "src/main/java/**/*.java"
     ]
   },
   {

@@ -210,14 +210,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           }
           convertibleTo.errors(exprType(p.arg), typ)(n) ++ isExpr(p.arg).out ++ argWithinBounds
 
-        case (Left(callee), Some(p: ap.Conversion)) =>
-          val typ : Type = actualTypeSymbType(p.typ.asInstanceOf[PPredeclaredType])
-          val argWithinBounds: Messages = underlyingTypeP(p.typ) match {
-            case Some(_: PIntegerType) => intExprWithinTypeBounds(p.arg, typ)
-            case _ => noMessages
-          }
-          convertibleTo.errors(exprType(p.arg), typ)(n) ++ isExpr(p.arg).out ++ argWithinBounds
-
 
         case (Left(callee), Some(_: ap.FunctionCall)) => // arguments have to be assignable to function
           exprType(callee) match {

@@ -7,6 +7,7 @@
 package viper.gobra.translator
 
 import viper.gobra.ast.{internal => in}
+import viper.gobra.theory.Addressability
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
@@ -26,28 +27,33 @@ object Names {
   }
 
   def serializeType(typ: in.Type): String = typ match {
-    case _: in.BoolT => "Bool"
-    case _: in.StringT => "String"
-    case in.IntT(_, kind) => s"Int${kind.name}"
+    case in.BoolT(addr) => s"Bool${serializeAddressability(addr)}"
+    case in.StringT(addr) => s"String${serializeAddressability(addr)}"
+    case in.IntT(addr, kind) => s"Int${kind.name}${serializeAddressability(addr)}"
     case in.VoidT => ""
-    case _: in.PermissionT => "Permission"
+    case in.PermissionT(addr) => s"Permission${serializeAddressability(addr)}"
     case in.SortT => "Sort"
-    case in.ArrayT(len, elemT, _) => s"Array$len${serializeType(elemT)}"
-    case in.SliceT(elemT, _) => s"Slice${serializeType(elemT)}"
-    case in.MapT(keyT, valueT, _) => s"Map${serializeType(keyT)}_${serializeType(valueT)}"
-    case in.SequenceT(elemT, _) => s"Sequence${serializeType(elemT)}"
-    case in.SetT(elemT, _) => s"Set${serializeType(elemT)}"
-    case in.MultisetT(elemT, _) => s"Multiset${serializeType(elemT)}"
-    case in.OptionT(elemT, _) => s"Option${serializeType(elemT)}"
-    case in.DefinedT(name, _) => s"Defined$name"
-    case in.PointerT(t, _) => s"Pointer${serializeType(t)}"
+    case in.ArrayT(len, elemT, addr) => s"Array$len${serializeType(elemT)}${serializeAddressability(addr)}"
+    case in.SliceT(elemT, addr) => s"Slice${serializeType(elemT)}${serializeAddressability(addr)}"
+    case in.MapT(keyT, valueT, addr) => s"Map${serializeType(keyT)}_${serializeType(valueT)}_${serializeAddressability(addr)}"
+    case in.SequenceT(elemT, addr) => s"Sequence${serializeType(elemT)}${serializeAddressability(addr)}"
+    case in.SetT(elemT, addr) => s"Set${serializeType(elemT)}${serializeAddressability(addr)}"
+    case in.MultisetT(elemT, addr) => s"Multiset${serializeType(elemT)}${serializeAddressability(addr)}"
+    case in.OptionT(elemT, addr) => s"Option${serializeType(elemT)}${serializeAddressability(addr)}"
+    case in.DefinedT(name, addr) => s"Defined$name${serializeAddressability(addr)}"
+    case in.PointerT(t, addr) => s"Pointer${serializeType(t)}${serializeAddressability(addr)}"
     // we use a dollar sign to mark the beginning and end of the type list to avoid that `Tuple(Tuple(X), Y)` and `Tuple(Tuple(X, Y))` map to the same name:
-    case in.TupleT(ts, _) => s"Tuple$$${ts.map(serializeType).mkString("")}$$"
-    case in.PredT(ts, _) => s"Pred$$${ts.map(serializeType).mkString("")}$$"
-    case in.StructT(fields, _) => s"Struct${serializeFields(fields)}"
-    case in.InterfaceT(name, _) => s"Interface$name"
-    case in.ChannelT(elemT, _) => s"Channel${serializeType(elemT)}"
+    case in.TupleT(ts, addr) => s"Tuple$$${ts.map(serializeType).mkString("")}$$${serializeAddressability(addr)}"
+    case in.PredT(ts, addr) => s"Pred$$${ts.map(serializeType).mkString("")}$$${serializeAddressability(addr)}"
+    case in.StructT(fields, addr) => s"Struct${serializeFields(fields)}${serializeAddressability(addr)}"
+    case in.InterfaceT(name, addr) => s"Interface$name${serializeAddressability(addr)}"
+    case in.ChannelT(elemT, addr) => s"Channel${serializeType(elemT)}${serializeAddressability(addr)}"
     case t => Violation.violation(s"cannot stringify type $t")
+  }
+
+  def serializeAddressability(addr: Addressability): String = addr match {
+    case Addressability.Shared => "$$$_S_$$$"
+    case Addressability.Exclusive => "$$$$_E_$$$"
   }
 
   def serializeFields(fields: Vector[in.Field]): String = {
@@ -95,6 +101,9 @@ object Names {
   def typesDomain: String = "Types"
   def stringsDomain: String = "String"
   def mapsDomain: String = "GobraMap"
+
+  // tuples
+  def tupleDomain: String = "Tuple"
 
   // array
   def sharedArrayDomain: String = "ShArray"

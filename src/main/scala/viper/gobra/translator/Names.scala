@@ -8,14 +8,14 @@ package viper.gobra.translator
 
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability
-import viper.gobra.translator.interfaces.Context
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
 object Names {
-  def returnLabel: String = "returnLabel"
+  // fresh name prefix
+  def freshNamePrefix: String = "fn$$"
 
-  def freshName(ctx: Context): String = s"fn$$$$${ctx.getAndIncrementFreshVariableCounter}"
+  def returnLabel: String = "returnLabel"
 
   /* sanitizes type name to a valid Viper name */
   def serializeType(t: vpr.Type): String = {
@@ -61,7 +61,6 @@ object Names {
     // we use a dollar sign to mark the beginning and end of the type list to avoid that `Tuple(Tuple(X), Y)` and `Tuple(Tuple(X, Y))` map to the same name:
     s"$$$serializedFields$$"
   }
-
 
   // assert
   def assertFunc: String = "assertArg1"

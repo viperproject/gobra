@@ -105,7 +105,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
 
       case (lit : in.SliceLit) :: ctx.Slice(_) =>
         val litA = lit.asArrayLit
-        val tmp = in.LocalVar(Names.freshName(ctx), litA.typ.withAddressability(Addressability.pointerBase))(lit.info)
+        val tmp = in.LocalVar(ctx.freshNames.next(), litA.typ.withAddressability(Addressability.pointerBase))(lit.info)
         val tmpT = ctx.typeEncoding.variable(ctx)(tmp)
         val underlyingTyp = underlyingType(lit.typ)(ctx)
         for {
@@ -137,7 +137,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       case makeStmt@in.MakeSlice(target, in.SliceT(typeParam, _), lenArg, optCapArg) =>
         val (pos, info, errT) = makeStmt.vprMeta
         val sliceT = in.SliceT(typeParam.withAddressability(Shared), Addressability.Exclusive)
-        val slice = in.LocalVar(Names.freshName(ctx), sliceT)(makeStmt.info)
+        val slice = in.LocalVar(ctx.freshNames.next(), sliceT)(makeStmt.info)
         val vprSlice = ctx.typeEncoding.variable(ctx)(slice)
         seqn(
           for {
@@ -223,7 +223,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
 
     val (pos, info, errT) = src.vprMeta
 
-    val idx = in.BoundVar(Names.freshName(ctx), in.IntT(Exclusive))(src.info)
+    val idx = in.BoundVar(ctx.freshNames.next(), in.IntT(Exclusive))(src.info)
     val vIdx = ctx.typeEncoding.variable(ctx)(idx)
 
     for {

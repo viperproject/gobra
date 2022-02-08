@@ -10,7 +10,6 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.internal.theory.Comparability
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
-import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.gobra.translator.interfaces.translator.Generator
@@ -211,7 +210,7 @@ trait TypeEncoding extends Generator {
   def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     case newStmt@in.New(target, expr) if typ(ctx).isDefinedAt(expr.typ) =>
       val (pos, info, errT) = newStmt.vprMeta
-      val z = in.LocalVar(Names.freshName(ctx), target.typ.withAddressability(Exclusive))(newStmt.info)
+      val z = in.LocalVar(ctx.freshNames.next(), target.typ.withAddressability(Exclusive))(newStmt.info)
       val zDeref = in.Deref(z)(newStmt.info)
       seqn(
         for {

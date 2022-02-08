@@ -71,8 +71,10 @@ trait Context {
   def addVars(vars: vpr.LocalVarDecl*): Context
 
   // fresh variable counter
-  protected def getFreshVariableCounter: Int
-  def getAndIncrementFreshVariableCounter: Int
+  /** publicly exposed infinite iterator providing fresh names */
+  def freshNames: Iterator[String] = internalFreshNames
+  /** internal fresh name iterator that additionally provides a getter function for its counter value */
+  protected def internalFreshNames: FreshNameIterator
 
   /** copy constructor */
   def :=(
@@ -98,7 +100,7 @@ trait Context {
           predicateN: Predicates = predicate,
           builtInMembersN: BuiltInMembers = builtInMembers,
           stmtN: Statements = stmt,
-          initialFreshCounterValueN: Int = getFreshVariableCounter
+          initialFreshCounterValueN: Int = internalFreshNames.getValue
          ): Context
 
 
@@ -131,5 +133,9 @@ trait Context {
       stmt
     )
     col.finalize(generators)
+  }
+
+  trait FreshNameIterator extends Iterator[String] {
+    def getValue: Int
   }
 }

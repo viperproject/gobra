@@ -176,7 +176,7 @@ class StatementsImpl extends Statements {
     x match {
       case x: vpr.LocalVar => (x, None)
       case _ =>
-        val decl = vpr.LocalVarDecl(Names.freshName(ctx), x.typ)(x.pos, x.info, x.errT)
+        val decl = vpr.LocalVarDecl(ctx.freshNames.next(), x.typ)(x.pos, x.info, x.errT)
         val ass  = vu.valueAssign(x, decl.localVar)(x.pos, x.info, x.errT)
         (decl.localVar, Some((decl, ass)))
     }

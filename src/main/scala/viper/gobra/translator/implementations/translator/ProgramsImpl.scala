@@ -30,8 +30,7 @@ class ProgramsImpl extends Programs {
       /** we use a separate context for each member in order to reset the fresh counter */
       val ctx = (mainCtx := (initialFreshCounterValueN = 0))
       val typeEncodingOpt = ctx.typeEncoding.member(ctx).lift(member)
-      val memberWriter = if (typeEncodingOpt.isDefined) typeEncodingOpt.get
-      else {
+      val memberWriter = typeEncodingOpt.getOrElse {
         member match {
           case f: in.Function => ctx.method.function(f)(ctx).map(Vector(_))
           case m: in.Method => ctx.method.method(m)(ctx).map(Vector(_))

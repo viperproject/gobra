@@ -381,7 +381,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
 
     val (pos, info, errT) = src.vprMeta
 
-    val idx = in.BoundVar(Names.freshName(ctx), in.IntT(Exclusive))(src.info)
+    val idx = in.BoundVar(ctx.freshNames.next(), in.IntT(Exclusive))(src.info)
     val vIdx = ctx.typeEncoding.variable(ctx)(idx)
 
     for {
@@ -404,7 +404,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         val (pos, info, errT) = e.vprMeta
         for {
           vS <- ctx.expr.translate(e)(ctx)
-          x = in.LocalVar(Names.freshName(ctx), e.typ)(e.info)
+          x = in.LocalVar(ctx.freshNames.next(), e.typ)(e.info)
           vX = variable(ctx)(x)
           _ <- local(vX)
           _ <- bind(vX.localVar, vS)
@@ -415,7 +415,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         val (pos, info, errT) = e.vprMeta
         for {
           vS <- ctx.typeEncoding.reference(ctx)(loc)
-          x = in.LocalVar(Names.freshName(ctx), e.typ)(e.info)
+          x = in.LocalVar(ctx.freshNames.next(), e.typ)(e.info)
           vX = variable(ctx)(x)
           _ <- local(vX)
           _ <- bind(vX.localVar, vS)

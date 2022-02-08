@@ -182,7 +182,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
 
   private def freshNameForTag(tag: BuiltInMemberTag)(ctx: Context): String =
-    s"${Names.builtInMember}_${tag.identifier}_${Names.freshName(ctx)}"
+    s"${Names.builtInMember}_${tag.identifier}_${ctx.freshNames.next()}"
 
 
   //

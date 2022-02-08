@@ -7,6 +7,7 @@
 package viper.gobra.translator.implementations
 
 import viper.gobra.ast.internal.LookupTable
+import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.TypeEncoding
 import viper.gobra.translator.interfaces.{Context, TranslatorConfig}
 import viper.gobra.translator.interfaces.translator._
@@ -92,7 +93,7 @@ case class ContextImpl(
                    predicateN: Predicates = predicate,
                    builtInMembersN: BuiltInMembers = builtInMembers,
                    stmtN: Statements = stmt,
-                   initialFreshCounterValueN: Int = getFreshVariableCounter
+                   initialFreshCounterValueN: Int = internalFreshNames.getValue
                  ): Context = copy(
     fieldN,
     arrayN,
@@ -121,12 +122,16 @@ case class ContextImpl(
 
   override def addVars(vars: LocalVarDecl*): Context = this
 
+  override val internalFreshNames: FreshNameIteratorImpl = FreshNameIteratorImpl(initialFreshCounterValue)
 
-  private var freshVariableCounter: Int = initialFreshCounterValue
-  override def getFreshVariableCounter: Int = freshVariableCounter
-  override def getAndIncrementFreshVariableCounter: Int = {
-    val value = freshVariableCounter
-    freshVariableCounter += 1
-    value
+  case class FreshNameIteratorImpl(private val initialValue: Int) extends FreshNameIterator {
+    private var currentValue: Int = initialValue
+    override def hasNext: Boolean = true
+    override def next(): String = {
+      val value = currentValue
+      currentValue += 1
+      s"${Names.freshNamePrefix}$value"
+    }
+    override def getValue: Int = currentValue
   }
 }

@@ -9,8 +9,8 @@ pred sendInvariant(v int) {
 
 // tests whether some information about the channel's state can be extracted from the single return form of receive:
 requires c.RecvChannel()
-requires c.RecvGivenPerm() == PredTrue!<!>;
-requires c.RecvGotPerm() == sendInvariant!<_!>;
+requires c.RecvGivenPerm() == PredTrue!<!>
+requires c.RecvGotPerm() == sendInvariant!<_!>
 func testSingleReceive(c chan int) {
   fold PredTrue!<!>()
   res := <- c // single return form of receive

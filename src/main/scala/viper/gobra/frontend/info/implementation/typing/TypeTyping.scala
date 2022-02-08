@@ -175,6 +175,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
       fieldTypes exists {
         case s: PStructType => isCyclic(s, visitedTypes)
+        case _ : PDot => false // Would have already been detected as an import cycle
         case n: PNamedType if visitedTypes.contains(n.name) => true
         case n: PNamedType if underlyingTypeP(n).exists(_.isInstanceOf[PStructType]) =>
           isCyclic(underlyingTypeP(n).get.asInstanceOf[PStructType], visitedTypes + n.name)

@@ -555,7 +555,7 @@ sealed trait PNamedType extends PActualType {
   def name: String
 }
 
-sealed trait PTypeNameUse extends PNamedType{
+sealed trait PTypeNameUse extends PNamedType {
   def id : PIdnUse
   val name: String = id.name
 }

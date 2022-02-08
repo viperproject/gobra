@@ -14,117 +14,13 @@ public abstract class GobraParserBase extends org.antlr.v4.runtime.Parser
     }
 
     /**
-     * Returns {@code true} iff on the current index of the parser's
-     * token stream a token exists on the {@code HIDDEN} channel which
-     * either is a line terminator, or is a multi line comment that
-     * contains a line terminator.
-     *
-     * @return {@code true} iff on the current index of the parser's
-     * token stream a token exists on the {@code HIDDEN} channel which
-     * either is a line terminator, or is a multi line comment that
-     * contains a line terminator.
+     * Returns true if the current Token is a closing bracket (")" or "}")
      */
-    protected boolean lineTerminatorAhead() {
-        // Get the token ahead of the current index.
-        int offset = 1;
-        int possibleIndexEosToken = this.getCurrentToken().getTokenIndex() - offset;
-
-        if (possibleIndexEosToken == -1)
-        {
-            return true;
-        }
-
-        Token ahead = _input.get(possibleIndexEosToken);
-
-        while(ahead.getChannel() == Lexer.HIDDEN )
-        {
-            if(ahead.getType() == GobraLexer.TERMINATOR){
-                return true;
-            }
-            else if(ahead.getType() == GobraLexer.WS){
-                possibleIndexEosToken = this.getCurrentToken().getTokenIndex() - ++offset;
-                ahead = _input.get(possibleIndexEosToken);
-            }
-            else if(ahead.getType() == GobraLexer.COMMENT || ahead.getType() == GobraLexer.LINE_COMMENT ){
-                if(ahead.getText().contains("\r") || ahead.getText().contains("\n")){
-                    return true;
-                }
-                else{
-                    possibleIndexEosToken = this.getCurrentToken().getTokenIndex() - ++offset;
-                    ahead = _input.get(possibleIndexEosToken);
-                }
-            }
-        }
-
-        return false;
-    }
-
-     /**
-     * Returns {@code true} if no line terminator exists between the specified
-     * token offset and the prior one on the {@code HIDDEN} channel.
-     *
-     * @return {@code true} if no line terminator exists between the specified
-     * token offset and the prior one on the {@code HIDDEN} channel.
-     */
-    protected boolean noTerminatorBetween(int tokenOffset) {
-        BufferedTokenStream stream = (BufferedTokenStream)_input;
-        List<Token> tokens = stream.getHiddenTokensToLeft(stream.LT(tokenOffset).getTokenIndex());
-        
-        if (tokens == null) {
-            return true;
-        }
-
-        for (Token token : tokens) {
-            if (token.getText().contains("\n"))
-                return false;
-        }
-
-        return true;
-    }
-
-     /**
-     * Returns {@code true} if no line terminator exists after any encounterd
-     * parameters beyond the specified token offset and the next on the
-     * {@code HIDDEN} channel.
-     *
-     * @return {@code true} if no line terminator exists after any encounterd
-     * parameters beyond the specified token offset and the next on the
-     * {@code HIDDEN} channel.
-     */
-    protected boolean noTerminatorAfterParams(int tokenOffset) {
-        BufferedTokenStream stream = (BufferedTokenStream)_input;
-        int leftParams = 1;
-        int rightParams = 0;
-
-        if (stream.LT(tokenOffset).getType() == GobraLexer.L_PAREN) {
-            // Scan past parameters
-            while (leftParams != rightParams) {
-                tokenOffset++;
-                int valueType = stream.LT(tokenOffset).getType();
-
-                if (valueType == GobraLexer.L_PAREN){
-                    leftParams++;
-                }
-                else if (valueType == GobraLexer.R_PAREN) {
-                    rightParams++;
-                }
-            }
-
-            tokenOffset++;
-            return noTerminatorBetween(tokenOffset);
-        }
-
-        return true;
-    }
-
-    protected boolean checkPreviousTokenText(String text)
+    protected boolean closingBracket()
     {
         BufferedTokenStream stream = (BufferedTokenStream)_input;
-        String prevTokenText = stream.LT(1).getText();
-        
-        if (prevTokenText == null)
-            return false;
-        
-        return prevTokenText.equals(text);
+        int prevTokenType = stream.LA(1);
+
+        return prevTokenType == GobraParser.R_CURLY || prevTokenType == GobraParser.R_PAREN || prevTokenType == GobraParser.R_PRED;
     }
 }

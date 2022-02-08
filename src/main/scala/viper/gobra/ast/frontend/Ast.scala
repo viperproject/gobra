@@ -321,9 +321,7 @@ sealed trait PUnaryExp extends PActualExpression {
 
 case class PBlankIdentifier() extends PAssignee
 
-case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNamedType with PTypeName with PNameOrDot{
-  override val name : String = id.name
-}
+case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PTypeNameUse with PNameOrDot
 
 sealed trait PLiteral extends PActualExpression
 
@@ -409,7 +407,7 @@ case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends P
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
-case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNameOrDot with PTypeName
+case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNameOrDot with PTypeNameUse
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
 
@@ -551,15 +549,15 @@ sealed trait PType extends PNode with PExpressionOrType
 
 sealed trait PActualType extends PType
 
-sealed trait PTypeName extends PActualType with PNamedType{
-  def id : PIdnUse
-  val name: String = id.name
-}
-
 sealed trait PLiteralType extends PNode
 
 sealed trait PNamedType extends PActualType {
   def name: String
+}
+
+sealed trait PTypeNameUse extends PNamedType{
+  def id : PIdnUse
+  val name: String = id.name
 }
 
 sealed abstract class PPredeclaredType(override val name: String) extends PNamedType
@@ -665,7 +663,7 @@ case class PInterfaceType(
 
 sealed trait PInterfaceClause extends PNode
 
-case class PInterfaceName(typ: PTypeName) extends PInterfaceClause
+case class PInterfaceName(typ: PTypeNameUse) extends PInterfaceClause
 
 // Felix: I see `isGhost` as part of the declaration and not as port of the specification.
 //        In the past, I usually created some ghost wrapper for these cases, but I wanted to get rid of them in the future.
@@ -917,6 +915,8 @@ case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], bod
 case class PExists(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
 
 case class PTypeOf(exp: PExpression) extends PGhostExpression
+
+case class PTypeExpr(typ: PType) extends PGhostExpression
 
 case class PIsComparable(exp: PExpressionOrType) extends PGhostExpression
 

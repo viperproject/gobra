@@ -109,6 +109,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
         }
       }
       case e : ExpressionContext if e.parent.isInstanceOf[CapContext] => SliceMissingIndex(3)
+      case _ if new_reserved.contains(context.offendingSymbol.getType) => ReservedWord()
       case _ => DefaultNoViable(exception)
     }
   }
@@ -126,24 +127,32 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     }
   }
 
-  def getDisplay(index : Int)(implicit context : ParserErrorContext): String = {
-    betterNames.getOrElse(index, ruleNames(index))
+  def getRuleDisplay(index : Int)(implicit context : ParserErrorContext): String = {
+    betterRuleNames.getOrElse(index, ruleNames(index))
   }
 
-  private val betterNames : Map[Int, String] = Map{
+  private val betterRuleNames : Map[Int, String] = Map{
     RULE_type_ -> "type"
-    RULE_eos -> "end of statement"
+    RULE_eos -> "end of line"
     RULE_varDecl -> "var declaration"
     RULE_shortVarDecl -> "short variable declaration"
     RULE_blockWithBodyParameterInfo -> "block"
   }
+
+  def getTokenDisplay(t : Token)(implicit context : ParserErrorContext): String = {
+    t.getText match {
+      case "\n" => "end of line"
+      case s => s
+    }
+  }
+
 
   private val extraneous = "extraneous.*".r
   private val missing = "missing.*".r
 
   sealed trait ErrorContext {
     val recognizer : Recognizer[_, _]
-    val offendingSymbol: Any
+    val offendingSymbol: Token
     val line: Int
     val charPositionInLine: Int
     val msg: String
@@ -174,14 +183,15 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
   }
 
   case class DefaultMismatch()(implicit  val context : ParserErrorContext) extends ErrorType {
-    val msg : String = s"unexpected ${context.offendingSymbol.getText}" +
+    val msg : String = s"unexpected ${getTokenDisplay(context.offendingSymbol)}" +
       (if (context.offendingSymbol == context.recognizer.getContext.getStart) s", expecting ${context.recognizer.getRuleNames()(context.recognizer.getContext.getRuleIndex)}"
-      else s" in ${context.recognizer.getRuleNames()(context.recognizer.getContext.getRuleIndex)}, expecting ${context.recognizer.getExpectedTokens.toString(GobraParser.VOCABULARY)}")
+      else s" in ${getRuleDisplay(context.recognizer.getContext.getRuleIndex)}, expecting ${context.recognizer.getExpectedTokens.toString(GobraParser.VOCABULARY)}")
 
   }
 
   case class DefaultNoViable(e : NoViableAltException)(implicit val context: ParserErrorContext) extends ErrorType {
-    val msg : String = s"Wrong Syntax at '${e.getStartToken.getText}'."
+    //val msg : String = s"Wrong Syntax at '${context.recognizer.getTokenStream.getText(e.getStartToken, e.getOffendingToken)}'."
+    val msg : String = context.msg
     override lazy val underlined: String = underlineError(context.copy(offendingSymbol = e.getStartToken), restOfTheLine = true)
   }
 
@@ -216,4 +226,11 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     val msg = "Unexpectedly reached end of file."
     override lazy val full: String = msg
   }
+
+  case class ReservedWord()(implicit val context : ErrorContext) extends ErrorType {
+    val msg = s"Unexpected reserved word ${context.offendingSymbol.getText}."
+  }
+
+  // All tokens reserved by gobra, but not by Go
+  val new_reserved = IntervalSet.of(GobraParser.TRUE, GobraParser.TRUSTED)
 }

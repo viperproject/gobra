@@ -7,7 +7,7 @@
 lexer grammar GobraLexer;
 import GoLexer;
 
-FLOAT_LIT : DECIMAL_FLOAT_LIT | HEX_FLOAT_LIT;
+FLOAT_LIT : (DECIMAL_FLOAT_LIT | HEX_FLOAT_LIT) -> mode(NLSEMI);
 
 DECIMAL_FLOAT_LIT      : DECIMALS ('.'{_input.LA(1) != '.'}? DECIMALS? EXPONENT? | EXPONENT)
                        | '.'{_input.index() <2 || _input.LA(-2) != '.'}? DECIMALS EXPONENT?
@@ -15,9 +15,11 @@ DECIMAL_FLOAT_LIT      : DECIMALS ('.'{_input.LA(1) != '.'}? DECIMALS? EXPONENT?
 
 // BEGIN GOBRA
 //CURLIES : '{' (CURLIES|~[{}])* '}' ;
+// -mode(NLSEMI) means newlines directly after this token are
+// parsed as semicolons. (just like identifiers, literals, )}] etc in base Go)
 
-TRUE        : 'true';
-FALSE       : 'false';
+TRUE        : 'true' -> mode(NLSEMI);
+FALSE       : 'false' -> mode(NLSEMI);
 ASSERT      : 'assert';
 ASSUME      : 'assume';
 INHALE      : 'inhale';
@@ -26,14 +28,14 @@ PRE         : 'requires';
 PRESERVES   : 'preserves';
 POST        : 'ensures';
 INV         : 'invariant';
-DEC         : 'decreases';
-PURE        : 'pure';
+DEC         : 'decreases' -> mode(NLSEMI);
+PURE        : 'pure' -> mode(NLSEMI);
 IMPL        : 'implements';
-OLD         : 'old';
+OLD         : 'old'-> mode(NLSEMI);
 LHS         : '#lhs';
 FORALL      : 'forall';
 EXISTS      : 'exists';
-ACCESS      : 'acc';
+ACCESS      : 'acc' -> mode(NLSEMI);
 FOLD        : 'fold';
 UNFOLD      : 'unfold';
 UNFOLDING   : 'unfolding';
@@ -49,33 +51,32 @@ WAND        : '--*';
 APPLY       : 'apply';
 QMARK       : '?';
 L_PRED      : '!<';
-R_PRED      : '!>';
-RANGE       : 'range';
-SEQ         : 'seq';
-SET         : 'set';
-MSET        : 'mset';
-DICT        : 'dict';
-OPT         : 'option';
-LEN         : 'len';
-NEW         : 'new';
-MAKE        : 'make';
-CAP         : 'cap';
-SOME        : 'some';
-GET         : 'get';
-DOM         : 'domain';
-AXIOM       : 'axiom';
-NONE        : 'none';
+R_PRED      : '!>' -> mode(NLSEMI);
+SEQ         : 'seq'-> mode(NLSEMI);
+SET         : 'set'-> mode(NLSEMI);
+MSET        : 'mset'-> mode(NLSEMI);
+DICT        : 'dict'-> mode(NLSEMI);
+OPT         : 'option'-> mode(NLSEMI);
+LEN         : 'len'-> mode(NLSEMI);
+NEW         : 'new'-> mode(NLSEMI);
+MAKE        : 'make'-> mode(NLSEMI);
+CAP         : 'cap'-> mode(NLSEMI);
+SOME        : 'some'-> mode(NLSEMI);
+GET         : 'get'-> mode(NLSEMI);
+DOM         : 'domain'-> mode(NLSEMI);
+AXIOM       : 'axiom'-> mode(NLSEMI);
+NONE        : 'none' -> mode(NLSEMI);
 PRED        : 'pred';
-TYPE_OF      : 'typeOf';
-IS_COMPARABLE: 'isComparable';
+TYPE_OF      : 'typeOf'-> mode(NLSEMI);
+IS_COMPARABLE: 'isComparable'-> mode(NLSEMI);
 SHARE       : 'share';
-ADDR_MOD    : '@';
+ADDR_MOD    : '@'-> mode(NLSEMI);
 DOT_DOT     : '..';
 SHARED      : 'shared';
 EXCLUSIVE   : 'exclusive';
 PREDICATE   : 'predicate';
-WRITEPERM   : 'writePerm';
-NOPERM      : 'noPerm';
-TRUSTED     : 'trusted';
+WRITEPERM   : 'writePerm' -> mode(NLSEMI);
+NOPERM      : 'noPerm' -> mode(NLSEMI);
+TRUSTED     : 'trusted' -> mode(NLSEMI);
 
 // END GOBRA

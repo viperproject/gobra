@@ -1869,6 +1869,9 @@ object Desugar {
       val src: Meta = meta(expr)
 
       expr match {
+
+        case PTypeExpr(t) => go(t)
+
         case e: PExpression => exprD(ctx)(e)
 
         case PBoolType() => unit(in.BoolTExpr()(src))

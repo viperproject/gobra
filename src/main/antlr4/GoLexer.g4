@@ -34,14 +34,14 @@
  * https://golang.org/ref/spec
  */
 
-// Imported to Gobra from https://github.com/antlr/grammars-v4/tree/f3e4816e1a8ad4cdde9c67e3ee9fb232ecf58a2b/golang
+// Imported to Gobra from https://github.com/antlr/grammars-v4/blob/4c06ad8cc8130931c75ca0b17cbc1453f3830cd2/golang
 
 
 lexer grammar GoLexer;
 
 // Keywords
 
-BREAK                  : 'break';
+BREAK                  : 'break' -> mode(NLSEMI);
 DEFAULT                : 'default';
 FUNC                   : 'func';
 INTERFACE              : 'interface';
@@ -57,35 +57,35 @@ GOTO                   : 'goto';
 PACKAGE                : 'package';
 SWITCH                 : 'switch';
 CONST                  : 'const';
-FALLTHROUGH            : 'fallthrough';
+FALLTHROUGH            : 'fallthrough' -> mode(NLSEMI);
 IF                     : 'if';
 RANGE                  : 'range';
 TYPE                   : 'type';
-CONTINUE               : 'continue';
+CONTINUE               : 'continue' -> mode(NLSEMI);
 FOR                    : 'for';
 IMPORT                 : 'import';
-RETURN                 : 'return';
+RETURN                 : 'return' -> mode(NLSEMI);
 VAR                    : 'var';
 
-NIL_LIT                : 'nil';
+NIL_LIT                : 'nil' -> mode(NLSEMI);
 
-IDENTIFIER             : LETTER (LETTER | UNICODE_DIGIT)*;
+IDENTIFIER             : LETTER (LETTER | UNICODE_DIGIT)* -> mode(NLSEMI);
 
 // Punctuation
 
 L_PAREN                : '(';
-R_PAREN                : ')';
+R_PAREN                : ')' -> mode(NLSEMI);
 L_CURLY                : '{';
-R_CURLY                : '}';
+R_CURLY                : '}' -> mode(NLSEMI);
 L_BRACKET              : '[';
-R_BRACKET              : ']';
+R_BRACKET              : ']' -> mode(NLSEMI);
 ASSIGN                 : '=';
 COMMA                  : ',';
 SEMI                   : ';';
 COLON                  : ':';
 DOT                    : '.';
-PLUS_PLUS              : '++';
-MINUS_MINUS            : '--';
+PLUS_PLUS              : '++' -> mode(NLSEMI);
+MINUS_MINUS            : '--' -> mode(NLSEMI);
 DECLARE_ASSIGN         : ':=';
 ELLIPSIS               : '...';
 
@@ -127,13 +127,13 @@ RECEIVE                : '<-';
 
 // Number literals
 
-DECIMAL_LIT            : '0' | [1-9] ('_'? [0-9])*;
-BINARY_LIT             : '0' [bB] ('_'? BIN_DIGIT)+;
-OCTAL_LIT              : '0' [oO]? ('_'? OCTAL_DIGIT)+;
-HEX_LIT                : '0' [xX]  ('_'? HEX_DIGIT)+;
+DECIMAL_LIT            : ('0' | [1-9] ('_'? [0-9])*) -> mode(NLSEMI);
+BINARY_LIT             : '0' [bB] ('_'? BIN_DIGIT)+ -> mode(NLSEMI);
+OCTAL_LIT              : '0' [oO]? ('_'? OCTAL_DIGIT)+ -> mode(NLSEMI);
+HEX_LIT                : '0' [xX]  ('_'? HEX_DIGIT)+ -> mode(NLSEMI);
 
 
-FLOAT_LIT : DECIMAL_FLOAT_LIT | HEX_FLOAT_LIT;
+FLOAT_LIT : (DECIMAL_FLOAT_LIT | HEX_FLOAT_LIT) -> mode(NLSEMI);
 
 DECIMAL_FLOAT_LIT      : DECIMALS ('.' DECIMALS? EXPONENT? | EXPONENT)
                        | '.' DECIMALS EXPONENT?
@@ -148,11 +148,13 @@ fragment HEX_MANTISSA  : ('_'? HEX_DIGIT)+ ('.' ( '_'? HEX_DIGIT )*)?
 fragment HEX_EXPONENT  : [pP] [+-] DECIMALS;
 
 
-IMAGINARY_LIT          : (DECIMAL_LIT | BINARY_LIT |  OCTAL_LIT | HEX_LIT | FLOAT_LIT) 'i';
+IMAGINARY_LIT          : (DECIMAL_LIT | BINARY_LIT |  OCTAL_LIT | HEX_LIT | FLOAT_LIT) 'i' -> mode(NLSEMI);
 
 // Rune literals
 
-RUNE_LIT               : '\'' (UNICODE_VALUE | BYTE_VALUE) '\'';//: '\'' (~[\n\\] | ESCAPED_VALUE) '\'';
+fragment RUNE               : '\'' (UNICODE_VALUE | BYTE_VALUE) '\'';//: '\'' (~[\n\\] | ESCAPED_VALUE) '\'';
+
+RUNE_LIT                : RUNE -> mode(NLSEMI);
 
 
 
@@ -168,20 +170,16 @@ BIG_U_VALUE: '\\' 'U' HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGI
 
 // String literals
 
-RAW_STRING_LIT         : '`' ~'`'*                      '`';
-INTERPRETED_STRING_LIT : '"' (~["\\] | ESCAPED_VALUE)*  '"';
-
+RAW_STRING_LIT         : '`' ~'`'*                      '`' -> mode(NLSEMI);
+INTERPRETED_STRING_LIT : '"' (~["\\] | ESCAPED_VALUE)*  '"' -> mode(NLSEMI);
 // Hidden tokens
-
 WS                     : [ \t]+             -> channel(HIDDEN);
 COMMENT                : '/*' .*? '*/'      -> channel(HIDDEN);
 TERMINATOR             : [\r\n]+            -> channel(HIDDEN);
 LINE_COMMENT           : '//' ~[\r\n]*      -> channel(HIDDEN);
 
 fragment UNICODE_VALUE: ~[\r\n'] | LITTLE_U_VALUE | BIG_U_VALUE | ESCAPED_VALUE;
-
 // Fragments
-
 fragment ESCAPED_VALUE
     : '\\' ('u' HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT
            | 'U' HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT
@@ -189,35 +187,27 @@ fragment ESCAPED_VALUE
            | OCTAL_DIGIT OCTAL_DIGIT OCTAL_DIGIT
            | 'x' HEX_DIGIT HEX_DIGIT)
     ;
-
 fragment DECIMALS
     : [0-9] ('_'? [0-9])*
     ;
-
 fragment OCTAL_DIGIT
     : [0-7]
     ;
-
 fragment HEX_DIGIT
     : [0-9a-fA-F]
     ;
-
 fragment BIN_DIGIT
     : [01]
     ;
-
 fragment EXPONENT
     : [eE] [+-]? DECIMALS
     ;
-
 fragment LETTER
     : UNICODE_LETTER
     | '_'
     ;
-
 fragment UNICODE_DIGIT
     : [\p{Nd}]
-
     /*  [\u0030-\u0039]
     | [\u0660-\u0669]
     | [\u06F0-\u06F9]
@@ -239,7 +229,6 @@ fragment UNICODE_DIGIT
     | [\u1810-\u1819]
     | [\uFF10-\uFF19]*/
     ;
-
 fragment UNICODE_LETTER
     : [\p{L}]
     /*  [\u0041-\u005A]
@@ -505,3 +494,14 @@ fragment UNICODE_LETTER
     | [\uFFDA-\uFFDC]
     */
     ;
+mode NLSEMI;
+// Treat whitespace as normal
+WS_NLSEMI                     : [ \t]+             -> channel(HIDDEN);
+// Ignore any comments that only span one line
+COMMENT_NLSEMI                : '/*' ~[\r\n]*? '*/'      -> channel(HIDDEN);
+LINE_COMMENT_NLSEMI : '//' ~[\r\n]*      -> channel(HIDDEN);
+// Emit an EOS token for any newlines, semicolon, multiline comments or the EOF and
+//return to normal lexing
+EOS:              ([\r\n]+ | ';' | '/*' .*? '*/' | EOF)            -> mode(DEFAULT_MODE);
+// Did not find an EOS, so go back to normal lexing
+OTHER: -> mode(DEFAULT_MODE), channel(HIDDEN);

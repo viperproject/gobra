@@ -44,12 +44,19 @@ ghostStatement:
 ghostPrimaryExpr: range
 				| access
 				| typeOf
+				| typeExpr
 				| isComparable
 				| old
 				| sConversion
 				| optionNone | optionSome | optionGet
-				| quantifier=(FORALL | EXISTS) boundVariables COLON COLON triggers expression
-				| permission=(WRITEPERM | NOPERM);
+				| quantification
+				| permission;
+
+quantification: (FORALL | EXISTS) boundVariables COLON COLON triggers expression;
+
+permission: WRITEPERM | NOPERM;
+
+typeExpr: TYPE L_BRACKET type_ R_BRACKET;
 
 boundVariables
 	: boundVariableDecl (COMMA boundVariableDecl)* COMMA?
@@ -196,33 +203,11 @@ receiver: 	L_PAREN maybeAddressableIdentifier? type_ COMMA? R_PAREN;
 // Added ghost parameters
 parameterDecl: GHOST? identifierList? ELLIPSIS? type_;
 
-// Added unfolding
-unaryExpr:
-	primaryExpr
-	| kind=(
-		LEN
-		| CAP
-		| DOM
-		| RANGE
-	) L_PAREN expression R_PAREN
-	| unfolding
-	| unary_op = (
-		PLUS
-		| MINUS
-		| EXCLAMATION
-		| CARET
-		| STAR
-		| AMPERSAND
-		| RECEIVE
-	) expression
-	;
-
 unfolding: UNFOLDING predicateAccess IN expression;
 
 // Added ++ operator
 expression:
-	TYPE L_BRACKET type_ R_BRACKET
-	| call_op=(
+	call_op=(
 		LEN
 		| CAP
 		| DOM
@@ -329,7 +314,7 @@ primaryExpr:
 		| slice_
 		| seqUpdExp
 		| typeAssertion
-		| {noTerminatorBetween(1)}? arguments
+		| arguments
 		| predConstructArgs
 	);
 
@@ -342,7 +327,7 @@ interfaceType:
 predicateSpec: PRED IDENTIFIER parameters;
 
 methodSpec:
-	{noTerminatorAfterParams(2)}? GHOST? specification IDENTIFIER parameters result
+	GHOST? specification IDENTIFIER parameters result
 	| GHOST? specification IDENTIFIER parameters;
 
 // Added ghostTypeLiterals
@@ -408,11 +393,3 @@ assign_op: ass_op=(
 		| AMPERSAND
 		| BIT_CLEAR
 	)? ASSIGN;
-
-// allow "import ("import1";"import2") without semicolon at the end
-eos:
-	SEMI
-	| EOF
-	| {lineTerminatorAhead()}?
-	| {checkPreviousTokenText("}")}?
-	| {checkPreviousTokenText(")")}?;

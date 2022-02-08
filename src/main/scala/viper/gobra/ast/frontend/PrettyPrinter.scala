@@ -467,6 +467,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMagicWand(left, right) => showSubExpr(expr, left) <+> "--*" <+> showSubExpr(expr, right)
 
       case PTypeOf(exp) => "typeOf" <> parens(showExpr(exp))
+      case PTypeExpr(typ) => "type" <> brackets(showType(typ))
       case PIsComparable(exp) => "isComparable" <> parens(showExprOrType(exp))
 
       case POptionNone(t) => "none" <> brackets(showType(t))

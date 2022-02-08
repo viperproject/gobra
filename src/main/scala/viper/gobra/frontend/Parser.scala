@@ -45,7 +45,6 @@ object Parser {
   def parse(input: Vector[Source], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val sources = input
       .map(Gobrafier.gobrafy)
-      .map(i => SemicolonPreprocessor.preprocess(i)(config))
     for {
       parseAst <- time("ANTLR_FULL", sources.map(_.name).mkString(", ")) {parseSources(sources, specOnly)(config)}
       postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
@@ -220,44 +219,6 @@ object Parser {
     parser.parse(parser.typeOnly())
   }
 
-  private object SemicolonPreprocessor {
-
-    /**
-      * Assumes that source corresponds to an existing file
-      */
-    def preprocess(source: Source)(config: Config): Source = {
-      val translatedContent = translate(source.content)
-      config.reporter report PreprocessedInputMessage(source.name, () => translatedContent)
-      source.transformContent(translatedContent)
-    }
-
-    private def translate(content: String): String =
-      content.split("\r\n|\n").map(translateLine).mkString("\n") ++ "\n"
-
-    private def translateLine(line: String): String = {
-      val identifier = """[a-zA-Z_][a-zA-Z0-9_]*"""
-      val integer = """[0-9]+"""
-      val rawStringLit = """`(?:.|\n)*`"""
-      val interpretedStringLit = """\".*\""""
-      val stringLit = s"$rawStringLit|$interpretedStringLit"
-      val specialKeywords = """break|continue|fallthrough|return"""
-      val specialOperators = """\+\+|--"""
-      val closingParens = """\)|]|}"""
-      val finalTokenRequiringSemicolon = s"$identifier|$integer|$stringLit|$specialKeywords|$specialOperators|$closingParens"
-
-      val ignoreLineComments = """\/\/.*"""
-      val ignoreSelfContainedGeneralComments = """\/\*.*?\*\/"""
-      val ignoreStartingGeneralComments = """\/\*(?!.*?\*\/).*"""
-      val ignoreGeneralComments = s"$ignoreSelfContainedGeneralComments|$ignoreStartingGeneralComments"
-      val ignoreComments = s"$ignoreLineComments|$ignoreGeneralComments"
-      val ignoreWhitespace = """\s"""
-
-      val r = s"($finalTokenRequiringSemicolon)((?:$ignoreComments|$ignoreWhitespace)*)$$".r
-      // group(1) contains the finalTokenRequiringSemicolon after which a semicolon should be inserted
-      // group(2) contains the line's remainder after finalTokenRequiringSemicolon
-      r.replaceAllIn(line, m => StringEscapeUtils.escapeJava(m.group(1) ++ ";" ++ m.group(2)))
-    }
-  }
 
 
   private class ImportPostprocessor(override val positions: Positions) extends PositionedRewriter {

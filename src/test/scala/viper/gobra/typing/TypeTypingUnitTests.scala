@@ -364,6 +364,7 @@ class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         stubParams(ts),
         PResult(Vector()),
         PFunctionSpec(Vector(), Vector(), Vector(), Vector(), isPure = true),
+        isAbstract = true,
         None
       ))
     )

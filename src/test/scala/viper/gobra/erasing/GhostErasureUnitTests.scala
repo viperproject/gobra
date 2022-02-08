@@ -232,6 +232,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         inArgs.map(_._1),
         PResult(Vector()),
         PFunctionSpec(Vector(), Vector(), Vector(), Vector.empty),
+        false,
         Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
       ))
     )
@@ -266,7 +267,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
       val program = stubProgram(inArgs, stmt)
       val ghostLess = ghostLessProg(program)
       val block = ghostLess match {
-        case PProgram(_, _, Vector(PFunctionDecl(PIdnDef("foo"), _, _, _, Some((_, b)))), _) => b
+        case PProgram(_, _, Vector(PFunctionDecl(PIdnDef("foo"), _, _, _, _, Some((_, b)))), _) => b
         case p => fail(s"Parsing succeeded but with an unexpected program $p")
       }
       normalize(block.stmts) match {
@@ -322,13 +323,13 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
       (actual, expected) match {
         case (a: PConstDecl, e: PConstDecl) => assert(a == e)
         case (a: PVarDecl, e: PVarDecl) => assert(a == e)
-        case (PFunctionDecl(aId, aArgs, aResult, aSpec, aBody), PFunctionDecl(eId, eArgs, eResult, eSpec, eBody)) =>
+        case (PFunctionDecl(aId, aArgs, aResult, aSpec, _, aBody), PFunctionDecl(eId, eArgs, eResult, eSpec, _, eBody)) =>
           assert(aId == eId)
           assert(aArgs == eArgs)
           assert(aResult == eResult)
           assert(aSpec == eSpec)
           equal(aBody, eBody)
-        case (PMethodDecl(aId, aRecv, aArgs, aResult, aSpec, aBody), PMethodDecl(eId, eRecv, eArgs, eResult, eSpec, eBody)) =>
+        case (PMethodDecl(aId, aRecv, aArgs, aResult, aSpec, _, aBody), PMethodDecl(eId, eRecv, eArgs, eResult, eSpec, _, eBody)) =>
           assert(aId == eId)
           assert(aRecv == eRecv)
           assert(aArgs == eArgs)

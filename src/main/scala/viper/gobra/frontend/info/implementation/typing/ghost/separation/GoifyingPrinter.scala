@@ -109,7 +109,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     */
   override def showMember(mem: PMember): Doc = mem match {
 
-    case PMethodDecl(id, rec, args, res, spec, body) =>
+    case PMethodDecl(id, rec, args, res, spec, isAbstract, body) =>
       showDeclarationSpec(DeclarationSpec(getGhostParams(args), getGhostParams(res.outs), spec)) <>
       super.showMember(
         PMethodDecl(
@@ -118,11 +118,12 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           getActualParams(args),
           getActualResult(res),
           PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+          isAbstract,
           body
         )
       )
 
-    case PFunctionDecl(id, args, res, spec, body) =>
+    case PFunctionDecl(id, args, res, spec, isAbstract, body) =>
       showDeclarationSpec(DeclarationSpec(getGhostParams(args), getGhostParams(res.outs), spec)) <>
       super.showMember(
         PFunctionDecl(
@@ -130,6 +131,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           getActualParams(args),
           getActualResult(res),
           PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+          isAbstract,
           body
         )
       )

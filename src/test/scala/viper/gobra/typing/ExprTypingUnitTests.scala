@@ -3372,6 +3372,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         inArgs.map(_._1),
         PResult(Vector()),
         PFunctionSpec(Vector(), Vector(), Vector(), Vector(), isPure = true),
+        isAbstract = false,
         Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
       ))
     )

@@ -374,17 +374,17 @@ object Parser {
 
     /**
       * Optionally consumes nested curly brackets with arbitrary content if `specOnly` is turned on, otherwise optionally applies the parser `p`
+      * Returns a tuple containing the parsed body and a boolean flag indicating if there was something parsed or not
       */
-    def specOnlyParser[T](isPure: Boolean, p: Parser[T]): Parser[Option[T]] =
-      if (specOnly && !isPure) nestedCurlyBracketsConsumer.? ^^ (_.flatten)
-      else p.?
+    def specOnlyParser[T](isPure: Boolean, p: Parser[T]): Parser[(Option[T], Boolean)] =
+      if (specOnly && !isPure) nestedCurlyBracketsConsumer.? ^^(_.getOrElse((None, true)))
+      else p.? ^^ (t => (t, t.isEmpty))
 
     /**
       * Consumes nested curly brackets with arbitrary content and returns None
       */
-    lazy val nestedCurlyBracketsConsumer: Parser[Option[Nothing]] =
-      "{" ~> ("""[^{}]""".r | nestedCurlyBracketsConsumer).* <~ "}" ^^ (_ => None)
-
+    lazy val nestedCurlyBracketsConsumer: Parser[(Option[Nothing], Boolean)] =
+      "{" ~> ("""[^{}]""".r | nestedCurlyBracketsConsumer).* <~ "}" ^^ (_ => (None, false))
     /**
       * Member
       */
@@ -474,9 +474,11 @@ object Parser {
         spec <- functionSpec
         name <- "func" ~> idnDef
         sig  <- signature
-        body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(spec.isPure, blockWithBodyParameterInfo)
+        specOnlyParseResult <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(spec.isPure, blockWithBodyParameterInfo)
+        body = specOnlyParseResult._1
+        isAbstract = specOnlyParseResult._2
         // the start position has to be manually set as Kiama would otherwise only use the body's position as start & finish
-      } yield PFunctionDecl(name, sig._1, sig._2, spec, body).from(spec)
+      } yield PFunctionDecl(name, sig._1, sig._2, spec, isAbstract, body).from(spec)
 
     lazy val functionSpec: Parser[PFunctionSpec] = {
       sealed trait FunctionSpecClause
@@ -517,9 +519,11 @@ object Parser {
         rcv  <- "func" ~> receiver
         name <- idnDef
         sig  <- signature
-        body <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(spec.isPure, blockWithBodyParameterInfo)
+        specOnlyParseResult <- if (spec.isTrusted) nestedCurlyBracketsConsumer else specOnlyParser(spec.isPure, blockWithBodyParameterInfo)
+        body = specOnlyParseResult._1
+        isAbstract = specOnlyParseResult._2
         // the start position has to be manually set as Kiama would otherwise only use the body's position as start & finish
-      } yield PMethodDecl(name, rcv, sig._1, sig._2, spec, body).from(spec)
+      } yield PMethodDecl(name, rcv, sig._1, sig._2, spec, isAbstract, body).from(spec)
 
     /**
       * Statements
@@ -1355,12 +1359,12 @@ object Parser {
 
     // expression can be terminated with a semicolon to simply preprocessing
     lazy val fpredicateDecl: Parser[PFPredicateDecl] =
-      ("pred" ~> idnDef) ~ parameters ~ predicateBody ^^ PFPredicateDecl
+      ("pred" ~> idnDef) ~ parameters ~ predicateBody ^^ {case id ~ params ~ body => PFPredicateDecl(id, params, body.isEmpty, body)}
 
     // expression can be terminated with a semicolon to simply preprocessing
     lazy val mpredicateDecl: Parser[PMPredicateDecl] =
       ("pred" ~> receiver) ~ idnDef ~ parameters ~ predicateBody ^^ {
-        case rcv ~ name ~ paras ~ body => PMPredicateDecl(name, rcv, paras, body)
+        case rcv ~ name ~ paras ~ body => PMPredicateDecl(name, rcv, paras, body.isEmpty, body)
       }
 
     lazy val implementationProof: Parser[PImplementationProof] =
@@ -1374,7 +1378,7 @@ object Parser {
 
     lazy val methodImplementationProof: Parser[PMethodImplementationProof] =
       "pure".? ~ nonLocalReceiver ~ idnUse ~ signature ~ blockWithBodyParameterInfo.? ^^ {
-        case spec ~ recv ~ name ~ sig ~ body => PMethodImplementationProof(name, recv, sig._1, sig._2, spec.isDefined, body)
+        case spec ~ recv ~ name ~ sig ~ body => PMethodImplementationProof(name, recv, sig._1, sig._2, spec.isDefined, body.isEmpty, body)
       }
 
     lazy val nonLocalReceiver: PackratParser[PParameter] =

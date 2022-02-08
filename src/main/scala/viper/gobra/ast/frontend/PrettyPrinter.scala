@@ -86,18 +86,18 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
-      case PFunctionDecl(id, args, res, spec, body) =>
+      case PFunctionDecl(id, args, res, spec, _, body) =>
         showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
           opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
-      case PMethodDecl(id, rec, args, res, spec, body) =>
+      case PMethodDecl(id, rec, args, res, spec, _, body) =>
         showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
         opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
-      case PFPredicateDecl(id, args, body) =>
+      case PFPredicateDecl(id, args, _, body) =>
         "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
-      case PMPredicateDecl(id, recv, args, body) =>
+      case PMPredicateDecl(id, recv, args, _, body) =>
         "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
       case ip: PImplementationProof =>
         showType(ip.subT) <+> "implements" <+> showType(ip.superT) <> (
@@ -666,16 +666,16 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
-      case PFunctionDecl(id, args, res, spec, _) =>
+      case PFunctionDecl(id, args, res, spec, _, _) =>
         showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
-      case PMethodDecl(id, rec, args, res, spec, _) =>
+      case PMethodDecl(id, rec, args, res, spec, _, _) =>
         showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
-      case PFPredicateDecl(id, args, _) =>
+      case PFPredicateDecl(id, args, _, _) =>
         "pred" <+> showId(id) <> parens(showParameterList(args))
-      case PMPredicateDecl(id, recv, args, _) =>
+      case PMPredicateDecl(id, recv, args, _, _) =>
         "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args))
       case ip: PImplementationProof =>
         showType(ip.subT) <+> "implements" <+> showType(ip.superT)

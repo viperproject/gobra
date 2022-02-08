@@ -42,10 +42,51 @@ object GoVerifier {
   }
 }
 
-trait GoVerifier {
+trait GoVerifier extends StrictLogging {
+
+  type Warning = String
 
   def name: String = {
     this.getClass.getSimpleName
+  }
+
+  def verifyAllPackages(config: Config)(executor: GobraExecutionContext): (Set[Warning], Vector[VerifierError]) = {
+    val statsCollector = StatsCollector(config.reporter)
+    var allWarnings: Set[String] = Set()
+    var allErrors: Vector[VerifierError] = Vector()
+
+    // write report to file on shutdown
+    Runtime.getRuntime.addShutdownHook(new Thread() {
+      override def run(): Unit = {
+        val statsFile = config.gobraDirectory.resolve("stats.json").toFile
+        logger.info("Writing report to " + statsFile.getPath)
+        statsCollector.writeJsonReportToFile(statsFile)
+      }
+    })
+
+    config.inputPackageMap.foreach({ case (pkg, inputs) =>
+      val pkgString = pkg.path + " - " + pkg.name
+
+      logger.info("Verifying Package " + pkgString)
+      val resultFuture = verify(config.copy(inputs = inputs, reporter = statsCollector), Some(pkgString))(executor)
+      val result = Await.result(resultFuture, Duration.Inf)
+
+      // Report verification finish, to free space used by unneeded typeInfo
+      statsCollector.report(VerificationTaskFinishedMessage(pkgString))
+
+      val warnings = statsCollector.getWarnings(pkg.path, pkg.name)
+      allWarnings = allWarnings ++ warnings
+      warnings.foreach(w => logger.warn(w))
+
+      result match {
+        case VerifierResult.Success => logger.info(s"$name found no errors")
+        case VerifierResult.Failure(errors) =>
+          logger.error(s"$name has found ${errors.length} error(s) in package $pkgString")
+          errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
+          allErrors = allErrors ++ errors
+      }
+    })
+    (allWarnings, allErrors)
   }
 
   def verify(config: Config, taskName: Option[String] = None)(executor: GobraExecutionContext): Future[VerifierResult] = {
@@ -218,72 +259,46 @@ class GobraFrontend {
 object GobraRunner extends GobraFrontend with StrictLogging {
   def main(args: Array[String]): Unit = {
     val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
-
-    var errorCount = 0
-    var warningCount = 0
-
     val verifier = createVerifier()
     var exitCode = 0
-    var statsCollector: StatsCollector = null
-
     try {
-      val scallopGobraconfig = new ScallopGobraConfig(args.toSeq)
-      val config = scallopGobraconfig.config
+      val scallopGobraConfig = new ScallopGobraConfig(args.toSeq)
+      val config = scallopGobraConfig.config
 
       // Set up gobra directory
       val gobraDirectory = config.gobraDirectory.toAbsolutePath.toFile
       if(!gobraDirectory.isDirectory) {
-        if(gobraDirectory.getParentFile.canWrite) {
-          gobraDirectory.mkdir()
-        } else {
-          Violation.violation("Couldn't create gobra directory " + config.gobraDirectory.toString + ", missing write permission to parent directory")
-        }
-      } else {
-        if(!gobraDirectory.getParentFile.canWrite) {
-          Violation.violation("Couldn't write to gobra directory " + config.gobraDirectory.toString)
-        }
+        Violation.violation(gobraDirectory.mkdir(), s"Could not create directory $gobraDirectory")
       }
+
+      // Make sure we have the correct permissions to the gobra directory
+      Violation.violation(gobraDirectory.canRead && gobraDirectory.canWrite, "Couldn't write to gobra directory " + config.gobraDirectory.toString)
 
       // Print copyright report
       config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
-      statsCollector = StatsCollector(config.reporter)
 
-      // write report to file on shutdown
-      Runtime.getRuntime.addShutdownHook(new Thread() {
-        override def run(): Unit = {
-          val statsFile = config.gobraDirectory.resolve("stats.json").toFile
-          logger.info("Writing report to " + statsFile.getPath)
-          statsCollector.writeJsonReportToFile(statsFile)
-        }
-      })
+      val result = verifier.verifyAllPackages(config)(executor)
+      val warnings = result._1
+      val errors = result._2
 
-      config.inputPackageMap.foreach({ case (pkg, inputs) =>
-        val pkgString = pkg.path + " - " + pkg.name
+      logger.info("\n")
+      logger.info("Summary:")
+      logger.info("\n")
 
-        logger.info("Verifying Package " + pkgString)
-        val resultFuture = verifier.verify(config.copy(inputs=inputs, reporter = statsCollector), Some(pkgString))(executor)
-        val result = Await.result(resultFuture, Duration.Inf)
-
-        // Report verification finish, to free space used by unneeded typeInfo
-        statsCollector.report(VerificationTaskFinishedMessage(pkgString))
-
-        val warnings = statsCollector.getWarnings(pkg.path, pkg.name)
-        warningCount += warnings.size
-        warnings.foreach(m => logger.warn(m))
-
-        result match {
-          case VerifierResult.Success => logger.info(s"${verifier.name} found no errors")
-          case VerifierResult.Failure(errors) =>
-            logger.error(s"${verifier.name} has found ${errors.length} error(s) in package $pkgString")
-            errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
-            errorCount += errors.length;
-        }
-      })
+      // Write console summary
+      if(warnings.nonEmpty) {
+        logger.warn(s"${verifier.name} has found ${warnings.size} warnings(s)")
+      }
+      if(errors.nonEmpty) {
+        logger.error(s"${verifier.name} has found ${errors.size} error(s)")
+        exitCode = 1
+      } else {
+        logger.info(s"${verifier.name} found no errors")
+      }
     } catch {
       case e: UglyErrorMessage =>
         logger.error(s"${verifier.name} has found 1 error(s): ")
         logger.error(s"\t${e.error.formattedMessage}")
-        errorCount += 1
         exitCode = 1
       case e: LogicException =>
         logger.error("An assumption was violated during execution.")
@@ -298,21 +313,6 @@ object GobraRunner extends GobraFrontend with StrictLogging {
         exitCode = 1
     } finally {
       executor.terminate()
-
-      logger.info("\n")
-      logger.info("Summary:")
-      logger.info("\n")
-
-      // Write console summary
-      if(warningCount > 1) {
-        logger.warn(s"${verifier.name} has found $warningCount warnings(s)")
-      }
-      if(errorCount > 1) {
-        logger.error(s"${verifier.name} has found $errorCount error(s)")
-        exitCode = 1
-      } else if(exitCode == 0){
-        logger.info(s"${verifier.name} found no errors")
-      }
       sys.exit(exitCode)
     }
   }

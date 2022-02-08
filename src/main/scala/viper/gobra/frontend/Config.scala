@@ -29,9 +29,8 @@ object Config {
   val DefaultGobraDirectory: String = ".gobra"
 }
 
-case class PackageEntry(path: String, name: String) {
+case class PackageEntry(path: String, name: String)
 
-}
 case class Config(
                  inputs: Vector[Source],
                  recursive: Boolean = false,

@@ -172,13 +172,9 @@ sourceFile:
 ghostMember: implementationProof
 			| fpredicateDecl
 			| mpredicateDecl
-			| (GHOST | (GHOST eos)) (
-				methodDecl
-				| functionDecl
-				| constDecl
-				| typeDecl
-				| varDecl
-			);
+			| explicitGhostMember;
+
+explicitGhostMember: GHOST (methodDecl | functionDecl | declaration);
 
 fpredicateDecl: PRED IDENTIFIER parameters predicateBody?;
 

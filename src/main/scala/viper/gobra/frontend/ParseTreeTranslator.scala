@@ -801,33 +801,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   //region Ghost members
   /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  // TODO : Refactor
-  override def visitGhostMember(ctx: GhostMemberContext): Vector[PGhostMember] = {
-    if (ctx.fpredicateDecl() != null) {
-      Vector(visitFpredicateDecl(ctx.fpredicateDecl()))
-    } else if (ctx.mpredicateDecl() != null) {
-      Vector(visitMpredicateDecl(ctx.mpredicateDecl()))
-    } else if (ctx.implementationProof() != null) {
-      Vector(visitImplementationProof(ctx.implementationProof()))
-    }else if (ctx.GHOST() != null) {
-      if (ctx.methodDecl() != null) {
-        Vector(PExplicitGhostMember(visitMethodDecl(ctx.methodDecl())).at(ctx))
-      } else if (ctx.functionDecl() != null) {
-        Vector(PExplicitGhostMember(visitFunctionDecl(ctx.functionDecl())).at(ctx))
-      } else if (ctx.varDecl() != null) {
-        visitVarDecl(ctx.varDecl()).map(PExplicitGhostMember(_))
-      } else if (ctx.typeDecl() != null) {
-        visitTypeDecl(ctx.typeDecl()).map(PExplicitGhostMember(_))
-      } else {
-        visitConstDecl(ctx.constDecl()).map(PExplicitGhostMember(_))
-      }
-    } else fail(ctx)
+    * Visits the rule
+    * explicitGhostMember: GHOST (methodDecl | functionDecl | declaration);
+    * */
+  override def visitExplicitGhostMember(ctx: ExplicitGhostMemberContext): Vector[PExplicitGhostMember] = super.visitExplicitGhostMember(ctx) match {
+    case Vector("ghost", decl : PGhostifiableMember) => Vector(PExplicitGhostMember(decl).at(ctx))
+    case Vector("ghost", decl : Vector[PGhostifiableMember] @unchecked) => decl.map(PExplicitGhostMember(_).at(ctx))
   }
+
 
   //region Implementation proofs
   /**
@@ -836,12 +817,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitImplementationProof(ctx: ImplementationProofContext): PImplementationProof = {
+  override def visitImplementationProof(ctx: ImplementationProofContext): Vector[PImplementationProof] = {
     val subT : PType = visitNode(ctx.type_(0))
     val superT : PType = visitNode[PType](ctx.type_(1))
     val alias = visitListNode[PImplementationProofPredicateAlias](ctx.implementationProofPredicateAlias())
     val memberProofs = visitListNode[PMethodImplementationProof](ctx.methodImplementationProof())
-    PImplementationProof(subT, superT, alias, memberProofs).at(ctx)
+    Vector(PImplementationProof(subT, superT, alias, memberProofs).at(ctx))
   }
 
   /**
@@ -906,12 +887,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitMpredicateDecl(ctx: MpredicateDeclContext): PMPredicateDecl = {
+  override def visitMpredicateDecl(ctx: MpredicateDeclContext): Vector[PMPredicateDecl] = {
     val id = idnDef.get(ctx.IDENTIFIER())
     val receiver = visitReceiver(ctx.receiver())
     val params = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
     val body = if (has(ctx.predicateBody())) Some(visitExpression(ctx.predicateBody().expression())) else None
-    PMPredicateDecl(id, receiver, params.flatten, body).at(ctx)
+    Vector(PMPredicateDecl(id, receiver, params.flatten, body).at(ctx))
   }
 
   /**
@@ -920,11 +901,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitFpredicateDecl(ctx: FpredicateDeclContext): PFPredicateDecl = {
+  override def visitFpredicateDecl(ctx: FpredicateDeclContext): Vector[PFPredicateDecl] = {
     val id = idnDef.get(ctx.IDENTIFIER())
     val params = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
     val body = if (has(ctx.predicateBody())) Some(visitExpression(ctx.predicateBody().expression())) else None
-    PFPredicateDecl(id, params.flatten, body).at(ctx)
+    Vector(PFPredicateDecl(id, params.flatten, body).at(ctx))
   }
   //endregion
 
@@ -2013,7 +1994,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     // Don't parse functions/methods if the identifier is blank
     val functionDecls= visitListNode[PFunctionDecl](ctx.functionDecl())
     val methodDecls = visitListNode[PMethodDecl](ctx.methodDecl())
-    val ghostMembers = ctx.ghostMember().asScala.toVector.flatMap(visitGhostMember)
+    val ghostMembers = ctx.ghostMember().asScala.flatMap(visitNode[Vector[PGhostMember]])
     val decls = ctx.declaration().asScala.toVector.flatMap(visitDeclaration(_).asInstanceOf[Vector[PDeclaration]])
     PProgram(packageClause, importDecls, functionDecls ++ methodDecls ++ decls ++ ghostMembers).at(ctx)
   }

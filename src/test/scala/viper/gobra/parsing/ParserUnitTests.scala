@@ -2371,13 +2371,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should parse type equality") {
     frontend.parseExpOrFail("typeOf(a) == type[int]") should matchPattern {
-      case PEquals(PTypeOf(_), PIntType() | _ : PNamedType) =>
-    }
-  }
-
-  test("Parser: should not parse type expression as expression") {
-    frontend.parseExp("type[int]") should matchPattern {
-      case Left(_) =>
+      case PEquals(PTypeOf(_), PTypeExpr(PIntType() | _ : PNamedType)) =>
     }
   }
 

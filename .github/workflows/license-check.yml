@@ -7,6 +7,8 @@
 name: license-check
 
 on:
+  push:
+    branches: [staging, trying]
   pull_request:
 
 jobs:

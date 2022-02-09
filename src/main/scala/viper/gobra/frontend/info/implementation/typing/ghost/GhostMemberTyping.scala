@@ -18,10 +18,10 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefGhostMember(member: PGhostMember): Messages = member match {
     case PExplicitGhostMember(_) => noMessages
 
-    case PFPredicateDecl(_, args, _, body) =>
+    case PFPredicateDecl(_, args, body) =>
       body.fold(noMessages)(assignableToSpec) ++ nonVariadicArguments(args)
 
-    case PMPredicateDecl(_, receiver, args, _, body) =>
+    case PMPredicateDecl(_, receiver, args, body) =>
       body.fold(noMessages)(assignableToSpec) ++
         isReceiverType.errors(miscType(receiver))(member) ++
         nonVariadicArguments(args)

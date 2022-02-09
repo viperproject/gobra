@@ -74,7 +74,7 @@ trait GoVerifier extends StrictLogging {
       // Report verification finish, to free space used by unneeded typeInfo
       statsCollector.report(VerificationTaskFinishedMessage(pkgString))
 
-      val warnings = statsCollector.getWarnings(pkg.path, pkg.name)
+      val warnings = statsCollector.getWarnings(pkg.path, pkg.name, config)
       allWarnings = allWarnings ++ warnings
       warnings.foreach(w => logger.warn(w))
 
@@ -287,7 +287,7 @@ object GobraRunner extends GobraFrontend with StrictLogging {
 
       // Write console summary
       if(warnings.nonEmpty) {
-        logger.warn(s"${verifier.name} has found ${warnings.size} warnings(s)")
+        logger.warn(s"${verifier.name} has found ${warnings.size} warning(s)")
       }
       if(errors.nonEmpty) {
         logger.error(s"${verifier.name} has found ${errors.size} error(s)")

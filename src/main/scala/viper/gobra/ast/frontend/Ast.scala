@@ -148,7 +148,6 @@ case class PFunctionDecl(
                           args: Vector[PParameter],
                           result: PResult,
                           spec: PFunctionSpec,
-                          isAbstract: Boolean,
                           body: Option[(PBodyParameterInfo, PBlock)]
                         ) extends PActualMember with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
@@ -158,7 +157,6 @@ case class PMethodDecl(
                         args: Vector[PParameter],
                         result: PResult,
                         spec: PFunctionSpec,
-                        isAbstract: Boolean,
                         body: Option[(PBodyParameterInfo, PBlock)]
                       ) extends PActualMember with PDependentDef with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
@@ -818,15 +816,13 @@ case class PExplicitGhostMember(actual: PGhostifiableMember) extends PGhostMembe
 case class PFPredicateDecl(
                          id: PIdnDef,
                          args: Vector[PParameter],
-                         isAbstract: Boolean,
-                         body: Option[PExpression],
+                         body: Option[PExpression]
                          ) extends PGhostMember with PScope with PCodeRoot
 
 case class PMPredicateDecl(
                           id: PIdnDef,
                           receiver: PReceiver,
                           args: Vector[PParameter],
-                          isAbstract: Boolean,
                           body: Option[PExpression]
                           ) extends PGhostMember with PDependentDef with PScope with PCodeRoot
 
@@ -844,7 +840,6 @@ case class PMethodImplementationProof(
                                        args: Vector[PParameter],
                                        result: PResult,
                                        isPure: Boolean,
-                                       isAbstract: Boolean,
                                        body: Option[(PBodyParameterInfo, PBlock)]
                                      ) extends PGhostMisc with PScope with PCodeRootWithResult with PWithBody
 

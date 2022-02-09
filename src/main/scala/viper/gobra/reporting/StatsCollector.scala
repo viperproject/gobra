@@ -10,6 +10,7 @@ import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.relation.NodeNotInTreeException
 import viper.gobra.ast.frontend.{PDomainFunction, PExpression, PFPredicateDecl, PFunctionDecl, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor}
 import viper.gobra.ast.internal.BuiltInMember
+import viper.gobra.frontend.{Config, PackageEntry}
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.util.Violation
 import viper.silver.ast.{FuncApp, Function, Member, Method, MethodCall, Node, Predicate, PredicateAccess}
@@ -129,6 +130,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
           .flatMap(viperMember => getDependencies(viperMember.member)
             .flatMap(dep => findGobraMemberByViperMemberName(viperMember.taskName, dep, gobraMember.pkgDir))
           )
+          // Filter out dependencies on one self, since this information isn't very useful
+          .filter(_ == gobraMember)
           .map(gobraMemberEntry => "        \"" + gobraMemberKey(gobraMemberEntry.pkgDir, gobraMemberEntry.pkg, gobraMemberEntry.memberName, gobraMemberEntry.args) + "\"")
           .toSet
           .mkString(", \n") + "\n    ]\n  }"
@@ -146,7 +149,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     viperMemberNameGobraMemberMap.get(viperMemberKey(taskName, viperMemberName, pkgDir))
       .orElse(viperMemberNameGobraMemberMap.get(viperMemberKey(taskName, viperMemberName)))
 
-  def getWarnings(pkgDir: String, pkg: String): Set[String] =
+  def getWarnings(pkgDir: String, pkg: String, config: Config): Set[String] =
     memberMap.values
       .filter(gobraMember => gobraMember.pkgDir == pkgDir && gobraMember.pkg == pkg)
       .flatMap(gobraMember =>
@@ -161,10 +164,12 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
                   Some("Warning: Member " + name + " depends on trusted member " + pkg + "." + memberName + args + "\n")
                 case GobraMemberEntry(_, pkg, memberName, _, args, _, _, true) =>
                   Some("Warning: Member " + name + " depends on abstract member " + pkg + "." + memberName + args + "\n")
+                case GobraMemberEntry(pkgDir, pkg, _, _, _, _, _, _)  if !config.inputPackageMap.contains(PackageEntry(pkgDir, pkg)) =>
+                  Some("Warning: Depending on imported package, that is not verified: " + pkgDir + " - " + pkg)
                 case _ => None
               })
         })
-    ).toSet
+      ).toSet
 
   def addResult(pkgDir: String,
                 pkg: String,
@@ -179,8 +184,9 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     memberMap.get(key) match {
       case Some(existing) =>
         existing.viperMembers = existing.viperMembers.appended(viperMember)
+        // If we encounter an abstract version of a member, we know for sure, its abstract
+        existing.isAbstract = existing.isAbstract || isAbstract
         Violation.violation(existing.isTrusted == isTrusted, "Same members with different trusted declarations found: \n " + key)
-        Violation.violation(existing.isAbstract == isAbstract, "Same members with different abstract definitions found: \n " + key)
       case None => memberMap = memberMap + (key -> GobraMemberEntry(pkgDir, pkg, memberName, nodeType, args, List(viperMember), isTrusted, isAbstract))
     }
 
@@ -266,17 +272,17 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
     p match {
       case p: PFunctionDecl =>
-        GobraMemberInfo(pkgDir, pkgName, p.id.name, formatArgs(p.args), isTrusted = p.spec.isTrusted, p.isAbstract, isImported, isBuiltIn)
+        GobraMemberInfo(pkgDir, pkgName, p.id.name, formatArgs(p.args), isTrusted = p.spec.isTrusted, p.body.isEmpty && !isImported, isImported, isBuiltIn)
       case p: PMethodDecl =>
-        GobraMemberInfo(pkgDir, pkgName, p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), p.spec.isTrusted, p.isAbstract, isImported, isBuiltIn)
+        GobraMemberInfo(pkgDir, pkgName, p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), p.spec.isTrusted, p.body.isEmpty && !isImported, isImported, isBuiltIn)
       case p: PMethodSig =>
         GobraMemberInfo(pkgDir, pkgName, p.id.name, formatArgs(p.args), isTrusted = p.spec.isTrusted, isAbstract = false, isImported, isBuiltIn)
       case p: PFPredicateDecl =>
-        GobraMemberInfo(pkgDir, pkgName, p.id.name, formatArgs(p.args), isTrusted = false, p.isAbstract, isImported, isBuiltIn)
+        GobraMemberInfo(pkgDir, pkgName, p.id.name, formatArgs(p.args), isTrusted = false, p.body.isEmpty && !isImported, isImported, isBuiltIn)
       case p: PMPredicateDecl =>
-        GobraMemberInfo(pkgDir, pkgName, p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), isTrusted = false, p.isAbstract, isImported, isBuiltIn)
+        GobraMemberInfo(pkgDir, pkgName, p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), isTrusted = false, p.body.isEmpty && !isImported, isImported, isBuiltIn)
       case p: PMethodImplementationProof =>
-        GobraMemberInfo(pkgDir, pkgName, "Impl_Proof." + p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), isTrusted = false, p.isAbstract, isImported, isBuiltIn)
+        GobraMemberInfo(pkgDir, pkgName, "Impl_Proof." + p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), isTrusted = false, p.body.isEmpty && !isImported, isImported, isBuiltIn)
       case p: PDomainFunction =>
         GobraMemberInfo(pkgDir, pkgName, p.id.name, formatArgs(p.args), isTrusted = false, isAbstract = false, isImported, isBuiltIn)
       case p: PMPredicateSig =>

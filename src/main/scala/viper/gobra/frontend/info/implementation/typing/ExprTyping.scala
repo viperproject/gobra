@@ -430,6 +430,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
 
     case n: PUnfolding => isExpr(n.op).out ++ isPureExpr(n.op) ++
+      wellDefFoldable(n.pred) ++
       error(
         n.pred,
         s"unfolding predicate expression instance ${n.pred} not supported",

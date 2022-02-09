@@ -209,9 +209,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   //region Types
 
-  override def visitTypeName(ctx: GobraParser.TypeNameContext): PNamedType = {
+  override def visitTypeName(ctx: GobraParser.TypeNameContext): PTypeName = {
     visitChildren(ctx) match {
-      case name : TerminalNode => visitTypeIdentifier(name)
+      case idnUse(id) => visitTypeIdentifier(id) // replace with `PNamedOperand(id)` when arrays of custom types are supported
       case qualified : PDot => qualified
       case _ => unexpected(ctx)
     }
@@ -230,8 +230,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
-  def visitTypeIdentifier(typ: TerminalNode): PNamedType = {
-    typ.getSymbol.getText match {
+  def visitTypeIdentifier(typ: PIdnUse): PUnqualifiedTypeName = {
+    typ.name match {
       case "perm" => PPermissionType().at(typ)
       case "int" => PIntType().at(typ)
       case "int16" => PInt16Type().at(typ)
@@ -249,7 +249,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       case "bool" => PBoolType().at(typ)
       case "string" => PStringType().at(typ)
       case "rune" => PRune().at(typ)
-      case _ => PNamedOperand(idnUse.get(typ)).at(typ)
+      case _ => PNamedOperand(typ).at(typ)
     }
   }
 
@@ -319,8 +319,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitEmbeddedField(ctx: EmbeddedFieldContext): PEmbeddedType = {
     visitChildren(ctx) match {
-      case name : PNamedType => PEmbeddedName(name)
-      case Vector("*", name : PNamedType) => PEmbeddedPointer(name)
+      case name : PUnqualifiedTypeName => PEmbeddedName(name)
+      case Vector("*", name : PUnqualifiedTypeName) => PEmbeddedPointer(name)
+      case  _ : PDot | Vector("*", _ : PDot) => fail(ctx, "Imported types are not yet supported as embedded interface names")
     }
   }
   //endregion
@@ -410,9 +411,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitInterfaceType(ctx: GobraParser.InterfaceTypeContext): PInterfaceType = {
     val methodDecls = visitListNode[PMethodSig](ctx.methodSpec())
-    val embedded = visitListNode[PNamedType](ctx.typeName()).map {
-      case tn: PTypeNameUse => PInterfaceName(tn)
-      case t => fail(ctx, "Interface embeds predeclared type")
+    val embedded = visitListNode[PTypeName](ctx.typeName()).map {
+      case tn: PUnqualifiedTypeName => PInterfaceName(tn)
+      case _: PDot => fail(ctx, "Imported types are not yet supported as embedded fields.")
+      case _ => fail(ctx, s"Interface embeds predeclared type.")
     }
     val predicateDecls = visitListNode[PMPredicateSig](ctx.predicateSpec())
     PInterfaceType(embedded, methodDecls, predicateDecls).at(ctx)
@@ -852,10 +854,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitNonLocalReceiver(ctx: NonLocalReceiverContext): PParameter = {
     visitChildren(ctx) match {
-      case Vector("(", idnDef(name), "*", typ : PTypeNameUse, ")") => PNamedParameter(name, PDeref(typ).at(typ)).at(ctx)
-      case Vector("(", idnDef(name), typ : PTypeNameUse, ")") => PNamedParameter(name, typ).at(ctx)
-      case Vector("(", "*", typ : PTypeNameUse, ")") => PUnnamedParameter(PDeref(typ).at(typ)).at(ctx)
-      case Vector("(", typ : PTypeNameUse, ")") => PUnnamedParameter(typ).at(ctx)
+      case Vector("(", idnDef(name), "*", typ : PTypeName, ")") => PNamedParameter(name, PDeref(typ).at(typ)).at(ctx)
+      case Vector("(", idnDef(name), typ : PTypeName, ")") => PNamedParameter(name, typ).at(ctx)
+      case Vector("(", "*", typ : PTypeName, ")") => PUnnamedParameter(PDeref(typ).at(typ)).at(ctx)
+      case Vector("(", typ : PTypeName, ")") => PUnnamedParameter(typ).at(ctx)
       case _ => unexpected(ctx)
     }
   }

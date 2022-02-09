@@ -1,0 +1,79 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// this test checks that not all predicate calls are permitted in fold/unfold/unfolding stmts/exprs
+
+pred AbstractFPred()
+
+type SomeStruct struct{}
+pred (s SomeStruct) AbstractMPred()
+
+type SomeInterface interface {
+    pred InterfacePred()
+}
+
+func fPred() bool {
+    //:: ExpectedOutput(type_error)
+    fold AbstractFPred()
+    //:: ExpectedOutput(type_error)
+    unfold AbstractFPred()
+    //:: ExpectedOutput(type_error)
+    return unfolding AbstractFPred() in true
+}
+
+func mPred(s SomeStruct) bool {
+    //:: ExpectedOutput(type_error)
+    fold s.AbstractMPred()
+    //:: ExpectedOutput(type_error)
+    unfold s.AbstractMPred()
+    //:: ExpectedOutput(type_error)
+    return unfolding s.AbstractMPred() in true
+}
+
+func interfacePred(itf SomeInterface) bool {
+    // this should succeed
+    fold itf.InterfacePred()
+    // this should succeed
+    unfold itf.InterfacePred()
+    // this should succeed
+    return unfolding itf.InterfacePred() in true
+}
+
+func predTrue() {
+    // this should succeed
+    fold PredTrue!<!>()
+}
+
+func isChannel(channel chan int) {
+    //:: ExpectedOutput(type_error)
+    fold channel.IsChannel()
+}
+
+pred eq(x *int, y *int) {
+	x == y
+}
+
+func predExprs() bool {
+	x@ := 1
+	y@ := 2
+	// having a predicate constructor as a base is supported:
+	fold eq!<&x, _!>(&x)
+	fold eq!<_, &y!>(&y)
+	fold eq!<_, _!>(&x, &x)
+	fold eq!<&x, &x!>()
+	// predicate constructors in unfolding expressions is not supported:
+	//:: ExpectedOutput(type_error)
+	b := unfolding eq!<&x, &x!>() in true
+
+	predExpr := eq!<&x, &x!>;
+	//:: ExpectedOutput(type_error)
+    fold predExpr()
+    //:: ExpectedOutput(type_error)
+    unfold predExpr()
+    // there are two errors in the next statement (predicate expression instead of predicate constructor and unfolding a predicate expression)
+    // but our unit testing framework is happy with just a single expected output annotation:
+    //:: ExpectedOutput(type_error)
+    return unfolding predExpr() in true
+}

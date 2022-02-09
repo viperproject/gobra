@@ -321,7 +321,7 @@ sealed trait PUnaryExp extends PActualExpression {
 
 case class PBlankIdentifier() extends PAssignee
 
-case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PTypeNameUse with PNameOrDot
+case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PUnqualifiedTypeName with PNameOrDot
 
 sealed trait PLiteral extends PActualExpression
 
@@ -407,7 +407,7 @@ case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends P
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
-case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNameOrDot with PTypeNameUse
+case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNameOrDot with PTypeName
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
 
@@ -551,16 +551,20 @@ sealed trait PActualType extends PType
 
 sealed trait PLiteralType extends PNode
 
-sealed trait PNamedType extends PActualType {
-  def name: String
-}
-
-sealed trait PTypeNameUse extends PNamedType {
-  def id : PIdnUse
+sealed trait PTypeName extends PActualType {
+  def id : PUseLikeId
   val name: String = id.name
 }
 
-sealed abstract class PPredeclaredType(override val name: String) extends PNamedType
+sealed trait PUnqualifiedTypeName extends PTypeName
+
+object PUnqualifiedTypeName {
+  def unapply(arg: PUnqualifiedTypeName): Option[String] = Some(arg.name)
+}
+
+sealed abstract class PPredeclaredType(override val name: String) extends PUnqualifiedTypeName with PUseLikeId {
+  override def id: PUseLikeId = this
+}
 
 case class PBoolType() extends PPredeclaredType("bool")
 case class PStringType() extends PPredeclaredType("string")
@@ -663,7 +667,7 @@ case class PInterfaceType(
 
 sealed trait PInterfaceClause extends PNode
 
-case class PInterfaceName(typ: PTypeNameUse) extends PInterfaceClause
+case class PInterfaceName(typ: PTypeName) extends PInterfaceClause
 
 // Felix: I see `isGhost` as part of the declaration and not as port of the specification.
 //        In the past, I usually created some ghost wrapper for these cases, but I wanted to get rid of them in the future.
@@ -748,13 +752,13 @@ case class PUnnamedReceiver(typ: PMethodRecvType) extends PReceiver
 case class PResult(outs: Vector[PParameter]) extends PNode with PActualMisc
 
 sealed trait PEmbeddedType extends PNode with PActualMisc {
-  def typ: PNamedType
+  def typ: PUnqualifiedTypeName
   def name: String = typ.name
 }
 
-case class PEmbeddedName(typ: PNamedType) extends PEmbeddedType
+case class PEmbeddedName(typ: PUnqualifiedTypeName) extends PEmbeddedType
 
-case class PEmbeddedPointer(typ: PNamedType) extends PEmbeddedType
+case class PEmbeddedPointer(typ: PUnqualifiedTypeName) extends PEmbeddedType
 
 
 /**

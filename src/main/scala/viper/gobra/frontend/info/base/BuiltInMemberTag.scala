@@ -34,14 +34,18 @@ object BuiltInMemberTag {
     override def ghost: Boolean = true
   }
 
+  sealed trait BuiltInPredicateTag extends GhostBuiltInMember {
+    def isAbstract: Boolean
+  }
+
   sealed trait BuiltInFunctionTag extends BuiltInMemberTag {
     def isPure: Boolean
   }
-  sealed trait BuiltInFPredicateTag extends GhostBuiltInMember
+  sealed trait BuiltInFPredicateTag extends BuiltInPredicateTag
   sealed trait BuiltInMethodTag extends BuiltInMemberTag {
     def isPure: Boolean
   }
-  sealed trait BuiltInMPredicateTag extends GhostBuiltInMember
+  sealed trait BuiltInMPredicateTag extends BuiltInPredicateTag
 
 
   /** Built-in Function Tags */
@@ -72,6 +76,7 @@ object BuiltInMemberTag {
   case object PredTrueFPredTag extends BuiltInFPredicateTag {
     override def identifier: String = "PredTrue"
     override def name: String = "PredTrueFPredTag"
+    override def isAbstract: Boolean = false
   }
 
 
@@ -133,31 +138,37 @@ object BuiltInMemberTag {
   case object IsChannelMPredTag extends BuiltInMPredicateTag {
     override def identifier: String = "IsChannel"
     override def name: String = "IsChannelMPredTag"
+    override def isAbstract: Boolean = true
   }
 
   case object SendChannelMPredTag extends BuiltInMPredicateTag {
     override def identifier: String = "SendChannel"
     override def name: String = "SendChannelMPredTag"
+    override def isAbstract: Boolean = true
   }
 
   case object RecvChannelMPredTag extends BuiltInMPredicateTag {
     override def identifier: String = "RecvChannel"
     override def name: String = "RecvChannelMPredTag"
+    override def isAbstract: Boolean = true
   }
 
   case object ClosedMPredTag extends BuiltInMPredicateTag {
     override def identifier: String = "Closed"
     override def name: String = "ClosedMPredTag"
+    override def isAbstract: Boolean = true
   }
 
   case object ClosureDebtMPredTag extends BuiltInMPredicateTag {
     override def identifier: String = "ClosureDebt"
     override def name: String = "ClosureDebtMPredTag"
+    override def isAbstract: Boolean = true
   }
 
   case object TokenMPredTag extends BuiltInMPredicateTag {
     override def identifier: String = "Token"
     override def name: String = "TokenMPredTag"
+    override def isAbstract: Boolean = true
   }
 
 

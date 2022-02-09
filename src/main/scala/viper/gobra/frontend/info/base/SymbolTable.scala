@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Entity, Environments}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.ExternalTypeInfo
-import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag}
+import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, BuiltInPredicateTag}
 
 
 object SymbolTable extends Environments[Entity] {
@@ -237,9 +237,12 @@ object SymbolTable extends Environments[Entity] {
   sealed trait BuiltInActualEntity extends BuiltInEntity with ActualRegular {
     override def ghost: Boolean = tag.ghost
   }
-  sealed trait BuiltInGhostEntity extends BuiltInEntity with GhostRegular
 
   sealed trait BuiltInMethodLike extends BuiltInEntity with TypeMember
+
+  sealed trait BuiltInPredicate extends BuiltInEntity with GhostRegular {
+    override def tag: BuiltInPredicateTag
+  }
 
   case class BuiltInFunction(tag: BuiltInFunctionTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInActualEntity {
     def isPure: Boolean = tag.isPure
@@ -247,8 +250,8 @@ object SymbolTable extends Environments[Entity] {
   case class BuiltInMethod(tag: BuiltInMethodTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInActualEntity with BuiltInMethodLike with ActualTypeMember {
     def isPure: Boolean = tag.isPure
   }
-  case class BuiltInFPredicate(tag: BuiltInFPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInGhostEntity
-  case class BuiltInMPredicate(tag: BuiltInMPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInGhostEntity with BuiltInMethodLike with GhostTypeMember
+  case class BuiltInFPredicate(tag: BuiltInFPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInPredicate
+  case class BuiltInMPredicate(tag: BuiltInMPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInPredicate with BuiltInMethodLike with GhostTypeMember
 
 
 

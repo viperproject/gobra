@@ -50,9 +50,9 @@ class AssertionsImpl extends Assertions {
             underlyingType match {
               case _: in.SliceT =>
                 val iterVar = in.BoundVar(Names.freshName, in.IntT(Addressability.Exclusive))(acc.info)
-                val translation = in.SepForall(
+                val quantifiedAssert = in.SepForall(
                   vars = Vector(iterVar),
-                  triggers = Vector(),
+                  triggers = Vector(in.Trigger(Vector(in.IndexedExp(op, iterVar, underlyingType)(acc.info)))(acc.info)),
                   body = in.Implication(
                     in.And(
                       in.AtMostCmp(in.IntLit(0)(acc.info), iterVar)(acc.info),
@@ -63,7 +63,7 @@ class AssertionsImpl extends Assertions {
                     )(acc.info)
                   )(acc.info)
                 )(acc.info)
-                ctx.ass.translate(translation)(ctx)
+                ctx.ass.translate(quantifiedAssert)(ctx)
               case _: in.MapT => ctx.typeEncoding.assertion(ctx)(acc)
               case _ => Violation.violation(s"unexpected expression $op in an access predicate")
             }

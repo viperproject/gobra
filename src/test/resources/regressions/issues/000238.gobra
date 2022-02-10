@@ -1,0 +1,24 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+requires acc(x)
+func f(x []int) {
+	assert forall i int :: 0 <= i && i < len(x) ==> acc(&x[i])
+}
+
+requires acc(x)
+func g(x []int) {
+	assert forall i int :: 0 <= i && i < len(x) ==> acc(&x[i])
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert false
+}
+
+// test with defined types
+type T []int
+
+requires acc(x)
+func h(x T) {
+	assert forall i int :: 0 <= i && i < len(x) ==> acc(&x[i])
+}

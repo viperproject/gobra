@@ -3023,12 +3023,11 @@ object Desugar {
               }
 
             case Single(t: Type.SliceT) =>
-              val typ = typeD(underlyingType(t), Addressability.Exclusive)(src)
+              val typ = typeD(underlyingType(t), Addressability.exprInAcc)(src)
               goE(acc) map (x => in.Accessible.ExprAccess(x, typ))
 
-            // TODO: // TODO: do similarly same for slices (issue #238)
             case Single(t: Type.MapT) =>
-              val typ = typeD(underlyingType(t), Addressability.Exclusive)(src)
+              val typ = typeD(underlyingType(t), Addressability.exprInAcc)(src)
               goE(acc) map (x => in.Accessible.ExprAccess(x, typ))
 
             case _ => Violation.violation(s"expected pointer type or a predicate, but got $argT")

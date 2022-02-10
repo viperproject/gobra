@@ -15,7 +15,7 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import viper.gobra.translator.encodings.arrays.SharedArrayEmbedding
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
@@ -29,13 +29,13 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.{ViperUtil => vu}
 
-  override def finalize(col : Collector) : Unit = {
-    constructGenerator.finalize(col)
-    fullSliceFromArrayGenerator.finalize(col)
-    fullSliceFromSliceGenerator.finalize(col)
-    sliceFromArrayGenerator.finalize(col)
-    sliceFromSliceGenerator.finalize(col)
-    nilSliceGenerator.finalize(col)
+  override def finalize(addMemberFn: vpr.Member => Unit) : Unit = {
+    constructGenerator.finalize(addMemberFn)
+    fullSliceFromArrayGenerator.finalize(addMemberFn)
+    fullSliceFromSliceGenerator.finalize(addMemberFn)
+    sliceFromArrayGenerator.finalize(addMemberFn)
+    sliceFromSliceGenerator.finalize(addMemberFn)
+    nilSliceGenerator.finalize(addMemberFn)
   }
 
   /**
@@ -105,7 +105,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
 
       case (lit : in.SliceLit) :: ctx.Slice(_) =>
         val litA = lit.asArrayLit
-        val tmp = in.LocalVar(Names.freshName, litA.typ.withAddressability(Addressability.pointerBase))(lit.info)
+        val tmp = in.LocalVar(ctx.freshNames.next(), litA.typ.withAddressability(Addressability.pointerBase))(lit.info)
         val tmpT = ctx.typeEncoding.variable(ctx)(tmp)
         val underlyingTyp = underlyingType(lit.typ)(ctx)
         for {
@@ -137,7 +137,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       case makeStmt@in.MakeSlice(target, in.SliceT(typeParam, _), lenArg, optCapArg) =>
         val (pos, info, errT) = makeStmt.vprMeta
         val sliceT = in.SliceT(typeParam.withAddressability(Shared), Addressability.Exclusive)
-        val slice = in.LocalVar(Names.freshName, sliceT)(makeStmt.info)
+        val slice = in.LocalVar(ctx.freshNames.next(), sliceT)(makeStmt.info)
         val vprSlice = ctx.typeEncoding.variable(ctx)(slice)
         seqn(
           for {
@@ -223,7 +223,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
 
     val (pos, info, errT) = src.vprMeta
 
-    val idx = in.BoundVar(Names.freshName, in.IntT(Exclusive))(src.info)
+    val idx = in.BoundVar(ctx.freshNames.next(), in.IntT(Exclusive))(src.info)
     val vIdx = ctx.typeEncoding.variable(ctx)(idx)
 
     for {
@@ -325,7 +325,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val post4 = vpr.EqCmp(ctx.slice.cap(result)(), capDecl.localVar)()
 
       vpr.Function(
-        s"${Names.sliceConstruct}_${Names.freshName}",
+        s"${Names.sliceConstruct}_${Names.serializeType(typ)}",
         Seq(aDecl, offsetDecl, lenDecl, capDecl),
         ctx.slice.typ(typ),
         Seq(pre1, pre2, pre3, pre4),
@@ -385,7 +385,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       )(ctx)()
 
       vpr.Function(
-        s"${Names.fullSliceFromArray}_${Names.freshName}",
+        s"${Names.fullSliceFromArray}_${Names.serializeType(typ)}",
         Seq(aDecl, iDecl, jDecl, kDecl),
         ctx.slice.typ(typ),
         Seq(pre1, pre2, pre3, pre4, pre5),
@@ -446,7 +446,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       )(ctx)()
 
       vpr.Function(
-        s"${Names.fullSliceFromSlice}_${Names.freshName}",
+        s"${Names.fullSliceFromSlice}_${Names.serializeType(typ)}",
         Seq(sDecl, iDecl, jDecl, kDecl),
         ctx.slice.typ(typ),
         Seq(pre1, pre2, pre3, pre4, pre5),
@@ -503,7 +503,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       )(ctx)()
 
       vpr.Function(
-        s"${Names.sliceFromArray}_${Names.freshName}",
+        s"${Names.sliceFromArray}_${Names.serializeType(typ)}",
         Seq(aDecl, iDecl, jDecl),
         ctx.slice.typ(typ),
         Seq(pre1, pre2, pre3),
@@ -561,7 +561,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       )(ctx)()
 
       vpr.Function(
-        s"${Names.sliceFromSlice}_${Names.freshName}",
+        s"${Names.sliceFromSlice}_${Names.serializeType(typ)}",
         Seq(sDecl, iDecl, jDecl),
         ctx.slice.typ(typ),
         Seq(pre1, pre2, pre3, pre4),
@@ -618,7 +618,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       )(ctx)()
 
       vpr.Function(
-        s"${Names.sliceDefaultFunc}_${Names.freshName}",
+        s"${Names.sliceDefaultFunc}_${Names.serializeType(typ)}",
         Seq(),
         sliceTypT,
         Seq(pre1),

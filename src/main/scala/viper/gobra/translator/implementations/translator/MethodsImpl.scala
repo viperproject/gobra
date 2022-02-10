@@ -9,7 +9,7 @@ package viper.gobra.translator.implementations.translator
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Methods
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.ast.Method
 import viper.silver.{ast => vpr}
@@ -19,7 +19,7 @@ class MethodsImpl extends Methods {
   import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl, _}
   import MemberLevel._
 
-  override def finalize(col: Collector): Unit = ()
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = ()
 
   override def method(x: in.Method)(ctx: Context): MemberWriter[Method] = {
     val (pos, info, errT) = x.vprMeta

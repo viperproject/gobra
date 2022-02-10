@@ -12,7 +12,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.TypeEncoding
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
@@ -43,10 +43,10 @@ class StructEncoding extends TypeEncoding {
 
   private val sh: SharedStructComponent = new SharedStructComponentImpl
 
-  override def finalize(col: Collector): Unit = {
-    ex.finalize(col)
-    sh.finalize(col)
-    shDfltFunc.finalize(col)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    ex.finalize(addMemberFn)
+    sh.finalize(addMemberFn)
+    shDfltFunc.finalize(addMemberFn)
   }
 
   /**
@@ -248,17 +248,18 @@ class StructEncoding extends TypeEncoding {
     */
   private val shDfltFunc: FunctionGenerator[Vector[in.Field]] = new FunctionGenerator[Vector[in.Field]] {
     override def genFunction(fs: Vector[in.Field])(ctx: Context): vpr.Function = {
-      val resType = in.StructT("the name does not matter", fs, Shared)
+      val resType = in.StructT(fs, Shared)
       val vResType = typ(ctx)(resType)
       val src = in.DfltVal(resType)(Source.Parser.Internal)
-      val resDummy = in.LocalVar(Names.freshName, resType)(src.info)
+      // variable name does not matter because it is turned into a vpr.Result
+      val resDummy = in.LocalVar("res", resType)(src.info)
       val resFAccs = fs.map(f => in.Ref(in.FieldRef(resDummy, f)(src.info))(src.info))
       val fieldEq = resFAccs map (f => ctx.typeEncoding.equal(ctx)(f, in.DfltVal(f.typ)(src.info), src))
       val post = pure(sequence(fieldEq).map(VU.bigAnd(_)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)))(ctx).res
           .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
 
       vpr.Function(
-        name = s"${Names.sharedStructDfltFunc}_${Names.freshName}",
+        name = s"${Names.sharedStructDfltFunc}_${Names.serializeFields(fs)}",
         formalArgs = Seq.empty,
         typ = vResType,
         pres = Seq.empty,

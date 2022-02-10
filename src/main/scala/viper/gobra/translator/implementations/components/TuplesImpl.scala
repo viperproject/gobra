@@ -6,7 +6,7 @@
 
 package viper.gobra.translator.implementations.components
 
-import viper.gobra.translator.interfaces.Collector
+import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.components.Tuples
 import viper.silver.{ast => vpr}
 
@@ -15,10 +15,10 @@ import scala.collection.mutable
 class TuplesImpl extends Tuples {
 
   /**
-    * Finalizes translation. May add to collector.
+    * Finalizes translation. `addMemberFn` is called with any member that is part of the encoding.
     */
-  override def finalize(col: Collector): Unit = {
-    generatedDomains foreach col.addMember
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    generatedDomains foreach addMemberFn
   }
 
   override def typ(args: Vector[vpr.Type]): vpr.DomainType = {
@@ -67,7 +67,7 @@ class TuplesImpl extends Tuples {
   private val getters: mutable.Map[(Int,Int), vpr.DomainFunc] = mutable.Map.empty
 
   private def addNTuplesDomain(arity: Int): Unit = {
-    val domainName = s"Tuple$arity"
+    val domainName = s"${Names.tupleDomain}$arity"
 
     val typeVars = 0.until(arity) map (ix => vpr.TypeVar(s"T$ix"))
     val decls = 0.until(arity) map (ix => vpr.LocalVarDecl(s"t$ix", typeVars(ix))())
@@ -128,10 +128,12 @@ class TuplesImpl extends Tuples {
       )(domainName = domainName)
     }
 
+    // there are not quantified variables for tuples of 0 arity. Thus, do not generate any axioms in this case:
+    val axioms = if (arity == 0) Seq.empty else Seq(getOverTupleAxiom, tupleOverGetAxiom)
     val domain = vpr.Domain(
       domainName,
       tupleFunc +: getFuncs,
-      Seq(getOverTupleAxiom, tupleOverGetAxiom),
+      axioms,
       typeVars
     )()
 

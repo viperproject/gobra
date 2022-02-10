@@ -12,7 +12,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting.{DefaultErrorBackTranslator, FoldError, Source, UnfoldError}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 import viper.silver.verifier.{errors => vprerr}
@@ -24,8 +24,8 @@ class PredEncoding extends LeafTypeEncoding {
 
   private val defunc: DefuncComponent = new DefuncComponentImpl
 
-  override def finalize(col: Collector): Unit = {
-    defunc.finalize(col)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    defunc.finalize(addMemberFn)
   }
 
   /**

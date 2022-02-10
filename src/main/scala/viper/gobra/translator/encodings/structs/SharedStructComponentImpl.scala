@@ -7,7 +7,7 @@
 package viper.gobra.translator.encodings.structs
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
 import StructEncoding.ComponentParameter
 import viper.gobra.translator.Names
@@ -18,7 +18,7 @@ import viper.gobra.translator.Names
   * */
 class SharedStructComponentImpl extends SharedStructComponent {
 
-  override def finalize(col: Collector): Unit = genDomains.foreach(col.addMember)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = genDomains foreach addMemberFn
 
   private var genDomains: List[vpr.Domain] = List.empty
   private var genArities: Set[Int] = Set.empty

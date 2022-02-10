@@ -13,7 +13,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeLevel._
 import viper.gobra.translator.util.ViperWriter.CodeWriter
@@ -102,7 +102,7 @@ class StringEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = conv.vprMeta
 
         val sliceT = in.SliceT(in.IntT(Addressability.sliceElement, TypeBounds.Byte), Addressability.outParameter)
-        val slice = in.LocalVar(Names.freshName, sliceT)(conv.info)
+        val slice = in.LocalVar(ctx.freshNames.next(), sliceT)(conv.info)
         val vprSlice = ctx.typeEncoding.variable(ctx)(slice)
         val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(conv.info)
         val post = in.SepForall(
@@ -125,11 +125,11 @@ class StringEncoding extends LeafTypeEncoding {
     }
   }
 
-  override def finalize(col: Collector): Unit = {
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     if (isUsed) {
-      col.addMember(genDomain())
-      col.addMember(strSlice)
-      byteSliceToStrFuncGenerator.finalize(col)
+      addMemberFn(genDomain())
+      addMemberFn(strSlice)
+      byteSliceToStrFuncGenerator.finalize(addMemberFn)
     }
   }
   private var isUsed: Boolean = false

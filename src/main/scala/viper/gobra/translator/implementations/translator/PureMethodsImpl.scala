@@ -8,7 +8,7 @@ package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.translator.PureMethods
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
 
 class PureMethodsImpl extends PureMethods {
@@ -17,9 +17,9 @@ class PureMethodsImpl extends PureMethods {
   import MemberLevel._
 
   /**
-    * Finalizes translation. May add to collector.
+    * Finalizes translation. `addMemberFn` is called with any member that is part of the encoding.
     */
-  override def finalize(col: Collector): Unit = ()
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = ()
 
   override def pureMethod(meth: in.PureMethod)(ctx: Context): MemberWriter[vpr.Function] = {
     require(meth.results.size == 1)

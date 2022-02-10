@@ -294,7 +294,7 @@ class MapEncoding extends LeafTypeEncoding {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
 
     default(super.assertion(ctx)) {
-      case n@ in.Access(in.Accessible.ExprAccess(exp :: ctx.Map(_, _)), perm) =>
+      case n@ in.Access(in.Accessible.ExprAccess(exp :: ctx.Map(_, _), _), perm) =>
         val (pos, info, errT) = n.vprMeta
         for {
           vE <- goE(exp)

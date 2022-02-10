@@ -46,20 +46,24 @@ class AssertionsImpl extends Assertions {
         acc.e match {
           case in.Accessible.Predicate(op) => ctx.predicate.predicateAccess(ctx)(op, acc.p)
           case in.Accessible.Address(op) => ctx.typeEncoding.addressFootprint(ctx)(op, acc.p)
-          case in.Accessible.ExprAccess(op) =>
-            op.typ match {
-              case s: in.SliceT =>
+          case in.Accessible.ExprAccess(op, underlyingType) =>
+            underlyingType match {
+              case _: in.SliceT =>
                 val iterVar = in.BoundVar(Names.freshName, in.IntT(Addressability.Exclusive))(acc.info)
                 val translation = in.SepForall(
                   vars = Vector(iterVar),
                   triggers = Vector(),
                   body = in.Implication(
-                    in.And(in.AtLeastCmp(in.IntLit(0)(acc.info), iterVar)(acc.info), in.LessCmp(iterVar, in.Length(op)(acc.info))(acc.info), )(acc.info),
-                    in.Access(in.Ref(in.IndexedExp(op, iterVar, ), in.PointerT(s.elems, Addressability.Exclusive))(acc.info))
+                    in.And(
+                      in.AtMostCmp(in.IntLit(0)(acc.info), iterVar)(acc.info),
+                      in.LessCmp(iterVar, in.Length(op)(acc.info))(acc.info))(acc.info),
+                    in.Access(
+                      in.Accessible.Address(in.IndexedExp(op, iterVar, underlyingType)(acc.info)),
+                      acc.p
+                    )(acc.info)
                   )(acc.info)
-
                 )(acc.info)
-                ctx.typeEncoding.assertion(ctx)(acc)
+                ctx.ass.translate(translation)(ctx)
               case _: in.MapT => ctx.typeEncoding.assertion(ctx)(acc)
               case _ => Violation.violation(s"unexpected expression $op in an access predicate")
             }

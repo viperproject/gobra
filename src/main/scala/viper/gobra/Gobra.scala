@@ -50,9 +50,9 @@ trait GoVerifier extends StrictLogging {
     this.getClass.getSimpleName
   }
 
-  def verifyAllPackages(config: Config)(executor: GobraExecutionContext): (Set[Warning], Vector[VerifierError]) = {
+  def verifyAllPackages(config: Config)(executor: GobraExecutionContext):Vector[VerifierError] = {
     val statsCollector = StatsCollector(config.reporter)
-    var allWarnings: Set[String] = Set()
+    var warningCount: Int = 0
     var allErrors: Vector[VerifierError] = Vector()
 
     // write report to file on shutdown
@@ -75,7 +75,7 @@ trait GoVerifier extends StrictLogging {
       statsCollector.report(VerificationTaskFinishedMessage(pkgString))
 
       val warnings = statsCollector.getWarnings(pkg.path, pkg.name, config)
-      allWarnings = allWarnings ++ warnings
+      warningCount += warnings.size
       warnings.foreach(w => logger.warn(w))
 
       result match {
@@ -86,7 +86,25 @@ trait GoVerifier extends StrictLogging {
           allErrors = allErrors ++ errors
       }
     })
-    (allWarnings, allErrors)
+    logger.info("\n")
+    logger.info("Summary:")
+    logger.info("\n")
+
+    if(warningCount > 0) {
+      logger.warn(s"$name has found $warningCount warning(s)")
+    }
+    if(allErrors.nonEmpty) {
+      logger.error(s"$name has found ${allErrors.size} error(s)")
+    } else {
+      logger.info(s"$name found no errors")
+    }
+
+    // Print statistics for caching
+    if(config.cacheFile.isDefined) {
+      logger.info("Number of cacheable Viper members: " + statsCollector.getNumberOfCacheableViperMembers)
+      logger.info("Number of cached Viper members: " + statsCollector.getNumberOfCachedViperMembers)
+    }
+    allErrors
   }
 
   def verify(config: Config, taskName: Option[String] = None)(executor: GobraExecutionContext): Future[VerifierResult] = {
@@ -277,23 +295,10 @@ object GobraRunner extends GobraFrontend with StrictLogging {
       // Print copyright report
       config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
 
-      val result = verifier.verifyAllPackages(config)(executor)
-      val warnings = result._1
-      val errors = result._2
+      val errors = verifier.verifyAllPackages(config)(executor)
 
-      logger.info("\n")
-      logger.info("Summary:")
-      logger.info("\n")
-
-      // Write console summary
-      if(warnings.nonEmpty) {
-        logger.warn(s"${verifier.name} has found ${warnings.size} warning(s)")
-      }
       if(errors.nonEmpty) {
-        logger.error(s"${verifier.name} has found ${errors.size} error(s)")
         exitCode = 1
-      } else {
-        logger.info(s"${verifier.name} found no errors")
       }
     } catch {
       case e: UglyErrorMessage =>

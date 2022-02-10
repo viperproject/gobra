@@ -99,6 +99,10 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     reporter.report(msg)
   }
 
+  def getNumberOfCachedViperMembers: Int = memberMap.values.flatMap(_.viperMembers.values).count(_.cached)
+
+  def getNumberOfCacheableViperMembers: Int = memberMap.values.flatMap(_.viperMembers.values).count(member => member.hasBody && member.nodeType == "Method")
+
   def writeJsonReportToFile(file: File): Unit = {
     if((file.exists() && file.canWrite) || file.getParentFile.canWrite) {
       FileUtils.writeStringToFile(file, getJsonReport(false), UTF_8)

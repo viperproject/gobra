@@ -43,13 +43,7 @@ class AssertionsImpl extends Assertions {
         acc.e match {
           case in.Accessible.Predicate(op) => ctx.predicate.predicateAccess(ctx)(op, acc.p)
           case in.Accessible.Address(op) => ctx.typeEncoding.addressFootprint(ctx)(op, acc.p)
-          case in.Accessible.ExprAccess(op) =>
-            val underlyingType = ctx.underlyingType(op.typ)
-            underlyingType match {
-              case _: in.SliceT => ctx.typeEncoding.assertion(ctx)(acc)
-              case _: in.MapT => ctx.typeEncoding.assertion(ctx)(acc)
-              case _ => Violation.violation(s"unexpected expression $op in an access predicate")
-            }
+          case in.Accessible.ExprAccess(op) => ctx.typeEncoding.assertion(ctx)(acc)
           case n => Violation.violation(s"node $n should have been handled by an type encoding.")
         }
 

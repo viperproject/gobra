@@ -11,6 +11,8 @@ import viper.silver.verifier.{errors => vprerr}
 import viper.gobra.reporting.BackTranslator.ErrorTransformer
 import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, Source}
+import viper.gobra.theory.Addressability
+import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.interfaces.translator.Assertions
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
@@ -46,6 +48,18 @@ class AssertionsImpl extends Assertions {
           case in.Accessible.Address(op) => ctx.typeEncoding.addressFootprint(ctx)(op, acc.p)
           case in.Accessible.ExprAccess(op) =>
             op.typ match {
+              case s: in.SliceT =>
+                val iterVar = in.BoundVar(Names.freshName, in.IntT(Addressability.Exclusive))(acc.info)
+                val translation = in.SepForall(
+                  vars = Vector(iterVar),
+                  triggers = Vector(),
+                  body = in.Implication(
+                    in.And(in.AtLeastCmp(in.IntLit(0)(acc.info), iterVar)(acc.info), in.LessCmp(iterVar, in.Length(op)(acc.info))(acc.info), )(acc.info),
+                    in.Access(in.Ref(in.IndexedExp(op, iterVar, ), in.PointerT(s.elems, Addressability.Exclusive))(acc.info))
+                  )(acc.info)
+
+                )(acc.info)
+                ctx.typeEncoding.assertion(ctx)(acc)
               case _: in.MapT => ctx.typeEncoding.assertion(ctx)(acc)
               case _ => Violation.violation(s"unexpected expression $op in an access predicate")
             }

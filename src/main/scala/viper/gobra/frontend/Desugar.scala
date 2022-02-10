@@ -3022,7 +3022,10 @@ object Desugar {
                   goE(acc) map (x => in.Accessible.Address(in.Deref(x, typeD(ut.elem, Addressability.dereference)(src))(src)))
               }
 
-            // TODO: do similarly same for slices (issue #238)
+            case Single(_: Type.SliceT) =>
+              goE(acc) map (x => in.Accessible.ExprAccess(x))
+
+            // TODO: // TODO: do similarly same for slices (issue #238)
             case Single(_: Type.MapT) =>
               goE(acc) map (x => in.Accessible.ExprAccess(x))
 

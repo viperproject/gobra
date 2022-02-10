@@ -9,8 +9,8 @@ import viper.gobra.translator.interfaces.translator.Generator
 import viper.silver.{ast => vpr}
 
 trait Collector {
-  /** invokes finalize on each generator */
-  def finalize(generators: Vector[Generator]): Unit
+  /** invokes finalize on the generator */
+  def finalize(generator: Generator): Unit
 
   def domains: Seq[vpr.Domain]
   def fields: Seq[vpr.Field]

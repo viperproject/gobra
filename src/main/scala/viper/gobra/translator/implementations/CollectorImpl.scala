@@ -19,13 +19,11 @@ class CollectorImpl extends Collector {
   protected var _methods: List[vpr.Method]  = List.empty
   protected var _extensions: List[vpr.ExtensionMember] = List.empty
 
-  /** invokes finalize on each generator */
-  override def finalize(generators: Vector[Generator]): Unit = {
-    for (generator <- generators) {
-      if(!_visitedGenerators.contains(generator)) {
-        _visitedGenerators += generator
-        generator.finalize(addMember)
-      }
+  /** invokes finalize on the generator */
+  override def finalize(generator: Generator): Unit = {
+    if(!_visitedGenerators.contains(generator)) {
+      _visitedGenerators += generator
+      generator.finalize(addMember)
     }
   }
 

@@ -105,34 +105,31 @@ trait Context {
 
 
   def finalize(col : Collector): Unit = {
-    val generators = Vector(
-      // components
-      field,
-      array,
-      seqToSet,
-      seqToMultiset,
-      seqMultiplicity,
-      option,
-      optionToSeq,
-      slice,
-      fixpoint,
-      tuple,
-      equality,
-      condition,
-      unknownValue,
+    // components
+    col.finalize(field)
+    col.finalize(array)
+    col.finalize(seqToSet)
+    col.finalize(seqToMultiset)
+    col.finalize(seqMultiplicity)
+    col.finalize(option)
+    col.finalize(optionToSeq)
+    col.finalize(slice)
+    col.finalize(fixpoint)
+    col.finalize(tuple)
+    col.finalize(equality)
+    col.finalize(condition)
+    col.finalize(unknownValue)
 
-      // translators
-      typeEncoding,
-      ass,
-      measures,
-      expr,
-      method,
-      pureMethod,
-      predicate,
-      builtInMembers,
-      stmt
-    )
-    col.finalize(generators)
+    // translators
+    col.finalize(typeEncoding)
+    col.finalize(ass)
+    col.finalize(measures)
+    col.finalize(expr)
+    col.finalize(method)
+    col.finalize(pureMethod)
+    col.finalize(predicate)
+    col.finalize(builtInMembers)
+    col.finalize(stmt)
   }
 
   trait FreshNameIterator extends Iterator[String] {

@@ -198,7 +198,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
               existingViperEntry.fromImport,
               existingViperEntry.hasBody || viperMember.hasBody
             )
-          case None =>
+          case None => existing.viperMembers += viperKey -> viperMember
         }
         // If we encounter an abstract version of a member, we know for sure, its abstract
         existing.isAbstract = existing.isAbstract || isAbstract

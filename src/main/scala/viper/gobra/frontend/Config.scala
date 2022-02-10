@@ -146,11 +146,18 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     short = 'r'
   )
 
-  val packages: ScallopOption[List[String]] = opt[List[String]](
-    name = "packages",
-    descr = "Which packages should be verified, all packages are verified per default",
+  val includePackages: ScallopOption[List[String]] = opt[List[String]](
+    name = "includePackages",
+    descr = "Which packages should be verified, all packages are verified by default",
     default = Some(List.empty),
     short = 'p'
+  )
+
+  val excludePackages: ScallopOption[List[String]] = opt[List[String]](
+    name = "excludePackages",
+    descr = "Which packages should not be verified, all packages are verified by default",
+    default = Some(List.empty),
+    noshort = true
   )
 
   val gobraDirectory: ScallopOption[Path] = opt[Path](
@@ -302,7 +309,9 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   /** File Validation */
   def validateInput(inputOption: ScallopOption[List[String]],
                     recOption: ScallopOption[Boolean],
-                    pkgOption: ScallopOption[List[String]]): Unit = validateOpt(inputOption, recOption, pkgOption) { (inputOpt, recOpt, pkgOpt) =>
+                    includePkgOption: ScallopOption[List[String]],
+                    excludePkgOption: ScallopOption[List[String]]): Unit =
+    validateOpt(inputOption, recOption, includePkgOption, excludePkgOption) { (inputOpt, recOpt, includePkgOpt, excludePkgOpt) =>
 
     def checkConversion(input: List[String]): Either[String, Vector[Path]] = {
       def validateSources(sources: Vector[Source]): Either[Messages, Vector[Path]] = {
@@ -317,7 +326,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
       val shouldParseRecursively = recOpt.getOrElse(false)
       val inputValidationMsgs = InputConverter.validate(input, shouldParseRecursively)
-      val sources = InputConverter.convert(input, shouldParseRecursively, pkgOpt.getOrElse(List()))
+      val sources = InputConverter.convert(input, shouldParseRecursively, includePkgOpt.getOrElse(List()), excludePkgOpt.getOrElse(List()))
 
       val paths = for {
         _ <- if (inputValidationMsgs.isEmpty) Right(()) else Left(inputValidationMsgs)
@@ -378,7 +387,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   })
   val cutInput: ScallopOption[List[String]] = cutInputWithIdxs.map(_.map(_._1))
 
-  validateInput(input, recursive, packages)
+  validateInput(input, recursive, includePackages, excludePackages)
 
   // cache file should only be usable when using viper server
   validateOpt (backend, cacheFile) {
@@ -391,7 +400,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   verify()
 
   lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
-  lazy val inputPackageMap: Map[PackageEntry, Vector[Source]] = InputConverter.convert(input.toOption.getOrElse(List()), recursive.getOrElse(false), packages.getOrElse(List()))
+  lazy val inputPackageMap: Map[PackageEntry, Vector[Source]] = InputConverter.convert(input.toOption.getOrElse(List()), recursive.getOrElse(false), includePackages.getOrElse(List()), excludePackages.getOrElse(List()))
   lazy val isolated: Option[Vector[SourcePosition]] =
     InputConverter.isolatedPosition(cutInputWithIdxs.toOption) match {
       case Nil => None
@@ -424,7 +433,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       }
     }
 
-    def convert(input: List[String], recursive: Boolean, packages: List[String]): Map[PackageEntry, Vector[Source]] = {
+    def convert(input: List[String], recursive: Boolean, includePackages: List[String], excludePackages: List[String]): Map[PackageEntry, Vector[Source]] = {
       val res = parseInputStrings(input.toVector, recursive).map(f => FileSource(f.toString))
 
       Violation.violation(isInputOptional || res.nonEmpty, "no input files specified")
@@ -439,7 +448,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
           }
         })
         // Filter files by package name
-        .filter({ case (PackageEntry(_, packageName), _) => packages.isEmpty || packages.contains(packageName)})
+        .filter({ case (PackageEntry(_, packageName), _) => (includePackages.isEmpty || includePackages.contains(packageName)) && !excludePackages.contains(packageName)})
         .map({ case (key, srcs) => (key, srcs.map(src => FileSource(src.name))) })
     }
 

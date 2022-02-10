@@ -33,7 +33,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
                               memberName: String,
                               nodeType: String,
                               args: String,
-                              var viperMembers: List[ViperMemberEntry],
+                              var viperMembers: Map[String, ViperMemberEntry],
                               isTrusted: Boolean,
                               var isAbstract: Boolean)
 
@@ -59,8 +59,9 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
   override def report(msg: GobraMessage): Unit = {
     msg match {
-        // Capture typeInfo once it's available
+      // Capture typeInfo once it's available
       case TypeInfoMessage(typeInfo, taskName) => this.synchronized({ typeInfos = typeInfos + (taskName -> typeInfo)})
+      // Free up unneeded space, once a task is finished
       case VerificationTaskFinishedMessage(taskName) => this.synchronized({ typeInfos = typeInfos - taskName})
       case GobraEntitySuccessMessage(taskName, _, e, info, time, cached) if !info.node.isInstanceOf[BuiltInMember] =>
         Violation.violation(typeInfos.contains(taskName), "No type info available for stats reporter")
@@ -116,7 +117,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     "trusted": ${gobraMember.isTrusted},
     "abstract": ${gobraMember.isAbstract},
     "viperMembers": [ """ + "\n" +
-          gobraMember.viperMembers.map(viperMember => s"""      {
+          gobraMember.viperMembers.values.map(viperMember => s"""      {
         "name": "${viperMemberName(viperMember.member)}",
         "taskName": "${viperMember.taskName}",
         "nodeType": "${viperMember.nodeType}",
@@ -126,12 +127,12 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         "hasBody": ${viperMember.hasBody},
         "cached": ${viperMember.cached}
       }""").mkString(", \n") + "\n    ],\n" + s"""    "dependencies": [""" + "\n" +
-        gobraMember.viperMembers
+        gobraMember.viperMembers.values
           .flatMap(viperMember => getDependencies(viperMember.member)
             .flatMap(dep => findGobraMemberByViperMemberName(viperMember.taskName, dep, gobraMember.pkgDir))
           )
           // Filter out dependencies on one self, since this information isn't very useful
-          .filter(_ == gobraMember)
+          .filter(_ != gobraMember)
           .map(gobraMemberEntry => "        \"" + gobraMemberKey(gobraMemberEntry.pkgDir, gobraMemberEntry.pkg, gobraMemberEntry.memberName, gobraMemberEntry.args) + "\"")
           .toSet
           .mkString(", \n") + "\n    ]\n  }"
@@ -153,7 +154,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     memberMap.values
       .filter(gobraMember => gobraMember.pkgDir == pkgDir && gobraMember.pkg == pkg)
       .flatMap(gobraMember =>
-        gobraMember.viperMembers.flatMap(viperMember => {
+        gobraMember.viperMembers.values.flatMap(viperMember => {
             val name = gobraMember.pkg + "." + gobraMember.memberName + gobraMember.args
             // Check if any viper dependencies correspond to a trusted or abstract, non-builtin gobra member
             getDependencies(viperMember.member)
@@ -180,17 +181,30 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
                 isTrusted: Boolean,
                 isAbstract: Boolean): Unit = this.synchronized({
     val key = gobraMemberKey(pkgDir, pkg, memberName, args)
+    val viperKey = viperMemberKey(viperMember.taskName, viperMemberName(viperMember.member))
 
     memberMap.get(key) match {
       case Some(existing) =>
-        existing.viperMembers = existing.viperMembers.appended(viperMember)
+        existing.viperMembers.get(viperKey) match {
+          case Some(existingViperEntry) =>
+            // Merge Viper members that occur multiple times during a task(used for chopper)
+            existing.viperMembers += viperKey -> ViperMemberEntry(
+              if(viperMember.hasBody) viperMember.member else existingViperEntry.member,
+              existingViperEntry.taskName,
+              existingViperEntry.time + viperMember.time,
+              existingViperEntry.nodeType,
+              existingViperEntry.success || viperMember.success,
+              existingViperEntry.cached || viperMember.cached,
+              existingViperEntry.fromImport,
+              existingViperEntry.hasBody || viperMember.hasBody
+            )
+          case None =>
+        }
         // If we encounter an abstract version of a member, we know for sure, its abstract
         existing.isAbstract = existing.isAbstract || isAbstract
         Violation.violation(existing.isTrusted == isTrusted, "Same members with different trusted declarations found: \n " + key)
-      case None => memberMap = memberMap + (key -> GobraMemberEntry(pkgDir, pkg, memberName, nodeType, args, List(viperMember), isTrusted, isAbstract))
+      case None => memberMap += key -> GobraMemberEntry(pkgDir, pkg, memberName, nodeType, args, Map(viperKey -> viperMember), isTrusted, isAbstract)
     }
-
-    val viperKey = viperMemberKey(viperMember.taskName, viperMemberName(viperMember.member))
 
     // (JG 03.02.2022) Currently there can exist two viper members with the exact same name and the same arguments.
     // This happens if we are in a package that contains this said method and import another package that contains a

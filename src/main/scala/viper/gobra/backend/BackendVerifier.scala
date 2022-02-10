@@ -66,11 +66,10 @@ object BackendVerifier {
         // }
 
         programs.zipWithIndex.foldLeft(Future.successful(silver.verifier.Success): Future[VerificationResult]) { case (res, (program, idx)) =>
-          val programSubID = s"${programID}_$idx"
           for {
             acc <- res
             next <- verifier
-              .verify(programSubID, BacktranslatingReporter(config.reporter, task.backtrack, config, task.name), program)(executor)
+              .verify(programID, BacktranslatingReporter(config.reporter, task.backtrack, config, task.name), program)(executor)
               .andThen(_ => config.reporter report ChoppedProgressMessage(idx+1, num))
           } yield (acc, next) match {
             case (acc, silver.verifier.Success) => acc

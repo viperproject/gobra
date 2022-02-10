@@ -76,7 +76,7 @@ object GobraStrategy {
       case (_: Accessible.Address, Seq(d: Deref)) => Accessible.Address(d)
       case (_: Accessible.Predicate, Seq(p: PredicateAccess)) => Accessible.Predicate(p)
       case (_: Accessible.PredExpr, Seq(p: PredExprInstance)) => Accessible.PredExpr(p)
-      case (_: Accessible.ExprAccess, Seq(op: Expr, underlyingType: Type)) => Accessible.ExprAccess(op, underlyingType)
+      case (_: Accessible.ExprAccess, Seq(op: Expr)) => Accessible.ExprAccess(op)
       case (_: FPredicateAccess, Seq(pred: FPredicateProxy, args: Vector[Expr@unchecked])) => FPredicateAccess(pred, args)(meta)
       case (_: MPredicateAccess, Seq(recv: Expr, pred: MPredicateProxy, args: Vector[Expr@unchecked])) => MPredicateAccess(recv, pred, args)(meta)
       case (_: MemoryPredicateAccess, Seq(arg: Expr)) => MemoryPredicateAccess(arg)(meta)

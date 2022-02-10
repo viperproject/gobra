@@ -7,16 +7,13 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
-import viper.silver.verifier.{errors => vprerr}
-import viper.gobra.reporting.BackTranslator.ErrorTransformer
-import viper.gobra.reporting.BackTranslator.RichErrorMessage
+import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
 import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, Source}
-import viper.gobra.theory.Addressability
-import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.interfaces.translator.Assertions
+import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.gobra.util.Violation
+import viper.silver.verifier.{errors => vprerr}
 import viper.silver.{ast => vpr}
 
 
@@ -46,24 +43,10 @@ class AssertionsImpl extends Assertions {
         acc.e match {
           case in.Accessible.Predicate(op) => ctx.predicate.predicateAccess(ctx)(op, acc.p)
           case in.Accessible.Address(op) => ctx.typeEncoding.addressFootprint(ctx)(op, acc.p)
-          case in.Accessible.ExprAccess(op, underlyingType) =>
+          case in.Accessible.ExprAccess(op) =>
+            val underlyingType = ctx.underlyingType(op.typ)
             underlyingType match {
-              case _: in.SliceT =>
-                val iterVar = in.BoundVar(Names.freshName, in.IntT(Addressability.Exclusive))(acc.info)
-                val quantifiedAssert = in.SepForall(
-                  vars = Vector(iterVar),
-                  triggers = Vector(in.Trigger(Vector(in.IndexedExp(op, iterVar, underlyingType)(acc.info)))(acc.info)),
-                  body = in.Implication(
-                    in.And(
-                      in.AtMostCmp(in.IntLit(0)(acc.info), iterVar)(acc.info),
-                      in.LessCmp(iterVar, in.Length(op)(acc.info))(acc.info))(acc.info),
-                    in.Access(
-                      in.Accessible.Address(in.IndexedExp(op, iterVar, underlyingType)(acc.info)),
-                      acc.p
-                    )(acc.info)
-                  )(acc.info)
-                )(acc.info)
-                ctx.ass.translate(quantifiedAssert)(ctx)
+              case _: in.SliceT => ctx.typeEncoding.assertion(ctx)(acc)
               case _: in.MapT => ctx.typeEncoding.assertion(ctx)(acc)
               case _ => Violation.violation(s"unexpected expression $op in an access predicate")
             }

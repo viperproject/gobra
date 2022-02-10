@@ -199,7 +199,7 @@ object ViperChopper {
         * and then returns for each dominating node, the set of reachable nodes in a separate sorted list.
         */
 
-      // Stores whether a node was visited or not.
+      // Stores whether a node was visited by any call to dfs.
       val globalVisited = Array.ofDim[Boolean](N)
 
       // Stores whether a node is not a root.
@@ -210,9 +210,10 @@ object ViperChopper {
 
       def dfs(start: T): Unit = {
         val stack = mutable.Stack[T](start)
-        val localVisited = Array.ofDim[Boolean](N)
-
         val result = mutable.SortedSet[T]()(Ordering.by(id))
+
+        // Stores whether a node was visited by this call to dfs.
+        val localVisited = Array.ofDim[Boolean](N)
 
         while (stack.nonEmpty) {
           val node = stack.pop()

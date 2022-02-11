@@ -6,7 +6,6 @@
 
 package viper.gobra.translator.implementations.components
 
-import viper.gobra.translator.interfaces.Collector
 import viper.gobra.translator.interfaces.components.{OptionToSeq, Options}
 import viper.silver.ast.{DomainFuncApp, ErrorTrafo, Exp, Info, Position}
 import viper.silver.{ast => vpr}
@@ -84,7 +83,7 @@ class OptionToSeqImpl(options : Options) extends OptionToSeq {
     )(pos, info, errT)
   }
 
-  override def finalize(col : Collector) : Unit = {
-    if (generateDomain) col.addMember(domain)
+  override def finalize(addMemberFn: vpr.Member => Unit) : Unit = {
+    if (generateDomain) addMemberFn(domain)
   }
 }

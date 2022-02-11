@@ -7,7 +7,7 @@
 package viper.gobra.translator.encodings.arrays
 
 import viper.gobra.translator.encodings.EmbeddingComponent
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.ast.{internal => in}
 import viper.silver.{ast => vpr}
 import ArrayEncoding.ComponentParameter
@@ -19,9 +19,9 @@ import viper.gobra.translator.util.ViperWriter.CodeLevel.pure
 
 class SharedArrayComponentImpl extends SharedArrayComponent {
 
-  override def finalize(col: Collector): Unit = {
-    emb.finalize(col)
-    arrayNilFunc.finalize(col)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    emb.finalize(addMemberFn)
+    arrayNilFunc.finalize(addMemberFn)
   }
 
   /**
@@ -29,15 +29,15 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
     * function arrayNil(): Array[ [T@] ]
     *   ensures len(result) == 1 && Forall idx :: {array_get(result, idx)} array_get(result, idx) == [dflt(T@)]
     * */
-  private val arrayNilFunc: FunctionGenerator[ComponentParameter] = new FunctionGenerator[(BigInt, in.Type)]{
+  private val arrayNilFunc: FunctionGenerator[ComponentParameter] = new FunctionGenerator[ComponentParameter]{
 
-    def genFunction(t: (BigInt, in.Type))(ctx: Context): vpr.Function = {
-      val vResType = ctx.array.typ(ctx.typeEncoding.typ(ctx)(t._2))
-      val src = in.DfltVal(in.ArrayT(t._1, t._2, Shared))(Source.Parser.Internal)
+    def genFunction(t: ComponentParameter)(ctx: Context): vpr.Function = {
+      val vResType = ctx.array.typ(ctx.typeEncoding.typ(ctx)(t.elemT))
+      val src = in.DfltVal(t.arrayT(Shared))(Source.Parser.Internal)
       val idx = in.BoundVar("idx", in.IntT(Exclusive))(src.info)
       val vIdx = ctx.typeEncoding.variable(ctx)(idx)
       val resAccess = ctx.array.loc(vpr.Result(vResType)(), vIdx.localVar)()
-      val idxEq = vpr.EqCmp(resAccess, pure(ctx.expr.translate(in.DfltVal(t._2)(src.info))(ctx))(ctx).res)()
+      val idxEq = vpr.EqCmp(resAccess, pure(ctx.expr.translate(in.DfltVal(t.elemT)(src.info))(ctx))(ctx).res)()
       val forall = vpr.Forall(
         Seq(vIdx),
         Seq(vpr.Trigger(Seq(resAccess))()),
@@ -45,7 +45,7 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
       )()
 
       vpr.Function(
-        name = s"${Names.arrayDefaultFunc}_${Names.freshName}",
+        name = s"${Names.arrayNilFunc}_${t.serialize}",
         formalArgs = Seq.empty,
         typ = vResType,
         pres = Seq.empty,
@@ -59,10 +59,10 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
   private val emb: EmbeddingComponent[ComponentParameter] = new encodings.EmbeddingComponent.Impl[ComponentParameter](
     p = (e: vpr.Exp, id: ComponentParameter) => (ctx: Context) =>
       vpr.Or( // len(a) == n || a == arrayNil
-        vpr.EqCmp(ctx.array.len(e)(), vpr.IntLit(id._1)())(),
+        vpr.EqCmp(ctx.array.len(e)(), vpr.IntLit(id.len)())(),
         vpr.EqCmp(e, arrayNilFunc(Vector.empty, id)()(ctx))()
       )(),
-    t = (id: ComponentParameter) => (ctx: Context) => ctx.array.typ(ctx.typeEncoding.typ(ctx)(id._2))
+    t = (id: ComponentParameter) => (ctx: Context) => ctx.array.typ(ctx.typeEncoding.typ(ctx)(id.elemT))
   )
 
   /** Returns type of exclusive-array domain. */

@@ -14,7 +14,7 @@ import viper.gobra.reporting.{ComparisonError, ComparisonOnIncomparableInterface
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.{Algorithms, Violation}
@@ -50,13 +50,13 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
   private var genMembers: List[vpr.Member] = List.empty
 
-  override def finalize(col: Collector): Unit = {
-    poly.finalize(col)
-    types.finalize(col)
-    toInterfaceFunc.finalize(col)
-    genMembers foreach col.addMember
-    typeOfWithSubtypeFactFuncMap.values foreach col.addMember
-    genPredicates foreach col.addMember
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    poly.finalize(addMemberFn)
+    types.finalize(addMemberFn)
+    toInterfaceFunc.finalize(addMemberFn)
+    genMembers foreach addMemberFn
+    typeOfWithSubtypeFactFuncMap.values foreach addMemberFn
+    genPredicates foreach addMemberFn
   }
 
   /**

@@ -8,14 +8,13 @@ package viper.gobra.translator.implementations.components
 
 import viper.gobra.translator.interfaces.components.Equality
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.Collector
 import viper.silver.{ast => vpr}
 
 class EqualityImpl extends Equality {
 
-  override def finalize(col: Collector): Unit = {
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     if (isUsed) {
-      col.addMember(equalityDomain)
+      addMemberFn(equalityDomain)
     }
   }
 

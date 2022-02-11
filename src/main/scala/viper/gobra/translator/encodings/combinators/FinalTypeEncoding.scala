@@ -11,7 +11,7 @@ import viper.gobra.ast.internal.Expr
 import viper.gobra.translator.encodings.TypeEncoding
 import viper.gobra.util.Violation
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.silver.ast.Exp
 import viper.silver.{ast => vpr}
@@ -27,7 +27,7 @@ class FinalTypeEncoding(te: TypeEncoding) extends TypeEncoding {
     case n => Violation.violation(s"Node $n (${n.getClass}) did not match with any implemented case of $name. ")
   }
 
-  override def finalize(col: Collector): Unit = te.finalize(col)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = te.finalize(addMemberFn)
   override def typ(ctx: Context): in.Type ==> vpr.Type = te.typ(ctx) orElse expectedMatch("typ")
   override def variable(ctx: Context): in.BodyVar ==> vpr.LocalVarDecl = te.variable(ctx) orElse expectedMatch("variable")
   override def globalVar(ctx: Context): in.GlobalVar ==> CodeWriter[vpr.Exp] = te.globalVar(ctx) orElse expectedMatch("globalVar")

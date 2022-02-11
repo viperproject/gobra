@@ -21,10 +21,6 @@ trait TypeInfo extends ExternalTypeInfo {
   def addressability(expr: PExpression): Addressability
   def addressableVar(id: PIdnNode): Addressability
 
-  def codeRoot(n: PNode): PScope
-
-  def program(n: PNode): PProgram
-
   def tree: Tree[PNode, PPackage]
 
   def regular(n: PIdnNode): Regular

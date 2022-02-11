@@ -1129,7 +1129,7 @@ case class PDomainFunction(id: PIdnDef,
                            result: PResult
                                  ) extends PGhostMisc with PScope with PCodeRoot with PDomainClause
 
-case class PDomainAxiom(exp: PExpression) extends PGhostMisc with PDomainClause
+case class PDomainAxiom(exp: PExpression) extends PGhostMisc with PScope with PCodeRoot with PDomainClause
 
 
 /**

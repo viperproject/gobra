@@ -70,6 +70,12 @@ trait Context {
 
   def addVars(vars: vpr.LocalVarDecl*): Context
 
+  // fresh variable counter
+  /** publicly exposed infinite iterator providing fresh names */
+  def freshNames: Iterator[String] = internalFreshNames
+  /** internal fresh name iterator that additionally provides a getter function for its counter value */
+  protected def internalFreshNames: FreshNameIterator
+
   /** copy constructor */
   def :=(
           fieldN: Fields = field,
@@ -93,35 +99,40 @@ trait Context {
           pureMethodN: PureMethods = pureMethod,
           predicateN: Predicates = predicate,
           builtInMembersN: BuiltInMembers = builtInMembers,
-          stmtN: Statements = stmt
+          stmtN: Statements = stmt,
+          initialFreshCounterValueN: Int = internalFreshNames.getValue
          ): Context
 
 
   def finalize(col : Collector): Unit = {
     // components
-    field.finalize(col)
-    array.finalize(col)
-    seqToSet.finalize(col)
-    seqToMultiset.finalize(col)
-    seqMultiplicity.finalize(col)
-    option.finalize(col)
-    optionToSeq.finalize(col)
-    slice.finalize(col)
-    fixpoint.finalize(col)
-    tuple.finalize(col)
-    equality.finalize(col)
-    condition.finalize(col)
-    unknownValue.finalize(col)
+    col.finalize(field)
+    col.finalize(array)
+    col.finalize(seqToSet)
+    col.finalize(seqToMultiset)
+    col.finalize(seqMultiplicity)
+    col.finalize(option)
+    col.finalize(optionToSeq)
+    col.finalize(slice)
+    col.finalize(fixpoint)
+    col.finalize(tuple)
+    col.finalize(equality)
+    col.finalize(condition)
+    col.finalize(unknownValue)
 
     // translators
-    typeEncoding.finalize(col)
-    ass.finalize(col)
-    measures.finalize(col)
-    expr.finalize(col)
-    method.finalize(col)
-    pureMethod.finalize(col)
-    predicate.finalize(col)
-    builtInMembers.finalize(col)
-    stmt.finalize(col)
+    col.finalize(typeEncoding)
+    col.finalize(ass)
+    col.finalize(measures)
+    col.finalize(expr)
+    col.finalize(method)
+    col.finalize(pureMethod)
+    col.finalize(predicate)
+    col.finalize(builtInMembers)
+    col.finalize(stmt)
+  }
+
+  trait FreshNameIterator extends Iterator[String] {
+    def getValue: Int
   }
 }

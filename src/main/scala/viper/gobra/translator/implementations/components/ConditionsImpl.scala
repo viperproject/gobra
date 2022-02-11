@@ -10,7 +10,6 @@ import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
 import viper.gobra.reporting.Source.Verifier
 import viper.gobra.reporting.{Source, VerificationError}
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.Collector
 import viper.gobra.translator.interfaces.components.Conditions
 import viper.gobra.translator.util.FunctionGeneratorWithoutContext
 import viper.silver.plugin.standard.termination
@@ -20,11 +19,11 @@ import viper.silver.verifier.{errors => vprerr}
 
 class ConditionsImpl extends Conditions {
 
-  override def finalize(col: Collector): Unit = {
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     if (isAssertFuncUsed) {
-      col.addMember(assertFunction)
+      addMemberFn(assertFunction)
     }
-    typedAssertFunc.finalize(col)
+    typedAssertFunc.finalize(addMemberFn)
   }
 
   /**

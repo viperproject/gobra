@@ -7,7 +7,7 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.interfaces.translator.Expressions
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
@@ -17,7 +17,7 @@ class ExpressionsImpl extends Expressions {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
-  override def finalize(col: Collector): Unit = {}
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {}
 
   override def translate(x: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
 

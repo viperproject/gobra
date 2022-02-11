@@ -7,7 +7,6 @@
 package viper.gobra.translator.implementations.components
 
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.Collector
 import viper.gobra.translator.interfaces.components.Arrays
 import viper.silver.{ast => vpr}
 
@@ -115,7 +114,7 @@ class ArraysImpl extends Arrays {
     vpr.DomainFuncApp(lenFunc, Seq(a), a.typ.asInstanceOf[vpr.DomainType].typVarsMap)(pos, info, errT)
   }
 
-  override def finalize(col : Collector) : Unit = {
-    if (generateDomain) col.addMember(domain)
+  override def finalize(addMemberFn: vpr.Member => Unit) : Unit = {
+    if (generateDomain) addMemberFn(domain)
   }
 }

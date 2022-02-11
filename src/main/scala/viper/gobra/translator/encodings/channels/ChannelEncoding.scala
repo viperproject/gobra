@@ -11,7 +11,6 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.{ChannelMakePreconditionError, ChannelReceiveError, ChannelSendError, InsufficientPermissionFromTagError, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
-import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
@@ -58,7 +57,7 @@ class ChannelEncoding extends LeafTypeEncoding {
 
       case exp@in.Receive(channel :: ctx.Channel(typeParam), recvChannel, recvGivenPerm, recvGotPerm) =>
         val (pos, info, errT) = exp.vprMeta
-        val res = in.LocalVar(Names.freshName, typeParam.withAddressability(Addressability.Exclusive))(exp.info)
+        val res = in.LocalVar(ctx.freshNames.next(), typeParam.withAddressability(Addressability.Exclusive))(exp.info)
         val vprRes = ctx.typeEncoding.variable(ctx)(res)
         val recvChannelPred = in.Accessible.Predicate(in.MPredicateAccess(channel, recvChannel, Vector())(exp.info))
         for {
@@ -133,7 +132,7 @@ class ChannelEncoding extends LeafTypeEncoding {
     default(super.statement(ctx)){
       case makeStmt@in.MakeChannel(target, in.ChannelT(typeParam, _), optBufferSizeArg, isChannelPred, bufferSizeMProxy) =>
         val (pos, info, errT) = makeStmt.vprMeta
-        val a = in.LocalVar(Names.freshName, in.ChannelT(typeParam.withAddressability(Addressability.channelElement), Addressability.Exclusive))(makeStmt.info)
+        val a = in.LocalVar(ctx.freshNames.next(), in.ChannelT(typeParam.withAddressability(Addressability.channelElement), Addressability.Exclusive))(makeStmt.info)
         val vprA = ctx.typeEncoding.variable(ctx)(a)
         val bufferSizeArg = optBufferSizeArg.getOrElse(in.IntLit(0)(makeStmt.info)) // create an unbuffered channel by default
         seqn(
@@ -196,9 +195,9 @@ class ChannelEncoding extends LeafTypeEncoding {
 
       case stmt@in.SafeReceive(resTarget, successTarget, channel :: ctx.Channel(typeParam), recvChannel, recvGivenPerm, recvGotPerm, closed) =>
         val (pos, info, errT) = stmt.vprMeta
-        val res = in.LocalVar(Names.freshName, typeParam.withAddressability(Addressability.Exclusive))(stmt.info)
+        val res = in.LocalVar(ctx.freshNames.next(), typeParam.withAddressability(Addressability.Exclusive))(stmt.info)
         val vprRes = ctx.typeEncoding.variable(ctx)(res)
-        val ok = in.LocalVar(Names.freshName, in.BoolT(Addressability.Exclusive))(stmt.info)
+        val ok = in.LocalVar(ctx.freshNames.next(), in.BoolT(Addressability.Exclusive))(stmt.info)
         val vprOk = ctx.typeEncoding.variable(ctx)(ok)
         val recvChannelPred = in.Accessible.Predicate(in.MPredicateAccess(channel, recvChannel, Vector())(stmt.info))
         seqn(

@@ -79,7 +79,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   override def scope(n: PIdnNode): PScope = enclosingIdScope(n)
 
-  override def codeRoot(n: PNode): PScope = enclosingCodeRoot(n)
+  override def codeRoot(n: PNode): PCodeRoot with PScope = enclosingCodeRoot(n)
 
   override def program(n: PNode): PProgram = enclosingProgram(n)
 

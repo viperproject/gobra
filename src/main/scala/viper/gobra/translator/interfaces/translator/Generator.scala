@@ -6,16 +6,17 @@
 
 package viper.gobra.translator.interfaces.translator
 
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
+import viper.silver.{ast => vpr}
 
 import scala.annotation.unused
 
 trait Generator {
 
   /**
-    * Finalizes translation. May add to collector.
+    * Finalizes translation. `addMemberFn` is called with any member that is part of the encoding.
     */
-  def finalize(@unused col: Collector): Unit = {}
+  def finalize(@unused addMemberFn: vpr.Member => Unit): Unit = {}
 
   def chain[R](fs: Vector[Context => (R, Context)])(ctx: Context): (Vector[R], Context) = {
     fs.foldLeft((Vector.empty[R], ctx)){ case ((rs, c), rf) =>

@@ -13,10 +13,11 @@ import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.BuiltInMembers
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.PrimitiveGenerator
 import viper.gobra.util.Computation
 import viper.gobra.util.Violation.violation
+import viper.silver.{ast => vpr}
 
 import scala.annotation.unused
 import scala.language.postfixOps
@@ -30,11 +31,11 @@ class BuiltInMembersImpl extends BuiltInMembers {
   // the implementation uses 4 distinct generators (instead of a single one) such that the exposed
   // methods (i.e. method, function, fpredicate, and mpredicate) can return the translated 'regular' member.
 
-  override def finalize(col: Collector): Unit = {
-    methodGenerator.finalize(col)
-    functionGenerator.finalize(col)
-    fPredicateGenerator.finalize(col)
-    mPredicateGenerator.finalize(col)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    methodGenerator.finalize(addMemberFn)
+    functionGenerator.finalize(addMemberFn)
+    fPredicateGenerator.finalize(addMemberFn)
+    mPredicateGenerator.finalize(addMemberFn)
   }
 
   private def member(x: in.BuiltInMember)(ctx: Context): in.Member =
@@ -96,7 +97,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
     */
   private def getOrGenerateMethod(tag: BuiltInMethodTag, recv: in.Type, args: Vector[in.Type])(src: Source.Parser.Info)(ctx: Context): in.MethodProxy = {
     def create(): in.BuiltInMethod = {
-      val proxy = in.MethodProxy(tag.identifier, freshNameForTag(tag))(src)
+      val proxy = in.MethodProxy(tag.identifier, freshNameForTag(tag)(ctx))(src)
       in.BuiltInMethod(recv, tag, proxy, args)(src)
     }
     val method = getOrGenerate(tag, Vector(recv), create)(ctx)
@@ -109,7 +110,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
   @unused
   private def getOrGenerateFunction(tag: BuiltInFunctionTag, args: Vector[in.Type])(src: Source.Parser.Info)(ctx: Context): in.FunctionProxy = {
     def create(): in.BuiltInFunction = {
-      val proxy = in.FunctionProxy(freshNameForTag(tag))(src)
+      val proxy = in.FunctionProxy(freshNameForTag(tag)(ctx))(src)
       in.BuiltInFunction(tag, proxy, args)(src)
     }
     val function = getOrGenerate(tag, args, create)(ctx)
@@ -121,7 +122,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
     */
   private def getOrGenerateFPredicate(tag: BuiltInFPredicateTag, args: Vector[in.Type])(src: Source.Parser.Info)(ctx: Context): in.FPredicateProxy = {
     def create(): in.BuiltInFPredicate = {
-      val proxy = in.FPredicateProxy(freshNameForTag(tag))(src)
+      val proxy = in.FPredicateProxy(freshNameForTag(tag)(ctx))(src)
       in.BuiltInFPredicate(tag, proxy, args)(src)
     }
     val predicate = getOrGenerate(tag, args, create)(ctx)
@@ -134,7 +135,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
   private def getOrGenerateMPredicate(tag: BuiltInMPredicateTag, recv: in.Type, args: Vector[in.Type])(src: Source.Parser.Info)(ctx: Context): in.MPredicateProxy = {
     def create(): in.BuiltInMPredicate = {
-      val proxy = in.MPredicateProxy(tag.identifier, freshNameForTag(tag))(src)
+      val proxy = in.MPredicateProxy(tag.identifier, freshNameForTag(tag)(ctx))(src)
       in.BuiltInMPredicate(recv, tag, proxy, args)(src)
     }
     val predicate = getOrGenerate(tag, Vector(recv), create)(ctx)
@@ -180,8 +181,8 @@ class BuiltInMembersImpl extends BuiltInMembers {
     })(ctx)
 
 
-  private def freshNameForTag(tag: BuiltInMemberTag): String =
-    s"${Names.builtInMember}_${tag.identifier}_${Names.freshName}"
+  private def freshNameForTag(tag: BuiltInMemberTag)(ctx: Context): String =
+    s"${Names.builtInMember}_${tag.identifier}_${ctx.freshNames.next()}"
 
 
   //

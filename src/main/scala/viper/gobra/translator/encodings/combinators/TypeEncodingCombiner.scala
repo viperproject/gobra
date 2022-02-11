@@ -10,7 +10,7 @@ import viper.gobra.translator.encodings.TypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.internal.Expr
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.silver.ast.Exp
 import viper.silver.{ast => vpr}
@@ -28,7 +28,7 @@ abstract class TypeEncodingCombiner(encodings: Vector[TypeEncoding]) extends Typ
   protected[combinators] def combiner[X, Y](get: TypeEncoding => (X ==> Y)): X ==> Y
 
 
-  override def finalize(col: Collector): Unit = encodings.foreach(_.finalize(col))
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = encodings.foreach(_.finalize(addMemberFn))
   override def typ(ctx: Context): in.Type ==> vpr.Type = combiner(_.typ(ctx))
   override def variable(ctx: Context): in.BodyVar ==> vpr.LocalVarDecl = combiner(_.variable(ctx))
   override def globalVar(ctx: Context): in.GlobalVar ==> CodeWriter[vpr.Exp] = combiner(_.globalVar(ctx))

@@ -9,7 +9,7 @@ package viper.gobra.translator.encodings
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeLevel.unit
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
@@ -80,20 +80,20 @@ class FloatEncoding extends LeafTypeEncoding {
     }
   }
 
-  override def finalize(col: Collector): Unit = {
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     if (isUsed32) {
-      col.addMember(addFloat32)
-      col.addMember(subFloat32)
-      col.addMember(mulFloat32)
-      col.addMember(divFloat32)
-      col.addMember(fromIntTo32)
+      addMemberFn(addFloat32)
+      addMemberFn(subFloat32)
+      addMemberFn(mulFloat32)
+      addMemberFn(divFloat32)
+      addMemberFn(fromIntTo32)
     }
     if (isUsed64) {
-      col.addMember(addFloat64)
-      col.addMember(subFloat64)
-      col.addMember(mulFloat64)
-      col.addMember(divFloat64)
-      col.addMember(fromIntTo64)
+      addMemberFn(addFloat64)
+      addMemberFn(subFloat64)
+      addMemberFn(mulFloat64)
+      addMemberFn(divFloat64)
+      addMemberFn(fromIntTo64)
     }
   }
   private var isUsed32: Boolean = false

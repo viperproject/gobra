@@ -211,7 +211,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   override def visitTypeName(ctx: GobraParser.TypeNameContext): PTypeName = {
     visitChildren(ctx) match {
-      case idnUse(id) => visitTypeIdentifier(id) // replace with `PNamedOperand(id)` when arrays of custom types are supported
+      case idnUse(id) => visitTypeIdentifier(id) // replace with `PNamedOperand(id)` when arrays etc. of custom types are supported
       case qualified : PDot => qualified
       case _ => unexpected(ctx)
     }
@@ -388,18 +388,18 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @param ctx the parse tree
     * @return the visitor result
     */
-  override def visitParameterDecl(ctx: GobraParser.ParameterDeclContext): Vector[PParameter] = {
-    val typ = if (has(ctx.ELLIPSIS())) PVariadicType(visitNode[PType](ctx.type_())).at(ctx) else visitNode[PType](ctx.type_())
-    val params = if(ctx.identifierList() != null) {
-      // "_" should be supported here to allow unused parameters for interfaces etc.
-      goIdnDefList.get(visitIdentifierList(ctx.identifierList())).map(id => PNamedParameter(id, typ.copy).at(id))
-    } else {
-      Vector[PActualParameter](PUnnamedParameter(typ).at(ctx.type_()))
-    }
+  override def visitParameterDecl(ctx: GobraParser.ParameterDeclContext): Vector[PParameter] = super.visitParameterDecl(ctx) match {
+    case Vector("ghost", goIdnDefList(ids), typ : PType) => ids.map(id =>
+      PExplicitGhostParameter(PNamedParameter(id, typ.copy).at(id)).at(ctx))
+    case Vector(goIdnDefList(ids), typ: PType) => ids.map(id =>
+      PNamedParameter(id, typ.copy).at(id))
+    case Vector("ghost", typ : PType) => Vector(PExplicitGhostParameter(PUnnamedParameter(typ).at(typ)))
+    case typ : PType => Vector(PUnnamedParameter(typ).at(typ))
+  }
 
-    if (ctx.GHOST() != null) {
-      params.map(PExplicitGhostParameter(_).at(ctx))
-    } else params
+  override def visitParameterType(ctx: ParameterTypeContext): AnyRef = super.visitParameterType(ctx) match {
+    case Vector("...", typ : PType) => PVariadicType(typ)
+    case typ: PType => typ
   }
   //endregion
 
@@ -704,7 +704,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   // TODO : Move Blank identifier handling into the Type Checker
   def visitAssignee(ctx: GobraParser.ExpressionContext): PAssignee = {
     if (has(ctx.primaryExpr())) {
-      visitPrimaryExpr(ctx.primaryExpr()) match {
+      visitNode[PExpression](ctx.primaryExpr()) match {
         case a : PAssignee => a
         case _ =>  fail(ctx, "not an assignee")
       }
@@ -1060,36 +1060,40 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @param ctx the parse tree
     * @return the unpositioned visitor result
     */
-  override def visitPrimaryExpr(ctx: PrimaryExprContext): PExpression = {
-    visitChildren(ctx) match {
-      case e : PExpression => e
-      case Vector(pe : PExpression, rest@_*) => rest match {
-        // (DOT IDENTIFIER)
-        case Vector(".", idnUse(id)) => PDot(pe, id).at(ctx)
-        // L_BRACKET expression R_BRACKET
-        case Vector(Vector("[", index : PExpression, "]")) => PIndexedExp(pe, index).at(ctx)
-        // slice_
-        case Vector((low: Option[PExpression] @unchecked, high : Option[PExpression] @unchecked, cap : Option[PExpression] @unchecked)) =>
-          PSliceExp(pe, low, high, cap).at(ctx)
-        // DOT L_PAREN type_ R_PAREN;
-        case Vector(Vector(".", "(", typ : PType, ")")) => PTypeAssertion(pe, typ).at(ctx)
-        // seqUpdExp
-        case Vector(Updates(upd)) =>
-          PGhostCollectionUpdate(pe, upd).at(ctx)
-        // arguments
-        case Vector(InvokeArgs(args)) => PInvoke(pe, args).at(ctx)
-        // predConstructArgs
-        case Vector(PredArgs(args)) => val id = pe match {
-          case recvWithId@PDot(_, _) => PDottedBase(recvWithId).at(recvWithId)
-          case PNamedOperand(identifier@PIdnUse(_)) => PFPredBase(identifier).at(identifier)
-          case _ => fail(ctx.primaryExpr(), "Wrong base type for predicate constructor.")
-        }
-          PPredConstructor(id, args).at(ctx)
-        case _ => fail(ctx)
-      }
-    }
+  override def visitIndexPrimaryExpr(ctx: IndexPrimaryExprContext): AnyRef = super.visitIndexPrimaryExpr(ctx) match {
+    case Vector(pe: PExpression, Vector("[", index : PExpression, "]")) => PIndexedExp(pe, index).at(ctx)
   }
 
+  override def visitSeqUpdPrimaryExpr(ctx: SeqUpdPrimaryExprContext): AnyRef = super.visitSeqUpdPrimaryExpr(ctx) match {
+    case Vector(pe: PExpression, Updates(upd)) => PGhostCollectionUpdate(pe, upd)
+  }
+
+  override def visitPredConstrPrimaryExpr(ctx: PredConstrPrimaryExprContext): AnyRef = super.visitPredConstrPrimaryExpr(ctx) match {
+    case Vector(pe: PExpression, PredArgs(args)) => val id = pe match {
+      case recvWithId@PDot(_, _) => PDottedBase(recvWithId).at(recvWithId)
+      case PNamedOperand(identifier@PIdnUse(_)) => PFPredBase(identifier).at(identifier)
+      case _ => fail(ctx.primaryExpr(), "Wrong base type for predicate constructor.")
+    }
+      PPredConstructor(id, args).at(ctx)
+    case _ => fail(ctx)
+  }
+
+  override def visitInvokePrimaryExpr(ctx: InvokePrimaryExprContext): AnyRef = super.visitInvokePrimaryExpr(ctx) match {
+    case Vector(pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args)
+  }
+
+  override def visitTypeAssertionPrimaryExpr(ctx: TypeAssertionPrimaryExprContext): AnyRef = super.visitTypeAssertionPrimaryExpr(ctx) match {
+    case Vector(pe: PExpression, Vector(".", "(", typ : PType, ")")) => PTypeAssertion(pe, typ)
+  }
+
+  override def visitSelectorPrimaryExpr(ctx: SelectorPrimaryExprContext): AnyRef = super.visitSelectorPrimaryExpr(ctx) match {
+    case Vector(pe : PExpression, ".", idnUse(id)) => PDot(pe, id)
+  }
+
+  override def visitSlicePrimaryExpr(ctx: SlicePrimaryExprContext): AnyRef = super.visitSlicePrimaryExpr(ctx) match {
+    case Vector(pe: PExpression, (low: Option[PExpression] @unchecked, high : Option[PExpression] @unchecked, cap : Option[PExpression] @unchecked)) =>
+      PSliceExp(pe, low, high, cap).at(ctx)
+  }
 
   /**
     * Visits the rule
@@ -1652,7 +1656,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitTypeSwitchStmt(ctx: TypeSwitchStmtContext): PTypeSwitchStmt = {
     val pre = visitNodeOrNone[PSimpleStmt](ctx.simpleStmt())
     val binder = if (has(ctx.typeSwitchGuard().IDENTIFIER())) Some(idnDef.get(ctx.typeSwitchGuard().IDENTIFIER())) else None
-    val expr = visitPrimaryExpr(ctx.typeSwitchGuard().primaryExpr())
+    val expr = visitNode[PExpression](ctx.typeSwitchGuard().primaryExpr())
     // iterate through the cases and partition them into normal cases and the default case
     val (dflt, cases) = ctx.typeCaseClause().asScala.toVector.partitionMap(clause =>
       if (has(clause.typeSwitchCase().DEFAULT())) Left(visitTypeDefaultClause(clause).body) // default : <statements>
@@ -1923,7 +1927,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * Visits the production
     * kind=(ASSUME | ASSERT | INHALE | EXHALE) expression
     *     */
-  override def visitGhostHelperStmt(ctx: GhostHelperStmtContext): AnyRef = super.visitGhostHelperStmt(ctx) match {
+  override def visitProofStatement(ctx: ProofStatementContext): PGhostStatement = super.visitProofStatement(ctx) match {
     case Vector(kind : String, expr : PExpression) => kind match {
       case "assert" => PAssert(expr)
       case "assume" => PAssume(expr)

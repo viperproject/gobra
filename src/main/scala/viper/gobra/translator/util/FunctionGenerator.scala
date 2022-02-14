@@ -6,13 +6,13 @@
 
 package viper.gobra.translator.util
 
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.interfaces.translator.Generator
 import viper.silver.{ast => vpr}
 
 trait FunctionGenerator[T] extends Generator {
 
-  override def finalize(col: Collector): Unit = generatedMember.foreach(col.addMember(_))
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = generatedMember foreach addMemberFn
 
   private var generatedMember: List[vpr.Function] = List.empty
   private var genMap: Map[T, vpr.Function] = Map.empty
@@ -36,7 +36,7 @@ trait FunctionGenerator[T] extends Generator {
 
 trait FunctionGeneratorWithoutContext[T] extends Generator {
 
-  override def finalize(col: Collector): Unit = generatedMember.foreach(col.addMember(_))
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = generatedMember foreach addMemberFn
 
   private var generatedMember: List[vpr.Function] = List.empty
   private var genMap: Map[T, vpr.Function] = Map.empty

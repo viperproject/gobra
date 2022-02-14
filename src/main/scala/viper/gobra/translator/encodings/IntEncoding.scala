@@ -12,7 +12,7 @@ import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting.{ShiftPreconditionError, Source}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
@@ -84,14 +84,14 @@ class IntEncoding extends LeafTypeEncoding {
     }
   }
 
-  override def finalize(col: Collector): Unit = {
-    if(isUsedBitAnd) { col.addMember(bitwiseAnd) }
-    if(isUsedBitOr) { col.addMember(bitwiseOr) }
-    if(isUsedBitXor) { col.addMember(bitwiseXor) }
-    if(isUsedBitClear) { col.addMember(bitClear) }
-    if(isUsedLeftShift) { col.addMember(shiftLeft) }
-    if(isUsedRightShift) { col.addMember(shiftRight) }
-    if(isUsedBitNeg) { col.addMember(bitwiseNegation) }
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    if(isUsedBitAnd) { addMemberFn(bitwiseAnd) }
+    if(isUsedBitOr) { addMemberFn(bitwiseOr) }
+    if(isUsedBitXor) { addMemberFn(bitwiseXor) }
+    if(isUsedBitClear) { addMemberFn(bitClear) }
+    if(isUsedLeftShift) { addMemberFn(shiftLeft) }
+    if(isUsedRightShift) { addMemberFn(shiftRight) }
+    if(isUsedBitNeg) { addMemberFn(bitwiseNegation) }
   }
 
   /* Bitwise Operations */

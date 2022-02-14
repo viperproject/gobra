@@ -12,7 +12,6 @@ import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.{DefaultErrorBackTranslator, Source, VerificationError}
 import viper.gobra.translator.util.{ViperUtil => vu}
-import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.MemberKindCompanion.{ErrorT, ReasonT}
 import viper.gobra.util.Violation
@@ -423,8 +422,8 @@ object ViperWriter {
       create(reaTs.toVector.map(ReasonT), ())
 
     /* Can be used in expressions. */
-    def copyResult(r: vpr.Exp): CodeWriter[vpr.LocalVar] = {
-      val z = vpr.LocalVar(Names.freshName, r.typ)(r.pos, r.info, r.errT)
+    def copyResult(r: vpr.Exp)(ctx: Context): CodeWriter[vpr.LocalVar] = {
+      val z = vpr.LocalVar(ctx.freshNames.next(), r.typ)(r.pos, r.info, r.errT)
       for {
         _ <- local(vu.toVarDecl(z))
         _ <- bind(z, r)

@@ -8,14 +8,18 @@ package viper.gobra.translator.encodings
 
 import viper.gobra.translator.interfaces.translator.Generator
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
+
+trait EmbeddingParameter {
+  def serialize: String
+}
 
 /**
   * Creates an embedded type E that is made up of all elements of 't' that satisfy 'p',
   * where 't' and 'p' are parametrized by an instance of P.
   */
-trait EmbeddingComponent[P] extends Generator {
+trait EmbeddingComponent[P <: EmbeddingParameter] extends Generator {
 
   /** Returns the embedded type E. */
   def typ(id: P)(ctx: Context): vpr.Type
@@ -30,10 +34,10 @@ trait EmbeddingComponent[P] extends Generator {
 
 object EmbeddingComponent {
 
-  class Impl[P](p: (vpr.Exp, P) => Context => vpr.Exp, t: P => Context => vpr.Type) extends EmbeddingComponent[P] {
+  class Impl[P <: EmbeddingParameter](p: (vpr.Exp, P) => Context => vpr.Exp, t: P => Context => vpr.Type) extends EmbeddingComponent[P] {
 
-    override def finalize(col: Collector): Unit = {
-      generatedMember foreach col.addMember
+    override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+      generatedMember foreach addMemberFn
     }
 
     /** Returns the embedded type E. */
@@ -70,45 +74,51 @@ object EmbeddingComponent {
 
     /**
       * Generates domain, box function, and unbox function:
+      * note that the function names of box and unbox depends not just on P but also the embedded type E (represented by `NT` below)
       *
       * domain N{}
       *
-      * function boxN(x: T): N
+      * function boxNT(x: T): N
       *   requires p(x)
       *   ensures  unbox(result) == x
       *
-      * function unboxN(y: N): T
+      * function unboxNT(y: N): T
       *   ensures p(result) && boxN(result) == y
       *
       * */
     private def genTriple(id: P)(ctx: Context): Unit = {
       val domain = vpr.Domain(
-        name = s"${Names.embeddingDomain}${Names.freshName}",
+        name = s"${Names.embeddingDomain}_${id.serialize}",
         functions = Seq.empty,
         axioms = Seq.empty,
         typVars = Seq.empty
       )()
 
+      /** embedded type */
+      val T = t(id)(ctx)
       val N = vpr.DomainType(domain = domain, typVarsMap = Map.empty)
-      val x = vpr.LocalVarDecl("x", t(id)(ctx))()
+      val x = vpr.LocalVarDecl("x", T)()
       val y = vpr.LocalVarDecl("y", N)()
+
+      val boxName = s"${Names.embeddingBoxFunc}_${N.domainName}_${Names.serializeType(T)}"
+      val unboxName = s"${Names.embeddingUnboxFunc}_${N.domainName}_${Names.serializeType(T)}"
 
       def boxApp(arg: vpr.Exp): vpr.FuncApp = {
         vpr.FuncApp(
-          funcname = s"${Names.embeddingBoxFunc}_${N.domainName}",
+          funcname = boxName,
           args = Seq(arg)
         )(vpr.NoPosition, vpr.NoInfo, typ = x.typ, vpr.NoTrafos)
       }
 
       def unboxApp(arg: vpr.Exp): vpr.FuncApp = {
         vpr.FuncApp(
-          funcname = s"${Names.embeddingUnboxFunc}_${N.domainName}",
+          funcname = unboxName,
           args = Seq(arg)
         )(vpr.NoPosition, vpr.NoInfo, typ = x.typ, vpr.NoTrafos)
       }
 
       val box = vpr.Function(
-        name = s"${Names.embeddingBoxFunc}_${N.domainName}",
+        name = boxName,
         formalArgs = Seq(x),
         typ = N,
         pres = Seq(p(x.localVar, id)(ctx)),
@@ -116,18 +126,14 @@ object EmbeddingComponent {
         body = None
       )()
 
-      val unbox = {
-        val resT = t(id)(ctx)
-
-        vpr.Function(
-          name = s"${Names.embeddingUnboxFunc}_${N.domainName}",
-          formalArgs = Seq(y),
-          typ = resT,
-          pres = Seq.empty,
-          posts = Seq(p(vpr.Result(resT)(), id)(ctx), vpr.EqCmp(boxApp(vpr.Result(resT)()), y.localVar)()),
-          body = None
-        )()
-      }
+      val unbox = vpr.Function(
+        name = unboxName,
+        formalArgs = Seq(y),
+        typ = T,
+        pres = Seq.empty,
+        posts = Seq(p(vpr.Result(T)(), id)(ctx), vpr.EqCmp(boxApp(vpr.Result(T)()), y.localVar)()),
+        body = None
+      )()
 
       generatedMember ::= domain
       genDomainMap += (id -> domain)
@@ -136,9 +142,5 @@ object EmbeddingComponent {
       generatedMember ::= unbox
       genUnboxFuncMap += (id -> unbox)
     }
-}
-
-
-
-
+  }
 }

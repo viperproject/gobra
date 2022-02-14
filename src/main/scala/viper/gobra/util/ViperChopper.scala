@@ -69,7 +69,7 @@ object ViperChopper {
       var forallSmallNode: (Int => Boolean) => Boolean = null // for the safety check
 
       val result = {
-        if (nodes.size < 10) {
+        if (nodes.size <= 2) {
           val t1 = System.nanoTime()
           val smallestPrograms = smallestCutWithCycles(N, nodes, edges, identity[Int])
           val t2 = System.nanoTime()
@@ -199,8 +199,8 @@ object ViperChopper {
         * and then returns for each dominating node, the set of reachable nodes in a separate sorted list.
         */
 
-      // Stores color of a node. Color 0 means that the node was never visited.
-      val coloring = Array.ofDim[Int](N)
+      // Stores whether a node was visited by any call to dfs.
+      val globalVisited = Array.ofDim[Boolean](N)
 
       // Stores whether a node is not a root.
       val notRoot = Array.ofDim[Boolean](N)
@@ -211,22 +211,22 @@ object ViperChopper {
       def dfs(start: T): Unit = {
         val stack = mutable.Stack[T](start)
         val result = mutable.SortedSet[T]()(Ordering.by(id))
-        val color = id(start) + 1 // avoid 0
+
+        // Stores whether a node was visited by this call to dfs.
+        val localVisited = Array.ofDim[Boolean](N)
 
         while (stack.nonEmpty) {
           val node = stack.pop()
           val nodeId = id(node)
 
-          coloring(nodeId) match {
-            case 0 =>
-              coloring(nodeId) = color
-              result.add(node)
-              stack.pushAll(edges(nodeId))
-            case `color` =>
-              // cycle or visited in another call to dfs with the same argument ('nodes' may contain duplicates).
-            case _ =>
-              // node was visited in another call of dfs with a different argument.
-              notRoot(nodeId) = true
+          if (!localVisited(nodeId)) {
+            localVisited(nodeId) = true
+
+            if (globalVisited(nodeId)) { notRoot(nodeId) = true }
+            globalVisited(nodeId) = true
+
+            result.add(node)
+            stack.pushAll(edges(nodeId))
           }
         }
         reachableNodes(id(start)) = result

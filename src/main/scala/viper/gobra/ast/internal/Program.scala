@@ -1186,7 +1186,7 @@ case class SliceT(elems : Type, addressability: Addressability) extends PrettyTy
   */
 case class MapT(keys: Type, values: Type, addressability: Addressability) extends Type {
   def hasGhostField(k: Type): Boolean = k match {
-    case StructT(_, fields, _) => fields exists (_.ghost)
+    case StructT(fields, _) => fields exists (_.ghost)
     case _ => false
   }
   // this check must be done here instead of at the type system level because the concrete AST does not support
@@ -1309,15 +1309,16 @@ case class PredT(args: Vector[Type], addressability: Addressability) extends Pre
 }
 
 
-// TODO: Maybe remove name
-case class StructT(name: String, fields: Vector[Field], addressability: Addressability) extends PrettyType(fields.mkString("struct{", ", ", "}")) with TopType {
+// StructT does not have a name because equality of two StructT does not depend at all on their declaration site but
+// only on their structure, i.e. whether the fields (and addressability) are equal
+case class StructT(fields: Vector[Field], addressability: Addressability) extends PrettyType(fields.mkString("struct{", ", ", "}")) with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
-    case StructT(_, otherFields, _) => fields.zip(otherFields).forall{ case (l, r) => l.typ.equalsWithoutMod(r.typ) }
+    case StructT(otherFields, _) => fields.zip(otherFields).forall{ case (l, r) => l.typ.equalsWithoutMod(r.typ) }
     case _ => false
   }
 
   override def withAddressability(newAddressability: Addressability): StructT =
-    StructT(name, fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost)(f.info)), newAddressability)
+    StructT(fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost)(f.info)), newAddressability)
 }
 
 case class InterfaceT(name: String, addressability: Addressability) extends PrettyType(s"interface{ name is $name }") with TopType {

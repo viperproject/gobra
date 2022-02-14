@@ -5,10 +5,12 @@
 // Copyright (c) 2011-2020 ETH Zurich.
 
 package viper.gobra.translator.interfaces
+import viper.gobra.translator.interfaces.translator.Generator
 import viper.silver.{ast => vpr}
 
 trait Collector {
-  def addMember(m: vpr.Member): Unit
+  /** invokes finalize on the generator */
+  def finalize(generator: Generator): Unit
 
   def domains: Seq[vpr.Domain]
   def fields: Seq[vpr.Field]

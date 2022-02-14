@@ -12,7 +12,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
@@ -23,8 +23,8 @@ class SequenceEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.TypePatterns._
 
-  override def finalize(col: Collector): Unit = {
-    emptySeqFunc.finalize(col)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    emptySeqFunc.finalize(addMemberFn)
   }
 
   /**
@@ -258,7 +258,7 @@ class SequenceEncoding extends LeafTypeEncoding {
       )()
 
       vpr.Function(
-        name = s"${Names.emptySequenceFunc}_${Names.freshName}",
+        name = s"${Names.emptySequenceFunc}_${Names.serializeType(t)}",
         formalArgs = Vector(nDecl),
         typ = vResultType,
         pres = Vector(pre1),

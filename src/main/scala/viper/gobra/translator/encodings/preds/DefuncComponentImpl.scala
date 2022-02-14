@@ -6,7 +6,7 @@
 
 package viper.gobra.translator.encodings.preds
 
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
 import viper.silver.{ast => vpr}
@@ -131,9 +131,9 @@ class DefuncComponentImpl extends DefuncComponent {
   }
 
 
-  override def finalize(col: Collector): Unit = {
-    encounteredTokens foreach (S => col.addMember(genDomain(S)))
-    encounteredTokens foreach (S => genEval(S) foreach col.addMember)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    encounteredTokens foreach (S => addMemberFn(genDomain(S)))
+    encounteredTokens foreach (S => genEval(S) foreach addMemberFn)
   }
 
   /** Returns the default value of the predicate type with arguments 'ts' */

@@ -190,7 +190,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
       case in.DefinedT(name, _) => in.DefinedTExpr(name)(src)
       case in.PointerT(t, _) => in.PointerTExpr(typeAsExpr(t)(src))(src)
       case in.TupleT(ts, _) => in.TupleTExpr(ts map(typeAsExpr(_)(src)))(src)
-      case in.StructT(_, fields: Vector[in.Field], _) =>
+      case in.StructT(fields: Vector[in.Field], _) =>
         in.StructTExpr(fields.map(field => (field.name, typeAsExpr(field.typ)(src), field.ghost)))(src)
       case _ => Violation.violation(s"no corresponding type expression matched: $t")
     }

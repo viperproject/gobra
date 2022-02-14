@@ -35,7 +35,7 @@ maybeAddressableIdentifier: IDENTIFIER ADDR_MOD?;
 ghostStatement:
 	GHOST statement  #explicitGhostStatement
 	| fold_stmt=(FOLD | UNFOLD) predicateAccess #foldStatement
-	| kind=(ASSUME | ASSERT | INHALE | EXHALE) expression #ghostHelperStmt
+	| kind=(ASSUME | ASSERT | INHALE | EXHALE) expression #proofStatement
 	;
 
 // Ghost Primary Expressions
@@ -195,9 +195,9 @@ receiver: 	L_PAREN maybeAddressableIdentifier? type_ COMMA? R_PAREN;
 
 
 // Added ghost parameters
-parameterDecl: GHOST? identifierList? paramameterType;
+parameterDecl: GHOST? identifierList? parameterType;
 
-paramameterType: ELLIPSIS? type_;
+parameterType: ELLIPSIS? type_;
 
 unfolding: UNFOLDING predicateAccess IN expression;
 
@@ -299,20 +299,20 @@ basicLit:
 // Added ghostPrimaryExprs
 // Fixed arguments matching on the next line
 primaryExpr:
-	operand
-	| conversion
-	| methodExpr
-	| ghostPrimaryExpr
-	| new_
-	| primaryExpr (
-		(DOT IDENTIFIER)
-		| index
-		| slice_
-		| seqUpdExp
-		| typeAssertion
-		| arguments
-		| predConstructArgs
-	);
+	operand #operandPrimaryExpr
+	| conversion #conversionPrimaryExpr
+	| methodExpr #methodPrimaryExpr
+	| ghostPrimaryExpr #ghostPrimaryExpr_
+	| new_  #newExpr
+	| make #makeExpr
+	| primaryExpr DOT IDENTIFIER #selectorPrimaryExpr
+	| primaryExpr index #indexPrimaryExpr
+	| primaryExpr slice_ #slicePrimaryExpr
+	| primaryExpr seqUpdExp #seqUpdPrimaryExpr
+	| primaryExpr typeAssertion #typeAssertionPrimaryExpr
+	| primaryExpr arguments #invokePrimaryExpr
+	| primaryExpr predConstructArgs #predConstrPrimaryExpr
+	;
 
 predConstructArgs: L_PRED expressionList? COMMA? R_PRED;
 

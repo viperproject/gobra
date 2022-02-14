@@ -4,7 +4,7 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra
+package viper.gobra.parsing
 
 import ch.qos.logback.classic.Level
 import org.scalatest.BeforeAndAfterAll
@@ -13,6 +13,7 @@ import viper.gobra.frontend.{Config, PackageResolver}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.gobra.reporting.{NoopReporter, VerifierError}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
+import viper.gobra.{AbstractGobraTests, Gobra}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 
@@ -52,8 +53,6 @@ class GobraParserTests extends AbstractGobraTests with BeforeAndAfterAll {
           logLevel = Level.INFO,
           reporter = NoopReporter,
           inputs = Vector(FromFileSource(input.file)),
-          // TODO: enable consistency checks as soon as inconsistencies have been fixed
-          // checkConsistency = true,
           z3Exe = z3Exe,
           shouldTypeCheck = false
         )

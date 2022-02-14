@@ -6,20 +6,15 @@
 
 package viper.gobra.parsing
 
-import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
 import org.scalatest.Inside
 import org.scalatest.exceptions.TestFailedException
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.Parser
-import viper.gobra.reporting.ParserError
 import viper.gobra.util.{Decimal, Hexadecimal}
 
-import scala.reflect.ClassTag
-
 class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
-  private val frontend = new TestFrontend()
+  private val frontend = new ParserTestFrontend()
 
   test("Parser: Dot") {
     frontend.parseExpOrFail("self.Contains") should matchPattern {
@@ -128,13 +123,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       case PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None) =>
     }
   }
-  
+
   test("Parser: spec only function with nested blocks") {
     frontend.parseFunctionDecl("func foo() { if(true) { b.bar() } else { foo() } }", specOnly = true) should matchPattern {
       case PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None) =>
     }
   }
-  
+
   test("Parser: spec only function with incomplete nested blocks") {
     an [TestFailedException] should be thrownBy
       frontend.parseFunctionDecl("func foo() { if(true) { b.bar() } else { foo() }", specOnly = true)
@@ -147,13 +142,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
           if value == 10 =>
     }
   }
-  
+
   test("Parser: fold mpredicate call") {
     frontend.parseStmtOrFail("fold (*(b.Rectangle)).RectMem(&r)") should matchPattern {
       case PFold(PPredicateAccess(PInvoke(PDot(PDeref(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("Rectangle"))), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r"))))), PFullPerm())) =>
     }
   }
-  
+
   test("Parser: fold fpredicate call") {
     frontend.parseStmtOrFail("fold b.RectMem(&r)") should matchPattern {
       case PFold(PPredicateAccess(PInvoke(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r"))))), PFullPerm())) =>
@@ -357,7 +352,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: expressions of the form '++e' should be parsed to '0 + 0 + e'") {
+  test("Parser: expressions of the form '+ + e' should be parsed to '0 + 0 + e'") {
     frontend.parseExp("+ + x") should matchPattern {
       case Right(PAdd(PIntLit(a, Decimal), PAdd(PIntLit(b, Decimal), PNamedOperand(PIdnUse("x")))))
         if a == BigInt(0) && b == BigInt(0) =>
@@ -804,22 +799,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: should parse indexed expression with sequence range expressions with spaces") {
-    frontend.parseExpOrFail("seq[1..10][2]") should matchPattern {
-      case PIndexedExp(
-      PRangeSequence(PIntLit(low, Decimal), PIntLit(high, Decimal)),
-      PIntLit(i, Decimal)
-      ) if low == BigInt(1) && high == BigInt(10) && i == BigInt(2) =>
-    }
-  }
-
   test("Parser: shouldn't parse a chain of sequence range operations") {
-    frontend.parseExp("seq[1..10][11..20]") should matchPattern {
-      case Left(_) =>
-    }
-  }
-
-  test("Parser: shouldn't parse a chain of sequence range operations with spaces") {
     frontend.parseExp("seq[1..10][11..20]") should matchPattern {
       case Left(_) =>
     }
@@ -2688,29 +2668,5 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.parseExpOrFail("uint8(1)") should matchPattern {
       case PInvoke(PNamedOperand(PIdnUse("uint8")), Vector(x)) if x == PIntLit(1) =>
     }
-  }
-
-
-  /* ** Stubs, mocks and other test setup */
-
-  class TestFrontend {
-    private def parse[T: ClassTag](source: String, parser: Source => Either[Vector[ParserError], T]) : Either[Vector[ParserError], T] =
-      parser(StringSource(source))
-
-    private def parseOrFail[T: ClassTag](source: String, parser: Source => Either[Vector[ParserError], T]): T = {
-      parse(source, parser) match {
-        case Right(ast) => ast
-        case Left(messages) => fail(s"Parsing failed: $messages")
-      }
-    }
-
-    def parseExp(source : String) : Either[Vector[ParserError], PExpression] = parse(source, Parser.parseExpr)
-    def parseExpOrFail(source : String) : PExpression = parseOrFail(source, Parser.parseExpr)
-    def parseStmt(source : String) : Either[Vector[ParserError], PStatement] = parse(source, Parser.parseStmt)
-    def parseStmtOrFail(source : String) : PStatement = parseOrFail(source, Parser.parseStmt)
-    def parseType(source : String) : Either[Vector[ParserError], PType] = parse(source, Parser.parseType)
-    def parseTypeOrFail(source : String) : PType = parseOrFail(source, Parser.parseType)
-    def parseImportDecl(source: String): Vector[PImport] = parseOrFail(source, Parser.parseImportDecl)
-    def parseFunctionDecl(source: String, specOnly: Boolean = false): PMember = parseOrFail(source, (s: Source) => Parser.parseFunction(s, specOnly = specOnly))
   }
 }

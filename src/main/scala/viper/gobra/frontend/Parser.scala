@@ -81,9 +81,7 @@ object Parser {
     lazy val rewriter = new PRewriter(pom.positions)
 
 
-    class PRewriter(override val positions: Positions) extends PositionedRewriter with Cloner {
-
-    }
+    class PRewriter(override val positions: Positions) extends PositionedRewriter with Cloner
 
     def parseSource(source: Source): Either[Vector[ParserError], PProgram] = {
       val errors = ListBuffer.empty[ParserError]
@@ -94,13 +92,9 @@ object Parser {
           Right(ast)
         case Left(errors) =>
           // On parse failure, ANTLR sometimes throws out of bounds exceptions, ignore these for now.
-          val (parserErrors, _) = errors.partition(_.position.nonEmpty)
-          val allErrors = true
-          val errorsToReport = if (allErrors) {
-            parserErrors
-          } else parserErrors.takeRight(1)
-
-          Left(errorsToReport)
+          val (positionedErrors, nonpos) = errors.partition(_.position.nonEmpty)
+          if (nonpos.nonEmpty) throw new Exception
+          Left(positionedErrors)
       }
     }
 
@@ -168,13 +162,13 @@ object Parser {
       pkg <- makePackage(programs)
     } yield pkg
     // report potential errors:
-    res.left.map(errors => {
+    res.left.foreach(errors => {
       val groupedErrors = errors.groupBy{ _.position.get.file }
       groupedErrors.foreach { case (p, pErrors) =>
         config.reporter report ParserErrorMessage(p, pErrors)
       }
-      errors
     })
+    res
   }
 
   def parseProgram(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], PProgram] = {

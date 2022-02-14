@@ -20,7 +20,7 @@ public abstract class GobraParserBase extends org.antlr.v4.runtime.Parser
     {
         BufferedTokenStream stream = (BufferedTokenStream)_input;
         int prevTokenType = stream.LA(1);
-
+        // Gobra change: Also allow semicolons to be left out right before !>
         return prevTokenType == GobraParser.R_CURLY || prevTokenType == GobraParser.R_PAREN || prevTokenType == GobraParser.R_PRED;
     }
 }

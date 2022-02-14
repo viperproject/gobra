@@ -231,8 +231,10 @@ class TypeComponentImpl extends TypeComponent {
     * Type += {
     *   function name(args): Type
     *
+    *   unique function name_args_tag(): Int
+    *
     *   axiom {
-    *     forall args :: {name(args)} tag(name(args)) == 'tag'
+    *     forall args :: {name(args)} tag(name(args)) == name_args_tag()
     *   }
     *
     *   // if comparability is Comparable
@@ -252,7 +254,7 @@ class TypeComponentImpl extends TypeComponent {
     *   }
     * }
     */
-  private def genTypeFunc(typeHead: TypeHead, args: Vector[vpr.Type], tag: Int)(ctx: Context): vpr.DomainFunc = {
+  private def genTypeFunc(typeHead: TypeHead, args: Vector[vpr.Type])(ctx: Context): vpr.DomainFunc = {
 
     if (genTypesMap.contains(typeHead)) {
       genTypesMap(typeHead)
@@ -267,12 +269,19 @@ class TypeComponentImpl extends TypeComponent {
         formalArgs = varsDecl,
         typ = domainType
       )(domainName = domainName)
-
       val funcApp = vpr.DomainFuncApp(func = func, vars, Map.empty)()
+
+      val tagValueFunc = vpr.DomainFunc(
+        name = s"${functionName(name)}_tag",
+        formalArgs = Seq.empty,
+        typ = vpr.Int,
+        unique = true
+      )(domainName = domainName)
+      val tagValueFuncApp = vpr.DomainFuncApp(func = tagValueFunc, Seq.empty, Map.empty)()
 
       val tagAxiom = {
         val tagApp = vpr.DomainFuncApp(func = tagFunc, Seq(funcApp), Map.empty)()
-        val eq = vpr.EqCmp(tagApp, vpr.IntLit(tag)())()
+        val eq = vpr.EqCmp(tagApp, tagValueFuncApp)()
 
         vpr.AnonymousDomainAxiom(
           if (args.isEmpty) eq
@@ -301,7 +310,7 @@ class TypeComponentImpl extends TypeComponent {
         )(domainName = domainName)
       }
 
-      genFuncs ::= func
+      genFuncs :::= List(func, tagValueFunc)
       genAxioms ::= tagAxiom
       genAxioms ::= comparableAxiom
       genBehavioralSubtypeAxioms(ctx)
@@ -352,7 +361,7 @@ class TypeComponentImpl extends TypeComponent {
 
   /** Constructor for Viper type expressions. */
   override def typeApp(typeHead: TypeHead, args: Vector[vpr.Exp])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
-    val func = genTypeFunc(typeHead, args.map(_.typ), genFuncs.size)(ctx)
+    val func = genTypeFunc(typeHead, args.map(_.typ))(ctx)
     vpr.DomainFuncApp(func = func, args, Map.empty)(pos, info, errT)
   }
 

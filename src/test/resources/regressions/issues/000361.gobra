@@ -9,6 +9,7 @@ pred P(x *int) {
 
 requires P(x)
 func f(x *int) int {
+	invariant P(x)
 	for unfolding P(x) in *x == 0 {
 		return 0
 	}

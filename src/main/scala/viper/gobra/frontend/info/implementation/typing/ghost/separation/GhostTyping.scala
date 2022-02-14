@@ -154,7 +154,12 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
         case x => noGhostPropagationFromChildren(x)
       }
 
-      tree.child(node).forall(noGhostPropagationFromSelfAndChildren)
+      val childrenToVisit: Iterable[PNode] = node match {
+        case PUnfolding(pred, op) => Vector(op)
+        case _ => tree.child(node)
+      }
+
+      childrenToVisit.forall(noGhostPropagationFromSelfAndChildren)
     }
 
   private[separation] def createGhostTyping[X <: PNode](typing: X => GhostType): X => GhostType =

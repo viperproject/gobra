@@ -128,10 +128,12 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   lazy val idSymType: Typing[PIdnNode] = createTyping { id =>
-    entity(id) match {
+    val e = entity(id)
+    e match {
       case NamedType(decl, _, context) => DeclaredT(decl, context)
       case TypeAlias(decl, _, context) => context.symbType(decl.right)
       case Import(decl, _) => ImportT(decl)
+      case BuiltInType(tag, rep, context) => tag.typ
       case _ => violation(s"expected type, but got $id")
     }
   }
@@ -171,6 +173,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       FunctionT(args map context.typ, context.typ(result))
 
     case BuiltInFunction(tag, _, _) => typ(tag)
+
+    case BuiltInType(tag, _, _) => tag.typ
 
     case NamedType(_, _, _) => SortT // DeclaredT(decl, context)
     case TypeAlias(PTypeAlias(right, _), _, context) => context.symbType(right)

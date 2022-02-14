@@ -1,9 +1,10 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package main
+package pkg
 
-func var_type() {
-	//:: ExpectedOutput(parser_error)
-	var a int := 10
+type SomeStruct struct {
+    nested NestedStruct
 }
+
+type NestedStruct struct {}

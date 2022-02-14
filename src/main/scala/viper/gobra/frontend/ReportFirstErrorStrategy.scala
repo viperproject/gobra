@@ -1,9 +1,20 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.frontend
 
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.antlr.v4.runtime.{BailErrorStrategy, DefaultErrorStrategy, FailedPredicateException, InputMismatchException, Parser, ParserRuleContext, RecognitionException, Token}
 import viper.gobra.frontend.GobraParser.{BlockContext, ExprSwitchStmtContext}
 
+/**
+  * An ANTLR Error strategy that does not try to recover from errors, but instead reports the first error encountered.
+  * It tries to differentiate between true parser errors and stack-dependent ambiguities to potentially avoid parsing
+  * an incorrect input twice.
+  */
 class ReportFirstErrorStrategy extends DefaultErrorStrategy {
 
 
@@ -18,6 +29,7 @@ class ReportFirstErrorStrategy extends DefaultErrorStrategy {
     var context = recognizer.getContext
     // For blocks that could be interpreted as struct literals (like `if a == b { }` or `switch tag := 0; tag { }`)
     // Cast a wide net to catch every case, but still allow faster parsing if the error can't be an ambiguity.
+    // Thee rest of recover and recoverInline is the same as in the superclass.
     context match {
       case _ : BlockContext => throw new AmbiguityException
       case _ : ExprSwitchStmtContext => throw new AmbiguityException
@@ -45,14 +57,6 @@ class ReportFirstErrorStrategy extends DefaultErrorStrategy {
     reportError(recognizer, e)
     throw new ParseCancellationException(e)
   }
-
-  def forceReport(recognizer: Parser, e: RecognitionException): Unit = {
-    val tmp = errorRecoveryMode
-    errorRecoveryMode = false
-    reportError(recognizer, e)
-    errorRecoveryMode = tmp
-  }
-
 
 }
 

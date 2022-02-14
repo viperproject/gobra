@@ -50,8 +50,7 @@ case class Config(
                  int32bit: Boolean = false,
                  // the following option is currently not controllable via CLI as it is meaningless without a constantly
                  // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
-                 cacheParser: Boolean = false,
-                 legacyParser: Boolean = false,
+                 cacheParser: Boolean = false
 ) {
 
   def merge(other: Config): Config = {
@@ -206,13 +205,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = "chop",
     descr = "Number of parts the generated verification condition is split into (at most)",
     default = Some(1),
-    noshort = true
-  )
-
-  val legacyParser: ScallopOption[Boolean] = toggle(
-    name = "legacyParser",
-    descrYes = "Use the old Parser Combinator",
-    default = Some(false),
     noshort = true
   )
 
@@ -471,7 +463,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     checkOverflows = checkOverflows(),
     int32bit = int32Bit(),
     shouldVerify = shouldVerify,
-    shouldChop = shouldChop,
-    legacyParser = legacyParser()
+    shouldChop = shouldChop
   )
 }

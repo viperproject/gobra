@@ -28,14 +28,14 @@ pred messagePerm(ghost wg *sync.WaitGroup, s []int, ghost x, y int) {
 }
 
 requires acc(c.RecvChannel(),_)
-requires c.RecvGivenPerm() == PredTrue!<!>;
-requires c.RecvGotPerm() == messagePerm!<wg,_,x,y!>;
+requires c.RecvGivenPerm() == PredTrue!<!>
+requires c.RecvGotPerm() == messagePerm!<wg,_,x,y!>
 func worker(c <- chan[]int, wg *sync.WaitGroup, x, y int) {
   fold acc(PredTrue!<!>(),2/1);
   invariant PredTrue!<!>() && acc(c.RecvChannel(),_)
-  invariant c.RecvGivenPerm() == PredTrue!<!>;
+  invariant c.RecvGivenPerm() == PredTrue!<!>
   // we forget to specify the channel's RecvGotPerm (needed due to black-box semantics of loops) (seeded bug):
-  // invariant c.RecvGotPerm() == messagePerm!<wg,_,x,y,!>;
+  // invariant c.RecvGotPerm() == messagePerm!<wg,_,x,y,!>
   //:: ExpectedOutput(invariant_preservation_error:permission_error)
   invariant ok ==> messagePerm!<wg,_,x,y!>(s)
   for s, ok := <- c; ok; s, ok = <-c {
@@ -70,7 +70,7 @@ func SearchReplace(s []int, x, y int) {
   ghost s0 := toSeq(s)
   c := make(chan []int,4)
   var wg@ sync.WaitGroup
-  ghost pr := messagePerm!<&wg,_,x,y!>;
+  ghost pr := messagePerm!<&wg,_,x,y!>
   c.Init(pr,PredTrue!<!>)
   wg.Init()
   ghost seqs := seq[seq[int]] {}
@@ -95,7 +95,7 @@ func SearchReplace(s []int, x, y int) {
     0 <= j && j < len(seqs[i]) ==> seqs[i][j] == s0[i * workRange + j]
   invariant len(pseqs) == len(seqs)
   invariant forall i int :: {pseqs[i]} 0 <= i && i < len(pseqs) ==>
-    pseqs[i] == replacedPerm!<seqs[i],s[i * workRange:i * workRange + len(seqs[i])],x,y!>;
+    pseqs[i] == replacedPerm!<seqs[i],s[i * workRange:i * workRange + len(seqs[i])],x,y!>
   invariant forall i int :: 0 <= i && i < len(pseqs) ==> wg.TokenById(pseqs[i],i)
   for offset := 0; offset != len(s); {
     nextOffset := offset + workRange;
@@ -106,7 +106,7 @@ func SearchReplace(s []int, x, y int) {
     assert forall i int :: {&section[i]} 0 <= i && i < len(s) ==>
       &section[i] == &s[i + offset]
     ghost s1 := toSeq(section)
-    ghost wpr := replacedPerm!<s1,section,x,y!>;
+    ghost wpr := replacedPerm!<s1,section,x,y!>
     wg.Add(1,1/2,PredTrue!<!>)
     ghost if(offset == 0) {
       wg.Start(1/2,PredTrue!<!>)

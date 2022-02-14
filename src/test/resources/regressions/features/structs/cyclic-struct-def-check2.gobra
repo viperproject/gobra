@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// ##(-I ./)
+
+import pkg "cyclic-struct-def-check"
+
+// this test case is very similar to `cyclic-struct-def-check.gobra` except that it uses a qualified import
+
+type ClientState struct {
+    someStruct pkg.SomeStruct
+}

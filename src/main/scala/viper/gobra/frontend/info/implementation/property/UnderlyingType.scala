@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend.{PDeref, PDot, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PNamedOperand, PStructType, PType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInTypeTag
 import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelT, DeclaredT, FunctionT, GhostSliceT, IntT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StringT, StructT, Type}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -20,16 +21,26 @@ trait UnderlyingType { this: TypeInfoImpl =>
       case t => t
     }
 
-  lazy val underlyingTypeP: PType => Option[PType] = {
-    def inCtx(c: ExternalTypeInfo, rhs: PType): Option[PType] = c match {
-      case c: UnderlyingType => c.underlyingTypeP(rhs)
+  lazy val underlyingTypeP: PType => Option[PType] = t => {
+    underlyingTypeWithCtxP(t).map(_._1)
+  }
+
+  /** returns the underlying type with the context in which it occurs */
+  lazy val underlyingTypeWithCtxP: PType => Option[(PType, UnderlyingType)] = {
+    def inCtx(c: ExternalTypeInfo, rhs: PType): Option[(PType, UnderlyingType)] = c match {
+      case c: UnderlyingType => c.underlyingTypeWithCtxP(rhs)
       case _ => None
     }
 
-    attr[PType, Option[PType]] {
+    attr[PType, Option[(PType, UnderlyingType)]] {
       case PNamedOperand(t) => entity(t) match {
         case st.NamedType(decl, _, ctx) => inCtx(ctx, decl.right)
         case st.TypeAlias(decl, _, ctx) => inCtx(ctx, decl.right)
+        // TODO: Get the type directly from BuiltInType or BuiltInTypeTag
+        case st.BuiltInType(bt : BuiltInTypeTag, _, _) => predefinedTypesMap.get(bt.identifier) match {
+          case Some(value) => Some(value, this)
+          case None => None
+        }
         case _ => None // type not defined
       }
       case PDot(_, id) => entity(id) match {
@@ -37,7 +48,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
         case st.TypeAlias(decl, _, ctx) => inCtx(ctx, decl.right)
         case _ => None // type not defined
       }
-      case t => Some(t)
+      case t => Some((t, this))
     }
   }
 

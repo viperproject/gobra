@@ -1,9 +1,13 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package main
+package pkg
 
-func var_type() {
-	//:: ExpectedOutput(parser_error)
-	var a int := 10
+type S struct {
+	b []int
+}
+
+decreases
+pure func check(s S) bool {
+	return s.b == nil
 }

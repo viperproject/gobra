@@ -1,3 +1,6 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
 package main
 
 func test() []float64 {
@@ -13,15 +16,12 @@ func test() []float64 {
 		.12345e+5,
 		1_5.,
 		0.15e+0_2,
-		/*
-			hex not supported
-			0x1p-2  ,
-			0x2.p10   ,
-			0x1.Fp+0  ,
-			0X.8p-0  ,
-			0X_1FFFP-16 ,
-			0x15e-2,
-		*/
+		0x1p-2,
+		0x2.p10,
+		0x1.Fp+0,
+		0x.8p-0,
+		0x_1FFFp-16,
 	}
+	var _ int = 0x15e - 2 // == 0x15e - 2 (integer subtraction)
 	return arr[1:1]
 }

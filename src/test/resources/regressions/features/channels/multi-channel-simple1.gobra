@@ -31,8 +31,8 @@ func structChannel() {
 }
 
 requires acc(c.SendChannel(), 1/2)
-requires c.SendGivenPerm() == payloadIsOne!<_!>;
-requires c.SendGotPerm() == PredTrue!<!>;
+requires c.SendGivenPerm() == payloadIsOne!<_!>
+requires c.SendGotPerm() == PredTrue!<!>
 func sendMsg(c chan *msg) {
     m@ := msg{1}
     fold payloadIsOne!<_!>(&m)

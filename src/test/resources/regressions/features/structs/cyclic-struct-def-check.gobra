@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// ##(-I ./)
+
+import . "cyclic-struct-def-check"
+
+// note that this test case does not check whether Gobra detects a cyclic struct definition
+// instead, this test case makes sure that the right type checker context is used when performing this check.
+
+type ClientState struct {
+    someStruct SomeStruct
+}

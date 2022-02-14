@@ -25,18 +25,8 @@ func positiveSumWithoutTrusted(x int, y int) (ret int) {
 
 trusted
 func functionWithNonSupportedFeature() int{
-	// fallthrough statements would normally cause a translation error
-	// since they aren't supported
-    i := 45
-    switch {
-    case i < 10:
-        fallthrough
-    case i < 0:
-        fallthrough
-    case true:
-        i = 0
-    }
-    return i
+	var i int = "not an integer"
+	return i
 }
 
 trusted

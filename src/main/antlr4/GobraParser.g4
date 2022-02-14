@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 parser grammar GobraParser;
 import GoParser;
 
@@ -27,10 +33,9 @@ maybeAddressableIdentifier: IDENTIFIER ADDR_MOD?;
 // Ghost statements
 
 ghostStatement:
-	GHOST statement |
-	ASSERT expression |
-	fold_stmt=(FOLD | UNFOLD) predicateAccess |
-	kind=(ASSUME | ASSERT | INHALE | EXHALE) expression
+	GHOST statement  #explicitGhostStatement
+	| fold_stmt=(FOLD | UNFOLD) predicateAccess #foldStatement
+	| kind=(ASSUME | ASSERT | INHALE | EXHALE) expression #proofStatement
 	;
 
 // Ghost Primary Expressions
@@ -38,12 +43,19 @@ ghostStatement:
 ghostPrimaryExpr: range
 				| access
 				| typeOf
+				| typeExpr
 				| isComparable
 				| old
 				| sConversion
 				| optionNone | optionSome | optionGet
-				| quantifier=(FORALL | EXISTS) boundVariables COLON COLON triggers expression
-				| permission=(WRITEPERM | NOPERM);
+				| quantification
+				| permission;
+
+quantification: (FORALL | EXISTS) boundVariables COLON COLON triggers expression;
+
+permission: WRITEPERM | NOPERM;
+
+typeExpr: TYPE L_BRACKET type_ R_BRACKET;
 
 boundVariables
 	: boundVariableDecl (COMMA boundVariableDecl)* COMMA?
@@ -77,7 +89,7 @@ isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 
 typeOf: TYPE_OF L_PAREN expression R_PAREN;
 
-access: ACCESS L_PAREN expression (COMMA (IDENTIFIER | expression))? R_PAREN;
+access: ACCESS L_PAREN expression (COMMA expression)? R_PAREN;
 
 range: kind=(SEQ | SET | MSET) L_BRACKET expression DOT_DOT expression R_BRACKET;
 
@@ -101,9 +113,8 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 
 // Specifications
 
-specification
-	: ((specStatement) eos)* PURE
-	| ((specStatement | PURE | TRUSTED) eos)*
+specification:
+	((specStatement | PURE | TRUSTED) eos)*? PURE? // Non-greedily match PURE to avoid missing eos errors.
 	;
 
 specStatement
@@ -159,13 +170,9 @@ sourceFile:
 ghostMember: implementationProof
 			| fpredicateDecl
 			| mpredicateDecl
-			| (GHOST | (GHOST eos)) (
-				methodDecl
-				| functionDecl
-				| constDecl
-				| typeDecl
-				| varDecl
-			);
+			| explicitGhostMember;
+
+explicitGhostMember: GHOST (methodDecl | functionDecl | declaration);
 
 fpredicateDecl: PRED IDENTIFIER parameters predicateBody?;
 
@@ -188,35 +195,15 @@ receiver: 	L_PAREN maybeAddressableIdentifier? type_ COMMA? R_PAREN;
 
 
 // Added ghost parameters
-parameterDecl: GHOST? identifierList? ELLIPSIS? type_;
+parameterDecl: GHOST? identifierList? parameterType;
 
-// Added unfolding
-unaryExpr:
-	primaryExpr
-	| kind=(
-		LEN
-		| CAP
-		| DOM
-		| RANGE
-	) L_PAREN expression R_PAREN
-	| unfolding
-	| unary_op = (
-		PLUS
-		| MINUS
-		| EXCLAMATION
-		| CARET
-		| STAR
-		| AMPERSAND
-		| RECEIVE
-	) expression
-	;
+parameterType: ELLIPSIS? type_;
 
 unfolding: UNFOLDING predicateAccess IN expression;
 
 // Added ++ operator
 expression:
-	TYPE L_BRACKET type_ R_BRACKET
-	| call_op=(
+	call_op=(
 		LEN
 		| CAP
 		| DOM
@@ -312,20 +299,20 @@ basicLit:
 // Added ghostPrimaryExprs
 // Fixed arguments matching on the next line
 primaryExpr:
-	operand
-	| conversion
-	| methodExpr
-	| ghostPrimaryExpr
-	| new_
-	| primaryExpr (
-		(DOT IDENTIFIER)
-		| index
-		| slice_
-		| seqUpdExp
-		| typeAssertion
-		| {noTerminatorBetween(1)}? arguments
-		| predConstructArgs
-	);
+	operand #operandPrimaryExpr
+	| conversion #conversionPrimaryExpr
+	| methodExpr #methodPrimaryExpr
+	| ghostPrimaryExpr #ghostPrimaryExpr_
+	| new_  #newExpr
+	| make #makeExpr
+	| primaryExpr DOT IDENTIFIER #selectorPrimaryExpr
+	| primaryExpr index #indexPrimaryExpr
+	| primaryExpr slice_ #slicePrimaryExpr
+	| primaryExpr seqUpdExp #seqUpdPrimaryExpr
+	| primaryExpr typeAssertion #typeAssertionPrimaryExpr
+	| primaryExpr arguments #invokePrimaryExpr
+	| primaryExpr predConstructArgs #predConstrPrimaryExpr
+	;
 
 predConstructArgs: L_PRED expressionList? COMMA? R_PRED;
 
@@ -336,35 +323,12 @@ interfaceType:
 predicateSpec: PRED IDENTIFIER parameters;
 
 methodSpec:
-	{noTerminatorAfterParams(2)}? GHOST? specification IDENTIFIER parameters result
+	GHOST? specification IDENTIFIER parameters result
 	| GHOST? specification IDENTIFIER parameters;
 
 // Added ghostTypeLiterals
-type_: typeName | typeLit | ghostTypeLit | L_PAREN type_ R_PAREN
-		| predefined=(
-			   BOOL |
-				 STRING |
-				 PERM |
-				// signed integer types
-				 RUNE |
-				 INT |
-				 INT8 |
-				 INT16 |
-				 INT32 |
-				 INT64 |
-				// unsigned integer types
-				 BYTE |
-				 UINT |
-				 UINT8 |
-				 UINT16 |
-				 UINT32 |
-				 UINT64 |
-				 UINTPTR |
-				 FLOAT32 |
-				 FLOAT64 |
-				 COMPLEX64 |
-				 COMPLEX128
-		);
+type_: typeName | typeLit | ghostTypeLit | L_PAREN type_ R_PAREN;
+
 // Added pred types
 typeLit:
 	arrayType
@@ -381,16 +345,17 @@ predType: PRED predTypeParams;
 
 predTypeParams: L_PAREN (type_ (COMMA type_)* COMMA?)? R_PAREN;
 
-// Ditto
+// Added ghost time and outlined implicit size arrays
 literalType:
 	structType
 	| arrayType
-	| L_BRACKET ELLIPSIS R_BRACKET elementType
+	| implicitArray
 	| sliceType
 	| mapType
 	| ghostTypeLit
 	| typeName;
 
+implicitArray: L_BRACKET ELLIPSIS R_BRACKET elementType;
 // Added Deflate
 //exprCaseClause: exprSwitchCase COLON statementList?;
 
@@ -424,11 +389,3 @@ assign_op: ass_op=(
 		| AMPERSAND
 		| BIT_CLEAR
 	)? ASSIGN;
-
-// allow "import ("import1";"import2") without semicolon at the end
-eos:
-	SEMI
-	| EOF
-	| {lineTerminatorAhead()}?
-	| {checkPreviousTokenText("}")}?
-	| {checkPreviousTokenText(")")}?;

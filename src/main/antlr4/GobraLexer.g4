@@ -1,17 +1,24 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 lexer grammar GobraLexer;
 import GoLexer;
 
-FLOAT_LIT : DECIMAL_FLOAT_LIT | HEX_FLOAT_LIT;
+FLOAT_LIT : (DECIMAL_FLOAT_LIT | HEX_FLOAT_LIT) -> mode(NLSEMI);
 
+// Add lookahead to avoid parsing range expressions like '[1..3]' as two floats '1.' and '.3'
 DECIMAL_FLOAT_LIT      : DECIMALS ('.'{_input.LA(1) != '.'}? DECIMALS? EXPONENT? | EXPONENT)
                        | '.'{_input.index() <2 || _input.LA(-2) != '.'}? DECIMALS EXPONENT?
                        ;
 
-// BEGIN GOBRA
-//CURLIES : '{' (CURLIES|~[{}])* '}' ;
+// -mode(NLSEMI) means newlines directly after this token
+// emit a semicolon. (just like identifiers, literals, ')}]' etc in base Go)
 
-TRUE        : 'true';
-FALSE       : 'false';
+TRUE        : 'true' -> mode(NLSEMI);
+FALSE       : 'false' -> mode(NLSEMI);
 ASSERT      : 'assert';
 ASSUME      : 'assume';
 INHALE      : 'inhale';
@@ -20,14 +27,14 @@ PRE         : 'requires';
 PRESERVES   : 'preserves';
 POST        : 'ensures';
 INV         : 'invariant';
-DEC         : 'decreases';
-PURE        : 'pure';
+DEC         : 'decreases' -> mode(NLSEMI);
+PURE        : 'pure' -> mode(NLSEMI);
 IMPL        : 'implements';
-OLD         : 'old';
+OLD         : 'old'-> mode(NLSEMI);
 LHS         : '#lhs';
 FORALL      : 'forall';
 EXISTS      : 'exists';
-ACCESS      : 'acc';
+ACCESS      : 'acc' -> mode(NLSEMI);
 FOLD        : 'fold';
 UNFOLD      : 'unfold';
 UNFOLDING   : 'unfolding';
@@ -43,59 +50,30 @@ WAND        : '--*';
 APPLY       : 'apply';
 QMARK       : '?';
 L_PRED      : '!<';
-R_PRED      : '!>';
-RANGE       : 'range';
-SEQ         : 'seq';
-SET         : 'set';
-MSET        : 'mset';
-DICT        : 'dict';
-OPT         : 'option';
-LEN         : 'len';
-NEW         : 'new';
-MAKE        : 'make';
-CAP         : 'cap';
-SOME        : 'some';
-GET         : 'get';
-DOM         : 'domain';
-AXIOM       : 'axiom';
-NONE        : 'none';
+R_PRED      : '!>' -> mode(NLSEMI);
+SEQ         : 'seq'-> mode(NLSEMI);
+SET         : 'set'-> mode(NLSEMI);
+MSET        : 'mset'-> mode(NLSEMI);
+DICT        : 'dict'-> mode(NLSEMI);
+OPT         : 'option'-> mode(NLSEMI);
+LEN         : 'len'-> mode(NLSEMI);
+NEW         : 'new'-> mode(NLSEMI);
+MAKE        : 'make'-> mode(NLSEMI);
+CAP         : 'cap'-> mode(NLSEMI);
+SOME        : 'some'-> mode(NLSEMI);
+GET         : 'get'-> mode(NLSEMI);
+DOM         : 'domain'-> mode(NLSEMI);
+AXIOM       : 'axiom'-> mode(NLSEMI);
+NONE        : 'none' -> mode(NLSEMI);
 PRED        : 'pred';
-TYPE_OF      : 'typeOf';
-IS_COMPARABLE: 'isComparable';
+TYPE_OF      : 'typeOf'-> mode(NLSEMI);
+IS_COMPARABLE: 'isComparable'-> mode(NLSEMI);
 SHARE       : 'share';
-ADDR_MOD    : '@';
+ADDR_MOD    : '@'-> mode(NLSEMI);
 DOT_DOT     : '..';
 SHARED      : 'shared';
 EXCLUSIVE   : 'exclusive';
 PREDICATE   : 'predicate';
-WRITEPERM   : 'writePerm';
-NOPERM      : 'noPerm';
-TRUSTED     : 'trusted';
-
-
-// Types
-       BOOL: 'bool';
-         STRING: 'string';
-         PERM: 'perm';
-        // signed integer types
-         RUNE: 'rune';
-         INT: 'int';
-         INT8: 'int8';
-         INT16: 'int16';
-         INT32: 'int32';
-         INT64: 'int64';
-        // unsigned integer types
-         BYTE: 'byte';
-         UINT: 'uint';
-         UINT8: 'uint8';
-         UINT16: 'uint16';
-         UINT32: 'uint32';
-         UINT64: 'uint64';
-         UINTPTR: 'uintptr';
-         // float types
-         FLOAT32: 'float32';
-         FLOAT64: 'float64';
-         //  complex types
-         COMPLEX64: 'complex64';
-         COMPLEX128: 'complex128';
-// END GOBRA
+WRITEPERM   : 'writePerm' -> mode(NLSEMI);
+NOPERM      : 'noPerm' -> mode(NLSEMI);
+TRUSTED     : 'trusted' -> mode(NLSEMI);

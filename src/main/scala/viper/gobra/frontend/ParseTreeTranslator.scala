@@ -1384,11 +1384,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       case Vector("acc", "(", expr : PExpression, ")") =>
         PAccess(expr, PFullPerm().at(expr)).at(ctx)
 
-      case Vector("acc", "(", expr : PExpression, ",", idnUseLike(w : PWildcard), ")") =>
-        PAccess(expr, PWildcardPerm().at(w)).at(ctx)
-
-      case Vector("acc", "(", expr : PExpression, ",", idnUse(id), ")") =>
-        PAccess(expr, PNamedOperand(id).at(id)).at(id)
+      case Vector("acc", "(", expr : PExpression, ",", blank : PBlankIdentifier, ")") =>
+        PAccess(expr, PWildcardPerm().at(blank)).at(ctx)
 
       case Vector("acc", "(", expr : PExpression, ",", perm : PExpression, ")") =>
         PAccess(expr, perm).at(ctx)
@@ -1437,7 +1434,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
 
   override def visitUnfolding(ctx: UnfoldingContext): PUnfolding = {
-    val pred = visitPredicateAccess(ctx.predicateAccess())
+    val pred = visitNode[PPredicateAccess](ctx.predicateAccess())
     val op = visitExpression(ctx.expression())
     PUnfolding(pred, op).at(ctx)
   }
@@ -1904,51 +1901,42 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   //endregion
 
   //region Ghost statement
+
   /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  // TODO : Refactor
-  override def visitGhostStatement(ctx: GobraParser.GhostStatementContext): PGhostStatement = {
-    if (ctx.GHOST() != null) {
-      PExplicitGhostStatement(visitStatement(ctx.statement())).at(ctx)
-    } else if (ctx.ASSERT() != null) {
-      PAssert(visitExpression(ctx.expression())).at(ctx)
-    } else if (ctx.fold_stmt != null) {
-      val predicateAccess = visitPredicateAccess(ctx.predicateAccess())
-      ctx.fold_stmt.getType match {
-        case GobraParser.FOLD => PFold(predicateAccess).at(ctx)
-        case GobraParser.UNFOLD => PUnfold(predicateAccess).at(ctx)
-      }
-    }  else if (has(ctx.kind)) {
-      val expr = visitExpression(ctx.expression())
-      val kind = ctx.kind.getType match {
-        case GobraParser.ASSERT => PAssert
-        case GobraParser.ASSUME => PAssume
-        case GobraParser.INHALE => PInhale
-        case GobraParser.EXHALE => PExhale
-      }
-      kind(expr).at(ctx)
-    } else fail(ctx)
+    * Visits the production
+    * GHOST statement
+   **/
+  override def visitExplicitGhostStatement(ctx: ExplicitGhostStatementContext): PExplicitGhostStatement = super.visitExplicitGhostStatement(ctx) match {
+    case Vector("ghost", stmt : PStatement) => PExplicitGhostStatement(stmt)
   }
 
   /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitPredicateAccess(ctx: PredicateAccessContext): PPredicateAccess = {
-    if (ctx.primaryExpr() != null ) {
-      visitPrimaryExpr(ctx.primaryExpr()) match {
-        case invoke : PInvoke => PPredicateAccess(invoke, PFullPerm().at(invoke)).at(ctx)
-        case PAccess(invoke: PInvoke, perm) => PPredicateAccess(invoke, perm).at(ctx)
-        case _ => fail(ctx, "Expected invocation")
-      }
-    } else fail(ctx)
+    * Visist the production
+    * fold_stmt=(FOLD | UNFOLD) predicateAccess
+    *     */
+  override def visitFoldStatement(ctx: FoldStatementContext): PGhostStatement = super.visitFoldStatement(ctx) match {
+    case Vector("fold", predAcc : PPredicateAccess) => PFold(predAcc)
+    case Vector("unfold", predAcc : PPredicateAccess) => PUnfold(predAcc)
+  }
 
+  /**
+    * Visits the production
+    * kind=(ASSUME | ASSERT | INHALE | EXHALE) expression
+    *     */
+  override def visitGhostHelperStmt(ctx: GhostHelperStmtContext): AnyRef = super.visitGhostHelperStmt(ctx) match {
+    case Vector(kind : String, expr : PExpression) => kind match {
+      case "assert" => PAssert(expr)
+      case "assume" => PAssume(expr)
+      case "inhale" => PInhale(expr)
+      case "exhale" => PExhale(expr)
+    }
+  }
+
+
+  override def visitPredicateAccess(ctx: PredicateAccessContext): PPredicateAccess = super.visitPredicateAccess(ctx) match {
+    case invoke : PInvoke => PPredicateAccess(invoke, PFullPerm().at(invoke))
+    case PAccess(invoke: PInvoke, perm) => PPredicateAccess(invoke, perm)
+    case _ => fail(ctx, "Expected invocation")
   }
 
   /**

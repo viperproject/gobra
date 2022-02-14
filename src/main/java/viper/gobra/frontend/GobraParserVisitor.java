@@ -41,11 +41,26 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitMaybeAddressableIdentifier(GobraParser.MaybeAddressableIdentifierContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link GobraParser#ghostStatement}.
+	 * Visit a parse tree produced by the {@code explicitGhostStatement}
+	 * labeled alternative in {@link GobraParser#ghostStatement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitGhostStatement(GobraParser.GhostStatementContext ctx);
+	T visitExplicitGhostStatement(GobraParser.ExplicitGhostStatementContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code foldStatement}
+	 * labeled alternative in {@link GobraParser#ghostStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFoldStatement(GobraParser.FoldStatementContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code ghostHelperStmt}
+	 * labeled alternative in {@link GobraParser#ghostStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitGhostHelperStmt(GobraParser.GhostHelperStmtContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#ghostPrimaryExpr}.
 	 * @param ctx the parse tree

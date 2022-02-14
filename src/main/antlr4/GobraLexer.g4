@@ -9,14 +9,13 @@ import GoLexer;
 
 FLOAT_LIT : (DECIMAL_FLOAT_LIT | HEX_FLOAT_LIT) -> mode(NLSEMI);
 
+// Add lookahead to avoid parsing range expressions like '[1..3]' as two floats '1.' and '.3'
 DECIMAL_FLOAT_LIT      : DECIMALS ('.'{_input.LA(1) != '.'}? DECIMALS? EXPONENT? | EXPONENT)
                        | '.'{_input.index() <2 || _input.LA(-2) != '.'}? DECIMALS EXPONENT?
                        ;
 
-// BEGIN GOBRA
-//CURLIES : '{' (CURLIES|~[{}])* '}' ;
-// -mode(NLSEMI) means newlines directly after this token are
-// parsed as semicolons. (just like identifiers, literals, )}] etc in base Go)
+// -mode(NLSEMI) means newlines directly after this token
+// emit a semicolon. (just like identifiers, literals, ')}]' etc in base Go)
 
 TRUE        : 'true' -> mode(NLSEMI);
 FALSE       : 'false' -> mode(NLSEMI);
@@ -78,5 +77,3 @@ PREDICATE   : 'predicate';
 WRITEPERM   : 'writePerm' -> mode(NLSEMI);
 NOPERM      : 'noPerm' -> mode(NLSEMI);
 TRUSTED     : 'trusted' -> mode(NLSEMI);
-
-// END GOBRA

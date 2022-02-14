@@ -33,10 +33,9 @@ maybeAddressableIdentifier: IDENTIFIER ADDR_MOD?;
 // Ghost statements
 
 ghostStatement:
-	GHOST statement |
-	ASSERT expression |
-	fold_stmt=(FOLD | UNFOLD) predicateAccess |
-	kind=(ASSUME | ASSERT | INHALE | EXHALE) expression
+	GHOST statement  #explicitGhostStatement
+	| fold_stmt=(FOLD | UNFOLD) predicateAccess #foldStatement
+	| kind=(ASSUME | ASSERT | INHALE | EXHALE) expression #ghostHelperStmt
 	;
 
 // Ghost Primary Expressions
@@ -90,7 +89,7 @@ isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 
 typeOf: TYPE_OF L_PAREN expression R_PAREN;
 
-access: ACCESS L_PAREN expression (COMMA (IDENTIFIER | expression))? R_PAREN;
+access: ACCESS L_PAREN expression (COMMA expression)? R_PAREN;
 
 range: kind=(SEQ | SET | MSET) L_BRACKET expression DOT_DOT expression R_BRACKET;
 
@@ -114,9 +113,8 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 
 // Specifications
 
-specification
-	: ((specStatement) eos)* PURE
-	| ((specStatement | PURE | TRUSTED) eos)*
+specification:
+	((specStatement | PURE | TRUSTED) eos)*? PURE? // Non-greedily match PURE to avoid missing eos errors.
 	;
 
 specStatement
@@ -197,7 +195,9 @@ receiver: 	L_PAREN maybeAddressableIdentifier? type_ COMMA? R_PAREN;
 
 
 // Added ghost parameters
-parameterDecl: GHOST? identifierList? ELLIPSIS? type_;
+parameterDecl: GHOST? identifierList? paramameterType;
+
+paramameterType: ELLIPSIS? type_;
 
 unfolding: UNFOLDING predicateAccess IN expression;
 

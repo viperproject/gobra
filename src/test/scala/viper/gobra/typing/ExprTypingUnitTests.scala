@@ -3370,7 +3370,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("self")))),
         inArgs.map(_._1),
         PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), Vector(), Vector(), true),
+        PFunctionSpec(Vector(), Vector(), Vector(), Vector(), isPure = true),
         Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
       ))
     )
@@ -3390,7 +3390,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       )
       val tree = new Info.GoTree(pkg)
       val context = new Info.Context()
-      val config = Config(inputFiles = Vector(), includeDirs = Vector())
+      val config = Config(inputs = Vector(), includeDirs = Vector())
       new TypeInfoImpl(tree, context)(config)
     }
 

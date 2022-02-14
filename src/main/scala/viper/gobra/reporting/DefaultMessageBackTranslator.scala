@@ -20,8 +20,8 @@ class DefaultMessageBackTranslator(backTrackInfo: BackTrackInfo, config: Config)
   private def defaultTranslate: PartialFunction[Message, GobraMessage] = {
     case m: OverallSuccessMessage => GobraOverallSuccessMessage(m.verifier)
     case m: OverallFailureMessage => GobraOverallFailureMessage(m.verifier, translate(m.result))
-    case EntitySuccessMessage(verifier, Source(info), _, _) => GobraEntitySuccessMessage(verifier, info)
-    case EntityFailureMessage(verifier, Source(info), _, result, _) => GobraEntityFailureMessage(verifier, info, translate(result))
+    case m@ EntitySuccessMessage(verifier, Source(info), _, cached) => GobraEntitySuccessMessage(verifier, m.concerning, info, cached)
+    case m@ EntityFailureMessage(verifier, Source(info), _, result, cached) => GobraEntityFailureMessage(verifier, m.concerning, info, translate(result), cached)
   }
 
   private def translate(result: VerificationResult): VerifierResult =

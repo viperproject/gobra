@@ -6,7 +6,6 @@
 
 package viper.gobra.translator.implementations.components
 
-import viper.gobra.translator.interfaces.Collector
 import viper.gobra.translator.interfaces.components.SeqMultiplicity
 import viper.silver.{ast => vpr}
 
@@ -196,10 +195,10 @@ class SeqMultiplicityImpl extends SeqMultiplicity {
   )()
 
   /**
-    * Finalises translation. May add to collector.
+    * Finalizes translation. `addMemberFn` is called with any member that is part of the encoding.
     */
-  override def finalize(col : Collector) : Unit = {
-    if (generateDomain) col.addMember(domain)
+  override def finalize(addMemberFn: vpr.Member => Unit) : Unit = {
+    if (generateDomain) addMemberFn(domain)
   }
 
   /**

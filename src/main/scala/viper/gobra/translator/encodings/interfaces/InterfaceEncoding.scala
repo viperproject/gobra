@@ -14,10 +14,11 @@ import viper.gobra.reporting.{ComparisonError, ComparisonOnIncomparableInterface
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.{Algorithms, Violation}
+import viper.silver.plugin.standard.termination
 import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
 
@@ -49,13 +50,13 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
   private var genMembers: List[vpr.Member] = List.empty
 
-  override def finalize(col: Collector): Unit = {
-    poly.finalize(col)
-    types.finalize(col)
-    toInterfaceFunc.finalize(col)
-    genMembers foreach col.addMember
-    typeOfWithSubtypeFactFuncMap.values foreach col.addMember
-    genPredicates foreach col.addMember
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    poly.finalize(addMemberFn)
+    types.finalize(addMemberFn)
+    toInterfaceFunc.finalize(addMemberFn)
+    genMembers foreach addMemberFn
+    typeOfWithSubtypeFactFuncMap.values foreach addMemberFn
+    genPredicates foreach addMemberFn
   }
 
   /**
@@ -455,6 +456,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     * function typeOfFunc_I(itf: [itf{}]): Type
     *   ensures result == typeOf(itf)
     *   ensures behaviouralSubtype(result, [I])
+    *   decreases
     */
   private def typeOfWithSubtypeFactFunc(itfT: in.InterfaceT)(ctx: Context): vpr.Function = {
     typeOfWithSubtypeFactFuncMap.getOrElse(itfT.name, {
@@ -466,7 +468,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         name = s"${Names.typeOfFunc}_${itfT.name}",
         formalArgs = Seq(formal),
         typ = resT,
-        pres = Seq.empty,
+        pres = Seq(termination.DecreasesWildcard(None)()),
         posts = Seq(
           vpr.EqCmp(vpr.Result(resT)(), typeOf(formal.localVar)()(ctx))(),
           types.behavioralSubtype(vpr.Result(resT)(), types.typeToExpr(itfT)()(ctx))()(ctx)

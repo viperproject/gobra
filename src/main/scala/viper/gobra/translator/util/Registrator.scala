@@ -6,7 +6,6 @@
 
 package viper.gobra.translator.util
 
-import viper.gobra.translator.interfaces.Collector
 import viper.gobra.translator.interfaces.translator.Generator
 import viper.silver.{ast => vpr}
 
@@ -15,10 +14,10 @@ class Registrator[T <: vpr.Member] extends Generator {
   private var gens: Set[T] = Set.empty
 
   /**
-    * Finalizes translation. May add to collector.
+    * Finalizes translation. `addMemberFn` is called with any member that is part of the encoding.
     */
-  override def finalize(col: Collector): Unit = {
-    gens.foreach(col.addMember)
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    gens.foreach(addMemberFn)
     clean()
   }
 

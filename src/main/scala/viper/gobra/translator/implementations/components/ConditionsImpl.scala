@@ -10,35 +10,38 @@ import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
 import viper.gobra.reporting.Source.Verifier
 import viper.gobra.reporting.{Source, VerificationError}
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.Collector
 import viper.gobra.translator.interfaces.components.Conditions
 import viper.gobra.translator.util.FunctionGeneratorWithoutContext
+import viper.silver.plugin.standard.termination
 import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
 import viper.silver.verifier.{errors => vprerr}
 
 class ConditionsImpl extends Conditions {
 
-  override def finalize(col: Collector): Unit = {
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     if (isAssertFuncUsed) {
-      col.addMember(assertFunction)
+      addMemberFn(assertFunction)
     }
-    typedAssertFunc.finalize(col)
+    typedAssertFunc.finalize(addMemberFn)
   }
 
   /**
     * Generates:
     * function assertArg1(b: Boolean): Boolean
     *   requires b
+    *   decreases
     * { true }
     */
   private val assertFunction: vpr.Function = {
     val b = vpr.LocalVarDecl("b", vpr.Bool)()
+    // empty termination measure
+    val terminationMeasure = termination.DecreasesTuple(Seq.empty, None)()
     vpr.Function(
       name = Names.assertFunc,
       formalArgs = Seq(b),
       typ = vpr.Bool,
-      pres = Seq(b.localVar),
+      pres = Seq(b.localVar, terminationMeasure),
       posts = Seq.empty,
       body = Some(vpr.TrueLit()())
     )()
@@ -49,17 +52,20 @@ class ConditionsImpl extends Conditions {
     * Generates:
     * function assertArg2(b: Boolean, y: T): T
     *   requires b
+    *   decreases
     * { y }
     */
   private val typedAssertFunc = new FunctionGeneratorWithoutContext[vpr.Type] {
     override def genFunction(t: vpr.Type): vpr.Function = {
       val b = vpr.LocalVarDecl("b", vpr.Bool)()
       val y = vpr.LocalVarDecl("y", t)()
+      // empty termination measure
+      val terminationMeasure = termination.DecreasesTuple(Seq.empty, None)()
       vpr.Function(
         name = Names.typedAssertFunc(t),
         formalArgs = Seq(b, y),
         typ = t,
-        pres = Seq(b.localVar),
+        pres = Seq(b.localVar, terminationMeasure),
         posts = Seq.empty,
         body = Some(y.localVar)
       )()

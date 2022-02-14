@@ -10,7 +10,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.{GoCallPreconditionReason, PreconditionError, Source}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Statements
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.translator.util.{Comments, ViperUtil => vu}
 import viper.gobra.util.Violation
@@ -25,7 +25,7 @@ class StatementsImpl extends Statements {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
-  override def finalize(col: Collector): Unit = ()
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = ()
 
   /** Clients can assume that the returned writer does not contain local variable definitions or written statements. */
   override def translate(x: in.Stmt)(ctx: Context): CodeWriter[vpr.Stmt] = {
@@ -120,7 +120,7 @@ class StatementsImpl extends Statements {
           // vTargets can be field-accesses, but a MethodCall in Viper requires variables as targets.
           // Therefore, we introduce auxiliary variables and
           // add an assignment from the auxiliary variables to the actual targets
-          (vUsedTargets, auxTargetsWithAssignment) = vTargets.map(viperTarget).unzip
+          (vUsedTargets, auxTargetsWithAssignment) = vTargets.map(viperTarget(_)(ctx)).unzip
           (auxTargetDecls, backAssignments) = auxTargetsWithAssignment.flatten.unzip
           _ <- local(auxTargetDecls: _*)
           _ <- write(vpr.MethodCall(func.name, vArgss, vUsedTargets)(pos, info, errT))
@@ -135,7 +135,7 @@ class StatementsImpl extends Statements {
           // vTargets can be field-accesses, but a MethodCall in Viper requires variables as targets.
           // Therefore, we introduce auxiliary variables and
           // add an assignment from the auxiliary variables to the actual targets
-          (vUsedTargets, auxTargetsWithAssignment) = vTargets.map(viperTarget).unzip
+          (vUsedTargets, auxTargetsWithAssignment) = vTargets.map(viperTarget(_)(ctx)).unzip
           (auxTargetDecls, backAssignments) = auxTargetsWithAssignment.flatten.unzip
           _ <- local(auxTargetDecls: _*)
           _ <- write(vpr.MethodCall(meth.uniqueName, vRecv +: vArgss, vUsedTargets)(pos, info, errT))
@@ -172,11 +172,11 @@ class StatementsImpl extends Statements {
     result(vprStmt) map (s => stmtComment(x, s))
   }
 
-  private def viperTarget(x: vpr.Exp): (vpr.LocalVar, Option[(vpr.LocalVarDecl, vpr.AbstractAssign)]) = {
+  private def viperTarget(x: vpr.Exp)(ctx: Context): (vpr.LocalVar, Option[(vpr.LocalVarDecl, vpr.AbstractAssign)]) = {
     x match {
       case x: vpr.LocalVar => (x, None)
       case _ =>
-        val decl = vpr.LocalVarDecl(Names.freshName, x.typ)(x.pos, x.info, x.errT)
+        val decl = vpr.LocalVarDecl(ctx.freshNames.next(), x.typ)(x.pos, x.info, x.errT)
         val ass  = vu.valueAssign(x, decl.localVar)(x.pos, x.info, x.errT)
         (decl.localVar, Some((decl, ass)))
     }

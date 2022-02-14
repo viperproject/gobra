@@ -6,7 +6,6 @@
 
 package viper.gobra.translator.util
 
-import viper.gobra.translator.interfaces.Collector
 import viper.gobra.translator.interfaces.translator.Generator
 import viper.gobra.util.Computation
 import viper.silver.{ast => vpr}
@@ -24,7 +23,7 @@ object PrimitiveGenerator {
 
     override def gen(v: A): (R, Vector[vpr.Member]) = cachedGen(v)
 
-    override def finalize(col: Collector): Unit = generatedMember foreach col.addMember
+    override def finalize(addMemberFn: vpr.Member => Unit): Unit = generatedMember foreach addMemberFn
 
     override def apply(v: A): R = {
       val (r, ss) = gen(v)

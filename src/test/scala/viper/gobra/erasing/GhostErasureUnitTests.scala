@@ -244,7 +244,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
       )
       val tree = new Info.GoTree(pkg)
       val context = new Info.Context()
-      val config = Config(Vector())
+      val config = Config(inputs = Vector())
       val info = new TypeInfoImpl(tree, context)(config)
       info.errors match {
         case Vector(msgs) => fail(s"Type-checking failed: $msgs")
@@ -253,7 +253,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
 
       val ghostLess = new GhostLessPrinter(info).format(pkg)
       // try to parse ghostLess string:
-      val parseRes = Parser.parseProgram(StringSource(ghostLess, "Ghostless Program"), false)
+      val parseRes = Parser.parseProgram(StringSource(ghostLess, "Ghostless Program"), false)(config)
       parseRes match {
         case Right(prog) => prog
         case Left(messages) => fail(s"Parsing failed: $messages")
@@ -292,12 +292,13 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     }
 
     def testProg(inputProg: String, expectedErasedProg: String): Assertion = {
-      val inputParseAst = Parser.parseProgram(StringSource(inputProg, "Input Program"))
+      val config = Config(inputs = Vector())
+      val inputParseAst = Parser.parseProgram(StringSource(inputProg, "Input Program"))(config)
       val ghostlessProg = inputParseAst match {
         case Right(prog) => ghostLessProg(prog)
         case Left(msgs) => fail(s"Parsing input program has failed with $msgs")
       }
-      val expectedParseAst = Parser.parseProgram(StringSource(expectedErasedProg, "Expected Program"))
+      val expectedParseAst = Parser.parseProgram(StringSource(expectedErasedProg, "Expected Program"))(config)
       expectedParseAst match {
         case Right(prog) => equal(ghostlessProg, prog)
         case Left(msgs) => fail(s"Parsing expected erased program has failed with $msgs")

@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.Source
 import viper.gobra.translator.interfaces.translator.Predicates
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.{ast => vpr}
 import viper.silver.plugin.standard.predicateinstance
@@ -21,9 +21,9 @@ class PredicatesImpl extends Predicates {
   import MemberLevel._
 
   /**
-    * Finalizes translation. May add to collector.
+    * Finalizes translation. `addMemberFn` is called with any member that is part of the encoding.
     */
-  override def finalize(col: Collector): Unit = ()
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = ()
 
   override def mpredicate(pred: in.MPredicate)(ctx: Context): MemberWriter[vpr.Predicate] = {
 

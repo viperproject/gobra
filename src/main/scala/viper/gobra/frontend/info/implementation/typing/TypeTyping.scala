@@ -7,11 +7,13 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
+
 import scala.collection.immutable.ListMap
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type.{StructT, _}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.property.UnderlyingType
 
 trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -33,7 +35,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualType(typ: PActualType): Messages = typ match {
 
-    case _: PBoolType | _: PIntegerType | _: PStringType | _: PPermissionType => noMessages
+    case _: PBoolType | _: PIntegerType | _: PFloatType | _: PStringType | _: PPermissionType => noMessages
 
     case typ @ PArrayType(_, PNamedOperand(_)) =>
       error(typ, s"arrays of custom declared types are currently not supported")
@@ -98,6 +100,8 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case PUInt64Type() => IntT(config.typeBounds.UInt64)
     case PByte() => IntT(config.typeBounds.Byte)
     case PUIntPtr() => IntT(config.typeBounds.UIntPtr)
+    case PFloat32() => Float32T
+    case PFloat64() => Float64T
     case PStringType() => StringT
     case PPermissionType() => PermissionT
 
@@ -166,20 +170,40 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     * or other cyclic structures.
     */
   def cyclicStructDef(struct: PStructType, name: Option[PIdnDef] = None) : Boolean = {
-    // `visitedTypes` keeps track of the types that were already discovered and checked,
-    // used for detecting cyclic definition chains
-    def isCyclic: (PStructType, Set[String]) => Boolean = (struct, visitedTypes) => {
-      val fieldTypes = struct.fields.map(_.typ) ++ struct.embedded.map(_.typ.typ)
-
-      fieldTypes exists {
-        case s: PStructType => isCyclic(s, visitedTypes)
-        case n: PNamedType if visitedTypes.contains(n.name) => true
-        case n: PNamedType if underlyingTypeP(n).exists(_.isInstanceOf[PStructType]) =>
-          isCyclic(underlyingTypeP(n).get.asInstanceOf[PStructType], visitedTypes + n.name)
-        case _ => false
-      }
+    // this function is indirectly cached because `underlyingTypeWithCtxP` is cached.
+    def isUnderlyingStructType(n: PNamedType, ctx: UnderlyingType): Option[(PStructType, UnderlyingType)] = ctx.underlyingTypeWithCtxP(n) match {
+      case Some((structT: PStructType, structCtx)) => Some(structT, structCtx)
+      case _ => None
     }
 
-    isCyclic(struct, name.map(_.name).toSet)
+    // `visitedTypes` keeps track of the types that were already discovered and checked,
+    // used for detecting cyclic definition chains
+    // `ctx` of type UnderlyingType represents the current context in which a lookup should happen
+    // ExternalTypeInfo is not used as we need access to `underlyingTypeWithCtxP`, which is not exposed by the interface.
+    def isCyclic: (PStructType, Set[String], UnderlyingType) => Boolean = (struct, visitedTypes, ctx) => {
+      // the goal is to detect whether a struct type has infinity size and cause a corresponding error before
+      // running into non-termination issues in Gobra.
+      // Cycles in the field types are one possible source for infinite size of the resulting struct.
+      // Another source are fields of (fixed-size) array type with the same element type as the struct.
+      // Note however that pointers (and thus e.g. slices) are enough to break these cycles and thus a field with
+      // pointer type to the current struct can be permitted and still results in a finite struct size.
+      val fieldTypes = struct.fields.map(_.typ) ++ struct.embedded.map(_.typ.typ)
+      fieldTypes exists {
+        case s: PStructType => isCyclic(s, visitedTypes, this)
+        case n: PNamedType if visitedTypes.contains(n.name) => true
+        case n: PNamedType if isUnderlyingStructType(n, ctx).isDefined =>
+          val (structT, structCtx) = isUnderlyingStructType(n, ctx).get
+          isCyclic(structT, visitedTypes + n.name, structCtx)
+        case PArrayType(_, elemT: PNamedType) if visitedTypes.contains(elemT.name) => true
+        case PArrayType(_, elemT: PNamedType) if isUnderlyingStructType(elemT, ctx).isDefined =>
+          val (structT, structCtx) = isUnderlyingStructType(elemT, ctx).get
+          isCyclic(structT, visitedTypes + elemT.name, structCtx)
+        // PDot (for qualifiedly imported types) does not need to be handled because cycles are prevented by non-cyclic imports
+        case _ => false
+      }
+
+    }
+
+    isCyclic(struct, name.map(_.name).toSet, this)
   }
 }

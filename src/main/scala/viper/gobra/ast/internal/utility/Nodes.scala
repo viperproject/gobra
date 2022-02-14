@@ -111,6 +111,8 @@ object Nodes {
         case BoolTExpr() => Seq.empty
         case StringTExpr() => Seq.empty
         case IntTExpr(_) => Seq.empty
+        case Float32TExpr() => Seq.empty
+        case Float64TExpr() => Seq.empty
         case PermTExpr() => Seq.empty
         case PointerTExpr(elem) => Seq(elem)
         case StructTExpr(_) => Seq.empty

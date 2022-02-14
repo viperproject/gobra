@@ -10,7 +10,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.gobra.translator.implementations.{CollectorImpl, ContextImpl}
-import viper.gobra.translator.interfaces.TranslatorConfig
+import viper.gobra.translator.interfaces.{Context, TranslatorConfig}
 import viper.gobra.translator.interfaces.translator.Programs
 import viper.gobra.translator.util.ViperWriter.MemberWriter
 import viper.gobra.util.Violation
@@ -24,12 +24,13 @@ class ProgramsImpl extends Programs {
 
     val (pos, info, errT) = program.vprMeta
 
-    val ctx = new ContextImpl(conf, program.table)
+    val mainCtx = new ContextImpl(conf, program.table)
 
-    def goM(member: in.Member): MemberWriter[Vector[vpr.Member]] = {
+    def goM(member: in.Member): MemberWriter[(Vector[vpr.Member], Context)] = {
+      /** we use a separate context for each member in order to reset the fresh counter */
+      val ctx = (mainCtx := (initialFreshCounterValueN = 0))
       val typeEncodingOpt = ctx.typeEncoding.member(ctx).lift(member)
-      if (typeEncodingOpt.isDefined) typeEncodingOpt.get
-      else {
+      val memberWriter = typeEncodingOpt.getOrElse {
         member match {
           case f: in.Function => ctx.method.function(f)(ctx).map(Vector(_))
           case m: in.Method => ctx.method.method(m)(ctx).map(Vector(_))
@@ -45,15 +46,17 @@ class ProgramsImpl extends Programs {
           case p => Violation.violation(s"found unsupported member: $p")
         }
       }
+      memberWriter.map(m => (m, ctx))
     }
 
     val progW = for {
-      memberss <- sequence(program.members map goM)
+      membersWithCtxs <- sequence(program.members map goM)
+      (memberss, ctxs) = membersWithCtxs.unzip
       members = memberss.flatten
 
       col = {
         val c = new CollectorImpl()
-        ctx.finalize(c)
+        ctxs.foreach(ctx => ctx.finalize(c))
         c
       }
 

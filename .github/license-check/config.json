@@ -22,7 +22,8 @@
   {
     "include": [
       "**/Dockerfile",
-      "**/*.sh"
+      "**/*.sh",
+      "**/*.toml"
     ],
     "exclude": [
       "carbon/**",
@@ -50,7 +51,8 @@
   {
     "include": [
       "**/*.gobra",
-      "src/test/resources/**/*.go"
+      "src/test/resources/**/*.go",
+      "GobraChopper.conf"
     ],
     "exclude": [
       "project/project/**",

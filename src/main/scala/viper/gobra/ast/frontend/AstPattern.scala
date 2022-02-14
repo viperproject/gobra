@@ -6,6 +6,7 @@
 
 package viper.gobra.ast.frontend
 
+import viper.gobra.frontend.info.base.Type.PredT
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 
@@ -60,16 +61,21 @@ object AstPattern {
   case class PredicateCall(predicate: PredicateKind, args: Vector[PExpression]) extends Assertion
 
   sealed trait PredicateKind extends Assertion
+  sealed trait SymbolicPredicateKind extends PredicateKind with Symbolic {
+    def symb: st.Predicate
+  }
 
-  case class Predicate(id: PIdnUse, symb: st.FPredicate) extends PredicateKind with Symbolic
-  case class ReceivedPredicate(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.MPredicate) extends PredicateKind with Symbolic
-  case class ImplicitlyReceivedInterfacePredicate(id: PIdnUse, symb: st.MPredicateSpec) extends PredicateKind with Symbolic // for predicate references within an interface definition
-  case class PredicateExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.MPredicate) extends PredicateKind with Symbolic
-  case class PredExprInstance(base: PExpression, args: Vector[PExpression]) extends PredicateKind
+  case class Predicate(id: PIdnUse, symb: st.FPredicate) extends SymbolicPredicateKind
+  case class ReceivedPredicate(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.MPredicate) extends SymbolicPredicateKind
+  case class ImplicitlyReceivedInterfacePredicate(id: PIdnUse, symb: st.MPredicateSpec) extends SymbolicPredicateKind // for predicate references within an interface definition
+  case class PredicateExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.MPredicate) extends SymbolicPredicateKind
+  case class PredExprInstance(base: PExpression, args: Vector[PExpression], typ: PredT) extends PredicateKind
 
-  sealed trait BuiltInPredicateKind extends PredicateKind
+  sealed trait BuiltInPredicateKind extends PredicateKind with Symbolic {
+    def symb: st.BuiltInPredicate
+  }
 
-  case class BuiltInPredicate(id: PIdnUse, symb: st.BuiltInFPredicate) extends BuiltInPredicateKind with Symbolic
-  case class BuiltInReceivedPredicate(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMPredicate) extends BuiltInPredicateKind with Symbolic
-  case class BuiltInPredicateExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMPredicate) extends BuiltInPredicateKind with Symbolic
+  case class BuiltInPredicate(id: PIdnUse, symb: st.BuiltInFPredicate) extends BuiltInPredicateKind
+  case class BuiltInReceivedPredicate(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMPredicate) extends BuiltInPredicateKind
+  case class BuiltInPredicateExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMPredicate) extends BuiltInPredicateKind
 }

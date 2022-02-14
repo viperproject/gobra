@@ -7,15 +7,14 @@
 package viper.gobra
 
 import java.nio.file.Path
-
 import ch.qos.logback.classic.Level
 import org.scalatest.BeforeAndAfterAll
+import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, PackageResolver}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.gobra.reporting.{NoopReporter, VerifierError}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
-
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 
 import scala.concurrent.Await
@@ -30,12 +29,15 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
   override val defaultTestPattern: String = PackageResolver.inputFilePattern
 
   var gobraInstance: Gobra = _
+  var executor: GobraExecutionContext = _
 
   override def beforeAll(): Unit = {
+    executor = new DefaultGobraExecutionContext()
     gobraInstance = new Gobra()
   }
 
   override def afterAll(): Unit = {
+    executor.terminateAndAssertInexistanceOfTimeout()
     gobraInstance = null
   }
 
@@ -49,15 +51,13 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,
-          inputFiles = Vector(input.file),
+          inputs = Vector(FromFileSource(input.file)),
           // TODO: enable consistency checks as soon as inconsistencies have been fixed
           // checkConsistency = true,
           z3Exe = z3Exe
         )
 
-        val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
         val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config)(executor), Duration.Inf))
-        executor.terminateAndAssertInexistanceOfTimeout()
 
         info(s"Time required: $elapsedMilis ms")
 

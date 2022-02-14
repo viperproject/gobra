@@ -12,10 +12,11 @@ import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting.{ShiftPreconditionError, Source}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
+import viper.silver.plugin.standard.termination
 
 class IntEncoding extends LeafTypeEncoding {
 
@@ -67,30 +68,30 @@ class IntEncoding extends LeafTypeEncoding {
       case (e: in.DfltVal) :: ctx.Int() / Exclusive => unit(withSrc(vpr.IntLit(0), e))
       case lit: in.IntLit => unit(withSrc(vpr.IntLit(lit.v), lit))
 
-      case e@ in.Add(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Add(vl, vr), e)
-      case e@ in.Sub(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Sub(vl, vr), e)
-      case e@ in.Mul(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mul(vl, vr), e)
-      case e@ in.Mod(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mod(vl, vr), e)
-      case e@ in.Div(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Div(vl, vr), e)
+      case e@ in.Add(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Add(vl, vr), e)
+      case e@ in.Sub(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Sub(vl, vr), e)
+      case e@ in.Mul(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mul(vl, vr), e)
+      case e@ in.Mod(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mod(vl, vr), e)
+      case e@ in.Div(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Div(vl, vr), e)
 
-      case e@ in.BitAnd(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseAnd, Seq(vl, vr)), e)
-      case e@ in.BitOr(l, r)  => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseOr,  Seq(vl, vr)), e)
-      case e@ in.BitXor(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseXor, Seq(vl, vr)), e)
-      case e@ in.BitClear(l, r)   => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitClear, Seq(vl, vr)), e)
-      case e@ in.ShiftLeft(l, r)  => withSrc(handleShift(shiftLeft)(l, r), e)
-      case e@ in.ShiftRight(l, r) => withSrc(handleShift(shiftRight)(l, r), e)
-      case e@ in.BitNeg(exp)  => for {ve <- goE(exp)} yield withSrc(vpr.FuncApp(bitwiseNegation, Seq(ve)), e)
+      case e@ in.BitAnd(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseAnd, Seq(vl, vr)), e)
+      case e@ in.BitOr(l, r)  :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseOr,  Seq(vl, vr)), e)
+      case e@ in.BitXor(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseXor, Seq(vl, vr)), e)
+      case e@ in.BitClear(l, r)   :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitClear, Seq(vl, vr)), e)
+      case e@ in.ShiftLeft(l, r)  :: ctx.Int() => withSrc(handleShift(shiftLeft)(l, r), e)
+      case e@ in.ShiftRight(l, r) :: ctx.Int() => withSrc(handleShift(shiftRight)(l, r), e)
+      case e@ in.BitNeg(exp) :: ctx.Int()  => for {ve <- goE(exp)} yield withSrc(vpr.FuncApp(bitwiseNegation, Seq(ve)), e)
     }
   }
 
-  override def finalize(col: Collector): Unit = {
-    if(isUsedBitAnd) { col.addMember(bitwiseAnd) }
-    if(isUsedBitOr) { col.addMember(bitwiseOr) }
-    if(isUsedBitXor) { col.addMember(bitwiseXor) }
-    if(isUsedBitClear) { col.addMember(bitClear) }
-    if(isUsedLeftShift) { col.addMember(shiftLeft) }
-    if(isUsedRightShift) { col.addMember(shiftRight) }
-    if(isUsedBitNeg) { col.addMember(bitwiseNegation) }
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    if(isUsedBitAnd) { addMemberFn(bitwiseAnd) }
+    if(isUsedBitOr) { addMemberFn(bitwiseOr) }
+    if(isUsedBitXor) { addMemberFn(bitwiseXor) }
+    if(isUsedBitClear) { addMemberFn(bitClear) }
+    if(isUsedLeftShift) { addMemberFn(shiftLeft) }
+    if(isUsedRightShift) { addMemberFn(shiftRight) }
+    if(isUsedBitNeg) { addMemberFn(bitwiseNegation) }
   }
 
   /* Bitwise Operations */
@@ -100,7 +101,7 @@ class IntEncoding extends LeafTypeEncoding {
       name = Names.bitwiseAnd,
       formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
       typ = vpr.Int,
-      pres = Seq.empty,
+      pres = Seq(termination.DecreasesWildcard(None)()),
       posts = Seq.empty,
       body = None
     )()
@@ -112,7 +113,7 @@ class IntEncoding extends LeafTypeEncoding {
       name = Names.bitwiseOr,
       formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
       typ = vpr.Int,
-      pres = Seq.empty,
+      pres = Seq(termination.DecreasesWildcard(None)()),
       posts = Seq.empty,
       body = None
     )()
@@ -124,7 +125,7 @@ class IntEncoding extends LeafTypeEncoding {
       name = Names.bitwiseXor,
       formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
       typ = vpr.Int,
-      pres = Seq.empty,
+      pres = Seq(termination.DecreasesWildcard(None)()),
       posts = Seq.empty,
       body = None
     )()
@@ -136,7 +137,7 @@ class IntEncoding extends LeafTypeEncoding {
       name = Names.bitClear,
       formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
       typ = vpr.Int,
-      pres = Seq.empty,
+      pres = Seq(termination.DecreasesWildcard(None)()),
       posts = Seq.empty,
       body = None
     )()
@@ -151,7 +152,7 @@ class IntEncoding extends LeafTypeEncoding {
       formalArgs = Seq(left, right),
       typ = vpr.Int,
       // if the value at the right is < 0, it panics
-      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())()),
+      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())(), termination.DecreasesWildcard(None)()),
       posts = Seq.empty,
       body = None
     )()
@@ -166,7 +167,7 @@ class IntEncoding extends LeafTypeEncoding {
       formalArgs = Seq(left, right),
       typ = vpr.Int,
       // if the value at the right is < 0, it panics
-      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())()),
+      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())(), termination.DecreasesWildcard(None)()),
       posts = Seq.empty,
       body = None
     )()
@@ -178,7 +179,7 @@ class IntEncoding extends LeafTypeEncoding {
       name = Names.bitwiseNeg,
       formalArgs = Seq(vpr.LocalVarDecl("exp", vpr.Int)()),
       typ = vpr.Int,
-      pres = Seq.empty,
+      pres = Seq(termination.DecreasesWildcard(None)()),
       posts = Seq.empty,
       body = None
     )()

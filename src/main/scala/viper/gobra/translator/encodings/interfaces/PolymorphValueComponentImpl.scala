@@ -6,7 +6,7 @@
 
 package viper.gobra.translator.encodings.interfaces
 
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
@@ -206,7 +206,7 @@ class PolymorphValueComponentImpl(handle: PolymorphValueInterfaceHandle) extends
   }
   private var isUsed: Boolean = false
 
-  override def finalize(col: Collector): Unit = if (isUsed) { genDomain.foreach(col.addMember) }
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = if (isUsed) { genDomain.foreach(addMemberFn) }
 
   /** Returns whether 'typ' has finite cardinality. */
   private def finiteCardinality(typ: in.Type)(ctx: in.DefinedT => in.Type): Boolean = {

@@ -22,6 +22,20 @@ type IPNet struct {
 	Mask IPMask
 }
 
+pred (ip IP) Mem() {
+	(len(ip) == IPv4len || len(ip) == IPv6len) &&
+	forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i])
+}
+
+pred (mask IPMask) Mem() {
+	(len(mask) == IPv4len || len(mask) == IPv6len) &&
+	forall i int :: 0 <= i && i < len(mask) ==> acc(&mask[i])
+}
+
+pred (ipnet *IPNet) Mem() {
+	acc(ipnet) && ipnet.IP.Mem() && ipnet.Mask.Mem()
+}
+
 // IPv4 returns the IP address (in 16-byte form) of the
 // IPv4 address a.b.c.d.
 ensures len(res) == 4 && forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
@@ -108,11 +122,13 @@ func (ip IP) IsGlobalUnicast() bool /*{
 
 // To4 converts the IPv4 address ip to a 4-byte representation.
 preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+ensures res != nil ==> len(res) == IPv4len
 ensures len(ip) == IPv4len ==> forall i int :: 0 <= i && i < len(ip) ==> &ip[i] == &res[i]
-ensures len(ip) == IPv6len && isZeros(ip[0:10]) && ip[10] == 255 && ip[11] == 255 ==> len(res) == IPv4len && forall i int :: 0 <= i && i < IPv4len ==> &ip[12+i] == &res[i]
+ensures (len(ip) == IPv6len && isZeros(ip[0:10]) && ip[10] == 255 && ip[11] == 255) ==> res != nil
+ensures (len(ip) == IPv6len && res != nil) ==> (forall i int :: 0 <= i && i < IPv4len ==> &ip[12+i] == &res[i])
 ensures len(ip) != IPv4len && len(ip) != IPv6len ==> res == nil
 ensures len(ip) == IPv4len ==> len(res) == IPv4len
-ensures res != nil ==> len(res) == IPv4len
+decreases
 func (ip IP) To4() (res IP) {
 	if len(ip) == IPv4len {
 		return ip
@@ -153,6 +169,7 @@ preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
 func (ip IP) Mask(mask IPMask) IP
 
 preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+decreases _
 func (ip IP) String() string
 
 // MarshalText implements the encoding.TextMarshaler interface.
@@ -186,6 +203,7 @@ func (ip *IP) UnmarshalText(text []byte) error
 // considered to be equal.
 preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
 preserves forall i int :: 0 <= i && i < len(x) ==> acc(&x[i], 1/10000)
+decreases _
 func (ip IP) Equal(x IP) bool // {
 //	if len(ip) == len(x) {
 //		return bytealg.Equal(ip, x)
@@ -224,6 +242,7 @@ func (n *IPNet) String() string
 
 // ParseIP parses s as an IP address, returning the result.
 ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+decreases _
 func ParseIP(s string) (res IP)
 
 // ParseCIDR parses s as a CIDR notation IP address and prefix length,

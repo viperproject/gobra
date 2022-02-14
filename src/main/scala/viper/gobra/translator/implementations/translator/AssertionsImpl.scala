@@ -7,14 +7,13 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
-import viper.silver.verifier.{errors => vprerr}
-import viper.gobra.reporting.BackTranslator.ErrorTransformer
-import viper.gobra.reporting.BackTranslator.RichErrorMessage
+import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
 import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, Source}
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.interfaces.translator.Assertions
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.gobra.util.Violation
+import viper.silver.verifier.{errors => vprerr}
 import viper.silver.{ast => vpr}
 
 
@@ -23,7 +22,7 @@ class AssertionsImpl extends Assertions {
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.ViperWriter.{MemberLevel => MemL}
 
-  override def finalize(col: Collector): Unit = ()
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = ()
 
   override def translate(ass: in.Assertion)(ctx: Context): CodeWriter[vpr.Exp] = {
 
@@ -44,11 +43,7 @@ class AssertionsImpl extends Assertions {
         acc.e match {
           case in.Accessible.Predicate(op) => ctx.predicate.predicateAccess(ctx)(op, acc.p)
           case in.Accessible.Address(op) => ctx.typeEncoding.addressFootprint(ctx)(op, acc.p)
-          case in.Accessible.ExprAccess(op) =>
-            op.typ match {
-              case _: in.MapT => ctx.typeEncoding.assertion(ctx)(acc)
-              case _ => Violation.violation(s"unexpected expression $op in an access predicate")
-            }
+          case in.Accessible.ExprAccess(_) => ctx.typeEncoding.assertion(ctx)(acc)
           case n => Violation.violation(s"node $n should have been handled by an type encoding.")
         }
 

@@ -8,7 +8,7 @@ package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.internal.TerminationMeasure
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.interfaces.translator.TerminationMeasures
 import viper.gobra.translator.util.ViperWriter.MemberLevel.pure
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter, CodeLevel => cl}
@@ -19,7 +19,7 @@ import viper.silver.{ast => vpr}
 
 class TerminationMeasuresImpl extends TerminationMeasures {
 
-  override def finalize(col: Collector): Unit = ()
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = ()
 
   override def translate(measure: TerminationMeasure)(ctx: Context): CodeWriter[Exp] = {
     val (pos, info, errT) = measure.vprMeta

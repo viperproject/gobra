@@ -486,6 +486,8 @@ case class DefinedTExpr(name: String)(val info: Source.Parser.Info) extends Type
 
 case class BoolTExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class StringTExpr()(val info: Source.Parser.Info) extends TypeExpr
+case class Float32TExpr()(val info: Source.Parser.Info) extends TypeExpr
+case class Float64TExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends TypeExpr
 case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
 case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
@@ -886,10 +888,6 @@ sealed trait IntOperation extends Expr {
   override def typ: Type = IntT(Addressability.rValue)
 }
 
-sealed trait StringOperation extends Expr {
-  override val typ: Type = StringT(Addressability.rValue)
-}
-
 case class Negation(operand: Expr)(val info: Source.Parser.Info) extends BoolOperation
 
 sealed abstract class BinaryExpr(val operator: String) extends Expr {
@@ -951,8 +949,6 @@ case class ShiftRight(left: Expr, right: Expr)(val info: Source.Parser.Info) ext
   override val typ: Type = left.typ
 }
 case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation
-
-case class Concat(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with StringOperation
 
 case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = newType
@@ -1120,6 +1116,16 @@ case class IntT(addressability: Addressability, kind: IntegerKind = UnboundedInt
   override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability, kind)
 }
 
+case class Float32T(addressability: Addressability) extends PrettyType("float32") {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[Float32T]
+  override def withAddressability(newAddressability: Addressability): Float32T = Float32T(newAddressability)
+}
+
+case class Float64T(addressability: Addressability) extends PrettyType("float64") {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[Float64T]
+  override def withAddressability(newAddressability: Addressability): Float64T = Float64T(newAddressability)
+}
+
 case class StringT(addressability: Addressability) extends PrettyType("string") {
   override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[StringT]
   override def withAddressability(newAddressability: Addressability): StringT = StringT(newAddressability)
@@ -1180,7 +1186,7 @@ case class SliceT(elems : Type, addressability: Addressability) extends PrettyTy
   */
 case class MapT(keys: Type, values: Type, addressability: Addressability) extends Type {
   def hasGhostField(k: Type): Boolean = k match {
-    case StructT(_, fields, _) => fields exists (_.ghost)
+    case StructT(fields, _) => fields exists (_.ghost)
     case _ => false
   }
   // this check must be done here instead of at the type system level because the concrete AST does not support
@@ -1303,15 +1309,16 @@ case class PredT(args: Vector[Type], addressability: Addressability) extends Pre
 }
 
 
-// TODO: Maybe remove name
-case class StructT(name: String, fields: Vector[Field], addressability: Addressability) extends PrettyType(fields.mkString("struct{", ", ", "}")) with TopType {
+// StructT does not have a name because equality of two StructT does not depend at all on their declaration site but
+// only on their structure, i.e. whether the fields (and addressability) are equal
+case class StructT(fields: Vector[Field], addressability: Addressability) extends PrettyType(fields.mkString("struct{", ", ", "}")) with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
-    case StructT(_, otherFields, _) => fields.zip(otherFields).forall{ case (l, r) => l.typ.equalsWithoutMod(r.typ) }
+    case StructT(otherFields, _) => fields.zip(otherFields).forall{ case (l, r) => l.typ.equalsWithoutMod(r.typ) }
     case _ => false
   }
 
   override def withAddressability(newAddressability: Addressability): StructT =
-    StructT(name, fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost)(f.info)), newAddressability)
+    StructT(fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost)(f.info)), newAddressability)
 }
 
 case class InterfaceT(name: String, addressability: Addressability) extends PrettyType(s"interface{ name is $name }") with TopType {

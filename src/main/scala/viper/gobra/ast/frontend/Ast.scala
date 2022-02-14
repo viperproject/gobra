@@ -6,13 +6,11 @@
 
 package viper.gobra.ast.frontend
 
-import java.nio.file.Paths
-
 import org.bitbucket.inkytonik.kiama.rewriting.Rewritable
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
-import viper.gobra.frontend.Parser.FromFileSource
+import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.reporting.VerifierError
 import viper.gobra.util.{Decimal, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
@@ -73,11 +71,7 @@ class PositionManager(val positions: Positions) extends Messaging(positions) {
   }
 
   def translate(start: Position, end: Position): SourcePosition = {
-    val path = start.source match {
-      case FileSource(filename, _) => Paths.get(filename)
-      case FromFileSource(path, _) => path
-      case _ => ???
-    }
+    val path = start.source.toPath
     new SourcePosition(
       path,
       LineColumnPosition(start.line, start.column),
@@ -580,6 +574,9 @@ case class PUInt64Type() extends PPredeclaredType("uint64") with PIntegerType
 case class PByte() extends PPredeclaredType("byte") with PIntegerType
 case class PUIntPtr() extends PPredeclaredType("uintptr") with PIntegerType
 
+sealed trait PFloatType extends PType
+case class PFloat32() extends PPredeclaredType("float32") with PFloatType
+case class PFloat64() extends PPredeclaredType("float64") with PFloatType
 
 // TODO: add more types
 
@@ -786,6 +783,7 @@ case class PFunctionSpec(
                       posts: Vector[PExpression],
                       terminationMeasures: Vector[PTerminationMeasure],
                       isPure: Boolean = false,
+                      isTrusted: Boolean = false
                       ) extends PSpecification
 
 case class PBodyParameterInfo(
@@ -1128,7 +1126,7 @@ case class PDomainFunction(id: PIdnDef,
                            result: PResult
                                  ) extends PGhostMisc with PScope with PCodeRoot with PDomainClause
 
-case class PDomainAxiom(exp: PExpression) extends PGhostMisc with PDomainClause
+case class PDomainAxiom(exp: PExpression) extends PGhostMisc with PScope with PCodeRoot with PDomainClause
 
 
 /**

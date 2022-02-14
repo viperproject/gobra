@@ -155,7 +155,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       }
 
       val childrenToVisit: Iterable[PNode] = node match {
-        case PUnfolding(pred, op) => Vector(op)
+        case PUnfolding(_, op) => Vector(op)
         case _ => tree.child(node)
       }
 

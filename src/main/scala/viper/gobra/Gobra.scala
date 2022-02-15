@@ -50,7 +50,7 @@ trait GoVerifier extends StrictLogging {
     this.getClass.getSimpleName
   }
 
-  def verifyAllPackages(config: Config)(executor: GobraExecutionContext):Vector[VerifierError] = {
+  def verifyAllPackages(config: Config)(executor: GobraExecutionContext): Vector[VerifierError] = {
     val statsCollector = StatsCollector(config.reporter)
     var warningCount: Int = 0
     var allErrors: Vector[VerifierError] = Vector()
@@ -101,8 +101,8 @@ trait GoVerifier extends StrictLogging {
 
     // Print statistics for caching
     if(config.cacheFile.isDefined) {
-      logger.info("Number of cacheable Viper members: " + statsCollector.getNumberOfCacheableViperMembers)
-      logger.info("Number of cached Viper members: " + statsCollector.getNumberOfCachedViperMembers)
+      logger.info("Number of cacheable Viper member(s): " + statsCollector.getNumberOfCacheableViperMembers)
+      logger.info("Number of cached Viper member(s): " + statsCollector.getNumberOfCachedViperMembers)
     }
     allErrors
   }

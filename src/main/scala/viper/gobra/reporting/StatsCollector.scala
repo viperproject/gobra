@@ -21,9 +21,9 @@ import java.io.File
 
 case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   // Stores type info for a task
-  var typeInfos: Map[String, TypeInfo] = Map()
+  private[reporting] var typeInfos: Map[String, TypeInfo] = Map()
   // Maps a gobra member name to a gobra member entry
-  var memberMap: Map[String, GobraMemberEntry] = Map()
+  private[reporting] var memberMap: Map[String, GobraMemberEntry] = Map()
   // Maps a viper member name to a gobra member entry
   private var viperMemberNameGobraMemberMap: Map[String, GobraMemberEntry] = Map()
 
@@ -38,11 +38,10 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
     def asJson(p: String = ""): String = {
       val viperMembersJson = viperMembers.values.map(_.asJson(s"$p    "))
-      val key = gobraMemberKey(pkgDir, pkg, memberName, args)
-      val dependencies = this.dependencies().map(entry => p + "      \"" + gobraMemberKey(entry.pkgDir, entry.pkg, entry.memberName, entry.args) + "\"")
+      val dependencies = this.dependencies().map(entry => p + "      \"" + entry.key + "\"")
 
       s"""$p{
-         |$p  "id": "$key",
+         |$p  "id": "${this.key}",
          |$p  "pkgDir": "$pkgDir",
          |$p  "pkg": "$pkg",
          |$p  "name": "$pkg.$memberName",
@@ -63,8 +62,10 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
       this.viperMembers.values
         .flatMap(viperMember => getViperDependencies(viperMember.member)
           .flatMap(dep => findGobraMemberByViperMemberName(viperMember.taskName, dep, pkgDir)))
-        .filter(_ != this).toSet
+        .filter(_.key != this.key).toSet
     }
+
+    def key: String = gobraMemberKey(pkgDir, pkg, memberName, args)
   }
 
   case class ViperMemberEntry(member: Member,
@@ -229,14 +230,11 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     // and first look for the viper member with the pkgDir when trying to lookup dependencies of a gobra member, since
     // these would be the more relevant ones.
     viperMemberNameGobraMemberMap.get(viperKey) match {
-      case Some(value) if !value.eq(memberMap(key)) =>
+      case Some(otherMember) if !otherMember.key.eq(key) =>
         val fallBackKey = viperMemberKey(viperMember.taskName, viperMemberName(viperMember.member), pkgDir)
         viperMemberNameGobraMemberMap.get(fallBackKey) match {
-          case Some(gobraMember) if !gobraMember.eq(memberMap(key)) =>
-            val gobraMemberName = gobraMember.pkgDir + " - " + gobraMember.pkg + "." + gobraMember.memberName + gobraMember.args
-            val otherGobraMember = memberMap(key)
-            val otherGobraMemberName = otherGobraMember.pkgDir + " - " + otherGobraMember.pkg + "." + otherGobraMember.memberName + otherGobraMember.args
-            Violation.violation("Viper method corresponds to multiple gobra methods: " + viperKey + ":\n " + gobraMemberName + " \n" + otherGobraMemberName)
+          case Some(otherMember) if otherMember.key != key =>
+            Violation.violation("Viper method corresponds to multiple gobra methods: " + viperKey + ":\n " + otherMember.key + " \n" + key)
           case None => viperMemberNameGobraMemberMap = viperMemberNameGobraMemberMap + (fallBackKey -> memberMap(key))
           case _ =>
         }

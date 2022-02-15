@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg1
+
+type Shape interface {
+   pred mem()
+
+   requires acc(mem(), 1/2)
+   pure Size() bool
+
+   requires mem() && Size()
+   ensures ret > 0
+   Area() (ret int)
+}
+
+func abstractFunction(d int) int
+
+trusted
+ensures ret > 0
+func trustedFunction(d int) (ret int) {
+
+}
+
+
+

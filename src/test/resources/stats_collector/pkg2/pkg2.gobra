@@ -1,0 +1,68 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg2
+
+import "pkg1"
+
+type Rect struct {
+  width int
+  height int
+}
+
+pred (r *Rect) mem() {
+  acc(r, 1/2)
+}
+
+requires acc(r, 1/2)
+pure func (r *Rect) Size() bool {
+  return r.width > 0 && r.height > 0
+}
+
+requires acc(r, 1/2) && r.Size()
+ensures  acc(r, 1/2) && ret > 0
+func (r *Rect) Area() (ret int) {
+  return r.width * r.height
+}
+
+(*Rect) implements pkg1.Shape {
+  pure (r *Rect) Size() bool {
+    return unfolding acc(r.mem(), 1/2) in r.Size()
+  }
+  (r *Rect) Area() (ret int) {
+    unfold r.mem()
+    ret = r.Area()
+    fold r.mem()
+  }
+}
+
+type Circle struct {
+  radius int
+}
+
+pred (c *Circle) mem() {
+  acc(c, 1/2)
+}
+
+requires acc(c, 1/2)
+pure func (c *Circle) Size() bool {
+  return c.radius > 0
+}
+
+requires acc(c, 1/2) && c.Size()
+ensures acc(c, 1/2) && ret > 0
+func (c *Circle) Area() (ret int) {
+  return c.radius * c.radius * 3
+}
+
+(*Circle) implements pkg1.Shape {
+  pure (c *Circle) Size() bool {
+    return unfolding acc(c.mem(), 1/2) in c.Size()
+  }
+
+  (c *Circle) Area() (ret int) {
+    unfold c.mem()
+    ret = c.Area()
+    fold c.mem()
+  }
+}

@@ -150,7 +150,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
   def writeJsonReportToFile(file: File): Unit = {
     if((file.exists() && file.canWrite) || file.getParentFile.canWrite) {
-      FileUtils.writeStringToFile(file, getJsonReport(false), UTF_8)
+      FileUtils.writeStringToFile(file, getJsonReport(true), UTF_8)
     }
   }
 
@@ -159,7 +159,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
     val json = s"""[
       |$memberJson
-      |]"""
+      |]""".stripMargin
 
     if(shorten) {
       // Replaces all whitespaces by nothing, except the ones inside of quotes

@@ -65,18 +65,16 @@ case class Config(
 
   def merge(other: Config): Config = {
     // this config takes precedence over other config
-    val newInputs =
-      inputPackageMap.filter({ case (key, _) => !other.inputPackageMap.contains(key)}) ++
-      other.inputPackageMap.filter({ case (key, _) => !inputPackageMap.contains(key)}) ++
-        inputPackageMap.filter({ case (key, _) => other.inputPackageMap.contains(key)})
-        .map({ case (key, value) => (key, (value ++ other.inputPackageMap(key)).distinct)})
+    val newInputs: Map[PackageEntry, Vector[Source]] = {
+      val keys = inputPackageMap.keys ++ other.inputPackageMap.keys
+      keys.map(k => k -> (inputPackageMap(k) ++ other.inputPackageMap(k)).distinct).toMap
+    }
 
     Config(
       inputs = (inputs ++ other.inputs).distinct,
       recursive = recursive,
       gobraDirectory = gobraDirectory,
       inputPackageMap = newInputs,
-      moduleName = moduleName,
       includeDirs = (includeDirs ++ other.includeDirs).distinct,
       reporter = reporter,
       backend = backend,
@@ -141,7 +139,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val recursive: ScallopOption[Boolean] = toggle(
     name = "recursive",
-    descrYes = "Perform verification on all subfolders of the specified input directory",
+    descrYes = "Verify nested packages recursively",
     default = Some(false),
     short = 'r'
   )

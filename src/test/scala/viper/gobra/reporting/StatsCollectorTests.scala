@@ -11,8 +11,9 @@ import org.scalatest.funsuite.AnyFunSuite
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.{Config, PackageEntry, ScallopGobraConfig}
-import viper.gobra.util.DefaultGobraExecutionContext
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.gobra.Gobra
+
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
@@ -20,6 +21,17 @@ import scala.concurrent.duration.Duration
 class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
   val statsCollectorTestPathPropertyName = "GOBRATESTS_REGRESSIONS_DIR"
   val statsCollectorTestDir: String = System.getProperty(statsCollectorTestPathPropertyName, "src/test/resources/stats_collector")
+  var executor: GobraExecutionContext = _
+  var gobraInstance: Gobra = _
+
+  override def beforeAll(): Unit = {
+    executor = new DefaultGobraExecutionContext()
+    gobraInstance = new Gobra()
+  }
+
+  override def afterAll(): Unit = {
+    executor.terminateAndAssertInexistanceOfTimeout()
+  }
 
 
   test("Integration without chopper") {
@@ -32,6 +44,7 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     val config = createConfig(Array("-i", statsCollectorTestDir, "-r", "-I", statsCollectorTestDir, "--chop", "10",
       "--excludePackages", "subpackage"
     ))
+    runPackagesSeparately(config)
     runIntegration(config)
   }
 
@@ -43,24 +56,50 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     new ScallopGobraConfig(args.toSeq).config
   }
 
+  private def runPackagesSeparately(config: Config): Unit = {
+    // Overwrite reporter
+    config.inputPackageMap.foreach({case (pkg, inputs) =>
+      val statsCollector = StatsCollector(NoopReporter)
+      val result = runAndCheck(config.copy(inputs = inputs, reporter = statsCollector), statsCollector, pkg)
+
+      // Assert that errors are somehow reflected in the stats
+      // It's hard to test this further, since there isn't much information about viper or gobra members available
+      // inside of the VerifierError class
+      result match {
+        case VerifierResult.Success => assert(statsCollector.memberMap.values.flatMap(_.viperMembers.values).forall(_.success))
+        case VerifierResult.Failure(_) => assert(statsCollector.memberMap.values.flatMap(_.viperMembers.values).exists(!_.success))
+      }
+    })
+  }
+
   private def runIntegration(config: Config): Unit = {
     // Overwrite reporter
+    var errorCount = 0
     val statsCollector = StatsCollector(NoopReporter)
-    val executor = new DefaultGobraExecutionContext()
-    val gobraInstance = new Gobra()
+    config.inputPackageMap.foreach({ case (pkg, inputs) =>
+      val results = runAndCheck(config.copy(inputs = inputs, reporter = statsCollector), statsCollector, pkg)
 
-    config.inputPackageMap.foreach({case (PackageEntry(pkgDir, pkg), inputs) =>
-      val taskName = pkgDir + " - " + pkg
+      results match {
+        case VerifierResult.Success => assert(statsCollector.memberMap.values.flatMap(_.viperMembers.values).count(!_.success) == errorCount)
+        case VerifierResult.Failure(_) =>
+          val newErrors = statsCollector.memberMap.values.flatMap(_.viperMembers.values).count(!_.success)
+          assert(newErrors > errorCount)
+          errorCount = newErrors
+      }
+    })
+  }
 
-      Await.result(gobraInstance.verify(config.copy(reporter = statsCollector, inputs = inputs), Some(taskName))(executor), Duration.Inf)
-      assert(statsCollector.typeInfos.contains(taskName))
-      val typeInfo = statsCollector.typeInfos(taskName)
+  def runAndCheck(config: Config, statsCollector: StatsCollector, pkg: PackageEntry): VerifierResult = {
+    val taskName = pkg.path + " - " + pkg.name
 
-      val interfaceImplementations: List[Type.Type] = typeInfo.interfaceImplementations.values.flatten.toList
+    val result = Await.result(gobraInstance.verify(config, Some(taskName))(executor), Duration.Inf)
+    assert(statsCollector.typeInfos.contains(taskName))
+    val typeInfo = statsCollector.typeInfos(taskName)
+    val interfaceImplementations: List[Type.Type] = typeInfo.interfaceImplementations.values.flatten.toList
 
-      val expectedGobraMembers: Vector[PNode] = typeInfo.tree.originalRoot.programs
-        .filter(p => !p.isBuiltin)
-        .flatMap(p => p.declarations.flatMap({
+    val expectedGobraMembers: Vector[PNode] = typeInfo.tree.originalRoot.programs
+      .filter(p => !p.isBuiltin)
+      .flatMap(p => p.declarations.flatMap({
         case p: PFunctionDecl => Vector(p)
         case p: PMethodDecl => Vector(p)
         case p: PFPredicateDecl => Vector(p)
@@ -76,26 +115,26 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
         case _ => Vector()
       }))
 
-      // Check if all expected members are present
-      expectedGobraMembers
-        .map(member => statsCollector.getMemberInformation(member, statsCollector.typeInfos(taskName)))
-        .filter(memberInfo => memberInfo.pkg == pkg && memberInfo.pkgDir == pkgDir)
-        .foreach(memberInfo => {
-          val memberKey = statsCollector.gobraMemberKey(memberInfo.pkgDir, memberInfo.pkg, memberInfo.memberName, memberInfo.args)
-          assert(statsCollector.memberMap.contains(memberKey))
+    // Check if all expected members are present and the entries are correct
+    expectedGobraMembers
+      .map(member => statsCollector.getMemberInformation(member, statsCollector.typeInfos(taskName)))
+      .filter(memberInfo => memberInfo.pkg == pkg.name && memberInfo.pkgDir == pkg.path)
+      .foreach(memberInfo => {
+        val memberKey = statsCollector.gobraMemberKey(memberInfo.pkgDir, memberInfo.pkg, memberInfo.memberName, memberInfo.args)
+        assert(statsCollector.memberMap.contains(memberKey))
 
-          val memberEntry = statsCollector.memberMap(memberKey)
-          assert(memberEntry.isTrusted == memberInfo.isTrusted)
-          assert(memberEntry.isAbstract == memberInfo.isAbstract)
+        val memberEntry = statsCollector.memberMap(memberKey)
+        assert(memberEntry.isTrusted == memberInfo.isTrusted)
+        assert(memberEntry.isAbstract == memberInfo.isAbstract)
 
-          // Assert there is at least one non-imported viper member for this gobra member
-          assert(memberEntry.viperMembers.values.exists(p => !p.fromImport))
+        // Assert there is at least one non-imported viper member for this gobra member
+        assert(memberEntry.viperMembers.values.exists(p => !p.fromImport))
       })
 
-      statsCollector.report(VerificationTaskFinishedMessage(taskName))
-      assert(!statsCollector.typeInfos.contains(taskName))
-    })
+    // Test cleanup mechanism
+    statsCollector.report(VerificationTaskFinishedMessage(taskName))
+    assert(!statsCollector.typeInfos.contains(taskName))
 
-    executor.terminateAndAssertInexistanceOfTimeout()
+    result
   }
 }

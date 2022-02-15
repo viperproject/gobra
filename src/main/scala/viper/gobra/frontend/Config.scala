@@ -67,7 +67,7 @@ case class Config(
     // this config takes precedence over other config
     val newInputs: Map[PackageEntry, Vector[Source]] = {
       val keys = inputPackageMap.keys ++ other.inputPackageMap.keys
-      keys.map(k => k -> (inputPackageMap(k) ++ other.inputPackageMap(k)).distinct).toMap
+      keys.map(k => k -> (inputPackageMap.getOrElse(k, Vector()) ++ other.inputPackageMap.getOrElse(k, Vector())).distinct).toMap
     }
 
     Config(

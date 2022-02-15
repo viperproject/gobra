@@ -86,9 +86,6 @@ trait GoVerifier extends StrictLogging {
           allErrors = allErrors ++ errors
       }
     })
-    logger.info("\n")
-    logger.info("Summary:")
-    logger.info("\n")
 
     if(warningCount > 0) {
       logger.warn(s"$name has found $warningCount warning(s)")

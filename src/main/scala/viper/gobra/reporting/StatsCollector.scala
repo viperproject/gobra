@@ -38,7 +38,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
     def asJson(p: String = ""): String = {
       val viperMembersJson = viperMembers.values.map(_.asJson(s"$p    "))
-      val dependencies = this.dependencies().map(entry => p + "      \"" + entry.key + "\"")
+      val dependencies = this.dependencies().map(entry => p + "    \"" + entry.key + "\"")
 
       s"""$p{
          |$p  "id": "${this.key}",
@@ -50,10 +50,10 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
          |$p  "trusted": $isTrusted,
          |$p  "abstract": $isAbstract,
          |$p  "viperMembers": [
-         |$p  ${viperMembersJson.mkString(",\n")}
+                |${viperMembersJson.mkString(",\n")}
          |$p  ],
          |$p  "dependencies": [
-         |$p  ${dependencies.mkString(",\n")}
+                |${dependencies.mkString(",\n")}
          |$p  ]
          |$p}""".stripMargin
     }
@@ -155,7 +155,11 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   }
 
   def getJsonReport(shorten: Boolean): String = {
-    val json = "[\n" + memberMap.values.map(_.asJson("  ")).mkString(", \n") + "\n]\n"
+    val memberJson = memberMap.values.map(_.asJson("  ")).mkString(", \n")
+
+    val json = s"""[
+      |$memberJson
+      |]"""
 
     if(shorten) {
       // Replaces all whitespaces by nothing, except the ones inside of quotes
@@ -251,6 +255,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     case m: Method => m.body.isDefined && m.body.get.nonEmpty
     case p: Predicate => p.body.isDefined && p.body.get.nonEmpty
     case f: Function => f.body.isDefined && f.body.get.nonEmpty
+    case _ => false
   }
 
   /**

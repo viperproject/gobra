@@ -104,7 +104,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   override val name: String = "StatsCollector"
 
   override def report(msg: GobraMessage): Unit = {
-    def handleEntityMessage(taskName: String, viperMember: Member, info: Source.Verifier.Info, time: Time, cached: Boolean): Unit = {
+    def handleEntityMessage(taskName: String, viperMember: Member, info: Source.Verifier.Info, time: Time, cached: Boolean, success: Boolean): Unit = {
       Violation.violation(typeInfos.contains(taskName), "No type info available for stats reporter")
       getMemberInformation(info.pnode, typeInfos(taskName)) match {
         case GobraMemberInfo(pkgDir, pkg, memberName, args, isTrusted, isAbstract, isImported, false) =>
@@ -120,7 +120,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
               time,
               viperMember.getClass.getSimpleName,
               getViperDependencies(viperMember),
-              success = true,
+              success,
               cached,
               isImported,
               viperMemberHasBody(viperMember)
@@ -137,9 +137,9 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
       // Free up unneeded space, once a task is finished
       case VerificationTaskFinishedMessage(taskName) => this.synchronized({ typeInfos = typeInfos - taskName})
       case GobraEntitySuccessMessage(taskName, _, e, info, time, cached) if !info.node.isInstanceOf[BuiltInMember] =>
-        handleEntityMessage(taskName, e, info, time, cached)
+        handleEntityMessage(taskName, e, info, time, cached, success = true)
       case GobraEntityFailureMessage(taskName, _, e, info, _, time, cached) if !info.node.isInstanceOf[BuiltInMember] =>
-        handleEntityMessage(taskName, e, info, time, cached)
+        handleEntityMessage(taskName, e, info, time, cached, success = false)
       case _ =>
     }
     // Pass message to next reporter

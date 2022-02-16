@@ -60,7 +60,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
     def dependencies(): Set[GobraMemberEntry] = {
       this.viperMembers.values
-        .flatMap(viperMember => getViperDependencies(viperMember.member)
+        .flatMap(viperMember => viperMember.dependencies
           .flatMap(dep => findGobraMemberByViperMemberName(viperMember.taskName, dep, pkgDir)))
         .filter(_.key != this.key).toSet
     }
@@ -68,10 +68,11 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     def key: String = gobraMemberKey(pkgDir, pkg, memberName, args)
   }
 
-  case class ViperMemberEntry(member: Member,
+  case class ViperMemberEntry(memberName: String,
                               taskName: String,
                               time: Time,
                               nodeType: String,
+                              dependencies: Set[String],
                               success: Boolean,
                               cached: Boolean,
                               fromImport: Boolean,
@@ -79,7 +80,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
     def asJson(p: String = ""): String = {
       s"""$p{
-         |$p  "name": "${viperMemberName(this.member)}",
+         |$p  "name": "${this.memberName}",
          |$p  "taskName": "${this.taskName}",
          |$p  "time": ${this.time},
          |$p  "nodeType": "${this.nodeType}",
@@ -103,41 +104,42 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   override val name: String = "StatsCollector"
 
   override def report(msg: GobraMessage): Unit = {
+    def handleEntityMessage(taskName: String, viperMember: Member, info: Source.Verifier.Info, time: Time, cached: Boolean): Unit = {
+      Violation.violation(typeInfos.contains(taskName), "No type info available for stats reporter")
+      getMemberInformation(info.pnode, typeInfos(taskName)) match {
+        case GobraMemberInfo(pkgDir, pkg, memberName, args, isTrusted, isAbstract, isImported, false) =>
+          addResult(
+            pkgDir,
+            pkg,
+            memberName,
+            info.pnode.getClass.getSimpleName,
+            args,
+            ViperMemberEntry(
+              viperMemberName(viperMember),
+              taskName,
+              time,
+              viperMember.getClass.getSimpleName,
+              getViperDependencies(viperMember),
+              success = true,
+              cached,
+              isImported,
+              viperMemberHasBody(viperMember)
+            ),
+            isTrusted,
+            isAbstract)
+        case _ =>
+      }
+    }
+
     msg match {
       // Capture typeInfo once it's available
       case TypeInfoMessage(typeInfo, taskName) => this.synchronized({ typeInfos = typeInfos + (taskName -> typeInfo)})
       // Free up unneeded space, once a task is finished
       case VerificationTaskFinishedMessage(taskName) => this.synchronized({ typeInfos = typeInfos - taskName})
       case GobraEntitySuccessMessage(taskName, _, e, info, time, cached) if !info.node.isInstanceOf[BuiltInMember] =>
-        Violation.violation(typeInfos.contains(taskName), "No type info available for stats reporter")
-        getMemberInformation(info.pnode, typeInfos(taskName)) match {
-          case GobraMemberInfo(pkgDir, pkg, memberName, args, isTrusted, isAbstract, isImported, false)  =>
-            addResult(
-              pkgDir,
-              pkg,
-              memberName,
-              info.pnode.getClass.getSimpleName,
-              args,
-              ViperMemberEntry(e, taskName, time, e.getClass.getSimpleName, success = true, cached = cached, isImported, hasBody = viperMemberHasBody(e)),
-              isTrusted,
-              isAbstract)
-          case _ =>
-        }
+        handleEntityMessage(taskName, e, info, time, cached)
       case GobraEntityFailureMessage(taskName, _, e, info, _, time, cached) if !info.node.isInstanceOf[BuiltInMember] =>
-        Violation.violation(typeInfos.contains(taskName), "No type info available for stats reporter")
-        getMemberInformation(info.pnode, typeInfos(taskName)) match {
-          case GobraMemberInfo(pkgDir, pkg, memberName, args, isTrusted, isAbstract, isImported, false) =>
-            addResult(
-              pkgDir,
-              pkg,
-              memberName,
-              info.pnode.getClass.getSimpleName,
-              args,
-              ViperMemberEntry(e, taskName, time, e.getClass.getSimpleName, success = false, cached = cached, isImported, hasBody = viperMemberHasBody(e)),
-              isTrusted,
-              isAbstract)
-          case _ =>
-        }
+        handleEntityMessage(taskName, e, info, time, cached)
       case _ =>
     }
     // Pass message to next reporter
@@ -150,23 +152,16 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
   def writeJsonReportToFile(file: File): Unit = {
     if((file.exists() && file.canWrite) || file.getParentFile.canWrite) {
-      FileUtils.writeStringToFile(file, getJsonReport(true), UTF_8)
+      FileUtils.writeStringToFile(file, getJsonReport, UTF_8)
     }
   }
 
-  def getJsonReport(shorten: Boolean): String = {
+  def getJsonReport: String = {
     val memberJson = memberMap.values.map(_.asJson("  ")).mkString(", \n")
-
     val json = s"""[
       |$memberJson
       |]""".stripMargin
-
-    if(shorten) {
-      // Replaces all whitespaces by nothing, except the ones inside of quotes
-      json.replaceAll("\\s+(?=([^\"]*\"[^\"]*\")*[^\"]*$)", "")
-    } else {
-      json
-    }
+    json
   }
 
   def findGobraMemberByViperMemberName(taskName: String, viperMemberName: String, pkgDir: String): Option[GobraMemberEntry] =
@@ -200,8 +195,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
                 isAbstract: Boolean): Unit = this.synchronized({
     val key = gobraMemberKey(pkgDir, pkg, memberName, args)
 
-    val shortViperKey = viperMemberKey(viperMember.taskName, viperMemberName(viperMember.member), pkgDir)
-    val viperKey = viperMemberKey(viperMember.taskName, viperMemberName(viperMember.member), pkgDir)
+    val shortViperKey = viperMemberKey(viperMember.taskName, viperMember.memberName, pkgDir)
+    val viperKey = viperMemberKey(viperMember.taskName, viperMember.memberName, pkgDir)
 
     memberMap.get(key) match {
       case Some(existing) =>
@@ -209,10 +204,11 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
           case Some(existingViperEntry) =>
             // Merge Viper members that occur multiple times during a task(used for chopper)
             existing.viperMembers + (viperKey -> ViperMemberEntry(
-              if(viperMember.hasBody) viperMember.member else existingViperEntry.member,
+              existingViperEntry.memberName,
               existingViperEntry.taskName,
               existingViperEntry.time + viperMember.time,
               existingViperEntry.nodeType,
+              existingViperEntry.dependencies ++ viperMember.dependencies,
               existingViperEntry.success && viperMember.success,
               existingViperEntry.cached || viperMember.cached,
               existingViperEntry.fromImport,
@@ -236,7 +232,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     // these would be the more relevant ones.
     viperMemberNameGobraMemberMap.get(viperKey) match {
       case Some(otherMember) if !otherMember.key.eq(key) =>
-        val fallBackKey = viperMemberKey(viperMember.taskName, viperMemberName(viperMember.member), pkgDir)
+        val fallBackKey = viperMemberKey(viperMember.taskName, viperMember.memberName, pkgDir)
         viperMemberNameGobraMemberMap.get(fallBackKey) match {
           case Some(otherMember) if otherMember.key != key =>
             Violation.violation("Viper method corresponds to multiple gobra methods: " + viperKey + ":\n " + otherMember.key + " \n" + key)

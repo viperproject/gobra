@@ -176,18 +176,19 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   def getWarnings(pkgDir: String, pkg: String, config: Config): Set[String] =
     memberMap.values
       .filter(gobraMember => gobraMember.pkgDir == pkgDir && gobraMember.pkg == pkg)
-      .flatMap(gobraMember =>
+      .flatMap(gobraMember => {
+        val name = gobraMember.pkg + "." + gobraMember.memberName + gobraMember.args
         gobraMember.dependencies().flatMap({
           // Trusted implies abstracted, so we match trusted first
           case GobraMemberEntry(_, pkg, memberName, _, args, _, true, _) =>
             Some("Warning: Member " + name + " depends on trusted member " + pkg + "." + memberName + args + "\n")
           case GobraMemberEntry(_, pkg, memberName, _, args, _, _, true) =>
             Some("Warning: Member " + name + " depends on abstract member " + pkg + "." + memberName + args + "\n")
-          case GobraMemberEntry(pkgDir, pkg, _, _, _, _, _, _)  if !config.inputPackageMap.contains(PackageEntry(pkgDir, pkg)) =>
+          case GobraMemberEntry(pkgDir, pkg, _, _, _, _, _, _) if !config.inputPackageMap.contains(PackageEntry(pkgDir, pkg)) =>
             Some("Warning: Depending on imported package, that is not verified: " + pkgDir + " - " + pkg)
           case _ => None
         })
-      ).toSet
+      }).toSet
 
   def addResult(pkgDir: String,
                 pkg: String,

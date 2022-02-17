@@ -239,7 +239,9 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
     case e: PUnfolding => parens(super.showExpr(e))
 
-    case e: PActualExprProofAnnotation => showExpr(e.op)
+    case e: PActualExprProofAnnotation => e match {
+      case PUnfolding(_, op) => showExpr(op)
+    }
     case e => super.showExpr(e)
   }
 

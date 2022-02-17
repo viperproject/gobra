@@ -506,7 +506,6 @@ case class PShiftRight(left: PExpression, right: PExpression) extends PBinaryExp
 
 
 sealed trait PActualExprProofAnnotation extends PActualExpression {
-  def op: PExpression
   def nonGhostChildren: Vector[PExpression]
 }
 

@@ -86,7 +86,9 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       }
 
       // ghostness of proof annotations is decided by the argument
-      case ann: PActualExprProofAnnotation => ghost(!noGhostPropagationFromChildren(ann.op))
+      case ann: PActualExprProofAnnotation => ann match {
+        case PUnfolding(_, op) => ghost(!noGhostPropagationFromChildren(op))
+      }
 
       // catches ghost field reads, method calls, function calls since their id is ghost
       case exp => ghost(!noGhostPropagationFromChildren(exp))

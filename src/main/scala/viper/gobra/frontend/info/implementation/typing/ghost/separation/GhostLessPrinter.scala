@@ -163,7 +163,9 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
         super.showExpr(n.copy(args = aArgs))
     }
 
-    case e: PActualExprProofAnnotation => showExpr(e.op)
+    case e: PActualExprProofAnnotation => e match {
+      case PUnfolding(_, op) => showExpr(op)
+    }
     case e if classifier.isExprGhost(e) => ghostToken
     case e => super.showExpr(e)
   }

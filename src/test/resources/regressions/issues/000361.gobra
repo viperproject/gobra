@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+pred P(x *int) {
+	acc(x)
+}
+
+requires P(x)
+func f(x *int) int {
+	invariant P(x)
+	for unfolding P(x) in *x == 0 {
+		return 0
+	}
+	return 1
+}

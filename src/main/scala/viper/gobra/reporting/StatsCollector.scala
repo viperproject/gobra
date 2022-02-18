@@ -42,6 +42,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   // Maps a viper member name to a gobra member entry
   private val viperMemberNameGobraMemberMap: Map[String, GobraMemberEntry] = TrieMap()
 
+  // indentation prefix for generated json
+  private val i = "  "
   case class GobraMemberEntry(pkgDir: String,
                               pkg: String,
                               memberName: String,
@@ -52,24 +54,24 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
                               isAbstract: Boolean) {
 
     def asJson(p: String = ""): String = {
-      val viperMembersJson = viperMembers.values.map(_.asJson(s"$p    "))
-      val dependencies = this.dependencies().map(entry => p + "    \"" + entry.key + "\"")
+      val viperMembersJson = viperMembers.values.map(_.asJson(s"$p$i$i"))
+      val dependencies = this.dependencies().map(entry => s"""$p$i$i"${entry.key}"""")
 
       s"""$p{
-         |$p  "id": "${this.key}",
-         |$p  "pkgDir": "$pkgDir",
-         |$p  "pkg": "$pkg",
-         |$p  "name": "$pkg.$memberName",
-         |$p  "args": "$args",
-         |$p  "nodeType": "$nodeType",
-         |$p  "trusted": $isTrusted,
-         |$p  "abstract": $isAbstract,
-         |$p  "viperMembers": [
-                |${viperMembersJson.mkString(",\n")}
-         |$p  ],
-         |$p  "dependencies": [
-                |${dependencies.mkString(",\n")}
-         |$p  ]
+         |$p$i"id": "${this.key}",
+         |$p$i"pkgDir": "$pkgDir",
+         |$p$i"pkg": "$pkg",
+         |$p$i"name": "$pkg.$memberName",
+         |$p$i"args": "$args",
+         |$p$i"nodeType": "$nodeType",
+         |$p$i"trusted": $isTrusted,
+         |$p$i"abstract": $isAbstract,
+         |$p$i"viperMembers": [
+            |${viperMembersJson.mkString(",\n")}
+         |$p$i],
+         |$p$i"dependencies": [
+            |${dependencies.mkString(",\n")}
+         |$p$i]
          |$p}""".stripMargin
     }
 
@@ -95,14 +97,14 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
     def asJson(p: String = ""): String = {
       s"""$p{
-         |$p  "name": "${this.memberName}",
-         |$p  "taskName": "${this.taskName}",
-         |$p  "time": ${this.time},
-         |$p  "nodeType": "${this.nodeType}",
-         |$p  "success": ${this.success},
-         |$p  "cached": ${this.cached},
-         |$p  "fromImport": ${this.fromImport},
-         |$p  "hasBody": ${this.hasBody}
+         |$p$i"name": "${this.memberName}",
+         |$p$i"taskName": "${this.taskName}",
+         |$p$i"time": ${this.time},
+         |$p$i"nodeType": "${this.nodeType}",
+         |$p$i"success": ${this.success},
+         |$p$i"cached": ${this.cached},
+         |$p$i"fromImport": ${this.fromImport},
+         |$p$i"hasBody": ${this.hasBody}
          |$p}""".stripMargin
     }
   }
@@ -173,7 +175,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   }
 
   def getJsonReport: String = {
-    val memberJson = memberMap.values.map(_.asJson("  ")).mkString(", \n")
+    val memberJson = memberMap.values.map(_.asJson(i)).mkString(", \n")
     val json = s"""[
       |$memberJson
       |]""".stripMargin

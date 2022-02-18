@@ -14,13 +14,6 @@ type Shape interface {
    Area() (ret int)
 }
 
-func abstractFunction(d int) int
-
-trusted
-ensures ret > 0
-func trustedFunction(d int) (ret int) {
-
-}
 
 
 

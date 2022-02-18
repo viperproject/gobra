@@ -146,21 +146,21 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val includePackages: ScallopOption[List[String]] = opt[List[String]](
     name = "includePackages",
-    descr = "Which packages should be verified, all packages are verified by default",
+    descr = "Packages to verify. All packages found in the specified directories are verified by default.",
     default = Some(List.empty),
     short = 'p'
   )
 
   val excludePackages: ScallopOption[List[String]] = opt[List[String]](
     name = "excludePackages",
-    descr = "Which packages should not be verified, all packages are verified by default",
+    descr = "Packages to ignore. These packages will not be verified, even if they are found in the specified directories.",
     default = Some(List.empty),
     noshort = true
   )
 
   val gobraDirectory: ScallopOption[Path] = opt[Path](
     name = "gobraDirectory",
-    descr = "Directory in which gobra saves it's data like its cache or statistics",
+    descr = "Output directory for Gobra",
     default = Some(Path.of(Config.DefaultGobraDirectory)),
     short = 'g'
   )(singleArgConverter(arg => Path.of(arg)))

@@ -282,12 +282,13 @@ object GobraRunner extends GobraFrontend with StrictLogging {
 
       // Set up gobra directory
       val gobraDirectory = config.gobraDirectory.toAbsolutePath.toFile
-      if(!gobraDirectory.isDirectory) {
+      if(!gobraDirectory.exists) {
         Violation.violation(gobraDirectory.mkdir(), s"Could not create directory $gobraDirectory")
       }
 
       // Make sure we have the correct permissions to the gobra directory
-      Violation.violation(gobraDirectory.canRead && gobraDirectory.canWrite, "Couldn't write to gobra directory " + config.gobraDirectory.toString)
+      Violation.violation(gobraDirectory.canRead, "Couldn't read gobra directory " + config.gobraDirectory.toString)
+      Violation.violation(gobraDirectory.canWrite, "Couldn't write to gobra directory " + config.gobraDirectory.toString)
 
       // Print copyright report
       config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")

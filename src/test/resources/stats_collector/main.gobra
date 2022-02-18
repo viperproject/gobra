@@ -12,7 +12,7 @@ func main () {
   fold r.mem()
   fold c.mem()
 
-  test(Area(&r), Area(&c))
+  trustedFunction(abstractFunction(Area(&r)), abstractFunction(Area(&c)))
 }
 
 requires acc(s.mem()) && s.Size()
@@ -21,10 +21,13 @@ func Area(s pkg1.Shape) (ret int) {
   return s.Area()
 }
 
+requires d > 0
+ensures ret > 0
+func abstractFunction(d int) (ret int)
 
 requires i > 0 && j > 0
 ensures ret > 0
 trusted
-func test(i int, j int) (ret int) {
+func trustedFunction(i int, j int) (ret int) {
 
 }

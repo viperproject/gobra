@@ -50,9 +50,10 @@ object BackendVerifier {
 
     val verificationResults =  {
       val verifier = config.backend.create(exePaths, config)
+      val reporter = BacktranslatingReporter(config.reporter, task.backtrack, config, task.name)
 
       if (!config.shouldChop) {
-        verifier.verify(task.name, BacktranslatingReporter(config.reporter, task.backtrack, config, task.name), task.program)(executor)
+        verifier.verify(task.name, reporter, task.program)(executor)
       } else {
 
         val programs = ChopperUtil.computeChoppedPrograms(task)(config)
@@ -68,7 +69,7 @@ object BackendVerifier {
           for {
             acc <- res
             next <- verifier
-              .verify(task.name, BacktranslatingReporter(config.reporter, task.backtrack, config, task.name), program)(executor)
+              .verify(task.name, reporter, program)(executor)
               .andThen(_ => config.reporter report ChoppedProgressMessage(idx+1, num))
           } yield (acc, next) match {
             case (acc, silver.verifier.Success) => acc

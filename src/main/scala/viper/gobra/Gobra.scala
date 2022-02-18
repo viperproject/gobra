@@ -88,13 +88,10 @@ trait GoVerifier extends StrictLogging {
     })
 
     if(warningCount > 0) {
-      logger.warn(s"$name has found $warningCount warning(s)")
+      logger.info(s"$name has found $warningCount warning(s)")
     }
-    if(allErrors.nonEmpty) {
-      logger.error(s"$name has found ${allErrors.size} error(s)")
-    } else {
-      logger.info(s"$name found no errors")
-    }
+
+    logger.info(s"$name has found ${allErrors.size} error(s)")
 
     // Print statistics for caching
     if(config.cacheFile.isDefined) {

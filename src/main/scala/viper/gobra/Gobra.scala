@@ -286,6 +286,8 @@ object GobraRunner extends GobraFrontend with StrictLogging {
         Violation.violation(gobraDirectory.mkdir(), s"Could not create directory $gobraDirectory")
       }
 
+      Violation.violation(gobraDirectory.isDirectory, config.gobraDirectory.toString + " is not a directory")
+
       // Make sure we have the correct permissions to the gobra directory
       Violation.violation(gobraDirectory.canRead, "Couldn't read gobra directory " + config.gobraDirectory.toString)
       Violation.violation(gobraDirectory.canWrite, "Couldn't write to gobra directory " + config.gobraDirectory.toString)

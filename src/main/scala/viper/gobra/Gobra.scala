@@ -65,14 +65,14 @@ trait GoVerifier extends StrictLogging {
     })
 
     config.inputPackageMap.foreach({ case (pkg, inputs) =>
-      val pkgString = pkg.path + " - " + pkg.name
+      val taskName = pkg.path + " - " + pkg.name
 
-      logger.info("Verifying Package " + pkgString)
-      val resultFuture = verify(config.copy(inputs = inputs, reporter = statsCollector), Some(pkgString))(executor)
+      logger.info("Verifying Package " + taskName)
+      val resultFuture = verify(config.copy(inputs = inputs, reporter = statsCollector), Some(taskName))(executor)
       val result = Await.result(resultFuture, Duration.Inf)
 
       // Report verification finish, to free space used by unneeded typeInfo
-      statsCollector.report(VerificationTaskFinishedMessage(pkgString))
+      statsCollector.report(VerificationTaskFinishedMessage(taskName))
 
       val warnings = statsCollector.getWarnings(pkg.path, pkg.name, config)
       warningCount += warnings.size
@@ -81,7 +81,7 @@ trait GoVerifier extends StrictLogging {
       result match {
         case VerifierResult.Success => logger.info(s"$name found no errors")
         case VerifierResult.Failure(errors) =>
-          logger.error(s"$name has found ${errors.length} error(s) in package $pkgString")
+          logger.error(s"$name has found ${errors.length} error(s) in package $taskName")
           errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
           allErrors = allErrors ++ errors
       }

@@ -93,6 +93,17 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     val taskName = pkg.path + " - " + pkg.name
 
     val result = Await.result(gobraInstance.verify(config, Some(taskName))(executor), Duration.Inf)
+
+    val nonVerificationErrors = result match {
+      case r: VerifierResult.Failure => r.errors.filter(!_.isInstanceOf[VerificationError])
+      case _ => Vector()
+    }
+
+    if(nonVerificationErrors.nonEmpty) {
+      val s = "Encountered parsing errors during task " + taskName + ": \n" +nonVerificationErrors.map(_.formattedMessage)
+      fail(s)
+    }
+
     assert(statsCollector.typeInfos.contains(taskName))
     val typeInfo = statsCollector.typeInfos(taskName)
     val interfaceImplementations: List[Type.Type] = typeInfo.interfaceImplementations.values.flatten.toList
@@ -108,10 +119,6 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
         // into a single predicate, that we do not receive, since it gets filtered because there isn't a single gobra
         // member it belongs to
         case p: PMPredicateDecl if !interfaceImplementations.contains(typeInfo.typ(p.receiver)) => Vector(p)
-        /*case p: PTypeDef => p.right match {
-          case p: PInterfaceType => p.methSpecs ++ p.predSpec
-          case _ => Vector()
-        }*/
         case _ => Vector()
       }))
 

@@ -22,6 +22,8 @@ import viper.silver.plugin.standard.termination
 import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
 
+import scala.collection.SortedSet
+
 class InterfaceEncoding extends LeafTypeEncoding {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
@@ -555,7 +557,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
         }
 
-        val clauses = family.flatMap(clause)
+        val clauses = family.toVector.flatMap(clause)
         val clauseTypes = clauses.map(_._1)
 
         if (clauseTypes.size != clauses.size) {
@@ -593,10 +595,12 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
   private def hasFamily(p: in.PredicateProxy)(ctx: Context): Boolean = familyID(p)(ctx).isDefined
   private def familyID(p: in.PredicateProxy)(ctx: Context): Option[Int] = predicateFamilyTuple(ctx)._1.get(p)
-  private def predicateFamily(id: Int)(ctx: Context): Set[in.PredicateProxy] = predicateFamilyTuple(ctx)._2.getOrElse(id, Set.empty)
+  private def predicateFamily(id: Int)(ctx: Context): SortedSet[in.PredicateProxy] = predicateFamilyTuple(ctx)._2.getOrElse(id, SortedSet.empty)
   private def predicateFamilySignature(id: Int)(ctx: Context): (String, Vector[in.Type]) = predicateFamilyTuple(ctx)._3(id)
-  private def predicateFamilyTuple(ctx: Context): (Map[in.PredicateProxy, Int], Map[Int, Set[in.PredicateProxy]], Map[Int, (String, Vector[in.Type])]) = {
+  private def predicateFamilyTuple(ctx: Context): (Map[in.PredicateProxy, Int], Map[Int, SortedSet[in.PredicateProxy]], Map[Int, (String, Vector[in.Type])]) = {
     predicateFamilyTupleRes.getOrElse{
+      implicit val tuple3Ordering: Ordering[(in.MPredicateProxy, in.InterfaceT, SortedSet[in.Type])] = Ordering.by(_._1)
+
       val itfNodes = for {
         (itf, impls) <- ctx.table.interfaceImplementations.toSet
         itfProxy <- ctx.table.members(itf).collect{ case m: in.MPredicateProxy => m }
@@ -618,11 +622,12 @@ class InterfaceEncoding extends LeafTypeEncoding {
         case (itfProxy, _, _) => nodesId(itfProxy) -> (itfProxy.name, ctx.lookup(itfProxy).args.map(_.typ))
       }.toMap
 
-      predicateFamilyTupleRes = Some((nodesId, families, sigs))
-      (nodesId, families, sigs)
+      val sortedFamilies = families.map { case (key, proxies) => key -> SortedSet(proxies.toSeq: _*) }
+      predicateFamilyTupleRes = Some((nodesId, sortedFamilies, sigs))
+      (nodesId, sortedFamilies, sigs)
     }
   }
-  private var predicateFamilyTupleRes: Option[(Map[in.PredicateProxy, Int], Map[Int, Set[in.PredicateProxy]], Map[Int, (String, Vector[in.Type])])] = None
+  private var predicateFamilyTupleRes: Option[(Map[in.PredicateProxy, Int], Map[Int, SortedSet[in.PredicateProxy]], Map[Int, (String, Vector[in.Type])])] = None
 
 
   private def mpredicateInstance(recv: in.Expr, proxy: in.MPredicateProxy, args: Vector[in.Expr])(src: in.Node)(ctx: Context): CodeWriter[vpr.PredicateAccess] = {
@@ -667,7 +672,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     Violation.violation(p.posts.isEmpty, s"expected no postcondition, but got ${p.posts}")
 
     val itfT = p.receiver.typ.asInstanceOf[in.InterfaceT]
-    val impls = ctx.table.implementations(itfT)
+    val impls = ctx.table.implementations(itfT).toVector
     val cases = impls.map(impl => (impl, ctx.table.lookup(impl, p.name.name).get))
 
     val recvDecl = vpr.LocalVarDecl(Names.implicitThis, vprInterfaceType(ctx))()
@@ -697,7 +702,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         formalArgs = recvDecl +: argDecls,
         typ = resultType,
         pres = vPres,
-        posts = cases.toVector map { case (impl, implProxy) => clause(impl, implProxy) },
+        posts = cases map { case (impl, implProxy) => clause(impl, implProxy) },
         body = body
       )()
     } yield Vector(func)

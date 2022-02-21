@@ -85,9 +85,6 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
 
-      // ghostness of proof annotations is decided by the argument
-      case ann: PActualExprProofAnnotation => ghost(!noGhostPropagationFromChildren(ann.op))
-
       // catches ghost field reads, method calls, function calls since their id is ghost
       case exp => ghost(!noGhostPropagationFromChildren(exp))
     }
@@ -154,7 +151,12 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
         case x => noGhostPropagationFromChildren(x)
       }
 
-      tree.child(node).forall(noGhostPropagationFromSelfAndChildren)
+      val childrenToVisit: Iterable[PNode] = node match {
+        case p: PActualExprProofAnnotation => p.nonGhostChildren
+        case _ => tree.child(node)
+      }
+
+      childrenToVisit.forall(noGhostPropagationFromSelfAndChildren)
     }
 
   private[separation] def createGhostTyping[X <: PNode](typing: X => GhostType): X => GhostType =

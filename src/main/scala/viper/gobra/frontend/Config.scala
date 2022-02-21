@@ -73,6 +73,7 @@ case class Config(
     Config(
       inputs = (inputs ++ other.inputs).distinct,
       recursive = recursive,
+      moduleName = moduleName,
       gobraDirectory = gobraDirectory,
       inputPackageMap = newInputs,
       includeDirs = (includeDirs ++ other.includeDirs).distinct,

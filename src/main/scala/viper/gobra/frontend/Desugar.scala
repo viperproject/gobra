@@ -21,7 +21,7 @@ import viper.gobra.util.Violation.violation
 import viper.gobra.util.{DesugarWriter, TypeBounds, Violation}
 
 import scala.annotation.{tailrec, unused}
-import scala.collection.Iterable
+import scala.collection.{Iterable, SortedSet}
 import scala.reflect.ClassTag
 
 object Desugar {
@@ -91,7 +91,7 @@ object Desugar {
     val combinedMPredicates = combineTableField(_.definedMPredicates)
     val combinedImplementations = {
       val interfaceImplMaps = desugarers.flatMap(_.interfaceImplementations.toSeq)
-      interfaceImplMaps.groupMapReduce[in.InterfaceT, Set[in.Type]](_._1)(_._2)(_ ++ _)
+      interfaceImplMaps.groupMapReduce[in.InterfaceT, SortedSet[in.Type]](_._1)(_._2)(_ ++ _)
     }
     val combinedMemberProxies = computeMemberProxies(combinedMethods.values ++ combinedMPredicates.values, combinedImplementations, combinedDefinedT)
     val combineImpProofPredAliases = combineTableField(_.implementationProofPredicateAliases)
@@ -110,9 +110,9 @@ object Desugar {
   }
 
   /** For now, the memberset is computed in an inefficient way. */
-  def computeMemberProxies(decls: Iterable[in.Member], itfImpls: Map[in.InterfaceT, Set[in.Type]], definedT: Map[(String, Addressability), in.Type]): Map[in.Type, Set[in.MemberProxy]] = {
-    val keys = itfImpls.flatMap{ case (k, v) => v + k }.toSet
-    val pairs: Set[(in.Type, Set[in.MemberProxy])] = keys.map{ key =>
+  def computeMemberProxies(decls: Iterable[in.Member], itfImpls: Map[in.InterfaceT, SortedSet[in.Type]], definedT: Map[(String, Addressability), in.Type]): Map[in.Type, SortedSet[in.MemberProxy]] = {
+    val keys = itfImpls.flatMap{ case (k, v) => v union Set(k) }.toSet
+    val pairs: Set[(in.Type, SortedSet[in.MemberProxy])] = keys.map{ key =>
 
       val underlyingRecv = {
         @tailrec
@@ -131,13 +131,13 @@ object Desugar {
         underlyingItf(key).getOrElse(key)
       }
 
-      key -> decls.collect{
+      key -> SortedSet(decls.collect{
         case m: in.Method if m.receiver.typ == underlyingRecv => m.name
         case m: in.PureMethod if m.receiver.typ == underlyingRecv => m.name
         case m: in.MPredicate if m.receiver.typ == underlyingRecv => m.name
-      }.toSet
+      }.toSeq: _*)
     }
-    pairs.toMap[in.Type, Set[in.MemberProxy]]
+    pairs.toMap[in.Type, SortedSet[in.MemberProxy]]
   }
 
   object NoGhost {
@@ -2261,11 +2261,11 @@ object Desugar {
       }
     }
 
-    lazy val interfaceImplementations: Map[in.InterfaceT, Set[in.Type]] = {
+    lazy val interfaceImplementations: Map[in.InterfaceT, SortedSet[in.Type]] = {
       info.interfaceImplementations.map{ case (itfT, implTs) =>
         (
           interfaceType(typeD(itfT, Addressability.Exclusive)(Source.Parser.Unsourced)).get,
-          implTs.map(implT => typeD(implT, Addressability.Exclusive)(Source.Parser.Unsourced))
+          SortedSet(implTs.map(implT => typeD(implT, Addressability.Exclusive)(Source.Parser.Unsourced)).toSeq: _*)
         )
       }
     }

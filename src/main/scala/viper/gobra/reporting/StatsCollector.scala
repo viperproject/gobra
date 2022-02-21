@@ -35,6 +35,9 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   import GobraNodeType._
   import ViperNodeType._
 
+  // We use concurrent maps, because silicon verifies & reports results concurrently. Additionally we want to be prepared
+  // if the type checking or other processes are done concurrently in the future
+
   // Stores type info for a task
   private[reporting] val typeInfos: Map[String, TypeInfo] = TrieMap()
   // Maps a gobra member name to a gobra member entry
@@ -151,7 +154,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
     msg match {
       // Capture typeInfo once it's available
-      case TypeInfoMessage(typeInfo, taskName) => this.synchronized({typeInfos.put(taskName, typeInfo)})
+      case TypeInfoMessage(typeInfo, taskName) => typeInfos.put(taskName, typeInfo)
       // Free up unneeded space, once a task is finished
       case VerificationTaskFinishedMessage(taskName) => typeInfos.remove(taskName)
       case GobraEntitySuccessMessage(taskName, _, e, info, time, cached) if !info.node.isInstanceOf[BuiltInMember] =>

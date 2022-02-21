@@ -47,6 +47,28 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       case Shared => vpr.Ref
     }
   }
+  /**
+    * Encodes assertions.
+    * [acc(m: []T, perm)] -> [forall i int :: 0 <= i && i < len(m) ==> acc(&m[i], perm)]
+    */
+  override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
+    default(super.assertion(ctx)) {
+      case n@ in.Access(in.Accessible.ExprAccess(exp :: ctx.Slice(elem)), perm) =>
+        val iterVar = in.BoundVar(ctx.freshNames.next(), in.IntT(Addressability.Exclusive))(n.info)
+        val underlyingType = in.SliceT(elem, Addressability.exprInAcc)
+        val quantifiedAssert = in.SepForall(
+          vars = Vector(iterVar),
+          triggers = Vector(in.Trigger(Vector(in.IndexedExp(exp, iterVar, underlyingType)(n.info)))(n.info)),
+          body = in.Implication(
+            in.And(
+              in.AtMostCmp(in.IntLit(0)(n.info), iterVar)(n.info),
+              in.LessCmp(iterVar, in.Length(exp)(n.info))(n.info))(n.info),
+            in.Access(in.Accessible.Address(in.IndexedExp(exp, iterVar, underlyingType)(n.info)), perm)(n.info)
+          )(n.info)
+        )(n.info)
+        ctx.ass.translate(quantifiedAssert)(ctx)
+    }
+  }
 
   /**
     * Encodes expressions as values that do not occupy some identifiable location in memory.

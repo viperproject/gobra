@@ -24,6 +24,8 @@ import viper.gobra.util.{Decimal, NumBase, TypeBounds, Violation}
 import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation.violation
 
+import scala.collection.SortedSet
+
 case class Program(
                     types: Vector[TopType], members: Vector[Member], table: LookupTable
                   )(val info: Source.Parser.Info) extends Node {
@@ -36,8 +38,16 @@ class LookupTable(
                  definedFunctions: Map[FunctionProxy, FunctionLikeMember],
                  definedMPredicates: Map[MPredicateProxy, MPredicateLikeMember],
                  definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember],
-                 val memberProxies: Map[Type, Set[MemberProxy]], // only has to be defined on types that implement an interface // might change depending on how embedding support changes
-                 val interfaceImplementations: Map[InterfaceT, Set[Type]], // empty interface does not have to be included
+                 /**
+                   * only has to be defined on types that implement an interface // might change depending on how embedding support changes
+                   * SortedSet is used to achieve a consistent ordering of members across runs of Gobra
+                   */
+                 val memberProxies: Map[Type, SortedSet[MemberProxy]],
+                 /**
+                   * empty interface does not have to be included
+                   * SortedSet is used to achieve a consistent ordering of members across runs of Gobra
+                   */
+                 val interfaceImplementations: Map[InterfaceT, SortedSet[Type]],
                  implementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy]
                  ) {
   def lookup(t: DefinedT): Type = definedTypes(t.name, t.addressability)
@@ -58,8 +68,8 @@ class LookupTable(
   def getDefinedFPredicates: Map[FPredicateProxy, FPredicateLikeMember] = definedFPredicates
   def getImplementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy] = implementationProofPredicateAliases
 
-  def implementations(t: InterfaceT): Set[Type] = interfaceImplementations.getOrElse(t.withAddressability(Addressability.Exclusive), Set.empty)
-  def members(t: Type): Set[MemberProxy] = memberProxies.getOrElse(t.withAddressability(Addressability.Exclusive), Set.empty)
+  def implementations(t: InterfaceT): SortedSet[Type] = interfaceImplementations.getOrElse(t.withAddressability(Addressability.Exclusive), SortedSet.empty)
+  def members(t: Type): SortedSet[MemberProxy] = memberProxies.getOrElse(t.withAddressability(Addressability.Exclusive), SortedSet.empty)
   def lookup(t: Type, name: String): Option[MemberProxy] = members(t).find(_.name == name)
 
   def lookupImplementationPredicate(impl: Type, itf: InterfaceT, name: String): Option[PredicateProxy] = {
@@ -1093,13 +1103,15 @@ sealed trait TopType
 
 /** When a type is added, then also add a pattern to [[viper.gobra.translator.util.TypePatterns]] */
 
-sealed trait Type {
+sealed trait Type extends Ordered[Type] {
   def addressability: Addressability
 
   /** Returns whether 'this' is equals to 't' without considering the addressability modifier of the types. */
   def equalsWithoutMod(t: Type): Boolean
 
   def withAddressability(newAddressability: Addressability): Type
+
+  override def compare(that: Type): Int = Names.serializeType(this).compare(Names.serializeType(that))
 }
 
 sealed abstract class PrettyType(pretty: => String) extends Type {
@@ -1355,11 +1367,17 @@ case class ChannelT(elem: Type, addressability: Addressability) extends PrettyTy
 
 
 
-sealed trait Proxy extends Node {
+sealed trait Proxy extends Node with Ordered[Proxy] {
   def name: String
+  override def compare(that: Proxy): Int = name.compare(that.name)
 }
 sealed trait MemberProxy extends Proxy {
   def uniqueName: String
+
+  override def compare(that: Proxy): Int = that match {
+    case m: MemberProxy => uniqueName.compare(m.uniqueName)
+    case _ => super.compare(that)
+  }
 }
 sealed trait CallProxy extends Proxy
 

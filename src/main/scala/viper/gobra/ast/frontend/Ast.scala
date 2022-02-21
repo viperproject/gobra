@@ -509,10 +509,12 @@ case class PShiftRight(left: PExpression, right: PExpression) extends PBinaryExp
 
 
 sealed trait PActualExprProofAnnotation extends PActualExpression {
-  def op: PExpression
+  def nonGhostChildren: Vector[PExpression]
 }
 
-case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualExprProofAnnotation
+case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualExprProofAnnotation {
+  override def nonGhostChildren: Vector[PExpression] = Vector(op)
+}
 
 /**
   * Represents Go's built-in "make(`T`, `size` ...IntegerType)" function that allocates and initializes

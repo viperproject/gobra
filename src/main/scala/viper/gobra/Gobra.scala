@@ -126,7 +126,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
         typeInfo <- performTypeChecking(taskName, parsedPackage, input, finalConfig)
         program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
         program <- performInternalTransformations(program, finalConfig)
-        viperTask <- performViperEncoding(program, finalConfig)
+        viperTask <- performViperEncoding(taskName, program, finalConfig)
       } yield (viperTask, finalConfig)
     }
 
@@ -242,9 +242,9 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  private def performViperEncoding(program: Program, config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
+  private def performViperEncoding(taskName: String, program: Program, config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
     if (config.shouldViperEncode) {
-      Right(Translator.translate(program)(config))
+      Right(Translator.translate(taskName, program)(config))
     } else {
       Left(Vector())
     }

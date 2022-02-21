@@ -18,7 +18,7 @@ import viper.gobra.util.Violation
 
 object Translator {
 
-  def translate(program: Program)(config: Config): BackendVerifier.Task = {
+  def translate(taskName: String, program: Program)(config: Config): BackendVerifier.Task = {
     val translationConfig = new DfltTranslatorConfig()
     val programTranslator = new ProgramsImpl()
     val task = programTranslator.translate(program)(translationConfig)
@@ -37,7 +37,7 @@ object Translator {
       case (t, transformer) => transformer.transform(t)
     }
 
-    config.reporter report GeneratedViperMessage(config.inputs.map(_.name), () => transformedTask.program, () => transformedTask.backtrack)
+    config.reporter report GeneratedViperMessage(taskName, config.inputs.map(_.name), () => transformedTask.program, () => transformedTask.backtrack)
     transformedTask
   }
 

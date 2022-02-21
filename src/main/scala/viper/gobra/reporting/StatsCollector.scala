@@ -96,7 +96,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
                               success: Boolean,
                               cached: Boolean,
                               fromImport: Boolean,
-                              hasBody: Boolean) {
+                              hasBody: Boolean,
+                              verified: Boolean) {
 
     def asJson(p: String = ""): String = {
       s"""$p{
@@ -107,7 +108,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
          |$p$i"success": ${this.success},
          |$p$i"cached": ${this.cached},
          |$p$i"fromImport": ${this.fromImport},
-         |$p$i"hasBody": ${this.hasBody}
+         |$p$i"hasBody": ${this.hasBody},
+         |$p$i"verified": ${this.verified}
          |$p}""".stripMargin
     }
   }
@@ -125,7 +127,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   override val name: String = "StatsCollector"
 
   override def report(msg: GobraMessage): Unit = {
-    def handleEntityMessage(taskName: String, viperMember: Member, info: Source.Verifier.Info, time: Time, cached: Boolean, success: Boolean): Unit = {
+
+    def addViperMember(taskName: String, viperMember: Member, info: Source.Verifier.Info, time: Time, cached: Boolean, verified: Boolean, success: Boolean): Unit = {
       Violation.violation(typeInfos.contains(taskName), "No type info available for stats reporter")
       getMemberInformation(info.pnode, typeInfos(taskName)) match {
         case GobraMemberInfo(pkgDir, pkg, memberName, args, nodeType, isTrusted, isAbstract, isImported, false) =>
@@ -144,7 +147,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
               success,
               cached,
               isImported,
-              viperMemberHasBody(viperMember)
+              viperMemberHasBody(viperMember),
+              verified
             ),
             isTrusted,
             isAbstract)
@@ -157,10 +161,15 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
       case TypeInfoMessage(typeInfo, taskName) => typeInfos.put(taskName, typeInfo)
       // Free up unneeded space, once a task is finished
       case VerificationTaskFinishedMessage(taskName) => typeInfos.remove(taskName)
+      // Store every viperMember with an info attached to see, which ones didn't verify on a unexpected shutdown
+      case GeneratedViperMessage(taskName, _, vprAst, _) =>
+        vprAst.apply().members
+          .filter(m => m.info.isInstanceOf[Source.Verifier.Info] && !m.info.asInstanceOf[Source.Verifier.Info].node.isInstanceOf[BuiltInMember])
+          .foreach(m => addViperMember(taskName, m, m.info.asInstanceOf[Source.Verifier.Info], 0, cached = false, verified = false, success = true))
       case GobraEntitySuccessMessage(taskName, _, e, info, time, cached) if !info.node.isInstanceOf[BuiltInMember] =>
-        handleEntityMessage(taskName, e, info, time, cached, success = true)
+        addViperMember(taskName, e, info, time, cached, verified = true, success = true)
       case GobraEntityFailureMessage(taskName, _, e, info, _, time, cached) if !info.node.isInstanceOf[BuiltInMember] =>
-        handleEntityMessage(taskName, e, info, time, cached, success = false)
+        addViperMember(taskName, e, info, time, cached, verified = true, success = false)
       case _ =>
     }
     // Pass message to next reporter
@@ -232,7 +241,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
               existingViperEntry.success && viperMember.success,
               existingViperEntry.cached || viperMember.cached,
               existingViperEntry.fromImport,
-              existingViperEntry.hasBody || viperMember.hasBody
+              existingViperEntry.hasBody || viperMember.hasBody,
+              existingViperEntry.verified || viperMember.verified
             ))
           case None => existing.viperMembers.put(viperKey, viperMember)
         }

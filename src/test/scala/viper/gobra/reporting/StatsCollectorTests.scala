@@ -138,6 +138,9 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
         assert(memberEntry.viperMembers.values.exists(p => !p.fromImport))
       })
 
+    // Assert all methods stored were actually verified
+    statsCollector.memberMap.values.flatMap(_.viperMembers.values).forall(_.verified)
+
     // Test cleanup mechanism
     statsCollector.report(VerificationTaskFinishedMessage(taskName))
     assert(!statsCollector.typeInfos.contains(taskName))

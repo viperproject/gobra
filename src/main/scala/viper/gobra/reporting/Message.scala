@@ -159,10 +159,11 @@ case class AppliedInternalTransformsMessage(inputs: Vector[String], internal: ()
     s"internal=${internal().formatted})"
 }
 
-case class GeneratedViperMessage(inputs: Vector[String], vprAst: () => vpr.Program, backtrack: () => BackTranslator.BackTrackInfo) extends GobraMessage {
+case class GeneratedViperMessage(taskName: String, inputs: Vector[String], vprAst: () => vpr.Program, backtrack: () => BackTranslator.BackTrackInfo) extends GobraMessage {
   override val name: String = s"generated_viper_message"
 
   override def toString: String = s"generated_viper_message(" +
+    s"task=$taskName"
     s"files=$inputs, " +
     s"vprFormated=$vprAstFormatted)"
 

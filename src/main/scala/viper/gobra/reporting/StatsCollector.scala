@@ -47,14 +47,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
   // indentation prefix for generated json
   private val i = "  "
-  case class GobraMemberEntry(pkgId: String,
-                              pkg: String,
-                              memberName: String,
-                              args: String,
-                              nodeType: GobraNodeType,
-                              viperMembers: Map[String, ViperMemberEntry],
-                              isTrusted: Boolean,
-                              isAbstract: Boolean) {
+  case class GobraMemberEntry(info: GobraMemberInfo, viperMembers: Map[String, ViperMemberEntry]) {
 
     def asJson(p: String = ""): String = {
       val viperMembersJson = viperMembers.values.map(_.asJson(s"$p$i$i"))
@@ -62,13 +55,13 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
       s"""$p{
          |$p$i"id": "${this.key}",
-         |$p$i"pkgId": "$pkgId",
-         |$p$i"pkg": "$pkg",
-         |$p$i"name": "$pkg.$memberName",
-         |$p$i"args": "$args",
-         |$p$i"nodeType": "$nodeType",
-         |$p$i"trusted": $isTrusted,
-         |$p$i"abstract": $isAbstract,
+         |$p$i"pkgId": "${info.pkgId}",
+         |$p$i"pkg": "${info.pkg}",
+         |$p$i"name": "${info.pkg}.${info.memberName}",
+         |$p$i"args": "${info.args}",
+         |$p$i"nodeType": "${info.nodeType}",
+         |$p$i"trusted": ${info.isTrusted},
+         |$p$i"abstract": ${info.isAbstract},
          |$p$i"viperMembers": [
             |${viperMembersJson.mkString(",\n")}
          |$p$i],
@@ -81,11 +74,11 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     def dependencies(): Set[GobraMemberEntry] = {
       this.viperMembers.values
         .flatMap(viperMember => viperMember.dependencies
-          .flatMap(dep => findGobraMemberByViperMemberName(viperMember.taskName, dep, pkgId)))
+          .flatMap(dep => findGobraMemberByViperMemberName(viperMember.taskName, dep, info.pkgId)))
         .filter(_.key != this.key).toSet
     }
 
-    def key: String = gobraMemberKey(pkgId, memberName, args)
+    def key: String = gobraMemberKey(info.pkgId, info.memberName, info.args)
   }
 
   case class ViperMemberEntry(memberName: String,
@@ -131,13 +124,9 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     def addViperMember(taskName: String, viperMember: Member, info: Source.Verifier.Info, time: Time, cached: Boolean, verified: Boolean, success: Boolean): Unit = {
       Violation.violation(typeInfos.contains(taskName), "No type info available for stats reporter")
       getMemberInformation(info.pnode, typeInfos(taskName)) match {
-        case GobraMemberInfo(pkgId, pkg, memberName, args, nodeType, isTrusted, isAbstract, isImported, false) =>
+        case info if !info.isBuiltIn =>
           addResult(
-            pkgId,
-            pkg,
-            memberName,
-            args,
-            nodeType,
+            info,
             ViperMemberEntry(
               viperMemberName(viperMember),
               taskName,
@@ -146,12 +135,10 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
               getViperDependencies(viperMember),
               success,
               cached,
-              isImported,
+              info.isImported,
               viperMemberHasBody(viperMember),
               verified
-            ),
-            isTrusted,
-            isAbstract)
+            ))
         case _ =>
       }
     }
@@ -199,32 +186,25 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
   def getWarnings(pkgId: String, config: Config): Set[String] =
     memberMap.values
-      .filter(gobraMember => gobraMember.pkgId == pkgId)
+      .filter(gobraMember => gobraMember.info.pkgId == pkgId)
       .flatMap(gobraMember => {
-        val name = gobraMember.pkg + "." + gobraMember.memberName + gobraMember.args
+        val name = gobraMember.info.pkg + "." + gobraMember.info.memberName + gobraMember.info.args
         gobraMember.dependencies().flatMap({
           // Trusted implies abstracted, so we match trusted first
-          case GobraMemberEntry(_, pkg, memberName, _, args, _, true, _) =>
+          case GobraMemberEntry(GobraMemberInfo(_, pkg, memberName, _, args, _, true, _, _), _) =>
             Some("Warning: Member " + name + " depends on trusted member " + pkg + "." + memberName + args + "\n")
-          case GobraMemberEntry(_, pkg, memberName, _, args, _, _, true) =>
+          case GobraMemberEntry(GobraMemberInfo(_, pkg, memberName, _, args, _, _, true, _), _)=>
             Some("Warning: Member " + name + " depends on abstract member " + pkg + "." + memberName + args + "\n")
-          case GobraMemberEntry(pkgId, pkg, _, _, _, _, _, _) if !config.inputPackageMap.contains(pkgId) =>
+          case GobraMemberEntry(GobraMemberInfo(pkgId, pkg, _, _, _, _, _, _, _), _) if !config.inputPackageMap.contains(pkgId) =>
             Some("Warning: Depending on imported package that is not verified: " + pkgId + " - " + pkg)
           case _ => None
         })
       }).toSet
 
-  def addResult(pkgId: String,
-                pkg: String,
-                memberName: String,
-                args: String,
-                nodeType: GobraNodeType,
-                viperMember: ViperMemberEntry,
-                isTrusted: Boolean,
-                isAbstract: Boolean): Unit = {
-    val key = gobraMemberKey(pkgId, memberName, args)
+  def addResult(info: GobraMemberInfo, viperMember: ViperMemberEntry): Unit = {
+    val key = gobraMemberKey(info.pkgId, info.memberName, info.args)
 
-    val viperKey = viperMemberKey(viperMember.taskName, viperMember.memberName, pkgId)
+    val viperKey = viperMemberKey(viperMember.taskName, viperMember.memberName, info.pkgId)
     val shortViperKey = viperMemberKey(viperMember.taskName, viperMember.memberName)
 
     memberMap.get(key) match {
@@ -248,12 +228,12 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         }
 
         // If we encounter an abstract version of a member, we know for sure, its abstract
-        val newAbstract = existing.isAbstract || isAbstract
-        Violation.violation(existing.isTrusted == isTrusted, "Same members with different trusted declarations found: \n " + key)
-        Violation.violation(existing.nodeType == nodeType, "Same members with different node types found: \n " + key)
-        memberMap.put(key, existing.copy(isAbstract = newAbstract))
+        val newAbstract = existing.info.isAbstract || info.isAbstract
+        Violation.violation(existing.info.isTrusted == info.isTrusted, "Same members with different trusted declarations found: \n " + key)
+        Violation.violation(existing.info.nodeType == info.nodeType, "Same members with different node types found: \n " + key)
+        memberMap.put(key, existing.copy(info = existing.info.copy(isAbstract = newAbstract)))
 
-      case None => memberMap.put(key, GobraMemberEntry(pkgId, pkg, memberName, args, nodeType, TrieMap(viperKey -> viperMember), isTrusted, isAbstract))
+      case None => memberMap.put(key, GobraMemberEntry(info, TrieMap(viperKey -> viperMember)))
     }
 
     // TODO once issue #417 is fixed this hack won't be needed anymore
@@ -264,7 +244,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     // these would be the more relevant ones.
     viperMemberNameGobraMemberMap.get(viperKey) match {
       case Some(otherMember) if !otherMember.key.eq(key) =>
-        val fallBackKey = viperMemberKey(viperMember.taskName, viperMember.memberName, pkgId)
+        val fallBackKey = viperMemberKey(viperMember.taskName, viperMember.memberName, info.pkgId)
         viperMemberNameGobraMemberMap.get(fallBackKey) match {
           case Some(otherMember) if otherMember.key != key =>
             Violation.violation("Viper method corresponds to multiple gobra methods: " + viperKey + ":\n " + otherMember.key + " \n" + key)

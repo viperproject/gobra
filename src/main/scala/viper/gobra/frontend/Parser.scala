@@ -18,7 +18,7 @@ import viper.gobra.reporting.{Source => _, _}
 import org.antlr.v4.runtime.{CharStreams, CommonTokenStream, DefaultErrorStrategy, ParserRuleContext}
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
-import viper.gobra.frontend.GobraParser.{ExprOnlyContext, FunctionDeclContext, ImportDeclContext, SourceFileContext, StmtOnlyContext, TypeOnlyContext, Type_Context}
+import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, SourceFileContext, SpecMemberContext, StmtOnlyContext, TypeOnlyContext, Type_Context}
 import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable.ListBuffer
@@ -181,8 +181,8 @@ object Parser {
   def parseFunction(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], PMember] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new SyntaxAnalyzer[FunctionDeclContext, PMember](source, ListBuffer.empty[ParserError],  pom, specOnly)
-    parser.parse(parser.functionDecl())
+    val parser = new SyntaxAnalyzer[SpecMemberContext, PMember](source, ListBuffer.empty[ParserError],  pom, specOnly)
+    parser.parse(parser.specMember())
   }
 
   def parseStmt(source: Source): Either[Vector[ParserError], PStatement] = {

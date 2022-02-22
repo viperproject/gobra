@@ -28,16 +28,7 @@ func test1() (ret IntType){
 
 trusted
 func (x IntType) methodWithNonSupportedFeature() IntType{
-	    i := 45
-        switch {
-        case i < 10:
-            fallthrough
-        case i < 0:
-            fallthrough
-        case true:
-            i = 0
-        }
-        return i
+	    var j int = "not an int"
 }
 
 func test2() IntType{

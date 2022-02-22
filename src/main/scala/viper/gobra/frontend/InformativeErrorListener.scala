@@ -33,7 +33,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
       case _ => None
     }
     val message = Some(ParserError(error.full, pos))
-    messages.prependAll(message)
+    messages.appendAll(message)
   }
 
   protected def underlineError(context : ErrorContext, restOfTheLine : Boolean = false): String = {

@@ -128,8 +128,8 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
         assert(statsCollector.memberMap.contains(memberKey))
 
         val memberEntry = statsCollector.memberMap(memberKey)
-        assert(memberEntry.isTrusted == memberInfo.isTrusted)
-        assert(memberEntry.isAbstract == memberInfo.isAbstract)
+        assert(memberEntry.info.isTrusted == memberInfo.isTrusted)
+        assert(memberEntry.info.isAbstract == memberInfo.isAbstract)
 
         // Assert there is at least one non-imported viper member for this gobra member
         assert(memberEntry.viperMembers.values.exists(p => !p.fromImport))

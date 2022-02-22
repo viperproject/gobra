@@ -48,10 +48,7 @@ ghostPrimaryExpr: range
 				| old
 				| sConversion
 				| optionNone | optionSome | optionGet
-				| quantification
 				| permission;
-
-quantification: (FORALL | EXISTS) boundVariables COLON COLON triggers expression;
 
 permission: WRITEPERM | NOPERM;
 
@@ -113,8 +110,8 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 
 // Specifications
 
-specification:
-	((specStatement | PURE | TRUSTED) eos)*? PURE? // Non-greedily match PURE to avoid missing eos errors.
+specification returns[boolean trusted = false, boolean pure = false;]:
+	((specStatement | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? // Non-greedily match PURE to avoid missing eos errors.
 	;
 
 specStatement
@@ -155,16 +152,18 @@ new_: NEW L_PAREN type_ R_PAREN;
 
 // Added specifications and parameterinfo
 
-functionDecl: specification FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
+specMember: specification (functionDecl[$specification.trusted, $specification.pure] | methodDecl[$specification.trusted, $specification.pure]);
 
-methodDecl: specification FUNC receiver IDENTIFIER ( signature blockWithBodyParameterInfo?);
+functionDecl[boolean trusted, boolean pure]:  FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
+
+methodDecl[boolean trusted, boolean pure]: FUNC receiver IDENTIFIER (signature blockWithBodyParameterInfo?);
 
 
 // Ghost members
 
 sourceFile:
 	packageClause eos (importDecl eos)* (
-		(functionDecl | methodDecl | declaration | ghostMember) eos
+		(specMember | declaration | ghostMember) eos
 	)* EOF;
 
 ghostMember: implementationProof
@@ -172,7 +171,7 @@ ghostMember: implementationProof
 			| mpredicateDecl
 			| explicitGhostMember;
 
-explicitGhostMember: GHOST (methodDecl | functionDecl | declaration);
+explicitGhostMember: GHOST (specMember | declaration);
 
 fpredicateDecl: PRED IDENTIFIER parameters predicateBody?;
 
@@ -195,23 +194,17 @@ receiver: 	L_PAREN maybeAddressableIdentifier? type_ COMMA? R_PAREN;
 
 
 // Added ghost parameters
-parameterDecl: GHOST? identifierList? parameterType;
+parameterDecl: actualParameterDecl | ghostParameterDecl;
+
+actualParameterDecl:  identifierList? parameterType;
+
+ghostParameterDecl: GHOST identifierList? parameterType;
 
 parameterType: ELLIPSIS? type_;
 
-unfolding: UNFOLDING predicateAccess IN expression;
-
 // Added ++ operator
 expression:
-	call_op=(
-		LEN
-		| CAP
-		| DOM
-		| RANGE
-	) L_PAREN expression R_PAREN
-	| unfolding
-	| make
-	| unary_op = (
+	unary_op = (
 		PLUS
 		| MINUS
 		| EXCLAMATION
@@ -219,8 +212,8 @@ expression:
 		| STAR
 		| AMPERSAND
 		| RECEIVE
-	) expression
-	| primaryExpr
+	) expression #unaryExpr
+	| primaryExpr #primaryExpr_
 	| expression mul_op = (
 		STAR
 		| DIV
@@ -229,18 +222,18 @@ expression:
 		| RSHIFT
 		| AMPERSAND
 		| BIT_CLEAR
-	) expression
-	| expression add_op = (PLUS | MINUS | OR | CARET | PLUS_PLUS | WAND) expression
+	) expression #mulExpr
+	| expression add_op = (PLUS | MINUS | OR | CARET | PLUS_PLUS | WAND) expression #addExpr
 	| expression p42_op = (
 		UNION
 		| INTERSECTION
 		| SETMINUS
-	) expression
+	) expression #p42Expr
 	| expression p41_op = (
 		IN
 		| MULTI
 		| SUBSET
-	) expression
+	) expression #p41Expr
 	| expression rel_op = (
 		EQUALS
 		| NOT_EQUALS
@@ -248,11 +241,14 @@ expression:
 		| LESS_OR_EQUALS
 		| GREATER
 		| GREATER_OR_EQUALS
-	) expression
-	| expression LOGICAL_AND expression
-	| expression LOGICAL_OR expression
-	|<assoc=right> expression IMPLIES expression
-	|<assoc=right> expression QMARK expression COLON expression;
+	) expression #relExpr
+	| expression LOGICAL_AND expression #andExpr
+	| expression LOGICAL_OR expression #orExpr
+	|<assoc=right> expression IMPLIES expression #implication
+	|<assoc=right> expression QMARK expression COLON expression #ternaryExpr
+	| UNFOLDING predicateAccess IN expression #unfolding
+	| (FORALL | EXISTS) boundVariables COLON COLON triggers expression #quantification
+	;
 
 
 // Added ghost statements
@@ -312,6 +308,12 @@ primaryExpr:
 	| primaryExpr typeAssertion #typeAssertionPrimaryExpr
 	| primaryExpr arguments #invokePrimaryExpr
 	| primaryExpr predConstructArgs #predConstrPrimaryExpr
+	| call_op=(
+		LEN
+		| CAP
+		| DOM
+		| RANGE
+	) L_PAREN expression R_PAREN #builtInCallExpr // Remove this alternative when predeclared functions are properly handled
 	;
 
 predConstructArgs: L_PRED expressionList? COMMA? R_PRED;

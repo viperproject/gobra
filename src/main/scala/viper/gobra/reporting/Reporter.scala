@@ -48,7 +48,7 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
 
   override def report(msg: GobraMessage): Unit = msg match {
     case ParsedInputMessage(input, program) if unparse => write(input, "unparsed", program().formatted)
-    case TypeCheckSuccessMessage(inputs, _, erasedGhostCode, goifiedGhostCode) =>
+    case TypeCheckSuccessMessage(inputs, _, _, _, erasedGhostCode, goifiedGhostCode) =>
       if (eraseGhost) write(inputs, "ghostLess", erasedGhostCode())
       if (goify) write(inputs, "go", goifiedGhostCode())
     case TypeCheckDebugMessage(inputs, _, debugTypeInfo) if debug => write(inputs, "debugType", debugTypeInfo())

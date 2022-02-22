@@ -16,7 +16,6 @@ import viper.gobra.util.{Decimal, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
 import scala.collection.immutable
-import java.nio.file.Path
 
 // TODO: comment describing identifier positions (resolution)
 
@@ -44,7 +43,7 @@ case class PPackage(
                      packageClause: PPackageClause,
                      programs: Vector[PProgram],
                      positions: PositionManager,
-                     path: Path
+                     identifier: String
                    ) extends PNode with PUnorderedScope {
   // TODO: remove duplicate package imports:
   lazy val imports: Vector[PImport] = programs.flatMap(_.imports)

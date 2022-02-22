@@ -15,7 +15,6 @@ import viper.gobra.frontend.{Config, Parser}
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostLessPrinter
-import java.nio.file.Path
 
 class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
@@ -242,7 +241,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         PPackageClause(PPkgDef("pkg")),
         Vector(program),
         new PositionManager(positions),
-        Path.of("")
+        "pkg"
       )
       val tree = new Info.GoTree(pkg)
       val context = new Info.Context()

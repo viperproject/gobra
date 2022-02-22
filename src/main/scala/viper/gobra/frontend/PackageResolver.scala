@@ -11,7 +11,7 @@ import java.nio.file.{FileSystem, FileSystemAlreadyExistsException, FileSystems,
 import java.util.Collections
 import org.apache.commons.io.FilenameUtils
 import org.apache.commons.lang3.SystemUtils
-import org.bitbucket.inkytonik.kiama.util.Source
+import org.bitbucket.inkytonik.kiama.util.{FileSource, Source, StringSource}
 import viper.gobra.ast.frontend.PImplicitQualifiedImport
 import viper.gobra.frontend.Source.FromFileSource
 
@@ -205,7 +205,7 @@ object PackageResolver {
     // importPath is only used to create an error message that is similar to the error message of the official Go compiler
     def getPackageClauses(files: Vector[InputResource]): Either[String, Vector[(InputResource, String)]] = {
       val pkgClauses = files.map(f => {
-        getPackageClause(f) match {
+        getPackageClause(f.asSource()) match {
           case Some(pkgClause) => Right(f -> pkgClause)
           case _ => Left(f)
         }
@@ -232,16 +232,38 @@ object PackageResolver {
 
   private lazy val pkgClauseRegex = """(?:\/\/.*|\/\*(?:.|\n)*\*\/|package(?:\s|\n)+([a-zA-Z_][a-zA-Z0-9_]*))""".r
 
-  def getPackageClause(file: InputResource): Option[String] = {
-    val inputStream = file.asStream()
-    val bufferedSource = new BufferedSource(inputStream)
-    val content = bufferedSource.mkString
-    bufferedSource.close()
+  def getPackageClause(src: Source): Option[String] = {
 
     // TODO is there a way to perform the regex lazily on the file's content?
     pkgClauseRegex
-      .findAllMatchIn(content)
+      .findAllMatchIn(src.content)
       .collectFirst { case m if m.group(1) != null => m.group(1) }
+  }
+
+  def getPackageId(src: Source, includeDirs: Vector[Path]): String = {
+    /**
+     * Relativizes the given path with the specified include directories or the go path, so we get a relative path
+     * instead of a system specific path
+     */
+    def relativizePath(path: Path): Path = {
+      val allDirs = Properties.envOrNone("GOPATH").map(path => Path.of(path)) match {
+        case Some(p) => includeDirs.appended(p)
+        case None => includeDirs
+      }
+
+      val packageRoot = allDirs.find(dir => path.toAbsolutePath.startsWith(dir.toAbsolutePath))
+
+      packageRoot match {
+        case Some(parent) => parent.toAbsolutePath.relativize(path.toAbsolutePath)
+        case None => path
+      }
+    }
+
+    src match {
+      case FromFileSource(path, _, _) => relativizePath(path.getParent).toString + " - " + getPackageClause(src).get
+      case FileSource(name, _) => relativizePath(Path.of(name).getParent).toString + " - " + getPackageClause(src).get
+      case StringSource(_, _) => ???
+    }
   }
 
   trait InputResource extends Closeable {

@@ -130,7 +130,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
 
     private val encoding = NextStep("Viper encoding", internalTransforming, (program: Program) => {
       assert(config.isDefined)
-      Right(Translator.translate("benchmarkTest", program)(config.get))
+      Right(Translator.translate(program)(config.get))
     })
 
     private val verifying = NextStep("Viper verification", encoding, (viperTask: BackendVerifier.Task) => {

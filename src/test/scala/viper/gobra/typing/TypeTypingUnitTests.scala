@@ -375,7 +375,7 @@ class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         PPackageClause(PPkgDef("pkg")),
         Vector(program),
         new PositionManager(positions),
-        Path.of("")
+        "pkg"
       )
       val tree = new Info.GoTree(pkg)
       val context = new Info.Context()

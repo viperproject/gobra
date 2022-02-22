@@ -106,10 +106,6 @@ case class ParserErrorMessage(input: Path, result: Vector[ParserError]) extends 
     s"errors=${result.map(_.toString).mkString(",")})"
 }
 
-case class TypeInfoMessage(typeInfo: TypeInfo, taskName: String) extends GobraMessage{
-  override val name: String = s"type_info_message"
-}
-
 sealed trait TypeCheckMessage extends GobraMessage {
   override val name: String = s"type_check_message"
   val inputs: Vector[String]
@@ -119,7 +115,7 @@ sealed trait TypeCheckMessage extends GobraMessage {
     s"files=$inputs)"
 }
 
-case class TypeCheckSuccessMessage(inputs: Vector[String], ast: () => PPackage, erasedGhostCode: () => String, goifiedGhostCode: () => String) extends TypeCheckMessage {
+case class TypeCheckSuccessMessage(inputs: Vector[String], taskName: String, typeInfo: () => TypeInfo, ast: () => PPackage, erasedGhostCode: () => String, goifiedGhostCode: () => String) extends TypeCheckMessage {
   override val name: String = s"type_check_success_message"
 
   override def toString: String = s"type_check_success_message(" +

@@ -13,7 +13,7 @@ import org.bitbucket.inkytonik.kiama.util.Source
 import org.rogach.scallop.exceptions.ValidationFailure
 import org.rogach.scallop.throwError
 import viper.gobra.frontend.Source.FromFileSource
-import viper.gobra.frontend.{Config, PackageEntry, ScallopGobraConfig}
+import viper.gobra.frontend.{Config, ScallopGobraConfig}
 import viper.gobra.reporting.{NoopReporter, ParserError}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, DefaultAnnotatedTestInput, DefaultTestInput, ProjectInfo, SystemUnderTest}
@@ -60,7 +60,7 @@ class GobraPackageTests extends GobraTests {
             "-i", currentDir.toFile.getPath,
             "-p", pkgName,
             "-I", currentDir.toFile.getPath
-          ), PackageEntry(currentDir.toFile.getPath, pkgName))
+          ))
         } yield config
 
         val config = Config(
@@ -95,7 +95,7 @@ class GobraPackageTests extends GobraTests {
       .collectFirst { case m if m.group(1) != null => m.group(1) }
   }
 
-  private def createConfig(args: Array[String], pkgKey: PackageEntry): Option[Config] = {
+  private def createConfig(args: Array[String]): Option[Config] = {
     try {
       // set throwError to true: Scallop will throw an exception instead of terminating the program in case an
       // exception occurs (e.g. a validation failure)
@@ -103,7 +103,7 @@ class GobraPackageTests extends GobraTests {
 
       // Simulate pick of package, Gobra normally does
       val config = new ScallopGobraConfig(args.toSeq).config
-      Some(config.copy(inputs = config.inputPackageMap(pkgKey)))
+      Some(config.copy(inputs = config.inputPackageMap.values.head))
     } catch {
       case _: ValidationFailure => None
       case other: Throwable => throw other

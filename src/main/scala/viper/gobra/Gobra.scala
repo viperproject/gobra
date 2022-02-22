@@ -19,7 +19,7 @@ import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
 import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
-import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext, Violation}
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silver.{ast => vpr}
 
 import scala.concurrent.duration.Duration
@@ -64,24 +64,22 @@ trait GoVerifier extends StrictLogging {
       }
     })
 
-    config.inputPackageMap.foreach({ case (pkg, inputs) =>
-      val taskName = pkg.path + " - " + pkg.name
-
-      logger.info("Verifying Package " + taskName)
-      val resultFuture = verify(config.copy(inputs = inputs, reporter = statsCollector), Some(taskName))(executor)
+    config.inputPackageMap.foreach({ case (pkgId, inputs) =>
+      logger.info("Verifying Package " + pkgId)
+      val resultFuture = verify(config.copy(inputs = inputs, reporter = statsCollector, taskName = pkgId))(executor)
       val result = Await.result(resultFuture, Duration.Inf)
 
       // Report verification finish, to free space used by unneeded typeInfo
-      statsCollector.report(VerificationTaskFinishedMessage(taskName))
+      statsCollector.report(VerificationTaskFinishedMessage(pkgId))
 
-      val warnings = statsCollector.getWarnings(pkg.path, pkg.name, config)
+      val warnings = statsCollector.getWarnings(pkgId, config)
       warningCount += warnings.size
       warnings.foreach(w => logger.warn(w))
 
       result match {
         case VerifierResult.Success => logger.info(s"$name found no errors")
         case VerifierResult.Failure(errors) =>
-          logger.error(s"$name has found ${errors.length} error(s) in package $taskName")
+          logger.error(s"$name has found ${errors.length} error(s) in package $pkgId")
           errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
           allErrors = allErrors ++ errors
       }
@@ -101,20 +99,20 @@ trait GoVerifier extends StrictLogging {
     allErrors
   }
 
-  def verify(config: Config, taskName: Option[String] = None)(executor: GobraExecutionContext): Future[VerifierResult] = {
-    verify(config.inputs, config, taskName.getOrElse(config.inputs.map(_.name).mkString(",")))(executor)
+  def verify(config: Config)(executor: GobraExecutionContext): Future[VerifierResult] = {
+    verify(config.inputs, config)(executor)
   }
 
-  protected[this] def verify(input: Vector[Source], config: Config, taskName: String)(executor: GobraExecutionContext): Future[VerifierResult]
+  protected[this] def verify(input: Vector[Source], config: Config)(executor: GobraExecutionContext): Future[VerifierResult]
 }
 
 trait GoIdeVerifier {
-  protected[this] def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo, taskName: String)(executor: GobraExecutionContext): Future[VerifierResult]
+  protected[this] def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult]
 }
 
 class Gobra extends GoVerifier with GoIdeVerifier {
 
-  override def verify(input: Vector[Source], config: Config, taskName: String)(executor: GobraExecutionContext): Future[VerifierResult] = {
+  override def verify(input: Vector[Source], config: Config)(executor: GobraExecutionContext): Future[VerifierResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
 
@@ -123,24 +121,24 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       val finalConfig = getAndMergeInFileConfig(config)
       for {
         parsedPackage <- performParsing(input, finalConfig)
-        typeInfo <- performTypeChecking(taskName, parsedPackage, input, finalConfig)
+        typeInfo <- performTypeChecking(parsedPackage, input, finalConfig)
         program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
         program <- performInternalTransformations(program, finalConfig)
-        viperTask <- performViperEncoding(taskName, program, finalConfig)
+        viperTask <- performViperEncoding(program, finalConfig)
       } yield (viperTask, finalConfig)
     }
 
     task.flatMap{
       case Left(Vector()) => Future(VerifierResult.Success)
       case Left(errors)   => Future(VerifierResult.Failure(errors))
-      case Right((job, finalConfig)) => verifyAst(finalConfig, job.program, job.backtrack, taskName)(executor)
+      case Right((job, finalConfig)) => verifyAst(finalConfig, job.program, job.backtrack)(executor)
     }
   }
 
-  override def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo, taskName: String)(executor: GobraExecutionContext): Future[VerifierResult] = {
+  override def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
-    val viperTask = BackendVerifier.Task(ast, backtrack, taskName)
+    val viperTask = BackendVerifier.Task(ast, backtrack)
     performVerification(viperTask, config)
       .map(BackTranslator.backTranslate(_)(config))
       .recoverWith {
@@ -194,7 +192,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     inFileConfigs.foldLeft(config){ case (oldConfig, fileConfig) => oldConfig.merge(fileConfig) }
   }
 
-  private def performParsing(input: Vector[Source], config: Config): Either[Vector[VerifierError], PPackage] = {
+  def performParsing(input: Vector[Source], config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
       Parser.parse(input)(config)
     } else {
@@ -202,23 +200,15 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  private def performTypeChecking(taskName: String, parsedPackage: PPackage, input: Vector[Source], config: Config): Either[Vector[VerifierError], TypeInfo] = {
+  def performTypeChecking(parsedPackage: PPackage, input: Vector[Source], config: Config): Either[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
-      val typeInfo = Info.check(parsedPackage, input, isMainContext = true)(config)
-
-      // Report type info for later usage
-      typeInfo match {
-        case Right(typeInfo) => config.reporter.report(TypeInfoMessage(typeInfo, taskName))
-        case _ =>
-      }
-
-      typeInfo
+      Info.check(parsedPackage, input, isMainContext = true)(config)
     } else {
       Left(Vector())
     }
   }
 
-  private def performDesugaring(parsedPackage: PPackage, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
+  def performDesugaring(parsedPackage: PPackage, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
     if (config.shouldDesugar) {
       Right(Desugar.desugar(parsedPackage, typeInfo)(config))
     } else {
@@ -230,7 +220,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * Applies transformations to programs in the internal language. Currently, only adds overflow checks but it can
     * be easily extended to perform more transformations
     */
-  private def performInternalTransformations(program: Program, config: Config): Either[Vector[VerifierError], Program] = {
+  def performInternalTransformations(program: Program, config: Config): Either[Vector[VerifierError], Program] = {
     val transformed = CGEdgesTerminationTransform.transform(program)
 
     if (config.checkOverflows) {
@@ -242,9 +232,9 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  private def performViperEncoding(taskName: String, program: Program, config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
+  def performViperEncoding(program: Program, config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
     if (config.shouldViperEncode) {
-      Right(Translator.translate(taskName, program)(config))
+      Right(Translator.translate(program)(config))
     } else {
       Left(Vector())
     }
@@ -276,19 +266,6 @@ object GobraRunner extends GobraFrontend with StrictLogging {
     try {
       val scallopGobraConfig = new ScallopGobraConfig(args.toSeq)
       val config = scallopGobraConfig.config
-
-      // Set up gobra directory
-      val gobraDirectory = config.gobraDirectory.toAbsolutePath.toFile
-      if(!gobraDirectory.exists) {
-        Violation.violation(gobraDirectory.mkdir(), s"Could not create directory $gobraDirectory")
-      }
-
-      Violation.violation(gobraDirectory.isDirectory, config.gobraDirectory.toString + " is not a directory")
-
-      // Make sure we have the correct permissions to the gobra directory
-      Violation.violation(gobraDirectory.canRead, "Couldn't read gobra directory " + config.gobraDirectory.toString)
-      Violation.violation(gobraDirectory.canWrite, "Couldn't write to gobra directory " + config.gobraDirectory.toString)
-
       // Print copyright report
       config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
 

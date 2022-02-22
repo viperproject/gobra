@@ -10,7 +10,7 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type
-import viper.gobra.frontend.{Config, PackageEntry, ScallopGobraConfig}
+import viper.gobra.frontend.{Config, ScallopGobraConfig}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.gobra.Gobra
 
@@ -19,8 +19,7 @@ import scala.concurrent.duration.Duration
 
 
 class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
-  val statsCollectorTestPathPropertyName = "GOBRATESTS_REGRESSIONS_DIR"
-  val statsCollectorTestDir: String = System.getProperty(statsCollectorTestPathPropertyName, "src/test/resources/stats_collector")
+  val statsCollectorTestDir: String = "src/test/resources/stats_collector"
   var executor: GobraExecutionContext = _
   var gobraInstance: Gobra = _
 
@@ -58,9 +57,9 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
 
   private def runPackagesSeparately(config: Config): Unit = {
     // Overwrite reporter
-    config.inputPackageMap.foreach({case (pkg, inputs) =>
+    config.inputPackageMap.foreach({case (pkgId, inputs) =>
       val statsCollector = StatsCollector(NoopReporter)
-      val result = runAndCheck(config.copy(inputs = inputs, reporter = statsCollector), statsCollector, pkg)
+      val result = runAndCheck(config.copy(inputs = inputs, reporter = statsCollector, taskName = pkgId), statsCollector, pkgId)
 
       // Assert that errors are somehow reflected in the stats
       // It's hard to test this further, since there isn't much information about viper or gobra members available
@@ -76,8 +75,8 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     // Overwrite reporter
     var errorCount = 0
     val statsCollector = StatsCollector(NoopReporter)
-    config.inputPackageMap.foreach({ case (pkg, inputs) =>
-      val results = runAndCheck(config.copy(inputs = inputs, reporter = statsCollector), statsCollector, pkg)
+    config.inputPackageMap.foreach({ case (pkgId, inputs) =>
+      val results = runAndCheck(config.copy(inputs = inputs, reporter = statsCollector, taskName=pkgId), statsCollector, pkgId)
 
       results match {
         case VerifierResult.Success => assert(statsCollector.memberMap.values.flatMap(_.viperMembers.values).count(!_.success) == errorCount)
@@ -89,10 +88,8 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     })
   }
 
-  def runAndCheck(config: Config, statsCollector: StatsCollector, pkg: PackageEntry): VerifierResult = {
-    val taskName = pkg.path + " - " + pkg.name
-
-    val result = Await.result(gobraInstance.verify(config, Some(taskName))(executor), Duration.Inf)
+  def runAndCheck(config: Config, statsCollector: StatsCollector, pkgId: String): VerifierResult = {
+    val result = Await.result(gobraInstance.verify(config)(executor), Duration.Inf)
 
     val nonVerificationErrors = result match {
       case r: VerifierResult.Failure => r.errors.filter(!_.isInstanceOf[VerificationError])
@@ -100,12 +97,12 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     }
 
     if(nonVerificationErrors.nonEmpty) {
-      val s = "Encountered parsing errors during task " + taskName + ": \n" +nonVerificationErrors.map(_.formattedMessage)
+      val s = "Encountered parsing errors during task " + pkgId + ": \n" +nonVerificationErrors.map(_.formattedMessage)
       fail(s)
     }
 
-    assert(statsCollector.typeInfos.contains(taskName))
-    val typeInfo = statsCollector.typeInfos(taskName)
+    assert(statsCollector.typeInfos.contains(pkgId))
+    val typeInfo = statsCollector.typeInfos(pkgId)
     val interfaceImplementations: List[Type.Type] = typeInfo.interfaceImplementations.values.flatten.toList
 
     val expectedGobraMembers: Vector[PNode] = typeInfo.tree.originalRoot.programs
@@ -124,10 +121,10 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
 
     // Check if all expected members are present and the entries are correct
     expectedGobraMembers
-      .map(member => statsCollector.getMemberInformation(member, statsCollector.typeInfos(taskName)))
-      .filter(memberInfo => memberInfo.pkg == pkg.name && memberInfo.pkgDir == pkg.path)
+      .map(member => statsCollector.getMemberInformation(member, statsCollector.typeInfos(pkgId)))
+      .filter(memberInfo => memberInfo.pkgId == pkgId)
       .foreach(memberInfo => {
-        val memberKey = statsCollector.gobraMemberKey(memberInfo.pkgDir, memberInfo.pkg, memberInfo.memberName, memberInfo.args)
+        val memberKey = statsCollector.gobraMemberKey(pkgId, memberInfo.memberName, memberInfo.args)
         assert(statsCollector.memberMap.contains(memberKey))
 
         val memberEntry = statsCollector.memberMap(memberKey)
@@ -142,8 +139,8 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     statsCollector.memberMap.values.flatMap(_.viperMembers.values).forall(_.verified)
 
     // Test cleanup mechanism
-    statsCollector.report(VerificationTaskFinishedMessage(taskName))
-    assert(!statsCollector.typeInfos.contains(taskName))
+    statsCollector.report(VerificationTaskFinishedMessage(pkgId))
+    assert(!statsCollector.typeInfos.contains(pkgId))
 
     result
   }

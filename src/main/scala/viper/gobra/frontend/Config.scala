@@ -25,17 +25,19 @@ object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
 }
 
-object Config {
+object ConfigDefaults {
   val DefaultGobraDirectory: String = ".gobra"
+  val DefaultTaskName: String = "gobra-task"
 }
-
-case class PackageEntry(path: String, name: String)
 
 case class Config(
                  inputs: Vector[Source],
                  recursive: Boolean = false,
-                 gobraDirectory: Path = Path.of(Config.DefaultGobraDirectory),
-                 inputPackageMap: Map[PackageEntry, Vector[Source]] = Map(),
+                 gobraDirectory: Path = Path.of(ConfigDefaults.DefaultGobraDirectory),
+                 // Used as a unique identifier per verification task, ideally it shouldn't change between verifications
+                 // because it is used as a caching key, additionally
+                 taskName: String = ConfigDefaults.DefaultTaskName,
+                 inputPackageMap: Map[String, Vector[Source]] = Map(),
                  moduleName: String = "",
                  includeDirs: Vector[Path] = Vector(),
                  reporter: GobraReporter = StdIOReporter(),
@@ -65,7 +67,7 @@ case class Config(
 
   def merge(other: Config): Config = {
     // this config takes precedence over other config
-    val newInputs: Map[PackageEntry, Vector[Source]] = {
+    val newInputs: Map[String, Vector[Source]] = {
       val keys = inputPackageMap.keys ++ other.inputPackageMap.keys
       keys.map(k => k -> (inputPackageMap.getOrElse(k, Vector()) ++ other.inputPackageMap.getOrElse(k, Vector())).distinct).toMap
     }
@@ -74,6 +76,7 @@ case class Config(
       inputs = (inputs ++ other.inputs).distinct,
       recursive = recursive,
       moduleName = moduleName,
+      taskName = taskName,
       gobraDirectory = gobraDirectory,
       inputPackageMap = newInputs,
       includeDirs = (includeDirs ++ other.includeDirs).distinct,
@@ -162,7 +165,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   val gobraDirectory: ScallopOption[Path] = opt[Path](
     name = "gobraDirectory",
     descr = "Output directory for Gobra",
-    default = Some(Path.of(Config.DefaultGobraDirectory)),
+    default = Some(Path.of(ConfigDefaults.DefaultGobraDirectory)),
     short = 'g'
   )(singleArgConverter(arg => Path.of(arg)))
 
@@ -307,11 +310,11 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   /** File Validation */
   def validateInput(inputOption: ScallopOption[List[String]],
+                    includeDirsOption: ScallopOption[List[File]],
                     recOption: ScallopOption[Boolean],
                     includePkgOption: ScallopOption[List[String]],
                     excludePkgOption: ScallopOption[List[String]]): Unit =
-    validateOpt(inputOption, recOption, includePkgOption, excludePkgOption) { (inputOpt, recOpt, includePkgOpt, excludePkgOpt) =>
-
+    validateOpt(inputOption, includeDirsOption, recOption, includePkgOption, excludePkgOption) { (inputOpt, includeDirsOpt, recOpt, includePkgOpt, excludePkgOpt) =>
     def checkConversion(input: List[String]): Either[String, Vector[Path]] = {
       def validateSources(sources: Vector[Source]): Either[Messages, Vector[Path]] = {
         val (remainingSources, paths) = sources.partitionMap {
@@ -325,7 +328,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
       val shouldParseRecursively = recOpt.getOrElse(false)
       val inputValidationMsgs = InputConverter.validate(input, shouldParseRecursively)
-      val sources = InputConverter.convert(input, shouldParseRecursively, includePkgOpt.getOrElse(List()), excludePkgOpt.getOrElse(List()))
+      val includeDirs = includeDirsOption.getOrElse(List()).map(_.toPath).toVector
+      val sources = InputConverter.convert(input, includeDirs, shouldParseRecursively, includePkgOpt.getOrElse(List()), excludePkgOpt.getOrElse(List()))
 
       val paths = for {
         _ <- if (inputValidationMsgs.isEmpty) Right(()) else Left(inputValidationMsgs)
@@ -386,7 +390,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   })
   val cutInput: ScallopOption[List[String]] = cutInputWithIdxs.map(_.map(_._1))
 
-  validateInput(input, recursive, includePackages, excludePackages)
+  validateInput(input, include, recursive, includePackages, excludePackages)
 
   // cache file should only be usable when using viper server
   validateOpt (backend, cacheFile) {
@@ -396,10 +400,35 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     case (_, Some(_)) => Left("Cache file can only be specified when the backend uses Viper Server")
   }
 
+  validateOpt (gobraDirectory) {
+    case Some(dir) =>
+      // Set up gobra directory
+      val gobraDirectory = dir.toFile
+      if(!gobraDirectory.exists && !gobraDirectory.mkdir()) {
+        Left( s"Could not create directory $gobraDirectory")
+      } else if (!gobraDirectory.isDirectory) {
+        Left(s"$dir is not a directory")
+      } else if (!gobraDirectory.canRead) {
+        Left(s"Couldn't read gobra directory $dir")
+      } else if (!gobraDirectory.canWrite) {
+        Left(s"Couldn't write to gobra directory $dir")
+      } else {
+        Right(())
+      }
+    case _ => Right(())
+  }
+
   verify()
 
   lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
-  lazy val inputPackageMap: Map[PackageEntry, Vector[Source]] = InputConverter.convert(input.toOption.getOrElse(List()), recursive.getOrElse(false), includePackages.getOrElse(List()), excludePackages.getOrElse(List()))
+
+  lazy val inputPackageMap: Map[String, Vector[Source]] = InputConverter.convert(
+    input.toOption.getOrElse(List()),
+    includeDirs,
+    recursive.getOrElse(false),
+    includePackages.getOrElse(List()),
+    excludePackages.getOrElse(List())
+  )
   lazy val isolated: Option[Vector[SourcePosition]] =
     InputConverter.isolatedPosition(cutInputWithIdxs.toOption) match {
       case Nil => None
@@ -432,23 +461,17 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       }
     }
 
-    def convert(input: List[String], recursive: Boolean, includePackages: List[String], excludePackages: List[String]): Map[PackageEntry, Vector[Source]] = {
-      val res = parseInputStrings(input.toVector, recursive).map(f => FileSource(f.toString))
+    def convert(input: List[String], includeDirs: Vector[Path], recursive: Boolean, includePackages: List[String], excludePackages: List[String]): Map[String, Vector[Source]] = {
+      val inputFilePaths = parseInputStrings(input.toVector, recursive).map(f => FileSource(f.toString))
 
-      Violation.violation(isInputOptional || res.nonEmpty, "no input files specified")
-      res.groupBy(src => {
-          val path = Path.of(src.name)
-          val packageName = PackageResolver.getPackageClause(PackageResolver.FileResource(path)).get
-
-          if(path.getNameCount > 1) {
-            PackageEntry(path.getParent.toString, packageName)
-          } else {
-            PackageEntry("", packageName)
-          }
+      Violation.violation(isInputOptional || inputFilePaths.nonEmpty, "no input files specified")
+      inputFilePaths
+        .filter(resource => {
+          val pkgName = PackageResolver.getPackageClause(resource).get
+          (includePackages.isEmpty || includePackages.contains(pkgName)) && !excludePackages.contains(pkgName)
         })
-        // Filter files by package name
-        .filter({ case (PackageEntry(_, packageName), _) => (includePackages.isEmpty || includePackages.contains(packageName)) && !excludePackages.contains(packageName)})
-        .map({ case (key, srcs) => (key, srcs.map(src => FileSource(src.name))) })
+        .groupBy(src => PackageResolver.getPackageId(src, includeDirs))
+        .map({ case (pkgId, sources) => (pkgId, sources) })
     }
 
     /**

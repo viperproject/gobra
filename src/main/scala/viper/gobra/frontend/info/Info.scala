@@ -76,7 +76,7 @@ object Info {
     // use `sources` instead of `context.inputs` for reporting such that the message is correctly attributed in case of imports
     config.reporter report TypeCheckDebugMessage(sources.map(_.name), () => pkg, () => getDebugInfo(pkg, info))
     if (errors.isEmpty) {
-      config.reporter report TypeCheckSuccessMessage(sources.map(_.name), () => pkg, () => getErasedGhostCode(pkg, info), () => getGoifiedGhostCode(pkg, info))
+      config.reporter report TypeCheckSuccessMessage(sources.map(_.name), config.taskName, () => info, () => pkg, () => getErasedGhostCode(pkg, info), () => getGoifiedGhostCode(pkg, info))
       Right(info)
     } else {
       // remove duplicates as errors related to imported packages might occur multiple times

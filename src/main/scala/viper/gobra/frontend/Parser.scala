@@ -366,7 +366,6 @@ object Parser {
 
     /**
       * Optionally consumes nested curly brackets with arbitrary content if `specOnly` is turned on, otherwise optionally applies the parser `p`
-      * Returns a tuple containing the parsed body and a boolean flag indicating if there was something parsed or not
       */
     def specOnlyParser[T](isPure: Boolean, p: Parser[T]): Parser[Option[T]] =
       if (specOnly && !isPure) nestedCurlyBracketsConsumer.? ^^(_.flatten)
@@ -1347,7 +1346,7 @@ object Parser {
 
     // expression can be terminated with a semicolon to simply preprocessing
     lazy val fpredicateDecl: Parser[PFPredicateDecl] =
-      ("pred" ~> idnDef) ~ parameters ~ predicateBody ^^ {case id ~ params ~ body => PFPredicateDecl(id, params, body)}
+      ("pred" ~> idnDef) ~ parameters ~ predicateBody ^^ PFPredicateDecl
 
     // expression can be terminated with a semicolon to simply preprocessing
     lazy val mpredicateDecl: Parser[PMPredicateDecl] =

@@ -329,10 +329,10 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       val shouldParseRecursively = recOpt.getOrElse(false)
       val inputValidationMsgs = InputConverter.validate(input, shouldParseRecursively)
       val includeDirs = includeDirsOption.getOrElse(List()).map(_.toPath).toVector
-      val sources = InputConverter.convert(input, includeDirs, shouldParseRecursively, includePkgOpt.getOrElse(List()), excludePkgOpt.getOrElse(List()))
 
       val paths = for {
         _ <- if (inputValidationMsgs.isEmpty) Right(()) else Left(inputValidationMsgs)
+        sources = InputConverter.convert(input, includeDirs, shouldParseRecursively, includePkgOpt.getOrElse(List()), excludePkgOpt.getOrElse(List()))
         paths <- validateSources(sources.values.flatten.toVector)
       } yield paths
 
@@ -349,8 +349,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     }
 
     def filesAreFiles(files: Vector[Path]): Either[String, Unit] = {
-      val notFiles = files.filterNot(file => Files.isRegularFile(file) || Files.isDirectory(file))
-      if (notFiles.isEmpty) Right(()) else Left(s"Files '${notFiles.mkString(",")}' are not files")
+      val notFilesOrDirectories = files.filterNot(file => Files.isRegularFile(file) || Files.isDirectory(file))
+      if (notFilesOrDirectories.isEmpty) Right(()) else Left(s"Files '${notFilesOrDirectories.mkString(",")}' are neither files or directories")
     }
 
     def filesAreReadable(files: Vector[Path]): Either[String, Unit] = {
@@ -462,7 +462,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     }
 
     def convert(input: List[String], includeDirs: Vector[Path], recursive: Boolean, includePackages: List[String], excludePackages: List[String]): Map[String, Vector[Source]] = {
-      val inputFilePaths = parseInputStrings(input.toVector, recursive).map(f => FileSource(f.toString))
+      val inputFilePaths = parseInputStrings(input.toVector, recursive)
 
       Violation.violation(isInputOptional || inputFilePaths.nonEmpty, "no input files specified")
       inputFilePaths
@@ -478,15 +478,18 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
      * Parses all provided inputs and returns a list of all gobra files found
      *
      */
-    private def parseInputStrings(inputs: Vector[String], recursive: Boolean): Vector[Path] = {
+    private def parseInputStrings(inputs: Vector[String], recursive: Boolean): Vector[Source] = {
       inputs.flatMap(input => getAllGobraFiles(input, recursive))
-        .map(file => file.toPath)
+        .map(file => FileSource(file.getAbsolutePath))
     }
 
     /**
-      * Checks whether string ends in ".<ext>" where <ext> corresponds to the extension defined in InputConverter
-      * @return Right with the string converted to a File if the condition is met, otherwise Left containing `input`
-      */
+     * Gets all gobra files in a input location. If the location is a file that ends in ".<ext>" it is returned.
+     * If it is a directory, all files contained in it, ending in ".<ext>", are returned.
+     *
+     * @param recursive if true, directories are traversed recursively
+     * @return a Vector of the resolved gobra files
+     */
     private def getAllGobraFiles(input: String, recursive: Boolean): Vector[File] =
       input match {
         case PackageResolver.inputFileRegex(filename) => Vector(new File(filename))

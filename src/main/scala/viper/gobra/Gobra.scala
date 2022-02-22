@@ -55,7 +55,8 @@ trait GoVerifier extends StrictLogging {
     var warningCount: Int = 0
     var allErrors: Vector[VerifierError] = Vector()
 
-    // write report to file on shutdown
+    // write report to file on shutdown, this makes sure a report is produced even if a run is shutdown
+    // by some signal.
     Runtime.getRuntime.addShutdownHook(new Thread() {
       override def run(): Unit = {
         val statsFile = config.gobraDirectory.resolve("stats.json").toFile
@@ -66,23 +67,25 @@ trait GoVerifier extends StrictLogging {
 
     config.inputPackageMap.foreach({ case (pkgId, inputs) =>
       logger.info("Verifying Package " + pkgId)
-      val resultFuture = verify(config.copy(inputs = inputs, reporter = statsCollector, taskName = pkgId))(executor)
-      val result = Await.result(resultFuture, Duration.Inf)
+      val future = verify(config.copy(inputs = inputs, reporter = statsCollector, taskName = pkgId))(executor)
+        .map(result => {
+        // Report verification finish, to free space used by unneeded typeInfo
+        statsCollector.report(VerificationTaskFinishedMessage(pkgId))
 
-      // Report verification finish, to free space used by unneeded typeInfo
-      statsCollector.report(VerificationTaskFinishedMessage(pkgId))
+        val warnings = statsCollector.getWarnings(pkgId, config)
+        warningCount += warnings.size
+        warnings.foreach(w => logger.warn(w))
 
-      val warnings = statsCollector.getWarnings(pkgId, config)
-      warningCount += warnings.size
-      warnings.foreach(w => logger.warn(w))
+        result match {
+          case VerifierResult.Success => logger.info(s"$name found no errors")
+          case VerifierResult.Failure(errors) =>
+            logger.error(s"$name has found ${errors.length} error(s) in package $pkgId")
+            errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
+            allErrors = allErrors ++ errors
+        }
+      })(executor)
 
-      result match {
-        case VerifierResult.Success => logger.info(s"$name found no errors")
-        case VerifierResult.Failure(errors) =>
-          logger.error(s"$name has found ${errors.length} error(s) in package $pkgId")
-          errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
-          allErrors = allErrors ++ errors
-      }
+      Await.result(future, Duration.Inf)
     })
 
     if(warningCount > 0) {

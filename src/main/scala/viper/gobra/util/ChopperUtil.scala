@@ -7,6 +7,7 @@
 package viper.gobra.util
 
 import java.io.File
+import java.nio.file.Files
 import java.util.Properties
 
 import viper.silver.{ast => vpr}
@@ -46,7 +47,7 @@ object ChopperUtil {
           (target.end match {
             case None => x.start.line == target.start.line
             case Some(pos) => target.start.line <= x.start.line && x.start.line <= pos.line
-          }) && x.file.getFileName == target.file.getFileName
+          }) && Files.isSameFile(x.file, target.file)
         }
         (memberPosition: SourcePosition) => isolatedPositions.exists(hitPosition(_, memberPosition))
 

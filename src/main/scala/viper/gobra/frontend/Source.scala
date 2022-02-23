@@ -41,7 +41,7 @@ object Source {
       ???
     }
 
-    def contains(position: SourcePosition): Boolean = toPath == position.file
+    def contains(position: SourcePosition): Boolean = Files.isSameFile(toPath, position.file)
   }
 
   /**

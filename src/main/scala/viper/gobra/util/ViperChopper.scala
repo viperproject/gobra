@@ -386,8 +386,9 @@ object ViperChopper {
         case Vertex.Always => 0
       }
 
-      override def mergePenalty(lhsExclusivePrice: Int, rhsExclusivePrice: Int, sharedPrice: Int): Int =
+      override def mergePenalty(lhsExclusivePrice: Int, rhsExclusivePrice: Int, sharedPrice: Int): Int = {
         (lhsExclusivePrice + rhsExclusivePrice) * ((conf.sharedThreshold + sharedPrice).toFloat / conf.sharedThreshold).toInt
+      }
     }
 
     object Default extends DefaultImpl(defaultPenaltyConfig)
@@ -437,7 +438,7 @@ object ViperChopper {
       }
       // The isotated nodes are always and all selected nodes
       val alwaysId = id(Always)
-      val isolatedNodes = alwaysId +: members.filter(selector).map(m => id(Vertex.toVertex(m)))
+      val isolatedNodes = alwaysId +: members.filter(selector).map(m => id(Vertex.toDefVertex(m)))
 
       val vertices = Array.ofDim[Vertex](N)
       for ((vertex, idx) <- vertexToId) { vertices(idx) = vertex }
@@ -457,22 +458,49 @@ object ViperChopper {
   /** Abstract the smallest parts of a Viper program and provides necessary information to compute merge penalties. */
   sealed trait Vertex
   object Vertex {
-    case class Method(methodName: String) extends Vertex
+    case class Method private[Vertex] (methodName: String) extends Vertex
     case class MethodSpec(methodName: String) extends Vertex
     case class Function(functionName: String) extends Vertex
     case class PredicateSig(predicateName: String) extends Vertex
-    case class PredicateBody(predicateName: String) extends Vertex
+    case class PredicateBody private[Vertex] (predicateName: String) extends Vertex
     case class Field(fieldName: String) extends Vertex
     case class DomainFunction(funcName: String) extends Vertex
     case class DomainAxiom(v: vpr.DomainAxiom, d: vpr.Domain) extends Vertex
     case class DomainType(v: vpr.DomainType) extends Vertex
     case object Always extends Vertex // if something always has to be included, then it is a dependency of Always
 
-    def toVertex(m: vpr.Member): Vertex = {
+    // the creation of the following vertices has special cases and should not happen outside of the Vertex object
+    object Method { private[Vertex] def apply(methodName: String): Method = new Method(methodName) }
+    object PredicateBody { private[Vertex] def apply(predicateName: String): PredicateBody = new PredicateBody(predicateName) }
+    /** This function is only allowed to be called in the following cases:
+      * 1) applying [[toDefVertex]] to the predicate referenced by `predicateName` returns a [[Vertex.PredicateBody]] instance.
+      * 2) The result is used as the target of a dependency.
+      * */
+    def predicateBody_check_that_call_is_ok(predicateName: String): PredicateBody = Vertex.PredicateBody(predicateName)
+
+    def toDefVertex(m: vpr.Member): Vertex = {
+
       m match {
-        case m: vpr.Method => Vertex.Method(m.name)
+        case m: vpr.Method => m.body match {
+          case Some(_) => Vertex.Method(m.name)
+          case None    => Vertex.MethodSpec(m.name)
+        }
+        case m: vpr.Predicate => m.body match {
+          case Some(_) => Vertex.PredicateBody(m.name)
+          case None    => Vertex.PredicateSig(m.name)
+        }
         case m: vpr.Function => Vertex.Function(m.name)
-        case m: vpr.Predicate => Vertex.PredicateBody(m.name)
+        case m: vpr.Field => Vertex.Field(m.name)
+        case m: vpr.Domain => Vertex.DomainType(vpr.DomainType(domain = m, (m.typVars zip m.typVars).toMap))
+        case _: vpr.ExtensionMember => ???
+      }
+    }
+
+    def toUseVertex(m: vpr.Member): Vertex = {
+      m match {
+        case m: vpr.Method => Vertex.MethodSpec(m.name)
+        case m: vpr.Function => Vertex.Function(m.name)
+        case m: vpr.Predicate => Vertex.PredicateSig(m.name)
         case m: vpr.Field => Vertex.Field(m.name)
         case m: vpr.Domain => Vertex.DomainType(vpr.DomainType(domain = m, (m.typVars zip m.typVars).toMap))
         case _: vpr.ExtensionMember => ???
@@ -535,33 +563,20 @@ object ViperChopper {
       * The edges are sorted at a later point, after the translation to int nodes (where it is cheaper).
       * */
     def dependencies(member: vpr.Member): Seq[Edge[Vertex]] = {
+      val defVertex = Vertex.toDefVertex(member)
+      val useVertex = Vertex.toUseVertex(member)
+
       member match {
         case m: vpr.Method =>
-          {
-            val from = Vertex.Method(m.name)
-            usages(m).map(from -> _)
-          } ++ {
-            val from = Vertex.MethodSpec(m.name)
-            (m.pres ++ m.posts ++ m.formalArgs ++ m.formalReturns).flatMap(exp => usages(exp).map(from -> _))
-          }
-
-        case f: vpr.Function =>
-          val from = Vertex.Function(f.name)
-          usages(f).map(from -> _)
+          dependenciesToChildren(member, defVertex) ++
+            (m.pres ++ m.posts ++ m.formalArgs ++ m.formalReturns).flatMap(dependenciesToChildren(_, useVertex))
 
         case p: vpr.Predicate =>
-          {
-            val from = Vertex.PredicateSig(p.name)
-            p.formalArgs.flatMap(exp => usages(exp).map(from -> _))
-          } ++ {
-            val from = Vertex.PredicateBody(p.name)
-            usages(p).map(from -> _)
-          } ++ { Seq(Vertex.PredicateBody(p.name) -> Vertex.PredicateSig(p.name)) }
+          dependenciesToChildren(member, defVertex) ++
+            p.formalArgs.flatMap(dependenciesToChildren(_, useVertex)) ++
+            Seq(defVertex -> useVertex)
 
-
-        case f: vpr.Field =>
-          val from = Vertex.Field(f.name)
-          usages(f).map(from -> _)
+        case _: vpr.Function | _: vpr.Field => dependenciesToChildren(member, defVertex)
 
         case d: vpr.Domain =>
           d.axioms.flatMap { ax =>
@@ -573,21 +588,24 @@ object ViperChopper {
               * as a conservative choice. We use that dependencies of `Always` are always included.
               */
             val mid = Vertex.DomainAxiom(ax, d)
-            val tos = usages(ax.exp)
+            val tos = usages(ax.exp) // `tos` can be used as source because axioms do not contain un-/foldings.
             val froms = tos
             val finalFroms = if (froms.nonEmpty) froms else Vector(Vertex.Always)
             finalFroms.map(_ -> mid) ++ tos.map(mid -> _)
-          } ++ d.functions.flatMap { f =>
-            val from = Vertex.DomainFunction(f.name)
-            usages(f).map(from -> _)
-          }
+          } ++ d.functions.flatMap { f => dependenciesToChildren(f, Vertex.DomainFunction(f.name)) }
 
         case _ => Vector.empty
       }
     }
 
+    /** Returns edges from `nodeVertex` to all children of `node` that are usages. */
+    def dependenciesToChildren(node: vpr.Node, nodeVertex: Vertex): Seq[Edge[Vertex]] = {
+      usages(node) map (nodeVertex -> _)
+    }
+
     /**
       * Returns all entities referenced in the subtree of node `n`.
+      * May only be used as the target of a dependency.
       * The result is an unsorted sequence of vertices.
       * The vertices are never sorted, and duplicates are fine.
       * Note that they are sorted indirectly when the edges are sorted.
@@ -604,9 +622,10 @@ object ViperChopper {
         case n: vpr.FuncApp         => Seq(Vertex.Function(n.funcname))
         case n: vpr.DomainFuncApp   => Seq(Vertex.DomainFunction(n.funcname))
         case n: vpr.PredicateAccess => Seq(Vertex.PredicateSig(n.predicateName))
-        case n: vpr.Unfold          => Seq(Vertex.PredicateBody(n.acc.loc.predicateName))
-        case n: vpr.Fold            => Seq(Vertex.PredicateBody(n.acc.loc.predicateName))
-        case n: vpr.Unfolding       => Seq(Vertex.PredicateBody(n.acc.loc.predicateName))
+        // The call is fine because the result is used as the target of a dependency.
+        case n: vpr.Unfold          => Seq(Vertex.predicateBody_check_that_call_is_ok(n.acc.loc.predicateName))
+        case n: vpr.Fold            => Seq(Vertex.predicateBody_check_that_call_is_ok(n.acc.loc.predicateName))
+        case n: vpr.Unfolding       => Seq(Vertex.predicateBody_check_that_call_is_ok(n.acc.loc.predicateName))
         case n: vpr.FieldAccess     => Seq(Vertex.Field(n.field.name))
         case n: vpr.Type => deepType(n).collect{ case t: vpr.DomainType => Vertex.DomainType(t) }
       }.flatten

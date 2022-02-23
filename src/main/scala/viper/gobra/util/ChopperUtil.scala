@@ -40,20 +40,28 @@ object ChopperUtil {
   def computeIsolateMap(config: Config): Option[vpr.Member => Boolean] = {
     import viper.gobra.reporting.Source
 
-    def hit(x: SourcePosition, target: SourcePosition): Boolean = {
-      (target.end match {
-        case None => x.start.line == target.start.line
-        case Some(pos) => target.start.line <= x.start.line && x.start.line <= pos.line
-      }) && x.file.getFileName == target.file.getFileName
+    val isIsolated = config.isolate match {
+      case Some(isolatedPositions) =>
+        def hitPosition(x: SourcePosition, target: SourcePosition): Boolean = {
+          (target.end match {
+            case None => x.start.line == target.start.line
+            case Some(pos) => target.start.line <= x.start.line && x.start.line <= pos.line
+          }) && x.file.getFileName == target.file.getFileName
+        }
+        (memberPosition: SourcePosition) => isolatedPositions.exists(hitPosition(_, memberPosition))
+
+      case None =>
+        import viper.gobra.frontend.Source.TransformableSource
+        (memberPosition: SourcePosition) => config.inputs.exists(_.contains(memberPosition))
     }
 
-    config.isolate.map { names => {
+    Some {
       case x@(_: vpr.Method | _: vpr.Function | _: vpr.Predicate) => x match {
-        case Source(Source.Verifier.Info(_, _, origin, _)) => names.exists(hit(_, origin.pos))
+        case Source(Source.Verifier.Info(_, _, origin, _)) => isIsolated(origin.pos)
         case _ => false
       }
       case _ => false
-    }}
+    }
   }
 
   /**

@@ -129,7 +129,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
           addResult(
             memberInfo,
             ViperMemberEntry(
-              viperMemberName(viperMember),
+              viperMember.name,
               taskName,
               time,
               ViperNodeType.withName(viperMember.getClass.getSimpleName),
@@ -280,15 +280,6 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     case p: Predicate => p.body.isDefined && p.body.get.nonEmpty
     case f: Function => f.body.isDefined && f.body.get.nonEmpty
     case _ => false
-  }
-
-  /**
-   * Gets the name of a viper member from some node. The member should be a call to a callable member or a callable member
-   */
-  def viperMemberName(member: Member): String = member match {
-    case m: Method => m.name
-    case p: Predicate => p.name
-    case f: Function => f.name
   }
 
   /**

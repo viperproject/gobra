@@ -13,7 +13,8 @@ import viper.gobra.ast.internal.BuiltInMember
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.util.Violation
-import viper.silver.ast.{FuncApp, Function, Member, Method, MethodCall, Node, Predicate, PredicateAccess}
+import viper.gobra.util.ViperChopper.{Vertex, Edges}
+import viper.silver.ast.{Function, Member, Method, Predicate}
 import viper.silver.reporter.Time
 
 import scala.collection.concurrent.{Map, TrieMap}
@@ -124,18 +125,18 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     def addViperMember(taskName: String, viperMember: Member, info: Source.Verifier.Info, time: Time, cached: Boolean, verified: Boolean, success: Boolean): Unit = {
       Violation.violation(typeInfos.contains(taskName), "No type info available for stats reporter")
       getMemberInformation(info.pnode, typeInfos(taskName)) match {
-        case info if !info.isBuiltIn =>
+        case memberInfo if !memberInfo.isBuiltIn =>
           addResult(
-            info,
+            memberInfo,
             ViperMemberEntry(
               viperMemberName(viperMember),
               taskName,
               time,
               ViperNodeType.withName(viperMember.getClass.getSimpleName),
-              getViperDependencies(viperMember),
+              Edges.dependencies(viperMember).flatMap(edge => vertexToName(edge._2)).toSet,
               success,
               cached,
-              info.isImported,
+              memberInfo.isImported,
               viperMemberHasBody(viperMember),
               verified
             ))
@@ -166,6 +167,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   def getNumberOfCachedViperMembers: Int = memberMap.values.flatMap(_.viperMembers.values).count(_.cached)
 
   def getNumberOfCacheableViperMembers: Int = memberMap.values.flatMap(_.viperMembers.values).count(member => member.hasBody && member.nodeType == ViperNodeType.Method)
+
   def writeJsonReportToFile(file: File): Unit = {
     if((file.exists() && file.canWrite) || file.getParentFile.canWrite) {
       FileUtils.writeStringToFile(file, getJsonReport, UTF_8)
@@ -260,6 +262,19 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
   def viperMemberKey(taskName: String, viperMemberName: String, pkgId: String = ""): String = taskName + "-" + viperMemberName + "-" + pkgId
 
+  /**
+   * Returns the name of the viper member corresponding to a vertex or None if the viper member is not relevant
+   * for the statistics
+   */
+  def vertexToName(vertex: Vertex): Option[String] = vertex match {
+    case Vertex.Method(name) => Some(name)
+    case Vertex.MethodSpec(name) => Some(name)
+    case Vertex.Function(name) => Some(name)
+    case Vertex.PredicateBody(name) => Some(name)
+    case Vertex.PredicateSig(name) => Some(name)
+    case _ => None
+  }
+
   def viperMemberHasBody(member: Member): Boolean = member match {
     case m: Method => m.body.isDefined && m.body.get.nonEmpty
     case p: Predicate => p.body.isDefined && p.body.get.nonEmpty
@@ -270,13 +285,10 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   /**
    * Gets the name of a viper member from some node. The member should be a call to a callable member or a callable member
    */
-  def viperMemberName(member: Node): String = member match {
-    case m: Method => m.name + "(" + m.formalArgs.map(arg => arg.typ).mkString(",") + ")"
-    case p: Predicate => p.name + "(" + p.formalArgs.map(arg => arg.typ).mkString(",") + ")"
-    case f: Function => f.name + "(" + f.formalArgs.map(arg => arg.typ).mkString(",") + ")"
-    case mc: MethodCall => mc.methodName + "(" + mc.args.map(arg => arg.typ).mkString(",") + ")"
-    case fa: FuncApp => fa.funcname + "(" + fa.args.map(arg => arg.typ).mkString(",") + ")"
-    case pa: PredicateAccess => pa.predicateName + "(" + pa.args.map(arg => arg.typ).mkString(",") + ")"
+  def viperMemberName(member: Member): String = member match {
+    case m: Method => m.name
+    case p: Predicate => p.name
+    case f: Function => f.name
   }
 
   /**
@@ -345,25 +357,5 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     } catch {
       case NodeNotInTreeException(_) => false
     }
-  }
-
-  /**
-   * Returns a set of viper member names (Methods, Predicates & Functions) which are accessed by a given viper member
-   */
-  def getViperDependencies(m: Member): Set[String] = m match {
-    case m: Method => (m.pres ++ m.posts ++ m.body.toSeq).flatMap(getMemberCalls).toSet
-    case p: Predicate => p.body.toSeq.flatMap(getMemberCalls).toSet
-    case f: Function => (f.pres ++ f.posts ++ f.body.toSeq).flatMap(getMemberCalls).toSet
-    case _ => Set()
-  }
-
-  /**
-   * Collects all method calls, function applications and predicate accesses inside a viper node and returns a list containing
-   * all names of the members accessed this way
-   */
-  def getMemberCalls(n: Node): Seq[String] = n.deepCollect {
-    case method_call: MethodCall => viperMemberName(method_call)
-    case func_app: FuncApp => viperMemberName(func_app)
-    case pred_access: PredicateAccess => viperMemberName(pred_access)
   }
 }

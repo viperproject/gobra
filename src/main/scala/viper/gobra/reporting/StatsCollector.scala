@@ -193,10 +193,10 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         val name = gobraMember.info.pkg + "." + gobraMember.info.memberName + gobraMember.info.args
         gobraMember.dependencies().flatMap({
           // Trusted implies abstracted, so we match trusted first
-          case GobraMemberEntry(GobraMemberInfo(_, pkg, memberName, _, args, _, true, _, _), _) =>
-            Some("Warning: Member " + name + " depends on trusted member " + pkg + "." + memberName + args + "\n")
-          case GobraMemberEntry(GobraMemberInfo(_, pkg, memberName, _, args, _, _, true, _), _)=>
-            Some("Warning: Member " + name + " depends on abstract member " + pkg + "." + memberName + args + "\n")
+          case GobraMemberEntry(info, _) if info.isTrusted =>
+            Some("Warning: Member " + name + " depends on trusted member " + info.pkg + "." + info.memberName + info.args + "\n")
+          case GobraMemberEntry(info, _) if info.isAbstract =>
+            Some("Warning: Member " + name + " depends on abstract member " + info.pkg + "." + info.memberName + info.args + "\n")
           case GobraMemberEntry(GobraMemberInfo(pkgId, pkg, _, _, _, _, _, _, _), _) if !config.inputPackageMap.contains(pkgId) =>
             Some("Warning: Depending on imported package that is not verified: " + pkgId + " - " + pkg)
           case _ => None

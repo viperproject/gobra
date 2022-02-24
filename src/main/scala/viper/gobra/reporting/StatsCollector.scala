@@ -197,8 +197,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
             Some("Warning: Member " + name + " depends on trusted member " + info.pkg + "." + info.memberName + info.args + "\n")
           case GobraMemberEntry(info, _) if info.isAbstract =>
             Some("Warning: Member " + name + " depends on abstract member " + info.pkg + "." + info.memberName + info.args + "\n")
-          case GobraMemberEntry(GobraMemberInfo(pkgId, pkg, _, _, _, _, _, _, _), _) if !config.inputPackageMap.contains(pkgId) =>
-            Some("Warning: Depending on imported package that is not verified: " + pkgId + " - " + pkg)
+          case GobraMemberEntry(info, _) if !config.inputPackageMap.contains(info.pkgId) =>
+            Some("Warning: Depending on imported package that is not verified: " + info.pkgId + " - " + info.pkg)
           case _ => None
         })
       }).toSet

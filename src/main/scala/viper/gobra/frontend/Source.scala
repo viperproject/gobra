@@ -11,6 +11,7 @@ import java.nio.file.{Files, Path, Paths}
 
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Source, StringSource}
 import viper.gobra.util.Violation
+import viper.silver.ast.SourcePosition
 
 import scala.io.BufferedSource
 
@@ -39,6 +40,8 @@ object Source {
         //    style but at least any use fails in an understandable way (as opposed to simply returning `null` here)
       ???
     }
+
+    def contains(position: SourcePosition): Boolean = Files.isSameFile(toPath, position.file)
   }
 
   /**

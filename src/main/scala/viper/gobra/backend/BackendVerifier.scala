@@ -49,7 +49,7 @@ object BackendVerifier {
 
     val verificationResults =  {
       val verifier = config.backend.create(exePaths, config)
-      val reporter = BacktranslatingReporter(config.reporter, task.backtrack, config, config.taskName)
+      val reporter = BacktranslatingReporter(config.reporter, task.backtrack, config)
 
       if (!config.shouldChop) {
         verifier.verify(config.taskName, reporter, task.program)(executor)

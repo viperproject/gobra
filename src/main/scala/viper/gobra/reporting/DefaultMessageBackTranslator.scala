@@ -12,7 +12,7 @@ import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.silver.reporter.{EntityFailureMessage, EntitySuccessMessage, Message, OverallFailureMessage, OverallSuccessMessage}
 import viper.silver.verifier.VerificationResult
 
-class DefaultMessageBackTranslator(backTrackInfo: BackTrackInfo, config: Config, taskName: String) extends MessageBackTranslator {
+class DefaultMessageBackTranslator(backTrackInfo: BackTrackInfo, config: Config) extends MessageBackTranslator {
   override def translate(msg: Message): GobraMessage = {
     defaultTranslate.lift.apply(msg).getOrElse(RawMessage(msg))
   }
@@ -20,8 +20,8 @@ class DefaultMessageBackTranslator(backTrackInfo: BackTrackInfo, config: Config,
   private def defaultTranslate: PartialFunction[Message, GobraMessage] = {
     case m: OverallSuccessMessage => GobraOverallSuccessMessage(m.verifier)
     case m: OverallFailureMessage => GobraOverallFailureMessage(m.verifier, translate(m.result))
-    case m@EntitySuccessMessage(verifier, Source(info), time, cached) => GobraEntitySuccessMessage(taskName, verifier, m.concerning, info, time, cached)
-    case m@EntityFailureMessage(verifier, Source(info), time, result, cached) => GobraEntityFailureMessage(taskName, verifier, m.concerning, info, translate(result), time, cached)
+    case m@EntitySuccessMessage(verifier, Source(info), time, cached) => GobraEntitySuccessMessage(config.taskName, verifier, m.concerning, info, time, cached)
+    case m@EntityFailureMessage(verifier, Source(info), time, result, cached) => GobraEntityFailureMessage(config.taskName, verifier, m.concerning, info, translate(result), time, cached)
   }
 
   private def translate(result: VerificationResult): VerifierResult =

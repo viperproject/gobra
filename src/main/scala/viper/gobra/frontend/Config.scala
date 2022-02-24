@@ -328,7 +328,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
       val shouldParseRecursively = recOpt.getOrElse(false)
       val inputValidationMsgs = InputConverter.validate(input, shouldParseRecursively)
-      val includeDirs = includeDirsOption.getOrElse(List()).map(_.toPath).toVector
+      val includeDirs = includeDirsOpt.getOrElse(List()).map(_.toPath).toVector
 
       val paths = for {
         _ <- if (inputValidationMsgs.isEmpty) Right(()) else Left(inputValidationMsgs)

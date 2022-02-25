@@ -22,7 +22,6 @@ import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErro
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silver.{ast => vpr}
 
-import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
 object GoVerifier {
@@ -84,7 +83,7 @@ trait GoVerifier extends StrictLogging {
               allErrors = allErrors ++ errors
           }
         })(executor)
-      Await.result(future, Duration.Inf)
+      Await.result(future, config.packageTimeout)
     })
 
     if(warningCount > 0) {

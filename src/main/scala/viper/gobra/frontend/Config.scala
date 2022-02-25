@@ -21,6 +21,8 @@ import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
+import scala.concurrent.duration.Duration
+
 object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
 }
@@ -44,6 +46,7 @@ case class Config(
                  backend: ViperBackend = ViperBackends.SiliconBackend,
                  isolate: Option[Vector[SourcePosition]] = None,
                  choppingUpperBound: Int = 1,
+                 packageTimeout: Duration = Duration.Inf,
                  z3Exe: Option[String] = None,
                  boogieExe: Option[String] = None,
                  logLevel: Level = LoggerDefaults.DefaultLevel,
@@ -87,6 +90,7 @@ case class Config(
         case (l, None) => l
         case (Some(l), Some(r)) => Some((l ++ r).distinct)
       },
+      packageTimeout = if(packageTimeout < other.packageTimeout) packageTimeout else other.packageTimeout, // take minimum
       z3Exe = z3Exe orElse other.z3Exe,
       boogieExe = boogieExe orElse other.boogieExe,
       logLevel = if (logLevel.isGreaterOrEqual(other.logLevel)) other.logLevel else logLevel, // take minimum
@@ -258,6 +262,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val packageTimeout: ScallopOption[String] = opt[String](
+    name = "packageTimeout",
+    descr = "Duration till the verification of a package times out",
+    default = None,
+    noshort = true
+  )
+
   val z3Exe: ScallopOption[String] = opt[String](
     name = "z3Exe",
     descr = "The Z3 executable",
@@ -418,6 +429,20 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     case _ => Right(())
   }
 
+  validateOpt (packageTimeout) {
+    case Some(s) => try {
+      Right(Duration(s))
+    } catch {
+      case e: NumberFormatException => Left(s"Couldn't parse package timeout: " + e.getMessage)
+    }
+    case None => Right(())
+  }
+
+  lazy val packageTimeoutDuration: Duration = packageTimeout.toOption match {
+    case Some(d) => Duration(d)
+    case _ => Duration.Inf
+  }
+
   verify()
 
   lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
@@ -540,6 +565,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     backend = backend(),
     isolate = isolated,
     choppingUpperBound = chopUpperBound(),
+    packageTimeout = packageTimeoutDuration,
     z3Exe = z3Exe.toOption,
     boogieExe = boogieExe.toOption,
     logLevel = logLevel(),

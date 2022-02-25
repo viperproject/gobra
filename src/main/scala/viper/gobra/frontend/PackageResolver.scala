@@ -230,7 +230,7 @@ object PackageResolver {
     } yield pkgName
   }
 
-  private lazy val pkgClauseRegex = """(?:\/\/.*|\/\*(?:.|\n)*\*\/|package(?:\s|\n)+([a-zA-Z_][a-zA-Z0-9_]*))""".r
+  private lazy val pkgClauseRegex = """(?:\/\/.*|\/\*(?:.|\n)*?\*\/|package(?:\s|\n)+([a-zA-Z_][a-zA-Z0-9_]*))""".r
 
   def getPackageClause(src: Source): Option[String] = {
 

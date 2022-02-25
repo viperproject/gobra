@@ -16,7 +16,6 @@ import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{DefaultInt, UnboundedInteger}
-import java.nio.file.Path
 
 class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()

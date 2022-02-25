@@ -8,12 +8,13 @@ package viper.gobra.reporting
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.relation.NodeNotInTreeException
-import viper.gobra.ast.frontend.{PDomainFunction, PExpression, PFPredicateDecl, PFunctionDecl, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor}
+import viper.gobra.ast.frontend.{PDomainFunction, PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor}
 import viper.gobra.ast.internal.BuiltInMember
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.{Info, TypeInfo}
+import viper.gobra.reporting.VerifierResult.Failure
 import viper.gobra.util.Violation
-import viper.gobra.util.ViperChopper.{Vertex, Edges}
+import viper.gobra.util.ViperChopper.{Edges, Vertex}
 import viper.silver.ast.{Function, Member, Method, Predicate}
 import viper.silver.reporter.Time
 
@@ -24,12 +25,12 @@ import java.io.File
 object GobraNodeType extends Enumeration {
   type GobraNodeType = Value
   val MethodDeclaration, FunctionDeclaration, MethodSignature, FunctionPredicateDeclaration, MethodPredicateDeclaration,
-  MethodImplementationProof, MethodPredicateSignature, DomainFunction, PredicateConstructor = Value
+  MethodImplementationProof, MethodPredicateSignature, DomainFunction, PredicateConstructor, DomainType = Value
 }
 
 object ViperNodeType extends Enumeration {
   type ViperNodeType = Value
-  val Function, Predicate, Method = Value
+  val Function, Predicate, Method, Domain = Value
 }
 
 case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
@@ -124,7 +125,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
     def addViperMember(taskName: String, viperMember: Member, info: Source.Verifier.Info, time: Time, cached: Boolean, verified: Boolean, success: Boolean): Unit = {
       Violation.violation(typeInfos.contains(taskName), "No type info available for stats reporter")
-      getMemberInformation(info.pnode, typeInfos(taskName)) match {
+      getMemberInformation(info.pnode, typeInfos(taskName), viperMember) match {
         case memberInfo if !memberInfo.isBuiltIn =>
           addResult(
             memberInfo,
@@ -285,7 +286,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   /**
    * Builds the member information for a given node out of the stored typeInfo
    */
-  def getMemberInformation(p: PNode, typeInfo: TypeInfo): GobraMemberInfo = {
+  def getMemberInformation(p: PNode, typeInfo: TypeInfo, viperMember: Member): GobraMemberInfo = {
     val nodeTypeInfo =
       if (treeContains(typeInfo.tree, p)) {
         typeInfo
@@ -334,8 +335,10 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         GobraMemberInfo(pkgId, pkgName, p.id.name, formatArgs(p.args), MethodPredicateSignature, isTrusted = false, isAbstract = false, isImported, isBuiltIn)
       case p: PPredConstructor =>
         GobraMemberInfo(pkgId, pkgName, p.id.id.name, formatPredConstructorArgs(p.args), PredicateConstructor, isTrusted = false, isAbstract = false, isImported, isBuiltIn)
+      case _: PDomainType =>
+        GobraMemberInfo(pkgId, pkgName, viperMember.name, "", DomainType, isTrusted = false, isAbstract = false, isImported, isBuiltIn)
       // Fallback to the node's code root if we can't match the node
-      case p: PNode => getMemberInformation(nodeTypeInfo.codeRoot(p), typeInfo)
+      case p: PNode => getMemberInformation(nodeTypeInfo.codeRoot(p), typeInfo, viperMember)
     }
   }
 

@@ -121,7 +121,7 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
 
     // Check if all expected members are present and the entries are correct
     expectedGobraMembers
-      .map(member => statsCollector.getMemberInformation(member, statsCollector.typeInfos(pkgId)))
+      .map(member => statsCollector.getMemberInformation(member, statsCollector.typeInfos(pkgId), null))
       .filter(memberInfo => memberInfo.pkgId == pkgId)
       .foreach(memberInfo => {
         val memberKey = statsCollector.gobraMemberKey(pkgId, memberInfo.memberName, memberInfo.args)

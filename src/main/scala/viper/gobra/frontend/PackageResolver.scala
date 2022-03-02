@@ -240,10 +240,10 @@ object PackageResolver {
       .collectFirst { case m if m.group(1) != null => m.group(1) }
   }
 
-  def getPackageId(src: Source, includeDirs: Vector[Path]): String = {
+  def getPackageId(packageName: String, src: Source, includeDirs: Vector[Path]): String = {
     /**
-     * Relativizes the given path with the specified include directories or the go path, so we get a relative path
-     * instead of a system specific path
+     * Relativizes the given path with the specified include directories or the go path. The resulting path is relative
+     * to the first include directory, that is a parent of it.
      */
     def relativizePath(path: Path): Path = {
       val allDirs = Properties.envOrNone("GOPATH").map(path => Path.of(path)) match {
@@ -259,10 +259,16 @@ object PackageResolver {
       }
     }
 
-    src match {
-      case FromFileSource(path, _, _) => relativizePath(path.getParent).toString + " - " + getPackageClause(src).get
-      case FileSource(name, _) => relativizePath(Path.of(name).getParent).toString + " - " + getPackageClause(src).get
+    val prefix = src match {
+      case FromFileSource(path, _, _) => relativizePath(path.getParent).toString
+      case FileSource(name, _) => relativizePath(Path.of(name).getParent).toString
       case StringSource(_, _) => ???
+    }
+
+    if(prefix.nonEmpty) {
+      prefix + " - " + packageName
+    } else {
+      packageName
     }
   }
 

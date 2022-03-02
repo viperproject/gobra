@@ -116,10 +116,10 @@ object Parser {
       }
     }
 
-    def isErrorFree(parserResults: Vector[(String, Either[Vector[ParserError], PProgram])]): Either[Vector[ParserError], Vector[(String, PProgram)]] = {
+    def isErrorFree(parserResults: Vector[Either[Vector[ParserError], (String, PProgram)]]): Either[Vector[ParserError], Vector[(String, PProgram)]] = {
       val (errors, pkgIdProgramMap) = parserResults.partitionMap({
-        case (_, Left(value)) => Left(value)
-        case (key, Right(value)) => Right((key, value))
+        case Left(value) => Left(value)
+        case Right(value) => Right(value)
       })
       if (errors.isEmpty) Right(pkgIdProgramMap) else Left(errors.flatten)
     }
@@ -151,7 +151,9 @@ object Parser {
     }
 
     val parsingFn = if (config.cacheParser) { parseSourceCached _ } else { parseSource _ }
-    val parserResults = sources.map(src => {(PackageResolver.getPackageId(src, config.includeDirs), parsingFn(src))})
+    val parserResults = sources.map(src =>
+      parsingFn(src).map(prog => (PackageResolver.getPackageId(prog.packageClause.id.name, src, config.includeDirs), prog))
+    )
 
     assert(sources.length == parserResults.size)
 

@@ -487,16 +487,20 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     }
 
     def convert(input: List[String], includeDirs: Vector[Path], recursive: Boolean, includePackages: List[String], excludePackages: List[String]): Map[String, Vector[Source]] = {
-      val inputFilePaths = parseInputStrings(input.toVector, recursive)
+      val sources = parseInputStrings(input.toVector, recursive)
 
-      Violation.violation(isInputOptional || inputFilePaths.nonEmpty, "no input files specified")
-      inputFilePaths
-        .filter(resource => {
-          val pkgName = PackageResolver.getPackageClause(resource).get
-          (includePackages.isEmpty || includePackages.contains(pkgName)) && !excludePackages.contains(pkgName)
-        })
-        .groupBy(src => PackageResolver.getPackageId(src, includeDirs))
-        .map({ case (pkgId, sources) => (pkgId, sources) })
+      val pkgClauseSources = sources.map(src => (PackageResolver.getPackageClause(src), src))
+      val missingPackageClauseErrors = pkgClauseSources.filter(pkgSrc => pkgSrc._1.isEmpty)
+        .map(pkgSrc => "Missing package clause in " + pkgSrc._2.name)
+
+      if(missingPackageClauseErrors.nonEmpty) {
+        Violation.violation(missingPackageClauseErrors.mkString)
+      } else {
+        pkgClauseSources
+          .filter({case (Some(pkgName), _) => (includePackages.isEmpty || includePackages.contains(pkgName)) && !excludePackages.contains(pkgName)})
+          .groupBy({case (Some(pkgName), src) => PackageResolver.getPackageId(pkgName, src, includeDirs)})
+          .map({ case (pkgId, sources) => (pkgId, sources.map(_._2)) })
+      }
     }
 
     /**

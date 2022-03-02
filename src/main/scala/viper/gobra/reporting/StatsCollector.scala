@@ -8,11 +8,10 @@ package viper.gobra.reporting
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.relation.NodeNotInTreeException
-import viper.gobra.ast.frontend.{PDomainFunction, PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor}
+import viper.gobra.ast.frontend.{PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor}
 import viper.gobra.ast.internal.BuiltInMember
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.{Info, TypeInfo}
-import viper.gobra.reporting.VerifierResult.Failure
 import viper.gobra.util.Violation
 import viper.gobra.util.ViperChopper.{Edges, Vertex}
 import viper.silver.ast.{Function, Member, Method, Predicate}
@@ -114,6 +113,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
                              memberName: String,
                              args: String,
                              nodeType: GobraNodeType,
+                             hasSpecification: Boolean,
                              isTrusted: Boolean,
                              isAbstract: Boolean,
                              isImported: Boolean,
@@ -122,6 +122,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   override val name: String = "StatsCollector"
 
   override def report(msg: GobraMessage): Unit = {
+
+    def isRelevantInfo(info: Source.Verifier.Info): Boolean = !info.node.isInstanceOf[BuiltInMember] && !info.pnode.isInstanceOf[PDomainType]
 
     def addViperMember(taskName: String, viperMember: Member, info: Source.Verifier.Info, time: Time, cached: Boolean, verified: Boolean, success: Boolean): Unit = {
       Violation.violation(typeInfos.contains(taskName), "No type info available for stats reporter")
@@ -153,11 +155,11 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
       // Store every viperMember with an info attached to see, which ones didn't verify on a unexpected shutdown
       case GeneratedViperMessage(taskName, _, vprAst, _) =>
         vprAst.apply().members
-          .filter(m => m.info.isInstanceOf[Source.Verifier.Info] && !m.info.asInstanceOf[Source.Verifier.Info].node.isInstanceOf[BuiltInMember])
+          .filter(m => m.info.isInstanceOf[Source.Verifier.Info] && isRelevantInfo(m.info.asInstanceOf[Source.Verifier.Info]))
           .foreach(m => addViperMember(taskName, m, m.info.asInstanceOf[Source.Verifier.Info], 0, cached = false, verified = false, success = true))
-      case GobraEntitySuccessMessage(taskName, _, e, info, time, cached) if !info.node.isInstanceOf[BuiltInMember] =>
+      case GobraEntitySuccessMessage(taskName, _, e, info, time, cached) if isRelevantInfo(info) =>
         addViperMember(taskName, e, info, time, cached, verified = true, success = true)
-      case GobraEntityFailureMessage(taskName, _, e, info, _, time, cached) if !info.node.isInstanceOf[BuiltInMember] =>
+      case GobraEntityFailureMessage(taskName, _, e, info, _, time, cached) if isRelevantInfo(info) =>
         addViperMember(taskName, e, info, time, cached, verified = true, success = false)
       case _ =>
     }
@@ -168,6 +170,14 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   def getNumberOfCachedViperMembers: Int = memberMap.values.flatMap(_.viperMembers.values).count(_.cached)
 
   def getNumberOfCacheableViperMembers: Int = memberMap.values.flatMap(_.viperMembers.values).count(member => member.hasBody && member.nodeType == ViperNodeType.Method)
+
+  def getNumberOfMembersWithSpecification: Int = memberMap.values.count(_.info.hasSpecification)
+
+  def getNumberOfMembersWithAssumptions: Int = memberMap.values.filter(entry => entry.info.isAbstract || entry.info.isTrusted).count(_.info.hasSpecification)
+
+  def getNumberOfVerifiableMembers: Int = memberMap.values.count(member => Vector(MethodDeclaration, FunctionDeclaration, MethodSignature).contains(member.info.nodeType))
+
+  def getTimedOutMembers: List[String] = memberMap.values.filter(_.viperMembers.values.exists(!_.verified)).map(_.key).toList
 
   def writeJsonReportToFile(file: File): Unit = {
     if((file.exists() && file.canWrite) || file.getParentFile.canWrite) {
@@ -310,6 +320,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     def formatPredConstructorArgs(args: Vector[Option[PExpression]]): String =
       ("(" + args.filter(e => e.isDefined).map(e => e.get.formattedShort).mkString(", ") + ")").replaceAll("\\s+", " ")
 
+    def hasFormalSpec(spec : PFunctionSpec) = spec.pres.nonEmpty || spec.posts.nonEmpty || spec.preserves.nonEmpty || spec.terminationMeasures.nonEmpty
+
     // Check whether the program containing this node has the builtin tag
     val isBuiltIn = nodeTypeInfo.program(p).isBuiltin
     // Check if a node comes from a import, used to declare it non abstract, since imports are per default always
@@ -318,25 +330,61 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
     p match {
       case p: PFunctionDecl =>
-        GobraMemberInfo(pkgId, pkgName, p.id.name, formatArgs(p.args), FunctionDeclaration, isTrusted = p.spec.isTrusted, p.body.isEmpty && !isImported, isImported, isBuiltIn)
+        GobraMemberInfo(pkgId, pkgName, p.id.name, formatArgs(p.args), FunctionDeclaration,
+          hasSpecification = hasFormalSpec(p.spec),
+          isTrusted = p.spec.isTrusted,
+          isAbstract = p.body.isEmpty && !isImported,
+          isImported,
+          isBuiltIn)
       case p: PMethodDecl =>
-        GobraMemberInfo(pkgId, pkgName, p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), MethodDeclaration, p.spec.isTrusted, p.body.isEmpty && !isImported, isImported, isBuiltIn)
+        GobraMemberInfo(pkgId, pkgName, p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), MethodDeclaration,
+          hasSpecification = hasFormalSpec(p.spec),
+          isTrusted = p.spec.isTrusted,
+          isAbstract = p.body.isEmpty && !isImported,
+          isImported,
+          isBuiltIn)
       case p: PMethodSig =>
-        GobraMemberInfo(pkgId, pkgName, p.id.name, formatArgs(p.args), MethodSignature, isTrusted = p.spec.isTrusted, isAbstract = false, isImported, isBuiltIn)
+        GobraMemberInfo(pkgId, pkgName, p.id.name, formatArgs(p.args), MethodSignature,
+          hasSpecification = hasFormalSpec(p.spec),
+          isTrusted = p.spec.isTrusted,
+          isAbstract = false,
+          isImported,
+          isBuiltIn)
       case p: PFPredicateDecl =>
-        GobraMemberInfo(pkgId, pkgName, p.id.name, formatArgs(p.args), FunctionPredicateDeclaration, isTrusted = false, p.body.isEmpty && !isImported, isImported, isBuiltIn)
+        GobraMemberInfo(pkgId, pkgName, p.id.name, formatArgs(p.args), FunctionPredicateDeclaration,
+          hasSpecification = false,
+          isTrusted = false,
+          isAbstract = p.body.isEmpty && !isImported,
+          isImported,
+          isBuiltIn)
       case p: PMPredicateDecl =>
-        GobraMemberInfo(pkgId, pkgName, p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), MethodPredicateDeclaration, isTrusted = false, p.body.isEmpty && !isImported, isImported, isBuiltIn)
+        GobraMemberInfo(pkgId, pkgName, p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), MethodPredicateDeclaration,
+          hasSpecification = false,
+          isTrusted = false,
+          isAbstract = p.body.isEmpty && !isImported,
+          isImported,
+          isBuiltIn)
       case p: PMethodImplementationProof =>
-        GobraMemberInfo(pkgId, pkgName, "Impl_Proof." + p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), MethodImplementationProof, isTrusted = false, p.body.isEmpty && !isImported, isImported, isBuiltIn)
-      case p: PDomainFunction =>
-        GobraMemberInfo(pkgId, pkgName, p.id.name, formatArgs(p.args), DomainFunction, isTrusted = false, isAbstract = false, isImported, isBuiltIn)
+        GobraMemberInfo(pkgId, pkgName, "Impl_Proof." + p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), MethodImplementationProof,
+          hasSpecification = false,
+          isTrusted = false,
+          isAbstract = p.body.isEmpty && !isImported,
+          isImported,
+          isBuiltIn)
       case p: PMPredicateSig =>
-        GobraMemberInfo(pkgId, pkgName, p.id.name, formatArgs(p.args), MethodPredicateSignature, isTrusted = false, isAbstract = false, isImported, isBuiltIn)
+        GobraMemberInfo(pkgId, pkgName, p.id.name, formatArgs(p.args), MethodPredicateSignature,
+          hasSpecification = false,
+          isTrusted = false,
+          isAbstract = false,
+          isImported,
+          isBuiltIn)
       case p: PPredConstructor =>
-        GobraMemberInfo(pkgId, pkgName, p.id.id.name, formatPredConstructorArgs(p.args), PredicateConstructor, isTrusted = false, isAbstract = false, isImported, isBuiltIn)
-      case _: PDomainType =>
-        GobraMemberInfo(pkgId, pkgName, viperMember.name, "", DomainType, isTrusted = false, isAbstract = false, isImported, isBuiltIn)
+        GobraMemberInfo(pkgId, pkgName, p.id.id.name, formatPredConstructorArgs(p.args), PredicateConstructor,
+          hasSpecification = false,
+          isTrusted = false,
+          isAbstract = false,
+          isImported,
+          isBuiltIn)
       // Fallback to the node's code root if we can't match the node
       case p: PNode => getMemberInformation(nodeTypeInfo.codeRoot(p), typeInfo, viperMember)
     }

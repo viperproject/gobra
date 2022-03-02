@@ -22,7 +22,7 @@ import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErro
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silver.{ast => vpr}
 
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, Future, TimeoutException}
 
 object GoVerifier {
 
@@ -61,6 +61,11 @@ trait GoVerifier extends StrictLogging {
         val statsFile = config.gobraDirectory.resolve("stats.json").toFile
         logger.info("Writing report to " + statsFile.getPath)
         statsCollector.writeJsonReportToFile(statsFile)
+
+        val timedOutMembers = statsCollector.getTimedOutMembers;
+        if(timedOutMembers.nonEmpty) {
+          timedOutMembers.foreach(member => logger.error(s"The verification of member $member did not terminate"))
+        }
       }
     })
 
@@ -83,7 +88,11 @@ trait GoVerifier extends StrictLogging {
               allErrors = allErrors ++ errors
           }
         })(executor)
-      Await.result(future, config.packageTimeout)
+      try {
+        Await.result(future, config.packageTimeout)
+      } catch {
+        case _: TimeoutException => logger.error("The verification of package " + pkgId + " got terminated after " + config.packageTimeout.toString)
+      }
     })
 
     if(warningCount > 0) {
@@ -97,6 +106,11 @@ trait GoVerifier extends StrictLogging {
       logger.info("Number of cacheable Viper member(s): " + statsCollector.getNumberOfCacheableViperMembers)
       logger.info("Number of cached Viper member(s): " + statsCollector.getNumberOfCachedViperMembers)
     }
+
+    logger.info("Gobra has found " + statsCollector.getNumberOfVerifiableMembers + " methods and functions," )
+    logger.info("\t- " + statsCollector.getNumberOfMembersWithSpecification + " of them have specifiation")
+    logger.info("\t- " + statsCollector.getNumberOfMembersWithAssumptions + " of them are assumed to be satisfied")
+
     allErrors
   }
 

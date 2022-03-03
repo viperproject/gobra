@@ -3143,13 +3143,17 @@ object Desugar {
 
     private def name(postfix: String)(n: String, s: PScope, context: ExternalTypeInfo): String = {
       maybeRegister(s, context)
+      val pkgId = context.getTypeInfo.tree.originalRoot.identifier
+
       // n has occur first in order that function inverse properly works
-      s"${n}_${context.pkgName}_$postfix${scopeMap(s)}" // deterministic
+      s"${n}_${pkgId}_$postfix${scopeMap(s)}" // deterministic
     }
 
     private def nameWithoutScope(postfix: String)(n: String, context: ExternalTypeInfo): String = {
       // n has occur first in order that function inverse properly works
-      s"${n}_${context.pkgName}_$postfix" // deterministic
+      val pkgId = context.getTypeInfo.tree.originalRoot.identifier
+
+      s"${n}_${pkgId}_$postfix" // deterministic
     }
 
     def variable(n: String, s: PScope, context: ExternalTypeInfo): String = name(VARIABLE_PREFIX)(n, s, context)

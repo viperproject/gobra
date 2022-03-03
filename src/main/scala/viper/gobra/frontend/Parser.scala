@@ -370,7 +370,7 @@ object Parser {
       * Optionally consumes nested curly brackets with arbitrary content if `specOnly` is turned on, otherwise optionally applies the parser `p`
       */
     def specOnlyParser[T](isPure: Boolean, p: Parser[T]): Parser[Option[T]] =
-      if (specOnly && !isPure) nestedCurlyBracketsConsumer.? ^^(_.flatten)
+      if (specOnly && !isPure) nestedCurlyBracketsConsumer.? ^^ (_.flatten)
       else p.?
 
     /**
@@ -378,6 +378,7 @@ object Parser {
       */
     lazy val nestedCurlyBracketsConsumer: Parser[Option[Nothing]] =
       "{" ~> ("""[^{}]""".r | nestedCurlyBracketsConsumer).* <~ "}" ^^ (_ => None)
+
     /**
       * Member
       */

@@ -62,7 +62,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
          |$p$i"args": "${info.args}",
          |$p$i"nodeType": "${info.nodeType}",
          |$p$i"trusted": ${info.isTrusted},
-         |$p$i"abstract": ${info.isAbstract},
+         |$p$i"abstract": ${info.isAbstractAndNotImported},
          |$p$i"viperMembers": [
             |${viperMembersJson.mkString(",\n")}
          |$p$i],
@@ -115,7 +115,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
                              nodeType: GobraNodeType,
                              hasSpecification: Boolean,
                              isTrusted: Boolean,
-                             isAbstract: Boolean,
+                             isAbstractAndNotImported: Boolean,
                              isImported: Boolean,
                              isBuiltIn: Boolean)
 
@@ -173,7 +173,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
   def getNumberOfMembersWithSpecification: Int = memberMap.values.count(_.info.hasSpecification)
 
-  def getNumberOfMembersWithAssumptions: Int = memberMap.values.filter(entry => entry.info.isAbstract || entry.info.isTrusted).count(_.info.hasSpecification)
+  def getNumberOfMembersWithAssumptions: Int = memberMap.values.filter(entry => entry.info.isAbstractAndNotImported || entry.info.isTrusted).count(_.info.hasSpecification)
 
   def getNumberOfVerifiableMembers: Int = memberMap.values.count(member => Vector(MethodDeclaration, FunctionDeclaration, MethodSignature).contains(member.info.nodeType))
 
@@ -206,7 +206,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
           // Trusted implies abstracted, so we match trusted first
           case GobraMemberEntry(info, _) if info.isTrusted =>
             Some("Warning: Member " + name + " depends on trusted member " + info.pkg + "." + info.memberName + info.args + "\n")
-          case GobraMemberEntry(info, _) if info.isAbstract =>
+          case GobraMemberEntry(info, _) if info.isAbstractAndNotImported =>
             Some("Warning: Member " + name + " depends on abstract member " + info.pkg + "." + info.memberName + info.args + "\n")
           case GobraMemberEntry(info, _) if !config.inputPackageMap.contains(info.pkgId) =>
             Some("Warning: Depending on imported package that is not verified: " + info.pkgId + " - " + info.pkg)
@@ -241,10 +241,10 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         }
 
         // If we encounter an abstract version of a member, we know for sure, its abstract
-        val newAbstract = existing.info.isAbstract || info.isAbstract
+        val newAbstract = existing.info.isAbstractAndNotImported || info.isAbstractAndNotImported
         Violation.violation(existing.info.isTrusted == info.isTrusted, "Same members with different trusted declarations found: \n " + key)
         Violation.violation(existing.info.nodeType == info.nodeType, "Same members with different node types found: \n " + key)
-        memberMap.put(key, existing.copy(info = existing.info.copy(isAbstract = newAbstract)))
+        memberMap.put(key, existing.copy(info = existing.info.copy(isAbstractAndNotImported = newAbstract)))
 
       case None => memberMap.put(key, GobraMemberEntry(info, TrieMap(viperKey -> viperMember)))
     }
@@ -333,56 +333,56 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         GobraMemberInfo(pkgId, pkgName, p.id.name, formatArgs(p.args), FunctionDeclaration,
           hasSpecification = hasFormalSpec(p.spec),
           isTrusted = p.spec.isTrusted,
-          isAbstract = p.body.isEmpty && !isImported,
+          isAbstractAndNotImported = p.body.isEmpty && !isImported,
           isImported,
           isBuiltIn)
       case p: PMethodDecl =>
         GobraMemberInfo(pkgId, pkgName, p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), MethodDeclaration,
           hasSpecification = hasFormalSpec(p.spec),
           isTrusted = p.spec.isTrusted,
-          isAbstract = p.body.isEmpty && !isImported,
+          isAbstractAndNotImported = p.body.isEmpty && !isImported,
           isImported,
           isBuiltIn)
       case p: PMethodSig =>
         GobraMemberInfo(pkgId, pkgName, p.id.name, formatArgs(p.args), MethodSignature,
           hasSpecification = hasFormalSpec(p.spec),
           isTrusted = p.spec.isTrusted,
-          isAbstract = false,
+          isAbstractAndNotImported = false,
           isImported,
           isBuiltIn)
       case p: PFPredicateDecl =>
         GobraMemberInfo(pkgId, pkgName, p.id.name, formatArgs(p.args), FunctionPredicateDeclaration,
           hasSpecification = false,
           isTrusted = false,
-          isAbstract = p.body.isEmpty && !isImported,
+          isAbstractAndNotImported = p.body.isEmpty && !isImported,
           isImported,
           isBuiltIn)
       case p: PMPredicateDecl =>
         GobraMemberInfo(pkgId, pkgName, p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), MethodPredicateDeclaration,
           hasSpecification = false,
           isTrusted = false,
-          isAbstract = p.body.isEmpty && !isImported,
+          isAbstractAndNotImported = p.body.isEmpty && !isImported,
           isImported,
           isBuiltIn)
       case p: PMethodImplementationProof =>
         GobraMemberInfo(pkgId, pkgName, "Impl_Proof." + p.receiver.typ.formattedShort + "." + p.id.name, formatArgs(p.args), MethodImplementationProof,
           hasSpecification = false,
           isTrusted = false,
-          isAbstract = p.body.isEmpty && !isImported,
+          isAbstractAndNotImported = p.body.isEmpty && !isImported,
           isImported,
           isBuiltIn)
       case p: PMPredicateSig =>
         GobraMemberInfo(pkgId, pkgName, p.id.name, formatArgs(p.args), MethodPredicateSignature,
           hasSpecification = false,
           isTrusted = false,
-          isAbstract = false,
+          isAbstractAndNotImported = false,
           isImported,
           isBuiltIn)
       case p: PPredConstructor =>
         GobraMemberInfo(pkgId, pkgName, p.id.id.name, formatPredConstructorArgs(p.args), PredicateConstructor,
           hasSpecification = false,
           isTrusted = false,
-          isAbstract = false,
+          isAbstractAndNotImported = false,
           isImported,
           isBuiltIn)
       // Fallback to the node's code root if we can't match the node

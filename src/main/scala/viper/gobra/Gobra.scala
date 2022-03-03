@@ -43,8 +43,6 @@ object GoVerifier {
 
 trait GoVerifier extends StrictLogging {
 
-  type Warning = String
-
   def name: String = {
     this.getClass.getSimpleName
   }
@@ -62,7 +60,7 @@ trait GoVerifier extends StrictLogging {
         logger.info("Writing report to " + statsFile.getPath)
         statsCollector.writeJsonReportToFile(statsFile)
 
-        val timedOutMembers = statsCollector.getTimedOutMembers;
+        val timedOutMembers = statsCollector.getTimedOutMembers
         if(timedOutMembers.nonEmpty) {
           timedOutMembers.foreach(member => logger.error(s"The verification of member $member did not terminate"))
         }
@@ -207,7 +205,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     inFileConfigs.foldLeft(config){ case (oldConfig, fileConfig) => oldConfig.merge(fileConfig) }
   }
 
-  def performParsing(input: Vector[Source], config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def performParsing(input: Vector[Source], config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
       Parser.parse(input)(config)
     } else {
@@ -215,7 +213,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  def performTypeChecking(parsedPackage: PPackage, input: Vector[Source], config: Config): Either[Vector[VerifierError], TypeInfo] = {
+  private def performTypeChecking(parsedPackage: PPackage, input: Vector[Source], config: Config): Either[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
       Info.check(parsedPackage, input, isMainContext = true)(config)
     } else {
@@ -223,7 +221,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  def performDesugaring(parsedPackage: PPackage, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
+  private def performDesugaring(parsedPackage: PPackage, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
     if (config.shouldDesugar) {
       Right(Desugar.desugar(parsedPackage, typeInfo)(config))
     } else {
@@ -235,7 +233,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * Applies transformations to programs in the internal language. Currently, only adds overflow checks but it can
     * be easily extended to perform more transformations
     */
-  def performInternalTransformations(program: Program, config: Config): Either[Vector[VerifierError], Program] = {
+  private def performInternalTransformations(program: Program, config: Config): Either[Vector[VerifierError], Program] = {
     val transformed = CGEdgesTerminationTransform.transform(program)
 
     if (config.checkOverflows) {
@@ -247,7 +245,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  def performViperEncoding(program: Program, config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
+  private def performViperEncoding(program: Program, config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
     if (config.shouldViperEncode) {
       Right(Translator.translate(program)(config))
     } else {

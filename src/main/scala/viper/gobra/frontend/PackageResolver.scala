@@ -18,6 +18,7 @@ import viper.gobra.frontend.Source.FromFileSource
 import scala.io.BufferedSource
 import scala.util.Properties
 import scala.jdk.CollectionConverters._
+import scala.tools.nsc.io.File
 
 object PackageResolver {
 
@@ -230,6 +231,7 @@ object PackageResolver {
     } yield pkgName
   }
 
+  // Multiline comments are matched lazily, meaning it will stop at the earliest encountered '*/'
   private lazy val pkgClauseRegex = """(?:\/\/.*|\/\*(?:.|\n)*?\*\/|package(?:\s|\n)+([a-zA-Z_][a-zA-Z0-9_]*))""".r
 
   def getPackageClause(src: Source): Option[String] = {
@@ -246,8 +248,11 @@ object PackageResolver {
      * to the first include directory, that is a parent of it.
      */
     def relativizePath(path: Path): Path = {
-      val allDirs = Properties.envOrNone("GOPATH").map(path => Path.of(path)) match {
-        case Some(p) => includeDirs.appended(p)
+      // Split GOPATH in case it consists of multiple paths
+      val goPaths = Properties.envOrNone("GOPATH").map(_.split(File.pathSeparator).map(path => Path.of(path)))
+
+      val allDirs = goPaths match {
+        case Some(p) => includeDirs.appendedAll(p)
         case None => includeDirs
       }
 

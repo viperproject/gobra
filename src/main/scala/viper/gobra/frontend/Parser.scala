@@ -6,7 +6,6 @@
 
 package viper.gobra.frontend
 
-import org.apache.commons.text.StringEscapeUtils
 import org.bitbucket.inkytonik.kiama.rewriting.Cloner.{rewrite, topdown}
 import org.bitbucket.inkytonik.kiama.rewriting.PositionedRewriter.strategyWithName
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
@@ -79,9 +78,6 @@ object Parser {
     val positions = new Positions
     val pom = new PositionManager(positions)
     lazy val rewriter = new PRewriter(pom.positions)
-
-
-    class PRewriter(override val positions: Positions) extends PositionedRewriter with Cloner
 
     def parseSource(source: Source): Either[Vector[ParserError], PProgram] = {
       val errors = ListBuffer.empty[ParserError]
@@ -181,7 +177,7 @@ object Parser {
   def parseFunction(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], PMember] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new SyntaxAnalyzer[SpecMemberContext, PMember](source, ListBuffer.empty[ParserError],  pom, specOnly)
+    val parser = new SyntaxAnalyzer[SpecMemberContext, PMember](source, ListBuffer.empty[ParserError], pom, specOnly)
     parser.parse(parser.specMember())
   }
 
@@ -278,11 +274,15 @@ object Parser {
         lexer.removeErrorListeners()
         lexer.addErrorListener(new InformativeErrorListener(errors, source))
         new CommonTokenStream(lexer)
-      },
+        },
         source, errors, pom, specOnly)
       getInterpreter.setPredictionMode(PredictionMode.SLL)
+      // Remove the default error listener
       removeErrorListeners()
+      // Add the error handler that doesn't try to recover, in case of errors, we just
+      // switch to the more powerful, but slower LL parsing
       setErrorHandler(new ReportFirstErrorStrategy)
+      // Add our own error listener that generates better messages from ANTLRs errors
       addErrorListener(new InformativeErrorListener(errors, source))
     }
 
@@ -292,8 +292,8 @@ object Parser {
       // rewind input stream
       reset()
       val ll_errors = ListBuffer.empty[ParserError]
-      // back to standard listeners/handlers
       removeErrorListeners()
+      // For full analysis, we want to get all errors.
       addErrorListener(new InformativeErrorListener(ll_errors, source))
       setErrorHandler(new DefaultErrorStrategy)
       // full now with full LL(*)
@@ -351,4 +351,7 @@ object Parser {
       }
     }
   }
+
+  class PRewriter(override val positions: Positions) extends PositionedRewriter with Cloner
+
 }

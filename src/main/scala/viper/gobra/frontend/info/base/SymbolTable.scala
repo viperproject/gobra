@@ -253,9 +253,7 @@ object SymbolTable extends Environments[Entity] {
   case class BuiltInFPredicate(tag: BuiltInFPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInPredicate
   case class BuiltInMPredicate(tag: BuiltInMPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInPredicate with BuiltInMethodLike with GhostTypeMember
 
-  case class BuiltInType(tag: BuiltInTypeTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInActualEntity with TypeEntity {
-    def isPure: Boolean = true
-  }
+  case class BuiltInType(tag: BuiltInTypeTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInActualEntity with TypeEntity
 
 
 

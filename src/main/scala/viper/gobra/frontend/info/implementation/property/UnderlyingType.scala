@@ -36,10 +36,9 @@ trait UnderlyingType { this: TypeInfoImpl =>
       case PNamedOperand(t) => entity(t) match {
         case st.NamedType(decl, _, ctx) => inCtx(ctx, decl.right)
         case st.TypeAlias(decl, _, ctx) => inCtx(ctx, decl.right)
-        // TODO: Get the type directly from BuiltInType or BuiltInTypeTag
-        case st.BuiltInType(bt : BuiltInTypeTag, _, _) => predefinedTypesMap.get(bt.identifier) match {
-          case Some(value) => Some(value, this)
-          case None => None
+        case st.BuiltInType(tag: BuiltInTypeTag, _, _) => tag.node match {
+          case value : PType => Some(value, this)
+          case _ => None
         }
         case _ => None // type not defined
       }

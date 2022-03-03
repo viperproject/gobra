@@ -36,6 +36,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   import GobraNodeType._
   import ViperNodeType._
 
+  type Warning = String
+
   // We use concurrent maps, because silicon verifies & reports results concurrently. Additionally we want to be prepared
   // if the type checking or other processes are done concurrently in the future
 
@@ -197,7 +199,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     viperMemberNameGobraMemberMap.get(viperMemberKey(taskName, viperMemberName, pkgId))
       .orElse(viperMemberNameGobraMemberMap.get(viperMemberKey(taskName, viperMemberName)))
 
-  def getWarnings(pkgId: String, config: Config): Set[String] =
+  def getWarnings(pkgId: String, config: Config): Set[Warning] =
     memberMap.values
       .filter(gobraMember => gobraMember.info.pkgId == pkgId)
       .flatMap(gobraMember => {

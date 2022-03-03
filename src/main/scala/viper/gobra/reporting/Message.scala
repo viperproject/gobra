@@ -30,6 +30,10 @@ sealed trait GobraVerificationResultMessage extends GobraMessage {
   val verifier: String
 }
 
+/**
+ * This message is reported once a Gobra verification task is finished. It differs from {@link GobraOverallFailureMessage}
+ * and {@link GobraOverallSuccessMessage}, since they mark when a backend verification job is finished.
+ */
 case class VerificationTaskFinishedMessage(taskName: String) extends GobraMessage {
   override val name: String = s"verification_task_finished"
   override def toString: String = s"verification_task_finished(taskName=$taskName)"

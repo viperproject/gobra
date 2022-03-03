@@ -155,8 +155,6 @@ object Parser {
       parsingFn(src).map(prog => (PackageResolver.getPackageId(prog.packageClause.id.name, src, config.includeDirs), prog))
     )
 
-    assert(sources.length == parserResults.size)
-
     val res = for {
       // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
       // of the same package has failed or users have entered an invalid collection of inputs

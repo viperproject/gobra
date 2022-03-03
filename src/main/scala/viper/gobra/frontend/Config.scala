@@ -350,22 +350,22 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       paths.left.map(msgs => s"The following errors have occurred: ${msgs.map(_.label).mkString(",")}")
     }
 
-    def atLeastOneFile(files: Vector[Path]): Either[String, Unit] = {
-      if (files.nonEmpty || isInputOptional) Right(()) else Left(s"Package resolution has not found any files for verification - are you using '.${PackageResolver.gobraExtension}' or '.${PackageResolver.goExtension}' as file extension?")
+    def atLeastOnePath(paths: Vector[Path]): Either[String, Unit] = {
+      if (paths.nonEmpty || isInputOptional) Right(()) else Left(s"Package resolution has not found any files for verification - are you using '.${PackageResolver.gobraExtension}' or '.${PackageResolver.goExtension}' as file extension?")
     }
 
-    def filesExist(files: Vector[Path]): Either[String, Unit] = {
-      val notExisting = files.filterNot(Files.exists(_))
+    def pathsExist(paths: Vector[Path]): Either[String, Unit] = {
+      val notExisting = paths.filterNot(Files.exists(_))
       if (notExisting.isEmpty) Right(()) else Left(s"Files '${notExisting.mkString(",")}' do not exist")
     }
 
-    def filesAreFiles(files: Vector[Path]): Either[String, Unit] = {
-      val notFilesOrDirectories = files.filterNot(file => Files.isRegularFile(file) || Files.isDirectory(file))
+    def pathsAreFilesOrDirectories(paths: Vector[Path]): Either[String, Unit] = {
+      val notFilesOrDirectories = paths.filterNot(file => Files.isRegularFile(file) || Files.isDirectory(file))
       if (notFilesOrDirectories.isEmpty) Right(()) else Left(s"Files '${notFilesOrDirectories.mkString(",")}' are neither files or directories")
     }
 
-    def filesAreReadable(files: Vector[Path]): Either[String, Unit] = {
-      val notReadable = files.filterNot(Files.isReadable)
+    def pathsAreReadable(paths: Vector[Path]): Either[String, Unit] = {
+      val notReadable = paths.filterNot(Files.isReadable)
       if (notReadable.isEmpty) Right(()) else Left(s"Files '${notReadable.mkString(",")}' are not readable")
     }
 
@@ -376,10 +376,10 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     val input: List[String] = inputOpt.getOrElse(List())
     for {
       convertedFiles <- checkConversion(input)
-      _ <- atLeastOneFile(convertedFiles)
-      _ <- filesExist(convertedFiles)
-      _ <- filesAreFiles(convertedFiles)
-      _ <- filesAreReadable(convertedFiles)
+      _ <- atLeastOnePath(convertedFiles)
+      _ <- pathsExist(convertedFiles)
+      _ <- pathsAreFilesOrDirectories(convertedFiles)
+      _ <- pathsAreReadable(convertedFiles)
     } yield ()
   }
 

@@ -66,6 +66,7 @@ case class GobraEntitySuccessMessage(taskName: String, verifier: String, entity:
   val result: VerifierResult = Success
 
   override def toString: String = s"entity_success_message(" +
+    s"taskName=$taskName, " +
     s"verifier=$verifier, " +
     s"concerning=${concerning.toString}, " +
     s"cached=$cached)"
@@ -75,6 +76,7 @@ case class GobraEntityFailureMessage(taskName: String, verifier: String, entity:
   override val name: String = s"entity_failure_message"
 
   override def toString: String = s"entity_failure_message(" +
+    s"taskName=$taskName, " +
     s"verifier=$verifier, " +
     s"concerning=${concerning.toString}, " +
     s"failure=${result.toString}, " +
@@ -123,6 +125,7 @@ case class TypeCheckSuccessMessage(inputs: Vector[String], taskName: String, typ
   override val name: String = s"type_check_success_message"
 
   override def toString: String = s"type_check_success_message(" +
+    s"taskName=$taskName, " +
     s"files=$inputs)"
 }
 
@@ -163,7 +166,7 @@ case class GeneratedViperMessage(taskName: String, inputs: Vector[String], vprAs
   override val name: String = s"generated_viper_message"
 
   override def toString: String = s"generated_viper_message(" +
-    s"task=$taskName"
+    s"taskName=$taskName"
     s"files=$inputs, " +
     s"vprFormated=$vprAstFormatted)"
 

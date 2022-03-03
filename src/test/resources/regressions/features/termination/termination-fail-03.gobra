@@ -3,9 +3,6 @@
 
 package termination
 
-
-
-
 type IsEven interface {
 	requires n >= 0
 	decreases n
@@ -57,10 +54,4 @@ type BadFiniteImpl struct {}
 
 func (y BadFiniteImpl) infinite(n int) int {
 	return y.infinite(n)
-}
-
-type Func interface {
-	pure
-	decreases n
-	fun(n int, a Func) int
 }

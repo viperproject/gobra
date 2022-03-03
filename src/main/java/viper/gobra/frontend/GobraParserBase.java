@@ -1,3 +1,5 @@
+// Imported to Gobra from https://github.com/antlr/grammars-v4/blob/4c06ad8cc8130931c75ca0b17cbc1453f3830cd2/golang
+
 package viper.gobra.frontend;
 import java.util.List;
 import org.antlr.v4.runtime.*;

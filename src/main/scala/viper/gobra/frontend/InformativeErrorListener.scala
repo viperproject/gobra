@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2020 ETH Zurich.
+// Copyright (c) 2011-2022 ETH Zurich.
 
 package viper.gobra.frontend
 
@@ -36,34 +36,32 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     messages.appendAll(message)
   }
 
-  protected def underlineError(context : ErrorContext, restOfTheLine : Boolean = false): String = {
-    val offendingToken = context.offendingSymbol match {
-      case t : Token => t
-      case _ => return ""
+  /**
+    * Check the given error context against a set of known patterns to check for specific common errors.
+    * @param context
+    * @param e
+    * @return
+    */
+  def analyzeParserError(implicit context : ParserErrorContext, e : RecognitionException): ErrorType = {
+    e match {
+      case exception: FailedPredicateException => analyzeFailedPredicate(context, exception)
+      case exception: InputMismatchException => analyzeInputMismatch(context, exception)
+      case exception: NoViableAltException => analyzeNoViable(context, exception)
+      case null => context.msg match {
+        case extraneous() => analyzeExtraneous(context)
+        case missing() => DefaultErrorType()
+      }
+      case _ => DefaultErrorType()
     }
-    val tokens = context.recognizer.getInputStream.asInstanceOf[CommonTokenStream]
-    val input = tokens.getTokenSource.getInputStream.toString
-    val lines = input.split("\r?\n", -1)
-    var message = lines(offendingToken.getLine - 1)
-    val rest = message.length
-    message += "\n"
-    for (i <- 0 until offendingToken.getCharPositionInLine) {
-      message += " "
-    }
-    val start = offendingToken.getCharPositionInLine
-    val stop = if (restOfTheLine) rest else offendingToken.getCharPositionInLine + offendingToken.getText.length
-    if (start >= 0 && stop >= 0) for (_ <- start until stop) {
-      message += "^"
-    }
-    message += "\n"
-    message
   }
 
 
   def analyzeFailedPredicate(implicit context: ParserErrorContext, exception: FailedPredicateException): ErrorType = {
     val parser = context.recognizer
     parser.getContext match {
-      case eos : GobraParser.EosContext => {
+      // One example of a known pattern: Parser reads ':=' when expecting the end of statement: The user probably
+      // used ':=' instead of '='
+      case _ : GobraParser.EosContext => {
         context.offendingSymbol.getType match {
           case GobraParser.DECLARE_ASSIGN => GotAssignErrorType()
           case _ => DefaultFailedEOS()
@@ -114,18 +112,30 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     }
   }
 
-  def analyzeParserError(implicit context : ParserErrorContext, e : RecognitionException): ErrorType = {
-    e match {
-      case exception: FailedPredicateException => analyzeFailedPredicate(context, exception)
-      case exception: InputMismatchException => analyzeInputMismatch(context, exception)
-      case exception: NoViableAltException => analyzeNoViable(context, exception)
-      case null => context.msg match {
-        case extraneous() => analyzeExtraneous(context)
-        case missing() => DefaultErrorType()
-      }
-      case _ => DefaultErrorType()
+
+  protected def underlineError(context : ErrorContext, restOfTheLine : Boolean = false): String = {
+    val offendingToken = context.offendingSymbol match {
+      case t : Token => t
+      case _ => return ""
     }
+    val tokens = context.recognizer.getInputStream.asInstanceOf[CommonTokenStream]
+    val input = tokens.getTokenSource.getInputStream.toString
+    val lines = input.split("\r?\n", -1)
+    var message = lines(offendingToken.getLine - 1)
+    val rest = message.length
+    message += "\n"
+    for (i <- 0 until offendingToken.getCharPositionInLine) {
+      message += " "
+    }
+    val start = offendingToken.getCharPositionInLine
+    val stop = if (restOfTheLine) rest else offendingToken.getCharPositionInLine + offendingToken.getText.length
+    if (start >= 0 && stop >= 0) for (_ <- start until stop) {
+      message += "^"
+    }
+    message += "\n"
+    message
   }
+
 
   def getRuleDisplay(index : Int)(implicit context : ParserErrorContext): String = {
     betterRuleNames.getOrElse(index, ruleNames(index))

@@ -25,6 +25,7 @@ func positiveSumWithoutTrusted(x int, y int) (ret int) {
 
 trusted
 func functionWithNonSupportedFeature() int{
+	// The body is still parsed, but not translated to an AST or type-checked
 	var i int = "not an integer"
 	return i
 }

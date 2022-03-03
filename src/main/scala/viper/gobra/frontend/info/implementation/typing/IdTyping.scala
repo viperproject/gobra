@@ -128,8 +128,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   lazy val idSymType: Typing[PIdnNode] = createTyping { id =>
-    val e = entity(id)
-    e match {
+    entity(id) match {
       case NamedType(decl, _, context) => DeclaredT(decl, context)
       case TypeAlias(decl, _, context) => context.symbType(decl.right)
       case Import(decl, _) => ImportT(decl)

@@ -782,13 +782,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           // then p can either occur as the base or as an argument of `inv`. However, a numeric expression is not a valid base of a
           // PInvoke and thus, `expr` can onlu appear in `n` as an argument
           lazy val errorMessage = s"violation of assumption: a numeric expression $expr does not occur as an argument of its parent $n"
-          val r = resolve(n)
-          r match {
+          resolve(n) match {
             case Some(ap.FunctionCall(_, args)) =>
               val index = args.indexWhere(_.eq(expr))
               violation(index >= 0, errorMessage)
-              val t = typOfExprOrType(n.base)
-              t match {
+              typOfExprOrType(n.base) match {
                 case FunctionT(fArgs, _) =>
                   if (index >= fArgs.length-1 && fArgs.lastOption.exists(_.isInstanceOf[VariadicT])) {
                     fArgs.lastOption.map(_.asInstanceOf[VariadicT].elem)
@@ -815,8 +813,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case Some(ap.PredicateCall(_, args)) =>
               val index = args.indexWhere(_.eq(expr))
               violation(index >= 0, errorMessage)
-              val t = typOfExprOrType(n.base)
-              t match {
+              typOfExprOrType(n.base) match {
                 case FunctionT(fArgs, AssertionT) => fArgs.lift(index)
                 case _: AbstractType =>
                   /* the abstract type cannot be resolved without creating a loop in kiama for the same reason as above
@@ -841,7 +838,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 case t => violation(s"predicate expression instance has base $base with unsupported type $t")
               }
 
-            case s => None
+            case _ => None
           }
 
       case const: PPredConstructor =>

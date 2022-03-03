@@ -14,8 +14,8 @@ DECIMAL_FLOAT_LIT      : DECIMALS ('.'{_input.LA(1) != '.'}? DECIMALS? EXPONENT?
                        | '.'{_input.index() <2 || _input.LA(-2) != '.'}? DECIMALS EXPONENT?
                        ;
 
-// -mode(NLSEMI) means newlines directly after this token
-// emit a semicolon. (just like identifiers, literals, ')}]' etc in base Go)
+// ->mode(NLSEMI) means line breaks directly after this token
+// emit a semicolon. (just like after identifiers, literals, ')}]' etc in base Go)
 
 TRUE        : 'true' -> mode(NLSEMI);
 FALSE       : 'false' -> mode(NLSEMI);

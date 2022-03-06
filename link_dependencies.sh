@@ -1,5 +1,6 @@
 #!/usr/bin/bash
 
+git submodule update --init
 cd silver
 git checkout 7228e7144d41c91f02a70a68a93b6b3efae57d14
 cd ../silicon

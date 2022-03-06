@@ -14,33 +14,9 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
 - Git
 
 ### Installation
-1. Create a folder for your Gobra development. We will refer to this folder as `gobraHome`.
-2. Clone Gobra and Viper dependencies
-    - Change directory to `gobraHome`
-    - [silver](https://github.com/viperproject/silver) (commit  `7228e7144d41c91f02a70a68a93b6b3efae57d14`)
-    - [silicon](https://github.com/viperproject/silicon) (commit `edb5d079f327c2d9e7eebea9719032c9e70dea37`)
-    - [carbon](https://github.com/viperproject/carbon) (commit `4393d154a5ae24d994a0c2c578374bdd49c3a3b3`)
-    - [viperserver](https://github.com/viperproject/viperserver) (commit `5907ce1744501b7949d25cc0d5356145431ab6f7`)
-    - Gobra
-    > To switch to tag `X`, execute the command ```git checkout X``` inside the cloned repository.
-3. Add symbolic links
-    - To create a symbolic link from A to B, you have to run
-        - `mklink /D A B` (Windows (as admin)) resp.
-        - `ln -s B A` (Linux & macOS) (use forward instead of backward slashes in the following)
-    - Change directory to `gobraHome/silicon` and create the symbolic links:
-        - silver -> ..\silver
-    - Change directory to `gobraHome/carbon` and create the symbolic links:
-        - silver -> ..\silver
-    - Change directory to `gobraHome/viperserver` and create the symbolic links:
-        - silver -> ..\silver
-        - silicon -> ..\silicon
-        - carbon -> ..\carbon
-    - Change to `gobraHome/gobra` and create the links:
-        - silver -> ..\silver
-        - silicon -> ..\silicon
-        - carbon -> ..\carbon
-        - viperserver -> ..\viperserver
-4. Install Z3 and Boogie. 
+1. Download dependencies.
+    run `./link_dependencies.sh`
+2. Install Z3 and Boogie. 
     Steps (iii) and (iv) are specific to Boogie and only necessary when using Carbon as verification backend. Gobra uses the Silicon verification backend by default.
     1. Get a Z3 executable. A precompiled executable can be downloaded [here](https://github.com/Z3Prover/z3/releases). 
       We tested version 4.8.7 64-Bit.

@@ -6,10 +6,6 @@ target/
 tmp/
 sync/
 
-carbon
-silver
-silicon
-viperserver
 logger.log
 
 *.go.*

@@ -1,0 +1,12 @@
+[submodule "silver"]
+	path = silver
+	url = git@github.com:viperproject/silver.git
+[submodule "silicon"]
+	path = silicon
+	url = git@github.com:viperproject/silicon.git
+[submodule "carbon"]
+	path = carbon
+	url = git@github.com:viperproject/carbon.git
+[submodule "viperserver"]
+	path = viperserver
+	url = git@github.com:viperproject/viperserver.git

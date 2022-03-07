@@ -8,7 +8,7 @@
 source viper-toolchain-versions.sh
 
 git submodule update --init
-cd ../silicon
+cd silicon
 ln -s ../silver silver
 cd ../carbon
 ln -s ../silver silver

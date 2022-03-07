@@ -5,8 +5,6 @@
 #
 # Copyright (c) 2011-2021 ETH Zurich.
 
-source viper-toolchain-versions.sh
-
 git submodule update --init
 cd silicon
 ln -s ../silver silver

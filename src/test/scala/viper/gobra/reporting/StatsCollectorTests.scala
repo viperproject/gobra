@@ -57,9 +57,9 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
 
   private def runPackagesSeparately(config: Config): Unit = {
     // Overwrite reporter
-    config.inputPackageMap.foreach({case (pkgId, inputs) =>
+    config.inputPackageMap.foreach({case (pkgInfo, inputs) =>
       val statsCollector = StatsCollector(NoopReporter)
-      val result = runAndCheck(config.copy(inputs = inputs, reporter = statsCollector, taskName = pkgId), statsCollector, pkgId)
+      val result = runAndCheck(config.copy(inputs = inputs, reporter = statsCollector, taskName = pkgInfo.id), statsCollector, pkgInfo.id)
 
       // Assert that errors are somehow reflected in the stats
       // It's hard to test this further, since there isn't much information about viper or gobra members available
@@ -75,8 +75,8 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     // Overwrite reporter
     var errorCount = 0
     val statsCollector = StatsCollector(NoopReporter)
-    config.inputPackageMap.foreach({ case (pkgId, inputs) =>
-      val results = runAndCheck(config.copy(inputs = inputs, reporter = statsCollector, taskName=pkgId), statsCollector, pkgId)
+    config.inputPackageMap.foreach({ case (pkgInfo, inputs) =>
+      val results = runAndCheck(config.copy(inputs = inputs, reporter = statsCollector, taskName = pkgInfo.id), statsCollector, pkgInfo.id)
 
       results match {
         case VerifierResult.Success => assert(statsCollector.memberMap.values.flatMap(_.viperMembers.values).count(!_.success) == errorCount)
@@ -106,7 +106,6 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     val interfaceImplementations: List[Type.Type] = typeInfo.interfaceImplementations.values.flatten.toList
 
     val expectedGobraMembers: Vector[PNode] = typeInfo.tree.originalRoot.programs
-      .filter(p => !p.isBuiltin)
       .flatMap(p => p.declarations.flatMap({
         case p: PFunctionDecl => Vector(p)
         case p: PMethodDecl => Vector(p)
@@ -124,10 +123,9 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
       .map(member => statsCollector.getMemberInformation(member, statsCollector.typeInfos(pkgId), null))
       .filter(memberInfo => memberInfo.pkgId == pkgId)
       .foreach(memberInfo => {
-        val memberKey = statsCollector.gobraMemberKey(pkgId, memberInfo.memberName, memberInfo.args)
-        assert(statsCollector.memberMap.contains(memberKey))
+        assert(statsCollector.memberMap.contains(memberInfo.id))
 
-        val memberEntry = statsCollector.memberMap(memberKey)
+        val memberEntry = statsCollector.memberMap(memberInfo.id)
         assert(memberEntry.info.isTrusted == memberInfo.isTrusted)
         assert(memberEntry.info.isAbstractAndNotImported == memberInfo.isAbstractAndNotImported)
 

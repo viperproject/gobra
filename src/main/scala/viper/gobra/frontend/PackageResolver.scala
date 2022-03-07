@@ -11,14 +11,13 @@ import java.nio.file.{FileSystem, FileSystemAlreadyExistsException, FileSystems,
 import java.util.Collections
 import org.apache.commons.io.FilenameUtils
 import org.apache.commons.lang3.SystemUtils
-import org.bitbucket.inkytonik.kiama.util.{FileSource, Source, StringSource}
+import org.bitbucket.inkytonik.kiama.util.Source
 import viper.gobra.ast.frontend.PImplicitQualifiedImport
 import viper.gobra.frontend.Source.FromFileSource
 
 import scala.io.BufferedSource
 import scala.util.Properties
 import scala.jdk.CollectionConverters._
-import scala.tools.nsc.io.File
 
 object PackageResolver {
 
@@ -240,41 +239,6 @@ object PackageResolver {
     pkgClauseRegex
       .findAllMatchIn(src.content)
       .collectFirst { case m if m.group(1) != null => m.group(1) }
-  }
-
-  def getPackageId(packageName: String, src: Source, includeDirs: Vector[Path]): String = {
-    /**
-     * Relativizes the given path with the specified include directories or the go path. The resulting path is relative
-     * to the first include directory, that is a parent of it.
-     */
-    def relativizePath(path: Path): Path = {
-      // Split GOPATH in case it consists of multiple paths
-      val goPaths = Properties.envOrNone("GOPATH").map(_.split(File.pathSeparator).map(path => Path.of(path)))
-
-      val allDirs = goPaths match {
-        case Some(p) => includeDirs.appendedAll(p)
-        case None => includeDirs
-      }
-
-      val packageRoot = allDirs.find(dir => path.toAbsolutePath.startsWith(dir.toAbsolutePath))
-
-      packageRoot match {
-        case Some(parent) => parent.toAbsolutePath.relativize(path.toAbsolutePath)
-        case None => path
-      }
-    }
-
-    val prefix = src match {
-      case FromFileSource(path, _, _) => relativizePath(path.getParent).toString
-      case FileSource(name, _) => relativizePath(Path.of(name).getParent).toString
-      case StringSource(_, _) => ???
-    }
-
-    if(prefix.nonEmpty) {
-      prefix + " - " + packageName
-    } else {
-      packageName
-    }
   }
 
   trait InputResource extends Closeable {

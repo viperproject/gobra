@@ -67,7 +67,9 @@ trait GoVerifier extends StrictLogging {
       }
     })
 
-    config.inputPackageMap.foreach({ case (pkgId, inputs) =>
+    config.inputPackageMap.foreach({ case (pkgInfo, inputs) =>
+      val pkgId = pkgInfo.id
+
       logger.info("Verifying Package " + pkgId)
       val future = verify(config.copy(inputs = inputs, reporter = statsCollector, taskName = pkgId))(executor)
         .map(result => {
@@ -106,8 +108,8 @@ trait GoVerifier extends StrictLogging {
     }
 
     logger.info("Gobra has found " + statsCollector.getNumberOfVerifiableMembers + " methods and functions," )
-    logger.info("\t- " + statsCollector.getNumberOfMembersWithSpecification + " of them have specifiation")
-    logger.info("\t- " + statsCollector.getNumberOfMembersWithAssumptions + " of them are assumed to be satisfied")
+    logger.info("\t- " + statsCollector.getNumberOfVerifiedMembers + " of them have specifiation")
+    logger.info("\t- " + statsCollector.getNumberOfVerifiedMembersWithAssumptions + " of them are assumed to be satisfied")
 
     allErrors
   }

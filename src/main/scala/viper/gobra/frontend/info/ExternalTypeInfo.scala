@@ -91,6 +91,4 @@ trait ExternalTypeInfo {
   /** returns the code root for a given node; can only be called on nodes that are enclosed in a code root */
   def codeRoot(n: PNode): PCodeRoot with PScope
 
-  /** returns the enclosing program for a given node; can only be called on nodes that are enclodes by a program */
-  def program(n: PNode): PProgram
 }

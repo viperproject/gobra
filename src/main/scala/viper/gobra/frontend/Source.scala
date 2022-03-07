@@ -8,7 +8,6 @@ package viper.gobra.frontend
 
 import java.io.Reader
 import java.nio.file.{Files, Path, Paths}
-
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Source, StringSource}
 import viper.gobra.util.Violation
 import viper.silver.ast.SourcePosition
@@ -19,6 +18,38 @@ import scala.io.BufferedSource
   * Contains several utility functions for managing Sources, i.e. inputs to Gobra
   */
 object Source {
+  case class PackageInfo(id: String, isBuiltIn: Boolean)
+
+  def getPackageInfo(src: Source): PackageInfo = {
+    val isBuiltIn: Boolean = src match {
+      case FromFileSource(_, _, builtin) => builtin
+      case _ => false
+    }
+
+    val packageName: String = PackageResolver.getPackageClause(src: Source)
+      .getOrElse(Violation.violation("Missing package clause in " + src.name))
+
+    /**
+     * A unique identifier for packages
+     */
+    val packageId: String = {
+      val prefix = src match {
+        case FromFileSource(path, _, _) => path.getParent.toString
+        case FileSource(name, _) => Path.of(name).getParent.toString
+        case StringSource(_, _) => ???
+      }
+      if(prefix.nonEmpty) {
+        // The - is enough to unambiguously separate the prefix from the package name, since it can't occur in the package name
+        // per Go's spec (https://go.dev/ref/spec#Package_clause)
+        prefix + " - " + packageName
+      } else {
+        // Fallback case if the prefix is empty, for example if the directory of a FileSource is in the current directory
+        packageName
+      }
+    }
+    PackageInfo(packageId, packageName, isBuiltIn)
+  }
+
   implicit class TransformableSource[S <: Source](source: S) {
     def transformContent(newContent: String): Source = source match {
       case StringSource(_, name) => StringSource(newContent, name)

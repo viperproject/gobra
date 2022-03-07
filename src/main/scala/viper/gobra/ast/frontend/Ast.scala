@@ -15,6 +15,7 @@ import viper.gobra.reporting.VerifierError
 import viper.gobra.util.{Decimal, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
+import java.security.MessageDigest
 import scala.collection.immutable
 
 // TODO: comment describing identifier positions (resolution)
@@ -43,8 +44,19 @@ case class PPackage(
                      packageClause: PPackageClause,
                      programs: Vector[PProgram],
                      positions: PositionManager,
-                     identifier: String
+                     id: String,
+                     isBuiltIn: Boolean = false
                    ) extends PNode with PUnorderedScope {
+  /**
+   * Unique id of the package to use in Viper member names.
+   *
+   * We use a Hex representation of the real package it to make sure that only allowed characters are used inside the id,
+   * while also keeping the uniqueness of the package id.
+   */
+  val viperId: String = MessageDigest.getInstance("SHA-1")
+    .digest(id.getBytes("UTF-8"))
+    .map("%02x".format(_)).mkString
+
   // TODO: remove duplicate package imports:
   lazy val imports: Vector[PImport] = programs.flatMap(_.imports)
   lazy val declarations: Vector[PMember] = programs.flatMap(_.declarations)
@@ -53,8 +65,7 @@ case class PPackage(
 case class PProgram(
                      packageClause: PPackageClause,
                      imports: Vector[PImport],
-                     declarations: Vector[PMember],
-                     isBuiltin: Boolean = false
+                     declarations: Vector[PMember]
                    ) extends PNode with PUnorderedScope // imports are in program scopes
 
 

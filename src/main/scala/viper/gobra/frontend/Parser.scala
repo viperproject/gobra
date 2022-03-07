@@ -14,7 +14,7 @@ import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Stra
 import org.bitbucket.inkytonik.kiama.util.{Positions, Source}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.Source.{FromFileSource, TransformableSource}
+import viper.gobra.frontend.Source.{PackageInfo, TransformableSource, getPackageInfo}
 import viper.gobra.reporting.{Source => _, _}
 import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
 
@@ -71,7 +71,7 @@ object Parser {
     val parsers = new SyntaxAnalyzer(pom, specOnly)
 
     def parseSource(source: Source): Either[Vector[ParserError], PProgram] = {
-      parsers.parseAll(parsers.program(isBuiltInSource(source)), source) match {
+      parsers.parseAll(parsers.program, source) match {
         case Success(ast, _) =>
           config.reporter report ParsedInputMessage(source.name, () => ast)
           Right(ast)
@@ -116,34 +116,44 @@ object Parser {
       }
     }
 
-    def isErrorFree(parserResults: Vector[Either[Vector[ParserError], (String, PProgram)]]): Either[Vector[ParserError], Vector[(String, PProgram)]] = {
-      val (errors, pkgIdProgramMap) = parserResults.partitionMap({
+    def isErrorFree(parserResults: Vector[Either[Vector[ParserError], (PackageInfo, PProgram)]]): Either[Vector[ParserError], Vector[(PackageInfo, PProgram)]] = {
+      val (errors, pkgInfoProgramTuples) = parserResults.partitionMap({
         case Left(value) => Left(value)
         case Right(value) => Right(value)
       })
-      if (errors.isEmpty) Right(pkgIdProgramMap) else Left(errors.flatten)
+      if (errors.isEmpty) Right(pkgInfoProgramTuples) else Left(errors.flatten)
     }
 
-    def samePackage(pkgIdProgramTuples: Vector[(String, PProgram)]): Either[Vector[ParserError], Vector[(String, PProgram)]] = {
-      require(pkgIdProgramTuples.nonEmpty)
-      val expectedPkgId = pkgIdProgramTuples.head._1
-      val differingPkgIdMsgs = pkgIdProgramTuples.flatMap({ case (pkgId, p) =>
+    def checkSourceInfos(pkgInfoProgramTuples: Vector[(PackageInfo, PProgram)]): Either[Vector[ParserError], Vector[(PackageInfo, PProgram)]] = {
+      require(pkgInfoProgramTuples.nonEmpty)
+      val expectedPkgInfo = pkgInfoProgramTuples.head._1
+      val differingPkgIdMsgs = pkgInfoProgramTuples.flatMap({ case (pkgInfo, p) =>
         error(
           p.packageClause,
-          s"Files have differing package clauses, expected $expectedPkgId but got $pkgId",
-          pkgId != expectedPkgId)
+          s"Files have differing package ids, expected ${expectedPkgInfo.id} but got ${pkgInfo.id}",
+          pkgInfo.id != expectedPkgInfo.id)
       })
-      if (differingPkgIdMsgs.isEmpty) {
-        Right(pkgIdProgramTuples)
+
+      val differingBuiltInTagMsgs = pkgInfoProgramTuples.flatMap({ case (pkgInfo, p) =>
+        error(
+          p.packageClause,
+          s"Mixing built-in members with non built-in members in package ${expectedPkgInfo.id}",
+          pkgInfo.isBuiltIn != expectedPkgInfo.isBuiltIn)
+      })
+
+      if (differingPkgIdMsgs.isEmpty && differingBuiltInTagMsgs.isEmpty) {
+        Right(pkgInfoProgramTuples)
       } else {
-        Left(pom.translate(differingPkgIdMsgs, ParserError))
+        Left(pom.translate(differingPkgIdMsgs ++ differingBuiltInTagMsgs, ParserError))
       }
     }
 
-    def makePackage(pkgIdProgramTuples: Vector[(String, PProgram)]): Either[Vector[ParserError], PPackage] = {
-      val clause = parsers.rewriter.deepclone(pkgIdProgramTuples.head._2.packageClause)
-      val pkgId = pkgIdProgramTuples.head._1
-      val parsedPackage = PPackage(clause, pkgIdProgramTuples.map(_._2), pom, pkgId)
+    def makePackage(pkgInfoProgramTuples: Vector[(PackageInfo, PProgram)]): Either[Vector[ParserError], PPackage] = {
+      val clause = parsers.rewriter.deepclone(pkgInfoProgramTuples.head._2.packageClause)
+      val pkgId = pkgInfoProgramTuples.head._1.id
+      val isBuiltIn = pkgInfoProgramTuples.head._1.isBuiltIn
+
+      val parsedPackage = PPackage(clause, pkgInfoProgramTuples.map(_._2), pom, pkgId, isBuiltIn)
 
       // The package parse tree node gets the position of the package clause:
       pom.positions.dupPos(clause, parsedPackage)
@@ -151,16 +161,14 @@ object Parser {
     }
 
     val parsingFn = if (config.cacheParser) { parseSourceCached _ } else { parseSource _ }
-    val parserResults = sources.map(src =>
-      parsingFn(src).map(prog => (PackageResolver.getPackageId(prog.packageClause.id.name, src, config.includeDirs), prog))
-    )
+    val pkgInfoProgramTuples = sources.map(src => parsingFn(src).map(prog => (getPackageInfo(src), prog)))
 
     val res = for {
       // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
       // of the same package has failed or users have entered an invalid collection of inputs
-      programs <- isErrorFree(parserResults)
-      programs <- samePackage(programs)
-      pkg <- makePackage(programs)
+      pkgInfoProgramTuples <- isErrorFree(pkgInfoProgramTuples)
+      pkgInfoProgramTuples <- checkSourceInfos(pkgInfoProgramTuples)
+      pkg <- makePackage(pkgInfoProgramTuples)
     } yield pkg
     // report potential errors:
     res.left.map(errors => {
@@ -177,14 +185,7 @@ object Parser {
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
-    translateParseResult(pom)(parsers.parseAll(parsers.program(isBuiltInSource(source)), preprocessedSource))
-  }
-
-  def isBuiltInSource(source: Source): Boolean = {
-    source match {
-      case FromFileSource(_, _, builtin) => builtin
-      case _ => false
-    }
+    translateParseResult(pom)(parsers.parseAll(parsers.program, preprocessedSource))
   }
 
   def parseMember(source: Source, specOnly: Boolean = false): Either[Messages, Vector[PMember]] = {
@@ -315,11 +316,11 @@ object Parser {
         // note that the resolveImports strategy could be embedded in e.g. a logfail strategy to report a
         // failed strategy application
         val updatedImports = rewrite(topdown(attempt(resolveImports)))(prog.imports)
-        val updatedProg = PProgram(prog.packageClause, updatedImports, prog.declarations, prog.isBuiltin)
+        val updatedProg = PProgram(prog.packageClause, updatedImports, prog.declarations)
         pkg.positions.positions.dupPos(prog, updatedProg)
       })
       // create a new package node with the updated programs
-      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.identifier)
+      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.id, pkg.isBuiltIn)
       pkg.positions.positions.dupPos(pkg, updatedPkg)
       // check whether an error has occurred
       if (failedNodes.isEmpty) Right(updatedPkg)
@@ -381,10 +382,10 @@ object Parser {
       * Member
       */
 
-    def program(builtin: Boolean): Parser[PProgram] =
+    lazy val program: Parser[PProgram] =
       (packageClause <~ eos) ~ importDecls ~ members ^^ {
         case pkgClause ~ importDecls ~ members =>
-          PProgram(pkgClause, importDecls.flatten, members.flatten, builtin)
+          PProgram(pkgClause, importDecls.flatten, members.flatten)
       }
 
     lazy val packageClause: Parser[PPackageClause] =

@@ -5,17 +5,19 @@
 #
 # Copyright (c) 2011-2021 ETH Zurich.
 
+source viper-toolchain-versions.sh
+
 git submodule update --init
 cd silver
-git checkout 7228e7144d41c91f02a70a68a93b6b3efae57d14
+git checkout $SILVER_REF
 cd ../silicon
-git checkout 22551b40509c381991a493da0108ea4c97fd602d
+git checkout $SILICON_REF
 ln -s ../silver silver
 cd ../carbon
-git checkout 4393d154a5ae24d994a0c2c578374bdd49c3a3b3
+git checkout $CARBON_REF
 ln -s ../silver silver
 cd ../viperserver
-git checkout 5907ce1744501b7949d25cc0d5356145431ab6f7
+git checkout $VIPERSERVER_REF
 ln -s ../silver silver
 ln -s ../silicon silicon
 ln -s ../carbon carbon

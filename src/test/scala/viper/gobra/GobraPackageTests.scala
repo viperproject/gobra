@@ -103,7 +103,7 @@ class GobraPackageTests extends GobraTests {
 
       // Simulate pick of package, Gobra normally does
       val config = new ScallopGobraConfig(args.toSeq).config
-      Some(config.copy(inputs = config.inputPackageMap.values.head))
+      Some(config.copy(inputs = config.packageInfoInputMap.values.head))
     } catch {
       case _: ValidationFailure => None
       case other: Throwable => throw other

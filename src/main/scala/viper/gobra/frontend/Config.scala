@@ -36,10 +36,11 @@ case class Config(
                  inputs: Vector[Source],
                  recursive: Boolean = false,
                  gobraDirectory: Path = Path.of(ConfigDefaults.DefaultGobraDirectory),
-                 // Used as a unique identifier per verification task, ideally it shouldn't change between verifications
-                 // because it is used as a caching key, additionally
+                 // Used as an identifier of a verification task, ideally it shouldn't change between verifications
+                 // because it is used as a caching key. Additionally it should be unique when using the StatsCollector
                  taskName: String = ConfigDefaults.DefaultTaskName,
-                 inputPackageMap: Map[PackageInfo, Vector[Source]] = Map(),
+                 // Contains a mapping of packages to all input sources for that package
+                 packageInfoInputMap: Map[PackageInfo, Vector[Source]] = Map(),
                  moduleName: String = "",
                  includeDirs: Vector[Path] = Vector(),
                  reporter: GobraReporter = StdIOReporter(),
@@ -71,8 +72,8 @@ case class Config(
   def merge(other: Config): Config = {
     // this config takes precedence over other config
     val newInputs: Map[PackageInfo, Vector[Source]] = {
-      val keys = inputPackageMap.keys ++ other.inputPackageMap.keys
-      keys.map(k => k -> (inputPackageMap.getOrElse(k, Vector()) ++ other.inputPackageMap.getOrElse(k, Vector())).distinct).toMap
+      val keys = packageInfoInputMap.keys ++ other.packageInfoInputMap.keys
+      keys.map(k => k -> (packageInfoInputMap.getOrElse(k, Vector()) ++ other.packageInfoInputMap.getOrElse(k, Vector())).distinct).toMap
     }
 
     Config(
@@ -81,7 +82,7 @@ case class Config(
       moduleName = moduleName,
       taskName = taskName,
       gobraDirectory = gobraDirectory,
-      inputPackageMap = newInputs,
+      packageInfoInputMap = newInputs,
       includeDirs = (includeDirs ++ other.includeDirs).distinct,
       reporter = reporter,
       backend = backend,
@@ -542,7 +543,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     inputs = Vector(),
     recursive = recursive(),
     gobraDirectory = gobraDirectory(),
-    inputPackageMap = inputPackageMap,
+    packageInfoInputMap = inputPackageMap,
     moduleName = module(),
     includeDirs = includeDirs,
     reporter = FileWriterReporter(

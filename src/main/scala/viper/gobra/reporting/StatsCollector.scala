@@ -21,12 +21,18 @@ import scala.collection.concurrent.{Map, TrieMap}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.io.File
 
+/**
+ * Enum used to identify the type of a Gobra node, used when exporting the statistics
+ */
 object GobraNodeType extends Enumeration {
   type GobraNodeType = Value
   val MethodDeclaration, FunctionDeclaration, MethodSignature, FunctionPredicateDeclaration, MethodPredicateDeclaration,
-  MethodImplementationProof, MethodPredicateSignature, DomainFunction, PredicateConstructor, DomainType = Value
+  MethodImplementationProof, MethodPredicateSignature, PredicateConstructor = Value
 }
 
+/**
+ * Enum used to identify the type of a Viper node, used when exporting the statistics
+ */
 object ViperNodeType extends Enumeration {
   type ViperNodeType = Value
   val Function, Predicate, Method, Domain = Value
@@ -133,6 +139,10 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
   override def report(msg: GobraMessage): Unit = {
 
+    /**
+     * Checks whether the given source information is relevant for the statistics. BuiltIn members or members that
+     * are not itself verified count as non relevant for statistics collection.
+     */
     def isRelevantInfo(info: Source.Verifier.Info): Boolean = !info.node.isInstanceOf[BuiltInMember] && !info.pnode.isInstanceOf[PDomainType]
 
     def addViperMember(taskName: String, viperMember: Member, info: Source.Verifier.Info, time: Time, cached: Boolean, verified: Boolean, success: Boolean): Unit = {
@@ -162,7 +172,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
       case TypeCheckSuccessMessage(_, taskName, typeInfo, _,_,_) => typeInfos.put(taskName, typeInfo.apply())
       // Free up unneeded space, once a task is finished
       case VerificationTaskFinishedMessage(taskName) => typeInfos.remove(taskName)
-      // Store every viperMember with an info attached to see, which ones didn't verify on a unexpected shutdown
+      // Store every viperMember with an info attached to see, which ones didn't verify on an unexpected shutdown
       case GeneratedViperMessage(taskName, _, vprAst, _) =>
         vprAst.apply().members
           .filter(m => m.info.isInstanceOf[Source.Verifier.Info] && isRelevantInfo(m.info.asInstanceOf[Source.Verifier.Info]))
@@ -260,6 +270,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     val pkgId = nodeTypeInfo.tree.originalRoot.id
     val isBuiltIn = nodeTypeInfo.tree.originalRoot.isBuiltIn
 
+    // Replace whitespaces in arguments by a single space, since some types contain newlines
     def formatArgs(args: Vector[PParameter]): String =
       ("(" + args.map(f => f.typ.formattedShort).mkString(", ") + ")").replaceAll("\\s+", " ")
 
@@ -346,6 +357,14 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     }
   }
 
+  private def getNonImportedMembers: Iterable[GobraMemberEntry] =
+    memberMap.values
+      .filter(_.viperMembers.values.exists(!_.fromImport))
+
+  private def getNonImportedVerifiedMembers: Iterable[GobraMemberEntry] =
+    memberMap.values
+      .filter(_.viperMembers.values.exists(viperMember => !viperMember.fromImport && viperMember.verified))
+
   /**
    * Returns the number of viper members that were reported as cached
    */
@@ -393,17 +412,6 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
       .map(_.info.id).toList
 
   /**
-   * Returns the number of viper methods that have a body
-   */
-  private def getNonImportedMembers: Iterable[GobraMemberEntry] =
-    memberMap.values
-      .filter(_.viperMembers.values.exists(!_.fromImport))
-
-  private def getNonImportedVerifiedMembers: Iterable[GobraMemberEntry] =
-    memberMap.values
-      .filter(_.viperMembers.values.exists(viperMember => !viperMember.fromImport && viperMember.verified))
-
-  /**
    * Writes all statistics that have been collected with this instance of the StatsCollector to a file
    */
   def writeJsonReportToFile(file: File): Unit = {
@@ -433,7 +441,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
             Some("Warning: Member " + name + " depends on trusted member " + info.pkg + "." + info.memberName + info.args + "\n")
           case GobraMemberEntry(info, _) if info.isAbstractAndNotImported =>
             Some("Warning: Member " + name + " depends on abstract member " + info.pkg + "." + info.memberName + info.args + "\n")
-          case GobraMemberEntry(info, _) if !config.inputPackageMap.keys.exists(_.id == info.pkgId) =>
+          // Only generate warnings about non-verified packages, when we actually have any info about which packages are verified
+          case GobraMemberEntry(info, _) if config.packageInfoInputMap.nonEmpty && !config.packageInfoInputMap.keys.exists(_.id == info.pkgId) =>
             Some("Warning: Depending on imported package that is not verified: " + info.pkgId)
           case _ => None
         })

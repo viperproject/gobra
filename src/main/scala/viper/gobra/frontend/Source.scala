@@ -18,8 +18,19 @@ import scala.io.BufferedSource
   * Contains several utility functions for managing Sources, i.e. inputs to Gobra
   */
 object Source {
-  case class PackageInfo(id: String, isBuiltIn: Boolean)
 
+  /**
+   * Contains information about a package
+   *
+   * @param id a unique identifier for the package
+   * @param name the name of the package, does not have to be unique
+   * @param isBuiltIn a flag indicating, if the package comes from within Gobra
+   */
+  case class PackageInfo(id: String, name: String, isBuiltIn: Boolean)
+
+  /**
+   * Returns an object containing information about the package a source belongs to.
+   */
   def getPackageInfo(src: Source): PackageInfo = {
     val isBuiltIn: Boolean = src match {
       case FromFileSource(_, _, builtin) => builtin

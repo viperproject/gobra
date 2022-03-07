@@ -47,6 +47,11 @@ trait GoVerifier extends StrictLogging {
     this.getClass.getSimpleName
   }
 
+  /**
+   * Verifies all packages defined in the packageInfoInputMap of the config.
+   * It uses the package identifier to uniquely identify each verification task on a package level.
+   * Additionally statistics are collected with the StatsCollector reporter class
+   */
   def verifyAllPackages(config: Config)(executor: GobraExecutionContext): Vector[VerifierError] = {
     val statsCollector = StatsCollector(config.reporter)
     var warningCount: Int = 0
@@ -67,9 +72,8 @@ trait GoVerifier extends StrictLogging {
       }
     })
 
-    config.inputPackageMap.foreach({ case (pkgInfo, inputs) =>
+    config.packageInfoInputMap.foreach({ case (pkgInfo, inputs) =>
       val pkgId = pkgInfo.id
-
       logger.info("Verifying Package " + pkgId)
       val future = verify(config.copy(inputs = inputs, reporter = statsCollector, taskName = pkgId))(executor)
         .map(result => {
@@ -107,9 +111,9 @@ trait GoVerifier extends StrictLogging {
       logger.info("Number of cached Viper member(s): " + statsCollector.getNumberOfCachedViperMembers)
     }
 
-    logger.info("Gobra has found " + statsCollector.getNumberOfVerifiableMembers + " methods and functions," )
-    logger.info("\t- " + statsCollector.getNumberOfVerifiedMembers + " of them have specifiation")
-    logger.info("\t- " + statsCollector.getNumberOfVerifiedMembersWithAssumptions + " of them are assumed to be satisfied")
+    logger.info("Gobra has found " + statsCollector.getNumberOfVerifiableMembers + " methods and functions" )
+    logger.info(statsCollector.getNumberOfVerifiedMembers + " have specifiation")
+    logger.info(statsCollector.getNumberOfVerifiedMembersWithAssumptions + " are assumed to be satisfied")
 
     allErrors
   }

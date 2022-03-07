@@ -8,16 +8,11 @@
 source viper-toolchain-versions.sh
 
 git submodule update --init
-cd silver
-git checkout $SILVER_REF
 cd ../silicon
-git checkout $SILICON_REF
 ln -s ../silver silver
 cd ../carbon
-git checkout $CARBON_REF
 ln -s ../silver silver
 cd ../viperserver
-git checkout $VIPERSERVER_REF
 ln -s ../silver silver
 ln -s ../silicon silicon
 ln -s ../carbon carbon

@@ -38,10 +38,8 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     runIntegration(config)
   }
 
-  //TODO don't exclude package once #417 is fixed
   test("Integration with chopper") {
-    val config = createConfig(Array("-i", statsCollectorTestDir, "-r", "-I", statsCollectorTestDir, "--chop", "10",
-      "--excludePackages", "subpackage"
+    val config = createConfig(Array("-i", statsCollectorTestDir, "-r", "-I", statsCollectorTestDir, "--chop", "10"
     ))
     runPackagesSeparately(config)
     runIntegration(config)

@@ -31,7 +31,20 @@ object Source {
   /**
    * Returns an object containing information about the package a source belongs to.
    */
-  def getPackageInfo(src: Source): PackageInfo = {
+  def getPackageInfo(src: Source, projectRoot: Path): PackageInfo = {
+
+    /**
+     * Changes the given path to be relative to the projectRoot.
+     * If the path isn't a child of the projectRoot it is returned unchanged instead
+     */
+    def relativizePath(path: Path): Path = {
+      try{
+        projectRoot.relativize(path)
+      } catch {
+        case _: IllegalArgumentException => path
+      }
+    }
+
     val isBuiltIn: Boolean = src match {
       case FromFileSource(_, _, builtin) => builtin
       case _ => false
@@ -45,8 +58,8 @@ object Source {
      */
     val packageId: String = {
       val prefix = src match {
-        case FromFileSource(path, _, _) => path.getParent.toString
-        case FileSource(name, _) => Path.of(name).getParent.toString
+        case FromFileSource(path, _, _) => relativizePath(path.getParent).toString
+        case FileSource(name, _) => relativizePath(Path.of(name).getParent).toString
         case StringSource(_, _) => ???
       }
       if(prefix.nonEmpty) {

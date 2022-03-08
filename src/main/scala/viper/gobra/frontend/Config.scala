@@ -43,6 +43,7 @@ case class Config(
                  packageInfoInputMap: Map[PackageInfo, Vector[Source]] = Map(),
                  moduleName: String = "",
                  includeDirs: Vector[Path] = Vector(),
+                 projectRoot: Path = Path.of(""),
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
                  isolate: Option[Vector[SourcePosition]] = None,
@@ -83,6 +84,7 @@ case class Config(
       taskName = taskName,
       gobraDirectory = gobraDirectory,
       packageInfoInputMap = newInputs,
+      projectRoot = projectRoot,
       includeDirs = (includeDirs ++ other.includeDirs).distinct,
       reporter = reporter,
       backend = backend,
@@ -291,6 +293,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = false
   )
 
+  val rootDirectory: ScallopOption[Path] = opt[Path](
+    name = "projectRoot",
+    descr = "The root directory of the project",
+    default = None,
+    noshort = true
+  )
+
   val cacheFile: ScallopOption[String] = opt[String](
     name = "cacheFile",
     descr = "Cache file to be used by Viper Server",
@@ -318,68 +327,73 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   }
 
 
-
-
   /** File Validation */
   def validateInput(inputOption: ScallopOption[List[String]],
                     recOption: ScallopOption[Boolean],
+                    rootDirectoryOption: ScallopOption[Path],
+                    includeOption: ScallopOption[List[File]],
                     includePkgOption: ScallopOption[List[String]],
                     excludePkgOption: ScallopOption[List[String]]): Unit =
-    validateOpt(inputOption, recOption, includePkgOption, excludePkgOption) { (inputOpt, recOpt, includePkgOpt, excludePkgOpt) =>
-    def checkConversion(input: List[String]): Either[String, Vector[Path]] = {
-      def validateSources(sources: Vector[Source]): Either[Messages, Vector[Path]] = {
-        val (remainingSources, paths) = sources.partitionMap {
-          case FileSource(name, _) => Right(Paths.get(name))
-          case FromFileSource(path, _, _) => Right(path)
-          case s => Left(s)
+    validateOpt(inputOption, recOption, rootDirectoryOption, includeOption, includePkgOption, excludePkgOption) {
+      (inputOpt, recOpt, rootDirectoryOpt, includeOpt, includePkgOpt, excludePkgOpt) =>
+      def checkConversion(input: List[String]): Either[String, Vector[Path]] = {
+        def validateSources(sources: Vector[Source]): Either[Messages, Vector[Path]] = {
+          val (remainingSources, paths) = sources.partitionMap {
+            case FileSource(name, _) => Right(Paths.get(name))
+            case FromFileSource(path, _, _) => Right(path)
+            case s => Left(s)
+          }
+          if (remainingSources.isEmpty) Right(paths)
+          else Left(message(null, s"Expected file sources but got $remainingSources"))
         }
-        if (remainingSources.isEmpty) Right(paths)
-        else Left(message(null, s"Expected file sources but got $remainingSources"))
+
+        val shouldParseRecursively = recOpt.getOrElse(false)
+        val inputValidationMsgs = InputConverter.validate(input, shouldParseRecursively)
+
+        val projectRoot = rootDirectoryOpt.getOrElse(
+          includeOpt.flatMap(_.headOption.map(_.toPath)).getOrElse(Path.of(""))
+        )
+
+        val paths = for {
+          _ <- if (inputValidationMsgs.isEmpty) Right(()) else Left(inputValidationMsgs)
+          sources = InputConverter.convert(input, shouldParseRecursively, projectRoot, includePkgOpt.getOrElse(List()), excludePkgOpt.getOrElse(List()))
+          paths <- validateSources(sources.values.flatten.toVector)
+        } yield paths
+
+        paths.left.map(msgs => s"The following errors have occurred: ${msgs.map(_.label).mkString(",")}")
       }
 
-      val shouldParseRecursively = recOpt.getOrElse(false)
-      val inputValidationMsgs = InputConverter.validate(input, shouldParseRecursively)
+      def atLeastOnePath(paths: Vector[Path]): Either[String, Unit] = {
+        if (paths.nonEmpty || isInputOptional) Right(()) else Left(s"Package resolution has not found any files for verification - are you using '.${PackageResolver.gobraExtension}' or '.${PackageResolver.goExtension}' as file extension?")
+      }
 
-      val paths = for {
-        _ <- if (inputValidationMsgs.isEmpty) Right(()) else Left(inputValidationMsgs)
-        sources = InputConverter.convert(input, shouldParseRecursively, includePkgOpt.getOrElse(List()), excludePkgOpt.getOrElse(List()))
-        paths <- validateSources(sources.values.flatten.toVector)
-      } yield paths
+      def pathsExist(paths: Vector[Path]): Either[String, Unit] = {
+        val notExisting = paths.filterNot(Files.exists(_))
+        if (notExisting.isEmpty) Right(()) else Left(s"Files '${notExisting.mkString(",")}' do not exist")
+      }
 
-      paths.left.map(msgs => s"The following errors have occurred: ${msgs.map(_.label).mkString(",")}")
-    }
+      def pathsAreFilesOrDirectories(paths: Vector[Path]): Either[String, Unit] = {
+        val notFilesOrDirectories = paths.filterNot(file => Files.isRegularFile(file) || Files.isDirectory(file))
+        if (notFilesOrDirectories.isEmpty) Right(()) else Left(s"Files '${notFilesOrDirectories.mkString(",")}' are neither files or directories")
+      }
 
-    def atLeastOnePath(paths: Vector[Path]): Either[String, Unit] = {
-      if (paths.nonEmpty || isInputOptional) Right(()) else Left(s"Package resolution has not found any files for verification - are you using '.${PackageResolver.gobraExtension}' or '.${PackageResolver.goExtension}' as file extension?")
-    }
+      def pathsAreReadable(paths: Vector[Path]): Either[String, Unit] = {
+        val notReadable = paths.filterNot(Files.isReadable)
+        if (notReadable.isEmpty) Right(()) else Left(s"Files '${notReadable.mkString(",")}' are not readable")
+      }
 
-    def pathsExist(paths: Vector[Path]): Either[String, Unit] = {
-      val notExisting = paths.filterNot(Files.exists(_))
-      if (notExisting.isEmpty) Right(()) else Left(s"Files '${notExisting.mkString(",")}' do not exist")
-    }
-
-    def pathsAreFilesOrDirectories(paths: Vector[Path]): Either[String, Unit] = {
-      val notFilesOrDirectories = paths.filterNot(file => Files.isRegularFile(file) || Files.isDirectory(file))
-      if (notFilesOrDirectories.isEmpty) Right(()) else Left(s"Files '${notFilesOrDirectories.mkString(",")}' are neither files or directories")
-    }
-
-    def pathsAreReadable(paths: Vector[Path]): Either[String, Unit] = {
-      val notReadable = paths.filterNot(Files.isReadable)
-      if (notReadable.isEmpty) Right(()) else Left(s"Files '${notReadable.mkString(",")}' are not readable")
-    }
-
-    // perform the following checks:
-    // - validate fileOpt using includeOpt
-    // - convert fileOpt using includeOpt
-    //  - result should be non-empty, exist, be files and be readable
-    val input: List[String] = inputOpt.getOrElse(List())
-    for {
-      convertedFiles <- checkConversion(input)
-      _ <- atLeastOnePath(convertedFiles)
-      _ <- pathsExist(convertedFiles)
-      _ <- pathsAreFilesOrDirectories(convertedFiles)
-      _ <- pathsAreReadable(convertedFiles)
-    } yield ()
+      // perform the following checks:
+      // - validate fileOpt using includeOpt
+      // - convert fileOpt using includeOpt
+      //  - result should be non-empty, exist, be files and be readable
+      val input: List[String] = inputOpt.getOrElse(List())
+      for {
+        convertedFiles <- checkConversion(input)
+        _ <- atLeastOnePath(convertedFiles)
+        _ <- pathsExist(convertedFiles)
+        _ <- pathsAreFilesOrDirectories(convertedFiles)
+        _ <- pathsAreReadable(convertedFiles)
+      } yield ()
   }
 
   if (!skipIncludeDirChecks) {
@@ -400,7 +414,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   })
   val cutInput: ScallopOption[List[String]] = cutInputWithIdxs.map(_.map(_._1))
 
-  validateInput(input, recursive, includePackages, excludePackages)
+  validateInput(input, recursive, rootDirectory, include, includePackages, excludePackages)
 
   // cache file should only be usable when using viper server
   validateOpt (backend, cacheFile) {
@@ -446,9 +460,15 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
 
+  // Take the user input for the project root or fallback to the fist include directory or the current directory
+  lazy val projectRoot: Path = rootDirectory.getOrElse(
+    includeDirs.headOption.getOrElse(Path.of(""))
+  )
+
   lazy val inputPackageMap: Map[PackageInfo, Vector[Source]] = InputConverter.convert(
     input.toOption.getOrElse(List()),
     recursive.getOrElse(false),
+    projectRoot,
     includePackages.getOrElse(List()),
     excludePackages.getOrElse(List())
   )
@@ -457,6 +477,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       case Nil => None
       case positions => Some(positions.toVector)
     }
+
 
   /** set log level */
 
@@ -484,9 +505,9 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       }
     }
 
-    def convert(input: List[String], recursive: Boolean, includePackages: List[String], excludePackages: List[String]): Map[PackageInfo, Vector[Source]] = {
+    def convert(input: List[String], recursive: Boolean, projectRoot: Path, includePackages: List[String], excludePackages: List[String]): Map[PackageInfo, Vector[Source]] = {
       val sources = parseInputStrings(input.toVector, recursive)
-      sources.groupBy(src => getPackageInfo(src))
+      sources.groupBy(src => getPackageInfo(src, projectRoot))
         .filter({case (pkgInfo, _) => (includePackages.isEmpty || includePackages.contains(pkgInfo.name)) && !excludePackages.contains(pkgInfo.name)})
     }
 
@@ -546,6 +567,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     packageInfoInputMap = inputPackageMap,
     moduleName = module(),
     includeDirs = includeDirs,
+    projectRoot = projectRoot,
     reporter = FileWriterReporter(
       unparse = unparse(),
       eraseGhost = eraseGhost(),

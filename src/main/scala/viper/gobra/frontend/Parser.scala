@@ -161,7 +161,7 @@ object Parser {
     }
 
     val parsingFn = if (config.cacheParser) { parseSourceCached _ } else { parseSource _ }
-    val pkgInfoProgramTuples = sources.map(src => parsingFn(src).map(prog => (getPackageInfo(src), prog)))
+    val pkgInfoProgramTuples = sources.map(src => parsingFn(src).map(prog => (getPackageInfo(src, config.projectRoot), prog)))
 
     val res = for {
       // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files

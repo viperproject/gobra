@@ -3,6 +3,12 @@
 
 package termination
 
+
+
+
+
+
+
 type IsEven interface {
 	requires n >= 0
 	decreases n

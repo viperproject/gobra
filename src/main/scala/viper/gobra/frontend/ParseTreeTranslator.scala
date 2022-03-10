@@ -10,7 +10,7 @@ import org.antlr.v4.runtime.{ParserRuleContext, Token}
 import org.antlr.v4.runtime.tree.{ParseTree, RuleNode, TerminalNode}
 import org.bitbucket.inkytonik.kiama.util.{Position, Source}
 import viper.carbon.boogie.Implicits.lift
-import viper.gobra.ast.frontend.{PAssignee, PCompositeKey, PExpression, PMethodReceiveName, _}
+import viper.gobra.ast.frontend._
 import viper.gobra.util.{Binary, Hexadecimal, Octal}
 import viper.gobra.frontend.GobraParser._
 import viper.gobra.frontend.Parser.PRewriter
@@ -779,7 +779,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val recvType = visitNode[PType](ctx.type_()) match {
       case t : PNamedOperand => PMethodReceiveName(t).at(t)
       case PDeref(t : PNamedOperand) => PMethodReceivePointer(t).at(t)
-      case f => fail(ctx.type_(), s"Excpected declared type or pointer to declared type but got: $f.")
+      case f => fail(ctx.type_(), s"Expected declared type or pointer to declared type but got: $f.")
     }
 
     if (has(ctx.maybeAddressableIdentifier())) {
@@ -1621,7 +1621,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val pre = visitNodeOrNone[PSimpleStmt](clause.simpleStmt())
     val expr = visitNode[PExpression](clause.expression())
     // Emit a warning about syntax allowed by Gobra, but not by Go
-    if (clause.expression().stop.getType == GobraParser.R_CURLY) warn(clause.expression(), "struct literals at the end of if clauses must be surrounded by parens!")
+    if (clause.expression().stop.getType == GobraParser.R_CURLY) warn(clause.expression(), "struct literals at the end of if clauses must be surrounded by parentheses!")
     val block = visitBlock(clause.block(0))
     PIfClause(pre, expr, block).at(clause)
   }
@@ -1843,7 +1843,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         case recv : PReceive => recv
         case _ => fail(ctx, "Receive expression required.")
       }
-      // TODO : Refactor Assignees
       if (has(ctx.commCase().recvStmt().ASSIGN())) {
         val ass = visitAssigneeList(ctx.commCase().recvStmt().expressionList()) match {
           case v: Vector[PAssignee] => v

@@ -156,7 +156,7 @@ selection: primaryExpr
 
 implementationProofPredicateAlias: PRED IDENTIFIER DECLARE_ASSIGN (selection | operandName);
 
-// Built-in methods baked into the parsr for now
+// Built-in methods baked into the parser for now
 make: MAKE L_PAREN type_ (COMMA expressionList)? R_PAREN;
 
 new_: NEW L_PAREN type_ R_PAREN;
@@ -166,7 +166,7 @@ new_: NEW L_PAREN type_ R_PAREN;
 // Changed Rules //
 ///////////////////
 
-// Added specifications and parameterinfo
+// Added specifications and parameter info
 
 specMember: specification (functionDecl[$specification.trusted, $specification.pure] | methodDecl[$specification.trusted, $specification.pure]);
 
@@ -207,7 +207,7 @@ ghostParameterDecl: GHOST identifierList? parameterType;
 
 parameterType: ELLIPSIS? type_;
 
-// Added ++ operator
+// Added Gobra's operators (set, wand, quantifications, etc)
 expression:
   unary_op = (
     PLUS
@@ -298,7 +298,6 @@ basicLit:
   | RUNE_LIT;
 
 // Added ghostPrimaryExprs
-// Fixed arguments matching on the next line
 primaryExpr:
   operand #operandPrimaryExpr
   | conversion #conversionPrimaryExpr
@@ -352,7 +351,7 @@ predType: PRED predTypeParams;
 
 predTypeParams: L_PAREN (type_ (COMMA type_)* COMMA?)? R_PAREN;
 
-// Added ghost time and outlined implicit size arrays
+// Added ghost type and moved implicit size arrays to their own rule
 literalType:
   structType
   | arrayType
@@ -363,9 +362,6 @@ literalType:
   | typeName;
 
 implicitArray: L_BRACKET ELLIPSIS R_BRACKET elementType;
-// Added Deflate
-//exprCaseClause: exprSwitchCase COLON statementList?;
-
 
 // ANTLR Grammar fixes
 

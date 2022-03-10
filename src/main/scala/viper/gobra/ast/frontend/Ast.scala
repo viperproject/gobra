@@ -551,17 +551,33 @@ sealed trait PActualType extends PType
 
 sealed trait PLiteralType extends PNode
 
+/**
+  * Represents a named type in Go.
+  * @see [[https://go.dev/ref/spec#TypeName]]
+  **/
 sealed trait PTypeName extends PActualType {
   def id : PUseLikeId
   val name: String = id.name
 }
 
+/**
+  * Represents a type name without a qualifier, e.g. "`int`" or "`MyCustomType`".
+  */
 sealed trait PUnqualifiedTypeName extends PTypeName
 
 object PUnqualifiedTypeName {
   def unapply(arg: PUnqualifiedTypeName): Option[String] = Some(arg.name)
 }
 
+/**
+  * Represents a predeclared type in Go's default name space.
+  *
+  * This class is a holdover from when built in types were identified in the parser,
+  * and can be removed as soon as arrays and other structures of non-predeclared types are
+  * fully supported.
+  *
+  * @param name The identifier associated with this type
+  */
 sealed abstract class PPredeclaredType(override val name: String) extends PUnqualifiedTypeName with PUseLikeId {
   override def id: PUseLikeId = this
 }

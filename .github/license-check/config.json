@@ -16,7 +16,8 @@
       "project/project/**",
       "project/target/**",
       "target/**",
-      "src/test/resources/**/*.go"
+      "src/test/resources/**/*.go",
+      "src/test/scala/viper/gobra/parsing/GoParserUnitTests.scala"
     ],
     "license": "./.github/license-check/headers/MPLv2-ETH.txt"
   },
@@ -96,7 +97,8 @@
   },
   {
     "include": [
-      "src/main/**/*.gobra"
+      "src/main/**/*.gobra",
+      "src/test/scala/viper/gobra/parsing/GoParserUnitTests.scala"
     ],
     "exclude": [
       "src/main/resources/stubs/github.com/**/*.gobra"

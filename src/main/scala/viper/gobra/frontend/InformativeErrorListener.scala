@@ -19,7 +19,17 @@ import scala.collection.mutable.ListBuffer
 
 class InformativeErrorListener(val messages: ListBuffer[ParserError], val source: Source) extends BaseErrorListener {
 
+  /**
+    *
+    * @param recognizer The recognizer that encountered the error
+    * @param offendingSymbol The symbol that caused the error
+    * @param line The line number in the Source
+    * @param charPositionInLine The column in the line
+    * @param msg The message emitted by the [[org.antlr.v4.runtime.ANTLRErrorListener]]
+    * @param e The specific [[RecognitionException]] thrown by the parser
+    */
   override def syntaxError(recognizer: Recognizer[_, _], offendingSymbol: Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
+    // We don't analyze Lexer errors any further: The defaults are sufficient
     val error = recognizer match {
       case lexer: Lexer => DefaultErrorType()(LexerErrorContext(lexer, null, line, charPositionInLine, msg))
       case parser: Parser => {
@@ -27,11 +37,14 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
       }
     }
 
+    // Depending on the source, get the applicable type of position information
     val pos = source match {
       case source: FileSource => Some(SourcePosition(Path.of(source.name), line, charPositionInLine))
       case source: FromFileSource => Some(SourcePosition(source.path, line, charPositionInLine))
       case _ => None
     }
+
+    // Wrap the error in Gobra's error class
     val message = Some(ParserError(error.full, pos))
     messages.appendAll(message)
   }
@@ -56,6 +69,17 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
   }
 
 
+  /**
+    * Failed predicate errors are emitted when the no viable alternatives remain, as all conflict with the input
+    * or contain a semantic predicate that evaluated to false. Because the only predicate present in Gobra's grammar
+    * is responsible for inducing semicolons, we know that we are at a point where a statement could have ended, but
+    * another token was discovered.
+    *
+    * @see [[FailedPredicateException]]
+    * @param context
+    * @param exception
+    * @return
+    */
   def analyzeFailedPredicate(implicit context: ParserErrorContext, exception: FailedPredicateException): ErrorType = {
     val parser = context.recognizer
     parser.getContext match {
@@ -63,6 +87,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
       // used ':=' instead of '='
       case _ : GobraParser.EosContext => {
         context.offendingSymbol.getType match {
+          // An unexpected := was encountered, perhaps the user meant =
           case GobraParser.DECLARE_ASSIGN => GotAssignErrorType()
           case _ => DefaultFailedEOS()
         }
@@ -71,26 +96,51 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     }
   }
 
+  /**
+    * An extraneous token error is emitted whenever a single token stands in the way of correctly
+    * parsing the input.
+    *
+    * @param context The context of the error
+    * @return
+    */
   def analyzeExtraneous(implicit context: ParserErrorContext): ErrorType = {
     (context.offendingSymbol.getType, context.recognizer.getContext) match {
+      // Type aliases use an = token, while type definitions do not use an assignemnt token at all
+      // The extraneous := was most likely supposed to be a =
       case (GobraParser.DECLARE_ASSIGN, _ : TypeSpecContext) => GotAssignErrorType()
+      // We expected more tokens inside a slice expression but got a closing bracket: One of the
+      // limits must be missing.
       case (GobraParser.R_BRACKET, expr : ExpressionContext) if expr.parent.isInstanceOf[CapContext] => SliceMissingIndex(3)
       case _ => DefaultExtraneous()
     }
   }
 
+  /**
+    * The input did not match the expecte tokens. This one of the most common exceptions.
+    *
+    * @see [[InputMismatchException]]
+    * @param context The context of the error
+    * @param exception
+    * @return
+    */
   def analyzeInputMismatch(implicit context: ParserErrorContext, exception: InputMismatchException): ErrorType = {
     (context.offendingSymbol.getType, context.recognizer.getContext) match {
       case (Token.EOF, _) => DefaultMismatch()
-      case (s, i : ImplementationProofContext) if context.recognizer.getExpectedTokens == IntervalSet.of(GobraParser.IMPL)=> {
-        IgnoreError()
-      }
+      // Again, we have an unexpected :=, so suggest using a =
       case (GobraParser.DECLARE_ASSIGN, _) => GotAssignErrorType()
       case (GobraParser.R_BRACKET, e : ExpressionContext) if e.parent.isInstanceOf[CapContext] => SliceMissingIndex(3)
       case _ => DefaultMismatch()
     }
   }
 
+  /**
+    * The parser simulated all possible rule alternatives, but did not find any that matched the input.
+    *
+    * @see [[NoViableAltException]]
+    * @param context The context of the error
+    * @param exception
+    * @return
+    */
   def analyzeNoViable(implicit context: ParserErrorContext, exception: NoViableAltException): ErrorType = {
     val parser = context.recognizer
     val ctx = parser.getContext
@@ -113,6 +163,16 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
   }
 
 
+  /**
+    * This method will print out the line containing the offending symbol, as well as
+    * caret character underlining the error. This is slightly modified from the base version found
+    * in the official ANTLR Guide
+    *
+    * @param context The context of the error
+    * @param restOfTheLine Also underline the rest of the line. Useful if the rest of the line is most likely wrong as
+    *                      well as the token in the [[ErrorContext]]
+    * @return
+    */
   protected def underlineError(context : ErrorContext, restOfTheLine : Boolean = false): String = {
     val offendingToken = context.offendingSymbol match {
       case t : Token => t
@@ -137,10 +197,19 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
   }
 
 
+  /**
+    * Return the display name associated with a specific rule
+    * @param index
+    * @param context
+    * @return
+    */
   def getRuleDisplay(index : Int)(implicit context : ParserErrorContext): String = {
     betterRuleNames.getOrElse(index, ruleNames(index))
   }
 
+  /**
+    * Not all rules have a very descriptive name, this map provides more user-friendly names for them.
+    */
   private val betterRuleNames : Map[Int, String] = Map{
     RULE_type_ -> "type"
     RULE_eos -> "end of line"
@@ -149,6 +218,12 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     RULE_blockWithBodyParameterInfo -> "block"
   }
 
+  /**
+    * The same as [[betterRuleNames]], but for tokens.
+    * @param t
+    * @param context
+    * @return
+    */
   def getTokenDisplay(t : Token)(implicit context : ParserErrorContext): String = {
     t.getText match {
       case "\n" => "end of line"
@@ -160,6 +235,9 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
   private val extraneous = "extraneous.*".r
   private val missing = "missing.*".r
 
+  /**
+    * This is a wrapper around all context informatin passed to the error listener.
+    */
   sealed trait ErrorContext {
     val recognizer : Recognizer[_, _]
     val offendingSymbol: Token
@@ -173,6 +251,10 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
   case class ParserErrorContext(recognizer: Parser, offendingSymbol: Token, line: Int, charPositionInLine: Int, msg: String) extends ErrorContext
 
 
+  /**
+    * This class and its inheritors characterise different error types and
+    * include specific error messages for them.
+    */
   sealed trait ErrorType {
     val context: ErrorContext
     val msg : String
@@ -207,10 +289,6 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
 
   case class DefaultFailedEOS()(implicit val context: ParserErrorContext) extends ErrorType {
     val msg : String = s"Could not finish parsing the line."
-  }
-
-  case class IgnoreError()(implicit val context: ParserErrorContext) extends ErrorType {
-    val msg : String = s"Wrong Syntax."
   }
 
   case class GotAssignErrorType()(implicit val context : ParserErrorContext) extends  ErrorType {

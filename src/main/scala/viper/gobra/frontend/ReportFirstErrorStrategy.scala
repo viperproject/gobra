@@ -25,6 +25,12 @@ class ReportFirstErrorStrategy extends DefaultErrorStrategy {
     recognizer.notifyErrorListeners(e.getOffendingToken, msg, e)
   }
 
+  /**
+    * Distinguish between real syntax errors and stack dependencies for the Go grammar.
+    * @see [[BailErrorStrategy]]'s implementation of recover()
+    * @param recognizer
+    * @param e
+    */
   override def recover(recognizer: Parser, e: RecognitionException): Unit = {
     var context = recognizer.getContext
     // For blocks that could be interpreted as struct literals (like `if a == b { }` or `switch tag := 0; tag { }`)
@@ -42,8 +48,15 @@ class ReportFirstErrorStrategy extends DefaultErrorStrategy {
     throw new ParseCancellationException(e)
   }
 
+  /**
+    * Distinguish between real syntax errors and stack dependencies for the Go grammar.
+    * @see [[BailErrorStrategy]]'s implementation of recoverInline()
+    * @param recognizer
+    */
+
   override def recoverInline(recognizer: Parser): Token = {
     val e = new InputMismatchException(recognizer)
+    // This performs the same analysis as the recover function above.
     var context = recognizer.getContext
     context match {
       case _ : BlockContext => throw new AmbiguityException

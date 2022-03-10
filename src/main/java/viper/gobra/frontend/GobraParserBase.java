@@ -6,7 +6,7 @@ import org.antlr.v4.runtime.*;
 import viper.gobra.frontend.GobraLexer;
 
 /**
- * All parser methods that used in grammar (p, prev, notLineTerminator, etc.)
+ * All parser methods that are used in grammar (p, prev, notLineTerminator, etc.)
  * should start with lower case char similar to parser rules.
  */
 public abstract class GobraParserBase extends org.antlr.v4.runtime.Parser

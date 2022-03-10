@@ -35,6 +35,8 @@ func (i *DeclaredStruct) Increment() (res *DeclaredStruct) {
 }
 
 // Non-declared types are not acceptable receiver types, according to the go spec
+// This is currently checked during parsing. Will become a type error when built-in types are
+// fully implemented.
 //:: ExpectedOutput(parser_error)
 func (i int) Increment() int {
 	return i + 1

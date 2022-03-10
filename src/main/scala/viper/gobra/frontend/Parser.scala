@@ -45,19 +45,11 @@ object Parser {
     val sources = input
       .map(Gobrafier.gobrafy)
     for {
-      parseAst <- time("ANTLR_FULL", sources.map(_.name).mkString(", ")) {parseSources(sources, specOnly)(config)}
+      parseAst <- parseSources(sources, specOnly)(config)
       postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
     } yield postprocessedAst
   }
 
-  private def time[R](parser : String, filename : String)(block: => R): R = {
-    val t0 = System.nanoTime()/1000000000.0
-    val result = block    // call-by-name
-    val t1 = System.nanoTime()/1000000000.0
-    //println("+#RESULT={\"filename\": \""+ filename + "\", \"parser\": \"" + parser + "\", \"time\":" + (t1 - t0)
-    //  + ", \"nodes\":null}")
-    result
-}
   type SourceCacheKey = String
   // cache maps a key (obtained by hasing file path and file content) to the parse result
   private var sourceCache: Map[SourceCacheKey, (Either[Vector[ParserError], PProgram], Positions)] = Map.empty
@@ -87,9 +79,9 @@ object Parser {
           config.reporter report ParsedInputMessage(source.name, () => ast)
           Right(ast)
         case Left(errors) =>
-          // On parse failure, ANTLR sometimes throws out of bounds exceptions, ignore these for now.
           val (positionedErrors, nonpos) = errors.partition(_.position.nonEmpty)
-          if (nonpos.nonEmpty) throw new Exception
+          // Non-positioned errors imply some unexpected problems within the parser. We can't continue.
+          if (nonpos.nonEmpty) throw new Exception("ANTLR threw unexpected errors" + nonpos.mkString(","))
           Left(positionedErrors)
       }
     }
@@ -170,7 +162,7 @@ object Parser {
   def parseProgram(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], PProgram] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new SyntaxAnalyzer[SourceFileContext, PProgram](source, ListBuffer.empty[ParserError],  pom, specOnly)
+    val parser = new SyntaxAnalyzer[SourceFileContext, PProgram](source, ListBuffer.empty[ParserError], pom, specOnly)
     parser.parse(parser.sourceFile())
   }
 
@@ -184,28 +176,28 @@ object Parser {
   def parseStmt(source: Source): Either[Vector[ParserError], PStatement] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new SyntaxAnalyzer[StmtOnlyContext, PStatement](source, ListBuffer.empty[ParserError],  pom, false)
+    val parser = new SyntaxAnalyzer[StmtOnlyContext, PStatement](source, ListBuffer.empty[ParserError], pom, false)
     parser.parse(parser.stmtOnly())
   }
 
   def parseExpr(source: Source): Either[Vector[ParserError], PExpression] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new SyntaxAnalyzer[ExprOnlyContext, PExpression](source, ListBuffer.empty[ParserError],  pom, false)
+    val parser = new SyntaxAnalyzer[ExprOnlyContext, PExpression](source, ListBuffer.empty[ParserError], pom, false)
     parser.parse(parser.exprOnly())
   }
 
   def parseImportDecl(source: Source): Either[Vector[ParserError], Vector[PImport]] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new SyntaxAnalyzer[ImportDeclContext, Vector[PImport]](source, ListBuffer.empty[ParserError],  pom, false)
+    val parser = new SyntaxAnalyzer[ImportDeclContext, Vector[PImport]](source, ListBuffer.empty[ParserError], pom, false)
     parser.parse(parser.importDecl())
   }
 
   def parseType(source : Source) : Either[Vector[ParserError], PType] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new SyntaxAnalyzer[TypeOnlyContext, PType](source, ListBuffer.empty[ParserError],  pom, false)
+    val parser = new SyntaxAnalyzer[TypeOnlyContext, PType](source, ListBuffer.empty[ParserError], pom, false)
     parser.parse(parser.typeOnly())
   }
 
@@ -287,6 +279,8 @@ object Parser {
     }
 
     def parse_LL(rule : => Rule): ParserRuleContext = {
+      // The second stage of the two stage parsing process, as described in
+      // the official ANTLR Guide.
       // thrown by ReportFirstErrorStrategy
       tokens.seek(0)
       // rewind input stream
@@ -299,27 +293,28 @@ object Parser {
       // full now with full LL(*)
       getInterpreter.setPredictionMode(PredictionMode.LL)
 
-      val res = try time ("ANTLR_PARSE_LL", source.name) { rule }
+      val res = try rule
       catch {
         case e : Exception => errors.append(ParserError(e.getMessage, Some(SourcePosition(source.toPath, 0, 0))))
           new ParserRuleContext()
       }
+      // If we did not find any errors with LL-parsing, we know that the input is correct,
+      // so errors from the weaker SLL parsing can be disregarded
       if (ll_errors.isEmpty) errors.clear()
       res
     }
 
     def parse(rule : => Rule): Either[Vector[ParserError], Node] = {
       val name = source.name
-      val tree = try time ("ANTLR_PARSE_SLL", name) { rule }
+      val tree = try rule
       catch {
-        case _: AmbiguityException  => parse_LL(rule) // Resolve `<IDENTIFIER> { }` ambiguities in switch/if-statements
+        case _: AmbiguityException => parse_LL(rule) // Resolve `<IDENTIFIER> { }` ambiguities in switch/if-statements
         case _: ParseCancellationException => parse_LL(rule) // For even faster parsing, replace with `new ParserRuleContext()`.
         case e => errors.append(ParserError(e.getMessage, Some(SourcePosition(source.toPath, 0, 0)))); new ParserRuleContext()
       }
       if(errors.isEmpty) {
         val translator = new ParseTreeTranslator(pom, source, specOnly)
-        val parseAst : Node = time("ANTLR_TRANSLATE", source.name) {
-          try translator.translate(tree)
+        val parseAst : Node = try translator.translate(tree)
           catch {
             case e: TranslationFailure =>
               val pos = source match {
@@ -340,8 +335,8 @@ object Parser {
               }
               return Left(Vector(ParserError(e.getMessage + " " + e.getStackTrace.take(4).mkString("Array(", ", ", ")"), pos)))
           }
-        }
-        // TODO : Properly handle parser warnings
+
+        // TODO : Add support for non-critical warnings in the verification process instead of printing them to stdout
         if (translator.warnings.nonEmpty){
           println(translator.warnings.mkString("Warnings: [", "\n" , " ]"))
         }

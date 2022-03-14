@@ -7,7 +7,7 @@
 package viper.gobra.frontend
 
 import org.antlr.v4.runtime.misc.ParseCancellationException
-import org.antlr.v4.runtime.{BailErrorStrategy, DefaultErrorStrategy, FailedPredicateException, InputMismatchException, Parser, RecognitionException, Token}
+import org.antlr.v4.runtime.{DefaultErrorStrategy, FailedPredicateException, InputMismatchException, Parser, RecognitionException, Token}
 import viper.gobra.frontend.GobraParser.{BlockContext, ExprSwitchStmtContext}
 
 /**

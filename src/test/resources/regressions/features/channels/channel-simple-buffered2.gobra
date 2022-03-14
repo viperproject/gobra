@@ -41,8 +41,8 @@ func main() {
 }
 
 requires acc(c.SendChannel(), 1/2)
-requires c.SendGivenPerm() == dummy!<_!>;
-requires c.SendGotPerm() == PredTrue!<!>;
+requires c.SendGivenPerm() == dummy!<_!>
+requires c.SendGotPerm() == PredTrue!<!>
 requires someLocation!<p!>()
 requires c.ClosureDebt(someLocation!<p!>, 1, 2 /* 1/2 */)
 func foo(c chan int, p *int) {

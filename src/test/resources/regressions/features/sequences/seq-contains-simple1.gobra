@@ -38,11 +38,11 @@ func example6(x int, ghost xs seq[int], ghost ys seq[bool]) {
 }
 
 requires 0 <= n
-ensures !(n in seq[0..n])
+ensures !(n in seq[0 ..n])
 func example7(n int) {
 }
 
 requires 0 < n
-ensures n - 1 in seq[0..n]
+ensures n - 1 in seq[0 ..n]
 func example8(n int) {
 }

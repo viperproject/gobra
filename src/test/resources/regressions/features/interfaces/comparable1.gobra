@@ -17,7 +17,7 @@ func compareInterfaces1(x, y interface{}) {
 type cell struct{ f int }
 type pair struct{ left, right int }
 
-requires typeOf(x) == cell || typeOf(y) == pair
+requires typeOf(x) == type[cell] || typeOf(y) == type[pair]
 func compareInterfaces2(x, y interface{}) {
   var a int
 

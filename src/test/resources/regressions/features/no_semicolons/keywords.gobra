@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type PacketBuilder interface {
+	decreases
+	SetTruncated()
+
+	NextDecoder() error
+}
+
+// Stand-alone specification keywords should not need a semicolon
+pure
+trusted
+ensures true
+func foo() int

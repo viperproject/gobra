@@ -19,11 +19,11 @@ func main() {
 
   // set channel invariants
   assert c.IsChannel()
-  assert c.BufferSize() > 0 ==> PredTrue!<!> == PredTrue!<!>;
+  assert c.BufferSize() > 0 ==> PredTrue!<!> == PredTrue!<!>
   c.Init(vIsOne!<_!>, PredTrue!<!>)
   assert c.SendChannel() && c.RecvChannel()
-  assert c.SendGivenPerm() == vIsOne!<_!> && c.SendGotPerm() == PredTrue!<!>;
-  assert c.RecvGivenPerm() == PredTrue!<!> && c.RecvGotPerm() == vIsOne!<_!>;
+  assert c.SendGivenPerm() == vIsOne!<_!> && c.SendGotPerm() == PredTrue!<!>
+  assert c.RecvGivenPerm() == PredTrue!<!> && c.RecvGotPerm() == vIsOne!<_!>
 
   var x@ int = 0
   var p *int = &x
@@ -73,8 +73,8 @@ func main() {
 }
 
 requires acc(c.SendChannel(), 1/2)
-requires c.SendGivenPerm() == vIsOne!<_!>;
-requires c.SendGotPerm() == PredTrue!<!>;
+requires c.SendGivenPerm() == vIsOne!<_!>
+requires c.SendGotPerm() == PredTrue!<!>
 requires v == 1
 requires someLocation!<p!>()
 requires c.ClosureDebt(someLocation!<p!>, 1, 2 /* 1/2 */)

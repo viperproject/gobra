@@ -5,7 +5,7 @@ package pkg
 
 func example1() {
   ghost s := set[1..10]
-  assert s == set(seq[1 .. 10])
+  assert s == set(seq[1..10])
 }
 
 func example2() {
@@ -24,7 +24,7 @@ func example4() {
 }
 
 func example5() {
-  assert set[4 .. 1] == set[int] { }
+  assert set[4..1] == set[int] { }
 }
 
 func example6() {
@@ -36,5 +36,5 @@ func example7() {
 }
 
 func example8() {
-  assert set[1..10] setminus set[1..10] == set[int] { }
+  assert set[1 .. 10] setminus set[1 .. 10] == set[int] { }
 }

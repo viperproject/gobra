@@ -92,6 +92,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case PTypeOf(e) => isExpr(e).out
+    case PTypeExpr(t) => isType(t).out
     case n@ PIsComparable(e) => typOfExprOrType(e) match {
       case t if isInterfaceType(t) => noMessages
       case Type.SortT =>  noMessages
@@ -210,6 +211,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PAccess | _: PPredicateAccess | _: PMagicWand => AssertionT
 
     case _: PTypeOf => SortT
+    case _: PTypeExpr => SortT
     case _: PIsComparable => BooleanT
 
     case POptionNone(t) => OptionT(typeSymbType(t))
@@ -387,6 +389,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case n: PTypeAssertion => go(n.base)
       case n: PTypeOf => go(n.exp)
+      case _: PTypeExpr => true
       case n: PIsComparable => asExpr(n.exp).forall(go)
 
       case PCompositeLit(typ, _) => typ match {

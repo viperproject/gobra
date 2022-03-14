@@ -2173,7 +2173,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   implicit class PositionableToken[T <: Token](tok: T) extends NamedPositionable {
     val startPos : Position = Position(tok.getLine, tok.getCharPositionInLine + 1, source)
-    val endPos : Position = Position(tok.getLine, tok.getCharPositionInLine + 1 +(tok.getStopIndex -tok.getStartIndex), source)
+    val endPos : Position = Position(tok.getLine, tok.getCharPositionInLine + 1 + (tok.getStopIndex - tok.getStartIndex + 1), source)
     val name : String = GobraParser.VOCABULARY.getDisplayName(tok.getType)
     val text : String = tok.getText
   }

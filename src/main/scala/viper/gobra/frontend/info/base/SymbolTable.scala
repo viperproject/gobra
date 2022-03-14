@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Entity, Environments}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.ExternalTypeInfo
-import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, BuiltInPredicateTag}
+import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, BuiltInTypeTag, BuiltInPredicateTag}
 
 
 object SymbolTable extends Environments[Entity] {
@@ -253,6 +253,7 @@ object SymbolTable extends Environments[Entity] {
   case class BuiltInFPredicate(tag: BuiltInFPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInPredicate
   case class BuiltInMPredicate(tag: BuiltInMPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInPredicate with BuiltInMethodLike with GhostTypeMember
 
+  case class BuiltInType(tag: BuiltInTypeTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInActualEntity with TypeEntity
 
 
 

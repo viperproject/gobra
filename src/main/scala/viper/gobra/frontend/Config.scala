@@ -68,7 +68,7 @@ case class Config(
                  // the following option is currently not controllable via CLI as it is meaningless without a constantly
                  // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
                  cacheParser: Boolean = false
-            ) {
+) {
 
   def merge(other: Config): Config = {
     // this config takes precedence over other config

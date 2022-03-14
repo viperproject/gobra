@@ -5,12 +5,12 @@ package pkg
 
 type myInt int32
 
-requires typeOf(x) == myInt
+requires typeOf(x) == type[myInt]
 func intTestIn(x interface{}) {
   x := x.(myInt)
 }
 
-ensures typeOf(res) == myInt
+ensures typeOf(res) == type[myInt]
 ensures res.(myInt) == 42
 func intTestOut() (res interface{}) {
   var x myInt = 42
@@ -28,12 +28,12 @@ type pair struct{
   left, right int
 }
 
-requires typeOf(x) == pair
+requires typeOf(x) == type[pair]
 func structTestIn(x interface{}) {
   x := x.(pair)
 }
 
-ensures typeOf(res) == pair
+ensures typeOf(res) == type[pair]
 ensures res.(pair) == pair{1,2}
 func structTestOut() (res interface{}) {
   var x pair = pair{1,2}
@@ -49,12 +49,12 @@ func structTestOutFailing() (res interface{}) {
 
 
 
-requires typeOf(x) == *pair
+requires typeOf(x) == type[*pair]
 func pointerTestIn(x interface{}) {
   x := x.(*pair)
 }
 
-ensures typeOf(res) == *pair
+ensures typeOf(res) == type[*pair]
 ensures acc(res.(*pair)) && *res.(*pair) == pair{1,2}
 func pointerTestOut() (res interface{}) {
   var x *pair = &pair{1,2}

@@ -55,6 +55,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.Constant) => noMessages
         case Some(_: ap.Function) => noMessages
         case Some(_: ap.NamedType) => noMessages
+        case Some(_: ap.BuiltInType) => noMessages
         case Some(_: ap.Predicate) => noMessages
         case Some(_: ap.DomainFunction) => noMessages
         // TODO: fully supporting packages results in further options: global variable
@@ -118,6 +119,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         case Some(p: ap.Function) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
         case Some(_: ap.NamedType) => SortT
+        case Some(_: ap.BuiltInType) => SortT
         case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
         case Some(p: ap.DomainFunction) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
 
@@ -185,6 +187,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PIntLit => numExprWithinTypeBounds(n)
 
+    case _: PFloatLit => ???
+
     case n@PCompositeLit(t, lit) =>
       val simplifiedT = t match {
         case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeSymbType(elem))
@@ -194,55 +198,59 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PFunctionLit => noMessages
 
-    case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
+    case n: PInvoke => {
+      val (l, r) = (exprOrType(n.base), resolve(n))
+      (l,r) match {
 
-      case (Right(_), Some(p: ap.Conversion)) =>
-        val typ = typeSymbType(p.typ)
-        val argWithinBounds: Messages = underlyingTypeP(p.typ) match {
-          case Some(_: PIntegerType) => intExprWithinTypeBounds(p.arg, typ)
-          case _ => noMessages
-        }
-        convertibleTo.errors(exprType(p.arg), typ)(n) ++ isExpr(p.arg).out ++ argWithinBounds
+        case (Right(_), Some(p: ap.Conversion)) =>
+          val typ = typeSymbType(p.typ)
+          val argWithinBounds: Messages = underlyingTypeP(p.typ) match {
+            case Some(_: PIntegerType) => intExprWithinTypeBounds(p.arg, typ)
+            case _ => noMessages
+          }
+          convertibleTo.errors(exprType(p.arg), typ)(n) ++ isExpr(p.arg).out ++ argWithinBounds
 
-      case (Left(callee), Some(_: ap.FunctionCall)) => // arguments have to be assignable to function
-        exprType(callee) match {
-          case FunctionT(args, _) => // TODO: add special assignment
-            if (n.args.isEmpty && args.isEmpty) noMessages
-            else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
-          case t: AbstractType => t.messages(n, n.args map exprType)
-          case t => error(n, s"type error: got $t but expected function type or AbstractType")
-        }
 
-      case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
-        val pureReceiverMsgs = p.predicate match {
-          case _: ap.Predicate => noMessages
-          case _: ap.PredicateExpr => noMessages
-          case pei: ap.PredExprInstance => pei.args flatMap isPureExpr
-          case _: ap.BuiltInPredicate => noMessages
-          case _: ap.BuiltInPredicateExpr => noMessages
-          case rp: ap.ReceivedPredicate => isPureExpr(rp.recv)
-          case brp: ap.BuiltInReceivedPredicate => isPureExpr(brp.recv)
-          case _: ap.ImplicitlyReceivedInterfacePredicate => noMessages
-        }
-        val pureArgsMsgs = p.args.flatMap(isPureExpr)
-        val argAssignMsgs = exprType(callee) match {
-          case FunctionT(args, _) => // TODO: add special assignment
-            if (n.args.isEmpty && args.isEmpty) noMessages
-            else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
-          case t: AbstractType => t.messages(n, n.args map exprType)
-          case t => error(n, s"type error: got $t but expected function type or AbstractType")
-        }
-        pureReceiverMsgs ++ pureArgsMsgs ++ argAssignMsgs
+        case (Left(callee), Some(_: ap.FunctionCall)) => // arguments have to be assignable to function
+          exprType(callee) match {
+            case FunctionT(args, _) => // TODO: add special assignment
+              if (n.args.isEmpty && args.isEmpty) noMessages
+              else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+            case t: AbstractType => t.messages(n, n.args map exprType)
+            case t => error(n, s"type error: got $t but expected function type or AbstractType")
+          }
 
-      case (Left(callee), Some(_:ap.PredExprInstance)) =>
-        exprType(callee) match {
-          case PredT(args) =>
-            if (n.args.isEmpty && args.isEmpty) noMessages
-            else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
-          case c => Violation.violation(s"This case should be unreachable, but got $c")
-        }
+        case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
+          val pureReceiverMsgs = p.predicate match {
+            case _: ap.Predicate => noMessages
+            case _: ap.PredicateExpr => noMessages
+            case pei: ap.PredExprInstance => pei.args flatMap isPureExpr
+            case _: ap.BuiltInPredicate => noMessages
+            case _: ap.BuiltInPredicateExpr => noMessages
+            case rp: ap.ReceivedPredicate => isPureExpr(rp.recv)
+            case brp: ap.BuiltInReceivedPredicate => isPureExpr(brp.recv)
+            case _: ap.ImplicitlyReceivedInterfacePredicate => noMessages
+          }
+          val pureArgsMsgs = p.args.flatMap(isPureExpr)
+          val argAssignMsgs = exprType(callee) match {
+            case FunctionT(args, _) => // TODO: add special assignment
+              if (n.args.isEmpty && args.isEmpty) noMessages
+              else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+            case t: AbstractType => t.messages(n, n.args map exprType)
+            case t => error(n, s"type error: got $t but expected function type or AbstractType")
+          }
+          pureReceiverMsgs ++ pureArgsMsgs ++ argAssignMsgs
 
-      case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
+        case (Left(callee), Some(_: ap.PredExprInstance)) =>
+          exprType(callee) match {
+            case PredT(args) =>
+              if (n.args.isEmpty && args.isEmpty) noMessages
+              else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+            case c => Violation.violation(s"This case should be unreachable, but got $c")
+          }
+
+        case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
+      }
     }
 
     case PBitNegation(op) => isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST)(op)
@@ -473,7 +481,17 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       })
 
-    case PBlankIdentifier() => noMessages
+    case b@PBlankIdentifier() => b match {
+      case tree.parent(p) => p match {
+        case PAssignment(_, _) => noMessages
+        case PAssForRange(_, _, _) => noMessages
+        case PSelectAssRecv(_, _, _) => noMessages
+        case x => error(b, s"blank identifier is not allowed in $x")
+      }
+      case _ => violation("blank identifier always has a parent")
+    }
+
+
 
     case PUnpackSlice(elem) => underlyingType(exprType(elem)) match {
       case _: SliceT => noMessages

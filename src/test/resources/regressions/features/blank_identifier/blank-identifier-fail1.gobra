@@ -6,6 +6,6 @@ package main
 func main() {
     // blank identifiers are disallowed from appearing on the RHS
     // of assignments
-    //:: ExpectedOutput(parser_error)
+    //:: ExpectedOutput(type_error)
     a := _ + 1
 }

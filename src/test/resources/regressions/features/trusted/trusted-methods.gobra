@@ -28,8 +28,8 @@ func test1() (ret IntType){
 
 trusted
 func (x IntType) methodWithNonSupportedFeature() IntType{
-	some non supported go feature
-	return 0
+    // The body is still parsed, but not translated to an AST or type-checked
+    var j int = "not an int"
 }
 
 func test2() IntType{

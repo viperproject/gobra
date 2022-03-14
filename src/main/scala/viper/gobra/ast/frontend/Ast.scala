@@ -124,6 +124,8 @@ sealed trait PGhostifiable extends PNode
 
 sealed trait PMember extends PNode
 
+sealed trait PDeclaration extends PNode with PMember with PStatement
+
 /** Member that can have a body */
 sealed trait PWithBody extends PNode {
   def body: Option[(PBodyParameterInfo, PBlock)]
@@ -149,9 +151,9 @@ sealed trait PCodeRootWithResult extends PCodeRoot {
   def result: PResult
 }
 
-case class PConstDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember
+case class PConstDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
 
-case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId], addressable: Vector[Boolean]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember
+case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId], addressable: Vector[Boolean]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
 
 case class PFunctionDecl(
                           id: PIdnDef,
@@ -170,7 +172,7 @@ case class PMethodDecl(
                         body: Option[(PBodyParameterInfo, PBlock)]
                       ) extends PActualMember with PDependentDef with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
-sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember {
+sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration {
 
   def left: PIdnDef
 
@@ -282,7 +284,7 @@ case class PBreak(label: Option[PLabelUse]) extends PActualStatement
 
 case class PContinue(label: Option[PLabelUse]) extends PActualStatement
 
-case class PGoto(label: PLabelDef) extends PActualStatement
+case class PGoto(label: PLabelUse) extends PActualStatement
 
 case class PDeferStmt(exp: PExpression) extends PActualStatement
 
@@ -332,9 +334,7 @@ sealed trait PUnaryExp extends PActualExpression {
 
 case class PBlankIdentifier() extends PAssignee
 
-case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNamedType with PNameOrDot{
-  override val name : String = id.name
-}
+case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PUnqualifiedTypeName with PNameOrDot
 
 sealed trait PLiteral extends PActualExpression
 
@@ -389,6 +389,9 @@ case class PBoolLit(lit: Boolean) extends PBasicLiteral
 // only be read by pretty-printers
 case class PIntLit(lit: BigInt, base: NumBase = Decimal) extends PBasicLiteral with PNumExpression
 
+// Stand-in float literals
+case class PFloatLit(lit: BigDecimal) extends PBasicLiteral with PNumExpression
+
 case class PNilLit() extends PBasicLiteral
 
 case class PStringLit(lit: String) extends PBasicLiteral
@@ -417,7 +420,7 @@ case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends P
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
-case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNameOrDot
+case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNameOrDot with PTypeName
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
 
@@ -563,11 +566,36 @@ sealed trait PActualType extends PType
 
 sealed trait PLiteralType extends PNode
 
-sealed trait PNamedType extends PActualType {
-  def name: String
+/**
+  * Represents a named type in Go.
+  * @see [[https://go.dev/ref/spec#TypeName]]
+  **/
+sealed trait PTypeName extends PActualType {
+  def id : PUseLikeId
+  val name: String = id.name
 }
 
-sealed abstract class PPredeclaredType(override val name: String) extends PNamedType
+/**
+  * Represents a type name without a qualifier, e.g. "`int`" or "`MyCustomType`".
+  */
+sealed trait PUnqualifiedTypeName extends PTypeName
+
+object PUnqualifiedTypeName {
+  def unapply(arg: PUnqualifiedTypeName): Option[String] = Some(arg.name)
+}
+
+/**
+  * Represents a predeclared type in Go's default name space.
+  *
+  * This class is a holdover from when built in types were identified in the parser,
+  * and can be removed as soon as arrays and other structures of non-predeclared types are
+  * fully supported.
+  *
+  * @param name The identifier associated with this type
+  */
+sealed abstract class PPredeclaredType(override val name: String) extends PUnqualifiedTypeName with PUseLikeId {
+  override def id: PUseLikeId = this
+}
 
 case class PBoolType() extends PPredeclaredType("bool")
 case class PStringType() extends PPredeclaredType("string")
@@ -670,7 +698,7 @@ case class PInterfaceType(
 
 sealed trait PInterfaceClause extends PNode
 
-case class PInterfaceName(typ: PNamedOperand) extends PInterfaceClause
+case class PInterfaceName(typ: PTypeName) extends PInterfaceClause
 
 // Felix: I see `isGhost` as part of the declaration and not as port of the specification.
 //        In the past, I usually created some ghost wrapper for these cases, but I wanted to get rid of them in the future.
@@ -755,13 +783,13 @@ case class PUnnamedReceiver(typ: PMethodRecvType) extends PReceiver
 case class PResult(outs: Vector[PParameter]) extends PNode with PActualMisc
 
 sealed trait PEmbeddedType extends PNode with PActualMisc {
-  def typ: PNamedType
+  def typ: PUnqualifiedTypeName
   def name: String = typ.name
 }
 
-case class PEmbeddedName(typ: PNamedType) extends PEmbeddedType
+case class PEmbeddedName(typ: PUnqualifiedTypeName) extends PEmbeddedType
 
-case class PEmbeddedPointer(typ: PNamedType) extends PEmbeddedType
+case class PEmbeddedPointer(typ: PUnqualifiedTypeName) extends PEmbeddedType
 
 
 /**
@@ -922,6 +950,8 @@ case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], bod
 case class PExists(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
 
 case class PTypeOf(exp: PExpression) extends PGhostExpression
+
+case class PTypeExpr(typ: PType) extends PGhostExpression
 
 case class PIsComparable(exp: PExpressionOrType) extends PGhostExpression
 

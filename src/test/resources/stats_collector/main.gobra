@@ -29,5 +29,5 @@ requires i > 0 && j > 0
 ensures ret > 0
 trusted
 func trustedFunction(i int, j int) (ret int) {
-
+  return 0
 }

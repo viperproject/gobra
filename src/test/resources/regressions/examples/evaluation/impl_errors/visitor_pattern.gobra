@@ -153,7 +153,7 @@ func evaluator_client() {
 
 
 //:: ExpectedOutput(postcondition_error:assertion_error)
-ensures res ==> (typeOf(n) == *variable || typeOf(n) == *constant) // removed option that it might be *addition
+ensures res ==> (typeOf(n) == type[*variable] || typeOf(n) == type[*constant]) // removed option that it might be *addition
 func isAstNode(n node) (res bool) {
   if v, ok := n.(*variable); ok {
     return true

@@ -25,8 +25,9 @@ func positiveSumWithoutTrusted(x int, y int) (ret int) {
 
 trusted
 func functionWithNonSupportedFeature() int{
-	some non supported go feature
-	return 0
+	// The body is still parsed, but not translated to an AST or type-checked
+	var i int = "not an integer"
+	return i
 }
 
 trusted

@@ -7,7 +7,7 @@ type pair struct{
   left, right int
 }
 
-ensures typeOf(res) == pair && res.(pair) == pair{1,2}
+ensures typeOf(res) == type[pair] && res.(pair) == pair{1,2}
 func structTestOut() (res interface{}) {
   var x pair = pair{1,2}
   return x

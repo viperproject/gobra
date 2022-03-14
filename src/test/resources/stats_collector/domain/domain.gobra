@@ -1,9 +1,0 @@
-// Any copyright is dedicated to the Public Domain.
-// http://creativecommons.org/publicdomain/zero/1.0/
-
-package domainTest
-
-type DomainType domain {
-  func testFunc(i int) int
-  axiom { forall x int :: testFunc(x) > 0}
-}

@@ -55,9 +55,3 @@ type BadFiniteImpl struct {}
 func (y BadFiniteImpl) infinite(n int) int {
 	return y.infinite(n)
 }
-
-type Func interface {
-	pure
-	decreases n
-	fun(n int, a Func) int
-}

@@ -21,8 +21,8 @@ func main() {
 }
 
 requires acc(c.SendChannel(), 1/2)
-requires c.SendGivenPerm() == vIsOne!<_!>;
-requires c.SendGotPerm() == PredTrue!<!>;
+requires c.SendGivenPerm() == vIsOne!<_!>
+requires c.SendGotPerm() == PredTrue!<!>
 requires v == 1
 func foo(v int, c chan int) {
     fold vIsOne!<_!>(v)

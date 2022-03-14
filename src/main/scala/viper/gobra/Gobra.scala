@@ -20,6 +20,7 @@ import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
+import viper.silicon.BuildInfo
 import viper.silver.{ast => vpr}
 
 import scala.concurrent.{Await, Future, TimeoutException}
@@ -33,8 +34,8 @@ object GoVerifier {
   val rootLogger = "viper.gobra"
 
   val version: String = {
-    val buildRevision = BuildInfo.git("revision")
-    val buildBranch = BuildInfo.git("branch")
+    val buildRevision = BuildInfo.gitRevision
+    val buildBranch = BuildInfo.gitBranch
     val buildVersion = s"$buildRevision${if (buildBranch == "master") "" else s"@$buildBranch"}"
 
     s"${BuildInfo.projectVersion} ($buildVersion)"

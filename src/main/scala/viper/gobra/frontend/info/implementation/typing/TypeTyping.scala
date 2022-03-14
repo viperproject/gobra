@@ -171,7 +171,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     */
   def cyclicStructDef(struct: PStructType, name: Option[PIdnDef] = None) : Boolean = {
     // this function is indirectly cached because `underlyingTypeWithCtxP` is cached.
-    def isUnderlyingStructType(n: PNamedType, ctx: UnderlyingType): Option[(PStructType, UnderlyingType)] = ctx.underlyingTypeWithCtxP(n) match {
+    def isUnderlyingStructType(n: PUnqualifiedTypeName, ctx: UnderlyingType): Option[(PStructType, UnderlyingType)] = ctx.underlyingTypeWithCtxP(n) match {
       case Some((structT: PStructType, structCtx)) => Some(structT, structCtx)
       case _ => None
     }
@@ -190,15 +190,15 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       val fieldTypes = struct.fields.map(_.typ) ++ struct.embedded.map(_.typ.typ)
       fieldTypes exists {
         case s: PStructType => isCyclic(s, visitedTypes, this)
-        case n: PNamedType if visitedTypes.contains(n.name) => true
-        case n: PNamedType if isUnderlyingStructType(n, ctx).isDefined =>
+        case n: PUnqualifiedTypeName if visitedTypes.contains(n.name) => true
+        case n: PUnqualifiedTypeName if isUnderlyingStructType(n, ctx).isDefined =>
           val (structT, structCtx) = isUnderlyingStructType(n, ctx).get
           isCyclic(structT, visitedTypes + n.name, structCtx)
-        case PArrayType(_, elemT: PNamedType) if visitedTypes.contains(elemT.name) => true
-        case PArrayType(_, elemT: PNamedType) if isUnderlyingStructType(elemT, ctx).isDefined =>
+        case PArrayType(_, elemT: PUnqualifiedTypeName) if visitedTypes.contains(elemT.name) => true
+        case PArrayType(_, elemT: PUnqualifiedTypeName) if isUnderlyingStructType(elemT, ctx).isDefined =>
           val (structT, structCtx) = isUnderlyingStructType(elemT, ctx).get
           isCyclic(structT, visitedTypes + elemT.name, structCtx)
-        // PDot (for qualifiedly imported types) does not need to be handled because cycles are prevented by non-cyclic imports
+        // Qualified type names do not need to be handled because cycles are prevented by non-cyclic imports
         case _ => false
       }
 

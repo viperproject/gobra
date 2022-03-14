@@ -23,6 +23,8 @@ object AstPattern {
   case class NamedType(id: PIdnUse, symb: st.ActualTypeEntity) extends Type with Symbolic
   case class PointerType(base: PType) extends Type
 
+  case class BuiltInType(id: PIdnUse, symb: st.BuiltInType) extends Type with Symbolic
+
   sealed trait Expr extends Pattern
 
   case class Constant(id: PIdnUse, symb: st.Constant) extends Expr with Symbolic

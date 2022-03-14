@@ -59,6 +59,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         // built-in members
         case s: st.BuiltInFunction => Some(ap.BuiltInFunction(n.id, s))
         case s: st.BuiltInFPredicate => Some(ap.BuiltInPredicate(n.id, s))
+        case s : st.BuiltInType => Some(ap.BuiltInType(n.id, s))
         // interface method and predicate when referenced inside of the interface definition
         // (otherwise a receiver would be present)
         case s: st.MethodSpec => Some(ap.ImplicitlyReceivedInterfaceMethod(n.id, s))
@@ -103,6 +104,8 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case Right(t) if n.args.length == 1 => Some(ap.Conversion(t, n.args.head))
         case Left(e) =>
           resolve(e) match {
+            case Some(ap.BuiltInType(_, st.BuiltInType(tag, _, _))) if n.args.length == 1 =>
+              Some(ap.Conversion(tag.node , n.args.head))
             case Some(p: ap.FunctionKind) => Some(ap.FunctionCall(p, n.args))
             case Some(p: ap.PredicateKind) => Some(ap.PredicateCall(p, n.args))
             case _ if exprType(e).isInstanceOf[PredT] => Some(ap.PredExprInstance(e, n.args, exprType(e).asInstanceOf[PredT]))
@@ -121,6 +124,4 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
       // unknown pattern
     case _ => None
   }
-
-
 }

@@ -3,6 +3,10 @@
 
 package ints
 
+// This should be an error because int64 is no longer a type but a value
+// of type (ghost) func(), but currently is an error because built-in members can't be
+// overridden
+//:: ExpectedOutput(type_error)
 ghost pure func int64(x int32) int64
 
 func wrongAssign1(x int32) (ret int64) {

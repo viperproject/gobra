@@ -6,20 +6,15 @@
 
 package viper.gobra.parsing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
-import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
 import org.scalatest.Inside
 import org.scalatest.exceptions.TestFailedException
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.Parser
 import viper.gobra.util.{Decimal, Hexadecimal}
 
-import scala.reflect.ClassTag
-
 class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
-  private val frontend = new TestFrontend()
+  private val frontend = new ParserTestFrontend()
 
   test("Parser: Dot") {
     frontend.parseExpOrFail("self.Contains") should matchPattern {
@@ -86,12 +81,6 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: Wildcard") {
-    // PWildcard is not an expression
-    frontend.parseExp("_") should matchPattern {
-      case Left(_) =>
-    }
-  }
 
   test("Parser: multi import") {
     frontend.parseImportDecl("import (\"f\";\"g\")") should matchPattern {
@@ -130,20 +119,20 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: spec only function") {
-    frontend.parseMember("func foo() { b.bar() }", specOnly = true) should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None)) =>
+    frontend.parseFunctionDecl("func foo() { b.bar() }", specOnly = true) should matchPattern {
+      case PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None) =>
     }
   }
-  
+
   test("Parser: spec only function with nested blocks") {
-    frontend.parseMember("func foo() { if(true) { b.bar() } else { foo() } }", specOnly = true) should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None)) =>
+    frontend.parseFunctionDecl("func foo() { if(true) { b.bar() } else { foo() } }", specOnly = true) should matchPattern {
+      case PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None) =>
     }
   }
-  
+
   test("Parser: spec only function with incomplete nested blocks") {
     an [TestFailedException] should be thrownBy
-      frontend.parseMember("func foo() { if(true) { b.bar() } else { foo() }", specOnly = true)
+      frontend.parseFunctionDecl("func foo() { if(true) { b.bar() } else { foo() }", specOnly = true)
   }
 
   test("Parser: imported struct initialization") {
@@ -153,13 +142,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
           if value == 10 =>
     }
   }
-  
+
   test("Parser: fold mpredicate call") {
     frontend.parseStmtOrFail("fold (*(b.Rectangle)).RectMem(&r)") should matchPattern {
       case PFold(PPredicateAccess(PInvoke(PDot(PDeref(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("Rectangle"))), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r"))))), PFullPerm())) =>
     }
   }
-  
+
   test("Parser: fold fpredicate call") {
     frontend.parseStmtOrFail("fold b.RectMem(&r)") should matchPattern {
       case PFold(PPredicateAccess(PInvoke(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r"))))), PFullPerm())) =>
@@ -169,8 +158,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: abstract function") {
     val modes: Set[Boolean] = Set(false, true)
     modes.foreach(specOnly => {
-      frontend.parseMember("func bar()", specOnly) should matchPattern {
-        case Vector(PFunctionDecl(PIdnDef("bar"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None)) =>
+      frontend.parseFunctionDecl("func bar()", specOnly) should matchPattern {
+        case PFunctionDecl(PIdnDef("bar"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None) =>
       }
     })
   }
@@ -363,8 +352,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: expressions of the form '++e' should be parsed to '0 + 0 + e'") {
-    frontend.parseExp("++ x") should matchPattern {
+  test("Parser: expressions of the form '+ + e' should be parsed to '0 + 0 + e'") {
+    frontend.parseExp("+ + x") should matchPattern {
       case Right(PAdd(PIntLit(a, Decimal), PAdd(PIntLit(b, Decimal), PNamedOperand(PIdnUse("x")))))
         if a == BigInt(0) && b == BigInt(0) =>
     }
@@ -580,6 +569,12 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.parseExpOrFail("seq[1..5]") should matchPattern {
       case PRangeSequence(PIntLit(low, Decimal), PIntLit(high, Decimal))
         if low == BigInt(1) && high == BigInt(5) =>
+    }
+  }
+
+  test("Parser: should parse a float") {
+    frontend.parseExpOrFail(".4") should matchPattern {
+      case _ : PFloatLit =>
     }
   }
 
@@ -1152,13 +1147,9 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
-  // TODO is this desirable?
-  test("Parser: should parse set intersection with missing right-hand side as set/seq inclusion") {
-    frontend.parseExpOrFail("s intersection") should matchPattern {
-      case PIn(
-        PNamedOperand(PIdnUse("s")),
-        PNamedOperand(PIdnUse("tersection")),
-      ) =>
+  test("Parser: should not parse set intersection with missing right-hand side as set/seq inclusion") {
+    frontend.parseExp("s intersection") should matchPattern {
+      case Left(_) =>
     }
   }
 
@@ -1804,7 +1795,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse a simple range set") {
-    frontend.parseExpOrFail("set[1 .. 10]") should matchPattern {
+    frontend.parseExpOrFail("set[1..10]") should matchPattern {
       case PSetConversion(PRangeSequence(PIntLit(a, Decimal), PIntLit(b, Decimal)))
         if a == BigInt(1) && b == BigInt(10) =>
     }
@@ -2358,6 +2349,12 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should parse type equality") {
+    frontend.parseExpOrFail("typeOf(a) == type[int]") should matchPattern {
+      case PEquals(PTypeOf(_), PTypeExpr(PUnqualifiedTypeName("int"))) =>
+    }
+  }
+
   test("Parser: should parse an option type") {
     frontend.parseTypeOrFail("option[option[int]]") should matchPattern {
       case POptionType(POptionType(PIntType())) =>
@@ -2507,10 +2504,16 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse a fpredicate constructor with wildcard") {
+    frontend.parseExpOrFail("p!<x, _, y!>") should matchPattern {
+      case PPredConstructor(PFPredBase(PIdnUse("p")), Vector(Some(PNamedOperand(PIdnUse("x"))), None, Some(PNamedOperand(PIdnUse("y"))))) =>
+    }
+  }
+
 
   /* ** Parser tests related to explicit ghost statements */
 
-  test("Parser: should be able to parse an exlicit short var decl") {
+  test("Parser: should be able to parse an explicit short var decl") {
     frontend.parseStmtOrFail("ghost res := test(s)") should matchPattern {
       case PExplicitGhostStatement(PShortVarDecl(
         Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector(PNamedOperand(PIdnUse("s"))))),
@@ -2608,7 +2611,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     // 0xf8 == 248
     val parseRes = frontend.parseExp("string(248)")
     inside (parseRes) {
-      case Right(PInvoke(PStringType(), Vector(PIntLit(value, Decimal)))) => value should be (0xf8)
+      case Right(PInvoke(PNamedOperand(PIdnUse("string")), Vector(PIntLit(value, Decimal)))) => value should be (0xf8)
     }
   }
 
@@ -2631,23 +2634,23 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse normal termination measure") {
-    frontend.parseMember("decreases n; func factorial (n int) int") should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), None)), false, false), None)) =>
+    frontend.parseFunctionDecl("decreases n; func factorial (n int) int") should matchPattern {
+      case PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), None)), false, false), None) =>
     }
   }
 
   test("Parser: should be able to parse underscore termination measure") {
-    frontend.parseMember("decreases _; func factorial (n int) int") should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PWildcardMeasure(None)), false, false), None)) =>
+    frontend.parseFunctionDecl("decreases _; func factorial (n int) int") should matchPattern {
+      case PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PWildcardMeasure(None)), false, false), None) =>
     }
   }
 
   test("Parser: should be able to parse conditional termination measure" ) {
-    frontend.parseMember("decreases n if n>1; decreases _ if n<2; func factorial (n int) int") should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), Some(PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal)))), PWildcardMeasure(Some(PLess(PNamedOperand(PIdnUse("n")), PIntLit(two, Decimal))))), false, false), None)) if one == 1 && two == 2 =>
+    frontend.parseFunctionDecl("decreases n if n>1; decreases _ if n<2; func factorial (n int) int") should matchPattern {
+      case PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), Some(PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal)))), PWildcardMeasure(Some(PLess(PNamedOperand(PIdnUse("n")), PIntLit(two, Decimal))))), false, false), None) if one == 1 && two == 2 =>
     }
-  }    
-  
+  }
+
   test("Parser: should parse hexadecimal literal") {
     frontend.parseExpOrFail("0xBadFace" ) should matchPattern {
       case PIntLit(n, Hexadecimal) if n == BigInt(195951310) =>
@@ -2663,31 +2666,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse type conversions") {
     frontend.parseExpOrFail("uint8(1)") should matchPattern {
-      case PInvoke(PUInt8Type(), Vector(x)) if x == PIntLit(1) =>
+      case PInvoke(PNamedOperand(PIdnUse("uint8")), Vector(x)) if x == PIntLit(1) =>
     }
-  }
-
-
-  /* ** Stubs, mocks and other test setup */
-
-  class TestFrontend {
-    private def parse[T: ClassTag](source: String, parser: Source => Either[Messages, T]) : Either[Messages, T] =
-      parser(StringSource(source))
-
-    private def parseOrFail[T: ClassTag](source: String, parser: Source => Either[Messages, T]): T = {
-      parse(source, parser) match {
-        case Right(ast) => ast
-        case Left(messages) => fail(s"Parsing failed: $messages")
-      }
-    }
-
-    def parseExp(source : String) : Either[Messages, PExpression] = parse(source, Parser.parseExpr)
-    def parseExpOrFail(source : String) : PExpression = parseOrFail(source, Parser.parseExpr)
-    def parseStmt(source : String) : Either[Messages, PStatement] = parse(source, Parser.parseStmt)
-    def parseStmtOrFail(source : String) : PStatement = parseOrFail(source, Parser.parseStmt)
-    def parseType(source : String) : Either[Messages, PType] = parse(source, Parser.parseType)
-    def parseTypeOrFail(source : String) : PType = parseOrFail(source, Parser.parseType)
-    def parseImportDecl(source: String): Vector[PImport] = parseOrFail(source, Parser.parseImportDecl)
-    def parseMember(source: String, specOnly: Boolean = false): Vector[PMember] = parseOrFail(source, (s: Source) => Parser.parseMember(s, specOnly = specOnly))
   }
 }

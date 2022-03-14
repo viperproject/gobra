@@ -9,10 +9,10 @@ pred sendInvariant(v *int) {
 
 requires acc(c.SendChannel(), 1/2)
 requires acc(c.RecvChannel(), 1/2)
-requires c.SendGivenPerm() == sendInvariant!<_!>;
-requires c.SendGotPerm() == PredTrue!<!>;
-requires c.RecvGivenPerm() == PredTrue!<!>;
-requires c.RecvGotPerm() == sendInvariant!<_!>;
+requires c.SendGivenPerm() == sendInvariant!<_!>
+requires c.SendGotPerm() == PredTrue!<!>
+requires c.RecvGivenPerm() == PredTrue!<!>
+requires c.RecvGotPerm() == sendInvariant!<_!>
 func incChannel(c chan *int) {
 	fold PredTrue!<!>()
 	res, ok := <- c

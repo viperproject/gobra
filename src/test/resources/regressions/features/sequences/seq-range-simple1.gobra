@@ -8,11 +8,11 @@ func example1(ghost xs seq[int], ghost ys seq[int]) {
 }
 
 func example2() {
-  assert seq[1 .. 4] == seq[int] { 1, 2, 3 }
+  assert seq[1..4] == seq[int] { 1, 2, 3 }
 }
 
 func example3() {
-  assert seq[4 .. 1] == seq[int] { }
+  assert seq[4..1] == seq[int] { }
 }
 
 func example4() {

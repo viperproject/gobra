@@ -25,7 +25,7 @@ pure func (x *counter) hasNext() bool {
 requires acc(&x.f) && acc(&x.max, 1/2)
 requires x.hasNext()
 ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 
-ensures  typeOf(y) == int && y.(int) == old(x.f)
+ensures  typeOf(y) == type[int] && y.(int) == old(x.f)
 func (x *counter) next() (y interface{}) {
 	y = x.f
 	x.f += 1

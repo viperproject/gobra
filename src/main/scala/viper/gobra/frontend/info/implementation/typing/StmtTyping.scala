@@ -136,6 +136,9 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PBlock => noMessages
     case _: PSeq => noMessages
     case _: PEmptyStmt => noMessages
+    case _: PGoto => ???
+    case _: PContinue => ???
+    case _: PBreak => ???
 
     case s => violation(s"$s was not handled")
   }

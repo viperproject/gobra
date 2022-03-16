@@ -53,7 +53,7 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
 
   private def runPackagesSeparately(config: Config): Unit = {
     // Overwrite reporter
-    config.packageInfoInputMap.foreach({case (pkgInfo, inputs) =>
+    config.packageInfoInputMap.keys.foreach(pkgInfo => {
       val statsCollector = StatsCollector(NoopReporter)
       val result = runAndCheck(config.copy(reporter = statsCollector, taskName = pkgInfo.id), statsCollector, pkgInfo)
 
@@ -71,7 +71,7 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     // Overwrite reporter
     var errorCount = 0
     val statsCollector = StatsCollector(NoopReporter)
-    config.packageInfoInputMap.foreach({ case (pkgInfo, inputs) =>
+    config.packageInfoInputMap.keys.foreach(pkgInfo => {
       val results = runAndCheck(config.copy(reporter = statsCollector, taskName = pkgInfo.id), statsCollector, pkgInfo)
 
       results match {

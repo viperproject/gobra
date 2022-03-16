@@ -104,8 +104,7 @@ class GobraPackageTests extends GobraTests {
       // exception occurs (e.g. a validation failure)
       throwError.value = true
 
-      // Simulate pick of package, Gobra normally does
-      val config = new ScallopGobraConfig(args.toSeq).config
+      Some(new ScallopGobraConfig(args.toSeq).config)
     } catch {
       case _: ValidationFailure => None
       case other: Throwable => throw other

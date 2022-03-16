@@ -351,7 +351,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
         val shouldParseRecursively = recOpt.getOrElse(false)
         val inputValidationMsgs = InputConverter.validate(input, shouldParseRecursively)
 
-        val projectRoot = rootDirectoryOpt.getOrElse(
+        lazy val projectRoot = rootDirectoryOpt.getOrElse(
           includeOpt.flatMap(_.headOption.map(_.toPath)).getOrElse(Path.of(""))
         )
 

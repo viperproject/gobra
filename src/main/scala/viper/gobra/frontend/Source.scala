@@ -51,7 +51,7 @@ object Source {
     val packageId: String = {
       val prefix = src match {
         case FromFileSource(path, _, _) => relativizePath(path.getParent).toString
-        case FileSource(name, _) => relativizePath(Path.of(name).getParent).toString
+        case src: FileSource => relativizePath(src.toPath.getParent).toString
         case StringSource(_, _) => ???
       }
       if(prefix.nonEmpty) {

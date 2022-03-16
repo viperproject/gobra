@@ -180,7 +180,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
       case VerificationTaskFinishedMessage(taskName) => typeInfos.remove(taskName)
       // Store every viperMember with an info attached to see, which ones didn't verify on an unexpected shutdown
       case GeneratedViperMessage(taskName, _, vprAst, _) =>
-        vprAst.apply().members
+        vprAst().members
           .filter(m => m.info.isInstanceOf[Source.Verifier.Info] && isRelevantInfo(m.info.asInstanceOf[Source.Verifier.Info]))
           .foreach(m => addViperMember(taskName, m, m.info.asInstanceOf[Source.Verifier.Info], 0, cached = false, verified = false, success = true))
       case GobraEntitySuccessMessage(taskName, _, e, info, time, cached) if isRelevantInfo(info) =>

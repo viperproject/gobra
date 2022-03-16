@@ -34,7 +34,6 @@ object ConfigDefaults {
 }
 
 case class Config(
-                 inputs: Vector[Source],
                  recursive: Boolean = false,
                  gobraDirectory: Path = Path.of(ConfigDefaults.DefaultGobraDirectory),
                  // Used as an identifier of a verification task, ideally it shouldn't change between verifications
@@ -79,7 +78,6 @@ case class Config(
     }
 
     Config(
-      inputs = (inputs ++ other.inputs).distinct,
       recursive = recursive,
       moduleName = moduleName,
       taskName = taskName,
@@ -562,7 +560,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   }
 
   lazy val config: Config = Config(
-    inputs = Vector(),
     recursive = recursive(),
     gobraDirectory = gobraDirectory(),
     packageInfoInputMap = inputPackageMap,

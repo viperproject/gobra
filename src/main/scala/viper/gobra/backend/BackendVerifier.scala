@@ -6,6 +6,7 @@
 
 package viper.gobra.backend
 
+import viper.gobra.ast.frontend.PPackageInfo
 import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon}
 import viper.gobra.frontend.Config
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
@@ -31,7 +32,7 @@ object BackendVerifier {
                     backtrack: BackTranslator.BackTrackInfo
                     ) extends Result
 
-  def verify(task: Task)(config: Config)(implicit executor: GobraExecutionContext): Future[Result] = {
+  def verify(task: Task, pkgInfo: PPackageInfo)(config: Config)(implicit executor: GobraExecutionContext): Future[Result] = {
 
     var exePaths: Vector[String] = Vector.empty
 
@@ -55,7 +56,7 @@ object BackendVerifier {
         verifier.verify(config.taskName, reporter, task.program)(executor)
       } else {
 
-        val programs = ChopperUtil.computeChoppedPrograms(task)(config)
+        val programs = ChopperUtil.computeChoppedPrograms(task, pkgInfo)(config)
         val num = programs.size
 
         //// (Felix) Currently, Silicon cannot be invoked concurrently.

@@ -32,7 +32,6 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     executor.terminateAndAssertInexistanceOfTimeout()
   }
 
-
   test("Integration without chopper") {
     val config = createConfig(Array("-i", statsCollectorTestDir, "-r", "-I", statsCollectorTestDir))
     runIntegration(config)
@@ -57,7 +56,7 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     // Overwrite reporter
     config.packageInfoInputMap.foreach({case (pkgInfo, inputs) =>
       val statsCollector = StatsCollector(NoopReporter)
-      val result = runAndCheck(config.copy(inputs = inputs, reporter = statsCollector, taskName = pkgInfo.id), statsCollector, pkgInfo.id)
+      val result = runAndCheck(config.copy(reporter = statsCollector, taskName = pkgInfo.id), statsCollector, pkgInfo)
 
       // Assert that errors are somehow reflected in the stats
       // It's hard to test this further, since there isn't much information about viper or gobra members available
@@ -74,7 +73,7 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     var errorCount = 0
     val statsCollector = StatsCollector(NoopReporter)
     config.packageInfoInputMap.foreach({ case (pkgInfo, inputs) =>
-      val results = runAndCheck(config.copy(inputs = inputs, reporter = statsCollector, taskName = pkgInfo.id), statsCollector, pkgInfo.id)
+      val results = runAndCheck(config.copy(reporter = statsCollector, taskName = pkgInfo.id), statsCollector, pkgInfo)
 
       results match {
         case VerifierResult.Success => assert(statsCollector.memberMap.values.flatMap(_.viperMembers.values).count(!_.success) == errorCount)
@@ -86,8 +85,8 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     })
   }
 
-  def runAndCheck(config: Config, statsCollector: StatsCollector, pkgId: String): VerifierResult = {
-    val result = Await.result(gobraInstance.verify(config)(executor), Duration.Inf)
+  def runAndCheck(config: Config, statsCollector: StatsCollector, pkgInfo: PPackageInfo): VerifierResult = {
+    val result = Await.result(gobraInstance.verify(pkgInfo, config)(executor), Duration.Inf)
 
     val nonVerificationErrors = result match {
       case r: VerifierResult.Failure => r.errors.filter(!_.isInstanceOf[VerificationError])
@@ -95,12 +94,12 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     }
 
     if(nonVerificationErrors.nonEmpty) {
-      val s = "Encountered parsing errors during task " + pkgId + ": \n" +nonVerificationErrors.map(_.formattedMessage)
+      val s = "Encountered parsing errors during task " + pkgInfo.id + ": \n" +nonVerificationErrors.map(_.formattedMessage)
       fail(s)
     }
 
-    assert(statsCollector.typeInfos.contains(pkgId))
-    val typeInfo = statsCollector.typeInfos(pkgId)
+    assert(statsCollector.typeInfos.contains(pkgInfo.id))
+    val typeInfo = statsCollector.typeInfos(pkgInfo.id)
     val interfaceImplementations: List[Type.Type] = typeInfo.interfaceImplementations.values.flatten.toList
 
     val expectedGobraMembers: Vector[PNode] = typeInfo.tree.originalRoot.programs
@@ -118,8 +117,8 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
 
     // Check if all expected members are present and the entries are correct
     expectedGobraMembers
-      .map(member => statsCollector.getMemberInformation(member, statsCollector.typeInfos(pkgId), null))
-      .filter(memberInfo => memberInfo.pkgId == pkgId)
+      .map(member => statsCollector.getMemberInformation(member, statsCollector.typeInfos(pkgInfo.id), null))
+      .filter(memberInfo => memberInfo.pkgId == pkgInfo.id)
       .foreach(memberInfo => {
         assert(statsCollector.memberMap.contains(memberInfo.id))
 
@@ -135,8 +134,8 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     statsCollector.memberMap.values.flatMap(_.viperMembers.values).forall(_.verified)
 
     // Test cleanup mechanism
-    statsCollector.report(VerificationTaskFinishedMessage(pkgId))
-    assert(!statsCollector.typeInfos.contains(pkgId))
+    statsCollector.report(VerificationTaskFinishedMessage(pkgInfo.id))
+    assert(!statsCollector.typeInfos.contains(pkgInfo.id))
 
     result
   }

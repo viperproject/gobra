@@ -73,10 +73,12 @@ object Info {
     val info = new TypeInfoImpl(tree, context, isMainContext)(config: Config)
 
     val errors = info.errors
+
+    val sourceNames = sources.map(_.name)
     // use `sources` instead of `context.inputs` for reporting such that the message is correctly attributed in case of imports
-    config.reporter report TypeCheckDebugMessage(sources.map(_.name), () => pkg, () => getDebugInfo(pkg, info))
+    config.reporter report TypeCheckDebugMessage(sourceNames, () => pkg, () => getDebugInfo(pkg, info))
     if (errors.isEmpty) {
-      config.reporter report TypeCheckSuccessMessage(sources.map(_.name), config.taskName, () => info, () => pkg, () => getErasedGhostCode(pkg, info), () => getGoifiedGhostCode(pkg, info))
+      config.reporter report TypeCheckSuccessMessage(sourceNames, config.taskName, () => info, () => pkg, () => getErasedGhostCode(pkg, info), () => getGoifiedGhostCode(pkg, info))
       Right(info)
     } else {
       // remove duplicates as errors related to imported packages might occur multiple times
@@ -86,7 +88,7 @@ object Info {
       // however, the duplicate removal should happen after translation so that the error position is correctly
       // taken into account for the equality check.
       val typeErrors = pkg.positions.translate(errors, TypeError).distinct
-      config.reporter report TypeCheckFailureMessage(sources.map(_.name), pkg.packageClause.id.name, () => pkg, typeErrors)
+      config.reporter report TypeCheckFailureMessage(sourceNames, pkg.packageClause.id.name, () => pkg, typeErrors)
       Left(typeErrors)
     }
   }

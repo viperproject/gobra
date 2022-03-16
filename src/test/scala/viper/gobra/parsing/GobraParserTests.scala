@@ -9,7 +9,7 @@ package viper.gobra.parsing
 import ch.qos.logback.classic.Level
 import org.scalatest.BeforeAndAfterAll
 import viper.gobra.frontend.Source.FromFileSource
-import viper.gobra.frontend.{Config, PackageResolver}
+import viper.gobra.frontend.{Config, PackageResolver, Source}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.gobra.reporting.{NoopReporter, VerifierError}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
@@ -49,15 +49,17 @@ class GobraParserTests extends AbstractGobraTests with BeforeAndAfterAll {
 
       override def run(input: AnnotatedTestInput): Seq[AbstractOutput] = {
 
+        val source = FromFileSource(input.file);
+
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,
-          inputs = Vector(FromFileSource(input.file)),
+          packageInfoInputMap = Map(Source.getPackageInfo(source, Path.of("")) -> Vector(source)),
           z3Exe = z3Exe,
           shouldTypeCheck = false
         )
 
-        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config)(executor), Duration.Inf))
+        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config.packageInfoInputMap.keys.head, config)(executor), Duration.Inf))
 
         info(s"Time required: $elapsedMilis ms")
 

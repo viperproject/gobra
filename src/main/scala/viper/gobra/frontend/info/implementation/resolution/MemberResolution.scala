@@ -13,7 +13,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.PackageResolver.{AbstractImport, BuiltInImport, RegularImport}
 import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInMPredicateTag, BuiltInMethodTag}
-import viper.gobra.frontend.{PackageResolver, Parser}
+import viper.gobra.frontend.{PackageResolver, Parser, Source}
 import viper.gobra.frontend.info.{ExternalTypeInfo, Info}
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
@@ -230,7 +230,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         nonEmptyPkgSources <- if (pkgSources.isEmpty)
           Left(Vector(NotFoundError(s"No source files for package '$importTarget' found")))
           else Right(pkgSources)
-        parsedProgram <- Parser.parse(nonEmptyPkgSources, specOnly = true)(config)
+        parsedProgram <- Parser.parse(nonEmptyPkgSources, Source.getPackageInfo(nonEmptyPkgSources.head, config.projectRoot), specOnly = true)(config)
         // TODO maybe don't check whole file but only members that are actually used/imported
         // By parsing only declarations and their specification, there shouldn't be much left to type check anyways
         // Info.check would probably need some restructuring to type check only certain members

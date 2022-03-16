@@ -378,7 +378,7 @@ class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       )
       val tree = new Info.GoTree(pkg)
       val context = new Info.Context()
-      val config = Config(inputs = Vector(), includeDirs = Vector())
+      val config = Config()
       new TypeInfoImpl(tree, context)(config)
     }
 

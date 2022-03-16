@@ -94,20 +94,27 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       // however, as we will directly invoke the individual steps of Gobra, we have to manually merge in-file configs
       // such that the Gobra programs show the same behavior as when invoking `Gobra.verify`:
       assert(config.isDefined)
-      config = Some(gobra.getAndMergeInFileConfig(config.get))
+      val c = config.get
+      assert(c.packageInfoInputMap.size == 1)
+      val pkgInfo = c.packageInfoInputMap.keys.head
+      config = Some(gobra.getAndMergeInFileConfig(c, pkgInfo))
     }
 
     private val parsing = InitialStep("parsing", () => {
       assert(config.isDefined)
       val c = config.get
-      Parser.parse(c.inputs)(c)
+      assert(c.packageInfoInputMap.size == 1)
+      val pkgInfo = c.packageInfoInputMap.keys.head
+      Parser.parse(c.packageInfoInputMap(pkgInfo), pkgInfo)(c)
     })
 
     private val typeChecking: NextStep[PPackage, (PPackage, TypeInfo), Vector[VerifierError]] =
       NextStep("type-checking", parsing, (parsedPackage: PPackage) => {
         assert(config.isDefined)
         val c = config.get
-        Info.check(parsedPackage, c.inputs)(c).map(typeInfo => (parsedPackage, typeInfo))
+        assert(c.packageInfoInputMap.size == 1)
+        val pkgInfo = c.packageInfoInputMap.keys.head
+        Info.check(parsedPackage, c.packageInfoInputMap(pkgInfo))(c).map(typeInfo => (parsedPackage, typeInfo))
       })
 
     private val desugaring: NextStep[(PPackage, TypeInfo), Program, Vector[VerifierError]] =
@@ -119,9 +126,11 @@ class DetailedBenchmarkTests extends BenchmarkTests {
     private val internalTransforming = NextStep("internal transforming", desugaring, (program: Program) => {
       assert(config.isDefined)
       val c = config.get
+      assert(c.packageInfoInputMap.size == 1)
+      val pkgInfo = c.packageInfoInputMap.keys.head
       if (c.checkOverflows) {
         val result = OverflowChecksTransform.transform(program)
-        c.reporter report AppliedInternalTransformsMessage(c.inputs.map(_.name), () => result)
+        c.reporter report AppliedInternalTransformsMessage(c.packageInfoInputMap(pkgInfo).map(_.name), () => result)
         Right(result)
       } else {
         Right(program)
@@ -130,13 +139,18 @@ class DetailedBenchmarkTests extends BenchmarkTests {
 
     private val encoding = NextStep("Viper encoding", internalTransforming, (program: Program) => {
       assert(config.isDefined)
-      Right(Translator.translate(program)(config.get))
+      val c = config.get
+      assert(c.packageInfoInputMap.size == 1)
+      val pkgInfo = c.packageInfoInputMap.keys.head
+      Right(Translator.translate(program, pkgInfo)(c))
     })
 
     private val verifying = NextStep("Viper verification", encoding, (viperTask: BackendVerifier.Task) => {
       assert(config.isDefined)
       val c = config.get
-      val resultFuture = BackendVerifier.verify(viperTask)(c)(executor)
+      assert(c.packageInfoInputMap.size == 1)
+      val pkgInfo = c.packageInfoInputMap.keys.head
+      val resultFuture = BackendVerifier.verify(viperTask, pkgInfo)(c)(executor)
         .map(BackTranslator.backTranslate(_)(c))(executor)
       Right(Await.result(resultFuture, Duration(timeoutSec, TimeUnit.SECONDS)))
     })

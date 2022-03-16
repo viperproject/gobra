@@ -84,7 +84,9 @@ class OverallBenchmarkTests extends BenchmarkTests {
     private val overallPhase = Phase("Gobra.verify", () => {
       assert(config.isDefined)
       val c = config.get
-      val resultFuture = gobra.verify(c.inputs, c)(executor)
+      assert(c.packageInfoInputMap.size == 1)
+      val pkgInfo = c.packageInfoInputMap.keys.head
+      val resultFuture = gobra.verify(pkgInfo, c)(executor)
       overallPhaseResult = Some(Await.result(resultFuture, Duration(timeoutSec, TimeUnit.SECONDS)))
     })
 

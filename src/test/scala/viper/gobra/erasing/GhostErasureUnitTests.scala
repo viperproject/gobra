@@ -245,7 +245,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
       )
       val tree = new Info.GoTree(pkg)
       val context = new Info.Context()
-      val config = Config(inputs = Vector())
+      val config = Config()
       val info = new TypeInfoImpl(tree, context)(config)
       info.errors match {
         case Vector(msgs) => fail(s"Type-checking failed: $msgs")
@@ -293,7 +293,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     }
 
     def testProg(inputProg: String, expectedErasedProg: String): Assertion = {
-      val config = Config(inputs = Vector())
+      val config = Config()
       val inputParseAst = Parser.parseProgram(StringSource(inputProg, "Input Program"))
       val ghostlessProg = inputParseAst match {
         case Right(prog) => ghostLessProg(prog)

@@ -113,7 +113,7 @@ trait GoVerifier extends StrictLogging {
     }
 
     logger.info("Gobra has found " + statsCollector.getNumberOfVerifiableMembers + " methods and functions" )
-    logger.info(statsCollector.getNumberOfVerifiedMembers + " have specifiation")
+    logger.info(statsCollector.getNumberOfVerifiedMembers + " have specification")
     logger.info(statsCollector.getNumberOfVerifiedMembersWithAssumptions + " are assumed to be satisfied")
 
     allErrors

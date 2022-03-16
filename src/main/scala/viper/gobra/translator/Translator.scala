@@ -7,7 +7,7 @@
 package viper.gobra.translator
 
 
-import viper.gobra.ast.frontend.PPackageInfo
+import viper.gobra.ast.frontend.PackageInfo
 import viper.gobra.ast.internal.Program
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.Config
@@ -19,7 +19,7 @@ import viper.gobra.util.Violation
 
 object Translator {
 
-  def translate(program: Program, pkgInfo: PPackageInfo)(config: Config): BackendVerifier.Task = {
+  def translate(program: Program, pkgInfo: PackageInfo)(config: Config): BackendVerifier.Task = {
     val translationConfig = new DfltTranslatorConfig()
     val programTranslator = new ProgramsImpl()
     val task = programTranslator.translate(program)(translationConfig)

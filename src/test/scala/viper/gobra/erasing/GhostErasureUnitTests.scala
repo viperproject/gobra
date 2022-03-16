@@ -241,7 +241,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         PPackageClause(PPkgDef("pkg")),
         Vector(program),
         new PositionManager(positions),
-        PPackageInfo("pkg", "pkg", isBuiltIn = false)
+        PackageInfo("pkg", "pkg", isBuiltIn = false)
       )
       val tree = new Info.GoTree(pkg)
       val context = new Info.Context()

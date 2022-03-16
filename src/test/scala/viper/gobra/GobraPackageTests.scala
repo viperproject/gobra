@@ -12,7 +12,7 @@ import ch.qos.logback.classic.Level
 import org.bitbucket.inkytonik.kiama.util.Source
 import org.rogach.scallop.exceptions.ValidationFailure
 import org.rogach.scallop.throwError
-import viper.gobra.ast.frontend.PPackageInfo
+import viper.gobra.ast.frontend.PackageInfo
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, ScallopGobraConfig, Source}
 import viper.gobra.reporting.{NoopReporter, ParserError}
@@ -117,7 +117,7 @@ class GobraPackageTests extends GobraTests {
     /**
      * Checks that two given maps contain the same PPackageInfo source mapping
      */
-    def equalPkgInfoSourceMaps(v1: Map[PPackageInfo, Vector[Source]], v2: Map[PPackageInfo, Vector[Source]]): Boolean = {
+    def equalPkgInfoSourceMaps(v1: Map[PackageInfo, Vector[Source]], v2: Map[PackageInfo, Vector[Source]]): Boolean = {
       val keys = (v1.keys ++ v2.keys).toSet
       keys.forall(pkgInfo =>
         v1.contains(pkgInfo) && v2.contains(pkgInfo) && v1(pkgInfo).map(_.name).sorted.equals(v2(pkgInfo).map(_.name).sorted)

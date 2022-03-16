@@ -41,7 +41,7 @@ object Parser {
     *
     */
 
-  def parse(input: Vector[Source], pkgInfo: PPackageInfo, specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
+  def parse(input: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val sources = input
       .map(Gobrafier.gobrafy)
     for {
@@ -66,7 +66,7 @@ object Parser {
     sourceCache = Map.empty
   }
 
-  private def parseSources(sources: Vector[Source], pkgInfo: PPackageInfo, specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def parseSources(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     lazy val rewriter = new PRewriter(pom.positions)

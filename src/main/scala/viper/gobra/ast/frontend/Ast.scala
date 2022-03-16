@@ -47,7 +47,7 @@ sealed trait PUnorderedScope extends PScope
  * @param name the name of the package, does not have to be unique
  * @param isBuiltIn a flag indicating, if the package comes from within Gobra
  */
-case class PPackageInfo(id: String, name: String, isBuiltIn: Boolean) extends PNode {
+case class PackageInfo(id: String, name: String, isBuiltIn: Boolean) extends PNode {
   /**
    * Unique id of the package to use in Viper member names.
    *
@@ -64,7 +64,7 @@ case class PPackage(
                      packageClause: PPackageClause,
                      programs: Vector[PProgram],
                      positions: PositionManager,
-                     info: PPackageInfo
+                     info: PackageInfo
                    ) extends PNode with PUnorderedScope {
   // TODO: remove duplicate package imports:
   lazy val imports: Vector[PImport] = programs.flatMap(_.imports)

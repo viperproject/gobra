@@ -16,7 +16,7 @@ import org.rogach.scallop.{ScallopConf, ScallopOption, listArgConverter, singleA
 import org.slf4j.LoggerFactory
 import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
-import viper.gobra.ast.frontend.PPackageInfo
+import viper.gobra.ast.frontend.PackageInfo
 import viper.gobra.frontend.Source.{FromFileSource, getPackageInfo}
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.{TypeBounds, Violation}
@@ -34,45 +34,45 @@ object ConfigDefaults {
 }
 
 case class Config(
-                 recursive: Boolean = false,
-                 gobraDirectory: Path = Path.of(ConfigDefaults.DefaultGobraDirectory),
-                 // Used as an identifier of a verification task, ideally it shouldn't change between verifications
-                 // because it is used as a caching key. Additionally it should be unique when using the StatsCollector
-                 taskName: String = ConfigDefaults.DefaultTaskName,
-                 // Contains a mapping of packages to all input sources for that package
-                 packageInfoInputMap: Map[PPackageInfo, Vector[Source]] = Map(),
-                 moduleName: String = "",
-                 includeDirs: Vector[Path] = Vector(),
-                 projectRoot: Path = Path.of(""),
-                 reporter: GobraReporter = StdIOReporter(),
-                 backend: ViperBackend = ViperBackends.SiliconBackend,
-                 isolate: Option[Vector[SourcePosition]] = None,
-                 choppingUpperBound: Int = 1,
-                 packageTimeout: Duration = Duration.Inf,
-                 z3Exe: Option[String] = None,
-                 boogieExe: Option[String] = None,
-                 logLevel: Level = LoggerDefaults.DefaultLevel,
-                 cacheFile: Option[String] = None,
-                 shouldParse: Boolean = true,
-                 shouldTypeCheck: Boolean = true,
-                 shouldDesugar: Boolean = true,
-                 shouldViperEncode: Boolean = true,
-                 checkOverflows: Boolean = false,
-                 checkConsistency: Boolean = false,
-                 shouldVerify: Boolean = true,
-                 shouldChop: Boolean = false,
-                 // The go language specification states that int and uint variables can have either 32bit or 64, as long
-                 // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
-                 // 64 bit otherwise.
-                 int32bit: Boolean = false,
-                 // the following option is currently not controllable via CLI as it is meaningless without a constantly
-                 // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
-                 cacheParser: Boolean = false
+                   recursive: Boolean = false,
+                   gobraDirectory: Path = Path.of(ConfigDefaults.DefaultGobraDirectory),
+                   // Used as an identifier of a verification task, ideally it shouldn't change between verifications
+                   // because it is used as a caching key. Additionally it should be unique when using the StatsCollector
+                   taskName: String = ConfigDefaults.DefaultTaskName,
+                   // Contains a mapping of packages to all input sources for that package
+                   packageInfoInputMap: Map[PackageInfo, Vector[Source]] = Map(),
+                   moduleName: String = "",
+                   includeDirs: Vector[Path] = Vector(),
+                   projectRoot: Path = Path.of(""),
+                   reporter: GobraReporter = StdIOReporter(),
+                   backend: ViperBackend = ViperBackends.SiliconBackend,
+                   isolate: Option[Vector[SourcePosition]] = None,
+                   choppingUpperBound: Int = 1,
+                   packageTimeout: Duration = Duration.Inf,
+                   z3Exe: Option[String] = None,
+                   boogieExe: Option[String] = None,
+                   logLevel: Level = LoggerDefaults.DefaultLevel,
+                   cacheFile: Option[String] = None,
+                   shouldParse: Boolean = true,
+                   shouldTypeCheck: Boolean = true,
+                   shouldDesugar: Boolean = true,
+                   shouldViperEncode: Boolean = true,
+                   checkOverflows: Boolean = false,
+                   checkConsistency: Boolean = false,
+                   shouldVerify: Boolean = true,
+                   shouldChop: Boolean = false,
+                   // The go language specification states that int and uint variables can have either 32bit or 64, as long
+                   // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
+                   // 64 bit otherwise.
+                   int32bit: Boolean = false,
+                   // the following option is currently not controllable via CLI as it is meaningless without a constantly
+                   // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
+                   cacheParser: Boolean = false
 ) {
 
   def merge(other: Config): Config = {
     // this config takes precedence over other config
-    val newInputs: Map[PPackageInfo, Vector[Source]] = {
+    val newInputs: Map[PackageInfo, Vector[Source]] = {
       val keys = packageInfoInputMap.keys ++ other.packageInfoInputMap.keys
       keys.map(k => k -> (packageInfoInputMap.getOrElse(k, Vector()) ++ other.packageInfoInputMap.getOrElse(k, Vector())).distinct).toMap
     }
@@ -464,7 +464,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     includeDirs.headOption.getOrElse(Path.of(""))
   )
 
-  lazy val inputPackageMap: Map[PPackageInfo, Vector[Source]] = InputConverter.convert(
+  lazy val inputPackageMap: Map[PackageInfo, Vector[Source]] = InputConverter.convert(
     input.toOption.getOrElse(List()),
     recursive.getOrElse(false),
     projectRoot,
@@ -504,7 +504,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       }
     }
 
-    def convert(input: List[String], recursive: Boolean, projectRoot: Path, includePackages: List[String], excludePackages: List[String]): Map[PPackageInfo, Vector[Source]] = {
+    def convert(input: List[String], recursive: Boolean, projectRoot: Path, includePackages: List[String], excludePackages: List[String]): Map[PackageInfo, Vector[Source]] = {
       val sources = parseInputStrings(input.toVector, recursive)
       sources.groupBy(src => getPackageInfo(src, projectRoot))
         .filter({case (pkgInfo, _) => (includePackages.isEmpty || includePackages.contains(pkgInfo.name)) && !excludePackages.contains(pkgInfo.name)})

@@ -6,7 +6,7 @@
 
 package viper.gobra.util
 
-import viper.gobra.ast.frontend.PPackageInfo
+import viper.gobra.ast.frontend.PackageInfo
 
 import java.io.File
 import java.nio.file.Files
@@ -22,7 +22,7 @@ object ChopperUtil {
   val GobraChopperFileLocation = "GobraChopper.conf"
 
   /** Splits task program into multiple Viper programs depending on config. */
-  def computeChoppedPrograms(task: Task, pkgInfo: PPackageInfo)(config: Config): Vector[vpr.Program] = {
+  def computeChoppedPrograms(task: Task, pkgInfo: PackageInfo)(config: Config): Vector[vpr.Program] = {
 
 
     val programs = ViperChopper.chop(task.program)(
@@ -39,7 +39,7 @@ object ChopperUtil {
     programs
   }
 
-  def computeIsolateMap(config: Config, pkgInfo: PPackageInfo): Option[vpr.Member => Boolean] = {
+  def computeIsolateMap(config: Config, pkgInfo: PackageInfo): Option[vpr.Member => Boolean] = {
     import viper.gobra.reporting.Source
 
     val isIsolated = config.isolate match {

@@ -85,7 +85,7 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     })
   }
 
-  def runAndCheck(config: Config, statsCollector: StatsCollector, pkgInfo: PPackageInfo): VerifierResult = {
+  def runAndCheck(config: Config, statsCollector: StatsCollector, pkgInfo: PackageInfo): VerifierResult = {
     val result = Await.result(gobraInstance.verify(pkgInfo, config)(executor), Duration.Inf)
 
     val nonVerificationErrors = result match {

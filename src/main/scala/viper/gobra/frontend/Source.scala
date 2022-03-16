@@ -9,7 +9,7 @@ package viper.gobra.frontend
 import java.io.Reader
 import java.nio.file.{Files, Path, Paths}
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Source, StringSource}
-import viper.gobra.ast.frontend.{PNode, PPackageInfo}
+import viper.gobra.ast.frontend.PackageInfo
 import viper.gobra.util.Violation
 import viper.silver.ast.SourcePosition
 
@@ -23,7 +23,7 @@ object Source {
   /**
    * Returns an object containing information about the package a source belongs to.
    */
-  def getPackageInfo(src: Source, projectRoot: Path): PPackageInfo = {
+  def getPackageInfo(src: Source, projectRoot: Path): PackageInfo = {
 
     /**
      * Changes the given path to be relative to the projectRoot.
@@ -49,11 +49,7 @@ object Source {
      * A unique identifier for packages
      */
     val packageId: String = {
-      val prefix = src match {
-        case FromFileSource(path, _, _) => relativizePath(path.getParent).toString
-        case src: FileSource => relativizePath(src.toPath.getParent).toString
-        case StringSource(_, _) => ???
-      }
+      val prefix = relativizePath(TransformableSource(src).toPath.getParent).toString
       if(prefix.nonEmpty) {
         // The - is enough to unambiguously separate the prefix from the package name, since it can't occur in the package name
         // per Go's spec (https://go.dev/ref/spec#Package_clause)
@@ -63,7 +59,7 @@ object Source {
         packageName
       }
     }
-    PPackageInfo(packageId, packageName, isBuiltIn)
+    PackageInfo(packageId, packageName, isBuiltIn)
   }
 
   implicit class TransformableSource[S <: Source](source: S) {

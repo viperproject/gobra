@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info
 
-import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PKeyedElement, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PPackageInfo, PParameter, PPkgDef, PScope, PType}
+import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PKeyedElement, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PackageInfo, PParameter, PPkgDef, PScope, PType}
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMemberTag
 import viper.gobra.frontend.info.base.Type.{AbstractType, InterfaceT, StructT, Type}
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
@@ -16,7 +16,7 @@ import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostTyp
 trait ExternalTypeInfo {
 
   def pkgName: PPkgDef
-  def pkgInfo: PPackageInfo
+  def pkgInfo: PackageInfo
 
   /**
     * Gets called by the type checker to perform a symbol table lookup in an imported package

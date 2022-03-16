@@ -94,6 +94,9 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
   }
 
+  /**
+   * We don't store AST nodes to prevent memory overflows, since they otherwise would not be garbage collected
+   */
   case class ViperMemberEntry(memberName: String,
                               taskName: String,
                               time: Time,
@@ -122,6 +125,9 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     }
   }
 
+  /**
+   * We don't store AST nodes to prevent memory overflows, since they otherwise would not be garbage collected
+   */
   case class GobraMemberInfo(pkgId: String,
                              pkg: String,
                              memberName: String,
@@ -266,9 +272,9 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         }
       }
 
-    val pkgName = nodeTypeInfo.tree.originalRoot.packageClause.id.name
-    val pkgId = nodeTypeInfo.tree.originalRoot.id
-    val isBuiltIn = nodeTypeInfo.tree.originalRoot.isBuiltIn
+    val pkgName = nodeTypeInfo.pkgName.name
+    val pkgId = nodeTypeInfo.pkgInfo.id
+    val isBuiltIn = nodeTypeInfo.pkgInfo.isBuiltIn
 
     // Replace whitespaces in arguments by a single space, since some types contain newlines
     def formatArgs(args: Vector[PParameter]): String =

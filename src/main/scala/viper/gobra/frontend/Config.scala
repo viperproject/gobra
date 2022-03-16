@@ -16,7 +16,8 @@ import org.rogach.scallop.{ScallopConf, ScallopOption, listArgConverter, singleA
 import org.slf4j.LoggerFactory
 import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
-import viper.gobra.frontend.Source.{FromFileSource, PackageInfo, getPackageInfo}
+import viper.gobra.ast.frontend.PPackageInfo
+import viper.gobra.frontend.Source.{FromFileSource, getPackageInfo}
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
@@ -40,7 +41,7 @@ case class Config(
                  // because it is used as a caching key. Additionally it should be unique when using the StatsCollector
                  taskName: String = ConfigDefaults.DefaultTaskName,
                  // Contains a mapping of packages to all input sources for that package
-                 packageInfoInputMap: Map[PackageInfo, Vector[Source]] = Map(),
+                 packageInfoInputMap: Map[PPackageInfo, Vector[Source]] = Map(),
                  moduleName: String = "",
                  includeDirs: Vector[Path] = Vector(),
                  projectRoot: Path = Path.of(""),
@@ -72,7 +73,7 @@ case class Config(
 
   def merge(other: Config): Config = {
     // this config takes precedence over other config
-    val newInputs: Map[PackageInfo, Vector[Source]] = {
+    val newInputs: Map[PPackageInfo, Vector[Source]] = {
       val keys = packageInfoInputMap.keys ++ other.packageInfoInputMap.keys
       keys.map(k => k -> (packageInfoInputMap.getOrElse(k, Vector()) ++ other.packageInfoInputMap.getOrElse(k, Vector())).distinct).toMap
     }
@@ -465,7 +466,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     includeDirs.headOption.getOrElse(Path.of(""))
   )
 
-  lazy val inputPackageMap: Map[PackageInfo, Vector[Source]] = InputConverter.convert(
+  lazy val inputPackageMap: Map[PPackageInfo, Vector[Source]] = InputConverter.convert(
     input.toOption.getOrElse(List()),
     recursive.getOrElse(false),
     projectRoot,
@@ -505,7 +506,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       }
     }
 
-    def convert(input: List[String], recursive: Boolean, projectRoot: Path, includePackages: List[String], excludePackages: List[String]): Map[PackageInfo, Vector[Source]] = {
+    def convert(input: List[String], recursive: Boolean, projectRoot: Path, includePackages: List[String], excludePackages: List[String]): Map[PPackageInfo, Vector[Source]] = {
       val sources = parseInputStrings(input.toVector, recursive)
       sources.groupBy(src => getPackageInfo(src, projectRoot))
         .filter({case (pkgInfo, _) => (includePackages.isEmpty || includePackages.contains(pkgInfo.name)) && !excludePackages.contains(pkgInfo.name)})

@@ -9,6 +9,7 @@ package viper.gobra.frontend
 import java.io.Reader
 import java.nio.file.{Files, Path, Paths}
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Source, StringSource}
+import viper.gobra.ast.frontend.{PNode, PPackageInfo}
 import viper.gobra.util.Violation
 import viper.silver.ast.SourcePosition
 
@@ -20,18 +21,9 @@ import scala.io.BufferedSource
 object Source {
 
   /**
-   * Contains information about a package
-   *
-   * @param id a unique identifier for the package
-   * @param name the name of the package, does not have to be unique
-   * @param isBuiltIn a flag indicating, if the package comes from within Gobra
-   */
-  case class PackageInfo(id: String, name: String, isBuiltIn: Boolean)
-
-  /**
    * Returns an object containing information about the package a source belongs to.
    */
-  def getPackageInfo(src: Source, projectRoot: Path): PackageInfo = {
+  def getPackageInfo(src: Source, projectRoot: Path): PPackageInfo = {
 
     /**
      * Changes the given path to be relative to the projectRoot.
@@ -71,7 +63,7 @@ object Source {
         packageName
       }
     }
-    PackageInfo(packageId, packageName, isBuiltIn)
+    PPackageInfo(packageId, packageName, isBuiltIn)
   }
 
   implicit class TransformableSource[S <: Source](source: S) {

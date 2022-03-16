@@ -40,23 +40,32 @@ object PNode {
 sealed trait PScope extends PNode
 sealed trait PUnorderedScope extends PScope
 
-case class PPackage(
-                     packageClause: PPackageClause,
-                     programs: Vector[PProgram],
-                     positions: PositionManager,
-                     id: String,
-                     isBuiltIn: Boolean = false
-                   ) extends PNode with PUnorderedScope {
+/**
+ * Contains information about a package
+ *
+ * @param id a unique identifier for the package
+ * @param name the name of the package, does not have to be unique
+ * @param isBuiltIn a flag indicating, if the package comes from within Gobra
+ */
+case class PPackageInfo(id: String, name: String, isBuiltIn: Boolean) extends PNode {
   /**
    * Unique id of the package to use in Viper member names.
    *
    * We use a Hex representation of the real package it to make sure that only allowed characters are used inside the id,
    * while also keeping the uniqueness of the package id.
    */
-  val viperId: String = MessageDigest.getInstance("SHA-1")
+  lazy val viperId: String = MessageDigest.getInstance("SHA-1")
     .digest(id.getBytes("UTF-8"))
     .map("%02x".format(_)).mkString
 
+}
+
+case class PPackage(
+                     packageClause: PPackageClause,
+                     programs: Vector[PProgram],
+                     positions: PositionManager,
+                     info: PPackageInfo
+                   ) extends PNode with PUnorderedScope {
   // TODO: remove duplicate package imports:
   lazy val imports: Vector[PImport] = programs.flatMap(_.imports)
   lazy val declarations: Vector[PMember] = programs.flatMap(_.declarations)

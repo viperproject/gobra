@@ -12,7 +12,7 @@ import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Stra
 import org.bitbucket.inkytonik.kiama.util.{Positions, Source}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{error, message}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.Source.{FromFileSource, PackageInfo, TransformableSource, getPackageInfo}
+import viper.gobra.frontend.Source.{FromFileSource, TransformableSource, getPackageInfo}
 import viper.gobra.reporting.{Source => _, _}
 import org.antlr.v4.runtime.{CharStreams, CommonTokenStream, DefaultErrorStrategy, ParserRuleContext}
 import org.antlr.v4.runtime.atn.PredictionMode
@@ -116,15 +116,12 @@ object Parser {
       }
     }
 
-    def isErrorFree(parserResults: Vector[Either[Vector[ParserError], (PackageInfo, PProgram)]]): Either[Vector[ParserError], Vector[(PackageInfo, PProgram)]] = {
-      val (errors, pkgInfoProgramTuples) = parserResults.partitionMap({
-        case Left(value) => Left(value)
-        case Right(value) => Right(value)
-      })
+    def isErrorFree(parserResults: Vector[Either[Vector[ParserError], (PPackageInfo, PProgram)]]): Either[Vector[ParserError], Vector[(PPackageInfo, PProgram)]] = {
+      val (errors, pkgInfoProgramTuples) = parserResults.partitionMap(identity)
       if (errors.isEmpty) Right(pkgInfoProgramTuples) else Left(errors.flatten)
     }
 
-    def checkSourceInfos(pkgInfoProgramTuples: Vector[(PackageInfo, PProgram)]): Either[Vector[ParserError], Vector[(PackageInfo, PProgram)]] = {
+    def checkSourceInfos(pkgInfoProgramTuples: Vector[(PPackageInfo, PProgram)]): Either[Vector[ParserError], Vector[(PPackageInfo, PProgram)]] = {
       require(pkgInfoProgramTuples.nonEmpty)
       val expectedPkgInfo = pkgInfoProgramTuples.head._1
       val differingPkgIdMsgs = pkgInfoProgramTuples.flatMap({ case (pkgInfo, p) =>
@@ -148,12 +145,10 @@ object Parser {
       }
     }
 
-    def makePackage(pkgInfoProgramTuples: Vector[(PackageInfo, PProgram)]): Either[Vector[ParserError], PPackage] = {
+    def makePackage(pkgInfoProgramTuples: Vector[(PPackageInfo, PProgram)]): Either[Vector[ParserError], PPackage] = {
       val clause = rewriter.deepclone(pkgInfoProgramTuples.head._2.packageClause)
-      val pkgId = pkgInfoProgramTuples.head._1.id
-      val isBuiltIn = pkgInfoProgramTuples.head._1.isBuiltIn
 
-      val parsedPackage = PPackage(clause, pkgInfoProgramTuples.map(_._2), pom, pkgId, isBuiltIn)
+      val parsedPackage = PPackage(clause, pkgInfoProgramTuples.map(_._2), pom, pkgInfoProgramTuples.head._1)
 
       // The package parse tree node gets the position of the package clause:
       pom.positions.dupPos(clause, parsedPackage)
@@ -267,7 +262,7 @@ object Parser {
         pkg.positions.positions.dupPos(prog, updatedProg)
       })
       // create a new package node with the updated programs
-      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.id, pkg.isBuiltIn)
+      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info)
       pkg.positions.positions.dupPos(pkg, updatedPkg)
       // check whether an error has occurred
       if (failedNodes.isEmpty) Right(updatedPkg)

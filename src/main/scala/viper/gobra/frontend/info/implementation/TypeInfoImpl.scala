@@ -67,6 +67,8 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   override def pkgName: PPkgDef = tree.originalRoot.packageClause.id
 
+  override def pkgInfo: PPackageInfo = tree.originalRoot.info
+
   override def typ(expr: PExpression): Type.Type = exprType(expr)
 
   override def typOfExprOrType(expr: PExpressionOrType): Type.Type = exprOrTypeType(expr)

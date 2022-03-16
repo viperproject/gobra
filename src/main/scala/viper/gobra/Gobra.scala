@@ -74,7 +74,7 @@ trait GoVerifier extends StrictLogging {
 
     config.packageInfoInputMap.keys.foreach(pkgInfo => {
       val pkgId = pkgInfo.id
-      logger.info("Verifying Package " + pkgId)
+      logger.info(s"Verifying Package $pkgId")
       val future = verify(pkgInfo, config.copy(reporter = statsCollector, taskName = pkgInfo.id))(executor)
         .map(result => {
           // Report verification finish, to free space used by unneeded typeInfo
@@ -95,7 +95,7 @@ trait GoVerifier extends StrictLogging {
       try {
         Await.result(future, config.packageTimeout)
       } catch {
-        case _: TimeoutException => logger.error("The verification of package " + pkgId + " got terminated after " + config.packageTimeout.toString)
+        case _: TimeoutException => logger.error(s"The verification of package $pkgId got terminated after " + config.packageTimeout.toString)
       }
     })
 
@@ -107,13 +107,13 @@ trait GoVerifier extends StrictLogging {
 
     // Print statistics for caching
     if(config.cacheFile.isDefined) {
-      logger.info("Number of cacheable Viper member(s): " + statsCollector.getNumberOfCacheableViperMembers)
-      logger.info("Number of cached Viper member(s): " + statsCollector.getNumberOfCachedViperMembers)
+      logger.info(s"Number of cacheable Viper member(s): ${statsCollector.getNumberOfCacheableViperMembers}")
+      logger.info(s"Number of cached Viper member(s): ${statsCollector.getNumberOfCachedViperMembers}")
     }
 
-    logger.info("Gobra has found " + statsCollector.getNumberOfVerifiableMembers + " methods and functions" )
-    logger.info(statsCollector.getNumberOfVerifiedMembers + " have specification")
-    logger.info(statsCollector.getNumberOfVerifiedMembersWithAssumptions + " are assumed to be satisfied")
+    logger.info(s"Gobra has found ${statsCollector.getNumberOfVerifiableMembers} methods and functions" )
+    logger.info(s"${statsCollector.getNumberOfVerifiedMembers} have specification")
+    logger.info(s"${statsCollector.getNumberOfVerifiedMembersWithAssumptions} are assumed to be satisfied")
 
     allErrors
   }

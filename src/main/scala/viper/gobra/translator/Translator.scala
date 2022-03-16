@@ -7,10 +7,9 @@
 package viper.gobra.translator
 
 
-import viper.gobra.ast.frontend.PackageInfo
 import viper.gobra.ast.internal.Program
 import viper.gobra.backend.BackendVerifier
-import viper.gobra.frontend.Config
+import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.translator.implementations.DfltTranslatorConfig
 import viper.gobra.translator.implementations.translator.ProgramsImpl
 import viper.gobra.reporting.GeneratedViperMessage

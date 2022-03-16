@@ -6,14 +6,13 @@
 
 package viper.gobra.util
 
-import viper.gobra.ast.frontend.PackageInfo
 
 import java.io.File
 import java.nio.file.Files
 import java.util.Properties
 import viper.silver.{ast => vpr}
 import viper.silver.ast.SourcePosition
-import viper.gobra.frontend.Config
+import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.reporting.ChoppedViperMessage
 import viper.gobra.backend.BackendVerifier.Task
 

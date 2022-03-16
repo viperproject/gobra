@@ -11,7 +11,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.Inside
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.Config
+import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -374,7 +374,7 @@ class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         PPackageClause(PPkgDef("pkg")),
         Vector(program),
         new PositionManager(positions),
-        PackageInfo("pkg", "pkg", isBuiltIn = false)
+        new PackageInfo("pkg", "pkg", false)
       )
       val tree = new Info.GoTree(pkg)
       val context = new Info.Context()

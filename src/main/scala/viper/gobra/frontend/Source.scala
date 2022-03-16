@@ -9,11 +9,41 @@ package viper.gobra.frontend
 import java.io.Reader
 import java.nio.file.{Files, Path, Paths}
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Source, StringSource}
-import viper.gobra.ast.frontend.PackageInfo
 import viper.gobra.util.Violation
 import viper.silver.ast.SourcePosition
 
+import java.security.MessageDigest
+import java.util.Objects
 import scala.io.BufferedSource
+
+/**
+ * Contains information about a package. Note that this class must not be a case class, since it is stored as information
+ * attached to an AST node. Kiama, treats every Product instance as an AST node. Case classes are instances of said product
+ * type. Therefore, Kiama would treat this as a AST node which leads to errors as this class does not extend PNode.
+ *
+ * @param id a unique identifier for the package
+ * @param name the name of the package, does not have to be unique
+ * @param isBuiltIn a flag indicating, if the package comes from within Gobra
+ */
+class PackageInfo(val id: String, val name: String, val isBuiltIn: Boolean) {
+  /**
+   * Unique id of the package to use in Viper member names.
+   *
+   * We use a Hex representation of the real package it to make sure that only allowed characters are used inside the id,
+   * while also keeping the uniqueness of the package id.
+   */
+  lazy val viperId: String = MessageDigest.getInstance("SHA-1")
+    .digest(id.getBytes("UTF-8"))
+    .map("%02x".format(_)).mkString
+
+  override def equals(obj: Any): Boolean = obj match {
+    case other: PackageInfo => other.id == this.id
+    case _ => false
+  }
+
+  override def hashCode: Int = Objects.hash(id)
+}
+
 
 /**
   * Contains several utility functions for managing Sources, i.e. inputs to Gobra
@@ -59,7 +89,7 @@ object Source {
         packageName
       }
     }
-    PackageInfo(packageId, packageName, isBuiltIn)
+    new PackageInfo(packageId, packageName, isBuiltIn)
   }
 
   implicit class TransformableSource[S <: Source](source: S) {

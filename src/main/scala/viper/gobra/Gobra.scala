@@ -9,12 +9,12 @@ package viper.gobra
 import java.nio.file.Paths
 import java.util.concurrent.ExecutionException
 import com.typesafe.scalalogging.StrictLogging
-import viper.gobra.ast.frontend.{PPackage, PackageInfo}
+import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.{Info, TypeInfo}
-import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
+import viper.gobra.frontend.{Config, Desugar, PackageInfo, Parser, ScallopGobraConfig}
 import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
@@ -72,10 +72,10 @@ trait GoVerifier extends StrictLogging {
       }
     })
 
-    config.packageInfoInputMap.foreach({ case (pkgInfo, inputs) =>
+    config.packageInfoInputMap.keys.foreach(pkgInfo => {
       val pkgId = pkgInfo.id
       logger.info("Verifying Package " + pkgId)
-      val future = verify(pkgInfo, config.copy(reporter = statsCollector))(executor)
+      val future = verify(pkgInfo, config.copy(reporter = statsCollector, taskName = pkgInfo.id))(executor)
         .map(result => {
           // Report verification finish, to free space used by unneeded typeInfo
           statsCollector.report(VerificationTaskFinishedMessage(pkgId))

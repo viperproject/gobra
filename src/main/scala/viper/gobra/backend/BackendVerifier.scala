@@ -6,9 +6,8 @@
 
 package viper.gobra.backend
 
-import viper.gobra.ast.frontend.PackageInfo
 import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon}
-import viper.gobra.frontend.Config
+import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, ChoppedProgressMessage}
 import viper.gobra.util.{ChopperUtil, GobraExecutionContext}

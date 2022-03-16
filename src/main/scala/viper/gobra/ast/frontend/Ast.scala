@@ -10,6 +10,7 @@ import org.bitbucket.inkytonik.kiama.rewriting.Rewritable
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
+import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.reporting.VerifierError
 import viper.gobra.util.{Decimal, NumBase}
@@ -39,26 +40,6 @@ object PNode {
 
 sealed trait PScope extends PNode
 sealed trait PUnorderedScope extends PScope
-
-/**
- * Contains information about a package
- *
- * @param id a unique identifier for the package
- * @param name the name of the package, does not have to be unique
- * @param isBuiltIn a flag indicating, if the package comes from within Gobra
- */
-case class PackageInfo(id: String, name: String, isBuiltIn: Boolean) extends PNode {
-  /**
-   * Unique id of the package to use in Viper member names.
-   *
-   * We use a Hex representation of the real package it to make sure that only allowed characters are used inside the id,
-   * while also keeping the uniqueness of the package id.
-   */
-  lazy val viperId: String = MessageDigest.getInstance("SHA-1")
-    .digest(id.getBytes("UTF-8"))
-    .map("%02x".format(_)).mkString
-
-}
 
 case class PPackage(
                      packageClause: PPackageClause,

@@ -10,13 +10,12 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type
-import viper.gobra.frontend.{Config, ScallopGobraConfig}
+import viper.gobra.frontend.{Config, PackageInfo, ScallopGobraConfig}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.gobra.Gobra
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
-
 
 class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
   val statsCollectorTestDir: String = "src/test/resources/stats_collector"

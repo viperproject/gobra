@@ -315,7 +315,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case _: PMagicWand => !strong
 
-      case _: PBoolLit | _: PIntLit | _: PNilLit | _: PStringLit => true
+      case _: PBoolLit | _: PIntLit | _: PNilLit | _: PStringLit | _: PFloatLit => true
 
       // Might change at some point
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {

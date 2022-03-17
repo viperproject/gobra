@@ -153,6 +153,7 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         FunctionT(Vector(predArgType), AssertionT)
       })
     }
+    case t: BuiltInTypeTag => Violation.violation(s"typ not defined for ${t.name}")
   }
 
   /** ghost typing for arguments of BuiltInMemberTag tag */
@@ -175,6 +176,8 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
           Violation.violation(s"argGhostTyping not defined for ${t.name}")
         }
     }
+
+    case t: BuiltInTypeTag => Violation.violation(s"argGhostTyping not defined for ${t.name}")
   }
 
   /** ghost typing for return values of BuiltInMemberTag tag */
@@ -201,6 +204,7 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
           Violation.violation(s"returnGhostTyping not defined for ${t.name}")
         }
     }
+    case t: BuiltInTypeTag => Violation.violation(s"returnGhostTyping not defined for ${t.name}")
 
   }
 

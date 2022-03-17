@@ -293,7 +293,6 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     }
 
     def testProg(inputProg: String, expectedErasedProg: String): Assertion = {
-      val config = Config()
       val inputParseAst = Parser.parseProgram(StringSource(inputProg, "Input Program"))
       val ghostlessProg = inputParseAst match {
         case Right(prog) => ghostLessProg(prog)

@@ -53,6 +53,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
     attr[PExpression, AddrMod] {
       case PNamedOperand(id) => addressableVar(id)
       case PBlankIdentifier() => AddrMod.defaultValue
+      case _: PTypeExpr => AddrMod.defaultValue
       case _: PDeref => AddrMod.dereference
       case PIndexedExp(base, _) =>
         val baseType = underlyingType(exprType(base))

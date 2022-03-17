@@ -313,12 +313,11 @@ object Parser {
     }
 
     def parse(rule : => Rule): Either[Vector[ParserError], Node] = {
-      val name = source.name
       val tree = try rule
       catch {
         case _: AmbiguityException => parse_LL(rule) // Resolve `<IDENTIFIER> { }` ambiguities in switch/if-statements
         case _: ParseCancellationException => parse_LL(rule) // For even faster parsing, replace with `new ParserRuleContext()`.
-        case e => errors.append(ParserError(e.getMessage, Some(SourcePosition(source.toPath, 0, 0)))); new ParserRuleContext()
+        case e: Throwable => errors.append(ParserError(e.getMessage, Some(SourcePosition(source.toPath, 0, 0)))); new ParserRuleContext()
       }
       if(errors.isEmpty) {
         val translator = new ParseTreeTranslator(pom, source, specOnly)
@@ -330,13 +329,13 @@ object Parser {
                 case _ => None
               }
               return Left(Vector(ParserError(e.getMessage + " " + e.getStackTrace.toVector(1), pos)))
-            case e : UnsupportedOperatorException =>
+            case e: UnsupportedOperatorException =>
               val pos = source match {
                 case fileSource: FromFileSource => Some(SourcePosition(fileSource.path, e.cause.startPos.line, e.cause.endPos.column))
                 case _ => None
               }
               return Left(Vector(ParserError(e.getMessage + " " + e.getStackTrace.toVector(0), pos)))
-            case e =>
+            case e: Throwable =>
               val pos = source match {
                 case fileSource: FromFileSource => Some(SourcePosition(fileSource.path, 0, 0))
                 case _ => None

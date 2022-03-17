@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package fail
+
+ensures ret != 0
+func fail() (ret int) {
+  return 0
+}

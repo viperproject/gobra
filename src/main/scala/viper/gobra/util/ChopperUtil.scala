@@ -6,13 +6,13 @@
 
 package viper.gobra.util
 
+
 import java.io.File
 import java.nio.file.Files
 import java.util.Properties
-
 import viper.silver.{ast => vpr}
 import viper.silver.ast.SourcePosition
-import viper.gobra.frontend.Config
+import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.reporting.ChoppedViperMessage
 import viper.gobra.backend.BackendVerifier.Task
 
@@ -21,24 +21,24 @@ object ChopperUtil {
   val GobraChopperFileLocation = "GobraChopper.conf"
 
   /** Splits task program into multiple Viper programs depending on config. */
-  def computeChoppedPrograms(task: Task)(config: Config): Vector[vpr.Program] = {
+  def computeChoppedPrograms(task: Task, pkgInfo: PackageInfo)(config: Config): Vector[vpr.Program] = {
 
 
     val programs = ViperChopper.chop(task.program)(
-      isolate = computeIsolateMap(config),
+      isolate = computeIsolateMap(config, pkgInfo),
       bound = Some(config.choppingUpperBound),
       penalty = getPenalty
     )
 
     // Report Chopped Programs
     programs.zipWithIndex.foreach{ case (chopped, idx) =>
-      config.reporter report ChoppedViperMessage(config.inputs.map(_.name), idx, () => chopped, () => task.backtrack)
+      config.reporter report ChoppedViperMessage(config.packageInfoInputMap(pkgInfo).map(_.name), idx, () => chopped, () => task.backtrack)
     }
 
     programs
   }
 
-  def computeIsolateMap(config: Config): Option[vpr.Member => Boolean] = {
+  def computeIsolateMap(config: Config, pkgInfo: PackageInfo): Option[vpr.Member => Boolean] = {
     import viper.gobra.reporting.Source
 
     val isIsolated = config.isolate match {
@@ -53,7 +53,7 @@ object ChopperUtil {
 
       case None =>
         import viper.gobra.frontend.Source.TransformableSource
-        (memberPosition: SourcePosition) => config.inputs.exists(_.contains(memberPosition))
+        (memberPosition: SourcePosition) => config.packageInfoInputMap(pkgInfo).exists(_.contains(memberPosition))
     }
 
     Some {

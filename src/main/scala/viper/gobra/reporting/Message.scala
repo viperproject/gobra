@@ -13,7 +13,8 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.VerifierResult.Success
 import viper.silver
 import viper.silver.{ast => vpr}
-import viper.silver.reporter.Message
+import viper.silver.reporter.{Message, Time}
+import viper.gobra.frontend.info.TypeInfo
 
 /**
   * Messages reported by GobraReporter
@@ -27,6 +28,15 @@ sealed trait GobraVerificationResultMessage extends GobraMessage {
   override val name: String = s"verification_result"
   def result: VerifierResult
   val verifier: String
+}
+
+/**
+ * This message is reported once a Gobra verification task is finished. It differs from {@link GobraOverallFailureMessage}
+ * and {@link GobraOverallSuccessMessage}, since they mark when a backend verification job is finished.
+ */
+case class VerificationTaskFinishedMessage(taskName: String) extends GobraMessage {
+  override val name: String = s"verification_task_finished"
+  override def toString: String = s"verification_task_finished(taskName=$taskName)"
 }
 
 case class GobraOverallSuccessMessage(verifier: String) extends GobraVerificationResultMessage {
@@ -51,24 +61,26 @@ sealed trait GobraEntityResultMessage extends GobraVerificationResultMessage {
   val cached: Boolean
 }
 
-case class GobraEntitySuccessMessage(verifier: String, entity: vpr.Member, concerning: Source.Verifier.Info, cached: Boolean) extends GobraEntityResultMessage {
+case class GobraEntitySuccessMessage(taskName: String, verifier: String, entity: vpr.Member, concerning: Source.Verifier.Info, time: Time, cached: Boolean) extends GobraEntityResultMessage {
   override val name: String = s"entity_success_message"
   val result: VerifierResult = Success
 
   override def toString: String = s"entity_success_message(" +
+    s"taskName=$taskName, " +
     s"verifier=$verifier, " +
     s"concerning=${concerning.toString}, " +
-    s"cached=${cached.toString})"
+    s"cached=$cached)"
 }
 
-case class GobraEntityFailureMessage(verifier: String, entity: vpr.Member, concerning: Source.Verifier.Info, result: VerifierResult, cached: Boolean) extends GobraEntityResultMessage {
+case class GobraEntityFailureMessage(taskName: String, verifier: String, entity: vpr.Member, concerning: Source.Verifier.Info, result: VerifierResult, time: Time, cached: Boolean) extends GobraEntityResultMessage {
   override val name: String = s"entity_failure_message"
 
   override def toString: String = s"entity_failure_message(" +
+    s"taskName=$taskName, " +
     s"verifier=$verifier, " +
     s"concerning=${concerning.toString}, " +
     s"failure=${result.toString}, " +
-    s"cached=${cached.toString})"
+    s"cached=$cached)"
 }
 
 case class ChoppedProgressMessage(idx: Int, of: Int) extends GobraMessage {
@@ -109,10 +121,11 @@ sealed trait TypeCheckMessage extends GobraMessage {
     s"files=$inputs)"
 }
 
-case class TypeCheckSuccessMessage(inputs: Vector[String], ast: () => PPackage, erasedGhostCode: () => String, goifiedGhostCode: () => String) extends TypeCheckMessage {
+case class TypeCheckSuccessMessage(inputs: Vector[String], taskName: String, typeInfo: () => TypeInfo, ast: () => PPackage, erasedGhostCode: () => String, goifiedGhostCode: () => String) extends TypeCheckMessage {
   override val name: String = s"type_check_success_message"
 
   override def toString: String = s"type_check_success_message(" +
+    s"taskName=$taskName, " +
     s"files=$inputs)"
 }
 
@@ -149,10 +162,11 @@ case class AppliedInternalTransformsMessage(inputs: Vector[String], internal: ()
     s"internal=${internal().formatted})"
 }
 
-case class GeneratedViperMessage(inputs: Vector[String], vprAst: () => vpr.Program, backtrack: () => BackTranslator.BackTrackInfo) extends GobraMessage {
+case class GeneratedViperMessage(taskName: String, inputs: Vector[String], vprAst: () => vpr.Program, backtrack: () => BackTranslator.BackTrackInfo) extends GobraMessage {
   override val name: String = s"generated_viper_message"
 
   override def toString: String = s"generated_viper_message(" +
+    s"taskName=$taskName"
     s"files=$inputs, " +
     s"vprFormated=$vprAstFormatted)"
 

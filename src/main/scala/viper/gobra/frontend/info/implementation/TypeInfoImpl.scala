@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.Config
+import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.frontend.info.base.SymbolTable.{Regular, TypeMember, UnknownEntity, lookup}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
@@ -66,6 +66,8 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   protected val decorators = new Decorators(tree)
 
   override def pkgName: PPkgDef = tree.originalRoot.packageClause.id
+
+  override def pkgInfo: PackageInfo = tree.originalRoot.info
 
   override def typ(expr: PExpression): Type.Type = exprType(expr)
 

@@ -7,7 +7,7 @@
 package viper.gobra.backend
 
 import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon}
-import viper.gobra.frontend.Config
+import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, ChoppedProgressMessage}
 import viper.gobra.util.{ChopperUtil, GobraExecutionContext}
@@ -31,7 +31,7 @@ object BackendVerifier {
                     backtrack: BackTranslator.BackTrackInfo
                     ) extends Result
 
-  def verify(task: Task)(config: Config)(implicit executor: GobraExecutionContext): Future[Result] = {
+  def verify(task: Task, pkgInfo: PackageInfo)(config: Config)(implicit executor: GobraExecutionContext): Future[Result] = {
 
     var exePaths: Vector[String] = Vector.empty
 
@@ -49,13 +49,13 @@ object BackendVerifier {
 
     val verificationResults =  {
       val verifier = config.backend.create(exePaths, config)
-      val programID = s"_programID_${config.inputs.map(_.name).mkString("_")}"
+      val reporter = BacktranslatingReporter(config.reporter, task.backtrack, config)
 
       if (!config.shouldChop) {
-        verifier.verify(programID, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor)
+        verifier.verify(config.taskName, reporter, task.program)(executor)
       } else {
 
-        val programs = ChopperUtil.computeChoppedPrograms(task)(config)
+        val programs = ChopperUtil.computeChoppedPrograms(task, pkgInfo)(config)
         val num = programs.size
 
         //// (Felix) Currently, Silicon cannot be invoked concurrently.
@@ -65,11 +65,10 @@ object BackendVerifier {
         // }
 
         programs.zipWithIndex.foldLeft(Future.successful(silver.verifier.Success): Future[VerificationResult]) { case (res, (program, idx)) =>
-          val programSubID = s"${programID}_$idx"
           for {
             acc <- res
             next <- verifier
-              .verify(programSubID, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
+              .verify(config.taskName, reporter, program)(executor)
               .andThen(_ => config.reporter report ChoppedProgressMessage(idx+1, num))
           } yield (acc, next) match {
             case (acc, silver.verifier.Success) => acc

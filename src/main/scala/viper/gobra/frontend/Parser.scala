@@ -17,7 +17,7 @@ import viper.gobra.reporting.{Source => _, _}
 import org.antlr.v4.runtime.{CharStreams, CommonTokenStream, DefaultErrorStrategy, ParserRuleContext}
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
-import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, SourceFileContext, SpecMemberContext, StmtOnlyContext, TypeOnlyContext, Type_Context}
+import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, SourceFileContext, SpecMemberContext, StmtOnlyContext, TypeOnlyContext}
 import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable.ListBuffer
@@ -41,11 +41,11 @@ object Parser {
     *
     */
 
-  def parse(input: Vector[Source], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
+  def parse(input: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val sources = input
       .map(Gobrafier.gobrafy)
     for {
-      parseAst <- parseSources(sources, specOnly)(config)
+      parseAst <- parseSources(sources, pkgInfo, specOnly)(config)
       postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
     } yield postprocessedAst
   }
@@ -66,7 +66,7 @@ object Parser {
     sourceCache = Map.empty
   }
 
-  private def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def parseSources(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     lazy val rewriter = new PRewriter(pom.positions)
@@ -121,32 +121,40 @@ object Parser {
       if (errors.isEmpty) Right(programs) else Left(errors.flatten)
     }
 
-    def samePackage(programs: Vector[PProgram]): Either[Vector[ParserError], Vector[PProgram]] = {
+    def checkPackageInfo(programs: Vector[PProgram]): Either[Vector[ParserError], Vector[PProgram]] = {
       require(programs.nonEmpty)
-      val pkgName = programs.head.packageClause.id.name
       val differingPkgNameMsgs = programs.flatMap(p =>
         error(
           p.packageClause,
-          s"Files have differing package clauses, expected $pkgName but got ${p.packageClause.id.name}",
-          p.packageClause.id.name != pkgName))
-      if (differingPkgNameMsgs.isEmpty) Right(programs) else Left(pom.translate(differingPkgNameMsgs, ParserError))
+          s"Files have differing package clauses, expected ${pkgInfo.name} but got ${p.packageClause.id.name}",
+          p.packageClause.id.name != pkgInfo.name)
+      )
+
+      if (differingPkgNameMsgs.isEmpty) {
+        Right(programs)
+      } else {
+        Left(pom.translate(differingPkgNameMsgs, ParserError))
+      }
     }
 
     def makePackage(programs: Vector[PProgram]): Either[Vector[ParserError], PPackage] = {
       val clause = rewriter.deepclone(programs.head.packageClause)
-      val parsedPackage = PPackage(clause, programs, pom)
+
+      val parsedPackage = PPackage(clause, programs, pom, pkgInfo)
+
       // The package parse tree node gets the position of the package clause:
       pom.positions.dupPos(clause, parsedPackage)
       Right(parsedPackage)
     }
 
     val parsingFn = if (config.cacheParser) { parseSourceCached _ } else { parseSource _ }
-    val parserResults = sources.map(parsingFn)
+    val parsedPrograms = sources.map(parsingFn)
+
     val res = for {
       // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
       // of the same package has failed or users have entered an invalid collection of inputs
-      programs <- isErrorFree(parserResults)
-      programs <- samePackage(programs)
+      programs <- isErrorFree(parsedPrograms)
+      programs <- checkPackageInfo(programs)
       pkg <- makePackage(programs)
     } yield pkg
     // report potential errors:
@@ -246,7 +254,7 @@ object Parser {
         pkg.positions.positions.dupPos(prog, updatedProg)
       })
       // create a new package node with the updated programs
-      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions)
+      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info)
       pkg.positions.positions.dupPos(pkg, updatedPkg)
       // check whether an error has occurred
       if (failedNodes.isEmpty) Right(updatedPkg)

@@ -10,11 +10,13 @@ import org.bitbucket.inkytonik.kiama.rewriting.Rewritable
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
+import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.reporting.VerifierError
 import viper.gobra.util.{Decimal, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
+import java.security.MessageDigest
 import scala.collection.immutable
 
 // TODO: comment describing identifier positions (resolution)
@@ -42,7 +44,8 @@ sealed trait PUnorderedScope extends PScope
 case class PPackage(
                      packageClause: PPackageClause,
                      programs: Vector[PProgram],
-                     positions: PositionManager
+                     positions: PositionManager,
+                     info: PackageInfo
                    ) extends PNode with PUnorderedScope {
   // TODO: remove duplicate package imports:
   lazy val imports: Vector[PImport] = programs.flatMap(_.imports)

@@ -16,48 +16,73 @@ import org.rogach.scallop.{ScallopConf, ScallopOption, listArgConverter, singleA
 import org.slf4j.LoggerFactory
 import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
-import viper.gobra.frontend.PackageResolver.RegularImport
+import viper.gobra.frontend.Source.{FromFileSource, getPackageInfo}
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
+import scala.concurrent.duration.Duration
+
 object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
 }
+
+object ConfigDefaults {
+  val DefaultGobraDirectory: String = ".gobra"
+  val DefaultTaskName: String = "gobra-task"
+}
+
 case class Config(
-                 inputs: Vector[Source],
-                 moduleName: String = "",
-                 includeDirs: Vector[Path] = Vector(),
-                 reporter: GobraReporter = StdIOReporter(),
-                 backend: ViperBackend = ViperBackends.SiliconBackend,
-                 isolate: Option[Vector[SourcePosition]] = None,
-                 choppingUpperBound: Int = 1,
-                 z3Exe: Option[String] = None,
-                 boogieExe: Option[String] = None,
-                 logLevel: Level = LoggerDefaults.DefaultLevel,
-                 cacheFile: Option[String] = None,
-                 shouldParse: Boolean = true,
-                 shouldTypeCheck: Boolean = true,
-                 shouldDesugar: Boolean = true,
-                 shouldViperEncode: Boolean = true,
-                 checkOverflows: Boolean = false,
-                 checkConsistency: Boolean = false,
-                 shouldVerify: Boolean = true,
-                 shouldChop: Boolean = false,
-                 // The go language specification states that int and uint variables can have either 32bit or 64, as long
-                 // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
-                 // 64 bit otherwise.
-                 int32bit: Boolean = false,
-                 // the following option is currently not controllable via CLI as it is meaningless without a constantly
-                 // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
-                 cacheParser: Boolean = false
+                   recursive: Boolean = false,
+                   gobraDirectory: Path = Path.of(ConfigDefaults.DefaultGobraDirectory),
+                   // Used as an identifier of a verification task, ideally it shouldn't change between verifications
+                   // because it is used as a caching key. Additionally it should be unique when using the StatsCollector
+                   taskName: String = ConfigDefaults.DefaultTaskName,
+                   // Contains a mapping of packages to all input sources for that package
+                   packageInfoInputMap: Map[PackageInfo, Vector[Source]] = Map(),
+                   moduleName: String = "",
+                   includeDirs: Vector[Path] = Vector(),
+                   projectRoot: Path = Path.of(""),
+                   reporter: GobraReporter = StdIOReporter(),
+                   backend: ViperBackend = ViperBackends.SiliconBackend,
+                   isolate: Option[Vector[SourcePosition]] = None,
+                   choppingUpperBound: Int = 1,
+                   packageTimeout: Duration = Duration.Inf,
+                   z3Exe: Option[String] = None,
+                   boogieExe: Option[String] = None,
+                   logLevel: Level = LoggerDefaults.DefaultLevel,
+                   cacheFile: Option[String] = None,
+                   shouldParse: Boolean = true,
+                   shouldTypeCheck: Boolean = true,
+                   shouldDesugar: Boolean = true,
+                   shouldViperEncode: Boolean = true,
+                   checkOverflows: Boolean = false,
+                   checkConsistency: Boolean = false,
+                   shouldVerify: Boolean = true,
+                   shouldChop: Boolean = false,
+                   // The go language specification states that int and uint variables can have either 32bit or 64, as long
+                   // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
+                   // 64 bit otherwise.
+                   int32bit: Boolean = false,
+                   // the following option is currently not controllable via CLI as it is meaningless without a constantly
+                   // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
+                   cacheParser: Boolean = false
 ) {
 
   def merge(other: Config): Config = {
     // this config takes precedence over other config
+    val newInputs: Map[PackageInfo, Vector[Source]] = {
+      val keys = packageInfoInputMap.keys ++ other.packageInfoInputMap.keys
+      keys.map(k => k -> (packageInfoInputMap.getOrElse(k, Vector()) ++ other.packageInfoInputMap.getOrElse(k, Vector())).distinct).toMap
+    }
+
     Config(
-      inputs = (inputs ++ other.inputs).distinct,
+      recursive = recursive,
       moduleName = moduleName,
+      taskName = taskName,
+      gobraDirectory = gobraDirectory,
+      packageInfoInputMap = newInputs,
+      projectRoot = projectRoot,
       includeDirs = (includeDirs ++ other.includeDirs).distinct,
       reporter = reporter,
       backend = backend,
@@ -66,6 +91,7 @@ case class Config(
         case (l, None) => l
         case (Some(l), Some(r)) => Some((l ++ r).distinct)
       },
+      packageTimeout = if(packageTimeout < other.packageTimeout) packageTimeout else other.packageTimeout, // take minimum
       z3Exe = z3Exe orElse other.z3Exe,
       boogieExe = boogieExe orElse other.boogieExe,
       logLevel = if (logLevel.isGreaterOrEqual(other.logLevel)) other.logLevel else logLevel, // take minimum
@@ -116,8 +142,37 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     */
   val input: ScallopOption[List[String]] = opt[List[String]](
     name = "input",
-    descr = "List of Gobra programs or a single package name to verify"
+    descr = "List of Gobra programs, a project directory or a single package name to verify",
+    short = 'i'
   )
+
+  val recursive: ScallopOption[Boolean] = toggle(
+    name = "recursive",
+    descrYes = "Verify nested packages recursively",
+    default = Some(false),
+    short = 'r'
+  )
+
+  val includePackages: ScallopOption[List[String]] = opt[List[String]](
+    name = "includePackages",
+    descr = "Packages to verify. All packages found in the specified directories are verified by default.",
+    default = Some(List.empty),
+    short = 'p'
+  )
+
+  val excludePackages: ScallopOption[List[String]] = opt[List[String]](
+    name = "excludePackages",
+    descr = "Packages to ignore. These packages will not be verified, even if they are found in the specified directories.",
+    default = Some(List.empty),
+    noshort = true
+  )
+
+  val gobraDirectory: ScallopOption[Path] = opt[Path](
+    name = "gobraDirectory",
+    descr = "Output directory for Gobra",
+    default = Some(Path.of(ConfigDefaults.DefaultGobraDirectory)),
+    short = 'g'
+  )(singleArgConverter(arg => Path.of(arg)))
 
   val module: ScallopOption[String] = opt[String](
     name = "module",
@@ -208,6 +263,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val packageTimeout: ScallopOption[String] = opt[String](
+    name = "packageTimeout",
+    descr = "Duration till the verification of a package times out",
+    default = None,
+    noshort = true
+  )
+
   val z3Exe: ScallopOption[String] = opt[String](
     name = "z3Exe",
     descr = "The Z3 executable",
@@ -229,6 +291,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = false
   )
 
+  val rootDirectory: ScallopOption[Path] = opt[Path](
+    name = "projectRoot",
+    descr = "The root directory of the project",
+    default = None,
+    noshort = true
+  )
+
   val cacheFile: ScallopOption[String] = opt[String](
     name = "cacheFile",
     descr = "Cache file to be used by Viper Server",
@@ -243,7 +312,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = false
   )
 
-
   /**
     * Exception handling
     */
@@ -257,64 +325,73 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   }
 
 
-
-
   /** File Validation */
   def validateInput(inputOption: ScallopOption[List[String]],
-                    moduleOption: ScallopOption[String],
-                    includeOption: ScallopOption[List[File]]): Unit = validateOpt(inputOption, includeOption) { (inputOpt, includeOpt) =>
-
-    def checkConversion(input: List[String], moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[Path]] = {
-      def validateSources(sources: Vector[Source]): Either[Messages, Vector[Path]] = {
-        val (remainingSources, paths) = sources.partitionMap {
-          case FileSource(name, _) => Right(Paths.get(name))
-          case s => Left(s)
+                    recOption: ScallopOption[Boolean],
+                    rootDirectoryOption: ScallopOption[Path],
+                    includeOption: ScallopOption[List[File]],
+                    includePkgOption: ScallopOption[List[String]],
+                    excludePkgOption: ScallopOption[List[String]]): Unit =
+    validateOpt(inputOption, recOption, rootDirectoryOption, includeOption, includePkgOption, excludePkgOption) {
+      (inputOpt, recOpt, rootDirectoryOpt, includeOpt, includePkgOpt, excludePkgOpt) =>
+      def checkConversion(input: List[String]): Either[String, Vector[Path]] = {
+        def validateSources(sources: Vector[Source]): Either[Messages, Vector[Path]] = {
+          val (remainingSources, paths) = sources.partitionMap {
+            case FileSource(name, _) => Right(Paths.get(name))
+            case FromFileSource(path, _, _) => Right(path)
+            case s => Left(s)
+          }
+          if (remainingSources.isEmpty) Right(paths)
+          else Left(message(null, s"Expected file sources but got $remainingSources"))
         }
-        if (remainingSources.isEmpty) Right(paths)
-        else Left(message(remainingSources, s"Expected file sources but got ${remainingSources}"))
+
+        val shouldParseRecursively = recOpt.getOrElse(false)
+        val inputValidationMsgs = InputConverter.validate(input, shouldParseRecursively)
+
+        lazy val projectRoot = rootDirectoryOpt.getOrElse(
+          includeOpt.flatMap(_.headOption.map(_.toPath)).getOrElse(Path.of(""))
+        )
+
+        val paths = for {
+          _ <- if (inputValidationMsgs.isEmpty) Right(()) else Left(inputValidationMsgs)
+          sources = InputConverter.convert(input, shouldParseRecursively, projectRoot, includePkgOpt.getOrElse(List()), excludePkgOpt.getOrElse(List()))
+          paths <- validateSources(sources.values.flatten.toVector)
+        } yield paths
+
+        paths.left.map(msgs => s"The following errors have occurred: ${msgs.map(_.label).mkString(",")}")
       }
 
-      val inputValidationMsgs = InputConverter.validate(input)
-      val paths = for {
-        _ <- if (inputValidationMsgs.isEmpty) Right(()) else Left(inputValidationMsgs)
-        sources = InputConverter.convert(input, moduleName, includeDirs)
-        paths <- validateSources(sources)
-      } yield paths
+      def atLeastOnePath(paths: Vector[Path]): Either[String, Unit] = {
+        if (paths.nonEmpty || isInputOptional) Right(()) else Left(s"Package resolution has not found any files for verification - are you using '.${PackageResolver.gobraExtension}' or '.${PackageResolver.goExtension}' as file extension?")
+      }
 
-      paths.left.map(msgs => s"The following errors have occurred: ${msgs.map(_.label).mkString(",")}")
-    }
+      def pathsExist(paths: Vector[Path]): Either[String, Unit] = {
+        val notExisting = paths.filterNot(Files.exists(_))
+        if (notExisting.isEmpty) Right(()) else Left(s"Files '${notExisting.mkString(",")}' do not exist")
+      }
 
-    def atLeastOneFile(files: Vector[Path]): Either[String, Unit] = {
-      if (files.nonEmpty || isInputOptional) Right(()) else Left(s"Package resolution has not found any files for verification - are you using '.${PackageResolver.gobraExtension}' or '.${PackageResolver.goExtension}' as file extension?")
-    }
+      def pathsAreFilesOrDirectories(paths: Vector[Path]): Either[String, Unit] = {
+        val notFilesOrDirectories = paths.filterNot(file => Files.isRegularFile(file) || Files.isDirectory(file))
+        if (notFilesOrDirectories.isEmpty) Right(()) else Left(s"Files '${notFilesOrDirectories.mkString(",")}' are neither files or directories")
+      }
 
-    def filesExist(files: Vector[Path]): Either[String, Unit] = {
-      val notExisting = files.filterNot(Files.exists(_))
-      if (notExisting.isEmpty) Right(()) else Left(s"Files '${notExisting.mkString(",")}' do not exist")
-    }
+      def pathsAreReadable(paths: Vector[Path]): Either[String, Unit] = {
+        val notReadable = paths.filterNot(Files.isReadable)
+        if (notReadable.isEmpty) Right(()) else Left(s"Files '${notReadable.mkString(",")}' are not readable")
+      }
 
-    def filesAreFiles(files: Vector[Path]): Either[String, Unit] = {
-      val notFiles = files.filterNot(Files.isRegularFile(_))
-      if (notFiles.isEmpty) Right(()) else Left(s"Files '${notFiles.mkString(",")}' are not files")
-    }
-
-    def filesAreReadable(files: Vector[Path]): Either[String, Unit] = {
-      val notReadable = files.filterNot(Files.isReadable)
-      if (notReadable.isEmpty) Right(()) else Left(s"Files '${notReadable.mkString(",")}' are not readable")
-    }
-
-    // perform the following checks:
-    // - validate fileOpt using includeOpt
-    // - convert fileOpt using includeOpt
-    //  - result should be non-empty, exist, be files and be readable
-    val input: List[String] = inputOpt.getOrElse(List())
-    for {
-      convertedFiles <- checkConversion(input, moduleOption.getOrElse(""), includeOpt.map(_.map(_.toPath).toVector).getOrElse(Vector()))
-      _ <- atLeastOneFile(convertedFiles)
-      _ <- filesExist(convertedFiles)
-      _ <- filesAreFiles(convertedFiles)
-      _ <- filesAreReadable(convertedFiles)
-    } yield ()
+      // perform the following checks:
+      // - validate fileOpt using includeOpt
+      // - convert fileOpt using includeOpt
+      //  - result should be non-empty, exist, be files and be readable
+      val input: List[String] = inputOpt.getOrElse(List())
+      for {
+        convertedFiles <- checkConversion(input)
+        _ <- atLeastOnePath(convertedFiles)
+        _ <- pathsExist(convertedFiles)
+        _ <- pathsAreFilesOrDirectories(convertedFiles)
+        _ <- pathsAreReadable(convertedFiles)
+      } yield ()
   }
 
   if (!skipIncludeDirChecks) {
@@ -335,7 +412,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   })
   val cutInput: ScallopOption[List[String]] = cutInputWithIdxs.map(_.map(_._1))
 
-  validateInput(cutInput, module, include)
+  validateInput(input, recursive, rootDirectory, include, includePackages, excludePackages)
 
   // cache file should only be usable when using viper server
   validateOpt (backend, cacheFile) {
@@ -345,15 +422,60 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     case (_, Some(_)) => Left("Cache file can only be specified when the backend uses Viper Server")
   }
 
+  validateOpt (gobraDirectory) {
+    case Some(dir) =>
+      // Set up gobra directory
+      val gobraDirectory = dir.toFile
+      if(!gobraDirectory.exists && !gobraDirectory.mkdir()) {
+        Left( s"Could not create directory $gobraDirectory")
+      } else if (!gobraDirectory.isDirectory) {
+        Left(s"$dir is not a directory")
+      } else if (!gobraDirectory.canRead) {
+        Left(s"Couldn't read gobra directory $dir")
+      } else if (!gobraDirectory.canWrite) {
+        Left(s"Couldn't write to gobra directory $dir")
+      } else {
+        Right(())
+      }
+    case _ => Right(())
+  }
+
+  validateOpt (packageTimeout) {
+    case Some(s) => try {
+      Right(Duration(s))
+    } catch {
+      case e: NumberFormatException => Left(s"Couldn't parse package timeout: " + e.getMessage)
+    }
+    case None => Right(())
+  }
+
+  lazy val packageTimeoutDuration: Duration = packageTimeout.toOption match {
+    case Some(d) => Duration(d)
+    case _ => Duration.Inf
+  }
+
   verify()
 
   lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
-  lazy val inputs: Vector[Source] = InputConverter.convert(cutInput.toOption.getOrElse(List()), module.getOrElse(""), includeDirs)
+
+  // Take the user input for the project root or fallback to the fist include directory or the current directory
+  lazy val projectRoot: Path = rootDirectory.getOrElse(
+    includeDirs.headOption.getOrElse(Path.of(""))
+  )
+
+  lazy val inputPackageMap: Map[PackageInfo, Vector[Source]] = InputConverter.convert(
+    input.toOption.getOrElse(List()),
+    recursive.getOrElse(false),
+    projectRoot,
+    includePackages.getOrElse(List()),
+    excludePackages.getOrElse(List())
+  )
   lazy val isolated: Option[Vector[SourcePosition]] =
     InputConverter.isolatedPosition(cutInputWithIdxs.toOption) match {
       case Nil => None
       case positions => Some(positions.toVector)
     }
+
 
   /** set log level */
 
@@ -370,68 +492,66 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   private object InputConverter {
 
-    def validate(input: List[String]): Messages = {
-      val files = input map isGoFilePath
-      files.partition(_.isLeft) match {
-        case (pkgs,  files) if pkgs.length == 1 && files.isEmpty => noMessages
-        case (pkgs, files) if pkgs.isEmpty && files.nonEmpty => noMessages
-        // error states:
-        case (pkgs,  files) if pkgs.length > 1 && files.isEmpty =>
-          message(pkgs, s"multiple package names provided: '${concatLeft(pkgs, ",")}'")
-        case (pkgs, files) if pkgs.nonEmpty && files.nonEmpty =>
-          message(pkgs, s"specific input files and one or more package names were simultaneously provided (files: '${concatRight(files, ",")}'; package names: '${concatLeft(pkgs, ",")}')")
+    def validate(inputs: List[String], recursive: Boolean): Messages = {
+      val files = inputs flatMap (file => getAllGobraFiles(file, recursive))
+      files match {
+        case files if files.nonEmpty => noMessages
         case _ if isInputOptional => noMessages
-        case (pkgs, files) if pkgs.isEmpty && files.isEmpty => message(null, s"no input specified")
+        // error states
+        case files if files.isEmpty => message(null, s"no files found in the specified input (use -r to traverse directories)")
         case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
     }
 
-    def convert(input: List[String], moduleName: String, includeDirs: Vector[Path]): Vector[Source] = {
-      val res = for {
-        i <- identifyInput(input).toRight("invalid input")
-        sources <- i match {
-          case Right(filePaths) => Right(filePaths.map(f => FileSource(f.toString)))
-          case Left(_) => PackageResolver.resolveSources(RegularImport(""), moduleName, includeDirs)
-        }
-      } yield sources
-      assert(isInputOptional || res.isRight, s"validate function did not catch this problem: '${res.swap.getOrElse(None)}'")
-      res.getOrElse(Vector())
+    def convert(input: List[String], recursive: Boolean, projectRoot: Path, includePackages: List[String], excludePackages: List[String]): Map[PackageInfo, Vector[Source]] = {
+      val sources = parseInputStrings(input.toVector, recursive)
+      sources.groupBy(src => getPackageInfo(src, projectRoot))
+        .filter({case (pkgInfo, _) => (includePackages.isEmpty || includePackages.contains(pkgInfo.name)) && !excludePackages.contains(pkgInfo.name)})
     }
 
     /**
-      * Checks whether string ends in ".<ext>" where <ext> corresponds to the extension defined in InputConverter
-      * @return Right with the string converted to a File if the condition is met, otherwise Left containing `input`
-      */
-    private def isGoFilePath(input: String): Either[String, File] = input match {
-      case PackageResolver.inputFileRegex(filename) => Right(new File(filename))
-      case pkgName => Left(pkgName)
-    }
-
-    private def concatLeft(p: List[Either[String, File]], sep: String): String = {
-      (for(Left(pkg) <- p.toVector) yield pkg).mkString(sep)
-    }
-
-    private def concatRight(p: List[Either[String, File]], sep: String): String = {
-      (for(Right(f) <- p.toVector) yield f).mkString(sep)
+     * Parses all provided inputs and returns a list of all gobra files found
+     *
+     */
+    private def parseInputStrings(inputs: Vector[String], recursive: Boolean): Vector[Source] = {
+      inputs.flatMap(input => getAllGobraFiles(input, recursive))
+        .map(file => FileSource(file.getPath))
     }
 
     /**
-      * Decides whether the provided input strings should be interpreted as a single package name (Left) or
-      * a vector of file paths (Right). If a mix is provided None is returned.
-      */
-    def identifyInput(input: List[String]): Option[Either[String, Vector[Path]]] = {
-      val files = input map isGoFilePath
-      files.partition(_.isLeft) match {
-        case (pkgs,  files) if pkgs.length == 1 && files.isEmpty => pkgs.head.swap.map(Left(_)).toOption
-        case (pkgs, files) if pkgs.isEmpty && files.nonEmpty => Some(Right(for(Right(s) <- files.toVector) yield s.toPath))
-        case _ => None
+     * Gets all gobra files in a input location. If the location is a file that ends in ".<ext>" it is returned.
+     * If it is a directory, all files contained in it, ending in ".<ext>", are returned.
+     *
+     * @param recursive if true, directories are traversed recursively
+     * @return a Vector of the resolved gobra files
+     */
+    private def getAllGobraFiles(input: String, recursive: Boolean): Vector[File] =
+      input match {
+        case PackageResolver.inputFileRegex(filename) => Vector(new File(filename))
+        case dirname => getInputFilesInDir(new File(dirname), recursive)
       }
+
+    /**
+     * Gets all files with a go/gobra extension inside this directory
+     *
+     * @param directory directory to look for files
+     * @param recursive traverse subdirectories if this is set to true
+     * @return a List of go/gobra files
+     */
+    private def getInputFilesInDir(directory: File, recursive: Boolean): Vector[File] = {
+      Violation.violation(directory.exists && directory.isDirectory, "getInputFilesInDir didn't receive a directory as input: " + directory.toString)
+      directory.listFiles()
+        // Filters out all files that aren't either go/gobra files or directories (if recursive is set)
+        .filter(file => (file.isDirectory && recursive) || PackageResolver.inputFileRegex.matches(file.getName))
+        .flatMap(file => if (file.isDirectory) getInputFilesInDir(file, recursive) else List(file))
+        .toVector
     }
 
     def isolatedPosition(cutInputWithIdxs: Option[List[(String, List[Int])]]): List[SourcePosition] = {
       cutInputWithIdxs.map(_.flatMap { case (input, idxs) =>
-        isGoFilePath(input) match { // only go and gobra files can have a position
-          case Right(file) => idxs.map(idx => SourcePosition(file.toPath, idx, 0))
+        getAllGobraFiles(input, recursive = false) match {
+          // only go and gobra files and not directories can have a position
+          case Vector(file) => idxs.map(idx => SourcePosition(file.toPath, idx, 0))
           case _ => List.empty
         }
       }).getOrElse(List.empty)
@@ -439,9 +559,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   }
 
   lazy val config: Config = Config(
-    inputs = inputs,
+    recursive = recursive(),
+    gobraDirectory = gobraDirectory(),
+    packageInfoInputMap = inputPackageMap,
     moduleName = module(),
     includeDirs = includeDirs,
+    projectRoot = projectRoot,
     reporter = FileWriterReporter(
       unparse = unparse(),
       eraseGhost = eraseGhost(),
@@ -452,6 +575,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     backend = backend(),
     isolate = isolated,
     choppingUpperBound = chopUpperBound(),
+    packageTimeout = packageTimeoutDuration,
     z3Exe = z3Exe.toOption,
     boogieExe = boogieExe.toOption,
     logLevel = logLevel(),

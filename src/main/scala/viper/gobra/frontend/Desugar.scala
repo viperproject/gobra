@@ -38,7 +38,7 @@ object Desugar {
     val mainDesugarer = new Desugarer(pkg.positions, info)
     // combine all desugared results into one Viper program:
     val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
-    config.reporter report DesugaredMessage(config.inputs.map(_.name), () => internalProgram)
+    config.reporter report DesugaredMessage(config.packageInfoInputMap(pkg.info).map(_.name), () => internalProgram)
     internalProgram
   }
 
@@ -3152,13 +3152,14 @@ object Desugar {
 
     private def name(postfix: String)(n: String, s: PScope, context: ExternalTypeInfo): String = {
       maybeRegister(s, context)
+
       // n has occur first in order that function inverse properly works
-      s"${n}_${context.pkgName}_$postfix${scopeMap(s)}" // deterministic
+      s"${n}_${context.pkgInfo.viperId}_$postfix${scopeMap(s)}" // deterministic
     }
 
     private def nameWithoutScope(postfix: String)(n: String, context: ExternalTypeInfo): String = {
       // n has occur first in order that function inverse properly works
-      s"${n}_${context.pkgName}_$postfix" // deterministic
+      s"${n}_${context.pkgInfo.viperId}_$postfix" // deterministic
     }
 
     def variable(n: String, s: PScope, context: ExternalTypeInfo): String = name(VARIABLE_PREFIX)(n, s, context)

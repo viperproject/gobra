@@ -1,0 +1,33 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+import "pkg1"
+import "pkg2"
+
+func main () {
+  r@ := pkg2.Rect{width: 2, height: 3}
+  c@ := pkg2.Circle{radius: 10}
+  fold r.mem()
+  fold c.mem()
+
+  trustedFunction(abstractFunction(Area(&r)), abstractFunction(Area(&c)))
+}
+
+requires acc(s.mem()) && s.Size()
+ensures ret > 0
+func Area(s pkg1.Shape) (ret int) {
+  return s.Area()
+}
+
+requires d > 0
+ensures ret > 0
+func abstractFunction(d int) (ret int)
+
+requires i > 0 && j > 0
+ensures ret > 0
+trusted
+func trustedFunction(i int, j int) (ret int) {
+  return 0
+}

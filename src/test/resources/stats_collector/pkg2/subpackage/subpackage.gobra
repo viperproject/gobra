@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package subpackage
+
+import s "pkg1/subpackage"
+
+ensures ret < 0
+func test(d int) (ret int) {
+  return s.test(d)
+}

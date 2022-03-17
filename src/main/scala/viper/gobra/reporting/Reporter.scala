@@ -48,13 +48,13 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
 
   override def report(msg: GobraMessage): Unit = msg match {
     case ParsedInputMessage(input, program) if unparse => write(input, "unparsed", program().formatted)
-    case TypeCheckSuccessMessage(inputs, _, erasedGhostCode, goifiedGhostCode) =>
+    case TypeCheckSuccessMessage(inputs, _, _, _, erasedGhostCode, goifiedGhostCode) =>
       if (eraseGhost) write(inputs, "ghostLess", erasedGhostCode())
       if (goify) write(inputs, "go", goifiedGhostCode())
     case TypeCheckDebugMessage(inputs, _, debugTypeInfo) if debug => write(inputs, "debugType", debugTypeInfo())
     case DesugaredMessage(inputs, internal) if printInternal => write(inputs, "internal", internal().formatted)
     case AppliedInternalTransformsMessage(inputs, internal) if printInternal => write(inputs, "internal", internal().formatted)
-    case m@GeneratedViperMessage(inputs, _, _) if printVpr => write(inputs, "vpr", m.vprAstFormatted)
+    case m@GeneratedViperMessage(_, inputs, _, _) if printVpr => write(inputs, "vpr", m.vprAstFormatted)
     case m: ChoppedViperMessage if printVpr => write(m.inputs, s"chopped${m.idx}.vpr", m.vprAstFormatted)
     case m: ChoppedProgressMessage => logger.info(m.toString)
     case CopyrightReport(text) => println(text)

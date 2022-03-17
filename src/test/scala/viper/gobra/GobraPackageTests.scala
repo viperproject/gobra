@@ -13,7 +13,7 @@ import org.bitbucket.inkytonik.kiama.util.Source
 import org.rogach.scallop.exceptions.ValidationFailure
 import org.rogach.scallop.throwError
 import viper.gobra.frontend.Source.FromFileSource
-import viper.gobra.frontend.{Config, ScallopGobraConfig}
+import viper.gobra.frontend.{Config, PackageInfo, ScallopGobraConfig, Source}
 import viper.gobra.reporting.{NoopReporter, ParserError}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, DefaultAnnotatedTestInput, DefaultTestInput, ProjectInfo, SystemUnderTest}
@@ -57,21 +57,24 @@ class GobraPackageTests extends GobraTests {
           pkgName <- getPackageClause(input.file.toFile)
           config <- createConfig(Array(
             "--logLevel", "Info",
-            "-i", pkgName,
+            "-i", currentDir.toFile.getPath,
+            "-p", pkgName,
             "-I", currentDir.toFile.getPath
           ))
         } yield config
 
+        val pkgInfo = Source.getPackageInfo(FromFileSource(input.files.head), currentDir)
+
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,
-          inputs = input.files.toVector.map(FromFileSource(_)),
+          packageInfoInputMap = Map(pkgInfo -> input.files.toVector.map(FromFileSource(_))),
           includeDirs = Vector(currentDir),
           checkConsistency = true,
           z3Exe = z3Exe
         )
 
-        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config)(executor), Duration.Inf))
+        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(pkgInfo, config)(executor), Duration.Inf))
 
         info(s"Time required: $elapsedMilis ms")
 
@@ -99,6 +102,7 @@ class GobraPackageTests extends GobraTests {
       // set throwError to true: Scallop will throw an exception instead of terminating the program in case an
       // exception occurs (e.g. a validation failure)
       throwError.value = true
+
       Some(new ScallopGobraConfig(args.toSeq).config)
     } catch {
       case _: ValidationFailure => None
@@ -108,9 +112,18 @@ class GobraPackageTests extends GobraTests {
 
   private def equalConfigs(config1: Config, config2: Config): Vector[GobraTestOuput] = {
     def equalFiles(v1: Vector[Path], v2: Vector[Path]): Boolean = v1.sortBy(_.toString).equals(v2.sortBy(_.toString))
-    def equalSources(v1: Vector[Source], v2: Vector[Source]): Boolean = v1.map(_.name).sorted.equals(v2.map(_.name).sorted)
 
-    val equal = (equalSources(config1.inputs, config2.inputs)
+    /**
+     * Checks that two given maps contain the same PPackageInfo source mapping
+     */
+    def equalPkgInfoSourceMaps(v1: Map[PackageInfo, Vector[Source]], v2: Map[PackageInfo, Vector[Source]]): Boolean = {
+      val keys = (v1.keys ++ v2.keys).toSet
+      keys.forall(pkgInfo =>
+        v1.contains(pkgInfo) && v2.contains(pkgInfo) && v1(pkgInfo).map(_.name).sorted.equals(v2(pkgInfo).map(_.name).sorted)
+      )
+    }
+
+    val equal = (equalPkgInfoSourceMaps(config1.packageInfoInputMap, config2.packageInfoInputMap)
       && equalFiles(config1.includeDirs, config2.includeDirs)
       && config1.logLevel == config2.logLevel)
     if (equal) Vector()

@@ -929,6 +929,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             val typeRight = exprOrTypeType(bExpr.right)
             typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
         }
+
+      case e => violation(s"unexpected expression $e while type-checking integer expressions.")
     }
 
     // handle cases where it returns a SingleMultiTuple and we only care about a single type

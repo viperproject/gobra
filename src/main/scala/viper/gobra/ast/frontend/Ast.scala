@@ -16,7 +16,6 @@ import viper.gobra.reporting.VerifierError
 import viper.gobra.util.{Decimal, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
-import java.security.MessageDigest
 import scala.collection.immutable
 
 // TODO: comment describing identifier positions (resolution)

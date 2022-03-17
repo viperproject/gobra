@@ -377,8 +377,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitResult(ctx: GobraParser.ResultContext): PResult = {
     super.visitResult(ctx) match {
-      case res : Vector[Vector[PParameter]] => PResult(res.flatten).at(ctx)
-      case typ : PType => PResult(Vector(PUnnamedParameter(typ).at(typ))).at(ctx)
+      case res: Vector[Vector[PParameter]] => PResult(res.flatten).at(ctx)
+      case typ: PType => PResult(Vector(PUnnamedParameter(typ).at(typ))).at(ctx)
     }
   }
 
@@ -931,6 +931,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       case idnUseLike(id) => id match {
         case id@PIdnUse(_) => PNamedOperand(id).at(id)
         case PWildcard() => PBlankIdentifier().at(ctx)
+        case _ => unexpected(ctx)
       }
       case _ => unexpected(ctx)
     }
@@ -1573,10 +1574,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       }
       PAssignmentWithOp(right match {
         case Vector(r) => r
-        case Vector(_*) => fail(ctx.expressionList(0), "Assignments with operators can only have exactly one right-hand expression.")
+        case _ => fail(ctx.expressionList(0), "Assignments with operators can only have exactly one right-hand expression.")
       }, ass_op, left match {
         case Vector(l) => l
-        case Vector(_*) => fail(ctx.expressionList(0), "Assignments with operators can only have exactly one left-hand expression.")
+        case _ => fail(ctx.expressionList(0), "Assignments with operators can only have exactly one left-hand expression.")
       }).at(ctx)
     }
     else {
@@ -1770,11 +1771,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val cond = visitNodeOrNone[PExpression](ctx.expression())
     visitExpressionList(ctx.expressionList()) match {
       case Vector(PBlankIdentifier()) => PWildcardMeasure(cond).at(ctx)
-      case exprs@Vector(_, _*) => PTupleTerminationMeasure(exprs, cond).at(ctx)
+      case exprs if exprs.nonEmpty => PTupleTerminationMeasure(exprs, cond).at(ctx)
       case Vector() => PTupleTerminationMeasure(Vector.empty, cond).at(ctx.parent match {
         case s : SpecStatementContext => s.DEC()
         case l : LoopSpecContext => l.DEC()
       })
+      case _ => unexpected(ctx)
     }
   }
 

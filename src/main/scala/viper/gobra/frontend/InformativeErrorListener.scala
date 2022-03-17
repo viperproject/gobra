@@ -9,7 +9,7 @@ package viper.gobra.frontend
 import org.antlr.v4.runtime.misc.IntervalSet
 import org.antlr.v4.runtime.{BaseErrorListener, CommonTokenStream, FailedPredicateException, InputMismatchException, Lexer, NoViableAltException, Parser, RecognitionException, Recognizer, Token}
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
-import viper.gobra.frontend.GobraParser.{CapContext, EosContext, ExpressionContext, ImplementationProofContext, RULE_blockWithBodyParameterInfo, RULE_eos, RULE_shortVarDecl, RULE_type_, RULE_varDecl, Slice_Context, TypeSpecContext, Type_Context, VarSpecContext, ruleNames}
+import viper.gobra.frontend.GobraParser._
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.reporting.ParserError
 import viper.silver.ast.SourcePosition
@@ -32,9 +32,8 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     // We don't analyze Lexer errors any further: The defaults are sufficient
     val error = recognizer match {
       case lexer: Lexer => DefaultErrorType()(LexerErrorContext(lexer, null, line, charPositionInLine, msg))
-      case parser: Parser => {
+      case parser: Parser =>
         analyzeParserError(ParserErrorContext(parser, offendingSymbol.asInstanceOf[Token], line, charPositionInLine, msg), e)
-      }
     }
 
     // Depending on the source, get the applicable type of position information
@@ -57,8 +56,8 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     */
   def analyzeParserError(implicit context : ParserErrorContext, e : RecognitionException): ErrorType = {
     e match {
-      case exception: FailedPredicateException => analyzeFailedPredicate(context, exception)
-      case exception: InputMismatchException => analyzeInputMismatch(context, exception)
+      case _: FailedPredicateException => analyzeFailedPredicate(context)
+      case _: InputMismatchException => analyzeInputMismatch(context)
       case exception: NoViableAltException => analyzeNoViable(context, exception)
       case null => context.msg match {
         case extraneous() => analyzeExtraneous(context)
@@ -77,15 +76,14 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     *
     * @see [[FailedPredicateException]]
     * @param context
-    * @param exception
     * @return
     */
-  def analyzeFailedPredicate(implicit context: ParserErrorContext, exception: FailedPredicateException): ErrorType = {
+  def analyzeFailedPredicate(implicit context: ParserErrorContext): ErrorType = {
     val parser = context.recognizer
     parser.getContext match {
       // One example of a known pattern: Parser reads ':=' when expecting the end of statement: The user probably
       // used ':=' instead of '='
-      case _ : GobraParser.EosContext => {
+      case _: GobraParser.EosContext => {
         context.offendingSymbol.getType match {
           // An unexpected := was encountered, perhaps the user meant =
           case GobraParser.DECLARE_ASSIGN => GotAssignErrorType()
@@ -120,10 +118,9 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     *
     * @see [[InputMismatchException]]
     * @param context The context of the error
-    * @param exception
     * @return
     */
-  def analyzeInputMismatch(implicit context: ParserErrorContext, exception: InputMismatchException): ErrorType = {
+  def analyzeInputMismatch(implicit context: ParserErrorContext): ErrorType = {
     (context.offendingSymbol.getType, context.recognizer.getContext) match {
       case (Token.EOF, _) => DefaultMismatch()
       // Again, we have an unexpected :=, so suggest using a =
@@ -145,18 +142,18 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     val parser = context.recognizer
     val ctx = parser.getContext
     ctx match {
-      case slice : Slice_Context => {
+      case _: Slice_Context => {
         // Missing either the second or second and third argument (or completely wrong)
         SliceMissingIndex()
       }
-      case _ : VarSpecContext | _ : Type_Context if context.offendingSymbol.getType == GobraParser.DECLARE_ASSIGN => GotAssignErrorType()
-      case eos : EosContext => {
+      case _: VarSpecContext | _: Type_Context if context.offendingSymbol.getType == GobraParser.DECLARE_ASSIGN => GotAssignErrorType()
+      case _: EosContext => {
         parser.getTokenStream.LT(2).getType match {
           case GobraParser.DECLARE_ASSIGN => GotAssignErrorType()(context.copy(offendingSymbol = parser.getTokenStream.LT(2)))
           case _ => DefaultNoViable(exception)
         }
       }
-      case e : ExpressionContext if e.parent.isInstanceOf[CapContext] => SliceMissingIndex(3)
+      case e: ExpressionContext if e.parent.isInstanceOf[CapContext] => SliceMissingIndex(3)
       case _ if new_reserved.contains(context.offendingSymbol.getType) => ReservedWord()
       case _ => DefaultNoViable(exception)
     }
@@ -184,14 +181,10 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     var message = lines(offendingToken.getLine - 1)
     val rest = message.length
     message += "\n"
-    for (i <- 0 until offendingToken.getCharPositionInLine) {
-      message += " "
-    }
+    message += " " * offendingToken.getCharPositionInLine
     val start = offendingToken.getCharPositionInLine
     val stop = if (restOfTheLine) rest else offendingToken.getCharPositionInLine + offendingToken.getText.length
-    if (start >= 0 && stop >= 0) for (_ <- start until stop) {
-      message += "^"
-    }
+    if (start >= 0 && stop >= 0) { message += "^" * (stop - start) }
     message += "\n"
     message
   }
@@ -203,7 +196,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     * @param context
     * @return
     */
-  def getRuleDisplay(index : Int)(implicit context : ParserErrorContext): String = {
+  def getRuleDisplay(index : Int): String = {
     betterRuleNames.getOrElse(index, ruleNames(index))
   }
 
@@ -221,10 +214,9 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
   /**
     * The same as [[betterRuleNames]], but for tokens.
     * @param t
-    * @param context
     * @return
     */
-  def getTokenDisplay(t : Token)(implicit context : ParserErrorContext): String = {
+  def getTokenDisplay(t : Token): String = {
     t.getText match {
       case "\n" => "end of line"
       case s => s
@@ -259,7 +251,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     val context: ErrorContext
     val msg : String
     lazy val expected : IntervalSet = context.recognizer match {
-      case lexer: Lexer => IntervalSet.EMPTY_SET
+      case _: Lexer => IntervalSet.EMPTY_SET
       case parser: Parser => parser.getExpectedTokens
     }
     lazy val underlined : String = underlineError(context)

@@ -15,6 +15,7 @@ import viper.gobra.reporting.ParserError
 import viper.silver.ast.SourcePosition
 
 import java.nio.file.Path
+import scala.annotation.unused
 import scala.collection.mutable.ListBuffer
 
 class InformativeErrorListener(val messages: ListBuffer[ParserError], val source: Source) extends BaseErrorListener {
@@ -56,8 +57,8 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     */
   def analyzeParserError(implicit context : ParserErrorContext, e : RecognitionException): ErrorType = {
     e match {
-      case _: FailedPredicateException => analyzeFailedPredicate(context)
-      case _: InputMismatchException => analyzeInputMismatch(context)
+      case exception: FailedPredicateException => analyzeFailedPredicate(context, exception)
+      case exception: InputMismatchException => analyzeInputMismatch(context, exception)
       case exception: NoViableAltException => analyzeNoViable(context, exception)
       case null => context.msg match {
         case extraneous() => analyzeExtraneous(context)
@@ -76,9 +77,10 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     *
     * @see [[FailedPredicateException]]
     * @param context
+    * @param exception
     * @return
     */
-  def analyzeFailedPredicate(implicit context: ParserErrorContext): ErrorType = {
+  def analyzeFailedPredicate(implicit context: ParserErrorContext, @unused exception: FailedPredicateException): ErrorType = {
     val parser = context.recognizer
     parser.getContext match {
       // One example of a known pattern: Parser reads ':=' when expecting the end of statement: The user probably
@@ -118,9 +120,10 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     *
     * @see [[InputMismatchException]]
     * @param context The context of the error
+    * @param exception
     * @return
     */
-  def analyzeInputMismatch(implicit context: ParserErrorContext): ErrorType = {
+  def analyzeInputMismatch(implicit context: ParserErrorContext, @unused exception: InputMismatchException): ErrorType = {
     (context.offendingSymbol.getType, context.recognizer.getContext) match {
       case (Token.EOF, _) => DefaultMismatch()
       // Again, we have an unexpected :=, so suggest using a =

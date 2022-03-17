@@ -77,7 +77,7 @@ trait GoVerifier extends StrictLogging {
       logger.info(s"Verifying Package $pkgId")
       val future = verify(pkgInfo, config.copy(reporter = statsCollector, taskName = pkgInfo.id))(executor)
         .map(result => {
-          // Report verification finish, to free space used by unneeded typeInfo
+          // report that verification of this package has finished in order that `statsCollector` can free space by getting rid of this package's typeInfo
           statsCollector.report(VerificationTaskFinishedMessage(pkgId))
 
           val warnings = statsCollector.getWarnings(pkgId, config)

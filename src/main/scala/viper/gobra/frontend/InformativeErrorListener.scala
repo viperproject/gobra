@@ -70,10 +70,10 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
 
 
   /**
-    * Failed predicate errors are emitted when the no viable alternatives remain, as all conflict with the input
+    * Failed predicate errors are emitted when no viable alternatives remain, as all alternatives conflict with the input
     * or contain a semantic predicate that evaluated to false. Because the only predicate present in Gobra's grammar
-    * is responsible for inducing semicolons, we know that we are at a point where a statement could have ended, but
-    * another token was discovered.
+    * is responsible for inducing semicolons, we know that if a predicate failed, we are at a point where a statement
+    * could have ended, but another token was discovered.
     *
     * @see [[FailedPredicateException]]
     * @param context
@@ -116,7 +116,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
   }
 
   /**
-    * The input did not match the expecte tokens. This one of the most common exceptions.
+    * The input did not match the expected tokens. This is one of the most common exceptions.
     *
     * @see [[InputMismatchException]]
     * @param context The context of the error
@@ -196,7 +196,6 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
   /**
     * Return the display name associated with a specific rule
     * @param index
-    * @param context
     * @return
     */
   def getRuleDisplay(index : Int): String = {

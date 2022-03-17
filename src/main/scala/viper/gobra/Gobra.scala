@@ -26,7 +26,7 @@ import scala.concurrent.{Await, Future, TimeoutException}
 
 object GoVerifier {
 
-  val copyright = "(c) Copyright ETH Zurich 2012 - 2021"
+  val copyright = "(c) Copyright ETH Zurich 2012 - 2022"
 
   val name = "Gobra"
 

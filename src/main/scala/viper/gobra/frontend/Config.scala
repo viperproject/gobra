@@ -103,7 +103,8 @@ case class Config(
       shouldViperEncode = shouldViperEncode,
       checkOverflows = checkOverflows || other.checkOverflows,
       shouldVerify = shouldVerify,
-      int32bit = int32bit || other.int32bit
+      int32bit = int32bit || other.int32bit,
+      checkConsistency = checkConsistency || other.checkConsistency
     )
   }
 
@@ -310,6 +311,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     descrYes = "Run with 32-bit sized integers",
     default = Some(false),
     noshort = false
+  )
+
+  val checkConsistency: ScallopOption[Boolean] = toggle(
+    name = "checkConsistency",
+    descrYes = "Perform consistency checks on the generated Viper code",
+    default = Some(false),
+    noshort = true
   )
 
   /**
@@ -587,6 +595,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     checkOverflows = checkOverflows(),
     int32bit = int32Bit(),
     shouldVerify = shouldVerify,
-    shouldChop = shouldChop
+    shouldChop = shouldChop,
+    checkConsistency = checkConsistency()
   )
 }

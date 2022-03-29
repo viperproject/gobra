@@ -53,8 +53,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
           logLevel = Level.INFO,
           reporter = NoopReporter,
           packageInfoInputMap = Map(Source.getPackageInfo(source, Path.of("")) -> Vector(source)),
-          // TODO: enable consistency checks as soon as inconsistencies have been fixed
-          // checkConsistency = true,
+          checkConsistency = true,
           z3Exe = z3Exe
         )
 

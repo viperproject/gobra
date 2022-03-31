@@ -39,6 +39,7 @@ object Nodes {
       case DomainFunc(_, args, results) => args ++ Seq(results)
       case DomainAxiom(expr) => Seq(expr)
       case s: Stmt => s match {
+        case Continue(_) => ???
         case Block(decls, stmts) => decls ++ stmts
         case Seqn(stmts) => stmts
         case Label(label) => Seq(label)

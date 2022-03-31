@@ -1062,6 +1062,34 @@ object Desugar {
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
 
+          case n@PContinue(label) =>
+            label match {
+              case None =>
+                info.enclosedInLoop(n) match{
+                  case None => ???
+                  case Some(loop) =>
+                    for {
+                      (dInvPre, dInv) <- prelude(sequence(loop.spec.invariants map assertionD(ctx)))
+                      c = in.Continue(dInv)(src)
+                    } yield c
+                }
+              case _ => ???
+            }
+
+          case n@PBreak(label) =>
+            label match {
+              case None =>
+                info.enclosedInLoop(n) match{
+                  case None => ???
+                  case Some(loop) =>
+                    for {
+                      (dInvPre, dInv) <- prelude(sequence(loop.spec.invariants map assertionD(ctx)))
+                      c = in.Break(nm.fresh(n, info), dInv)(src)
+                    } yield c
+                }
+              case _ => ???
+            }
+
           case _ => ???
         }
       }

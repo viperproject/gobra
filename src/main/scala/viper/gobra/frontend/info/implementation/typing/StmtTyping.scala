@@ -137,8 +137,26 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PSeq => noMessages
     case _: PEmptyStmt => noMessages
     case _: PGoto => ???
-    case _: PContinue => ???
-    case _: PBreak => ???
+
+    case n@PBreak(l) =>
+      l match {
+        case None => noMessages
+          enclosingLoop(n) match {
+            case None => error(n, s"break must be inside a loop")
+            case Some(_) => noMessages
+          }
+        case _ => ???
+      }
+
+    case n@PContinue(l) =>
+      l match {
+        case None => noMessages
+          enclosingLoop(n) match {
+            case None => error(n, s"continue must be inside a loop")
+            case Some(_) => noMessages
+          }
+        case _ => ???
+      }
 
     case s => violation(s"$s was not handled")
   }

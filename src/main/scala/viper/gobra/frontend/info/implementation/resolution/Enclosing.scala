@@ -30,6 +30,10 @@ trait Enclosing { this: TypeInfoImpl =>
     case _ => id
   })
 
+  lazy val enclosingLoop: PNode => Option[PForStmt] = {
+    down[Option[PForStmt]](None){ case x: PForStmt => Some(x) }
+  }
+
   lazy val tryEnclosingUnorderedScope: PNode => Option[PUnorderedScope] =
     down[Option[PUnorderedScope]](None) { case x: PUnorderedScope => Some(x) }
 

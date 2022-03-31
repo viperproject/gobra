@@ -267,6 +267,10 @@ case class Seqn(stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Stmt
 
 case class Label(id: LabelProxy)(val info: Source.Parser.Info) extends Stmt
 
+case class Continue(invs: Vector[Assertion])(val info: Source.Parser.Info) extends Stmt
+
+case class Break(escLabel: String, invs: Vector[Assertion])(val info: Source.Parser.Info) extends Stmt
+
 case class If(cond: Expr, thn: Stmt, els: Stmt)(val info: Source.Parser.Info) extends Stmt
 
 case class While(cond: Expr, invs: Vector[Assertion], terminationMeasure: Option[TerminationMeasure], body: Stmt)(val info: Source.Parser.Info) extends Stmt

@@ -68,6 +68,13 @@ class StatementsImpl extends Statements {
       } yield exhale
     }
 
+    def gatherBreakLabels(body: in.Node): Vector[String] =
+      body match {
+        case in.Break(l, _) => Vector(l)
+        case _ : in.While => Vector()
+        case n => n.subnodes.foldLeft(Vector[String]())((a : Vector[String], b : in.Node) => (a ++ gatherBreakLabels(b)))
+      }
+
     val vprStmt: CodeWriter[vpr.Stmt] = x match {
       case in.Block(decls, stmts) =>
         val vDecls = decls map (blockDecl(_)(ctx))
@@ -85,6 +92,20 @@ class StatementsImpl extends Statements {
       case in.Label(id) =>
         unit(vpr.Label(id.name, Seq.empty)(pos, info, errT))
 
+      case in.Continue(invs) =>
+        for {
+          preCond <- sequence(invs map goA)
+          assertions = preCond.map(x => vpr.Assert(x)(pos, info, errT))
+          cont = vu.seqn(assertions ++ Vector(vpr.Assume(vpr.BoolLit(false)(pos, info, errT))(pos, info, errT)))(pos, info, errT)
+        } yield cont
+
+      case in.Break(escLabel, invs) =>
+        for {
+          preCond <- sequence(invs map goA)
+          assertions = preCond.map(x => vpr.Assert(x)(pos, info, errT))
+          break = vu.seqn(assertions ++ Vector(vpr.Goto(escLabel)(pos, info, errT)))(pos, info, errT)
+        } yield break
+
       case in.If(cond, thn, els) =>
           for {
             c <- goE(cond)
@@ -101,14 +122,17 @@ class StatementsImpl extends Statements {
           ipre <- seqnUnits(iws)
           vBody <- goS(body)
 
+          labelnames = gatherBreakLabels(body)
+          labels = labelnames.map(x => vpr.Label(x, Vector.empty)(pos, info, errT))
+
           cpost = vpr.If(vCond, vu.toSeq(cpre), vu.nop(pos, info, errT))(pos, info, errT)
           ipost = ipre
 
           measure <- option(terminationMeasure map ctx.measures.translateF(ctx))
-
+          
           wh = vu.seqn(Vector(
             cpre, ipre, vpr.While(vCond, vInvs ++ measure, vu.seqn(Vector(vBody, cpost, ipost))(pos, info, errT))(pos, info, errT)
-          ))(pos, info, errT)
+          ) ++ labels)(pos, info, errT)
         } yield wh
 
       case ass: in.SingleAss => ctx.typeEncoding.assignment(ctx)(ass.left, ass.right, ass)

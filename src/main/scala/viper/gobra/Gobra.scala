@@ -67,10 +67,7 @@ trait GoVerifier extends StrictLogging {
         statsCollector.writeJsonReportToFile(statsFile)
 
         // Report timeouts that were not previously reported
-        val timeoutErrors = statsCollector.getTimeoutErrorsForNonFinishedTasks
-        if(timeoutErrors.nonEmpty) {
-          timeoutErrors.foreach(err => logger.error(err.formattedMessage))
-        }
+        statsCollector.getTimeoutErrorsForNonFinishedTasks.foreach(err => logger.error(err.formattedMessage))
       }
     })
 

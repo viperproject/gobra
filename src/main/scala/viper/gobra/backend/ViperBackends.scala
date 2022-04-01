@@ -24,7 +24,6 @@ object ViperBackends {
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
       options ++= Vector("--enableMoreCompleteExhale")
-      options ++= Vector("--assumeInjectivityOnInhale")
       options ++= exePaths
 
       new Silicon(options)
@@ -35,7 +34,6 @@ object ViperBackends {
     def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): Carbon = {
       var options: Vector[String] = Vector.empty
       // options ++= Vector("--logLevel", "ERROR")
-      options ++= Vector("--assumeInjectivityOnInhale")
       options ++= exePaths
 
       new Carbon(options)
@@ -88,7 +86,6 @@ object ViperBackends {
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
       options ++= Vector("--enableMoreCompleteExhale")
-      options ++= Vector("--assumeInjectivityOnInhale")
       options ++= exePaths
       ViperServerConfig.ConfigWithSilicon(options.toList)
     }
@@ -98,7 +95,6 @@ object ViperBackends {
     override def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig = {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
-      options ++= Vector("--assumeInjectivityOnInhale")
       options ++= exePaths
       ViperServerConfig.ConfigWithCarbon(options.toList)
     }

@@ -66,7 +66,10 @@ case class Config(
                    int32bit: Boolean = false,
                    // the following option is currently not controllable via CLI as it is meaningless without a constantly
                    // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
-                   cacheParser: Boolean = false
+                   cacheParser: Boolean = false,
+                   // TODO: explain, add headers to all files in stubs
+                   onlyFilesWithHeader: Boolean = false,
+                   filesWithHeader: Set[Path] = Set(), // TODO: maybe not needed if we just check whether sources have header
 ) {
 
   def merge(other: Config): Config = {
@@ -103,7 +106,9 @@ case class Config(
       shouldViperEncode = shouldViperEncode,
       checkOverflows = checkOverflows || other.checkOverflows,
       shouldVerify = shouldVerify,
-      int32bit = int32bit || other.int32bit
+      int32bit = int32bit || other.int32bit,
+      onlyFilesWithHeader = onlyFilesWithHeader || other.onlyFilesWithHeader,
+      filesWithHeader = filesWithHeader ++ other.filesWithHeader,
     )
   }
 
@@ -308,6 +313,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   val int32Bit: ScallopOption[Boolean] = toggle(
     name = "int32",
     descrYes = "Run with 32-bit sized integers",
+    default = Some(false),
+    noshort = false
+  )
+
+  val onlyFilesWithHeader: ScallopOption[Boolean] = toggle(
+    name = "onlyFilesWithHeader",
+    descrYes = "When enabled, Gobra only looks at files that contain header comment '// ##(gobra)'",
     default = Some(false),
     noshort = false
   )
@@ -587,6 +599,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     checkOverflows = checkOverflows(),
     int32bit = int32Bit(),
     shouldVerify = shouldVerify,
-    shouldChop = shouldChop
+    shouldChop = shouldChop,
+    onlyFilesWithHeader = onlyFilesWithHeader(),
+    filesWithHeader = Set.empty
   )
 }

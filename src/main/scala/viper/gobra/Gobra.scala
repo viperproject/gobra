@@ -13,6 +13,7 @@ import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
+import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, PackageInfo, Parser, ScallopGobraConfig}
 import viper.gobra.reporting._
@@ -23,6 +24,12 @@ import viper.silicon.BuildInfo
 import viper.silver.{ast => vpr}
 
 import scala.concurrent.{Await, Future, TimeoutException}
+
+// TODO:
+// 1. fix issues with empty packages when running in --onlyFilesWithHeader mode
+// 2. fix issues with more than one package name in the same folder (?) => maybe not a problem if we only parse files with header
+// 3. test with verifiedSCION
+// 4. clean-up, add tests, commit and open a PR with a motivating text
 
 object GoVerifier {
 
@@ -133,6 +140,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
     val task = Future {
       val finalConfig = getAndMergeInFileConfig(config, pkgInfo)
+      // println(s"Files with header: ${finalConfig.filesWithHeader}")
       for {
         parsedPackage <- performParsing(pkgInfo, finalConfig)
         typeInfo <- performTypeChecking(parsedPackage, finalConfig)
@@ -192,12 +200,15 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       } else {
         // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
         val args = configs.flatMap(configString => configString.split(" ")).toList
+        // TODO
+        val hasHeader = args.contains("gobra")
+        val actualArgs = args.filter(_ != "gobra")
         // skip include dir checks as the include should only be parsed and is not resolved yet based on the current directory
-        val inFileConfig = new ScallopGobraConfig(args, isInputOptional = true, skipIncludeDirChecks = true).config
+        val inFileConfig = new ScallopGobraConfig(actualArgs, isInputOptional = true, skipIncludeDirChecks = true).config
         // modify all relative includeDirs such that they are resolved relatively to the current file:
         val resolvedConfig = inFileConfig.copy(includeDirs = inFileConfig.includeDirs.map(
           // it's important to convert includeDir to a string first as `path` might be a ZipPath and `includeDir` might not
-          includeDir => Paths.get(input.name).getParent.resolve(includeDir.toString)))
+          includeDir => Paths.get(input.name).getParent.resolve(includeDir.toString)), filesWithHeader = if (hasHeader) Set(Paths.get(input.name)) else Set.empty)
         Some(resolvedConfig)
       }
     })
@@ -208,7 +219,8 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performParsing(pkgInfo: PackageInfo, config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
-      Parser.parse(config.packageInfoInputMap(pkgInfo), pkgInfo)(config)
+      // TODO move this logic to Config
+      Parser.parse(config.packageInfoInputMap(pkgInfo).filter(p => if(config.onlyFilesWithHeader) config.filesWithHeader.contains(p.toPath) else true), pkgInfo)(config) // TODO: update this, move somewhere else
     } else {
       Left(Vector())
     }

@@ -32,6 +32,9 @@ object PackageResolver {
   val fileUriScheme = "file"
   val jarUriScheme = "jar"
 
+  // TODO: get a way to avoid replicating this here
+  private val inFileConfigRegex = """##\((.*)\)""".r
+
   trait AbstractImport
   /** represents an implicit unqualified import that should resolve to the built-in package */
   case object BuiltInImport extends AbstractImport
@@ -48,9 +51,9 @@ object PackageResolver {
     * @return list of sources belonging to the package (right) or an error message (left) if no directory could be found
     *         or the directory contains input files having different package clauses
     */
-  def resolveSources(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[Source]] = {
+  def resolveSources(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path], onlyFilesWithHeader: Boolean): Either[String, Vector[Source]] = {
     for {
-      resources <- resolve(importTarget, moduleName, includeDirs)
+      resources <- resolve(importTarget, moduleName, includeDirs, onlyFilesWithHeader)
       sources = resources.map(_.asSource())
       // we do no longer need the resources, so we close them:
       _ = resources.foreach(_.close())
@@ -65,11 +68,11 @@ object PackageResolver {
     * @return list of files belonging to the package (right) or an error message (left) if no directory could be found
     *         or the directory contains input files having different package clauses
     */
-  private def resolve(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[InputResource]] = {
+  private def resolve(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path], onlyFilesWithHeader: Boolean): Either[String, Vector[InputResource]] = {
     val sourceFiles = for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
       pkgDir <- getLookupPath(importTarget, moduleName, includeDirs)
-      sourceFiles = getSourceFiles(pkgDir)
+      sourceFiles = getSourceFiles(pkgDir, onlyFilesWithHeader)
     } yield sourceFiles
 
     sourceFiles.foreach(checkPackageClauses(_, importTarget))
@@ -77,7 +80,7 @@ object PackageResolver {
     for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
       pkgDir <- getLookupPath(importTarget, moduleName, includeDirs)
-      sourceFiles = getSourceFiles(pkgDir)
+      sourceFiles = getSourceFiles(pkgDir, onlyFilesWithHeader)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
       // in case of error, iterate over all resources and close them
@@ -99,12 +102,12 @@ object PackageResolver {
     * @return qualifier with which members of the imported package can be accessed (right) or an error message (left)
     *         if no directory could be found or the directory contains input files having different package clauses
     */
-  def getQualifier(n: PImplicitQualifiedImport, moduleName: String, includeDirs: Vector[Path]): Either[String, String] = {
+  def getQualifier(n: PImplicitQualifiedImport, moduleName: String, includeDirs: Vector[Path], onlyFilesWithHeader: Boolean): Either[String, String] = {
     val importTarget = RegularImport(n.importPath)
     for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
       pkgDir <- getLookupPath(importTarget, moduleName, includeDirs)
-      sourceFiles = getSourceFiles(pkgDir)
+      sourceFiles = getSourceFiles(pkgDir, onlyFilesWithHeader)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
       pkgName <- checkPackageClauses(sourceFiles, importTarget)
@@ -182,7 +185,7 @@ object PackageResolver {
   /**
     * Returns all source files with file extension 'gobraExtension' or 'goExtension in the input resource
     */
-  private def getSourceFiles(input: InputResource): Vector[InputResource] = {
+  private def getSourceFiles(input: InputResource, onlyFilesWithHeaders: Boolean): Vector[InputResource] = {
     val dirContent = input.listContent()
     val res = dirContent
       .filter(resource => Files.isRegularFile(resource.path))
@@ -194,7 +197,20 @@ object PackageResolver {
       case resource if !res.contains(resource) => resource.close()
       case _ =>
     })
-    res
+    if (onlyFilesWithHeaders) getOnlySourcesWithHeader(res) else res
+  }
+
+  // TODO: doc
+  private def getOnlySourcesWithHeader(sources: Vector[InputResource]): Vector[InputResource] = {
+    sources filter {
+      // TODO: should be moved outside such that it does not complain about empty packages (i.e. after that check), however we should not apply this transformation to imported sources
+      case i: InputResource if i.builtin => true
+      case i: InputResource =>
+        val configs = for (m <- inFileConfigRegex.findAllMatchIn(i.asSource().content)) yield m.group(1)
+        val args = configs.flatMap(configString => configString.split(" ")).toList
+        // TODO: move this to a non hardcoded value
+        args.contains("gobra")
+    }
   }
 
   /**

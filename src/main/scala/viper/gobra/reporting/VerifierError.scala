@@ -49,6 +49,10 @@ case class DiamondError(message: String) extends VerifierError {
   val id = "diamond_error"
 }
 
+case class TimeoutError(message: String) extends  VerifierError {
+  val position: Option[SourcePosition] = None
+  val id = "timeout_error"
+}
 
 sealed trait VerificationError extends VerifierError {
 

@@ -48,9 +48,8 @@ jobs:
       - name: Get dependency versions
         run: |
           source viper-toolchain-versions.sh
-          echo "SILVER_REF=$SILVER_REF" >> $GITHUB_ENV
-          echo "CARBON_REF=$CARBON_REF" >> $GITHUB_ENV
           echo "SILICON_REF=$SILICON_REF" >> $GITHUB_ENV
+          echo "CARBON_REF=$CARBON_REF" >> $GITHUB_ENV
           echo "VIPERSERVER_REF=$VIPERSERVER_REF" >> $GITHUB_ENV
 
       - name: Build image up to including stage 'build'
@@ -62,9 +61,8 @@ jobs:
           target: build # only build up to and including stage 'build'
           file: workflow-container/Dockerfile
           build-args: |
-            SILVER_REF=${{ env.SILVER_REF }}
-            CARBON_REF=${{ env.CARBON_REF }}
             SILICON_REF=${{ env.SILICON_REF }}
+            CARBON_REF=${{ env.CARBON_REF }}
             VIPERSERVER_REF=${{ env.VIPERSERVER_REF }}
           tags: ${{ env.IMAGE_TAG }}
           labels: "runnumber=${{ github.run_id }}"
@@ -180,9 +178,8 @@ jobs:
           load: true # make the built image available in docker (locally)
           file: workflow-container/Dockerfile
           build-args: |
-            SILVER_REF=${{ env.SILVER_REF }}
-            CARBON_REF=${{ env.CARBON_REF }}
             SILICON_REF=${{ env.SILICON_REF }}
+            CARBON_REF=${{ env.CARBON_REF }}
             VIPERSERVER_REF=${{ env.VIPERSERVER_REF }}
 
           tags: ${{ env.IMAGE_TAG }}
@@ -229,9 +226,8 @@ jobs:
           context: .
           file: workflow-container/Dockerfile
           build-args: |
-            SILVER_REF=${{ env.SILVER_REF }}
-            CARBON_REF=${{ env.CARBON_REF }}
             SILICON_REF=${{ env.SILICON_REF }}
+            CARBON_REF=${{ env.CARBON_REF }}
             VIPERSERVER_REF=${{ env.VIPERSERVER_REF }}
           tags: ${{ env.IMAGE_TAG }}
           labels: "runnumber=${{ github.run_id }}"

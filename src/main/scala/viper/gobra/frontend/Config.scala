@@ -69,7 +69,6 @@ case class Config(
                    cacheParser: Boolean = false,
                    // TODO: explain, add headers to all files in stubs
                    onlyFilesWithHeader: Boolean = false,
-                   filesWithHeader: Set[Path] = Set(), // TODO: maybe not needed if we just check whether sources have header
 ) {
 
   def merge(other: Config): Config = {
@@ -108,7 +107,6 @@ case class Config(
       shouldVerify = shouldVerify,
       int32bit = int32bit || other.int32bit,
       onlyFilesWithHeader = onlyFilesWithHeader || other.onlyFilesWithHeader,
-      filesWithHeader = filesWithHeader ++ other.filesWithHeader,
     )
   }
 
@@ -118,6 +116,11 @@ case class Config(
     } else {
       TypeBounds(Int = TypeBounds.IntWith64Bit, UInt = TypeBounds.UIntWith64Bit)
     }
+}
+
+object Config {
+  val header = """##\(gobra\)""".r
+  def sourceHasHeader(s: Source): Boolean = header.findFirstIn(s.content).nonEmpty
 }
 
 class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = false, skipIncludeDirChecks: Boolean = false)
@@ -319,7 +322,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val onlyFilesWithHeader: ScallopOption[Boolean] = toggle(
     name = "onlyFilesWithHeader",
-    descrYes = "When enabled, Gobra only looks at files that contain header comment '// ##(gobra)'",
+    descrYes = s"When enabled, Gobra only looks at files that contain header comment '// ${Config.header}'",
     default = Some(false),
     noshort = false
   )
@@ -601,6 +604,5 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     shouldVerify = shouldVerify,
     shouldChop = shouldChop,
     onlyFilesWithHeader = onlyFilesWithHeader(),
-    filesWithHeader = Set.empty
   )
 }

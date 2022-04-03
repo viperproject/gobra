@@ -13,7 +13,6 @@ import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
-import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, PackageInfo, Parser, ScallopGobraConfig}
 import viper.gobra.reporting._
@@ -140,7 +139,6 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
     val task = Future {
       val finalConfig = getAndMergeInFileConfig(config, pkgInfo)
-      // println(s"Files with header: ${finalConfig.filesWithHeader}")
       for {
         parsedPackage <- performParsing(pkgInfo, finalConfig)
         typeInfo <- performTypeChecking(parsedPackage, finalConfig)
@@ -208,7 +206,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
         // modify all relative includeDirs such that they are resolved relatively to the current file:
         val resolvedConfig = inFileConfig.copy(includeDirs = inFileConfig.includeDirs.map(
           // it's important to convert includeDir to a string first as `path` might be a ZipPath and `includeDir` might not
-          includeDir => Paths.get(input.name).getParent.resolve(includeDir.toString)), filesWithHeader = if (hasHeader) Set(Paths.get(input.name)) else Set.empty)
+          includeDir => Paths.get(input.name).getParent.resolve(includeDir.toString)))
         Some(resolvedConfig)
       }
     })
@@ -219,8 +217,11 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performParsing(pkgInfo: PackageInfo, config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
-      // TODO move this logic to Config
-      Parser.parse(config.packageInfoInputMap(pkgInfo).filter(p => if(config.onlyFilesWithHeader) config.filesWithHeader.contains(p.toPath) else true), pkgInfo)(config) // TODO: update this, move somewhere else
+      // TODO explain why needed?
+      val sourcesToParse = config.packageInfoInputMap(pkgInfo).filter {
+        p => !config.onlyFilesWithHeader || Config.sourceHasHeader(p)
+      }
+      Parser.parse(sourcesToParse, pkgInfo)(config)
     } else {
       Left(Vector())
     }

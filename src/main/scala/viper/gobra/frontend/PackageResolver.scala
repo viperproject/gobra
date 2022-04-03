@@ -32,9 +32,6 @@ object PackageResolver {
   val fileUriScheme = "file"
   val jarUriScheme = "jar"
 
-  // TODO: get a way to avoid replicating this here
-  private val inFileConfigRegex = """##\((.*)\)""".r
-
   trait AbstractImport
   /** represents an implicit unqualified import that should resolve to the built-in package */
   case object BuiltInImport extends AbstractImport
@@ -205,11 +202,7 @@ object PackageResolver {
     sources filter {
       // TODO: should be moved outside such that it does not complain about empty packages (i.e. after that check), however we should not apply this transformation to imported sources
       case i: InputResource if i.builtin => true
-      case i: InputResource =>
-        val configs = for (m <- inFileConfigRegex.findAllMatchIn(i.asSource().content)) yield m.group(1)
-        val args = configs.flatMap(configString => configString.split(" ")).toList
-        // TODO: move this to a non hardcoded value
-        args.contains("gobra")
+      case i: InputResource => Config.sourceHasHeader(i.asSource())
     }
   }
 

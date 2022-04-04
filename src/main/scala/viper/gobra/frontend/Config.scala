@@ -119,7 +119,9 @@ case class Config(
 }
 
 object Config {
-  val header = """##\(gobra\)""".r
+  // the header tag is assumed to be an invalid option to Gobra's cli
+  val headerTag = "gobra"
+  val header = """##\(%s\)""".format(headerTag).r
   def sourceHasHeader(s: Source): Boolean = header.findFirstIn(s.content).nonEmpty
 }
 

@@ -194,12 +194,12 @@ object PackageResolver {
       case resource if !res.contains(resource) => resource.close()
       case _ =>
     })
-    if (onlyFilesWithHeaders) getOnlySourcesWithHeader(res) else res
+    res filter { p => !onlyFilesWithHeaders || isResourceWithHeader(p) }
   }
 
   // TODO: doc
-  private def getOnlySourcesWithHeader(sources: Vector[InputResource]): Vector[InputResource] = {
-    sources filter {
+  private def isResourceWithHeader(resource: InputResource): Boolean = {
+    resource match {
       // TODO: should be moved outside such that it does not complain about empty packages (i.e. after that check), however we should not apply this transformation to imported sources
       case i: InputResource if i.builtin => true
       case i: InputResource => Config.sourceHasHeader(i.asSource())

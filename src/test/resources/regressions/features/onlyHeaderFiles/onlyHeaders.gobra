@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package onlyHeaderFiles
+
+// ##(--onlyFilesWithHeader -I ./)
+// ##(gobra)
+
+import "pkg1"
+
+func f(n int) (res int) {
+    res = pkg1.f(n)
+    //:: ExpectedOutput(assertion_error)
+    assert false
+}

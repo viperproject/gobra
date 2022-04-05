@@ -54,8 +54,7 @@
     "include": [
       "**/*.gobra",
       "src/test/resources/**/*.go",
-      "GobraChopper.conf",
-      "src/main/resources/stubs/fmt/fmt.gobra"
+      "GobraChopper.conf"
     ],
     "exclude": [
       "project/project/**",
@@ -63,6 +62,12 @@
       "target/**",
       "src/main/**",
       "src/test/resources/regressions/issues/windows-line-ending/**"
+    ],
+    "license": "./.github/license-check/headers/CC0.txt"
+  },
+  {
+    "include": [
+      "src/main/resources/stubs/fmt/fmt.gobra"
     ],
     "license": "./.github/license-check/headers/CC0.txt"
   },

@@ -197,11 +197,14 @@ object PackageResolver {
     res filter { p => !onlyFilesWithHeaders || isResourceWithHeader(p) }
   }
 
-  // TODO: doc
+  /**
+    * Decides whether an input resource should be considered by Gobra when considering only files with headers.
+    */
   private def isResourceWithHeader(resource: InputResource): Boolean = {
     resource match {
-      // TODO: should be moved outside such that it does not complain about empty packages (i.e. after that check), however we should not apply this transformation to imported sources
-      case i: InputResource if i.builtin => true
+      case i: InputResource if i.builtin =>
+        // standard library methods defined in stubs are always considered by Gobra
+        true
       case i: InputResource => Config.sourceHasHeader(i.asSource())
     }
   }

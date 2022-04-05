@@ -25,9 +25,6 @@ import viper.silver.{ast => vpr}
 import scala.concurrent.{Await, Future, TimeoutException}
 
 // TODO:
-// 1. fix issues with empty packages when running in --onlyFilesWithHeader mode
-// 2. fix issues with more than one package name in the same folder (?) => maybe not a problem if we only parse files with header
-// 3. test with verifiedSCION
 // 4. clean-up, add tests, commit and open a PR with a motivating text
 
 object GoVerifier {
@@ -215,8 +212,8 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performParsing(pkgInfo: PackageInfo, config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
-      // TODO explain why needed?
       val sourcesToParse = config.packageInfoInputMap(pkgInfo).filter {
+        // only parses sources with header when running in this mode
         p => !config.onlyFilesWithHeader || Config.sourceHasHeader(p)
       }
       Parser.parse(sourcesToParse, pkgInfo)(config)

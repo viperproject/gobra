@@ -54,7 +54,8 @@
     "include": [
       "**/*.gobra",
       "src/test/resources/**/*.go",
-      "GobraChopper.conf"
+      "GobraChopper.conf",
+      "src/main/resources/stubs/fmt/fmt.gobra"
     ],
     "exclude": [
       "project/project/**",
@@ -101,7 +102,9 @@
       "src/test/scala/viper/gobra/parsing/GoParserUnitTests.scala"
     ],
     "exclude": [
-      "src/main/resources/stubs/github.com/**/*.gobra"
+      "src/main/resources/stubs/github.com/**/*.gobra",
+      "src/main/resources/stubs/fmt/fmt.gobra"
+
     ],
     "license": "./.github/license-check/headers/Go.txt"
   },

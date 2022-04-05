@@ -45,6 +45,7 @@ object PackageResolver {
     * @param importTarget
     * @param moduleName name of the module under verification
     * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
+    * @param onlyFilesWithHeader determines whether only files with header should be considered
     * @return list of sources belonging to the package (right) or an error message (left) if no directory could be found
     *         or the directory contains input files having different package clauses
     */
@@ -62,6 +63,7 @@ object PackageResolver {
     * @param importTarget
     * @param moduleName name of the module under verification
     * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
+    * @param onlyFilesWithHeader determines whether only files with header should be considered
     * @return list of files belonging to the package (right) or an error message (left) if no directory could be found
     *         or the directory contains input files having different package clauses
     */
@@ -96,6 +98,7 @@ object PackageResolver {
     * @param n implicitely qualified import for which a qualifier should be resolved
     * @param moduleName name of the module under verification
     * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
+    * @param onlyFilesWithHeader determines whether only files with header should be considered
     * @return qualifier with which members of the imported package can be accessed (right) or an error message (left)
     *         if no directory could be found or the directory contains input files having different package clauses
     */

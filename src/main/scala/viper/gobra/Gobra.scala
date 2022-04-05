@@ -24,9 +24,6 @@ import viper.silver.{ast => vpr}
 
 import scala.concurrent.{Await, Future, TimeoutException}
 
-// TODO:
-// 4. clean-up, add tests, commit and open a PR with a motivating text
-
 object GoVerifier {
 
   val copyright = "(c) Copyright ETH Zurich 2012 - 2022"

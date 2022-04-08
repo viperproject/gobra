@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package header_only
+
+import "pkg1"
+
+func f(n int) (res int) {
+  this file is not meant to be processed
+}

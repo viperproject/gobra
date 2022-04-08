@@ -3,6 +3,8 @@
 
 package pkg1
 
+// ##(--onlyFilesWithHeader)
+
 // Ill-formed file. Because it does not have the header,
 // it will not be considered by Gobra
 func f g h()

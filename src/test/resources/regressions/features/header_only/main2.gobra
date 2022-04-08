@@ -3,6 +3,7 @@
 
 package header_only
 
+// ##(--onlyFilesWithHeader -I ./)
 import "pkg1"
 
 func f(n int) (res int) {

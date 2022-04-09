@@ -1,11 +1,13 @@
-//:: IgnoreFile()
+//:: IgnoreFile(/gobra/issue/431/)
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
+
+// This file is meant to be ignored in the test suite because it is ill-formed.
+// Because it does not have the header, it will not be considered by Gobra when importing
+// this package.
 
 package pkg1
 
 // ##(--onlyFilesWithHeader)
 
-// Ill-formed file. Because it does not have the header,
-// it will not be considered by Gobra
 func f g h()

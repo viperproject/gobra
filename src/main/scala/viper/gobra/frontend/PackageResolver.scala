@@ -31,7 +31,7 @@ object PackageResolver {
   val stubDirectories = Vector("stubs")
   val fileUriScheme = "file"
   val jarUriScheme = "jar"
-  // TODO: doc
+  // packages ending with "_test" are considered test packages
   private val testPackageRegex = """(.+)_test$""".r
 
   trait AbstractImport
@@ -42,7 +42,7 @@ object PackageResolver {
     override def toString: String = importPath
   }
 
-  // TODO: doc
+  /** represents some resolved source together with the knowledge of whether it was obtained from a builtin resource or not */
   case class ResolveSourcesResult(source: Source, isBuiltin: Boolean)
 
   /**
@@ -50,15 +50,15 @@ object PackageResolver {
     * @param importTarget
     * @param moduleName name of the module under verification
     * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
-    *                            // TODO adapt
     * @return list of sources belonging to the package (right) or an error message (left) if no directory could be found
     *         or the directory contains input files having different package clauses
     */
   def resolveSources(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[ResolveSourcesResult]] = {
     for {
       resources <- resolve(importTarget, moduleName, includeDirs)
-      // TODO: doc
-      sources = resources.map(r => ResolveSourcesResult(r.asSource(), r.builtin)).filter {p => getPackageClause(p.source) forall (x => !testPackageRegex.matches(x))}
+      allSources = resources.map(r => ResolveSourcesResult(r.asSource(), r.builtin))
+      // sources from testing packages are not included in the resolved sources
+      sources = allSources.filter(p => getPackageClause(p.source).forall(x => !testPackageRegex.matches(x)))
       // we do no longer need the resources, so we close them:
       _ = resources.foreach(_.close())
     } yield sources
@@ -223,7 +223,10 @@ object PackageResolver {
     }
 
     def compatibleClauses(pkgClauses: Vector[(InputResource, String)]): Either[String, String] = {
-      // TODO: doc
+      // A common idiom in Go is to perform black-box testing of packages by putting the test files in the same directory as
+      // the package files, but with a different package clause with a package name ending in "_test_. This seems to be
+      // the only case where the Go compiler allows files with different package clauses in the same directory.
+      // (https://tip.golang.org/cmd/go/#hdr-Test_packages)
       val packageName = testPackageRegex findFirstMatchIn pkgClauses.head._2 match {
         case None => pkgClauses.head._2
         case Some(p) => p.group(1)

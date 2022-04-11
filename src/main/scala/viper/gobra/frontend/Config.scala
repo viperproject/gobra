@@ -122,7 +122,7 @@ case class Config(
 }
 
 object Config {
-  // the header signals that a file should be considered when running on "Header Only" mode
+  // the header signals that a file should be considered when running on "header-only" mode
   val header = """\/\/\s*\+gobra""".r
   val prettyPrintedHeader = {
     val s = "// +gobra"

@@ -122,9 +122,13 @@ case class Config(
 }
 
 object Config {
-  // the header tag is assumed to be an invalid option to Gobra's cli
-  val headerTag = "gobra"
-  val header = """##\(%s\)""".format(headerTag).r
+  // the header signals that a file should be considered when running on "Header Only" mode
+  val header = """\/\/\s*\+gobra""".r
+  val prettyPrintedHeader = {
+    val s = "// +gobra"
+    require(header.matches(s))
+    s
+  }
   def sourceHasHeader(s: Source): Boolean = header.findFirstIn(s.content).nonEmpty
 }
 
@@ -327,7 +331,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val onlyFilesWithHeader: ScallopOption[Boolean] = toggle(
     name = "onlyFilesWithHeader",
-    descrYes = s"When enabled, Gobra only looks at files that contain header comment '// ${Config.header}'",
+    descrYes = s"When enabled, Gobra only looks at files that contain the header comment '${Config.prettyPrintedHeader}'",
     default = Some(false),
     noshort = false
   )

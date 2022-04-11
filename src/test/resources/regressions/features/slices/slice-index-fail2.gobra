@@ -9,11 +9,13 @@ func foo(s []int) {
   n := s[0]
 }
 
-requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i]) && acc(s[i])
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+requires forall i, j int :: { s[i], s[j] } 0 <= i && i < j && j < len(s) ==> s[i] != s[j] // injectivity
+requires forall i int :: { s[i] } 0 <= i && i < len(s) ==> acc(s[i])
 func bar(s []*int)
 
 func barRun() {
   s := make([]*int, 2)
-  //:: ExpectedOutput(precondition_error:receiver_not_injective)
+  //:: ExpectedOutput(precondition_error:assertion_error)
   bar(s)
 }

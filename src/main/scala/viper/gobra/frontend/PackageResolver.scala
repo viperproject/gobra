@@ -31,6 +31,8 @@ object PackageResolver {
   val stubDirectories = Vector("stubs")
   val fileUriScheme = "file"
   val jarUriScheme = "jar"
+  // TODO: doc
+  private val testPackageRegex = """(.+)_test$""".r
 
   trait AbstractImport
   /** represents an implicit unqualified import that should resolve to the built-in package */
@@ -40,19 +42,23 @@ object PackageResolver {
     override def toString: String = importPath
   }
 
+  // TODO: doc
+  case class ResolveSourcesResult(source: Source, isBuiltin: Boolean)
+
   /**
     * Resolves a package name (i.e. import path) to specific input sources
     * @param importTarget
     * @param moduleName name of the module under verification
     * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
-    * @param onlyFilesWithHeader determines whether only files with header should be considered
+    *                            // TODO adapt
     * @return list of sources belonging to the package (right) or an error message (left) if no directory could be found
     *         or the directory contains input files having different package clauses
     */
-  def resolveSources(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path], onlyFilesWithHeader: Boolean): Either[String, Vector[Source]] = {
+  def resolveSources(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[ResolveSourcesResult]] = {
     for {
-      resources <- resolve(importTarget, moduleName, includeDirs, onlyFilesWithHeader)
-      sources = resources.map(_.asSource())
+      resources <- resolve(importTarget, moduleName, includeDirs)
+      // TODO: doc
+      sources = resources.map(r => ResolveSourcesResult(r.asSource(), r.builtin)).filter {p => getPackageClause(p.source) forall (x => !testPackageRegex.matches(x))}
       // we do no longer need the resources, so we close them:
       _ = resources.foreach(_.close())
     } yield sources
@@ -63,15 +69,14 @@ object PackageResolver {
     * @param importTarget
     * @param moduleName name of the module under verification
     * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
-    * @param onlyFilesWithHeader determines whether only files with header should be considered
     * @return list of files belonging to the package (right) or an error message (left) if no directory could be found
     *         or the directory contains input files having different package clauses
     */
-  private def resolve(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path], onlyFilesWithHeader: Boolean): Either[String, Vector[InputResource]] = {
+  private def resolve(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[InputResource]] = {
     val sourceFiles = for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
       pkgDir <- getLookupPath(importTarget, moduleName, includeDirs)
-      sourceFiles = getSourceFiles(pkgDir, onlyFilesWithHeader)
+      sourceFiles = getSourceFiles(pkgDir)
     } yield sourceFiles
 
     sourceFiles.foreach(checkPackageClauses(_, importTarget))
@@ -79,7 +84,7 @@ object PackageResolver {
     for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
       pkgDir <- getLookupPath(importTarget, moduleName, includeDirs)
-      sourceFiles = getSourceFiles(pkgDir, onlyFilesWithHeader)
+      sourceFiles = getSourceFiles(pkgDir)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
       // in case of error, iterate over all resources and close them
@@ -98,16 +103,15 @@ object PackageResolver {
     * @param n implicitely qualified import for which a qualifier should be resolved
     * @param moduleName name of the module under verification
     * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
-    * @param onlyFilesWithHeader determines whether only files with header should be considered
     * @return qualifier with which members of the imported package can be accessed (right) or an error message (left)
     *         if no directory could be found or the directory contains input files having different package clauses
     */
-  def getQualifier(n: PImplicitQualifiedImport, moduleName: String, includeDirs: Vector[Path], onlyFilesWithHeader: Boolean): Either[String, String] = {
+  def getQualifier(n: PImplicitQualifiedImport, moduleName: String, includeDirs: Vector[Path]): Either[String, String] = {
     val importTarget = RegularImport(n.importPath)
     for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
       pkgDir <- getLookupPath(importTarget, moduleName, includeDirs)
-      sourceFiles = getSourceFiles(pkgDir, onlyFilesWithHeader)
+      sourceFiles = getSourceFiles(pkgDir)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
       pkgName <- checkPackageClauses(sourceFiles, importTarget)
@@ -183,9 +187,9 @@ object PackageResolver {
   }
 
   /**
-    * Returns all source files with file extension 'gobraExtension' or 'goExtension in the input resource
+    * Returns all source files with file extension 'gobraExtension' or 'goExtension' in the input resource
     */
-  private def getSourceFiles(input: InputResource, onlyFilesWithHeaders: Boolean): Vector[InputResource] = {
+  private def getSourceFiles(input: InputResource): Vector[InputResource] = {
     val dirContent = input.listContent()
     val res = dirContent
       .filter(resource => Files.isRegularFile(resource.path))
@@ -197,19 +201,7 @@ object PackageResolver {
       case resource if !res.contains(resource) => resource.close()
       case _ =>
     })
-    res filter { p => !onlyFilesWithHeaders || isResourceWithHeader(p) }
-  }
-
-  /**
-    * Decides whether an input resource should be considered by Gobra when considering only files with headers.
-    */
-  private def isResourceWithHeader(resource: InputResource): Boolean = {
-    resource match {
-      case i: InputResource if i.builtin =>
-        // standard library methods defined in stubs are always considered by Gobra
-        true
-      case i: InputResource => Config.sourceHasHeader(i.asSource())
-    }
+    res
   }
 
   /**
@@ -230,9 +222,15 @@ object PackageResolver {
       else Right(validFiles)
     }
 
-    def isEqual(pkgClauses: Vector[(InputResource, String)]): Either[String, String] = {
-      val differingClauses = pkgClauses.filter(_._2 != pkgClauses.head._2)
-      if (differingClauses.isEmpty) Right(pkgClauses.head._2)
+    def compatibleClauses(pkgClauses: Vector[(InputResource, String)]): Either[String, String] = {
+      // TODO: doc
+      val packageName = testPackageRegex findFirstMatchIn pkgClauses.head._2 match {
+        case None => pkgClauses.head._2
+        case Some(p) => p.group(1)
+      }
+      val testPackageName = s"${packageName}_test"
+      val differingClauses = pkgClauses.filter(p => p._2 != packageName && p._2 != testPackageName)
+      if (differingClauses.isEmpty) Right(packageName)
       else {
         val foundPackages = differingClauses.collect { case (f, clause) => s"$clause (${f})" }.mkString(", ")
         Left(s"Found packages $foundPackages in $importTarget")
@@ -241,7 +239,7 @@ object PackageResolver {
 
     for {
       pkgClauses <- getPackageClauses(files)
-      pkgName <- isEqual(pkgClauses)
+      pkgName <- compatibleClauses(pkgClauses)
     } yield pkgName
   }
 

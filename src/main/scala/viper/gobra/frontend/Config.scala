@@ -67,7 +67,7 @@ case class Config(
                    // the following option is currently not controllable via CLI as it is meaningless without a constantly
                    // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
                    cacheParser: Boolean = false,
-                   // this option introduces a mode where Gobra only considers files with a specific annotation ("##(gobra)").
+                   // this option introduces a mode where Gobra only considers files with a specific annotation ("// +gobra").
                    // this is useful when verifying large packages where some files might use some unsupported feature of Gobra,
                    // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
                    // to verify.

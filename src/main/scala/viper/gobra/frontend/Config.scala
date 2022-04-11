@@ -124,11 +124,8 @@ case class Config(
 object Config {
   // the header signals that a file should be considered when running on "header-only" mode
   val header = """\/\/\s*\+gobra""".r
-  val prettyPrintedHeader = {
-    val s = "// +gobra"
-    require(header.matches(s))
-    s
-  }
+  val prettyPrintedHeader = "// +gobra"
+  require(header.matches(prettyPrintedHeader))
   def sourceHasHeader(s: Source): Boolean = header.findFirstIn(s.content).nonEmpty
 }
 

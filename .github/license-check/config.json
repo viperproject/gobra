@@ -109,7 +109,6 @@
     "exclude": [
       "src/main/resources/stubs/github.com/**/*.gobra",
       "src/main/resources/stubs/fmt/fmt.gobra"
-
     ],
     "license": "./.github/license-check/headers/Go.txt"
   },

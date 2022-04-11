@@ -145,17 +145,29 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
             case None => error(n, s"break must be inside a loop")
             case Some(_) => noMessages
           }
-        case _ => ???
+        case Some(label) => {
+          val (maybeLoop, _) = enclosingLabeledLoop(label, n)
+          maybeLoop match {
+            case None => error(n, s"break label must point to an outer labeled loop")
+            case Some(_) => noMessages
+          }
+        }
       }
 
-    case n@PContinue(l) =>
+    case n@PContinue(l) => 
       l match {
         case None => noMessages
           enclosingLoop(n) match {
             case None => error(n, s"continue must be inside a loop")
             case Some(_) => noMessages
           }
-        case _ => ???
+        case Some(label) => {
+          val (maybeLoop, _) = enclosingLabeledLoop(label, n)
+          maybeLoop match {
+            case None => error(n, s"continue label must point to an outer labeled loop")
+            case Some(_) => ; noMessages
+          }
+        }
       }
 
     case s => violation(s"$s was not handled")

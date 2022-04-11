@@ -812,13 +812,40 @@ object Desugar {
 
           case b: PBlock => unit(blockD(ctx)(b))
 
-          case l: PLabeledStmt =>
+          case l: PLabeledStmt => {
             val proxy = labelProxy(l.label)
-            for {
-              _ <- declare(proxy)
-              _ <- write(in.Label(proxy)(src))
-              s <- goS(l.stmt)
-            } yield s
+            if (l.stmt.isInstanceOf[PForStmt]) {
+              val forstmt = l.stmt.asInstanceOf[PForStmt]
+              unit(block( // is a block because 'pre' might define new variables
+                for {
+                  _ <- declare(proxy)
+                  _ <- write(in.Label(proxy)(src))
+                  dPre <- maybeStmtD(ctx)(forstmt.pre)(src)
+                  (dCondPre, dCond) <- prelude(exprD(ctx)(forstmt.cond))
+                  (dInvPre, dInv) <- prelude(sequence(forstmt.spec.invariants map assertionD(ctx)))
+                  (dTerPre, dTer) <- prelude(option(forstmt.spec.terminationMeasure map terminationMeasureD(ctx)))
+
+                  dBody = blockD(ctx)(forstmt.body)
+                  dPost <- maybeStmtD(ctx)(forstmt.post)(src)
+
+                  wh = in.Seqn(
+                    Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
+                      in.While(dCond, dInv, dTer, in.Seqn(
+                        Vector(dBody, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
+                      )(src), Some(l.label.name))(src)
+                    )
+                  )(src)
+                } yield wh
+              ))
+            }
+            else {
+              for {
+                _ <- declare(proxy)
+                _ <- write(in.Label(proxy)(src))
+                s <- goS(l.stmt)
+              } yield s
+            }
+          }
 
           case PIfStmt(ifs, els) =>
             val elsStmt = maybeStmtD(ctx)(els)(src)
@@ -849,7 +876,7 @@ object Desugar {
                   Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
                     in.While(dCond, dInv, dTer, in.Seqn(
                       Vector(dBody, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
-                    )(src))(src)
+                    )(src), None)(src)
                   )
                 )(src)
               } yield wh
@@ -1070,10 +1097,19 @@ object Desugar {
                   case Some(loop) =>
                     for {
                       (dInvPre, dInv) <- prelude(sequence(loop.spec.invariants map assertionD(ctx)))
-                      c = in.Continue(dInv)(src)
+                      c = in.Continue(None, None, dInv)(src)
                     } yield c
                 }
-              case _ => ???
+              case Some(l) =>
+                val (maybeLoop, invs) = info.enclosedInLabeledLoop(l, n)
+                maybeLoop match {
+                  case None => ???
+                  case Some(_) =>
+                    for {
+                      (dInvPre, dInv) <- prelude(sequence(invs map assertionD(ctx)))
+                      c = in.Continue(Some(l.name), Some(nm.fresh(n, info)), dInv)(src)
+                    } yield c
+                }
             }
 
           case n@PBreak(label) =>
@@ -1084,10 +1120,20 @@ object Desugar {
                   case Some(loop) =>
                     for {
                       (dInvPre, dInv) <- prelude(sequence(loop.spec.invariants map assertionD(ctx)))
-                      c = in.Break(nm.fresh(n, info), dInv)(src)
+                      c = in.Break(None, nm.fresh(n, info))(src)
                     } yield c
                 }
-              case _ => ???
+              case Some(l) => {
+                val (maybeLoop, invs) = info.enclosedInLabeledLoop(l, n)
+                maybeLoop match {
+                  case None => ???
+                  case Some(_) =>
+                    for {
+                      (dInvPre, dInv) <- prelude(sequence(invs map assertionD(ctx)))
+                      c = in.Break(Some(l.name), nm.fresh(n, info))(src)
+                    } yield c
+                }
+              }
             }
 
           case _ => ???

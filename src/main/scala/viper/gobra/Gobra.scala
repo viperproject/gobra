@@ -52,7 +52,7 @@ trait GoVerifier extends StrictLogging {
    * It uses the package identifier to uniquely identify each verification task on a package level.
    * Additionally statistics are collected with the StatsCollector reporter class
    */
-  def verifyAllPackages(config: Config)(executor: GobraExecutionContext): Vector[VerifierError] = {
+  def verifyAllPackages(config: Config)(executor: GobraExecutionContext): VerifierResult = {
     val statsCollector = StatsCollector(config.reporter)
     var warningCount: Int = 0
     var allVerifierErrors: Vector[VerifierError] = Vector()
@@ -125,7 +125,8 @@ trait GoVerifier extends StrictLogging {
       logger.info(s"The verification of ${allTimeoutErrors.size} members timed out")
     }
 
-    allVerifierErrors ++ allTimeoutErrors
+    val allErrors = allVerifierErrors ++ allTimeoutErrors
+    if (allErrors.isEmpty) VerifierResult.Success else VerifierResult.Failure(allErrors)
   }
 
   protected[this] def verify(pkgInfo: PackageInfo, config: Config)(executor: GobraExecutionContext): Future[VerifierResult]
@@ -293,10 +294,9 @@ object GobraRunner extends GobraFrontend with StrictLogging {
       // Print copyright report
       config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
 
-      val errors = verifier.verifyAllPackages(config)(executor)
-
-      if(errors.nonEmpty) {
-        exitCode = 1
+      exitCode = verifier.verifyAllPackages(config)(executor) match {
+        case VerifierResult.Failure(_) => 1
+        case _ => 0
       }
     } catch {
       case e: UglyErrorMessage =>

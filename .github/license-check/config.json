@@ -67,6 +67,12 @@
   },
   {
     "include": [
+      "src/main/resources/stubs/fmt/fmt.gobra"
+    ],
+    "license": "./.github/license-check/headers/CC0.txt"
+  },
+  {
+    "include": [
       "src/test/resources/regressions/issues/windows-line-ending/*.gobra"
     ],
     "license": "./.github/license-check/headers/CC0-Windows.txt"
@@ -101,7 +107,8 @@
       "src/test/scala/viper/gobra/parsing/GoParserUnitTests.scala"
     ],
     "exclude": [
-      "src/main/resources/stubs/github.com/**/*.gobra"
+      "src/main/resources/stubs/github.com/**/*.gobra",
+      "src/main/resources/stubs/fmt/fmt.gobra"
     ],
     "license": "./.github/license-check/headers/Go.txt"
   },

@@ -1093,7 +1093,7 @@ object Desugar {
             label match {
               case None =>
                 info.enclosedInLoop(n) match{
-                  case None => ???
+                  case None => violation("continue should be enclosed in a loop")
                   case Some(loop) =>
                     for {
                       (dInvPre, dInv) <- prelude(sequence(loop.spec.invariants map assertionD(ctx)))
@@ -1103,7 +1103,7 @@ object Desugar {
               case Some(l) =>
                 val (maybeLoop, invs) = info.enclosedInLabeledLoop(l, n)
                 maybeLoop match {
-                  case None => ???
+                  case None => violation("continue with label should be enclosed in a loop having that label")
                   case Some(_) =>
                     for {
                       (dInvPre, dInv) <- prelude(sequence(invs map assertionD(ctx)))
@@ -1116,7 +1116,7 @@ object Desugar {
             label match {
               case None =>
                 info.enclosedInLoop(n) match{
-                  case None => ???
+                  case None => violation("break should be enclosed in a loop")
                   case Some(loop) =>
                     for {
                       (dInvPre, dInv) <- prelude(sequence(loop.spec.invariants map assertionD(ctx)))
@@ -1126,7 +1126,7 @@ object Desugar {
               case Some(l) => {
                 val (maybeLoop, invs) = info.enclosedInLabeledLoop(l, n)
                 maybeLoop match {
-                  case None => ???
+                  case None => violation("break with label should be enclosed in a loop having that label")
                   case Some(_) =>
                     for {
                       (dInvPre, dInv) <- prelude(sequence(invs map assertionD(ctx)))

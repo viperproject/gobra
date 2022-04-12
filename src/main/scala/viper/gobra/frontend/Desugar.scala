@@ -814,36 +814,37 @@ object Desugar {
 
           case l: PLabeledStmt => {
             val proxy = labelProxy(l.label)
-            if (l.stmt.isInstanceOf[PForStmt]) {
-              val forstmt = l.stmt.asInstanceOf[PForStmt]
-              unit(block( // is a block because 'pre' might define new variables
+            l.stmt match {
+              case forstmt : PForStmt => {
+                unit(block( // is a block because 'pre' might define new variables
+                  for {
+                    _ <- declare(proxy)
+                    _ <- write(in.Label(proxy)(src))
+                    dPre <- maybeStmtD(ctx)(forstmt.pre)(src)
+                    (dCondPre, dCond) <- prelude(exprD(ctx)(forstmt.cond))
+                    (dInvPre, dInv) <- prelude(sequence(forstmt.spec.invariants map assertionD(ctx)))
+                    (dTerPre, dTer) <- prelude(option(forstmt.spec.terminationMeasure map terminationMeasureD(ctx)))
+
+                    dBody = blockD(ctx)(forstmt.body)
+                    dPost <- maybeStmtD(ctx)(forstmt.post)(src)
+
+                    wh = in.Seqn(
+                      Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
+                        in.While(dCond, dInv, dTer, in.Seqn(
+                          Vector(dBody, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
+                        )(src), Some(l.label.name))(src)
+                      )
+                    )(src)
+                  } yield wh
+                ))
+              }
+              case _ => {
                 for {
                   _ <- declare(proxy)
                   _ <- write(in.Label(proxy)(src))
-                  dPre <- maybeStmtD(ctx)(forstmt.pre)(src)
-                  (dCondPre, dCond) <- prelude(exprD(ctx)(forstmt.cond))
-                  (dInvPre, dInv) <- prelude(sequence(forstmt.spec.invariants map assertionD(ctx)))
-                  (dTerPre, dTer) <- prelude(option(forstmt.spec.terminationMeasure map terminationMeasureD(ctx)))
-
-                  dBody = blockD(ctx)(forstmt.body)
-                  dPost <- maybeStmtD(ctx)(forstmt.post)(src)
-
-                  wh = in.Seqn(
-                    Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
-                      in.While(dCond, dInv, dTer, in.Seqn(
-                        Vector(dBody, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
-                      )(src), Some(l.label.name))(src)
-                    )
-                  )(src)
-                } yield wh
-              ))
-            }
-            else {
-              for {
-                _ <- declare(proxy)
-                _ <- write(in.Label(proxy)(src))
-                s <- goS(l.stmt)
-              } yield s
+                  s <- goS(l.stmt)
+                } yield s
+              }
             }
           }
 

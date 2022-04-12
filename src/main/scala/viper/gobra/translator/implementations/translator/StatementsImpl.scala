@@ -157,7 +157,6 @@ class StatementsImpl extends Statements {
 
           continueLabelNames = gatherContinueLabels(body, label)
           continueLabels = continueLabelNames.map(x => vpr.Label(x, Vector.empty)(pos, info, errT))
-          _ = println(continueLabels)
 
           vBodyWithLabels = vu.seqn(vBody.children.head.asInstanceOf[Vector[vpr.Stmt]] ++ continueLabels)(pos, info, errT)
 

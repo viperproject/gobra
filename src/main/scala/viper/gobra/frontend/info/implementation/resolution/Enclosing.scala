@@ -34,33 +34,15 @@ trait Enclosing { this: TypeInfoImpl =>
     down[Option[PForStmt]](None){ case x: PForStmt => Some(x) }
   }
 
-  def enclosingLabeledLoop(label: PLabelUse, node: PNode) : (Option[PForStmt], Vector[PExpression]) =
+  def enclosingLabeledLoop(label: PLabelUse, node: PNode) : (Option[PForStmt], Vector[PExpression]) = {
     enclosingLoop(node) match {
-      case None => (None, Vector.empty)
-      case Some(l) => {
-        val p = tree.parent(l).head
-        if (p.isInstanceOf[PLabeledStmt]) {
-          val loopLabel = p.asInstanceOf[PLabeledStmt].label.name
-          if (loopLabel.equals(label.name))
-            (Some(l), l.spec.invariants)
-          else
-          {
-            val (lup, invsup) = enclosingLabeledLoop(label, p)
-            lup match {
-              case None => (None, Vector.empty)
-              case loopUp => (loopUp, invsup)
-            }
-          }
-        }
-        else {
-          val (lup, invsup) = enclosingLabeledLoop(label, p)
-          lup match {
-            case None => (None, Vector.empty)
-            case loopUp => (loopUp, invsup)
-          }
-        }
+      case None => (None, Vector())
+      case Some(encLoop) => encLoop match {
+        case tree.parent(l: PLabeledStmt) if l.label.name == label.name => (Some(encLoop), encLoop.spec.invariants)
+        case _ => enclosingLabeledLoop(label, tree.parent(encLoop).head)
       }
     }
+  }
 
   lazy val tryEnclosingUnorderedScope: PNode => Option[PUnorderedScope] =
     down[Option[PUnorderedScope]](None) { case x: PUnorderedScope => Some(x) }

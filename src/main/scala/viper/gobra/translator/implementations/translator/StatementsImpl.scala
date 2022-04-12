@@ -152,12 +152,15 @@ class StatementsImpl extends Statements {
 
           measure <- option(terminationMeasure map ctx.measures.translateF(ctx))
 
+          // Gather the labels where the break statements breaking this loop will go to
+          // to insert them directly after the loop
           breakLabelNames = gatherBreakLabels(body, label)
           breakLabels = breakLabelNames.map(x => vpr.Label(x, Vector.empty)(pos, info, errT))
 
+          // Gather the labels where the continue statements continuing this loop will go to
+          // to insert them just before the loop body ends
           continueLabelNames = gatherContinueLabels(body, label)
           continueLabels = continueLabelNames.map(x => vpr.Label(x, Vector.empty)(pos, info, errT))
-
           vBodyWithLabels = vu.seqn(vBody.children.head.asInstanceOf[Vector[vpr.Stmt]] ++ continueLabels)(pos, info, errT)
 
           wh = vu.seqn(Vector(

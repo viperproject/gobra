@@ -34,6 +34,8 @@ trait Enclosing { this: TypeInfoImpl =>
     down[Option[PForStmt]](None){ case x: PForStmt => Some(x) }
   }
 
+  // Returns the enclosing loop that has a specific label
+  // It also returns the invariants of that loop
   def enclosingLabeledLoop(label: PLabelUse, node: PNode) : (Option[PForStmt], Vector[PExpression]) = {
     enclosingLoop(node) match {
       case None => (None, Vector())

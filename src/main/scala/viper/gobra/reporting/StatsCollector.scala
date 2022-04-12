@@ -213,7 +213,9 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
               existingViperEntry.cached || viperMember.cached,
               existingViperEntry.fromImport,
               existingViperEntry.hasBody || viperMember.hasBody,
-              existingViperEntry.verified || viperMember.verified
+              // Only consider verification results for viper members with a body, since otherwise if a result for an abstract
+              // version of a member occurs, we would mark the method as verified even though the version with the body was not.
+              existingViperEntry.verified || (!viperMember.fromImport && viperMember.verified && viperMember.hasBody)
             ))
           case None => existing.viperMembers.put(viperMember.id, viperMember)
         }
@@ -396,26 +398,36 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   /**
    * Returns the number of non-imported Gobra members that have a specification and were verified
    */
-  def getNumberOfVerifiedMembers: Int =
-    getNonImportedVerifiedMembers
-      .count(_.info.hasSpecification)
+  def getNumberOfSpecifiedMembers: Int = getNonImportedVerifiedMembers.count(_.info.hasSpecification)
 
   /**
    * Returns the number of non-imported Gobra members that have a specification, were verified and are trusted or abstract
    */
-  def getNumberOfVerifiedMembersWithAssumptions: Int =
+  def getNumberOfSpecifiedMembersWithAssumptions: Int =
     getNonImportedVerifiedMembers
       .filter(entry => entry.info.isAbstractAndNotImported || entry.info.isTrusted)
       .count(_.info.hasSpecification)
 
   /**
-   * Returns a list of non-imported Gobra members, for which at least one viper member that didn't come from an import
-   * was not verified
+   * Returns a list of non-imported, non-abstract Gobra members, for which at least one viper member's verification did
+   * not terminate. Contains errors for all tasks for which a VerificationTaskFinishedMessage was not reported.
    */
-  def getTimedOutMembers: List[String] =
+  def getTimeoutErrorsForNonFinishedTasks: List[TimeoutError] =
     memberMap.values
-      .filter(_.viperMembers.values.exists(viperMember => !viperMember.fromImport && !viperMember.verified))
-      .map(_.info.id).toList
+      // check if there exists a stored typeInfo for the task, to see whether a VerificationTaskFinishedMessage was reported or not
+      .filter(_.viperMembers.values.exists(viperMember => typeInfos.contains(viperMember.taskName) && !viperMember.fromImport && !viperMember.verified && viperMember.hasBody))
+      .map(timeoutError).toList
+
+  /**
+   * Returns a list of non-imported, non-abstract Gobra members, for which at least one viper member's verification did
+   * not terminate for a specified task
+   */
+  def getTimeoutErrors(taskName: String): List[TimeoutError] =
+    memberMap.values
+      .filter(_.viperMembers.values.exists(viperMember => viperMember.taskName == taskName && !viperMember.fromImport && !viperMember.verified && viperMember.hasBody))
+      .map(timeoutError).toList
+
+  private def timeoutError(gobraEntry: GobraMemberEntry) = TimeoutError(s"The verification of member ${gobraEntry.info.id} did not terminate")
 
   /**
    * Writes all statistics that have been collected with this instance of the StatsCollector to a file

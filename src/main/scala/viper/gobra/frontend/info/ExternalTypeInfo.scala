@@ -93,7 +93,7 @@ trait ExternalTypeInfo {
   /** returns the code root for a given node; can only be called on nodes that are enclosed in a code root */
   def codeRoot(n: PNode): PCodeRoot with PScope
 
-  def enclosedInLoop(n: PNode) : Option[PForStmt]
+  def enclosingLoopNode(n: PNode) : Option[PForStmt]
 
-  def enclosedInLabeledLoop(label: PLabelUse, n: PNode) : (Option[PForStmt], Vector[PExpression])
+  def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : (Option[PForStmt], Vector[PExpression])
 }

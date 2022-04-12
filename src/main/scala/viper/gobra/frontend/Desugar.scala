@@ -1093,7 +1093,7 @@ object Desugar {
           case n@PContinue(label) =>
             label match {
               case None =>
-                info.enclosedInLoop(n) match{
+                info.enclosingLoopNode(n) match{
                   case None => violation("continue should be enclosed in a loop")
                   case Some(loop) =>
                     for {
@@ -1102,7 +1102,7 @@ object Desugar {
                     } yield c
                 }
               case Some(l) =>
-                val (maybeLoop, invs) = info.enclosedInLabeledLoop(l, n)
+                val (maybeLoop, invs) = info.enclosingLabeledLoopNode(l, n)
                 maybeLoop match {
                   case None => violation("continue with label should be enclosed in a loop having that label")
                   case Some(_) =>
@@ -1116,7 +1116,7 @@ object Desugar {
           case n@PBreak(label) =>
             label match {
               case None =>
-                info.enclosedInLoop(n) match{
+                info.enclosingLoopNode(n) match{
                   case None => violation("break should be enclosed in a loop")
                   case Some(loop) =>
                     for {
@@ -1125,7 +1125,7 @@ object Desugar {
                     } yield c
                 }
               case Some(l) => {
-                val (maybeLoop, invs) = info.enclosedInLabeledLoop(l, n)
+                val (maybeLoop, invs) = info.enclosingLabeledLoopNode(l, n)
                 maybeLoop match {
                   case None => violation("break with label should be enclosed in a loop having that label")
                   case Some(_) =>

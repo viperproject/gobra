@@ -83,9 +83,9 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   override def codeRoot(n: PNode): PCodeRoot with PScope = enclosingCodeRoot(n)
 
-  override def enclosedInLoop(n: PNode) : Option[PForStmt] = enclosingLoop(n)
+  override def enclosingLoopNode(n: PNode) : Option[PForStmt] = enclosingLoop(n)
 
-  override def enclosedInLabeledLoop(label: PLabelUse, n: PNode) : (Option[PForStmt], Vector[PExpression]) = enclosingLabeledLoop(label, n)
+  override def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : (Option[PForStmt], Vector[PExpression]) = enclosingLabeledLoop(label, n)
 
   override def regular(n: PIdnNode): SymbolTable.Regular = entity(n) match {
     case r: Regular => r

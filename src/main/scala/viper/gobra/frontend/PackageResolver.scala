@@ -192,9 +192,7 @@ object PackageResolver {
     * More information about this can be found in https://tip.golang.org/cmd/go/#hdr-Test_packages.
     */
   private def shouldIgnoreResource(r: InputResource): Boolean = {
-    // Here, we could chose either a full path
     val path = r.path.toString
-    println(s"path: $path")
     // files inside a directory named "testdata" should be ignored
     val testDataDir = """.*/testdata($|/)""".r
     // test files in Go have their name terminating in "_test.go"

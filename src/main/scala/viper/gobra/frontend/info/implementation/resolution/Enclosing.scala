@@ -48,7 +48,7 @@ trait Enclosing { this: TypeInfoImpl =>
             val (lup, invsup) = enclosingLabeledLoop(label, p)
             lup match {
               case None => (None, Vector.empty)
-              case loopUp => (loopUp, l.spec.invariants ++ invsup)
+              case loopUp => (loopUp, invsup)
             }
           }
         }
@@ -56,7 +56,7 @@ trait Enclosing { this: TypeInfoImpl =>
           val (lup, invsup) = enclosingLabeledLoop(label, p)
           lup match {
             case None => (None, Vector.empty)
-            case loopUp => (loopUp, l.spec.invariants ++ invsup)
+            case loopUp => (loopUp, invsup)
           }
         }
       }

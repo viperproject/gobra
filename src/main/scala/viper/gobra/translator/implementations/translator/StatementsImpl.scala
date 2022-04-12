@@ -85,36 +85,22 @@ class StatementsImpl extends Statements {
           }
       }
 
-    def gatherContinueVariables(node: in.Node) : Vector[String] = {
-      val (varsLabels, insideLabels) = gatherContinueVariablesHelper(node)
-      varsLabels.filter((v : (String, String)) => !(insideLabels(v._2))).map(_._1)
-    }
-
-    def gatherContinueVariablesHelper(node: in.Node) : (Vector[(String, String)], Set[String]) = {
-      node match {
-        case in.Continue(Some(label), Some(varName), _) => (Vector((varName, label)), Set.empty)
-        case n: in.While =>
-          n.label match {
-            case None => n.subnodes.foldLeft((Vector[(String, String)](), Set[String]()))(gatherContinueVariablesZip)
-            case Some(labelName) =>
-                n.subnodes.foldLeft((Vector[(String, String)](), Set(labelName)))(gatherContinueVariablesZip)
+    def gatherContinueLabels(node: in.Node, label: Option[String], depthControl : Boolean = true): Vector[String] =
+      label match {
+        case None =>
+          node match {
+            case in.Continue(None, l, _) => Vector(l)
+            case _ : in.While => Vector.empty
+            case n => n.subnodes.foldLeft(Vector[String]())((a : Vector[String], b : in.Node) => (a ++ gatherContinueLabels(b, None)))
           }
-        case n => n.subnodes.foldLeft((Vector[(String, String)](), Set[String]()))(gatherContinueVariablesZip)
+        case Some(labelString) =>
+          node match {
+            case in.Continue(None, l, _) => if (depthControl) Vector(l) else Vector.empty
+            case in.Continue(Some(continueLabelString), l, _) => if (labelString.equals(continueLabelString)) Vector(l) else Vector.empty
+            case n: in.While => n.subnodes.foldLeft(Vector[String]())((a : Vector[String], b : in.Node) => (a ++ gatherContinueLabels(b, label, false)))
+            case n => n.subnodes.foldLeft(Vector[String]())((a : Vector[String], b : in.Node) => (a ++ gatherContinueLabels(b, label, depthControl)))
+          }
       }
-    }
-
-    def gatherContinueVariablesZip(a : (Vector[(String, String)], Set[String]), b : in.Node) : (Vector[(String, String)], Set[String]) = {
-      val (c, d) = gatherContinueVariablesHelper(b)
-      (a._1 ++ c, a._2 | d)
-    }
-
-    def gatherLabeledContinueVars(node : in.Node, label : String) : Vector[String] =
-      node match {
-        case in.Continue(Some(l), Some(varName), _) =>
-          if (l.equals(label)) Vector(varName) else Vector.empty
-        case n => n.subnodes.foldLeft(Vector[String]())((a : Vector[String], b : in.Node) => a ++ gatherLabeledContinueVars(b, label))
-      }
-    
 
     val vprStmt: CodeWriter[vpr.Stmt] = x match {
       case in.Block(decls, stmts) =>
@@ -133,18 +119,12 @@ class StatementsImpl extends Statements {
       case in.Label(id) =>
         unit(vpr.Label(id.name, Seq.empty)(pos, info, errT))
 
-      case in.Continue(_, varName, invs) =>
+      case in.Continue(_, escLabel, invs) =>
         for {
           preCond <- sequence(invs map goA)
           assertions = preCond.map(x => vpr.Assert(x)(pos, info, errT))
-          assignment = varName match {
-            case None => Vector.empty
-            case Some(name) => {
-              val decl = vpr.LocalVarDecl(name, vpr.Bool)(pos, info, errT)
-              Vector(vpr.LocalVarAssign(decl.localVar, vpr.BoolLit(true)(pos, info, errT))(pos, info, errT))
-            }
-          }
-          cont = vu.seqn(assertions ++ assignment ++ Vector(vpr.Assume(vpr.BoolLit(false)(pos, info, errT))(pos, info, errT)))(pos, info, errT)
+          goto = Vector(vpr.Goto(escLabel)(pos, info, errT))
+          cont = vu.seqn(assertions ++ goto)(pos, info, errT)
         } yield cont
 
       case in.Break(_, escLabel) =>
@@ -157,7 +137,7 @@ class StatementsImpl extends Statements {
             e <- goS(els)
           } yield vpr.If(c, vu.toSeq(t), vu.toSeq(e))(pos, info, errT)
 
-      case n@in.While(cond, invs, terminationMeasure, body, label) =>
+      case in.While(cond, invs, terminationMeasure, body, label) =>
 
         for {
           (cws, vCond) <- split(goE(cond))
@@ -167,32 +147,23 @@ class StatementsImpl extends Statements {
 
           vBody <- goS(body)
 
-          continueVars = label match {
-            case Some(l) => gatherLabeledContinueVars(n, l)
-            case None => Vector[String]()
-          }
-
-          continueLocalVars = continueVars.map[vpr.LocalVarDecl](vpr.LocalVarDecl(_, vpr.Bool)(pos, info, errT))
-          continueVarDecls = continueLocalVars.map((x : vpr.LocalVarDecl) => vpr.LocalVarAssign(x.localVar, vpr.BoolLit(false)(pos, info, errT))(pos, info, errT))
-
-          vBody1 = vu.seqn(continueVarDecls ++ vBody.children.head.asInstanceOf[Vector[vpr.Stmt]])(pos, info, errT)
-
           cpost = vpr.If(vCond, vu.toSeq(cpre), vu.nop(pos, info, errT))(pos, info, errT)
           ipost = ipre
 
           measure <- option(terminationMeasure map ctx.measures.translateF(ctx))
 
-          labelNames = gatherBreakLabels(body, label)
-          labels = labelNames.map(x => vpr.Label(x, Vector.empty)(pos, info, errT))
+          breakLabelNames = gatherBreakLabels(body, label)
+          breakLabels = breakLabelNames.map(x => vpr.Label(x, Vector.empty)(pos, info, errT))
 
-          varNames = gatherContinueVariables(n)
-          vars = varNames.map(vpr.LocalVarDecl(_, vpr.Bool)(pos, info, errT).localVar)
+          continueLabelNames = gatherContinueLabels(body, label)
+          continueLabels = continueLabelNames.map(x => vpr.Label(x, Vector.empty)(pos, info, errT))
+          _ = println(continueLabels)
 
-          ifstmt = Vector(vpr.If(vu.bigOr(vars)(pos, info, errT), vu.seqn(Vector(vpr.Assume(vpr.BoolLit(false)(pos, info, errT))(pos, info, errT)))(pos, info, errT), vu.nop(pos, info, errT))(pos, info, errT))
+          vBodyWithLabels = vu.seqn(vBody.children.head.asInstanceOf[Vector[vpr.Stmt]] ++ continueLabels)(pos, info, errT)
 
           wh = vu.seqn(Vector(
-            cpre, ipre, vpr.While(vCond, vInvs ++ measure, vu.seqn(Vector(vBody1, cpost, ipost))(pos, info, errT))(pos, info, errT)
-          ) ++ labels ++ ifstmt)(pos, info, errT)
+            cpre, ipre, vpr.While(vCond, vInvs ++ measure, vu.seqn(Vector(vBodyWithLabels, cpost, ipost))(pos, info, errT))(pos, info, errT)
+          ) ++ breakLabels)(pos, info, errT)
         } yield wh
 
       case ass: in.SingleAss => ctx.typeEncoding.assignment(ctx)(ass.left, ass.right, ass)

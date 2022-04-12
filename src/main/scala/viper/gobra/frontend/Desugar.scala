@@ -1097,7 +1097,7 @@ object Desugar {
                   case Some(loop) =>
                     for {
                       (dInvPre, dInv) <- prelude(sequence(loop.spec.invariants map assertionD(ctx)))
-                      c = in.Continue(None, None, dInv)(src)
+                      c = in.Continue(None, nm.fresh(n, info), dInv)(src)
                     } yield c
                 }
               case Some(l) =>
@@ -1107,7 +1107,7 @@ object Desugar {
                   case Some(_) =>
                     for {
                       (dInvPre, dInv) <- prelude(sequence(invs map assertionD(ctx)))
-                      c = in.Continue(Some(l.name), Some(nm.fresh(n, info)), dInv)(src)
+                      c = in.Continue(Some(l.name), nm.fresh(n, info), dInv)(src)
                     } yield c
                 }
             }

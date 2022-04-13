@@ -194,7 +194,7 @@ object PackageResolver {
   private def shouldIgnoreResource(r: InputResource): Boolean = {
     val path = r.path.toString
     // files inside a directory named "testdata" should be ignored
-    val testDataDir = """.*/testdata($|/)""".r
+    val testDataDir = """.*/testdata(?:$|/.*)""".r
     // test files in Go have their name terminating in "_test.go"
     val testFilesEnding = """.*_test.go$""".r
     testFilesEnding.matches(path) || testDataDir.matches(path)
@@ -202,19 +202,28 @@ object PackageResolver {
 
   /**
     * Returns the source files with file extension 'gobraExtension' or 'goExtension' in the input resource which
-    * are not test files and are not in a directory with name 'testdata'
+    * are not test files and are not in a directory with name 'testdata'.
+    * Input can also be a file in which case the same file is returned if it passes all tests
     */
-  private def getSourceFiles(input: InputResource): Vector[InputResource] = {
-    val dirContent = input.listContent()
-    val res = dirContent.filter { resource =>
-      val isRegular = Files.isRegularFile(resource.path)
-      // only consider files with the particular extension
-      val validExtension = FilenameUtils.getExtension(resource.path.toString) == gobraExtension ||
-        FilenameUtils.getExtension(resource.path.toString) == goExtension
-      val shouldBeConsidered = !shouldIgnoreResource(resource)
-      isRegular && validExtension && shouldBeConsidered
-    }
-    (dirContent :+ input).foreach({
+  def getSourceFiles(input: InputResource, recursive: Boolean = false): Vector[InputResource] = {
+    // get content of directory if it's a directory, otherwise just return the file itself
+    val dirContent = if (Files.isDirectory(input.path)) { input.listContent() } else { Vector(input) }
+    val res = dirContent
+      .flatMap { resource =>
+        if (recursive && Files.isDirectory(resource.path)) {
+          getSourceFiles(resource, recursive)
+        } else if (Files.isRegularFile(resource.path)) {
+          // only consider files with the particular extension
+          val validExtension = FilenameUtils.getExtension(resource.path.toString) == gobraExtension ||
+            FilenameUtils.getExtension(resource.path.toString) == goExtension
+          val shouldBeConsidered = !shouldIgnoreResource(resource)
+          if (validExtension && shouldBeConsidered) Vector(resource) else Vector()
+        } else {
+          Vector()
+        }
+      }
+    // close all resource that are no longer needed:
+    (dirContent.toSet ++ Set(input)).foreach({
       case resource if !res.contains(resource) => resource.close()
       case _ =>
     })

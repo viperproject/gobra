@@ -16,7 +16,8 @@ import org.rogach.scallop.{ScallopConf, ScallopOption, listArgConverter, singleA
 import org.slf4j.LoggerFactory
 import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
-import viper.gobra.frontend.Source.{FromFileSource, getPackageInfo}
+import viper.gobra.frontend.PackageResolver.FileResource
+import viper.gobra.frontend.Source.{FromFileSource, TransformableSource, getPackageInfo}
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
@@ -523,12 +524,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   private object InputConverter {
 
     def validate(inputs: List[String], recursive: Boolean): Messages = {
-      val files = inputs flatMap (file => getAllGobraFiles(file, recursive))
-      files match {
-        case files if files.nonEmpty => noMessages
+      val sources = parseInputStrings(inputs.toVector, recursive)
+      sources match {
+        case sources if sources.nonEmpty => noMessages
         case _ if isInputOptional => noMessages
         // error states
-        case files if files.isEmpty => message(null, s"no files found in the specified input (use -r to traverse directories)")
+        case sources if sources.isEmpty => message(null, s"no files found in the specified input (use -r to traverse directories)")
         case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
     }
@@ -544,44 +545,21 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
      *
      */
     private def parseInputStrings(inputs: Vector[String], recursive: Boolean): Vector[Source] = {
-      inputs.flatMap(input => getAllGobraFiles(input, recursive))
-        .map(file => FileSource(file.getPath))
-    }
-
-    /**
-     * Gets all gobra files in a input location. If the location is a file that ends in ".<ext>" it is returned.
-     * If it is a directory, all files contained in it, ending in ".<ext>", are returned.
-     *
-     * @param recursive if true, directories are traversed recursively
-     * @return a Vector of the resolved gobra files
-     */
-    private def getAllGobraFiles(input: String, recursive: Boolean): Vector[File] =
-      input match {
-        case PackageResolver.inputFileRegex(filename) => Vector(new File(filename))
-        case dirname => getInputFilesInDir(new File(dirname), recursive)
-      }
-
-    /**
-     * Gets all files with a go/gobra extension inside this directory
-     *
-     * @param directory directory to look for files
-     * @param recursive traverse subdirectories if this is set to true
-     * @return a List of go/gobra files
-     */
-    private def getInputFilesInDir(directory: File, recursive: Boolean): Vector[File] = {
-      Violation.violation(directory.exists && directory.isDirectory, "getInputFilesInDir didn't receive a directory as input: " + directory.toString)
-      directory.listFiles()
-        // Filters out all files that aren't either go/gobra files or directories (if recursive is set)
-        .filter(file => (file.isDirectory && recursive) || PackageResolver.inputFileRegex.matches(file.getName))
-        .flatMap(file => if (file.isDirectory) getInputFilesInDir(file, recursive) else List(file))
-        .toVector
+      inputs
+        .map(input => FileResource(Paths.get(input)))
+        .flatMap(inputResource => PackageResolver.getSourceFiles(inputResource, recursive))
+        .map { resource =>
+          val source = resource.asSource()
+          resource.close()
+          source
+        }
     }
 
     def isolatedPosition(cutInputWithIdxs: Option[List[(String, List[Int])]]): List[SourcePosition] = {
       cutInputWithIdxs.map(_.flatMap { case (input, idxs) =>
-        getAllGobraFiles(input, recursive = false) match {
+        parseInputStrings(Vector(input), recursive = false) match {
           // only go and gobra files and not directories can have a position
-          case Vector(file) => idxs.map(idx => SourcePosition(file.toPath, idx, 0))
+          case Vector(source) => idxs.map(idx => SourcePosition(source.toPath, idx, 0))
           case _ => List.empty
         }
       }).getOrElse(List.empty)

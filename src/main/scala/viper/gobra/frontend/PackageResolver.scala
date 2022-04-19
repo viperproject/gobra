@@ -207,8 +207,8 @@ object PackageResolver {
     */
   def getSourceFiles(input: InputResource, recursive: Boolean = false): Vector[InputResource] = {
     // get content of directory if it's a directory, otherwise just return the file itself
-    val dirContent = if (Files.isDirectory(input.path)) { input.listContent() } else { Vector(input) }
-    val res = dirContent
+    val dirContentOrInput = if (Files.isDirectory(input.path)) { input.listContent() } else { Vector(input) }
+    val res = dirContentOrInput
       .flatMap { resource =>
         if (recursive && Files.isDirectory(resource.path)) {
           getSourceFiles(resource, recursive)
@@ -223,7 +223,7 @@ object PackageResolver {
         }
       }
     // close all resource that are no longer needed:
-    (dirContent.toSet ++ Set(input)).foreach({
+    (dirContentOrInput.toSet + input).foreach({
       case resource if !res.contains(resource) => resource.close()
       case _ =>
     })

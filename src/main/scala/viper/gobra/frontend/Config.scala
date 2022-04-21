@@ -374,7 +374,9 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     */
 
   /** Argument Dependencies */
-  if (!isInputOptional) {
+  if (isInputOptional) {
+    mutuallyExclusive(input, directory)
+  } else {
     // either `input` or `directory` must be provided but not both.
     // this also checks that at least one file or a directory is provided (as opposed to just `-i` or `-p`)
     requireOne(input, directory)
@@ -410,37 +412,43 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       * - directory mode in which Gobra searches for the files to be verified
       * if inputs are provided, it checks that there is at least one source after resolving the sources.
       * if a directory is provided, it checks that at least 1 package remains to be verified after applying the desired filters */
-    def validate(cutInput: ScallopOption[List[File]], directory: ScallopOption[File], recursive: ScallopOption[Boolean], includePackages: ScallopOption[List[String]], excludePackages: ScallopOption[List[String]]): Unit = {
-      validateOpt (cutInput, directory, recursive, includePackages, excludePackages) ((cutInputOpt, dirOpt, recOpt, includeOpt, excludeOpt) => {
-        // `requireOne(input, directory)` above makes sure that only `input` or `directory` is provided but not both.
-        // Thus, we can simply take their concatenation
-        // Note however that both options might not exist if the flag `isInputOptional` is set to true
-        val fileOrDirInputs = cutInputOpt.getOrElse(List.empty) ++ dirOpt.map(List(_)).getOrElse(List.empty)
-        val sources = fileOrDirInputs
-          .map(i => FileResource(i.toPath))
-          .flatMap(inputResource => PackageResolver.getSourceFiles(inputResource, recOpt.getOrElse(false)))
-          .map { resource =>
-            val source = resource.asSource()
-            resource.close()
-            source
-          }
-          .toVector
-        val inputModeRes = cutInputOpt
-          // perform input validation if we are in input mode:
-          .map(_ => validateInputMode(sources))
-          .getOrElse(Right(Map.empty[PackageInfo, Vector[Source]]))
-        val directoryModeRes = dirOpt
-          // perform directory validation if we are in directory mode:
-          .map(_ => validateDirectoryMode(sources, includeOpt, excludeOpt))
-          .getOrElse(Right(Map.empty[PackageInfo, Vector[Source]]))
-        // combine `inputModeRes` and `directoryModeRes` by either returning the error if one occurred or by combining the
-        // resulting maps:
-        val validationRes = inputModeRes.flatMap(inputMap => directoryModeRes.map(dirMap => inputMap ++ dirMap))
-        // store the result to avoid recomputation:
-        inputPackageMapOpt = validationRes.toOption
-        // return only the messages:
-        validationRes.map(_ => ())
-      })
+    def validate(cutInput: ScallopOption[List[File]],
+                 directory: ScallopOption[File],
+                 recursive: ScallopOption[Boolean],
+                 includePackages: ScallopOption[List[String]],
+                 excludePackages: ScallopOption[List[String]]): Unit = {
+      validateOpt (cutInput, directory, recursive, includePackages, excludePackages) (
+        (cutInputOpt, dirOpt, recOpt, includeOpt, excludeOpt) => {
+          val validationRes = for {
+            fileOrDirInputs <- (cutInputOpt, dirOpt) match {
+              case (Some(fileInputs), None) => Right(fileInputs)
+              case (None, Some(dir)) => Right(List(dir))
+              case (None, None) if isInputOptional => Right(List.empty)
+              case _ => Left(s"expected that input files or a directory is provided but not both")
+            }
+            sources = fileOrDirInputs
+              .flatMap { i =>
+                val inputResource = FileResource(i.toPath)
+                PackageResolver.getSourceFiles(inputResource, recOpt.getOrElse(false))
+              }
+              .map { resource =>
+                val source = resource.asSource()
+                resource.close()
+                source
+              }
+              .toVector
+            pkgMap <- (cutInputOpt, dirOpt) match {
+              case (Some(_), None) => validateInputMode(sources)
+              case (None, Some(_)) => validateDirectoryMode(sources, includeOpt, excludeOpt)
+              case (None, None) if isInputOptional => Right(Map.empty[PackageInfo, Vector[Source]])
+              case _ => Left(s"expected that input files or a directory is provided but not both")
+            }
+          } yield pkgMap
+          // store the result to avoid recomputation:
+          inputPackageMapOpt = validationRes.toOption
+          // return only the messages:
+          validationRes.map(_ => ())
+        })
     }
 
     private def validateInputMode(sources: Vector[Source]): Either[String, Map[PackageInfo, Vector[Source]]] = {
@@ -456,7 +464,9 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       }
     }
 
-    private def validateDirectoryMode(sources: Vector[Source], includePackagesOpt: Option[List[String]], excludePackagesOpt: Option[List[String]]): Either[String, Map[PackageInfo, Vector[Source]]] = {
+    private def validateDirectoryMode(sources: Vector[Source],
+                                      includePackagesOpt: Option[List[String]],
+                                      excludePackagesOpt: Option[List[String]]): Either[String, Map[PackageInfo, Vector[Source]]] = {
       /** an empty list means that all packages are allowed */
       val allowedPackages = includePackagesOpt.getOrElse(List.empty)
       val blockedPackages = excludePackagesOpt.getOrElse(List.empty)

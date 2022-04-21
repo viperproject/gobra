@@ -61,8 +61,7 @@ class GobraPackageTests extends GobraTests {
           pkgName <- getPackageClause(input.file.toFile)
           config <- createConfig(Array(
             "--logLevel", "INFO",
-            "-i", currentDir.toFile.getPath,
-            "-p", pkgName,
+            "-p", currentDir.toFile.getPath,
             "-I", currentDir.toFile.getPath
           ))
         } yield config

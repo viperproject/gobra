@@ -18,7 +18,7 @@ import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
-import viper.gobra.util.TypeBounds
+import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
 import scala.concurrent.duration.Duration

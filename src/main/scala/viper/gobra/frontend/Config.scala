@@ -393,9 +393,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     validateFilesExist(include)
     validateFilesIsDirectory(include)
   }
-  if (!isInputOptional) {
-    InputConverter.validate(cutInput, directory, recursive, includePackages, excludePackages)
-  }
+  InputConverter.validate(cutInput, directory, recursive, includePackages, excludePackages)
 
   private object InputConverter {
     /**
@@ -414,27 +412,30 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       * if a directory is provided, it checks that at least 1 package remains to be verified after applying the desired filters */
     def validate(cutInput: ScallopOption[List[File]], directory: ScallopOption[File], recursive: ScallopOption[Boolean], includePackages: ScallopOption[List[String]], excludePackages: ScallopOption[List[String]]): Unit = {
       validateOpt (cutInput, directory, recursive, includePackages, excludePackages) ((cutInputOpt, dirOpt, recOpt, includeOpt, excludeOpt) => {
-        val validationRes = for {
-          fileOrDirInputs <- (cutInputOpt, dirOpt) match {
-            case (Some(inputFiles), None) if inputFiles.nonEmpty => Right(inputFiles)
-            case (None, Some(dir)) => Right(List(dir))
-            case _ => Left(s"expected either a non empty list of files or a directory")
+        // `requireOne(input, directory)` above makes sure that only `input` or `directory` is provided but not both.
+        // Thus, we can simply take their concatenation
+        // Note however that both options might not exist if the flag `isInputOptional` is set to true
+        val fileOrDirInputs = cutInputOpt.getOrElse(List.empty) ++ dirOpt.map(List(_)).getOrElse(List.empty)
+        val sources = fileOrDirInputs
+          .map(i => FileResource(i.toPath))
+          .flatMap(inputResource => PackageResolver.getSourceFiles(inputResource, recOpt.getOrElse(false)))
+          .map { resource =>
+            val source = resource.asSource()
+            resource.close()
+            source
           }
-          sources = fileOrDirInputs
-            .map(i => FileResource(i.toPath))
-            .flatMap(inputResource => PackageResolver.getSourceFiles(inputResource, recOpt.getOrElse(false)))
-            .map { resource =>
-              val source = resource.asSource()
-              resource.close()
-              source
-            }
-            .toVector
-          res <- cutInputOpt
-            // perform input validation if we are in input mode:
-            .map(_ => validateInputMode(sources))
-            // perform directory validation if we are in directory mode:
-            .getOrElse(validateDirectoryMode(sources, includeOpt, excludeOpt))
-        } yield res
+          .toVector
+        val inputModeRes = cutInputOpt
+          // perform input validation if we are in input mode:
+          .map(_ => validateInputMode(sources))
+          .getOrElse(Right(Map.empty[PackageInfo, Vector[Source]]))
+        val directoryModeRes = dirOpt
+          // perform directory validation if we are in directory mode:
+          .map(_ => validateDirectoryMode(sources, includeOpt, excludeOpt))
+          .getOrElse(Right(Map.empty[PackageInfo, Vector[Source]]))
+        // combine `inputModeRes` and `directoryModeRes` by either returning the error if one occurred or by combining the
+        // resulting maps:
+        val validationRes = inputModeRes.flatMap(inputMap => directoryModeRes.map(dirMap => inputMap ++ dirMap))
         // store the result to avoid recomputation:
         inputPackageMapOpt = validationRes.toOption
         // return only the messages:

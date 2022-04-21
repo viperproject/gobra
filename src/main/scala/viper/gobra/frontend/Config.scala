@@ -327,7 +327,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = false
   )
 
-  val onlyFilesWithHeader: ScallopOption[Boolean] = opt(
+  val onlyFilesWithHeader: ScallopOption[Boolean] = opt[Boolean](
     name = "onlyFilesWithHeader",
     descr = s"When enabled, Gobra only looks at files that contain the header comment '${Config.prettyPrintedHeader}'",
     default = Some(false),

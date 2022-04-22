@@ -56,7 +56,7 @@ class GobraPackageTests extends GobraTests {
         val parsedConfig = for {
           pkgName <- getPackageClause(input.file.toFile)
           config <- createConfig(Array(
-            "--logLevel", "Info",
+            "--logLevel", "INFO",
             "-i", currentDir.toFile.getPath,
             "-p", pkgName,
             "-I", currentDir.toFile.getPath

@@ -52,10 +52,11 @@ trait GoVerifier extends StrictLogging {
    * It uses the package identifier to uniquely identify each verification task on a package level.
    * Additionally statistics are collected with the StatsCollector reporter class
    */
-  def verifyAllPackages(config: Config)(executor: GobraExecutionContext): Vector[VerifierError] = {
+  def verifyAllPackages(config: Config)(executor: GobraExecutionContext): VerifierResult = {
     val statsCollector = StatsCollector(config.reporter)
     var warningCount: Int = 0
-    var allErrors: Vector[VerifierError] = Vector()
+    var allVerifierErrors: Vector[VerifierError] = Vector()
+    var allTimeoutErrors: Vector[TimeoutError] = Vector()
 
     // write report to file on shutdown, this makes sure a report is produced even if a run is shutdown
     // by some signal.
@@ -65,17 +66,15 @@ trait GoVerifier extends StrictLogging {
         logger.info("Writing report to " + statsFile.getPath)
         statsCollector.writeJsonReportToFile(statsFile)
 
-        val timedOutMembers = statsCollector.getTimedOutMembers
-        if(timedOutMembers.nonEmpty) {
-          timedOutMembers.foreach(member => logger.error(s"The verification of member $member did not terminate"))
-        }
+        // Report timeouts that were not previously reported
+        statsCollector.getTimeoutErrorsForNonFinishedTasks.foreach(err => logger.error(err.formattedMessage))
       }
     })
 
     config.packageInfoInputMap.keys.foreach(pkgInfo => {
       val pkgId = pkgInfo.id
       logger.info(s"Verifying Package $pkgId")
-      val future = verify(pkgInfo, config.copy(reporter = statsCollector, taskName = pkgInfo.id))(executor)
+      val future = verify(pkgInfo, config.copy(reporter = statsCollector, taskName = pkgId))(executor)
         .map(result => {
           // report that verification of this package has finished in order that `statsCollector` can free space by getting rid of this package's typeInfo
           statsCollector.report(VerificationTaskFinishedMessage(pkgId))
@@ -89,21 +88,20 @@ trait GoVerifier extends StrictLogging {
             case VerifierResult.Failure(errors) =>
               logger.error(s"$name has found ${errors.length} error(s) in package $pkgId")
               errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
-              allErrors = allErrors ++ errors
+              allVerifierErrors = allVerifierErrors ++ errors
           }
         })(executor)
       try {
         Await.result(future, config.packageTimeout)
       } catch {
-        case _: TimeoutException => logger.error(s"The verification of package $pkgId got terminated after " + config.packageTimeout.toString)
+        case _: TimeoutException =>
+          logger.error(s"The verification of package $pkgId got terminated after " + config.packageTimeout.toString)
+          statsCollector.report(VerificationTaskFinishedMessage(pkgId))
+          val errors = statsCollector.getTimeoutErrors(pkgId)
+          errors.foreach(err => logger.error(err.formattedMessage))
+          allTimeoutErrors = allTimeoutErrors ++ errors
       }
     })
-
-    if(warningCount > 0) {
-      logger.info(s"$name has found $warningCount warning(s)")
-    }
-
-    logger.info(s"$name has found ${allErrors.size} error(s)")
 
     // Print statistics for caching
     if(config.cacheFile.isDefined) {
@@ -111,11 +109,24 @@ trait GoVerifier extends StrictLogging {
       logger.info(s"Number of cached Viper member(s): ${statsCollector.getNumberOfCachedViperMembers}")
     }
 
+    // Print general statistics
     logger.info(s"Gobra has found ${statsCollector.getNumberOfVerifiableMembers} methods and functions" )
-    logger.info(s"${statsCollector.getNumberOfVerifiedMembers} have specification")
-    logger.info(s"${statsCollector.getNumberOfVerifiedMembersWithAssumptions} are assumed to be satisfied")
+    logger.info(s"${statsCollector.getNumberOfSpecifiedMembers} have specification")
+    logger.info(s"${statsCollector.getNumberOfSpecifiedMembersWithAssumptions} are assumed to be satisfied")
 
-    allErrors
+    // Print warnings
+    if(warningCount > 0) {
+      logger.info(s"$name has found $warningCount warning(s)")
+    }
+
+    // Print errors
+    logger.info(s"$name has found ${allVerifierErrors.size} error(s)")
+    if(allTimeoutErrors.nonEmpty) {
+      logger.info(s"The verification of ${allTimeoutErrors.size} members timed out")
+    }
+
+    val allErrors = allVerifierErrors ++ allTimeoutErrors
+    if (allErrors.isEmpty) VerifierResult.Success else VerifierResult.Failure(allErrors)
   }
 
   protected[this] def verify(pkgInfo: PackageInfo, config: Config)(executor: GobraExecutionContext): Future[VerifierResult]
@@ -208,7 +219,11 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performParsing(pkgInfo: PackageInfo, config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
-      Parser.parse(config.packageInfoInputMap(pkgInfo), pkgInfo)(config)
+      val sourcesToParse = config.packageInfoInputMap(pkgInfo).filter {
+        // only parses sources with header when running in this mode
+        p => !config.onlyFilesWithHeader || Config.sourceHasHeader(p)
+      }
+      Parser.parse(sourcesToParse, pkgInfo)(config)
     } else {
       Left(Vector())
     }
@@ -283,10 +298,9 @@ object GobraRunner extends GobraFrontend with StrictLogging {
       // Print copyright report
       config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
 
-      val errors = verifier.verifyAllPackages(config)(executor)
-
-      if(errors.nonEmpty) {
-        exitCode = 1
+      exitCode = verifier.verifyAllPackages(config)(executor) match {
+        case VerifierResult.Failure(_) => 1
+        case _ => 0
       }
     } catch {
       case e: UglyErrorMessage =>

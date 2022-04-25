@@ -105,7 +105,9 @@ pred InjEval(ghost P pred(), ghost i int) {
 
 pred CollectFractions(ghost P seq[pred()], ghost perms seq[perm]) {
 	len(P) == len(perms) &&
-	forall i int :: 0 <= i && i < len(P) ==> perms[i] >= 0 && acc(P[i](), perms[i])
+	// P is injective:
+	(forall i, j int :: 0 <= i && i < j && j < len(P) ==> P[i] != P[j]) &&
+	(forall i int :: 0 <= i && i < len(P) ==> perms[i] >= 0 && acc(P[i](), perms[i]))
 }
 
 // Special case of the debt redistribution rule

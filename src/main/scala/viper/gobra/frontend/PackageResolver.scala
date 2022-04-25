@@ -40,6 +40,9 @@ object PackageResolver {
     override def toString: String = importPath
   }
 
+  /** represents some resolved source together with the knowledge of whether it was obtained from a builtin resource or not */
+  case class ResolveSourcesResult(source: Source, isBuiltin: Boolean)
+
   /**
     * Resolves a package name (i.e. import path) to specific input sources
     * @param importTarget
@@ -48,10 +51,10 @@ object PackageResolver {
     * @return list of sources belonging to the package (right) or an error message (left) if no directory could be found
     *         or the directory contains input files having different package clauses
     */
-  def resolveSources(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[Source]] = {
+  def resolveSources(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[ResolveSourcesResult]] = {
     for {
       resources <- resolve(importTarget, moduleName, includeDirs)
-      sources = resources.map(_.asSource())
+      sources = resources.map(r => ResolveSourcesResult(r.asSource(), r.builtin))
       // we do no longer need the resources, so we close them:
       _ = resources.foreach(_.close())
     } yield sources
@@ -180,16 +183,37 @@ object PackageResolver {
   }
 
   /**
-    * Returns all source files with file extension 'gobraExtension' or 'goExtension in the input resource
+    * Determines if a file is to be imported when the package implemented in the same directory is imported.
+    * All test files (ending in "_test.go") are skipped, as well as all files whose path contains the `testdata` directory.
+    * One difference between our implementation in Gobra and what the Go compiler does is that Gobra does not complain
+    * if the package clause in a test file mentions a package other than the one implemented in the same directory or that package
+    * suffixed with "_test".
+    * TODO: add this check
+    * More information about this can be found in https://tip.golang.org/cmd/go/#hdr-Test_packages.
+    */
+  private def shouldIgnoreResource(r: InputResource): Boolean = {
+    val path = r.path.toString
+    // files inside a directory named "testdata" should be ignored
+    val testDataDir = """.*/testdata($|/)""".r
+    // test files in Go have their name terminating in "_test.go"
+    val testFilesEnding = """.*_test.go$""".r
+    testFilesEnding.matches(path) || testDataDir.matches(path)
+  }
+
+  /**
+    * Returns the source files with file extension 'gobraExtension' or 'goExtension' in the input resource which
+    * are not test files and are not in a directory with name 'testdata'
     */
   private def getSourceFiles(input: InputResource): Vector[InputResource] = {
     val dirContent = input.listContent()
-    val res = dirContent
-      .filter(resource => Files.isRegularFile(resource.path))
+    val res = dirContent.filter { resource =>
+      val isRegular = Files.isRegularFile(resource.path)
       // only consider files with the particular extension
-      .filter(resource =>
-        FilenameUtils.getExtension(resource.path.toString) == gobraExtension ||
-          FilenameUtils.getExtension(resource.path.toString) == goExtension)
+      val validExtension = FilenameUtils.getExtension(resource.path.toString) == gobraExtension ||
+        FilenameUtils.getExtension(resource.path.toString) == goExtension
+      val shouldBeConsidered = !shouldIgnoreResource(resource)
+      isRegular && validExtension && shouldBeConsidered
+    }
     (dirContent :+ input).foreach({
       case resource if !res.contains(resource) => resource.close()
       case _ =>
@@ -201,7 +225,7 @@ object PackageResolver {
     * Looks up the package clauses for all files and checks whether they match.
     * Returns right with the package name used in the package clause if they do, otherwise returns left with an error message
     */
-  def checkPackageClauses(files: Vector[InputResource], importTarget: AbstractImport): Either[String, String] = {
+  private def checkPackageClauses(files: Vector[InputResource], importTarget: AbstractImport): Either[String, String] = {
     // importPath is only used to create an error message that is similar to the error message of the official Go compiler
     def getPackageClauses(files: Vector[InputResource]): Either[String, Vector[(InputResource, String)]] = {
       val pkgClauses = files.map(f => {

@@ -17,26 +17,23 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
 1. Create a folder for your Gobra development. We will refer to this folder as `gobraHome`.
 2. Clone Gobra and Viper dependencies
     - Change directory to `gobraHome`
-    - [silver](https://github.com/viperproject/silver) (commit  `7228e7144d41c91f02a70a68a93b6b3efae57d14`)
-    - [silicon](https://github.com/viperproject/silicon) (commit `edb5d079f327c2d9e7eebea9719032c9e70dea37`)
-    - [carbon](https://github.com/viperproject/carbon) (commit `4393d154a5ae24d994a0c2c578374bdd49c3a3b3`)
-    - [viperserver](https://github.com/viperproject/viperserver) (commit `5907ce1744501b7949d25cc0d5356145431ab6f7`)
+    - [silicon](https://github.com/viperproject/silicon) (commit `47e74c64b75f1c186a1307c07f21198e61103334`)
+    - [carbon](https://github.com/viperproject/carbon) (commit `f9c4027cd3bd82f202e7fe78866f8ff794a47232`)
+    - [viperserver](https://github.com/viperproject/viperserver) (commit `4f441dff43bb1ce698fb40fa50fbaf0ed203aec2`)
     - Gobra
     > To switch to tag `X`, execute the command ```git checkout X``` inside the cloned repository.
-3. Add symbolic links
-    - To create a symbolic link from A to B, you have to run
-        - `mklink /D A B` (Windows (as admin)) resp.
-        - `ln -s B A` (Linux & macOS) (use forward instead of backward slashes in the following)
-    - Change directory to `gobraHome/silicon` and create the symbolic links:
-        - silver -> ..\silver
-    - Change directory to `gobraHome/carbon` and create the symbolic links:
-        - silver -> ..\silver
+3. Get submodules and add symbolic links
+    - Change directory to `gobraHome/silicon` and fetch & update submodules:
+        - `git submodule init; git submodule update`
+    - Change directory to `gobraHome/carbon` and fetch & update submodules:
+        - `git submodule init; git submodule update`
+   - To create a symbolic link from A to B, you have to run
+      - `mklink /D A B` (Windows (as admin)) resp.
+      - `ln -s B A` (Linux & macOS) (use forward instead of backward slashes in the following)
     - Change directory to `gobraHome/viperserver` and create the symbolic links:
-        - silver -> ..\silver
         - silicon -> ..\silicon
         - carbon -> ..\carbon
     - Change to `gobraHome/gobra` and create the links:
-        - silver -> ..\silver
         - silicon -> ..\silicon
         - carbon -> ..\carbon
         - viperserver -> ..\viperserver
@@ -52,9 +49,9 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
     4. Set the environment variable `BOOGIE_EXE` to the path of your Boogie executable.
 
 ### Compilation
-1. Change directory to `gobraHome/gobra-one`
+1. Change directory to `gobraHome/gobra`
 2. Start an sbt shell by running `sbt`
-3. Compile gobra-one by running `compile` in the sbt shell
+3. Compile gobra by running `compile` in the sbt shell
     - **Important**: Do not compile silver, silicon, or carbon separately. 
     If you have compiled them separately, then delete all target folders in these projects.
 4. Check your installation by executing all tests (`test` in the sbt shell)

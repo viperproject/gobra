@@ -8,7 +8,9 @@ import scala.sys.process.Process
 import scala.util.Try
 
 // Import general settings from Silver, Silicon and Carbon
-lazy val silver = project in file("silver")
+
+// we assume that carbon/silver and silicon/silver point to the same version of the silver repo
+lazy val silver = project in file("silicon/silver")
 lazy val silicon = project in file("silicon")
 lazy val carbon = project in file("carbon")
 lazy val server = project in file("viperserver")

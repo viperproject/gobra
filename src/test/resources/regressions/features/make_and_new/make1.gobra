@@ -27,8 +27,10 @@ func accessOutsideLen() {
 }
 
 requires length > 0 && capacity >= length
-ensures forall i int :: (0 <= i && i < length) ==> acc(&ret[i]) && ret[i] == 0
+// note that the postconditions must occur in the following order. Otherwise, `length` is not constraint to `len(ret)` in
+// the forall quantifier. In this case, `ret[i]` is not known to be injective.
 ensures len(ret) == length && cap(ret) == capacity
+ensures forall i int :: (0 <= i && i < length) ==> acc(&ret[i]) && ret[i] == 0
 func Ok1(length int, capacity int) (ret []int) {
 	ret := make([]int, length, capacity)
 }

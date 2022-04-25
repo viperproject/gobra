@@ -66,7 +66,12 @@ case class Config(
                    int32bit: Boolean = false,
                    // the following option is currently not controllable via CLI as it is meaningless without a constantly
                    // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
-                   cacheParser: Boolean = false
+                   cacheParser: Boolean = false,
+                   // this option introduces a mode where Gobra only considers files with a specific annotation ("// +gobra").
+                   // this is useful when verifying large packages where some files might use some unsupported feature of Gobra,
+                   // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
+                   // to verify.
+                   onlyFilesWithHeader: Boolean = false,
 ) {
 
   def merge(other: Config): Config = {
@@ -103,7 +108,9 @@ case class Config(
       shouldViperEncode = shouldViperEncode,
       checkOverflows = checkOverflows || other.checkOverflows,
       shouldVerify = shouldVerify,
-      int32bit = int32bit || other.int32bit
+      int32bit = int32bit || other.int32bit,
+      checkConsistency = checkConsistency || other.checkConsistency,
+      onlyFilesWithHeader = onlyFilesWithHeader || other.onlyFilesWithHeader,
     )
   }
 
@@ -113,6 +120,14 @@ case class Config(
     } else {
       TypeBounds(Int = TypeBounds.IntWith64Bit, UInt = TypeBounds.UIntWith64Bit)
     }
+}
+
+object Config {
+  // the header signals that a file should be considered when running on "header-only" mode
+  val header = """\/\/\s*\+gobra""".r
+  val prettyPrintedHeader = "// +gobra"
+  require(header.matches(prettyPrintedHeader))
+  def sourceHasHeader(s: Source): Boolean = header.findFirstIn(s.content).nonEmpty
 }
 
 class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = false, skipIncludeDirChecks: Boolean = false)
@@ -146,9 +161,9 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     short = 'i'
   )
 
-  val recursive: ScallopOption[Boolean] = toggle(
+  val recursive: ScallopOption[Boolean] = opt[Boolean](
     name = "recursive",
-    descrYes = "Verify nested packages recursively",
+    descr = "Verify nested packages recursively",
     default = Some(false),
     short = 'r'
   )
@@ -187,71 +202,72 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = Some(List())
   )(listArgConverter(dir => new File(dir)))
 
-  val backend: ScallopOption[ViperBackend] = opt[ViperBackend](
+  val backend: ScallopOption[ViperBackend] = choice(
+    choices = Seq("SILICON", "CARBON", "VSWITHSILICON", "VSWITHCARBON"),
     name = "backend",
-    descr = "Specifies the used Viper backend, one of VSWITHSILICON, VSWITHCARBON, SILICON, CARBON (default: SILICON)",
-    default = Some(ViperBackends.SiliconBackend),
+    descr = "Specifies the used Viper backend. The default is SILICON.",
+    default = Some("SILICON"),
     noshort = true
-  )(singleArgConverter({
+  ).map{
     case "SILICON" => ViperBackends.SiliconBackend
     case "CARBON" => ViperBackends.CarbonBackend
     case "VSWITHSILICON" => ViperBackends.ViperServerWithSilicon()
     case "VSWITHCARBON" => ViperBackends.ViperServerWithCarbon()
-    case _ => ViperBackends.SiliconBackend
-  }))
+    case s => Violation.violation(s"Unexpected backend option $s")
+  }
 
-  val debug: ScallopOption[Boolean] = toggle(
+  val debug: ScallopOption[Boolean] = opt[Boolean](
     name = "debug",
-    descrYes = "Output additional debug information",
+    descr = "Output additional debug information",
     default = Some(false)
   )
 
-  val logLevel: ScallopOption[Level] = opt[Level](
+  val logLevel: ScallopOption[Level] = choice(
     name = "logLevel",
-    descr =
-      "One of the log levels ALL, TRACE, DEBUG, INFO, WARN, ERROR, OFF (default: OFF)",
-    default = Some(if (debug()) Level.DEBUG else LoggerDefaults.DefaultLevel),
+    choices = Seq("ALL", "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "OFF"),
+    descr = "Specifies the log level. The default is OFF.",
+    default = Some(if (debug()) Level.DEBUG.toString else LoggerDefaults.DefaultLevel.toString),
     noshort = true
-  )(singleArgConverter(arg => Level.toLevel(arg.toUpperCase)))
+  ).map{arg => Level.toLevel(arg)}
 
-  val eraseGhost: ScallopOption[Boolean] = toggle(
+  val eraseGhost: ScallopOption[Boolean] = opt[Boolean](
     name = "eraseGhost",
-    descrYes = "Print the input program without ghost code",
+    descr = "Print the input program without ghost code",
     default = Some(false),
     noshort = true
   )
 
-  val goify: ScallopOption[Boolean] = toggle(
+  val goify: ScallopOption[Boolean] = opt[Boolean](
     name = "goify",
-    descrYes = "Print the input program with the ghost code commented out",
+    descr = "Print the input program with the ghost code commented out",
     default = Some(false),
     noshort = true
   )
 
-  val unparse: ScallopOption[Boolean] = toggle(
+  val unparse: ScallopOption[Boolean] = opt[Boolean](
     name = "unparse",
-    descrYes = "Print the parsed program",
+    descr = "Print the parsed program",
     default = Some(debug()),
     noshort = true
   )
 
-  val printInternal: ScallopOption[Boolean] = toggle(
+  val printInternal: ScallopOption[Boolean] = opt[Boolean](
     name = "printInternal",
-    descrYes = "Print the internal program representation",
+    descr = "Print the internal program representation",
     default = Some(debug()),
     noshort = true
   )
 
-  val printVpr: ScallopOption[Boolean] = toggle(
+  val printVpr: ScallopOption[Boolean] = opt[Boolean](
     name = "printVpr",
-    descrYes = "Print the encoded Viper program",
+    descr = "Print the encoded Viper program",
     default = Some(debug()),
     noshort = true
   )
 
-  val parseOnly: ScallopOption[Boolean] = toggle(
+  val parseOnly: ScallopOption[Boolean] = opt[Boolean](
     name = "parseOnly",
-    descrYes = "Perform only the parsing step",
+    descr = "Perform only the parsing step",
     default = Some(false),
     noshort = true
   )
@@ -284,9 +300,9 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
-  val checkOverflows: ScallopOption[Boolean] = toggle(
+  val checkOverflows: ScallopOption[Boolean] = opt[Boolean](
     name = "overflow",
-    descrYes = "Find expressions that may lead to integer overflow",
+    descr = "Find expressions that may lead to integer overflow",
     default = Some(false),
     noshort = false
   )
@@ -305,11 +321,25 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
-  val int32Bit: ScallopOption[Boolean] = toggle(
+  val int32Bit: ScallopOption[Boolean] = opt[Boolean](
     name = "int32",
-    descrYes = "Run with 32-bit sized integers",
+    descr = "Run with 32-bit sized integers (the default is 64-bit ints)",
     default = Some(false),
     noshort = false
+  )
+
+  val onlyFilesWithHeader: ScallopOption[Boolean] = opt[Boolean](
+    name = "onlyFilesWithHeader",
+    descr = s"When enabled, Gobra only looks at files that contain the header comment '${Config.prettyPrintedHeader}'",
+    default = Some(false),
+    noshort = false
+  )
+
+  val checkConsistency: ScallopOption[Boolean] = opt[Boolean](
+    name = "checkConsistency",
+    descr = "Perform consistency checks on the generated Viper code",
+    default = Some(false),
+    noshort = true
   )
 
   /**
@@ -587,6 +617,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     checkOverflows = checkOverflows(),
     int32bit = int32Bit(),
     shouldVerify = shouldVerify,
-    shouldChop = shouldChop
+    shouldChop = shouldChop,
+    checkConsistency = checkConsistency(),
+    onlyFilesWithHeader = onlyFilesWithHeader(),
   )
 }

@@ -109,6 +109,7 @@ case class Config(
       checkOverflows = checkOverflows || other.checkOverflows,
       shouldVerify = shouldVerify,
       int32bit = int32bit || other.int32bit,
+      checkConsistency = checkConsistency || other.checkConsistency,
       onlyFilesWithHeader = onlyFilesWithHeader || other.onlyFilesWithHeader,
     )
   }
@@ -332,6 +333,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     descr = s"When enabled, Gobra only looks at files that contain the header comment '${Config.prettyPrintedHeader}'",
     default = Some(false),
     noshort = false
+  )
+
+  val checkConsistency: ScallopOption[Boolean] = opt[Boolean](
+    name = "checkConsistency",
+    descr = "Perform consistency checks on the generated Viper code",
+    default = Some(false),
+    noshort = true
   )
 
   /**
@@ -610,6 +618,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     int32bit = int32Bit(),
     shouldVerify = shouldVerify,
     shouldChop = shouldChop,
+    checkConsistency = checkConsistency(),
     onlyFilesWithHeader = onlyFilesWithHeader(),
   )
 }

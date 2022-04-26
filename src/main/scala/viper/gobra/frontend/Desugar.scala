@@ -3136,6 +3136,13 @@ object Desugar {
       * are consistently named across verification runs (i.e. independent of modifications to other function)
       */
     private var scopeCounter: Map[PCodeRoot, Int] = Map.empty
+
+    /**
+      * 'scopeMap' should return a unique identifier only within a package,
+      * and thus may not be unique in the resulting Viper encoding.
+      * This should be fine as long as the resulting name is only used in a non-global scope.
+      * Currently, it is used for variables, in and out parameters, and receivers.
+      */
     private var scopeMap: Map[PScope, Int] = Map.empty
 
     private def maybeRegister(s: PScope, ctx: ExternalTypeInfo): Unit = {

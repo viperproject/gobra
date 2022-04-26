@@ -505,6 +505,11 @@ class BuiltInMembersImpl extends BuiltInMembers {
           * func copy(dst, src []int, ghost p perm) (res int)
           */
 
+        // TODO: add support for the case where `src` and `dst` are aliased. According to the language spec, the result
+        //       of copy should be independent of whether the memory referenced by the arguments overlaps.
+        //       This case used to be supported but was disabled in PR #439
+        //       (https://github.com/viperproject/gobra/pull/439/files) due to bad performance.
+
         // parameters
         val dstParam = in.Parameter.In("dst", t1)(src)
         val dstUnderlyingType: in.SliceT = ctx.underlyingType(t1) match {

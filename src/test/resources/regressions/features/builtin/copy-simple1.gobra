@@ -21,6 +21,8 @@ func test1() {
 	assert s[4] == 4
 	assert s[5] == 5
 
+  /*
+  // disabled since PR 439
 	n2 := copy(s, s[2:], p)
 	// n2 == 4, s == []int{2, 3, 4, 5, 4, 5}
 	assert n2 == 4
@@ -31,4 +33,5 @@ func test1() {
 	assert s[3] == 5
 	assert s[4] == 4
 	assert s[5] == 5
+  */
 }

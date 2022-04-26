@@ -26,8 +26,6 @@ import scala.io.BufferedSource
  * @param isBuiltIn a flag indicating, if the package comes from within Gobra
  */
 class PackageInfo(val id: String, val name: String, val isBuiltIn: Boolean) {
-  // encoder without padding chars (=) to generate valid identifiers
-  private val encoder = Base64.getEncoder.withoutPadding()
   private val digestAlg = MessageDigest.getInstance("SHA-1")
 
   /**
@@ -36,7 +34,7 @@ class PackageInfo(val id: String, val name: String, val isBuiltIn: Boolean) {
    * We use a Hex representation of the real package it to make sure that only allowed characters are used inside the id,
    * while also keeping the uniqueness of the package id.
    */
-  lazy val viperId: String = encoder.encodeToString(digestAlg.digest(id.getBytes("UTF-8")))
+  lazy val viperId: String = digestAlg.digest(id.getBytes("UTF-8")).map("%02x".format(_)).mkString
 
   override def equals(obj: Any): Boolean = obj match {
     case other: PackageInfo => other.id == this.id

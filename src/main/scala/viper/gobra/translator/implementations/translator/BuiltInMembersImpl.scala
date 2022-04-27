@@ -500,7 +500,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
           * ensures len(src) < len(dst) ==> res == len(src)
           * ensures forall i int :: { dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i], write)
           * ensures forall i int :: { src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
-          * ensures forall i int :: { dst[i] } (0 <= i && i < len(src) && i < len(dst)) ==> dst[i] == src[i]
+          * ensures forall i int :: { dst[i] } (0 <= i && i < len(src) && i < len(dst)) ==> dst[i] == old(src[i])
           * ensures forall i int :: { dst[i] } (len(src) <= i && i < len(dst)) ==> dst[i] == old(dst[i])
           * func copy(dst, src []int, ghost p perm) (res int)
           */

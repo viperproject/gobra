@@ -571,7 +571,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
             in.ExprAssertion(
               in.EqCmp(
                 in.IndexedExp(dstParam, i, dstUnderlyingType)(src),
-                in.IndexedExp(srcParam, i, srcUnderlyingType)(src)
+                in.Old(in.IndexedExp(srcParam, i, srcUnderlyingType)(src), srcUnderlyingType.elems)(src)
               )(src)
             )(src)
           }

@@ -225,10 +225,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performParsing(pkgInfo: PackageInfo, config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
-      val sourcesToParse = config.packageInfoInputMap(pkgInfo).filter {
-        // only parses sources with header when running in this mode
-        p => !config.onlyFilesWithHeader || Config.sourceHasHeader(p)
-      }
+      val sourcesToParse = config.packageInfoInputMap(pkgInfo)
       Parser.parse(sourcesToParse, pkgInfo)(config)
     } else {
       Left(Vector())

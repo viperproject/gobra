@@ -256,9 +256,9 @@ case class FileModeConfig(inputFiles: Vector[Path], baseConfig: BaseConfig) exte
 }
 
 trait PackageAndRecursiveModeConfig extends RawConfig {
-  def getSources(directory: Path, recursive: Boolean): Vector[Source] = {
+  def getSources(directory: Path, recursive: Boolean, onlyFilesWithHeader: Boolean): Vector[Source] = {
     val inputResource = FileResource(directory)
-    PackageResolver.getSourceFiles(inputResource, recursive).map { resource =>
+    PackageResolver.getSourceFiles(inputResource, recursive = recursive, onlyFilesWithHeader = onlyFilesWithHeader).map { resource =>
       val source = resource.asSource()
       // we do not need the underlying resources anymore, thus close them:
       resource.close()
@@ -271,7 +271,7 @@ case class PackageModeConfig(projectRoot: Path = ConfigDefaults.DefaultProjectRo
                              inputDirectories: Vector[Path], baseConfig: BaseConfig) extends PackageAndRecursiveModeConfig {
   override lazy val config: Either[String, Config] = {
     val (errors, mappings) = inputDirectories.map { directory =>
-      val sources = getSources(directory, recursive = false)
+      val sources = getSources(directory, recursive = false, onlyFilesWithHeader = baseConfig.onlyFilesWithHeader)
       // we do not check whether the provided files all belong to the same package
       // instead, we trust the programmer that she knows what she's doing.
       // If they do not belong to the same package, Gobra will report an error after parsing.
@@ -290,7 +290,7 @@ case class RecursiveModeConfig(projectRoot: Path = ConfigDefaults.DefaultProject
                                excludePackages: List[String] = ConfigDefaults.DefaultExcludePackages,
                                baseConfig: BaseConfig) extends PackageAndRecursiveModeConfig {
   override lazy val config: Either[String, Config] = {
-    val pkgMap = getSources(projectRoot, recursive = true)
+    val pkgMap = getSources(projectRoot, recursive = true, onlyFilesWithHeader = baseConfig.onlyFilesWithHeader)
       .groupBy(source => getPackageInfo(source, projectRoot))
       // filter packages:
       .filter { case (pkgInfo, _) => (includePackages.isEmpty || includePackages.contains(pkgInfo.name)) && !excludePackages.contains(pkgInfo.name) }

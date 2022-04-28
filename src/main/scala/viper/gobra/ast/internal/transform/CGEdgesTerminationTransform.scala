@@ -38,14 +38,14 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   *   {
                   *     assume false
                   *     if typeOf(recv) == impl1 {
-                  *       call implementation method from impl1 on recv
+                  *       call implementation method from impl1 on recv.(impl1)
                   *     }
                   *     if typeOf(recv) == impl2 {
-                  *       call implementation method from impl2 on recv
+                  *       call implementation method from impl2 on recv.(impl2)
                   *     }
                   *     ...
                   *     if typeOf(recv) == implN {
-                  *       call implementation method from implN on recv
+                  *       call implementation method from implN on recv.(implN)
                   *     }
                   *   }
                   */
@@ -61,7 +61,9 @@ object CGEdgesTerminationTransform extends InternalTransform {
                           case implProxy: in.MethodProxy =>
                             in.If(
                               in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(t)(src))(src),
-                              in.Seqn(Vector(in.MethodCall(m.results map parameterAsLocalValVar, in.Parameter.In(m.receiver.id, t)(src), implProxy, m.args)(src), in.Return()(src)))(src),
+                              in.Seqn(Vector(
+                                in.MethodCall(m.results map parameterAsLocalValVar, in.TypeAssertion(m.receiver, t)(src), implProxy, m.args)(src), in.Return()(src)
+                              ))(src),
                               in.Seqn(Vector())(src)
                             )(src)
                           case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")

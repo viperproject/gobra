@@ -8,11 +8,10 @@ package viper.gobra.frontend
 
 import java.io.File
 import java.nio.file.Path
-import ch.qos.logback.classic.{Level, Logger}
+import ch.qos.logback.classic.Level
 import com.typesafe.scalalogging.StrictLogging
-import org.bitbucket.inkytonik.kiama.util.Source
+import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import org.rogach.scallop.{ScallopConf, ScallopOption, singleArgConverter}
-import org.slf4j.LoggerFactory
 import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.FileResource
@@ -28,50 +27,79 @@ object LoggerDefaults {
 }
 
 object ConfigDefaults {
-  val DefaultGobraDirectory: String = ".gobra"
-  val DefaultTaskName: String = "gobra-task"
+  lazy val DefaultModuleName: String = ""
+  lazy val DefaultProjectRoot: File = new File("").getAbsoluteFile // current working directory
+  lazy val DefaultIncludePackages: List[String] = List.empty
+  lazy val DefaultExcludePackages: List[String] = List.empty
+  lazy val DefaultIncludeDirs: List[File] = List.empty
+  lazy val DefaultReporter: GobraReporter = StdIOReporter()
+  lazy val DefaultBackend: ViperBackend = ViperBackends.SiliconBackend
+  lazy val DefaultIsolate: List[(Path, List[Int])] = List.empty
+  lazy val DefaultChoppingUpperBound: Int = 1
+  lazy val DefaultPackageTimeout: Duration = Duration.Inf
+  lazy val DefaultZ3Exe: Option[String] = None
+  lazy val DefaultBoogieExe: Option[String] = None
+  lazy val DefaultLogLevel: Level = LoggerDefaults.DefaultLevel
+  lazy val DefaultCacheFile: Option[File] = None
+  lazy val DefaultParseOnly: Boolean = false
+  lazy val DefaultCheckOverflows: Boolean = false
+  lazy val DefaultCheckConsistency: Boolean = false
+  lazy val DefaultShouldChop: Boolean = false
+  // The go language specification states that int and uint variables can have either 32bit or 64, as long
+  // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
+  // 64 bit otherwise.
+  lazy val DefaultInt32bit: Boolean = false
+  // the following option is currently not controllable via CLI as it is meaningless without a constantly
+  // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
+  lazy val DefaultCacheParser: Boolean = false
+  // this option introduces a mode where Gobra only considers files with a specific annotation ("// +gobra").
+  // this is useful when verifying large packages where some files might use some unsupported feature of Gobra,
+  // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
+  // to verify.
+  lazy val DefaultOnlyFilesWithHeader: Boolean = false
+  lazy val DefaultGobraDirectory: String = ".gobra"
+  lazy val DefaultTaskName: String = "gobra-task"
 }
 
 case class Config(
-                   recursive: Boolean = false,
                    gobraDirectory: Path = Path.of(ConfigDefaults.DefaultGobraDirectory),
                    // Used as an identifier of a verification task, ideally it shouldn't change between verifications
                    // because it is used as a caching key. Additionally it should be unique when using the StatsCollector
                    taskName: String = ConfigDefaults.DefaultTaskName,
                    // Contains a mapping of packages to all input sources for that package
-                   packageInfoInputMap: Map[PackageInfo, Vector[Source]] = Map(),
-                   moduleName: String = "",
-                   includeDirs: Vector[Path] = Vector(),
-                   projectRoot: Path = Path.of(""),
-                   reporter: GobraReporter = StdIOReporter(),
-                   backend: ViperBackend = ViperBackends.SiliconBackend,
+                   packageInfoInputMap: Map[PackageInfo, Vector[Source]] = Map.empty,
+                   moduleName: String = ConfigDefaults.DefaultModuleName,
+                   includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
+                   projectRoot: Path = ConfigDefaults.DefaultProjectRoot.toPath,
+                   reporter: GobraReporter = ConfigDefaults.DefaultReporter,
+                   backend: ViperBackend = ConfigDefaults.DefaultBackend,
                    isolate: Option[Vector[SourcePosition]] = None,
-                   choppingUpperBound: Int = 1,
-                   packageTimeout: Duration = Duration.Inf,
-                   z3Exe: Option[String] = None,
-                   boogieExe: Option[String] = None,
-                   logLevel: Level = LoggerDefaults.DefaultLevel,
-                   cacheFile: Option[String] = None,
+                   choppingUpperBound: Int = ConfigDefaults.DefaultChoppingUpperBound,
+                   packageTimeout: Duration = ConfigDefaults.DefaultPackageTimeout,
+                   z3Exe: Option[String] = ConfigDefaults.DefaultZ3Exe,
+                   boogieExe: Option[String] = ConfigDefaults.DefaultBoogieExe,
+                   logLevel: Level = ConfigDefaults.DefaultLogLevel,
+                   cacheFile: Option[Path] = ConfigDefaults.DefaultCacheFile.map(_.toPath),
                    shouldParse: Boolean = true,
                    shouldTypeCheck: Boolean = true,
                    shouldDesugar: Boolean = true,
                    shouldViperEncode: Boolean = true,
-                   checkOverflows: Boolean = false,
-                   checkConsistency: Boolean = false,
+                   checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
+                   checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
                    shouldVerify: Boolean = true,
-                   shouldChop: Boolean = false,
+                   shouldChop: Boolean = ConfigDefaults.DefaultShouldChop,
                    // The go language specification states that int and uint variables can have either 32bit or 64, as long
                    // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
                    // 64 bit otherwise.
-                   int32bit: Boolean = false,
+                   int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
                    // the following option is currently not controllable via CLI as it is meaningless without a constantly
                    // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
-                   cacheParser: Boolean = false,
+                   cacheParser: Boolean = ConfigDefaults.DefaultCacheParser,
                    // this option introduces a mode where Gobra only considers files with a specific annotation ("// +gobra").
                    // this is useful when verifying large packages where some files might use some unsupported feature of Gobra,
                    // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
                    // to verify.
-                   onlyFilesWithHeader: Boolean = false,
+                   onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
 ) {
 
   def merge(other: Config): Config = {
@@ -82,7 +110,6 @@ case class Config(
     }
 
     Config(
-      recursive = recursive,
       moduleName = moduleName,
       taskName = taskName,
       gobraDirectory = gobraDirectory,
@@ -130,8 +157,160 @@ object Config {
   def sourceHasHeader(s: Source): Boolean = header.findFirstIn(s.content).nonEmpty
 }
 
+case class BaseConfig(moduleName: String = ConfigDefaults.DefaultModuleName,
+                      includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
+                      reporter: GobraReporter = ConfigDefaults.DefaultReporter,
+                      backend: ViperBackend = ConfigDefaults.DefaultBackend,
+                      // list of pairs of file and line numbers. Indicates which lines of files should be isolated.
+                      isolate: List[(Path, List[Int])] = ConfigDefaults.DefaultIsolate,
+                      choppingUpperBound: Int = ConfigDefaults.DefaultChoppingUpperBound,
+                      packageTimeout: Duration = ConfigDefaults.DefaultPackageTimeout,
+                      z3Exe: Option[String] = ConfigDefaults.DefaultZ3Exe,
+                      boogieExe: Option[String] = ConfigDefaults.DefaultBoogieExe,
+                      logLevel: Level = ConfigDefaults.DefaultLogLevel,
+                      cacheFile: Option[Path] = ConfigDefaults.DefaultCacheFile.map(_.toPath),
+                      shouldParseOnly: Boolean = ConfigDefaults.DefaultParseOnly,
+                      checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
+                      checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
+                      // The go language specification states that int and uint variables can have either 32bit or 64, as long
+                      // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
+                      // 64 bit otherwise.
+                      int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
+                      // the following option is currently not controllable via CLI as it is meaningless without a constantly
+                      // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
+                      cacheParser: Boolean = ConfigDefaults.DefaultCacheParser,
+                      // this option introduces a mode where Gobra only considers files with a specific annotation ("// +gobra").
+                      // this is useful when verifying large packages where some files might use some unsupported feature of Gobra,
+                      // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
+                      // to verify.
+                      onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
+                     ) {
+  def shouldParse: Boolean = true
+  def shouldTypeCheck: Boolean = !shouldParseOnly
+  def shouldDesugar: Boolean = shouldTypeCheck
+  def shouldViperEncode: Boolean = shouldDesugar
+  def shouldVerify: Boolean = shouldViperEncode
+  def shouldChop: Boolean = choppingUpperBound > 1 || isolated.exists(_.nonEmpty)
+  lazy val isolated: Option[Vector[SourcePosition]] = {
+    isolate match {
+      case Nil => None
+      case pathsWithPos => Some(pathsWithPos.flatMap {
+        case (path, idxs) => idxs.map(idx => SourcePosition(path, idx, 0))
+      }.toVector)
+    }
+  }
+}
+
+trait RawConfig {
+  /** converts a RawConfig to an actual `Config` for Gobra. Returns Left with an error message if validation fails. */
+  def config: Either[String, Config]
+  protected def baseConfig: BaseConfig
+
+  protected def createConfig(packageInfoInputMap: Map[PackageInfo, Vector[Source]]): Config = Config(
+    packageInfoInputMap = packageInfoInputMap,
+    moduleName = baseConfig.moduleName,
+    includeDirs = baseConfig.includeDirs,
+    reporter = baseConfig.reporter,
+    backend = baseConfig.backend,
+    isolate = baseConfig.isolated,
+    choppingUpperBound = baseConfig.choppingUpperBound,
+    packageTimeout = baseConfig.packageTimeout,
+    z3Exe = baseConfig.z3Exe,
+    boogieExe = baseConfig.boogieExe,
+    logLevel = baseConfig.logLevel,
+    cacheFile = baseConfig.cacheFile,
+    shouldParse = baseConfig.shouldParse,
+    shouldTypeCheck = baseConfig.shouldTypeCheck,
+    shouldDesugar = baseConfig.shouldDesugar,
+    shouldViperEncode = baseConfig.shouldViperEncode,
+    checkOverflows = baseConfig.checkOverflows,
+    checkConsistency = baseConfig.checkConsistency,
+    shouldVerify = baseConfig.shouldVerify,
+    shouldChop = baseConfig.shouldChop,
+    int32bit = baseConfig.int32bit,
+    cacheParser = baseConfig.cacheParser,
+    onlyFilesWithHeader = baseConfig.onlyFilesWithHeader)
+}
+
+/**
+  * Special case where we do not enforce that inputs (be it files, directories or recursive files) have to be provided.
+  * This is for example used when parsing in-file configs.
+  */
+case class NoInputModeConfig(baseConfig: BaseConfig) extends RawConfig {
+  override lazy val config: Either[String, Config] = Right(createConfig(Map.empty))
+}
+
+case class FileModeConfig(inputFiles: Vector[Path], baseConfig: BaseConfig) extends RawConfig {
+  override lazy val config: Either[String, Config] = {
+    val sources = inputFiles.map(path => FileSource(path.toString))
+    if (sources.isEmpty) Left(s"no input files have been provided")
+    else {
+      // we do not check whether the provided files all belong to the same package
+      // instead, we trust the programmer that she knows what she's doing.
+      // If they do not belong to the same package, Gobra will report an error after parsing.
+      // we simply use the first source's package info to create a single map entry:
+      val packageInfoInputMap = Map(getPackageInfo(sources.head, inputFiles.head) -> sources)
+      Right(createConfig(packageInfoInputMap))
+    }
+  }
+}
+
+trait PackageAndRecursiveModeConfig extends RawConfig {
+  def getSources(directory: Path, recursive: Boolean): Vector[Source] = {
+    val inputResource = FileResource(directory)
+    PackageResolver.getSourceFiles(inputResource, recursive).map { resource =>
+      val source = resource.asSource()
+      // we do not need the underlying resources anymore, thus close them:
+      resource.close()
+      source
+    }
+  }
+}
+
+case class PackageModeConfig(projectRoot: Path = ConfigDefaults.DefaultProjectRoot.toPath,
+                             inputDirectories: Vector[Path], baseConfig: BaseConfig) extends PackageAndRecursiveModeConfig {
+  override lazy val config: Either[String, Config] = {
+    val (errors, mappings) = inputDirectories.map { directory =>
+      val sources = getSources(directory, recursive = false)
+      // we do not check whether the provided files all belong to the same package
+      // instead, we trust the programmer that she knows what she's doing.
+      // If they do not belong to the same package, Gobra will report an error after parsing.
+      // we simply use the first source's package info to create a single map entry:
+      if (sources.isEmpty) Left(s"no sources found in directory ${directory}")
+      else Right((getPackageInfo(sources.head, projectRoot), sources))
+    }.partitionMap(identity)
+    if (errors.length == 1) Left(errors.head)
+    else if (errors.nonEmpty) Left(s"multiple errors have been found while localizing sources: ${errors.mkString(", ")}")
+    else Right(createConfig(mappings.toMap))
+  }
+}
+
+case class RecursiveModeConfig(projectRoot: Path = ConfigDefaults.DefaultProjectRoot.toPath,
+                               includePackages: List[String] = ConfigDefaults.DefaultIncludePackages,
+                               excludePackages: List[String] = ConfigDefaults.DefaultExcludePackages,
+                               baseConfig: BaseConfig) extends PackageAndRecursiveModeConfig {
+  override lazy val config: Either[String, Config] = {
+    val pkgMap = getSources(projectRoot, recursive = true)
+      .groupBy(source => getPackageInfo(source, projectRoot))
+      // filter packages:
+      .filter { case (pkgInfo, _) => (includePackages.isEmpty || includePackages.contains(pkgInfo.name)) && !excludePackages.contains(pkgInfo.name) }
+      // filter packages with zero source files:
+      .filter { case (_, pkgFiles) => pkgFiles.nonEmpty }
+    if (pkgMap.isEmpty) {
+      Left(s"No packages have been found that should be verified")
+    } else {
+      Right(createConfig(pkgMap))
+    }
+  }
+}
+
+/**
+  * This represents Gobra's CLI interface.
+  * The idea is to just perform the necessary validations to convert the inputs into a `RawConfig`.
+  * All other validations will be deferred and performed on `RawConfig` before converting it to the actual Gobra config.
+  */
 class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = false, skipIncludeDirChecks: Boolean = false)
-    extends ScallopConf(arguments)
+  extends ScallopConf(arguments)
     with StrictLogging {
 
   /**
@@ -162,10 +341,25 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     descr = "List of Gobra programs to verify with optional line information (e.g. `foo.gobra@42,111`)",
     short = 'i'
   )
+  /**
+    * List of input files together with their specified line numbers.
+    * Specified line numbers are removed from their corresponding input argument.
+    */
+  val cutInputWithIdxs: ScallopOption[List[(File, List[Int])]] = input.map(_.map{ arg =>
+    val pattern = """(.*)@(\d+(?:,\d+)*)""".r
+    arg match {
+      case pattern(prefix, idxs) =>
+        (new File(prefix), idxs.split(',').toList.map(_.toInt))
 
-  val directory: ScallopOption[File] = opt[File](
+      case _ => (new File(arg), List.empty[Int])
+    }
+  })
+  /** list of input files without line numbers */
+  val cutInput: ScallopOption[List[File]] = cutInputWithIdxs.map(_.map(_._1))
+
+  val directory: ScallopOption[List[File]] = opt[List[File]](
     name = "directory",
-    descr = "A directory in which to search for a package to verify",
+    descr = "List of directories that should be verified",
     short = 'p'
   )
 
@@ -176,17 +370,24 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     short = 'r'
   )
 
-  val includePackages: ScallopOption[List[String]] = opt[List[String]](
-    name = "includePackages",
-    descr = "Packages to verify. All packages found in the specified directories are verified by default.",
-    default = Some(List.empty),
+  val projectRoot: ScallopOption[File] = opt[File](
+    name = "projectRoot",
+    descr = "The root directory of the project",
+    default = Some(ConfigDefaults.DefaultProjectRoot),
     noshort = true
   )
 
-  val excludePackages: ScallopOption[List[String]] = opt[List[String]](
+  val inclPackages: ScallopOption[List[String]] = opt[List[String]](
+    name = "includePackages",
+    descr = "Packages to verify. All packages found in the specified directories are verified by default.",
+    default = Some(ConfigDefaults.DefaultIncludePackages),
+    noshort = true
+  )
+
+  val exclPackages: ScallopOption[List[String]] = opt[List[String]](
     name = "excludePackages",
     descr = "Packages to ignore. These packages will not be verified, even if they are found in the specified directories.",
-    default = Some(List.empty),
+    default = Some(ConfigDefaults.DefaultExcludePackages),
     noshort = true
   )
 
@@ -200,15 +401,16 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   val module: ScallopOption[String] = opt[String](
     name = "module",
     descr = "Name of current module that should be used for resolving imports",
-    default = Some("")
+    default = Some(ConfigDefaults.DefaultModuleName)
   )
 
   val include: ScallopOption[List[File]] = opt[List[File]](
     name = "include",
     short = 'I',
     descr = "Uses the provided directories to perform package-related lookups before falling back to $GOPATH",
-    default = Some(List())
+    default = Some(ConfigDefaults.DefaultIncludeDirs)
   )
+  lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
 
   val backend: ScallopOption[ViperBackend] = choice(
     choices = Seq("SILICON", "CARBON", "VSWITHSILICON", "VSWITHCARBON"),
@@ -234,7 +436,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = "logLevel",
     choices = Seq("ALL", "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "OFF"),
     descr = "Specifies the log level. The default is OFF.",
-    default = Some(if (debug()) Level.DEBUG.toString else LoggerDefaults.DefaultLevel.toString),
+    default = Some(if (debug()) Level.DEBUG.toString else ConfigDefaults.DefaultLogLevel.toString),
     noshort = true
   ).map{arg => Level.toLevel(arg)}
 
@@ -276,14 +478,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   val parseOnly: ScallopOption[Boolean] = opt[Boolean](
     name = "parseOnly",
     descr = "Perform only the parsing step",
-    default = Some(false),
+    default = Some(ConfigDefaults.DefaultParseOnly),
     noshort = true
   )
 
   val chopUpperBound: ScallopOption[Int] = opt[Int](
     name = "chop",
     descr = "Number of parts the generated verification condition is split into (at most)",
-    default = Some(1),
+    default = Some(ConfigDefaults.DefaultChoppingUpperBound),
     noshort = true
   )
 
@@ -293,78 +495,60 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = None,
     noshort = true
   )
+  lazy val packageTimeoutDuration: Duration = packageTimeout.toOption match {
+    case Some(d) => Duration(d)
+    case _ => Duration.Inf
+  }
 
   val z3Exe: ScallopOption[String] = opt[String](
     name = "z3Exe",
     descr = "The Z3 executable",
-    default = None,
+    default = ConfigDefaults.DefaultZ3Exe,
     noshort = true
   )
 
   val boogieExe: ScallopOption[String] = opt[String](
     name = "boogieExe",
     descr = "The Boogie executable",
-    default = None,
+    default = ConfigDefaults.DefaultBoogieExe,
     noshort = true
   )
 
   val checkOverflows: ScallopOption[Boolean] = opt[Boolean](
     name = "overflow",
     descr = "Find expressions that may lead to integer overflow",
-    default = Some(false),
+    default = Some(ConfigDefaults.DefaultCheckOverflows),
     noshort = false
   )
 
-  val rootDirectory: ScallopOption[Path] = opt[Path](
-    name = "projectRoot",
-    descr = "The root directory of the project",
-    default = None,
-    noshort = true
-  )
-
-  val cacheFile: ScallopOption[String] = opt[String](
+  val cacheFile: ScallopOption[File] = opt[File](
     name = "cacheFile",
     descr = "Cache file to be used by Viper Server",
-    default = None,
+    default = ConfigDefaults.DefaultCacheFile,
     noshort = true
   )
 
   val int32Bit: ScallopOption[Boolean] = opt[Boolean](
     name = "int32",
     descr = "Run with 32-bit sized integers (the default is 64-bit ints)",
-    default = Some(false),
+    default = Some(ConfigDefaults.DefaultInt32bit),
     noshort = false
   )
 
   val onlyFilesWithHeader: ScallopOption[Boolean] = opt[Boolean](
     name = "onlyFilesWithHeader",
     descr = s"When enabled, Gobra only looks at files that contain the header comment '${Config.prettyPrintedHeader}'",
-    default = Some(false),
+    default = Some(ConfigDefaults.DefaultOnlyFilesWithHeader),
     noshort = false
   )
 
   val checkConsistency: ScallopOption[Boolean] = opt[Boolean](
     name = "checkConsistency",
     descr = "Perform consistency checks on the generated Viper code",
-    default = Some(false),
+    default = Some(ConfigDefaults.DefaultCheckConsistency),
     noshort = true
   )
 
-  /**
-    * List of input files together with their specified line numbers.
-    * Specified line numbers are removed from their corresponding input argument.
-    */
-  val cutInputWithIdxs: ScallopOption[List[(File, List[Int])]] = input.map(_.map{ arg =>
-    val pattern = """(.*)@(\d+(?:,\d+)*)""".r
-    arg match {
-      case pattern(prefix, idxs) =>
-        (new File(prefix), idxs.split(',').toList.map(_.toInt))
-
-      case _ => (new File(arg), List.empty[Int])
-    }
-  })
-  /** list of input files without line numbers */
-  val cutInput: ScallopOption[List[File]] = cutInputWithIdxs.map(_.map(_._1))
 
   /**
     * Exception handling
@@ -375,192 +559,74 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   /** Argument Dependencies */
   if (isInputOptional) {
-    mutuallyExclusive(input, directory)
+    mutuallyExclusive(input, directory, recursive)
   } else {
-    // either `input` or `directory` must be provided but not both.
-    // this also checks that at least one file or a directory is provided (as opposed to just `-i` or `-p`)
-    requireOne(input, directory)
+    // either `input`, `directory` or `recursive` must be provided but not both.
+    // this also checks that at least one file or directory is provided in the case of `input` and `directory`.
+    requireOne(input, directory, recursive)
   }
 
-  // `recursive`, `includePackages`, and `excludePackages` only make sense when `directory` is specified and thus are
-  // forbidden when using `input`:
-  conflicts(input, List(recursive, includePackages, excludePackages))
+  // `inclPackages` and `exclPackages` only make sense when `recursive` is specified, `projectRoot` can only be used in `directory` or `recursive` mode.
+  // Thus, we restrict their use:
+  conflicts(input, List(projectRoot, inclPackages, exclPackages))
+  conflicts(directory, List(inclPackages, exclPackages))
 
   /** File Validation */
   validateFilesExist(cutInput)
   validateFilesIsFile(cutInput)
-  validateFileExists(directory)
-  validateFileIsDirectory(directory)
+  validateFilesExist(directory)
+  validateFilesIsDirectory(directory)
+  validateFileExists(projectRoot)
+  validateFileIsDirectory(projectRoot)
   if (!skipIncludeDirChecks) {
     validateFilesExist(include)
     validateFilesIsDirectory(include)
   }
-  InputConverter.validate(cutInput, directory, recursive, includePackages, excludePackages)
-
-  private object InputConverter {
-    /**
-      * stores the computed inputPackageMap after validating them to avoid a recomputation. `None` indicates that either validation
-      * has not yet happened or that validation has failed
-      */
-    var inputPackageMapOpt: Option[Map[PackageInfo, Vector[Source]]] = None
-    /** can only be accessed after calling `validate` */
-    lazy val inputPackageMap: Map[PackageInfo, Vector[Source]] = inputPackageMapOpt.get
-
-    /**
-      * we distinguish between two modes:
-      * - input mode in which the user simply provides all files that should be verified
-      * - directory mode in which Gobra searches for the files to be verified
-      * if inputs are provided, it checks that there is at least one source after resolving the sources.
-      * if a directory is provided, it checks that at least 1 package remains to be verified after applying the desired filters */
-    def validate(cutInput: ScallopOption[List[File]],
-                 directory: ScallopOption[File],
-                 recursive: ScallopOption[Boolean],
-                 includePackages: ScallopOption[List[String]],
-                 excludePackages: ScallopOption[List[String]]): Unit = {
-      validateOpt (cutInput, directory, recursive, includePackages, excludePackages) (
-        (cutInputOpt, dirOpt, recOpt, includeOpt, excludeOpt) => {
-          val validationRes = for {
-            fileOrDirInputs <- (cutInputOpt, dirOpt) match {
-              case (Some(fileInputs), None) => Right(fileInputs)
-              case (None, Some(dir)) => Right(List(dir))
-              case (None, None) if isInputOptional => Right(List.empty)
-              case _ => Left(s"expected that input files or a directory is provided but not both")
-            }
-            sources = fileOrDirInputs
-              .flatMap { i =>
-                val inputResource = FileResource(i.toPath)
-                PackageResolver.getSourceFiles(inputResource, recOpt.getOrElse(false))
-              }
-              .map { resource =>
-                val source = resource.asSource()
-                resource.close()
-                source
-              }
-              .toVector
-            pkgMap <- (cutInputOpt, dirOpt) match {
-              case (Some(_), None) => validateInputMode(sources)
-              case (None, Some(_)) => validateDirectoryMode(sources, includeOpt, excludeOpt)
-              case (None, None) if isInputOptional => Right(Map.empty[PackageInfo, Vector[Source]])
-              case _ => Left(s"expected that input files or a directory is provided but not both")
-            }
-          } yield pkgMap
-          // store the result to avoid recomputation:
-          inputPackageMapOpt = validationRes.toOption
-          // return only the messages:
-          validationRes.map(_ => ())
-        })
-    }
-
-    private def validateInputMode(sources: Vector[Source]): Either[String, Map[PackageInfo, Vector[Source]]] = {
-      // there should be at least one source:
-      if (sources.isEmpty) {
-        Left(s"expected at least one file after resolving the source files")
-      } else {
-        // we do not check whether the provided files all belong to the same package
-        // instead, we trust the programmer that she knows what she's doing.
-        // If they do not belong to the same package, Gobra will report an error after parsing.
-        // we simply use the first source's package info to create a single map entry:
-        Right(Map(getPackageInfo(sources.head, projectRoot) -> sources))
-      }
-    }
-
-    private def validateDirectoryMode(sources: Vector[Source],
-                                      includePackagesOpt: Option[List[String]],
-                                      excludePackagesOpt: Option[List[String]]): Either[String, Map[PackageInfo, Vector[Source]]] = {
-      /** an empty list means that all packages are allowed */
-      val allowedPackages = includePackagesOpt.getOrElse(List.empty)
-      val blockedPackages = excludePackagesOpt.getOrElse(List.empty)
-      val pkgMap = sources
-        .groupBy(source => getPackageInfo(source, projectRoot))
-        // filter packages:
-        .filter { case (pkgInfo, _) => (allowedPackages.isEmpty || allowedPackages.contains(pkgInfo.name)) && !blockedPackages.contains(pkgInfo.name) }
-        // filter packages with zero source files:
-        .filter { case (_, pkgFiles) => pkgFiles.nonEmpty }
-      // validate `pkgMap`:
-      if (pkgMap.isEmpty) {
-        Left(s"No packages have been found that should be verified")
-      } else {
-        Right(pkgMap)
-      }
-    }
-  }
-
-  // cache file should only be usable when using viper server
-  validateOpt (backend, cacheFile) {
-    case (Some(_: ViperBackends.ViperServerWithSilicon), Some(_)) => Right(())
-    case (Some(_: ViperBackends.ViperServerWithCarbon), Some(_)) => Right(())
-    case (_, None) => Right(())
-    case (_, Some(_)) => Left("Cache file can only be specified when the backend uses Viper Server")
-  }
-
-  validateOpt (gobraDirectory) {
-    case Some(dir) =>
-      // Set up gobra directory
-      val gobraDirectory = dir.toFile
-      if(!gobraDirectory.exists && !gobraDirectory.mkdir()) {
-        Left( s"Could not create directory $gobraDirectory")
-      } else if (!gobraDirectory.isDirectory) {
-        Left(s"$dir is not a directory")
-      } else if (!gobraDirectory.canRead) {
-        Left(s"Couldn't read gobra directory $dir")
-      } else if (!gobraDirectory.canWrite) {
-        Left(s"Couldn't write to gobra directory $dir")
-      } else {
-        Right(())
-      }
-    case _ => Right(())
-  }
-
-  validateOpt (packageTimeout) {
-    case Some(s) => try {
-      Right(Duration(s))
-    } catch {
-      case e: NumberFormatException => Left(s"Couldn't parse package timeout: " + e.getMessage)
-    }
-    case None => Right(())
-  }
-
-  lazy val packageTimeoutDuration: Duration = packageTimeout.toOption match {
-    case Some(d) => Duration(d)
-    case _ => Duration.Inf
-  }
 
   verify()
 
-  lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
+  lazy val config: Either[String, Config] = rawConfig.config
 
-  // Take the user input for the project root or fallback to the fist include directory or the current directory
-  lazy val projectRoot: Path = rootDirectory.getOrElse(
-    includeDirs.headOption.getOrElse(Path.of(""))
-  )
-
-  lazy val isolated: Option[Vector[SourcePosition]] = {
-    cutInputWithIdxs.toOption.map(_.flatMap {
-      case (file, idxs) => idxs.map(idx => SourcePosition(file.toPath, idx, 0))
-    }.toVector)
+  private lazy val rawConfig: RawConfig = (cutInputWithIdxs.toOption, directory.toOption, recursive.toOption) match {
+    case (Some(inputsWithIdxs), _, _) => fileModeConfig(inputsWithIdxs)
+    case (_, Some(dirs), _) => packageModeConfig(dirs)
+    case (_, _, Some(true)) => recursiveModeConfig()
+    case _ =>
+      Violation.violation(isInputOptional, "the configuration mode should be one of file, package or recursive unless inputs are optional")
+      noInputModeConfig()
   }
 
+  private def fileModeConfig(cutInputWithIdxs: List[(File, List[Int])]): FileModeConfig = {
+    val cutPathsWithIdxs = cutInputWithIdxs.map { case (file, lineNrs) => (file.toPath, lineNrs) }
+    FileModeConfig(
+      inputFiles = cutPathsWithIdxs.map(_._1).toVector,
+      baseConfig = baseConfig(cutPathsWithIdxs)
+    )
+  }
 
-  /** set log level */
+  private def packageModeConfig(dirs: List[File]): PackageModeConfig = PackageModeConfig(
+    inputDirectories = dirs.map(_.toPath).toVector,
+    projectRoot = projectRoot().toPath,
+    // we currently do not offer a way via CLI to pass isolate information to Gobra in the package mode
+    baseConfig = baseConfig(ConfigDefaults.DefaultIsolate),
+  )
 
-  LoggerFactory.getLogger(GoVerifier.rootLogger)
-    .asInstanceOf[Logger]
-    .setLevel(logLevel())
+  private def recursiveModeConfig(): RecursiveModeConfig = RecursiveModeConfig(
+    projectRoot = projectRoot().toPath,
+    includePackages = inclPackages(),
+    excludePackages = exclPackages(),
+    // we currently do not offer a way via CLI to pass isolate information to Gobra in the recursive mode
+    baseConfig(ConfigDefaults.DefaultIsolate),
+  )
 
-  def shouldParse: Boolean = true
-  def shouldTypeCheck: Boolean = !parseOnly.getOrElse(true)
-  def shouldDesugar: Boolean = shouldTypeCheck
-  def shouldViperEncode: Boolean = shouldDesugar
-  def shouldVerify: Boolean = shouldViperEncode
-  def shouldChop: Boolean = chopUpperBound.toOption.exists(_ > 1) || isolated.exists(_.nonEmpty)
+  private def noInputModeConfig(): NoInputModeConfig = NoInputModeConfig(
+    // we currently do not offer a way via CLI to pass isolate information to Gobra in the recursive mode
+    baseConfig(ConfigDefaults.DefaultIsolate),
+  )
 
-  lazy val config: Config = Config(
-    recursive = recursive(),
-    gobraDirectory = gobraDirectory(),
-    packageInfoInputMap = InputConverter.inputPackageMap,
+  private def baseConfig(isolate: List[(Path, List[Int])]): BaseConfig = BaseConfig(
     moduleName = module(),
     includeDirs = includeDirs,
-    projectRoot = projectRoot,
     reporter = FileWriterReporter(
       unparse = unparse(),
       eraseGhost = eraseGhost(),
@@ -569,22 +635,18 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       printInternal = printInternal(),
       printVpr = printVpr()),
     backend = backend(),
-    isolate = isolated,
+    isolate = isolate,
     choppingUpperBound = chopUpperBound(),
     packageTimeout = packageTimeoutDuration,
     z3Exe = z3Exe.toOption,
     boogieExe = boogieExe.toOption,
     logLevel = logLevel(),
-    cacheFile = cacheFile.toOption,
-    shouldParse = shouldParse,
-    shouldTypeCheck = shouldTypeCheck,
-    shouldDesugar = shouldDesugar,
-    shouldViperEncode = shouldViperEncode,
+    cacheFile = cacheFile.toOption.map(_.toPath),
+    shouldParseOnly = parseOnly(),
     checkOverflows = checkOverflows(),
-    int32bit = int32Bit(),
-    shouldVerify = shouldVerify,
-    shouldChop = shouldChop,
     checkConsistency = checkConsistency(),
-    onlyFilesWithHeader = onlyFilesWithHeader(),
+    int32bit = int32Bit(),
+    cacheParser = false,
+    onlyFilesWithHeader = onlyFilesWithHeader()
   )
 }

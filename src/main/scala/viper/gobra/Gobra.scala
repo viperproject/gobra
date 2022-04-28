@@ -143,8 +143,8 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     implicit val _executor: GobraExecutionContext = executor
 
     val task = Future {
-      val finalConfig = getAndMergeInFileConfig(config, pkgInfo)
       for {
+        finalConfig <- getAndMergeInFileConfig(config, pkgInfo)
         parsedPackage <- performParsing(pkgInfo, finalConfig)
         typeInfo <- performTypeChecking(parsedPackage, finalConfig)
         program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
@@ -194,27 +194,33 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * These in-file command options get combined for all files and passed to ScallopGobraConfig.
     * The current config merged with the newly created config is then returned
     */
-  def getAndMergeInFileConfig(config: Config, pkgInfo: PackageInfo): Config = {
-    val inFileConfigs = config.packageInfoInputMap(pkgInfo).flatMap(input => {
+  def getAndMergeInFileConfig(config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], Config] = {
+    val inFileEitherConfigs = config.packageInfoInputMap(pkgInfo).map(input => {
       val content = input.content
       val configs = for (m <- inFileConfigRegex.findAllMatchIn(content)) yield m.group(1)
       if (configs.isEmpty) {
-        None
+        Right(None)
       } else {
         // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
         val args = configs.flatMap(configString => configString.split(" ")).toList
         // skip include dir checks as the include should only be parsed and is not resolved yet based on the current directory
-        val inFileConfig = new ScallopGobraConfig(args, isInputOptional = true, skipIncludeDirChecks = true).config
-        // modify all relative includeDirs such that they are resolved relatively to the current file:
-        val resolvedConfig = inFileConfig.copy(includeDirs = inFileConfig.includeDirs.map(
-          // it's important to convert includeDir to a string first as `path` might be a ZipPath and `includeDir` might not
-          includeDir => Paths.get(input.name).getParent.resolve(includeDir.toString)))
-        Some(resolvedConfig)
+        for {
+          inFileConfig <- new ScallopGobraConfig(args, isInputOptional = true, skipIncludeDirChecks = true).config
+          resolvedConfig = inFileConfig.copy(includeDirs = inFileConfig.includeDirs.map(
+            // it's important to convert includeDir to a string first as `path` might be a ZipPath and `includeDir` might not
+            includeDir => Paths.get(input.name).getParent.resolve(includeDir.toString)))
+        } yield Some(resolvedConfig)
       }
     })
-
-    // start with original config `config` and merge in every in file config:
-    inFileConfigs.foldLeft(config){ case (oldConfig, fileConfig) => oldConfig.merge(fileConfig) }
+    val (errors, inFileConfigs) = inFileEitherConfigs.partitionMap(identity)
+    if (errors.nonEmpty) Left(errors.map(ConfigError))
+    else {
+      // start with original config `config` and merge in every in file config:
+      val mergedConfig = inFileConfigs.flatten.foldLeft(config) {
+        case (oldConfig, fileConfig) => oldConfig.merge(fileConfig)
+      }
+      Right(mergedConfig)
+    }
   }
 
   private def performParsing(pkgInfo: PackageInfo, config: Config): Either[Vector[VerifierError], PPackage] = {
@@ -295,12 +301,17 @@ object GobraRunner extends GobraFrontend with StrictLogging {
     try {
       val scallopGobraConfig = new ScallopGobraConfig(args.toSeq)
       val config = scallopGobraConfig.config
-      // Print copyright report
-      config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
-
-      exitCode = verifier.verifyAllPackages(config)(executor) match {
-        case VerifierResult.Failure(_) => 1
-        case _ => 0
+      exitCode = config match {
+        case Left(validationError) =>
+          logger.error(validationError)
+          1
+        case Right(config) =>
+          // Print copyright report
+          config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
+          verifier.verifyAllPackages(config)(executor) match {
+            case VerifierResult.Failure(_) => 1
+            case _ => 0
+          }
       }
     } catch {
       case e: UglyErrorMessage =>

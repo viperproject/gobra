@@ -65,7 +65,8 @@ object CGEdgesTerminationTransform extends InternalTransform {
                                 in.MethodCall(
                                   m.results map parameterAsLocalValVar,
                                   in.TypeAssertion(m.receiver, t)(src),
-                                  implProxy, m.args)(src),
+                                  implProxy, m.args
+                                )(src),
                                 in.Return()(src)
                               ))(src),
                               in.Seqn(Vector())(src)

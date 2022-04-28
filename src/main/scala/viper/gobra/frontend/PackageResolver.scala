@@ -96,7 +96,9 @@ object PackageResolver {
     for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
       pkgDir <- getLookupPath(importTarget)(config)
-      sourceFiles = getSourceFiles(pkgDir, onlyFilesWithHeader = config.onlyFilesWithHeader)
+      // note that we ignore the "onlyFilesWithHeader" option provided in `config`, because we still want to consider
+      // all source files when resolving the right qualifier for a package:
+      sourceFiles = getSourceFiles(pkgDir, onlyFilesWithHeader = false)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
       pkgName <- checkPackageClauses(sourceFiles, importTarget)
@@ -216,11 +218,14 @@ object PackageResolver {
         if (recursive && Files.isDirectory(resource.path)) {
           getSourceFiles(resource, recursive = recursive, onlyFilesWithHeader = onlyFilesWithHeader)
         } else if (Files.isRegularFile(resource.path)) {
-          // only consider files with the particular extension
-          val validExtension = FilenameUtils.getExtension(resource.path.toString) == gobraExtension ||
+          // ignore files that are not Go or Gobra sources, have a filename or are placed in a directory that should be
+          // ignored according to the Go spec or that do not have a header we require them to have:
+          lazy val validExtension = FilenameUtils.getExtension(resource.path.toString) == gobraExtension ||
             FilenameUtils.getExtension(resource.path.toString) == goExtension
-          val shouldBeConsidered = !shouldIgnoreResource(resource)
-          val headerIsMissing = onlyFilesWithHeader && !isResourceWithHeader(resource)
+          lazy val shouldBeConsidered = !shouldIgnoreResource(resource)
+          // note that the following condition has to be lazily evaluated to avoid reading the file's content and applying
+          // a regex. The first part in particular can fail when the file does not contain text!
+          lazy val headerIsMissing = onlyFilesWithHeader && !isResourceWithHeader(resource)
           if (validExtension && shouldBeConsidered && !headerIsMissing) Vector(resource) else Vector()
         } else {
           Vector()

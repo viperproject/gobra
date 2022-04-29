@@ -6,9 +6,12 @@
 
 package viper.gobra
 
+import ch.qos.logback.classic.Logger
+
 import java.nio.file.Paths
 import java.util.concurrent.ExecutionException
 import com.typesafe.scalalogging.StrictLogging
+import org.slf4j.LoggerFactory
 import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, OverflowChecksTransform}
@@ -145,6 +148,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     val task = Future {
       for {
         finalConfig <- getAndMergeInFileConfig(config, pkgInfo)
+        _ = setLogLevel(finalConfig)
         parsedPackage <- performParsing(pkgInfo, finalConfig)
         typeInfo <- performTypeChecking(parsedPackage, finalConfig)
         program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
@@ -221,6 +225,12 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       }
       Right(mergedConfig)
     }
+  }
+
+  private def setLogLevel(config: Config): Unit = {
+    LoggerFactory.getLogger(GoVerifier.rootLogger)
+      .asInstanceOf[Logger]
+      .setLevel(config.logLevel)
   }
 
   private def performParsing(pkgInfo: PackageInfo, config: Config): Either[Vector[VerifierError], PPackage] = {

@@ -358,7 +358,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   val recursive: ScallopOption[Boolean] = opt[Boolean](
     name = "recursive",
     descr = "Verify nested packages recursively",
-    default = Some(false),
     short = 'r'
   )
 
@@ -579,11 +578,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   lazy val config: Either[String, Config] = rawConfig.config
 
-  private lazy val rawConfig: RawConfig = (cutInputWithIdxs.toOption, directory.toOption, recursive.toOption) match {
-    case (Some(inputsWithIdxs), None, None) => fileModeConfig(inputsWithIdxs)
-    case (None, Some(dirs), None) => packageModeConfig(dirs)
-    case (None, None, Some(true)) => recursiveModeConfig()
-    case (None, None, None) =>
+  // note that we use `recursive.isSupplied` instead of `recursive.toOption` because it defaults to `Some(false)` if it
+  // was not provided by the user. Specifying a different default value does not seem to be respected.
+  private lazy val rawConfig: RawConfig = (cutInputWithIdxs.toOption, directory.toOption, recursive.isSupplied) match {
+    case (Some(inputsWithIdxs), None, false) => fileModeConfig(inputsWithIdxs)
+    case (None, Some(dirs), false) => packageModeConfig(dirs)
+    case (None, None, true) => recursiveModeConfig()
+    case (None, None, false) =>
       Violation.violation(isInputOptional, "the configuration mode should be one of file, package or recursive unless inputs are optional")
       noInputModeConfig()
     case _ => Violation.violation(s"multiple modes have been found, which should have been caught by input validation")

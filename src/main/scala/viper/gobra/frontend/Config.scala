@@ -157,6 +157,7 @@ object Config {
   def sourceHasHeader(s: Source): Boolean = header.findFirstIn(s.content).nonEmpty
 }
 
+// have a look at `Config` to see an inline description of some of these parameters
 case class BaseConfig(moduleName: String = ConfigDefaults.DefaultModuleName,
                       includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
                       reporter: GobraReporter = ConfigDefaults.DefaultReporter,
@@ -172,17 +173,8 @@ case class BaseConfig(moduleName: String = ConfigDefaults.DefaultModuleName,
                       shouldParseOnly: Boolean = ConfigDefaults.DefaultParseOnly,
                       checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
                       checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
-                      // The go language specification states that int and uint variables can have either 32bit or 64, as long
-                      // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
-                      // 64 bit otherwise.
                       int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
-                      // the following option is currently not controllable via CLI as it is meaningless without a constantly
-                      // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
                       cacheParser: Boolean = ConfigDefaults.DefaultCacheParser,
-                      // this option introduces a mode where Gobra only considers files with a specific annotation ("// +gobra").
-                      // this is useful when verifying large packages where some files might use some unsupported feature of Gobra,
-                      // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
-                      // to verify.
                       onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
                      ) {
   def shouldParse: Boolean = true
@@ -338,7 +330,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   /** input is a list of strings as opposed to a list of files because line positions can optionally be provided */
   val input: ScallopOption[List[String]] = opt[List[String]](
     name = "input",
-    descr = "List of Gobra programs to verify with optional line information (e.g. `foo.gobra@42,111`)",
+    descr = "List of files to verify. Optionally, specific members can be verified by passing their line numbers (e.g. foo.gobra@42,111 corresponds to the members in lines 42 and 111)",
     short = 'i'
   )
   /**
@@ -359,7 +351,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val directory: ScallopOption[List[File]] = opt[List[File]](
     name = "directory",
-    descr = "List of directories that should be verified",
+    descr = "List of directories to verify",
     short = 'p'
   )
 
@@ -588,12 +580,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   lazy val config: Either[String, Config] = rawConfig.config
 
   private lazy val rawConfig: RawConfig = (cutInputWithIdxs.toOption, directory.toOption, recursive.toOption) match {
-    case (Some(inputsWithIdxs), _, _) => fileModeConfig(inputsWithIdxs)
-    case (_, Some(dirs), _) => packageModeConfig(dirs)
-    case (_, _, Some(true)) => recursiveModeConfig()
-    case _ =>
+    case (Some(inputsWithIdxs), None, None) => fileModeConfig(inputsWithIdxs)
+    case (None, Some(dirs), None) => packageModeConfig(dirs)
+    case (None, None, Some(true)) => recursiveModeConfig()
+    case (None, None, None) =>
       Violation.violation(isInputOptional, "the configuration mode should be one of file, package or recursive unless inputs are optional")
       noInputModeConfig()
+    case _ => Violation.violation(s"multiple modes have been found, which should have been caught by input validation")
   }
 
   private def fileModeConfig(cutInputWithIdxs: List[(File, List[Int])]): FileModeConfig = {
@@ -646,7 +639,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     checkOverflows = checkOverflows(),
     checkConsistency = checkConsistency(),
     int32bit = int32Bit(),
-    cacheParser = false,
+    cacheParser = false, // caching does not make sense when using the CLI. Thus, we simply set it to `false`
     onlyFilesWithHeader = onlyFilesWithHeader()
   )
 }

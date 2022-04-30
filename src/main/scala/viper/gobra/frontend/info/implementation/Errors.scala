@@ -29,6 +29,7 @@ trait Errors { this: TypeInfoImpl =>
           //        case n: PIdnUnk if isDef(n) => wellDefID(n).out
           case n: PMisc       => wellDefMisc(n).out
           case n: PSpecification => wellDefSpec(n).out
+          case n: PLabelNode => wellDefLabel(n).out
           case _ => noMessages
         }
 

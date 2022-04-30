@@ -154,7 +154,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
 
-    case n@PContinue(l) => 
+    case n@PContinue(l) =>
       l match {
         case None =>
           enclosingLoop(n) match {

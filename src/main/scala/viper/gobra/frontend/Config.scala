@@ -184,11 +184,11 @@ case class BaseConfig(moduleName: String = ConfigDefaults.DefaultModuleName,
   def shouldVerify: Boolean = shouldViperEncode
   def shouldChop: Boolean = choppingUpperBound > 1 || isolated.exists(_.nonEmpty)
   lazy val isolated: Option[Vector[SourcePosition]] = {
-    isolate match {
+    val positions = isolate.flatMap{ case (path, idxs) => idxs.map(idx => SourcePosition(path, idx, 0)) }
+    // if there are zero positions, no member should be isolated as verifying the empty program is uninteresting.
+    positions match {
       case Nil => None
-      case pathsWithPos => Some(pathsWithPos.flatMap {
-        case (path, idxs) => idxs.map(idx => SourcePosition(path, idx, 0))
-      }.toVector)
+      case _ => Some(positions.toVector)
     }
   }
 }

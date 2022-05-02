@@ -3,10 +3,12 @@
 
 package pkg
 
-import stubAssert "github.com/scionproto/scion/go/lib/assert"
+// ##(-I ./)
+import stubAssert "assertPkg"
 
 func foo() {
   if stubAssert.On {
-    stubAssert.Must(5 == 5)
+    //:: ExpectedOutput(precondition_error:assertion_error)
+    stubAssert.Must(5 == 6)
   }
 }

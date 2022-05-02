@@ -31,6 +31,11 @@ case class NotFoundError(message: String) extends VerifierError {
   val id = "not_found_error"
 }
 
+case class ConfigError(message: String) extends VerifierError {
+  val position: Option[SourcePosition] = None
+  val id = "config_error"
+}
+
 case class ParserError(message: String, position: Option[SourcePosition]) extends VerifierError {
   val id = "parser_error"
 }
@@ -49,6 +54,10 @@ case class DiamondError(message: String) extends VerifierError {
   val id = "diamond_error"
 }
 
+case class TimeoutError(message: String) extends  VerifierError {
+  val position: Option[SourcePosition] = None
+  val id = "timeout_error"
+}
 
 sealed trait VerificationError extends VerifierError {
 

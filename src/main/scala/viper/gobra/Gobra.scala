@@ -6,9 +6,12 @@
 
 package viper.gobra
 
+import ch.qos.logback.classic.Logger
+
 import java.nio.file.Paths
 import java.util.concurrent.ExecutionException
 import com.typesafe.scalalogging.StrictLogging
+import org.slf4j.LoggerFactory
 import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, OverflowChecksTransform}
@@ -55,7 +58,8 @@ trait GoVerifier extends StrictLogging {
   def verifyAllPackages(config: Config)(executor: GobraExecutionContext): VerifierResult = {
     val statsCollector = StatsCollector(config.reporter)
     var warningCount: Int = 0
-    var allErrors: Vector[VerifierError] = Vector()
+    var allVerifierErrors: Vector[VerifierError] = Vector()
+    var allTimeoutErrors: Vector[TimeoutError] = Vector()
 
     // write report to file on shutdown, this makes sure a report is produced even if a run is shutdown
     // by some signal.
@@ -65,17 +69,15 @@ trait GoVerifier extends StrictLogging {
         logger.info("Writing report to " + statsFile.getPath)
         statsCollector.writeJsonReportToFile(statsFile)
 
-        val timedOutMembers = statsCollector.getTimedOutMembers
-        if(timedOutMembers.nonEmpty) {
-          timedOutMembers.foreach(member => logger.error(s"The verification of member $member did not terminate"))
-        }
+        // Report timeouts that were not previously reported
+        statsCollector.getTimeoutErrorsForNonFinishedTasks.foreach(err => logger.error(err.formattedMessage))
       }
     })
 
     config.packageInfoInputMap.keys.foreach(pkgInfo => {
       val pkgId = pkgInfo.id
       logger.info(s"Verifying Package $pkgId")
-      val future = verify(pkgInfo, config.copy(reporter = statsCollector, taskName = pkgInfo.id))(executor)
+      val future = verify(pkgInfo, config.copy(reporter = statsCollector, taskName = pkgId))(executor)
         .map(result => {
           // report that verification of this package has finished in order that `statsCollector` can free space by getting rid of this package's typeInfo
           statsCollector.report(VerificationTaskFinishedMessage(pkgId))
@@ -89,21 +91,20 @@ trait GoVerifier extends StrictLogging {
             case VerifierResult.Failure(errors) =>
               logger.error(s"$name has found ${errors.length} error(s) in package $pkgId")
               errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
-              allErrors = allErrors ++ errors
+              allVerifierErrors = allVerifierErrors ++ errors
           }
         })(executor)
       try {
         Await.result(future, config.packageTimeout)
       } catch {
-        case _: TimeoutException => logger.error(s"The verification of package $pkgId got terminated after " + config.packageTimeout.toString)
+        case _: TimeoutException =>
+          logger.error(s"The verification of package $pkgId got terminated after " + config.packageTimeout.toString)
+          statsCollector.report(VerificationTaskFinishedMessage(pkgId))
+          val errors = statsCollector.getTimeoutErrors(pkgId)
+          errors.foreach(err => logger.error(err.formattedMessage))
+          allTimeoutErrors = allTimeoutErrors ++ errors
       }
     })
-
-    if(warningCount > 0) {
-      logger.info(s"$name has found $warningCount warning(s)")
-    }
-
-    logger.info(s"$name has found ${allErrors.size} error(s)")
 
     // Print statistics for caching
     if(config.cacheFile.isDefined) {
@@ -111,10 +112,23 @@ trait GoVerifier extends StrictLogging {
       logger.info(s"Number of cached Viper member(s): ${statsCollector.getNumberOfCachedViperMembers}")
     }
 
+    // Print general statistics
     logger.info(s"Gobra has found ${statsCollector.getNumberOfVerifiableMembers} methods and functions" )
-    logger.info(s"${statsCollector.getNumberOfVerifiedMembers} have specification")
-    logger.info(s"${statsCollector.getNumberOfVerifiedMembersWithAssumptions} are assumed to be satisfied")
+    logger.info(s"${statsCollector.getNumberOfSpecifiedMembers} have specification")
+    logger.info(s"${statsCollector.getNumberOfSpecifiedMembersWithAssumptions} are assumed to be satisfied")
 
+    // Print warnings
+    if(warningCount > 0) {
+      logger.info(s"$name has found $warningCount warning(s)")
+    }
+
+    // Print errors
+    logger.info(s"$name has found ${allVerifierErrors.size} error(s)")
+    if(allTimeoutErrors.nonEmpty) {
+      logger.info(s"The verification of ${allTimeoutErrors.size} members timed out")
+    }
+
+    val allErrors = allVerifierErrors ++ allTimeoutErrors
     if (allErrors.isEmpty) VerifierResult.Success else VerifierResult.Failure(allErrors)
   }
 
@@ -132,8 +146,9 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     implicit val _executor: GobraExecutionContext = executor
 
     val task = Future {
-      val finalConfig = getAndMergeInFileConfig(config, pkgInfo)
       for {
+        finalConfig <- getAndMergeInFileConfig(config, pkgInfo)
+        _ = setLogLevel(finalConfig)
         parsedPackage <- performParsing(pkgInfo, finalConfig)
         typeInfo <- performTypeChecking(parsedPackage, finalConfig)
         program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
@@ -183,32 +198,45 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * These in-file command options get combined for all files and passed to ScallopGobraConfig.
     * The current config merged with the newly created config is then returned
     */
-  def getAndMergeInFileConfig(config: Config, pkgInfo: PackageInfo): Config = {
-    val inFileConfigs = config.packageInfoInputMap(pkgInfo).flatMap(input => {
+  def getAndMergeInFileConfig(config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], Config] = {
+    val inFileEitherConfigs = config.packageInfoInputMap(pkgInfo).map(input => {
       val content = input.content
       val configs = for (m <- inFileConfigRegex.findAllMatchIn(content)) yield m.group(1)
       if (configs.isEmpty) {
-        None
+        Right(None)
       } else {
         // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
         val args = configs.flatMap(configString => configString.split(" ")).toList
         // skip include dir checks as the include should only be parsed and is not resolved yet based on the current directory
-        val inFileConfig = new ScallopGobraConfig(args, isInputOptional = true, skipIncludeDirChecks = true).config
-        // modify all relative includeDirs such that they are resolved relatively to the current file:
-        val resolvedConfig = inFileConfig.copy(includeDirs = inFileConfig.includeDirs.map(
-          // it's important to convert includeDir to a string first as `path` might be a ZipPath and `includeDir` might not
-          includeDir => Paths.get(input.name).getParent.resolve(includeDir.toString)))
-        Some(resolvedConfig)
+        for {
+          inFileConfig <- new ScallopGobraConfig(args, isInputOptional = true, skipIncludeDirChecks = true).config
+          resolvedConfig = inFileConfig.copy(includeDirs = inFileConfig.includeDirs.map(
+            // it's important to convert includeDir to a string first as `path` might be a ZipPath and `includeDir` might not
+            includeDir => Paths.get(input.name).getParent.resolve(includeDir.toString)))
+        } yield Some(resolvedConfig)
       }
     })
+    val (errors, inFileConfigs) = inFileEitherConfigs.partitionMap(identity)
+    if (errors.nonEmpty) Left(errors.map(ConfigError))
+    else {
+      // start with original config `config` and merge in every in file config:
+      val mergedConfig = inFileConfigs.flatten.foldLeft(config) {
+        case (oldConfig, fileConfig) => oldConfig.merge(fileConfig)
+      }
+      Right(mergedConfig)
+    }
+  }
 
-    // start with original config `config` and merge in every in file config:
-    inFileConfigs.foldLeft(config){ case (oldConfig, fileConfig) => oldConfig.merge(fileConfig) }
+  private def setLogLevel(config: Config): Unit = {
+    LoggerFactory.getLogger(GoVerifier.rootLogger)
+      .asInstanceOf[Logger]
+      .setLevel(config.logLevel)
   }
 
   private def performParsing(pkgInfo: PackageInfo, config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
-      Parser.parse(config.packageInfoInputMap(pkgInfo), pkgInfo)(config)
+      val sourcesToParse = config.packageInfoInputMap(pkgInfo)
+      Parser.parse(sourcesToParse, pkgInfo)(config)
     } else {
       Left(Vector())
     }
@@ -280,12 +308,17 @@ object GobraRunner extends GobraFrontend with StrictLogging {
     try {
       val scallopGobraConfig = new ScallopGobraConfig(args.toSeq)
       val config = scallopGobraConfig.config
-      // Print copyright report
-      config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
-
-      exitCode = verifier.verifyAllPackages(config)(executor) match {
-        case VerifierResult.Failure(_) => 1
-        case _ => 0
+      exitCode = config match {
+        case Left(validationError) =>
+          logger.error(validationError)
+          1
+        case Right(config) =>
+          // Print copyright report
+          config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
+          verifier.verifyAllPackages(config)(executor) match {
+            case VerifierResult.Failure(_) => 1
+            case _ => 0
+          }
       }
     } catch {
       case e: UglyErrorMessage =>

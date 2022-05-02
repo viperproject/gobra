@@ -366,18 +366,6 @@ class BuiltInMembersImpl extends BuiltInMembers {
       in.SepForall(Vector(i), trigger(i), in.Implication(range(i), body(i))(src))(src)
     }
 
-    def quantifyPure(trigger: in.BoundVar => Vector[in.Trigger], range: in.BoundVar => in.Expr, body: in.BoundVar => in.Expr): in.Expr = {
-      val i = freshBoundVar()
-      val triggers = trigger(i)
-      val expr = in.Conditional(
-        range(i),
-        body(i),
-        in.BoolLit(b = true)(src),
-        in.BoolT(Addressability.rValue)
-      )(src)
-      in.PureForall(Vector(i), triggers, expr)(src)
-    }
-
     def accessSlice(sliceExpr: in.Expr, perm: in.Expr): in.Assertion =
       quantify(
         trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(sliceExpr, i, sliceExpr.typ)(src)))(src)) },
@@ -505,19 +493,22 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
       case (CopyFunctionTag, Vector(t1, t2, _)) =>
         /**
-          * requires 0 < p && p < 1
-          * requires forall i int :: { dst[i] } (0 <= i && i < len(dst)) ==> acc(&dst[i], 1-p)
+          * requires 0 < p
+          * requires forall i int :: { dst[i] } (0 <= i && i < len(dst)) ==> acc(&dst[i], write)
           * requires forall i int :: { src[i] } (0 <= i && i < len(src)) ==> acc(&src[i], p)
-          * requires forall i int :: { dst[i] } (0 <= i && i < len(dst) && (forall j int :: 0 <= j && j < len(src) ==> &dst[i] != &src[j])) ==> acc(&dst[i], p)
           * ensures len(dst) <= len(src) ==> res == len(dst)
           * ensures len(src) < len(dst) ==> res == len(src)
-          * ensures forall i int :: { dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i], 1-p)
+          * ensures forall i int :: { dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i], write)
           * ensures forall i int :: { src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
-          * ensures forall i int :: { dst[i] } (0 <= i && i < len(dst) && (forall j int :: 0 <= j && j < len(src) ==> &dst[i] != &src[j])) ==> acc(&dst[i], p)
           * ensures forall i int :: { dst[i] } (0 <= i && i < len(src) && i < len(dst)) ==> dst[i] == old(src[i])
           * ensures forall i int :: { dst[i] } (len(src) <= i && i < len(dst)) ==> dst[i] == old(dst[i])
           * func copy(dst, src []int, ghost p perm) (res int)
           */
+
+        // TODO: add support for the case where `src` and `dst` are aliased. According to the language spec, the result
+        //       of copy should be independent of whether the memory referenced by the arguments overlaps.
+        //       This case used to be supported but was disabled in PR #439
+        //       (https://github.com/viperproject/gobra/pull/439/files) due to bad performance.
 
         // parameters
         val dstParam = in.Parameter.In("dst", t1)(src)
@@ -538,17 +529,12 @@ class BuiltInMembersImpl extends BuiltInMembers {
         val results = Vector(resParam)
 
         // preconditions
-        val pPre = in.ExprAssertion(
-          in.And(in.LessCmp(in.NoPerm(src), pParam)(src), in.LessCmp(pParam, in.FullPerm(src))(src))(src)
-        )(src)
+        val pPre = in.ExprAssertion(in.LessCmp(in.NoPerm(src), pParam)(src))(src)
         val preDst = quantify(
           trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)))(src)) },
           range = { i => inRange(i, in.IntLit(0)(src), in.Length(dstParam)(src)) },
           body = { i =>
-            in.Access(
-              in.Accessible.Address(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)),
-              in.PermSub(in.FullPerm(src), pParam)(src)
-            )(src)
+            in.Access(in.Accessible.Address(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)), in.FullPerm(src))(src)
           }
         )
         val preSrc = quantify(
@@ -556,27 +542,8 @@ class BuiltInMembersImpl extends BuiltInMembers {
           range = { i => inRange(i, in.IntLit(0)(src), in.Length(srcParam)(src)) },
           body = { i => in.Access(in.Accessible.Address(in.IndexedExp(srcParam, i, srcUnderlyingType)(src)), pParam)(src) }
         )
-        val preDistinct = quantify(
-          trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)))(src)) },
-          range = { i =>
-            in.And(
-              inRange(i, in.IntLit(0)(src), in.Length(dstParam)(src)),
-              quantifyPure(
-                // no suitable trigger found for this quantifier
-                trigger = { _ => Vector() },
-                range = { j => inRange(j, in.IntLit(0)(src), in.Length(srcParam)(src)) },
-                body = { j =>
-                  in.UneqCmp(
-                    in.Ref(in.IndexedExp(dstParam, i, dstUnderlyingType)(src))(src),
-                    in.Ref(in.IndexedExp(srcParam, j, srcUnderlyingType)(src))(src)
-                  )(src)
-                }
-              )
-            )(src)
-          },
-          body = { i => in.Access(in.Accessible.Address(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)), pParam)(src) })
 
-        val pres = Vector(pPre, preDst, preSrc, preDistinct)
+        val pres = Vector(pPre, preDst, preSrc)
 
         // postconditions
         val postRes1 = in.Implication(
@@ -592,7 +559,6 @@ class BuiltInMembersImpl extends BuiltInMembers {
         // the assertions in the pre-conditions can be reused here
         val postDst = preDst
         val postSrc = preSrc
-        val postDistinct = preDistinct
         val postUpdate = quantify(
           trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)))(src)) },
           range = { i =>
@@ -623,7 +589,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
           }
         )
 
-        val posts = Vector(postRes1, postRes2, postDst, postSrc, postDistinct, postUpdate, postSame)
+        val posts = Vector(postRes1, postRes2, postDst, postSrc, postUpdate, postSame)
 
         in.Function(x.name, args, results, pres, posts, Vector(in.WildcardMeasure(None)(src)), None)(src)
 

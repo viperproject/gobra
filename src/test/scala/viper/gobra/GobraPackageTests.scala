@@ -12,7 +12,7 @@ import ch.qos.logback.classic.Level
 import org.bitbucket.inkytonik.kiama.util.Source
 import org.rogach.scallop.exceptions.ValidationFailure
 import org.rogach.scallop.throwError
-import viper.gobra.frontend.Source.FromFileSource
+import viper.gobra.frontend.Source.{FromFileSource, getPackageInfo}
 import viper.gobra.frontend.{Config, PackageInfo, ScallopGobraConfig, Source}
 import viper.gobra.reporting.{NoopReporter, ParserError}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
@@ -23,11 +23,15 @@ import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
 class GobraPackageTests extends GobraTests {
-  val samePackagePropertyName = "GOBRATESTS_SAME_PACKAGE_DIR"
+  val samePackagePropertyName    = "GOBRATESTS_SAME_PACKAGE_DIR"
+  val builtinPackagePropertyName = "GOBRATESTS_BUILTIN_PACKAGES_DIR"
+  val stubPackagesPropertyName   = "GOBRATESTS_STUB_PACKAGES_DIR"
 
-  val samePackageDir: String = System.getProperty(samePackagePropertyName, "same_package")
+  val samePackageDir: String  = System.getProperty(samePackagePropertyName, "same_package")
+  val builtinStubDir: String  = System.getProperty(builtinPackagePropertyName, "builtin")
+  val stubPackagesDir: String = System.getProperty(stubPackagesPropertyName, "stubs")
 
-  override val testDirectories: Seq[String] = Vector(samePackageDir)
+  override val testDirectories: Seq[String] = Vector(samePackageDir, builtinStubDir, stubPackagesDir)
 
   override def buildTestInput(file: Path, prefix: String): DefaultAnnotatedTestInput = {
     // get package clause of file and collect all other files belonging to this package:
@@ -56,9 +60,9 @@ class GobraPackageTests extends GobraTests {
         val parsedConfig = for {
           pkgName <- getPackageClause(input.file.toFile)
           config <- createConfig(Array(
-            "--logLevel", "Info",
-            "-i", currentDir.toFile.getPath,
-            "-p", pkgName,
+            "--logLevel", "INFO",
+            "--directory", currentDir.toFile.getPath,
+            "--projectRoot", currentDir.toFile.getPath, // otherwise, it assumes Gobra's root directory as the project root
             "-I", currentDir.toFile.getPath
           ))
         } yield config
@@ -70,7 +74,8 @@ class GobraPackageTests extends GobraTests {
           reporter = NoopReporter,
           packageInfoInputMap = Map(pkgInfo -> input.files.toVector.map(FromFileSource(_))),
           includeDirs = Vector(currentDir),
-          checkConsistency = true,
+          // TODO: enable consistency checks as soon as inconsistencies have been fixed
+          checkConsistency = false,
           z3Exe = z3Exe
         )
 
@@ -103,7 +108,7 @@ class GobraPackageTests extends GobraTests {
       // exception occurs (e.g. a validation failure)
       throwError.value = true
 
-      Some(new ScallopGobraConfig(args.toSeq).config)
+      new ScallopGobraConfig(args.toSeq).config.toOption
     } catch {
       case _: ValidationFailure => None
       case other: Throwable => throw other

@@ -11,7 +11,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.{Config, PackageInfo, ScallopGobraConfig}
-import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext, Violation}
 import viper.gobra.Gobra
 
 import scala.concurrent.Await
@@ -32,13 +32,12 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("Integration without chopper") {
-    val config = createConfig(Array("-i", statsCollectorTestDir, "-r", "-I", statsCollectorTestDir))
+    val config = createConfig(Array("--recursive", "--projectRoot", statsCollectorTestDir, "-I", statsCollectorTestDir))
     runIntegration(config)
   }
 
   test("Integration with chopper") {
-    val config = createConfig(Array("-i", statsCollectorTestDir, "-r", "-I", statsCollectorTestDir, "--chop", "10"
-    ))
+    val config = createConfig(Array("--recursive", "--projectRoot", statsCollectorTestDir, "-I", statsCollectorTestDir, "--chop", "10"))
     runPackagesSeparately(config)
     runIntegration(config)
   }
@@ -48,7 +47,9 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     // exception occurs (e.g. a validation failure)
     throwError.value = true
     // Simulate pick of package, Gobra normally does
-    new ScallopGobraConfig(args.toSeq).config
+    val config = new ScallopGobraConfig(args.toSeq).config
+    Violation.violation(config.isRight, "creating the config has failed")
+    config.toOption.get
   }
 
   private def runPackagesSeparately(config: Config): Unit = {

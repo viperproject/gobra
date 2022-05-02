@@ -226,7 +226,7 @@ object Parser {
 
       def replace(n: PImplicitQualifiedImport): Option[PExplicitQualifiedImport] = {
         val qualifier = for {
-          qualifierName <- PackageResolver.getQualifier(n, config.moduleName, config.includeDirs)
+          qualifierName <- PackageResolver.getQualifier(n)(config)
           // create a new PIdnDef node and set its positions according to the old node (PositionedRewriter ensures that
           // the same happens for the newly created PExplicitQualifiedImport)
           idnDef = PIdnDef(qualifierName)

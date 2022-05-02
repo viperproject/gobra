@@ -13,7 +13,7 @@ import viper.gobra.util.Violation
 import viper.silver.ast.SourcePosition
 
 import java.security.MessageDigest
-import java.util.{Base64, Objects}
+import java.util.Objects
 import scala.io.BufferedSource
 
 /**

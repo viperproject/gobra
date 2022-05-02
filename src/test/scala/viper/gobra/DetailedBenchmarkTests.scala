@@ -97,7 +97,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       val c = config.get
       assert(c.packageInfoInputMap.size == 1)
       val pkgInfo = c.packageInfoInputMap.keys.head
-      config = Some(gobra.getAndMergeInFileConfig(c, pkgInfo))
+      config = gobra.getAndMergeInFileConfig(c, pkgInfo).toOption
     }
 
     private val parsing = InitialStep("parsing", () => {

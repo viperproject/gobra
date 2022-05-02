@@ -71,7 +71,7 @@ object ViperBackends {
       server.getOrElse({
         var serverConfig = List("--logLevel", config.logLevel.levelStr)
         if(config.cacheFile.isDefined) {
-          serverConfig = serverConfig.appendedAll(List("--cacheFile", config.cacheFile.get))
+          serverConfig = serverConfig.appendedAll(List("--cacheFile", config.cacheFile.get.toString))
         }
 
         val createdServer = new ViperCoreServer(new ViperConfig(serverConfig))(executionContext)

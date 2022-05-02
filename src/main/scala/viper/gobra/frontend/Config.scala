@@ -72,6 +72,8 @@ case class Config(
                    // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
                    // to verify.
                    onlyFilesWithHeader: Boolean = false,
+                   // if enabled, Gobra assumes injectivity on inhale, as done by Viper versions before 2022.2.
+                   assumeInjectivityOnInhale: Boolean = true,
 ) {
 
   def merge(other: Config): Config = {
@@ -111,6 +113,7 @@ case class Config(
       int32bit = int32bit || other.int32bit,
       checkConsistency = checkConsistency || other.checkConsistency,
       onlyFilesWithHeader = onlyFilesWithHeader || other.onlyFilesWithHeader,
+      assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale
     )
   }
 
@@ -339,6 +342,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = "checkConsistency",
     descr = "Perform consistency checks on the generated Viper code",
     default = Some(false),
+    noshort = true
+  )
+
+  val assumeInjectivityOnInhale: ScallopOption[Boolean] = toggle(
+    name = "assumeInjectivityOnInhale",
+    descrYes = "Assumes injectivity of predicates on inhale, like in Viper versions previous to 2022.02 (default)",
+    descrNo = "Does not assume injectivity on inhales (this will become the default in future versions)",
+    default = Some(true),
     noshort = true
   )
 
@@ -620,5 +631,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     shouldChop = shouldChop,
     checkConsistency = checkConsistency(),
     onlyFilesWithHeader = onlyFilesWithHeader(),
+    assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
   )
 }

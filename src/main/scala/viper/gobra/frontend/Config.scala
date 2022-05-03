@@ -549,9 +549,9 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val assumeInjectivityOnInhale: ScallopOption[Boolean] = toggle(
     name = "assumeInjectivityOnInhale",
-    descrYes = "Assumes injectivity of predicates on inhale, like in Viper versions previous to 2022.02 (default)",
+    descrYes = "Assumes injectivity of the receiver expression when inhaling quantified permissions, instead of checking it, like in Viper versions previous to 2022.02 (default)",
     descrNo = "Does not assume injectivity on inhales (this will become the default in future versions)",
-    default = Some(true),
+    default = Some(ConfigDefaults.DefaultAssumeInjectivityOnInhale),
     noshort = true
   )
 

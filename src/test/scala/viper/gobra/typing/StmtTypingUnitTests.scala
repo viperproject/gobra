@@ -36,7 +36,7 @@ class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   class TestFrontend {
-    def stubProgram(inArgs: Vector[(PParameter, Boolean)], body : PStatement) : PProgram = PProgram(
+    def singleStmtProgram(inArgs: Vector[(PParameter, Boolean)], body : PStatement) : PProgram = PProgram(
       PPackageClause(PPkgDef("pkg")),
       Vector(),
       Vector(PMethodDecl(
@@ -48,10 +48,6 @@ class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
       ))
     )
-
-    def singleStmtProgram(inArgs: Vector[(PParameter, Boolean)], stmt : PStatement) : PProgram = {
-      stubProgram(inArgs, stmt)
-    }
 
     def singleStmtTypeInfo(inArgs: Vector[(PParameter, Boolean)], stmt : PStatement) : TypeInfoImpl = {
       val program = singleStmtProgram(inArgs, stmt)

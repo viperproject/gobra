@@ -4,6 +4,6 @@
 package pkg
 
 func foo() {
-  //:: ExpectedOutput(type_error)
+	//:: ExpectedOutput(type_error)
 	continue
 }

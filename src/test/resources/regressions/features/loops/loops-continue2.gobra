@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+requires n >= 0
+ensures n % 2 == 0 ==> res == n / 2
+ensures n % 2 == 1 ==> res == (n - 1) / 2
+func count_even(n int) (res int) {
+	res = 0
+	var j int = 0
+	invariant 0 <= j && j <= n
+	invariant j % 2 == 0 ==> res == j / 2
+	invariant j % 2 == 1 ==> res == (j - 1) / 2
+	for j < n {
+		if j % 2 == 0 {
+			j++
+			continue
+		}
+		j++
+		res += 1
+	}
+}

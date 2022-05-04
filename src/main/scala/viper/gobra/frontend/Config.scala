@@ -59,6 +59,7 @@ object ConfigDefaults {
   lazy val DefaultOnlyFilesWithHeader: Boolean = false
   lazy val DefaultGobraDirectory: String = ".gobra"
   lazy val DefaultTaskName: String = "gobra-task"
+  lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
 }
 
 case class Config(
@@ -100,6 +101,8 @@ case class Config(
                    // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
                    // to verify.
                    onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
+                   // if enabled, Gobra assumes injectivity on inhale, as done by Viper versions before 2022.2.
+                   assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
 ) {
 
   def merge(other: Config): Config = {
@@ -138,6 +141,7 @@ case class Config(
       int32bit = int32bit || other.int32bit,
       checkConsistency = checkConsistency || other.checkConsistency,
       onlyFilesWithHeader = onlyFilesWithHeader || other.onlyFilesWithHeader,
+      assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale,
     )
   }
 
@@ -176,6 +180,7 @@ case class BaseConfig(moduleName: String = ConfigDefaults.DefaultModuleName,
                       int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
                       cacheParser: Boolean = ConfigDefaults.DefaultCacheParser,
                       onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
+                      assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -221,7 +226,9 @@ trait RawConfig {
     shouldChop = baseConfig.shouldChop,
     int32bit = baseConfig.int32bit,
     cacheParser = baseConfig.cacheParser,
-    onlyFilesWithHeader = baseConfig.onlyFilesWithHeader)
+    onlyFilesWithHeader = baseConfig.onlyFilesWithHeader,
+    assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,
+  )
 }
 
 /**
@@ -540,6 +547,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val assumeInjectivityOnInhale: ScallopOption[Boolean] = toggle(
+    name = "assumeInjectivityOnInhale",
+    descrYes = "Assumes injectivity of the receiver expression when inhaling quantified permissions, instead of checking it, like in Viper versions previous to 2022.02 (default)",
+    descrNo = "Does not assume injectivity on inhales (this will become the default in future versions)",
+    default = Some(ConfigDefaults.DefaultAssumeInjectivityOnInhale),
+    noshort = true
+  )
 
   /**
     * Exception handling
@@ -641,6 +655,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     checkConsistency = checkConsistency(),
     int32bit = int32Bit(),
     cacheParser = false, // caching does not make sense when using the CLI. Thus, we simply set it to `false`
-    onlyFilesWithHeader = onlyFilesWithHeader()
+    onlyFilesWithHeader = onlyFilesWithHeader(),
+    assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
   )
 }

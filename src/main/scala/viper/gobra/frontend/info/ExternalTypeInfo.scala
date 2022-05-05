@@ -95,5 +95,5 @@ trait ExternalTypeInfo {
 
   def enclosingLoopNode(n: PNode) : Option[PForStmt]
 
-  def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : (Option[PForStmt], Vector[PExpression])
+  def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PForStmt]
 }

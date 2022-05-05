@@ -36,11 +36,11 @@ trait Enclosing { this: TypeInfoImpl =>
 
   // Returns the enclosing loop that has a specific label
   // It also returns the invariants of that loop
-  def enclosingLabeledLoop(label: PLabelUse, node: PNode) : (Option[PForStmt], Vector[PExpression]) = {
+  def enclosingLabeledLoop(label: PLabelUse, node: PNode) : Option[PForStmt] = {
     enclosingLoop(node) match {
-      case None => (None, Vector())
+      case None => None
       case Some(encLoop) => encLoop match {
-        case tree.parent(l: PLabeledStmt) if l.label.name == label.name => (Some(encLoop), encLoop.spec.invariants)
+        case tree.parent(l: PLabeledStmt) if l.label.name == label.name => Some(encLoop)
         case _ => enclosingLabeledLoop(label, tree.parent(encLoop).head)
       }
     }

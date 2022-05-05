@@ -85,23 +85,6 @@ class StatementsImpl extends Statements {
           }
       }
 
-    def gatherContinueLabels(node: in.Node, label: Option[String], depthControl : Boolean = true): Vector[String] =
-      label match {
-        case None =>
-          node match {
-            case in.Continue(None, l, _) => Vector(l)
-            case _ : in.While => Vector.empty
-            case n => n.subnodes.foldLeft(Vector[String]())((a : Vector[String], b : in.Node) => (a ++ gatherContinueLabels(b, None)))
-          }
-        case Some(labelString) =>
-          node match {
-            case in.Continue(None, l, _) => if (depthControl) Vector(l) else Vector.empty
-            case in.Continue(Some(continueLabelString), l, _) => if (labelString.equals(continueLabelString)) Vector(l) else Vector.empty
-            case n: in.While => n.subnodes.foldLeft(Vector[String]())((a : Vector[String], b : in.Node) => (a ++ gatherContinueLabels(b, label, false)))
-            case n => n.subnodes.foldLeft(Vector[String]())((a : Vector[String], b : in.Node) => (a ++ gatherContinueLabels(b, label, depthControl)))
-          }
-      }
-
     val vprStmt: CodeWriter[vpr.Stmt] = x match {
       case in.Block(decls, stmts) =>
         val vDecls = decls map (blockDecl(_)(ctx))
@@ -119,13 +102,8 @@ class StatementsImpl extends Statements {
       case in.Label(id) =>
         unit(vpr.Label(id.name, Seq.empty)(pos, info, errT))
 
-      case in.Continue(_, escLabel, invs) =>
-        for {
-          preCond <- sequence(invs map goA)
-          assertions = preCond.map(x => vpr.Assert(x)(pos, info, errT))
-          goto = Vector(vpr.Goto(escLabel)(pos, info, errT))
-          cont = vu.seqn(assertions ++ goto)(pos, info, errT)
-        } yield cont
+      case in.Continue(escLabel) =>
+        unit(vpr.Goto(escLabel)(pos, info, errT))
 
       case in.Break(_, escLabel) =>
         unit(vpr.Goto(escLabel)(pos, info, errT))
@@ -159,12 +137,9 @@ class StatementsImpl extends Statements {
 
           // Gather the labels where the continue statements continuing this loop will go to
           // to insert them just before the loop body ends
-          continueLabelNames = gatherContinueLabels(body, label)
-          continueLabels = continueLabelNames.map(x => vpr.Label(x, Vector.empty)(pos, info, errT))
-          vBodyWithLabels = vu.seqn(vBody.children.head.asInstanceOf[Vector[vpr.Stmt]] ++ continueLabels)(pos, info, errT)
 
           wh = vu.seqn(Vector(
-            cpre, ipre, vpr.While(vCond, vInvs ++ measure, vu.seqn(Vector(vBodyWithLabels, cpost, ipost))(pos, info, errT))(pos, info, errT)
+            cpre, ipre, vpr.While(vCond, vInvs ++ measure, vu.seqn(Vector(vBody, cpost, ipost))(pos, info, errT))(pos, info, errT)
           ) ++ breakLabels)(pos, info, errT)
         } yield wh
 

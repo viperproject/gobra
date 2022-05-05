@@ -305,12 +305,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
 
-    case Continue(l, _, _) =>
-      l match {
-        case None => "continue"
-        case Some(label) => "continue " + label
-      }
-
+    case Continue(_) => "continue"
     case Break(l, _) =>
       l match {
         case None => "break"
@@ -717,11 +712,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> "<-" <+> showExpr(channel)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
-    case Continue(l, _, _) =>
-      l match {
-        case None => "continue"
-        case Some(label) => "continue " + label
-      }
+    case Continue(_) => "continue"
     case Break(l, _) =>
       l match {
         case None => "break"

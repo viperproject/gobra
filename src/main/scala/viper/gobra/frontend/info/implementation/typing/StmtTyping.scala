@@ -146,7 +146,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
             case Some(_) => noMessages
           }
         case Some(label) => {
-          val (maybeLoop, _) = enclosingLabeledLoop(label, n)
+          val maybeLoop = enclosingLabeledLoop(label, n)
           maybeLoop match {
             case None => error(n, s"break label must point to an outer labeled loop")
             case Some(_) => noMessages
@@ -162,7 +162,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
             case Some(_) => noMessages
           }
         case Some(label) => {
-          val (maybeLoop, _) = enclosingLabeledLoop(label, n)
+          val maybeLoop = enclosingLabeledLoop(label, n)
           maybeLoop match {
             case None => error(n, s"continue label must point to an outer labeled loop")
             case Some(_) => noMessages

@@ -826,12 +826,14 @@ object Desugar {
                     (dTerPre, dTer) <- prelude(option(forstmt.spec.terminationMeasure map terminationMeasureD(ctx)))
 
                     dBody = blockD(ctx)(forstmt.body)
+                    loopLabelProxy = in.LabelProxy(nm.fetchForId(forstmt))(src)
+                    loopLabel = in.Label(loopLabelProxy)(src)
                     dPost <- maybeStmtD(ctx)(forstmt.post)(src)
 
                     wh = in.Seqn(
                       Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
                         in.While(dCond, dInv, dTer, in.Seqn(
-                          Vector(dBody, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
+                          Vector(dBody, loopLabel, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
                         )(src), Some(l.label.name))(src)
                       )
                     )(src)
@@ -862,7 +864,7 @@ object Desugar {
               }
             ))
 
-          case PForStmt(pre, cond, post, spec, body) =>
+          case n@PForStmt(pre, cond, post, spec, body) =>
             unit(block( // is a block because 'pre' might define new variables
               for {
                 dPre <- maybeStmtD(ctx)(pre)(src)
@@ -871,12 +873,14 @@ object Desugar {
                 (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
 
                 dBody = blockD(ctx)(body)
+                loopLabelProxy = in.LabelProxy(nm.fetchForId(n))(src)
+                loopLabel = in.Label(loopLabelProxy)(src)
                 dPost <- maybeStmtD(ctx)(post)(src)
 
                 wh = in.Seqn(
                   Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
                     in.While(dCond, dInv, dTer, in.Seqn(
-                      Vector(dBody, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
+                      Vector(dBody, loopLabel, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
                     )(src), None)(src)
                   )
                 )(src)
@@ -1093,23 +1097,16 @@ object Desugar {
           case n@PContinue(label) =>
             label match {
               case None =>
-                info.enclosingLoopNode(n) match{
+                info.enclosingLoopNode(n) match {
                   case None => violation("continue should be enclosed in a loop")
-                  case Some(loop) =>
-                    for {
-                      (dInvPre, dInv) <- prelude(sequence(loop.spec.invariants map assertionD(ctx)))
-                      c = in.Continue(None, nm.fresh(n, info), dInv)(src)
-                    } yield c
+                  case Some(loop) => unit(in.Continue(nm.fetchForId(loop))(src))
                 }
               case Some(l) =>
-                val (maybeLoop, invs) = info.enclosingLabeledLoopNode(l, n)
+                val maybeLoop = info.enclosingLabeledLoopNode(l, n)
                 maybeLoop match {
                   case None => violation("continue with label should be enclosed in a loop having that label")
-                  case Some(_) =>
-                    for {
-                      (dInvPre, dInv) <- prelude(sequence(invs map assertionD(ctx)))
-                      c = in.Continue(Some(l.name), nm.fresh(n, info), dInv)(src)
-                    } yield c
+                  case Some(loop) => unit(in.Continue(nm.fetchForId(loop))(src))
+
                 }
             }
 
@@ -1125,14 +1122,10 @@ object Desugar {
                     } yield c
                 }
               case Some(l) => {
-                val (maybeLoop, invs) = info.enclosingLabeledLoopNode(l, n)
+                val maybeLoop = info.enclosingLabeledLoopNode(l, n)
                 maybeLoop match {
                   case None => violation("break with label should be enclosed in a loop having that label")
-                  case Some(_) =>
-                    for {
-                      (dInvPre, dInv) <- prelude(sequence(invs map assertionD(ctx)))
-                      c = in.Break(Some(l.name), nm.fresh(n, info))(src)
-                    } yield c
+                  case Some(_) => unit(in.Break(Some(l.name), nm.fresh(n, info))(src))
                 }
               }
             }
@@ -3202,6 +3195,7 @@ object Desugar {
     private val LABEL_PREFIX = "L"
     private val GLOBAL_PREFIX = "G"
     private val BUILTIN_PREFIX = "B"
+    private val CONTINUE_LABEL_PREFIX = "CL_"
 
     /** the counter to generate fresh names depending on the current code root for which a fresh name should be generated */
     private var nonceCounter: Map[PCodeRoot, Int] = Map.empty
@@ -3219,6 +3213,15 @@ object Desugar {
       * Currently, it is used for variables, in and out parameters, and receivers.
       */
     private var scopeMap: Map[PScope, Int] = Map.empty
+
+    /**
+      * 'continueCounter' should continue a unique identifier for each for statement,
+      * in order to handle continue statements. These will be translated to gotos to
+      * labels with prefix 'CONTINUE_LABEL_PREFIX' and suffix the identifier of the
+      * loop that has to continue.
+      */
+
+    private var continueCounter: Map[PForStmt, Int] = Map.empty
 
     private def maybeRegister(s: PScope, ctx: ExternalTypeInfo): Unit = {
       if (!(scopeMap contains s)) {
@@ -3273,6 +3276,13 @@ object Desugar {
       val f = FRESH_PREFIX + value
       nonceCounter += (codeRoot -> (value + 1))
       f
+    }
+
+    /** returns a unique identifier for a for stmt*/
+    def fetchForId(node: PForStmt): String = {
+      val n = continueCounter.getOrElse(node, if (continueCounter.isEmpty) 1 else continueCounter.values.max[Int] + 1)
+      continueCounter += (node -> n)
+      CONTINUE_LABEL_PREFIX + n
     }
 
     def inParam(idx: Int, s: PScope, context: ExternalTypeInfo): String = name(IN_PARAMETER_PREFIX)("P" + idx, s, context)

@@ -1096,18 +1096,8 @@ object Desugar {
 
           case n@PContinue(label) =>
             label match {
-              case None =>
-                info.enclosingLoopNode(n) match {
-                  case None => violation("continue should be enclosed in a loop")
-                  case Some(loop) => unit(in.Continue(nm.fetchForId(loop, info))(src))
-                }
-              case Some(l) =>
-                val maybeLoop = info.enclosingLabeledLoopNode(l, n)
-                maybeLoop match {
-                  case None => violation("continue with label should be enclosed in a loop having that label")
-                  case Some(loop) => unit(in.Continue(nm.fetchForId(loop, info))(src))
-
-                }
+              case None => unit(in.Continue(nm.fetchForId(n, 0, info))(src))
+              case Some(l) => unit(in.Continue(nm.fetchForId(n, info.EnclosingLoop, info))(src))
             }
 
           case n@PBreak(label) =>
@@ -3221,7 +3211,7 @@ object Desugar {
       * loop that has to continue.
       */
 
-    private var continueCounter: Map[PCodeRoot, Map[PForStmt, Int]] = Map.empty
+    private var continueCounter: Map[PCodeRoot, (Vector[Int], Int)] = Map.empty
 
     private def maybeRegister(s: PScope, ctx: ExternalTypeInfo): Unit = {
       if (!(scopeMap contains s)) {
@@ -3279,14 +3269,10 @@ object Desugar {
     }
 
     /** returns a unique identifier for a for stmt*/
-    def fetchForId(node: PForStmt, info: TypeInfo): String = {
+    def fetchForId(node: PNode, up: Int, info: TypeInfo): String = {
       val codeRoot = info.codeRoot(node)
-      println(codeRoot)
-      val idens = continueCounter.getOrElse(codeRoot, Map[PForStmt, Int]())
-      println(idens)
-      val n = idens.getOrElse(node, if (idens.isEmpty) 1 else idens.values.max[Int] + 1)
-      continueCounter += (codeRoot -> (idens + (node -> n)))
-      CONTINUE_LABEL_PREFIX + n
+      val stack, max = continueCounter.getOrElse(codeRoot, Map[PForStmt, Int]())
+      CONTINUE_LABEL_PREFIX + 1
     }
 
     def inParam(idx: Int, s: PScope, context: ExternalTypeInfo): String = name(IN_PARAMETER_PREFIX)("P" + idx, s, context)

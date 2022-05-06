@@ -50,7 +50,7 @@ pure func Exp(base int, exp int) (res int) {
 
 // ParseUint is like ParseInt but for unsigned numbers.
 requires base == 0 || (2 <= base && base <= 36)
-requires bitSize > 0
+requires bitSize > 0 && bitSize <= 64
 ensures retErr == nil ==> (ret >= 0 && ret < Exp(2, bitSize))
 decreases _
 func ParseUint(s string, base int, bitSize int) (ret uint64, retErr error)

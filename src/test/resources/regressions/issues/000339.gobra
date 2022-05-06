@@ -11,8 +11,8 @@ func f(a A) {
 
 type Name string
 
-func g(s Name) string {
-	greeting := "Hello, " 
+func g(s Name) Name {
+	var greeting Name = Name("Hello, ")
 	greeting += s
 	return greeting
 }

@@ -826,7 +826,7 @@ object Desugar {
                     (dTerPre, dTer) <- prelude(option(forstmt.spec.terminationMeasure map terminationMeasureD(ctx)))
 
                     dBody = blockD(ctx)(forstmt.body)
-                    loopLabelProxy = in.LabelProxy(nm.fetchForId(forstmt))(src)
+                    loopLabelProxy = in.LabelProxy(nm.fetchForId(forstmt, info))(src)
                     loopLabel = in.Label(loopLabelProxy)(src)
                     dPost <- maybeStmtD(ctx)(forstmt.post)(src)
 
@@ -873,7 +873,7 @@ object Desugar {
                 (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
 
                 dBody = blockD(ctx)(body)
-                loopLabelProxy = in.LabelProxy(nm.fetchForId(n))(src)
+                loopLabelProxy = in.LabelProxy(nm.fetchForId(n, info))(src)
                 loopLabel = in.Label(loopLabelProxy)(src)
                 dPost <- maybeStmtD(ctx)(post)(src)
 
@@ -1099,13 +1099,13 @@ object Desugar {
               case None =>
                 info.enclosingLoopNode(n) match {
                   case None => violation("continue should be enclosed in a loop")
-                  case Some(loop) => unit(in.Continue(nm.fetchForId(loop))(src))
+                  case Some(loop) => unit(in.Continue(nm.fetchForId(loop, info))(src))
                 }
               case Some(l) =>
                 val maybeLoop = info.enclosingLabeledLoopNode(l, n)
                 maybeLoop match {
                   case None => violation("continue with label should be enclosed in a loop having that label")
-                  case Some(loop) => unit(in.Continue(nm.fetchForId(loop))(src))
+                  case Some(loop) => unit(in.Continue(nm.fetchForId(loop, info))(src))
 
                 }
             }
@@ -3221,7 +3221,7 @@ object Desugar {
       * loop that has to continue.
       */
 
-    private var continueCounter: Map[PForStmt, Int] = Map.empty
+    private var continueCounter: Map[PCodeRoot, Map[PForStmt, Int]] = Map.empty
 
     private def maybeRegister(s: PScope, ctx: ExternalTypeInfo): Unit = {
       if (!(scopeMap contains s)) {
@@ -3279,9 +3279,13 @@ object Desugar {
     }
 
     /** returns a unique identifier for a for stmt*/
-    def fetchForId(node: PForStmt): String = {
-      val n = continueCounter.getOrElse(node, if (continueCounter.isEmpty) 1 else continueCounter.values.max[Int] + 1)
-      continueCounter += (node -> n)
+    def fetchForId(node: PForStmt, info: TypeInfo): String = {
+      val codeRoot = info.codeRoot(node)
+      println(codeRoot)
+      val idens = continueCounter.getOrElse(codeRoot, Map[PForStmt, Int]())
+      println(idens)
+      val n = idens.getOrElse(node, if (idens.isEmpty) 1 else idens.values.max[Int] + 1)
+      continueCounter += (codeRoot -> (idens + (node -> n)))
       CONTINUE_LABEL_PREFIX + n
     }
 

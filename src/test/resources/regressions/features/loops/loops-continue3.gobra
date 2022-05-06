@@ -9,13 +9,11 @@ func foo() {
 	invariant 0 <= i && i <= 10
 	invariant i <= 5 ==> i == j
 	invariant i > 5 ==> i == j + 1
-	for i:= 0 i < 10 ; i++ {
-	{
+	for i:= 0; i < 10 ; i++ {
 		if (i == 5) {
 			continue
 		}
 		j++
 	}
-	assert i == 10
 	assert j == 9
 }

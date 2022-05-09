@@ -12,7 +12,7 @@ import ch.qos.logback.classic.Level
 import org.bitbucket.inkytonik.kiama.util.Source
 import org.rogach.scallop.exceptions.ValidationFailure
 import org.rogach.scallop.throwError
-import viper.gobra.frontend.Source.FromFileSource
+import viper.gobra.frontend.Source.{FromFileSource, getPackageInfo}
 import viper.gobra.frontend.{Config, PackageInfo, ScallopGobraConfig, Source}
 import viper.gobra.reporting.{NoopReporter, ParserError}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
@@ -61,8 +61,8 @@ class GobraPackageTests extends GobraTests {
           pkgName <- getPackageClause(input.file.toFile)
           config <- createConfig(Array(
             "--logLevel", "INFO",
-            "-i", currentDir.toFile.getPath,
-            "-p", pkgName,
+            "--directory", currentDir.toFile.getPath,
+            "--projectRoot", currentDir.toFile.getPath, // otherwise, it assumes Gobra's root directory as the project root
             "-I", currentDir.toFile.getPath
           ))
         } yield config
@@ -107,7 +107,7 @@ class GobraPackageTests extends GobraTests {
       // exception occurs (e.g. a validation failure)
       throwError.value = true
 
-      Some(new ScallopGobraConfig(args.toSeq).config)
+      new ScallopGobraConfig(args.toSeq).config.toOption
     } catch {
       case _: ValidationFailure => None
       case other: Throwable => throw other

@@ -3136,6 +3136,13 @@ object Desugar {
       * are consistently named across verification runs (i.e. independent of modifications to other function)
       */
     private var scopeCounter: Map[PCodeRoot, Int] = Map.empty
+
+    /**
+      * 'scopeMap' should return a unique identifier only within a package,
+      * and thus may not be unique in the resulting Viper encoding.
+      * This should be fine as long as the resulting name is only used in a non-global scope.
+      * Currently, it is used for variables, in and out parameters, and receivers.
+      */
     private var scopeMap: Map[PScope, Int] = Map.empty
 
     private def maybeRegister(s: PScope, ctx: ExternalTypeInfo): Unit = {
@@ -3154,24 +3161,24 @@ object Desugar {
       maybeRegister(s, context)
 
       // n has occur first in order that function inverse properly works
-      s"${n}_${context.pkgInfo.viperId}_$postfix${scopeMap(s)}" // deterministic
+      s"${n}_$postfix${scopeMap(s)}" // deterministic
     }
 
-    private def nameWithoutScope(postfix: String)(n: String, context: ExternalTypeInfo): String = {
+    private def topLevelName(postfix: String)(n: String, context: ExternalTypeInfo): String = {
       // n has occur first in order that function inverse properly works
       s"${n}_${context.pkgInfo.viperId}_$postfix" // deterministic
     }
 
     def variable(n: String, s: PScope, context: ExternalTypeInfo): String = name(VARIABLE_PREFIX)(n, s, context)
-    def global  (n: String, context: ExternalTypeInfo): String = nameWithoutScope(GLOBAL_PREFIX)(n, context)
-    def typ     (n: String, context: ExternalTypeInfo): String = nameWithoutScope(TYPE_PREFIX)(n, context)
+    def global  (n: String, context: ExternalTypeInfo): String = topLevelName(GLOBAL_PREFIX)(n, context)
+    def typ     (n: String, context: ExternalTypeInfo): String = topLevelName(TYPE_PREFIX)(n, context)
     def field   (n: String, @unused s: StructT): String = s"$n$FIELD_PREFIX" // Field names must preserve their equality from the Go level
-    def function(n: String, context: ExternalTypeInfo): String = nameWithoutScope(FUNCTION_PREFIX)(n, context)
+    def function(n: String, context: ExternalTypeInfo): String = topLevelName(FUNCTION_PREFIX)(n, context)
     def spec    (n: String, t: Type.InterfaceT, context: ExternalTypeInfo): String =
-      nameWithoutScope(s"$METHODSPEC_PREFIX${interface(t)}")(n, context)
+      topLevelName(s"$METHODSPEC_PREFIX${interface(t)}")(n, context)
     def method  (n: String, t: PMethodRecvType, context: ExternalTypeInfo): String = t match {
-      case PMethodReceiveName(typ)    => nameWithoutScope(s"$METHOD_PREFIX${typ.name}")(n, context)
-      case PMethodReceivePointer(typ) => nameWithoutScope(s"P$METHOD_PREFIX${typ.name}")(n, context)
+      case PMethodReceiveName(typ)    => topLevelName(s"$METHOD_PREFIX${typ.name}")(n, context)
+      case PMethodReceivePointer(typ) => topLevelName(s"P$METHOD_PREFIX${typ.name}")(n, context)
     }
     private def stringifyType(typ: in.Type): String = Names.serializeType(typ)
     def builtInMember(tag: BuiltInMemberTag, dependantTypes: Vector[in.Type]): String = {

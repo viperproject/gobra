@@ -13,7 +13,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.PackageResolver.{AbstractImport, BuiltInImport, RegularImport}
 import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInMPredicateTag, BuiltInMethodTag}
-import viper.gobra.frontend.{Config, PackageResolver, Parser, Source}
+import viper.gobra.frontend.{PackageResolver, Parser, Source}
 import viper.gobra.frontend.info.{ExternalTypeInfo, Info}
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
@@ -225,12 +225,9 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def tryPackageLookup(importTarget: AbstractImport, id: PIdnUse, errNode: PNode): Option[(Entity, Vector[MemberPath])] = {
     def parseAndTypeCheck(importTarget: AbstractImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
-      val resolveSourcesResult = PackageResolver.resolveSources(importTarget, config.moduleName, config.includeDirs).getOrElse(Vector())
-      val pkgSources = if (config.onlyFilesWithHeader) {
-        resolveSourcesResult.filter(p => p.isBuiltin || Config.sourceHasHeader(p.source)).map(_.source)
-      } else {
-        resolveSourcesResult.map(_.source)
-      }
+      val pkgSources = PackageResolver.resolveSources(importTarget)(config)
+        .getOrElse(Vector())
+        .map(_.source)
       val res = for {
         nonEmptyPkgSources <- if (pkgSources.isEmpty)
           Left(Vector(NotFoundError(s"No source files for package '$importTarget' found")))

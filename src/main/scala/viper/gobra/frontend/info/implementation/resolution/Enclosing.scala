@@ -46,6 +46,16 @@ trait Enclosing { this: TypeInfoImpl =>
     }
   }
 
+  def enclosingLoopOrder(label: PLabelUse, node: PNode, order: Int = 0) : Int = {
+    enclosingLoop(node) match {
+      case None => violation("Didn't find enclosing loop to continue statement with the same label.")
+      case Some(encLoop) => encLoop match {
+        case tree.parent(l: PLabeledStmt) if l.label.name == label.name => order
+        case _ => enclosingLoopOrder(label, tree.parent(encLoop).head, order + 1)
+      }
+    }
+  }
+
   lazy val tryEnclosingUnorderedScope: PNode => Option[PUnorderedScope] =
     down[Option[PUnorderedScope]](None) { case x: PUnorderedScope => Some(x) }
 

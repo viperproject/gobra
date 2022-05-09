@@ -12,21 +12,29 @@ func foo() {
 			a[i][j] = i
 		}
 	}
+	a[0][0] = 3
 	var contains5 = false
 	ghost var k int = 0
 	ghost var l int = 0
 l:
 	invariant 0 <= i && i <= 15
+	invariant 0 <= k && k < 15
+	invariant 0 <= l && l < 15
 	invariant contains5 == (a[k][l] == 5)
 	for i := 0; i < 15; i++ {
 		invariant 0 <= j && j <= 15
-		invariant contains5 == (exists k int :: 0 <= k && k < j && a[i][k] == 5)
+		invariant 0 <= k && k < 15
+		invariant 0 <= l && l < 15
+		invariant contains5 == (a[k][l] == 5)
 		for j := 0; j < 15; j++ {
 			if a[i][j] == 5 {
+				k = i
+				l = j
+				assert a[k][l] == 5
 				contains5 = true
 				break l
 			}
 		}
 	}
-	assert contains5 == (exists i int, j int :: 0 <= i && i < 15 && 0 <= j && j < 15 && a[i][j] == 5)
+	assert contains5 == (a[k][l] == 5)
 }

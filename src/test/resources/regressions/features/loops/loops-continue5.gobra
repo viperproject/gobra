@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo() {
+	for i := 1; i < 10; i++ {
+		continue
+	}
+	for i := 1; i < 10; i++ {
+		continue
+	}
+}

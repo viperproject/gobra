@@ -96,4 +96,6 @@ trait ExternalTypeInfo {
   def enclosingLoopNode(n: PNode) : Option[PForStmt]
 
   def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PForStmt]
+
+  def enclosingLabeledLoopOrder(label: PLabelUse, n: PNode) : Int
 }

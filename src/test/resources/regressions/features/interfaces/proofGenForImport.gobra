@@ -11,6 +11,9 @@ package client
 import pkg "proofGenForImportPkg"
 
 func client() {
-    impl := &pkg.ImplPkgState{}
+    impl := getImpl()
     impl.LibraryFn()
 }
+
+ensures acc(res) && res.Itf != nil
+func getImpl() (res *pkg.ImplPkgState)

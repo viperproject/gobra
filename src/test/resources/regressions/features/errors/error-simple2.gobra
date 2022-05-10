@@ -8,6 +8,7 @@ type error interface {
     Test() int
 }
 
+requires e != nil
 func foo(e error) int {
     // this works since Go/Gobra will pick up the error interface declaration in this file
     return e.Test()

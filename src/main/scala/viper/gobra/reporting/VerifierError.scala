@@ -381,6 +381,11 @@ case class OverflowErrorReason(node: Source.Verifier.Info) extends VerificationE
   override def message: String = s"Expression ${node.origin.tag.trim} might cause integer overflow."
 }
 
+case class InterfaceReceiverIsNilReason(node: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "receiver_is_nil_error"
+  override def message: String = s"The receiver might be nil"
+}
+
 case class DynamicValueNotASubtypeReason(node: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "failed_type_assertion"
   override def message: String = s"Dynamic value might not be a subtype of the target type."

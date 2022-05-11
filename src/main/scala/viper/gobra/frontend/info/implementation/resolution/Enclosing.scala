@@ -46,6 +46,11 @@ trait Enclosing { this: TypeInfoImpl =>
     }
   }
 
+  // Returns the number of loops between a node 'node' and a label 'label'
+  // Used when 'continue l' statements that correspond to
+  // a for statement with label l are being desugared. This number will be
+  // used to fetch the unique label identifier for that for loop where
+  // the continue statement must goto.
   def enclosingLoopOrder(label: PLabelUse, node: PNode, order: Int = 0) : Int = {
     enclosingLoop(node) match {
       case None => violation("Didn't find enclosing loop to continue statement with the same label.")

@@ -3210,10 +3210,25 @@ object Desugar {
     private var scopeMap: Map[PScope, Int] = Map.empty
 
     /**
-      * 'continueCounter' should continue a unique identifier for each for statement,
+      * 'continueCounter' should return a unique identifier for each for statement,
       * in order to handle continue statements. These will be translated to gotos to
       * labels with prefix 'CONTINUE_LABEL_PREFIX' and suffix the identifier of the
-      * loop that has to continue.
+      * loop that has to continue. For every code root, there can be the same identifiers
+      * for for loops since there can be identical labels in different functions. For
+      * each codeRoot, a tuple of a stack and a max value is stored. Every time a new
+      * for statement is desugared, it first pushes max + 1 to the stack and saves the new
+      * max. Every time there is a need for the identifier of a for loop for a continue statement
+      * there are two possibilities:
+      * 1) The continue statement is unlabeld so the identifier is at the top of the stack.
+      *    In this case, function fetchForId is called with argument up equal to 0.
+      * 2) The continue statement corresponds to a labeled for loop with label L. In this
+      *    case the identifier is found by peeking at the n'th element of the stack where n
+      *    is the number of loops between the continue statement and the desired labeled loop.
+      *    To get this number n, function EnclosingLabeledLoopOrder has been defined and this
+      *    number is given as the 'up' argument of fetchForId.
+      * Last, when all the statements inside the for loop are desugared, its identifier is
+      * popped from the stack but the max value remains the same. This way the next for that
+      * will be pushed will have a unique identifier.
       */
 
     private var continueCounter: Map[PCodeRoot, (Seq[Int], Int)] = Map.empty
@@ -3273,6 +3288,11 @@ object Desugar {
       f
     }
 
+    /** 
+      * A new identifier will be pushed to the stack corresponding to this code root
+      * to represent the current for statement. Its value will be max + 1 and max
+      * will be updated for this code root.
+      */
     def pushFor(node: PNode, info: TypeInfo): String = {
       val codeRoot = info.codeRoot(node)
       val (stack, max) = continueCounter.getOrElse(codeRoot, (Seq(), 0))
@@ -3284,10 +3304,10 @@ object Desugar {
     def fetchForId(node: PNode, up: Int, info: TypeInfo): String = {
       val codeRoot = info.codeRoot(node)
       val Some((stack, _)) = continueCounter.get(codeRoot)
-      val id = stack(up)
-      CONTINUE_LABEL_PREFIX + id
+      CONTINUE_LABEL_PREFIX + stack(up)
     }
 
+    /** pops the last for statement identifier that was pushed to the stack */
     def popFor(node: PNode, info: TypeInfo): Unit = {
       val codeRoot = info.codeRoot(node)
       val Some((stack, max)) = continueCounter.get(codeRoot)

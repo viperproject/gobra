@@ -3288,7 +3288,7 @@ object Desugar {
       f
     }
 
-    /** 
+    /**
       * A new identifier will be pushed to the stack corresponding to this code root
       * to represent the current for statement. Its value will be max + 1 and max
       * will be updated for this code root.

@@ -97,5 +97,6 @@ trait ExternalTypeInfo {
 
   def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PForStmt]
 
+  /** returns the number of nested loops between node 'n' and a loop with label 'label' */
   def enclosingLabeledLoopOrder(label: PLabelUse, n: PNode) : Int
 }

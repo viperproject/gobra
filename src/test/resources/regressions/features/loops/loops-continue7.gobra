@@ -10,16 +10,12 @@ func foo() {
 	invariant i < 5 ==> i == j
 	invariant i == 5 ==> j == 5
 	invariant i > 5 ==> i == j + 1
-	decreases 10 - i
 	for ;i < 10 ; i++ {
 		if (i == 5) {
 			continue
 		}
 		j++
 	}
-	assert j == 9
-	assert 0 <= i && i <= 10
-	assert i < 5 ==> i == j
-	assert i == 5 ==> j == 5
-	assert i > 5 ==> i == j + 1
+	//:: ExpectedOutput(assert_error)
+	assert false
 }

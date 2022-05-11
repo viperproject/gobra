@@ -10,5 +10,6 @@ l:
 		for true {
 			break l
 		}
+		assert false
 	}
 }

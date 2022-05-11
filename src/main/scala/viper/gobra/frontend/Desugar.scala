@@ -1099,31 +1099,13 @@ object Desugar {
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
 
-          case n@PContinue(label) =>
-            label match {
-              case None => unit(in.Continue(nm.fetchForId(n, 0, info))(src))
-              case Some(l) => unit(in.Continue(nm.fetchForId(n, info.enclosingLabeledLoopOrder(l, n), info))(src))
-            }
+          case n : PContinue => unit(in.Continue(nm.fetchForId(n, info))(src))
 
           case n@PBreak(label) =>
             label match {
-              case None =>
-                info.enclosingLoopNode(n) match{
-                  case None => violation("break should be enclosed in a loop")
-                  case Some(loop) =>
-                    for {
-                      (dInvPre, dInv) <- prelude(sequence(loop.spec.invariants map assertionD(ctx)))
-                      c = in.Break(None, nm.fresh(n, info))(src)
-                    } yield c
-                }
-              case Some(l) => {
-                val maybeLoop = info.enclosingLabeledLoopNode(l, n)
-                maybeLoop match {
-                  case None => violation("break with label should be enclosed in a loop having that label")
-                  case Some(_) => unit(in.Break(Some(l.name), nm.fresh(n, info))(src))
-                }
+              case None => unit(in.Break(None, nm.fresh(n, info))(src))
+              case Some(l) => unit(in.Break(Some(l.name), nm.fresh(n, info))(src))
               }
-            }
 
           case _ => ???
         }
@@ -3220,12 +3202,10 @@ object Desugar {
       * max. Every time there is a need for the identifier of a for loop for a continue statement
       * there are two possibilities:
       * 1) The continue statement is unlabeld so the identifier is at the top of the stack.
-      *    In this case, function fetchForId is called with argument up equal to 0.
       * 2) The continue statement corresponds to a labeled for loop with label L. In this
       *    case the identifier is found by peeking at the n'th element of the stack where n
       *    is the number of loops between the continue statement and the desired labeled loop.
-      *    To get this number n, function EnclosingLabeledLoopOrder has been defined and this
-      *    number is given as the 'up' argument of fetchForId.
+      *    To get this number n, function EnclosingLabeledLoopOrder has been defined.
       * Last, when all the statements inside the for loop are desugared, its identifier is
       * popped from the stack but the max value remains the same. This way the next for that
       * will be pushed will have a unique identifier.
@@ -3301,10 +3281,13 @@ object Desugar {
     }
 
     /** returns a unique identifier for a for stmt*/
-    def fetchForId(node: PNode, up: Int, info: TypeInfo): String = {
+    def fetchForId(node: PContinue, info: TypeInfo): String = {
       val codeRoot = info.codeRoot(node)
       val Some((stack, _)) = continueCounter.get(codeRoot)
-      CONTINUE_LABEL_PREFIX + stack(up)
+      node.label match {
+        case None => CONTINUE_LABEL_PREFIX + stack(0)
+        case Some(l) => CONTINUE_LABEL_PREFIX + stack(info.enclosingLabeledLoopOrder(l, node))
+      }
     }
 
     /** pops the last for statement identifier that was pushed to the stack */

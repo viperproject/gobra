@@ -12,6 +12,7 @@ func foo() {
 	var contains5 = false
 	invariant 0 <= i && i <= cap(a)
 	invariant contains5 == (exists j int :: 0 <= j && j < i && a[j] == 5)
+	decreases cap(a) - i
 	for i := 0; i < cap(a); i++ {
 		if a[i] == 5 {
 			contains5 = true

@@ -21,11 +21,13 @@ l:
 	invariant 0 <= k && k < 15
 	invariant 0 <= l && l < 15
 	invariant contains5 == (a[k][l] == 5)
+	decreases 15 - i
 	for i := 0; i < 15; i++ {
 		invariant 0 <= j && j <= 15
 		invariant 0 <= k && k < 15
 		invariant 0 <= l && l < 15
 		invariant contains5 == (a[k][l] == 5)
+		decreases 15 - j
 		for j := 0; j < 15; j++ {
 			if a[i][j] == 5 {
 				k = i

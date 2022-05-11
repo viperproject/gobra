@@ -4,8 +4,13 @@
 package pkg
 
 func foo() {
+l:
+	invariant true
 	for true {
-		continue
+		for true {
+			break l
+		}
 	}
+	//:: ExpectedOutput(assert_error)
 	assert false
 }

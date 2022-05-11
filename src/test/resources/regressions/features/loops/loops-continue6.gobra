@@ -6,14 +6,12 @@ package pkg
 requires n >= 0
 ensures n % 2 == 0 ==> res == n / 2
 ensures n % 2 == 1 ==> res == (n - 1) / 2
-decreases
 func count_even(n int) (res int) {
 	res = 0
 	var j int = 0
 	invariant 0 <= j && j <= n
 	invariant j % 2 == 0 ==> res == j / 2
 	invariant j % 2 == 1 ==> res == (j - 1) / 2
-	decreases n - j
 	for j < n {
 		if j % 2 == 0 {
 			j++
@@ -22,8 +20,6 @@ func count_even(n int) (res int) {
 		j++
 		res += 1
 	}
-	assert 0 <= j && j <= n
-	assert j % 2 == 0 ==> res == j / 2
-	assert j % 2 == 1 ==> res == (j - 1) / 2
-	assert !(j < n)
+	//:: ExpectedOutput(assert_error)
+	assert false
 }

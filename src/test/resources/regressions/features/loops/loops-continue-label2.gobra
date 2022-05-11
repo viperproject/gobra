@@ -3,18 +3,22 @@
 
 package pkg
 
+decreases
 func foo() {
 	var s int = 0
 	var i int = 0
 l:
 	invariant 0 <= i && i <= 10
 	invariant s == i
+	decreases 10 - i
 	for ;i < 10; i++ {
 		invariant 0 <= j && j <= 0
 		invariant s == i
+		decreases 10 - j
 		for j := 0; j < 10; j++ {
 			invariant 0 <= k && k <= 0
 			invariant s == i
+			decreases 10 - k
 			for k := 0; k < 10; k++ {
 				s += 1
 				continue l
@@ -22,4 +26,6 @@ l:
 		}
 	}
 	assert s == 10
+	assert s == i
+	assert 0 <= i && i <= 10
 }

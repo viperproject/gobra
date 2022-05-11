@@ -93,7 +93,13 @@ class InterfaceEncoding extends LeafTypeEncoding {
       function(p)(ctx)
 
     case p: in.Method if p.receiver.typ.isInstanceOf[in.InterfaceT] =>
-      ctx.method.method(p)(ctx).map(Vector(_))
+      // adds the precondition that the receiver is not equal to the nil interface
+      val (pos, info: Source.Verifier.Info, errT) = p.vprMeta
+      for {
+        m <- ctx.method.method(p)(ctx)
+        recv = m.formalArgs.head.localVar // receiver is always the first parameter
+        mWithNotNilCheck = m.copy(pres = receiverNotNil(recv)(pos, info, errT)(ctx) +: m.pres)(pos, info, errT)
+      } yield Vector(mWithNotNilCheck)
 
     case p: in.MethodSubtypeProof =>
       methodProof(p)(ctx)
@@ -147,6 +153,12 @@ class InterfaceEncoding extends LeafTypeEncoding {
       } yield  res
   }
 
+  /** Returns [x != nil: Interface{}] */
+  private def receiverNotNil(recv: vpr.Exp)(pos: vpr.Position, info: Source.Verifier.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
+    // In Go, checking that an interface receiver is not nil never panics.
+    vpr.Not(vpr.EqCmp(recv, nilInterface()(pos, info, errT)(ctx))(pos, info, errT))(pos, info.createAnnotatedInfo(Source.ReceiverNotNilCheckAnnotation), errT)
+  }
+
   /**
     * Encodes expressions as values that do not occupy some identifiable location in memory.
     *
@@ -170,9 +182,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       case n@ (  (_: in.DfltVal) :: ctx.Interface(_) / Exclusive
                | (_: in.NilLit) :: ctx.Interface(_)  ) =>
         val (pos, info, errT) = n.vprMeta
-        val value = poly.box(vpr.NullLit()(pos, info, errT))(pos, info, errT)(ctx)
-        val typ = types.typeApp(TypeHead.NilHD)(pos, info, errT)(ctx)
-        unit(interfaces.create(value, typ)(pos, info, errT)(ctx)): CodeWriter[vpr.Exp]
+        unit(nilInterface()(pos, info, errT)(ctx)): CodeWriter[vpr.Exp]
 
       case in.ToInterface(exp :: ctx.Interface(_), _) =>
         goE(exp)
@@ -234,6 +244,13 @@ class InterfaceEncoding extends LeafTypeEncoding {
       case n: in.TypeExpr =>
         for { es <- sequence(TypeHead.children(n) map goE) } yield withSrc(types.typeApp(TypeHead.typeHead(n), es), n, ctx)
     }
+  }
+
+  /** Returns nil interface */
+  private def nilInterface()(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
+    val value = poly.box(vpr.NullLit()(pos, info, errT))(pos, info, errT)(ctx)
+    val typ = types.typeApp(TypeHead.NilHD)(pos, info, errT)(ctx)
+    interfaces.create(value, typ)(pos, info, errT)(ctx)
   }
 
   /**
@@ -661,37 +678,39 @@ class InterfaceEncoding extends LeafTypeEncoding {
   }
 
   /**
-    * Generates:
+    * Returns:
     *
     * function I_F(itf: I, args)
-    *   requires [PRE]
-    *   ensures typeOf(itf) == T ==> result == proof_T_I_F(valueOf(itf, T), args)
+    *   requires [itf != nil: interface{...}] && [PRE]
+    *   ensures  typeOf(itf) == T ==> result == proof_T_I_F(valueOf(itf, T), args)
     */
   private def function(p: in.PureMethod)(ctx: Context): MemberWriter[Vector[vpr.Function]] = {
     Violation.violation(p.results.size == 1, s"expected a single result, but got ${p.results}")
     Violation.violation(p.posts.isEmpty, s"expected no postcondition, but got ${p.posts}")
 
+    val (pos, info: Source.Verifier.Info, errT) = p.vprMeta
+
     val itfT = p.receiver.typ.asInstanceOf[in.InterfaceT]
     val impls = ctx.table.implementations(itfT).toVector
     val cases = impls.map(impl => (impl, ctx.table.lookup(impl, p.name.name).get))
 
-    val recvDecl = vpr.LocalVarDecl(Names.implicitThis, vprInterfaceType(ctx))()
+    val recvDecl = vpr.LocalVarDecl(Names.implicitThis, vprInterfaceType(ctx))(pos, info, errT)
     val recv = recvDecl.localVar
 
     val argDecls = p.args map ctx.typeEncoding.variable(ctx)
     val args = argDecls.map(_.localVar)
 
     val resultType = ctx.typeEncoding.variable(ctx)(p.results.head).typ
-    val result = vpr.Result(resultType)()
+    val result = vpr.Result(resultType)(pos, info, errT)
 
     def clause(impl: in.Type, proxy: in.MemberProxy): vpr.Exp = {
       // typeOf(i) == T
-      val lhs = vpr.EqCmp(typeOf(recv)()(ctx), types.typeToExpr(impl)()(ctx))()
+      val lhs = vpr.EqCmp(typeOf(recv)(pos, info, errT)(ctx), types.typeToExpr(impl)(pos, info, errT)(ctx))(pos, info, errT)
       // proof_T_I_F(valueOf(itf, T), args)
-      val fullArgs = valueOf(recv, impl)()(ctx) +: args
-      val call = vpr.FuncApp(funcname = proofName(proxy, p.name), fullArgs)(vpr.NoPosition, vpr.NoInfo, typ = resultType, vpr.NoTrafos)
+      val fullArgs = valueOf(recv, impl)(pos, info, errT)(ctx) +: args
+      val call = vpr.FuncApp(funcname = proofName(proxy, p.name), fullArgs)(pos, info, typ = resultType, errT)
       // typeOf(i) == T ==> result == proof_T_I_F(valueOf(itf, T), args)
-      vpr.Implies(lhs, vpr.EqCmp(result, call)())()
+      vpr.Implies(lhs, vpr.EqCmp(result, call)(pos, info, errT))(pos, info, errT)
     }
 
     for {
@@ -701,10 +720,10 @@ class InterfaceEncoding extends LeafTypeEncoding {
         name = p.name.uniqueName,
         formalArgs = recvDecl +: argDecls,
         typ = resultType,
-        pres = vPres,
+        pres = receiverNotNil(recv)(pos, info, errT)(ctx) +: vPres,
         posts = cases map { case (impl, implProxy) => clause(impl, implProxy) },
         body = body
-      )()
+      )(pos, info, errT)
     } yield Vector(func)
   }
 

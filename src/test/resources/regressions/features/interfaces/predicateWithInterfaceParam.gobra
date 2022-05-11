@@ -14,7 +14,7 @@ pure func (impl *AnImplementation) getVal() int {
 }
 
 pred somePredicate(param AnInterface) {
-    param.getVal() == 42
+    param != nil && param.getVal() == 42
 }
 
 func client() {

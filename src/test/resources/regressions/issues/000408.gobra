@@ -1,0 +1,39 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue408
+
+type T interface{
+    f() int
+    pure g() int
+}
+
+type TImpl struct{}
+
+func (x* TImpl) f() int {
+    return 0
+}
+
+func test1() {
+    var x T
+    //:: ExpectedOutput(precondition_error:receiver_is_nil_error)
+    x.f()
+}
+
+func test2() {
+    var x T
+    //:: ExpectedOutput(precondition_error:receiver_is_nil_error)
+    _ := x.g()
+}
+
+requires x != nil
+func test3(x T) {
+    x.f()
+    _ := x.g()
+}
+
+requires typeOf(x) == type[*int]
+func test4(x T) {
+    x.f()
+    _ := x.g()
+}

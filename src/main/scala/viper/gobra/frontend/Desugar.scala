@@ -3209,34 +3209,37 @@ object Desugar {
         Names.emptyInterface
       } else {
         val pom = s.context.getTypeInfo.tree.originalRoot.positions
-        val start = pom.positions.getStart(s.decl).get
-        val finish = pom.positions.getFinish(s.decl).get
-        val pos = pom.translate(start, finish)
-        // replace characters that could be misinterpreted:
-        val interfaceName = pos.toString
-          .replace(".", "$")
-          .replace("@", "")
-          .replace("-", "_")
-        s"$INTERFACE_PREFIX$$$interfaceName"
+        val hash = srcTextName(pom, s.decl.embedded, s.decl.methSpecs, s.decl.predSpec)
+        s"$INTERFACE_PREFIX$$${topLevelName("")(hash, s.context)}"
       }
     }
 
     def domain(s: DomainT): String = {
       val pom = s.context.getTypeInfo.tree.originalRoot.positions
-      val start = pom.positions.getStart(s.decl).get
-      val finish = pom.positions.getFinish(s.decl).get
-      val pos = pom.translate(start, finish)
-      // replace characters that could be misinterpreted:
-      val domainName = pos.toString
-        .replace(".", "$")
-        .replace("@", "")
-        .replace("-", "_")
-      s"$DOMAIN_PREFIX$$$domainName"
+      val hash = srcTextName(pom, s.decl.funcs, s.decl.axioms)
+      s"$DOMAIN_PREFIX$$${topLevelName("")(hash, s.context)}"
     }
 
     def label(n: String): String = n match {
       case "#lhs" => "lhs"
       case _ => s"${n}_$LABEL_PREFIX"
+    }
+
+    /**
+      * Maps nodes to a hash based on the source text of the nodes (not the source position!).
+      * The source texts belonging to the same Vector[N] argument are sorted before they are hashed.
+      * */
+    private def srcTextName[N <: PNode](pom: PositionManager, nodes: Vector[N]*): String = {
+
+      def trimmedSrcText(n: N): String = {
+        val start = pom.positions.getStart(n).get
+        val finish = pom.positions.getFinish(n).get
+        val srcText = pom.positions.substring(start, finish).get
+        srcText.filterNot(_.isWhitespace)
+      }
+
+      val sortedStrings = nodes.map(_.map(trimmedSrcText).sorted)
+      Names.hash(sortedStrings.flatten.mkString("|"))
     }
   }
 }

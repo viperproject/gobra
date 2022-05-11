@@ -17,6 +17,14 @@ object Names {
 
   def returnLabel: String = "returnLabel"
 
+  /**
+    * Hashes the argument. The result is a valid Viper name if prepended with a valid starting character.
+    * For instance, the first character of the result may be a digit.
+    */
+  def hash(s: String): String = {
+    scala.util.hashing.MurmurHash3.stringHash(s).toHexString
+  }
+
   /* sanitizes type name to a valid Viper name */
   def serializeType(t: vpr.Type): String = {
     t.toString()

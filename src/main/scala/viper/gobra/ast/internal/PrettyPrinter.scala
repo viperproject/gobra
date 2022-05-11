@@ -250,7 +250,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Seqn(stmts) => ssep(stmts map showStmt, line)
     case Label(label) => showProxy(label)
     case If(cond, thn, els) => "if" <> parens(showExpr(cond)) <+> block(showStmt(thn)) <+> "else" <+> block(showStmt(els))
-    case While(cond, invs, measure, body, _) => "while" <> parens(showExpr(cond)) <> line <>
+    case While(cond, invs, measure, body, label) => opt(label)(text) <> opt(label.map(_ => ": "))(text) <> "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line)) <>
       opt(measure)("decreases" <> showTerminationMeasure(_) <> line) <>
       block(showStmt(body))
@@ -306,11 +306,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
 
     case Continue(_) => "continue"
-    case Break(l, _) =>
-      l match {
-        case None => "break"
-        case Some(label) => "break " + label
-      }
+    case Break(l, _) => "break" <+> opt(l)(text)
   })
 
   def showProxy(x: Proxy): Doc = updatePositionStore(x) <> (x match {
@@ -657,7 +653,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Seqn(_) => emptyDoc
     case Label(label) => showProxy(label)
     case If(cond, _, _) => "if" <> parens(showExpr(cond)) <+> "{...}" <+> "else" <+> "{...}"
-    case While(cond, invs, measure, _, _) => "while" <> parens(showExpr(cond)) <> line <>
+    case While(cond, invs, measure, _, label) => opt(label)(text) <> opt(label.map(_ => ": "))(text) <> "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line)) <>
       opt(measure)("decreases" <> showTerminationMeasure(_) <> line)
 
@@ -713,10 +709,6 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case Continue(_) => "continue"
-    case Break(l, _) =>
-      l match {
-        case None => "break"
-        case Some(label) => "break " + label
-      }
+    case Break(l, _) => "break" <+> opt(l)(text)
   }
 }

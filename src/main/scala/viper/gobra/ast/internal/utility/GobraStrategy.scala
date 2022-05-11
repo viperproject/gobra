@@ -41,6 +41,8 @@ object GobraStrategy {
       case (_: Label, Seq(label: LabelProxy)) => Label(label)(meta)
       case (_: If, Seq(cond: Expr, thn: Stmt, els: Stmt)) => If(cond, thn, els)(meta)
       case (_: While, Seq(cond: Expr, invs: Vector[Assertion@unchecked], terminationMeasure: Option[TerminationMeasure@unchecked], body: Stmt, label: Option[String@unchecked])) => While(cond, invs, terminationMeasure, body, label)(meta)
+      case (_: Break, Seq(label: Option[String@unchecked], escLabel: String)) => Break(label, escLabel)(meta)
+      case (_: Continue, Seq(escLabel: String)) => Continue(escLabel)(meta)
       case (_: New, Seq(target: LocalVar, expr: Expr)) => New(target, expr)(meta)
       case (_: MakeSlice, Seq(target: LocalVar, typeParam: SliceT, lenArg: Expr, capArg: Option[Expr@unchecked])) => MakeSlice(target, typeParam, lenArg, capArg)(meta)
       case (_: MakeChannel, Seq(target: LocalVar, typeParam: ChannelT, bufferSizeArg: Option[Expr@unchecked], isChannel: MPredicateProxy, bufferSize: MethodProxy)) => MakeChannel(target, typeParam, bufferSizeArg, isChannel, bufferSize)(meta)

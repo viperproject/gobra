@@ -951,12 +951,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def wellDefIfConstExpr(expr: PExpression): Messages = typ(expr) match {
-    // TODO: put comment here
-    case BooleanT =>
-      error(expr, s"expected constant boolean expression", boolConstantEvalWithIota(Some(0))(expr).isEmpty)
-    case typ if underlyingType(typ).isInstanceOf[IntT] =>
-      // TODO: put comment here
-      error(expr, s"expected constant int expression", intConstantEvalWithIota(Some(0))(expr).isEmpty)
+    case BooleanT => error(expr, s"expected constant boolean expression", boolConstantEval(expr).isEmpty)
+    case typ if underlyingType(typ).isInstanceOf[IntT] => error(expr, s"expected constant int expression", intConstantEval(expr).isEmpty)
     case StringT => error(expr, s"expected constant string expression", stringConstantEval(expr).isEmpty)
     case _ => error(expr, s"expected a constant expression")
   }

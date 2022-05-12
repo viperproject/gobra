@@ -380,10 +380,8 @@ object Desugar {
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
-    def constDeclD(decl: PConstDecl, fallBackExpr: Option[PExpression], iotaVal: Int): Vector[in.GlobalConstDecl] = {
-      decl.left.zipWithIndex.flatMap{ case (l, r) => {
-        println(decl)
-        print(s"iota: $iotaVal")
+    def constDeclD(decl: PConstDecl, fallBackExpr: Option[PExpression]): Vector[in.GlobalConstDecl] = {
+      decl.left.zipWithIndex.flatMap{ case (l, r) =>
         info.regular(l) match {
           case sc@st.SingleConstant(_, id, _, _, _, _) =>
             val src = meta(id)
@@ -398,13 +396,13 @@ object Desugar {
             }
             val lit: in.Lit = gVar.typ match {
               case in.BoolT(Addressability.Exclusive) =>
-                val constValue = sc.context.boolConstantEvaluation(initExpr, Some(iotaVal))
+                val constValue = sc.context.boolConstantEvaluation(initExpr)
                 in.BoolLit(constValue.get)(src)
               case in.StringT(Addressability.Exclusive) =>
                 val constValue = sc.context.stringConstantEvaluation(initExpr)
                 in.StringLit(constValue.get)(src)
               case x if underlyingType(x).isInstanceOf[in.IntT] && x.addressability == Addressability.Exclusive =>
-                val constValue = sc.context.intConstantEvaluation(initExpr, Some(iotaVal))
+                val constValue = sc.context.intConstantEvaluation(initExpr)
                 in.IntLit(constValue.get)(src)
               case _ => ???
             }
@@ -417,7 +415,7 @@ object Desugar {
 
           case _ => ???
         }
-      }}
+      }
     }
 
     def constBlockDeclD(block: PConstBlock): Vector[in.GlobalConstDecl] = {
@@ -427,7 +425,7 @@ object Desugar {
       block.decls.zipWithIndex.flatMap { case (decl, iotaVal) =>
         // TODO: Explain with go compiler
         lastExpr = if (decl.right.length == 1) Some(decl.right.head) else None
-        constDeclD(decl, lastExpr, iotaVal)
+        constDeclD(decl, lastExpr)
       }
     }
 

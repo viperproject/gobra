@@ -15,22 +15,21 @@ import viper.gobra.util.Violation.violation
 
 trait ConstantEvaluation { this: TypeInfoImpl =>
 
-  def boolConstantEval(exp: PExpression): Option[Boolean] = boolConstantEvalWithIota(None)(exp)
-
-  def boolConstantEvalWithIota(iota: Option[Int]): PExpression => Option[Boolean] = {
+  // TODO: remove this iota option, we should be able to get the value of iota from context
+  lazy val boolConstantEval: PExpression => Option[Boolean] = {
       case PBoolLit(lit) => Some(lit)
       case e: PUnaryExp => e match {
-        case _: PNegation => boolConstantEvalWithIota(iota)(e.operand).map(!_)
+        case _: PNegation => boolConstantEval(e.operand).map(!_)
         case _ => None
       }
       case e: PBinaryExp[_,_] =>
         def auxBool[T](l: PExpression, r: PExpression)(f: Boolean => Boolean => Boolean): Option[Boolean] =
-          (boolConstantEvalWithIota(iota)(l), boolConstantEvalWithIota(iota)(r)) match {
+          (boolConstantEval(l), boolConstantEval(r)) match {
             case (Some(a), Some(b)) => Some(f(a)(b))
             case _ => None
           }
         def auxInt[T](l: PExpression, r: PExpression)(f: BigInt => BigInt => Boolean): Option[Boolean] =
-          (intConstantEvalWithIota(iota)(l), intConstantEvalWithIota(iota)(r)) match {
+          (intConstantEval(l), intConstantEval(r)) match {
             case (Some(a), Some(b)) => Some(f(a)(b))
             case _ => None
           }
@@ -54,24 +53,22 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
         } yield res
 
       case PNamedOperand(id) => entity(id) match {
-        case SingleConstant(_, _, exp, _, _, context) => context.boolConstantEvaluation(exp, iota)
+        case SingleConstant(_, _, exp, _, _, context) => context.boolConstantEvaluation(exp)
         case _ => None
       }
       case PDot(_, id) => entity(id) match {
-        case SingleConstant(_, _, exp, _, _, _) => boolConstantEvalWithIota(iota)(exp)
+        case SingleConstant(_, _, exp, _, _, _) => boolConstantEval(exp)
         case _ => None
       }
 
       case _ => None
     }
 
-  def intConstantEval(exp: PExpression): Option[BigInt] = intConstantEvalWithIota(None)(exp)
-
-  def intConstantEvalWithIota(iota: Option[Int]): PExpression => Option[BigInt] = {
+  lazy val intConstantEval: PExpression => Option[BigInt] = {
     case PIntLit(lit, _) => Some(lit)
     case inv: PInvoke => resolve(inv) match {
       case Some(conv: ap.Conversion) => underlyingTypeP(conv.typ) match {
-        case Some(_: PIntegerType) => intConstantEvalWithIota(iota)(conv.arg)
+        case Some(_: PIntegerType) => intConstantEval(conv.arg)
         case _ => None
       }
       case _ => None
@@ -81,7 +78,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
       // Not sufficient to do `intConstantEval(op) map (_.unary_~)`, produces wrong results for unsigned int values
       exprType(op) match {
         case IntT(t) =>
-          val constEval = intConstantEvalWithIota(iota)(op)
+          val constEval = intConstantEval(op)
           constEval map { constValue =>
             t match {
               case UnboundedInteger | _: Signed => ~constValue
@@ -92,7 +89,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
       }
     case e: PBinaryExp[_, _] =>
       def aux(l: PExpression, r: PExpression)(f: BigInt => BigInt => BigInt): Option[BigInt] =
-        (intConstantEvalWithIota(iota)(l), intConstantEvalWithIota(iota)(r)) match {
+        (intConstantEval(l), intConstantEval(r)) match {
           case (Some(a), Some(b)) => Some(f(a)(b))
           case _ => None
         }
@@ -146,18 +143,21 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
       } yield res
 
     case PNamedOperand(id) => entity(id) match {
-      case SingleConstant(_, _, exp, _, _, context) => context.intConstantEvaluation(exp, iota)
+      case SingleConstant(_, _, exp, _, _, context) => context.intConstantEvaluation(exp)
       case _ => None
     }
     case PDot(_, id) => entity(id) match {
-      case SingleConstant(_, _, exp, _, _, context) => context.intConstantEvaluation(exp, iota)
+      case SingleConstant(_, _, exp, _, _, context) => context.intConstantEvaluation(exp)
       case _ => None
     }
 
-    case PIota() => iota match {
-      case None => violation("TODO")
-      case _ => iota.map(BigInt(_))
-    }
+    case p: PIota =>
+      val res = for {
+        constBlock <- enclosingPConstBlock(p)
+        constClause <- enclosingPConstDecl(p)
+        iota = constBlock.decls.indexOf(constClause)
+      } yield BigInt(iota)
+      if (res.isEmpty) violation("TODO") else res
 
     case _ => None
   }

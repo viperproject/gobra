@@ -71,9 +71,9 @@ trait ExternalTypeInfo {
 
   def struct(n: PNode): Option[StructT]
 
-  def boolConstantEvaluation(expr: PExpression, iota: Option[Int]): Option[Boolean]
+  def boolConstantEvaluation(expr: PExpression): Option[Boolean]
 
-  def intConstantEvaluation(expr: PExpression, iota: Option[Int]): Option[BigInt]
+  def intConstantEvaluation(expr: PExpression): Option[BigInt]
 
   def stringConstantEvaluation(expr: PExpression): Option[String]
 

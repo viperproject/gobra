@@ -140,7 +140,8 @@ sealed trait PCodeRootWithResult extends PCodeRoot {
   def result: PResult
 }
 
-// TODO: maybe introduce PConstBlockClause instead, make this stmt and all other stuff
+// TODO: maybe introduce PConstBlockClause instead, make this stmt and all other stuff. Maybe rename to PConstSpec (or whatever name is used in the go lang spec)
+// TODO: might be easy to implement this as a stmt too
 case class PConstBlock(decls: Vector[PConstDecl]) extends PActualMember with PGhostifiableMember
 
 // TODO: don't make this a member and stmt, rename this to clause

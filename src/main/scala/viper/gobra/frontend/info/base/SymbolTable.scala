@@ -80,7 +80,7 @@ object SymbolTable extends Environments[Entity] {
 
   sealed trait ActualConstant extends Constant with ActualDataEntity
 
-  // TODO: make exp optional or drop altogether
+  // TODO: make this expression (exp) optional
   case class SingleConstant(decl: PConstDecl, idDef: PIdnDef, exp: PExpression, opt: Option[PType], ghost: Boolean, context: ExternalTypeInfo) extends ActualConstant {
     override def rep: PNode = decl
   }

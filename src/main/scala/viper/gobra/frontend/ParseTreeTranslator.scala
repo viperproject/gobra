@@ -589,11 +589,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitConstDecl(ctx: GobraParser.ConstDeclContext): Vector[PConstDecl] = {
+  override def visitConstDecl(ctx: GobraParser.ConstDeclContext): Vector[PConstBlock] = {
     visitListNode[PConstDecl](ctx.constSpec()) match {
       // Make sure the first expression list is not empty
       case Vector(PConstDecl(_, Vector(), _), _*) => fail(ctx)
-      case decls => decls
+      case decls => Vector(PConstBlock(decls))
     }
   }
 
@@ -930,7 +930,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitOperandName(ctx: GobraParser.OperandNameContext): PExpression = {
     visitChildren(ctx) match {
       case idnUseLike(id) => id match {
-        case id@PIdnUse(_) => PNamedOperand(id).at(id)
+        case id@PIdnUse(name) => name match {
+          case "iota" => PIota().at(id)
+          case _ => PNamedOperand(id).at(id)
+        }
         case PWildcard() => PBlankIdentifier().at(ctx)
         case _ => unexpected(ctx)
       }

@@ -83,6 +83,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showMember(mem: PMember): Doc = mem match {
     case mem: PActualMember => mem match {
+      case n: PConstBlock => "const" <+> parens(n.decls.map(showConstDecl).fold(emptyDoc)((a, b) => a <> linebreak <> b)) // TODO
       case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
@@ -447,6 +448,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PShiftLeft(left, right) => showExpr(left) <+> "<<" <+> showExpr(right)
       case PShiftRight(left, right) => showExpr(left) <+> ">>" <+> showExpr(right)
       case PBitNegation(exp) => "^" <> showExpr(exp)
+      case PIota() => "iota"
     }
     case expr: PGhostExpression => expr match {
       case POld(e) => "old" <> parens(showExpr(e))

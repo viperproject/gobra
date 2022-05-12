@@ -121,9 +121,9 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   override def struct(n: PNode): Option[Type.StructT] =
     enclosingStruct(n).map(structDecl => symbType(structDecl).asInstanceOf[Type.StructT])
 
-  override def boolConstantEvaluation(expr: PExpression): Option[Boolean] = boolConstantEval(expr)
+  override def boolConstantEvaluation(expr: PExpression, iota: Option[Int]): Option[Boolean] = boolConstantEvalWithIota(iota)(expr)
 
-  override def intConstantEvaluation(expr: PExpression): Option[BigInt] = intConstantEval(expr)
+  override def intConstantEvaluation(expr: PExpression, iota: Option[Int]): Option[BigInt] = intConstantEvalWithIota(iota)(expr)
 
   override def stringConstantEvaluation(expr: PExpression): Option[String] = stringConstantEval(expr)
 

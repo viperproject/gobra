@@ -341,7 +341,10 @@ object Desugar {
       val consideredDecls = p.declarations.collect { case m@NoGhost(x: PMember) if shouldDesugar(x) => m }
       val dMembers = consideredDecls.flatMap{
         case NoGhost(x: PVarDecl) => varDeclGD(x)
-        case NoGhost(x: PConstDecl) => constDeclD(x)
+        case NoGhost(x: PConstBlock) =>
+          println(x)
+          constBlockDeclD(x)
+        case NoGhost(x: PConstDecl) => ??? // constDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
         case NoGhost(x: PFunctionDecl) => Vector(registerFunction(x))
         case x: PMPredicateDecl => Vector(registerMPredicate(x))
@@ -377,31 +380,56 @@ object Desugar {
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
-    def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.flatMap(l => info.regular(l) match {
-      case sc@st.SingleConstant(_, id, _, _, _, _) =>
-        val src = meta(id)
-        val gVar = globalConstD(sc)(src)
-        val lit: in.Lit = gVar.typ match {
-          case in.BoolT(Addressability.Exclusive) =>
-            val constValue = sc.context.boolConstantEvaluation(sc.exp)
-            in.BoolLit(constValue.get)(src)
-          case in.StringT(Addressability.Exclusive) =>
-            val constValue = sc.context.stringConstantEvaluation(sc.exp)
-            in.StringLit(constValue.get)(src)
-          case x if underlyingType(x).isInstanceOf[in.IntT] && x.addressability == Addressability.Exclusive =>
-            val constValue = sc.context.intConstantEvaluation(sc.exp)
-            in.IntLit(constValue.get)(src)
+    def constDeclD(decl: PConstDecl, fallBackExpr: Option[PExpression], iotaVal: Int): Vector[in.GlobalConstDecl] = {
+      decl.left.zipWithIndex.flatMap{ case (l, r) => {
+        println(decl)
+        print(s"iota: $iotaVal")
+        info.regular(l) match {
+          case sc@st.SingleConstant(_, id, _, _, _, _) =>
+            val src = meta(id)
+            val gVar = globalConstD(sc)(src)
+            val initExpr = decl.right.lift(r) match {
+              // TODO: maybe I'm redoing unnecessary work
+              case Some(exp) => exp
+              case None => fallBackExpr match {
+                case Some(exp) => exp
+                case None => violation("unexpected pattern reached") // TODO
+              }
+            }
+            val lit: in.Lit = gVar.typ match {
+              case in.BoolT(Addressability.Exclusive) =>
+                val constValue = sc.context.boolConstantEvaluation(initExpr, Some(iotaVal))
+                in.BoolLit(constValue.get)(src)
+              case in.StringT(Addressability.Exclusive) =>
+                val constValue = sc.context.stringConstantEvaluation(initExpr)
+                in.StringLit(constValue.get)(src)
+              case x if underlyingType(x).isInstanceOf[in.IntT] && x.addressability == Addressability.Exclusive =>
+                val constValue = sc.context.intConstantEvaluation(initExpr, Some(iotaVal))
+                in.IntLit(constValue.get)(src)
+              case _ => ???
+            }
+            Vector(in.GlobalConstDecl(gVar, lit)(src))
+
+          // Constants defined with the blank identifier can be safely ignored as they
+          // must be computable statically (and thus do not have side effects) and
+          // they can never be read
+          case st.Wildcard(_, _) => Vector()
+
           case _ => ???
         }
-        Vector(in.GlobalConstDecl(gVar, lit)(src))
+      }}
+    }
 
-      // Constants defined with the blank identifier can be safely ignored as they
-      // must be computable statically (and thus do not have side effects) and
-      // they can never be read
-      case st.Wildcard(_, _) => Vector()
-
-      case _ => ???
-    })
+    def constBlockDeclD(block: PConstBlock): Vector[in.GlobalConstDecl] = {
+      violation(block.decls.nonEmpty, "Expected a constant block with at least 1 element")
+      violation(block.decls(0).right.nonEmpty, "Missing initialization expression for first constant")
+      var lastExpr: Option[PExpression] = None
+      block.decls.zipWithIndex.flatMap { case (decl, iotaVal) =>
+        // TODO: Explain with go compiler
+        lastExpr = if (decl.right.length == 1) Some(decl.right.head) else None
+        constDeclD(decl, lastExpr, iotaVal)
+      }
+    }
 
     // Note: Alternatively, we could return the set of type definitions directly.
     //       However, currently, this would require to have versions of [[typeD]].
@@ -1062,7 +1090,9 @@ object Desugar {
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
 
-          case _ => ???
+          case p =>
+            println(s"${p.getClass.toString}")
+            ???
         }
       }
     }

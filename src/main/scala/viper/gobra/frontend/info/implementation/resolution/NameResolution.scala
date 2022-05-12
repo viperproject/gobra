@@ -193,6 +193,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
     m match {
       case a: PActualMember => a match {
+        case d: PConstBlock => d.decls.flatMap(v => v.left.collect{ case x: PIdnDef => x })
         case d: PConstDecl => d.left.collect{ case x: PIdnDef => x }
         case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
         case d: PFunctionDecl => Vector(d.id)

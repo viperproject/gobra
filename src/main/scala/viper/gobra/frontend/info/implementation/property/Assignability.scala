@@ -285,8 +285,8 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case _ => None
     }
     val eval = underlyingType(typ) match {
-      case _: IntT => intConstantEval
-      case BooleanT => boolConstantEval
+      case _: IntT => intConstantEval _
+      case BooleanT => boolConstantEval _
       case StringT => stringConstantEval
       case _ => _: PExpression => None
     }

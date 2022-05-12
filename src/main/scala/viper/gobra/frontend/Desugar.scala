@@ -825,10 +825,11 @@ object Desugar {
                     (dInvPre, dInv) <- prelude(sequence(forstmt.spec.invariants map assertionD(ctx)))
                     (dTerPre, dTer) <- prelude(option(forstmt.spec.terminationMeasure map terminationMeasureD(ctx)))
                     labelName = nm.pushFor(forstmt, info)
+                    loopLabelProxy = in.LabelProxy(labelName)(src)
+                    _ <- declare(loopLabelProxy)
+                    loopLabel = in.Label(loopLabelProxy)(src)
 
                     dBody = blockD(ctx)(forstmt.body)
-                    loopLabelProxy = in.LabelProxy(labelName)(src)
-                    loopLabel = in.Label(loopLabelProxy)(src)
                     dPost <- maybeStmtD(ctx)(forstmt.post)(src)
 
                     _ = nm.popFor(forstmt, info)
@@ -874,10 +875,11 @@ object Desugar {
                 (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
                 (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
                 labelName = nm.pushFor(n, info)
+                loopLabelProxy = in.LabelProxy(labelName)(src)
+                _ <- declare(loopLabelProxy)
+                loopLabel = in.Label(loopLabelProxy)(src)
 
                 dBody = blockD(ctx)(body)
-                loopLabelProxy = in.LabelProxy(labelName)(src)
-                loopLabel = in.Label(loopLabelProxy)(src)
                 dPost <- maybeStmtD(ctx)(post)(src)
 
                 _ = nm.popFor(n, info)

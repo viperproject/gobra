@@ -36,7 +36,7 @@ object PackageResolver {
   /** represents an implicit unqualified import that should resolve to the built-in package */
   case object BuiltInImport extends AbstractImport
   /** relative import path that should be resolved; an empty importPath results in looking for files in the current directory */
-  case class RegularImport private (importPath: String) extends AbstractImport {
+  case class RegularImport(importPath: String) extends AbstractImport {
     override def toString: String = importPath
   }
 
@@ -46,7 +46,7 @@ object PackageResolver {
   /** represents all built-in packages together */
   case object BuiltInPackage extends AbstractPackage
   /** represents a regular package */
-  case class RegularPackage (id: String) extends AbstractPackage
+  case class RegularPackage(id: String) extends AbstractPackage
 
   object AbstractPackage {
     def apply(imp: AbstractImport)(config: Config): AbstractPackage = {

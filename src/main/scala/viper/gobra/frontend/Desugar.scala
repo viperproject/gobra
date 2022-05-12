@@ -1101,7 +1101,7 @@ object Desugar {
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
 
-          case n : PContinue => unit(in.Continue(nm.fetchForId(n, info))(src))
+          case n@PContinue(label) => unit(in.Continue(label.map(x => x.name), nm.fetchForId(n, info))(src))
 
           case n@PBreak(label) =>
             label match {

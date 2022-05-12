@@ -40,7 +40,7 @@ object Nodes {
       case DomainAxiom(expr) => Seq(expr)
       case s: Stmt => s match {
         case Break(_, _) => Seq.empty
-        case Continue(_) => Seq.empty
+        case Continue(_, _) => Seq.empty
         case Block(decls, stmts) => decls ++ stmts
         case Seqn(stmts) => stmts
         case Label(label) => Seq(label)

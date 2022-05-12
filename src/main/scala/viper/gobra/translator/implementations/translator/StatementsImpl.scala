@@ -102,7 +102,7 @@ class StatementsImpl extends Statements {
       case in.Label(id) =>
         unit(vpr.Label(id.name, Seq.empty)(pos, info, errT))
 
-      case in.Continue(escLabel) =>
+      case in.Continue(_, escLabel) =>
         unit(vpr.Goto(escLabel)(pos, info, errT))
 
       case in.Break(_, escLabel) =>

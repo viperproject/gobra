@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+type A uint64
+
+func f(a A) {
+	a <<= 2
+}
+
+type Name string
+
+func g(s Name) Name {
+	var greeting Name = Name("Hello, ")
+	greeting += s
+	return greeting
+}

@@ -8,12 +8,14 @@ package viper.gobra.frontend
 
 import java.io.Reader
 import java.nio.file.{Files, Path, Paths}
+
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Source, StringSource}
 import viper.gobra.util.Violation
 import viper.silver.ast.SourcePosition
-
-import java.security.MessageDigest
 import java.util.Objects
+
+import viper.gobra.translator.Names
+
 import scala.io.BufferedSource
 
 /**
@@ -26,15 +28,11 @@ import scala.io.BufferedSource
  * @param isBuiltIn a flag indicating, if the package comes from within Gobra
  */
 class PackageInfo(val id: String, val name: String, val isBuiltIn: Boolean) {
-  private val digestAlg = MessageDigest.getInstance("SHA-1")
 
   /**
    * Unique id of the package to use in Viper member names.
-   *
-   * We use a Hex representation of the real package it to make sure that only allowed characters are used inside the id,
-   * while also keeping the uniqueness of the package id.
    */
-  lazy val viperId: String = digestAlg.digest(id.getBytes("UTF-8")).map("%02x".format(_)).mkString
+  lazy val viperId: String = Names.hash(id)
 
   override def equals(obj: Any): Boolean = obj match {
     case other: PackageInfo => other.id == this.id

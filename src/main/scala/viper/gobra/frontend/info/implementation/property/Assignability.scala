@@ -123,9 +123,10 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   lazy val compatibleWithAssOp: Property[(Type, PAssOp)] = createFlatProperty[(Type, PAssOp)] {
     case (t, op) => s"type error: got $t, but expected type compatible with $op"
   } {
-    case (Single(IntT(_)), PAddOp() | PSubOp() | PMulOp() | PDivOp() | PModOp() | PBitAndOp() | PBitOrOp() |
-                           PBitXorOp() | PBitClearOp() | PShiftLeftOp() | PShiftRightOp()) => true
-    case (Single(StringT), PAddOp()) => true
+    case (Single(t), PAddOp() | PSubOp() | PMulOp() | PDivOp() |
+                     PModOp() | PBitAndOp() | PBitOrOp() | PBitXorOp() |
+                     PBitClearOp() | PShiftLeftOp() | PShiftRightOp()) if underlyingType(t).isInstanceOf[IntT] => true
+    case (Single(t), PAddOp()) if underlyingType(t) == StringT => true
     case _ => false
   }
 

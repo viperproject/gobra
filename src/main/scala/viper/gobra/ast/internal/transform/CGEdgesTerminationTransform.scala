@@ -100,7 +100,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   *     pure func (r recv) M (x1 T1, ..., xN TN) (res TRes)
                   *
                   *   we generate the following fallback:
-                  *     requires [PRE]
+                  *     requires recv != nil && [PRE]
                   *     ensures res == r.N(x1, ..., xN)
                   *     decreases _
                   *     pure func (r recv) M_fallback(x1 T1, ... xN TN) (res TRes)
@@ -126,7 +126,8 @@ object CGEdgesTerminationTransform extends InternalTransform {
                     )(src)
                   )
                   val fallbackTermMeasures = Vector(in.WildcardMeasure(None)(src))
-                  val fallbackFunction = in.PureFunction(fallbackProxy, m.receiver +: m.args, m.results, m.pres, fallbackPosts, fallbackTermMeasures, None)(src)
+                  val fallbackNilCheck = in.ExprAssertion(in.UneqCmp(m.receiver, in.NilLit(m.receiver.typ)(src))(src))(src)
+                  val fallbackFunction = in.PureFunction(fallbackProxy, m.receiver +: m.args, m.results, fallbackNilCheck +: m.pres, fallbackPosts, fallbackTermMeasures, None)(src)
                   val fallbackProxyCall = in.PureFunctionCall(fallbackProxy, m.receiver +: m.args, returnType)(src)
                   val bodyFalseBranch = implementations.toVector.foldLeft[in.Expr](fallbackProxyCall) {
                     case (accum: in.Expr, impl: in.Type) =>

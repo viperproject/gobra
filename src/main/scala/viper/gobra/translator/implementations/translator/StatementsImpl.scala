@@ -135,9 +135,6 @@ class StatementsImpl extends Statements {
           breakLabelNames = gatherBreakLabels(body, label)
           breakLabels = breakLabelNames.map(x => vpr.Label(x, Vector.empty)(pos, info, errT))
 
-          // Gather the labels where the continue statements continuing this loop will go to
-          // to insert them just before the loop body ends
-
           wh = vu.seqn(Vector(
             cpre, ipre, vpr.While(vCond, vInvs ++ measure, vu.seqn(Vector(vBody, cpost, ipost))(pos, info, errT))(pos, info, errT)
           ) ++ breakLabels)(pos, info, errT)

@@ -187,6 +187,7 @@ class DefaultErrorBackTranslator(
       case err: AbstractVerificationError => err.transformedError()
       case err => err
     }
+    println("Viper Error: " + viperError)
     DefaultErrorBackTranslator.translateWithTransformer(transformedViperError, errorTransformer)
   }
 

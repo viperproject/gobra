@@ -140,7 +140,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                     }
                     in.Conditional(in.BoolLit(b = true)(src), fallbackProxyCall, bodyFalseBranch, returnType)(src)
                   }
-                  val transformedM = m.copy(body = Some(terminationCheckBody))(src)
+                  val transformedM = m.copy(terminationMeasures = m.terminationMeasures, body = Some(terminationCheckBody))(src)
 
                   methodsToRemove += m
                   methodsToAdd += transformedM

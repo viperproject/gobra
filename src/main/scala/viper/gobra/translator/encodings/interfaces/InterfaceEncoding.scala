@@ -717,12 +717,13 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     for {
       vPres <- ml.sequence(p.pres map (ctx.ass.precondition(_)(ctx)))
+      measures <- ml.sequence(p.terminationMeasures.map(ctx.measures.decreases(_)(ctx)))
       body  <- ml.option(p.body.map(p => ml.pure(ctx.expr.translate(p)(ctx))(ctx)))
       func = vpr.Function(
         name = p.name.uniqueName,
         formalArgs = recvDecl +: argDecls,
         typ = resultType,
-        pres = receiverNotNil(recv)(pos, info, errT)(ctx) +: vPres,
+        pres = receiverNotNil(recv)(pos, info, errT)(ctx) +: (vPres ++ measures),
         posts = cases map { case (impl, implProxy) => clause(impl, implProxy) },
         body = body
       )(pos, info, errT)

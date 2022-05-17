@@ -1,3 +1,5 @@
+// :: IgnoreFile(/gobra/issue/451/)
+
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
@@ -5,7 +7,7 @@ package termination
 
 type Func interface {
     //:: ExpectedOutput(pure_function_termination_error)
-    //:: UnexpectedOutput(postcondition_error:assertion_error, /voila/issue/418/)
+    //:: ExpectedOutput(postcondition_error:assertion_error)
 	pure
 	decreases n
 	requires a != nil

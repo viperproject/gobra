@@ -271,14 +271,14 @@ case class Label(id: LabelProxy)(val info: Source.Parser.Info) extends Stmt
   * 'label' corresponds to the loop label we want to continue. In case it is a normal
   * continue node it is None.
   * The continue node will be replaced by a goto statement to 'escLabel' which has
-  * been placed properly while desugaring for loops. 
+  * been placed properly while desugaring for loops.
   */
 case class Continue(label: Option[String], escLabel: String)(val info: Source.Parser.Info) extends Stmt
 
 /**
   * 'label' corresponds to the loop label we want to break out of. In case it is a normal
   * break node it is 'None'.
-  * The break node will be replaced by a goto statement to 'escLabel'. 
+  * The break node will be replaced by a goto statement to 'escLabel'.
   */
 case class Break(label: Option[String], escLabel: String)(val info: Source.Parser.Info) extends Stmt
 

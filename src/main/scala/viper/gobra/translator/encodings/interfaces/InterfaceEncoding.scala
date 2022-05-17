@@ -686,7 +686,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     */
   private def function(p: in.PureMethod)(ctx: Context): MemberWriter[Vector[vpr.Function]] = {
     Violation.violation(p.results.size == 1, s"expected a single result, but got ${p.results}")
-    Violation.violation(p.posts.isEmpty, s"expected no postcondition, but got ${p.posts}")
+    // Violation.violation(p.posts.isEmpty, s"expected no postcondition, but got ${p.posts}")
 
     val (pos, info: Source.Verifier.Info, errT) = p.vprMeta
 
@@ -713,15 +713,20 @@ class InterfaceEncoding extends LeafTypeEncoding {
       vpr.Implies(lhs, vpr.EqCmp(result, call)(pos, info, errT))(pos, info, errT)
     }
 
+    val fixResultvar = (x: vpr.Exp) => {
+      x.transform { case v: vpr.LocalVar if v.name == p.results.head.id => vpr.Result(resultType)() }
+    }
+
     for {
       vPres <- ml.sequence(p.pres map (ctx.ass.precondition(_)(ctx)))
+      posts <- ml.sequence(p.posts.map(ctx.ass.postcondition(_)(ctx).map(fixResultvar(_))))
       body  <- ml.option(p.body.map(p => ml.pure(ctx.expr.translate(p)(ctx))(ctx)))
       func = vpr.Function(
         name = p.name.uniqueName,
         formalArgs = recvDecl +: argDecls,
         typ = resultType,
         pres = receiverNotNil(recv)(pos, info, errT)(ctx) +: vPres,
-        posts = cases map { case (impl, implProxy) => clause(impl, implProxy) },
+        posts = (cases map { case (impl, implProxy) => clause(impl, implProxy) }) ++ posts,
         body = body
       )(pos, info, errT)
     } yield Vector(func)
@@ -730,6 +735,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
   /**
     * function proof_T_I_F(x: T, args)
     *   requires PRE where PRE = [I_F.PRE][ this -> tuple2(this, Type(this)); tuple2(this, Type(this)).I_F -> this.proof_T_implements_I_F ]
+    *   ensures  POST where POST = [I_F.POST][ this -> tuple2(this, Type(this)); tuple2(this, Type(this)).I_F -> this.proof_T_implements_I_F ]
     * {
     *   [body]
     * }
@@ -757,8 +763,12 @@ class InterfaceEncoding extends LeafTypeEncoding {
       instantiateInterfaceSpecForProof(pre, vItfFun.formalArgs.toVector, p.receiver, p.args, p.superT)(p)(ctx)
     }
 
+    val posts = vItfFun.posts.map { post =>
+      instantiateInterfaceSpecForProof(post, vItfFun.formalArgs.toVector, p.receiver, p.args, p.superT)(p)(ctx)
+    }
+
     val (pos, info, errT) = p.vprMeta
-    pureMethodDummy.map(res => Vector(res.copy(pres = pres)(pos, info, errT)))
+    pureMethodDummy.map(res => Vector(res.copy(pres = pres, posts = posts)(pos, info, errT)))
   }
 
   /**

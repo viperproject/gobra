@@ -38,5 +38,5 @@ pure func (s *S) g() int {
     return unfolding acc(s.m(), _) in s.x
 }
 
-//:: ExpectedOutput(generated_implementation_proof)
+//:: ExpectedOutput(generated_implementation_proof:postcondition_error:assertion_error)
 (*S) implements J

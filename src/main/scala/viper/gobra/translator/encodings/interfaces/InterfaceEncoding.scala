@@ -686,7 +686,6 @@ class InterfaceEncoding extends LeafTypeEncoding {
     */
   private def function(p: in.PureMethod)(ctx: Context): MemberWriter[Vector[vpr.Function]] = {
     Violation.violation(p.results.size == 1, s"expected a single result, but got ${p.results}")
-    // Violation.violation(p.posts.isEmpty, s"expected no postcondition, but got ${p.posts}")
 
     val (pos, info: Source.Verifier.Info, errT) = p.vprMeta
 

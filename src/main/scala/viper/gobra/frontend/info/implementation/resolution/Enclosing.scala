@@ -41,7 +41,8 @@ trait Enclosing { this: TypeInfoImpl =>
       case None => None
       case Some(encLoop) => encLoop match {
         case tree.parent(l: PLabeledStmt) if l.label.name == label.name => Some(encLoop)
-        case _ => enclosingLabeledLoop(label, tree.parent(encLoop).head)
+        case tree.parent(p) => enclosingLabeledLoop(label, p)
+        case _ => violation("No parent found for a loop statement.")
       }
     }
   }
@@ -56,7 +57,8 @@ trait Enclosing { this: TypeInfoImpl =>
       case None => violation("Didn't find enclosing loop to continue statement with the same label.")
       case Some(encLoop) => encLoop match {
         case tree.parent(l: PLabeledStmt) if l.label.name == label.name => order
-        case _ => enclosingLoopOrder(label, tree.parent(encLoop).head, order + 1)
+        case tree.parent(p) => enclosingLoopOrder(label, p, order + 1)
+        case _ => violation("No parent found for a loop statement.")
       }
     }
   }

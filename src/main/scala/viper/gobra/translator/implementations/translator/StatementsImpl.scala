@@ -68,6 +68,16 @@ class StatementsImpl extends Statements {
       } yield exhale
     }
 
+    /**
+      * Since each break statement will be replaced by a 'goto' to a unique 'escLabel',
+      * this function is called when addressing a while node to find all these
+      * escLabels corresponding to break statements breaking this specific node.
+      * The break statements that break a while node are unlabeled break statements
+      * directly inside the body of the while node or labeled break statements in
+      * nested loops with the same label as this while node. 'depthControl' is needed
+      * for knowing whether the immidiate body of a while node is traversed or if
+      * the traversal is inside a nested loop so unlabeled breaks should be disregarded.
+      */
     def gatherBreakLabels(node: in.Node, label: Option[String], depthControl : Boolean = true): Vector[String] =
       label match {
         case None =>

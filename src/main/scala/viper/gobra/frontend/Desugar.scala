@@ -1107,7 +1107,7 @@ object Desugar {
             label match {
               case None => unit(in.Break(None, nm.fresh(n, info))(src))
               case Some(l) => unit(in.Break(Some(l.name), nm.fresh(n, info))(src))
-              }
+            }
 
           case _ => ???
         }
@@ -3203,7 +3203,7 @@ object Desugar {
       * for statement is desugared, it first pushes max + 1 to the stack and saves the new
       * max. Every time there is a need for the identifier of a for loop for a continue statement
       * there are two possibilities:
-      * 1) The continue statement is unlabeld so the identifier is at the top of the stack.
+      * 1) The continue statement is unlabeled so the identifier is at the top of the stack.
       * 2) The continue statement corresponds to a labeled for loop with label L. In this
       *    case the identifier is found by peeking at the n'th element of the stack where n
       *    is the number of loops between the continue statement and the desired labeled loop.

@@ -12,7 +12,7 @@ import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, Bu
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type.StructT
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.Violation
 
 trait NameResolution { this: TypeInfoImpl =>
@@ -35,18 +35,74 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PConstDecl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          StrictAssignModi(decl.left.size, decl.right.size) match {
+          StrictAssignMode(decl.left.size, decl.right.size) match {
             case AssignMode.Single => decl.left(idx) match {
               case idn: PIdnDef => SingleConstant(decl, idn, decl.right(idx), decl.typ, isGhost, this)
               case w: PWildcard => Wildcard(w, this)
             }
+            case _ if decl.left.nonEmpty && decl.right.isEmpty =>
+              // case where we rely on the previous entry in the const block to give the corresponding expressions, e.g.,
+              //     const {
+              //         x1, y1 = iota, iota
+              //         x2, y2
+              //     }
+              // Here, x2 and y2 should have the same expression (but different values due to different values for iota)
+              // as x1 and y1.
+              decl.left(idx) match {
+                case w: PWildcard => Wildcard(w, this)
+                case idn: PIdnDef =>
+                  val constBlockOpt = enclosingPConstBlock(idn)
+                  val constBlock = constBlockOpt match {
+                    case Some(p) => p
+                    case None =>
+                      // should never be the case if the code type checks
+                      ???
+                  }
+                  val idxDecl = constBlock.decls.indexOf(decl) // TODO: explain purpose
+                  val nonEmptyConstDecl = constBlock.decls.take(idxDecl).findLast { decl => decl.right.lift(idx).isDefined }.get // TODO: explain
+                  val expr = nonEmptyConstDecl.right(idx)
+                  SingleConstant(decl, idn, expr, decl.typ, isGhost, this)
+              }
+              /*
+
+               {
+
+
+
+
+                _ = defEntity(decl.left(idx)) match {
+                  case Wildcard(_, _) => ???
+                  case SingleConstant(_, _, exp, _, _, _) => SingleConstant(decl, )
+                }
+
+
+              expr = {
+                  for (i <- (idxDecl-1) to 0 by -1) {
+                    if(constBlock.decls(i).right.nonEmpty && constBlock.decls(i).right.length != constClause.left.length) {
+                      violation("sadfsa")
+                    }
+                    if ()
+                  }
+
+                }
+
+                  decl.left(idx) match {
+                  case idn: PIdnDef => ???
+                  case w: PWildcard =>  ??? //Wildcard(w, ???, this)
+                }
+                 _ = ??? // while it is different from the intended
+              } yield ???
+              ???
+            */
+
+
             case _ => UnknownEntity()
           }
 
         case decl: PVarDecl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          StrictAssignModi(decl.left.size, decl.right.size) match {
+          StrictAssignMode(decl.left.size, decl.right.size) match {
             case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, decl.addressable(idx), this)
             case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
             case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, isGhost, decl.addressable(idx), this)
@@ -97,7 +153,7 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PShortVarDecl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          StrictAssignModi(decl.left.size, decl.right.size) match {
+          StrictAssignMode(decl.left.size, decl.right.size) match {
             case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, decl, isGhost, decl.addressable(idx), this)
             case AssignMode.Multi => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
             case _ => UnknownEntity()
@@ -111,7 +167,7 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
           val len = decl.shorts.size
 
-          StrictAssignModi(len, 1) match { // TODO: check if selection variables are addressable in Go
+          StrictAssignMode(len, 1) match { // TODO: check if selection variables are addressable in Go
             case AssignMode.Single => SingleLocalVariable(Some(decl.recv), None, decl, isGhost, addressable = false, this)
             case AssignMode.Multi  => MultiLocalVariable(idx, decl.recv, isGhost, addressable = false, this)
             case _ => UnknownEntity()

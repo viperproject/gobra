@@ -593,7 +593,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     visitListNode[PConstDecl](ctx.constSpec()) match {
       // Make sure the first expression list is not empty
       case Vector(PConstDecl(_, Vector(), _), _*) => fail(ctx)
-      case decls => Vector(PConstBlock(decls))
+      case decls =>
+        println(s"Const Block: $decls")
+        Vector(PConstBlock(decls))
     }
   }
 

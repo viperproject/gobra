@@ -23,6 +23,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefActualStmt(stmt: PActualStatement): Messages = stmt match {
 
     case n@PConstDecl(typ, right, left) =>
+      // TODO:
       right.flatMap(isExpr(_).out) ++
         declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
 

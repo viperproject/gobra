@@ -23,7 +23,7 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case b: PConstBlock => println(s"AQUI: $b"); b.decls.flatMap(wellDefActualMember)
     case c: PConstDecl =>
       // TODO: move this above
-      val idenNumMsgs = error(c, s"number of identifiers does not match the number of expressions", c.left.length != c.right.length)
+      val idenNumMsgs = error(c, s"number of identifiers does not match the number of expressions", c.left.length != c.right.length && c.right.nonEmpty)
       val constExprMsgs = c.right.flatMap(wellDefIfConstExpr)
       idenNumMsgs ++ constExprMsgs
     case s: PActualStatement => wellDefStmt(s).out

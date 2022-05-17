@@ -380,29 +380,21 @@ object Desugar {
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
-    def constDeclD(decl: PConstDecl, fallBackExpr: Option[PExpression]): Vector[in.GlobalConstDecl] = {
+    def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = {
       decl.left.zipWithIndex.flatMap{ case (l, r) =>
         info.regular(l) match {
-          case sc@st.SingleConstant(_, id, _, _, _, _) =>
+          case sc@st.SingleConstant(_, id, exp, _, _, _) =>
             val src = meta(id)
             val gVar = globalConstD(sc)(src)
-            val initExpr = decl.right.lift(r) match {
-              // TODO: maybe I'm redoing unnecessary work
-              case Some(exp) => exp
-              case None => fallBackExpr match {
-                case Some(exp) => exp
-                case None => violation("unexpected pattern reached") // TODO
-              }
-            }
             val lit: in.Lit = gVar.typ match {
               case in.BoolT(Addressability.Exclusive) =>
-                val constValue = sc.context.boolConstantEvaluation(initExpr)
+                val constValue = sc.context.boolConstantEvaluation(exp)
                 in.BoolLit(constValue.get)(src)
               case in.StringT(Addressability.Exclusive) =>
-                val constValue = sc.context.stringConstantEvaluation(initExpr)
+                val constValue = sc.context.stringConstantEvaluation(exp)
                 in.StringLit(constValue.get)(src)
               case x if underlyingType(x).isInstanceOf[in.IntT] && x.addressability == Addressability.Exclusive =>
-                val constValue = sc.context.intConstantEvaluation(initExpr)
+                val constValue = sc.context.intConstantEvaluation(exp)
                 in.IntLit(constValue.get)(src)
               case _ => ???
             }
@@ -418,16 +410,7 @@ object Desugar {
       }
     }
 
-    def constBlockDeclD(block: PConstBlock): Vector[in.GlobalConstDecl] = {
-      violation(block.decls.nonEmpty, "Expected a constant block with at least 1 element")
-      violation(block.decls(0).right.nonEmpty, "Missing initialization expression for first constant")
-      var lastExpr: Option[PExpression] = None
-      block.decls.zipWithIndex.flatMap { case (decl, iotaVal) =>
-        // TODO: Explain with go compiler
-        lastExpr = if (decl.right.length == 1) Some(decl.right.head) else None
-        constDeclD(decl, lastExpr)
-      }
-    }
+    def constBlockDeclD(block: PConstBlock): Vector[in.GlobalConstDecl] = block.decls.flatMap(constDeclD)
 
     // Note: Alternatively, we could return the set of type definitions directly.
     //       However, currently, this would require to have versions of [[typeD]].

@@ -998,6 +998,10 @@ object Desugar {
                         in.GoFunctionCall(call.func, call.args)(src)
                       case Left((_, call: in.MethodCall)) =>
                         in.GoMethodCall(call.recv, call.meth, call.args)(src)
+                      case Right(call: in.PureFunctionCall) =>
+                        in.GoFunctionCall(call.func, call.args)(src)
+                      case Right(call: in.PureMethodCall) =>
+                        in.GoMethodCall(call.recv, call.meth, call.args)(src)
                       case _ => unexpectedExprError(exp)
                     }
                   case _ => unexpectedExprError(exp)

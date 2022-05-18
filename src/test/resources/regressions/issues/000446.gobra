@@ -33,10 +33,10 @@ pred (s *S) m() {
     acc(s) && s.x > 5
 }
 
+//:: ExpectedOutput(generated_implementation_proof:postcondition_error:assertion_error)
 requires acc(s.m(), _)
 pure func (s *S) g() int {
     return unfolding acc(s.m(), _) in s.x
 }
 
-//:: ExpectedOutput(generated_implementation_proof:postcondition_error:assertion_error)
 (*S) implements J

@@ -682,7 +682,9 @@ class InterfaceEncoding extends LeafTypeEncoding {
     *
     * function I_F(itf: I, args)
     *   requires [itf != nil: interface{...}] && [PRE]
-    *   ensures  typeOf(itf) == T ==> result == proof_T_I_F(valueOf(itf, T), args)
+    *   //> foreach T that has a proof to implement I:
+    *     ensures  typeOf(itf) == T ==> result == proof_T_I_F(valueOf(itf, T), args)
+    *   ensures  [POST]
     */
   private def function(p: in.PureMethod)(ctx: Context): MemberWriter[Vector[vpr.Function]] = {
     Violation.violation(p.results.size == 1, s"expected a single result, but got ${p.results}")

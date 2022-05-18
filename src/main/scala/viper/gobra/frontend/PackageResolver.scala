@@ -57,7 +57,7 @@ object PackageResolver {
             case Left(_) => NoPackage
             case Right(inputResource) =>
               try {
-                RegularPackage(inputResource.path.toFile.getCanonicalPath)
+                RegularPackage(Source.uniquePath(inputResource.path, config.projectRoot).toString)
               } catch { case _: Throwable => NoPackage }
           }
       }

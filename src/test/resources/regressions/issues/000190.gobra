@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue190
+
+// ##(-I ./000190/)
+import B "pkg"
+
+requires acc(t)
+requires *t == B.T{}
+func nonInitialized(t *B.T)

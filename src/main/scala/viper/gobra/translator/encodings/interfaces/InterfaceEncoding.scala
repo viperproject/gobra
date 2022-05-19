@@ -691,9 +691,11 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     val (pos, info: Source.Verifier.Info, errT) = p.vprMeta
 
+    val pProxy = Names.InterfaceMethod.origin(p.name)
+
     val itfT = p.receiver.typ.asInstanceOf[in.InterfaceT]
     val impls = ctx.table.implementations(itfT).toVector
-    val cases = impls.map(impl => (impl, ctx.table.lookup(impl, p.name.name).get))
+    val cases = impls.map(impl => (impl, ctx.table.lookup(impl, pProxy.name).get))
 
     val recvDecl = vpr.LocalVarDecl(Names.implicitThis, vprInterfaceType(ctx))(pos, info, errT)
     val recv = recvDecl.localVar
@@ -709,7 +711,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       val lhs = vpr.EqCmp(typeOf(recv)(pos, info, errT)(ctx), types.typeToExpr(impl)(pos, info, errT)(ctx))(pos, info, errT)
       // proof_T_I_F(valueOf(itf, T), args)
       val fullArgs = valueOf(recv, impl)(pos, info, errT)(ctx) +: args
-      val call = vpr.FuncApp(funcname = proofName(proxy, p.name), fullArgs)(pos, info, typ = resultType, errT)
+      val call = vpr.FuncApp(funcname = proofName(proxy, pProxy), fullArgs)(pos, info, typ = resultType, errT)
       // typeOf(i) == T ==> result == proof_T_I_F(valueOf(itf, T), args)
       vpr.Implies(lhs, vpr.EqCmp(result, call)(pos, info, errT))(pos, info, errT)
     }
@@ -720,13 +722,14 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     for {
       vPres <- ml.sequence(p.pres map (ctx.ass.precondition(_)(ctx)))
+      measures <- ml.sequence(p.terminationMeasures.map(ctx.measures.decreases(_)(ctx)))
       posts <- ml.sequence(p.posts.map(ctx.ass.postcondition(_)(ctx).map(fixResultvar(_))))
       body  <- ml.option(p.body.map(p => ml.pure(ctx.expr.translate(p)(ctx))(ctx)))
       func = vpr.Function(
         name = p.name.uniqueName,
         formalArgs = recvDecl +: argDecls,
         typ = resultType,
-        pres = receiverNotNil(recv)(pos, info, errT)(ctx) +: vPres,
+        pres = receiverNotNil(recv)(pos, info, errT)(ctx) +: (vPres ++ measures),
         posts = (cases map { case (impl, implProxy) => clause(impl, implProxy) }) ++ posts,
         body = body
       )(pos, info, errT)

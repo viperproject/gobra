@@ -1,4 +1,4 @@
-//:: IgnoreFile(/gobra/issue/418/)
+// :: IgnoreFile(/gobra/issue/451/)
 
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
@@ -6,8 +6,11 @@
 package termination
 
 type Func interface {
+    //:: ExpectedOutput(pure_function_termination_error)
+    //:: ExpectedOutput(postcondition_error:assertion_error)
 	pure
 	decreases n
+	requires a != nil
 	fun(n int, a Func) int
 }
 
@@ -22,6 +25,7 @@ type FuncImpl struct {}
 
 pure
 decreases n
+requires a != nil
 func (f FuncImpl) fun (n int, a Func) int {
 	//:: ExpectedOutput(pure_function_termination_error)
 	return n * a.fun(n, f)

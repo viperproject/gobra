@@ -380,18 +380,18 @@ object Desugar {
     def constDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constSpecD)
 
     def constSpecD(decl: PConstSpec): Vector[in.GlobalConstDecl] = decl.left.flatMap(l => info.regular(l) match {
-      case sc@st.SingleConstant(_, id, exp, _, _, _) =>
+      case sc@st.SingleConstant(_, id, _, _, _, _) =>
         val src = meta(id)
         val gVar = globalConstD(sc)(src)
         val lit: in.Lit = gVar.typ match {
           case in.BoolT(Addressability.Exclusive) =>
-            val constValue = sc.context.boolConstantEvaluation(exp)
+            val constValue = sc.context.boolConstantEvaluation(sc.exp)
             in.BoolLit(constValue.get)(src)
           case in.StringT(Addressability.Exclusive) =>
-            val constValue = sc.context.stringConstantEvaluation(exp)
+            val constValue = sc.context.stringConstantEvaluation(sc.exp)
             in.StringLit(constValue.get)(src)
           case x if underlyingType(x).isInstanceOf[in.IntT] && x.addressability == Addressability.Exclusive =>
-            val constValue = sc.context.intConstantEvaluation(exp)
+            val constValue = sc.context.intConstantEvaluation(sc.exp)
             in.IntLit(constValue.get)(src)
           case _ => ???
         }

@@ -379,34 +379,30 @@ object Desugar {
 
     def constDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constSpecD)
 
-    def constSpecD(decl: PConstSpec): Vector[in.GlobalConstDecl] = {
-      decl.left.flatMap { l =>
-        info.regular(l) match {
-          case sc@st.SingleConstant(_, id, exp, _, _, _) =>
-            val src = meta(id)
-            val gVar = globalConstD(sc)(src)
-            val lit: in.Lit = gVar.typ match {
-              case in.BoolT(Addressability.Exclusive) =>
-                val constValue = sc.context.boolConstantEvaluation(exp)
-                in.BoolLit(constValue.get)(src)
-              case in.StringT(Addressability.Exclusive) =>
-                val constValue = sc.context.stringConstantEvaluation(exp)
-                in.StringLit(constValue.get)(src)
-              case x if underlyingType(x).isInstanceOf[in.IntT] && x.addressability == Addressability.Exclusive =>
-                val constValue = sc.context.intConstantEvaluation(exp)
-                in.IntLit(constValue.get)(src)
-              case _ => ???
-            }
-            Vector(in.GlobalConstDecl(gVar, lit)(src))
-          case st.Wildcard(_, _) =>
-            // Constants defined with the blank identifier can be safely ignored as they
-            // must be computable statically (and thus do not have side effects) and
-            // they can never be read
-            Vector()
+    def constSpecD(decl: PConstSpec): Vector[in.GlobalConstDecl] = decl.left.flatMap(l => info.regular(l) match {
+      case sc@st.SingleConstant(_, id, exp, _, _, _) =>
+        val src = meta(id)
+        val gVar = globalConstD(sc)(src)
+        val lit: in.Lit = gVar.typ match {
+          case in.BoolT(Addressability.Exclusive) =>
+            val constValue = sc.context.boolConstantEvaluation(exp)
+            in.BoolLit(constValue.get)(src)
+          case in.StringT(Addressability.Exclusive) =>
+            val constValue = sc.context.stringConstantEvaluation(exp)
+            in.StringLit(constValue.get)(src)
+          case x if underlyingType(x).isInstanceOf[in.IntT] && x.addressability == Addressability.Exclusive =>
+            val constValue = sc.context.intConstantEvaluation(exp)
+            in.IntLit(constValue.get)(src)
           case _ => ???
         }
-      }
-    }
+        Vector(in.GlobalConstDecl(gVar, lit)(src))
+      case st.Wildcard(_, _) =>
+        // Constants defined with the blank identifier can be safely ignored as they
+        // must be computable statically (and thus do not have side effects) and
+        // they can never be read
+        Vector()
+      case _ => ???
+    })
 
     // Note: Alternatively, we could return the set of type definitions directly.
     //       However, currently, this would require to have versions of [[typeD]].

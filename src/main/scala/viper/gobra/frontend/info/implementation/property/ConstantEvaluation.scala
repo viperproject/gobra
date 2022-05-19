@@ -149,7 +149,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
       }
 
       case p: PIota =>
-        // obtains from the context the intended value for iota
+        // obtains the intended value for iota from the context
         val res = for {
           constBlock <- enclosingPConstBlock(p)
           constClause <- enclosingPConstDecl(p)

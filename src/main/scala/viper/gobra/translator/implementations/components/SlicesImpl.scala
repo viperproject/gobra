@@ -12,7 +12,7 @@ import viper.silver.{ast => vpr}
 class SlicesImpl(val arrays : Arrays) extends Slices {
   private val domainName : String = "Slice"
   private val typeVar : vpr.TypeVar = vpr.TypeVar("T")
-  private val domainType: vpr.DomainType = vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar))
+  private val domainType: vpr.DomainType = vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type](typeVar -> typeVar))(Seq(typeVar))
 
   private lazy val sadd_func = sadd_func_def()
 

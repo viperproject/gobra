@@ -187,7 +187,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PIntLit => numExprWithinTypeBounds(n)
 
-    case PIota() => noMessages // TODO
+    case n: PIota =>
+      error(n, s"cannot use iota outside of constant declaration", enclosingPConstDecl(n).isEmpty)
 
     case _: PFloatLit => ???
 

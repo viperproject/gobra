@@ -20,13 +20,21 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefActualMember(member: PActualMember): Messages = member match {
     case n: PFunctionDecl => wellDefVariadicArgs(n.args) ++ wellDefIfPureFunction(n)
     case m: PMethodDecl => wellDefVariadicArgs(m.args) ++ isReceiverType.errors(miscType(m.receiver))(member) ++ wellDefIfPureMethod(m)
-    case b: PConstDecl => println(s"AQUI: $b"); b.decls.flatMap(wellDefActualMember)
-    case c: PConstSpec =>
-      // TODO: move this above
-      val idenNumMsgs = error(c, s"number of identifiers does not match the number of expressions", c.left.length != c.right.length && c.right.nonEmpty)
-      val constExprMsgs = c.right.flatMap(wellDefIfConstExpr)
-      idenNumMsgs ++ constExprMsgs
+    case b: PConstDecl => b.specs.flatMap(wellDefConstSpec)
     case s: PActualStatement => wellDefStmt(s).out
+  }
+
+  private[typing] def wellDefConstSpec(spec: PConstSpec): Messages = {
+    // TODO: check problem with unknown identifier
+    val hasInitExpr = error(spec, s"missing init expr for ${spec.left}", spec.right.isEmpty)
+    lazy val canAssignInitExpr = error(
+      spec,
+      s"${spec.right} cannot be assigned to ${spec.left}",
+      !multiAssignableTo(spec.left.map(typ), spec.right.map(typ))
+    )
+    lazy val constExprMsgs = spec.right.flatMap(wellDefIfConstExpr)
+    // helps producing less redundant error messages
+    if (hasInitExpr.nonEmpty) hasInitExpr else if (canAssignInitExpr.nonEmpty) canAssignInitExpr else constExprMsgs
   }
 
   private[typing] def wellDefVariadicArgs(args: Vector[PParameter]): Messages =

@@ -589,20 +589,22 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
+    //TODO: make this return a PConstDecl, cleanup code
+    // TODO: fix warnings
   override def visitConstDecl(ctx: GobraParser.ConstDeclContext): Vector[PConstDecl] = {
     visitListNode[PConstSpec](ctx.constSpec()) match {
-      // Make sure the first expression list is not empty
-      case Vector(PConstSpec(_, Vector(), _), _*) => fail(ctx)
-      case decls =>
-        println(s"Const Block: $decls")
-        val expandedDecls = decls.zipWithIndex.map { case (decl, idx) =>
-          if (decl.right.isEmpty) {
-            // TODO: justify why this cannot fail
+      case specs =>
+        println(s"Const Block: $specs")
+        val expandedDecls = specs.zipWithIndex.map { case (spec, idx) =>
+          if (spec.right.isEmpty) {
             // TODO: justify why this transformation is better done here
-            val rhs = decls.take(idx).findLast(d => d.right.nonEmpty).get.right.map(_.copy)
-            PConstSpec(typ = decl.typ, left = decl.left, right = rhs).at(decl)
+            val rhs = specs.take(idx).findLast(d => d.right.nonEmpty) match {
+              case Some(s) => s.right.map(_.copy)
+              case None => Vector()
+            }
+            PConstSpec(typ = spec.typ, left = spec.left, right = rhs).at(spec)
           } else {
-            decl
+            spec
           }
         }
         Vector(PConstDecl(expandedDecls))

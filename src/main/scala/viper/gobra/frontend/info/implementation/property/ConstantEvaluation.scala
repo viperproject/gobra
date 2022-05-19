@@ -155,7 +155,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
       val res = for {
         constBlock <- enclosingPConstBlock(p)
         constClause <- enclosingPConstDecl(p)
-        iota = constBlock.decls.indexOf(constClause)
+        iota = constBlock.specs.indexOf(constClause)
       } yield BigInt(iota)
       if (res.isEmpty) violation("TODO") else res
 

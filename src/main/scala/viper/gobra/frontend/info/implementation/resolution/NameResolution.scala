@@ -58,10 +58,15 @@ trait NameResolution { this: TypeInfoImpl =>
                       // should never be the case if the code type checks
                       ???
                   }
-                  val idxDecl = constBlock.decls.indexOf(decl) // TODO: explain purpose
-                  val nonEmptyConstDecl = constBlock.decls.take(idxDecl).findLast { decl => decl.right.lift(idx).isDefined }.get // TODO: explain
-                  val expr = nonEmptyConstDecl.right(idx)
-                  SingleConstant(decl, idn, expr, decl.typ, isGhost, this)
+                  val idxDecl = constBlock.specs.indexOf(decl) // TODO: explain purpose
+                  val nonEmptyConstDeclOpt = constBlock.specs.take(idxDecl).findLast { decl => decl.right.lift(idx).isDefined } // TODO: explain
+                  nonEmptyConstDeclOpt match {
+                    case None =>
+                      UnknownEntity()
+                    case Some(nonEmptyConstDecl) =>
+                      val expr = nonEmptyConstDecl.right(idx)
+                      SingleConstant(decl, idn, expr, decl.typ, isGhost, this)
+                  }
               }
               /*
 
@@ -249,8 +254,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
     m match {
       case a: PActualMember => a match {
-        case d: PConstDecl => d.decls.flatMap(v => v.left.collect{ case x: PIdnDef => x })
-        case d: PConstSpec => d.left.collect{ case x: PIdnDef => x }
+        case d: PConstDecl => d.specs.flatMap(v => v.left.collect{ case x: PIdnDef => x })
         case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
         case d: PFunctionDecl => Vector(d.id)
         case d: PTypeDecl => Vector(d.left) ++ leakingIdentifier(d.right)

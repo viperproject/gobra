@@ -142,10 +142,10 @@ sealed trait PCodeRootWithResult extends PCodeRoot {
 
 // TODO: maybe introduce PConstBlockClause instead, make this stmt and all other stuff. Maybe rename to PConstSpec (or whatever name is used in the go lang spec)
 // TODO: might be easy to implement this as a stmt too
-case class PConstDecl(decls: Vector[PConstSpec]) extends PActualMember with PGhostifiableMember
+case class PConstDecl(specs: Vector[PConstSpec]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
 
 // TODO: don't make this a member and stmt, rename this to clause
-case class PConstSpec(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
+case class PConstSpec(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId]) extends PNode
 
 case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId], addressable: Vector[Boolean]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
 

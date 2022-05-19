@@ -43,6 +43,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PIfClause => showIfClause(n)
     case n: PExprSwitchClause => showExprSwitchClause(n)
     case n: PTypeSwitchClause => showTypeSwitchClause(n)
+    case n: PConstSpec => showConstSpec(n)
     case n: PSelectClause => showSelectClause(n)
     case n: PStructClause => showStructClause(n)
     case n: PInterfaceClause => showInterfaceClause(n)
@@ -83,8 +84,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showMember(mem: PMember): Doc = mem match {
     case mem: PActualMember => mem match {
-      case n: PConstDecl => "const" <+> parens(n.decls.map(showConstDecl).fold(emptyDoc)((a, b) => a <> linebreak <> b)) // TODO
-      case n: PConstSpec => showConstDecl(n)
+      case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PFunctionDecl(id, args, res, spec, body) =>
@@ -164,8 +164,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       "var" <+> showList(left zip addressable){ case (v, a) => showAddressable(a, v) } <> opt(typ)(space <> showType(_)) <> rhs
   }
 
-  def showConstDecl(decl: PConstSpec): Doc = decl match {
-    case PConstSpec(typ, right, left) => "const" <+> showIdList(left) <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
+  def showConstDecl(decl: PConstDecl): Doc = {
+    val lines = decl.specs.map(showConstSpec).foldLeft(emptyDoc)(_ <@> _)
+    "const" <+> parens(nest(lines) <> line)
+  }
+
+  def showConstSpec(spec: PConstSpec): Doc = spec match {
+    case PConstSpec(typ, right, left) => showIdList(left) <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
   }
 
   def showTypeDecl(decl: PTypeDecl): Doc = decl match {
@@ -195,7 +200,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showStmt(stmt: PStatement): Doc = stmt match {
     case stmt: PActualStatement => stmt match {
-      case n: PConstSpec => showConstDecl(n)
+      case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PShortVarDecl(right, left, addressable) =>
@@ -667,7 +672,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
   override def showMember(mem: PMember): Doc = mem match {
     case mem: PActualMember => mem match {
-      case n: PConstSpec => showConstDecl(n)
+      case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PFunctionDecl(id, args, res, spec, _) =>

@@ -88,7 +88,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
             }
           case _ => None
         }
-      case e: PBinaryExp[_, _] =>
+      case e: PBinaryExp[_,_] =>
         def aux(l: PExpression, r: PExpression)(f: BigInt => BigInt => BigInt): Option[BigInt] =
           (intConstantEval(l), intConstantEval(r)) match {
             case (Some(a), Some(b)) => Some(f(a)(b))
@@ -105,31 +105,28 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
             case _: PMod => aux(l, r)(x => y => x % y)
             case _: PDiv => aux(l, r)(x => y => x / y)
             case _: PShiftLeft =>
-              aux(l, r) {
-                x =>
-                  y =>
-                    // The type system ensures that y is convertible to int
-                    violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
-                    x << y.toInt
+              aux(l, r){
+                x => y =>
+                  // The type system ensures that y is convertible to int
+                  violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
+                  x << y.toInt
               }
             case _: PShiftRight => exprType(l) match {
               case IntT(t) => t match {
                 case UnboundedInteger | _: Signed =>
-                  aux(l, r) {
-                    x =>
-                      y =>
-                        // The type system ensures that y is convertible to int
-                        violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
-                        x >> y.toInt
+                  aux(l, r){
+                    x => y =>
+                      // The type system ensures that y is convertible to int
+                      violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
+                      x >> y.toInt
                   }
                 case _: Unsigned =>
-                  aux(l, r) {
-                    x =>
-                      y =>
-                        // The type system ensures that x is convertible to long and y is convertible to int
-                        violation(x <= Long.MaxValue, s"left-hand operand bigger than expected")
-                        violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
-                        BigInt(x.toLong >>> y.toInt) // >>> is not implemented for BigInt
+                  aux(l, r){
+                    x => y =>
+                      // The type system ensures that x is convertible to long and y is convertible to int
+                      violation(x <= Long.MaxValue, s"left-hand operand bigger than expected")
+                      violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
+                      BigInt(x.toLong >>> y.toInt) // >>> is not implemented for BigInt
                   }
               }
               case _ => None

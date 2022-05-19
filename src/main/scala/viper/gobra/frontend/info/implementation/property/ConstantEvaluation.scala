@@ -75,7 +75,6 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
         case _ => None
       }
       case PBitNegation(op) =>
-        // TODO: change
         // Not sufficient to do `intConstantEval(op) map (_.unary_~)`, produces wrong results for unsigned int values
         exprType(op) match {
           case IntT(t) =>
@@ -150,12 +149,14 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
       }
 
       case p: PIota =>
+        // obtains from the context the intended value for iota
         val res = for {
           constBlock <- enclosingPConstBlock(p)
           constClause <- enclosingPConstDecl(p)
           iota = constBlock.specs.indexOf(constClause)
         } yield BigInt(iota)
-        if (res.isEmpty) violation("TODO") else res
+        violation(res.nonEmpty, "iota expression could not be found in a constant declaration")
+        res
 
       case _ => None
     }

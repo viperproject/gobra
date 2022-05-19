@@ -40,35 +40,6 @@ trait NameResolution { this: TypeInfoImpl =>
               case idn: PIdnDef => SingleConstant(decl, idn, decl.right(idx), decl.typ, isGhost, this)
               case w: PWildcard => Wildcard(w, this)
             }
-            case _ if decl.left.nonEmpty && decl.right.isEmpty =>
-              // case where we rely on the previous entry in the const block to give the corresponding expressions, e.g.,
-              //     const {
-              //         x1, y1 = iota, iota
-              //         x2, y2
-              //     }
-              // Here, x2 and y2 should have the same expression (but different values due to different values for iota)
-              // as x1 and y1.
-              decl.left(idx) match {
-                case w: PWildcard => Wildcard(w, this)
-                case idn: PIdnDef =>
-                  val constBlockOpt = enclosingPConstBlock(idn)
-                  val constBlock = constBlockOpt match {
-                    case Some(p) => p
-                    case None =>
-                      // should never be the case if the code type checks
-                      ???
-                  }
-                  val idxDecl = constBlock.specs.indexOf(decl) // TODO: explain purpose
-                  val nonEmptyConstDeclOpt = constBlock.specs.take(idxDecl).findLast { decl => decl.right.lift(idx).isDefined } // TODO: explain
-                  nonEmptyConstDeclOpt match {
-                    case None =>
-                      UnknownEntity()
-                    case Some(nonEmptyConstDecl) =>
-                      val expr = nonEmptyConstDecl.right(idx)
-                      SingleConstant(decl, idn, expr, decl.typ, isGhost, this)
-                  }
-              }
-
             case _ => UnknownEntity()
           }
 

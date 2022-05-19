@@ -378,7 +378,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitResult(ctx: GobraParser.ResultContext): PResult = {
     super.visitResult(ctx) match {
-      case res: Vector[Vector[PParameter]] => PResult(res.flatten).at(ctx)
+      case res: Vector[Vector[PParameter]@unchecked] => PResult(res.flatten).at(ctx)
       case typ: PType => PResult(Vector(PUnnamedParameter(typ).at(typ))).at(ctx)
     }
   }
@@ -589,20 +589,30 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-    //TODO: make this return a PConstDecl, cleanup code
-    // TODO: fix warnings
   override def visitConstDecl(ctx: GobraParser.ConstDeclContext): Vector[PConstDecl] = {
     visitListNode[PConstSpec](ctx.constSpec()) match {
       case specs =>
-        println(s"Const Block: $specs")
         val expandedDecls = specs.zipWithIndex.map { case (spec, idx) =>
-          if (spec.right.isEmpty) {
-            // TODO: justify why this transformation is better done here
-            val rhs = specs.take(idx).findLast(d => d.right.nonEmpty) match {
+          // In constant declarations, whenever a type AND the init expression of a constant are not provided, the Go
+          // compiler chooses the type and init expression of the previous constant which has either an initialization
+          // expression or type. If an init expression cannot be found for a constant, Gobra reports an error during
+          // type-checking, regardless of whether a type has been specified for it or not. This behavior mimics what
+          // the Go compiler does.
+          if (spec.right.isEmpty && spec.typ.isEmpty) {
+            // When the type and init expression of a constant are not specified, we search for the latest constant C
+            // (in declaration order) which has either a type or init expression. Then, we update the parsed node
+            // of type PConstSpec node to contain a copy of both the type and the init expression of C. Doing so here
+            // makes it easier to evaluate constant expressions that contain `iota`, as it allows us to infer from
+            // context the intended value of `iota`. If we don't do this, the best we could do when evaluating an
+            // expression containing `iota` would be to pass the intended value of `iota` as a param to the constant
+            // evaluator, which requires significant refactoring of the type checker.
+            val lastValidSpec = specs.take(idx).findLast(d => d.right.nonEmpty || d.typ.nonEmpty)
+            val rhs = lastValidSpec match {
               case Some(s) => s.right.map(_.copy)
               case None => Vector()
             }
-            PConstSpec(typ = spec.typ, left = spec.left, right = rhs).at(spec)
+            val typ = lastValidSpec.flatMap(_.typ.map(_.copy))
+            PConstSpec(typ = typ, left = spec.left, right = rhs).at(spec)
           } else {
             spec
           }
@@ -737,9 +747,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitSpecMember(ctx: SpecMemberContext): AnyRef = super.visitSpecMember(ctx) match {
-    case Vector(spec : PFunctionSpec, (id: PIdnDef, args: Vector[PParameter], result: PResult, body: Option[(PBodyParameterInfo, PBlock)]))
+    case Vector(spec : PFunctionSpec, (id: PIdnDef, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
       => PFunctionDecl(id, args, result, spec, body)
-    case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter], result: PResult, body: Option[(PBodyParameterInfo, PBlock)]))
+    case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
       => PMethodDecl(id, receiver, args, result, spec, body)
   }
 
@@ -1261,7 +1271,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitQuantification(ctx: QuantificationContext): AnyRef = super.visitQuantification(ctx) match {
     case Vector(quantifier: String,
-      vars : Vector[PBoundVariable], ":", ":", triggers : Vector[PTrigger], body : PExpression) =>
+      vars : Vector[PBoundVariable@unchecked], ":", ":", triggers : Vector[PTrigger@unchecked], body : PExpression) =>
       (quantifier match {
         case "forall" => PForall
         case "exists" => PExists

@@ -24,7 +24,7 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case s: PActualStatement => wellDefStmt(s).out
   }
 
-  private[typing] def wellDefConstSpec(spec: PConstSpec): Messages = {
+  private def wellDefConstSpec(spec: PConstSpec): Messages = {
     val hasInitExpr = error(spec, s"missing init expr for ${spec.left}", spec.right.isEmpty)
     lazy val canAssignInitExpr = error(
       spec,

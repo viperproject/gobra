@@ -341,7 +341,7 @@ object Desugar {
       val consideredDecls = p.declarations.collect { case m@NoGhost(x: PMember) if shouldDesugar(x) => m }
       val dMembers = consideredDecls.flatMap{
         case NoGhost(x: PVarDecl) => varDeclGD(x)
-        case NoGhost(x: PConstDecl) => constBlockDeclD(x)
+        case NoGhost(x: PConstDecl) => constDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
         case NoGhost(x: PFunctionDecl) => Vector(registerFunction(x))
         case x: PMPredicateDecl => Vector(registerMPredicate(x))
@@ -377,7 +377,9 @@ object Desugar {
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
-    def constDeclD(decl: PConstSpec): Vector[in.GlobalConstDecl] = {
+    def constDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constSpecD)
+
+    def constSpecD(decl: PConstSpec): Vector[in.GlobalConstDecl] = {
       decl.left.flatMap { l =>
         info.regular(l) match {
           case sc@st.SingleConstant(_, id, exp, _, _, _) =>
@@ -396,18 +398,15 @@ object Desugar {
               case _ => ???
             }
             Vector(in.GlobalConstDecl(gVar, lit)(src))
-
-          // Constants defined with the blank identifier can be safely ignored as they
-          // must be computable statically (and thus do not have side effects) and
-          // they can never be read
-          case st.Wildcard(_, _) => Vector()
-
+          case st.Wildcard(_, _) =>
+            // Constants defined with the blank identifier can be safely ignored as they
+            // must be computable statically (and thus do not have side effects) and
+            // they can never be read
+            Vector()
           case _ => ???
         }
       }
     }
-
-    def constBlockDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constDeclD)
 
     // Note: Alternatively, we could return the set of type definitions directly.
     //       However, currently, this would require to have versions of [[typeD]].

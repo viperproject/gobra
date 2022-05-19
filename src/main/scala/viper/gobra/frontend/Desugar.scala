@@ -814,43 +814,11 @@ object Desugar {
 
           case l: PLabeledStmt => {
             val proxy = labelProxy(l.label)
-            l.stmt match {
-              case forstmt : PForStmt => {
-                unit(block( // is a block because 'pre' might define new variables
-                  for {
-                    _ <- declare(proxy)
-                    _ <- write(in.Label(proxy)(src))
-                    dPre <- maybeStmtD(ctx)(forstmt.pre)(src)
-                    (dCondPre, dCond) <- prelude(exprD(ctx)(forstmt.cond))
-                    (dInvPre, dInv) <- prelude(sequence(forstmt.spec.invariants map assertionD(ctx)))
-                    (dTerPre, dTer) <- prelude(option(forstmt.spec.terminationMeasure map terminationMeasureD(ctx)))
-                    labelName = nm.pushFor(forstmt, info)
-                    loopLabelProxy = in.LabelProxy(labelName)(src)
-                    _ <- declare(loopLabelProxy)
-                    loopLabel = in.Label(loopLabelProxy)(src)
-
-                    dBody = blockD(ctx)(forstmt.body)
-                    dPost <- maybeStmtD(ctx)(forstmt.post)(src)
-
-                    _ = nm.popFor(forstmt, info)
-                    wh = in.Seqn(
-                      Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
-                        in.While(dCond, dInv, dTer, in.Seqn(
-                          Vector(dBody, loopLabel, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
-                        )(src), Some(l.label.name))(src)
-                      )
-                    )(src)
-                  } yield wh
-                ))
-              }
-              case _ => {
-                for {
-                  _ <- declare(proxy)
-                  _ <- write(in.Label(proxy)(src))
-                  s <- goS(l.stmt)
-                } yield s
-              }
-            }
+            for {
+              _ <- declare(proxy)
+              _ <- write(in.Label(proxy)(src))
+              s <- goS(l.stmt)
+            } yield s
           }
 
           case PIfStmt(ifs, els) =>
@@ -874,10 +842,21 @@ object Desugar {
                 (dCondPre, dCond) <- prelude(exprD(ctx)(cond))
                 (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
                 (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
-                labelName = nm.pushFor(n, info)
-                loopLabelProxy = in.LabelProxy(labelName)(src)
-                _ <- declare(loopLabelProxy)
-                loopLabel = in.Label(loopLabelProxy)(src)
+                loopId = nm.pushFor(n, info)
+                continueLabelName = nm.continueLabel(loopId)
+                continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
+                _ <- declare(continueLoopLabelProxy)
+                continueLoopLabel = in.Label(continueLoopLabelProxy)(src)
+
+                breakLabelName = nm.breakLabel(loopId)
+                breakLoopLabelProxy = in.LabelProxy(breakLabelName)(src)
+                _ <- declare(breakLoopLabelProxy)
+                breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
+
+                loopLabelName = n match {
+                  case info.tree.parent(p: PLabeledStmt) => Some(p.label.name)
+                  case _ => None
+                }
 
                 dBody = blockD(ctx)(body)
                 dPost <- maybeStmtD(ctx)(post)(src)
@@ -887,8 +866,8 @@ object Desugar {
                 wh = in.Seqn(
                   Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
                     in.While(dCond, dInv, dTer, in.Seqn(
-                      Vector(dBody, loopLabel, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
-                    )(src), None)(src)
+                      Vector(dBody, continueLoopLabel, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
+                    )(src), loopLabelName)(src), breakLoopLabel
                   )
                 )(src)
               } yield wh
@@ -1101,13 +1080,9 @@ object Desugar {
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
 
-          case n@PContinue(label) => unit(in.Continue(label.map(x => x.name), nm.fetchForId(n, info))(src))
+          case n@PContinue(label) => unit(in.Continue(label.map(x => x.name), nm.fetchContinueLabel(n, info))(src))
 
-          case n@PBreak(label) =>
-            label match {
-              case None => unit(in.Break(None, nm.fresh(n, info))(src))
-              case Some(l) => unit(in.Break(Some(l.name), nm.fresh(n, info))(src))
-            }
+          case n@PBreak(label) => unit(in.Break(label.map(x => x.name), nm.fetchBreakLabel(n, info))(src))
 
           case _ => ???
         }
@@ -3174,7 +3149,8 @@ object Desugar {
     private val LABEL_PREFIX = "L"
     private val GLOBAL_PREFIX = "G"
     private val BUILTIN_PREFIX = "B"
-    private val CONTINUE_LABEL_PREFIX = "CL_"
+    private val CONTINUE_LABEL_SUFFIX = "$Continue"
+    private val BREAK_LABEL_SUFFIX = "$Break"
 
     /** the counter to generate fresh names depending on the current code root for which a fresh name should be generated */
     private var nonceCounter: Map[PCodeRoot, Int] = Map.empty
@@ -3211,6 +3187,8 @@ object Desugar {
       * Last, when all the statements inside the for loop are desugared, its identifier is
       * popped from the stack but the max value remains the same. This way the next for that
       * will be pushed will have a unique identifier.
+      * Note that the identifiers created for a method do not affect those created for a
+      * different method since a unique stack is created for every codeRoot.
       */
 
     private var continueCounter: Map[PCodeRoot, (Seq[Int], Int)] = Map.empty
@@ -3275,22 +3253,38 @@ object Desugar {
       * to represent the current for statement. Its value will be max + 1 and max
       * will be updated for this code root.
       */
-    def pushFor(node: PNode, info: TypeInfo): String = {
+    def pushFor(node: PNode, info: TypeInfo): Int = {
       val codeRoot = info.codeRoot(node)
       val (stack, max) = continueCounter.getOrElse(codeRoot, (Seq(), 0))
       continueCounter += (codeRoot -> (Seq(max + 1) ++ stack, max + 1))
-      CONTINUE_LABEL_PREFIX + (max + 1)
+      (max + 1)
     }
 
     /** returns a unique identifier for a for stmt*/
-    def fetchForId(node: PContinue, info: TypeInfo): String = {
+    def fetchForId(node: PNode, info: TypeInfo, label: Option[PLabelUse]): Int = {
       val codeRoot = info.codeRoot(node)
       val Some((stack, _)) = continueCounter.get(codeRoot)
-      node.label match {
-        case None => CONTINUE_LABEL_PREFIX + stack(0)
-        case Some(l) => CONTINUE_LABEL_PREFIX + stack(info.enclosingLabeledLoopOrder(l, node))
+      label match {
+        case None => stack(0)
+        case Some(l) => stack(info.enclosingLabeledLoopOrder(l, node))
       }
     }
+
+    /** use the unique identifier of a for loop to create a label identifier for continue */
+    def fetchContinueLabel(node: PContinue, info: TypeInfo): String = {
+      val label = node.label
+      "L_" + fetchForId(node, info, label) + CONTINUE_LABEL_SUFFIX
+    }
+
+    /** use the unique identifier of a for loop to create a label identifier for break */
+    def fetchBreakLabel(node: PBreak, info: TypeInfo): String = {
+      val label = node.label
+      "L_" + fetchForId(node, info, label) + BREAK_LABEL_SUFFIX
+    }
+
+    def continueLabel(id: Int) : String = "L_" + id + CONTINUE_LABEL_SUFFIX
+
+    def breakLabel(id: Int) : String = "L_" + id + BREAK_LABEL_SUFFIX
 
     /** pops the last for statement identifier that was pushed to the stack */
     def popFor(node: PNode, info: TypeInfo): Unit = {

@@ -4,10 +4,16 @@
 package pkg
 
 func foo() {
+	var x = false
+	invariant x == false
 	for i := 1; i < 10; i++ {
 		continue
+		x = true
 	}
+	invariant x == false
 	for i := 1; i < 10; i++ {
 		continue
+		x = true
 	}
+	assert x == false
 }

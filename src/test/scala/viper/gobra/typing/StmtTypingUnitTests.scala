@@ -35,19 +35,40 @@ class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert(!frontend.wellDefStmt(PBreak(None))().valid)
   }
 
+  test("TypeChecker: valid for with a break statement") {
+    assert(frontend.wellDefStmt(
+      PForStmt(
+        None,
+        PBoolLit(true),
+        None,
+        PLoopSpec(Vector.empty, None),
+        PBlock(Vector[PStatement](PBreak(None)))
+      ))().valid)
+  }
+
   class TestFrontend {
-    def singleStmtProgram(inArgs: Vector[(PParameter, Boolean)], body : PStatement) : PProgram = PProgram(
-      PPackageClause(PPkgDef("pkg")),
-      Vector(),
-      Vector(PMethodDecl(
-        PIdnDef("foo"),
-        PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("self")))),
-        inArgs.map(_._1),
-        PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), Vector(), Vector(), isPure = false),
-        Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
-      ))
-    )
+
+    /**
+      * Creates the program:
+      * 
+      * package pkg
+      * 
+      * func foo(<inArgs>) {
+      *     <body>
+      * }
+      */
+    def singleStmtProgram(inArgs: Vector[(PParameter, Boolean)], body : PStatement) : PProgram =
+      PProgram(
+        PPackageClause(PPkgDef("pkg")),
+        Vector(),
+        Vector(PFunctionDecl(
+          PIdnDef("foo"),
+          inArgs.map(_._1),
+          PResult(Vector()),
+          PFunctionSpec(Vector(), Vector(), Vector(), Vector(), isPure = false),
+          Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
+        ))
+      )
 
     def singleStmtTypeInfo(inArgs: Vector[(PParameter, Boolean)], stmt : PStatement) : TypeInfoImpl = {
       val program = singleStmtProgram(inArgs, stmt)

@@ -68,33 +68,6 @@ class StatementsImpl extends Statements {
       } yield exhale
     }
 
-    /**
-      * Since each break statement will be replaced by a 'goto' to a unique 'escLabel',
-      * this function is called when addressing a while node to find all these
-      * escLabels corresponding to break statements breaking this specific node.
-      * The break statements that break a while node are unlabeled break statements
-      * directly inside the body of the while node or labeled break statements in
-      * nested loops with the same label as this while node. 'depthControl' is needed
-      * for knowing whether the immidiate body of a while node is traversed or if
-      * the traversal is inside a nested loop so unlabeled breaks should be disregarded.
-      */
-    def gatherBreakLabels(node: in.Node, label: Option[String], depthControl : Boolean = true): Vector[String] =
-      label match {
-        case None =>
-          node match {
-            case in.Break(None, l) => Vector(l)
-            case _ : in.While => Vector.empty
-            case n => n.subnodes.foldLeft(Vector[String]())((a : Vector[String], b : in.Node) => (a ++ gatherBreakLabels(b, None)))
-          }
-        case Some(labelString) =>
-          node match {
-            case in.Break(None, l) => if (depthControl) Vector(l) else Vector.empty
-            case in.Break(Some(breakLabelString), l) => if (labelString.equals(breakLabelString)) Vector(l) else Vector.empty
-            case n: in.While => n.subnodes.foldLeft(Vector[String]())((a : Vector[String], b : in.Node) => (a ++ gatherBreakLabels(b, label, false)))
-            case n => n.subnodes.foldLeft(Vector[String]())((a : Vector[String], b : in.Node) => (a ++ gatherBreakLabels(b, label, depthControl)))
-          }
-      }
-
     val vprStmt: CodeWriter[vpr.Stmt] = x match {
       case in.Block(decls, stmts) =>
         val vDecls = decls map (blockDecl(_)(ctx))
@@ -125,7 +98,7 @@ class StatementsImpl extends Statements {
             e <- goS(els)
           } yield vpr.If(c, vu.toSeq(t), vu.toSeq(e))(pos, info, errT)
 
-      case in.While(cond, invs, terminationMeasure, body, label) =>
+      case in.While(cond, invs, terminationMeasure, body, _) =>
 
         for {
           (cws, vCond) <- split(goE(cond))
@@ -140,14 +113,9 @@ class StatementsImpl extends Statements {
 
           measure <- option(terminationMeasure map ctx.measures.translateF(ctx))
 
-          // Gather the labels where the break statements breaking this loop will go to
-          // to insert them directly after the loop
-          breakLabelNames = gatherBreakLabels(body, label)
-          breakLabels = breakLabelNames.map(x => vpr.Label(x, Vector.empty)(pos, info, errT))
-
           wh = vu.seqn(Vector(
             cpre, ipre, vpr.While(vCond, vInvs ++ measure, vu.seqn(Vector(vBody, cpost, ipost))(pos, info, errT))(pos, info, errT)
-          ) ++ breakLabels)(pos, info, errT)
+          ))(pos, info, errT)
         } yield wh
 
       case ass: in.SingleAss => ctx.typeEncoding.assignment(ctx)(ass.left, ass.right, ass)

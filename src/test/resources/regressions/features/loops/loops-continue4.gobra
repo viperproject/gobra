@@ -10,4 +10,5 @@ func foo() {
 	for true {
 		continue
 	}
+	assert false
 }

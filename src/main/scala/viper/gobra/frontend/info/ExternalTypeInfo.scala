@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info
 
-import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PKeyedElement, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType, PForStmt, PLabelUse}
+import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PKeyedElement, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType, PLabelUse}
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMemberTag
 import viper.gobra.frontend.info.base.Type.{AbstractType, InterfaceT, StructT, Type}
@@ -92,10 +92,6 @@ trait ExternalTypeInfo {
 
   /** returns the code root for a given node; can only be called on nodes that are enclosed in a code root */
   def codeRoot(n: PNode): PCodeRoot with PScope
-
-  def enclosingLoopNode(n: PNode) : Option[PForStmt]
-
-  def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PForStmt]
 
   /** returns the number of nested loops between node 'n' and a loop with label 'label' */
   def enclosingLabeledLoopOrder(label: PLabelUse, n: PNode) : Int

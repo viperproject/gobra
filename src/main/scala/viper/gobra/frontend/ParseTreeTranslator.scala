@@ -595,7 +595,21 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       case Vector(PConstDecl(_, Vector(), _), _*) => fail(ctx)
       case decls =>
         println(s"Const Block: $decls")
-        Vector(PConstBlock(decls))
+        val expandedDecls = decls.zipWithIndex.map { case (decl, idx) =>
+          if (decl.right.isEmpty) {
+            // TODO: justify why this cannot fail
+            // TODO: justify why this transformation is better done here
+            val rhs = decls.take(idx).findLast(d => d.right.nonEmpty).get.right.map(_.copy)
+            PConstDecl(
+              typ = decl.typ,
+              left = decl.left,
+              right = rhs
+            ).at(decl)
+          } else {
+            decl
+          }
+        }
+        Vector(PConstBlock(expandedDecls))
     }
   }
 

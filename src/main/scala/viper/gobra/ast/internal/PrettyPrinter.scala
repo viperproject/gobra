@@ -250,7 +250,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Seqn(stmts) => ssep(stmts map showStmt, line)
     case Label(label) => showProxy(label)
     case If(cond, thn, els) => "if" <> parens(showExpr(cond)) <+> block(showStmt(thn)) <+> "else" <+> block(showStmt(els))
-    case While(cond, invs, measure, body, label) => opt(label.map(l => s"${l}: "))(text) <> "while" <> parens(showExpr(cond)) <> line <>
+    case While(cond, invs, measure, body) => "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line)) <>
       opt(measure)("decreases" <> showTerminationMeasure(_) <> line) <>
       block(showStmt(body))
@@ -653,7 +653,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Seqn(_) => emptyDoc
     case Label(label) => showProxy(label)
     case If(cond, _, _) => "if" <> parens(showExpr(cond)) <+> "{...}" <+> "else" <+> "{...}"
-    case While(cond, invs, measure, _, label) => opt(label.map(l => s"${l}: "))(text) <> "while" <> parens(showExpr(cond)) <> line <>
+    case While(cond, invs, measure, _) => "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line)) <>
       opt(measure)("decreases" <> showTerminationMeasure(_) <> line)
 

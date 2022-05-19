@@ -98,7 +98,7 @@ class StatementsImpl extends Statements {
             e <- goS(els)
           } yield vpr.If(c, vu.toSeq(t), vu.toSeq(e))(pos, info, errT)
 
-      case in.While(cond, invs, terminationMeasure, body, _) =>
+      case in.While(cond, invs, terminationMeasure, body) =>
 
         for {
           (cws, vCond) <- split(goE(cond))

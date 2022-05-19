@@ -853,11 +853,6 @@ object Desugar {
                 _ <- declare(breakLoopLabelProxy)
                 breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
 
-                loopLabelName = n match {
-                  case info.tree.parent(p: PLabeledStmt) => Some(p.label.name)
-                  case _ => None
-                }
-
                 dBody = blockD(ctx)(body)
                 dPost <- maybeStmtD(ctx)(post)(src)
 
@@ -867,7 +862,7 @@ object Desugar {
                   Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
                     in.While(dCond, dInv, dTer, in.Seqn(
                       Vector(dBody, continueLoopLabel, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
-                    )(src), loopLabelName)(src), breakLoopLabel
+                    )(src))(src), breakLoopLabel
                   )
                 )(src)
               } yield wh

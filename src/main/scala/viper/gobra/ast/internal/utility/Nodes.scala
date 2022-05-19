@@ -45,7 +45,7 @@ object Nodes {
         case Seqn(stmts) => stmts
         case Label(label) => Seq(label)
         case If(cond, thn, els) => Seq(cond, thn, els)
-        case While(cond, invs, measure, body, _) => Seq(cond) ++ invs ++ measure ++ Seq(body)
+        case While(cond, invs, measure, body) => Seq(cond) ++ invs ++ measure ++ Seq(body)
         case New(target, typ) => Seq(target, typ)
         case MakeSlice(target, _, lenArg, capArg) => Seq(target, lenArg) ++ capArg.toSeq
         case MakeChannel(target, _, bufferSizeArg, _, _) => target +: bufferSizeArg.toSeq

@@ -989,42 +989,23 @@ object Desugar {
           case PGoStmt(exp) =>
             def unexpectedExprError(exp: PExpression) = violation(s"unexpected expression $exp in go statement")
 
-            // nParams is the number of parameters in the function/method definition, and
-            // args is the actual list of arguments
-            def getArgs(nParams: Int, args: Vector[PExpression]): Writer[Vector[in.Expr]] = {
-              sequence(args map exprD(ctx)).map {
-                // go function chaining feature
-                case Vector(in.Tuple(targs)) if nParams > 1 => targs
-                case dargs => dargs
-              }
-            }
-
             exp match {
-              case inv: PInvoke => info.resolve(inv) match {
-                // TODO: the whole thing should just be desugared as a call. The code below has multiple bugs.
-                case Some(p: ap.FunctionCall) => p.callee match {
-                  case ap.Function(_, st.Function(decl, _, context)) =>
-                    val func = functionProxyD(decl, context.getTypeInfo)
-                    for { args <- getArgs(decl.args.length, p.args) } yield in.GoFunctionCall(func, args)(src)
-
-                  case ap.ReceivedMethod(recv, _, _, st.MethodImpl(decl, _, context)) =>
-                    val meth = methodProxyD(decl, context.getTypeInfo)
-                    for {
-                      args <- getArgs(decl.args.length, p.args)
-                      recvIn <- goE(recv)
-                    } yield in.GoMethodCall(recvIn, meth, args)(src)
-
-                  case ap.MethodExpr(_, _, _, st.MethodImpl(decl, _, context)) =>
-                    val meth = methodProxyD(decl, context.getTypeInfo)
-                    for {
-                      args <- getArgs(decl.args.length, p.args.tail)
-                      recv <- goE(p.args.head)
-                    } yield in.GoMethodCall(recv, meth, args)(src)
-
+              case inv: PInvoke =>
+                info.resolve(inv) match {
+                  case Some(p: ap.FunctionCall) =>
+                    functionCallDAux(ctx)(p, inv)(src) map {
+                      case Left((_, call: in.FunctionCall)) =>
+                        in.GoFunctionCall(call.func, call.args)(src)
+                      case Left((_, call: in.MethodCall)) =>
+                        in.GoMethodCall(call.recv, call.meth, call.args)(src)
+                      case Right(call: in.PureFunctionCall) =>
+                        in.GoFunctionCall(call.func, call.args)(src)
+                      case Right(call: in.PureMethodCall) =>
+                        in.GoMethodCall(call.recv, call.meth, call.args)(src)
+                      case _ => unexpectedExprError(exp)
+                    }
                   case _ => unexpectedExprError(exp)
                 }
-                case _ => unexpectedExprError(exp)
-              }
               case _ => unexpectedExprError(exp)
             }
 
@@ -1192,6 +1173,19 @@ object Desugar {
     }
 
     def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall, expr: PInvoke)(src: Meta): Writer[in.Expr] = {
+      functionCallDAux(ctx)(p, expr)(src) flatMap {
+        case Right(exp) => unit(exp)
+        case Left((targets, callStmt)) =>
+          val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
+          for {
+            _ <- declare(targets: _*)
+            _ <- write(callStmt)
+          } yield res
+      }
+    }
+
+    /** Returns either a tuple with targets and call statement or, if the call is pure, the call expression directly. */
+    def functionCallDAux(ctx: FunctionContext)(p: ap.FunctionCall, expr: PInvoke)(src: Meta): Writer[Either[(Vector[in.LocalVar], in.Stmt), in.Expr]] = {
       def getBuiltInFuncType(f: ap.BuiltInFunctionKind): FunctionT = {
         val abstractType = info.typ(f.symb.tag)
         val argsForTyping = f match {
@@ -1308,7 +1302,6 @@ object Desugar {
           case c => Violation.violation(s"This case should be unreachable, but got $c")
         }
       }
-      val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
 
       val isPure = p.callee match {
         case base: ap.Symbolic => base.symb match {
@@ -1329,15 +1322,13 @@ object Desugar {
                 args <- dArgs
                 convertedArgs = convertArgs(args)
                 fproxy = getFunctionProxy(base, convertedArgs)
-              } yield in.PureFunctionCall(fproxy, convertedArgs, resT)(src)
+              } yield Right(in.PureFunctionCall(fproxy, convertedArgs, resT)(src))
             } else {
               for {
                 args <- dArgs
-                _ <- declare(targets: _*)
                 convertedArgs = convertArgs(args)
                 fproxy = getFunctionProxy(base, convertedArgs)
-                _ <- write(in.FunctionCall(targets, fproxy, convertedArgs)(src))
-              } yield res
+              } yield Left((targets, in.FunctionCall(targets, fproxy, convertedArgs)(src)))
             }
 
           case iim: ap.ImplicitlyReceivedInterfaceMethod =>
@@ -1349,16 +1340,14 @@ object Desugar {
                 convertedArgs = convertArgs(args)
                 proxy = methodProxy(iim.id, iim.symb.context.getTypeInfo)
                 recvType = typeD(iim.symb.itfType, Addressability.receiver)(src)
-              } yield in.PureMethodCall(implicitThisD(recvType)(src), proxy, convertedArgs, resT)(src)
+              } yield Right(in.PureMethodCall(implicitThisD(recvType)(src), proxy, convertedArgs, resT)(src))
             } else {
               for {
                 args <- dArgs
-                _ <- declare(targets: _*)
                 convertedArgs = convertArgs(args)
                 proxy = methodProxy(iim.id, iim.symb.context.getTypeInfo)
                 recvType = typeD(iim.symb.itfType, Addressability.receiver)(src)
-                _ <- write(in.MethodCall(targets, implicitThisD(recvType)(src), proxy, convertedArgs)(src))
-              } yield res
+              } yield Left((targets, in.MethodCall(targets, implicitThisD(recvType)(src), proxy, convertedArgs)(src)))
             }
 
           case df: ap.DomainFunction =>
@@ -1366,7 +1355,7 @@ object Desugar {
               args <- dArgs
               convertedArgs = convertArgs(args)
               proxy = domainFunctionProxy(df.symb)
-            } yield in.DomainFunctionCall(proxy, convertedArgs, resT)(src)
+            } yield Right(in.DomainFunctionCall(proxy, convertedArgs, resT)(src))
 
           case _: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.BuiltInReceivedMethod | _: ap.BuiltInMethodExpr => {
             val dRecvWithArgs = base match {
@@ -1394,15 +1383,13 @@ object Desugar {
                 (recv, args) <- dRecvWithArgs
                 convertedArgs = convertArgs(args)
                 mproxy = getMethodProxy(base, recv, convertedArgs)
-              } yield in.PureMethodCall(recv, mproxy, convertedArgs, resT)(src)
+              } yield Right(in.PureMethodCall(recv, mproxy, convertedArgs, resT)(src))
             } else {
               for {
                 (recv, args) <- dRecvWithArgs
-                _ <- declare(targets: _*)
                 convertedArgs = convertArgs(args)
                 mproxy = getMethodProxy(base, recv, convertedArgs)
-                _ <- write(in.MethodCall(targets, recv, mproxy, convertedArgs)(src))
-              } yield res
+              } yield Left((targets, in.MethodCall(targets, recv, mproxy, convertedArgs)(src)))
             }
           }
           case sym => Violation.violation(s"expected symbol with arguments and result or a built-in entity, but got $sym")

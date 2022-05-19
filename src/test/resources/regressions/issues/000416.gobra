@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I ./000416/ -I ./000416/importedImplementationPkg)
+import pkg "importedImplementationPkg"
+import "importedImplementationPkg/shape"
+
+func main () {
+  r@ := pkg.Rect{width: 2, height: 3}
+  fold r.mem()
+  r.Area()
+  Area(&r)
+}
+
+requires s != nil && s.mem() && s.Size()
+func Area(s shape.Shape) (ret int) {
+  return s.Area()
+}

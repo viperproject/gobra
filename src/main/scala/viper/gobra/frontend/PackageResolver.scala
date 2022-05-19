@@ -32,12 +32,36 @@ object PackageResolver {
   val fileUriScheme = "file"
   val jarUriScheme = "jar"
 
-  trait AbstractImport
+  sealed trait AbstractImport
   /** represents an implicit unqualified import that should resolve to the built-in package */
   case object BuiltInImport extends AbstractImport
   /** relative import path that should be resolved; an empty importPath results in looking for files in the current directory */
   case class RegularImport(importPath: String) extends AbstractImport {
     override def toString: String = importPath
+  }
+
+  sealed trait AbstractPackage
+  /** represents an error */
+  case object NoPackage extends AbstractPackage
+  /** represents all built-in packages together */
+  case object BuiltInPackage extends AbstractPackage
+  /** represents a regular package */
+  case class RegularPackage(id: String) extends AbstractPackage
+
+  object AbstractPackage {
+    def apply(imp: AbstractImport)(config: Config): AbstractPackage = {
+      imp match {
+        case BuiltInImport => BuiltInPackage
+        case imp: RegularImport =>
+          getLookupPath(imp)(config) match {
+            case Left(_) => NoPackage
+            case Right(inputResource) =>
+              try {
+                RegularPackage(Source.uniquePath(inputResource.path, config.projectRoot).toString)
+              } catch { case _: Throwable => NoPackage }
+          }
+      }
+    }
   }
 
   /** represents some resolved source together with the knowledge of whether it was obtained from a builtin resource or not */

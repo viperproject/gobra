@@ -31,4 +31,9 @@ func (t HostAddrType) String() string {
 
 func test() {
 	_ := HostTypeIPv4.String()
+	assert HostTypeNone == HostAddrType(0)
+	assert HostTypeIPv4 == HostAddrType(1)
+	assert HostTypeIPv6 == HostAddrType(2)
+	assert HostTypeSVC  == HostAddrType(3)
+
 }

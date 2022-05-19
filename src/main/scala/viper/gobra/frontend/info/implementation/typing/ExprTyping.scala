@@ -770,7 +770,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         // if no type is specified, integer expressions default to unbounded integer in const declarations;
         // there is no need to handle interface types because they are not allowed in constant declarations
-        case PConstDecl(typ, _, _) => typ map typeSymbType orElse Some(UNTYPED_INT_CONST)
+        case PConstSpec(typ, _, _) => typ map typeSymbType orElse Some(UNTYPED_INT_CONST)
 
         // if no type is specified, integer expressions have default type in var declarations
         case PVarDecl(typ, _, _, _) => typ map (x => typeSymbType(x))

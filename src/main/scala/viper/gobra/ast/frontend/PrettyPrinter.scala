@@ -83,8 +83,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showMember(mem: PMember): Doc = mem match {
     case mem: PActualMember => mem match {
-      case n: PConstBlock => "const" <+> parens(n.decls.map(showConstDecl).fold(emptyDoc)((a, b) => a <> linebreak <> b)) // TODO
-      case n: PConstDecl => showConstDecl(n)
+      case n: PConstDecl => "const" <+> parens(n.decls.map(showConstDecl).fold(emptyDoc)((a, b) => a <> linebreak <> b)) // TODO
+      case n: PConstSpec => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PFunctionDecl(id, args, res, spec, body) =>
@@ -164,8 +164,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       "var" <+> showList(left zip addressable){ case (v, a) => showAddressable(a, v) } <> opt(typ)(space <> showType(_)) <> rhs
   }
 
-  def showConstDecl(decl: PConstDecl): Doc = decl match {
-    case PConstDecl(typ, right, left) => "const" <+> showIdList(left) <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
+  def showConstDecl(decl: PConstSpec): Doc = decl match {
+    case PConstSpec(typ, right, left) => "const" <+> showIdList(left) <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
   }
 
   def showTypeDecl(decl: PTypeDecl): Doc = decl match {
@@ -195,7 +195,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showStmt(stmt: PStatement): Doc = stmt match {
     case stmt: PActualStatement => stmt match {
-      case n: PConstDecl => showConstDecl(n)
+      case n: PConstSpec => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PShortVarDecl(right, left, addressable) =>
@@ -667,7 +667,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
   override def showMember(mem: PMember): Doc = mem match {
     case mem: PActualMember => mem match {
-      case n: PConstDecl => showConstDecl(n)
+      case n: PConstSpec => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PFunctionDecl(id, args, res, spec, _) =>

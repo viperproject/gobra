@@ -32,7 +32,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
         p match {
 
-        case decl: PConstDecl =>
+        case decl: PConstSpec =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           StrictAssignMode(decl.left.size, decl.right.size) match {
@@ -249,8 +249,8 @@ trait NameResolution { this: TypeInfoImpl =>
 
     m match {
       case a: PActualMember => a match {
-        case d: PConstBlock => d.decls.flatMap(v => v.left.collect{ case x: PIdnDef => x })
-        case d: PConstDecl => d.left.collect{ case x: PIdnDef => x }
+        case d: PConstDecl => d.decls.flatMap(v => v.left.collect{ case x: PIdnDef => x })
+        case d: PConstSpec => d.left.collect{ case x: PIdnDef => x }
         case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
         case d: PFunctionDecl => Vector(d.id)
         case d: PTypeDecl => Vector(d.left) ++ leakingIdentifier(d.right)

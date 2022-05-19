@@ -318,7 +318,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     @scala.annotation.tailrec
     private def equal(actual: PMember, expected: PMember): Assertion = {
       (actual, expected) match {
-        case (a: PConstDecl, e: PConstDecl) => assert(a == e)
+        case (a: PConstSpec, e: PConstSpec) => assert(a == e)
         case (a: PVarDecl, e: PVarDecl) => assert(a == e)
         case (PFunctionDecl(aId, aArgs, aResult, aSpec, aBody), PFunctionDecl(eId, eArgs, eResult, eSpec, eBody)) =>
           assert(aId == eId)

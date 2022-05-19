@@ -341,10 +341,10 @@ object Desugar {
       val consideredDecls = p.declarations.collect { case m@NoGhost(x: PMember) if shouldDesugar(x) => m }
       val dMembers = consideredDecls.flatMap{
         case NoGhost(x: PVarDecl) => varDeclGD(x)
-        case NoGhost(x: PConstBlock) =>
+        case NoGhost(x: PConstDecl) =>
           println(x)
           constBlockDeclD(x)
-        case NoGhost(x: PConstDecl) => ??? // constDeclD(x)
+        case NoGhost(x: PConstSpec) => ??? // constDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
         case NoGhost(x: PFunctionDecl) => Vector(registerFunction(x))
         case x: PMPredicateDecl => Vector(registerMPredicate(x))
@@ -380,7 +380,7 @@ object Desugar {
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
-    def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = {
+    def constDeclD(decl: PConstSpec): Vector[in.GlobalConstDecl] = {
       decl.left.zipWithIndex.flatMap{ case (l, r) =>
         info.regular(l) match {
           case sc@st.SingleConstant(_, id, exp, _, _, _) =>
@@ -410,7 +410,7 @@ object Desugar {
       }
     }
 
-    def constBlockDeclD(block: PConstBlock): Vector[in.GlobalConstDecl] = block.decls.flatMap(constDeclD)
+    def constBlockDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.decls.flatMap(constDeclD)
 
     // Note: Alternatively, we could return the set of type definitions directly.
     //       However, currently, this would require to have versions of [[typeD]].

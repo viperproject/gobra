@@ -54,11 +54,11 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val enclosingStruct: PNode => Option[PStructType] =
     down[Option[PStructType]](None) { case x: PStructType => Some(x) }
 
-  lazy val enclosingPConstBlock: PNode => Option[PConstBlock] =
-    down[Option[PConstBlock]](None) { case x: PConstBlock => Some(x) }
-
-  lazy val enclosingPConstDecl: PNode => Option[PConstDecl] =
+  lazy val enclosingPConstBlock: PNode => Option[PConstDecl] =
     down[Option[PConstDecl]](None) { case x: PConstDecl => Some(x) }
+
+  lazy val enclosingPConstDecl: PNode => Option[PConstSpec] =
+    down[Option[PConstSpec]](None) { case x: PConstSpec => Some(x) }
 
   def typeSwitchConstraints(id: PIdnNode): Vector[PExpressionOrType] =
     typeSwitchConstraintsLookup(id)(id)
@@ -91,7 +91,7 @@ trait Enclosing { this: TypeInfoImpl =>
     def aux(n: PNode): Option[Type] = {
       n match {
         case tree.parent(p) => p match {
-          case PConstDecl(t, _, _) => t.map(symbType)
+          case PConstSpec(t, _, _) => t.map(symbType)
           case PVarDecl(t, _, _, _) => t.map(symbType)
           case _: PExpressionStmt => None
           case PSendStmt(channel, `n`) => Some(typ(channel).asInstanceOf[Type.ChannelT].elem)

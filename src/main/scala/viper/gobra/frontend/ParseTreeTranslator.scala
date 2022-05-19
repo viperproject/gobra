@@ -589,10 +589,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitConstDecl(ctx: GobraParser.ConstDeclContext): Vector[PConstBlock] = {
-    visitListNode[PConstDecl](ctx.constSpec()) match {
+  override def visitConstDecl(ctx: GobraParser.ConstDeclContext): Vector[PConstDecl] = {
+    visitListNode[PConstSpec](ctx.constSpec()) match {
       // Make sure the first expression list is not empty
-      case Vector(PConstDecl(_, Vector(), _), _*) => fail(ctx)
+      case Vector(PConstSpec(_, Vector(), _), _*) => fail(ctx)
       case decls =>
         println(s"Const Block: $decls")
         val expandedDecls = decls.zipWithIndex.map { case (decl, idx) =>
@@ -600,16 +600,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
             // TODO: justify why this cannot fail
             // TODO: justify why this transformation is better done here
             val rhs = decls.take(idx).findLast(d => d.right.nonEmpty).get.right.map(_.copy)
-            PConstDecl(
-              typ = decl.typ,
-              left = decl.left,
-              right = rhs
-            ).at(decl)
+            PConstSpec(typ = decl.typ, left = decl.left, right = rhs).at(decl)
           } else {
             decl
           }
         }
-        Vector(PConstBlock(expandedDecls))
+        Vector(PConstDecl(expandedDecls))
     }
   }
 
@@ -619,13 +615,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitConstSpec(ctx: GobraParser.ConstSpecContext): PConstDecl = {
+  override def visitConstSpec(ctx: GobraParser.ConstSpecContext): PConstSpec = {
     val typ = if (ctx.type_() != null) Some(visitNode[PType](ctx.type_())) else None
 
     val idnDefLikeList(left) = visitIdentifierList(ctx.identifierList())
     val right = visitExpressionList(ctx.expressionList())
 
-    PConstDecl(typ, right, left).at(ctx)
+    PConstSpec(typ, right, left).at(ctx)
   }
 
 

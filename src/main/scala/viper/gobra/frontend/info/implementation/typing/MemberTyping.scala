@@ -20,8 +20,8 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefActualMember(member: PActualMember): Messages = member match {
     case n: PFunctionDecl => wellDefVariadicArgs(n.args) ++ wellDefIfPureFunction(n)
     case m: PMethodDecl => wellDefVariadicArgs(m.args) ++ isReceiverType.errors(miscType(m.receiver))(member) ++ wellDefIfPureMethod(m)
-    case b: PConstBlock => println(s"AQUI: $b"); b.decls.flatMap(wellDefActualMember)
-    case c: PConstDecl =>
+    case b: PConstDecl => println(s"AQUI: $b"); b.decls.flatMap(wellDefActualMember)
+    case c: PConstSpec =>
       // TODO: move this above
       val idenNumMsgs = error(c, s"number of identifiers does not match the number of expressions", c.left.length != c.right.length && c.right.nonEmpty)
       val constExprMsgs = c.right.flatMap(wellDefIfConstExpr)

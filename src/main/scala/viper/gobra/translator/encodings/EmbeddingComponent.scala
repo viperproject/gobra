@@ -107,7 +107,7 @@ object EmbeddingComponent {
         vpr.FuncApp(
           funcname = boxName,
           args = Seq(arg)
-        )(vpr.NoPosition, vpr.NoInfo, typ = x.typ, vpr.NoTrafos)
+        )(vpr.NoPosition, vpr.NoInfo, typ = y.typ, vpr.NoTrafos)
       }
 
       def unboxApp(arg: vpr.Exp): vpr.FuncApp = {

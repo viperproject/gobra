@@ -15,8 +15,8 @@ import viper.gobra.util.Violation.violation
 
 trait ConstantEvaluation { this: TypeInfoImpl =>
 
-  // TODO: remove this iota option, we should be able to get the value of iota from context
-  lazy val boolConstantEval: PExpression => Option[Boolean] = {
+  lazy val boolConstantEval: PExpression => Option[Boolean] =
+    attr[PExpression, Option[Boolean]] {
       case PBoolLit(lit) => Some(lit)
       case e: PUnaryExp => e match {
         case _: PNegation => boolConstantEval(e.operand).map(!_)
@@ -64,103 +64,104 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
       case _ => None
     }
 
-  lazy val intConstantEval: PExpression => Option[BigInt] = {
-    case PIntLit(lit, _) => Some(lit)
-    case inv: PInvoke => resolve(inv) match {
-      case Some(conv: ap.Conversion) => underlyingTypeP(conv.typ) match {
-        case Some(_: PIntegerType) => intConstantEval(conv.arg)
-        case _ => None
-      }
-      case _ => None
-    }
-    case PBitNegation(op) =>
-      // TODO: change
-      // Not sufficient to do `intConstantEval(op) map (_.unary_~)`, produces wrong results for unsigned int values
-      exprType(op) match {
-        case IntT(t) =>
-          val constEval = intConstantEval(op)
-          constEval map { constValue =>
-            t match {
-              case UnboundedInteger | _: Signed => ~constValue
-              case u: Unsigned => ~constValue mod (u.upper + 1)
-            }
-          }
-        case _ => None
-      }
-    case e: PBinaryExp[_, _] =>
-      def aux(l: PExpression, r: PExpression)(f: BigInt => BigInt => BigInt): Option[BigInt] =
-        (intConstantEval(l), intConstantEval(r)) match {
-          case (Some(a), Some(b)) => Some(f(a)(b))
+  lazy val intConstantEval: PExpression => Option[BigInt] =
+    attr[PExpression, Option[BigInt]] {
+      case PIntLit(lit, _) => Some(lit)
+      case inv: PInvoke => resolve(inv) match {
+        case Some(conv: ap.Conversion) => underlyingTypeP(conv.typ) match {
+          case Some(_: PIntegerType) => intConstantEval(conv.arg)
           case _ => None
         }
-
-      for {
-        l <- asExpr(e.left)
-        r <- asExpr(e.right)
-        res <- e match {
-          case _: PAdd => aux(l, r)(x => y => x + y)
-          case _: PSub => aux(l, r)(x => y => x - y)
-          case _: PMul => aux(l, r)(x => y => x * y)
-          case _: PMod => aux(l, r)(x => y => x % y)
-          case _: PDiv => aux(l, r)(x => y => x / y)
-          case _: PShiftLeft =>
-            aux(l, r) {
-              x =>
-                y =>
-                  // The type system ensures that y is convertible to int
-                  violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
-                  x << y.toInt
+        case _ => None
+      }
+      case PBitNegation(op) =>
+        // TODO: change
+        // Not sufficient to do `intConstantEval(op) map (_.unary_~)`, produces wrong results for unsigned int values
+        exprType(op) match {
+          case IntT(t) =>
+            val constEval = intConstantEval(op)
+            constEval map { constValue =>
+              t match {
+                case UnboundedInteger | _: Signed => ~constValue
+                case u: Unsigned => ~constValue mod (u.upper + 1)
+              }
             }
-          case _: PShiftRight => exprType(l) match {
-            case IntT(t) => t match {
-              case UnboundedInteger | _: Signed =>
-                aux(l, r) {
-                  x =>
-                    y =>
-                      // The type system ensures that y is convertible to int
-                      violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
-                      x >> y.toInt
-                }
-              case _: Unsigned =>
-                aux(l, r) {
-                  x =>
-                    y =>
-                      // The type system ensures that x is convertible to long and y is convertible to int
-                      violation(x <= Long.MaxValue, s"left-hand operand bigger than expected")
-                      violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
-                      BigInt(x.toLong >>> y.toInt) // >>> is not implemented for BigInt
-                }
-            }
+          case _ => None
+        }
+      case e: PBinaryExp[_, _] =>
+        def aux(l: PExpression, r: PExpression)(f: BigInt => BigInt => BigInt): Option[BigInt] =
+          (intConstantEval(l), intConstantEval(r)) match {
+            case (Some(a), Some(b)) => Some(f(a)(b))
             case _ => None
           }
-          case _: PBitAnd => aux(l, r)(x => y => x & y)
-          case _: PBitOr => aux(l, r)(x => y => x | y)
-          case _: PBitXor => aux(l, r)(x => y => x ^ y)
-          case _: PBitClear => aux(l, r)(x => y => x &~ y)
 
-          case _ => None
-        }
-      } yield res
+        for {
+          l <- asExpr(e.left)
+          r <- asExpr(e.right)
+          res <- e match {
+            case _: PAdd => aux(l, r)(x => y => x + y)
+            case _: PSub => aux(l, r)(x => y => x - y)
+            case _: PMul => aux(l, r)(x => y => x * y)
+            case _: PMod => aux(l, r)(x => y => x % y)
+            case _: PDiv => aux(l, r)(x => y => x / y)
+            case _: PShiftLeft =>
+              aux(l, r) {
+                x =>
+                  y =>
+                    // The type system ensures that y is convertible to int
+                    violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
+                    x << y.toInt
+              }
+            case _: PShiftRight => exprType(l) match {
+              case IntT(t) => t match {
+                case UnboundedInteger | _: Signed =>
+                  aux(l, r) {
+                    x =>
+                      y =>
+                        // The type system ensures that y is convertible to int
+                        violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
+                        x >> y.toInt
+                  }
+                case _: Unsigned =>
+                  aux(l, r) {
+                    x =>
+                      y =>
+                        // The type system ensures that x is convertible to long and y is convertible to int
+                        violation(x <= Long.MaxValue, s"left-hand operand bigger than expected")
+                        violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
+                        BigInt(x.toLong >>> y.toInt) // >>> is not implemented for BigInt
+                  }
+              }
+              case _ => None
+            }
+            case _: PBitAnd => aux(l, r)(x => y => x & y)
+            case _: PBitOr => aux(l, r)(x => y => x | y)
+            case _: PBitXor => aux(l, r)(x => y => x ^ y)
+            case _: PBitClear => aux(l, r)(x => y => x &~ y)
 
-    case PNamedOperand(id) => entity(id) match {
-      case SingleConstant(_, _, exp, _, _, context) => context.intConstantEvaluation(exp)
+            case _ => None
+          }
+        } yield res
+
+      case PNamedOperand(id) => entity(id) match {
+        case SingleConstant(_, _, exp, _, _, context) => context.intConstantEvaluation(exp)
+        case _ => None
+      }
+      case PDot(_, id) => entity(id) match {
+        case SingleConstant(_, _, exp, _, _, context) => context.intConstantEvaluation(exp)
+        case _ => None
+      }
+
+      case p: PIota =>
+        val res = for {
+          constBlock <- enclosingPConstBlock(p)
+          constClause <- enclosingPConstDecl(p)
+          iota = constBlock.specs.indexOf(constClause)
+        } yield BigInt(iota)
+        if (res.isEmpty) violation("TODO") else res
+
       case _ => None
     }
-    case PDot(_, id) => entity(id) match {
-      case SingleConstant(_, _, exp, _, _, context) => context.intConstantEvaluation(exp)
-      case _ => None
-    }
-
-    case p: PIota =>
-      val res = for {
-        constBlock <- enclosingPConstBlock(p)
-        constClause <- enclosingPConstDecl(p)
-        iota = constBlock.specs.indexOf(constClause)
-      } yield BigInt(iota)
-      if (res.isEmpty) violation("TODO") else res
-
-    case _ => None
-  }
 
   lazy val stringConstantEval: PExpression => Option[String] = {
     attr[PExpression, Option[String]] {

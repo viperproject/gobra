@@ -341,7 +341,7 @@ object Desugar {
       val consideredDecls = p.declarations.collect { case m@NoGhost(x: PMember) if shouldDesugar(x) => m }
       val dMembers = consideredDecls.flatMap{
         case NoGhost(x: PVarDecl) => varDeclGD(x)
-        case NoGhost(x: PConstDecl) => println(x); constBlockDeclD(x)
+        case NoGhost(x: PConstDecl) => constBlockDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
         case NoGhost(x: PFunctionDecl) => Vector(registerFunction(x))
         case x: PMPredicateDecl => Vector(registerMPredicate(x))
@@ -1068,9 +1068,7 @@ object Desugar {
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
 
-          case p =>
-            println(s"${p.getClass.toString}")
-            ???
+          case _ => ???
         }
       }
     }

@@ -68,38 +68,6 @@ trait NameResolution { this: TypeInfoImpl =>
                       SingleConstant(decl, idn, expr, decl.typ, isGhost, this)
                   }
               }
-              /*
-
-               {
-
-
-
-
-                _ = defEntity(decl.left(idx)) match {
-                  case Wildcard(_, _) => ???
-                  case SingleConstant(_, _, exp, _, _, _) => SingleConstant(decl, )
-                }
-
-
-              expr = {
-                  for (i <- (idxDecl-1) to 0 by -1) {
-                    if(constBlock.decls(i).right.nonEmpty && constBlock.decls(i).right.length != constClause.left.length) {
-                      violation("sadfsa")
-                    }
-                    if ()
-                  }
-
-                }
-
-                  decl.left(idx) match {
-                  case idn: PIdnDef => ???
-                  case w: PWildcard =>  ??? //Wildcard(w, ???, this)
-                }
-                 _ = ??? // while it is different from the intended
-              } yield ???
-              ???
-            */
-
 
             case _ => UnknownEntity()
           }

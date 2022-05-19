@@ -12,6 +12,7 @@ import viper.silver.{ast => vpr}
 class OptionImpl extends Options {
   private val domainName : String = "Option"
   private val typeVar : vpr.TypeVar = vpr.TypeVar("T")
+  private val domainType: vpr.DomainType = vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type](typeVar -> typeVar))(Seq(typeVar))
 
   /**
     * Determines whether the Viper domain
@@ -27,7 +28,7 @@ class OptionImpl extends Options {
   private lazy val optSome_func : vpr.DomainFunc = vpr.DomainFunc(
     "optSome",
     Seq(vpr.LocalVarDecl("e", typeVar)()),
-    vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar))
+    domainType
   )(domainName = domainName)
 
   /**
@@ -38,7 +39,7 @@ class OptionImpl extends Options {
   private lazy val optNone_func : vpr.DomainFunc = vpr.DomainFunc(
     "optNone",
     Seq(),
-    vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar))
+    domainType
   )(domainName = domainName)
 
   /**
@@ -48,7 +49,7 @@ class OptionImpl extends Options {
     */
   private lazy val optGet_func : vpr.DomainFunc = vpr.DomainFunc(
     "optGet",
-    Seq(vpr.LocalVarDecl("o", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar)))()),
+    Seq(vpr.LocalVarDecl("o", domainType)()),
     typeVar
   )(domainName = domainName)
 
@@ -59,7 +60,7 @@ class OptionImpl extends Options {
     */
   private lazy val optIsNone_func : vpr.DomainFunc = vpr.DomainFunc(
     "optIsNone",
-    Seq(vpr.LocalVarDecl("o", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar)))()),
+    Seq(vpr.LocalVarDecl("o", domainType)()),
     vpr.Bool
   )(domainName = domainName)
 
@@ -94,7 +95,7 @@ class OptionImpl extends Options {
     * }}}
     */
   private lazy val optSome_get_axiom : vpr.DomainAxiom = {
-    val oDecl = vpr.LocalVarDecl("o", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar)))()
+    val oDecl = vpr.LocalVarDecl("o", domainType)()
     val expr = get(oDecl.localVar, typeVar)()
 
     vpr.AnonymousDomainAxiom(
@@ -130,7 +131,7 @@ class OptionImpl extends Options {
     * }}}
     */
   private lazy val optType_existence_axiom : vpr.DomainAxiom = {
-    val oDecl = vpr.LocalVarDecl("o", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar)))()
+    val oDecl = vpr.LocalVarDecl("o", domainType)()
     val eDecl = vpr.LocalVarDecl("e", typeVar)()
     val expr = some(eDecl.localVar)()
 

@@ -845,7 +845,6 @@ object Desugar {
                 loopId = nm.pushFor(n, info)
                 continueLabelName = nm.continueLabel(loopId)
                 continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
-                _ <- declare(continueLoopLabelProxy)
                 continueLoopLabel = in.Label(continueLoopLabelProxy)(src)
 
                 breakLabelName = nm.breakLabel(loopId)
@@ -860,7 +859,7 @@ object Desugar {
 
                 wh = in.Seqn(
                   Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
-                    in.While(dCond, dInv, dTer, in.Seqn(
+                    in.While(dCond, dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
                       Vector(dBody, continueLoopLabel, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
                     )(src))(src), breakLoopLabel
                   )

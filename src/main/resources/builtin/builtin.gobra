@@ -5,6 +5,10 @@
 package builtin
 
 type error interface {
+    pred ErrorMem()
+
+    preserves ErrorMem()
+    decreases
     Error() string
 }
 

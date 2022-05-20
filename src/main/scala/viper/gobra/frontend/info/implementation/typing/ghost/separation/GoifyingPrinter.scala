@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.{Constants, Violation}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import org.bitbucket.inkytonik.kiama.attribution.Decorators
@@ -157,7 +157,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
   override def showStmt(stmt: PStatement): Doc = stmt match {
 
     case PAssignment(right, left) =>
-      StrictAssignModi(left.size, right.size) match {
+      StrictAssignMode(left.size, right.size) match {
         case AssignMode.Single =>
           val (aRight, aLeft) = right.zip(left).filter(p => !classifier.isExprGhost(p._2)).unzip
           val (ghostRight, ghostLeft) = right.zip(left).filter(p => classifier.isExprGhost(p._2)).unzip
@@ -176,7 +176,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
       }
 
     case PShortVarDecl(right, left, addressable) =>
-      StrictAssignModi(left.size, right.size) match {
+      StrictAssignMode(left.size, right.size) match {
         case AssignMode.Single =>
           val (aRight, aLeft) = right.zip(left).filter(p => !classifier.isIdGhost(p._2)).unzip
           // List of all non-ghost addressable variables.

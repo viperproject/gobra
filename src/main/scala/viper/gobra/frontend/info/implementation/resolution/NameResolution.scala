@@ -12,7 +12,7 @@ import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, Bu
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type.StructT
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.Violation
 
 trait NameResolution { this: TypeInfoImpl =>
@@ -32,10 +32,10 @@ trait NameResolution { this: TypeInfoImpl =>
 
         p match {
 
-        case decl: PConstDecl =>
+        case decl: PConstSpec =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          StrictAssignModi(decl.left.size, decl.right.size) match {
+          StrictAssignMode(decl.left.size, decl.right.size) match {
             case AssignMode.Single => decl.left(idx) match {
               case idn: PIdnDef => SingleConstant(decl, idn, decl.right(idx), decl.typ, isGhost, this)
               case w: PWildcard => Wildcard(w, this)
@@ -46,7 +46,7 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PVarDecl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          StrictAssignModi(decl.left.size, decl.right.size) match {
+          StrictAssignMode(decl.left.size, decl.right.size) match {
             case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, decl.addressable(idx), this)
             case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
             case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, isGhost, decl.addressable(idx), this)
@@ -97,7 +97,7 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PShortVarDecl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          StrictAssignModi(decl.left.size, decl.right.size) match {
+          StrictAssignMode(decl.left.size, decl.right.size) match {
             case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, decl, isGhost, decl.addressable(idx), this)
             case AssignMode.Multi => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
             case _ => UnknownEntity()
@@ -111,7 +111,7 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
           val len = decl.shorts.size
 
-          StrictAssignModi(len, 1) match { // TODO: check if selection variables are addressable in Go
+          StrictAssignMode(len, 1) match { // TODO: check if selection variables are addressable in Go
             case AssignMode.Single => SingleLocalVariable(Some(decl.recv), None, decl, isGhost, addressable = false, this)
             case AssignMode.Multi  => MultiLocalVariable(idx, decl.recv, isGhost, addressable = false, this)
             case _ => UnknownEntity()
@@ -193,7 +193,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
     m match {
       case a: PActualMember => a match {
-        case d: PConstDecl => d.left.collect{ case x: PIdnDef => x }
+        case d: PConstDecl => d.specs.flatMap(v => v.left.collect{ case x: PIdnDef => x })
         case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
         case d: PFunctionDecl => Vector(d.id)
         case d: PTypeDecl => Vector(d.left) ++ leakingIdentifier(d.right)

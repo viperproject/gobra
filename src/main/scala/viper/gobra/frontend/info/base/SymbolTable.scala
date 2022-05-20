@@ -75,12 +75,12 @@ object SymbolTable extends Environments[Entity] {
   }
 
   sealed trait Constant extends DataEntity {
-    def decl: PConstDecl
+    def decl: PConstSpec
   }
 
   sealed trait ActualConstant extends Constant with ActualDataEntity
 
-  case class SingleConstant(decl: PConstDecl, idDef: PIdnDef, exp: PExpression, opt: Option[PType], ghost: Boolean, context: ExternalTypeInfo) extends ActualConstant {
+  case class SingleConstant(decl: PConstSpec, idDef: PIdnDef, exp: PExpression, opt: Option[PType], ghost: Boolean, context: ExternalTypeInfo) extends ActualConstant {
     override def rep: PNode = decl
   }
 

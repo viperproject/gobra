@@ -377,7 +377,9 @@ object Desugar {
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
-    def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.flatMap(l => info.regular(l) match {
+    def constDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constSpecD)
+
+    def constSpecD(decl: PConstSpec): Vector[in.GlobalConstDecl] = decl.left.flatMap(l => info.regular(l) match {
       case sc@st.SingleConstant(_, id, _, _, _, _) =>
         val src = meta(id)
         val gVar = globalConstD(sc)(src)
@@ -394,12 +396,11 @@ object Desugar {
           case _ => ???
         }
         Vector(in.GlobalConstDecl(gVar, lit)(src))
-
-      // Constants defined with the blank identifier can be safely ignored as they
-      // must be computable statically (and thus do not have side effects) and
-      // they can never be read
-      case st.Wildcard(_, _) => Vector()
-
+      case st.Wildcard(_, _) =>
+        // Constants defined with the blank identifier can be safely ignored as they
+        // must be computable statically (and thus do not have side effects) and
+        // they can never be read
+        Vector()
       case _ => ???
     })
 

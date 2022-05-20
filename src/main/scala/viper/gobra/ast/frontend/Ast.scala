@@ -140,7 +140,9 @@ sealed trait PCodeRootWithResult extends PCodeRoot {
   def result: PResult
 }
 
-case class PConstDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
+case class PConstDecl(specs: Vector[PConstSpec]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
+
+case class PConstSpec(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId]) extends PNode
 
 case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId], addressable: Vector[Boolean]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
 
@@ -324,6 +326,8 @@ sealed trait PUnaryExp extends PActualExpression {
 case class PBlankIdentifier() extends PAssignee
 
 case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PUnqualifiedTypeName with PNameOrDot
+
+case class PIota() extends PActualExpression
 
 sealed trait PLiteral extends PActualExpression
 

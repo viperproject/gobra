@@ -148,6 +148,16 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
         case _ => None
       }
 
+      case p: PIota =>
+        // obtains the intended value for iota from the context
+        val res = for {
+          constBlock <- enclosingPConstBlock(p)
+          constClause <- enclosingPConstDecl(p)
+          iota = constBlock.specs.indexOf(constClause)
+        } yield BigInt(iota)
+        violation(res.nonEmpty, "iota expression could not be found in a constant declaration")
+        res
+
       case _ => None
     }
 

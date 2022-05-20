@@ -15,7 +15,7 @@ object AssignMode {
   case object Error  extends AssignMode
 }
 
-object StrictAssignModi {
+object StrictAssignMode {
   def apply(left: Int, right: Int): AssignMode =
     if (left > 0 && left == right) AssignMode.Single
     else if (left > right && right == 1) AssignMode.Multi
@@ -24,7 +24,7 @@ object StrictAssignModi {
     else AssignMode.Error
 }
 
-object NonStrictAssignModi {
+object NonStrictAssignMode {
   def apply(left: Int, right: Int): AssignMode =
     if (left >= 0 && left == right) AssignMode.Single
     else if (left > right && right == 1) AssignMode.Multi

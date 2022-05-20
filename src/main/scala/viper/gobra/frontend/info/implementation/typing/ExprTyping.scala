@@ -187,6 +187,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PIntLit => numExprWithinTypeBounds(n)
 
+    case n: PIota =>
+      error(n, s"cannot use iota outside of constant declaration", enclosingPConstDecl(n).isEmpty)
+
     case _: PFloatLit => ???
 
     case n@PCompositeLit(t, lit) =>
@@ -711,6 +714,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case e => violation(s"expression $e cannot be unpacked")
       }
 
+    case PIota() => UNTYPED_INT_CONST
+
     case e => violation(s"unexpected expression $e")
   }
 
@@ -766,7 +771,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         // if no type is specified, integer expressions default to unbounded integer in const declarations;
         // there is no need to handle interface types because they are not allowed in constant declarations
-        case PConstDecl(typ, _, _) => typ map typeSymbType orElse Some(UNTYPED_INT_CONST)
+        case PConstSpec(typ, _, _) => typ map typeSymbType orElse Some(UNTYPED_INT_CONST)
 
         // if no type is specified, integer expressions have default type in var declarations
         case PVarDecl(typ, _, _, _) => typ map (x => typeSymbType(x))

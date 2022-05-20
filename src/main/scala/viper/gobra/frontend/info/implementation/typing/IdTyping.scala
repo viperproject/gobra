@@ -12,7 +12,7 @@ import viper.gobra.ast.frontend.{PIdnNode, _}
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 
 trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -216,7 +216,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     val pos = left indexWhere (n eq _)
     violation(pos >= 0, "did not find expression corresponding to " + n)
 
-    StrictAssignModi(left.length, right.length) match {
+    StrictAssignMode(left.length, right.length) match {
       case AssignMode.Single => exprType(right(pos))
       case AssignMode.Multi => exprType(right.head) match {
         case t: InternalTupleT => t.ts(pos)
@@ -232,7 +232,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case tree.parent(p) => p match {
         case PShortVarDecl(right, left, _) => getBlankAssigneeType(w, left, right)
         case PVarDecl(typ, right, left, _) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
-        case PConstDecl(typ, right, left) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
+        case PConstSpec(typ, right, left) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
         case _ => ???
       }
       case _ => ???

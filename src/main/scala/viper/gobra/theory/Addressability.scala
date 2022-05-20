@@ -111,6 +111,7 @@ object Addressability {
 
   val defaultValue: Addressability = rValue
   val literal: Addressability = rValue
+  val iota: Addressability = rValue
   val unit: Addressability = rValue
   val nil: Addressability = rValue
 

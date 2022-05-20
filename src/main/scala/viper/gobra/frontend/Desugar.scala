@@ -842,20 +842,18 @@ object Desugar {
                 (dCondPre, dCond) <- prelude(exprD(ctx)(cond))
                 (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
                 (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
-                loopId = nm.pushFor(n, info)
-                continueLabelName = nm.continueLabel(loopId)
+
+                continueLabelName = nm.continueLabel(n, info)
                 continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
                 continueLoopLabel = in.Label(continueLoopLabelProxy)(src)
 
-                breakLabelName = nm.breakLabel(loopId)
+                breakLabelName = nm.breakLabel(n, info)
                 breakLoopLabelProxy = in.LabelProxy(breakLabelName)(src)
                 _ <- declare(breakLoopLabelProxy)
                 breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
 
                 dBody = blockD(ctx)(body)
                 dPost <- maybeStmtD(ctx)(post)(src)
-
-                _ = nm.popFor(n, info)
 
                 wh = in.Seqn(
                   Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
@@ -3150,30 +3148,6 @@ object Desugar {
       */
     private var scopeMap: Map[PScope, Int] = Map.empty
 
-    /**
-      * 'continueCounter' should return a unique identifier for each for statement,
-      * in order to handle continue statements. These will be translated to gotos to
-      * labels with prefix 'CONTINUE_LABEL_PREFIX' and suffix the identifier of the
-      * loop that has to continue. For every code root, there can be the same identifiers
-      * for for loops since there can be identical labels in different functions. For
-      * each codeRoot, a tuple of a stack and a max value is stored. Every time a new
-      * for statement is desugared, it first pushes max + 1 to the stack and saves the new
-      * max. Every time there is a need for the identifier of a for loop for a continue statement
-      * there are two possibilities:
-      * 1) The continue statement is unlabeled so the identifier is at the top of the stack.
-      * 2) The continue statement corresponds to a labeled for loop with label L. In this
-      *    case the identifier is found by peeking at the n'th element of the stack where n
-      *    is the number of loops between the continue statement and the desired labeled loop.
-      *    To get this number n, function EnclosingLabeledLoopOrder has been defined.
-      * Last, when all the statements inside the for loop are desugared, its identifier is
-      * popped from the stack but the max value remains the same. This way the next for that
-      * will be pushed will have a unique identifier.
-      * Note that the identifiers created for a method do not affect those created for a
-      * different method since a unique stack is created for every codeRoot.
-      */
-
-    private var continueCounter: Map[PCodeRoot, (Seq[Int], Int)] = Map.empty
-
     private def maybeRegister(s: PScope, ctx: ExternalTypeInfo): Unit = {
       if (!(scopeMap contains s)) {
         val codeRoot = ctx.codeRoot(s)
@@ -3229,50 +3203,39 @@ object Desugar {
       f
     }
 
-    /**
-      * A new identifier will be pushed to the stack corresponding to this code root
-      * to represent the current for statement. Its value will be max + 1 and max
-      * will be updated for this code root.
-      */
-    def pushFor(node: PNode, info: TypeInfo): Int = {
-      val codeRoot = info.codeRoot(node)
-      val (stack, max) = continueCounter.getOrElse(codeRoot, (Seq(), 0))
-      continueCounter += (codeRoot -> (Seq(max + 1) ++ stack, max + 1))
-      (max + 1)
+    private def loopId(loop: PForStmt, info: TypeInfo) : String = {
+      val pom = info.getTypeInfo.tree.originalRoot.positions
+      val lpos = pom.positions.getStart(loop).get
+      val rpos = pom.positions.getStart(info.codeRoot(loop)).get
+      return "L_" + (lpos.line - rpos.line) + "_" + (lpos.column - rpos.column)
     }
 
-    /** returns a unique identifier for a for stmt*/
-    def fetchForId(node: PNode, info: TypeInfo, label: Option[PLabelUse]): Int = {
-      val codeRoot = info.codeRoot(node)
-      val Some((stack, _)) = continueCounter.get(codeRoot)
-      label match {
-        case None => stack(0)
-        case Some(l) => stack(info.enclosingLabeledLoopOrder(l, node))
+    def continueLabel(loop: PForStmt, info: TypeInfo) : String = loopId(loop, info) + CONTINUE_LABEL_SUFFIX
+
+    def breakLabel(loop: PForStmt, info: TypeInfo) : String = loopId(loop, info) + BREAK_LABEL_SUFFIX
+
+    def fetchContinueLabel(n: PContinue, info: TypeInfo) : String = {
+      n.label match {
+        case None =>
+          val Some(loop) = info.enclosingLoopNode(n)
+          continueLabel(loop, info)
+        case Some(label) =>
+          val Some(loop) = info.enclosingLabeledLoopNode(label, n)
+          continueLabel(loop, info)
       }
     }
 
-    /** use the unique identifier of a for loop to create a label identifier for continue */
-    def fetchContinueLabel(node: PContinue, info: TypeInfo): String = {
-      val label = node.label
-      "L_" + fetchForId(node, info, label) + CONTINUE_LABEL_SUFFIX
+    def fetchBreakLabel(n: PBreak, info: TypeInfo) : String = {
+      n.label match {
+        case None =>
+          val Some(loop) = info.enclosingLoopNode(n)
+          breakLabel(loop, info)
+        case Some(label) =>
+          val Some(loop) = info.enclosingLabeledLoopNode(label, n)
+          breakLabel(loop, info)
+      }
     }
 
-    /** use the unique identifier of a for loop to create a label identifier for break */
-    def fetchBreakLabel(node: PBreak, info: TypeInfo): String = {
-      val label = node.label
-      "L_" + fetchForId(node, info, label) + BREAK_LABEL_SUFFIX
-    }
-
-    def continueLabel(id: Int) : String = "L_" + id + CONTINUE_LABEL_SUFFIX
-
-    def breakLabel(id: Int) : String = "L_" + id + BREAK_LABEL_SUFFIX
-
-    /** pops the last for statement identifier that was pushed to the stack */
-    def popFor(node: PNode, info: TypeInfo): Unit = {
-      val codeRoot = info.codeRoot(node)
-      val Some((stack, max)) = continueCounter.get(codeRoot)
-      continueCounter += (codeRoot -> (stack.tail, max))
-    }
 
     def inParam(idx: Int, s: PScope, context: ExternalTypeInfo): String = name(IN_PARAMETER_PREFIX)("P" + idx, s, context)
     def outParam(idx: Int, s: PScope, context: ExternalTypeInfo): String = name(OUT_PARAMETER_PREFIX)("P" + idx, s, context)

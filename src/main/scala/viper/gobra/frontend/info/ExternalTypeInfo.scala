@@ -13,6 +13,7 @@ import viper.gobra.frontend.info.base.Type.{AbstractType, InterfaceT, StructT, T
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
+import viper.gobra.ast.frontend.PForStmt
 
 trait ExternalTypeInfo {
 
@@ -93,6 +94,9 @@ trait ExternalTypeInfo {
   /** returns the code root for a given node; can only be called on nodes that are enclosed in a code root */
   def codeRoot(n: PNode): PCodeRoot with PScope
 
-  /** returns the number of nested loops between node 'n' and a loop with label 'label' */
-  def enclosingLabeledLoopOrder(label: PLabelUse, n: PNode) : Int
+  /** if it exists, it returns the for loop node that contains 'n' with label 'label' */
+  def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PForStmt]
+
+  /** if it exists, it returns the for loop node that contains 'n' */
+  def enclosingLoopNode(n: PNode) : Option[PForStmt]
 }

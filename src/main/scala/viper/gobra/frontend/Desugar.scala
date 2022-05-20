@@ -3203,17 +3203,34 @@ object Desugar {
       f
     }
 
+    /**
+      * Returns a unique id for a for loop node with respect to its code root.
+      * The id is of the form 'L_<a>_<b>' where a is the difference of the lines
+      * of the for loop with the code root and b is the difference of the columns
+      * of the for loop with the code root.
+      * If a differce is negative, the '-' character is replaced with '_'.
+      *
+      * @param loop the for loop we are interested in
+      * @param info type info to get position information
+      * @return     string
+      */
     private def loopId(loop: PForStmt, info: TypeInfo) : String = {
       val pom = info.getTypeInfo.tree.originalRoot.positions
       val lpos = pom.positions.getStart(loop).get
       val rpos = pom.positions.getStart(info.codeRoot(loop)).get
-      return "L_" + (lpos.line - rpos.line) + "_" + (lpos.column - rpos.column)
+      return ("L_" + (lpos.line - rpos.line) + "_" + (lpos.column - rpos.column)).replace("-", "_")
     }
 
+    /** returns the loopId with the CONTINUE_LABEL_SUFFIX appended */
     def continueLabel(loop: PForStmt, info: TypeInfo) : String = loopId(loop, info) + CONTINUE_LABEL_SUFFIX
 
+    /** returns the loopId with the BREAK_LABEL_SUFFIX appended */
     def breakLabel(loop: PForStmt, info: TypeInfo) : String = loopId(loop, info) + BREAK_LABEL_SUFFIX
 
+    /**
+      * Finds the enclosing loop which the continue statement refers to and fetches its
+      * continue label.
+      */
     def fetchContinueLabel(n: PContinue, info: TypeInfo) : String = {
       n.label match {
         case None =>
@@ -3225,6 +3242,10 @@ object Desugar {
       }
     }
 
+    /**
+      * Finds the enclosing loop which the break statement refers to and fetches its
+      * break label.
+      */
     def fetchBreakLabel(n: PBreak, info: TypeInfo) : String = {
       n.label match {
         case None =>

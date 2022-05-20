@@ -52,10 +52,10 @@ func main() {
 	assert w2 == 3
 	assert w3 == 6
 	//------------
-	assert j1 = 1
-	assert j2 = 2
-	assert j3 = 4
-	assert j4 = 8
+	assert j1 == 1
+	assert j2 == 2
+	assert j3 == 4
+	assert j4 == 8
 	//------------
 	assert i1 == 2
 	assert i2 == 2

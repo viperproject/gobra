@@ -25,6 +25,24 @@ object Names {
     scala.util.hashing.MurmurHash3.stringHash(s).toHexString
   }
 
+  object InterfaceMethod {
+    /**
+      * To copy an interface method, the copied method must use a method proxy returned from this function.
+      * @param ext must not contain '$'
+      * */
+    def copy(proxy: in.MethodProxy, ext: String): in.MethodProxy =
+      in.MethodProxy(proxy.name, s"${proxy.uniqueName}$$itfcopy$$$ext")(proxy.info)
+
+    /** Returns the original proxy for a copy or not copied proxy. */
+    def origin(proxy: in.MethodProxy): in.MethodProxy = {
+      val splits = proxy.uniqueName.split('$')
+      if (splits.length > 2 && splits(splits.length-2) == "itfcopy") {
+        val originUniqueName = splits.take(splits.length-2).mkString("$")
+        in.MethodProxy(proxy.name, originUniqueName)(proxy.info)
+      } else proxy // no match
+    }
+  }
+
   /* sanitizes type name to a valid Viper name */
   def serializeType(t: vpr.Type): String = {
     t.toString()

@@ -6,6 +6,7 @@
 
 package viper.gobra.ast.internal.transform
 import viper.gobra.ast.{internal => in}
+import viper.gobra.translator.Names
 import viper.gobra.util.Violation
 
 /**
@@ -22,9 +23,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
     case in.Program(_, _, table) =>
       var methodsToRemove: Set[in.Member] = Set.empty
       var methodsToAdd: Set[in.Member] = Set.empty
-      var functionsToAdd: Set[in.PureFunction] = Set.empty
       var definedMethodsDelta: Map[in.MethodProxy, in.MethodLikeMember] = Map.empty
-      var definedFunctionsDelta: Map[in.FunctionProxy, in.FunctionLikeMember] = Map.empty
 
       table.memberProxies.foreach {
         case (t: in.InterfaceT, proxies) =>
@@ -101,7 +100,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   *
                   *   we generate the following fallback:
                   *     requires [PRE]
-                  *     ensures res == r.N(x1, ..., xN)
+                  *     ensures  [Post]
                   *     decreases _
                   *     pure func (r recv) M_fallback(x1 T1, ... xN TN) (res TRes)
                   *
@@ -117,39 +116,37 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   val src = m.getMeta
 
                   // the fallback function is called if no comparison succeeds
-                  val returnType = m.results.head.typ
-                  val fallbackName = s"${m.name}$$fallback"
-                  val fallbackProxy = in.FunctionProxy(fallbackName)(src)
-                  val fallbackPosts = Vector(
-                    in.ExprAssertion(
-                      in.EqCmp(m.results.head, in.PureMethodCall(m.receiver, proxy, m.args, returnType)(src))(src)
-                    )(src)
-                  )
+                  val fallbackProxy = Names.InterfaceMethod.copy(m.name, "fallback")
                   val fallbackTermMeasures = Vector(in.WildcardMeasure(None)(src))
-                  val fallbackFunction = in.PureFunction(fallbackProxy, m.receiver +: m.args, m.results, m.pres, fallbackPosts, fallbackTermMeasures, None)(src)
-                  val fallbackProxyCall = in.PureFunctionCall(fallbackProxy, m.receiver +: m.args, returnType)(src)
-                  val bodyFalseBranch = implementations.toVector.foldLeft[in.Expr](fallbackProxyCall) {
-                    case (accum: in.Expr, impl: in.Type) =>
-                      table.lookup(impl, proxy.name) match {
-                        case Some(implProxy: in.MethodProxy) =>
-                          in.Conditional(
-                            in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(impl)(src))(src),
-                            in.PureMethodCall(in.TypeAssertion(m.receiver, impl)(src), implProxy, m.args, returnType)(src),
-                            accum,
-                            returnType
-                          )(src)
-                        case None => accum
-                        case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
-                      }
+                  val fallbackFunction = m.copy(name = fallbackProxy, terminationMeasures = fallbackTermMeasures, body = None)(src)
+
+                  // new body to check termination
+                  val terminationCheckBody = {
+                    val returnType = m.results.head.typ
+                    val fallbackProxyCall = in.PureMethodCall(m.receiver, fallbackProxy, m.args, returnType)(src)
+                    val bodyFalseBranch = implementations.toVector.foldLeft[in.Expr](fallbackProxyCall) {
+                      case (accum: in.Expr, impl: in.Type) =>
+                        table.lookup(impl, proxy.name) match {
+                          case Some(implProxy: in.MethodProxy) =>
+                            in.Conditional(
+                              in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(impl)(src))(src),
+                              in.PureMethodCall(in.TypeAssertion(m.receiver, impl)(src), implProxy, m.args, returnType)(src),
+                              accum,
+                              returnType
+                            )(src)
+                          case None => accum
+                          case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
+                        }
+                    }
+                    in.Conditional(in.BoolLit(b = true)(src), fallbackProxyCall, bodyFalseBranch, returnType)(src)
                   }
-                  val newBody = in.Conditional(in.BoolLit(b = true)(src), fallbackProxyCall, bodyFalseBranch, returnType)(src)
-                  val newMember = in.PureMethod(m.receiver, m.name, m.args, m.results, m.pres, m.posts, m.terminationMeasures, Some(newBody))(src)
+                  val transformedM = m.copy(terminationMeasures = m.terminationMeasures, body = Some(terminationCheckBody))(src)
 
                   methodsToRemove += m
-                  methodsToAdd += newMember
-                  functionsToAdd += fallbackFunction
-                  definedFunctionsDelta += fallbackProxy -> fallbackFunction
-                  definedMethodsDelta += proxy -> newMember
+                  methodsToAdd += transformedM
+                  methodsToAdd += fallbackFunction
+                  definedMethodsDelta += fallbackProxy -> fallbackFunction
+                  definedMethodsDelta += proxy -> transformedM
 
                 case _ =>
               }
@@ -162,11 +159,11 @@ object CGEdgesTerminationTransform extends InternalTransform {
 
       in.Program(
         types = p.types,
-        members = p.members.diff(methodsToRemove.toSeq).appendedAll(methodsToAdd ++ functionsToAdd),
+        members = p.members.diff(methodsToRemove.toSeq).appendedAll(methodsToAdd),
         table = new in.LookupTable(
           definedTypes = table.getDefinedTypes,
           definedMethods = table.getDefinedMethods ++ definedMethodsDelta,
-          definedFunctions = table.getDefinedFunctions ++ definedFunctionsDelta,
+          definedFunctions = table.getDefinedFunctions,
           definedMPredicates = table.getDefinedMPredicates,
           definedFPredicates = table.getDefinedFPredicates,
           memberProxies = table.memberProxies,

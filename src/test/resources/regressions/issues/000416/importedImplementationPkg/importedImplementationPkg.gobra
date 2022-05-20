@@ -1,0 +1,39 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// ##(-I ./)
+import shape "shape"
+
+type Rect struct {
+  width int
+  height int
+}
+
+pred (r *Rect) mem() {
+  acc(r, 1/2)
+}
+
+requires acc(r, 1/2)
+pure func (r *Rect) Size() bool {
+  return r.width > 0 && r.height > 0
+}
+
+requires acc(r, 1/2) && r.Size()
+ensures  acc(r, 1/2) && ret > 0
+func (r *Rect) Area() (ret int) {
+  return r.width * r.height
+}
+
+(*Rect) implements shape.Shape {
+  pure (r *Rect) Size() bool {
+    return unfolding acc(r.mem(), 1/2) in r.Size()
+  }
+
+  (r *Rect) Area() (ret int) {
+    unfold r.mem()
+    ret = r.Area()
+    fold r.mem()
+  }
+}

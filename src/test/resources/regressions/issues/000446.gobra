@@ -1,0 +1,42 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue446
+
+type I interface {
+    pred mem()
+
+    requires acc(mem(), _)
+    ensures  r >= 5
+    pure f() (r int)
+}
+
+requires i != nil && i.mem()
+func client(i I) {
+    x := i.f()
+    assert x >= 4
+}
+
+type J interface {
+    pred m()
+
+    requires acc(m(), _)
+    ensures  r <= 5
+    pure g() (r int)
+}
+
+type S struct {
+    x int
+}
+
+pred (s *S) m() {
+    acc(s) && s.x > 5
+}
+
+//:: ExpectedOutput(generated_implementation_proof:postcondition_error)
+requires acc(s.m(), _)
+pure func (s *S) g() int {
+    return unfolding acc(s.m(), _) in s.x
+}
+
+(*S) implements J

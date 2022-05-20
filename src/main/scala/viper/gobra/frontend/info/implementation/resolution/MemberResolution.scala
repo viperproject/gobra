@@ -239,8 +239,8 @@ trait MemberResolution { this: TypeInfoImpl =>
         info <- Info.check(parsedProgram, nonEmptyPkgSources, context)(config)
       } yield info
       res.fold(
-        errs => context.addErrenousPackage(importTarget, errs),
-        info => context.addPackage(importTarget, info)
+        errs => context.addErrenousPackage(importTarget, errs)(config),
+        info => context.addPackage(importTarget, info)(config)
       )
       res
     }
@@ -260,7 +260,7 @@ trait MemberResolution { this: TypeInfoImpl =>
       }
 
       // check if package was already parsed, otherwise do parsing and type checking:
-      val cachedInfo = context.getTypeInfo(importTarget)
+      val cachedInfo = context.getTypeInfo(importTarget)(config)
       cachedInfo.getOrElse(parseAndTypeCheck(importTarget)).left.map(createImportError)
     }
 

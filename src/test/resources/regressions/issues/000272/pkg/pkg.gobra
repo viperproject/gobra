@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type Rectangle struct {
+    Width, Height int
+}
+
+requires acc(self)
+ensures  acc(self)
+func (self *Rectangle) Area()

@@ -53,18 +53,6 @@ object Source {
    */
   def getPackageInfo(src: Source, projectRoot: Path): PackageInfo = {
 
-    /**
-     * Changes the given path to be relative to the projectRoot.
-     * If the path isn't a child of the projectRoot it is returned unchanged instead
-     */
-    def relativizePath(path: Path): Path = {
-      try{
-        projectRoot.relativize(path)
-      } catch {
-        case _: IllegalArgumentException => path
-      }
-    }
-
     val isBuiltIn: Boolean = src match {
       case FromFileSource(_, _, builtin) => builtin
       case _ => false
@@ -77,7 +65,7 @@ object Source {
      * A unique identifier for packages
      */
     val packageId: String = {
-      val prefix = relativizePath(TransformableSource(src).toPath.getParent).toString
+      val prefix = uniquePath(TransformableSource(src).toPath.getParent, projectRoot).toString
       if(prefix.nonEmpty) {
         // The - is enough to unambiguously separate the prefix from the package name, since it can't occur in the package name
         // per Go's spec (https://go.dev/ref/spec#Package_clause)
@@ -88,6 +76,19 @@ object Source {
       }
     }
     new PackageInfo(packageId, packageName, isBuiltIn)
+  }
+
+  /**
+    * Returns the given path such that it is relative to the projectRoot.
+    * If the path isn't a child of the projectRoot it is returned unchanged instead.
+    * We do not use the canonical path because we want a unique path that is computer independent.
+    */
+  def uniquePath(path: Path, projectRoot: Path): Path = {
+    try{
+      projectRoot.relativize(path)
+    } catch {
+      case _: IllegalArgumentException => path
+    }
   }
 
   implicit class TransformableSource[S <: Source](source: S) {

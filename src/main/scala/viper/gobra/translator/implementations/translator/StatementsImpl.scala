@@ -85,6 +85,12 @@ class StatementsImpl extends Statements {
       case in.Label(id) =>
         unit(vpr.Label(id.name, Seq.empty)(pos, info, errT))
 
+      case in.Continue(_, escLabel) =>
+        unit(vpr.Goto(escLabel)(pos, info, errT))
+
+      case in.Break(_, escLabel) =>
+        unit(vpr.Goto(escLabel)(pos, info, errT))
+
       case in.If(cond, thn, els) =>
           for {
             c <- goE(cond)
@@ -99,6 +105,7 @@ class StatementsImpl extends Statements {
           (iws, vInvs) = invs.map(ctx.ass.invariant(_)(ctx)).unzip
           cpre <- seqnUnit(cws)
           ipre <- seqnUnits(iws)
+
           vBody <- goS(body)
 
           cpost = vpr.If(vCond, vu.toSeq(cpre), vu.nop(pos, info, errT))(pos, info, errT)

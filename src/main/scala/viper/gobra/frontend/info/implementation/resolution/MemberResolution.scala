@@ -19,6 +19,7 @@ import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.reporting.{NotFoundError, VerifierError}
+import viper.gobra.util.Violation
 
 import scala.annotation.tailrec
 
@@ -292,16 +293,28 @@ trait MemberResolution { this: TypeInfoImpl =>
     }
   }
 
-  lazy val tryUnqualifiedPackageLookup: PIdnUse => Entity =
-    attr[PIdnUse, Entity] {
-      id =>
+  lazy val tryUnqualifiedPackageLookup: PIdnUse => Entity = { id =>
+    val isBuiltinPackage: PPackage => Boolean = {
+      // package `builtin` provided by Gobra
+      p => p.packageClause.id.name == "builtin" && p.info.isBuiltIn
+    }
+    tryEnclosingPackage(id) match {
+      case Some(p) if isBuiltinPackage(p) =>
+        // The `builtin` package is imported implicitly by every package. If the importing package is `builtin`,
+        // then the call to this method should not cause a call to `tryUnqualifiedBuiltInPackageLookup`, otherwise
+        // Gobra complains about a cyclic import relation consisting of the cycle "[BuiltInImport]", as observed in
+        // the first commit of https://github.com/viperproject/gobra/pull/457 .
+        UnknownEntity()
+      case Some(_) =>
         // Go is weird in the sense that it let's you redeclare built-in identifiers such as "error" but won't complain
         // about the redeclaration. If the redeclaration happens in the same package, the redeclaration is
         // used (instead of the built-in one). If the redeclaration happens in an imported package Go's behavior is not
         // fully clear since "error" is not exported. However, we give higher precedence to the built-in one in Gobra
         // to approximate Go's behavior.
         tryUnqualifiedBuiltInPackageLookup(id).getOrElse(tryUnqualifiedRegularPackageLookup(id))
+      case None => Violation.violation(s"Expected node $id to have a parent of type PPackage, but none found.")
     }
+  }
 
   def tryUnqualifiedBuiltInPackageLookup(id: PIdnUse): Option[Entity] =
     tryPackageLookup(BuiltInImport, id, id).map(_._1)

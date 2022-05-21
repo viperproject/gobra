@@ -2,14 +2,18 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in https://golang.org/LICENSE
 
+// This package is imported implicitly in every other package.
+// Because Go does not allow cyclic import relations, files in
+// this package cannot have imports.
+
 package builtin
 
 type error interface {
-    pred ErrorMem()
+	pred ErrorMem()
 
-    preserves ErrorMem()
-    decreases
-    Error() string
+	preserves ErrorMem()
+	decreases
+	Error() string
 }
 
 // The panic built-in function stops normal execution of the current

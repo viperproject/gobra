@@ -296,7 +296,7 @@ trait MemberResolution { this: TypeInfoImpl =>
   lazy val tryUnqualifiedPackageLookup: PIdnUse => Entity = { id =>
     val isBuiltinPackage: PPackage => Boolean = {
       // package `builtin` provided by Gobra
-      p => p.packageClause.id.name == "builtin" && p.info.isBuiltIn
+      p => p.packageClause.id.name == "builtin" // && p.info.isBuiltIn // TEST
     }
     tryEnclosingPackage(id) match {
       case Some(p) if isBuiltinPackage(p) =>

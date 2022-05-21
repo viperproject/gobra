@@ -294,9 +294,14 @@ trait MemberResolution { this: TypeInfoImpl =>
   }
 
   lazy val tryUnqualifiedPackageLookup: PIdnUse => Entity = { id =>
+    // Determines if the given PPackage is the `builtin` package provided by Gobra
     val isBuiltinPackage: PPackage => Boolean = {
-      // package `builtin` provided by Gobra
-      p => p.packageClause.id.name == "builtin" // && p.info.isBuiltIn // TEST
+      // TODO: as it stands, no user-provided package can be named `builtin`,
+      //       otherwise Gobra might behave unexpectedly. This could be avoided
+      //       by adding the conjunct 'p.info.isBuiltIn' to the check below, but
+      //       this flag seems to only be properly set when the Gobra std library
+      //       is read from a `FromFileSource`.
+      p => p.packageClause.id.name == "builtin"
     }
     tryEnclosingPackage(id) match {
       case Some(p) if isBuiltinPackage(p) =>

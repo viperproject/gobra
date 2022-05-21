@@ -43,6 +43,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PIfClause => showIfClause(n)
     case n: PExprSwitchClause => showExprSwitchClause(n)
     case n: PTypeSwitchClause => showTypeSwitchClause(n)
+    case n: PConstSpec => showConstSpec(n)
     case n: PSelectClause => showSelectClause(n)
     case n: PStructClause => showStructClause(n)
     case n: PInterfaceClause => showInterfaceClause(n)
@@ -163,8 +164,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       "var" <+> showList(left zip addressable){ case (v, a) => showAddressable(a, v) } <> opt(typ)(space <> showType(_)) <> rhs
   }
 
-  def showConstDecl(decl: PConstDecl): Doc = decl match {
-    case PConstDecl(typ, right, left) => "const" <+> showIdList(left) <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
+  def showConstDecl(decl: PConstDecl): Doc = {
+    val lines = decl.specs.map(showConstSpec).foldLeft(emptyDoc)(_ <@> _)
+    "const" <+> parens(nest(lines) <> line)
+  }
+
+  def showConstSpec(spec: PConstSpec): Doc = spec match {
+    case PConstSpec(typ, right, left) => showIdList(left) <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
   }
 
   def showTypeDecl(decl: PTypeDecl): Doc = decl match {
@@ -447,6 +453,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PShiftLeft(left, right) => showExpr(left) <+> "<<" <+> showExpr(right)
       case PShiftRight(left, right) => showExpr(left) <+> ">>" <+> showExpr(right)
       case PBitNegation(exp) => "^" <> showExpr(exp)
+      case PIota() => "iota"
     }
     case expr: PGhostExpression => expr match {
       case POld(e) => "old" <> parens(showExpr(e))

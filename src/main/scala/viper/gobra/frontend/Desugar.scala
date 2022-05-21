@@ -377,7 +377,9 @@ object Desugar {
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
-    def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.flatMap(l => info.regular(l) match {
+    def constDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constSpecD)
+
+    def constSpecD(decl: PConstSpec): Vector[in.GlobalConstDecl] = decl.left.flatMap(l => info.regular(l) match {
       case sc@st.SingleConstant(_, id, _, _, _, _) =>
         val src = meta(id)
         val gVar = globalConstD(sc)(src)
@@ -394,12 +396,11 @@ object Desugar {
           case _ => ???
         }
         Vector(in.GlobalConstDecl(gVar, lit)(src))
-
-      // Constants defined with the blank identifier can be safely ignored as they
-      // must be computable statically (and thus do not have side effects) and
-      // they can never be read
-      case st.Wildcard(_, _) => Vector()
-
+      case st.Wildcard(_, _) =>
+        // Constants defined with the blank identifier can be safely ignored as they
+        // must be computable statically (and thus do not have side effects) and
+        // they can never be read
+        Vector()
       case _ => ???
     })
 
@@ -812,13 +813,14 @@ object Desugar {
 
           case b: PBlock => unit(blockD(ctx)(b))
 
-          case l: PLabeledStmt =>
+          case l: PLabeledStmt => {
             val proxy = labelProxy(l.label)
             for {
               _ <- declare(proxy)
               _ <- write(in.Label(proxy)(src))
               s <- goS(l.stmt)
             } yield s
+          }
 
           case PIfStmt(ifs, els) =>
             val elsStmt = maybeStmtD(ctx)(els)(src)
@@ -834,7 +836,7 @@ object Desugar {
               }
             ))
 
-          case PForStmt(pre, cond, post, spec, body) =>
+          case n@PForStmt(pre, cond, post, spec, body) =>
             unit(block( // is a block because 'pre' might define new variables
               for {
                 dPre <- maybeStmtD(ctx)(pre)(src)
@@ -842,14 +844,23 @@ object Desugar {
                 (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
                 (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
 
+                continueLabelName = nm.continueLabel(n, info)
+                continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
+                continueLoopLabel = in.Label(continueLoopLabelProxy)(src)
+
+                breakLabelName = nm.breakLabel(n, info)
+                breakLoopLabelProxy = in.LabelProxy(breakLabelName)(src)
+                _ <- declare(breakLoopLabelProxy)
+                breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
+
                 dBody = blockD(ctx)(body)
                 dPost <- maybeStmtD(ctx)(post)(src)
 
                 wh = in.Seqn(
                   Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
-                    in.While(dCond, dInv, dTer, in.Seqn(
-                      Vector(dBody, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
-                    )(src))(src)
+                    in.While(dCond, dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
+                      Vector(dBody, continueLoopLabel, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
+                    )(src))(src), breakLoopLabel
                   )
                 )(src)
               } yield wh
@@ -1042,6 +1053,10 @@ object Desugar {
                   }
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
+
+          case n@PContinue(label) => unit(in.Continue(label.map(x => x.name), nm.fetchContinueLabel(n, info))(src))
+
+          case n@PBreak(label) => unit(in.Break(label.map(x => x.name), nm.fetchBreakLabel(n, info))(src))
 
           case _ => ???
         }
@@ -3114,6 +3129,8 @@ object Desugar {
     private val LABEL_PREFIX = "L"
     private val GLOBAL_PREFIX = "G"
     private val BUILTIN_PREFIX = "B"
+    private val CONTINUE_LABEL_SUFFIX = "$Continue"
+    private val BREAK_LABEL_SUFFIX = "$Break"
 
     /** the counter to generate fresh names depending on the current code root for which a fresh name should be generated */
     private var nonceCounter: Map[PCodeRoot, Int] = Map.empty
@@ -3186,6 +3203,61 @@ object Desugar {
       nonceCounter += (codeRoot -> (value + 1))
       f
     }
+
+    /**
+      * Returns a unique id for a for loop node with respect to its code root.
+      * The id is of the form 'L_<a>_<b>' where a is the difference of the lines
+      * of the for loop with the code root and b is the difference of the columns
+      * of the for loop with the code root.
+      * If a differce is negative, the '-' character is replaced with '_'.
+      *
+      * @param loop the for loop we are interested in
+      * @param info type info to get position information
+      * @return     string
+      */
+    private def loopId(loop: PForStmt, info: TypeInfo) : String = {
+      val pom = info.getTypeInfo.tree.originalRoot.positions
+      val lpos = pom.positions.getStart(loop).get
+      val rpos = pom.positions.getStart(info.codeRoot(loop)).get
+      return ("L_" + (lpos.line - rpos.line) + "_" + (lpos.column - rpos.column)).replace("-", "_")
+    }
+
+    /** returns the loopId with the CONTINUE_LABEL_SUFFIX appended */
+    def continueLabel(loop: PForStmt, info: TypeInfo) : String = loopId(loop, info) + CONTINUE_LABEL_SUFFIX
+
+    /** returns the loopId with the BREAK_LABEL_SUFFIX appended */
+    def breakLabel(loop: PForStmt, info: TypeInfo) : String = loopId(loop, info) + BREAK_LABEL_SUFFIX
+
+    /**
+      * Finds the enclosing loop which the continue statement refers to and fetches its
+      * continue label.
+      */
+    def fetchContinueLabel(n: PContinue, info: TypeInfo) : String = {
+      n.label match {
+        case None =>
+          val Some(loop) = info.enclosingLoopNode(n)
+          continueLabel(loop, info)
+        case Some(label) =>
+          val Some(loop) = info.enclosingLabeledLoopNode(label, n)
+          continueLabel(loop, info)
+      }
+    }
+
+    /**
+      * Finds the enclosing loop which the break statement refers to and fetches its
+      * break label.
+      */
+    def fetchBreakLabel(n: PBreak, info: TypeInfo) : String = {
+      n.label match {
+        case None =>
+          val Some(loop) = info.enclosingLoopNode(n)
+          breakLabel(loop, info)
+        case Some(label) =>
+          val Some(loop) = info.enclosingLabeledLoopNode(label, n)
+          breakLabel(loop, info)
+      }
+    }
+
 
     def inParam(idx: Int, s: PScope, context: ExternalTypeInfo): String = name(IN_PARAMETER_PREFIX)("P" + idx, s, context)
     def outParam(idx: Int, s: PScope, context: ExternalTypeInfo): String = name(OUT_PARAMETER_PREFIX)("P" + idx, s, context)

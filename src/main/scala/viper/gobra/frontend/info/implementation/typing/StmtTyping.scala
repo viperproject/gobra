@@ -22,9 +22,11 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualStmt(stmt: PActualStatement): Messages = stmt match {
 
-    case n@PConstDecl(typ, right, left) =>
-      right.flatMap(isExpr(_).out) ++
-        declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
+    case PConstDecl(decls) => decls flatMap {
+      case n@PConstSpec(typ, right, left) =>
+        right.flatMap(isExpr(_).out) ++
+          declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
+    }
 
     case n@PVarDecl(typ, right, left, _) =>
       right.flatMap(isExpr(_).out) ++
@@ -137,8 +139,38 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PSeq => noMessages
     case _: PEmptyStmt => noMessages
     case _: PGoto => ???
-    case _: PContinue => ???
-    case _: PBreak => ???
+
+    case n@PBreak(l) =>
+      l match {
+        case None =>
+          enclosingLoop(n) match {
+            case None => error(n, s"break must be inside a loop")
+            case Some(_) => noMessages
+          }
+        case Some(label) => {
+          val maybeLoop = enclosingLabeledLoop(label, n)
+          maybeLoop match {
+            case None => error(n, s"break label must point to an outer labeled loop")
+            case Some(_) => noMessages
+          }
+        }
+      }
+
+    case n@PContinue(l) =>
+      l match {
+        case None =>
+          enclosingLoop(n) match {
+            case None => error(n, s"continue must be inside a loop")
+            case Some(_) => noMessages
+          }
+        case Some(label) => {
+          val maybeLoop = enclosingLabeledLoop(label, n)
+          maybeLoop match {
+            case None => error(n, s"continue label must point to an outer labeled loop")
+            case Some(_) => noMessages
+          }
+        }
+      }
 
     case s => violation(s"$s was not handled")
   }

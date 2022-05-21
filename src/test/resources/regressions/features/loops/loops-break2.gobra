@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo() {
+	var a [15]int
+	invariant 0 <= i && i <= cap(a)
+	for i := 0; i < cap(a); i++ {
+		a[i] = i
+	}
+	var contains5 = false
+	invariant 0 <= i && i <= cap(a)
+	invariant contains5 == (exists j int :: { a[j] } 0 <= j && j < i && a[j] == 5)
+	decreases cap(a) - i
+	for i := 0; i < cap(a); i++ {
+		if a[i] == 5 {
+			contains5 = true
+			break
+		}
+	}
+	assert contains5 == (exists i int :: { a[i] } 0 <= i && i < cap(a) && a[i] == 5)
+}

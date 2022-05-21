@@ -22,7 +22,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
   lazy val multiAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
     case (right, left) =>
-      StrictAssignModi(left.size, right.size) match {
+      StrictAssignMode(left.size, right.size) match {
         case AssignMode.Single =>
           right match {
             // To support Go's function chaining when a tuple with the results of a function call are passed to the
@@ -50,7 +50,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
   lazy val variadicAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
     case (right, left) =>
-      StrictAssignModi(left.size, right.size) match {
+      StrictAssignMode(left.size, right.size) match {
         case AssignMode.Variadic => left.lastOption match {
           case Some(VariadicT(elem)) =>
             val dummyFill = UnknownType

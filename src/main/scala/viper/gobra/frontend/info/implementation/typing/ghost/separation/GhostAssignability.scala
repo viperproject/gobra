@@ -11,7 +11,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.ExternalTypeInfo
-import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignModi}
+import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignMode}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType.ghost
 import viper.gobra.util.Violation
 
@@ -81,7 +81,7 @@ trait GhostAssignability {
   }
 
   private def generalGhostAssignableTo[R, L](typing: R => GhostType)(msg: (Boolean, L) => Messages)(rights: R*)(lefts: L*): Messages =
-    NonStrictAssignModi(lefts.size, rights.size) match {
+    NonStrictAssignMode(lefts.size, rights.size) match {
 
       case AssignMode.Single => rights.zip(lefts).flatMap{ case (r,l) => msg(typing(r).isGhost, l) }.toVector
 

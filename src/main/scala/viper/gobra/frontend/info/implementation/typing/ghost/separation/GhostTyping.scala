@@ -11,7 +11,7 @@ import viper.gobra.frontend.info.base.SymbolTable.{MultiLocalVariable, Regular, 
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.Violation
 
 trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
@@ -27,7 +27,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
   /** returns true iff statement is classified as ghost */
   private[separation] lazy val ghostStmtClassification: PStatement => Boolean = {
     def varDeclClassification(left: Vector[PIdnNode], right: Vector[PExpression]): Boolean =
-      StrictAssignModi(left.size, right.size) match {
+      StrictAssignMode(left.size, right.size) match {
         case AssignMode.Single =>
           left.map(Some(_)).zipAll(right.map(Some(_)), None, None).forall {
             case (l, r) => l.exists(ghostIdClassification) || r.exists(ghostExprResultClassification)

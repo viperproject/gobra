@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.Violation
 
 class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter {
@@ -104,7 +104,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
       res._1 +: remainder
     }
 
-    StrictAssignModi(left.size, right.size) match {
+    StrictAssignMode(left.size, right.size) match {
       case AssignMode.Single =>
         // we have to distinguish for each pair of elements from left and right whether they remain the original
         // operation (i.e. by calling `copy`) or whether the left-hand side is dropped. In the latter case, the

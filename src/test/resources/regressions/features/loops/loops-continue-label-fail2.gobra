@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func count_even(n int) (res int) {
+	decreases 10 - i
+	for i := 0; i < 10; i++ {
+	label1:
+		decreases 10 - j
+		for j := 0; j < 10; j++ {
+			decreases 10 - k
+			for k := 0; k < 10; k++ {
+			label2:
+				decreases 10 - l
+				for l := 0; l < 10; l++ {
+					if k > 5 {
+						continue label1
+					}
+					if l > 5 {
+						continue label2
+					}
+				}
+			}
+		}
+	}
+	//:: ExpectedOutput(assert_error)
+	assert false
+}

@@ -117,6 +117,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
        | _: PLiteral
        | _: PReference
        | _: PBlankIdentifier
+       | _: PIota
        | _: PPredConstructor
        | _: PUnpackSlice
     => noMessages

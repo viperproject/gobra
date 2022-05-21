@@ -75,6 +75,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
         case p => Violation.violation(s"Unexpected dot resolve, got $p")
       }
       case _: PLiteral => AddrMod.literal
+      case _: PIota => AddrMod.iota
       case n: PInvoke => resolve(n) match {
         case Some(_: ap.Conversion) => AddrMod.conversionResult
         case Some(_: ap.FunctionCall) => AddrMod.callResult

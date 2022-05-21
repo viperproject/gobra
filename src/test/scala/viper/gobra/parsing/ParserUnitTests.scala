@@ -2677,4 +2677,16 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       case PInvoke(PNamedOperand(PIdnUse("uint8")), Vector(x)) if x == PIntLit(1) =>
     }
   }
+
+  test("Parser: should be able to parse a labeled continue") {
+    frontend.parseStmtOrFail("continue l") should matchPattern {
+      case PContinue(Some(s)) if s.name == "l" =>
+    }
+  }
+
+  test("Parser: should be able to parse a labeled continue statement") {
+    frontend.parseFunctionDecl("func main() {continue l}") should matchPattern {
+      case PFunctionDecl(_, _, _, _, Some((_, PBlock(Vector(PContinue(Some(p))))))) if p.name == "l" =>
+    }
+  }
 }

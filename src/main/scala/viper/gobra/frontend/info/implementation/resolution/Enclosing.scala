@@ -30,6 +30,23 @@ trait Enclosing { this: TypeInfoImpl =>
     case _ => id
   })
 
+  lazy val enclosingLoop: PNode => Option[PForStmt] = {
+    down[Option[PForStmt]](None){ case x: PForStmt => Some(x) }
+  }
+
+  // Returns the enclosing loop that has a specific label
+  // It also returns the invariants of that loop
+  def enclosingLabeledLoop(label: PLabelUse, node: PNode) : Option[PForStmt] = {
+    enclosingLoop(node) match {
+      case None => None
+      case Some(encLoop) => encLoop match {
+        case tree.parent(l: PLabeledStmt) if l.label.name == label.name => Some(encLoop)
+        case tree.parent(p) => enclosingLabeledLoop(label, p)
+        case _ => violation("No parent found for a loop statement.")
+      }
+    }
+  }
+
   lazy val tryEnclosingPackage: PNode => Option[PPackage] =
     down[Option[PPackage]](None) { case x: PPackage => Some(x) }
 
@@ -56,6 +73,12 @@ trait Enclosing { this: TypeInfoImpl =>
 
   lazy val enclosingStruct: PNode => Option[PStructType] =
     down[Option[PStructType]](None) { case x: PStructType => Some(x) }
+
+  lazy val enclosingPConstBlock: PNode => Option[PConstDecl] =
+    down[Option[PConstDecl]](None) { case x: PConstDecl => Some(x) }
+
+  lazy val enclosingPConstDecl: PNode => Option[PConstSpec] =
+    down[Option[PConstSpec]](None) { case x: PConstSpec => Some(x) }
 
   def typeSwitchConstraints(id: PIdnNode): Vector[PExpressionOrType] =
     typeSwitchConstraintsLookup(id)(id)
@@ -88,7 +111,7 @@ trait Enclosing { this: TypeInfoImpl =>
     def aux(n: PNode): Option[Type] = {
       n match {
         case tree.parent(p) => p match {
-          case PConstDecl(t, _, _) => t.map(symbType)
+          case PConstSpec(t, _, _) => t.map(symbType)
           case PVarDecl(t, _, _, _) => t.map(symbType)
           case _: PExpressionStmt => None
           case PSendStmt(channel, `n`) => Some(typ(channel).asInstanceOf[Type.ChannelT].elem)

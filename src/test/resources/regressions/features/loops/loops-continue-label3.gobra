@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo() {
+	var x = false
+l:
+	invariant 0 <= i && i <= 10
+	invariant x == false
+	for i := 0; i < 10; i++ {
+		invariant j == 0
+		invariant x == false
+		for j := 0; j < 10; j++ {
+			continue l
+			x = true
+		}
+	}
+	assert x == false
+}

@@ -1,0 +1,65 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+const (
+	x0 = iota
+	x1 = iota
+	x2, x3 int8 = 1, 2
+	x4, x5 uint16 = iota, iota
+	comp1 = iota == iota
+	comp2 bool = iota == x4
+)
+
+const y1 = iota
+const y2 = iota
+
+const (
+	w1 = iota * 3
+	w2
+	w3
+)
+
+const (
+	j1 = 1 << iota
+	j2
+	j3
+	j4
+)
+
+const (
+	i1 = 2
+	i2
+	i3, i4 = 1, 4
+)
+
+func main() {
+	//------------
+	assert x0 == 0
+	assert x1 == 1
+	assert x2 == 1
+	assert x3 == 2
+	assert x4 == 3
+	assert x5 == 3
+	assert comp1
+	assert !comp2
+	//------------
+	assert y1 == 0
+	assert y2 == 0
+	//------------
+	assert w1 == 0
+	assert w2 == 3
+	assert w3 == 6
+	//------------
+	assert j1 == 1
+	assert j2 == 2
+	assert j3 == 4
+	assert j4 == 8
+	//------------
+	assert i1 == 2
+	assert i2 == 2
+	assert i3 == 1
+	assert i4 == 4
+	//------------
+}

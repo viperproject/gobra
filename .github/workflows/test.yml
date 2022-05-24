@@ -6,9 +6,7 @@
 
 name: test
 
-on:
-  push: # run this workflow on every push
-  pull_request: # run this workflow on every pull_request
+on: [push, pull_request]
 
 jobs:
   # there is a single job to avoid copying the built docker image from one job to the other

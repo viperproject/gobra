@@ -11,7 +11,8 @@ import viper.gobra.reporting.{GoCallPreconditionReason, PreconditionError, Sourc
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Statements
 import viper.gobra.translator.interfaces.Context
-import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.translator.library.outlines.{Outlines, OutlinesImpl}
+import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberLevel => ml}
 import viper.gobra.translator.util.{Comments, ViperUtil => vu}
 import viper.gobra.util.Violation
 import viper.silver.verifier.{errors => err}
@@ -25,7 +26,11 @@ class StatementsImpl extends Statements {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
-  override def finalize(addMemberFn: vpr.Member => Unit): Unit = ()
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    outlines.finalize(addMemberFn)
+  }
+
+  private val outlines: Outlines = new OutlinesImpl
 
   /** Clients can assume that the returned writer does not contain local variable definitions or written statements. */
   override def translate(x: in.Stmt)(ctx: Context): CodeWriter[vpr.Stmt] = {
@@ -172,6 +177,16 @@ class StatementsImpl extends Statements {
         for {w <- goA(wand)} yield vpr.Apply(w.asInstanceOf[vpr.MagicWand])(pos, info, errT)
 
       case in.Return() => unit(vpr.Goto(Names.returnLabel)(pos, info, errT))
+
+      case n: in.Outline =>
+        fromMemberLevel(
+          for {
+            pres <- ml.sequence(n.pres map (p => ctx.ass.precondition(p)(ctx)))
+            posts <- ml.sequence(n.posts map (p => ctx.ass.postcondition(p)(ctx)))
+            measures <- ml.sequence(n.terminationMeasures map (m => ctx.measures.decreases(m)(ctx)))
+            body <- ml.option(n.body map (b => ml.block(ctx.stmt.translate(b)(ctx))))
+          } yield outlines.outline(n.name, pres ++ measures, posts, body)(pos, info, errT)
+        )
 
       case _ => Violation.violation(s"Statement $x did not match with any implemented case.")
     }

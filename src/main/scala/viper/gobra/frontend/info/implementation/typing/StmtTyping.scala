@@ -137,13 +137,24 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PBlock => noMessages
     case _: PSeq => noMessages
+
+    case n: POutline =>
+      val labelOpt = tree.parent(n).collectFirst{ case l: PLabeledStmt => l }
+      val invalidNodes: Vector[Messages] = allChildren(n) collect {
+        case l: PLabeledOld if labelOpt.forall(_.label.name != l.label.name) =>
+          error(l, "labeled old expressions inside of outline statements must use the label of the outline statement.")
+        case n: POld => error(n, "outline statements must not contain old expressions.")
+        case n: PReturn => error(n, "outline statements must not contain return statements.")
+      }
+      error(n, s"pure outline statements are not supported.", n.spec.isPure) ++ invalidNodes.flatten
+
     case _: PEmptyStmt => noMessages
     case _: PGoto => ???
 
     case n@PBreak(l) =>
       l match {
         case None =>
-          enclosingLoop(n) match {
+          enclosingLoopWithoutOutline(n) match {
             case None => error(n, s"break must be inside a loop")
             case Some(_) => noMessages
           }
@@ -159,7 +170,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PContinue(l) =>
       l match {
         case None =>
-          enclosingLoop(n) match {
+          enclosingLoopWithoutOutline(n) match {
             case None => error(n, s"continue must be inside a loop")
             case Some(_) => noMessages
           }

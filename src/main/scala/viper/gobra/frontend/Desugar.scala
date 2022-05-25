@@ -1054,6 +1054,15 @@ object Desugar {
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
 
+          case n: POutline =>
+            val name = s"${rootName(n, info)}$$${nm.relativeId(n, info)}"
+            val labelOpt = info.tree.parent(n).collectFirst{ case l: PLabeledStmt => labelProxy(l.label) }
+            val pres = (n.spec.pres ++ n.spec.preserves) map preconditionD(ctx)
+            val posts = (n.spec.preserves ++ n.spec.posts) map postconditionD(ctx)
+            val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx)).res
+            val body = if (n.spec.isTrusted) None else Some(block(stmtD(ctx)(n.body)))
+            unit(in.Outline(name, labelOpt, pres, posts, terminationMeasures, body)(src))
+
           case n@PContinue(label) => unit(in.Continue(label.map(x => x.name), nm.fetchContinueLabel(n, info))(src))
 
           case n@PBreak(label) => unit(in.Break(label.map(x => x.name), nm.fetchBreakLabel(n, info))(src))
@@ -2409,6 +2418,20 @@ object Desugar {
       case _ => ???
     }
 
+    /** Returns a name for the code root that `n` is contained in. */
+    def rootName(n: PNode, context: TypeInfo): String = {
+      info.codeRoot(n) match {
+        case decl: PMethodDecl     => idName(decl.id, context)
+        case decl: PFunctionDecl   => idName(decl.id, context)
+        case decl: PMPredicateDecl => idName(decl.id, context)
+        case decl: PFPredicateDecl => idName(decl.id, context)
+        case decl: PMethodSig      => idName(decl.id, context)
+        case decl: PMPredicateSig  => idName(decl.id, context)
+        case decl: PDomainFunction => idName(decl.id, context)
+        case _ => ??? // axiom and method-implementation-proof
+      }
+    }
+
     def globalConstD(c: st.Constant)(src: Meta): in.GlobalConst = {
       c match {
         case sc: st.SingleConstant =>
@@ -3205,28 +3228,28 @@ object Desugar {
     }
 
     /**
-      * Returns a unique id for a for loop node with respect to its code root.
-      * The id is of the form 'L_<a>_<b>' where a is the difference of the lines
-      * of the for loop with the code root and b is the difference of the columns
-      * of the for loop with the code root.
+      * Returns an id for a node with respect to its code root.
+      * The id is of the form 'L$<a>$<b>' where a is the difference of the lines
+      * of the node with the code root and b is the difference of the columns
+      * of the node with the code root.
       * If a differce is negative, the '-' character is replaced with '_'.
       *
-      * @param loop the for loop we are interested in
+      * @param node the node we are interested in
       * @param info type info to get position information
       * @return     string
       */
-    private def loopId(loop: PForStmt, info: TypeInfo) : String = {
+    def relativeId(node: PNode, info: TypeInfo) : String = {
       val pom = info.getTypeInfo.tree.originalRoot.positions
-      val lpos = pom.positions.getStart(loop).get
-      val rpos = pom.positions.getStart(info.codeRoot(loop)).get
-      return ("L_" + (lpos.line - rpos.line) + "_" + (lpos.column - rpos.column)).replace("-", "_")
+      val lpos = pom.positions.getStart(node).get
+      val rpos = pom.positions.getStart(info.codeRoot(node)).get
+      return ("L$" + (lpos.line - rpos.line) + "$" + (lpos.column - rpos.column)).replace("-", "_")
     }
 
-    /** returns the loopId with the CONTINUE_LABEL_SUFFIX appended */
-    def continueLabel(loop: PForStmt, info: TypeInfo) : String = loopId(loop, info) + CONTINUE_LABEL_SUFFIX
+    /** returns the relativeId with the CONTINUE_LABEL_SUFFIX appended */
+    def continueLabel(loop: PForStmt, info: TypeInfo) : String = relativeId(loop, info) + CONTINUE_LABEL_SUFFIX
 
-    /** returns the loopId with the BREAK_LABEL_SUFFIX appended */
-    def breakLabel(loop: PForStmt, info: TypeInfo) : String = loopId(loop, info) + BREAK_LABEL_SUFFIX
+    /** returns the relativeId with the BREAK_LABEL_SUFFIX appended */
+    def breakLabel(loop: PForStmt, info: TypeInfo) : String = relativeId(loop, info) + BREAK_LABEL_SUFFIX
 
     /**
       * Finds the enclosing loop which the continue statement refers to and fetches its
@@ -3257,7 +3280,6 @@ object Desugar {
           breakLabel(loop, info)
       }
     }
-
 
     def inParam(idx: Int, s: PScope, context: ExternalTypeInfo): String = name(IN_PARAMETER_PREFIX)("P" + idx, s, context)
     def outParam(idx: Int, s: PScope, context: ExternalTypeInfo): String = name(OUT_PARAMETER_PREFIX)("P" + idx, s, context)

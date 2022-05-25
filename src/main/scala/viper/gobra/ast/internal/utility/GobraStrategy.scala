@@ -69,6 +69,7 @@ object GobraStrategy {
       case (s: SafeTypeAssertion, Seq(resTarget: LocalVar, successTarget: LocalVar, expr: Expr)) => SafeTypeAssertion(resTarget, successTarget, expr, s.typ)(meta)
       case (_: SafeMapLookup, Seq(resTarget: LocalVar, successTarget: LocalVar, mapLookup: IndexedExp)) => SafeMapLookup(resTarget, successTarget, mapLookup)(meta)
       case (_: EffectfulConversion, Seq(target: LocalVar, newType: Type, expr: Expr)) => EffectfulConversion(target, newType, expr)(meta)
+      case (n: Outline, Seq(pres: Vector[Assertion@unchecked], posts: Vector[Assertion@unchecked], measures: Vector[TerminationMeasure@unchecked], body: Option[Stmt@unchecked])) => Outline(n.name, n.label, pres, posts, measures, body)(meta)
         // Assertions
       case (_: SepAnd, Seq(l: Assertion, r: Assertion)) => SepAnd(l, r)(meta)
       case (_: ExprAssertion, Seq(exp: Expr)) => ExprAssertion(exp)(meta)

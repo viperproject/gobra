@@ -1980,6 +1980,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
+  override def visitStatementWithSpec(ctx: StatementWithSpecContext): PStatement = super.visitStatementWithSpec(ctx) match {
+    case Vector(spec: PFunctionSpec, body: PStatement) => POutline(body, spec)
+  }
+
+  override def visitOutlineStatement(ctx: OutlineStatementContext): PSeq = super.visitOutlineStatement(ctx) match {
+    case Vector(_, _, stmts: Vector[PStatement@unchecked], _) => PSeq(stmts)
+  }
+
 
   override def visitPredicateAccess(ctx: PredicateAccessContext): PPredicateAccess = super.visitPredicateAccess(ctx) match {
     case invoke : PInvoke => PPredicateAccess(invoke, PFullPerm().at(invoke))

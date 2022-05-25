@@ -52,6 +52,16 @@ ghostStatement:
   | kind=(ASSUME | ASSERT | INHALE | EXHALE) expression #proofStatement
   ;
 
+// Auxiliary statements
+
+auxiliaryStatement:
+  statementWithSpec
+  ;
+
+statementWithSpec: specification (outlineStatement[$specification.trusted, $specification.pure]);
+
+outlineStatement[boolean trusted, boolean pure]:  OUTLINE L_PAREN statementList? R_PAREN;
+
 // Ghost Primary Expressions
 
 ghostPrimaryExpr: range
@@ -259,6 +269,7 @@ expression:
 // Added ghost statements
 statement:
   ghostStatement
+  | auxiliaryStatement
   | packageStmt
   | applyStmt
   | declaration

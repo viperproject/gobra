@@ -13,13 +13,25 @@ trait Outlines extends Generator {
 
   /**
     * Moves code `body` into a generated method with name `name`, preconditions `pres`, and postconditions `pros`.
-    * `leaking` are the variables declared in body who should be returned by the generated method. // TODO
     * Returns a call to the generated method with the appropriate arguments and results.
     */
   def outline(
                name: String,
                pres: Vector[vpr.Exp],
                posts: Vector[vpr.Exp],
-               body: Option[vpr.Seqn]
+               body: vpr.Stmt,
+             )(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.Stmt
+
+  /**
+    * Generates method with name `name`, preconditions `pres`, and postconditions `pros`.
+    * The generated method takes as arguments `arguments`. `modifies` specifies which of the arguments are modified.
+    * Returns a call to the generated method with the appropriate arguments and results.
+    */
+  def outlineWithoutBody(
+               name: String,
+               pres: Vector[vpr.Exp],
+               posts: Vector[vpr.Exp],
+               arguments: Vector[vpr.LocalVar],
+               modifies:  Vector[vpr.LocalVar],
              )(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.Stmt
 }

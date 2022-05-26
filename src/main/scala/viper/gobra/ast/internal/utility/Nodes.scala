@@ -75,7 +75,7 @@ object Nodes {
           Seq(channel, expr, sendChannel, sendGivenPerm, sendGotPerm)
         case EffectfulConversion(target, _, expr) =>
           Seq(target, expr)
-        case Outline(_, _, pres, posts, terminationMeasures, body) => pres ++ posts ++ terminationMeasures ++ body
+        case Outline(_, _, pres, posts, terminationMeasures, body, _, _) => pres ++ posts ++ terminationMeasures ++ body
       }
       case a: Assignee => Seq(a.op)
       case a: Assertion => a match {

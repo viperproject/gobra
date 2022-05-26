@@ -30,7 +30,6 @@ class OutlinesImpl extends Outlines {
     *
     * is transformed to
     *
-    * var leaking;
     * results := name(arguments)
     *
     * with
@@ -46,48 +45,38 @@ class OutlinesImpl extends Outlines {
     * }
     *
     * where
-    *   arguments := free(BODY) + (free(POST) - declared(BODY))    // variables used in body and spec
-    *   results := (modified(BODY) intersect arguments) + leaking  // arguments modified in body
-    *   leaking := free(POST) intersect declared(BODY)             // variables declared in body that should be returned
+    *   arguments := free(BODY) + free(PRE) + free(Post)  // variables used in body and spec
+    *   results := (modified(BODY) intersect arguments)   // arguments modified in body
     *
     *   free(n) := free variables in n
     *   modified(n) := variables modified in n
-    *   declared(n) := variables declared in n
     *
     */
   override def outline(
                         name: String,
                         pres: Vector[vpr.Exp],
                         posts: Vector[vpr.Exp],
-                        body: Option[vpr.Seqn], // TODO: add argument specifying the variables that should be returned
+                        body: vpr.Stmt,
                       )(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.Stmt = {
 
-    val (arguments, modifiedArgs, leaking) = {
-      val freeVariablesInStmt = body.toSet.flatMap((b: vpr.Seqn) => b.undeclLocalVars)
-      val freeVariablesInPre = pres
+    val (arguments, results) = {
+      val freeVariablesInStmt = body.undeclLocalVars.toSet
+      val freeVariablesInSpec = (pres ++ posts)
         .map(e => vpr.utility.Expressions.freeVariables(e).collect{ case x: vpr.LocalVar => x })
         .foldLeft(Set.empty[vpr.LocalVar]){ case (l,r) => l ++ r }
-      val freeVariablesInPost = posts
-        .map(e => vpr.utility.Expressions.freeVariables(e).collect{ case x: vpr.LocalVar => x })
-        .foldLeft(Set.empty[vpr.LocalVar]){ case (l,r) => l ++ r }
-      val freeVariablesInSpec = freeVariablesInPre ++ freeVariablesInPost
-      val declaredVariables = body.toSet.flatMap((b: vpr.Seqn) => b.transitiveScopedDecls.collect{ case x: vpr.LocalVarDecl => x.localVar })
-      val freeVariables = freeVariablesInStmt ++ (freeVariablesInSpec diff declaredVariables)
-      val modifiedVariables = body.toSet.flatMap((b: vpr.Seqn) => b.writtenVars)
-      val leakingVariables = freeVariablesInPost intersect declaredVariables
-      val modifiedArgumentVariables = modifiedVariables intersect freeVariables
-      (freeVariables.toVector, modifiedArgumentVariables.toVector, leakingVariables.toVector)
+      val freeVariables = freeVariablesInStmt ++ freeVariablesInSpec
+      val modifiedArgumentVariables = body.writtenVars.toSet intersect freeVariables
+      (freeVariables.toVector, modifiedArgumentVariables.toVector)
     }
-    val results = modifiedArgs ++ leaking
 
     generatedMembers ::= {
       val formals = arguments.map(v => v.copy(name = s"${v.name}$$in")(v.pos, v.info, v.errT))
       val returns = results.map(v => v.copy(name = s"${v.name}$$out")(v.pos, v.info, v.errT))
-      val actualBody = body.map{ b =>
+      val actualBody = {
         val prelude = (arguments zip formals).map{ case (l, r) => vpr.LocalVarAssign(l, r)(l.pos, l.info, l.errT) }
         val ending = (returns zip results).map{ case (l, r) => vpr.LocalVarAssign(l, r)(l.pos, l.info, l.errT) }
-        val tb = b.transform{ case lold: vpr.LabelledOld => vpr.Old(lold.exp)(lold.pos, lold.info, lold.errT) }
-        vpr.Seqn(prelude ++ (tb +: ending), arguments map ViperUtil.toVarDecl)(b.pos, b.info, b.errT)
+        val tb = body.transform{ case lold: vpr.LabelledOld => vpr.Old(lold.exp)(lold.pos, lold.info, lold.errT) }
+        vpr.Seqn(prelude ++ (tb +: ending), arguments map ViperUtil.toVarDecl)(body.pos, body.info, body.errT)
       }
       import vpr.utility.Expressions.{instantiateVariables => subst}
       val actualPres = pres.map(e => subst(e, arguments, formals))
@@ -101,14 +90,45 @@ class OutlinesImpl extends Outlines {
         formalReturns = returns map ViperUtil.toVarDecl,
         pres = actualPres,
         posts = actualPosts,
-        body = actualBody
+        body = Some(actualBody),
       )(pos, info, errT)
     }
 
-    val call = vpr.MethodCall(methodName = name, args = arguments, targets = results)(pos, info, errT)
+    vpr.MethodCall(methodName = name, args = arguments, targets = results)(pos, info, errT)
+  }
 
-    if (leaking.isEmpty) call
-    else vpr.Seqn(Vector(call), leaking map ViperUtil.toVarDecl)(pos, info, errT)
+  /**
+    * Generates method with name `name`, preconditions `pres`, and postconditions `pros`.
+    * The generated method takes as arguments `arguments`. `modifies` specifies which of the arguments are modified.
+    * Returns a call to the generated method with the appropriate arguments and results.
+    */
+  def outlineWithoutBody(
+                          name: String,
+                          pres: Vector[vpr.Exp],
+                          posts: Vector[vpr.Exp],
+                          arguments: Vector[vpr.LocalVar],
+                          modifies:  Vector[vpr.LocalVar],
+                        )(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.Stmt = {
+    val results = modifies
+
+    generatedMembers ::= {
+      val returns = results.map(v => v.copy(name = s"${v.name}$$out")(v.pos, v.info, v.errT))
+      import vpr.utility.Expressions.{instantiateVariables => subst}
+      val actualPosts = posts.map(e => subst(e, results, returns).transform{
+        case lold: vpr.LabelledOld => vpr.Old(lold.exp)(lold.pos, lold.info, lold.errT)
+      })
+
+      vpr.Method(
+        name = name,
+        formalArgs = arguments map ViperUtil.toVarDecl,
+        formalReturns = returns map ViperUtil.toVarDecl,
+        pres = pres,
+        posts = actualPosts,
+        body = None,
+      )(pos, info, errT)
+    }
+
+    vpr.MethodCall(methodName = name, args = arguments, targets = results)(pos, info, errT)
   }
 
 }

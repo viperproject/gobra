@@ -1060,8 +1060,19 @@ object Desugar {
             val pres = (n.spec.pres ++ n.spec.preserves) map preconditionD(ctx)
             val posts = (n.spec.preserves ++ n.spec.posts) map postconditionD(ctx)
             val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx)).res
-            val body = if (n.spec.isTrusted) None else Some(block(stmtD(ctx)(n.body)))
-            unit(in.Outline(name, labelOpt, pres, posts, terminationMeasures, body)(src))
+            for {
+              body <- option(if (n.spec.isTrusted) None else Some(seqn(stmtD(ctx)(n.body))))
+              (arguments, modified, declared) = {
+                if (!n.spec.isTrusted) (None, None, None)
+                else {
+                  val args = info.freeVariables(n).map(localVarContextFreeD(_, info))
+                  val mods = info.freeModified(n).map(localVarContextFreeD(_, info)).filter(_.typ.addressability.isExclusive)
+                  val decls = info.freeDeclared(n).map(localVarContextFreeD(_, info))
+                  (Some(args), Some(mods), Some(decls))
+                }
+              }
+              _ <- if (!n.spec.isTrusted) unit(()) else declare(declared.get:_*)
+            } yield in.Outline(name, labelOpt, pres, posts, terminationMeasures, body, arguments, modified)(src)
 
           case n@PContinue(label) => unit(in.Continue(label.map(x => x.name), nm.fetchContinueLabel(n, info))(src))
 

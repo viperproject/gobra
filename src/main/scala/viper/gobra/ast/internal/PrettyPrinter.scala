@@ -304,7 +304,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(mapLookup)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
-    case Outline(_, label, pres, posts, measures, body) =>
+    case Outline(_, label, pres, posts, measures, body, _, _) =>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
           "outline" <> opt(label)(showProxy) <> opt(body)(b =>  parens(nest(line <> showStmt(b)) <> line))
     case Continue(l, _) => "continue" <+> opt(l)(text)
@@ -712,7 +712,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case Continue(l, _) => "continue" <+> opt(l)(text)
     case Break(l, _) => "break" <+> opt(l)(text)
-    case Outline(_, label, pres, posts, measures, _) =>
+    case Outline(_, label, pres, posts, measures, _, _, _) =>
       spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
         "outline" <> opt(label)(showProxy)
   }

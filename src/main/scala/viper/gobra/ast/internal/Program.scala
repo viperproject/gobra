@@ -366,7 +366,9 @@ case class Outline(
                     pres: Vector[Assertion],
                     posts: Vector[Assertion],
                     terminationMeasures: Vector[TerminationMeasure],
-                    body: Option[Stmt]
+                    body: Option[Stmt], // if body is defined then arguments and modified are None (we do not use Either due to serialization)
+                    arguments: Option[Vector[LocalVar]],
+                    modified: Option[Vector[LocalVar]],
                   )(val info: Source.Parser.Info) extends Stmt
 
 case class Send(channel: Expr, expr: Expr, sendChannel: MPredicateProxy, sendGivenPerm: MethodProxy, sendGotPerm: MethodProxy)(val info: Source.Parser.Info) extends Stmt

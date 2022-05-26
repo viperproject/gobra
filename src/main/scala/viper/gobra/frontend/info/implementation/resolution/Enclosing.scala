@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.Regular
-import viper.gobra.frontend.info.base.Type
+import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.base.Type.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -184,4 +184,54 @@ trait Enclosing { this: TypeInfoImpl =>
 
     aux(nil)
   }
+
+  override def freeVariables(n: PNode): Vector[PIdnNode] = freeVariablesAttr(n)
+  private lazy val freeVariablesAttr: PNode => Vector[PIdnNode] = {
+    def free(x: PIdnNode, scope: PNode): Boolean = entity(x) match {
+      case r: SymbolTable.SingleLocalVariable => !containedIn(enclosingScope(r.rep), scope)
+      case r: SymbolTable.MultiLocalVariable  => !containedIn(enclosingScope(r.rep), scope)
+      case _: SymbolTable.InParameter         => true
+      case _: SymbolTable.ReceiverParameter   => true
+      case _: SymbolTable.OutParameter        => true
+      case _ => false
+    }
+
+    attr[PNode, Vector[PIdnNode]] { node =>
+      allChildren(node).collect{ case x: PIdnNode if free(x, node) => x }.distinctBy(_.name)
+    }
+  }
+
+  override def freeDeclared(n: PNode): Vector[PIdnNode] = freeDeclaredAttr(n)
+  private lazy val freeDeclaredAttr: PNode => Vector[PIdnNode] = {
+    attr[PNode, Vector[PIdnNode]] { node =>
+      val allDeclared = allChildren(node).collect[Vector[PIdnNode]] {
+        case decl: PVarDecl => decl.left.collect{ case id: PIdnDef => id }
+        case decl: PShortVarDecl => decl.left.collect { case id: PIdnUnk if isDef(id) => id }
+      }.flatten.distinctBy(_.name)
+
+      freeVariables(node).filter(l => allDeclared.exists(r => l.name == r.name))
+    }
+  }
+
+  override def freeModified(n: PNode): Vector[PIdnNode] = freeModifiedAttr(n)
+  private lazy val freeModifiedAttr: PNode => Vector[PIdnNode] = {
+    def modified(ass: PAssignee): Option[PIdnNode] = {
+      ass match {
+        case PNamedOperand(id) => Some(id)
+        case PDot(_, id) => Some(id)
+        case _ => None
+      }
+    }
+
+    attr[PNode, Vector[PIdnNode]] { node =>
+      val allModified = (allChildren(node).collect[Vector[PIdnNode]] {
+        case ass: PAssignment => ass.left.flatMap(modified)
+        case ass: PAssignmentWithOp => modified(ass.left).toVector
+        case ass: PShortVarDecl => ass.left.collect { case id: PIdnUnk if !isDef(id) => id }
+      }.flatten ++ freeDeclared(node)).distinctBy(_.name) // free declarations also count as modifications
+      freeVariables(node).filter(l => allModified.exists(r => l.name == r.name))
+    }
+  }
+
+
 }

@@ -20,6 +20,7 @@ trait Outlines extends Generator {
                pres: Vector[vpr.Exp],
                posts: Vector[vpr.Exp],
                body: vpr.Stmt,
+               trusted: Boolean,
              )(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.Stmt
 
   /**

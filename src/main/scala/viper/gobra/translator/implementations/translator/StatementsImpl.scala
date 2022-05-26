@@ -184,15 +184,8 @@ class StatementsImpl extends Statements {
             pres <- ml.sequence(n.pres map (p => ctx.ass.precondition(p)(ctx)))
             posts <- ml.sequence(n.posts map (p => ctx.ass.postcondition(p)(ctx)))
             measures <- ml.sequence(n.terminationMeasures map (m => ctx.measures.decreases(m)(ctx)))
-            body <- ml.option(n.body map (b => ml.block(ctx.stmt.translate(b)(ctx))))
-            result = body match {
-              case Some(b) => outlines.outline(n.name, pres ++ measures, posts, b)(pos, info, errT)
-              case None =>
-                val arguments = n.arguments.get map (v => ctx.typeEncoding.variable(ctx)(v).localVar)
-                val modified = n.modified.get map (v => ctx.typeEncoding.variable(ctx)(v).localVar)
-                outlines.outlineWithoutBody(n.name, pres ++ measures, posts, arguments, modified)(pos, info, errT)
-            }
-          } yield result
+            body <- ml.block(ctx.stmt.translate(n.body)(ctx))
+          } yield outlines.outline(n.name, pres ++ measures, posts, body, n.trusted)(pos, info, errT)
         )
 
       case _ => Violation.violation(s"Statement $x did not match with any implemented case.")

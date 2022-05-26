@@ -57,6 +57,7 @@ class OutlinesImpl extends Outlines {
                         pres: Vector[vpr.Exp],
                         posts: Vector[vpr.Exp],
                         body: vpr.Stmt,
+                        trusted: Boolean,
                       )(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.Stmt = {
 
     val (arguments, results) = {
@@ -72,12 +73,12 @@ class OutlinesImpl extends Outlines {
     generatedMembers ::= {
       val formals = arguments.map(v => v.copy(name = s"${v.name}$$in")(v.pos, v.info, v.errT))
       val returns = results.map(v => v.copy(name = s"${v.name}$$out")(v.pos, v.info, v.errT))
-      val actualBody = {
+      val actualBody = if (!trusted) {
         val prelude = (arguments zip formals).map{ case (l, r) => vpr.LocalVarAssign(l, r)(l.pos, l.info, l.errT) }
         val ending = (returns zip results).map{ case (l, r) => vpr.LocalVarAssign(l, r)(l.pos, l.info, l.errT) }
         val tb = body.transform{ case lold: vpr.LabelledOld => vpr.Old(lold.exp)(lold.pos, lold.info, lold.errT) }
-        vpr.Seqn(prelude ++ (tb +: ending), arguments map ViperUtil.toVarDecl)(body.pos, body.info, body.errT)
-      }
+        Some(vpr.Seqn(prelude ++ (tb +: ending), arguments map ViperUtil.toVarDecl)(body.pos, body.info, body.errT))
+      } else None
       import vpr.utility.Expressions.{instantiateVariables => subst}
       val actualPres = pres.map(e => subst(e, arguments, formals))
       val actualPosts = posts.map(e => subst(subst(e, results, returns), arguments, formals).transform{
@@ -90,7 +91,7 @@ class OutlinesImpl extends Outlines {
         formalReturns = returns map ViperUtil.toVarDecl,
         pres = actualPres,
         posts = actualPosts,
-        body = Some(actualBody),
+        body = actualBody,
       )(pos, info, errT)
     }
 

@@ -1060,19 +1060,38 @@ object Desugar {
             val pres = (n.spec.pres ++ n.spec.preserves) map preconditionD(ctx)
             val posts = (n.spec.preserves ++ n.spec.posts) map postconditionD(ctx)
             val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx)).res
-            for {
-              body <- option(if (n.spec.isTrusted) None else Some(seqn(stmtD(ctx)(n.body))))
-              (arguments, modified, declared) = {
-                if (!n.spec.isTrusted) (None, None, None)
-                else {
-                  val args = info.freeVariables(n).map(localVarContextFreeD(_, info))
-                  val mods = info.freeModified(n).map(localVarContextFreeD(_, info)).filter(_.typ.addressability.isExclusive)
-                  val decls = info.freeDeclared(n).map(localVarContextFreeD(_, info))
-                  (Some(args), Some(mods), Some(decls))
-                }
+
+            if (!n.spec.isTrusted) {
+              for {
+                body <- seqn(stmtD(ctx)(n.body))
+              } yield in.Outline(name, labelOpt, pres, posts, terminationMeasures, body, trusted = false)(src)
+            } else {
+              val declared = info.freeDeclared(n).map(localVarContextFreeD(_, info))
+              // The dummy body preserves the reads and writes of the real body that target free variables.
+              // This is done to avoid desugaring the actual body which may fail for trusted code.
+              //
+              // var arguments' := arguments
+              // modified := dflt
+              //  where
+              //    arguments is the set of free variables in the body
+              //    modified  is the set of free variables in the body that are modified
+              val dummyBody = {
+                val arguments = info.freeVariables(n).map(localVarContextFreeD(_, info))
+                val modified = info.freeModified(n).map(localVarContextFreeD(_, info)).filter(_.typ.addressability.isExclusive)
+                val argumentsCopy = arguments map (v => v.copy(id = s"${v.id}$$copy")(src))
+                in.Block(
+                  argumentsCopy,
+                  (argumentsCopy zip arguments).map { case (l, r) => in.SingleAss(in.Assignee.Var(l), r)(src) } ++
+                    modified.map(l => in.SingleAss(in.Assignee.Var(l), in.DfltVal(l.typ)(src))(src))
+                )(src)
               }
-              _ <- if (!n.spec.isTrusted) unit(()) else declare(declared.get:_*)
-            } yield in.Outline(name, labelOpt, pres, posts, terminationMeasures, body, arguments, modified)(src)
+
+              for {
+                // since the body of an outline is not a separate scope, we have to preserve variable declarations.
+                _ <- declare(declared:_*)
+              } yield in.Outline(name, labelOpt, pres, posts, terminationMeasures, dummyBody, trusted = true)(src)
+            }
+
 
           case n@PContinue(label) => unit(in.Continue(label.map(x => x.name), nm.fetchContinueLabel(n, info))(src))
 

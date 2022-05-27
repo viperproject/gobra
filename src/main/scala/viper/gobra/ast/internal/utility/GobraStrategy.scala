@@ -174,6 +174,7 @@ object GobraStrategy {
       case (_: CurrentPerm, Seq(acc: Accessible.Predicate)) => CurrentPerm(acc)(meta)
       case (i: IntLit, Seq()) => IntLit(i.v)(meta)
       case (b: BoolLit, Seq()) => BoolLit(b.b)(meta)
+      case (p: PermLit, Seq()) => PermLit(p.dividend, p.divisor)(meta)
       case (n: NilLit, Seq()) => NilLit(n.typ)(meta)
       case (s: StructLit, Seq(args: Vector[Expr@unchecked])) => StructLit(s.typ, args)(meta)
       case (_: ArrayLit, Seq(l: BigInt, t: Type, args: Map[BigInt@unchecked, Expr@unchecked])) => ArrayLit(l, t, args)(meta)

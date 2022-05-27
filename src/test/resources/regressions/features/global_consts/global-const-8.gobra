@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+const p1 perm = perm(1/2)
+const p2 perm = 1/4
+
+const (
+	i0 perm = perm(0/1)
+	i1 perm = perm(1 / iota)
+	i2
+	i3
+)
+
+requires acc(x, p1)
+func test1(x *int) int {
+	return *x
+}
+
+requires acc(x, p2)
+func test2(x *int) int {
+	return *x
+}
+
+func test3() {
+	assert i1 == perm(1/1)
+	assert i2 == perm(1/2)
+	assert i3 == perm(1/3)
+}

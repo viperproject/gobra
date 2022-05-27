@@ -76,6 +76,8 @@ trait ExternalTypeInfo {
 
   def intConstantEvaluation(expr: PExpression): Option[BigInt]
 
+  def permConstantEvaluation(expr: PExpression): Option[(BigInt, BigInt)]
+
   def stringConstantEvaluation(expr: PExpression): Option[String]
 
   def keyElementIndices(elems : Vector[PKeyedElement]) : Vector[BigInt]

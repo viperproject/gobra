@@ -393,6 +393,9 @@ object Desugar {
           case x if underlyingType(x).isInstanceOf[in.IntT] && x.addressability == Addressability.Exclusive =>
             val constValue = sc.context.intConstantEvaluation(sc.exp)
             in.IntLit(constValue.get)(src)
+          case in.PermissionT(Addressability.Exclusive) =>
+            val constValue = sc.context.permConstantEvaluation(sc.exp)
+            in.PermLit(constValue.get._1, constValue.get._2)(src)
           case _ => ???
         }
         Vector(in.GlobalConstDecl(gVar, lit)(src))

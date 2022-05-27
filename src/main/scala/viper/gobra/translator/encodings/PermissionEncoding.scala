@@ -42,6 +42,10 @@ class PermissionEncoding extends LeafTypeEncoding {
     default(super.expr(ctx)){
       // the default value for Perm is NoPerm to be similar to the zero values for other literals
       case (e: in.DfltVal) :: ctx.Perm() / Exclusive => unit(withSrc(vpr.NoPerm(), e))
+      case (e: in.PermLit) :: ctx.Perm() / Exclusive =>
+        val dividend = withSrc(vpr.IntLit(e.dividend), e)
+        val divisor  = withSrc(vpr.IntLit(e.divisor),  e)
+        unit(withSrc(vpr.FractionalPerm(dividend, divisor), e))
       case fp: in.FullPerm => unit(withSrc(vpr.FullPerm(), fp))
       case np: in.NoPerm => unit(withSrc(vpr.NoPerm(), np))
       case wp: in.WildcardPerm => unit(withSrc(vpr.WildcardPerm(), wp))

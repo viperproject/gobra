@@ -91,3 +91,31 @@ func test6() {
     //:: ExpectedOutput(assert_error:assertion_error)
     assert x == 11
 }
+
+func test7() {
+
+    x := 10
+    y := x
+
+    ensures x == y+1
+    outline (
+        x = y+1
+    )
+
+    assert x == 11
+}
+
+func test8() {
+
+    x := 10
+    y := x
+
+
+    ensures x == y+1
+    decreases
+    outline (
+        x = y+1
+    )
+
+    assert x == 11
+}

@@ -154,33 +154,35 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PBreak(l) =>
       l match {
         case None =>
-          enclosingLoopWithoutOutline(n) match {
-            case None => error(n, s"break must be inside a loop")
-            case Some(_) => noMessages
+          enclosingLoopUntilOutline(n) match {
+            case Left(Some(_: POutline)) => error(n, "break must be inside of a loop without an outline statement in between.")
+            case Left(_) => error(n, s"break must be inside a loop.")
+            case Right(_) => noMessages
           }
-        case Some(label) => {
+        case Some(label) =>
           val maybeLoop = enclosingLabeledLoop(label, n)
           maybeLoop match {
-            case None => error(n, s"break label must point to an outer labeled loop")
-            case Some(_) => noMessages
+            case Left(Some(_: POutline)) => error(n, "break label must point to an outer labeled loop without an outline statement in between.")
+            case Left(_) => error(n, s"break label must point to an outer labeled loop.")
+            case Right(_) => noMessages
           }
-        }
       }
 
     case n@PContinue(l) =>
       l match {
         case None =>
-          enclosingLoopWithoutOutline(n) match {
-            case None => error(n, s"continue must be inside a loop")
-            case Some(_) => noMessages
+          enclosingLoopUntilOutline(n) match {
+            case Left(Some(_: POutline)) => error(n, "continue must be inside of a loop without an outline statement in between.")
+            case Left(_) => error(n, s"continue must be inside a loop.")
+            case Right(_) => noMessages
           }
-        case Some(label) => {
+        case Some(label) =>
           val maybeLoop = enclosingLabeledLoop(label, n)
           maybeLoop match {
-            case None => error(n, s"continue label must point to an outer labeled loop")
-            case Some(_) => noMessages
+            case Left(Some(_: POutline)) => error(n, "continue label must point to an outer labeled loop without an outline statement in between.")
+            case Left(_) => error(n, s"continue label must point to an outer labeled loop.")
+            case Right(_) => noMessages
           }
-        }
       }
 
     case s => violation(s"$s was not handled")

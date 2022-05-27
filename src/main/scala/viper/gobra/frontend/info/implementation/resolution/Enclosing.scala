@@ -30,23 +30,24 @@ trait Enclosing { this: TypeInfoImpl =>
     case _ => id
   })
 
-  lazy val enclosingLoopWithoutOutline: PNode => Option[PForStmt] = {
-    down[Option[PForStmt]](None){
-      case _: POutline => None // Outline stops search for loop
-      case x: PForStmt => Some(x)
+
+  lazy val enclosingLoopUntilOutline: PNode => Either[Option[PNode], PForStmt] = {
+    down[Either[Option[PNode], PForStmt]](Left(None)){
+      case x: POutline => Left(Some(x))
+      case x: PForStmt => Right(x)
     }
   }
 
   // Returns the enclosing loop that has a specific label
   // It also returns the invariants of that loop
-  def enclosingLabeledLoop(label: PLabelUse, node: PNode) : Option[PForStmt] = {
-    enclosingLoopWithoutOutline(node) match {
-      case None => None
-      case Some(encLoop) => encLoop match {
-        case tree.parent(l: PLabeledStmt) if l.label.name == label.name => Some(encLoop)
+  def enclosingLabeledLoop(label: PLabelUse, node: PNode): Either[Option[PNode], PForStmt] = {
+    enclosingLoopUntilOutline(node) match {
+      case Right(encLoop) => encLoop match {
+        case tree.parent(l: PLabeledStmt) if l.label.name == label.name => Right(encLoop)
         case tree.parent(p) => enclosingLabeledLoop(label, p)
-        case _ => violation("No parent found for a loop statement.")
+        case _ => Left(None)
       }
+      case r => r
     }
   }
 

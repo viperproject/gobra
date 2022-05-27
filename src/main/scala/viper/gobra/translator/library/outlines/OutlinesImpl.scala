@@ -45,8 +45,9 @@ class OutlinesImpl extends Outlines {
     * }
     *
     * where
-    *   arguments := free(BODY) + free(PRE) + free(Post)  // variables used in body and spec
-    *   results := (modified(BODY) intersect arguments)   // arguments modified in body
+    *   arguments := free(BODY) + free(PRE) + (free(POST) - modified(BODY))   // variables used in body and spec
+    *   results   := modified(BODY) intersect free(Body)                      // arguments modified in body
+    *
     *
     *   free(n) := free variables in n
     *   modified(n) := variables modified in n
@@ -61,13 +62,15 @@ class OutlinesImpl extends Outlines {
                       )(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.Stmt = {
 
     val (arguments, results) = {
-      val freeVariablesInStmt = body.undeclLocalVars.toSet
-      val freeVariablesInSpec = (pres ++ posts)
+      val bodyFree = body.undeclLocalVars.toSet
+      val preFree = pres
         .map(e => vpr.utility.Expressions.freeVariables(e).collect{ case x: vpr.LocalVar => x })
         .foldLeft(Set.empty[vpr.LocalVar]){ case (l,r) => l ++ r }
-      val freeVariables = freeVariablesInStmt ++ freeVariablesInSpec
-      val modifiedArgumentVariables = body.writtenVars.toSet intersect freeVariables
-      (freeVariables.toVector, modifiedArgumentVariables.toVector)
+      val postFree = posts
+        .map(e => vpr.utility.Expressions.freeVariables(e).collect{ case x: vpr.LocalVar => x })
+        .foldLeft(Set.empty[vpr.LocalVar]){ case (l,r) => l ++ r }
+      val modified = body.writtenVars.toSet
+      ((bodyFree ++ preFree ++ (postFree diff modified)).toVector, (modified intersect bodyFree).toVector)
     }
 
     generatedMembers ::= {

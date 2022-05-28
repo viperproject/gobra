@@ -382,7 +382,7 @@ object Desugar {
         underlyingType(typ).isInstanceOf[Type.InterfaceT]
       }
       val rightArePureExpr = decl.right.forall(info.isPureExpression)
-      if (leftAreWildcards && typIsInterface && rightArePureExpr ) {
+      if (leftAreWildcards && typIsInterface && rightArePureExpr) {
         // When the lhs is a wildcard of an interface type and the rhs are pure expressions,
         // the variable declaration can be safely ignored. In some codebases, this idiom is
         // used to check that types implement interfaces.

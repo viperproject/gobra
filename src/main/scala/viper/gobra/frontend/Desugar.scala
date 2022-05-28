@@ -375,7 +375,20 @@ object Desugar {
       in.Program(types.toVector, dMembers ++ additionalMembers, table)(meta(p))
     }
 
-    def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
+    def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = {
+      val leftAreWildcards = decl.left.forall(_.isInstanceOf[PWildcard])
+      val typIsInterface = decl.typ.exists { p =>
+        val typ = info.symbType(p)
+        underlyingType(typ).isInstanceOf[Type.InterfaceT]
+      }
+      val rightArePureExpr = decl.right.forall(info.isPureExpression)
+      if (leftAreWildcards && typIsInterface && rightArePureExpr ) {
+        // When the lhs is a wildcard of an interface type and the rhs are pure expressions,
+        // the variable declaration can be safely ignored. In some codebases, this idiom is
+        // used to check that types implement interfaces.
+        Vector()
+      } else ???
+    }
 
     def constDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constSpecD)
 

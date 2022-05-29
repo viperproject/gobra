@@ -151,7 +151,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
       case p: PIota =>
         // obtains the intended value for iota from the context
         val res = for {
-          constBlock <- enclosingPConstBlock(p)
+          constBlock <- enclosingPConstDecl(p)
           constClause <- enclosingPConstDecl(p)
           iota = constBlock.specs.indexOf(constClause)
         } yield BigInt(iota)

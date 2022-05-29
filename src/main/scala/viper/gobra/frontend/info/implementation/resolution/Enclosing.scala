@@ -74,11 +74,14 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val enclosingStruct: PNode => Option[PStructType] =
     down[Option[PStructType]](None) { case x: PStructType => Some(x) }
 
-  lazy val enclosingPConstBlock: PNode => Option[PConstDecl] =
+  lazy val enclosingPConstDecl: PNode => Option[PConstDecl] =
     down[Option[PConstDecl]](None) { case x: PConstDecl => Some(x) }
 
-  lazy val enclosingPConstDecl: PNode => Option[PConstSpec] =
+  lazy val enclosingPConstSpec: PNode => Option[PConstSpec] =
     down[Option[PConstSpec]](None) { case x: PConstSpec => Some(x) }
+
+  lazy val enclosingPTypeDecl: PNode => Option[PTypeDecl] =
+    down[Option[PTypeDecl]](None) { case x: PTypeDecl => Some(x) }
 
   def typeSwitchConstraints(id: PIdnNode): Vector[PExpressionOrType] =
     typeSwitchConstraintsLookup(id)(id)

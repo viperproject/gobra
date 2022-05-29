@@ -4,7 +4,7 @@ const CONST1 = 1
 
 ensures res == CONST1
 func Test1() (res int) {
-    return CONST1
+	return CONST1
 }
 
 ensures res
@@ -14,8 +14,8 @@ requires F(x)
 func Test2(x int)
 
 type T struct {
-    field1 int
-    field2 string
+	field1 int
+	field2 string
 }
 
 func Test3(x T) T
@@ -24,13 +24,13 @@ pred P1(x int)
 
 
 pred P2(x int) {
-    true
+	true
 }
 
 pure func G(x int) bool
 
 pred P3(x int) {
-    G(x)
+	G(x)
 }
 
 requires P1(x)
@@ -43,7 +43,7 @@ requires P3(x)
 func Test6(x int)
 
 pred P4(x int) {
-    P5(x)
+	P5(x)
 }
 
 pred P5(x int)
@@ -54,22 +54,42 @@ func Test7(x int)
 func usedInBody()
 
 func Test8() {
-    usedInBody()
+	usedInBody()
 }
 
 pure func usedInBodyPure() int
 
 pure func Test9() int {
-    return usedInBodyPure()
+	return usedInBodyPure()
 }
 
 type D domain {
-    func d(i int) bool
+	func d(i int) bool
 
-    axiom {
-        forall i int :: d(i)
-    }
+	axiom {
+		forall i int :: d(i)
+	}
 }
 
 requires d(i)
 func Test10(i int)
+
+type TItf interface {
+	pred Mem()
+	abc()
+}
+
+type TImpl struct{}
+
+pred UMem(TImpl)
+
+func (t TImpl) abc()
+
+TImpl implements TItf {
+	pred Mem := UMem
+	(t TImpl)abc() {
+		t.abc()
+	}
+}
+
+func Test11(x TItf)

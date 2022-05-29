@@ -1,0 +1,75 @@
+package pkg
+
+const CONST1 = 1
+
+ensures res == CONST1
+func Test1() (res int) {
+    return CONST1
+}
+
+ensures res
+pure func F(x int) (res bool)
+
+requires F(x)
+func Test2(x int)
+
+type T struct {
+    field1 int
+    field2 string
+}
+
+func Test3(x T) T
+
+pred P1(x int)
+
+
+pred P2(x int) {
+    true
+}
+
+pure func G(x int) bool
+
+pred P3(x int) {
+    G(x)
+}
+
+requires P1(x)
+func Test4(x int)
+
+requires P2(x)
+func Test5(x int)
+
+requires P3(x)
+func Test6(x int)
+
+pred P4(x int) {
+    P5(x)
+}
+
+pred P5(x int)
+
+requires P4(x)
+func Test7(x int)
+
+func usedInBody()
+
+func Test8() {
+    usedInBody()
+}
+
+pure func usedInBodyPure() int
+
+pure func Test9() int {
+    return usedInBodyPure()
+}
+
+type D domain {
+    func d(i int) bool
+
+    axiom {
+        forall i int :: d(i)
+    }
+}
+
+requires d(i)
+func Test10(i int)

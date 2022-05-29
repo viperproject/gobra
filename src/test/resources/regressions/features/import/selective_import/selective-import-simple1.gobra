@@ -1,0 +1,50 @@
+package Test
+
+// ##(-I ./)
+import "pkg"
+
+func test1(){
+    pkg.Test1()
+
+    pkg.Test2(1)
+
+    var t pkg.T = pkg.T{1, "one"}
+    t := pkg.Test3(t)
+}
+
+/*
+func test2() {
+    //:: ExpectedOutput(precondition_error)
+    pkg.Test4(1)
+}
+
+func test3() {
+    //:: ExpectedOutput(precondition_error)
+    pkg.Test5(2)
+}
+
+func test4() {
+    //:: ExpectedOutput(precondition_error)
+    pkg.Test6(2)
+}
+
+func test5() {
+    //:: ExpectedOutput(precondition_error)
+    pkg.Test7(2)
+}
+
+func test6() {
+    pkg.Test8()
+}
+
+func test7() {
+    pkg.Test9()
+}
+*/
+
+// TODO: fix imported implementation proofs
+/*
+func test8() {
+    pkg.Test10(10)
+}
+*/

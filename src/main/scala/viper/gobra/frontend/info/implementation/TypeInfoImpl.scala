@@ -8,9 +8,11 @@ package viper.gobra.frontend.info.implementation
 
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
+import viper.gobra.ast.frontend.AstPattern.Symbolic
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.frontend.info.base.SymbolTable.{Regular, TypeMember, UnknownEntity, lookup}
+import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
 import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, LabelResolution, MemberPath, MemberResolution, NameResolution}
@@ -94,8 +96,79 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   private var externallyAccessedMembers: Vector[PNode] = Vector()
   private def registerExternallyAccessedEntity(r: SymbolTable.Regular): SymbolTable.Regular = {
-    if (!externallyAccessedMembers.contains(r.rep)) externallyAccessedMembers = externallyAccessedMembers :+ r.rep
+    if (!visited.contains(r)) {
+      visited :+= r
+      val deps = getDepsExternalRegular(r)
+      println(s"rep: ${r.rep}")
+      println(s"deps: $deps")
+      externallyAccessedMembers = r.rep +: externallyAccessedMembers
+      externallyAccessedMembers = externallyAccessedMembers ++ deps.map(_.rep) // TODO: fail if these are not members?
+      deps.foreach(registerExternallyAccessedEntity)
+    }
     r
+  }
+
+  private var visited:Vector[Regular] = Vector()
+  private var accum: Vector[Regular] = Vector()
+  private def nonVisitedReachableRegulars(n: PNode): Vector[Regular] = {
+    val children = allChildren(n)
+    // println(s"AllChildren: $children")
+    val collectedNameOrDotChildren = children.collect {
+      case n: PNameOrDot => resolve(n)
+    }
+    // println(s"CollectedChildren: $collectedNameOrDotChildren")
+    val collectedSymbolicChildren = collectedNameOrDotChildren.collect{ case Some(s: Symbolic) => s.symb }
+    // println(s"CollectedSymbolic: $collectedSymbolicChildren")
+    val res = collectedSymbolicChildren.filterNot(visited.contains(_))
+    // println(s"res: $res")
+    res
+  }
+
+  // TODO: cleanup to not return always the accumulated regulars
+  private def getDepsExternalRegular(r: Regular): Vector[Regular] = {
+    r match {
+      case f: st.Function =>
+        accum :+= f
+        val nonVisited = nonVisitedReachableRegulars(f.decl)
+        accum = f +: (accum ++ nonVisited)
+        accum
+      case c: st.SingleConstant =>
+        val nonVisited = nonVisitedReachableRegulars(c.decl)
+        accum = c +: (accum ++ nonVisited)
+        accum
+      case t: st.NamedType =>
+        val nonVisited = nonVisitedReachableRegulars(t.decl)
+        accum = t +: (accum ++ nonVisited)
+        accum
+      case t: st.TypeAlias =>
+        val nonVisited = nonVisitedReachableRegulars(t.decl)
+        accum = t +: (accum ++ nonVisited)
+        accum
+      case m: st.MethodSpec =>
+        // references to entities in the body are ignored
+        val nonVisited = nonVisitedReachableRegulars(m.spec)
+        accum = m +: (accum ++ nonVisited)
+        accum
+      case m: st.MethodImpl =>
+        // references to entities in the body are ignored
+        val nonVisited = nonVisitedReachableRegulars(m.decl.spec)
+        accum = m +: (accum ++ nonVisited)
+        accum
+      case p: st.FPredicate =>
+        val nonVisited = nonVisitedReachableRegulars(p.decl)
+        accum = p +: (accum ++ nonVisited)
+        accum
+      case p: st.MPredicateImpl =>
+        val nonVisited = nonVisitedReachableRegulars(p.decl)
+        accum = p +: (accum ++ nonVisited)
+        accum
+      case f: st.DomainFunction =>
+        val nonVisited = nonVisitedReachableRegulars(f.decl)
+        accum = f +: (accum ++ nonVisited)
+        accum
+      // TODO: check if there are more
+      case _ => Vector()
+    }
   }
 
   override def externalRegular(n: PIdnNode): Option[SymbolTable.Regular] = {
@@ -119,7 +192,14 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   }
 
   override def isUsed(m: PMember): Boolean = {
-    externallyAccessedMembers.contains(m)
+    m match {
+      case t: PTypeDecl =>
+        t.right.isInstanceOf[PDomainType] ||  externallyAccessedMembers.contains(t)
+      case _ => externallyAccessedMembers.contains(m)
+    }
+        // TODO: import domains - explain why
+
+    //TODO: desugar impl proof when both impl and intf types are desugared
   }
 
   override def struct(n: PNode): Option[Type.StructT] =

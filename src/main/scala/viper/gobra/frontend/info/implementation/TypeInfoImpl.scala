@@ -165,21 +165,16 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   override def isUsed(m: PMember): Boolean = {
     m match {
       case p: PImplementationProof =>
-        /*
         val superT = underlyingType(symbType(p.superT)) match {
           case t: Type.InterfaceT => t
           case _ => ??? // violation
         }
         val subT = symbType(p.subT)
-        if (localRequiredImplements(subT, superT)) {
-          //memberSet(subT).collect{ case (_, m) => m }.foreach(registerExternallyAccessedEntity)
-          //memberSet(superT).collect{ case (_, m) => m }.foreach(registerExternallyAccessedEntity)
-          true
-        } else {
-          false
-        }
-         */
-      false
+        val membersSub = memberSet(subT).collect{ case (_, m) => m }
+        val membersSup = memberSet(superT).collect{ case (_, m) => m }
+        membersSub.foreach(registerExternallyAccessedEntity)
+        membersSup.foreach(registerExternallyAccessedEntity)
+        true
       // TODO: undo this hack for domains
       case t: PTypeDecl =>
         t.right.isInstanceOf[PDomainType] ||  externallyAccessedMembers.contains(t)

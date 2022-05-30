@@ -28,3 +28,17 @@ func test3() {
 	assert i2 == perm(1/2)
 	assert i3 == perm(1/3)
 }
+
+func test4() {
+	assert i1 == writePerm
+}
+
+func test5() {
+	//:: ExpectedOutput(assert_error)
+	assert i1 <= i2
+}
+
+func test6() {
+	//:: ExpectedOutput(assert_error)
+	assert i1 == noPerm
+}

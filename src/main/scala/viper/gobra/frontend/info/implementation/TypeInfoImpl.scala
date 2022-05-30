@@ -132,4 +132,6 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   override def stringConstantEvaluation(expr: PExpression): Option[String] = stringConstantEval(expr)
 
   override def getTypeInfo: TypeInfo = this
+
+  override def isPureExpression(expr: PExpression): Boolean = isPureExpr(expr).isEmpty
 }

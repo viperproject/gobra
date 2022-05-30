@@ -78,6 +78,8 @@ trait ExternalTypeInfo {
 
   def stringConstantEvaluation(expr: PExpression): Option[String]
 
+  def isPureExpression(expr: PExpression): Boolean
+
   def keyElementIndices(elems : Vector[PKeyedElement]) : Vector[BigInt]
 
   def getTypeInfo: TypeInfo

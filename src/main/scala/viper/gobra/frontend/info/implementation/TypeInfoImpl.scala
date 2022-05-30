@@ -129,6 +129,8 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   override def intConstantEvaluation(expr: PExpression): Option[BigInt] = intConstantEval(expr)
 
+  override def permConstantEvaluation(expr: PExpression): Option[(BigInt, BigInt)] = permConstantEval(expr)
+
   override def stringConstantEvaluation(expr: PExpression): Option[String] = stringConstantEval(expr)
 
   override def getTypeInfo: TypeInfo = this

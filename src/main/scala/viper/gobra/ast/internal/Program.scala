@@ -994,6 +994,11 @@ case class IntLit(v: BigInt, kind: IntegerKind = UnboundedInteger, base: NumBase
   override def typ: Type = IntT(Addressability.literal, kind)
 }
 
+case class PermLit(dividend: BigInt, divisor: BigInt)(val info: Source.Parser.Info) extends Lit {
+  require(divisor != 0)
+  override def typ: Type = PermissionT(Addressability.literal)
+}
+
 case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = BoolT(Addressability.literal)
 }

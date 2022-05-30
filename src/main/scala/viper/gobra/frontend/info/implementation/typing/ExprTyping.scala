@@ -952,10 +952,17 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def wellDefIfConstExpr(expr: PExpression): Messages = typ(expr) match {
-    case BooleanT => error(expr, s"expected constant boolean expression", boolConstantEval(expr).isEmpty)
-    case typ if underlyingType(typ).isInstanceOf[IntT] => error(expr, s"expected constant int expression", intConstantEval(expr).isEmpty)
-    case StringT => error(expr, s"expected constant string expression", stringConstantEval(expr).isEmpty)
-    case _ => error(expr, s"expected a constant expression")
+    case BooleanT =>
+      error(expr, s"expected constant boolean expression, but got $expr instead", boolConstantEval(expr).isEmpty)
+    case typ if underlyingType(typ).isInstanceOf[IntT] =>
+      error(expr, s"expected constant int expression, but got $expr instead", intConstantEval(expr).isEmpty)
+    case StringT =>
+      error(expr, s"expected constant string expression, but got $expr instead", stringConstantEval(expr).isEmpty)
+    case PermissionT =>
+      val constExprOpt = permConstantEval(expr)
+      error(expr, s"expected constant perm expression, but got $expr instead", constExprOpt.isEmpty) ++
+        error(expr, s"the divisor of the perm expression $expr evaluates to 0", constExprOpt.exists(_._2 == 0))
+    case _ => error(expr, s"expected a constant expression, but got $expr instead")
   }
 
   private[typing] def typeOfPLength(expr: PLength): Type =

@@ -1058,6 +1058,17 @@ object Desugar {
 
           case n@PBreak(label) => unit(in.Break(label.map(x => x.name), nm.fetchBreakLabel(n, info))(src))
 
+          case n@PShortForRange(range, shorts, spec, body) => for {
+            x <- exprD(ctx)(range.exp)
+            _ = x.typ match {
+              case _ : in.SliceT => println("slice")
+              case _ : in.ArrayT => println("array")
+              case _ : in.MapT => println("map")
+              case _ : in.StringT => println("string")
+              case t => violation(s"Range not applicable to type $t")
+            }
+          } yield ???
+
           case _ => ???
         }
       }

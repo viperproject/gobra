@@ -1773,14 +1773,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         // :=
         // identifiers should include the blank identifier, but this is currently not supported by PShortForRange
         val goIdnUnkList(idList) = visitIdentifierList(ctx.rangeClause().identifierList())
-        PShortForRange(range, idList, block).at(specCtx)
+        PShortForRange(range, idList, spec, block).at(specCtx)
       } else {
         // =
         val assignees = visitAssigneeList(ctx.rangeClause().expressionList()) match {
           case v : Vector[PAssignee] => v
           case _ => fail(ctx)
         }
-        PAssForRange(range, assignees, block).at(specCtx)
+        PAssForRange(range, assignees, spec, block).at(specCtx)
       }
     } else {
       // for { }

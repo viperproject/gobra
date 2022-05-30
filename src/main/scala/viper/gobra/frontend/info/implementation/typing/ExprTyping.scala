@@ -487,7 +487,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case b@PBlankIdentifier() => b match {
       case tree.parent(p) => p match {
         case PAssignment(_, _) => noMessages
-        case PAssForRange(_, _, _) => noMessages
+        case PAssForRange(_, _, _,  _) => noMessages
         case PSelectAssRecv(_, _, _) => noMessages
         case x => error(b, s"blank identifier is not allowed in $x")
       }
@@ -909,7 +909,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   def getBlankIdType(b: PBlankIdentifier): Type = b match {
     case tree.parent(p) => p match {
       case PAssignment(right, left) => getBlankAssigneeType(b, left, right)
-      case PAssForRange(_, _, _) => ??? // TODO: implement when for range statements are supported
+      case PAssForRange(_, _, _, _) => ??? // TODO: implement when for range statements are supported
       case PSelectAssRecv(_, _, _) => ??? // TODO: implement when select statements are supported
       case x => violation("blank identifier not supported in node " + x)
     }

@@ -106,6 +106,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
     r
   }
 
+  // TODO: maybe remove or improve?
   def registerImplProof(proof: PImplementationProof): Unit = {
     println(s"$proof")
     val res = memberUsages(proof)
@@ -115,15 +116,38 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   private def intransitiveDependencies(r: Regular): (Vector[Regular], Vector[PNode]) =
     r match {
-      case f: st.Function => (memberUsages(f.decl), Vector())
+      case f: st.Function =>
+        if (f.decl.spec.isPure) {
+          (memberUsages(f.decl), Vector())
+        } else {
+          // references to entities in the body are ignored
+          val id = nodeUsages(f.decl.id)
+          val args = f.decl.args flatMap nodeUsages
+          val result = nodeUsages(f.decl.result)
+          val spec = nodeUsages(f.decl.spec)
+          (id ++ args ++ result ++ spec, Vector())
+        }
       case c: st.SingleConstant =>
         val decl = enclosingPConstDecl(c.decl)
         (decl.toVector.flatMap(memberUsages), decl.toVector)
       case t: st.NamedType => (memberUsages(t.decl), Vector())
       case t: st.TypeAlias => (memberUsages(t.decl), Vector())
-      case m: st.MethodImpl => // TODO: add all methods to allow deriving impl proofs
-        // references to entities in the body are ignored
-        (nodeUsages(m.decl.spec), Vector())
+      case m: st.MethodImpl =>
+        if (m.decl.spec.isPure) {
+          (memberUsages(m.decl), Vector())
+        } else {
+          // references to entities in the body are ignored
+          val id = nodeUsages(m.decl.id)
+          val receiver = nodeUsages(m.decl.receiver)
+          val args = m.decl.args flatMap nodeUsages
+          val result = nodeUsages(m.decl.result)
+          val spec = nodeUsages(m.decl.spec)
+          (id ++ receiver ++ args ++ result ++ spec, Vector())
+        }
+      case m: st.MethodSpec =>
+        val itf = nodeUsages(m.itfDef)
+        val spec = nodeUsages(m.spec)
+        (itf ++ spec, Vector(m.itfDef, m.spec))
       case p: st.FPredicate => (memberUsages(p.decl), Vector())
       case p: st.MPredicateImpl => (memberUsages(p.decl), Vector())
       case f: st.DomainFunction =>
@@ -133,6 +157,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
       case _ => (Vector(), Vector())
     }
 
+  // TODO: use correct contexts
   private def memberUsages(n: PMember): Vector[Regular] = nodeUsages(n)
   private def nodeUsages(n: PNode): Vector[Regular] = {
     val children = allChildren(n)

@@ -109,7 +109,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   // TODO: maybe remove or improve?
   def registerImplProof(proof: PImplementationProof): Unit = {
     println(s"$proof")
-    val res = memberUsages(proof)
+    val res = memberUsages(proof, this)
     println(s"res: $res")
     res.foreach(registerExternallyAccessedEntity)
   }
@@ -118,51 +118,52 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
     r match {
       case f: st.Function =>
         if (f.decl.spec.isPure) {
-          (memberUsages(f.decl), Vector())
+          (memberUsages(f.decl, f.context), Vector())
         } else {
           // references to entities in the body are ignored
-          val id = nodeUsages(f.decl.id)
-          val args = f.decl.args flatMap nodeUsages
-          val result = nodeUsages(f.decl.result)
-          val spec = nodeUsages(f.decl.spec)
+          val id = nodeUsages(f.decl.id, f.context)
+          val args = f.decl.args flatMap (nodeUsages(_, f.context))
+          val result = nodeUsages(f.decl.result, f.context)
+          val spec = nodeUsages(f.decl.spec, f.context)
           (id ++ args ++ result ++ spec, Vector())
         }
       case c: st.SingleConstant =>
         val decl = enclosingPConstDecl(c.decl)
-        (decl.toVector.flatMap(memberUsages), decl.toVector)
-      case t: st.NamedType => (memberUsages(t.decl), Vector())
-      case t: st.TypeAlias => (memberUsages(t.decl), Vector())
+        (decl.toVector.flatMap(p => memberUsages(p, c.context)), decl.toVector)
+      case t: st.NamedType => (memberUsages(t.decl, t.context), Vector())
+      case t: st.TypeAlias => (memberUsages(t.decl, t.context), Vector())
       case m: st.MethodImpl =>
         if (m.decl.spec.isPure) {
-          (memberUsages(m.decl), Vector())
+          (memberUsages(m.decl, m.context), Vector())
         } else {
           // references to entities in the body are ignored
-          val id = nodeUsages(m.decl.id)
-          val receiver = nodeUsages(m.decl.receiver)
-          val args = m.decl.args flatMap nodeUsages
-          val result = nodeUsages(m.decl.result)
-          val spec = nodeUsages(m.decl.spec)
+          val id = nodeUsages(m.decl.id, m.context)
+          val receiver = nodeUsages(m.decl.receiver, m.context)
+          val args = m.decl.args flatMap (nodeUsages(_, m.context))
+          val result = nodeUsages(m.decl.result, m.context)
+          val spec = nodeUsages(m.decl.spec, m.context)
           (id ++ receiver ++ args ++ result ++ spec, Vector())
         }
       case m: st.MethodSpec =>
-        val itf = nodeUsages(m.itfDef)
-        val spec = nodeUsages(m.spec)
+        val itf = nodeUsages(m.itfDef, m.context)
+        val spec = nodeUsages(m.spec, m.context)
         (itf ++ spec, Vector(m.itfDef, m.spec))
-      case p: st.FPredicate => (memberUsages(p.decl), Vector())
-      case p: st.MPredicateImpl => (memberUsages(p.decl), Vector())
+      case p: st.FPredicate => (memberUsages(p.decl, p.context), Vector())
+      case p: st.MPredicateImpl => (memberUsages(p.decl, p.context), Vector())
       case f: st.DomainFunction =>
         // if a domain function is referenced and there is a type declaration with
         // the domain type on the rhs, then it is imported
-        (enclosingPTypeDecl(f.decl).toVector flatMap memberUsages, Vector())
+        (enclosingPTypeDecl(f.decl).toVector flatMap (memberUsages(_, f.context)), Vector())
       case _ => (Vector(), Vector())
     }
 
   // TODO: use correct contexts
-  private def memberUsages(n: PMember): Vector[Regular] = nodeUsages(n)
-  private def nodeUsages(n: PNode): Vector[Regular] = {
-    val children = allChildren(n)
+  private def memberUsages(n: PMember, ctx: ExternalTypeInfo): Vector[Regular] = nodeUsages(n, ctx)
+  private def nodeUsages(n: PNode, ctx: ExternalTypeInfo): Vector[Regular] = {
+    val ctxImp = ctx.asInstanceOf[TypeInfoImpl]
+    val children = ctxImp.allChildren(n)
     val collectedNameOrDotChildren = children.collect {
-      case n: PNameOrDot => resolve(n)
+      case n: PNameOrDot => ctxImp.resolve(n)
     }
     collectedNameOrDotChildren.collect{ case Some(s: Symbolic) => s.symb }
   }

@@ -41,4 +41,15 @@ object ViperUtil {
       case _ => Violation.violation(s"expected vpr variable or field access, but got $left")
     }
   }
+
+  def combine(l: Program, r: Program): Program = {
+    Program(
+      l.domains ++ r.domains,
+      l.fields ++ r.fields,
+      l.functions ++ r.functions,
+      l.predicates ++ r.predicates,
+      l.methods ++ r.methods,
+      l.extensions ++ r.extensions,
+    )(l.pos, l.info, l.errT)
+  }
 }

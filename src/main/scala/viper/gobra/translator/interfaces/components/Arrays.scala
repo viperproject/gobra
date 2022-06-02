@@ -10,7 +10,7 @@ import viper.gobra.translator.interfaces.translator.Generator
 import viper.silver.{ast => vpr}
 
 trait Arrays extends Generator {
-  def len(a : vpr.Exp)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.Exp
-  def loc(a : vpr.Exp, i : vpr.Exp)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.Exp
-  def typ(t : vpr.Type) : vpr.Type
+  def len(a : vpr.Exp)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.DomainFuncApp
+  def loc(a : vpr.Exp, i : vpr.Exp)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.DomainFuncApp
+  def typ(t : vpr.Type) : vpr.DomainType
 }

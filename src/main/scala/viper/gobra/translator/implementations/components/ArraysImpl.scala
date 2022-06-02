@@ -102,15 +102,15 @@ class ArraysImpl extends Arrays {
   }
 
   /** Returns the type of the array domain. */
-  override def typ(t: vpr.Type): vpr.Type = vpr.DomainType(domain, Map(vpr.TypeVar("T") -> t))
+  override def typ(t: vpr.Type): vpr.DomainType = vpr.DomainType(domain, Map(vpr.TypeVar("T") -> t))
 
   /** Getter for the array domain. */
-  override def loc(a: vpr.Exp, i: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.Exp = {
+  override def loc(a: vpr.Exp, i: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.DomainFuncApp = {
     vpr.DomainFuncApp(locFunc, Seq(a, i), a.typ.asInstanceOf[vpr.DomainType].typVarsMap)(pos, info, errT)
   }
 
   /** Length for the array domain. */
-  override def len(a: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.Exp = {
+  override def len(a: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.DomainFuncApp = {
     vpr.DomainFuncApp(lenFunc, Seq(a), a.typ.asInstanceOf[vpr.DomainType].typVarsMap)(pos, info, errT)
   }
 

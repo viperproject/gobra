@@ -711,7 +711,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       val lhs = vpr.EqCmp(typeOf(recv)(pos, info, errT)(ctx), types.typeToExpr(impl)(pos, info, errT)(ctx))(pos, info, errT)
       // proof_T_I_F(valueOf(itf, T), args)
       val fullArgs = valueOf(recv, impl)(pos, info, errT)(ctx) +: args
-      val call = vpr.FuncApp(funcname = proofName(proxy, pProxy), fullArgs)(pos, info, typ = resultType, errT)
+      val call = vpr.FuncApp(funcname = proofName(impl, proxy, pProxy), fullArgs)(pos, info, typ = resultType, errT)
       // typeOf(i) == T ==> result == proof_T_I_F(valueOf(itf, T), args)
       vpr.Implies(lhs, vpr.EqCmp(result, call)(pos, info, errT))(pos, info, errT)
     }
@@ -754,7 +754,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     val pureMethodDummy = ctx.pureMethod.pureMethod(in.PureMethod(
       receiver = p.receiver,
-      name = in.MethodProxy(p.superProxy.name, proofName(p.subProxy, p.superProxy))(p.info),
+      name = in.MethodProxy(p.superProxy.name, proofName(p.receiver.typ, p.subProxy, p.superProxy))(p.info),
       args = p.args,
       results = p.results,
       pres = Vector.empty,
@@ -796,7 +796,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     val methodDummy = ctx.method.method(in.Method(
       receiver = p.receiver,
-      name = in.MethodProxy(p.superProxy.name, proofName(p.subProxy, p.superProxy))(p.info),
+      name = in.MethodProxy(p.superProxy.name, proofName(p.receiver.typ, p.subProxy, p.superProxy))(p.info),
       args = p.args,
       results = p.results,
       pres = Vector.empty,
@@ -845,7 +845,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     val itfFuncs = ctx.table.members(itfT).collect{ case x: in.MethodProxy if ctx.lookup(x).isInstanceOf[in.PureMethod] => x }
     val matchingFuncs = itfFuncs.map(f => (f, ctx.table.lookup(impl, f.name).get))
-    val nameMap = matchingFuncs.map{ case (itfProxy, implProxy) => (itfProxy.uniqueName, proofName(implProxy, itfProxy)) }.toMap
+    val nameMap = matchingFuncs.map{ case (itfProxy, implProxy) => (itfProxy.uniqueName, proofName(recv.typ, implProxy, itfProxy)) }.toMap
 
     val newRecv = boxInterface(vRecv, types.typeToExpr(impl)()(ctx))()(ctx)
     val changedFormals = vpr.utility.Expressions.instantiateVariables(exp, variablesOfExpression, newRecv +: vArgs, Set.empty)
@@ -860,8 +860,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
     changedFuncs.withMeta(pos, info, errT)
   }
 
-  private def proofName(subProxy: in.MemberProxy, supperProxy: in.MemberProxy): String =
-    s"${subProxy.uniqueName}_${supperProxy.uniqueName}_proof"
+  private def proofName(subType: in.Type, subProxy: in.MemberProxy, supperProxy: in.MemberProxy): String =
+    s"${Names.serializeType(subType)}_${subProxy.uniqueName}_${supperProxy.uniqueName}_proof"
 
 
 }

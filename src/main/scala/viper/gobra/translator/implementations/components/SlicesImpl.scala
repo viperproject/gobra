@@ -67,10 +67,10 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
          |       $subN($addN(i, $offN(s)), $offN(s)) == i && $locN(s,i) == $alocN($arrayN(s), $addN(i, $offN(s)))
          |   }
          |
-         |   axiom {
-         |     forall a: ${arrays.typ(typeVar)}, off: Int, len: Int, cap: Int, j: Int :: { $alocN(a,j), $makeN(a,off,len,cap) }
-         |       $addN($subN(j, off), off) == j && $alocN(a,j) == $locN($makeN(a,off,len,cap), $subN(j, off))
-         |   }
+         |   // axiom {
+         |   //   forall a: ${arrays.typ(typeVar)}, off: Int, len: Int, cap: Int, j: Int :: { $alocN(a,j), $makeN(a,off,len,cap) }
+         |   //     $addN($subN(j, off), off) == j && $alocN(a,j) == $locN($makeN(a,off,len,cap), $subN(j, off))
+         |   // }
          |
          |   axiom {
          |     forall s: $domainN[$typeVar] :: { $offN(s) } 0 <= $offN(s)

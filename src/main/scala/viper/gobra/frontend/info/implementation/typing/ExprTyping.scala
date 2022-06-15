@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
-import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
+import viper.gobra.frontend.info.base.SymbolTable.{MultiGlobalVariable, SingleConstant, SingleGlobalVariable}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
@@ -53,6 +53,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.PredicateExpr) => noMessages
         // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
         case Some(_: ap.Constant) => noMessages
+        case Some(_: ap.GlobalVariable) => noMessages
         case Some(_: ap.Function) => noMessages
         case Some(_: ap.NamedType) => noMessages
         case Some(_: ap.BuiltInType) => noMessages
@@ -116,6 +117,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.Constant) => p.symb match {
           case sc: SingleConstant => sc.context.typ(sc.idDef)
           case _ => ???
+        }
+        case Some(p: ap.GlobalVariable) => p.symb match {
+          case sv: SingleGlobalVariable => sv.opt.map(sv.context.symbType).getOrElse(sv.context.typ(sv.exp.get))
+          case mv: MultiGlobalVariable => mv.context.typ(mv.exp) match {
+            case t: InternalTupleT => t.ts(mv.idx)
+            case _: InternalSingleMulti => ???
+            case t => violation(s"Expected a tuple, but got $t instead")
+          }
         }
         case Some(p: ap.Function) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
         case Some(_: ap.NamedType) => SortT

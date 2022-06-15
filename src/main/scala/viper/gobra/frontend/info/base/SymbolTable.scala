@@ -88,6 +88,8 @@ object SymbolTable extends Environments[Entity] {
     def addressable: Boolean
   }
 
+  sealed trait GlobalVariable extends Variable
+
   sealed trait ActualVariable extends Variable with ActualDataEntity
 
   case class SingleLocalVariable(exp: Option[PExpression], opt: Option[PType], rep: PNode, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
@@ -96,6 +98,16 @@ object SymbolTable extends Environments[Entity] {
   case class MultiLocalVariable(idx: Int, exp: PExpression, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = exp
   }
+
+  case class SingleGlobalVariable(exp: Option[PExpression], opt: Option[PType], rep: PNode, ghost: Boolean, context: ExternalTypeInfo) extends ActualVariable with GlobalVariable {
+    require(exp.isDefined || opt.isDefined)
+    override def addressable: Boolean = true
+  }
+  case class MultiGlobalVariable(idx: Int, exp: PExpression, ghost: Boolean, context: ExternalTypeInfo) extends ActualVariable with GlobalVariable {
+    override def rep: PNode = exp
+    override def addressable: Boolean = true
+  }
+
   case class InParameter(decl: PNamedParameter, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = decl
   }

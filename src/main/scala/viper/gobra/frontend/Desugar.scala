@@ -9,8 +9,10 @@ package viper.gobra.frontend
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
+import viper.gobra.frontend.info.base.SymbolTable.SingleGlobalVariable
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.Source.AutoImplProofAnnotation
@@ -387,8 +389,38 @@ object Desugar {
         // the variable declaration can be safely ignored. In some codebases, this idiom is
         // used to check that types implement interfaces.
         Vector()
-      } else ???
+      } else {
+        StrictAssignMode(decl.left.length, decl.right.length) match {
+          case AssignMode.Single =>
+          case AssignMode.Multi =>
+          case AssignMode.Variadic if decl.right.isEmpty =>
+          case m => Violation.violation(s"Expected Single or Multi assign mode here, but got $m instead")
+        }
+
+        /*
+        // lhs must be a set of global vars
+        val lhs = decl.left.flatMap(l => info.regular(l) match {
+          case sc@SingleGlobalVariable(_, _, id, _, _) =>
+            val src = meta(id)
+            val gVar = globalVarD(sc)(src)
+            Vector(GlobalVar(???))
+          case st.Wildcard(_, _) =>
+            // Constants defined with the blank identifier can be safely ignored as they
+            // must be computable statically (and thus do not have side effects) and
+            // they can never be read
+            Vector()
+          case n =>
+            Violation.violation(s"Expected a global variable or wildcard on the right hand-side, but instead got $n")
+        })
+        // rhs must have a vector of (either stmt (for method call) or expr)
+        val rhs = ???
+
+         */
+        Vector()
+      }
     }
+
+    def globalVarD(v: SingleGlobalVariable)(src: Meta): in.GlobalVar = ???
 
     def constDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constSpecD)
 

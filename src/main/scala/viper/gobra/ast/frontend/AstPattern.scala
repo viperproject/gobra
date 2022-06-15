@@ -29,6 +29,7 @@ object AstPattern {
 
   case class Constant(id: PIdnUse, symb: st.Constant) extends Expr with Symbolic
   case class LocalVariable(id: PIdnUse, symb: st.Variable) extends Expr with Symbolic // In the future: with FunctionKind
+  case class GlobalVariable(id: PIdnUse, symb: st.GlobalVariable) extends Expr with Symbolic // In the future: with FunctionKind
   case class Deref(base: PExpression) extends Expr
   case class FieldSelection(base: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.StructMember) extends Expr with Symbolic
   case class Conversion(typ: PType, arg: PExpression) extends Expr

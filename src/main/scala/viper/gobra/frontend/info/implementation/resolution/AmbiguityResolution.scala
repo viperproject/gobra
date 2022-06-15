@@ -51,7 +51,10 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
     case n: PNamedOperand =>
       entity(n.id) match {
         case s: st.NamedType => Some(ap.NamedType(n.id, s))
-        case s: st.Variable => Some(ap.LocalVariable(n.id, s))
+        case s: st.Variable => s match {
+          case g: st.GlobalVariable => Some(ap.GlobalVariable(n.id, g))
+          case _ => Some(ap.LocalVariable(n.id, s))
+        }
         case s: st.Constant => Some(ap.Constant(n.id, s))
         case s: st.Function => Some(ap.Function(n.id, s))
         case s: st.FPredicate => Some(ap.Predicate(n.id, s))
@@ -86,6 +89,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         // imported members
         case (Right(_), Some((s: st.ActualTypeEntity, _))) => Some(ap.NamedType(n.id, s))
         case (Right(_), Some((s: st.Constant, _))) => Some(ap.Constant(n.id, s))
+        case (Right(_), Some((s: st.GlobalVariable, _))) => Some(ap.GlobalVariable(n.id, s))
         case (Right(_), Some((s: st.Function, _))) => Some(ap.Function(n.id, s))
         case (Right(_), Some((s: st.FPredicate, _))) => Some(ap.Predicate(n.id, s))
         case (Right(_), Some((s: st.DomainFunction, _))) => Some(ap.DomainFunction(n.id, s))

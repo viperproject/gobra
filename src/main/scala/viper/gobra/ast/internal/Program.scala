@@ -115,7 +115,7 @@ sealed trait FunctionMember extends FunctionLikeMember {
 sealed trait Location extends Expr
 
 
-sealed trait GlobalVarDecl extends Member
+case class GlobalVarDecl(left: GlobalVar, right: Either[Expr, Stmt])(val info: Source.Parser.Info) extends Member
 
 case class GlobalConstDecl(left: GlobalConst, right: Lit)(val info: Source.Parser.Info) extends Member
 

@@ -72,6 +72,17 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       })
     })
 
+    case SingleGlobalVariable(exp, opt, _, _, _) => unsafeMessage(! {
+      opt.exists(wellDefAndType.valid) || exp.exists(e => wellDefAndExpr.valid(e) && Single.unapply(exprType(e)).nonEmpty)
+    })
+
+    case MultiGlobalVariable(idx, exp, _, _) => unsafeMessage(! {
+      wellDefAndExpr.valid(exp) && (exprType(exp) match {
+        case Assign(InternalTupleT(ts)) if idx < ts.size => true
+        case _ => false
+      })
+    })
+
     case Function(PFunctionDecl(_, args, r, _, _), _, _) => unsafeMessage(! {
       args.forall(wellDefMisc.valid) && miscType.valid(r)
     })
@@ -159,6 +170,17 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       })
 
     case MultiLocalVariable(idx, exp, _, _, context) => context.typ(exp) match {
+      case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
+      case t => violation(s"expected tuple but got $t")
+    }
+
+    case SingleGlobalVariable(exp, opt, _, _, context) => opt.map(context.symbType)
+      .getOrElse(context.typ(exp.get) match {
+        case Single(t) => t
+        case t => violation(s"expected single Type but got $t")
+      })
+
+    case MultiGlobalVariable(idx, exp, _, context) => context.typ(exp) match {
       case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
       case t => violation(s"expected tuple but got $t")
     }

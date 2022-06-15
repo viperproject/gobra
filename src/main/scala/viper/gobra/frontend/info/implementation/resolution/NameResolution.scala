@@ -32,23 +32,30 @@ trait NameResolution { this: TypeInfoImpl =>
 
         p match {
 
-        case decl: PConstSpec =>
-          val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+          case decl: PConstSpec =>
+            val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          StrictAssignMode(decl.left.size, decl.right.size) match {
-            case AssignMode.Single => decl.left(idx) match {
-              case idn: PIdnDef => SingleConstant(decl, idn, decl.right(idx), decl.typ, isGhost, this)
-              case w: PWildcard => Wildcard(w, this)
+            StrictAssignMode(decl.left.size, decl.right.size) match {
+              case AssignMode.Single => decl.left(idx) match {
+                case idn: PIdnDef => SingleConstant(decl, idn, decl.right(idx), decl.typ, isGhost, this)
+                case w: PWildcard => Wildcard(w, this)
+              }
+              case _ => UnknownEntity()
             }
-            case _ => UnknownEntity()
-          }
 
-        case decl: PVarDecl =>
-          val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
-
+          case decl: PVarDecl =>
+            val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+            // TODO: explain - I don't want to obtain the same elem
+            val isGlobalVarDecl: Boolean = tree.parent(decl) match {
+              case Vector(p) => enclosingPMember(p).isEmpty
+              case _ => ??? //Violation
+        }
           StrictAssignMode(decl.left.size, decl.right.size) match {
+            case AssignMode.Single if isGlobalVarDecl => SingleGlobalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, this)
             case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, decl.addressable(idx), this)
+            case AssignMode.Multi  if isGlobalVarDecl => MultiGlobalVariable(idx, decl.right.head, isGhost, this)
             case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
+            case _ if isGlobalVarDecl && decl.right.isEmpty => SingleGlobalVariable(None, decl.typ, decl, isGhost, this)
             case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, isGhost, decl.addressable(idx), this)
             case _ => UnknownEntity()
           }
@@ -281,7 +288,6 @@ trait NameResolution { this: TypeInfoImpl =>
 
   lazy val entity: PIdnNode => Entity =
     attr[PIdnNode, Entity] {
-
       case w@PWildcard() => Wildcard(w, this)
 
       case tree.parent.pair(id: PIdnUse, n: PDot) =>

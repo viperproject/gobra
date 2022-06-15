@@ -1,0 +1,96 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package outlineSimple1
+
+type pair struct {
+    l, r int
+}
+
+func test1() {
+
+    var x *pair
+
+    trusted
+    ensures acc(x) && x.l == 3
+    outline (
+        x = &pair{7,5}
+    )
+
+    assert x.l >= 2
+}
+
+func test2() {
+
+    trusted
+    ensures x >= 5
+    outline (
+        x := 4
+    )
+
+    assert x >= 0
+}
+
+func test3() {
+
+    trusted
+    ensures acc(&x) && x >= 5
+    outline (
+        x@ := 4
+    )
+
+    assert x >= 0
+}
+
+func test4() {
+
+    x := 2
+
+    requires x > 0
+    ensures  x > 3
+    outline (
+        x += 1
+
+        trusted
+        requires x > 1
+        ensures  x > 2
+        outline (
+            x += 6
+        )
+
+        x += 1
+    )
+
+    assert x > 3
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert x == 5
+}
+
+func test5() {
+
+    x@ := 10
+
+    trusted
+    requires acc(&x)
+    ensures  acc(&x) && x == before(x) + 1
+    outline (
+        x += 2
+    )
+
+    assert x == 11
+}
+
+func test6() {
+
+    x@ := 10
+
+    trusted
+    requires acc(&x)
+    ensures  acc(&x) && x == before(x) + 2
+    outline (
+        x += 1
+    )
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert x == 11
+}

@@ -33,11 +33,6 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
       case _: PFPredicateDecl | _: PMPredicateDecl | _: PFunctionSpec | _: PGhostStatement | _: PUnfolding  => true
     }
 
-  lazy val unfoldingInGoifiedScope: PUnfolding => Boolean =
-    decorators.down(false){
-      case _: PFPredicateDecl | _: PMPredicateDecl | _: PFunctionSpec | _: PGhostStatement => true
-    }
-
   /**
     * Keywords used in Goified files.
     */
@@ -156,6 +151,9 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
   override def showStmt(stmt: PStatement): Doc = stmt match {
 
+    case s if !isInGoifiedScope(s) => super.showStmt(s)
+    case s if classifier.isStmtGhost(s) => showGhostStmt(stmt, emptyDoc)
+
     case PAssignment(right, left) =>
       StrictAssignMode(left.size, right.size) match {
         case AssignMode.Single =>
@@ -216,8 +214,10 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
       (if (aRight.isEmpty) emptyDoc else super.showStmt(PReturn(aRight))) <>
       (if (ghostRight.isEmpty) emptyDoc else showGhostExprList(ghostRight, with_prefix(ghostRight)))
 
-    case s if !isInGoifiedScope(s) => super.showStmt(s)
-    case s if classifier.isStmtGhost(s) => showGhostStmt(stmt, emptyDoc)
+    case n: PProofAnnotation => n match {
+      case n: POutline =>
+        showSpec(n.spec) <> specComment <> "outline (" <> line <> showStmt(n.body) <> line <>  specComment <> ")" <> line
+    }
 
     case _ => super.showStmt(stmt)
 
@@ -225,6 +225,8 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
 
   override def showExpr(expr: PExpression): Doc = expr match {
+
+    case e if !isInGoifiedScope(e) => super.showExpr(e)
     
     case n: PInvoke if !isInGoifiedScope(n) =>
       val gt = classifier.expectedArgGhostTyping(n)
@@ -233,15 +235,11 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
       super.showExpr(n.copy(args = aArgs)) <> (if (ghostArgs.isEmpty) emptyDoc else space <> inlinedSpecComment(with_keyword <+> showExprList(ghostArgs)))
 
-    
-    case e: PUnfolding if !unfoldingInGoifiedScope(e) =>
-      parens(inlinedSpecComment(unfolding_keyword <+> super.showExpr(e.pred)) <+> showExpr(e.op))
-
-    case e: PUnfolding => parens(super.showExpr(e))
-
-    case e: PActualExprProofAnnotation => e match {
-      case PUnfolding(_, op) => showExpr(op)
+    case e: PProofAnnotation => e match {
+      case e: PUnfolding =>
+        parens(inlinedSpecComment(unfolding_keyword <+> super.showExpr(e.pred)) <+> showExpr(e.op))
     }
+
     case e => super.showExpr(e)
   }
 

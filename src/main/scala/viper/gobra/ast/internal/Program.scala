@@ -360,6 +360,15 @@ case class PackageWand(wand: MagicWand, block: Option[Stmt])(val info: Source.Pa
 
 case class ApplyWand(wand: MagicWand)(val info: Source.Parser.Info) extends Stmt
 
+case class Outline(
+                    name: String,
+                    pres: Vector[Assertion],
+                    posts: Vector[Assertion],
+                    terminationMeasures: Vector[TerminationMeasure],
+                    body: Stmt,
+                    trusted: Boolean,
+                  )(val info: Source.Parser.Info) extends Stmt
+
 case class Send(channel: Expr, expr: Expr, sendChannel: MPredicateProxy, sendGivenPerm: MethodProxy, sendGotPerm: MethodProxy)(val info: Source.Parser.Info) extends Stmt
 
 /**

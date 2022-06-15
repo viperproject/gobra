@@ -64,6 +64,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PBlock
       |  _: PSeq
       |  _: PExpressionStmt
+      |  _: POutline
     => noMessages
 
     case n@ (

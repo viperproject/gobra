@@ -36,7 +36,7 @@ class OutlinesImpl extends Outlines {
     *
     * method name(arguments') returns (results')
     *   requires PRE[arguments -> arguments']
-    *   ensures  POST[results -> results'][arguments -> arguments'][ old[l] -> old ]
+    *   ensures  POST[ old[l](e) -> old(e[arguments -> arguments']) ][results -> results'][arguments -> arguments']
     * {
     *    var arguments
     *    arguments := arguments'
@@ -74,19 +74,26 @@ class OutlinesImpl extends Outlines {
     }
 
     generatedMembers ::= {
+
       val formals = arguments.map(v => v.copy(name = s"${v.name}$$in")(v.pos, v.info, v.errT))
       val returns = results.map(v => v.copy(name = s"${v.name}$$out")(v.pos, v.info, v.errT))
+
+      import vpr.utility.Expressions.{instantiateVariables => subst}
+
       val actualBody = if (!trusted) {
         val prelude = (arguments zip formals).map{ case (l, r) => vpr.LocalVarAssign(l, r)(l.pos, l.info, l.errT) }
         val ending = (returns zip results).map{ case (l, r) => vpr.LocalVarAssign(l, r)(l.pos, l.info, l.errT) }
         val tb = body.transform{ case lold: vpr.LabelledOld => vpr.Old(lold.exp)(lold.pos, lold.info, lold.errT) }
         Some(vpr.Seqn(prelude ++ (tb +: ending), arguments map ViperUtil.toVarDecl)(body.pos, body.info, body.errT))
       } else None
-      import vpr.utility.Expressions.{instantiateVariables => subst}
+
       val actualPres = pres.map(e => subst(e, arguments, formals))
-      val actualPosts = posts.map(e => subst(subst(e, results, returns), arguments, formals).transform{
-        case lold: vpr.LabelledOld => vpr.Old(lold.exp)(lold.pos, lold.info, lold.errT)
-      })
+      val actualPosts = posts.map{ e =>
+        val replacedOlds = e.transform{ case lold: vpr.LabelledOld => vpr.Old(subst(lold.exp, arguments, formals))(lold.pos, lold.info, lold.errT) }
+        val replacedResults = subst(replacedOlds, results, returns)
+        val replacedArguments = subst(replacedResults, arguments, formals)
+        replacedArguments
+      }
 
       vpr.Method(
         name = name,

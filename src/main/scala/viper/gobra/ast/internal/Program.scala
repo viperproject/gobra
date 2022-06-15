@@ -362,7 +362,6 @@ case class ApplyWand(wand: MagicWand)(val info: Source.Parser.Info) extends Stmt
 
 case class Outline(
                     name: String,
-                    label: Option[LabelProxy],
                     pres: Vector[Assertion],
                     posts: Vector[Assertion],
                     terminationMeasures: Vector[TerminationMeasure],

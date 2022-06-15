@@ -66,9 +66,8 @@ func test5() {
 
     x@ := 10
 
-    L:
     requires acc(&x)
-    ensures  acc(&x) && x == old[L](x) + 1
+    ensures  acc(&x) && x == before(x) + 1
     outline (
         x += 1
     )
@@ -80,10 +79,9 @@ func test6() {
 
     x@ := 10
 
-    L:
     requires acc(&x)
     //:: ExpectedOutput(postcondition_error:assertion_error)
-    ensures  acc(&x) && x == old[L](x) + 2
+    ensures  acc(&x) && x == before(x) + 2
     outline (
         x += 1
     )
@@ -115,6 +113,30 @@ func test8() {
     decreases
     outline (
         x = y+1
+    )
+
+    assert x == 11
+}
+
+func test9() {
+
+    decreases
+    outline (
+        //:: ExpectedOutput(function_termination_error)
+        for true {
+
+        }
+    )
+}
+
+func test10() {
+
+    x := 10
+
+    ensures x == before(x)+1
+    decreases
+    outline (
+        x = x+1
     )
 
     assert x == 11

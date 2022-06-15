@@ -1056,7 +1056,6 @@ object Desugar {
 
           case n: POutline =>
             val name = s"${rootName(n, info)}$$${nm.relativeId(n, info)}"
-            val labelOpt = info.tree.parent(n).collectFirst{ case l: PLabeledStmt => labelProxy(l.label) }
             val pres = (n.spec.pres ++ n.spec.preserves) map preconditionD(ctx)
             val posts = (n.spec.preserves ++ n.spec.posts) map postconditionD(ctx)
             val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx)).res
@@ -1064,7 +1063,7 @@ object Desugar {
             if (!n.spec.isTrusted) {
               for {
                 body <- seqn(stmtD(ctx)(n.body))
-              } yield in.Outline(name, labelOpt, pres, posts, terminationMeasures, body, trusted = false)(src)
+              } yield in.Outline(name, pres, posts, terminationMeasures, body, trusted = false)(src)
             } else {
               val declared = info.freeDeclared(n).map(localVarContextFreeD(_, info))
               // The dummy body preserves the reads and writes of the real body that target free variables.
@@ -1089,7 +1088,7 @@ object Desugar {
               for {
                 // since the body of an outline is not a separate scope, we have to preserve variable declarations.
                 _ <- declare(declared:_*)
-              } yield in.Outline(name, labelOpt, pres, posts, terminationMeasures, dummyBody, trusted = true)(src)
+              } yield in.Outline(name, pres, posts, terminationMeasures, dummyBody, trusted = true)(src)
             }
 
 
@@ -2698,6 +2697,7 @@ object Desugar {
       expr match {
         case POld(op) => for {o <- go(op)} yield in.Old(o, typ)(src)
         case PLabeledOld(l, op) => for {o <- go(op)} yield in.LabeledOld(labelProxy(l), o)(src)
+        case PBefore(op) => for {o <- go(op)} yield in.LabeledOld(in.LabelProxy("before")(src), o)(src)
         case PConditional(cond, thn, els) =>  for {
           wcond <- go(cond)
           wthn <- go(thn)

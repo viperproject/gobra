@@ -70,6 +70,7 @@ ghostPrimaryExpr: range
   | typeExpr
   | isComparable
   | old
+  | before
   | sConversion
   | optionNone | optionSome | optionGet
   | permission;
@@ -105,6 +106,8 @@ old: OLD (L_BRACKET oldLabelUse R_BRACKET)? L_PAREN expression R_PAREN;
 oldLabelUse: labelUse | LHS;
 
 labelUse: IDENTIFIER;
+
+before: BEFORE L_PAREN expression R_PAREN;
 
 isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 

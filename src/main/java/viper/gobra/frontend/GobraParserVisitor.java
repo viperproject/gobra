@@ -182,6 +182,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitLabelUse(GobraParser.LabelUseContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#before}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBefore(GobraParser.BeforeContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#isComparable}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

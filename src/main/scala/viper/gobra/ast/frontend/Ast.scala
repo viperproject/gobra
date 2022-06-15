@@ -931,6 +931,8 @@ case class POld(operand: PExpression) extends PGhostExpression
 
 case class PLabeledOld(label: PLabelUse, operand: PExpression) extends PGhostExpression
 
+case class PBefore(operand: PExpression) extends PGhostExpression
+
 case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) extends PGhostExpression
 
 case class PImplication(left: PExpression, right: PExpression) extends PGhostExpression

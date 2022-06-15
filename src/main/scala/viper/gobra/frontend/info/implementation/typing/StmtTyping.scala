@@ -139,11 +139,8 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PSeq => noMessages
 
     case n: POutline =>
-      val labelOpt = tree.parent(n).collectFirst{ case l: PLabeledStmt => l }
       val invalidNodes: Vector[Messages] = allChildren(n) collect {
-        case l: PLabeledOld if labelOpt.forall(_.label.name != l.label.name) =>
-          error(l, "labeled old expressions inside of outline statements must use the label of the outline statement.")
-        case n: POld => error(n, "outline statements must not contain old expressions.")
+        case n@ (_: POld | _: PLabeledOld) => error(n, "outline statements must not contain old expressions, use a before expression instead.")
         case n: PReturn => error(n, "outline statements must not contain return statements.")
       }
       error(n, s"pure outline statements are not supported.", n.spec.isPure) ++ invalidNodes.flatten

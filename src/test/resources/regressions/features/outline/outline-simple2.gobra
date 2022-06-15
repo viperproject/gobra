@@ -70,10 +70,9 @@ func test5() {
 
     x@ := 10
 
-    L:
     trusted
     requires acc(&x)
-    ensures  acc(&x) && x == old[L](x) + 1
+    ensures  acc(&x) && x == before(x) + 1
     outline (
         x += 2
     )
@@ -85,10 +84,9 @@ func test6() {
 
     x@ := 10
 
-    L:
     trusted
     requires acc(&x)
-    ensures  acc(&x) && x == old[L](x) + 2
+    ensures  acc(&x) && x == before(x) + 2
     outline (
         x += 1
     )

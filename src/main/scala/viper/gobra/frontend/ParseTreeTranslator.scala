@@ -1355,6 +1355,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitBefore(ctx: BeforeContext): PGhostExpression = super.visitBefore(ctx) match {
+    case Vector("before", "(", exp : PExpression, ")") => PBefore(exp)
+  }
+
 
   /**
     * {@inheritDoc  }

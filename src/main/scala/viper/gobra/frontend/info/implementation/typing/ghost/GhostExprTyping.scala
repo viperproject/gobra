@@ -35,6 +35,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           }
         )
 
+    case n: PBefore =>
+      isExpr(n).out ++ isPureExpr(n) ++
+        error(n, "before expressions can only be used inside outline statements.", tryEnclosingOutline(n).isEmpty)
+
     case PConditional(cond, thn, els) =>
       // check whether all operands are actually expressions indeed
       isExpr(cond).out ++ isExpr(thn).out ++ isExpr(els).out ++
@@ -198,6 +202,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
     case POld(op) => exprType(op)
     case PLabeledOld(_, op) => exprType(op)
+    case PBefore(op) => exprType(op)
 
     case PConditional(_, thn, els) =>
       typeMerge(exprType(thn), exprType(els)).getOrElse(violation("no common supertype found"))
@@ -364,7 +369,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       })
 
       case _: PUnfolding => true
-      case _: POld | _: PLabeledOld => true
+      case _: POld | _: PLabeledOld | _: PBefore => true
       case _: PForall => true
       case _: PExists => true
 

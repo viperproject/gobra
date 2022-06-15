@@ -63,6 +63,9 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val enclosingCodeRoot: PNode => PCodeRoot with PScope =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRoot with PScope => m }
 
+  lazy val tryEnclosingOutline: PNode => Option[POutline] =
+    down[Option[POutline]](None) { case x: POutline => Some(x) }
+
   lazy val isEnclosingExplicitGhost: PNode => Boolean =
     down(false){ case _: PGhostifier[_] => true }
 
@@ -162,6 +165,8 @@ trait Enclosing { this: TypeInfoImpl =>
             // no function spec, no invariants, no predicate body
             // no assert, assume, exhale, inhale
           case p: POld => aux(p)
+          case p: PLabeledOld => aux(p)
+          case p: PBefore => aux(p)
           case p: PConditional => val t = typ(p); if (t == Type.NilType) None else Some(t)
             // no implication, access
             // no forall or exists body

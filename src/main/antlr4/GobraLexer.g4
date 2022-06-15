@@ -31,6 +31,7 @@ DEC         : 'decreases' -> mode(NLSEMI);
 PURE        : 'pure' -> mode(NLSEMI);
 IMPL        : 'implements';
 OLD         : 'old'-> mode(NLSEMI);
+BEFORE      : 'before'-> mode(NLSEMI);
 LHS         : '#lhs';
 FORALL      : 'forall';
 EXISTS      : 'exists';

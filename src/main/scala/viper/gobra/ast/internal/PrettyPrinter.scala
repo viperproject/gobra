@@ -90,6 +90,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: Program => showProgram(n)
     case n: Member => showMember(n)
     case n: Field => showField(n)
+    case n: MethodBody => showMethodBody(n)
     case n: DomainFunc => showDomainFunc(n)
     case n: DomainAxiom => showDomainAxiom(n)
     case n: Stmt => showStmt(n)
@@ -147,7 +148,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showFunction(f: Function): Doc = f match {
     case Function(name, args, results, pres, posts, measures, body) =>
       "func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block(showStmt(b)))
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block(showMethodBody(b)))
   }
 
   def showPureFunction(f: PureFunction): Doc = f match {
@@ -159,7 +160,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showMethod(m: Method): Doc = m match {
     case Method(receiver, name, args, results, pres, posts, measures, body) =>
       "func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block(showStmt(b)))
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block(showMethodBody(b)))
   }
 
   def showPureMethod(m: PureMethod): Doc = m match {
@@ -244,6 +245,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     showVarDeclList(list)
 
   // statements
+
+  def showMethodBody(s: MethodBody): Doc = {
+    updatePositionStore(s) <> "decl" <+> showBlockDeclList(s.decls) <> line <>
+      showStmtList(s.stmts) <> line <>
+      showStmtList(s.postprocessing)
+  }
 
   def showStmt(s: Stmt): Doc = updatePositionStore(s) <> (s match {
     case Block(decls, stmts) => "decl" <+> showBlockDeclList(decls) <> line <> showStmtList(stmts)
@@ -650,6 +657,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   }
 
   // statements
+
+  override def showMethodBody(s: MethodBody): Doc = "decl" <+> showBlockDeclList(s.decls)
 
   override def showStmt(s: Stmt): Doc = s match {
     case Block(decls, _) => "decl" <+> showBlockDeclList(decls)

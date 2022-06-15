@@ -23,9 +23,9 @@ object GobraStrategy {
     val node: Node = (x, args) match {
         // Members
       case (p: Program, Seq(t: Vector[TopType@unchecked], m: Vector[Member@unchecked])) => Program(t, m, p.table)(meta)
-      case (_: Method, Seq(rec: Parameter.In, name: MethodProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], terminationMeasures: Vector[TerminationMeasure@unchecked], b: Option[Block@unchecked])) => Method(rec, name, arg, res, pre, post, terminationMeasures, b)(meta)
+      case (_: Method, Seq(rec: Parameter.In, name: MethodProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], terminationMeasures: Vector[TerminationMeasure@unchecked], b: Option[MethodBody@unchecked])) => Method(rec, name, arg, res, pre, post, terminationMeasures, b)(meta)
       case (_: PureMethod, Seq(rec: Parameter.In, name: MethodProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], terminationMeasures: Vector[TerminationMeasure@unchecked], b: Option[Expr@unchecked])) => PureMethod(rec, name, arg, res, pre, post, terminationMeasures, b)(meta)
-      case (_: Function, Seq(name: FunctionProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], terminationMeasures: Vector[TerminationMeasure@unchecked], b: Option[Block@unchecked])) => Function(name, arg, res, pre, post, terminationMeasures, b)(meta)
+      case (_: Function, Seq(name: FunctionProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], terminationMeasures: Vector[TerminationMeasure@unchecked], b: Option[MethodBody@unchecked])) => Function(name, arg, res, pre, post, terminationMeasures, b)(meta)
       case (_: PureFunction, Seq(name: FunctionProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], terminationMeasures: Vector[TerminationMeasure@unchecked], b: Option[Expr@unchecked])) => PureFunction(name, arg, res, pre, post, terminationMeasures, b)(meta)
       case (_: MPredicate, Seq(recv: Parameter.In, name: MPredicateProxy, args: Vector[Parameter.In@unchecked], b: Option[Assertion@unchecked])) => MPredicate(recv, name, args, b)(meta)
       case (_: FPredicate, Seq(name: FPredicateProxy, args: Vector[Parameter.In@unchecked], b: Option[Assertion@unchecked])) => FPredicate(name, args, b)(meta)
@@ -35,6 +35,7 @@ object GobraStrategy {
       case (d: DomainDefinition, Seq(funcs: Vector[DomainFunc@unchecked], axioms: Vector[DomainAxiom@unchecked])) => DomainDefinition(d.name, funcs, axioms)(meta)
       case (_: DomainFunc, Seq(name: DomainFuncProxy, args: Vector[Parameter.In@unchecked], res: Parameter.Out)) => DomainFunc(name, args, res)(meta)
       case (_: DomainAxiom, Seq(expr: Expr)) => DomainAxiom(expr)(meta)
+      case (_: MethodBody, Seq(v: Vector[BlockDeclaration@unchecked], s: Vector[Stmt@unchecked], p: Vector[Stmt@unchecked])) => MethodBody(v, s, p)(meta)
         // Statements
       case (_: Block, Seq(v: Vector[BlockDeclaration@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)
       case (_: Seqn, Seq(stmts: Vector[Stmt@unchecked])) => Seqn(stmts)(meta)

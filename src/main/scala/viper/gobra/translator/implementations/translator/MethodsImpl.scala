@@ -39,14 +39,11 @@ class MethodsImpl extends Methods {
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.ass.postcondition(_)(ctx)))
       measures <- sequence(x.terminationMeasures.map(ctx.measures.decreases(_)(ctx)))
 
-      returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
-
       body <- option(x.body.map{ b => block{
         for {
           init <- vResultInit
-          _ <- cl.global(returnLabel)
-          core <- ctx.stmt.translate(b)(ctx)
-        } yield vu.seqn(Vector(init, core, returnLabel))(pos, info, errT)
+          core <- methodBody(b)(ctx)
+        } yield vu.seqn(Vector(init, core))(pos, info, errT)
       }})
 
       method = vpr.Method(
@@ -78,15 +75,12 @@ class MethodsImpl extends Methods {
       pres <- sequence(vArgPres ++ x.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.ass.postcondition(_)(ctx)))
       measures <- sequence(x.terminationMeasures.map(ctx.measures.decreases(_)(ctx)))
-      
-      returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
 
       body <- option(x.body.map{ b => block{
         for {
           init <- vResultInit
-          _ <- cl.global(returnLabel)
-          core <- ctx.stmt.translate(b)(ctx)
-        } yield vu.seqn(Vector(init, core, returnLabel))(pos, info, errT)
+          core <- methodBody(b)(ctx)
+        } yield vu.seqn(Vector(init, core))(pos, info, errT)
       }})
 
       method = vpr.Method(
@@ -99,5 +93,29 @@ class MethodsImpl extends Methods {
       )(pos, info, errT)
 
     } yield method
+  }
+
+  def methodBody(x: in.MethodBody)(ctx: Context): CodeWriter[vpr.Stmt] = {
+    val (pos, info, errT) = x.vprMeta
+
+    val returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
+
+    cl.block{
+      for {
+        _ <- cl.global(returnLabel)
+        _ <- cl.global(x.decls.map(blockDecl(_)(ctx)): _*)
+        vBody <- cl.sequence(x.stmts map (ctx.stmt.translate(_)(ctx)))
+        vPostprocessing <- cl.sequence(x.postprocessing map (ctx.stmt.translate(_)(ctx)))
+      } yield vu.seqn(vBody ++ Vector(returnLabel) ++ vPostprocessing)(pos, info, errT)
+    }
+  }
+
+  def blockDecl(x: in.BlockDeclaration)(ctx: Context): vpr.Declaration = {
+    x match {
+      case x: in.BodyVar => ctx.typeEncoding.variable(ctx)(x)
+      case l: in.LabelProxy =>
+        val (pos, info, errT) = x.vprMeta
+        vpr.Label(l.name, Seq.empty)(pos, info, errT)
+    }
   }
 }

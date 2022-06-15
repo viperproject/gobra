@@ -58,11 +58,14 @@ object OverflowChecksTransform extends InternalTransform {
   }
 
   /**
-    * Adds overflow checks to the body of a block.
+    * Adds overflow checks to the body of a method.
     */
-  private def computeNewBody(body: Block): Block = {
-    val blockStmts = body.stmts map stmtTransform
-    Block(body.decls, blockStmts)(body.info)
+  private def computeNewBody(body: MethodBody): MethodBody = {
+    MethodBody(
+      body.decls,
+      body.stmts map stmtTransform,
+      body.postprocessing map stmtTransform,
+    )(body.info)
   }
 
   /**

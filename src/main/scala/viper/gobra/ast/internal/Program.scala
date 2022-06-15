@@ -129,7 +129,7 @@ case class Method(
                  override val pres: Vector[Assertion],
                  override val posts: Vector[Assertion],
                  override val terminationMeasures: Vector[TerminationMeasure],
-                 body: Option[Block]
+                 body: Option[MethodBody]
                  )(val info: Source.Parser.Info) extends Member with MethodMember
 
 case class PureMethod(
@@ -185,7 +185,7 @@ case class Function(
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
                      override val terminationMeasures: Vector[TerminationMeasure],
-                     body: Option[Block]
+                     body: Option[MethodBody]
                    )(val info: Source.Parser.Info) extends Member with FunctionMember
 
 case class PureFunction(
@@ -255,13 +255,20 @@ case class DomainFunc(
                        results: Parameter.Out
                      )(val info: Source.Parser.Info) extends Node
 
+case class MethodBody(
+                      decls: Vector[BlockDeclaration],
+                      stmts: Vector[Stmt],
+                      postprocessing: Vector[Stmt] = Vector.empty,
+                    )(val info: Source.Parser.Info) extends Node
 
 sealed trait Stmt extends Node
 
 case class Block(
                   decls: Vector[BlockDeclaration],
                   stmts: Vector[Stmt]
-                )(val info: Source.Parser.Info) extends Stmt
+                )(val info: Source.Parser.Info) extends Stmt {
+  def toMethodBody: MethodBody = MethodBody(decls, stmts)(info)
+}
 
 case class Seqn(stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Stmt
 

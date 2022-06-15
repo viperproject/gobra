@@ -788,10 +788,12 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val itfSymb = ctx.lookup(p.superProxy).asInstanceOf[in.Method]
     val vItfMeth = ctx.method.method(itfSymb)(ctx).res
 
-    val body = p.body.getOrElse {
-      val targets = p.results.map(out => in.LocalVar(out.id, out.typ)(out.info))
-      val call = in.MethodCall(targets, p.receiver, p.subProxy, p.args)(p.info)
-      in.Block(Vector.empty, Vector(call))(p.info)
+    val body = p.body match {
+      case Some(b) => b.toMethodBody
+      case _ =>
+        val targets = p.results.map(out => in.LocalVar(out.id, out.typ)(out.info))
+        val call = in.MethodCall(targets, p.receiver, p.subProxy, p.args)(p.info)
+        in.MethodBody(Vector.empty, Vector(call), Vector.empty)(p.info)
     }
 
     val methodDummy = ctx.method.method(in.Method(

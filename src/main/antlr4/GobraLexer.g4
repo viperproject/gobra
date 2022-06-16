@@ -77,3 +77,4 @@ PREDICATE   : 'predicate';
 WRITEPERM   : 'writePerm' -> mode(NLSEMI);
 NOPERM      : 'noPerm' -> mode(NLSEMI);
 TRUSTED     : 'trusted' -> mode(NLSEMI);
+CLOSURE     : 'closure';

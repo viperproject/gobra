@@ -406,8 +406,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PNilLit() => "nil"
       case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
-      case PFunctionLit(args, result, body) =>
-        "func" <> parens(showParameterList(args)) <> showResult(result) <> block(showStmt(body))
+      case PFunctionLit(id, args, result, spec, body) =>
+        showSpec(spec) <> "func" <+> id.fold(emptyDoc)(showId) <> parens(showParameterList(args)) <> showResult(result) <>
+          opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
       case PInvoke(base, args) => showExprOrType(base) <> parens(showExprList(args))
       case PIndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
 
@@ -689,5 +690,11 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       case ip: PImplementationProof =>
         showType(ip.subT) <+> "implements" <+> showType(ip.superT)
     }
+  }
+
+  override def showExpr(expr: PExpression): Doc = expr match {
+    case PFunctionLit(id, args, result, spec, body) =>
+      showSpec(spec) <> "func" <+> id.fold(emptyDoc)(showId) <> parens(showParameterList(args)) <> showResult(result)
+    case expr => super.showExpr(expr)
   }
 }

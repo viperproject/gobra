@@ -407,7 +407,13 @@ case class PExpCompositeVal(exp: PExpression) extends PCompositeVal // exp is ne
 
 case class PLitCompositeVal(lit: PLiteralValue) extends PCompositeVal
 
-case class PFunctionLit(args: Vector[PParameter], result: PResult, body: PBlock) extends PLiteral with PCodeRootWithResult with PScope
+case class PFunctionLit(
+                         id: Option[PIdnDef],
+                         args: Vector[PParameter],
+                         result: PResult,
+                         spec: PFunctionSpec,
+                         body: Option[(PBodyParameterInfo, PBlock)]
+                       ) extends PLiteral with PCodeRootWithResult with PScope with PWithBody
 
 case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends PActualExpression
 

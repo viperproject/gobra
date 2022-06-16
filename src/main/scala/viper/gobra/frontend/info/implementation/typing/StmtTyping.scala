@@ -32,6 +32,8 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       right.flatMap(isExpr(_).out) ++
         declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
 
+    case n: PFunctionLit => noMessages
+
     case n: PTypeDecl => isType(n.right).out ++ (n.right match {
       case s: PStructType =>
         error(n, s"invalid recursive type ${n.left.name}", cyclicStructDef(s, Some(n.left)))
@@ -126,7 +128,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PReturn(exps) =>
       exps.flatMap(isExpr(_).out) ++ {
         if (exps.nonEmpty) {
-          val res = enclosingCodeRootWithResult(n).result
+          val res = enclosingCodeWithResult(n).result
           if (res.outs forall wellDefMisc.valid)
             multiAssignableTo.errors(exps map exprType, res.outs map miscType)(n)
           else error(n, s"return cannot be checked because the enclosing signature is incorrect")

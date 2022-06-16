@@ -243,6 +243,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
   }
 
   private def performTypeChecking(parsedPackage: PPackage, config: Config): Either[Vector[VerifierError], TypeInfo] = {
+    println(parsedPackage)
     if (config.shouldTypeCheck) {
       Info.check(parsedPackage, config.packageInfoInputMap(parsedPackage.info), isMainContext = true)(config)
     } else {
@@ -251,6 +252,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
   }
 
   private def performDesugaring(parsedPackage: PPackage, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
+    println("Desugaring...")
     if (config.shouldDesugar) {
       Right(Desugar.desugar(parsedPackage, typeInfo)(config))
     } else {

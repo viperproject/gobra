@@ -1064,7 +1064,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitFunctionLit(ctx: FunctionLitContext): PFunctionLit = {
     visitChildren(ctx) match {
       case Vector(spec: PFunctionSpec, (id: Option[PIdnDef], args: Vector[PParameter], result: PResult, body: Option[(PBodyParameterInfo, PBlock)])) =>
-        PFunctionLit(id, args, result, spec, body)
+        PFunctionLit(id, body, PClosureSpecDecl(args, result, spec))
     }
   }
 

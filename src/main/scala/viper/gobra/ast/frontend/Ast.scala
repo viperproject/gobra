@@ -136,9 +136,11 @@ sealed trait PDependentDef extends PNode {
 
 sealed trait PCodeRoot extends PNode
 
-sealed trait PCodeRootWithResult extends PCodeRoot {
+sealed trait PCodeWithResult extends PNode {
   def result: PResult
 }
+
+sealed trait PCodeRootWithResult extends PCodeRoot with PCodeWithResult
 
 case class PConstDecl(specs: Vector[PConstSpec]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
 
@@ -407,13 +409,12 @@ case class PExpCompositeVal(exp: PExpression) extends PCompositeVal // exp is ne
 
 case class PLitCompositeVal(lit: PLiteralValue) extends PCompositeVal
 
-case class PFunctionLit(
-                         id: Option[PIdnDef],
-                         args: Vector[PParameter],
-                         result: PResult,
-                         spec: PFunctionSpec,
-                         body: Option[(PBodyParameterInfo, PBlock)]
-                       ) extends PLiteral with PCodeRootWithResult with PScope with PWithBody
+case class PFunctionLit(body: Option[(PBodyParameterInfo, PBlock)], decl: PClosureSpecDecl) extends PScope with PLiteral with PWithBody
+
+case class PClosureSpecDecl(id: Option[PIdnDef],
+                            args: Vector[PParameter],
+                            result: PResult,
+                            spec: PFunctionSpec) extends PGhostMember with PGhostStatement with PCodeWithResult with PDeclaration
 
 case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends PActualExpression
 

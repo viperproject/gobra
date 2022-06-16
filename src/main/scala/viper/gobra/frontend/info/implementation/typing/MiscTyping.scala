@@ -106,7 +106,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case tree.parent.pair(_: PCompositeVal, ke: PKeyedElement) => expectedMiscType(ke)
 
-      case c => Violation.violation(s"This case should be unreachable, but got $c")
+      case c => Violation.violation(s"This caseE should be unreachable, but got $c")
     }
 
 

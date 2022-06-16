@@ -93,6 +93,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMethodDecl(id, rec, args, res, spec, body) =>
         showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
         opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
+      case n: PFunctionLit => showFunctionLit(n)
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
@@ -158,6 +159,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showList[T](list: Vector[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
 
+  def showFunctionLit(decl: PFunctionLit): Doc = decl match {
+    case PFunctionLit(id, body, PClosureSpecDecl(args, result, spec)) =>
+      showSpec(spec) <> "func" <+> id.fold(emptyDoc)(showId) <> parens(showParameterList(args)) <> showResult(result) <>
+      opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
+  }
+
   def showVarDecl(decl: PVarDecl): Doc = decl match {
     case PVarDecl(typ, right, left, addressable) =>
       val rhs: Doc = if (right.isEmpty) "" else space <> "=" <+> showExprList(right)
@@ -202,6 +209,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case stmt: PActualStatement => stmt match {
       case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
+      case n: PFunctionLit => showFunctionLit(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PShortVarDecl(right, left, addressable) =>
         showList(left zip addressable){ case (l, a) => showAddressable(a, l) } <+> ":=" <+> showExprList(right)
@@ -406,9 +414,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PNilLit() => "nil"
       case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
-      case PFunctionLit(id, args, result, spec, body) =>
-        showSpec(spec) <> "func" <+> id.fold(emptyDoc)(showId) <> parens(showParameterList(args)) <> showResult(result) <>
-          opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
+      case e: PFunctionLit => showFunctionLit(e)
       case PInvoke(base, args) => showExprOrType(base) <> parens(showExprList(args))
       case PIndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
 
@@ -692,9 +698,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     }
   }
 
-  override def showExpr(expr: PExpression): Doc = expr match {
-    case PFunctionLit(id, args, result, spec, body) =>
+  override def showFunctionLit(decl: PFunctionLit): Doc = decl match {
+    case PFunctionLit(id, _, PClosureSpecDecl(args, result, spec)) =>
       showSpec(spec) <> "func" <+> id.fold(emptyDoc)(showId) <> parens(showParameterList(args)) <> showResult(result)
-    case expr => super.showExpr(expr)
   }
 }

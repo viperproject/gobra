@@ -73,6 +73,9 @@ trait NameResolution { this: TypeInfoImpl =>
 
         case decl: PImport => Import(decl, this)
 
+        // Closure literals
+        case decl: PFunctionLit => Closure(decl, this)
+
         // Ghost additions
         case decl: PBoundVariable => BoundVariable(decl, this)
 
@@ -155,7 +158,7 @@ trait NameResolution { this: TypeInfoImpl =>
   }
 
   private def scopeSpecialCaseWithNoNewScope(s: PScope): Boolean = s match {
-    case tree.parent.pair(_: PBlock, _: PMethodDecl | _: PFunctionDecl) => true
+    case tree.parent.pair(_: PBlock, _: PMethodDecl | _: PFunctionDecl | _: PFunctionLit) => true
     case _ => false
   }
 
@@ -279,12 +282,13 @@ trait NameResolution { this: TypeInfoImpl =>
 
   lazy val topLevelEnvironment: Environment = scopedDefenv(tree.originalRoot)
 
-  lazy val entity: PIdnNode => Entity =
+  lazy val entity: PIdnNode => Entity = {
+    val p = tree.parent
     attr[PIdnNode, Entity] {
 
       case w@PWildcard() => Wildcard(w, this)
 
-      case tree.parent.pair(id: PIdnUse, n: PDot) =>
+      case p.pair(id: PIdnUse, n: PDot) =>
         tryDotLookup(n.base, id).map(_._1).getOrElse(UnknownEntity())
 
       case tree.parent.pair(id: PIdnUse, tree.parent.pair(_: PMethodImplementationProof, ip: PImplementationProof)) =>
@@ -293,7 +297,10 @@ trait NameResolution { this: TypeInfoImpl =>
       case tree.parent.pair(id: PIdnUse, tree.parent.pair(alias: PImplementationProofPredicateAlias, ip: PImplementationProof)) if alias.left == id =>
         tryMethodLikeLookup(ip.superT, id).map(_._1).getOrElse(UnknownEntity()) // reference predicate of the super type
 
-      case tree.parent.pair(id: PIdnDef, _: PDependentDef) => defEntity(id) // PIdnDef that depend on a receiver or type are not placed in the symbol table
+      case k@tree.parent.pair(id: PIdnDef, _: PDependentDef) => {
+        println(k)
+        defEntity(id) // PIdnDef that depend on a receiver or type are not placed in the symbol table
+      }
 
       case n@ tree.parent.pair(id: PIdnUse, tree.parent.pair(_: PIdentifierKey, tree.parent(lv: PLiteralValue))) =>
         val litType = expectedMiscType(lv)
@@ -303,6 +310,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
       case n => symbTableLookup(n)
     }
+  }
 
   private def symbTableLookup(n: PIdnNode): Entity = {
     type Level = PIdnNode => Option[Entity]

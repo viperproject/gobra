@@ -199,7 +199,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       literalAssignableTo.errors(lit, simplifiedT)(n)
 
-    case _: PFunctionLit => noMessages
+    case n: PFunctionLit => noMessages
 
     case n: PInvoke => {
       val (l, r) = (exprOrType(n.base), resolve(n))
@@ -249,7 +249,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case PredT(args) =>
               if (n.args.isEmpty && args.isEmpty) noMessages
               else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
-            case c => Violation.violation(s"This case should be unreachable, but got $c")
+            case c => Violation.violation(s"This caseA should be unreachable, but got $c")
           }
 
         case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
@@ -584,8 +584,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case cl: PCompositeLit => expectedCompositeLitType(cl)
 
-    case PFunctionLit(args, r, _) =>
-      FunctionT(args map miscType, miscType(r))
+    case PFunctionLit(_, _, PClosureSpecDecl(args, result, _)) =>
+      FunctionT(args map miscType, miscType(result))
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(p: ap.Conversion)) => typeSymbType(p.typ)
@@ -780,7 +780,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case r: PReturn =>
           val index = r.exps.indexOf(expr)
-          Some(typeSymbType(enclosingCodeRootWithResult(r).result.outs(index).typ))
+          Some(typeSymbType(enclosingCodeWithResult(r).result.outs(index).typ))
 
         case n: PInvoke =>
           // if the parent of `expr` (i.e. the numeric expression whose type we want to find out) is an invoke expression `inv`,
@@ -812,7 +812,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   */
                   None
-                case c => Violation.violation(s"This case should be unreachable, but got $c")
+                case c => Violation.violation(s"This caseB should be unreachable, but got $c")
               }
 
             case Some(ap.PredicateCall(_, args)) =>
@@ -832,7 +832,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   */
                   None
-                case c => Violation.violation(s"This case should be unreachable, but got $c")
+                case c => Violation.violation(s"This caseC should be unreachable, but got $c")
               }
 
             case Some(ap.PredExprInstance(base, args, _)) =>
@@ -862,7 +862,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             //  https://github.com/viperproject/gobra/blob/master/src/test/resources/regressions/features/defunc/defunc-fail1.gobra
             //  crashes Gobra without this case).
             None
-          case c => Violation.violation(s"This case should be unreachable, but got $c")
+          case c => Violation.violation(s"This caseD should be unreachable, but got $c")
         }
 
         // expr has the default type if it appears in any other kind of statement

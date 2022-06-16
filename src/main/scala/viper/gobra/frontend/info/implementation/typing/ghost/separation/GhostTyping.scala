@@ -120,11 +120,14 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
   /** returns true iff identifier is classified as ghost */
   private[separation] lazy val ghostIdClassification: PIdnNode => Boolean = createGhostClassification[PIdnNode]{
-    id => entity(id) match {
-      case r: SingleLocalVariable => r.ghost || r.exp.exists(ghostExprResultClassification)
-      case r: MultiLocalVariable => r.ghost || ghostExprResultTyping(r.exp).isIdxGhost(r.idx)
-      case r: Regular => r.ghost
-      case _ => Violation.violation("expected Regular Entity")
+    id => {
+      val ent = entity(id)
+      ent match {
+        case r: SingleLocalVariable => r.ghost || r.exp.exists(ghostExprResultClassification)
+        case r: MultiLocalVariable => r.ghost || ghostExprResultTyping(r.exp).isIdxGhost(r.idx)
+        case r: Regular => r.ghost
+        case _ => Violation.violation("expected Regular Entity")
+      }
     }
   }
 

@@ -615,13 +615,17 @@ class InterfaceEncoding extends LeafTypeEncoding {
   private def predicateFamily(id: Int)(ctx: Context): SortedSet[in.PredicateProxy] = predicateFamilyTuple(ctx)._2.getOrElse(id, SortedSet.empty)
   private def predicateFamilySignature(id: Int)(ctx: Context): (String, Vector[in.Type]) = predicateFamilyTuple(ctx)._3(id)
   private def predicateFamilyTuple(ctx: Context): (Map[in.PredicateProxy, Int], Map[Int, SortedSet[in.PredicateProxy]], Map[Int, (String, Vector[in.Type])]) = {
+    val res =
     predicateFamilyTupleRes.getOrElse{
       implicit val tuple3Ordering: Ordering[(in.MPredicateProxy, in.InterfaceT, SortedSet[in.Type])] = Ordering.by(_._1)
 
       val itfNodes = for {
         (itf, impls) <- ctx.table.interfaceImplementations.toSet
+        _ = println(ctx.table.interfaceImplementations)
         itfProxy <- ctx.table.members(itf).collect{ case m: in.MPredicateProxy => m }
+        _ = println(itfProxy)
       } yield (itfProxy, itf, impls)
+      println(itfNodes)
 
       val edges = for {
         (itfProxy, itf, impls) <- itfNodes
@@ -630,6 +634,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
           .getOrElse(Violation.violation(s"Did not find predicate ${itfProxy.name} for type $impl."))
       } yield (itfProxy, implProxy)
 
+      println(edges)
       val nodes = itfNodes.map(_._1) ++ edges.map(_._2)
       val graphEdges = edges.flatMap{ case (l,r) => Vector((l,r),(r,l)) }
 
@@ -643,6 +648,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
       predicateFamilyTupleRes = Some((nodesId, sortedFamilies, sigs))
       (nodesId, sortedFamilies, sigs)
     }
+    println(res._1.map{ case (v,k) => (v.asInstanceOf[in.MPredicateProxy].uniqueName, k) })
+    res
   }
   private var predicateFamilyTupleRes: Option[(Map[in.PredicateProxy, Int], Map[Int, SortedSet[in.PredicateProxy]], Map[Int, (String, Vector[in.Type])])] = None
 

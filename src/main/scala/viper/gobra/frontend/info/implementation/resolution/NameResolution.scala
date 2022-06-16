@@ -231,7 +231,7 @@ trait NameResolution { this: TypeInfoImpl =>
       }
 
       case n: PInterfaceType =>
-        n.methSpecs.map(_.id) ++ n.predSpec.map(_.id)
+        n.methSpecs.map(_.id) ++ n.predSpecs.map(_.id)
 
       // domain members are added at the package level
       case _: PDomainType => Vector.empty
@@ -304,6 +304,31 @@ trait NameResolution { this: TypeInfoImpl =>
       case n => symbTableLookup(n)
     }
 
+  private def getAllEmbedded(scope: PUnorderedScope, int: PInterfaceType): Vector[PInterfaceType] = {
+    val allEmbedded = int.embedded.map[Option[Vector[PInterfaceType]]](emb => {
+      val embt = tryLookup(sequentialDefenv(scope), emb.typ.id.name)
+      embt match {
+        case Some(embnt : NamedType) =>
+          embnt.decl.right match {
+            case embint : PInterfaceType => Some(getAllEmbedded(scope, embint))
+            case _ => None
+          }
+        case _ => None
+      }
+    })
+    Vector(int) ++ allEmbedded.filter(_.isDefined).flatten.flatten
+  }
+
+  private def embeddedInterfaceLookup(n: PIdnNode, s: PUnorderedScope, int: PInterfaceType): Option[Entity] = {
+    val embedded = getAllEmbedded(s, int)
+    val look = embedded.map((x: PInterfaceType) => tryLookup(dependentDefenv(x), serialize(n))).filter(_.isDefined)
+    look.length match {
+      case 0 => None
+      case 1 => look.head
+      case _ => violation(s"Multiple instances of $n detected")
+    }
+  }
+
   private def symbTableLookup(n: PIdnNode): Entity = {
     type Level = PIdnNode => Option[Entity]
 
@@ -329,7 +354,15 @@ trait NameResolution { this: TypeInfoImpl =>
           val dependentEnv = dependentDefenv(scope)
           // perform now a second lookup in this special dependent environment:
           val res = tryLookup(dependentEnv, serialize(n))
-          res
+          res match {
+            case None =>
+              scope match {
+                case int : PInterfaceType =>
+                  embeddedInterfaceLookup(n, scope, int)
+                case _ => None
+              }
+            case some => some
+          }
         case _ => None
       }
 

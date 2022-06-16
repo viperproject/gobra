@@ -243,6 +243,14 @@ object Desugar {
       in.MPredicateProxy(id.name, name)(meta(id, context))
     }
 
+    def membeddedPredicateProxyD(decl: PMPredicateSig, recvType: InterfaceT, context: TypeInfo): in.MPredicateProxy = {
+      val name = context.regular(decl.id) match {
+        case m: st.MPredicateSpec => nm.spec(decl.id.name, recvType, m.context)
+        case _ => ???
+      }
+      in.MPredicateProxy(decl.id.name, name)(meta(decl, context))
+    } 
+
 
     // proxies to built-in members
     def methodProxy(tag: BuiltInMethodTag, recv: in.Type, args: Vector[in.Type])(src: Meta): in.MethodProxy = {
@@ -2136,20 +2144,67 @@ object Desugar {
       in.DefinedT(name, addrMod)
     }
 
-    def registerInterface(t: Type.InterfaceT, dT: in.InterfaceT): Unit = {
-      Violation.violation(t.decl.embedded.isEmpty, "embeddings in interfaces are currently not supported")
+    def embeddedInterfaceMethodsAndPredicates(names: Vector[PInterfaceName], info: TypeInfo): (Vector[(PInterfaceType, TypeInfo)], Vector[(PMethodSig, TypeInfo)], Vector[(PMPredicateSig, TypeInfo)]) = {
+      val maybeInterfaces = names.map(x => info.resolve(x.typ))
+      val interfaces = maybeInterfaces.map(x =>
+        x match {
+          case Some(nt : ap.NamedType) => nt.symb match {
+            case n : st.NamedType => n.decl match {
+              case t : PTypeDef => t.right match {
+                case int : PInterfaceType => (int, n.context.getTypeInfo)
+                case _ => violation("Embedded fields in interfaces should be interfaces.")
+              }
+              case _ => violation("Embedded fields in interfaces should be interfaces.")
+            }
+            case _ => violation("Embedded fields in interfaces should be interfaces.")
+          }
+          case _ => ???
+        })
+      val meths = interfaces.map(x => x._1.methSpecs.map((_, x._2))).flatten
+      val preds = interfaces.map(x => x._1.predSpecs.map((_, x._2))).flatten
+      interfaces.map(
+        x => embeddedInterfaceMethodsAndPredicates(x._1.embedded, x._2)
+      ).foldLeft((interfaces, meths, preds))(
+        (a, b) => (a._1 ++ b._1, a._2 ++ b._2, a._3 ++ b._3)
+      )
+    }
 
+
+    def registerInterface(t: Type.InterfaceT, dT: in.InterfaceT): Unit = {
+
+ 
       if (!registeredInterfaces.contains(dT.name) && info == t.context.getTypeInfo) {
+        val (embeddedInterfaces, embeddedMethods, embeddedPreds) = embeddedInterfaceMethodsAndPredicates(t.decl.embedded, t.context.getTypeInfo)
         registeredInterfaces += dT.name
 
         val itfT = dT.withAddressability(Addressability.Exclusive)
         val xInfo = t.context.getTypeInfo
 
-        t.decl.predSpec foreach { p =>
+        t.decl.predSpecs foreach { p =>
           val src = meta(p, xInfo)
           val proxy = mpredicateProxyD(p, xInfo)
           val recv = implicitThisD(itfT)(src)
           val argsWithSubs = p.args.zipWithIndex map { case (p,i) => inParameterD(p,i,xInfo) }
+          val (args, _) = argsWithSubs.unzip
+
+          val mem = in.MPredicate(recv, proxy, args, None)(src)
+
+          definedMPredicates += (proxy -> mem)
+          AdditionalMembers.addMember(mem)
+        }
+
+        embeddedInterfaces foreach { case (int, info) =>
+          val interfaceName = nm.interface(info.typOfExprOrType(int).asInstanceOf[InterfaceT])
+          val res = in.InterfaceT(interfaceName, Addressability.Exclusive)
+
+          embeddedInterfaces ::= (dT, res)
+        }
+
+        embeddedPreds foreach { case (p, pinfo) =>
+          val src = meta(p, pinfo)
+          val recv = implicitThisD(itfT)(src)
+          val proxy = membeddedPredicateProxyD(p, t, pinfo)
+          val argsWithSubs = p.args.zipWithIndex map { case (p,i) => inParameterD(p,i,pinfo) }
           val (args, _) = argsWithSubs.unzip
 
           val mem = in.MPredicate(recv, proxy, args, None)(src)
@@ -2182,7 +2237,7 @@ object Desugar {
       }
     }
     var registeredInterfaces: Set[String] = Set.empty
-
+    var embeddedInterfaces: List[(in.InterfaceT, in.InterfaceT)] = List.empty
 
 
     object AdditionalMembers {
@@ -2240,6 +2295,7 @@ object Desugar {
 
     def registerImplementationProof(decl: PImplementationProof): Unit = {
 
+      println(decl)
       val src = meta(decl)
       val subT = info.symbType(decl.subT)
       val dSubT = typeD(subT, Addressability.Exclusive)(src)
@@ -2288,17 +2344,26 @@ object Desugar {
       }
     }
 
+    def removeDuplicates(proofs: Vector[(Type, InterfaceT, st.MethodImpl, st.MethodSpec)]) : Vector[(Type, InterfaceT, st.MethodImpl, st.MethodSpec)] = {
+      val (_, ret) = proofs.foldLeft((Set[(Type, st.MethodImpl, st.MethodSpec)](), Vector[(Type, InterfaceT, st.MethodImpl, st.MethodSpec)]()))(
+        (s: (Set[(Type, st.MethodImpl, st.MethodSpec)], Vector[(Type, InterfaceT, st.MethodImpl, st.MethodSpec)]), proof : (Type, InterfaceT, st.MethodImpl, st.MethodSpec)) =>
+        if (s._1((proof._1, proof._3, proof._4))) s
+        else (s._1 + ((proof._1, proof._3, proof._4)), s._2 ++ Vector(proof))
+      )
+      ret
+    }
+
     lazy val interfaceImplementations: Map[in.InterfaceT, SortedSet[in.Type]] = {
       info.interfaceImplementations.map{ case (itfT, implTs) =>
         (
           interfaceType(typeD(itfT, Addressability.Exclusive)(Source.Parser.Unsourced)).get,
           SortedSet(implTs.map(implT => typeD(implT, Addressability.Exclusive)(Source.Parser.Unsourced)).toSeq: _*)
         )
-      }
+      } ++ (embeddedInterfaces.groupMap(_._1)(_._2).toVector.map(x => (x._1, SortedSet(x._2: _*)))).toMap
     }
     def missingImplProofs: Vector[in.Member] = {
 
-      info.missingImplProofs.map{ case (implT, itfT, implSymb, itfSymb) =>
+      removeDuplicates(info.missingImplProofs).map{ case (implT, itfT, implSymb, itfSymb) =>
         val subProxy = methodProxyFromSymb(implSymb)
         val superT = interfaceType(typeD(itfT, Addressability.Exclusive)(Source.Parser.Unsourced)).get
         val superProxy = methodProxyFromSymb(itfSymb)
@@ -3284,7 +3349,7 @@ object Desugar {
         Names.emptyInterface
       } else {
         val pom = s.context.getTypeInfo.tree.originalRoot.positions
-        val hash = srcTextName(pom, s.decl.embedded, s.decl.methSpecs, s.decl.predSpec)
+        val hash = srcTextName(pom, s.decl.embedded, s.decl.methSpecs, s.decl.predSpecs)
         s"$INTERFACE_PREFIX$$${topLevelName("")(hash, s.context)}"
       }
     }

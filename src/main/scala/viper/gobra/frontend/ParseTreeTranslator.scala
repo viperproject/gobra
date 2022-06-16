@@ -410,7 +410,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitInterfaceType(ctx: GobraParser.InterfaceTypeContext): PInterfaceType = {
     val methodDecls = visitListNode[PMethodSig](ctx.methodSpec())
     val embedded = visitListNode[PTypeName](ctx.typeName()).map {
-      case tn: PUnqualifiedTypeName => PInterfaceName(tn)
+      case tn: PUnqualifiedTypeName => PInterfaceName(tn).at(ctx)
       case _: PDot => fail(ctx, "Imported types are not yet supported as embedded fields.")
       case _ => fail(ctx, s"Interface embeds predeclared type.")
     }

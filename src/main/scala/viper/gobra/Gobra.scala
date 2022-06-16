@@ -234,6 +234,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
   }
 
   private def performParsing(pkgInfo: PackageInfo, config: Config): Either[Vector[VerifierError], PPackage] = {
+    println("Parsing...")
     if (config.shouldParse) {
       val sourcesToParse = config.packageInfoInputMap(pkgInfo)
       Parser.parse(sourcesToParse, pkgInfo)(config)
@@ -244,6 +245,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performTypeChecking(parsedPackage: PPackage, config: Config): Either[Vector[VerifierError], TypeInfo] = {
     println(parsedPackage)
+    println("Type checking...")
     if (config.shouldTypeCheck) {
       Info.check(parsedPackage, config.packageInfoInputMap(parsedPackage.info), isMainContext = true)(config)
     } else {
@@ -254,7 +256,9 @@ class Gobra extends GoVerifier with GoIdeVerifier {
   private def performDesugaring(parsedPackage: PPackage, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
     println("Desugaring...")
     if (config.shouldDesugar) {
-      Right(Desugar.desugar(parsedPackage, typeInfo)(config))
+      val result = Right(Desugar.desugar(parsedPackage, typeInfo)(config))
+      println(result)
+      result
     } else {
       Left(Vector())
     }
@@ -265,6 +269,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * be easily extended to perform more transformations
     */
   private def performInternalTransformations(program: Program, config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], Program] = {
+    println("Performing Internal Transformations...")
     val transformed = CGEdgesTerminationTransform.transform(program)
 
     if (config.checkOverflows) {
@@ -277,14 +282,18 @@ class Gobra extends GoVerifier with GoIdeVerifier {
   }
 
   private def performViperEncoding(program: Program, config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], BackendVerifier.Task] = {
+    println("Encoding...")
     if (config.shouldViperEncode) {
-      Right(Translator.translate(program, pkgInfo)(config))
+      val encoding = Right(Translator.translate(program, pkgInfo)(config))
+      print(encoding)
+      encoding
     } else {
       Left(Vector())
     }
   }
 
   private def performVerification(viperTask: BackendVerifier.Task, config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): Future[BackendVerifier.Result] = {
+    println("Verification...")
     if (config.shouldVerify) {
       BackendVerifier.verify(viperTask, pkgInfo)(config)
     } else {

@@ -74,7 +74,8 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PImport => Import(decl, this)
 
         // Closure literals
-        case decl: PFunctionLit => Closure(decl, this)
+        case decl: PClosureNamedDecl =>
+          Closure(decl, this)
 
         // Ghost additions
         case decl: PBoundVariable => BoundVariable(decl, this)
@@ -158,7 +159,7 @@ trait NameResolution { this: TypeInfoImpl =>
   }
 
   private def scopeSpecialCaseWithNoNewScope(s: PScope): Boolean = s match {
-    case tree.parent.pair(_: PBlock, _: PMethodDecl | _: PFunctionDecl | _: PFunctionLit) => true
+    case tree.parent.pair(_: PBlock, _: PMethodDecl | _: PFunctionDecl) => true
     case _ => false
   }
 

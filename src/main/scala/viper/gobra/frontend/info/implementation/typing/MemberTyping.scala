@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -20,7 +20,6 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefActualMember(member: PActualMember): Messages = member match {
     case n: PFunctionDecl => wellDefVariadicArgs(n.args) ++ wellDefIfPureFunction(n)
     case m: PMethodDecl => wellDefVariadicArgs(m.args) ++ isReceiverType.errors(miscType(m.receiver))(member) ++ wellDefIfPureMethod(m)
-    case c: PFunctionLit => wellDefVariadicArgs(c.args) ++ wellDefIfPureFunction(PFunctionDecl(PIdnDef(""), c.args, c.result, c.spec, c.body))
     case b: PConstDecl => b.specs.flatMap(wellDefConstSpec)
     case s: PActualStatement => wellDefStmt(s).out
   }

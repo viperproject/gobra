@@ -78,6 +78,8 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
       case PNamedOperand(id) => ghost(ghostIdClassification(id))
 
+      case _: PFunctionLit => notGhost
+
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(_: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
         case (Left(_), Some(call: ap.FunctionCall)) => calleeGhostTyping(call)

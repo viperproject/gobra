@@ -199,7 +199,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       literalAssignableTo.errors(lit, simplifiedT)(n)
 
-    case n: PFunctionLit => noMessages
+    case _: PFunctionLit => noMessages
 
     case n: PInvoke => {
       val (l, r) = (exprOrType(n.base), resolve(n))
@@ -584,7 +584,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case cl: PCompositeLit => expectedCompositeLitType(cl)
 
-    case PFunctionLit(_, _, PClosureSpecDecl(args, result, _)) =>
+    case PFunctionLit(PClosureNamedDecl(_, PClosureDecl(args, result, _, _))) =>
       FunctionT(args map miscType, miscType(result))
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
@@ -780,7 +780,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case r: PReturn =>
           val index = r.exps.indexOf(expr)
-          Some(typeSymbType(enclosingCodeWithResult(r).result.outs(index).typ))
+          Some(typeSymbType(enclosingCodeRootWithResult(r).result.outs(index).typ))
 
         case n: PInvoke =>
           // if the parent of `expr` (i.e. the numeric expression whose type we want to find out) is an invoke expression `inv`,

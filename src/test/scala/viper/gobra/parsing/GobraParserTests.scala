@@ -16,6 +16,7 @@ import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.gobra.{AbstractGobraTests, Gobra}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
+import viper.gobra.frontend.Parser
 
 import java.nio.file.Path
 import scala.concurrent.Await
@@ -25,7 +26,7 @@ class GobraParserTests extends AbstractGobraTests with BeforeAndAfterAll {
 
   val regressionsPropertyName = "GOBRATESTS_REGRESSIONS_DIR"
 
-  val regressionsDir: String = System.getProperty(regressionsPropertyName, "better_errors")
+  val regressionsDir: String = System.getProperty(regressionsPropertyName, "regressions/features/closures")
   val testDirectories: Seq[String] = Vector(regressionsDir)
   override val defaultTestPattern: String = PackageResolver.inputFilePattern
 
@@ -50,6 +51,8 @@ class GobraParserTests extends AbstractGobraTests with BeforeAndAfterAll {
       override def run(input: AnnotatedTestInput): Seq[AbstractOutput] = {
 
         val source = FromFileSource(input.file);
+        val parsed = Parser.parseProgram(source)
+        println(parsed)
 
         val config = Config(
           logLevel = Level.INFO,

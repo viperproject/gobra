@@ -35,9 +35,11 @@ maybeAddressableIdentifier: IDENTIFIER ADDR_MOD?;
 // Ghost members
 
 sourceFile:
-  packageClause eos (importDecl eos)* (
+  specification packageClause eos (importDecl eos)* (
     (specMember | declaration | ghostMember) eos
   )* EOF;
+
+importSpec: specification alias = (DOT | IDENTIFIER)? importPath;
 
 ghostMember: implementationProof
   | fpredicateDecl

@@ -2027,13 +2027,15 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitSourceFile(ctx: GobraParser.SourceFileContext): PProgram = {
     val packageClause : PPackageClause = visitNode(ctx.packageClause())
+    val fileSpec : PFunctionSpec = visitNode(ctx.specification())
+    // println(s"fileSpec: $fileSpec")
     val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
 
     // Don't parse functions/methods if the identifier is blank
     val members = visitListNode[PMember](ctx.specMember())
     val ghostMembers = ctx.ghostMember().asScala.flatMap(visitNode[Vector[PGhostMember]])
     val decls = ctx.declaration().asScala.toVector.flatMap(visitDeclaration(_).asInstanceOf[Vector[PDeclaration]])
-    PProgram(packageClause, importDecls, members ++ decls ++ ghostMembers).at(ctx)
+    PProgram(packageClause, fileSpec, importDecls, members ++ decls ++ ghostMembers).at(ctx)
   }
 
   /**
@@ -2061,14 +2063,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitImportSpec(ctx: GobraParser.ImportSpecContext): PImport = {
     // Get the actual path
     val path = visitString_(ctx.importPath().string_()).lit
+    val spec : PFunctionSpec = visitNode(ctx.specification())
+    // println(s"spec for import is $spec")
     if(ctx.DOT() != null){
       // . "<path>"
-      PUnqualifiedImport(path).at(ctx)
+      PUnqualifiedImport(path, spec).at(ctx)
     } else if (ctx.IDENTIFIER() != null) {
       // (<identifier> | _) "<path>"
-      PExplicitQualifiedImport(idnDefLike.get(ctx.IDENTIFIER()), path).at(ctx)
+      PExplicitQualifiedImport(idnDefLike.get(ctx.IDENTIFIER()), path, spec).at(ctx)
     } else {
-      PImplicitQualifiedImport(path).at(ctx)
+      PImplicitQualifiedImport(path, spec).at(ctx)
     }
   }
 

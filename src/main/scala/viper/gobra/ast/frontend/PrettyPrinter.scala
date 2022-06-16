@@ -60,8 +60,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // program
 
   def showProgram(p: PProgram): Doc = p match {
-    case PProgram(packageClause, imports, declarations) =>
-      showPackageClause(packageClause) <> line <> line <>
+    case PProgram(packageClause, fileSpec, imports, declarations) =>
+      showSpec(fileSpec) <> line <>
+        showPackageClause(packageClause) <> line <> line <>
         ssep(imports map showImport, line) <> line <>
         ssep(declarations map showMember, line <> line) <> line
   }
@@ -74,10 +75,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // imports
 
   def showImport(decl: PImport): Doc = decl match {
-    case PExplicitQualifiedImport(PWildcard(), pkg) => "import" <+> "_" <+> pkg
-    case PExplicitQualifiedImport(qualifier, pkg) => "import" <+> showId(qualifier) <+> pkg
-    case PImplicitQualifiedImport(pkg) => "import" <+> pkg
-    case PUnqualifiedImport(pkg) => "import" <+> "." <+> pkg
+    case PExplicitQualifiedImport(PWildcard(), pkg, spec) => showSpec(spec) <> line <> "import" <+> "_" <+> pkg
+    case PExplicitQualifiedImport(qualifier, pkg, spec) => showSpec(spec) <> line <> "import" <+> showId(qualifier) <+> pkg
+    case PImplicitQualifiedImport(pkg, spec) => showSpec(spec) <> line <> "import" <+> pkg
+    case PUnqualifiedImport(pkg, spec) => showSpec(spec) <> line <> "import" <+> "." <+> pkg
   }
 
   // members

@@ -219,7 +219,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
       // imports do not belong to the root environment but are file/program specific (instead of package specific):
       case n: PProgram => n.imports flatMap {
-        case PExplicitQualifiedImport(id: PIdnDef, _) => Vector(id)
+        case PExplicitQualifiedImport(id: PIdnDef, _, _) => Vector(id)
         case _ => Vector.empty
       }
 

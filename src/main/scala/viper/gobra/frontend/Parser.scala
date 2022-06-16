@@ -231,7 +231,7 @@ object Parser {
           // the same happens for the newly created PExplicitQualifiedImport)
           idnDef = PIdnDef(qualifierName)
           _ = pkg.positions.positions.dupPos(n, idnDef)
-        } yield PExplicitQualifiedImport(idnDef, n.importPath)
+        } yield PExplicitQualifiedImport(idnDef, n.importPath, n.importSpec)
         // record errors:
         qualifier.left.foreach(errorMsg => failedNodes = failedNodes ++ createError(n, errorMsg))
         qualifier.toOption
@@ -250,7 +250,7 @@ object Parser {
         // note that the resolveImports strategy could be embedded in e.g. a logfail strategy to report a
         // failed strategy application
         val updatedImports = rewrite(topdown(attempt(resolveImports)))(prog.imports)
-        val updatedProg = PProgram(prog.packageClause, updatedImports, prog.declarations)
+        val updatedProg = PProgram(prog.packageClause, prog.programSpec, updatedImports, prog.declarations)
         pkg.positions.positions.dupPos(prog, updatedProg)
       })
       // create a new package node with the updated programs

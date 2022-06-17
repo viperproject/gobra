@@ -56,6 +56,7 @@ object GobraStrategy {
       case (_: Assignee.Index, Seq(e: IndexedExp)) => Assignee.Index(e)
       case (_: FunctionCall, Seq(targets: Vector[LocalVar@unchecked], func: FunctionProxy, args: Vector[Expr@unchecked])) => FunctionCall(targets, func, args)(meta)
       case (_: MethodCall, Seq(targets: Vector[LocalVar@unchecked], recv: Expr, meth: MethodProxy, args: Vector[Expr@unchecked])) => MethodCall(targets, recv, meth, args)(meta)
+      case (_: Defer, Seq(stmt: Deferrable)) => Defer(stmt)(meta)
       case (_: Return, Seq()) => Return()(meta)
       case (_: Assert, Seq(ass: Assertion)) => Assert(ass)(meta)
       case (_: Assume, Seq(ass: Assertion)) => Assume(ass)(meta)

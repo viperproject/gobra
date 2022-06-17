@@ -70,6 +70,7 @@ object Nodes {
         case SafeTypeAssertion(resTarget, successTarget, expr, _) => Seq(resTarget, successTarget, expr)
         case GoFunctionCall(func, args) => Seq(func) ++ args
         case GoMethodCall(recv, meth, args) => Seq(recv, meth) ++ args
+        case Defer(stmt) => Seq(stmt)
         case SafeReceive(resTarget, successTarget, channel, recvChannel, recvGivenPerm, recvGotPerm, closed) =>
           Seq(resTarget, successTarget, channel, recvChannel, recvGivenPerm, recvGotPerm, closed)
         case Send(channel, expr, sendChannel, sendGivenPerm, sendGotPerm) =>

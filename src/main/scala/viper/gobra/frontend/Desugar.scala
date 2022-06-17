@@ -1028,6 +1028,29 @@ object Desugar {
               case _ => unexpectedExprError(exp)
             }
 
+          case PDeferStmt(exp) =>
+            def unexpectedExprError(exp: PNode) = violation(s"unexpected expression $exp in defer statement")
+
+            exp match {
+              case inv: PInvoke =>
+                info.resolve(inv) match {
+                  case Some(p: ap.FunctionCall) =>
+                    functionCallDAux(ctx)(p, inv)(src) map {
+                      case Left((_, call: in.Deferrable)) => in.Defer(call)(src)
+                      case _ => unexpectedExprError(exp)
+                    }
+                  case _ => unexpectedExprError(exp)
+                }
+
+              case exp: PStatement =>
+                stmtD(ctx)(exp) map {
+                  case d: in.Deferrable => in.Defer(d)(src)
+                  case _ => unexpectedExprError(exp)
+                }
+
+              case _ => unexpectedExprError(exp)
+            }
+
           case PSendStmt(channel, msg) =>
             for {
               dchannel <- goE(channel)

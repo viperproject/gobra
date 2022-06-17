@@ -160,6 +160,10 @@ class StatementsImpl extends Statements {
       case in.GoMethodCall(recv, meth, args) =>
         val methM = ctx.lookup(meth)
         translateGoCall(methM.pres, methM.receiver +: methM.args, recv +: args)
+
+      case in.Defer(stmt) =>
+        ???
+
       case in.Assert(ass) => for {v <- goA(ass)} yield vpr.Assert(v)(pos, info, errT)
       case in.Assume(ass) => for {v <- goA(ass)} yield vpr.Assume(v)(pos, info, errT) // Assumes are later rewritten
       case in.Inhale(ass) => for {v <- goA(ass)} yield vpr.Inhale(v)(pos, info, errT)

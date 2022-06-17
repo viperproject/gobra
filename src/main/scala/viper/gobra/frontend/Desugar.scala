@@ -2174,7 +2174,7 @@ object Desugar {
 
  
       if (!registeredInterfaces.contains(dT.name) && info == t.context.getTypeInfo) {
-        val (embeddedInterfaces, embeddedMethods, embeddedPreds) = embeddedInterfaceMethodsAndPredicates(t.decl.embedded, t.context.getTypeInfo)
+        val (embeddedInts, embeddedMethods, embeddedPreds) = embeddedInterfaceMethodsAndPredicates(t.decl.embedded, t.context.getTypeInfo)
         registeredInterfaces += dT.name
 
         val itfT = dT.withAddressability(Addressability.Exclusive)
@@ -2193,11 +2193,10 @@ object Desugar {
           AdditionalMembers.addMember(mem)
         }
 
-        embeddedInterfaces foreach { case (int, info) =>
-          val interfaceName = nm.interface(info.typOfExprOrType(int).asInstanceOf[InterfaceT])
+        embeddedInts foreach { case (int, info) =>
+          val interfaceName = nm.interface(info.symbType(int).asInstanceOf[InterfaceT])
           val res = in.InterfaceT(interfaceName, Addressability.Exclusive)
-
-          embeddedInterfaces ::= (dT, res)
+          embeddedInterfaces ::= (res, dT)
         }
 
         embeddedPreds foreach { case (p, pinfo) =>
@@ -2295,7 +2294,6 @@ object Desugar {
 
     def registerImplementationProof(decl: PImplementationProof): Unit = {
 
-      println(decl)
       val src = meta(decl)
       val subT = info.symbType(decl.subT)
       val dSubT = typeD(subT, Addressability.Exclusive)(src)
@@ -2354,12 +2352,14 @@ object Desugar {
     }
 
     lazy val interfaceImplementations: Map[in.InterfaceT, SortedSet[in.Type]] = {
-      info.interfaceImplementations.map{ case (itfT, implTs) =>
+      val firstMap = info.interfaceImplementations.map{ case (itfT, implTs) =>
         (
           interfaceType(typeD(itfT, Addressability.Exclusive)(Source.Parser.Unsourced)).get,
           SortedSet(implTs.map(implT => typeD(implT, Addressability.Exclusive)(Source.Parser.Unsourced)).toSeq: _*)
         )
-      } ++ (embeddedInterfaces.groupMap(_._1)(_._2).toVector.map(x => (x._1, SortedSet(x._2: _*)))).toMap
+      }
+      val secondMap = (embeddedInterfaces.groupMap(_._1)(_._2).map(x => (x._1, SortedSet(x._2: _*))): Map[in.InterfaceT, SortedSet[in.Type]])
+      (firstMap.keySet ++ secondMap.keySet).map(k => (k, firstMap.getOrElse(k, SortedSet[in.Type]()) ++ secondMap.getOrElse(k, SortedSet[in.Type]()))).toMap
     }
     def missingImplProofs: Vector[in.Member] = {
 

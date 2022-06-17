@@ -8,6 +8,7 @@ package viper.gobra.ast.internal.transform
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation
+import scala.collection.SortedSet
 
 /**
   * Transformation responsible for generating call-graph edges from interface methods to their implementations' methods.
@@ -27,7 +28,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
 
       table.memberProxies.foreach {
         case (t: in.InterfaceT, proxies) =>
-          val implementations = table.interfaceImplementations(t)
+          val implementations = table.interfaceImplementations.getOrElse(t, SortedSet[in.Type]())
           proxies.foreach {
             case proxy: in.MethodProxy =>
               table.lookup(proxy) match {

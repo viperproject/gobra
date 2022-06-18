@@ -30,7 +30,7 @@ class FinalTypeEncoding(te: TypeEncoding) extends TypeEncoding {
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = te.finalize(addMemberFn)
   override def typ(ctx: Context): in.Type ==> vpr.Type = te.typ(ctx) orElse expectedMatch("typ")
   override def variable(ctx: Context): in.BodyVar ==> vpr.LocalVarDecl = te.variable(ctx) orElse expectedMatch("variable")
-  override def globalVar(ctx: Context): in.GlobalVar ==> CodeWriter[vpr.Exp] = te.globalVar(ctx) orElse expectedMatch("globalVar")
+  override def globalVar(ctx: Context): in.Global ==> CodeWriter[vpr.Exp] = te.globalVar(ctx) orElse expectedMatch("globalVar")
   override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = te.member(ctx)
   override def precondition(ctx: Context): in.Parameter.In ==> MemberWriter[vpr.Exp] = te.precondition(ctx)
   override def postcondition(ctx: Context): in.Parameter.Out ==> MemberWriter[vpr.Exp] = te.postcondition(ctx)

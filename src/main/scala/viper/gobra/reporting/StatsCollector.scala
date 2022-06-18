@@ -8,7 +8,7 @@ package viper.gobra.reporting
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.relation.NodeNotInTreeException
-import viper.gobra.ast.frontend.{PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor}
+import viper.gobra.ast.frontend.{PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor, PVarDecl}
 import viper.gobra.ast.internal.BuiltInMember
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.{Info, TypeInfo}
@@ -27,7 +27,7 @@ import java.io.File
 object GobraNodeType extends Enumeration {
   type GobraNodeType = Value
   val MethodDeclaration, FunctionDeclaration, MethodSignature, FunctionPredicateDeclaration, MethodPredicateDeclaration,
-  MethodImplementationProof, MethodPredicateSignature, PredicateConstructor = Value
+  MethodImplementationProof, MethodPredicateSignature, PredicateConstructor, Variable = Value
 }
 
 /**
@@ -349,6 +349,19 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
           isAbstractAndNotImported = false,
           isImported,
           isBuiltIn)
+      case p: PVarDecl if true /* if isGlobal */ => // TODO: fix code
+        GobraMemberInfo(
+          pkgId,
+          pkgName,
+          memberName = "globalTest" + pkgId + p.left.map(_.name), // TODO: fix
+          "",
+          Variable,
+          false,
+          false,
+          isAbstractAndNotImported = false,
+          isImported,
+          isBuiltIn)
+
       // Fallback to the node's code root if we can't match the node
       case p: PNode => getMemberInformation(nodeTypeInfo.codeRoot(p), typeInfo, viperMember)
     }

@@ -31,6 +31,7 @@ class DfltTranslatorConfig(
   val seqMultiplicity : SeqMultiplicity = new SeqMultiplicityImpl,
   val option : Options = new OptionImpl,
   val fixpoint: Fixpoint = new FixpointImpl,
+  val globals: Globals = new GlobalsImpl,
   val tuple : Tuples = new TuplesImpl,
   val equality: Equality = new EqualityImpl,
   val condition: Conditions = new ConditionsImpl,

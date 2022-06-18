@@ -39,6 +39,7 @@ class ProgramsImpl extends Programs {
           case p: in.MPredicate => ctx.predicate.mpredicate(p)(ctx).map(Vector(_))
           case p: in.FPredicate => ctx.predicate.fpredicate(p)(ctx).map(Vector(_))
           case gc: in.GlobalConstDecl => ctx.fixpoint.create(gc)(ctx); unit(Vector.empty)
+          case gv: in.GlobalVarDecl => ctx.globals.globalVarDecl(gv)(ctx)
           case m: in.BuiltInMethod => ctx.builtInMembers.method(m)(ctx); unit(Vector.empty)
           case f: in.BuiltInFunction => ctx.builtInMembers.function(f)(ctx); unit(Vector.empty)
           case p: in.BuiltInMPredicate => ctx.builtInMembers.mpredicate(p)(ctx); unit(Vector.empty)

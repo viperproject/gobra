@@ -21,6 +21,7 @@ trait TranslatorConfig {
   def optionToSeq : OptionToSeq
   def slice : Slices
   def fixpoint: Fixpoint
+  def globals: Globals
   def tuple: Tuples
   def equality: Equality
   def condition: Conditions

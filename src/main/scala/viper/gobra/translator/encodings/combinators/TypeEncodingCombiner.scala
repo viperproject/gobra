@@ -31,7 +31,7 @@ abstract class TypeEncodingCombiner(encodings: Vector[TypeEncoding]) extends Typ
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = encodings.foreach(_.finalize(addMemberFn))
   override def typ(ctx: Context): in.Type ==> vpr.Type = combiner(_.typ(ctx))
   override def variable(ctx: Context): in.BodyVar ==> vpr.LocalVarDecl = combiner(_.variable(ctx))
-  override def globalVar(ctx: Context): in.GlobalVar ==> CodeWriter[vpr.Exp] = combiner(_.globalVar(ctx))
+  override def globalVar(ctx: Context): in.Global ==> CodeWriter[vpr.Exp] = combiner(_.globalVar(ctx))
   override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = combiner(_.member(ctx))
   override def precondition(ctx: Context): in.Parameter.In ==> MemberWriter[vpr.Exp] = combiner(_.precondition(ctx))
   override def postcondition(ctx: Context): in.Parameter.Out ==> MemberWriter[vpr.Exp] = combiner(_.postcondition(ctx))

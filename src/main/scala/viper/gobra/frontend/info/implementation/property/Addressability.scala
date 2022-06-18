@@ -41,6 +41,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       bt.isInstanceOf[SliceT] || bt.isInstanceOf[GhostSliceT] || (bt.isInstanceOf[ArrayT] && goAddressable(b))
     case n: PDot => resolve(n) match {
       case Some(s: ap.FieldSelection) => goAddressable(s.base)
+      case Some(_: ap.GlobalVariable) => true
       case _ => false
     }
     case _ => false
@@ -72,6 +73,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
         case Some(_: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.ReceivedPredicate | _: ap.PredicateExpr ) => AddrMod.rValue
         case Some(_: ap.NamedType | _: ap.BuiltInType | _: ap.Function | _: ap.Predicate | _: ap.DomainFunction) => AddrMod.rValue
         case Some(_: ap.ImplicitlyReceivedInterfaceMethod | _: ap.ImplicitlyReceivedInterfacePredicate) => AddrMod.rValue
+        case Some(_: ap.GlobalVariable) => AddrMod.globalVariable
         case p => Violation.violation(s"Unexpected dot resolve, got $p")
       }
       case _: PLiteral => AddrMod.literal

@@ -39,6 +39,7 @@ trait Context {
   def predicate: Predicates
   def builtInMembers: BuiltInMembers
   def stmt: Statements
+  def globals: Globals
   def measures: TerminationMeasures
 
   // lookup
@@ -87,6 +88,7 @@ trait Context {
           optionToSeqN : OptionToSeq = optionToSeq,
           sliceN : Slices = slice,
           fixpointN: Fixpoint = fixpoint,
+          globalsN: Globals = globals,
           tupleN: Tuples = tuple,
           equalityN: Equality = equality,
           conditionN: Conditions = condition,

@@ -51,11 +51,11 @@ trait NameResolution { this: TypeInfoImpl =>
               case _ => ??? //Violation
         }
           StrictAssignMode(decl.left.size, decl.right.size) match {
-            case AssignMode.Single if isGlobalVarDecl => SingleGlobalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, this)
+            case AssignMode.Single if isGlobalVarDecl => SingleGlobalVariable(decl, Some(decl.right(idx)), decl.typ, decl, isGhost, this)
             case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, decl.addressable(idx), this)
-            case AssignMode.Multi  if isGlobalVarDecl => MultiGlobalVariable(idx, decl.right.head, isGhost, this)
+            case AssignMode.Multi  if isGlobalVarDecl => MultiGlobalVariable(decl, idx, decl.right.head, isGhost, this)
             case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
-            case _ if isGlobalVarDecl && decl.right.isEmpty => SingleGlobalVariable(None, decl.typ, decl, isGhost, this)
+            case _ if isGlobalVarDecl && decl.right.isEmpty => SingleGlobalVariable(decl, None, decl.typ, decl, isGhost, this)
             case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, isGhost, decl.addressable(idx), this)
             case _ => UnknownEntity()
           }

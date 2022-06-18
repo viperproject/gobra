@@ -42,9 +42,18 @@ trait TypeEncoding extends Generator {
     * Translates variables that have a global scope. Returns the encoded Viper expression.
     * As the default encoding, returns a call to a function with the argument name and the translated type.
     */
-  def globalVar(ctx: Context): in.GlobalVar ==> CodeWriter[vpr.Exp] = {
+  def globalVar(ctx: Context): in.Global ==> CodeWriter[vpr.Exp] = {
     case v: in.GlobalConst if typ(ctx) isDefinedAt v.typ =>
       unit(ctx.fixpoint.get(v)(ctx): vpr.Exp)
+    case v: in.GlobalVar =>
+      val (pos, info, errT) = v.vprMeta
+      val typ = ctx.typeEncoding.typ(ctx)(v.typ)
+      val encodedVar = vpr.FuncApp(
+        funcname = v.name.uniqueName,
+        args = Seq.empty
+      )(pos, info, typ, errT)
+      // TODO: improve doc
+      unit(vpr.FieldAccess(encodedVar, ctx.field.field(v.typ.withAddressability(Exclusive))(ctx))(pos, info, errT))
   }
 
 
@@ -163,7 +172,8 @@ trait TypeEncoding extends Generator {
     */
   def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     case (v: in.BodyVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar)
-    case (v: in.GlobalVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => globalVar(ctx)(v)
+    // TODO: replace everywhere in.Global by in.GlobalConst; remove super type in.Global
+    case (v: in.Global) :: t / Exclusive if typ(ctx).isDefinedAt(t) => globalVar(ctx)(v)
   }
 
   /**

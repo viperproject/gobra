@@ -115,7 +115,10 @@ sealed trait FunctionMember extends FunctionLikeMember {
 sealed trait Location extends Expr
 
 
-case class GlobalVarDecl(left: GlobalVar, right: Either[Expr, Stmt])(val info: Source.Parser.Info) extends Member
+// TODO: right, decls, stmts are all fields of a Writer and essentially correspond to everything that is needed to execute the expr
+case class GlobalVarDecl(left: Vector[GlobalVar], right: Option[Vector[Expr]], decls: Option[Vector[BlockDeclaration]], stmts: Option[Vector[Stmt]])(val info: Source.Parser.Info) extends Member {
+  require(right.isEmpty == stmts.isEmpty && stmts.isEmpty == decls.isEmpty)
+}
 
 case class GlobalConstDecl(left: GlobalConst, right: Lit)(val info: Source.Parser.Info) extends Member
 
@@ -890,6 +893,7 @@ sealed trait Addressable extends Node {
 object Addressable {
 
   case class Var(op: LocalVar) extends Addressable
+  case class GlobVar(op: GlobalVar) extends Addressable // TODO: obtain better name
   case class Pointer(op: Deref) extends Addressable
   case class Field(op: FieldRef) extends Addressable
   case class Index(op: IndexedExp) extends Addressable
@@ -1064,7 +1068,7 @@ sealed trait Var extends Expr with Location {
 /**
   * Any variable that has a global scope.
   * */
-sealed trait GlobalVar extends Var
+sealed trait Global extends Var
 
 /**
   * Any variable whose scope is the body of a method, function, or predicate.
@@ -1099,7 +1103,11 @@ case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends
 /** Variables that can be defined in the body of a method or function. */
 case class LocalVar(id: String, typ: Type)(val info: Source.Parser.Info) extends BodyVar with AssignableVar with BlockDeclaration
 
-sealed trait GlobalConst extends GlobalVar {
+case class GlobalVar(name: GlobalVarProxy, typ: Type)(val info: Source.Parser.Info) extends AssignableVar with Global {
+  override def id: String = name.name
+}
+
+sealed trait GlobalConst extends Global {
   def unapply(arg: GlobalConst): Some[(String, Type)] =
     Some((arg.id, arg.typ))
 }
@@ -1411,4 +1419,5 @@ case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Pa
 
 case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BlockDeclaration
 
+case class GlobalVarProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
 

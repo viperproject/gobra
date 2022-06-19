@@ -7,22 +7,23 @@
 package viper.gobra.translator.encodings.combinators
 
 import org.bitbucket.inkytonik.kiama.==>
+import viper.gobra.translator.util.PartialFunctionCombiner
 import viper.gobra.util.Violation
 
 /**
   * Combines encodings by sequentially picking the first encoding that is defined on an argument.
   * An error is thrown if more than one encoding is defined on an argument.
   */
-class SafeTypeEncodingCombiner(encodings: Vector[TypeEncoding]) extends TypeEncodingCombiner(encodings) {
+class SafeTypeEncodingCombiner(encodings: Vector[TypeEncoding], defaults: Vector[TypeEncoding]) extends TypeEncodingCombiner(encodings, defaults) {
 
   override protected[combinators] def combiner[X, Y](get: TypeEncoding => (X ==> Y)): X ==> Y = {
-    case x if encodings.exists(enc => get(enc).isDefinedAt(x)) =>
-      val encodingsResultPairs = encodings.flatMap(enc => get(enc).lift(x).map(enc -> _))
-      if (encodingsResultPairs.size == 1) {
-        encodingsResultPairs.head._2
-      } else {
-        val listOfSupportingEncodings = encodingsResultPairs.map(_._1.getClass).mkString(", ")
-        Violation.violation(s"Argument $x is supported by more than one encoding: $listOfSupportingEncodings")
-      }
+    combine(encodings)(get) orElse combine(defaults)(get)
+  }
+
+  def combine[X, Y](encodings: Vector[TypeEncoding])(get: TypeEncoding => (X ==> Y)): X ==> Y = {
+    PartialFunctionCombiner.combineWithErrorMsg(encodings)(get){ case (arg, encodings) =>
+      val listOfSupportingEncodings = encodings.map(_.getClass).mkString(", ")
+      Violation.violation(s"Argument $arg is supported by more than one encoding: $listOfSupportingEncodings")
+    }
   }
 }

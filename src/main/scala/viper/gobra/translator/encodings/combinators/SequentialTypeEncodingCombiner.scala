@@ -7,15 +7,18 @@
 package viper.gobra.translator.encodings.combinators
 
 import org.bitbucket.inkytonik.kiama.==>
+import viper.gobra.translator.util.PartialFunctionCombiner
 
 /**
   * Combines encodings by sequentially picking the first encoding that is defined on an argument.
   */
-class SequentialTypeEncodingCombiner(encodings: Vector[TypeEncoding]) extends TypeEncodingCombiner(encodings) {
+class SequentialTypeEncodingCombiner(encodings: Vector[TypeEncoding], defaults: Vector[TypeEncoding]) extends TypeEncodingCombiner(encodings, defaults) {
 
   override protected[combinators] def combiner[X, Y](get: TypeEncoding => (X ==> Y)): X ==> Y = {
-    encodings.foldRight[X ==> Y](PartialFunction.empty){ case (encoding, w) =>
-      get(encoding) orElse w
-    }
+    combine(encodings)(get) orElse combine(defaults)(get)
+  }
+
+  def combine[X, Y](encodings: Vector[TypeEncoding])(get: TypeEncoding => (X ==> Y)): X ==> Y = {
+    PartialFunctionCombiner.combine(encodings map get)
   }
 }

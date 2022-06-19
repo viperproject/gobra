@@ -4,7 +4,7 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra.translator.encodings.members
+package viper.gobra.translator.encodings.defaults
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
@@ -12,13 +12,13 @@ import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.silver.{ast => vpr}
 
-class DefaultPureMethodEncoding(isHandled: (in.PureMethod, Context) => Boolean) extends Encoding {
+class DefaultPureMethodEncoding extends Encoding {
 
   import viper.gobra.translator.util.ViperWriter._
   import MemberLevel._
 
   override def function(ctx: Context): in.Member ==> MemberWriter[vpr.Function] = {
-    case x: in.PureMethod if isHandled(x, ctx) => pureMethodDefault(x)(ctx)
+    case x: in.PureMethod => pureMethodDefault(x)(ctx)
     case x: in.PureFunction => pureFunctionDefault(x)(ctx)
   }
 

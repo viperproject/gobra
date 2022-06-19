@@ -29,7 +29,6 @@ class MemoryEncoding extends Encoding {
 
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
     case in.Access(in.Accessible.Address(l), p) => ctx.foot(l, p)
-    case x@ in.Access(_: in.Accessible.ExprAccess, _) => ctx.ass(x)
   }
 
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {

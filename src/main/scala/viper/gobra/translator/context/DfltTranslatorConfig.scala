@@ -13,7 +13,7 @@ import viper.gobra.translator.encodings.channels.ChannelEncoding
 import viper.gobra.translator.encodings.combinators.{DefaultEncoding, FinalTypeEncoding, SafeTypeEncodingCombiner, TypeEncoding}
 import viper.gobra.translator.encodings.interfaces.InterfaceEncoding
 import viper.gobra.translator.encodings.maps.{MapEncoding, MathematicalMapEncoding}
-import viper.gobra.translator.encodings.members.{DefaultMethodEncoding, DefaultPredicateEncoding, DefaultPureMethodEncoding}
+import viper.gobra.translator.encodings.defaults.{DefaultMethodEncoding, DefaultPredicateEncoding, DefaultPureMethodEncoding}
 import viper.gobra.translator.encodings.options.OptionEncoding
 import viper.gobra.translator.encodings.preds.PredEncoding
 import viper.gobra.translator.encodings.sequences.SequenceEncoding
@@ -54,22 +54,22 @@ class DfltTranslatorConfig(
 
   val arrayEncoding: ArrayEncoding = new ArrayEncoding()
 
-  val interfaceEncoding = new InterfaceEncoding
-  val methodEncoding = new DefaultMethodEncoding((p,_) => !p.receiver.typ.isInstanceOf[in.InterfaceT])
-  val pureMethodEncoding = new DefaultPureMethodEncoding((p,_) => !p.receiver.typ.isInstanceOf[in.InterfaceT])
-  val predicateEncoding = new DefaultPredicateEncoding((p,ctx) => !interfaceEncoding.hasFamily(p.name)(ctx))
+  val methodEncoding = new DefaultMethodEncoding
+  val pureMethodEncoding = new DefaultPureMethodEncoding
+  val predicateEncoding = new DefaultPredicateEncoding
 
   val typeEncoding: TypeEncoding = new FinalTypeEncoding(
     new SafeTypeEncodingCombiner(Vector(
       new BoolEncoding, new IntEncoding, new PermissionEncoding,
-      new PointerEncoding, new StructEncoding, arrayEncoding, interfaceEncoding,
+      new PointerEncoding, new StructEncoding, arrayEncoding, new InterfaceEncoding,
       new SequenceEncoding, new SetEncoding, new OptionEncoding, new DomainEncoding,
       new SliceEncoding(arrayEncoding), new PredEncoding, new ChannelEncoding, new StringEncoding,
       new MapEncoding, new MathematicalMapEncoding, new FloatEncoding,
       new AssertionEncoding, new CallEncoding, new MemoryEncoding, new ControlEncoding,
       new TerminationEncoding, new BuiltInEncoding, new OutlineEncoding,
+      new GlobalEncoding, new Comments,
+    ), Vector(
       methodEncoding, pureMethodEncoding, predicateEncoding,
-      new Comments,
     ))
   )
 

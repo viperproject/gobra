@@ -16,7 +16,7 @@ import viper.silver.{ast => vpr}
 /**
   * Combines a vector of type encodings.
   */
-abstract class TypeEncodingCombiner(encodings: Vector[TypeEncoding]) extends TypeEncoding {
+abstract class TypeEncodingCombiner(encodings: Vector[TypeEncoding], defaults: Vector[TypeEncoding]) extends TypeEncoding {
 
   /**
     * Combines partial functions selected by 'get' into a single partial function
@@ -31,7 +31,10 @@ abstract class TypeEncodingCombiner(encodings: Vector[TypeEncoding]) extends Typ
       (y: Y) => functions.foldLeft(y){ case (r,f) => f(r) }
   }
 
-  override def finalize(addMemberFn: vpr.Member => Unit): Unit = encodings.foreach(_.finalize(addMemberFn))
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    encodings.foreach(_.finalize(addMemberFn))
+    defaults.foreach(_.finalize(addMemberFn))
+  }
 
   override def typ(ctx: Context): in.Type ==> vpr.Type = combiner(_.typ(ctx))
   override def variable(ctx: Context): in.BodyVar ==> vpr.LocalVarDecl = combiner(_.variable(ctx))

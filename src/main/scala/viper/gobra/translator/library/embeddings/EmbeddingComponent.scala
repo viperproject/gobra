@@ -4,11 +4,11 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra.translator.encodings
+package viper.gobra.translator.library.embeddings
 
 import viper.gobra.translator.Names
-import viper.gobra.translator.library.Generator
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.library.Generator
 import viper.silver.{ast => vpr}
 
 trait EmbeddingParameter {

@@ -4,7 +4,7 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra.translator.encodings.members
+package viper.gobra.translator.encodings.defaults
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
@@ -14,13 +14,13 @@ import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.{ast => vpr}
 
-class DefaultPredicateEncoding(isHandled: (in.MPredicate, Context) => Boolean) extends Encoding {
+class DefaultPredicateEncoding extends Encoding {
 
   import viper.gobra.translator.util.ViperWriter.MemberLevel._
   import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl}
 
   override def predicate(ctx: Context): in.Member ==> MemberWriter[vpr.Predicate] = {
-    case x: in.MPredicate if isHandled(x, ctx) => mpredicateDefault(x)(ctx)
+    case x: in.MPredicate => mpredicateDefault(x)(ctx)
     case x: in.FPredicate => fpredicateDefault(x)(ctx)
   }
 

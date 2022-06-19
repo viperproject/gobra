@@ -24,7 +24,7 @@ trait TypeEncoding extends Generator {
 
   import viper.gobra.translator.util.TypePatterns._
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
-  import viper.gobra.translator.util.ViperWriter.{MemberLevel => mw}
+  import viper.gobra.translator.util.ViperWriter.{MemberLevel => ml}
 
   /**
     * Translates a type into a Viper type.
@@ -240,9 +240,9 @@ trait TypeEncoding extends Generator {
     }
   }
 
-  final def precondition(ctx: Context): in.Assertion ==> MemberWriter[vpr.Exp] = contract(ctx) andThen(mw.pure(_)(ctx))
+  final def precondition(ctx: Context): in.Assertion ==> MemberWriter[vpr.Exp] = contract(ctx) andThen(ml.pure(_)(ctx))
 
-  final def postcondition(ctx: Context): in.Assertion ==> MemberWriter[vpr.Exp] = contract(ctx) andThen(mw.pure(_)(ctx))
+  final def postcondition(ctx: Context): in.Assertion ==> MemberWriter[vpr.Exp] = contract(ctx) andThen(ml.pure(_)(ctx))
 
   /**
     * Encodes the reference of an expression.
@@ -343,7 +343,12 @@ trait TypeEncoding extends Generator {
   /** Adds to the encoding of [[statement]]. The extension is applied to the result of the final statement encoding. */
   def extendStatement(@unused ctx: Context): in.Stmt ==> Extension[CodeWriter[vpr.Stmt]] = PartialFunction.empty
   final def finalStatement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
-    val f = statement(ctx); { case n@f(v) => extendStatement(ctx).lift(n).fold(v)(_(v)) }
+    val f = statement(ctx); {
+      case n@f(v) =>
+        // makes sure that the statements aggregated by the writer are emitted at the proper position.
+        val closedV = seqn(v)
+        extendStatement(ctx).lift(n).fold(closedV)(_(closedV))
+    }
   }
 
 

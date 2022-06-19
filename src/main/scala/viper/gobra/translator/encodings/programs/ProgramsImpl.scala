@@ -25,7 +25,7 @@ class ProgramsImpl extends Programs {
 
     def goM(member: in.Member): MemberWriter[(Vector[vpr.Member], Context)] = {
       /** we use a separate context for each member in order to reset the fresh counter */
-      val ctx = (mainCtx := (initialFreshCounterValueN = 0))
+      val ctx = mainCtx := (initialFreshCounterValueN = 0)
       ctx.member(member).map(m => (m, ctx))
     }
 

@@ -24,8 +24,12 @@ object PartialFunctionCombiner {
 
     val combination: X ==> Y = new (X ==> Y){
       override def unapply(a: X): Option[Y] = select(a, safeApply(a))
-      override def isDefinedAt(x: X): Boolean = unapply(x).isDefined
+      override def isDefinedAt(x: X): Boolean = funcs.exists(_.isDefinedAt(x))
       override def apply(v1: X): Y = unapply(v1).get
+
+      // Necessary for performance. This avoids that [[isDefinedAt]] is called
+      override def applyOrElse[A1 <: X, B1 >: Y](x: A1, default: A1 => B1): B1 =
+        select(x, safeApply(x)).getOrElse(default(x))
     }
   }
 

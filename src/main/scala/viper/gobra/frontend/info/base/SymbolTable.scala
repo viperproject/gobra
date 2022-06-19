@@ -100,13 +100,15 @@ object SymbolTable extends Environments[Entity] {
   }
 
   // TODO: cleanup params
-  case class SingleGlobalVariable(decl: PVarDecl, exp: Option[PExpression], opt: Option[PType], rep: PNode, ghost: Boolean, context: ExternalTypeInfo) extends ActualVariable with GlobalVariable {
-    require(exp.isDefined || opt.isDefined)
+  case class SingleGlobalVariable(decl: PVarDecl, expOpt: Option[PExpression], typOpt: Option[PType], ghost: Boolean, context: ExternalTypeInfo) extends ActualVariable with GlobalVariable {
+    require(expOpt.isDefined || typOpt.isDefined)
+    override def rep: PNode = decl
     override def addressable: Boolean = true
   }
   // TODO: put type here
-  case class MultiGlobalVariable(decl: PVarDecl, idx: Int, exp: PExpression, ghost: Boolean, context: ExternalTypeInfo) extends ActualVariable with GlobalVariable {
-    override def rep: PNode = exp
+  case class MultiGlobalVariable(decl: PVarDecl, idx: Int, expOpt: Option[PExpression], typOpt: Option[PType], ghost: Boolean, context: ExternalTypeInfo) extends ActualVariable with GlobalVariable {
+    require(expOpt.isDefined || typOpt.isDefined)
+    override def rep: PNode = decl
     override def addressable: Boolean = true
   }
 

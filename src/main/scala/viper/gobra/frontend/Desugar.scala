@@ -9,10 +9,9 @@ package viper.gobra.frontend
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
-import viper.gobra.frontend.info.base.SymbolTable.{MultiGlobalVariable, SingleGlobalVariable}
+import viper.gobra.frontend.info.base.SymbolTable.{GlobalVariable, MultiGlobalVariable, SingleGlobalVariable}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
-import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.Source.AutoImplProofAnnotation
@@ -390,47 +389,52 @@ object Desugar {
         // used to check that types implement interfaces.
         Vector()
       } else {
-        StrictAssignMode(decl.left.length, decl.right.length) match {
-          case AssignMode.Single =>
-          case AssignMode.Multi =>
-            // TODO: explain
-          case AssignMode.Variadic if decl.right.isEmpty =>
-          case m => Violation.violation(s"Expected Single or Multi assign mode here, but got $m instead")
-        }
-
         // lhs must be a set of global vars
-        println(s"lefts: ${decl.left}")
         decl.left.flatMap(l => info.regular(l) match {
-          case sg@SingleGlobalVariable(_, expOpt, _, id, _, _) =>
-            val src = meta(id)
+          case sg: SingleGlobalVariable =>
+            val src = meta(sg.decl)
             val gVar = globalVarD(sg)(src)
             val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
-            val (exprs, stmts, decls) = expOpt.map(exprD(ctx)) match {
+            val (exprs, stmts, decls) = sg.expOpt.map(exprD(ctx)) match {
               case Some(w) => (Vector(w.res), w.stmts, w.decls)
               case None => (Vector.empty, Vector.empty, Vector.empty)
             }
             Vector(in.GlobalVarDecl(Vector(gVar), Some(exprs), Some(decls), Some(stmts))(src))
-          case mg: MultiGlobalVariable =>
-            // TODO:
+          case _: MultiGlobalVariable =>
+            // TODO: fix, very buggy
+            /*
+            val src = meta(mg.decl.left(mg.idx))
+            val gVar = globalVarD(mg)(src)
+            val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
+            val (exprs, stmts, decls) = exprD(ctx)(mg.exp) match {
+              case w => (Vector(w.res), w.stmts, w.decls)
+            }
+            Vector(in.GlobalVarDecl(Vector(gVar), Some(exprs), Some(decls), Some(stmts))(src))
+
+             */
             Vector()
           case st.Wildcard(_, _) =>
             // Maybe the optimization above can be a subcase of this one
-            // TODO:
-            Vector()
+            ???
           case n =>
             Violation.violation(s"Expected a global variable or wildcard on the left hand-side, but instead got $n")
         })
       }
     }
 
-    // TODO: change to Addressability Global
+    // TODO: Cleanup
     def globalVarD(v: st.GlobalVariable)(src: Meta): in.GlobalVar = v match {
       case v: SingleGlobalVariable =>
-        // TODO: improve line below, no repetition, better explained with doc
-        val typ = v.opt.map(t => typeD(v.context.symbType(t), Addressability.Shared)(src)).getOrElse(typeD(v.context.typ(v.decl.right.head), Addressability.Shared)(src))
+        // TODO: abstract this pattern somewhere
+        val typ = typeD(v.context.typ(v.decl.left.head), Addressability.globalVariable)(src)
         val proxy = globalVarProxyD(v)
         in.GlobalVar(proxy, typ)(src)
-      case _ => ??? // TODO: support remaining case
+      case v: MultiGlobalVariable =>
+        // TODO: improve line below, no repetition, better explained with doc
+        val typ = typeD(v.context.typ(v.decl.left(v.idx)), Addressability.globalVariable)(src)
+        val proxy = globalVarProxyD(v)
+        in.GlobalVar(proxy, typ)(src)
+      // TODO: support remaining case: Wildcard
     }
 
     def globalVarProxyD(v: st.GlobalVariable): in.GlobalVarProxy = v match {
@@ -438,7 +442,11 @@ object Desugar {
         // TODO: Improve to not have left(0)
         val name = idName(v.decl.left(0), v.context.getTypeInfo) // improve, add method, no need to do left(0) every time
         in.GlobalVarProxy(v.decl.left(0).name, name)(meta(v.decl, v.context.getTypeInfo))
-      case _ => ??? // TODO: support remaining case
+      case v: MultiGlobalVariable =>
+        // TODO: Improve to not have left(v.idx)
+        val name = idName(v.decl.left(v.idx), v.context.getTypeInfo) // improve, add method, no need to do left(0) every time
+        in.GlobalVarProxy(v.decl.left(v.idx).name, name)(meta(v.decl, v.context.getTypeInfo))
+      case _ => ??? // TODO: support remaining case: wildcard
 
     }
 
@@ -1549,12 +1557,8 @@ object Desugar {
             case r => Violation.violation(s"expected variable reference but got $r")
           }
         case Some(p: ap.GlobalVariable) =>
-          p.symb match {
-            case g: SingleGlobalVariable =>
-              val globVar = globalVarD(g)(src)
-              unit(in.Addressable.GlobVar(globVar))
-            case MultiGlobalVariable(decl, idx, exp, ghost, context) => ???
-          }
+          val globVar = globalVarD(p.symb)(src)
+          unit(in.Addressable.GlobVar(globVar))
         case Some(p: ap.Deref) =>
           derefD(ctx)(p)(src) map in.Addressable.Pointer
         case Some(p: ap.FieldSelection) =>
@@ -2519,11 +2523,10 @@ object Desugar {
       require(info.regular(id).isInstanceOf[st.Variable])
 
       info.regular(id) match {
-        case g: SingleGlobalVariable =>
+        case g: GlobalVariable =>
           // TODO: improve here
           val src: Meta = meta(id, info)
           globalVarD(g)(src)
-        case _: MultiGlobalVariable => ???
         case _ => ctx(id) match {
           case Some(v: in.AssignableVar) => v
           case Some(_) => violation("expected an assignable variable")
@@ -3182,13 +3185,11 @@ object Desugar {
     }
 
     private def meta(n: PNode, context: TypeInfo = info): Source.Parser.Single = {
-      println(s"node ${n.getClass}")
       val pom = context.getTypeInfo.tree.originalRoot.positions
       val start = pom.positions.getStart(n).get
       val finish = pom.positions.getFinish(n).get
       val pos = pom.translate(start, finish)
       val tag = pom.positions.substring(start, finish).get
-      println("success")
       Source.Parser.Single(n, Source.Origin(pos, tag))
     }
   }

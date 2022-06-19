@@ -72,16 +72,20 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       })
     })
 
-    case SingleGlobalVariable(_, exp, opt, _, _, _) => unsafeMessage(! {
-      opt.exists(wellDefAndType.valid) || exp.exists(e => wellDefAndExpr.valid(e) && Single.unapply(exprType(e)).nonEmpty)
+    case SingleGlobalVariable(_, expOpt, typOpt, _, _) => unsafeMessage(! {
+      typOpt.exists(wellDefAndType.valid) ||
+        expOpt.exists(e => wellDefAndExpr.valid(e) && Single.unapply(exprType(e)).nonEmpty)
     })
 
-    case MultiGlobalVariable(_, idx, exp, _, _) => unsafeMessage(! {
-      wellDefAndExpr.valid(exp) && (exprType(exp) match {
-        case Assign(InternalTupleT(ts)) if idx < ts.size => true
-        case _ => false
+    case MultiGlobalVariable(_, idx, expOpt, _, _, _) =>
+      unsafeMessage(! {
+        expOpt.forall{ exp => wellDefAndExpr.valid(exp) &&
+          (exprType(exp) match {
+            case Assign(InternalTupleT(ts)) if idx < ts.size => true
+            case _ => false
+          })
+        }
       })
-    })
 
     case Function(PFunctionDecl(_, args, r, _, _), _, _) => unsafeMessage(! {
       args.forall(wellDefMisc.valid) && miscType.valid(r)
@@ -174,16 +178,17 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"expected tuple but got $t")
     }
 
-    case SingleGlobalVariable(_, exp, opt, _, _, context) => opt.map(context.symbType)
-      .getOrElse(context.typ(exp.get) match {
+    case SingleGlobalVariable(_, expOpt, typOpt, _, context) => typOpt.map(context.symbType)
+      .getOrElse(context.typ(expOpt.get) match {
         case Single(t) => t
         case t => violation(s"expected single Type but got $t")
       })
 
-    case MultiGlobalVariable(_, idx, exp, _, context) => context.typ(exp) match {
-      case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
-      case t => violation(s"expected tuple but got $t")
-    }
+    case MultiGlobalVariable(_, idx, expOpt, typOpt, _, context) => typOpt.map(context.symbType)
+      .getOrElse(context.typ(expOpt.get) match {
+        case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
+        case t => violation(s"expected tuple but got $t")
+      })
 
     case Function(PFunctionDecl(_, args, r, _, _), _, context) =>
       FunctionT(args map context.typ, context.typ(r))
@@ -243,7 +248,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case AssignMode.Multi => exprType(right.head) match {
         case t: InternalTupleT => t.ts(pos)
         case t: InternalSingleMulti => t.mul.ts(pos)
-        case _ => violation("return type of multi-assignment should be an InternalTupleT")
+        case t => violation(s"return type of multi-assignment should be an InternalTupleT, but got $t instead")
       }
       case AssignMode.Error | AssignMode.Variadic => violation("ill formed assignment")
     }

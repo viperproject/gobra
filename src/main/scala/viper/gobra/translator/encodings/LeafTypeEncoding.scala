@@ -45,12 +45,10 @@ trait LeafTypeEncoding extends TypeEncoding {
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
     case (in.Assignee((loc: in.Location) :: t / Shared), rhs, src) if  typ(ctx).isDefinedAt(t) =>
-      println(s"Assignment ${loc.getClass}")
       val (pos, info, errT) = src.vprMeta
       for {
         rhs <- ctx.expr.translate(rhs)(ctx)
         lval <- ctx.expr.translate(loc)(ctx).map(_.asInstanceOf[vpr.FieldAccess])
-        _ = println(s"${lval}")
       } yield vpr.FieldAssign(lval, rhs)(pos, info, errT)
   }
 

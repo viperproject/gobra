@@ -30,7 +30,7 @@ class FixpointImpl extends Fixpoint {
     val getFuncApp = get(gc.left)(ctx)
     val getAxiom = vpr.NamedDomainAxiom(
       name = s"get_constant${gc.left.id}",
-      exp = vpr.EqCmp(getFuncApp, ctx.expr.translate(gc.right)(ctx).res)(pos, info, errT),
+      exp = vpr.EqCmp(getFuncApp, ctx.expr(gc.right).res)(pos, info, errT),
     )(domainName = domainName)
 
     val domain = vpr.Domain(
@@ -50,7 +50,7 @@ class FixpointImpl extends Fixpoint {
       vpr.DomainFunc(
         name = s"constant_${v.id}",
         formalArgs = Seq(),
-        typ = ctx.typeEncoding.typ(ctx)(v.typ)
+        typ = ctx.typ(v.typ)
       )(domainName = constantDomainName(v))
     case _ => ???
   }

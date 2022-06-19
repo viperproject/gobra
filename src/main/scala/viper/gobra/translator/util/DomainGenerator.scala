@@ -7,7 +7,7 @@
 package viper.gobra.translator.util
 
 import viper.gobra.translator.interfaces.Context
-import viper.gobra.translator.interfaces.translator.Generator
+import viper.gobra.translator.library.Generator
 import viper.silver.{ast => vpr}
 
 trait DomainGenerator[T] extends Generator {

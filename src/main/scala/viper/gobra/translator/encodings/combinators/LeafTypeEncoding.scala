@@ -4,11 +4,11 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra.translator.encodings
+package viper.gobra.translator.encodings.combinators
 
 import org.bitbucket.inkytonik.kiama.==>
-import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeLevel.unit
 import viper.gobra.translator.util.ViperWriter.CodeWriter
@@ -43,12 +43,12 @@ trait LeafTypeEncoding extends TypeEncoding {
     *
     * [loc: T@ = rhs] -> [loc] = [rhs]
     */
-  override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
-    case (in.Assignee((loc: in.Location) :: t / Shared), rhs, src) if  typ(ctx).isDefinedAt(t) =>
+  override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)) {
+    case (in.Assignee((loc: in.Location) :: t / Shared), rhs, src) if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = src.vprMeta
       for {
-        rhs <- ctx.expr.translate(rhs)(ctx)
-        lval <- ctx.expr.translate(loc)(ctx).map(_.asInstanceOf[vpr.FieldAccess])
+        rhs <- ctx.expr(rhs)
+        lval <- ctx.expr(loc).map(_.asInstanceOf[vpr.FieldAccess])
       } yield vpr.FieldAssign(lval, rhs)(pos, info, errT)
   }
 
@@ -62,14 +62,14 @@ trait LeafTypeEncoding extends TypeEncoding {
     * R[ dflt(T@) ] -> null
     * R[ loc: T@ ] -> Ref[loc].val
     */
-  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expr(ctx)){
+  override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)) {
     case (dflt: in.DfltVal) :: t / Shared if typ(ctx).isDefinedAt(t) =>
       unit(withSrc(vpr.NullLit(), dflt))
 
     case (loc: in.Location) :: t / Shared if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
       for {
-        vLoc <- ctx.typeEncoding.reference(ctx)(loc)
+        vLoc <- ctx.ref(loc)
       } yield vpr.FieldAccess(vLoc, ctx.field.field(t.withAddressability(Exclusive))(ctx))(pos, info, errT)
   }
 
@@ -84,8 +84,8 @@ trait LeafTypeEncoding extends TypeEncoding {
     case (loc :: t / Shared, p) if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
       for {
-        vprPerm <- ctx.typeEncoding.expr(ctx)(p)
-        l <- ctx.expr.translate(loc)(ctx).map(_.asInstanceOf[vpr.FieldAccess])
+        vprPerm <- ctx.expr(p)
+        l <- ctx.expr(loc).map(_.asInstanceOf[vpr.FieldAccess])
       } yield vpr.FieldAccessPredicate(l, vprPerm)(pos, info, errT)
   }
 }

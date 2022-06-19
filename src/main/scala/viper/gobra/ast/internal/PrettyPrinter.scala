@@ -371,6 +371,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Access(e, p) => "acc" <> parens(showAcc(e) <> "," <+> showExpr(p))
     case SepForall(vars, triggers, body) =>
       "forall" <+> showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showAss(body)
+    case t: TerminationMeasure => showTerminationMeasure(t)
   })
 
   def showAcc(acc: Accessible): Doc = updatePositionStore(acc) <> (acc match {

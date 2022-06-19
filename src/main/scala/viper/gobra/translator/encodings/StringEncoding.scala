@@ -13,6 +13,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
+import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeLevel._
@@ -53,11 +54,11 @@ class StringEncoding extends LeafTypeEncoding {
     * [ s[low : high] : string -> strSlice([ s ], [ low ], [ high ])
     * [ string(s :: []byte) ] -> byteSliceToStrFunc([ s ])
     */
-  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+  override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
 
-    default(super.expr(ctx)) {
+    default(super.expression(ctx)) {
       case (e: in.DfltVal) :: ctx.String() / Exclusive =>
         unit(withSrc(vpr.DomainFuncApp(func = makeFunc(""), Seq(), Map.empty), e)) // "" is the default string value
       case (lit: in.StringLit) :: _ / Exclusive =>
@@ -93,7 +94,7 @@ class StringEncoding extends LeafTypeEncoding {
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
 
-    def goA(x: in.Assertion): CodeWriter[vpr.Exp] = ctx.ass.translate(x)(ctx)
+    def goA(x: in.Assertion): CodeWriter[vpr.Exp] = ctx.ass(x)
 
     default(super.statement(ctx)) {
       case conv@in.EffectfulConversion(target, in.SliceT(in.IntT(_, TypeBounds.Byte), _), _) =>
@@ -103,7 +104,7 @@ class StringEncoding extends LeafTypeEncoding {
 
         val sliceT = in.SliceT(in.IntT(Addressability.sliceElement, TypeBounds.Byte), Addressability.outParameter)
         val slice = in.LocalVar(ctx.freshNames.next(), sliceT)(conv.info)
-        val vprSlice = ctx.typeEncoding.variable(ctx)(slice)
+        val vprSlice = ctx.variable(slice)
         val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(conv.info)
         val post = in.SepForall(
           vars = Vector(qtfVar),
@@ -119,7 +120,7 @@ class StringEncoding extends LeafTypeEncoding {
             _ <- local(vprSlice)
             vprPost <- goA(post)
             _ <- write(vpr.Inhale(vprPost)(pos, info, errT))
-            ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), slice, conv)
+            ass <- ctx.assignment(in.Assignee.Var(target), slice)(conv)
           } yield ass
         )
     }
@@ -296,7 +297,7 @@ class StringEncoding extends LeafTypeEncoding {
         terminationMeasures = Vector(in.WildcardMeasure(None)(info)),
         body = None
       )(info)
-      val translatedFunc = ctx.pureMethod.pureFunction(func)(ctx)
+      val translatedFunc = ctx.function(func)
       translatedFunc.res
     }
   }

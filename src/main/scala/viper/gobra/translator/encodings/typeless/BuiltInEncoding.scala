@@ -4,16 +4,18 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra.translator.implementations.translator
+package viper.gobra.translator.encodings.typeless
 
+import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.translator.BuiltInMembers
+import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.util.ViperWriter.MemberWriter
 import viper.gobra.translator.util.PrimitiveGenerator
 import viper.gobra.util.Computation
 import viper.gobra.util.Violation.violation
@@ -22,11 +24,10 @@ import viper.silver.{ast => vpr}
 import scala.annotation.unused
 import scala.language.postfixOps
 
-
 /**
   * Encodes built-in members by translating them to 'regular' members and calling the corresponding encoding
   */
-class BuiltInMembersImpl extends BuiltInMembers {
+class BuiltInEncoding extends Encoding {
 
   // the implementation uses 4 distinct generators (instead of a single one) such that the exposed
   // methods (i.e. method, function, fpredicate, and mpredicate) can return the translated 'regular' member.
@@ -38,6 +39,16 @@ class BuiltInMembersImpl extends BuiltInMembers {
     mPredicateGenerator.finalize(addMemberFn)
   }
 
+  import viper.gobra.translator.util.ViperWriter.{MemberLevel => mw}
+
+  // TODO: the default method should be used, but currently, this would generate duplicates.
+  override def method(@unused ctx: Context): in.Member ==> MemberWriter[vpr.Method] = PartialFunction.empty
+  override def function(@unused ctx: Context): in.Member ==> MemberWriter[vpr.Function] = PartialFunction.empty
+  override def predicate(@unused ctx: Context): in.Member ==> MemberWriter[vpr.Predicate] = PartialFunction.empty
+  override def otherMember(@unused ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
+    case x: in.BuiltInMember => member(x)(ctx); mw.unit(Vector.empty)
+  }
+
   private def member(x: in.BuiltInMember)(ctx: Context): in.Member =
     x match {
       case m: in.BuiltInMethod => methodGenerator(m, ctx)
@@ -46,24 +57,28 @@ class BuiltInMembersImpl extends BuiltInMembers {
       case p: in.BuiltInMPredicate => mPredicateGenerator(p, ctx)
     }
 
-  override def method(x: in.BuiltInMethod)(ctx: Context): in.MethodMember =
-    methodGenerator(x, ctx)
+  override def builtInMethod(ctx: Context): in.BuiltInMethod ==> in.MethodMember = {
+    case x => methodGenerator(x, ctx)
+  }
 
-  override def function(x: in.BuiltInFunction)(ctx: Context): in.FunctionMember =
-    functionGenerator(x, ctx)
+  override def builtInFunction(ctx: Context): in.BuiltInFunction ==> in.FunctionMember = {
+    case x => functionGenerator(x, ctx)
+  }
 
-  override def fpredicate(x: in.BuiltInFPredicate)(ctx: Context): in.FPredicate =
-    fPredicateGenerator(x, ctx)
+  override def builtInFPredicate(ctx: Context): in.BuiltInFPredicate ==> in.FPredicate = {
+    case x => fPredicateGenerator(x, ctx)
+  }
 
-  override def mpredicate(x: in.BuiltInMPredicate)(ctx: Context): in.MPredicate =
-    mPredicateGenerator(x, ctx)
+  override def builtInMPredicate(ctx: Context): in.BuiltInMPredicate ==> in.MPredicate = {
+    case x => mPredicateGenerator(x, ctx)
+  }
 
   private val methodGenerator: PrimitiveGenerator.PrimitiveGenerator[(in.BuiltInMethod, Context), in.MethodMember] = PrimitiveGenerator.simpleGenerator {
     case (bm: in.BuiltInMethod, ctx: Context) =>
       val meth = translateMethod(bm)(ctx)
       val m = meth match {
-        case meth: in.Method => ctx.method.method(meth)(ctx).res
-        case meth: in.PureMethod => ctx.pureMethod.pureMethod(meth)(ctx).res
+        case meth: in.Method => ctx.method(meth).res
+        case meth: in.PureMethod => ctx.function(meth).res
       }
       (meth, Vector(m))
   }
@@ -72,8 +87,8 @@ class BuiltInMembersImpl extends BuiltInMembers {
     case (bf: in.BuiltInFunction, ctx: Context) =>
       val func = translateFunction(bf)(ctx)
       val f = func match {
-        case func: in.Function => ctx.method.function(func)(ctx).res
-        case func: in.PureFunction => ctx.pureMethod.pureFunction(func)(ctx).res
+        case func: in.Function => ctx.method(func).res
+        case func: in.PureFunction => ctx.function(func).res
       }
       (func, Vector(f))
   }
@@ -81,14 +96,14 @@ class BuiltInMembersImpl extends BuiltInMembers {
   private val fPredicateGenerator: PrimitiveGenerator.PrimitiveGenerator[(in.BuiltInFPredicate, Context), in.FPredicate] = PrimitiveGenerator.simpleGenerator {
     case (bp: in.BuiltInFPredicate, ctx: Context) =>
       val pred = translateFPredicate(bp)(ctx)
-      val p = ctx.predicate.fpredicate(pred)(ctx).res
+      val p = ctx.predicate(pred).res
       (pred, Vector(p))
   }
 
   private val mPredicateGenerator: PrimitiveGenerator.PrimitiveGenerator[(in.BuiltInMPredicate, Context), in.MPredicate] = PrimitiveGenerator.simpleGenerator {
     case (bp: in.BuiltInMPredicate, ctx: Context) =>
       val pred = translateMPredicate(bp)(ctx)
-      val p = ctx.predicate.mpredicate(pred)(ctx).res
+      val p = ctx.predicate(pred).res
       (pred, Vector(p))
   }
 
@@ -194,10 +209,10 @@ class BuiltInMembersImpl extends BuiltInMembers {
     val src = x.info
     (x.tag, x.receiverT) match {
       case (BufferSizeMethodTag, recv: in.ChannelT) =>
-      /**
-        * requires acc(c.IsChannel(), _)
-        * pure func (c chan T).BufferSize() (k Int)
-        */
+        /**
+          * requires acc(c.IsChannel(), _)
+          * pure func (c chan T).BufferSize() (k Int)
+          */
         assert(recv.addressability == Addressability.inParameter)
         val recvParam = in.Parameter.In("c", recv)(src)
         val kParam = in.Parameter.Out("k", in.IntT(Addressability.outParameter))(src)
@@ -432,7 +447,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
           * ensures forall i int :: { src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
           * ensures forall i int :: { res[i] } 0 <= i && i < len(dst) ==> res[i] == old(dst[i])
           * ensures forall i int :: { res[i] } len(dst) <= i && i < len(res) ==> res[i] == src[i - len(dst)]
-         */
+          */
         val elemType = ctx.underlyingType(dst) match {
           case t: in.SliceT => t.elems.withAddressability(Addressability.sliceLookup)
           case t => violation(s"Expected type with SliceT as underlying type, but got $t instead.")
@@ -667,5 +682,4 @@ class BuiltInMembersImpl extends BuiltInMembers {
     val method = getOrGenerateMethod(tag, recv.typ, args.map(_.typ))(src)(ctx)
     in.PureMethodCall(recv, method, args, retType)(src)
   }
-
 }

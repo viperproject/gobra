@@ -6,11 +6,11 @@
 
 package viper.gobra.translator.encodings.structs
 
-import viper.gobra.translator.interfaces.translator.Generator
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
 import StructEncoding.ComponentParameter
+import viper.gobra.translator.library.Generator
 
 trait ExclusiveStructComponent extends Generator {
 

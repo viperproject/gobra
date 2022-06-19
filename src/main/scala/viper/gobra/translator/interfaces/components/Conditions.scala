@@ -8,7 +8,7 @@ package viper.gobra.translator.interfaces.components
 
 import viper.gobra.reporting.BackTranslator.ErrorTransformer
 import viper.gobra.reporting.{Source, VerificationError}
-import viper.gobra.translator.interfaces.translator.Generator
+import viper.gobra.translator.library.Generator
 import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
 

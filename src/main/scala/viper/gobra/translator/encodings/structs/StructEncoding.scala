@@ -11,7 +11,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
-import viper.gobra.translator.encodings.TypeEncoding
+import viper.gobra.translator.encodings.combinators.TypeEncoding
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
@@ -24,7 +24,7 @@ private[structs] object StructEncoding {
 
   /** Computes the component parameter. */
   def cptParam(fields: Vector[in.Field])(ctx: Context): ComponentParameter = {
-    fields.map(f => (ctx.typeEncoding.typ(ctx)(f.typ), f.ghost))
+    fields.map(f => (ctx.typ(f.typ), f.ghost))
   }
 }
 
@@ -75,7 +75,7 @@ class StructEncoding extends TypeEncoding {
     */
   override def initialization(ctx: Context): in.Location ==> CodeWriter[vpr.Stmt] = {
     case l :: ctx.Struct(fs) =>
-      seqns(fieldAccesses(l, fs).map(x => ctx.typeEncoding.initialization(ctx)(x)))
+      seqns(fieldAccesses(l, fs).map(x => ctx.initialization(x)))
   }
 
   /**
@@ -98,12 +98,12 @@ class StructEncoding extends TypeEncoding {
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
     case (in.Assignee((fa: in.FieldRef) :: _ / Exclusive), rhs, src) =>
-      ctx.typeEncoding.assignment(ctx)(in.Assignee(fa.recv), in.StructUpdate(fa.recv, fa.field, rhs)(src.info), src)
+      ctx.assignment(in.Assignee(fa.recv), in.StructUpdate(fa.recv, fa.field, rhs)(src.info))(src)
 
     case (in.Assignee(lhs :: ctx.Struct(lhsFs) / Shared), rhs :: ctx.Struct(rhsFs), src) =>
       val lhsFAs = fieldAccesses(lhs, lhsFs).map(in.Assignee.Field)
       val rhsFAs = fieldAccesses(rhs, rhsFs)
-      seqns((lhsFAs zip rhsFAs).map{ case (lhsFA, rhsFA) => ctx.typeEncoding.assignment(ctx)(lhsFA, rhsFA, src) })
+      seqns((lhsFAs zip rhsFAs).map{ case (lhsFA, rhsFA) => ctx.assignment(lhsFA, rhsFA)(src) })
   }
 
   /**
@@ -126,7 +126,7 @@ class StructEncoding extends TypeEncoding {
     case (lhs :: ctx.Struct(lhsFs), rhs :: ctx.Struct(rhsFs), src) =>
       val lhsFAccs = fieldAccesses(lhs, lhsFs)
       val rhsFAccs = fieldAccesses(rhs, rhsFs)
-      val equalFields = sequence((lhsFAccs zip rhsFAccs).map{ case (lhsFA, rhsFA) => ctx.typeEncoding.equal(ctx)(lhsFA, rhsFA, src) })
+      val equalFields = sequence((lhsFAccs zip rhsFAccs).map{ case (lhsFA, rhsFA) => ctx.equal(lhsFA, rhsFA)(src) })
       val (pos, info, errT) = src.vprMeta
       equalFields.map(VU.bigAnd(_)(pos, info, errT))
 
@@ -135,8 +135,8 @@ class StructEncoding extends TypeEncoding {
         unit(withSrc(if (lhs == rhs) vpr.TrueLit() else ctx.unknownValue.unkownValue(vpr.Bool), src))
       } else {
         for {
-          vLhs <- ctx.expr.translate(lhs)(ctx)
-          vRhs <- ctx.expr.translate(rhs)(ctx)
+          vLhs <- ctx.expr(lhs)
+          vRhs <- ctx.expr(rhs)
         } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
       }
   }
@@ -155,30 +155,30 @@ class StructEncoding extends TypeEncoding {
     * R[ structLit(E) ] -> create_ex_struct( [e] | e in E )
     * R[ loc: Struct{F}@ ] -> convert_to_exclusive( Ref[loc] )
     */
-  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expr(ctx)){
+  override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
     case (loc@ in.FieldRef(recv :: ctx.Struct(fs), field)) :: _ / Exclusive =>
       for {
-        vBase <- ctx.expr.translate(recv)(ctx)
+        vBase <- ctx.expr(recv)
         idx = indexOfField(fs, field)
       } yield ex.get(vBase, idx, cptParam(fs)(ctx))(loc)(ctx)
 
     case (upd: in.StructUpdate) :: ctx.Struct(fs) =>
       for {
-        vBase <- ctx.expr.translate(upd.base)(ctx)
+        vBase <- ctx.expr(upd.base)
         idx = indexOfField(fs, upd.field)
-        vVal <- ctx.expr.translate(upd.newVal)(ctx)
+        vVal <- ctx.expr(upd.newVal)
       } yield ex.update(vBase, idx, vVal, cptParam(fs)(ctx))(upd)(ctx)
 
     case (e: in.DfltVal) :: ctx.Struct(fs) / Exclusive =>
       val fieldDefaults = fs.map(f => in.DfltVal(f.typ)(e.info))
-      sequence(fieldDefaults.map(ctx.expr.translate(_)(ctx))).map(ex.create(_, cptParam(fs)(ctx))(e)(ctx))
+      sequence(fieldDefaults.map(ctx.expr)).map(ex.create(_, cptParam(fs)(ctx))(e)(ctx))
 
     case (e: in.DfltVal) :: ctx.Struct(fs) / Shared =>
       val (pos, info, errT) = e.vprMeta
       unit(shDfltFunc(Vector.empty, fs)(pos, info, errT)(ctx))
 
     case (lit: in.StructLit) :: ctx.Struct(fs) =>
-      val fieldExprs = lit.args.map(arg => ctx.expr.translate(arg)(ctx))
+      val fieldExprs = lit.args.map(arg => ctx.expr(arg))
       sequence(fieldExprs).map(ex.create(_, cptParam(fs)(ctx))(lit)(ctx))
 
     case (loc: in.Location) :: ctx.Struct(_) / Shared =>
@@ -196,7 +196,7 @@ class StructEncoding extends TypeEncoding {
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
     case (loc@ in.FieldRef(recv :: ctx.Struct(fs), field)) :: _ / Shared =>
       for {
-        vBase <- ctx.typeEncoding.reference(ctx)(recv.asInstanceOf[in.Location])
+        vBase <- ctx.ref(recv.asInstanceOf[in.Location])
         idx = indexOfField(fs, field)
       } yield sh.get(vBase, idx, cptParam(fs)(ctx))(loc)(ctx)
   }
@@ -222,7 +222,7 @@ class StructEncoding extends TypeEncoding {
         val (pos, info, errT) = exp.vprMeta
         // fields that are not ghost and with dynamic comparability
         val fsAccs = fieldAccesses(exp, fs.filter(f => !f.ghost))
-        val fsComp = fsAccs map ctx.typeEncoding.isComparable(ctx)
+        val fsComp = fsAccs map ctx.isComparable
         // Left(true) can be removed.
         for {
           args <- sequence(fsComp collect { case Right(e) => e })
@@ -254,7 +254,7 @@ class StructEncoding extends TypeEncoding {
       // variable name does not matter because it is turned into a vpr.Result
       val resDummy = in.LocalVar("res", resType)(src.info)
       val resFAccs = fs.map(f => in.Ref(in.FieldRef(resDummy, f)(src.info))(src.info))
-      val fieldEq = resFAccs map (f => ctx.typeEncoding.equal(ctx)(f, in.DfltVal(f.typ)(src.info), src))
+      val fieldEq = resFAccs map (f => ctx.equal(f, in.DfltVal(f.typ)(src.info))(src))
       val post = pure(sequence(fieldEq).map(VU.bigAnd(_)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)))(ctx).res
           .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
 

@@ -8,9 +8,8 @@ package viper.gobra.translator.implementations
 
 import viper.gobra.ast.internal.LookupTable
 import viper.gobra.translator.Names
-import viper.gobra.translator.encodings.TypeEncoding
+import viper.gobra.translator.encodings.combinators.{DefaultEncoding, TypeEncoding}
 import viper.gobra.translator.interfaces.{Context, TranslatorConfig}
-import viper.gobra.translator.interfaces.translator._
 import viper.gobra.translator.interfaces.components._
 import viper.silver.ast.LocalVarDecl
 
@@ -29,14 +28,7 @@ case class ContextImpl(
                         condition: Conditions,
                         unknownValue: UnknownValues,
                         typeEncoding: TypeEncoding,
-                        ass: Assertions,
-                        measures: TerminationMeasures,
-                        expr: Expressions,
-                        method: Methods,
-                        pureMethod: PureMethods,
-                        predicate: Predicates,
-                        builtInMembers: BuiltInMembers,
-                        stmt: Statements,
+                        defaultEncoding: DefaultEncoding,
                         table: LookupTable,
                         initialFreshCounterValue: Int = 0
                       ) extends Context {
@@ -57,15 +49,8 @@ case class ContextImpl(
       conf.condition,
       conf.unknownValue,
       conf.typeEncoding,
-      conf.ass,
-      conf.measures,
-      conf.expr,
-      conf.method,
-      conf.pureMethod,
-      conf.predicate,
-      conf.builtInMembers,
-      conf.stmt,
-      table
+      conf.defaultEncoding,
+      table,
     )
   }
 
@@ -85,14 +70,7 @@ case class ContextImpl(
                    conditionN: Conditions = condition,
                    unknownValueN: UnknownValues = unknownValue,
                    typeEncodingN: TypeEncoding = typeEncoding,
-                   assN: Assertions = ass,
-                   measuresN: TerminationMeasures = measures,
-                   exprN: Expressions = expr,
-                   methodN: Methods = method,
-                   pureMethodN: PureMethods = pureMethod,
-                   predicateN: Predicates = predicate,
-                   builtInMembersN: BuiltInMembers = builtInMembers,
-                   stmtN: Statements = stmt,
+                   defaultEncodingN: DefaultEncoding = defaultEncoding,
                    initialFreshCounterValueN: Int = internalFreshNames.getValue
                  ): Context = copy(
     fieldN,
@@ -109,14 +87,7 @@ case class ContextImpl(
     conditionN,
     unknownValueN,
     typeEncodingN,
-    assN,
-    measuresN,
-    exprN,
-    methodN,
-    pureMethodN,
-    predicateN,
-    builtInMembersN,
-    stmtN,
+    defaultEncodingN,
     initialFreshCounterValue = initialFreshCounterValueN
   )
 

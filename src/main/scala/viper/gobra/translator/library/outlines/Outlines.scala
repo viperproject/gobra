@@ -6,7 +6,7 @@
 
 package viper.gobra.translator.library.outlines
 
-import viper.gobra.translator.interfaces.translator.Generator
+import viper.gobra.translator.library.Generator
 import viper.silver.{ast => vpr}
 
 trait Outlines extends Generator {

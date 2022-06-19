@@ -62,7 +62,7 @@ class PolymorphValueComponentImpl(handle: PolymorphValueInterfaceHandle) extends
 
   /** Extracts an expression from the polymorphic value. */
   override def unbox(arg: vpr.Exp, typ: in.Type)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
-    val vprType = ctx.typeEncoding.typ(ctx)(typ)
+    val vprType = ctx.typ(typ)
     if (vprType == imageType) {
       arg
     } else {
@@ -95,7 +95,7 @@ class PolymorphValueComponentImpl(handle: PolymorphValueInterfaceHandle) extends
     if (!genAxiomSet.contains(t)) {
       genAxiomSet += t
 
-      val vprT = ctx.typeEncoding.typ(ctx)(t)
+      val vprT = ctx.typ(t)
       val typeVarMap = Map(typeVar -> vprT)
 
       def boxApp(arg: vpr.Exp): vpr.DomainFuncApp = vpr.DomainFuncApp(

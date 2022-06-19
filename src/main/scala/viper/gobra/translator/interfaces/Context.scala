@@ -8,10 +8,10 @@ package viper.gobra.translator.interfaces
 
 import viper.gobra.ast.internal.{BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, FPredicate, FunctionMember, LookupTable, MPredicate, MethodMember}
 import viper.gobra.translator.interfaces.components._
-import viper.gobra.translator.interfaces.translator._
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.encodings.TypeEncoding
+import viper.gobra.translator.encodings.combinators.{DefaultEncoding, TypeEncoding}
+import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 
 trait Context {
 
@@ -31,34 +31,50 @@ trait Context {
   def unknownValue: UnknownValues
 
   // translator
-  def typeEncoding: TypeEncoding
-  def ass: Assertions
-  def expr: Expressions
-  def method: Methods
-  def pureMethod: PureMethods
-  def predicate: Predicates
-  def builtInMembers: BuiltInMembers
-  def stmt: Statements
-  def measures: TerminationMeasures
+  protected def typeEncoding: TypeEncoding
+  def defaultEncoding: DefaultEncoding
+
+  def typ(x: in.Type): vpr.Type = typeEncoding.typ(this)(x)
+  def variable(x: in.BodyVar): vpr.LocalVarDecl = typeEncoding.variable(this)(x)
+  def globalVar(x: in.GlobalVar): CodeWriter[vpr.Exp] = typeEncoding.globalVar(this)(x)
+  def member(x: in.Member): MemberWriter[Vector[vpr.Member]] = typeEncoding.member(this)(x)
+  def method(x: in.Member): MemberWriter[vpr.Method] = typeEncoding.finalMethod(this)(x)
+  def function(x: in.Member): MemberWriter[vpr.Function] = typeEncoding.finalFunction(this)(x)
+  def predicate(x: in.Member): MemberWriter[vpr.Predicate] = typeEncoding.finalPredicate(this)(x)
+  def varPrecondition(x: in.Parameter.In): Option[MemberWriter[vpr.Exp]] = typeEncoding.varPrecondition(this).lift(x)
+  def varPostcondition(x: in.Parameter.Out): Option[MemberWriter[vpr.Exp]] = typeEncoding.varPostcondition(this).lift(x)
+  def initialization(x: in.Location): CodeWriter[vpr.Stmt] = typeEncoding.initialization(this)(x)
+  def assignment(x: in.Assignee, rhs: in.Expr)(src: in.Node): CodeWriter[vpr.Stmt] = typeEncoding.assignment(this)(x, rhs, src)
+  def equal(lhs: in.Expr, rhs: in.Expr)(src: in.Node): CodeWriter[vpr.Exp] = typeEncoding.equal(this)(lhs, rhs, src)
+  def goEqual(lhs: in.Expr, rhs: in.Expr)(src: in.Node): CodeWriter[vpr.Exp] = typeEncoding.goEqual(this)(lhs, rhs, src)
+  def expr(x: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.finalExpression(this)(x)
+  def ass(x: in.Assertion): CodeWriter[vpr.Exp] = typeEncoding.finalAssertion(this)(x)
+  def invariant(x: in.Assertion): (CodeWriter[Unit], vpr.Exp) = typeEncoding.invariant(this)(x)
+  def precondition(x: in.Assertion): MemberWriter[vpr.Exp] = typeEncoding.precondition(this)(x)
+  def postcondition(x: in.Assertion): MemberWriter[vpr.Exp] = typeEncoding.postcondition(this)(x)
+  def ref(x: in.Location): CodeWriter[vpr.Exp] = typeEncoding.reference(this)(x)
+  def foot(x: in.Location, perm: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.addressFootprint(this)(x, perm)
+  def isComparable(x: in.Expr): Either[Boolean, CodeWriter[vpr.Exp]] = typeEncoding.isComparable(this)(x)
+  def stmt(x: in.Stmt): CodeWriter[vpr.Stmt] = typeEncoding.finalStatement(this)(x)
 
   // lookup
   def table: LookupTable
   def lookup(t: in.DefinedT): in.Type = table.lookup(t)
   def lookup(f: in.FunctionProxy): in.FunctionMember = table.lookup(f) match {
     case fm: FunctionMember => fm
-    case bf: BuiltInFunction => builtInMembers.function(bf)(this)
+    case bf: BuiltInFunction => typeEncoding.builtInFunction(this)(bf)
   }
   def lookup(m: in.MethodProxy): in.MethodMember = table.lookup(m) match {
     case mm: MethodMember => mm
-    case bm: BuiltInMethod => builtInMembers.method(bm)(this)
+    case bm: BuiltInMethod => typeEncoding.builtInMethod(this)(bm)
   }
   def lookup(p: in.MPredicateProxy): in.MPredicate = table.lookup(p) match {
     case mp: MPredicate => mp
-    case bmp: BuiltInMPredicate => builtInMembers.mpredicate(bmp)(this)
+    case bmp: BuiltInMPredicate => typeEncoding.builtInMPredicate(this)(bmp)
   }
   def lookup(p: in.FPredicateProxy): in.FPredicate = table.lookup(p) match {
     case fp: FPredicate => fp
-    case bfp: BuiltInFPredicate => builtInMembers.fpredicate(bfp)(this)
+    case bfp: BuiltInFPredicate => typeEncoding.builtInFPredicate(this)(bfp)
   }
 
   def underlyingType(t: in.Type): in.Type = t match {
@@ -92,14 +108,7 @@ trait Context {
           conditionN: Conditions = condition,
           unknownValueN: UnknownValues = unknownValue,
           typeEncodingN: TypeEncoding = typeEncoding,
-          assN: Assertions = ass,
-          measuresN: TerminationMeasures = measures,
-          exprN: Expressions = expr,
-          methodN: Methods = method,
-          pureMethodN: PureMethods = pureMethod,
-          predicateN: Predicates = predicate,
-          builtInMembersN: BuiltInMembers = builtInMembers,
-          stmtN: Statements = stmt,
+          defaultEncodingN: DefaultEncoding = defaultEncoding,
           initialFreshCounterValueN: Int = internalFreshNames.getValue
          ): Context
 
@@ -122,14 +131,6 @@ trait Context {
 
     // translators
     col.finalize(typeEncoding)
-    col.finalize(ass)
-    col.finalize(measures)
-    col.finalize(expr)
-    col.finalize(method)
-    col.finalize(pureMethod)
-    col.finalize(predicate)
-    col.finalize(builtInMembers)
-    col.finalize(stmt)
   }
 
   trait FreshNameIterator extends Iterator[String] {

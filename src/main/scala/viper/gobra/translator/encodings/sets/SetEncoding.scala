@@ -6,10 +6,10 @@
 
 package viper.gobra.translator.encodings.sets
 
-import viper.gobra.translator.encodings.LeafTypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
@@ -26,13 +26,13 @@ class SetEncoding extends LeafTypeEncoding {
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
     case ctx.Set(t) / m =>
       m match {
-        case Exclusive => vpr.SetType(ctx.typeEncoding.typ(ctx)(t))
+        case Exclusive => vpr.SetType(ctx.typ(t))
         case Shared    => vpr.Ref
       }
 
     case ctx.Multiset(t) / m =>
       m match {
-        case Exclusive => vpr.MultisetType(ctx.typeEncoding.typ(ctx)(t))
+        case Exclusive => vpr.MultisetType(ctx.typ(t))
         case Shared    => vpr.Ref: vpr.Type
       }
   }
@@ -47,23 +47,23 @@ class SetEncoding extends LeafTypeEncoding {
     * R[ x in (e: mset[T]) ] -> ([x] in [e]) > 0
     * R[ x # (e: set[T]) ] -> [x] in [e] ? 1 : 0
     */
-  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+  override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
 
-    default(super.expr(ctx)){
+    default(super.expression(ctx)){
 
-      case (e: in.DfltVal) :: ctx.Set(t) / Exclusive => unit(withSrc(vpr.EmptySet(ctx.typeEncoding.typ(ctx)(t)), e))
-      case (e: in.DfltVal) :: ctx.Multiset(t) / Exclusive => unit(withSrc(vpr.EmptyMultiset(ctx.typeEncoding.typ(ctx)(t)), e))
+      case (e: in.DfltVal) :: ctx.Set(t) / Exclusive => unit(withSrc(vpr.EmptySet(ctx.typ(t)), e))
+      case (e: in.DfltVal) :: ctx.Multiset(t) / Exclusive => unit(withSrc(vpr.EmptyMultiset(ctx.typ(t)), e))
 
       case (lit: in.SetLit) :: ctx.Set(t) =>
         val (pos, info, errT) = lit.vprMeta
-        if (lit.exprs.isEmpty) unit(vpr.EmptySet(ctx.typeEncoding.typ(ctx)(t))(pos, info, errT))
+        if (lit.exprs.isEmpty) unit(vpr.EmptySet(ctx.typ(t))(pos, info, errT))
         else sequence(lit.exprs map goE).map(args => vpr.ExplicitSet(args)(pos, info, errT))
 
       case (lit: in.MultisetLit) :: ctx.Multiset(t) =>
         val (pos, info, errT) = lit.vprMeta
-        if (lit.exprs.isEmpty) unit(vpr.EmptyMultiset(ctx.typeEncoding.typ(ctx)(t))(pos, info, errT))
+        if (lit.exprs.isEmpty) unit(vpr.EmptyMultiset(ctx.typ(t))(pos, info, errT))
         else sequence(lit.exprs map goE).map(args => vpr.ExplicitMultiset(args)(pos, info, errT))
 
       case n@ in.Length(exp :: ctx.AnySet(_)) =>
@@ -147,10 +147,10 @@ class SetEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = exp.vprMeta
         // if this is executed, then type parameter must have dynamic comparability
         val s = in.BoundVar("s", t)(exp.info)
-        val vSDecl = ctx.typeEncoding.variable(ctx)(s); val vS = vSDecl.localVar
+        val vSDecl = ctx.variable(s); val vS = vSDecl.localVar
         for {
-          vExp <- pure(ctx.expr.translate(exp)(ctx))(ctx)
-          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(s)
+          vExp <- pure(ctx.expr(exp))(ctx)
+          rhs <- pure(ctx.isComparable(s)
             .getOrElse(Violation.violation("An incomparable set or mset entails an incomparable element type.")))(ctx)
           contains = vpr.AnySetContains(vS, vExp)(pos, info, errT)
           lhs = exp.typ match {

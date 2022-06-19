@@ -5,7 +5,7 @@
 // Copyright (c) 2011-2020 ETH Zurich.
 
 package viper.gobra.translator.interfaces
-import viper.gobra.translator.interfaces.translator.Generator
+import viper.gobra.translator.library.Generator
 import viper.silver.{ast => vpr}
 
 trait Collector {

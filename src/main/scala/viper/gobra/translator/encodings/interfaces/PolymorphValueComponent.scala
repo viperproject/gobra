@@ -7,9 +7,9 @@
 package viper.gobra.translator.encodings.interfaces
 
 import viper.gobra.translator.interfaces.Context
-import viper.gobra.translator.interfaces.translator.Generator
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
+import viper.gobra.translator.library.Generator
 
 /** Polymorphic value that can fit all countable types. */
 trait PolymorphValueComponent extends Generator {

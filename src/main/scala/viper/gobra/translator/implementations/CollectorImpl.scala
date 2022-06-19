@@ -7,7 +7,7 @@
 package viper.gobra.translator.implementations
 
 import viper.gobra.translator.interfaces.Collector
-import viper.gobra.translator.interfaces.translator.Generator
+import viper.gobra.translator.library.Generator
 import viper.silver.{ast => vpr}
 
 class CollectorImpl extends Collector {

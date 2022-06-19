@@ -4,36 +4,37 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra.translator.implementations.translator
+package viper.gobra.translator.encodings.members
 
+import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.interfaces.translator.PureMethods
+import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
 
-class PureMethodsImpl extends PureMethods {
+class DefaultPureMethodEncoding(isHandled: (in.PureMethod, Context) => Boolean) extends Encoding {
 
   import viper.gobra.translator.util.ViperWriter._
   import MemberLevel._
 
-  /**
-    * Finalizes translation. `addMemberFn` is called with any member that is part of the encoding.
-    */
-  override def finalize(addMemberFn: vpr.Member => Unit): Unit = ()
+  override def function(ctx: Context): in.Member ==> MemberWriter[vpr.Function] = {
+    case x: in.PureMethod if isHandled(x, ctx) => pureMethodDefault(x)(ctx)
+    case x: in.PureFunction => pureFunctionDefault(x)(ctx)
+  }
 
-  override def pureMethod(meth: in.PureMethod)(ctx: Context): MemberWriter[vpr.Function] = {
+  def pureMethodDefault(meth: in.PureMethod)(ctx: Context): MemberWriter[vpr.Function] = {
     require(meth.results.size == 1)
 
     val (pos, info, errT) = meth.vprMeta
 
-    val vRecv = ctx.typeEncoding.variable(ctx)(meth.receiver)
-    val vRecvPres = ctx.typeEncoding.precondition(ctx).lift(meth.receiver).toVector
+    val vRecv = ctx.variable(meth.receiver)
+    val vRecvPres = ctx.varPrecondition(meth.receiver).toVector
 
-    val vArgs = meth.args.map(ctx.typeEncoding.variable(ctx))
-    val vArgPres = meth.args.flatMap(ctx.typeEncoding.precondition(ctx).lift(_))
+    val vArgs = meth.args.map(ctx.variable)
+    val vArgPres = meth.args.flatMap(ctx.varPrecondition)
 
-    val vResults = meth.results.map(ctx.typeEncoding.variable(ctx))
-    val vResultPosts = meth.results.flatMap(ctx.typeEncoding.postcondition(ctx).lift(_))
+    val vResults = meth.results.map(ctx.variable)
+    val vResultPosts = meth.results.flatMap(ctx.varPostcondition)
     assert(vResults.size == 1)
     val resultType = if (vResults.size == 1) vResults.head.typ else ctx.tuple.typ(vResults map (_.typ))
 
@@ -42,14 +43,14 @@ class PureMethodsImpl extends PureMethods {
     }
 
     for {
-      pres <- sequence((vRecvPres ++ vArgPres) ++ meth.pres.map(ctx.ass.precondition(_)(ctx)))
-      posts <- sequence(vResultPosts ++ meth.posts.map(ctx.ass.postcondition(_)(ctx).map(fixResultvar(_))))
-      measures <- sequence(meth.terminationMeasures.map(ctx.measures.decreases(_)(ctx)))
+      pres <- sequence((vRecvPres ++ vArgPres) ++ meth.pres.map(ctx.precondition))
+      posts <- sequence(vResultPosts ++ meth.posts.map(ctx.postcondition(_).map(fixResultvar(_))))
+      measures <- sequence(meth.terminationMeasures.map(e => pure(ctx.ass(e))(ctx)))
 
       body <- option(meth.body map { b =>
         pure(
           for {
-            results <- ctx.expr.translate(b)(ctx)
+            results <- ctx.expr(b)
           } yield results
         )(ctx)
       })
@@ -66,16 +67,16 @@ class PureMethodsImpl extends PureMethods {
     } yield function
   }
 
-  override def pureFunction(func: in.PureFunction)(ctx: Context): MemberWriter[vpr.Function] = {
+  def pureFunctionDefault(func: in.PureFunction)(ctx: Context): MemberWriter[vpr.Function] = {
     require(func.results.size == 1)
 
     val (pos, info, errT) = func.vprMeta
 
-    val vArgs = func.args.map(ctx.typeEncoding.variable(ctx))
-    val vArgPres = func.args.flatMap(ctx.typeEncoding.precondition(ctx).lift(_))
+    val vArgs = func.args.map(ctx.variable)
+    val vArgPres = func.args.flatMap(ctx.varPrecondition)
 
-    val vResults = func.results.map(ctx.typeEncoding.variable(ctx))
-    val vResultPosts = func.results.flatMap(ctx.typeEncoding.postcondition(ctx).lift(_))
+    val vResults = func.results.map(ctx.variable)
+    val vResultPosts = func.results.flatMap(ctx.varPostcondition)
     assert(vResults.size == 1)
     val resultType = if (vResults.size == 1) vResults.head.typ else ctx.tuple.typ(vResults map (_.typ))
 
@@ -84,14 +85,14 @@ class PureMethodsImpl extends PureMethods {
     }
 
     for {
-      pres <- sequence(vArgPres ++ func.pres.map(ctx.ass.precondition(_)(ctx)))
-      posts <- sequence(vResultPosts ++ func.posts.map(ctx.ass.postcondition(_)(ctx).map(fixResultvar(_))))
-      measures <- sequence(func.terminationMeasures.map(ctx.measures.decreases(_)(ctx)))
+      pres <- sequence(vArgPres ++ func.pres.map(ctx.precondition))
+      posts <- sequence(vResultPosts ++ func.posts.map(ctx.postcondition(_).map(fixResultvar(_))))
+      measures <- sequence(func.terminationMeasures.map(e => pure(ctx.ass(e))(ctx)))
 
       body <- option(func.body map { b =>
         pure(
           for {
-            results <- ctx.expr.translate(b)(ctx)
+            results <- ctx.expr(b)
           } yield results
         )(ctx)
       })

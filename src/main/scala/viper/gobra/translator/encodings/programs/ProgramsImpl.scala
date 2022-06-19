@@ -4,16 +4,14 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra.translator.implementations.translator
+package viper.gobra.translator.encodings.programs
 
 import viper.gobra.ast.{internal => in}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.gobra.translator.implementations.{CollectorImpl, ContextImpl}
 import viper.gobra.translator.interfaces.{Context, TranslatorConfig}
-import viper.gobra.translator.interfaces.translator.Programs
 import viper.gobra.translator.util.ViperWriter.MemberWriter
-import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
 class ProgramsImpl extends Programs {
@@ -29,24 +27,7 @@ class ProgramsImpl extends Programs {
     def goM(member: in.Member): MemberWriter[(Vector[vpr.Member], Context)] = {
       /** we use a separate context for each member in order to reset the fresh counter */
       val ctx = (mainCtx := (initialFreshCounterValueN = 0))
-      val typeEncodingOpt = ctx.typeEncoding.member(ctx).lift(member)
-      val memberWriter = typeEncodingOpt.getOrElse {
-        member match {
-          case f: in.Function => ctx.method.function(f)(ctx).map(Vector(_))
-          case m: in.Method => ctx.method.method(m)(ctx).map(Vector(_))
-          case f: in.PureFunction => ctx.pureMethod.pureFunction(f)(ctx).map(Vector(_))
-          case m: in.PureMethod => ctx.pureMethod.pureMethod(m)(ctx).map(Vector(_))
-          case p: in.MPredicate => ctx.predicate.mpredicate(p)(ctx).map(Vector(_))
-          case p: in.FPredicate => ctx.predicate.fpredicate(p)(ctx).map(Vector(_))
-          case gc: in.GlobalConstDecl => ctx.fixpoint.create(gc)(ctx); unit(Vector.empty)
-          case m: in.BuiltInMethod => ctx.builtInMembers.method(m)(ctx); unit(Vector.empty)
-          case f: in.BuiltInFunction => ctx.builtInMembers.function(f)(ctx); unit(Vector.empty)
-          case p: in.BuiltInMPredicate => ctx.builtInMembers.mpredicate(p)(ctx); unit(Vector.empty)
-          case p: in.BuiltInFPredicate => ctx.builtInMembers.fpredicate(p)(ctx); unit(Vector.empty)
-          case p => Violation.violation(s"found unsupported member: $p")
-        }
-      }
-      memberWriter.map(m => (m, ctx))
+      ctx.member(member).map(m => (m, ctx))
     }
 
     val progW = for {
@@ -79,7 +60,7 @@ class ProgramsImpl extends Programs {
 
     } yield vProgram
 
-    val (error, _, prog) = progW.execute
+    val (error, _, prog) = progW.run
 
     val backTrackInfo = BackTrackInfo(error.errorT, error.reasonT)
 

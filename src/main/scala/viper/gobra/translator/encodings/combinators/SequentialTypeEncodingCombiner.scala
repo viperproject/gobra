@@ -6,7 +6,6 @@
 
 package viper.gobra.translator.encodings.combinators
 
-import viper.gobra.translator.encodings.TypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
 
 /**

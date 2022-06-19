@@ -25,5 +25,5 @@ class FieldsImpl extends Fields {
       }
     )
 
-  override def field(t: in.Type)(ctx: Context): vpr.Field = _fieldGenerator(ctx.typeEncoding.typ(ctx)(t))
+  override def field(t: in.Type)(ctx: Context): vpr.Field = _fieldGenerator(ctx.typ(t))
 }

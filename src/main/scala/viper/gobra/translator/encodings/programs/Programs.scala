@@ -4,12 +4,12 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra.translator.interfaces.translator
+package viper.gobra.translator.encodings.programs
 
+import viper.gobra.backend.BackendVerifier
+import viper.gobra.translator.interfaces.TranslatorConfig
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.util.ViperWriter.CodeWriter
-import viper.silver.{ast => vpr}
 
-abstract class Statements
-  extends BaseTranslator[in.Stmt, CodeWriter[vpr.Stmt]]
-
+trait Programs {
+  def translate(program: in.Program)(conf: TranslatorConfig): BackendVerifier.Task
+}

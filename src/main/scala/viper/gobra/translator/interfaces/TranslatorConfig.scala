@@ -6,9 +6,8 @@
 
 package viper.gobra.translator.interfaces
 
-import viper.gobra.translator.encodings.TypeEncoding
+import viper.gobra.translator.encodings.combinators.{DefaultEncoding, TypeEncoding}
 import viper.gobra.translator.interfaces.components._
-import viper.gobra.translator.interfaces.translator._
 
 trait TranslatorConfig {
   // components
@@ -28,12 +27,5 @@ trait TranslatorConfig {
 
   // translators
   def typeEncoding: TypeEncoding
-  def ass: Assertions
-  def measures: TerminationMeasures
-  def expr: Expressions
-  def method: Methods
-  def pureMethod: PureMethods
-  def predicate: Predicates
-  def builtInMembers: BuiltInMembers
-  def stmt: Statements
+  def defaultEncoding: DefaultEncoding
 }

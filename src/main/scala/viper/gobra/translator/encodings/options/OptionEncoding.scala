@@ -6,10 +6,10 @@
 
 package viper.gobra.translator.encodings.options
 
-import viper.gobra.translator.encodings.LeafTypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
@@ -25,7 +25,7 @@ class OptionEncoding extends LeafTypeEncoding {
     */
   override def typ(ctx : Context) : in.Type ==> vpr.Type = {
     case ctx.Option(t) / m =>  m match {
-      case Exclusive => ctx.option.typ(ctx.typeEncoding.typ(ctx)(t))
+      case Exclusive => ctx.option.typ(ctx.typ(t))
       case Shared => vpr.Ref
     }
   }
@@ -39,27 +39,27 @@ class OptionEncoding extends LeafTypeEncoding {
     * R[ get(e : option[T]) ] -> optGet([e])
     * R[ seq(e : option[T]) ] -> opt2seq([e])
     */
-  override def expr(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
-    default(super.expr(ctx)) {
+  override def expression(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
+    default(super.expression(ctx)) {
       case (exp : in.DfltVal) :: ctx.Option(t) / Exclusive =>
-        unit(withSrc(ctx.option.none(ctx.typeEncoding.typ(ctx)(t)), exp))
+        unit(withSrc(ctx.option.none(ctx.typ(t)), exp))
 
       case exp @ in.OptionNone(typ) =>
-        val typT = ctx.typeEncoding.typ(ctx)(typ)
+        val typT = ctx.typ(typ)
         unit(withSrc(ctx.option.none(typT), exp))
 
       case exp @ in.OptionSome(op) => for {
-        opT <- ctx.expr.translate(op)(ctx)
+        opT <- ctx.expr(op)
       } yield withSrc(ctx.option.some(opT), exp)
 
       case exp @ in.OptionGet(op :: ctx.Option(typ)) => for {
-        opT <- ctx.expr.translate(op)(ctx)
-        typT = ctx.typeEncoding.typ(ctx)(typ)
+        opT <- ctx.expr(op)
+        typT = ctx.typ(typ)
       } yield withSrc(ctx.option.get(opT, typT), exp)
 
       case exp @ in.SequenceConversion(op :: ctx.Option(typ)) => for {
-        opT <- ctx.expr.translate(op)(ctx)
-        typT = ctx.typeEncoding.typ(ctx)(typ)
+        opT <- ctx.expr(op)
+        typT = ctx.typ(typ)
       } yield withSrc(ctx.optionToSeq.create(opT, typT), exp): vpr.Exp
     }
   }
@@ -74,10 +74,10 @@ class OptionEncoding extends LeafTypeEncoding {
       super.isComparable(ctx)(exp).map{ _ =>
         val (pos, info, errT) = exp.vprMeta
         // if this is executed, then type parameter must have dynamic comparability
-        val vT = ctx.typeEncoding.typ(ctx)(t)
+        val vT = ctx.typ(t)
         for {
-          rhs <- ctx.expr.translate(exp)(ctx)
-          isComp <- ctx.typeEncoding.isComparable(ctx)(in.OptionGet(exp)(exp.info))
+          rhs <- ctx.expr(exp)
+          isComp <- ctx.isComparable(in.OptionGet(exp)(exp.info))
             .getOrElse(Violation.violation("An incomparable option entails an incomparable element type."))
           res = vpr.CondExp(
             vpr.EqCmp(rhs, ctx.option.none(vT)(pos, info, errT))(pos, info, errT),

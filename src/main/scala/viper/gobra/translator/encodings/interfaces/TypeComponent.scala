@@ -8,9 +8,9 @@ package viper.gobra.translator.encodings.interfaces
 
 import viper.gobra.ast.internal.theory.TypeHead
 import viper.gobra.translator.interfaces.Context
-import viper.gobra.translator.interfaces.translator.Generator
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
+import viper.gobra.translator.library.Generator
 
 /** Encoding of Gobra types into Viper expressions. */
 trait TypeComponent extends Generator {

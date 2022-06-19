@@ -7,8 +7,8 @@
 package viper.gobra.translator.encodings.preds
 
 import viper.gobra.translator.interfaces.Context
-import viper.gobra.translator.interfaces.translator.Generator
 import viper.gobra.ast.{internal => in}
+import viper.gobra.translator.library.Generator
 import viper.silver.{ast => vpr}
 
 trait DefuncComponent extends Generator {

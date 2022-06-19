@@ -6,7 +6,7 @@
 
 package viper.gobra.translator.util
 
-import viper.gobra.translator.interfaces.translator.Generator
+import viper.gobra.translator.library.Generator
 import viper.gobra.util.Computation
 import viper.silver.{ast => vpr}
 

@@ -24,7 +24,7 @@ class DefuncComponentImpl extends DefuncComponent {
     embedPredTypeMap.getOrElse(ts, {
       val name = s"S${embedPredTypeMap.size}"
       embedPredTypeMap += (ts -> name)
-      kindArgs += (name -> (ts map ctx.typeEncoding.typ(ctx)))
+      kindArgs += (name -> (ts map ctx.typ))
       encounteredTokens += name
       name
     })
@@ -59,7 +59,7 @@ class DefuncComponentImpl extends DefuncComponent {
       idMap += ((S, predicate, pattern) -> newId)
 
       encounteredIds += (S -> (encounteredIds.getOrElse(S, Set.empty) + newId))
-      val appliedArgTypes = computeAppliedTs(predTs, pattern) map ctx.typeEncoding.typ(ctx)
+      val appliedArgTypes = computeAppliedTs(predTs, pattern) map ctx.typ
       appliedArgs += ((S, newId: BigInt) -> appliedArgTypes)
 //      patterns += ((S, newId: BigInt) -> pattern)
 //      applications += ((S, newId: BigInt) -> ((args: Vector[vpr.Exp]) => ctx.predicate.proxyBodyAccess(predicate, args)()(ctx)))

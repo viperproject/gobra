@@ -7,7 +7,6 @@
 package viper.gobra.translator.encodings.combinators
 
 import org.bitbucket.inkytonik.kiama.==>
-import viper.gobra.translator.encodings.TypeEncoding
 import viper.gobra.util.Violation
 
 /**

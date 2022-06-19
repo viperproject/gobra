@@ -21,6 +21,9 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PFunctionDecl => wellDefVariadicArgs(n.args) ++ wellDefIfPureFunction(n)
     case m: PMethodDecl => wellDefVariadicArgs(m.args) ++ isReceiverType.errors(miscType(m.receiver))(member) ++ wellDefIfPureMethod(m)
     case b: PConstDecl => b.specs.flatMap(wellDefConstSpec)
+    case g: PGlobalVarDecl =>
+      g.right.flatMap(isExpr(_).out) ++
+        declarableTo.errors(g.right map exprType, g.typ map typeSymbType, g.left map idType)(g)
     case s: PActualStatement => wellDefStmt(s).out
   }
 

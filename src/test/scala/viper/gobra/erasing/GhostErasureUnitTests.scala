@@ -21,9 +21,9 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Ghost Erasure: variable declaration should not have a trailing equal sign") {
     // var value int
-    val decl = PVarDecl(Some(PIntType()), Vector(), Vector(PIdnDef("value")), Vector(false))
+    val decl = PLocalVarDecl(Some(PIntType()), Vector(), Vector(PIdnDef("value")), Vector(false))
     frontend.ghostLessStmt(decl)() should matchPattern {
-      case d: PVarDecl if d == decl =>
+      case d: PLocalVarDecl if d == decl =>
     }
   }
 
@@ -223,8 +223,11 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
   /* ** Stubs, mocks, and other test setup  */
 
   class TestFrontend {
+    def emptySpec: PFunctionSpec = PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, false, false)
+
     def stubProgram(inArgs: Vector[(PParameter, Boolean)], body : PStatement) : PProgram = PProgram(
       PPackageClause(PPkgDef("pkg")),
+      emptySpec,
       Vector(),
       Vector(PFunctionDecl(
         PIdnDef("foo"),
@@ -265,7 +268,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
       val program = stubProgram(inArgs, stmt)
       val ghostLess = ghostLessProg(program)
       val block = ghostLess match {
-        case PProgram(_, _, Vector(PFunctionDecl(PIdnDef("foo"), _, _, _, Some((_, b))))) => b
+        case PProgram(_, _, _, Vector(PFunctionDecl(PIdnDef("foo"), _, _, _, Some((_, b))))) => b
         case p => fail(s"Parsing succeeded but with an unexpected program $p")
       }
       normalize(block.stmts) match {
@@ -318,8 +321,8 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     @scala.annotation.tailrec
     private def equal(actual: PMember, expected: PMember): Assertion = {
       (actual, expected) match {
-        case (a: PConstSpec, e: PConstSpec) => assert(a == e)
-        case (a: PVarDecl, e: PVarDecl) => assert(a == e)
+        case (a: PConstDecl, e: PConstDecl) => assert(a == e)
+        case (a: PGlobalVarDecl, e: PGlobalVarDecl) => assert(a == e)
         case (PFunctionDecl(aId, aArgs, aResult, aSpec, aBody), PFunctionDecl(eId, eArgs, eResult, eSpec, eBody)) =>
           assert(aId == eId)
           assert(aArgs == eArgs)

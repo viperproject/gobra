@@ -672,8 +672,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitVarDecl(ctx: GobraParser.VarDeclContext): Vector[PVarDecl] = {
-    visitListNode[PVarDecl](ctx.varSpec())
+  override def visitVarDecl(ctx: GobraParser.VarDeclContext): Vector[PLocalVarDecl] = {
+    visitListNode[PLocalVarDecl](ctx.varSpec())
   }
 
   /**
@@ -682,11 +682,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitVarSpec(ctx: GobraParser.VarSpecContext): PVarDecl = {
+  override def visitVarSpec(ctx: GobraParser.VarSpecContext): PLocalVarDecl = {
     val (idnDefLikeList(vars), addressable) = visitMaybeAddressableIdentifierList(ctx.maybeAddressableIdentifierList())
     val typ = if(has(ctx.type_())) Some(visitNode[PType](ctx.type_())) else None
     val right = if (has(ctx.expressionList())) visitExpressionList(ctx.expressionList()) else Vector.empty
-    PVarDecl(typ, right, vars, addressable).at(ctx)
+    PLocalVarDecl(typ, right, vars, addressable).at(ctx)
   }
 
   override def visitShortVarDecl(ctx: GobraParser.ShortVarDeclContext): PShortVarDecl = {
@@ -1493,7 +1493,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitStatement(ctx: GobraParser.StatementContext): PStatement = {
     visitChildren(ctx) match {
       // Declaration statements are wrapped in sequences to constitute a statement
-      case decl : Vector[PDeclaration] @unchecked => PSeq(decl).at(ctx)
+      case decl : Vector[PStatement with PDeclaration] @unchecked => PSeq(decl).at(ctx)
       case s : PStatement => s
       case _ => unexpected(ctx)
     }
@@ -2034,7 +2034,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     // Don't parse functions/methods if the identifier is blank
     val members = visitListNode[PMember](ctx.specMember())
     val ghostMembers = ctx.ghostMember().asScala.flatMap(visitNode[Vector[PGhostMember]])
-    val decls = ctx.declaration().asScala.toVector.flatMap(visitDeclaration(_).asInstanceOf[Vector[PDeclaration]])
+    // This UGLY HACK allows us to create instances of PGlobalVarDecl representing global variable declarations without
+    // having to make significant changes to our language's grammar.
+    val decls = ctx.declaration().asScala.toVector.flatMap(visitDeclaration(_).asInstanceOf[Vector[PDeclaration]]).map {
+      case PLocalVarDecl(typ, right, left, _) =>
+        PGlobalVarDecl(typ, right, left).at(ctx).asInstanceOf[PMember with PDeclaration]
+      case d => d.asInstanceOf[PMember with PDeclaration]
+    }
     PProgram(packageClause, fileSpec, importDecls, members ++ decls ++ ghostMembers).at(ctx)
   }
 

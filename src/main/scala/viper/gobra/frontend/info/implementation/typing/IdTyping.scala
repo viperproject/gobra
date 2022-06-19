@@ -258,7 +258,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     w match {
       case tree.parent(p) => p match {
         case PShortVarDecl(right, left, _) => getBlankAssigneeType(w, left, right)
-        case PVarDecl(typ, right, left, _) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
+        case PLocalVarDecl(typ, right, left, _) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
         case PConstSpec(typ, right, left) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
         case _ => ???
       }

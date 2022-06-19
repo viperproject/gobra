@@ -49,7 +49,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       case PAssignment(_, left) => left.forall(ghostExprClassification)
       case PAssignmentWithOp(_, _, left) => ghostExprClassification(left)
       case PShortVarDecl(right, left, _) => varDeclClassification(left, right)
-      case PVarDecl(_, right, left, _) => varDeclClassification(left, right)
+      case PLocalVarDecl(_, right, left, _) => varDeclClassification(left, right)
       case _ => false
     }
   }

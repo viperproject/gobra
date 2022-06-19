@@ -341,7 +341,7 @@ object Desugar {
     def packageD(p: PPackage, shouldDesugar: PMember => Boolean = _ => true): in.Program = {
       val consideredDecls = p.declarations.collect { case m@NoGhost(x: PMember) if shouldDesugar(x) => m }
       val dMembers = consideredDecls.flatMap{
-        case NoGhost(x: PVarDecl) => globalVarDeclD(x)
+        case NoGhost(x: PGlobalVarDecl) => globalVarDeclD(x)
         case NoGhost(x: PConstDecl) => constDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
         case NoGhost(x: PFunctionDecl) => Vector(registerFunction(x))
@@ -376,7 +376,7 @@ object Desugar {
       in.Program(types.toVector, dMembers ++ additionalMembers, table)(meta(p))
     }
 
-    def globalVarDeclD(decl: PVarDecl): Vector[in.GlobalVarDecl] = {
+    def globalVarDeclD(decl: PGlobalVarDecl): Vector[in.GlobalVarDecl] = {
       val entities = decl.left.map(info.regular)
       val src = meta(decl)
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy context
@@ -974,7 +974,7 @@ object Desugar {
               } yield multiassD(les, re, stmt)(src))
             } else { violation("invalid assignment") }
 
-          case PVarDecl(typOpt, right, left, _) =>
+          case PLocalVarDecl(typOpt, right, left, _) =>
 
             if (left.size == right.size) {
               seqn(sequence((left zip right).map{ case (l, r) =>

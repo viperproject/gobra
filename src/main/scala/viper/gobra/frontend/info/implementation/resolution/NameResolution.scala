@@ -42,25 +42,23 @@ trait NameResolution { this: TypeInfoImpl =>
               }
               case _ => UnknownEntity()
             }
-
-          case decl: PVarDecl =>
+          case decl: PLocalVarDecl =>
             val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
-            // TODO: explain - I don't want to obtain the same elem
-            val isGlobalVarDecl: Boolean = tree.parent(decl) match {
-              case Vector(p) => enclosingPMember(p).isEmpty
-              case _ => ??? //TODO: Violation
-            }
             StrictAssignMode(decl.left.size, decl.right.size) match {
-              // TODO: improve
-              case AssignMode.Single if isGlobalVarDecl => SingleGlobalVariable(decl, Some(decl.right(idx)), decl.typ, isGhost, this)
               case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, decl.addressable(idx), this)
-              case AssignMode.Multi  if isGlobalVarDecl => MultiGlobalVariable(decl, idx, decl.right.headOption, decl.typ, isGhost, this)
               case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
-              case _ if isGlobalVarDecl && decl.right.isEmpty => SingleGlobalVariable(decl, None, decl.typ, isGhost, this)
               case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, isGhost, decl.addressable(idx), this)
               case _ => UnknownEntity()
             }
-
+          case decl: PGlobalVarDecl =>
+            val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+            StrictAssignMode(decl.left.size, decl.right.size) match {
+              // TODO: improve
+              case AssignMode.Single => SingleGlobalVariable(decl, Some(decl.right(idx)), decl.typ, isGhost, this)
+              case AssignMode.Multi  => MultiGlobalVariable(decl, idx, decl.right.headOption, decl.typ, isGhost, this)
+              case _ if decl.right.isEmpty => SingleGlobalVariable(decl, None, decl.typ, isGhost, this)
+              case _ => UnknownEntity()
+            }
         case decl: PTypeDef => NamedType(decl, isGhost, this)
         case decl: PTypeAlias => TypeAlias(decl, isGhost, this)
         case decl: PFunctionDecl => Function(decl, isGhost, this)
@@ -202,7 +200,7 @@ trait NameResolution { this: TypeInfoImpl =>
     m match {
       case a: PActualMember => a match {
         case d: PConstDecl => d.specs.flatMap(v => v.left.collect{ case x: PIdnDef => x })
-        case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
+        case d: PGlobalVarDecl => d.left.collect{ case x: PIdnDef => x }
         case d: PFunctionDecl => Vector(d.id)
         case d: PTypeDecl => Vector(d.left) ++ leakingIdentifier(d.right)
         case d: PMethodDecl => Vector(d.id)

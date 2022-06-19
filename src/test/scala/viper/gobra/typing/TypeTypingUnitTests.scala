@@ -19,6 +19,7 @@ import viper.gobra.util.TypeBounds.DefaultInt
 
 class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
+  private val emptySpec = PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, false, false)
 
   test("Typing: should correctly type an integer sequence type") {
     val t = PSequenceType(PIntType())
@@ -356,6 +357,7 @@ class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside {
 
     private def stubProgram(ts : Vector[PType]) = PProgram(
       PPackageClause(PPkgDef("pkg")),
+      emptySpec,
       Vector(),
       Vector(PMethodDecl(
         PIdnDef("foo"),

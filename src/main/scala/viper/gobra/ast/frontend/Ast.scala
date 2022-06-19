@@ -115,7 +115,7 @@ sealed trait PGhostifiable extends PNode
 
 sealed trait PMember extends PNode
 
-sealed trait PDeclaration extends PNode with PMember with PStatement
+sealed trait PDeclaration extends PNode
 
 /** Member that can have a body */
 sealed trait PWithBody extends PNode {
@@ -146,7 +146,9 @@ case class PConstDecl(specs: Vector[PConstSpec]) extends PActualMember with PAct
 
 case class PConstSpec(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId]) extends PNode
 
-case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId], addressable: Vector[Boolean]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
+case class PLocalVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId], addressable: Vector[Boolean]) extends PActualStatement with PGhostifiableStatement with PDeclaration
+
+case class PGlobalVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId]) extends PActualMember with PGhostifiableMember with PDeclaration with PCodeRoot with PScope
 
 case class PFunctionDecl(
                           id: PIdnDef,

@@ -18,6 +18,7 @@ import viper.gobra.frontend.Config
 
 class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
+  private val emptySpec = PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, false, false)
 
   test("TypeChecker: should detect labeled continues outside of loops") {
     assert(!frontend.wellDefStmt(PContinue(Some(PLabelUse("l"))))().valid)
@@ -60,6 +61,7 @@ class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     def singleStmtProgram(inArgs: Vector[(PParameter, Boolean)], body : PStatement) : PProgram =
       PProgram(
         PPackageClause(PPkgDef("pkg")),
+        emptySpec,
         Vector(),
         Vector(PFunctionDecl(
           PIdnDef("foo"),

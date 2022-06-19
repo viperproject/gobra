@@ -784,7 +784,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PConstSpec(typ, _, _) => typ map typeSymbType orElse Some(UNTYPED_INT_CONST)
 
         // if no type is specified, integer expressions have default type in var declarations
-        case PVarDecl(typ, _, _, _) => typ map (x => typeSymbType(x))
+        case PLocalVarDecl(typ, _, _, _) => typ map (x => typeSymbType(x))
 
         case _: PMake => Some(INT_TYPE)
 

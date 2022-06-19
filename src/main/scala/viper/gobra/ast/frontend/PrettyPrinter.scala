@@ -86,7 +86,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showMember(mem: PMember): Doc = mem match {
     case mem: PActualMember => mem match {
       case n: PConstDecl => showConstDecl(n)
-      case n: PVarDecl => showVarDecl(n)
+      case n: PGlobalVarDecl => showGlobalVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PFunctionDecl(id, args, res, spec, body) =>
         showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
@@ -159,8 +159,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showList[T](list: Vector[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
 
-  def showVarDecl(decl: PVarDecl): Doc = decl match {
-    case PVarDecl(typ, right, left, addressable) =>
+  def showGlobalVarDecl(decl: PGlobalVarDecl): Doc = decl match {
+    case PGlobalVarDecl(typ, right, left) =>
+      val rhs: Doc = if (right.isEmpty) "" else space <> "=" <+> showExprList(right)
+      "var" <+> showList(left)(showId) <> opt(typ)(space <> showType(_)) <> rhs
+  }
+
+  def showVarDecl(decl: PLocalVarDecl): Doc = decl match {
+    case PLocalVarDecl(typ, right, left, addressable) =>
       val rhs: Doc = if (right.isEmpty) "" else space <> "=" <+> showExprList(right)
       "var" <+> showList(left zip addressable){ case (v, a) => showAddressable(a, v) } <> opt(typ)(space <> showType(_)) <> rhs
   }
@@ -202,7 +208,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showStmt(stmt: PStatement): Doc = stmt match {
     case stmt: PActualStatement => stmt match {
       case n: PConstDecl => showConstDecl(n)
-      case n: PVarDecl => showVarDecl(n)
+      case n: PLocalVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PShortVarDecl(right, left, addressable) =>
         showList(left zip addressable){ case (l, a) => showAddressable(a, l) } <+> ":=" <+> showExprList(right)
@@ -674,7 +680,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   override def showMember(mem: PMember): Doc = mem match {
     case mem: PActualMember => mem match {
       case n: PConstDecl => showConstDecl(n)
-      case n: PVarDecl => showVarDecl(n)
+      case n: PLocalVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PFunctionDecl(id, args, res, spec, _) =>
         showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)

@@ -57,7 +57,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
     case p@PAssignment(right, left) =>
       showAssign[PAssignee](right, left, (r, l, _) => p.copy(right = r, left = l))
 
-    case p@PVarDecl(_, right, left, _) =>
+    case p@PLocalVarDecl(_, right, left, _) =>
       showAssign[PDefLikeId](right, left, (r, l, a) => p.copy(right = r, left = l, addressable = a))
 
     case p@PShortVarDecl(right, left, _) =>

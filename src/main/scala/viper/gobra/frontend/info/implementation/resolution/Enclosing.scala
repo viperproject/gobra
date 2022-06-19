@@ -80,9 +80,6 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val enclosingPConstDecl: PNode => Option[PConstSpec] =
     down[Option[PConstSpec]](None) { case x: PConstSpec => Some(x) }
 
-  lazy val enclosingPMember: PNode => Option[PMember] =
-    down[Option[PMember]](None) { case x: PMember => Some(x) }
-
   def typeSwitchConstraints(id: PIdnNode): Vector[PExpressionOrType] =
     typeSwitchConstraintsLookup(id)(id)
 
@@ -115,7 +112,7 @@ trait Enclosing { this: TypeInfoImpl =>
       n match {
         case tree.parent(p) => p match {
           case PConstSpec(t, _, _) => t.map(symbType)
-          case PVarDecl(t, _, _, _) => t.map(symbType)
+          case PLocalVarDecl(t, _, _, _) => t.map(symbType)
           case _: PExpressionStmt => None
           case PSendStmt(channel, `n`) => Some(typ(channel).asInstanceOf[Type.ChannelT].elem)
           case PAssignment(right, left) => Some(typ(left(right.indexOf(n))))

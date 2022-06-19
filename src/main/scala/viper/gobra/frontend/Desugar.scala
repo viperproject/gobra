@@ -341,7 +341,7 @@ object Desugar {
     def packageD(p: PPackage, shouldDesugar: PMember => Boolean = _ => true): in.Program = {
       val consideredDecls = p.declarations.collect { case m@NoGhost(x: PMember) if shouldDesugar(x) => m }
       val dMembers = consideredDecls.flatMap{
-        case NoGhost(x: PVarDecl) => varDeclGD(x)
+        case NoGhost(x: PVarDecl) => globalVarDeclD(x)
         case NoGhost(x: PConstDecl) => constDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
         case NoGhost(x: PFunctionDecl) => Vector(registerFunction(x))
@@ -376,50 +376,17 @@ object Desugar {
       in.Program(types.toVector, dMembers ++ additionalMembers, table)(meta(p))
     }
 
-    def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = {
-      val leftAreWildcards = decl.left.forall(_.isInstanceOf[PWildcard])
-      val typIsInterface = decl.typ.exists { p =>
-        val typ = info.symbType(p)
-        underlyingType(typ).isInstanceOf[Type.InterfaceT]
+    def globalVarDeclD(decl: PVarDecl): Vector[in.GlobalVarDecl] = {
+      val entities = decl.left.map(info.regular)
+      val src = meta(decl)
+      val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy context
+      // TODO: adapt when we have wildcards
+      val gvars = entities map {
+        case g: st.GlobalVariable => globalVarD(g)(src)
+        case _ => ??? // TODO: Violation - adapt when we introduce wildcards
       }
-      val rightArePureExpr = decl.right.forall(info.isPureExpression)
-      if (leftAreWildcards && typIsInterface && rightArePureExpr) {
-        // When the lhs is a wildcard of an interface type and the rhs are pure expressions,
-        // the variable declaration can be safely ignored. In some codebases, this idiom is
-        // used to check that types implement interfaces.
-        Vector()
-      } else {
-        // lhs must be a set of global vars
-        decl.left.flatMap(l => info.regular(l) match {
-          case sg: SingleGlobalVariable =>
-            val src = meta(sg.decl)
-            val gVar = globalVarD(sg)(src)
-            val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
-            val (exprs, stmts, decls) = sg.expOpt.map(exprD(ctx)) match {
-              case Some(w) => (Vector(w.res), w.stmts, w.decls)
-              case None => (Vector.empty, Vector.empty, Vector.empty)
-            }
-            Vector(in.GlobalVarDecl(Vector(gVar), Some(exprs), Some(decls), Some(stmts))(src))
-          case _: MultiGlobalVariable =>
-            // TODO: fix, very buggy
-            /*
-            val src = meta(mg.decl.left(mg.idx))
-            val gVar = globalVarD(mg)(src)
-            val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
-            val (exprs, stmts, decls) = exprD(ctx)(mg.exp) match {
-              case w => (Vector(w.res), w.stmts, w.decls)
-            }
-            Vector(in.GlobalVarDecl(Vector(gVar), Some(exprs), Some(decls), Some(stmts))(src))
-
-             */
-            Vector()
-          case st.Wildcard(_, _) =>
-            // Maybe the optimization above can be a subcase of this one
-            ???
-          case n =>
-            Violation.violation(s"Expected a global variable or wildcard on the left hand-side, but instead got $n")
-        })
-      }
+      val exps = sequence(decl.right.map(exprD(ctx)))
+      Vector(in.GlobalVarDecl(gvars, exps.res, exps.decls, exps.stmts)(src))
     }
 
     // TODO: Cleanup
@@ -447,7 +414,6 @@ object Desugar {
         val name = idName(v.decl.left(v.idx), v.context.getTypeInfo) // improve, add method, no need to do left(0) every time
         in.GlobalVarProxy(v.decl.left(v.idx).name, name)(meta(v.decl, v.context.getTypeInfo))
       case _ => ??? // TODO: support remaining case: wildcard
-
     }
 
     def constDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constSpecD)

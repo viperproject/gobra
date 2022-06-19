@@ -196,7 +196,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showGlobalVarDecl(decl: GlobalVarDecl): Doc = {
-    "var" <+> showVarDeclList(decl.left) <+> opt(decl.right)("=" <+> showExprList(_))
+    "var" <+> showVarDeclList(decl.left) <+> (decl.right match {
+      case l if l.isEmpty => emptyDoc
+      case l  => "=" <+> showExprList(l)
+    })
   }
 
   def showBuiltInMember(member: BuiltInMember): Doc = {
@@ -317,6 +320,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showProxy(x: Proxy): Doc = updatePositionStore(x) <> (x match {
     case FunctionProxy(name) => name
     case MethodProxy(name, _) => name
+    case GlobalVarProxy(name, _) => name
     case p: DomainFuncProxy => p.name
     case FPredicateProxy(name) => name
     case MPredicateProxy(name, _) => name

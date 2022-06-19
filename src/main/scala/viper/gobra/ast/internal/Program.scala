@@ -116,8 +116,8 @@ sealed trait Location extends Expr
 
 
 // TODO: right, decls, stmts are all fields of a Writer and essentially correspond to everything that is needed to execute the expr
-case class GlobalVarDecl(left: Vector[GlobalVar], right: Option[Vector[Expr]], decls: Option[Vector[BlockDeclaration]], stmts: Option[Vector[Stmt]])(val info: Source.Parser.Info) extends Member {
-  require(right.isEmpty == stmts.isEmpty && stmts.isEmpty == decls.isEmpty)
+case class GlobalVarDecl(left: Vector[GlobalVar], right: Vector[Expr], decls: Vector[BlockDeclaration], stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Member {
+  require((stmts.isEmpty && decls.isEmpty) || right.nonEmpty)
 }
 
 case class GlobalConstDecl(left: GlobalConst, right: Lit)(val info: Source.Parser.Info) extends Member

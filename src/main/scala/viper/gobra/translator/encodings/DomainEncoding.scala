@@ -34,7 +34,7 @@ class DomainEncoding extends LeafTypeEncoding {
 
   private def domainType(domainName: String): vpr.DomainType = vpr.DomainType(domainName, Map.empty)(Seq.empty)
 
-  override def otherMember(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
+  override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
     case domain: in.DomainDefinition =>
       val domainName = domain.name
       val (dPos, dInfo, dErrT) = domain.vprMeta

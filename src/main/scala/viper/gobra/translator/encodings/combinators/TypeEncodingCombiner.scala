@@ -42,7 +42,7 @@ abstract class TypeEncodingCombiner(encodings: Vector[TypeEncoding], defaults: V
   override def method(ctx: Context): in.Member ==> MemberWriter[vpr.Method] = combiner(_.method(ctx))
   override def function(ctx: Context): in.Member ==> MemberWriter[vpr.Function] = combiner(_.function(ctx))
   override def predicate(ctx: Context): in.Member ==> MemberWriter[vpr.Predicate] = combiner(_.predicate(ctx))
-  override def otherMember(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = combiner(_.otherMember(ctx))
+  override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = combiner(_.member(ctx))
   override def varPrecondition(ctx: Context): in.Parameter.In ==> MemberWriter[vpr.Exp] = combiner(_.varPrecondition(ctx))
   override def varPostcondition(ctx: Context): in.Parameter.Out ==> MemberWriter[vpr.Exp] = combiner(_.varPostcondition(ctx))
   override def initialization(ctx: Context): in.Location ==> CodeWriter[vpr.Stmt] = combiner(_.initialization(ctx))

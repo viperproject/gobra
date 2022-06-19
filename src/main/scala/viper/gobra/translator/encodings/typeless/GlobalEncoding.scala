@@ -17,7 +17,7 @@ class GlobalEncoding extends Encoding {
 
   import viper.gobra.translator.util.ViperWriter.MemberLevel._
 
-  override def otherMember(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
+  override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
     case gc: in.GlobalConstDecl => ctx.fixpoint.create(gc)(ctx); unit(Vector.empty)
   }
 }

@@ -82,6 +82,12 @@ class InterfaceEncoding extends LeafTypeEncoding {
     interfaces.typ(poly.typ()(ctx), types.typ()(ctx))(ctx)
   }
 
+  override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = default(super.member(ctx)) {
+        // predicate encoding is overwritten because different predicates are encoded to the same Viper predicate.
+    case p: in.FPredicate if hasFamily(p.name)(ctx) => ctx.predicate(p); ml.unit(Vector.empty)
+    case p: in.MPredicate if hasFamily(p.name)(ctx) => ctx.predicate(p); ml.unit(Vector.empty)
+  }
+
   override def predicate(ctx: Context): in.Member ==> MemberWriter[vpr.Predicate] = {
     case p: in.MPredicate if hasFamily(p.name)(ctx) =>
       mpredicate(p)(ctx)

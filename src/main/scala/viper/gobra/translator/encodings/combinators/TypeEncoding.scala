@@ -52,14 +52,23 @@ trait TypeEncoding extends Generator {
       unit(ctx.fixpoint.get(v)(ctx): vpr.Exp)
   }
 
-  /** Encodes a member. */
-  final def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
-    val m = finalMethod(ctx); val f = finalFunction(ctx); val p = finalPredicate(ctx); val o = otherMember(ctx);
+  /**
+    * Encodes members.
+    *
+    * This function is called once for every member of the input program.
+    * All results are added to the Viper program.
+    *
+    * Viper members that are added through [[finalize]] must not be contained in the result.
+    * Furthermore, Viper members that are the same for different internal members have to be handled by [[finalize]].
+    *
+    * The default returns the result of [[method]], [[function]], [[predicate]]
+    * */
+  def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
+    val m = finalMethod(ctx); val f = finalFunction(ctx); val p = finalPredicate(ctx);
     {
       case m(r) => r.map(Vector(_))
       case f(r) => r.map(Vector(_))
       case p(r) => r.map(Vector(_))
-      case o(r) => r
     }
   }
 
@@ -81,9 +90,6 @@ trait TypeEncoding extends Generator {
       case biMP(r) => ctx.predicate(r)
     }
   }
-
-  /** Encodes a member that is not encoded to a single method, function, or predicate. */
-  def otherMember(@unused ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = PartialFunction.empty
 
   /**
     * Returns extensions to the precondition for an in-parameter.
@@ -192,10 +198,12 @@ trait TypeEncoding extends Generator {
     * (1) exclusive operations on T, which includes literals and default values
     * (2) shared expression of type T
     * The default implements exclusive variables and constants with [[variable]] and [[globalVar]], respectively.
+    * Furthermore, the default implements [T(e: T)] -> [e]
     */
   def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     case (v: in.BodyVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar)
     case (v: in.GlobalVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => globalVar(ctx)(v)
+    case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) => ctx.expr(expr)
   }
 
   /**

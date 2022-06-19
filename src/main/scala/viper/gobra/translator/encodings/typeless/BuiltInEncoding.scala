@@ -41,15 +41,11 @@ class BuiltInEncoding extends Encoding {
 
   import viper.gobra.translator.util.ViperWriter.{MemberLevel => mw}
 
-  // TODO: the default method should be used, but currently, this would generate duplicates.
-  override def method(@unused ctx: Context): in.Member ==> MemberWriter[vpr.Method] = PartialFunction.empty
-  override def function(@unused ctx: Context): in.Member ==> MemberWriter[vpr.Function] = PartialFunction.empty
-  override def predicate(@unused ctx: Context): in.Member ==> MemberWriter[vpr.Predicate] = PartialFunction.empty
-  override def otherMember(@unused ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
-    case x: in.BuiltInMember => member(x)(ctx); mw.unit(Vector.empty)
+  override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
+    case x: in.BuiltInMember => builtInMember(x)(ctx); mw.unit(Vector.empty)
   }
 
-  private def member(x: in.BuiltInMember)(ctx: Context): in.Member =
+  private def builtInMember(x: in.BuiltInMember)(ctx: Context): in.Member =
     x match {
       case m: in.BuiltInMethod => methodGenerator(m, ctx)
       case f: in.BuiltInFunction => functionGenerator(f, ctx)
@@ -171,7 +167,7 @@ class BuiltInEncoding extends Encoding {
       val m = createMember()
       additionalMembers = additionalMembers + ((tag, args) -> m)
       // encode member:
-      member(m)(ctx)
+      builtInMember(m)(ctx)
       m
     }
 

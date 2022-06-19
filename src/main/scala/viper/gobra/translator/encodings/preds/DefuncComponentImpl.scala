@@ -6,9 +6,9 @@
 
 package viper.gobra.translator.encodings.preds
 
-import viper.gobra.translator.interfaces.Context
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
+import viper.gobra.translator.context.Context
 import viper.silver.{ast => vpr}
 
 class DefuncComponentImpl extends DefuncComponent {

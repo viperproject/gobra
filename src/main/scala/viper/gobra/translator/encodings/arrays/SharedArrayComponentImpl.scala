@@ -7,12 +7,12 @@
 package viper.gobra.translator.encodings.arrays
 
 import viper.gobra.translator.encodings.EmbeddingComponent
-import viper.gobra.translator.interfaces.Context
 import viper.gobra.ast.{internal => in}
 import viper.silver.{ast => vpr}
 import ArrayEncoding.ComponentParameter
 import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.{Names, encodings}
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeLevel.pure

@@ -12,7 +12,7 @@ import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting.{DefaultErrorBackTranslator, FoldError, Source, UnfoldError}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 import viper.silver.verifier.{errors => vprerr}

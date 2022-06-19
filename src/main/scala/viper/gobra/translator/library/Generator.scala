@@ -6,7 +6,7 @@
 
 package viper.gobra.translator.library
 
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.context.Context
 import viper.silver.{ast => vpr}
 
 import scala.annotation.unused

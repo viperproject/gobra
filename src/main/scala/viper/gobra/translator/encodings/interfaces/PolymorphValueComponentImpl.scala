@@ -6,10 +6,10 @@
 
 package viper.gobra.translator.encodings.interfaces
 
-import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.TypePatterns.Sh
 
 /** Polymorphic value that can fit all countable types. */

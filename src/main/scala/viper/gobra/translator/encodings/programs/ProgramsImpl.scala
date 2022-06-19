@@ -9,8 +9,7 @@ package viper.gobra.translator.encodings.programs
 import viper.gobra.ast.{internal => in}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
-import viper.gobra.translator.implementations.{CollectorImpl, ContextImpl}
-import viper.gobra.translator.interfaces.{Context, TranslatorConfig}
+import viper.gobra.translator.context.{CollectorImpl, Context, ContextImpl, TranslatorConfig}
 import viper.gobra.translator.util.ViperWriter.MemberWriter
 import viper.silver.{ast => vpr}
 

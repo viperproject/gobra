@@ -9,7 +9,7 @@ package viper.gobra.translator.encodings.members
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.encodings.combinators.Encoding
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.context.Context
 import viper.silver.{ast => vpr}
 
 class DefaultPureMethodEncoding(isHandled: (in.PureMethod, Context) => Boolean) extends Encoding {

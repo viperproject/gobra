@@ -7,8 +7,8 @@
 package viper.gobra.translator.encodings.programs
 
 import viper.gobra.backend.BackendVerifier
-import viper.gobra.translator.interfaces.TranslatorConfig
 import viper.gobra.ast.{internal => in}
+import viper.gobra.translator.context.TranslatorConfig
 
 trait Programs {
   def translate(program: in.Program)(conf: TranslatorConfig): BackendVerifier.Task

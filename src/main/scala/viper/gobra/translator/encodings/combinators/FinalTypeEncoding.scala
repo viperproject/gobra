@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.internal.Expr
 import viper.gobra.util.Violation
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.silver.ast.Exp
 import viper.silver.{ast => vpr}

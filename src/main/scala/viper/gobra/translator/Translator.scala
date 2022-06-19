@@ -10,8 +10,8 @@ package viper.gobra.translator
 import viper.gobra.ast.internal.Program
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.{Config, PackageInfo}
-import viper.gobra.translator.implementations.DfltTranslatorConfig
 import viper.gobra.reporting.GeneratedViperMessage
+import viper.gobra.translator.context.DfltTranslatorConfig
 import viper.gobra.translator.encodings.programs.ProgramsImpl
 import viper.gobra.translator.transformers.{AssumeTransformer, TerminationTransformer, ViperTransformer}
 import viper.gobra.util.Violation

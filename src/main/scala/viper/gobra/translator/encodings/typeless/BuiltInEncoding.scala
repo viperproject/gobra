@@ -14,7 +14,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.Encoding
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.MemberWriter
 import viper.gobra.translator.util.PrimitiveGenerator
 import viper.gobra.util.Computation

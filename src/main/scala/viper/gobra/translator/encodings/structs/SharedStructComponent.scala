@@ -8,7 +8,6 @@ package viper.gobra.translator.encodings.structs
 
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.Shared
-import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 import viper.gobra.translator.util.ViperWriter.CodeLevel._
@@ -17,6 +16,7 @@ import viper.gobra.translator.util.{ViperUtil => VU}
 import viper.gobra.util.Violation
 import StructEncoding.{ComponentParameter, cptParam}
 import viper.gobra.translator.library.Generator
+import viper.gobra.translator.context.Context
 
 trait SharedStructComponent extends Generator {
 

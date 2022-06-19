@@ -9,8 +9,8 @@ package viper.gobra.translator.util
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, ReasonTransformer, RichErrorMessage}
 import viper.silver.{ast => vpr}
 import viper.gobra.reporting.{DefaultErrorBackTranslator, Source, VerificationError}
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.{ViperUtil => vu}
-import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.MemberKindCompanion.{ErrorT, ReasonT}
 import viper.gobra.util.Violation
 import viper.silver.verifier.ErrorReason

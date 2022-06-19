@@ -7,11 +7,11 @@
 package viper.gobra.translator.encodings.arrays
 
 import viper.gobra.translator.encodings.EmbeddingComponent
-import viper.gobra.translator.interfaces.Context
 import viper.gobra.ast.{internal => in}
 import viper.silver.{ast => vpr}
 import ArrayEncoding.ComponentParameter
 import viper.gobra.translator.encodings
+import viper.gobra.translator.context.Context
 
 class ExclusiveArrayComponentImpl extends ExclusiveArrayComponent {
 

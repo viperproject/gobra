@@ -801,7 +801,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       case _ =>
         val targets = p.results.map(out => in.LocalVar(out.id, out.typ)(out.info))
         val call = in.MethodCall(targets, p.receiver, p.subProxy, p.args)(p.info)
-        in.MethodBody(Vector.empty, Vector(call), Vector.empty)(p.info)
+        in.Block(Vector.empty, Vector(call))(p.info).toMethodBody
     }
 
     val methodDummy = ctx.defaultEncoding.method(in.Method(

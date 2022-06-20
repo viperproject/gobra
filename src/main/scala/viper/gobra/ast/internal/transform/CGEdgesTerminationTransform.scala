@@ -53,7 +53,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   val src = m.getMeta
                   val assumeFalse = in.Assume(in.ExprAssertion(in.BoolLit(b = false)(src))(src))(src)
                   val newBody = {
-                    in.MethodBody(
+                    in.Block(
                       decls = Vector.empty,
                       stmts = assumeFalse +: implementations.toVector.flatMap { t: in.Type =>
                         table.lookup(t, proxy.name).map {
@@ -72,11 +72,10 @@ object CGEdgesTerminationTransform extends InternalTransform {
                             )(src)
                           case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
                         }
-                      },
-                      postprocessing = Vector.empty
+                      }
                     )(src)
                   }
-                  val newMember = in.Method(m.receiver, m.name, m.args, m.results, m.pres, m.posts, m.terminationMeasures, Some(newBody))(src)
+                  val newMember = in.Method(m.receiver, m.name, m.args, m.results, m.pres, m.posts, m.terminationMeasures, Some(newBody.toMethodBody))(src)
                   methodsToRemove += m
                   methodsToAdd += newMember
                   definedMethodsDelta += proxy -> newMember

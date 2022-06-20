@@ -261,17 +261,24 @@ case class DomainFunc(
 
 sealed trait Stmt extends Node
 
+/** This node serves as a target of encoding extensions. See [[viper.gobra.translator.encodings.combinators.TypeEncoding.Extension]]*/
 case class MethodBody(
                        decls: Vector[BlockDeclaration],
-                       stmts: Vector[Stmt],
+                       seqn: MethodBodySeqn,
                        postprocessing: Vector[Stmt] = Vector.empty,
                      )(val info: Source.Parser.Info) extends Stmt
+
+/**
+  * This node serves as a target of encoding extensions. See [[viper.gobra.translator.encodings.combinators.TypeEncoding.Extension]]
+  * Return statements jump exactly to the end of the encoding of this statement.
+  * */
+case class MethodBodySeqn(stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Stmt
 
 case class Block(
                   decls: Vector[BlockDeclaration],
                   stmts: Vector[Stmt]
                 )(val info: Source.Parser.Info) extends Stmt {
-  def toMethodBody: MethodBody = MethodBody(decls, stmts)(info)
+  def toMethodBody: MethodBody = MethodBody(decls, MethodBodySeqn(stmts)(info))(info)
 }
 
 case class Seqn(stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Stmt
@@ -350,7 +357,7 @@ case class GoFunctionCall(func: FunctionProxy, args: Vector[Expr])(val info: Sou
 case class GoMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 
 sealed trait Deferrable extends Stmt
-case class Defer(stmt: Deferrable)(val info: Source.Parser.Info) extends Stmt
+case class Defer(id: String, stmt: Deferrable)(val info: Source.Parser.Info) extends Stmt
 
 case class Return()(val info: Source.Parser.Info) extends Stmt
 

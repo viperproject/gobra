@@ -6,13 +6,13 @@
 
 package viper.gobra.translator.encodings.sequences
 
-import viper.gobra.translator.encodings.LeafTypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
@@ -33,7 +33,7 @@ class SequenceEncoding extends LeafTypeEncoding {
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
     case ctx.Seq(t) / m =>
       m match {
-        case Exclusive => vpr.SeqType(ctx.typeEncoding.typ(ctx)(t))
+        case Exclusive => vpr.SeqType(ctx.typ(t))
         case Shared    => vpr.Ref
       }
   }
@@ -57,7 +57,7 @@ class SequenceEncoding extends LeafTypeEncoding {
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
     case (in.Assignee(in.IndexedExp(base :: ctx.Seq(_), idx, baseUnderlyingType) :: _ / Exclusive), rhs, src) =>
-      ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.GhostCollectionUpdate(base, idx, rhs, baseUnderlyingType)(src.info), src)
+      ctx.assignment(in.Assignee(base), in.GhostCollectionUpdate(base, idx, rhs, baseUnderlyingType)(src.info))(src)
   }
 
   /**
@@ -72,11 +72,11 @@ class SequenceEncoding extends LeafTypeEncoding {
     * R[ mset(e: [n]T) ] -> seqToMultiset([e])
     * R[ x # (e: [n]T) ] -> [x] # [e]
     */
-  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+  override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
 
-    default(super.expr(ctx)){
+    default(super.expression(ctx)){
 
       case n@ in.IndexedExp(e :: ctx.Seq(_), idx, _) =>
         val (pos, info, errT) = n.vprMeta
@@ -94,7 +94,7 @@ class SequenceEncoding extends LeafTypeEncoding {
         } yield vpr.SeqUpdate(vBase, vLeft, vRight)(pos, info, errT)
 
       case (e: in.DfltVal) :: ctx.Seq(t) / Exclusive =>
-        unit(withSrc(vpr.EmptySeq(ctx.typeEncoding.typ(ctx)(t)), e))
+        unit(withSrc(vpr.EmptySeq(ctx.typ(t)), e))
 
       case (lit: in.SequenceLit) :: ctx.Seq(t) => {
         val (indices, exprs) = lit.elems.unzip
@@ -102,11 +102,11 @@ class SequenceEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = lit.vprMeta
 
         for {
-          vExprs <- sequence(exprs.toVector.map(e => ctx.expr.translate(e)(ctx)))
+          vExprs <- sequence(exprs.toVector.map(e => ctx.expr(e)))
           vElems = indices.zip(vExprs).toMap
           vChunks = chunks.map(translate(t, _, vElems)(ctx)(lit))
         } yield vChunks match {
-          case Vector() => vpr.EmptySeq(ctx.typeEncoding.typ(ctx)(t))(pos, info, errT)
+          case Vector() => vpr.EmptySeq(ctx.typ(t))(pos, info, errT)
           case vChunks => vChunks.reduce[vpr.Exp] {
             case (l, r) => vpr.SeqAppend(l, r)(pos, info, errT)
           }
@@ -182,10 +182,10 @@ class SequenceEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = exp.vprMeta
         // if this is executed, then type parameter must have dynamic comparability
         val s = in.BoundVar("s", t)(exp.info)
-        val vSDecl = ctx.typeEncoding.variable(ctx)(s); val vS = vSDecl.localVar
+        val vSDecl = ctx.variable(s); val vS = vSDecl.localVar
         for {
-          vExp <- pure(ctx.expr.translate(exp)(ctx))(ctx)
-          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(s)
+          vExp <- pure(ctx.expr(exp))(ctx)
+          rhs <- pure(ctx.isComparable(s)
             .getOrElse(Violation.violation("An incomparable sequence entails an incomparable element type.")))(ctx)
           contains = vpr.SeqContains(vS, vExp)(pos, info, errT)
           res = vpr.Forall(
@@ -210,7 +210,7 @@ class SequenceEncoding extends LeafTypeEncoding {
       case EmptyChunk(size) => emptySeqFunc(Vector(vpr.IntLit(size)(pos, info, errT)), typ)(pos, info, errT)(ctx)
       case chunk: NonEmptyChunk => {
         val dfltElem = in.DfltVal(typ)(Source.Parser.Internal)
-        val vDfltElem = ctx.expr.translate(dfltElem)(ctx).res
+        val vDfltElem = ctx.expr(dfltElem).res
         val vElems = Range.BigInt(0, chunk.size, 1).map(i => elems.getOrElse(chunk.firstIndex + i, vDfltElem))
         vpr.ExplicitSeq(vElems)(pos, info, errT)
       }
@@ -233,14 +233,14 @@ class SequenceEncoding extends LeafTypeEncoding {
       val iDecl = vpr.LocalVarDecl("i", vpr.Int)()
 
       // return type
-      val vInnerType = ctx.typeEncoding.typ(ctx)(t)
+      val vInnerType = ctx.typ(t)
       val vResultType = vpr.SeqType(vInnerType)
       val vResult = vpr.Result(vResultType)()
       val vResultLength = vpr.SeqLength(vResult)()
 
       // default value of type `t`
       val dfltElem = in.DfltVal(t)(Source.Parser.Internal)
-      val vDfltElem = ctx.expr.translate(dfltElem)(ctx).res
+      val vDfltElem = ctx.expr(dfltElem).res
 
       // preconditions
       val pre1 = synthesized(vpr.LeCmp(vpr.IntLit(0)(), nDecl.localVar))("Sequence length might be negative")

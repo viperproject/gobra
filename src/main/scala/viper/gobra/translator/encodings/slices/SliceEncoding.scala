@@ -13,9 +13,9 @@ import viper.gobra.reporting.{ArrayMakePreconditionError, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
-import viper.gobra.translator.encodings.LeafTypeEncoding
 import viper.gobra.translator.encodings.arrays.SharedArrayEmbedding
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
@@ -43,7 +43,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     */
   override def typ(ctx : Context) : in.Type ==> vpr.Type = {
     case ctx.Slice(t) / m => m match {
-      case Exclusive => ctx.slice.typ(ctx.typeEncoding.typ(ctx)(t))
+      case Exclusive => ctx.slice.typ(ctx.typ(t))
       case Shared => vpr.Ref
     }
   }
@@ -66,7 +66,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             in.Access(in.Accessible.Address(in.IndexedExp(exp, iterVar, underlyingType)(n.info)), perm)(n.info)
           )(n.info)
         )(n.info)
-        ctx.ass.translate(quantifiedAssert)(ctx)
+        ctx.ass(quantifiedAssert)
     }
   }
 
@@ -84,10 +84,10 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     * R[ (e: []T@)[e1:e2:e3] ] -> fullSliceFromSlice([e], [e1], [e2], [e3])
     * R[ sliceLit(E) ] -> R[ arrayLit(E)[0:|E|] ]
     */
-  override def expr(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+  override def expression(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
 
-    default(super.expr(ctx)) {
+    default(super.expression(ctx)) {
       case (exp : in.DfltVal) :: ctx.Slice(t) / m => m match {
         case Exclusive => unit(withSrc(nilSlice(t)(ctx), exp))
         case Shared => unit(withSrc(vpr.NullLit(), exp))
@@ -105,7 +105,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       } yield withSrc(ctx.slice.cap(expT), exp)
 
       case exp @ in.Slice((base : in.Location) :: ctx.Array(_, _) / Shared, low, high, max, _) => for {
-        baseT <- ctx.typeEncoding.reference(ctx)(base)
+        baseT <- ctx.ref(base)
         unboxedBaseT = arrayEmb.unbox(baseT, base.typ.asInstanceOf[in.ArrayT])(base)(ctx)
         lowT <- goE(low)
         highT <- goE(high)
@@ -128,12 +128,12 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       case (lit : in.SliceLit) :: ctx.Slice(_) =>
         val litA = lit.asArrayLit
         val tmp = in.LocalVar(ctx.freshNames.next(), litA.typ.withAddressability(Addressability.pointerBase))(lit.info)
-        val tmpT = ctx.typeEncoding.variable(ctx)(tmp)
+        val tmpT = ctx.variable(tmp)
         val underlyingTyp = underlyingType(lit.typ)(ctx)
         for {
-          initT <- ctx.typeEncoding.initialization(ctx)(tmp)
-          assignT <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(tmp), litA, lit)
-          sliceT <- ctx.expr.translate(in.Slice(tmp, in.IntLit(0)(lit.info), in.IntLit(litA.length)(lit.info), None, underlyingTyp)(lit.info))(ctx)
+          initT <- ctx.initialization(tmp)
+          assignT <- ctx.assignment(in.Assignee.Var(tmp), litA)(lit)
+          sliceT <- ctx.expr(in.Slice(tmp, in.IntLit(0)(lit.info), in.IntLit(litA.length)(lit.info), None, underlyingTyp)(lit.info))
           _ <- local(tmpT)
           _ <- write(initT)
           _ <- write(assignT)
@@ -160,15 +160,15 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         val (pos, info, errT) = makeStmt.vprMeta
         val sliceT = in.SliceT(typeParam.withAddressability(Shared), Addressability.Exclusive)
         val slice = in.LocalVar(ctx.freshNames.next(), sliceT)(makeStmt.info)
-        val vprSlice = ctx.typeEncoding.variable(ctx)(slice)
+        val vprSlice = ctx.variable(slice)
         seqn(
           for {
             // var a [ []T ]
             _ <- local(vprSlice)
 
             capArg = optCapArg.getOrElse(lenArg)
-            vprLength <- ctx.expr.translate(lenArg)(ctx)
-            vprCapacity <- ctx.expr.translate(capArg)(ctx)
+            vprLength <- ctx.expr(lenArg)
+            vprCapacity <- ctx.expr(capArg)
 
             // Perform additional runtime checks of conditions that must be true when make is invoked, otherwise the program panics (according to the go spec)
             // asserts 0 <= [len] && 0 <= [cap] && [len] <= [cap]
@@ -192,11 +192,11 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             capExpr = in.Capacity(slice)(makeStmt.info)
 
             // inhale cap(a) == [cap]
-            eqCap <- ctx.typeEncoding.equal(ctx)(capExpr, capArg, makeStmt)
+            eqCap <- ctx.equal(capExpr, capArg)(makeStmt)
             _ <- write(vpr.Inhale(eqCap)(pos, info, errT))
 
             // inhale len(a) == [len]
-            eqLen <- ctx.typeEncoding.equal(ctx)(lenExpr, lenArg, makeStmt)
+            eqLen <- ctx.equal(lenExpr, lenArg)(makeStmt)
             _ <- write(vpr.Inhale(eqLen)(pos, info, errT))
 
             // inhale forall i: int :: {loc(a, i)} 0 <= i && i < [len] ==> [ a[i] == dfltVal(T) ]
@@ -205,11 +205,11 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
               trigger = (idx: vpr.LocalVar) =>
                 Seq(vpr.Trigger(Seq(ctx.slice.loc(vprSlice.localVar, idx)(pos, info, errT)))(pos, info, errT)),
               body = (x: in.BoundVar) =>
-                ctx.typeEncoding.equal(ctx)(in.IndexedExp(slice, x, sliceT)(makeStmt.info), in.DfltVal(typeParam.withAddressability(Exclusive))(makeStmt.info), makeStmt)
+                ctx.equal(in.IndexedExp(slice, x, sliceT)(makeStmt.info), in.DfltVal(typeParam.withAddressability(Exclusive))(makeStmt.info))(makeStmt)
             )(makeStmt)(ctx)
             _ <- write(vpr.Inhale(eqValueAssertion)(pos, info, errT))
 
-            ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), slice, makeStmt)
+            ass <- ctx.assignment(in.Assignee.Var(target), slice)(makeStmt)
           } yield ass
         )
     }
@@ -225,12 +225,12 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val (pos, info, errT) = loc.vprMeta
 
       val cap = in.Capacity(loc)(loc.info)
-      val vprCap = ctx.expr.translate(cap)(ctx).res
-      val vprLoc = ctx.expr.translate(loc)(ctx).res
+      val vprCap = ctx.expr(cap).res
+      val vprLoc = ctx.expr(loc).res
       val trigger = (idx: vpr.LocalVar) =>
         Seq(vpr.Trigger(Seq(ctx.slice.loc(vprLoc, idx)(pos, info, errT)))(pos, info, errT))
       val underlyingBaseTyp = underlyingType(loc.typ)(ctx)
-      val body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(loc, idx, underlyingBaseTyp)(loc.info), perm)
+      val body = (idx: in.BoundVar) => ctx.foot(in.IndexedExp(loc, idx, underlyingBaseTyp)(loc.info), perm)
       boundedQuant(vprCap, trigger, body)(loc)(ctx).map(forall =>
         // to eliminate nested quantified permissions, which are not supported by the silver ast.
         vu.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
@@ -246,7 +246,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     val (pos, info, errT) = src.vprMeta
 
     val idx = in.BoundVar(ctx.freshNames.next(), in.IntT(Exclusive))(src.info)
-    val vIdx = ctx.typeEncoding.variable(ctx)(idx)
+    val vIdx = ctx.variable(idx)
 
     for {
       vBody <- pure(body(idx))(ctx)
@@ -275,8 +275,8 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     */
   override def reference(ctx : Context) : in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)) {
     case (exp @ in.IndexedExp(base :: ctx.Slice(_), idx, _)) :: _ / Shared => for {
-      baseT <- ctx.expr.translate(base)(ctx)
-      idxT <- ctx.expr.translate(idx)(ctx)
+      baseT <- ctx.expr(base)
+      idxT <- ctx.expr(idx)
     } yield withSrc(ctx.slice.loc(baseT, idxT), exp)
   }
 
@@ -612,13 +612,13 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
   private val nilSliceGenerator : FunctionGenerator[in.Type] = new FunctionGenerator[in.Type] {
     def genFunction(typ: in.Type)(ctx: Context): vpr.Function = {
       // translate type
-      val typT = ctx.typeEncoding.typ(ctx)(typ)
+      val typT = ctx.typ(typ)
       val sliceTypT = ctx.slice.typ(typT)
 
       // get default shared array of type `typ`
       val arrayT = in.ArrayT(1, typ, Shared)
       val dfltArray = in.DfltVal(arrayT)(Source.Parser.Internal)
-      val dfltArrayT = arrayEmb.unbox(ctx.expr.translate(dfltArray)(ctx).res, arrayT)(dfltArray)(ctx)
+      val dfltArrayT = arrayEmb.unbox(ctx.expr(dfltArray).res, arrayT)(dfltArray)(ctx)
 
       // preconditions
       val pre1 = synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")

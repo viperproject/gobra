@@ -6,14 +6,14 @@
 
 package viper.gobra.translator.encodings.arrays
 
-import viper.gobra.translator.encodings.EmbeddingComponent
-import viper.gobra.translator.interfaces.Context
 import viper.gobra.ast.{internal => in}
 import viper.silver.{ast => vpr}
 import ArrayEncoding.ComponentParameter
 import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
-import viper.gobra.translator.{Names, encodings}
+import viper.gobra.translator.context.Context
+import viper.gobra.translator.library.embeddings.EmbeddingComponent
+import viper.gobra.translator.Names
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeLevel.pure
 
@@ -32,12 +32,12 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
   private val arrayNilFunc: FunctionGenerator[ComponentParameter] = new FunctionGenerator[ComponentParameter]{
 
     def genFunction(t: ComponentParameter)(ctx: Context): vpr.Function = {
-      val vResType = ctx.array.typ(ctx.typeEncoding.typ(ctx)(t.elemT))
+      val vResType = ctx.array.typ(ctx.typ(t.elemT))
       val src = in.DfltVal(t.arrayT(Shared))(Source.Parser.Internal)
       val idx = in.BoundVar("idx", in.IntT(Exclusive))(src.info)
-      val vIdx = ctx.typeEncoding.variable(ctx)(idx)
+      val vIdx = ctx.variable(idx)
       val resAccess = ctx.array.loc(vpr.Result(vResType)(), vIdx.localVar)()
-      val idxEq = vpr.EqCmp(resAccess, pure(ctx.expr.translate(in.DfltVal(t.elemT)(src.info))(ctx))(ctx).res)()
+      val idxEq = vpr.EqCmp(resAccess, pure(ctx.expr(in.DfltVal(t.elemT)(src.info)))(ctx).res)()
       val forall = vpr.Forall(
         Seq(vIdx),
         Seq(vpr.Trigger(Seq(resAccess))()),
@@ -56,13 +56,13 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
   }
 
   /** Embeds Arrays of fixed length as specified by ComponentParameter. */
-  private val emb: EmbeddingComponent[ComponentParameter] = new encodings.EmbeddingComponent.Impl[ComponentParameter](
+  private val emb: EmbeddingComponent[ComponentParameter] = new EmbeddingComponent.Impl[ComponentParameter](
     p = (e: vpr.Exp, id: ComponentParameter) => (ctx: Context) =>
       vpr.Or( // len(a) == n || a == arrayNil
         vpr.EqCmp(ctx.array.len(e)(), vpr.IntLit(id.len)())(),
         vpr.EqCmp(e, arrayNilFunc(Vector.empty, id)()(ctx))()
       )(),
-    t = (id: ComponentParameter) => (ctx: Context) => ctx.array.typ(ctx.typeEncoding.typ(ctx)(id.elemT))
+    t = (id: ComponentParameter) => (ctx: Context) => ctx.array.typ(ctx.typ(id.elemT))
   )
 
   /** Returns type of exclusive-array domain. */

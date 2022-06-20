@@ -12,7 +12,8 @@ import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting.{ShiftPreconditionError, Source}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
@@ -48,9 +49,9 @@ class IntEncoding extends LeafTypeEncoding {
     * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
     */
-  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+  override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
     def handleShift(shiftFunc: vpr.Function)(left: in.Expr, right: in.Expr): (vpr.Position, vpr.Info, vpr.ErrorTrafo) => CodeWriter[vpr.Exp]  = {
       case (pos, info, errT) =>
         for {
@@ -64,7 +65,7 @@ class IntEncoding extends LeafTypeEncoding {
         } yield app
     }
 
-    default(super.expr(ctx)){
+    default(super.expression(ctx)){
       case (e: in.DfltVal) :: ctx.Int() / Exclusive => unit(withSrc(vpr.IntLit(0), e))
       case lit: in.IntLit => unit(withSrc(vpr.IntLit(lit.v), lit))
 

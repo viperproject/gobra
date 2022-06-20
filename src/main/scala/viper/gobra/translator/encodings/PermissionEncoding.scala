@@ -9,7 +9,8 @@ package viper.gobra.translator.encodings
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 
@@ -35,11 +36,11 @@ class PermissionEncoding extends LeafTypeEncoding {
     * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
     */
-  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+  override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
 
-    default(super.expr(ctx)){
+    default(super.expression(ctx)){
       // the default value for Perm is NoPerm to be similar to the zero values for other literals
       case (e: in.DfltVal) :: ctx.Perm() / Exclusive => unit(withSrc(vpr.NoPerm(), e))
       case (e: in.PermLit) :: ctx.Perm() / Exclusive =>
@@ -52,8 +53,9 @@ class PermissionEncoding extends LeafTypeEncoding {
       case cp: in.CurrentPerm =>
         val (pos, info, errT) = cp.vprMeta
         for {
-          arg <- ctx.predicate.predicateAccess(ctx)(cp.acc.op, in.FullPerm(cp.info))
-          res = vpr.CurrentPerm(arg.loc)(pos, info, errT)
+          arg <- ctx.ass(in.Access(in.Accessible.Predicate(cp.acc.op), in.FullPerm(cp.info))(cp.info))
+          pap = arg.asInstanceOf[vpr.PredicateAccessPredicate]
+          res = vpr.CurrentPerm(pap.loc)(pos, info, errT)
         } yield res
       case pm@ in.PermMinus(exp) => for { e <- goE(exp) } yield withSrc(vpr.PermMinus(e), pm)
       case fp@ in.FractionalPerm(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FractionalPerm(vl, vr), fp)

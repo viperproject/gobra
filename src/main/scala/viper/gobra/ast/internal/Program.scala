@@ -208,20 +208,24 @@ case class BuiltInFunction(
   require(argsT.forall(_.addressability == Addressability.Exclusive))
 }
 
+sealed trait PredicateMember extends Member {
+  def name: PredicateProxy
+}
+
 sealed trait FPredicateLikeMember extends Member {
   def name: FPredicateProxy
 }
 
 case class FPredicate(
-                     override val name: FPredicateProxy,
-                     args: Vector[Parameter.In],
-                     body: Option[Assertion]
-                     )(val info: Source.Parser.Info) extends FPredicateLikeMember
+                       override val name: FPredicateProxy,
+                       args: Vector[Parameter.In],
+                       body: Option[Assertion]
+                     )(val info: Source.Parser.Info) extends FPredicateLikeMember with PredicateMember
 
 case class BuiltInFPredicate(
-                            override val tag: BuiltInFPredicateTag,
-                            override val name: FPredicateProxy,
-                            override val argsT: Vector[Type]
+                              override val tag: BuiltInFPredicateTag,
+                              override val name: FPredicateProxy,
+                              override val argsT: Vector[Type]
                             )(val info: Source.Parser.Info) extends BuiltInMember with FPredicateLikeMember {
   require(argsT.forall(_.addressability == Addressability.Exclusive))
 }
@@ -235,7 +239,7 @@ case class MPredicate(
                      override val name: MPredicateProxy,
                      args: Vector[Parameter.In],
                      body: Option[Assertion]
-                     )(val info: Source.Parser.Info) extends MPredicateLikeMember
+                     )(val info: Source.Parser.Info) extends MPredicateLikeMember with PredicateMember
 
 case class BuiltInMPredicate(
                             receiverT: Type,
@@ -408,7 +412,7 @@ case class Access(e: Accessible, p: Expr)(val info: Source.Parser.Info) extends 
   require(p.typ.isInstanceOf[PermissionT], s"expected an expression of permission type but got $p.typ")
 }
 
-sealed trait TerminationMeasure extends Node
+sealed trait TerminationMeasure extends Assertion
 case class WildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure
 case class TupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure {
   require(tuple.forall(x => x.isInstanceOf[Expr] || x.isInstanceOf[PredicateAccess]), s"Unexpected tuple $tuple")

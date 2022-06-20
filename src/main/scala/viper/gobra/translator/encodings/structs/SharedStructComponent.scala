@@ -6,10 +6,8 @@
 
 package viper.gobra.translator.encodings.structs
 
-import viper.gobra.translator.interfaces.translator.Generator
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.Shared
-import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 import viper.gobra.translator.util.ViperWriter.CodeLevel._
@@ -17,6 +15,8 @@ import viper.gobra.translator.util.TypePatterns._
 import viper.gobra.translator.util.{ViperUtil => VU}
 import viper.gobra.util.Violation
 import StructEncoding.{ComponentParameter, cptParam}
+import viper.gobra.translator.library.Generator
+import viper.gobra.translator.context.Context
 
 trait SharedStructComponent extends Generator {
 
@@ -38,7 +38,7 @@ trait SharedStructComponent extends Generator {
       case _ :: ctx.Struct(fs) / Shared =>
         val vti = cptParam(fs)(ctx)
         val locFAs = fs.map(f => in.FieldRef(loc, f)(loc.info))
-        sequence(locFAs.map(fa => ctx.expr.translate(fa)(ctx))).map(ex.create(_, vti)(loc)(ctx))
+        sequence(locFAs.map(fa => ctx.expr(fa))).map(ex.create(_, vti)(loc)(ctx))
 
       case _ :: t => Violation.violation(s"expected struct, but got $t")
     }
@@ -57,7 +57,7 @@ trait SharedStructComponent extends Generator {
       case _ :: ctx.Struct(fs) / Shared =>
         val (pos, info, errT) = loc.vprMeta
         val locFAs = fs.map(f => in.FieldRef(loc, f)(loc.info))
-        sequence(locFAs.map(fa => ctx.typeEncoding.addressFootprint(ctx)(fa, perm))).map(VU.bigAnd(_)(pos, info, errT))
+        sequence(locFAs.map(fa => ctx.foot(fa, perm))).map(VU.bigAnd(_)(pos, info, errT))
 
       case _ :: t => Violation.violation(s"expected struct, but got $t")
     }

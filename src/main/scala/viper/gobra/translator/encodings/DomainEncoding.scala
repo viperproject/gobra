@@ -10,7 +10,8 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.silver.{ast => vpr}
 
@@ -40,8 +41,8 @@ class DomainEncoding extends LeafTypeEncoding {
 
       val funcs = domain.funcs map { f =>
         val (fPos, fInfo, fErrT) = f.vprMeta
-        val formalArgs = f.args map ctx.typeEncoding.variable(ctx)
-        val resType = ctx.typeEncoding.typ(ctx)(f.results.typ)
+        val formalArgs = f.args map ctx.variable
+        val resType = ctx.typ(f.results.typ)
         vpr.DomainFunc(f.name.name, formalArgs, resType)(fPos, fInfo, domainName, fErrT)
       }
 
@@ -53,15 +54,13 @@ class DomainEncoding extends LeafTypeEncoding {
 
       val axioms = ml.sequence(domain.axioms map { ax =>
         val (axPos, axInfo, axErrT) = ax.vprMeta
-        val body = ml.pure(ctx.expr.translate(ax.expr)(ctx))(ctx)
+        val body = ml.pure(ctx.expr(ax.expr))(ctx)
         body.map(exp => vpr.AnonymousDomainAxiom(exp)(axPos, axInfo, domainName, axErrT))
       })
 
 
       axioms.map(axs =>
-        Vector(
-          vpr.Domain(domainName, funcs :+ defaultFunc, axs)(dPos, dInfo, dErrT): vpr.Member
-        )
+        Vector(vpr.Domain(domainName, funcs :+ defaultFunc, axs)(dPos, dInfo, dErrT): vpr.Member)
       )
   }
 
@@ -71,11 +70,11 @@ class DomainEncoding extends LeafTypeEncoding {
     * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
     */
-  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+  override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
 
-    default(super.expr(ctx)) {
+    default(super.expression(ctx)) {
       case (e: in.DfltVal) :: ctx.Domain(d) / Exclusive =>
         val (pos, info, errT) = e.vprMeta
         unit(
@@ -90,7 +89,7 @@ class DomainEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = fc.vprMeta
         for {
           args <- sequence(fc.args map goE)
-          resType = ctx.typeEncoding.typ(ctx)(fc.typ)
+          resType = ctx.typ(fc.typ)
         } yield vpr.DomainFuncApp(
           funcname = fc.func.name,
           args,

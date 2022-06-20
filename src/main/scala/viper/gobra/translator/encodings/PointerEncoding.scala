@@ -9,7 +9,8 @@ package viper.gobra.translator.encodings
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 
@@ -26,7 +27,7 @@ class PointerEncoding extends LeafTypeEncoding {
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
     case ctx.*(t) / m =>
       m match {
-        case Exclusive => ctx.typeEncoding.typ(ctx)(t)
+        case Exclusive => ctx.typ(t)
         case Shared    => vpr.Ref
       }
   }
@@ -54,12 +55,12 @@ class PointerEncoding extends LeafTypeEncoding {
     * [dflt(*T°)] -> [dflt(T@)]
     * [nil: *T°] -> [dflt(T@)]
     */
-  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expr(ctx)){
+  override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
     case (dflt: in.DfltVal) :: ctx.*(t) / Exclusive =>
-      ctx.expr.translate(in.DfltVal(t)(dflt.info))(ctx)
+      ctx.expr(in.DfltVal(t)(dflt.info))
 
     case (lit: in.NilLit) :: ctx.*(t) =>
-      ctx.expr.translate(in.DfltVal(t)(lit.info))(ctx)
+      ctx.expr(in.DfltVal(t)(lit.info))
   }
 
   /**
@@ -72,6 +73,6 @@ class PointerEncoding extends LeafTypeEncoding {
     */
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
     case (loc: in.Deref) :: _ / Shared =>
-      ctx.expr.translate(loc.exp)(ctx)
+      ctx.expr(loc.exp)
   }
 }

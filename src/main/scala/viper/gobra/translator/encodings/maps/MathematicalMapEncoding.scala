@@ -9,9 +9,9 @@ package viper.gobra.translator.encodings.maps
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
-import viper.gobra.translator.encodings.LeafTypeEncoding
+import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.encodings.maps.MapEncoding.repeatedKeyErrorT
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeLevel.{assert, sequence, unit}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
@@ -25,7 +25,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
     case ctx.MathematicalMap(k, v) / m =>
       m match {
-        case Exclusive => vpr.MapType(ctx.typeEncoding.typ(ctx)(k), ctx.typeEncoding.typ(ctx)(v))
+        case Exclusive => vpr.MapType(ctx.typ(k), ctx.typ(v))
         case Shared    => vpr.Ref
       }
   }
@@ -38,7 +38,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
     case (in.Assignee(in.IndexedExp(base :: ctx.MathematicalMap(_, _), idx, baseUnderlyingType) :: _ / Exclusive), rhs, src) =>
       for {
-        stmt <- ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.GhostCollectionUpdate(base, idx, rhs, baseUnderlyingType)(src.info), src)
+        stmt <- ctx.assignment(in.Assignee(base), in.GhostCollectionUpdate(base, idx, rhs, baseUnderlyingType)(src.info))(src)
       } yield stmt
   }
 
@@ -58,13 +58,13 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
     * R[ keySet(e: mmap[K]V) ] -> MapDomain([e])
     * R[ valueSet(e: mmap[K]V) ] -> MapRange([e])
     */
-  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
-    def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
+  override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goT(t: in.Type): vpr.Type = ctx.typ(t)
 
-    default(super.expr(ctx)){
+    default(super.expression(ctx)){
       case (e: in.DfltVal) :: ctx.MathematicalMap(k, v) / Exclusive =>
-        unit(withSrc(vpr.EmptyMap(ctx.typeEncoding.typ(ctx)(k), ctx.typeEncoding.typ(ctx)(v)), e))
+        unit(withSrc(vpr.EmptyMap(ctx.typ(k), ctx.typ(v)), e))
 
       case (lit: in.MathMapLit) :: ctx.MathematicalMap(keyT, valT) / Exclusive =>
         val (pos, info, errT) = lit.vprMeta

@@ -6,13 +6,13 @@
 
 package viper.gobra.translator.encodings.preds
 
-import viper.gobra.translator.encodings.LeafTypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting.{DefaultErrorBackTranslator, FoldError, Source, UnfoldError}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 import viper.silver.verifier.{errors => vprerr}
@@ -48,11 +48,11 @@ class PredEncoding extends LeafTypeEncoding {
     * [Q{d1, ..., dk}: pred(S)] -> make_S_ID([d1], ..., [dk]) where ID is the ID for the pattern used in Q{d1, ..., dk}
     * [dflt(Pred(ts)°)] -> default() where default is a 0-ary function in the domain
     */
-  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+  override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
 
-    default(super.expr(ctx)) {
+    default(super.expression(ctx)) {
       case n@ in.PredicateConstructor(p, pTs, args) :: ctx.Pred(_) / Exclusive =>
         val (pos, info, errT) = n.vprMeta
         for {
@@ -74,7 +74,7 @@ class PredEncoding extends LeafTypeEncoding {
     * [acc(p(e1, ..., en))] -> eval_S([p], [e1], ..., [en]) where p: pred(S)
     */
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
 
     default(super.assertion(ctx)) {
       case n@ in.Access(in.Accessible.PredExpr(in.PredExprInstance(p :: ctx.Pred(ts), args)), perm) =>
@@ -106,7 +106,7 @@ class PredEncoding extends LeafTypeEncoding {
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
 
     def mergeArgs[A](ctrArgs: Vector[Option[A]], instanceArgs: Vector[A]): Vector[A] = {
       ctrArgs.foldLeft((instanceArgs, Vector.empty[A])){
@@ -127,7 +127,7 @@ class PredEncoding extends LeafTypeEncoding {
             // a1, ..., ak
             qArgs = mergeArgs(ctrArgs, accArgs)
             // acc(Q(a1, ..., ak), [p])
-            qAcc <- ctx.predicate.proxyAccess(q, qArgs, perm)(n.info)(ctx)
+            qAcc <- proxyAccess(q, qArgs, perm)(n.info)(ctx)
             // fold acc(Q(a1, ..., ak), [p])
             fold = vpr.Fold(qAcc)(pos, info, errT)
             _ <- write(fold)
@@ -169,12 +169,21 @@ class PredEncoding extends LeafTypeEncoding {
                 UnfoldError(info) dueTo DefaultErrorBackTranslator.defaultTranslate(reason) // we might want to change the message
             }
             // acc(Q(a1, ..., ak), [p])
-            qAcc <- ctx.predicate.proxyAccess(q, qArgs, perm)(n.info)(ctx)
+            qAcc <- proxyAccess(q, qArgs, perm)(n.info)(ctx)
             // inhale acc(Q(a1, ..., ak), [p])
             _ <- write(vpr.Inhale(qAcc)(pos, info, errT))
             // unfold acc(Q(a1, ..., ak), [p])
           } yield vpr.Unfold(qAcc)(pos, info, errT)
         )
     }
+  }
+
+  /** Returns proxy(args) */
+  def proxyAccess(proxy: in.PredicateProxy, args: Vector[in.Expr], perm: in.Expr)(src: Source.Parser.Info)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate] = {
+    val predicateInstance = proxy match {
+      case proxy: in.FPredicateProxy => in.Access(in.Accessible.Predicate(in.FPredicateAccess(proxy, args)(src)), perm)(src)
+      case proxy: in.MPredicateProxy => in.Access(in.Accessible.Predicate(in.MPredicateAccess(args.head, proxy, args.tail)(src)), perm)(src)
+    }
+    ctx.ass(predicateInstance).map(_.asInstanceOf[vpr.PredicateAccessPredicate])
   }
 }

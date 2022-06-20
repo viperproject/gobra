@@ -85,6 +85,10 @@ object Nodes {
         case Implication(left, right) => Seq(left, right)
         case MagicWand(left, right) => Seq(left, right)
         case Access(e, p) => Seq(e, p)
+        case m: TerminationMeasure => m match {
+          case m: WildcardMeasure => m.cond.toSeq
+          case t: TupleTerminationMeasure => t.cond.toSeq ++ t.tuple
+        }
       }
       case a: Accessible => Seq(a.op)
       case p: PredicateAccess => p match {
@@ -195,10 +199,6 @@ object Nodes {
         case MPredicateProxy(_, _) => Seq.empty
         case _: DomainFuncProxy => Seq.empty
         case _: LabelProxy => Seq.empty
-      }
-      case m: TerminationMeasure => m match {
-        case m: WildcardMeasure => m.cond.toSeq
-        case t: TupleTerminationMeasure => t.cond.toSeq ++ t.tuple
       }
     }
 //    n match {

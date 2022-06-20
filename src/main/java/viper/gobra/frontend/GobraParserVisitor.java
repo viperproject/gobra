@@ -80,6 +80,24 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitProofStatement(GobraParser.ProofStatementContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#auxiliaryStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAuxiliaryStatement(GobraParser.AuxiliaryStatementContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#statementWithSpec}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitStatementWithSpec(GobraParser.StatementWithSpecContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#outlineStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitOutlineStatement(GobraParser.OutlineStatementContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#ghostPrimaryExpr}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -169,6 +187,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitLabelUse(GobraParser.LabelUseContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#before}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBefore(GobraParser.BeforeContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#isComparable}.
 	 * @param ctx the parse tree

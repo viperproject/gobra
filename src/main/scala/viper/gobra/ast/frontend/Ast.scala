@@ -126,6 +126,10 @@ sealed trait PActualMember extends PMember
 
 sealed trait PGhostifiableMember extends PActualMember with PGhostifiable
 
+sealed trait PProofAnnotation extends PNode {
+  def nonGhostChildren: Vector[PNode]
+}
+
 /**
   * node declaring an identifier that is placed in a scope that depends on something.
   * examples:
@@ -302,6 +306,10 @@ case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhosti
     case b: PBlock => b.nonEmptyStmts.isEmpty // filter empty blocks
     case _ => false
   }
+}
+
+case class POutline(body: PStatement, spec: PFunctionSpec) extends PActualStatement with PProofAnnotation {
+  override def nonGhostChildren: Vector[PNode] = Vector(body)
 }
 
 /**
@@ -517,13 +525,8 @@ case class PShiftLeft(left: PExpression, right: PExpression) extends PBinaryExp[
 
 case class PShiftRight(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
-
-sealed trait PActualExprProofAnnotation extends PActualExpression {
-  def nonGhostChildren: Vector[PExpression]
-}
-
-case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualExprProofAnnotation {
-  override def nonGhostChildren: Vector[PExpression] = Vector(op)
+case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualExpression with PProofAnnotation {
+  override def nonGhostChildren: Vector[PNode] = Vector(op)
 }
 
 /**
@@ -931,6 +934,8 @@ case class PWildcardPerm() extends PPermission
 case class POld(operand: PExpression) extends PGhostExpression
 
 case class PLabeledOld(label: PLabelUse, operand: PExpression) extends PGhostExpression
+
+case class PBefore(operand: PExpression) extends PGhostExpression
 
 case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) extends PGhostExpression
 

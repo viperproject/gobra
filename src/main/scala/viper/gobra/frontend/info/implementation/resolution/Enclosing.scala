@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.Regular
-import viper.gobra.frontend.info.base.Type
+import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.base.Type.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -30,20 +30,24 @@ trait Enclosing { this: TypeInfoImpl =>
     case _ => id
   })
 
-  lazy val enclosingLoop: PNode => Option[PForStmt] = {
-    down[Option[PForStmt]](None){ case x: PForStmt => Some(x) }
+
+  lazy val enclosingLoopUntilOutline: PNode => Either[Option[PNode], PForStmt] = {
+    down[Either[Option[PNode], PForStmt]](Left(None)){
+      case x: POutline => Left(Some(x))
+      case x: PForStmt => Right(x)
+    }
   }
 
   // Returns the enclosing loop that has a specific label
   // It also returns the invariants of that loop
-  def enclosingLabeledLoop(label: PLabelUse, node: PNode) : Option[PForStmt] = {
-    enclosingLoop(node) match {
-      case None => None
-      case Some(encLoop) => encLoop match {
-        case tree.parent(l: PLabeledStmt) if l.label.name == label.name => Some(encLoop)
+  def enclosingLabeledLoop(label: PLabelUse, node: PNode): Either[Option[PNode], PForStmt] = {
+    enclosingLoopUntilOutline(node) match {
+      case Right(encLoop) => encLoop match {
+        case tree.parent(l: PLabeledStmt) if l.label.name == label.name => Right(encLoop)
         case tree.parent(p) => enclosingLabeledLoop(label, p)
-        case _ => violation("No parent found for a loop statement.")
+        case _ => Left(None)
       }
+      case r => r
     }
   }
 
@@ -58,6 +62,9 @@ trait Enclosing { this: TypeInfoImpl =>
 
   lazy val enclosingCodeRoot: PNode => PCodeRoot with PScope =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRoot with PScope => m }
+
+  lazy val tryEnclosingOutline: PNode => Option[POutline] =
+    down[Option[POutline]](None) { case x: POutline => Some(x) }
 
   lazy val isEnclosingExplicitGhost: PNode => Boolean =
     down(false){ case _: PGhostifier[_] => true }
@@ -158,6 +165,8 @@ trait Enclosing { this: TypeInfoImpl =>
             // no function spec, no invariants, no predicate body
             // no assert, assume, exhale, inhale
           case p: POld => aux(p)
+          case p: PLabeledOld => aux(p)
+          case p: PBefore => aux(p)
           case p: PConditional => val t = typ(p); if (t == Type.NilType) None else Some(t)
             // no implication, access
             // no forall or exists body
@@ -181,4 +190,55 @@ trait Enclosing { this: TypeInfoImpl =>
 
     aux(nil)
   }
+
+  override def freeVariables(n: PNode): Vector[PIdnNode] = freeVariablesAttr(n)
+  private lazy val freeVariablesAttr: PNode => Vector[PIdnNode] = {
+    def free(x: PIdnNode, scope: PNode): Boolean = entity(x) match {
+      case r: SymbolTable.SingleLocalVariable => !containedIn(enclosingScope(r.rep), scope)
+      case r: SymbolTable.MultiLocalVariable  => !containedIn(enclosingScope(r.rep), scope)
+      case _: SymbolTable.InParameter         => true
+      case _: SymbolTable.ReceiverParameter   => true
+      case _: SymbolTable.OutParameter        => true
+      case _ => false
+    }
+
+    attr[PNode, Vector[PIdnNode]] { node =>
+      allChildren(node).collect{ case x: PIdnNode if free(x, node) => x }.distinctBy(_.name)
+    }
+  }
+
+  override def freeDeclared(n: PNode): Vector[PIdnNode] = freeDeclaredAttr(n)
+  private lazy val freeDeclaredAttr: PNode => Vector[PIdnNode] = {
+    attr[PNode, Vector[PIdnNode]] { node =>
+      val allDeclared = allChildren(node).collect[Vector[PIdnNode]] {
+        case decl: PLocalVarDecl => decl.left.collect{ case id: PIdnDef => id }
+        case decl: PGlobalVarDecl => decl.left.collect{ case id: PIdnDef => id }
+        case decl: PShortVarDecl => decl.left.collect { case id: PIdnUnk if isDef(id) => id }
+      }.flatten.distinctBy(_.name)
+
+      freeVariables(node).filter(l => allDeclared.exists(r => l.name == r.name))
+    }
+  }
+
+  override def freeModified(n: PNode): Vector[PIdnNode] = freeModifiedAttr(n)
+  private lazy val freeModifiedAttr: PNode => Vector[PIdnNode] = {
+    def modified(ass: PAssignee): Option[PIdnNode] = {
+      ass match {
+        case PNamedOperand(id) => Some(id)
+        case PDot(_, id) => Some(id)
+        case _ => None
+      }
+    }
+
+    attr[PNode, Vector[PIdnNode]] { node =>
+      val allModified = (allChildren(node).collect[Vector[PIdnNode]] {
+        case ass: PAssignment => ass.left.flatMap(modified)
+        case ass: PAssignmentWithOp => modified(ass.left).toVector
+        case ass: PShortVarDecl => ass.left.collect { case id: PIdnUnk if !isDef(id) => id }
+      }.flatten ++ freeDeclared(node)).distinctBy(_.name) // free declarations also count as modifications
+      freeVariables(node).filter(l => allModified.exists(r => l.name == r.name))
+    }
+  }
+
+
 }

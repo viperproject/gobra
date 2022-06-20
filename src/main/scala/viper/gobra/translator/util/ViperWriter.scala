@@ -295,6 +295,10 @@ object ViperWriter {
 
   case object CodeLevel extends LeveledViperWriter[CodeKind, CodeSum](CodeKindCompanion) {
 
+    def fromMemberLevel[R](w: MemberLevel.Writer[R]): Writer[R] = {
+      create(w.sum.all, w.res)
+    }
+
     def pure(w: Writer[vpr.Exp])(ctx: Context): Writer[vpr.Exp] = {
       val (codeSum, remainder, r) = w.execute
       require(codeSum.code.forall(_.isPure))

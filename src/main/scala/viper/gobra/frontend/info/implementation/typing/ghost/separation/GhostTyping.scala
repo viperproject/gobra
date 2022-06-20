@@ -152,7 +152,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       }
 
       val childrenToVisit: Iterable[PNode] = node match {
-        case p: PActualExprProofAnnotation => p.nonGhostChildren
+        case p: PProofAnnotation => p.nonGhostChildren
         case _ => tree.child(node)
       }
 

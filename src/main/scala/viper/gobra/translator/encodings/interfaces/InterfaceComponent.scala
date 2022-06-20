@@ -6,7 +6,7 @@
 
 package viper.gobra.translator.encodings.interfaces
 
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.context.Context
 import viper.silver.{ast => vpr}
 
 trait InterfaceComponent {

@@ -1355,6 +1355,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitBefore(ctx: BeforeContext): PGhostExpression = super.visitBefore(ctx) match {
+    case Vector("before", "(", exp : PExpression, ")") => PBefore(exp)
+  }
+
 
   /**
     * {@inheritDoc  }
@@ -1978,6 +1988,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       case "inhale" => PInhale(expr)
       case "exhale" => PExhale(expr)
     }
+  }
+
+  override def visitStatementWithSpec(ctx: StatementWithSpecContext): PStatement = super.visitStatementWithSpec(ctx) match {
+    case Vector(spec: PFunctionSpec, body: PStatement) => POutline(body, spec)
+  }
+
+  override def visitOutlineStatement(ctx: OutlineStatementContext): PSeq = super.visitOutlineStatement(ctx) match {
+    case Vector(_, _, stmts: Vector[PStatement@unchecked], _) => PSeq(stmts)
   }
 
 

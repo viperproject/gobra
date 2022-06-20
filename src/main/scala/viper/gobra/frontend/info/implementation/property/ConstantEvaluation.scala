@@ -175,6 +175,8 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
         case Some(ap.Conversion(t, e)) if underlyingTypeP(t).contains(PPermissionType()) => permConstantEval(e)
         case _ => None
       }
+
+      case expr => violation(s"Unexpected constant perm expression: $expr.")
     }
   }
 

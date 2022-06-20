@@ -334,6 +334,10 @@ object Desugar {
 //        proxies += abstraction(from) -> to
     }
 
+    object FunctionContext {
+      def empty(src: Source.Parser.Info) = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src))
+    }
+
     /**
       * Desugars a package with an optional `shouldDesugar` function indicating whether a particular member should be
       * desugared or skipped
@@ -384,9 +388,9 @@ object Desugar {
           val typ = typeD(info.typ(w.decl), Addressability.globalVariable)(src)
           val scope = info.codeRoot(decl).asInstanceOf[PPackage] // TODO: explain cast as a test
           freshGlobalVar(typ, scope, w.context)(src)
-        case _ => ??? // TODO: Violation
+        case e => Violation.violation(s"Expected a global variable or wildcard, but instead got $e")
       }
-      val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy context
+      val ctx = FunctionContext.empty(src)
       val exps = sequence(decl.right.map(exprD(ctx)))
       Vector(in.GlobalVarDecl(gvars, exps.res, exps.decls, exps.stmts)(src))
     }

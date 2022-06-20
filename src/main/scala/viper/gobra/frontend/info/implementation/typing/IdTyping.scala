@@ -248,7 +248,9 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case AssignMode.Multi => exprType(right.head) match {
         case t: InternalTupleT => t.ts(pos)
         case t: InternalSingleMulti => t.mul.ts(pos)
-        case t => violation(s"return type of multi-assignment should be an InternalTupleT, but got $t instead")
+        case _ =>
+          // If the expression type in Multi mode is not a tuple, the term cannot be typed
+          UnknownType
       }
       case AssignMode.Error | AssignMode.Variadic => violation("ill formed assignment")
     }

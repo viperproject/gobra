@@ -1,0 +1,55 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type cell struct{
+  v int
+}
+
+requires acc(self)
+ensures  acc(self) && self.v == old(self.v) + n
+func (self *cell) add(n int) {
+  self.v += n
+}
+
+ensures x == cell{6}
+func test1() (x cell) {
+    share x
+    defer x.add(1)
+    x := cell{5}
+}
+
+pred m(x *int) { acc(x) }
+
+requires m(x)
+ensures  m(x)
+func test2(x *int) {
+    defer fold m(x)
+    unfold m(x)
+}
+
+requires acc(x)
+ensures  acc(x)
+func test3(x *int) {
+    defer unfold m(x)
+    fold m(x)
+}
+
+requires m(x)
+ensures  m(x)
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures false
+func test4(x *int) {
+    defer fold m(x)
+    unfold m(x)
+}
+
+requires acc(x)
+ensures  acc(x)
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures false
+func test5(x *int) {
+    defer unfold m(x)
+    fold m(x)
+}

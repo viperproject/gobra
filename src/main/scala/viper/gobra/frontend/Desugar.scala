@@ -2452,14 +2452,6 @@ object Desugar {
       case sc: st.SingleConstant => nm.global(id.name, sc.context)
       case st.Embbed(_, _, _) | st.Field(_, _, _) => violation(s"expected that fields and embedded field are desugared by using embeddedDeclD resp. fieldDeclD but idName was called with $id")
       case n: st.NamedType => nm.typ(id.name, n.context)
-      case t => println(s"AQUI dass: $t"); ???
-      /*
-      case w: st.Wildcard => info.codeRoot(w.decl) match {
-        case _: PPackage => ??? // means it is a global var
-        case _ => ??? // TODO: violation
-      }
-
-       */
       case _ => ???
     }
 
@@ -2503,12 +2495,14 @@ object Desugar {
       in.LocalVar(nm.fresh(scope, ctx), typ)(info)
     }
 
+    // TODO: improve function, make code clear
     def freshGlobalVar(typ: in.Type, scope: PNode, ctx: ExternalTypeInfo)(info: Source.Parser.Info): in.GlobalVar = {
       require(typ.addressability == Addressability.globalVariable)
       // TODO: danger, messing up with global variables might have a global impact on the caching the init code. However,
       //       this should not be problematic in general, given that wildcards cannot be general in other functions
       val name = nm.fresh(scope, ctx)
-      val proxy = in.GlobalVarProxy(name, name)(meta(scope, ctx.getTypeInfo))
+      val uniqName = nm.global(name, ctx)
+      val proxy = in.GlobalVarProxy(name, uniqName)(meta(scope, ctx.getTypeInfo))
       in.GlobalVar(proxy, typ)(info)
     }
 
@@ -2518,17 +2512,6 @@ object Desugar {
       declare(res).map(_ => res)
     }
 
-    // TODO: remove
-    def localVarD(ctx: FunctionContext)(id: PIdnNode): in.LocalVar = {
-      require(info.regular(id).isInstanceOf[st.Variable]) // TODO: add local check
-
-      ctx(id) match {
-        case Some(v: in.LocalVar) => v
-        case None => localVarContextFreeD(id)
-        case _ => violation("expected local variable")
-      }
-    }
-
     def localVarContextFreeD(id: PIdnNode, context: TypeInfo = info): in.LocalVar = {
       require(context.regular(id).isInstanceOf[st.Variable]) // TODO: add local check
 
@@ -2536,11 +2519,6 @@ object Desugar {
 
       val typ = typeD(context.typ(id), context.addressableVar(id))(meta(id, context))
       in.LocalVar(idName(id, context), typ)(src)
-    }
-
-    // TODO: remove
-    def parameterAsLocalValVar(p: in.Parameter): in.LocalVar = {
-      in.LocalVar(p.id, p.typ)(p.info)
     }
 
     def labelProxy(l: PLabelNode): in.LabelProxy = {

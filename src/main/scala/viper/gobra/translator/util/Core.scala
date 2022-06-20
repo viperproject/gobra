@@ -18,9 +18,10 @@ object Core {
 
   def option[R](x: Option[Core[R]]): Core[Option[R]] = x.fold[Core[Option[R]]](unit(None))(_.map(Some(_)))
 
-
-  def core(@unused x: in.Expr): Core[in.LocalVar] = Core { args => (args.head, args.tail) }
-
+  /**
+    * For a statements s, the result is a function from variables to s where all sub-expressions are substituted with the argument variables.
+    * The result satisfies `core(s).run(coreArgs(s)) == s`
+    * */
   def core(x: in.Deferrable): Core[in.Deferrable] = x match {
     case x: in.FunctionCall => for (args <- vector(x.args map core)) yield x.copy(args = args)(x.info)
     case x: in.MethodCall => for (recv <- core(x.recv); args <- vector(x.args map core)) yield x.copy(recv = recv, args = args)(x.info)
@@ -53,6 +54,8 @@ object Core {
     for (base <- core(x.base); args <- vector(x.args map core)) yield x.copy(base = base, args = args)(x.info)
   }
 
+  def core(@unused x: in.Expr): Core[in.LocalVar] = Core { args => (args.head, args.tail) }
+
   def deepCore(x: in.PredicateConstructor): Core[in.PredicateConstructor] = {
     for {
       args <- vector(x.args.map(y => option(y.map(core))))
@@ -60,8 +63,7 @@ object Core {
   }
 
 
-  def coreArgs(x: in.Expr): Vector[in.Expr] = Vector(x)
-
+  /** Returns all expressions of a statement such that `core(s).run(coreArgs(s)) == s` */
   def coreArgs(x: in.Deferrable): Vector[in.Expr] = x match {
     case x: in.FunctionCall => x.args
     case x: in.MethodCall => x.recv +: x.args
@@ -87,6 +89,8 @@ object Core {
   }
 
   def coreArgs(x: in.PredExprInstance): Vector[in.Expr] = x.base +: x.args
+
+  def coreArgs(x: in.Expr): Vector[in.Expr] = Vector(x)
 
   def deepCoreArgs(x: in.PredicateConstructor): Vector[in.Expr] = x.args.flatten
 }

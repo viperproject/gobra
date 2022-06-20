@@ -680,7 +680,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   override def showMember(mem: PMember): Doc = mem match {
     case mem: PActualMember => mem match {
       case n: PConstDecl => showConstDecl(n)
-      case n: PLocalVarDecl => showVarDecl(n)
+      case n: PGlobalVarDecl => showGlobalVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PFunctionDecl(id, args, res, spec, _) =>
         showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)

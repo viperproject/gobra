@@ -79,8 +79,6 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       error(n, s"found more than one default case", dflt.size > 1) ++
         isExpr(exp).out ++ comparableType.errors(exprType(exp))(n)
 
-    case _: PExprSwitchDflt => noMessages
-
     case n@tree.parent.pair(PExprSwitchCase(left, _), sw: PExprSwitchStmt) =>
       left.flatMap(e => isExpr(e).out ++ comparableTypes.errors(exprType(e), exprType(sw.exp))(n))
 

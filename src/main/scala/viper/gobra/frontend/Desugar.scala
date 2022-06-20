@@ -9,7 +9,7 @@ package viper.gobra.frontend
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
-import viper.gobra.frontend.info.base.SymbolTable.{GlobalVariable, MultiGlobalVariable, SingleGlobalVariable}
+import viper.gobra.frontend.info.base.SymbolTable.GlobalVariable
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
@@ -377,43 +377,29 @@ object Desugar {
     }
 
     def globalVarDeclD(decl: PGlobalVarDecl): Vector[in.GlobalVarDecl] = {
-      val entities = decl.left.map(info.regular)
       val src = meta(decl)
-      val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy context
-      // TODO: adapt when we have wildcards
-      val gvars = entities map {
+      val gvars = decl.left.map(info.regular) map {
         case g: st.GlobalVariable => globalVarD(g)(src)
-        case _ => ??? // TODO: Violation - adapt when we introduce wildcards
+        case w: st.Wildcard =>
+          val typ = typeD(info.typ(w.decl), Addressability.globalVariable)(src)
+          val scope = info.codeRoot(decl).asInstanceOf[PPackage] // TODO: explain cast as a test
+          freshGlobalVar(typ, scope, w.context)(src)
+        case _ => ??? // TODO: Violation
       }
+      val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy context
       val exps = sequence(decl.right.map(exprD(ctx)))
       Vector(in.GlobalVarDecl(gvars, exps.res, exps.decls, exps.stmts)(src))
     }
 
-    // TODO: Cleanup
-    def globalVarD(v: st.GlobalVariable)(src: Meta): in.GlobalVar = v match {
-      case v: SingleGlobalVariable =>
-        // TODO: abstract this pattern somewhere
-        val typ = typeD(v.context.typ(v.decl.left.head), Addressability.globalVariable)(src)
-        val proxy = globalVarProxyD(v)
-        in.GlobalVar(proxy, typ)(src)
-      case v: MultiGlobalVariable =>
-        // TODO: improve line below, no repetition, better explained with doc
-        val typ = typeD(v.context.typ(v.decl.left(v.idx)), Addressability.globalVariable)(src)
-        val proxy = globalVarProxyD(v)
-        in.GlobalVar(proxy, typ)(src)
-      // TODO: support remaining case: Wildcard
+    def globalVarD(v: st.GlobalVariable)(src: Meta): in.GlobalVar = {
+      val typ = typeD(v.context.typ(v.id), Addressability.globalVariable)(src)
+      val proxy = globalVarProxyD(v)
+      in.GlobalVar(proxy, typ)(src)
     }
 
-    def globalVarProxyD(v: st.GlobalVariable): in.GlobalVarProxy = v match {
-      case v: SingleGlobalVariable =>
-        // TODO: Improve to not have left(0)
-        val name = idName(v.decl.left(0), v.context.getTypeInfo) // improve, add method, no need to do left(0) every time
-        in.GlobalVarProxy(v.decl.left(0).name, name)(meta(v.decl, v.context.getTypeInfo))
-      case v: MultiGlobalVariable =>
-        // TODO: Improve to not have left(v.idx)
-        val name = idName(v.decl.left(v.idx), v.context.getTypeInfo) // improve, add method, no need to do left(0) every time
-        in.GlobalVarProxy(v.decl.left(v.idx).name, name)(meta(v.decl, v.context.getTypeInfo))
-      case _ => ??? // TODO: support remaining case: wildcard
+    def globalVarProxyD(v: st.GlobalVariable): in.GlobalVarProxy = {
+      val name = idName(v.id, v.context.getTypeInfo)
+      in.GlobalVarProxy(v.id.name, name)(meta(v.decl, v.context.getTypeInfo))
     }
 
     def constDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constSpecD)
@@ -2455,14 +2441,21 @@ object Desugar {
       case m: st.MPredicateImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
       case m: st.MPredicateSpec => nm.spec(id.name, m.itfType, m.context)
       case f: st.DomainFunction => nm.function(id.name, f.context)
-      // TODO: introduce st.GlobalVariable
       case v: st.Variable => v match {
-        case _: st.SingleGlobalVariable | _: st.MultiGlobalVariable => nm.global(id.name, v.context)
+        case _: st.GlobalVariable => nm.global(id.name, v.context)
         case _ => nm.variable(id.name, context.scope(id), v.context)
       }
       case sc: st.SingleConstant => nm.global(id.name, sc.context)
       case st.Embbed(_, _, _) | st.Field(_, _, _) => violation(s"expected that fields and embedded field are desugared by using embeddedDeclD resp. fieldDeclD but idName was called with $id")
       case n: st.NamedType => nm.typ(id.name, n.context)
+      case t => println(s"AQUI dass: $t"); ???
+      /*
+      case w: st.Wildcard => info.codeRoot(w.decl) match {
+        case _: PPackage => ??? // means it is a global var
+        case _ => ??? // TODO: violation
+      }
+
+       */
       case _ => ???
     }
 
@@ -2506,12 +2499,22 @@ object Desugar {
       in.LocalVar(nm.fresh(scope, ctx), typ)(info)
     }
 
+    def freshGlobalVar(typ: in.Type, scope: PNode, ctx: ExternalTypeInfo)(info: Source.Parser.Info): in.GlobalVar = {
+      require(typ.addressability == Addressability.globalVariable)
+      // TODO: danger, messing up with global variables might have a global impact on the caching the init code. However,
+      //       this should not be problematic in general, given that wildcards cannot be general in other functions
+      val name = nm.fresh(scope, ctx)
+      val proxy = in.GlobalVarProxy(name, name)(meta(scope, ctx.getTypeInfo))
+      in.GlobalVar(proxy, typ)(info)
+    }
+
     def freshDeclaredExclusiveVar(typ: in.Type, scope: PNode, ctx: ExternalTypeInfo)(info: Source.Parser.Info): Writer[in.LocalVar] = {
       require(typ.addressability == Addressability.exclusiveVariable)
       val res = in.LocalVar(nm.fresh(scope, ctx), typ)(info)
       declare(res).map(_ => res)
     }
 
+    // TODO: remove
     def localVarD(ctx: FunctionContext)(id: PIdnNode): in.LocalVar = {
       require(info.regular(id).isInstanceOf[st.Variable]) // TODO: add local check
 
@@ -2531,6 +2534,7 @@ object Desugar {
       in.LocalVar(idName(id, context), typ)(src)
     }
 
+    // TODO: remove
     def parameterAsLocalValVar(p: in.Parameter): in.LocalVar = {
       in.LocalVar(p.id, p.typ)(p.info)
     }

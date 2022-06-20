@@ -52,11 +52,12 @@ trait NameResolution { this: TypeInfoImpl =>
             }
           case decl: PGlobalVarDecl =>
             val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+            // println(s"zipWith: ${decl.left.zipWithIndex}, id: $id, idx: $idx")
             StrictAssignMode(decl.left.size, decl.right.size) match {
               // TODO: improve
-              case AssignMode.Single => SingleGlobalVariable(decl, Some(decl.right(idx)), decl.typ, isGhost, this)
+              case AssignMode.Single => SingleGlobalVariable(decl, idx, Some(decl.right(idx)), decl.typ, isGhost, this)
               case AssignMode.Multi  => MultiGlobalVariable(decl, idx, decl.right.headOption, decl.typ, isGhost, this)
-              case _ if decl.right.isEmpty => SingleGlobalVariable(decl, None, decl.typ, isGhost, this)
+              case _ if decl.right.isEmpty => SingleGlobalVariable(decl, idx, None, decl.typ, isGhost, this)
               case _ => UnknownEntity()
             }
         case decl: PTypeDef => NamedType(decl, isGhost, this)

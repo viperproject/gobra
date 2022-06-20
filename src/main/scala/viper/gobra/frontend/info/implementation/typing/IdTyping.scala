@@ -72,7 +72,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       })
     })
 
-    case SingleGlobalVariable(_, expOpt, typOpt, _, _) => unsafeMessage(! {
+    case SingleGlobalVariable(_, _, expOpt, typOpt, _, _) => unsafeMessage(! {
       typOpt.exists(wellDefAndType.valid) ||
         expOpt.exists(e => wellDefAndExpr.valid(e) && Single.unapply(exprType(e)).nonEmpty)
     })
@@ -178,7 +178,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"expected tuple but got $t")
     }
 
-    case SingleGlobalVariable(_, expOpt, typOpt, _, context) => typOpt.map(context.symbType)
+    case SingleGlobalVariable(_, _, expOpt, typOpt, _, context) => typOpt.map(context.symbType)
       .getOrElse(context.typ(expOpt.get) match {
         case Single(t) => t
         case t => violation(s"expected single Type but got $t")
@@ -259,6 +259,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case tree.parent(p) => p match {
         case PShortVarDecl(right, left, _) => getBlankAssigneeType(w, left, right)
         case PLocalVarDecl(typ, right, left, _) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
+        case PGlobalVarDecl(typ, right, left) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
         case PConstSpec(typ, right, left) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
         case _ => ???
       }

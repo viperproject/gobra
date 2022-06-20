@@ -88,7 +88,14 @@ object SymbolTable extends Environments[Entity] {
     def addressable: Boolean
   }
 
-  sealed trait GlobalVariable extends Variable
+  sealed trait GlobalVariable extends Variable {
+    def decl: PGlobalVarDecl
+    def id: PDefLikeId
+    def expOpt: Option[PExpression]
+    def typOpt: Option[PType]
+    def ghost: Boolean
+    def context: ExternalTypeInfo
+  }
 
   sealed trait ActualVariable extends Variable with ActualDataEntity
 
@@ -100,16 +107,26 @@ object SymbolTable extends Environments[Entity] {
   }
 
   // TODO: cleanup params
-  case class SingleGlobalVariable(decl: PGlobalVarDecl, expOpt: Option[PExpression], typOpt: Option[PType], ghost: Boolean, context: ExternalTypeInfo) extends ActualVariable with GlobalVariable {
+  case class SingleGlobalVariable(decl: PGlobalVarDecl, idx: Int, expOpt: Option[PExpression], typOpt: Option[PType], ghost: Boolean, context: ExternalTypeInfo) extends ActualVariable with GlobalVariable {
     require(expOpt.isDefined || typOpt.isDefined)
+    require(0 <= idx && idx < decl.left.length)
     override def rep: PNode = decl
     override def addressable: Boolean = true
+    override def id: PDefLikeId = decl.left(idx)
   }
-  // TODO: put type here
+
+  // TODO: cleanup params
   case class MultiGlobalVariable(decl: PGlobalVarDecl, idx: Int, expOpt: Option[PExpression], typOpt: Option[PType], ghost: Boolean, context: ExternalTypeInfo) extends ActualVariable with GlobalVariable {
     require(expOpt.isDefined || typOpt.isDefined)
+    require(0 <= idx && idx < decl.left.length)
     override def rep: PNode = decl
     override def addressable: Boolean = true
+    override def id: PDefLikeId = decl.left(idx)
+  }
+
+  case class Wildcard(decl: PWildcard, context: ExternalTypeInfo) extends ActualRegular with ActualDataEntity {
+    override def rep: PNode = decl
+    override def ghost: Boolean = false
   }
 
   case class InParameter(decl: PNamedParameter, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
@@ -128,12 +145,6 @@ object SymbolTable extends Environments[Entity] {
   case class RangeVariable(idx: Int, exp: PRange, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = exp
   }
-
-  case class Wildcard(decl: PWildcard, context: ExternalTypeInfo) extends ActualRegular with ActualDataEntity {
-    override def rep: PNode = decl
-    override def ghost: Boolean = false
-  }
-
 
   sealed trait TypeEntity extends Regular
 

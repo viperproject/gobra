@@ -1009,6 +1009,29 @@ case class StringLit(s: String)(val info: Source.Parser.Info) extends Lit {
 
 case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
 
+/* ** Closures */
+sealed trait FunctionLikeLit extends Lit  {
+  def name: Option[String]
+  def args: Vector[Parameter.In]
+  def results: Vector[Parameter.Out]
+  def pres: Vector[Assertion]
+  def posts: Vector[Assertion]
+  def terminationMeasures: Vector[TerminationMeasure]
+}
+
+case class FunctionLit(
+                     override val name: Option[String],
+                     override val args: Vector[Parameter.In],
+                     override val results: Vector[Parameter.Out],
+                     override val pres: Vector[Assertion],
+                     override val posts: Vector[Assertion],
+                     override val terminationMeasures: Vector[TerminationMeasure],
+                     body: Option[Block]
+                   )(val info: Source.Parser.Info) extends FunctionLikeLit {
+  override def typ: Type = FunctionT(Addressability.literal)
+}
+
+
 /**
   * Represents (full) slice expressions "`base`[`low`:`high`:`max`]".
   * Only the `max` component is optional at this point.

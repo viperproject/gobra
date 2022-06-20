@@ -176,6 +176,8 @@ object GobraStrategy {
       case (b: BoolLit, Seq()) => BoolLit(b.b)(meta)
       case (p: PermLit, Seq()) => PermLit(p.dividend, p.divisor)(meta)
       case (n: NilLit, Seq()) => NilLit(n.typ)(meta)
+      case (_: FunctionLit, Seq(name: Option[String], arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], terminationMeasures: Vector[TerminationMeasure@unchecked], b: Option[Block@unchecked])) => FunctionLit(name, arg, res, pre, post, terminationMeasures, b)(meta)
+      case (_: PureFunctionLit, Seq(name: Option[String], arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], terminationMeasures: Vector[TerminationMeasure@unchecked], b: Option[Expr@unchecked])) => PureFunctionLit(name, arg, res, pre, post, terminationMeasures, b)(meta)
       case (s: StructLit, Seq(args: Vector[Expr@unchecked])) => StructLit(s.typ, args)(meta)
       case (_: ArrayLit, Seq(l: BigInt, t: Type, args: Map[BigInt@unchecked, Expr@unchecked])) => ArrayLit(l, t, args)(meta)
       case (_: SliceLit, Seq(t: Type, args: Map[BigInt@unchecked, Expr@unchecked])) => SliceLit(t, args)(meta)

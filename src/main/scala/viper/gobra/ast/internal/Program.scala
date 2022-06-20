@@ -103,14 +103,15 @@ sealed trait FunctionLikeMember extends Member {
   def name: FunctionProxy
 }
 
-sealed trait FunctionMember extends FunctionLikeMember {
-  def name: FunctionProxy
+sealed trait FunctionLikeMemberOrLit {
   def args: Vector[Parameter.In]
   def results: Vector[Parameter.Out]
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
   def terminationMeasures: Vector[TerminationMeasure]
 }
+
+sealed trait FunctionMember extends FunctionLikeMember with FunctionLikeMemberOrLit
 
 sealed trait Location extends Expr
 
@@ -1010,13 +1011,8 @@ case class StringLit(s: String)(val info: Source.Parser.Info) extends Lit {
 case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
 
 /* ** Closures */
-sealed trait FunctionLikeLit extends Lit  {
+sealed trait FunctionLikeLit extends Lit with FunctionLikeMemberOrLit  {
   def name: Option[String]
-  def args: Vector[Parameter.In]
-  def results: Vector[Parameter.Out]
-  def pres: Vector[Assertion]
-  def posts: Vector[Assertion]
-  def terminationMeasures: Vector[TerminationMeasure]
 }
 
 case class FunctionLit(
@@ -1028,9 +1024,21 @@ case class FunctionLit(
                      override val terminationMeasures: Vector[TerminationMeasure],
                      body: Option[Block]
                    )(val info: Source.Parser.Info) extends FunctionLikeLit {
-  override def typ: Type = FunctionT(Addressability.literal)
+  override def typ: Type = FunctionT(args.map(_.typ), TupleT(results.map(_.typ), Addressability.rValue), Addressability.literal)
 }
 
+case class PureFunctionLit(
+                         override val name: Option[String],
+                         override val args: Vector[Parameter.In],
+                         override val results: Vector[Parameter.Out],
+                         override val pres: Vector[Assertion],
+                         override val posts: Vector[Assertion],
+                         override val terminationMeasures: Vector[TerminationMeasure],
+                         body: Option[Expr]
+                       )(val info: Source.Parser.Info) extends FunctionLikeLit {
+  override def typ: Type = FunctionT(args.map(_.typ), TupleT(results.map(_.typ), Addressability.rValue), Addressability.literal)
+  require(results.size <= 1)
+}
 
 /**
   * Represents (full) slice expressions "`base`[`low`:`high`:`max`]".
@@ -1190,6 +1198,17 @@ case object VoidT extends PrettyType("void") {
   override val addressability: Addressability = Addressability.unit
   override def equalsWithoutMod(t: Type): Boolean = t == VoidT
   override def withAddressability(newAddressability: Addressability): VoidT.type = VoidT
+}
+
+case class FunctionT(args: Vector[Type], res: Type, addressability: Addressability) extends PrettyType(f"func(${args})") {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case FunctionT(otherArgs, otherRes, _) => otherArgs.length == args.length &&
+      (otherArgs zip args).forall{ t => t._1.equalsWithoutMod(t._2)} &&
+      otherRes.equalsWithoutMod(res)
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): FunctionT = FunctionT(args, res, newAddressability)
 }
 
 case class PermissionT(addressability: Addressability) extends PrettyType("perm") {

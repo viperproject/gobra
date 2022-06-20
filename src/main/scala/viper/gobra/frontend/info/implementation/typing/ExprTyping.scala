@@ -28,7 +28,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   val MAX_SHIFT: Int = 512
 
   lazy val wellDefExprAndType: WellDefinedness[PExpressionAndType] = createWellDef {
-
     case _: PNamedOperand => noMessages // no checks to avoid cycles
 
     case n: PDeref =>
@@ -82,8 +81,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   lazy val exprAndTypeType: Typing[PExpressionAndType] = createTyping[PExpressionAndType] {
-    case n: PNamedOperand =>
-      exprOrType(n).fold(x => idType(x.asInstanceOf[PNamedOperand].id), _ => SortT)
+    case n: PNamedOperand => exprOrType(n).fold(x => idType(x.asInstanceOf[PNamedOperand].id), _ => SortT)
 
     case n: PDeref =>
       resolve(n) match {

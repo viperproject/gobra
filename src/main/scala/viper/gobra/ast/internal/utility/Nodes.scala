@@ -170,6 +170,8 @@ object Nodes {
           case PermLit(_, _) => Seq.empty
           case StringLit(_) => Seq.empty
           case NilLit(_) => Seq.empty
+          case FunctionLit(_, args, results, pres, posts, measures, body) => args ++ results ++ pres ++ posts ++ measures ++ body
+          case PureFunctionLit(_, args, results, pres, posts, measures, body) => args ++ results ++ pres ++ posts ++ measures ++ body
           case ArrayLit(_, _, elems) => elems.values.toSeq
           case SliceLit(_, elems) => elems.values.toSeq
           case MapLit(_, _, entries) => entries flatMap { case (x, y) => Seq(x, y) }

@@ -323,6 +323,8 @@ object Desugar {
         substitutions += abstraction(from) -> to
 
       def copy: FunctionContext = new FunctionContext(ret, substitutions)
+
+      def copyWith(ret: Vector[in.Expr] => Meta => in.Stmt): FunctionContext = new FunctionContext(ret, substitutions)
 //
 //      private var proxies: Map[Identity, in.Proxy] = Map.empty
 //
@@ -433,7 +435,20 @@ object Desugar {
 
       val name = functionProxyD(decl, info)
       val fsrc = meta(decl)
+      val functionInfo = functionMemberOrLitD(decl, fsrc)
 
+      in.Function(name, functionInfo.args, functionInfo.results, functionInfo.pres, functionInfo.posts,
+        functionInfo.terminationMeasures, functionInfo.body)(fsrc)
+    }
+
+    private case class FunctionInfo(args: Vector[in.Parameter.In],
+                                    results: Vector[in.Parameter.Out],
+                                    pres: Vector[in.Assertion],
+                                    posts: Vector[in.Assertion],
+                                    terminationMeasures: Vector[in.TerminationMeasure],
+                                    body: Option[in.Block])
+
+    private def functionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext = null): FunctionInfo = {
       val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
       val (args, argSubs) = argsWithSubs.unzip
 
@@ -465,7 +480,7 @@ object Desugar {
       }
 
       // create context for spec translation
-      val specCtx = new FunctionContext(assignReturns)
+      val specCtx = if(outerCtx == null) { new FunctionContext(assignReturns) } else { outerCtx.copyWith(assignReturns) }
 
       // extent context
       (decl.args zip argsWithSubs).foreach {
@@ -499,7 +514,7 @@ object Desugar {
         } // :+ in.Return()(fsrc)
 
       // create context for body translation
-      val ctx = new FunctionContext(assignReturns)
+      val ctx =  if(outerCtx == null) { new FunctionContext(assignReturns) } else { outerCtx.copyWith(assignReturns) }
 
       // extent context
       (decl.args zip argsWithSubs).foreach{
@@ -520,14 +535,27 @@ object Desugar {
         in.Block(vars, body)(meta(s))
       }
 
-      in.Function(name, args, returns, pres, posts, terminationMeasures, bodyOpt)(fsrc)
+      FunctionInfo(args, returns, pres, posts, terminationMeasures, bodyOpt)
     }
 
     def pureFunctionD(decl: PFunctionDecl): in.PureFunction = {
-      require(decl.spec.isPure)
-
       val name = functionProxyD(decl, info)
       val fsrc = meta(decl)
+      val funcInfo = pureFunctionMemberOrLitD(decl, fsrc)
+
+      in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(fsrc)
+    }
+
+    private case class PureFunctionInfo(args: Vector[in.Parameter.In],
+                                        results: Vector[in.Parameter.Out],
+                                        pres: Vector[in.Assertion],
+                                        posts: Vector[in.Assertion],
+                                        terminationMeasures: Vector[in.TerminationMeasure],
+                                        body: Option[in.Expr])
+
+
+    private def pureFunctionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext = null): PureFunctionInfo = {
+      require(decl.spec.isPure)
 
       val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
       val (args, _) = argsWithSubs.unzip
@@ -536,7 +564,8 @@ object Desugar {
       val (returns, _) = returnsWithSubs.unzip
 
       // create context for body translation
-      val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
+      val dummyRet: Vector[in.Expr] => Meta => in.Stmt = _ => _ => in.Seqn(Vector.empty)(fsrc)
+      val ctx = if(outerCtx == null) { new FunctionContext(dummyRet) } else { outerCtx.copyWith(dummyRet) }
 
       // extent context
       (decl.args zip argsWithSubs).foreach {
@@ -565,8 +594,9 @@ object Desugar {
           implicitConversion(res.typ, returns.head.typ, res)
       }
 
-      in.PureFunction(name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
+      PureFunctionInfo(args, returns, pres, posts, terminationMeasure, bodyOpt)
     }
+
 
     def methodD(decl: PMethodDecl): in.MethodMember =
       if (decl.spec.isPure) pureMethodD(decl) else {
@@ -1932,9 +1962,23 @@ object Desugar {
         case PBoolLit(b) => single(in.BoolLit(b))
         case PStringLit(s) => single(in.StringLit(s))
         case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.PointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
+        case f: PFunctionLit if !f.decl.decl.spec.isPure => unit[in.Expr](functionLitD(ctx)(f))
+        case p: PFunctionLit if p.decl.decl.spec.isPure => unit[in.Expr](pureFunctionLitD(ctx)(p))
         case c: PCompositeLit => compositeLitD(ctx)(c)
         case _ => ???
       }
+    }
+
+    def functionLitD(ctx: FunctionContext)(lit: PFunctionLit): in.FunctionLit = {
+      val funcInfo = functionMemberOrLitD(lit.decl.decl, meta(lit), ctx)
+      val name = if (lit.decl.id.nonEmpty) Some(idName(lit.decl.id.get)) else None
+      in.FunctionLit(name, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit))
+    }
+
+    def pureFunctionLitD(ctx: FunctionContext)(lit: PFunctionLit): in.PureFunctionLit = {
+      val funcInfo = pureFunctionMemberOrLitD(lit.decl.decl, meta(lit), ctx)
+      val name = if (lit.decl.id.nonEmpty) Some(idName(lit.decl.id.get)) else None
+      in.PureFunctionLit(name, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit))
     }
 
     def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
@@ -2380,7 +2424,7 @@ object Desugar {
 
       case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
 
-      case Type.FunctionT(_, _) => ???
+      case Type.FunctionT(args, result) => in.FunctionT(args.map(typeD(_, Addressability.rValue)(src)), typeD(result, Addressability.rValue)(src), addrMod)
 
       case t: Type.InterfaceT =>
         val interfaceName = nm.interface(t)
@@ -2419,6 +2463,7 @@ object Desugar {
       case m: st.MPredicateSpec => nm.spec(id.name, m.itfType, m.context)
       case f: st.DomainFunction => nm.function(id.name, f.context)
       case v: st.Variable => nm.variable(id.name, context.scope(id), v.context)
+      case c: st.Closure => nm.funcLit(id.name, context.scope(id), c.context)
       case sc: st.SingleConstant => nm.global(id.name, sc.context)
       case st.Embbed(_, _, _) | st.Field(_, _, _) => violation(s"expected that fields and embedded field are desugared by using embeddedDeclD resp. fieldDeclD but idName was called with $id")
       case n: st.NamedType => nm.typ(id.name, n.context)
@@ -2436,7 +2481,7 @@ object Desugar {
 
     def varD(ctx: FunctionContext)(id: PIdnNode): in.Var = {
       require(info.regular(id).isInstanceOf[st.Variable])
-
+      val r = ctx(id)
       ctx(id) match {
         case Some(v : in.Var) => v
         case Some(_) => violation("expected a variable")
@@ -3184,12 +3229,20 @@ object Desugar {
       s"${n}_$postfix${scopeMap(s)}" // deterministic
     }
 
+    private def nameWithCodeRoot(postfix: String)(n: String, s: PScope, context: ExternalTypeInfo): String = {
+      maybeRegister(s, context)
+      val codeRoot = context.codeRoot(s).asInstanceOf[PFunctionDecl].id.name
+      // n has occur first in order that function inverse properly works
+      s"${n}_${codeRoot}_${context.pkgInfo.viperId}_$postfix${scopeMap(s)}" // deterministic
+    }
+
     private def topLevelName(postfix: String)(n: String, context: ExternalTypeInfo): String = {
       // n has occur first in order that function inverse properly works
       s"${n}_${context.pkgInfo.viperId}_$postfix" // deterministic
     }
 
     def variable(n: String, s: PScope, context: ExternalTypeInfo): String = name(VARIABLE_PREFIX)(n, s, context)
+    def funcLit(n: String, s: PScope, context: ExternalTypeInfo): String = nameWithCodeRoot(FUNCTION_PREFIX)(n, s, context)
     def global  (n: String, context: ExternalTypeInfo): String = topLevelName(GLOBAL_PREFIX)(n, context)
     def typ     (n: String, context: ExternalTypeInfo): String = topLevelName(TYPE_PREFIX)(n, context)
     def field   (n: String, @unused s: StructT): String = s"$n$FIELD_PREFIX" // Field names must preserve their equality from the Go level

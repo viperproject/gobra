@@ -68,6 +68,9 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val isEnclosingDomain: PNode => Boolean =
     down(false){ case _: PDomainType => true }
 
+  lazy val isEnclosingFunctionLit: PNode => Boolean =
+    down(false){ case _: PFunctionLit => true }
+
   lazy val enclosingInterface: PNode => PInterfaceType =
     down((_: PNode) => violation("Node does not root in an interface definition")) { case x: PInterfaceType => x }
 

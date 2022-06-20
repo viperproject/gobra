@@ -83,9 +83,9 @@ trait Context {
 
   def goEqual(lhs: in.Expr, rhs: in.Expr)(src: in.Node): CodeWriter[vpr.Exp] = typeEncoding.goEqual(this)(lhs, rhs, src)
 
-  def expr(x: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.finalExpression(this)(x)
+  def expression(x: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.finalExpression(this)(x)
 
-  def ass(x: in.Assertion): CodeWriter[vpr.Exp] = typeEncoding.finalAssertion(this)(x)
+  def assertion(x: in.Assertion): CodeWriter[vpr.Exp] = typeEncoding.finalAssertion(this)(x)
 
   def invariant(x: in.Assertion): (CodeWriter[Unit], vpr.Exp) = typeEncoding.invariant(this)(x)
 
@@ -93,13 +93,13 @@ trait Context {
 
   def postcondition(x: in.Assertion): MemberWriter[vpr.Exp] = typeEncoding.postcondition(this)(x)
 
-  def ref(x: in.Location): CodeWriter[vpr.Exp] = typeEncoding.reference(this)(x)
+  def reference(x: in.Location): CodeWriter[vpr.Exp] = typeEncoding.reference(this)(x)
 
-  def foot(x: in.Location, perm: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.addressFootprint(this)(x, perm)
+  def footprint(x: in.Location, perm: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.addressFootprint(this)(x, perm)
 
   def isComparable(x: in.Expr): Either[Boolean, CodeWriter[vpr.Exp]] = typeEncoding.isComparable(this)(x)
 
-  def stmt(x: in.Stmt): CodeWriter[vpr.Stmt] = typeEncoding.finalStatement(this)(x)
+  def statement(x: in.Stmt): CodeWriter[vpr.Stmt] = typeEncoding.finalStatement(this)(x)
 
   // lookup
   def table: LookupTable

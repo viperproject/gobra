@@ -57,10 +57,10 @@ class PointerEncoding extends LeafTypeEncoding {
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
     case (dflt: in.DfltVal) :: ctx.*(t) / Exclusive =>
-      ctx.expr(in.DfltVal(t)(dflt.info))
+      ctx.expression(in.DfltVal(t)(dflt.info))
 
     case (lit: in.NilLit) :: ctx.*(t) =>
-      ctx.expr(in.DfltVal(t)(lit.info))
+      ctx.expression(in.DfltVal(t)(lit.info))
   }
 
   /**
@@ -73,6 +73,6 @@ class PointerEncoding extends LeafTypeEncoding {
     */
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
     case (loc: in.Deref) :: _ / Shared =>
-      ctx.expr(loc.exp)
+      ctx.expression(loc.exp)
   }
 }

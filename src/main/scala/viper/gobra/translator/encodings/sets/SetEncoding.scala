@@ -49,7 +49,7 @@ class SetEncoding extends LeafTypeEncoding {
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     default(super.expression(ctx)){
 
@@ -149,7 +149,7 @@ class SetEncoding extends LeafTypeEncoding {
         val s = in.BoundVar("s", t)(exp.info)
         val vSDecl = ctx.variable(s); val vS = vSDecl.localVar
         for {
-          vExp <- pure(ctx.expr(exp))(ctx)
+          vExp <- pure(ctx.expression(exp))(ctx)
           rhs <- pure(ctx.isComparable(s)
             .getOrElse(Violation.violation("An incomparable set or mset entails an incomparable element type.")))(ctx)
           contains = vpr.AnySetContains(vS, vExp)(pos, info, errT)

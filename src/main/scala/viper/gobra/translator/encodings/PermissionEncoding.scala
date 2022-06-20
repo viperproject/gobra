@@ -38,7 +38,7 @@ class PermissionEncoding extends LeafTypeEncoding {
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     default(super.expression(ctx)){
       // the default value for Perm is NoPerm to be similar to the zero values for other literals
@@ -53,7 +53,7 @@ class PermissionEncoding extends LeafTypeEncoding {
       case cp: in.CurrentPerm =>
         val (pos, info, errT) = cp.vprMeta
         for {
-          arg <- ctx.ass(in.Access(in.Accessible.Predicate(cp.acc.op), in.FullPerm(cp.info))(cp.info))
+          arg <- ctx.assertion(in.Access(in.Accessible.Predicate(cp.acc.op), in.FullPerm(cp.info))(cp.info))
           pap = arg.asInstanceOf[vpr.PredicateAccessPredicate]
           res = vpr.CurrentPerm(pap.loc)(pos, info, errT)
         } yield res

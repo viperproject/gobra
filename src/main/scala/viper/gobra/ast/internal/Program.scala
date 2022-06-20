@@ -259,13 +259,13 @@ case class DomainFunc(
                        results: Parameter.Out
                      )(val info: Source.Parser.Info) extends Node
 
-case class MethodBody(
-                      decls: Vector[BlockDeclaration],
-                      stmts: Vector[Stmt],
-                      postprocessing: Vector[Stmt] = Vector.empty,
-                    )(val info: Source.Parser.Info) extends Node
-
 sealed trait Stmt extends Node
+
+case class MethodBody(
+                       decls: Vector[BlockDeclaration],
+                       stmts: Vector[Stmt],
+                       postprocessing: Vector[Stmt] = Vector.empty,
+                     )(val info: Source.Parser.Info) extends Stmt
 
 case class Block(
                   decls: Vector[BlockDeclaration],

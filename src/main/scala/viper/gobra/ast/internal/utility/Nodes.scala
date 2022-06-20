@@ -38,10 +38,10 @@ object Nodes {
       case DomainDefinition(_, funcs, axioms) => funcs ++ axioms
       case DomainFunc(_, args, results) => args ++ Seq(results)
       case DomainAxiom(expr) => Seq(expr)
-      case MethodBody(decls, stmts, postprocessing) => decls ++ stmts ++ postprocessing
       case s: Stmt => s match {
         case Break(_, _) => Seq.empty
         case Continue(_, _) => Seq.empty
+        case MethodBody(decls, stmts, postprocessing) => decls ++ stmts ++ postprocessing
         case Block(decls, stmts) => decls ++ stmts
         case Seqn(stmts) => stmts
         case Label(label) => Seq(label)

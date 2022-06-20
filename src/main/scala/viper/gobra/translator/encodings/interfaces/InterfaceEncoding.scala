@@ -83,7 +83,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
   }
 
   override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = default(super.member(ctx)) {
-        // predicate encoding is overwritten because different predicates are encoded to the same Viper predicate.
+    // predicate encoding is overwritten because different predicates are encoded to the same Viper predicate.
     case p: in.FPredicate if hasFamily(p.name)(ctx) => ctx.predicate(p); ml.unit(Vector.empty)
     case p: in.MPredicate if hasFamily(p.name)(ctx) => ctx.predicate(p); ml.unit(Vector.empty)
   }
@@ -135,8 +135,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
     case (lhs :: ctx.Interface(_), rhs :: ctx.Interface(_), src) =>
       val (pos, info, errT) = src.vprMeta
       for {
-        vLhs <- ctx.expr(lhs)
-        vRhs <- ctx.expr(rhs)
+        vLhs <- ctx.expression(lhs)
+        vRhs <- ctx.expression(rhs)
       } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
 
     case (itf :: ctx.Interface(_), oth :: ctx.NotInterface(), src) =>
@@ -153,8 +153,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
       val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>
         ComparisonError(x).dueTo(ComparisonOnIncomparableInterfaces(x))
       for {
-        vLhs <- ctx.expr(lhs)
-        vRhs <- ctx.expr(rhs)
+        vLhs <- ctx.expression(lhs)
+        vRhs <- ctx.expression(rhs)
         cond = vpr.Or(
           isComparabeInterface(vLhs)(pos, info, errT)(ctx),
           isComparabeInterface(vRhs)(pos, info, errT)(ctx)
@@ -186,7 +186,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     default(super.expression(ctx)){
       case n@ (  (_: in.DfltVal) :: ctx.Interface(_) / Exclusive
@@ -272,7 +272,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     *
     */
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     default(super.assertion(ctx)) {
       case n@ in.Access(in.Accessible.Predicate(in.MPredicateAccess(recv, p, args)), perm) if hasFamily(p)(ctx) =>
@@ -303,7 +303,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       super.isComparable(ctx)(exp).map{ _ =>
         val (pos, info, errT) = exp.vprMeta
         for {
-          vExp <- ctx.expr(exp)
+          vExp <- ctx.expression(exp)
         } yield isComparabeInterface(vExp)(pos, info ,errT)(ctx): vpr.Exp
       }
   }
@@ -415,7 +415,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
           TypeAssertionError(x).dueTo(SafeTypeAssertionsToInterfaceNotSucceedingReason(x))
         seqn(
           for {
-            arg <- ctx.expr(expr)
+            arg <- ctx.expression(expr)
             dynType = typeOfWithSubtypeFact(arg, in.InterfaceT(itf, Addressability.Exclusive))(pos, info, errT)(ctx)
             staticType = types.typeToExpr(typ)(pos, info, errT)(ctx)
             _ <- assert(types.behavioralSubtype(dynType, staticType)(pos, info, errT)(ctx), errorT)
@@ -432,13 +432,13 @@ class InterfaceEncoding extends LeafTypeEncoding {
         types.genPreciseEqualityAxioms(typ)(ctx)
         seqn(
           for {
-            arg <- ctx.expr(expr)
+            arg <- ctx.expression(expr)
             dynType = typeOfWithSubtypeFact(arg, in.InterfaceT(itf, Addressability.Exclusive))(pos, info, errT)(ctx)
             staticType = types.typeToExpr(typ)(pos, info, errT)(ctx)
             vResTarget = ctx.variable(resTarget).localVar
             vSuccessTarget = ctx.variable(successTarget).localVar
             _ <- bind(vSuccessTarget, vpr.EqCmp(dynType, staticType)(pos, info, errT))
-            vDflt <- ctx.expr(in.DfltVal(resTarget.typ)(n.info))
+            vDflt <- ctx.expression(in.DfltVal(resTarget.typ)(n.info))
             res = vpr.If(
               vSuccessTarget,
               vpr.Seqn(Seq(vpr.LocalVarAssign(vResTarget, valueOf(arg, typ)(pos, info, errT)(ctx))(pos, info, errT)), Seq.empty)(pos, info, errT),
@@ -658,7 +658,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
   private def mpredicateInstance(recv: in.Expr, proxy: in.MPredicateProxy, args: Vector[in.Expr])(src: in.Node)(ctx: Context): CodeWriter[vpr.PredicateAccess] = {
     val (pos, info, errT) = src.vprMeta
     val id = familyID(proxy)(ctx).getOrElse(Violation.violation("expected dynamic predicate"))
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     for {
       dynValue <- goE(recv)
@@ -673,7 +673,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
   private def fpredicateInstance(proxy: in.FPredicateProxy, args: Vector[in.Expr])(src: in.Node)(ctx: Context): CodeWriter[vpr.PredicateAccess] = {
     val (pos, info, errT) = src.vprMeta
     val id = familyID(proxy)(ctx).getOrElse(Violation.violation("expected dynamic predicate"))
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     for {
       dynValue <- goE(args.head)
@@ -730,9 +730,9 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     for {
       vPres <- ml.sequence(p.pres map ctx.precondition)
-      measures <- ml.sequence(p.terminationMeasures.map(e => ml.pure(ctx.ass(e))(ctx)))
+      measures <- ml.sequence(p.terminationMeasures.map(e => ml.pure(ctx.assertion(e))(ctx)))
       posts <- ml.sequence(p.posts.map(ctx.postcondition(_).map(fixResultvar(_))))
-      body  <- ml.option(p.body.map(p => ml.pure(ctx.expr(p))(ctx)))
+      body  <- ml.option(p.body.map(p => ml.pure(ctx.expression(p))(ctx)))
       func = vpr.Function(
         name = p.name.uniqueName,
         formalArgs = recvDecl +: argDecls,

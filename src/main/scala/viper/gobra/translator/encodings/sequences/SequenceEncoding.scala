@@ -74,7 +74,7 @@ class SequenceEncoding extends LeafTypeEncoding {
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     default(super.expression(ctx)){
 
@@ -102,7 +102,7 @@ class SequenceEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = lit.vprMeta
 
         for {
-          vExprs <- sequence(exprs.toVector.map(e => ctx.expr(e)))
+          vExprs <- sequence(exprs.toVector.map(e => ctx.expression(e)))
           vElems = indices.zip(vExprs).toMap
           vChunks = chunks.map(translate(t, _, vElems)(ctx)(lit))
         } yield vChunks match {
@@ -184,7 +184,7 @@ class SequenceEncoding extends LeafTypeEncoding {
         val s = in.BoundVar("s", t)(exp.info)
         val vSDecl = ctx.variable(s); val vS = vSDecl.localVar
         for {
-          vExp <- pure(ctx.expr(exp))(ctx)
+          vExp <- pure(ctx.expression(exp))(ctx)
           rhs <- pure(ctx.isComparable(s)
             .getOrElse(Violation.violation("An incomparable sequence entails an incomparable element type.")))(ctx)
           contains = vpr.SeqContains(vS, vExp)(pos, info, errT)
@@ -210,7 +210,7 @@ class SequenceEncoding extends LeafTypeEncoding {
       case EmptyChunk(size) => emptySeqFunc(Vector(vpr.IntLit(size)(pos, info, errT)), typ)(pos, info, errT)(ctx)
       case chunk: NonEmptyChunk => {
         val dfltElem = in.DfltVal(typ)(Source.Parser.Internal)
-        val vDfltElem = ctx.expr(dfltElem).res
+        val vDfltElem = ctx.expression(dfltElem).res
         val vElems = Range.BigInt(0, chunk.size, 1).map(i => elems.getOrElse(chunk.firstIndex + i, vDfltElem))
         vpr.ExplicitSeq(vElems)(pos, info, errT)
       }
@@ -240,7 +240,7 @@ class SequenceEncoding extends LeafTypeEncoding {
 
       // default value of type `t`
       val dfltElem = in.DfltVal(t)(Source.Parser.Internal)
-      val vDfltElem = ctx.expr(dfltElem).res
+      val vDfltElem = ctx.expression(dfltElem).res
 
       // preconditions
       val pre1 = synthesized(vpr.LeCmp(vpr.IntLit(0)(), nDecl.localVar))("Sequence length might be negative")

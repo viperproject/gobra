@@ -135,8 +135,8 @@ class StructEncoding extends TypeEncoding {
         unit(withSrc(if (lhs == rhs) vpr.TrueLit() else ctx.unknownValue.unkownValue(vpr.Bool), src))
       } else {
         for {
-          vLhs <- ctx.expr(lhs)
-          vRhs <- ctx.expr(rhs)
+          vLhs <- ctx.expression(lhs)
+          vRhs <- ctx.expression(rhs)
         } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
       }
   }
@@ -158,27 +158,27 @@ class StructEncoding extends TypeEncoding {
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
     case (loc@ in.FieldRef(recv :: ctx.Struct(fs), field)) :: _ / Exclusive =>
       for {
-        vBase <- ctx.expr(recv)
+        vBase <- ctx.expression(recv)
         idx = indexOfField(fs, field)
       } yield ex.get(vBase, idx, cptParam(fs)(ctx))(loc)(ctx)
 
     case (upd: in.StructUpdate) :: ctx.Struct(fs) =>
       for {
-        vBase <- ctx.expr(upd.base)
+        vBase <- ctx.expression(upd.base)
         idx = indexOfField(fs, upd.field)
-        vVal <- ctx.expr(upd.newVal)
+        vVal <- ctx.expression(upd.newVal)
       } yield ex.update(vBase, idx, vVal, cptParam(fs)(ctx))(upd)(ctx)
 
     case (e: in.DfltVal) :: ctx.Struct(fs) / Exclusive =>
       val fieldDefaults = fs.map(f => in.DfltVal(f.typ)(e.info))
-      sequence(fieldDefaults.map(ctx.expr)).map(ex.create(_, cptParam(fs)(ctx))(e)(ctx))
+      sequence(fieldDefaults.map(ctx.expression)).map(ex.create(_, cptParam(fs)(ctx))(e)(ctx))
 
     case (e: in.DfltVal) :: ctx.Struct(fs) / Shared =>
       val (pos, info, errT) = e.vprMeta
       unit(shDfltFunc(Vector.empty, fs)(pos, info, errT)(ctx))
 
     case (lit: in.StructLit) :: ctx.Struct(fs) =>
-      val fieldExprs = lit.args.map(arg => ctx.expr(arg))
+      val fieldExprs = lit.args.map(arg => ctx.expression(arg))
       sequence(fieldExprs).map(ex.create(_, cptParam(fs)(ctx))(lit)(ctx))
 
     case (loc: in.Location) :: ctx.Struct(_) / Shared =>
@@ -196,7 +196,7 @@ class StructEncoding extends TypeEncoding {
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
     case (loc@ in.FieldRef(recv :: ctx.Struct(fs), field)) :: _ / Shared =>
       for {
-        vBase <- ctx.ref(recv.asInstanceOf[in.Location])
+        vBase <- ctx.reference(recv.asInstanceOf[in.Location])
         idx = indexOfField(fs, field)
       } yield sh.get(vBase, idx, cptParam(fs)(ctx))(loc)(ctx)
   }

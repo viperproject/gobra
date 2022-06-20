@@ -8,7 +8,6 @@ package viper.gobra.translator.encodings.defaults
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.{ViperUtil => vu}
@@ -41,12 +40,12 @@ class DefaultMethodEncoding extends Encoding {
     for {
       pres <- sequence((vRecvPres ++ vArgPres) ++ x.pres.map(ctx.precondition))
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.postcondition))
-      measures <- sequence(x.terminationMeasures.map(e => pure(ctx.ass(e))(ctx)))
+      measures <- sequence(x.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
 
       body <- option(x.body.map{ b => block{
         for {
           init <- vResultInit
-          core <- methodBody(b)(ctx)
+          core <- ctx.statement(b)
         } yield vu.seqn(Vector(init, core))(pos, info, errT)
       }})
 
@@ -78,12 +77,12 @@ class DefaultMethodEncoding extends Encoding {
     for {
       pres <- sequence(vArgPres ++ x.pres.map(ctx.precondition))
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.postcondition))
-      measures <- sequence(x.terminationMeasures.map(e => pure(ctx.ass(e))(ctx)))
+      measures <- sequence(x.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
 
       body <- option(x.body.map{ b => block{
         for {
           init <- vResultInit
-          core <- methodBody(b)(ctx)
+          core <- ctx.statement(b)
         } yield vu.seqn(Vector(init, core))(pos, info, errT)
       }})
 
@@ -97,29 +96,5 @@ class DefaultMethodEncoding extends Encoding {
       )(pos, info, errT)
 
     } yield method
-  }
-
-  def methodBody(x: in.MethodBody)(ctx: Context): CodeWriter[vpr.Stmt] = {
-    val (pos, info, errT) = x.vprMeta
-
-    val returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
-
-    cl.block{
-      for {
-        _ <- cl.global(returnLabel)
-        _ <- cl.global(x.decls.map(blockDecl(_)(ctx)): _*)
-        vBody <- cl.sequence(x.stmts map ctx.stmt)
-        vPostprocessing <- cl.sequence(x.postprocessing map ctx.stmt)
-      } yield vu.seqn(vBody ++ Vector(returnLabel) ++ vPostprocessing)(pos, info, errT)
-    }
-  }
-
-  def blockDecl(x: in.BlockDeclaration)(ctx: Context): vpr.Declaration = {
-    x match {
-      case x: in.BodyVar => ctx.variable(x)
-      case l: in.LabelProxy =>
-        val (pos, info, errT) = x.vprMeta
-        vpr.Label(l.name, Seq.empty)(pos, info, errT)
-    }
   }
 }

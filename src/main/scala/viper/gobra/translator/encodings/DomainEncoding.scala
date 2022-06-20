@@ -54,7 +54,7 @@ class DomainEncoding extends LeafTypeEncoding {
 
       val axioms = ml.sequence(domain.axioms map { ax =>
         val (axPos, axInfo, axErrT) = ax.vprMeta
-        val body = ml.pure(ctx.expr(ax.expr))(ctx)
+        val body = ml.pure(ctx.expression(ax.expr))(ctx)
         body.map(exp => vpr.AnonymousDomainAxiom(exp)(axPos, axInfo, domainName, axErrT))
       })
 
@@ -72,7 +72,7 @@ class DomainEncoding extends LeafTypeEncoding {
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     default(super.expression(ctx)) {
       case (e: in.DfltVal) :: ctx.Domain(d) / Exclusive =>

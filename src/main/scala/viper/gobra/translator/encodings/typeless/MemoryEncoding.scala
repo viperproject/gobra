@@ -16,18 +16,18 @@ import viper.silver.{ast => vpr}
 class MemoryEncoding extends Encoding {
 
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
-    case r: in.Ref => ctx.ref(r.ref.op)
+    case r: in.Ref => ctx.reference(r.ref.op)
     case x@ in.EqCmp(l, r) => ctx.goEqual(l, r)(x)
     case x@ in.UneqCmp(l, r) => ctx.goEqual(l, r)(x).map(v => withSrc(vpr.Not(v), x))
 
-    case n@ in.LessCmp(l, r) => for {vl <- ctx.expr(l); vr <- ctx.expr(r)}    yield withSrc(vpr.LtCmp(vl, vr), n)
-    case n@ in.AtMostCmp(l, r) => for {vl <- ctx.expr(l); vr <- ctx.expr(r)}  yield withSrc(vpr.LeCmp(vl, vr), n)
-    case n@ in.GreaterCmp(l, r) => for {vl <- ctx.expr(l); vr <- ctx.expr(r)} yield withSrc(vpr.GtCmp(vl, vr), n)
-    case n@ in.AtLeastCmp(l, r) => for {vl <- ctx.expr(l); vr <- ctx.expr(r)} yield withSrc(vpr.GeCmp(vl, vr), n)
+    case n@ in.LessCmp(l, r) => for {vl <- ctx.expression(l); vr <- ctx.expression(r)}    yield withSrc(vpr.LtCmp(vl, vr), n)
+    case n@ in.AtMostCmp(l, r) => for {vl <- ctx.expression(l); vr <- ctx.expression(r)}  yield withSrc(vpr.LeCmp(vl, vr), n)
+    case n@ in.GreaterCmp(l, r) => for {vl <- ctx.expression(l); vr <- ctx.expression(r)} yield withSrc(vpr.GtCmp(vl, vr), n)
+    case n@ in.AtLeastCmp(l, r) => for {vl <- ctx.expression(l); vr <- ctx.expression(r)} yield withSrc(vpr.GeCmp(vl, vr), n)
   }
 
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
-    case in.Access(in.Accessible.Address(l), p) => ctx.foot(l, p)
+    case in.Access(in.Accessible.Address(l), p) => ctx.footprint(l, p)
   }
 
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {

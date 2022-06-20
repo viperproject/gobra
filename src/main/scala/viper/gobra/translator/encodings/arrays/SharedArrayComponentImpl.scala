@@ -37,7 +37,7 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
       val idx = in.BoundVar("idx", in.IntT(Exclusive))(src.info)
       val vIdx = ctx.variable(idx)
       val resAccess = ctx.array.loc(vpr.Result(vResType)(), vIdx.localVar)()
-      val idxEq = vpr.EqCmp(resAccess, pure(ctx.expr(in.DfltVal(t.elemT)(src.info)))(ctx).res)()
+      val idxEq = vpr.EqCmp(resAccess, pure(ctx.expression(in.DfltVal(t.elemT)(src.info)))(ctx).res)()
       val forall = vpr.Forall(
         Seq(vIdx),
         Seq(vpr.Trigger(Seq(resAccess))()),

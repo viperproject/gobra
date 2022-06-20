@@ -67,7 +67,7 @@ class MapEncoding extends LeafTypeEncoding {
     * R[ valueSet(e: map[K]V) ] -> [e] == null? 0 : MapRange(getCorrespondingMap(e))
     */
   override def expression(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
     def goT(t: in.Type): vpr.Type = ctx.typ(t)
 
     default(super.expression(ctx)) {
@@ -174,7 +174,7 @@ class MapEncoding extends LeafTypeEncoding {
     *     [ok] := ok'
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
     def goT(t: in.Type): vpr.Type = ctx.typ(t)
 
     default(super.statement(ctx)) {
@@ -265,9 +265,9 @@ class MapEncoding extends LeafTypeEncoding {
             isCompKey <- MapEncoding.checkKeyComparability(idx)(ctx)
             _ <- assert(isCompKey, comparabilityErrorT) // key must be comparable
 
-            vRhs <- ctx.expr(rhs)
-            vM <- ctx.expr(m)
-            vIdx <- ctx.expr(idx)
+            vRhs <- ctx.expression(rhs)
+            vM <- ctx.expression(m)
+            vIdx <- ctx.expression(idx)
             _ <- local(vRes)
 
             correspondingMapM <- getCorrespondingMap(m, keys, values)(ctx)
@@ -291,7 +291,7 @@ class MapEncoding extends LeafTypeEncoding {
     * [acc(m: map[K]V, perm)] -> acc([m].underlyingMapField, [perm])
     */
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     default(super.assertion(ctx)) {
       case n@ in.Access(in.Accessible.ExprAccess(exp :: ctx.Map(_, _)), perm) =>
@@ -347,7 +347,7 @@ class MapEncoding extends LeafTypeEncoding {
     * Builds the expression `getMap([exp].underlyingMapField)`
     */
   private def getCorrespondingMap(exp: in.Expr, keys: in.Type, values: in.Type)(ctx: Context): CodeWriter[vpr.Exp] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
     def goT(t: in.Type): vpr.Type = ctx.typ(t)
 
     for {
@@ -371,7 +371,7 @@ class MapEncoding extends LeafTypeEncoding {
     * whether the key is in the map
     */
   private def goMapLookup(lookupExp: in.IndexedExp)(ctx: Context): CodeWriter[(vpr.Exp, vpr.Exp)] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     lookupExp match {
       case l@in.IndexedExp(exp :: ctx.Map(keys, values), idx, _) =>

@@ -93,18 +93,18 @@ class DefaultPredicateEncoding extends Encoding {
     case acc@ in.Access(in.Accessible.Predicate(op: in.FPredicateAccess), perm) =>
       val (pos, info, errT) = acc.vprMeta
       for {
-        vArgs <- cl.sequence(op.args map ctx.expr)
+        vArgs <- cl.sequence(op.args map ctx.expression)
         pacc = vpr.PredicateAccess(vArgs, op.pred.name)(pos, info, errT)
-        vPerm <- ctx.expr(perm)
+        vPerm <- ctx.expression(perm)
       } yield vpr.PredicateAccessPredicate(pacc, vPerm)(pos, info, errT)
 
     case acc@ in.Access(in.Accessible.Predicate(op: in.MPredicateAccess), perm) =>
       val (pos, info, errT) = acc.vprMeta
       for {
-        vRecv <- ctx.expr(op.recv)
-        vArgs <- cl.sequence(op.args map ctx.expr)
+        vRecv <- ctx.expression(op.recv)
+        vArgs <- cl.sequence(op.args map ctx.expression)
         pacc = vpr.PredicateAccess(vRecv +: vArgs, op.pred.uniqueName)(pos, info, errT)
-        vPerm <- ctx.expr(perm)
+        vPerm <- ctx.expression(perm)
       } yield vpr.PredicateAccessPredicate(pacc, vPerm)(pos, info, errT)
   }
 
@@ -112,14 +112,14 @@ class DefaultPredicateEncoding extends Encoding {
     case fold: in.Fold =>
       val (pos, info, errT) = fold.vprMeta
       for {
-        a <- ctx.ass(fold.acc)
+        a <- ctx.assertion(fold.acc)
         pap = a.asInstanceOf[vpr.PredicateAccessPredicate]
       } yield vpr.Fold(pap)(pos, info, errT)
 
     case unfold: in.Unfold =>
       val (pos, info, errT) = unfold.vprMeta
       for {
-        a <- ctx.ass(unfold.acc)
+        a <- ctx.assertion(unfold.acc)
         pap = a.asInstanceOf[vpr.PredicateAccessPredicate]
       } yield vpr.Unfold(pap)(pos, info, errT)
   }
@@ -128,8 +128,8 @@ class DefaultPredicateEncoding extends Encoding {
     case unfold: in.Unfolding =>
       val (pos, info, errT) = unfold.vprMeta
       for {
-        a <- ctx.ass(unfold.acc)
-        e <- cl.pure(ctx.expr(unfold.in))(ctx)
+        a <- ctx.assertion(unfold.acc)
+        e <- cl.pure(ctx.expression(unfold.in))(ctx)
       } yield vpr.Unfolding(a.asInstanceOf[vpr.PredicateAccessPredicate], e)(pos, info, errT)
   }
 

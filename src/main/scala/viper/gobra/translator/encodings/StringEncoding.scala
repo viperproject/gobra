@@ -56,7 +56,7 @@ class StringEncoding extends LeafTypeEncoding {
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     default(super.expression(ctx)) {
       case (e: in.DfltVal) :: ctx.String() / Exclusive =>
@@ -94,7 +94,7 @@ class StringEncoding extends LeafTypeEncoding {
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
 
-    def goA(x: in.Assertion): CodeWriter[vpr.Exp] = ctx.ass(x)
+    def goA(x: in.Assertion): CodeWriter[vpr.Exp] = ctx.assertion(x)
 
     default(super.statement(ctx)) {
       case conv@in.EffectfulConversion(target, in.SliceT(in.IntT(_, TypeBounds.Byte), _), _) =>

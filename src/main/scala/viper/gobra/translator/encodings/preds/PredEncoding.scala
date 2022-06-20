@@ -50,7 +50,7 @@ class PredEncoding extends LeafTypeEncoding {
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     default(super.expression(ctx)) {
       case n@ in.PredicateConstructor(p, pTs, args) :: ctx.Pred(_) / Exclusive =>
@@ -74,7 +74,7 @@ class PredEncoding extends LeafTypeEncoding {
     * [acc(p(e1, ..., en))] -> eval_S([p], [e1], ..., [en]) where p: pred(S)
     */
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     default(super.assertion(ctx)) {
       case n@ in.Access(in.Accessible.PredExpr(in.PredExprInstance(p :: ctx.Pred(ts), args)), perm) =>
@@ -106,7 +106,7 @@ class PredEncoding extends LeafTypeEncoding {
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     def mergeArgs[A](ctrArgs: Vector[Option[A]], instanceArgs: Vector[A]): Vector[A] = {
       ctrArgs.foldLeft((instanceArgs, Vector.empty[A])){
@@ -184,6 +184,6 @@ class PredEncoding extends LeafTypeEncoding {
       case proxy: in.FPredicateProxy => in.Access(in.Accessible.Predicate(in.FPredicateAccess(proxy, args)(src)), perm)(src)
       case proxy: in.MPredicateProxy => in.Access(in.Accessible.Predicate(in.MPredicateAccess(args.head, proxy, args.tail)(src)), perm)(src)
     }
-    ctx.ass(predicateInstance).map(_.asInstanceOf[vpr.PredicateAccessPredicate])
+    ctx.assertion(predicateInstance).map(_.asInstanceOf[vpr.PredicateAccessPredicate])
   }
 }

@@ -51,7 +51,7 @@ class IntEncoding extends LeafTypeEncoding {
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
     def handleShift(shiftFunc: vpr.Function)(left: in.Expr, right: in.Expr): (vpr.Position, vpr.Info, vpr.ErrorTrafo) => CodeWriter[vpr.Exp]  = {
       case (pos, info, errT) =>
         for {

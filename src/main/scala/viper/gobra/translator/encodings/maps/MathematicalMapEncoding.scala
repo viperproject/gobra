@@ -59,7 +59,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
     * R[ valueSet(e: mmap[K]V) ] -> MapRange([e])
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr(x)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
     def goT(t: in.Type): vpr.Type = ctx.typ(t)
 
     default(super.expression(ctx)){

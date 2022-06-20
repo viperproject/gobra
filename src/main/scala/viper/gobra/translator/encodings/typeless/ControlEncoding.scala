@@ -26,34 +26,34 @@ class ControlEncoding extends Encoding {
       block{
         for {
           _ <- global(vDecls: _*)
-          vBody <- sequence(stmts map ctx.stmt)
+          vBody <- sequence(stmts map ctx.statement)
         } yield vu.seqn(vBody)(pos, info, errT)
       }
 
-    case in.Seqn(stmts) => seqns(stmts map ctx.stmt)
+    case in.Seqn(stmts) => seqns(stmts map ctx.statement)
 
     case n@ in.If(cond, thn, els) =>
       val (pos, info, errT) = n.vprMeta
       for {
-        c <- ctx.expr(cond)
-        t <- ctx.stmt(thn)
-        e <- ctx.stmt(els)
+        c <- ctx.expression(cond)
+        t <- ctx.statement(thn)
+        e <- ctx.statement(els)
       } yield vpr.If(c, vu.toSeq(t), vu.toSeq(e))(pos, info, errT)
 
     case n@ in.While(cond, invs, terminationMeasure, body) =>
       val (pos, info, errT) = n.vprMeta
       for {
-        (cws, vCond) <- split(ctx.expr(cond))
+        (cws, vCond) <- split(ctx.expression(cond))
         (iws, vInvs) = invs.map(ctx.invariant).unzip
         cpre <- seqnUnit(cws)
         ipre <- seqnUnits(iws)
 
-        vBody <- ctx.stmt(body)
+        vBody <- ctx.statement(body)
 
         cpost = vpr.If(vCond, vu.toSeq(cpre), vu.nop(pos, info, errT))(pos, info, errT)
         ipost = ipre
 
-        measure <- option(terminationMeasure map ctx.ass)
+        measure <- option(terminationMeasure map ctx.assertion)
 
         wh = vu.seqn(Vector(
           cpre, ipre, vpr.While(vCond, vInvs ++ measure, vu.seqn(Vector(vBody, cpost, ipost))(pos, info, errT))(pos, info, errT)

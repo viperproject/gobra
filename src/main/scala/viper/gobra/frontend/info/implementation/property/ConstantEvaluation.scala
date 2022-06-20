@@ -11,7 +11,6 @@ import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.base.Type.{BooleanT, IntT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds._
-import viper.gobra.util.Violation
 import viper.gobra.util.Violation.violation
 
 trait ConstantEvaluation { this: TypeInfoImpl =>
@@ -177,7 +176,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
         case _ => None
       }
 
-      case expr => Violation.violation(s"Unexpected constant perm expression: $expr.")
+      case expr => violation(s"Unexpected constant perm expression: $expr.")
     }
   }
 

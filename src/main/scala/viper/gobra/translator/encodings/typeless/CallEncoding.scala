@@ -26,7 +26,7 @@ class CallEncoding extends Encoding {
       val resultType = ctx.typ(typ)
 
       for {
-        vArgs <- sequence(args map ctx.expr)
+        vArgs <- sequence(args map ctx.expression)
         app = vpr.FuncApp(func.name, vArgs)(pos, info, resultType, errT)
       } yield app
 
@@ -35,8 +35,8 @@ class CallEncoding extends Encoding {
       val resultType = ctx.typ(typ)
 
       for {
-        vRecv <- ctx.expr(recv)
-        vArgs <- sequence(args map ctx.expr)
+        vRecv <- ctx.expression(recv)
+        vArgs <- sequence(args map ctx.expression)
         app = vpr.FuncApp(meth.uniqueName, vRecv +: vArgs)(pos, info, resultType, errT)
       } yield app
   }
@@ -45,8 +45,8 @@ class CallEncoding extends Encoding {
     case x@in.FunctionCall(targets, func, args) =>
       val (pos, info, errT) = x.vprMeta
       for {
-        vArgss <- sequence(args map ctx.expr)
-        vTargets <- sequence(targets map ctx.expr)
+        vArgss <- sequence(args map ctx.expression)
+        vTargets <- sequence(targets map ctx.expression)
         // vTargets can be field-accesses, but a MethodCall in Viper requires variables as targets.
         // Therefore, we introduce auxiliary variables and
         // add an assignment from the auxiliary variables to the actual targets
@@ -60,9 +60,9 @@ class CallEncoding extends Encoding {
     case x@in.MethodCall(targets, recv, meth, args) =>
       val (pos, info, errT) = x.vprMeta
       for {
-        vRecv <- ctx.expr(recv)
-        vArgss <- sequence(args map ctx.expr)
-        vTargets <- sequence(targets map ctx.expr)
+        vRecv <- ctx.expression(recv)
+        vArgss <- sequence(args map ctx.expression)
+        vTargets <- sequence(targets map ctx.expression)
         // vTargets can be field-accesses, but a MethodCall in Viper requires variables as targets.
         // Therefore, we introduce auxiliary variables and
         // add an assignment from the auxiliary variables to the actual targets
@@ -101,10 +101,10 @@ class CallEncoding extends Encoding {
     import viper.silver.verifier.{errors => err}
 
     for {
-      vArgss <- sequence(args map ctx.expr)
-      funcArgs <- sequence(formalParams map ctx.expr)
+      vArgss <- sequence(args map ctx.expression)
+      funcArgs <- sequence(formalParams map ctx.expression)
       substitutions = (funcArgs zip vArgss).toMap
-      preCond <- sequence(pre map ctx.ass)
+      preCond <- sequence(pre map ctx.assertion)
       preCondInstance = preCond.map{ _.replace(substitutions) }
       and = vu.bigAnd(preCondInstance)(pos, info, errT)
       exhale = vpr.Exhale(and)(pos, info, errT)

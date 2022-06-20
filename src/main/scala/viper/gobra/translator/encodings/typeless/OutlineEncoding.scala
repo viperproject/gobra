@@ -32,8 +32,8 @@ class OutlineEncoding extends Encoding {
         for {
           pres <- ml.sequence(n.pres map (p => ctx.precondition(p)))
           posts <- ml.sequence(n.posts map (p => ctx.postcondition(p)))
-          measures <- ml.sequence(n.terminationMeasures map (m => ml.pure(ctx.ass(m))(ctx)))
-          body <- ml.block(ctx.stmt(n.body))
+          measures <- ml.sequence(n.terminationMeasures map (m => ml.pure(ctx.assertion(m))(ctx)))
+          body <- ml.block(ctx.statement(n.body))
         } yield outlines.outline(n.name, pres ++ measures, posts, body, n.trusted)(pos, info, errT)
       )
   }

@@ -41,7 +41,7 @@ class DefaultMethodEncoding extends Encoding {
     for {
       pres <- sequence((vRecvPres ++ vArgPres) ++ x.pres.map(ctx.precondition))
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.postcondition))
-      measures <- sequence(x.terminationMeasures.map(e => pure(ctx.ass(e))(ctx)))
+      measures <- sequence(x.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
 
       returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
 
@@ -49,7 +49,7 @@ class DefaultMethodEncoding extends Encoding {
         for {
           init <- vResultInit
           _ <- cl.global(returnLabel)
-          core <- ctx.stmt(b)
+          core <- ctx.statement(b)
         } yield vu.seqn(Vector(init, core, returnLabel))(pos, info, errT)
       }})
 
@@ -81,7 +81,7 @@ class DefaultMethodEncoding extends Encoding {
     for {
       pres <- sequence(vArgPres ++ x.pres.map(ctx.precondition))
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.postcondition))
-      measures <- sequence(x.terminationMeasures.map(e => pure(ctx.ass(e))(ctx)))
+      measures <- sequence(x.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
 
       returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
 
@@ -89,7 +89,7 @@ class DefaultMethodEncoding extends Encoding {
         for {
           init <- vResultInit
           _ <- cl.global(returnLabel)
-          core <- ctx.stmt(b)
+          core <- ctx.statement(b)
         } yield vu.seqn(Vector(init, core, returnLabel))(pos, info, errT)
       }})
 

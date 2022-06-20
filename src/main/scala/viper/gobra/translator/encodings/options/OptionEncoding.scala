@@ -49,16 +49,16 @@ class OptionEncoding extends LeafTypeEncoding {
         unit(withSrc(ctx.option.none(typT), exp))
 
       case exp @ in.OptionSome(op) => for {
-        opT <- ctx.expr(op)
+        opT <- ctx.expression(op)
       } yield withSrc(ctx.option.some(opT), exp)
 
       case exp @ in.OptionGet(op :: ctx.Option(typ)) => for {
-        opT <- ctx.expr(op)
+        opT <- ctx.expression(op)
         typT = ctx.typ(typ)
       } yield withSrc(ctx.option.get(opT, typT), exp)
 
       case exp @ in.SequenceConversion(op :: ctx.Option(typ)) => for {
-        opT <- ctx.expr(op)
+        opT <- ctx.expression(op)
         typT = ctx.typ(typ)
       } yield withSrc(ctx.optionToSeq.create(opT, typT), exp): vpr.Exp
     }
@@ -76,7 +76,7 @@ class OptionEncoding extends LeafTypeEncoding {
         // if this is executed, then type parameter must have dynamic comparability
         val vT = ctx.typ(t)
         for {
-          rhs <- ctx.expr(exp)
+          rhs <- ctx.expression(exp)
           isComp <- ctx.isComparable(in.OptionGet(exp)(exp.info))
             .getOrElse(Violation.violation("An incomparable option entails an incomparable element type."))
           res = vpr.CondExp(

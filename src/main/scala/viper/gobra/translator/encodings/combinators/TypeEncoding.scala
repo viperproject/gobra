@@ -146,7 +146,7 @@ trait TypeEncoding extends Generator {
     case (in.Assignee((v: in.BodyVar) :: t / Exclusive), rhs, src) if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = src.vprMeta
       for {
-        vRhs <- ctx.expr(rhs)
+        vRhs <- ctx.expression(rhs)
         vLhs = variable(ctx)(v).localVar
       } yield vpr.LocalVarAssign(vLhs, vRhs)(pos, info, errT)
 
@@ -176,15 +176,15 @@ trait TypeEncoding extends Generator {
     case (lhs :: t, rhs :: s, src) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(s) =>
       val (pos, info, errT) = src.vprMeta
       for {
-        vLhs <- ctx.expr(lhs)
-        vRhs <- ctx.expr(rhs)
+        vLhs <- ctx.expression(lhs)
+        vRhs <- ctx.expression(rhs)
       } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT): vpr.Exp
 
     case (lhs :: ctx.*(t) / Exclusive, rhs :: ctx.*(s), src) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(s) =>
       val (pos, info, errT) = src.vprMeta
       for {
-        vLhs <- ctx.expr(lhs)
-        vRhs <- ctx.expr(rhs)
+        vLhs <- ctx.expression(lhs)
+        vRhs <- ctx.expression(rhs)
       } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
   }
 
@@ -203,7 +203,7 @@ trait TypeEncoding extends Generator {
   def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     case (v: in.BodyVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar)
     case (v: in.GlobalVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => globalVar(ctx)(v)
-    case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) => ctx.expr(expr)
+    case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) => ctx.expression(expr)
   }
 
   /**

@@ -47,8 +47,8 @@ trait LeafTypeEncoding extends TypeEncoding {
     case (in.Assignee((loc: in.Location) :: t / Shared), rhs, src) if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = src.vprMeta
       for {
-        rhs <- ctx.expr(rhs)
-        lval <- ctx.expr(loc).map(_.asInstanceOf[vpr.FieldAccess])
+        rhs <- ctx.expression(rhs)
+        lval <- ctx.expression(loc).map(_.asInstanceOf[vpr.FieldAccess])
       } yield vpr.FieldAssign(lval, rhs)(pos, info, errT)
   }
 
@@ -69,7 +69,7 @@ trait LeafTypeEncoding extends TypeEncoding {
     case (loc: in.Location) :: t / Shared if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
       for {
-        vLoc <- ctx.ref(loc)
+        vLoc <- ctx.reference(loc)
       } yield vpr.FieldAccess(vLoc, ctx.field.field(t.withAddressability(Exclusive))(ctx))(pos, info, errT)
   }
 
@@ -84,8 +84,8 @@ trait LeafTypeEncoding extends TypeEncoding {
     case (loc :: t / Shared, p) if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
       for {
-        vprPerm <- ctx.expr(p)
-        l <- ctx.expr(loc).map(_.asInstanceOf[vpr.FieldAccess])
+        vprPerm <- ctx.expression(p)
+        l <- ctx.expression(loc).map(_.asInstanceOf[vpr.FieldAccess])
       } yield vpr.FieldAccessPredicate(l, vprPerm)(pos, info, errT)
   }
 }

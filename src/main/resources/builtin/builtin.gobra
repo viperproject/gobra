@@ -8,6 +8,8 @@
 
 package builtin
 
+type any = interface{}
+
 type error interface {
 	pred ErrorMem()
 

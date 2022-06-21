@@ -246,8 +246,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     StrictAssignMode(left.length, right.length) match {
       case AssignMode.Single => exprType(right(pos))
       case AssignMode.Multi => exprType(right.head) match {
-        case t: InternalTupleT => t.ts(pos)
-        case t: InternalSingleMulti => t.mul.ts(pos)
+        case t: InternalTupleT => t.ts.lift(pos).getOrElse(UnknownType)
+        case t: InternalSingleMulti => t.mul.ts.lift(pos).getOrElse(UnknownType)
         case _ =>
           // If the expression type in Multi mode is not a tuple, the term cannot be typed
           UnknownType

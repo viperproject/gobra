@@ -1599,11 +1599,7 @@ object Desugar {
           case n: PNamedOperand => info.resolve(n) match {
             case Some(p: ap.Constant) => unit(globalConstD(p.symb)(src))
             case Some(_: ap.LocalVariable) => unit(varD(ctx)(n.id))
-            case Some(p: ap.GlobalVariable) =>
-              p.symb match {
-                case g: st.SingleGlobalVariable => unit(globalVarD(g)(src))
-                case _: st.MultiGlobalVariable => ???
-              }
+            case Some(p: ap.GlobalVariable) => unit(globalVarD(p.symb)(src))
             case Some(_: ap.NamedType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))

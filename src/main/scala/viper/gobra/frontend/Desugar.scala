@@ -249,8 +249,15 @@ object Desugar {
         case _ => ???
       }
       in.MPredicateProxy(decl.id.name, name)(meta(decl, context))
-    } 
+    }
 
+    def membeddedMethodProxyD(decl: PMethodSig, recvType: InterfaceT, context: TypeInfo): in.MethodProxy = {
+      val name = context.regular(decl.id) match {
+        case m: st.MethodSpec => nm.spec(decl.id.name, recvType, m.context)
+        case _ => ???
+      }
+      in.MethodProxy(decl.id.name, name)(meta(decl, context))
+    }
 
     // proxies to built-in members
     def methodProxy(tag: BuiltInMethodTag, recv: in.Type, args: Vector[in.Type])(src: Meta): in.MethodProxy = {
@@ -2218,6 +2225,12 @@ object Desugar {
         val itfT = dT.withAddressability(Addressability.Exclusive)
         val xInfo = t.context.getTypeInfo
 
+        embeddedInts foreach { case (int, info) =>
+          val interfaceName = nm.interface(info.symbType(int).asInstanceOf[InterfaceT])
+          val res = in.InterfaceT(interfaceName, Addressability.Exclusive)
+          embeddedInterfaces ::= (res, dT)
+        }
+
         t.decl.predSpecs foreach { p =>
           val src = meta(p, xInfo)
           val proxy = mpredicateProxyD(p, xInfo)
@@ -2229,12 +2242,6 @@ object Desugar {
 
           definedMPredicates += (proxy -> mem)
           AdditionalMembers.addMember(mem)
-        }
-
-        embeddedInts foreach { case (int, info) =>
-          val interfaceName = nm.interface(info.symbType(int).asInstanceOf[InterfaceT])
-          val res = in.InterfaceT(interfaceName, Addressability.Exclusive)
-          embeddedInterfaces ::= (res, dT)
         }
 
         embeddedPreds foreach { case (p, pinfo) =>
@@ -2257,6 +2264,28 @@ object Desugar {
           val argsWithSubs = m.args.zipWithIndex map { case (p,i) => inParameterD(p,i,xInfo) }
           val (args, _) = argsWithSubs.unzip
           val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i,xInfo) }
+          val (returns, _) = returnsWithSubs.unzip
+          val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
+          val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx)
+          val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx)
+          val terminationMeasures = sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx)).res
+
+          val mem = if (m.spec.isPure) {
+            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
+          } else {
+            in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
+          }
+          definedMethods += (proxy -> mem)
+          AdditionalMembers.addMember(mem)
+        }
+
+        embeddedMethods foreach { case (m, mInfo) =>
+          val src = meta(m, mInfo)
+          val recv = implicitThisD(itfT)(src)
+          val proxy = membeddedMethodProxyD(m, t, mInfo)
+          val argsWithSubs = m.args.zipWithIndex map { case (p,i) => inParameterD(p,i,mInfo) }
+          val (args, _) = argsWithSubs.unzip
+          val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i,mInfo) }
           val (returns, _) = returnsWithSubs.unzip
           val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
           val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx)

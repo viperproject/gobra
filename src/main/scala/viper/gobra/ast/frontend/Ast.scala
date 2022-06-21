@@ -98,7 +98,6 @@ case class PExplicitQualifiedImport(qualifier: PDefLikeId, importPath: String, i
 /** will be converted to an PExplicitQualifiedImport in the parse postprocessing step */
 case class PImplicitQualifiedImport(importPath: String, importSpec: PFunctionSpec) extends PQualifiedImport with Rewritable {
   override def arity: Int = 1
-
   override def deconstruct: immutable.Seq[Any] = immutable.Seq(importPath)
 
   override def reconstruct(components: immutable.Seq[Any]): Any =
@@ -109,7 +108,6 @@ case class PImplicitQualifiedImport(importPath: String, importSpec: PFunctionSpe
 }
 
 case class PUnqualifiedImport(importPath: String, importSpec: PFunctionSpec) extends PImport
-
 
 sealed trait PGhostifiable extends PNode
 
@@ -820,6 +818,7 @@ case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PEx
 
 sealed trait PSpecification extends PGhostNode
 
+// TODO: rename to TopLevelDeclSpec or add an alias
 case class PFunctionSpec(
                       pres: Vector[PExpression],
                       preserves: Vector[PExpression],

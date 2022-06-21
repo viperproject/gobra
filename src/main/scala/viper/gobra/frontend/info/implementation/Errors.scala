@@ -18,6 +18,7 @@ trait Errors { this: TypeInfoImpl =>
       val partialRes = collectMessages(tree) { case m: PNode =>
 
         val wellDef = m match {
+          case n: PProgram => wellDefProgram(n).out
           case n: PImport => wellDefImport(n).out
           case n: PMember   => wellDefMember(n).out
           case n: PStatement  => wellDefStmt(n).out

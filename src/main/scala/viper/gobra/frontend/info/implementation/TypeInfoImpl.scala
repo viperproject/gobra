@@ -27,6 +27,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   with AmbiguityResolution
   with Enclosing
 
+  with ProgramTyping
   with ImportTyping
   with MemberTyping
   with BuiltInMemberTyping

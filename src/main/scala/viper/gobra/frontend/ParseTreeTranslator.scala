@@ -2078,7 +2078,25 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @return the visitor result
     */
   override def visitImportDecl(ctx: GobraParser.ImportDeclContext): Vector[PImport] = {
-    visitListNode[PImport](ctx.importSpec())
+    val importsVector: Vector[PImport] = visitListNode[PImport](ctx.importSpec())
+    val importSpec: Option[PFunctionSpec] = visitNodeOrNone[PFunctionSpec](ctx.specification())
+    // if there is only a single importSpec and the importDecl has specification,
+    // then update the specification of the importSpec with the one from the importDecl
+    if (importsVector.length == 1 && importSpec.nonEmpty) {
+      val spec = importSpec.get
+      importsVector.map {
+        case i@ PUnqualifiedImport(importPath, _) =>
+          PUnqualifiedImport(importPath, spec).at(i)
+        case i@ PExplicitQualifiedImport(qualifier, importPath, _) =>
+          PExplicitQualifiedImport(qualifier, importPath, spec).at(i)
+        case i@ PImplicitQualifiedImport(importPath, _) =>
+          PImplicitQualifiedImport(importPath, spec).at(i)
+      }
+    } else if (importSpec.nonEmpty) {
+      violation(s"Expected single import with the provided specification ($importSpec), but instead got $importsVector")
+    } else {
+      importsVector
+    }
   }
 
   /**

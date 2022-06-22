@@ -42,6 +42,8 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PExpCompositeVal => isExpr(n.exp).out
     case _: PLiteralValue | _: PKeyedElement | _: PCompositeVal => noMessages // these are checked at the level of the composite literal
+
+    case _: PClosureDecl => noMessages // checks are done at the PFunctionLit level
   }
 
   lazy val miscType: Typing[PMisc] = createTyping {

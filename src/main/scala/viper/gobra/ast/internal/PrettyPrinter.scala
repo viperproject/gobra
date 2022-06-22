@@ -242,7 +242,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showCapturedVars(captured: Vector[(Expr, Parameter.In)]): Doc =
     angles(showList(captured) {
-      case (d: Deref, p) => showVar(p) <> colon <+> showType(p.typ) <> ":=" <+> showExpr(d.exp)
       case (e, p) => showVar(p) <+> showType(p.typ) <> ":=" <+> ampersand <> showExpr(e)
     })
 

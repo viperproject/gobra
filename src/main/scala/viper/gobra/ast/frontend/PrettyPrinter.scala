@@ -93,8 +93,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMethodDecl(id, rec, args, res, spec, body) =>
         showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
         opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
-//      case PFunctionLit(decl) => showClosureSpecDecl(decl)
-      case n: PClosureNamedDecl => showClosureNamedDecl(n)
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
@@ -162,7 +160,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showClosureNamedDecl(decl: PClosureNamedDecl): Doc = decl match {
     case PClosureNamedDecl(id, PClosureDecl(args, result, spec, body)) =>
-      showSpec(spec) <> "func" <+> id.fold(emptyDoc)(showId) <> parens(showParameterList(args)) <> showResult(result) <>
+      showSpec(spec) <> "func" <> id.fold(emptyDoc)(id => emptyDoc <+> showId(id)) <> parens(showParameterList(args)) <> showResult(result) <>
         opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
   }
 
@@ -210,8 +208,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case stmt: PActualStatement => stmt match {
       case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
-//      case PFunctionLit(decl) => showClosureSpecDecl(decl)
-//      case n: PClosureSpecDecl => showClosureSpecDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PShortVarDecl(right, left, addressable) =>
         showList(left zip addressable){ case (l, a) => showAddressable(a, l) } <+> ":=" <+> showExprList(right)
@@ -417,7 +413,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
       case PFunctionLit(decl) => showClosureNamedDecl(decl)
-      case n: PClosureNamedDecl => showClosureNamedDecl(n)
       case PInvoke(base, args) => showExprOrType(base) <> parens(showExprList(args))
       case PIndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
 
@@ -654,6 +649,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case literalValue: PLiteralValue => showLiteralValue(literalValue)
     case keyedElement: PKeyedElement => showKeyedElement(keyedElement)
     case compositeVal: PCompositeVal => showCompositeVal(compositeVal)
+    case closureDecl: PClosureDecl => showClosureNamedDecl(PClosureNamedDecl(None, closureDecl))
     case misc: PGhostMisc => misc match {
       case n: PClosureNamedDecl => showClosureNamedDecl(n)
       case PFPredBase(id) => showId(id)

@@ -163,10 +163,18 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
         super.showExpr(n.copy(args = aArgs))
     }
 
+    case PFunctionLit(PClosureNamedDecl(_, PClosureDecl(args, result, _, body))) => super.showMisc(PClosureDecl(
+      filterParamList(args),
+      filterResult(result),
+      PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+      body.map( b => (PBodyParameterInfo(Vector.empty), b._2) )
+    ))
+
     case e: PActualExprProofAnnotation => e match {
       case PUnfolding(_, op) => showExpr(op)
     }
     case e if classifier.isExprGhost(e) => ghostToken
+
     case e => super.showExpr(e)
   }
 

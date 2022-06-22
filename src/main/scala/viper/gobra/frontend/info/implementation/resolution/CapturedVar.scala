@@ -3,17 +3,15 @@ package viper.gobra.frontend.info.implementation.resolution
 import viper.gobra.ast.frontend.{PClosureDecl, PClosureNamedDecl, PFunctionLit, PIdnNode, PIdnUnk, PIdnUse, PNode, PPackage}
 import viper.gobra.frontend.info.base.SymbolTable.Variable
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.silver.ast.Int.meta
-import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable
 
 trait CapturedVar { this: TypeInfoImpl =>
   override def capturedVars(decl: PClosureDecl): Vector[PIdnNode] = capturedVariables(decl)
 
-  lazy val capturedVariables: PClosureDecl => Vector[PIdnNode] = decl => allCapturedVariables.getOrElse((decl, getPos(decl)), Set[PIdnNode]()).toVector
+  lazy val capturedVariables: PClosureDecl => Vector[PIdnNode] = decl => allCapturedVariables.getOrElse(Unique(decl), Set[PIdnNode]()).toVector
 
-  private lazy val allCapturedVariables: Map[(PClosureDecl, SourcePosition), Set[PIdnNode]] = {
+  private lazy val allCapturedVariables: Map[Unique, Set[PIdnNode]] = {
     def funcLitCapturesVar(l: PFunctionLit, id: PIdnNode): Boolean = tryLookupAt(id, l).fold(false)(_ eq entity(id))
     def getCapturingFunctionLits(id: PIdnNode, n: PNode): Seq[PFunctionLit] = {
       val enclosingLit = enclosingFunctionLit(tree.parent(n).head)
@@ -23,10 +21,9 @@ trait CapturedVar { this: TypeInfoImpl =>
       } else Seq[PFunctionLit]()
     }
 
-    val result = mutable.Map[(PClosureDecl, SourcePosition), Set[PIdnNode]]()
+    val result = mutable.Map[Unique, Set[PIdnNode]]()
     def addPairToResult(decl: PClosureDecl, id: PIdnNode): Unit = {
-      val pos = getPos(decl)
-      result += ((decl, pos) -> (result.getOrElse((decl, pos), Set[PIdnNode]()) + id))
+      result += (Unique(decl) -> (result.getOrElse(Unique(decl), Set[PIdnNode]()) + id))
     }
 
     tree.nodes.foreach({
@@ -38,11 +35,12 @@ trait CapturedVar { this: TypeInfoImpl =>
     result.toMap
   }
 
-  private def getPos(n: PClosureDecl): SourcePosition = {
-    val enclosingFuncLit = enclosingFunctionLit(n).get
-    val pom = tree.originalRoot.positions
-    val start = pom.positions.getStart(enclosingFuncLit).get
-    val finish = pom.positions.getFinish(enclosingFuncLit).get
-    pom.translate(start, finish)
+  // Different closure declarations must be considered separately even if they are structurally identical
+  private case class Unique(n: PClosureDecl) {
+    override def equals(obj: Any): Boolean = obj match {
+      case Unique(o) => o eq n
+      case _ => false
+    }
   }
+
 }

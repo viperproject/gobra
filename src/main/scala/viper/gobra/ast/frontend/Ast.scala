@@ -423,7 +423,7 @@ case class PClosureNamedDecl(id: Option[PIdnDef], decl: PClosureDecl) extends PC
 case class PClosureDecl(args: Vector[PParameter],
                   result: PResult,
                   spec: PFunctionSpec,
-                  body: Option[(PBodyParameterInfo, PBlock)]) extends PFunctionOrClosureDecl
+                  body: Option[(PBodyParameterInfo, PBlock)]) extends PFunctionOrClosureDecl with PActualMisc
 
 
 case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends PActualExpression

@@ -23,7 +23,6 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostMisc(misc: PGhostMisc) = misc match {
     case PClosureNamedDecl(id, PClosureDecl(args, res, spec, body)) => wellDefVariadicArgs(args) ++
-      wellDefIfPureFunction(PFunctionDecl(PIdnDef(""), args, res, spec, body)) ++
       id.fold(noMessages)(id => wellDefID(id).out)
 
     case PBoundVariable(_, _) => noMessages

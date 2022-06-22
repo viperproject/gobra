@@ -1013,11 +1013,13 @@ case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
 /* ** Closures */
 sealed trait FunctionLikeLit extends Lit with FunctionLikeMemberOrLit  {
   def name: Option[String]
+  def captured: Vector[(Expr, Parameter.In)]
 }
 
 case class FunctionLit(
                      override val name: Option[String],
                      override val args: Vector[Parameter.In],
+                     override val captured: Vector[(Expr, Parameter.In)],
                      override val results: Vector[Parameter.Out],
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
@@ -1030,6 +1032,7 @@ case class FunctionLit(
 case class PureFunctionLit(
                          override val name: Option[String],
                          override val args: Vector[Parameter.In],
+                         override val captured: Vector[(Expr, Parameter.In)],
                          override val results: Vector[Parameter.Out],
                          override val pres: Vector[Assertion],
                          override val posts: Vector[Assertion],

@@ -9,6 +9,7 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable._
+import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation

@@ -240,6 +240,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showTerminationMeasures(list: Vector[TerminationMeasure]): Doc =
     hcat(list  map ("decreases " <> showTerminationMeasure(_) <> line))
 
+  def showCapturedVars(captured: Vector[(Expr, Parameter.In)]): Doc =
+    angles(showList(captured) {
+      case (d: Deref, p) => showVar(p) <> colon <+> showType(p.typ) <> ":=" <+> showExpr(d.exp)
+      case (e, p) => showVar(p) <+> showType(p.typ) <> ":=" <+> ampersand <> showExpr(e)
+    })
+
   def showFormalArgList[T <: Parameter](list: Vector[T]): Doc =
     showVarDeclList(list)
 
@@ -518,11 +524,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case BoolLit(b) => if (b) "true" else "false"
     case NilLit(t) => parens("nil" <> ":" <> showType(t))
 
-    case FunctionLit(name, args, results, pres, posts, measures, body) =>
-      "func" <+> text(name.getOrElse("")) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block(showStmt(b)))
+    case FunctionLit(name, args, captured, results, pres, posts, measures, body) =>
+      "func" <+> text(name.getOrElse("")) <> showCapturedVars(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+        opt(body)(b => block(showStmt(b)))
 
-    case PureFunctionLit(name, args, results, pres, posts, measures, body) =>
+    case PureFunctionLit(name, args, captured, results, pres, posts, measures, body) =>
       "pure func" <+> text(name.getOrElse("")) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
 

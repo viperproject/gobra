@@ -27,6 +27,8 @@ trait TypeInfo extends ExternalTypeInfo {
 
   def isDef(n: PIdnUnk): Boolean
 
+  def capturedVars(decl: PClosureDecl): Vector[PIdnNode]
+
   def resolve(n: PExpressionOrType): Option[AstPattern.Pattern]
   def exprOrType(n: PExpressionOrType): Either[PExpression, PType]
 

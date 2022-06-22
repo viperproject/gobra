@@ -9,6 +9,7 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
+import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
@@ -197,7 +198,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       literalAssignableTo.errors(lit, simplifiedT)(n)
 
-    case _: PFunctionLit => noMessages
+    case f: PFunctionLit =>
+      capturedVariables(f.decl.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)).toVector
 
     case n: PInvoke => {
       val (l, r) = (exprOrType(n.base), resolve(n))

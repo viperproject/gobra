@@ -10,7 +10,9 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Entity, Environments}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.ExternalTypeInfo
-import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, BuiltInTypeTag, BuiltInPredicateTag}
+import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, BuiltInPredicateTag, BuiltInTypeTag}
+
+import scala.collection.mutable
 
 
 object SymbolTable extends Environments[Entity] {

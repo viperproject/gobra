@@ -260,7 +260,7 @@ case class PShortForRange(range: PRange, shorts: Vector[PIdnUnk], body: PBlock) 
 case class PGoStmt(exp: PExpression) extends PActualStatement
 
 sealed trait PDeferrable extends PNode
-case class PDeferStmt(exp: PDeferrable) extends PActualStatement
+case class PDeferStmt(exp: PDeferrable) extends PActualStatement with PGhostifiableStatement
 
 case class PSelectStmt(send: Vector[PSelectSend], rec: Vector[PSelectRecv], aRec: Vector[PSelectAssRecv], sRec: Vector[PSelectShortRecv], dflt: Vector[PSelectDflt]) extends PActualStatement with PScope
 

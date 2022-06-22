@@ -357,7 +357,7 @@ case class GoFunctionCall(func: FunctionProxy, args: Vector[Expr])(val info: Sou
 case class GoMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 
 sealed trait Deferrable extends Stmt
-case class Defer(id: String, stmt: Deferrable)(val info: Source.Parser.Info) extends Stmt
+case class Defer(stmt: Deferrable)(val info: Source.Parser.Info) extends Stmt
 
 case class Return()(val info: Source.Parser.Info) extends Stmt
 

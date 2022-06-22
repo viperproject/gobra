@@ -30,7 +30,7 @@ class DeferEncoding extends Encoding {
     case n: in.Defer =>
       val (pos, info, errT) = n.vprMeta
 
-      val name = n.id
+      val name = ctx.freshNames.next()
       val args = Core.coreArgs(n.stmt)
       val vars = args.zipWithIndex map { case (v, idx) => in.LocalVar(s"${name}_$idx", v.typ.withAddressability(Addressability.Exclusive))(v.info) }
       val appliedCore = Core.core(n.stmt).run(vars)

@@ -1028,7 +1028,7 @@ object Desugar {
               case _ => unexpectedExprError(exp)
             }
 
-          case n@ PDeferStmt(exp) =>
+          case PDeferStmt(exp) =>
             def unexpectedExprError(exp: PNode) = violation(s"unexpected expression $exp in defer statement")
 
             exp match {
@@ -1036,7 +1036,7 @@ object Desugar {
                 info.resolve(inv) match {
                   case Some(p: ap.FunctionCall) =>
                     functionCallDAux(ctx)(p, inv)(src) map {
-                      case Left((_, call: in.Deferrable)) => in.Defer(nm.defer(n, info), call)(src)
+                      case Left((_, call: in.Deferrable)) => in.Defer(call)(src)
                       case _ => unexpectedExprError(exp)
                     }
                   case _ => unexpectedExprError(exp)
@@ -1044,7 +1044,7 @@ object Desugar {
 
               case exp: PStatement =>
                 stmtD(ctx)(exp) map {
-                  case d: in.Deferrable => in.Defer(nm.defer(n, info), d)(src)
+                  case d: in.Deferrable => in.Defer(d)(src)
                   case _ => unexpectedExprError(exp)
                 }
 
@@ -3215,7 +3215,6 @@ object Desugar {
     private val BUILTIN_PREFIX = "B"
     private val CONTINUE_LABEL_SUFFIX = "$Continue"
     private val BREAK_LABEL_SUFFIX = "$Break"
-    private val DEFER_PREFIX = "DEFER"
 
     /** the counter to generate fresh names depending on the current code root for which a fresh name should be generated */
     private var nonceCounter: Map[PCodeRoot, Int] = Map.empty
@@ -3361,11 +3360,6 @@ object Desugar {
       val pom = s.context.getTypeInfo.tree.originalRoot.positions
       val hash = srcTextName(pom, s.decl.funcs, s.decl.axioms)
       s"$DOMAIN_PREFIX$$${topLevelName("")(hash, s.context)}"
-    }
-
-    def defer(n: PDeferStmt, info: TypeInfo): String = {
-      val relId = relativeId(n, info)
-      s"$DEFER_PREFIX$relId"
     }
 
     def label(n: String): String = n match {

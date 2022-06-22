@@ -59,3 +59,13 @@ func test5(x *int) {
     }
     *x = 5
 }
+
+requires acc(x)
+ensures acc(x) && *x == 6
+func test6(x *int) {
+    n := 1
+    defer add(x,n)
+    n := 2
+    *x = 5
+    n := 3
+}

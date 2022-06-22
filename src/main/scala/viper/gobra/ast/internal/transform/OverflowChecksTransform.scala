@@ -115,9 +115,9 @@ object OverflowChecksTransform extends InternalTransform {
     case m@GoMethodCall(recv, _, args) =>
       Seqn(genOverflowChecksExprs(recv +: args) :+ m)(m.info)
 
-    case d@Defer(_, FunctionCall(_, _, args)) => Seqn(genOverflowChecksExprs(args) :+ d)(d.info)
-    case d@Defer(_, MethodCall(_, recv, _, args)) => Seqn(genOverflowChecksExprs(recv +: args) :+ d)(d.info)
-    case d@Defer(_, _: Fold | _: Unfold | _: PredExprFold | _: PredExprUnfold) => d
+    case d@Defer(FunctionCall(_, _, args)) => Seqn(genOverflowChecksExprs(args) :+ d)(d.info)
+    case d@Defer(MethodCall(_, recv, _, args)) => Seqn(genOverflowChecksExprs(recv +: args) :+ d)(d.info)
+    case d@Defer(_: Fold | _: Unfold | _: PredExprFold | _: PredExprUnfold) => d
 
     case m@Send(_, expr, _, _, _) =>
       Seqn(genOverflowChecksExprs(Vector(expr)) :+ m)(m.info)

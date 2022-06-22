@@ -20,12 +20,31 @@ class DeferEncoding extends Encoding {
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.ViperWriter.{MemberLevel => ml}
 
+  /** Used to collect info about defer statements that occur in a method body. */
   case class Defer(
                     activationVar: vpr.LocalVarDecl,
-                    argumentVars: Vector[vpr.LocalVarDecl],
+                    temporaryVars: Vector[vpr.LocalVarDecl],
                     stmt: MemberWriter[vpr.Stmt]
                   ) extends ViperWriter.CodeCollectible
 
+  /**
+    * For every defer, we generate an activation variable `active` and temporary variables `temp1, temp2, ...`
+    * The encoding of a defer statement is split into two parts:
+    *
+    * 1) The defer statement itself (by [[statement]]):
+    *
+    *      [defer C(e1, ..., eN)] ->
+    *         active = true
+    *         temp1 = [e1]; ...; tempN = [eN]
+    *
+    * 2) Around the enclosing method body `body` (by [[extendStatement]]):
+    *
+    *      var active = false
+    *      var temp1, ..., tempN
+    *      body
+    *      if (active) { C(temp1, ..., tempN) }
+    *
+    * */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     case n: in.Defer =>
       val (pos, info, errT) = n.vprMeta
@@ -35,37 +54,45 @@ class DeferEncoding extends Encoding {
       val vars = args.zipWithIndex map { case (v, idx) => in.LocalVar(s"${name}_$idx", v.typ.withAddressability(Addressability.Exclusive))(v.info) }
       val appliedCore = Core.core(n.stmt).run(vars)
 
-      val vprVars = vars map ctx.variable
-      val activationVar = vpr.LocalVarDecl(s"${name}_activation", vpr.Bool)(pos,info,errT)
+      val vprVars = vars map ctx.variable // temporary variables
+      val activationVar = vpr.LocalVarDecl(s"${name}_activation", vpr.Bool)(pos,info,errT) // activation variable
 
       val w = ml.block(ctx.statement(appliedCore))
 
       for {
         _ <- sequence((vprVars zip args) map { case (l, r) =>
+          // temp1 = [e1]; ...; tempN = [eN]
           ctx.expression(r).flatMap(rv => bind(l.localVar, rv))
         })
         _ <- collect(Defer(activationVar, vprVars, w))
+        // active = true
       } yield vpr.LocalVarAssign(activationVar.localVar, vpr.BoolLit(b = true)(pos,info,errT))(): vpr.Stmt
   }
 
   override def extendStatement(ctx: Context): in.Stmt ==> Extension[CodeWriter[vpr.Stmt]] = {
     case _: in.MethodBodySeqn => w => {
       val defers = w.collect{ case x: Defer => x }
+      // defers are executed in reverse program order. This is fine if we do not have gotos, or defers in loops.
       def order(x: Defer): Int = -x.activationVar.pos.asInstanceOf[vpr.HasLineColumn].line
       val sortedDefers = defers.sortBy(order)
 
-      val defersExec = sortedDefers map { case Defer(a, args, w) => (body: vpr.Stmt) =>
+      val defersExec = sortedDefers map { case Defer(active, temps, w) => (body: vpr.Stmt) =>
+        // var active = false
+        // var temp1, ..., tempN
+        // body
+        // if (active) { C(temp1, ..., tempN) }
         for {
-          deferredStmt <- w
-          init = vpr.LocalVarAssign(a.localVar, vpr.FalseLit()(a.pos, a.info, a.errT))(a.pos, a.info, a.errT)
+          deferredStmt <- w // C(temp1, ..., tempN)
+          init = vpr.LocalVarAssign(active.localVar, vpr.FalseLit()(active.pos, active.info, active.errT))(active.pos, active.info, active.errT)
           deferExec = vpr.If(
-            a.localVar,
-            vpr.Seqn(Vector(deferredStmt), Vector.empty)(a.pos, a.info, a.errT),
-            vpr.Seqn(Vector.empty, Vector.empty)(a.pos, a.info, a.errT)
-          )(a.pos, a.info, a.errT)
-        } yield vpr.Seqn(Vector(init, body, deferExec), a +: args)(a.pos, a.info, a.errT)
+            active.localVar,
+            vpr.Seqn(Vector(deferredStmt), Vector.empty)(active.pos, active.info, active.errT),
+            vpr.Seqn(Vector.empty, Vector.empty)(active.pos, active.info, active.errT)
+          )(active.pos, active.info, active.errT)
+        } yield vpr.Seqn(Vector(init, body, deferExec), active +: temps)(active.pos, active.info, active.errT)
       }
 
+      // performs transformation of body for each defer (in the reverse program order)
       defersExec.foldLeft(w){ case (w, ext) =>
         for {
           body <- w

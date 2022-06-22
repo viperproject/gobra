@@ -65,8 +65,13 @@ func test6() {
   return
 }
 
-func test6() {
-  //:: ExpectedOutput(function_termination_error)
-  defer nonTermination()
+decreases
+func termination() {
+
+}
+
+decreases
+func test7() {
+  defer termination()
   return
 }

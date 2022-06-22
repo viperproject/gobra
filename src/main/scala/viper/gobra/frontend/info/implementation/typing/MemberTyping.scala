@@ -18,13 +18,17 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def wellDefActualMember(member: PActualMember): Messages = member match {
-    case n: PFunctionDecl => wellDefVariadicArgs(n.args) ++ wellDefIfPureFunction(n)
-    case m: PMethodDecl => wellDefVariadicArgs(m.args) ++ isReceiverType.errors(miscType(m.receiver))(member) ++ wellDefIfPureMethod(m)
-    case b: PConstDecl => b.specs.flatMap(wellDefConstSpec)
+    case n: PFunctionDecl =>
+      wellDefVariadicArgs(n.args) ++ wellDefIfPureFunction(n) ++ wellDefIfInitBlock(n)
+    case m: PMethodDecl =>
+      wellDefVariadicArgs(m.args) ++ isReceiverType.errors(miscType(m.receiver))(member) ++ wellDefIfPureMethod(m)
+    case b: PConstDecl =>
+      b.specs.flatMap(wellDefConstSpec)
     case g: PGlobalVarDecl =>
       g.right.flatMap(isExpr(_).out) ++
         declarableTo.errors(g.right map exprType, g.typ map typeSymbType, g.left map idType)(g)
-    case s: PActualStatement => wellDefStmt(s).out
+    case s: PActualStatement =>
+      wellDefStmt(s).out
   }
 
   private def wellDefConstSpec(spec: PConstSpec): Messages = {
@@ -43,4 +47,17 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
     args.dropRight(1).flatMap {
       p => error(p, s"Only the last argument can be variadic, got $p instead", p.typ.isInstanceOf[PVariadicType])
     }
+
+  private def wellDefIfInitBlock(n: PFunctionDecl): Messages = {
+    val errorMsg =
+      "Currently, 'init' blocks cannot be specified. Instead, use package postconditions and import preconditions."
+    val hasEmptySpec = !n.spec.isPure &&
+      !n.spec.isTrusted &&
+      n.spec.pres.isEmpty &&
+      n.spec.preserves.isEmpty &&
+      n.spec.posts.isEmpty &&
+      n.spec.terminationMeasures.isEmpty
+    val isInitFunction = n.id.name == "init"
+    error(n, errorMsg, !hasEmptySpec && isInitFunction)
+  }
 }

@@ -224,14 +224,18 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           convertibleTo.errors(exprType(p.arg), typ)(n) ++ isExpr(p.arg).out ++ argWithinBounds
 
 
-        case (Left(callee), Some(_: ap.FunctionCall)) => // arguments have to be assignable to function
-          exprType(callee) match {
+        case (Left(callee), Some(c: ap.FunctionCall)) =>
+          val isCallToInit =
+            error(n, "init function is not callable", c.callee.isInstanceOf[ap.Function] && c.callee.id.name == "init")
+          // arguments have to be assignable to function
+          val wellTypedArgs = exprType(callee) match {
             case FunctionT(args, _) => // TODO: add special assignment
               if (n.args.isEmpty && args.isEmpty) noMessages
               else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n, s"type error: got $t but expected function type or AbstractType")
           }
+          isCallToInit ++ wellTypedArgs
 
         case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
           val pureReceiverMsgs = p.predicate match {

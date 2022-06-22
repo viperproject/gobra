@@ -20,6 +20,28 @@ class ControlEncoding extends Encoding {
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
+    case n: in.MethodBody =>
+      val (pos, info, errT) = n.vprMeta
+      block{
+        for {
+          _ <- global(n.decls.map(blockDecl(_)(ctx)): _*)
+          vBody <- ctx.statement(n.seqn)
+          vPostprocessing <- sequence(n.postprocessing map ctx.statement)
+        } yield vu.seqn(vBody +: vPostprocessing)(pos, info, errT)
+      }
+
+    case n: in.MethodBodySeqn =>
+      val (pos, info, errT) = n.vprMeta
+      val returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
+      for {
+        _ <- global(returnLabel)
+        vBody <- sequence(n.stmts map ctx.statement)
+      } yield vu.seqn(vBody :+ returnLabel)(pos, info, errT)
+
+    case n: in.Return =>
+      val (pos, info, errT) = n.vprMeta
+      unit(vpr.Goto(Names.returnLabel)(pos, info, errT))
+
     case n@ in.Block(decls, stmts) =>
       val (pos, info, errT) = n.vprMeta
       val vDecls = decls map (blockDecl(_)(ctx))
@@ -71,10 +93,6 @@ class ControlEncoding extends Encoding {
     case n@ in.Break(_, escLabel) =>
       val (pos, info, errT) = n.vprMeta
       unit(vpr.Goto(escLabel)(pos, info, errT))
-
-    case n@ in.Return() =>
-      val (pos, info, errT) = n.vprMeta
-      unit(vpr.Goto(Names.returnLabel)(pos, info, errT))
   }
 
   def blockDecl(x: in.BlockDeclaration)(ctx: Context): vpr.Declaration = {

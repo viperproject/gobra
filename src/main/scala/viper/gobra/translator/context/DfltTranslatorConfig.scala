@@ -66,7 +66,7 @@ class DfltTranslatorConfig(
       new SliceEncoding(arrayEncoding), new PredEncoding, new ChannelEncoding, new StringEncoding,
       new MapEncoding, new MathematicalMapEncoding, new FloatEncoding,
       new AssertionEncoding, new CallEncoding, new MemoryEncoding, new ControlEncoding,
-      new TerminationEncoding, new BuiltInEncoding, new OutlineEncoding,
+      new TerminationEncoding, new BuiltInEncoding, new OutlineEncoding, new DeferEncoding,
       new GlobalEncoding, new Comments,
     ), Vector(
       methodEncoding, pureMethodEncoding, predicateEncoding,

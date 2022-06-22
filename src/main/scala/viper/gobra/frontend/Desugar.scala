@@ -438,25 +438,21 @@ object Desugar {
       val (args, argSubs) = argsWithSubs.unzip
 
       val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
+      val returnsMergedWithSubs = returnsWithSubs.map{ case (p,s) => s.getOrElse(p) }
       val (returns, returnSubs) = returnsWithSubs.unzip
 
       def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
         if (rets.isEmpty) {
-          in.Seqn(
-            returnsWithSubs.flatMap{
-              case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(src))
-              case _ => None
-            } :+ in.Return()(src)
-          )(src)
+          in.Return()(src)
         } else if (rets.size == returns.size) {
           in.Seqn(
-            returns.zip(rets).map{
+            returnsMergedWithSubs.zip(rets).map{
               case (p, v) => singleAss(in.Assignee.Var(p), v)(src)
             } :+ in.Return()(src)
           )(src)
         } else if (rets.size == 1) { // multi assignment
           in.Seqn(Vector(
-            multiassD(returns.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
+            multiassD(returnsMergedWithSubs.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
             in.Return()(src)
           ))(src)
         } else {
@@ -516,8 +512,8 @@ object Desugar {
       val bodyOpt = decl.body.map{ case (_, s) =>
         val vars = argSubs.flatten ++ returnSubs.flatten
         val varsInit = vars map (v => in.Initialization(v)(v.info))
-        val body = varsInit ++ argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
-        in.Block(vars, body)(meta(s))
+        val body = varsInit ++ argInits ++ Vector(blockD(ctx)(s))
+        in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
       in.Function(name, args, returns, pres, posts, terminationMeasures, bodyOpt)(fsrc)
@@ -581,25 +577,21 @@ object Desugar {
       val (args, argSubs) = argsWithSubs.unzip
 
       val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
+      val returnsMergedWithSubs = returnsWithSubs.map{ case (p,s) => s.getOrElse(p) }
       val (returns, returnSubs) = returnsWithSubs.unzip
 
       def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
         if (rets.isEmpty) {
-          in.Seqn(
-            returnsWithSubs.flatMap{
-              case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(src))
-              case _ => None
-            } :+ in.Return()(src)
-          )(src)
+          in.Return()(src)
         } else if (rets.size == returns.size) {
           in.Seqn(
-            returns.zip(rets).map{
+            returnsMergedWithSubs.zip(rets).map{
               case (p, v) => singleAss(in.Assignee.Var(p), v)(src)
             } :+ in.Return()(src)
           )(src)
         } else if (rets.size == 1) { // multi assignment
           in.Seqn(Vector(
-            multiassD(returns.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
+            multiassD(returnsMergedWithSubs.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
             in.Return()(src)
           ))(src)
         } else {
@@ -677,8 +669,8 @@ object Desugar {
       val bodyOpt = decl.body.map{ case (_, s) =>
         val vars = recvSub.toVector ++ argSubs.flatten ++ returnSubs.flatten
         val varsInit = vars map (v => in.Initialization(v)(v.info))
-        val body = varsInit ++ recvInits ++ argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
-        in.Block(vars, body)(meta(s))
+        val body = varsInit ++ recvInits ++ argInits ++ Vector(blockD(ctx)(s))
+        in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
       in.Method(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
@@ -1033,6 +1025,29 @@ object Desugar {
                     }
                   case _ => unexpectedExprError(exp)
                 }
+              case _ => unexpectedExprError(exp)
+            }
+
+          case PDeferStmt(exp) =>
+            def unexpectedExprError(exp: PNode) = violation(s"unexpected expression $exp in defer statement")
+
+            exp match {
+              case inv: PInvoke =>
+                info.resolve(inv) match {
+                  case Some(p: ap.FunctionCall) =>
+                    functionCallDAux(ctx)(p, inv)(src) map {
+                      case Left((_, call: in.Deferrable)) => in.Defer(call)(src)
+                      case _ => unexpectedExprError(exp)
+                    }
+                  case _ => unexpectedExprError(exp)
+                }
+
+              case exp: PStatement =>
+                stmtD(ctx)(exp) map {
+                  case d: in.Deferrable => in.Defer(d)(src)
+                  case _ => unexpectedExprError(exp)
+                }
+
               case _ => unexpectedExprError(exp)
             }
 

@@ -1,0 +1,74 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+requires acc(x)
+ensures acc(x) && *x == old(*x) + n
+func add(x *int, n int) {
+    *x += n
+    return
+}
+
+requires acc(x)
+ensures acc(x) && *x == old(*x) * n
+func mult(x *int, n int) {
+    *x *= n
+    return
+}
+
+ensures x == 6
+func test1() (x int) {
+    share x
+    defer add(&x,1)
+    x := 5
+}
+
+ensures x == 6
+func test2() (x int) {
+    share x
+    defer add(&x,1)
+    x := 5
+    return x
+}
+
+
+ensures x == 6
+func test3() (x int) {
+    share x
+    defer add(&x,1)
+    return 5
+}
+
+ensures x == 11
+func test4() (x int) {
+    share x
+    defer add(&x,1)
+    defer mult(&x,2)
+    return 5
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures false
+func test5() (x int) {
+    share x
+    defer add(&x,1)
+    x := 5
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures false
+func test6() (x int) {
+    share x
+    defer add(&x,1)
+    x := 5
+    return x
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures false
+func test7() (x int) {
+    share x
+    defer add(&x,1)
+    return 5
+}

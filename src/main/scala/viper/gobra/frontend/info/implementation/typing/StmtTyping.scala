@@ -142,6 +142,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: POutline =>
       val invalidNodes: Vector[Messages] = allChildren(n) collect {
         case n@ (_: POld | _: PLabeledOld) => error(n, "outline statements must not contain old expressions, use a before expression instead.")
+        case n: PDeferStmt => error(n, "Currently, outline statements are not allowed to contain defer statements.")
         case n: PReturn => error(n, "outline statements must not contain return statements.")
       }
       error(n, s"pure outline statements are not supported.", n.spec.isPure) ++ invalidNodes.flatten

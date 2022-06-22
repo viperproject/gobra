@@ -53,3 +53,14 @@ func test5(x *int) {
     defer unfold m(x)
     fold m(x)
 }
+
+func nonTermination() {
+  nonTermination()
+}
+
+decreases
+func test6() {
+  //:: ExpectedOutput(function_termination_error)
+  defer nonTermination()
+  return
+}

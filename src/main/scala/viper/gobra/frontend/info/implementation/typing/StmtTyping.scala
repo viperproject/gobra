@@ -32,8 +32,6 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       right.flatMap(isExpr(_).out) ++
         declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
 
-    case n: PFunctionLit => noMessages
-
     case n: PTypeDecl => isType(n.right).out ++ (n.right match {
       case s: PStructType =>
         error(n, s"invalid recursive type ${n.left.name}", cyclicStructDef(s, Some(n.left)))

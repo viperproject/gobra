@@ -22,7 +22,7 @@ import scala.annotation.tailrec
 trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostMisc(misc: PGhostMisc) = misc match {
-    case PClosureNamedDecl(id, PClosureDecl(args, res, spec, body)) => wellDefVariadicArgs(args) ++
+    case PClosureNamedDecl(id, PClosureDecl(args, _, _, _)) => wellDefVariadicArgs(args) ++
       id.fold(noMessages)(id => wellDefID(id).out)
 
     case PBoundVariable(_, _) => noMessages
@@ -241,6 +241,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def ghostMiscType(misc: PGhostMisc): Type = misc match {
+    case PClosureNamedDecl(_, decl) => miscType(decl)
     case PBoundVariable(_, typ) => typeSymbType(typ)
     case PTrigger(_) => BooleanT
     case PExplicitGhostParameter(param) => miscType(param)

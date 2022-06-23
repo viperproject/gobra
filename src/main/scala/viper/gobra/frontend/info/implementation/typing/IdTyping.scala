@@ -10,7 +10,6 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{error, noMessages}
 import org.bitbucket.inkytonik.kiama.util.Entity
 import viper.gobra.ast.frontend.{PIdnNode, _}
 import viper.gobra.frontend.info.base.SymbolTable._
-import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}

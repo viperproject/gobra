@@ -539,7 +539,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         opt(body)(b => block(showStmt(b)))
 
     case PureFunctionLit(name, args, captured, results, pres, posts, measures, body) =>
-      "pure func" <+> text(name.getOrElse("")) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+      "pure func" <+> text(name.getOrElse(""))  <> showCapturedVars(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
 
     case ArrayLit(len, typ, elems) => {

@@ -1,6 +1,6 @@
 package viper.gobra.frontend.info.implementation.resolution
 
-import viper.gobra.ast.frontend.{PClosureDecl, PClosureNamedDecl, PFunctionLit, PIdnNode, PIdnUnk, PIdnUse, PNode, PPackage}
+import viper.gobra.ast.frontend.{PClosureDecl, PFunctionLit, PIdnNode, PIdnUnk, PIdnUse, PNode}
 import viper.gobra.frontend.info.base.SymbolTable.Variable
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 

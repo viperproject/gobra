@@ -566,6 +566,7 @@ object Desugar {
     }
 
     private case class PureFunctionInfo(args: Vector[in.Parameter.In],
+                                        captured: Vector[(in.Expr, in.Parameter.In)],
                                         results: Vector[in.Parameter.Out],
                                         pres: Vector[in.Assertion],
                                         posts: Vector[in.Assertion],
@@ -579,10 +580,11 @@ object Desugar {
       val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
       val (args, _) = argsWithSubs.unzip
 
-      val capturedWithSubs = decl match {
+      val capturedVars = decl match {
         case d: PClosureDecl => info.capturedVars(d)
-
+        case _ => Vector.empty
       }
+      val captured = capturedVars.map(c => capturedVarD(c)._1)
 
       val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
       val (returns, _) = returnsWithSubs.unzip
@@ -599,6 +601,10 @@ object Desugar {
         case _ =>
       }
 
+      (capturedVars zip captured).foreach {
+        case (v, p) => ctx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(meta(v)))(fsrc))
+      }
+
       (decl.result.outs zip returnsWithSubs).foreach {
         case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p)
         case _ =>
@@ -609,6 +615,8 @@ object Desugar {
       val posts = decl.spec.posts map postconditionD(ctx)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx)).res
 
+      val capturedWithPointers = capturedVars.map { localVarD(outerCtx)(_) } zip captured
+
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
           val res = b.nonEmptyStmts match {
@@ -618,7 +626,7 @@ object Desugar {
           implicitConversion(res.typ, returns.head.typ, res)
       }
 
-      PureFunctionInfo(args, returns, pres, posts, terminationMeasure, bodyOpt)
+      PureFunctionInfo(args, capturedWithPointers, returns, pres, posts, terminationMeasure, bodyOpt)
     }
 
 
@@ -856,8 +864,7 @@ object Desugar {
         }
 
         idn match {
-          case _: PWildcard =>
-            freshDeclaredExclusiveVarAsAssignee(t.withAddressability(Addressability.Exclusive), idn, info)(src)
+          case _: PWildcard => freshDeclaredExclusiveVar(t.withAddressability(Addressability.Exclusive), idn, info)(src).map(in.Assignee.Var)
 
           case _ =>
             val x = assignableVarD(ctx)(idn)
@@ -1042,10 +1049,10 @@ object Desugar {
             for {
               dPre <- maybeStmtD(ctx)(pre)(src)
               dExp <- exprD(ctx)(exp)
-              exprVar <- freshDeclaredExclusiveVarAsAssignee(dExp.typ.withAddressability(Addressability.exclusiveVariable), stmt, info)(dExp.info)
-              exprAss = singleAss(exprVar, dExp)(dExp.info)
+              exprVar <- freshDeclaredExclusiveVar(dExp.typ.withAddressability(Addressability.exclusiveVariable), stmt, info)(dExp.info)
+              exprAss = singleAss(in.Assignee.Var(exprVar), dExp)(dExp.info)
               _ <- write(exprAss)
-              clauses <- sequence(cases.map(c => switchCaseD(c, exprVar.asInstanceOf[in.Assignee.Var].op)(ctx)))
+              clauses <- sequence(cases.map(c => switchCaseD(c, exprVar)(ctx)))
 
               dfltStmt <- if (dflt.size > 1) {
                 violation("switch statement has more than one default clause")
@@ -1123,9 +1130,9 @@ object Desugar {
               dPre <- maybeStmtD(ctx)(pre)(src)
               dExp <- exprD(ctx)(exp)
               exprVar <- freshDeclaredExclusiveVar(dExp.typ.withAddressability(Addressability.exclusiveVariable), stmt, info)(dExp.info)
-              exprAss = singleAss(in.Assignee.Var(exprVar.asInstanceOf[in.Assignee.Var].op), dExp)(dExp.info)
+              exprAss = singleAss(in.Assignee.Var(exprVar), dExp)(dExp.info)
               _ <- write(exprAss)
-              clauses <- sequence(cases.map(c => typeSwitchCaseD(c, exprVar.asInstanceOf[in.Assignee.Var].op, binder)(ctx)))
+              clauses <- sequence(cases.map(c => typeSwitchCaseD(c, exprVar, binder)(ctx)))
 
               dfltStmt <- if (dflt.size > 1) {
                 violation("switch statement has more than one default clause")
@@ -1590,8 +1597,8 @@ object Desugar {
         case Some(ap.BlankIdentifier(decl)) =>
           for {
             dExpr <- exprD(ctx)(decl)
-            v <- freshDeclaredExclusiveVarAsAssignee(dExpr.typ, expr, info)(src)
-          } yield v
+            v <- freshDeclaredExclusiveVar(dExpr.typ, expr, info)(src)
+          } yield in.Assignee.Var(v)
         case p => Violation.violation(s"unexpected ast pattern $p")
       }
     }
@@ -1673,7 +1680,7 @@ object Desugar {
               for {
                 c <- compositeLitD(ctx)(c)
                 v <- freshDeclaredExclusiveVar(in.PointerT(c.typ.withAddressability(Addressability.Shared), Addressability.reference), expr, info)(src)
-                _ <- write(in.New(v.asInstanceOf[in.Assignee.Var].op.asInstanceOf[in.LocalVar], c)(src))
+                _ <- write(in.New(v, c)(src))
               } yield v
 
             case _ => addressableD(ctx)(exp) map (a => in.Ref(a, in.PointerT(a.op.typ, Addressability.reference))(src))
@@ -1837,7 +1844,7 @@ object Desugar {
 
           case b: PBlankIdentifier =>
             val typ = typeD(info.typ(b), Addressability.exclusiveVariable)(src)
-            (freshDeclaredExclusiveVar(typ, expr, info)(src))
+            freshDeclaredExclusiveVar(typ, expr, info)(src)
 
           case PReceive(op) =>
             for {
@@ -2058,10 +2065,9 @@ object Desugar {
     }
 
     def pureFunctionLitD(ctx: FunctionContext)(lit: PFunctionLit): in.PureFunctionLit = {
-      val cv = info.capturedVars(lit.decl.decl) map { v => (v, capturedVarD(v), localVarD(ctx)(v)) }
       val funcInfo = pureFunctionMemberOrLitD(lit.decl.decl, meta(lit), ctx)
       val name = if (lit.decl.id.nonEmpty) Some(idName(lit.decl.id.get)) else None
-      in.PureFunctionLit(name, funcInfo.args, Vector.empty, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit))
+      in.PureFunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit))
     }
 
     def capturedVarD(v: PIdnNode): (in.Parameter.In, in.LocalVar) = {
@@ -2586,11 +2592,10 @@ object Desugar {
 
     def varD(ctx: FunctionContext)(id: PIdnNode): in.Expr = {
       require(info.regular(id).isInstanceOf[st.Variable])
-      val r = ctx(id)
       ctx(id) match {
         case Some(v : in.Var) => v
         case Some(d@in.Deref(v, _)) if v.isInstanceOf[in.Var] => d
-        case Some(_) => violation("expected a variable or the dereferencing of a variable")
+        case Some(_) => violation("expected a variable or the dereference of a pointer")
         case None => localVarContextFreeD(id)
       }
     }
@@ -2609,12 +2614,6 @@ object Desugar {
     def freshExclusiveVar(typ: in.Type, scope: PNode, ctx: ExternalTypeInfo)(info: Source.Parser.Info): in.LocalVar = {
       require(typ.addressability == Addressability.exclusiveVariable)
       in.LocalVar(nm.fresh(scope, ctx), typ)(info)
-    }
-
-    def freshDeclaredExclusiveVarAsAssignee(typ: in.Type, scope: PNode, ctx: ExternalTypeInfo)(info: Source.Parser.Info): Writer[in.Assignee] = {
-      require(typ.addressability == Addressability.exclusiveVariable)
-      val res = in.LocalVar(nm.fresh(scope, ctx), typ)(info)
-      declare(res).map(_ => in.Assignee.Var(res))
     }
 
     def freshDeclaredExclusiveVar(typ: in.Type, scope: PNode, ctx: ExternalTypeInfo)(info: Source.Parser.Info): Writer[in.LocalVar] = {

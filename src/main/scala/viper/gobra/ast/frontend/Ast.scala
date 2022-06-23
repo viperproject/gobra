@@ -150,13 +150,20 @@ case class PConstSpec(typ: Option[PType], right: Vector[PExpression], left: Vect
 
 case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId], addressable: Vector[Boolean]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
 
+sealed trait PFunctionOrClosureDecl extends PScope {
+  def args: Vector[PParameter]
+  def result: PResult
+  def spec: PFunctionSpec
+  def body: Option[(PBodyParameterInfo, PBlock)]
+}
+
 case class PFunctionDecl(
                           id: PIdnDef,
                           args: Vector[PParameter],
                           result: PResult,
                           spec: PFunctionSpec,
                           body: Option[(PBodyParameterInfo, PBlock)]
-                        ) extends PActualMember with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
+                        ) extends PFunctionOrClosureDecl with PActualMember with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
 case class PMethodDecl(
                         id: PIdnDef,
@@ -416,7 +423,17 @@ case class PExpCompositeVal(exp: PExpression) extends PCompositeVal // exp is ne
 
 case class PLitCompositeVal(lit: PLiteralValue) extends PCompositeVal
 
-case class PFunctionLit(args: Vector[PParameter], result: PResult, body: PBlock) extends PLiteral with PCodeRootWithResult with PScope
+case class PFunctionLit(decl: PClosureNamedDecl) extends PLiteral with PActualExpression
+
+case class PClosureNamedDecl(id: Option[PIdnDef], decl: PClosureDecl) extends PCodeRootWithResult with PGhostMisc {
+  val result: PResult = decl.result
+}
+
+case class PClosureDecl(args: Vector[PParameter],
+                  result: PResult,
+                  spec: PFunctionSpec,
+                  body: Option[(PBodyParameterInfo, PBlock)]) extends PFunctionOrClosureDecl with PActualMisc
+
 
 case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends PActualExpression
 

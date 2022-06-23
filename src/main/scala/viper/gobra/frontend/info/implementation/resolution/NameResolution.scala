@@ -73,6 +73,9 @@ trait NameResolution { this: TypeInfoImpl =>
 
         case decl: PImport => Import(decl, this)
 
+        // Closure literals
+        case decl: PClosureNamedDecl => Closure(decl, this)
+
         // Ghost additions
         case decl: PBoundVariable => BoundVariable(decl, this)
 
@@ -259,6 +262,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
   /** returns whether or not identified `id` is defined at node `n`. */
   def isDefinedAt(id: PIdnNode, n: PNode): Boolean = isDefinedInScope(sequentialDefenv.in(n), serialize(id))
+  def tryLookupAt(id: PIdnNode, n: PNode): Option[Entity] = tryLookup(sequentialDefenv.in(n), serialize(id))
 
 
   /**

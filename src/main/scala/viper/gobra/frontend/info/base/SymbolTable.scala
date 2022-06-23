@@ -10,7 +10,9 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Entity, Environments}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.ExternalTypeInfo
-import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, BuiltInTypeTag, BuiltInPredicateTag}
+import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, BuiltInPredicateTag, BuiltInTypeTag}
+
+import scala.collection.mutable
 
 
 object SymbolTable extends Environments[Entity] {
@@ -72,6 +74,14 @@ object SymbolTable extends Environments[Entity] {
     override val args: Vector[PParameter] = decl.args
     override val result: PResult = decl.result
     def isPure: Boolean = decl.spec.isPure
+  }
+
+  case class Closure(decl: PClosureNamedDecl, context: ExternalTypeInfo) extends ActualDataEntity with WithArguments with WithResult {
+    override def rep: PNode = decl
+    override val args: Vector[PParameter] = decl.decl.args
+    override val result: PResult = decl.result
+    def ghost: Boolean = true
+    def isPure: Boolean = decl.decl.spec.isPure
   }
 
   sealed trait Constant extends DataEntity {

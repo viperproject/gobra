@@ -1063,8 +1063,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitFunctionLit(ctx: FunctionLitContext): PFunctionLit = {
     visitChildren(ctx) match {
-      case Vector(_, (params: Vector[PParameter] @unchecked, result : PResult), b : PBlock ) => PFunctionLit(params, result, b)
+      case Vector(spec: PFunctionSpec, (id: Option[PIdnDef], args: Vector[PParameter], result: PResult, body: Option[(PBodyParameterInfo, PBlock)])) =>
+        PFunctionLit(PClosureNamedDecl(id, PClosureDecl(args, result, spec, body)))
     }
+  }
+
+  override def visitClosureDecl(ctx: GobraParser.ClosureDeclContext): (Option[PIdnDef], Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)]) = {
+    val id = if(ctx.IDENTIFIER() == null) None else Some(goIdnDef.get(ctx.IDENTIFIER()))
+    val sig = visitNode[Signature](ctx.signature())
+    // Translate the function body if the function is not abstract or trusted, specOnly isn't set or the function is pure
+    val body = if (has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted && (!specOnly || ctx.pure)) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
+    (id, sig._1, sig._2, body)
   }
 
   //region Primary Expressions

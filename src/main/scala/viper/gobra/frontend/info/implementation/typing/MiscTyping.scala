@@ -9,6 +9,7 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable._
+import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation
@@ -41,6 +42,8 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PExpCompositeVal => isExpr(n.exp).out
     case _: PLiteralValue | _: PKeyedElement | _: PCompositeVal => noMessages // these are checked at the level of the composite literal
+
+    case _: PClosureDecl => noMessages // checks are done at the PFunctionLit level
   }
 
   lazy val miscType: Typing[PMisc] = createTyping {
@@ -106,7 +109,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case tree.parent.pair(_: PCompositeVal, ke: PKeyedElement) => expectedMiscType(ke)
 
-      case c => Violation.violation(s"This case should be unreachable, but got $c")
+      case c => Violation.violation(s"This caseE should be unreachable, but got $c")
     }
 
 

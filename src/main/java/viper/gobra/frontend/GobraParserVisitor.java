@@ -641,6 +641,30 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitSlicePrimaryExpr(GobraParser.SlicePrimaryExprContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#operand}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitOperand(GobraParser.OperandContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#literal}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitLiteral(GobraParser.LiteralContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#functionLit}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFunctionLit(GobraParser.FunctionLitContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#closureDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitClosureDecl(GobraParser.ClosureDeclContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#predConstructArgs}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -1079,18 +1103,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitNonNamedType(GobraParser.NonNamedTypeContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link GobraParser#operand}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitOperand(GobraParser.OperandContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#literal}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitLiteral(GobraParser.LiteralContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link GobraParser#integer}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -1168,12 +1180,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitEmbeddedField(GobraParser.EmbeddedFieldContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#functionLit}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitFunctionLit(GobraParser.FunctionLitContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#index}.
 	 * @param ctx the parse tree

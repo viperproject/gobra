@@ -197,7 +197,6 @@ predicateBody: L_CURLY expression eos R_CURLY;
 
 mpredicateDecl: PRED receiver IDENTIFIER parameters predicateBody?;
 
-
 // Addressability
 
 varSpec:
@@ -336,6 +335,15 @@ primaryExpr:
     | RANGE
   ) L_PAREN expression R_PAREN #builtInCallExpr // Remove this alternative when predeclared functions are properly handled
   ;
+
+// Added specified function literal
+operand: literal | operandName | L_PAREN expression R_PAREN;
+
+literal: basicLit | compositeLit | functionLit;
+
+functionLit: specification closureDecl[$specification.trusted, $specification.pure];
+
+closureDecl[boolean trusted, boolean pure]:  FUNC IDENTIFIER? (signature blockWithBodyParameterInfo?);
 
 predConstructArgs: L_PRED expressionList? COMMA? R_PRED;
 

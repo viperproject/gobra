@@ -9,6 +9,7 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
+import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
@@ -28,7 +29,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   val MAX_SHIFT: Int = 512
 
   lazy val wellDefExprAndType: WellDefinedness[PExpressionAndType] = createWellDef {
-
     case _: PNamedOperand => noMessages // no checks to avoid cycles
 
     case n: PDeref =>
@@ -82,8 +82,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   lazy val exprAndTypeType: Typing[PExpressionAndType] = createTyping[PExpressionAndType] {
-    case n: PNamedOperand =>
-      exprOrType(n).fold(x => idType(x.asInstanceOf[PNamedOperand].id), _ => SortT)
+    case n: PNamedOperand => exprOrType(n).fold(x => idType(x.asInstanceOf[PNamedOperand].id), _ => SortT)
 
     case n: PDeref =>
       resolve(n) match {
@@ -199,7 +198,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       literalAssignableTo.errors(lit, simplifiedT)(n)
 
-    case _: PFunctionLit => noMessages
+    case f: PFunctionLit =>
+      capturedVariables(f.decl.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)).toVector
 
     case n: PInvoke => {
       val (l, r) = (exprOrType(n.base), resolve(n))
@@ -249,7 +249,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case PredT(args) =>
               if (n.args.isEmpty && args.isEmpty) noMessages
               else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
-            case c => Violation.violation(s"This case should be unreachable, but got $c")
+            case c => Violation.violation(s"This caseA should be unreachable, but got $c")
           }
 
         case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
@@ -584,8 +584,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case cl: PCompositeLit => expectedCompositeLitType(cl)
 
-    case PFunctionLit(args, r, _) =>
-      FunctionT(args map miscType, miscType(r))
+    case PFunctionLit(PClosureNamedDecl(_, PClosureDecl(args, result, _, _))) =>
+      FunctionT(args map miscType, miscType(result))
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(p: ap.Conversion)) => typeSymbType(p.typ)
@@ -812,7 +812,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   */
                   None
-                case c => Violation.violation(s"This case should be unreachable, but got $c")
+                case c => Violation.violation(s"This caseB should be unreachable, but got $c")
               }
 
             case Some(ap.PredicateCall(_, args)) =>
@@ -832,7 +832,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   */
                   None
-                case c => Violation.violation(s"This case should be unreachable, but got $c")
+                case c => Violation.violation(s"This caseC should be unreachable, but got $c")
               }
 
             case Some(ap.PredExprInstance(base, args, _)) =>
@@ -862,7 +862,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             //  https://github.com/viperproject/gobra/blob/master/src/test/resources/regressions/features/defunc/defunc-fail1.gobra
             //  crashes Gobra without this case).
             None
-          case c => Violation.violation(s"This case should be unreachable, but got $c")
+          case c => Violation.violation(s"This caseD should be unreachable, but got $c")
         }
 
         // expr has the default type if it appears in any other kind of statement

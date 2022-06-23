@@ -6,6 +6,7 @@
 
 package viper.gobra.translator.context
 
+import viper.gobra.ast.internal.GlobalVarDecl
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.encodings._
 import viper.gobra.translator.encodings.arrays.ArrayEncoding
@@ -13,7 +14,7 @@ import viper.gobra.translator.encodings.channels.ChannelEncoding
 import viper.gobra.translator.encodings.combinators.{DefaultEncoding, FinalTypeEncoding, SafeTypeEncodingCombiner, TypeEncoding}
 import viper.gobra.translator.encodings.interfaces.InterfaceEncoding
 import viper.gobra.translator.encodings.maps.{MapEncoding, MathematicalMapEncoding}
-import viper.gobra.translator.encodings.defaults.{DefaultMethodEncoding, DefaultPredicateEncoding, DefaultPureMethodEncoding}
+import viper.gobra.translator.encodings.defaults.{DefaultGlobalVarEncoding, DefaultMethodEncoding, DefaultPredicateEncoding, DefaultPureMethodEncoding}
 import viper.gobra.translator.encodings.options.OptionEncoding
 import viper.gobra.translator.encodings.preds.PredEncoding
 import viper.gobra.translator.encodings.sequences.SequenceEncoding
@@ -57,6 +58,7 @@ class DfltTranslatorConfig(
   val methodEncoding = new DefaultMethodEncoding
   val pureMethodEncoding = new DefaultPureMethodEncoding
   val predicateEncoding = new DefaultPredicateEncoding
+  val globalVarEncoding = new DefaultGlobalVarEncoding
 
   val typeEncoding: TypeEncoding = new FinalTypeEncoding(
     new SafeTypeEncodingCombiner(Vector(
@@ -69,7 +71,7 @@ class DfltTranslatorConfig(
       new TerminationEncoding, new BuiltInEncoding, new OutlineEncoding, new DeferEncoding,
       new GlobalEncoding, new Comments,
     ), Vector(
-      methodEncoding, pureMethodEncoding, predicateEncoding,
+      methodEncoding, pureMethodEncoding, predicateEncoding, globalVarEncoding
     ))
   )
 
@@ -80,5 +82,6 @@ class DfltTranslatorConfig(
     override def pureFunction(x: in.PureFunction)(ctx: Context): MemberWriter[vpr.Function] = pureMethodEncoding.pureFunctionDefault(x)(ctx)
     override def mpredicate(x: in.MPredicate)(ctx: Context): MemberWriter[vpr.Predicate] = predicateEncoding.mpredicateDefault(x)(ctx)
     override def fpredicate(x: in.FPredicate)(ctx: Context): MemberWriter[vpr.Predicate] = predicateEncoding.fpredicateDefault(x)(ctx)
+    override def globalVarDeclaration(x: GlobalVarDecl)(ctx: Context): MemberWriter[Vector[vpr.Function]] = globalVarEncoding.globalVarDeclarationDefault(x)(ctx)
   }
 }

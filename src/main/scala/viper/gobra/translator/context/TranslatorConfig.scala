@@ -7,7 +7,6 @@
 package viper.gobra.translator.context
 
 import viper.gobra.translator.encodings.combinators.{DefaultEncoding, TypeEncoding}
-import viper.gobra.translator.interfaces.translator.Globals
 import viper.gobra.translator.library.arrays.Arrays
 import viper.gobra.translator.library.conditions.Conditions
 import viper.gobra.translator.library.equality.Equality
@@ -39,8 +38,6 @@ trait TranslatorConfig {
   def slice: Slices
 
   def fixpoint: Fixpoint
-
-  def globals: Globals
 
   def tuple: Tuples
 

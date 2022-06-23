@@ -52,7 +52,7 @@ trait TypeEncoding extends Generator {
       unit(ctx.fixpoint.get(v)(ctx): vpr.Exp)
     case v: in.GlobalVar =>
       val (pos, info, errT) = v.vprMeta
-      val typ = ctx.typeEncoding.typ(ctx)(v.typ)
+      val typ = ctx.typ(v.typ)
       val encodedVar = vpr.FuncApp(
         funcname = v.name.uniqueName,
         args = Seq.empty
@@ -73,11 +73,13 @@ trait TypeEncoding extends Generator {
     * The default returns the result of [[method]], [[function]], [[predicate]]
     * */
   def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
-    val m = finalMethod(ctx); val f = finalFunction(ctx); val p = finalPredicate(ctx);
+    val m = finalMethod(ctx); val f = finalFunction(ctx);
+    val p = finalPredicate(ctx); val g = finalGlobalVarDeclatarion(ctx);
     {
       case m(r) => r.map(Vector(_))
       case f(r) => r.map(Vector(_))
       case p(r) => r.map(Vector(_))
+      case g(r) => r
     }
   }
 
@@ -99,6 +101,9 @@ trait TypeEncoding extends Generator {
       case biMP(r) => ctx.predicate(r)
     }
   }
+
+  /** TODO */
+  def globalVarDeclaration(@unused ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Function]] = PartialFunction.empty
 
   /**
     * Returns extensions to the precondition for an in-parameter.
@@ -348,12 +353,10 @@ trait TypeEncoding extends Generator {
 
   /** Adds to the encoding of [[globalVarDeclaration]]. The extension is applied to the result of the final TODO??? encoding. */
     // TODO
-  // def extendGlobalVarDeclaration(@unused ctx: Context): in.Member ==> Extension[MemberWriter[vpr.Predicate]] = PartialFunction.empty
+  def extendGlobalVarDeclaration(@unused ctx: Context): in.Member ==> Extension[MemberWriter[Vector[vpr.Function]]] = PartialFunction.empty
   final def finalGlobalVarDeclatarion(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Function]] = {
-    // val f = predicate(ctx); { case n@f(v) => extendPredicate(ctx).lift(n).fold(v)(_(v)) }
-      ???
+    val f = globalVarDeclaration(ctx); { case n@f(v) => extendGlobalVarDeclaration(ctx).lift(n).fold(v)(_(v)) }
   }
-
 
   /** Adds to the encoding of [[expression]]. The extension is applied to the result of the final expression encoding. */
   def extendExpression(@unused ctx: Context): in.Expr ==> Extension[CodeWriter[vpr.Exp]] = PartialFunction.empty

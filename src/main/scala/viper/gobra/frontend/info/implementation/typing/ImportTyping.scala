@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message}
 import viper.gobra.ast.frontend.{PExplicitQualifiedImport, PFunctionSpec, PImplicitQualifiedImport, PImport, PUnqualifiedImport}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 

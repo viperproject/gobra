@@ -35,10 +35,14 @@ class FinalTypeEncoding(te: TypeEncoding) extends TypeEncoding {
   /* A result is guaranteed */
   override def typ(ctx: Context): in.Type ==> vpr.Type = te.typ(ctx) orElse expectedMatch("typ")
   override def variable(ctx: Context): in.BodyVar ==> vpr.LocalVarDecl = te.variable(ctx) orElse expectedMatch("variable")
+  // TODO: rename
   override def globalVar(ctx: Context): in.Global ==> CodeWriter[vpr.Exp] = te.globalVar(ctx) orElse expectedMatch("globalVar")
-  override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = te.member(ctx)
-  override def precondition(ctx: Context): in.Parameter.In ==> MemberWriter[vpr.Exp] = te.precondition(ctx)
-  override def postcondition(ctx: Context): in.Parameter.Out ==> MemberWriter[vpr.Exp] = te.postcondition(ctx)
+  override def method(ctx: Context): in.Member ==> MemberWriter[vpr.Method] = te.method(ctx) orElse expectedMatch("method")
+  override def function(ctx: Context): in.Member ==> MemberWriter[vpr.Function] = te.function(ctx) orElse expectedMatch("function")
+  override def predicate(ctx: Context): in.Member ==> MemberWriter[vpr.Predicate] = te.predicate(ctx) orElse expectedMatch("predicate")
+  override def globalVarDeclaration(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Function]] =
+    te.globalVarDeclaration(ctx) orElse expectedMatch("globalVarDeclaration")
+  override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = te.member(ctx) orElse expectedMatch("member")
   override def initialization(ctx: Context): in.Location ==> CodeWriter[vpr.Stmt] = te.initialization(ctx) orElse expectedMatch("initialization")
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = te.assignment(ctx) orElse expectedMatch("assignment")
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = te.equal(ctx) orElse expectedMatch("equal")

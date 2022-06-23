@@ -209,7 +209,8 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
   /**
     * Obtains permission to all cells of a slice
     *     getCellPerms[loc: []T] ->
-    *         forall idx :: { loc(a, idx) } 0 <= idx < cap(l) ==> Footprint[ loc[idx] ]
+    *         forall idx :: { loc(a, idx) } 0 <= idx < bound ==> Footprint[ loc[idx] ]
+    *            where bound is len(l) if sliceBound = SliceBound.Len, and cap(l) otherwise.
     */
   private def getCellPerms(ctx: Context)(expr: in.Expr, perm: in.Expr, sliceBound: SliceBound): CodeWriter[vpr.Exp] =
     (expr, perm) match {

@@ -47,26 +47,17 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       case Shared => vpr.Ref
     }
   }
+
   /**
     * Encodes assertions.
-    * [acc(m: []T, perm)] -> [forall i int :: 0 <= i && i < len(m) ==> acc(&m[i], perm)]
+    *     [acc(m: []T, perm)] -> getCellPerms(m, perm, SliceBound.Len)
     */
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
     default(super.assertion(ctx)) {
-      case n@ in.Access(in.Accessible.ExprAccess(exp :: ctx.Slice(elem)), perm) =>
-        val iterVar = in.BoundVar(ctx.freshNames.next(), in.IntT(Addressability.Exclusive))(n.info)
-        val underlyingType = in.SliceT(elem, Addressability.exprInAcc)
-        val quantifiedAssert = in.SepForall(
-          vars = Vector(iterVar),
-          triggers = Vector(in.Trigger(Vector(in.IndexedExp(exp, iterVar, underlyingType)(n.info)))(n.info)),
-          body = in.Implication(
-            in.And(
-              in.AtMostCmp(in.IntLit(0)(n.info), iterVar)(n.info),
-              in.LessCmp(iterVar, in.Length(exp)(n.info))(n.info))(n.info),
-            in.Access(in.Accessible.Address(in.IndexedExp(exp, iterVar, underlyingType)(n.info)), perm)(n.info)
-          )(n.info)
-        )(n.info)
-        ctx.assertion(quantifiedAssert)
+      case in.Access(in.Accessible.ExprAccess(exp :: ctx.Slice(_)), perm :: ctx.Perm()) =>
+        // in practice, requiring permissions to all elements within the length of the slice
+        // seems to be more common than requiring permissions to all elements within the capacity
+        getCellPerms(ctx)(exp, perm, SliceBound.Len)
     }
   }
 
@@ -185,7 +176,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             }
 
             // inhale forall i: int :: {loc(a, i)} 0 <= i && i < [cap] ==> Footprint[ a[i] ]
-            footprintAssertion <- getCellPerms(ctx)(slice, in.FullPerm(slice.info))
+            footprintAssertion <- getCellPerms(ctx)(slice, in.FullPerm(slice.info), SliceBound.Cap)
             _ <- write(vpr.Inhale(footprintAssertion)(pos, info, errT))
 
             lenExpr = in.Length(slice)(makeStmt.info)
@@ -201,7 +192,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
 
             // inhale forall i: int :: {loc(a, i)} 0 <= i && i < [len] ==> [ a[i] == dfltVal(T) ]
             eqValueAssertion <- boundedQuant(
-              length = vprLength,
+              bound = vprLength,
               trigger = (idx: vpr.LocalVar) =>
                 Seq(vpr.Trigger(Seq(ctx.slice.loc(vprSlice.localVar, idx)(pos, info, errT)))(pos, info, errT)),
               body = (x: in.BoundVar) =>
@@ -215,31 +206,43 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     }
   }
 
-
   /**
     * Obtains permission to all cells of a slice
-    * getCellPerms[loc: []T] -> forall idx :: {loc(a, idx) 0 <= idx < cap(l) ==> Footprint[ loc[idx] ]
+    *     getCellPerms[loc: []T] ->
+    *         forall idx :: { loc(a, idx) } 0 <= idx < bound ==> Footprint[ loc[idx] ]
+    *            where bound is len(l) if sliceBound = SliceBound.Len, and cap(l) otherwise.
     */
-  def getCellPerms(ctx: Context)(expr: in.Location, perm: in.Permission): CodeWriter[vpr.Exp] = expr match {
-    case loc :: ctx.Slice(_) / Exclusive =>
-      val (pos, info, errT) = loc.vprMeta
+  private def getCellPerms(ctx: Context)(expr: in.Expr, perm: in.Expr, sliceBound: SliceBound): CodeWriter[vpr.Exp] =
+    (expr, perm) match {
+      case (loc :: ctx.Slice(_), perm :: ctx.Perm())  =>
+        val (pos, info, errT) = loc.vprMeta
+        val bound = sliceBound match {
+          case SliceBound.Cap => in.Capacity(loc)(loc.info)
+          case SliceBound.Len => in.Length(loc)(loc.info)
+        }
+        val vprBound = ctx.expression(bound).res
+        val vprLoc = ctx.expression(loc).res
+        val trigger = (idx: vpr.LocalVar) =>
+          Seq(vpr.Trigger(Seq(ctx.slice.loc(vprLoc, idx)(pos, info, errT)))(pos, info, errT))
+        val underlyingBaseTyp = underlyingType(loc.typ)(ctx)
+        val body = (idx: in.BoundVar) => ctx.footprint(in.IndexedExp(loc, idx, underlyingBaseTyp)(loc.info), perm)
+        boundedQuant(vprBound, trigger, body)(loc)(ctx).map{ forall =>
+          import viper.silver.ast.utility.QuantifiedPermissions
+          // to eliminate nested quantified permissions, which are not supported by the silver ast.
+          vu.bigAnd(QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
+        }
+      case (p1, p2) =>
+        Violation.violation(s"getCellPerm expected a slice and a perm expression, but instead got a $p1 and $p2")
+    }
 
-      val cap = in.Capacity(loc)(loc.info)
-      val vprCap = ctx.expression(cap).res
-      val vprLoc = ctx.expression(loc).res
-      val trigger = (idx: vpr.LocalVar) =>
-        Seq(vpr.Trigger(Seq(ctx.slice.loc(vprLoc, idx)(pos, info, errT)))(pos, info, errT))
-      val underlyingBaseTyp = underlyingType(loc.typ)(ctx)
-      val body = (idx: in.BoundVar) => ctx.footprint(in.IndexedExp(loc, idx, underlyingBaseTyp)(loc.info), perm)
-      boundedQuant(vprCap, trigger, body)(loc)(ctx).map(forall =>
-        // to eliminate nested quantified permissions, which are not supported by the silver ast.
-        vu.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
-      )
-    case c => Violation.violation(s"getCellPerm should only be called with exclusive slices, but got $c")
+  private sealed trait SliceBound
+  private object SliceBound {
+    case object Len extends SliceBound
+    case object Cap extends SliceBound
   }
 
-  /** Returns: Forall idx :: {'trigger'(idx)} 0 <= idx && idx < 'length' => ['body'(idx)] */
-  private def boundedQuant(length: vpr.Exp, trigger: vpr.LocalVar => Seq[vpr.Trigger], body: in.BoundVar => CodeWriter[vpr.Exp])
+  /** Returns: Forall idx :: {'trigger'(idx)} 0 <= idx && idx < 'bound' => ['body'(idx)] */
+  private def boundedQuant(bound: vpr.Exp, trigger: vpr.LocalVar => Seq[vpr.Trigger], body: in.BoundVar => CodeWriter[vpr.Exp])
                           (src: in.Node)(ctx: Context)
   : CodeWriter[vpr.Forall] = {
 
@@ -253,18 +256,18 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       forall = vpr.Forall(
         variables = Vector(vIdx),
         triggers = trigger(vIdx.localVar),
-        exp = vpr.Implies(boundaryCondition(vIdx.localVar, length)(src), vBody)(pos, info, errT)
+        exp = vpr.Implies(boundaryCondition(vIdx.localVar, bound)(src), vBody)(pos, info, errT)
       )(pos, info, errT)
     } yield forall
   }
 
-  /** Returns: 0 <= 'base' && 'base' < 'length'. */
-  private def boundaryCondition(base: vpr.Exp, length: vpr.Exp)(src : in.Node) : vpr.Exp = {
+  /** Returns: 0 <= 'base' && 'base' < 'bound'. */
+  private def boundaryCondition(base: vpr.Exp, bound: vpr.Exp)(src : in.Node) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
 
     vpr.And(
       vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), base)(pos, info, errT),
-      vpr.LtCmp(base, length)(pos, info, errT)
+      vpr.LtCmp(base, bound)(pos, info, errT)
     )(pos, info, errT)
   }
 

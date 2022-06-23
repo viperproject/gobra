@@ -171,6 +171,7 @@ object Nodes {
           case c: CurrentPerm => Seq(c.acc)
           case PermMinus(exp) => Seq(exp)
           case BinaryExpr(left, _, right, _) => Seq(left, right)
+          case _: PermLit => Seq.empty
         }
         case l: Lit => l match {
           case IntLit(_, _, _) => Seq.empty

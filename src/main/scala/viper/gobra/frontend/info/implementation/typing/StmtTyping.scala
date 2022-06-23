@@ -131,7 +131,8 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         } else noMessages // a return without arguments is always well-defined
       }
 
-    case n@PDeferStmt(exp) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
+    case n@PDeferStmt(exp: PExpression) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
+    case PDeferStmt(_: PUnfold | _: PFold) => noMessages
 
     case _: PBlock => noMessages
     case _: PSeq => noMessages
@@ -139,6 +140,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: POutline =>
       val invalidNodes: Vector[Messages] = allChildren(n) collect {
         case n@ (_: POld | _: PLabeledOld) => error(n, "outline statements must not contain old expressions, use a before expression instead.")
+        case n: PDeferStmt => error(n, "Currently, outline statements are not allowed to contain defer statements.")
         case n: PReturn => error(n, "outline statements must not contain return statements.")
       }
       error(n, s"pure outline statements are not supported.", n.spec.isPure) ++ invalidNodes.flatten

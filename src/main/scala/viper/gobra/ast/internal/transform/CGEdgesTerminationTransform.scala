@@ -75,7 +75,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                       }
                     )(src)
                   }
-                  val newMember = in.Method(m.receiver, m.name, m.args, m.results, m.pres, m.posts, m.terminationMeasures, Some(newBody))(src)
+                  val newMember = in.Method(m.receiver, m.name, m.args, m.results, m.pres, m.posts, m.terminationMeasures, Some(newBody.toMethodBody))(src)
                   methodsToRemove += m
                   methodsToAdd += newMember
                   definedMethodsDelta += proxy -> newMember

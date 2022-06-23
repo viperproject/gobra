@@ -7,10 +7,10 @@
 package viper.gobra.translator.encodings.structs
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
 import StructEncoding.ComponentParameter
 import viper.gobra.translator.Names
+import viper.gobra.translator.context.Context
 
 /**
   * Right now, this is just a tuples domain with an additional injectivity axiom to enable quantified permissions.

@@ -304,6 +304,9 @@ specForStmt: loopSpec forStmt;
 
 loopSpec: (INV expression eos)* (DEC terminationMeasure eos)?;
 
+deferStmt:
+  DEFER expression
+  | DEFER fold_stmt=(FOLD | UNFOLD) predicateAccess;
 
 // Added true, false as literals
 basicLit:

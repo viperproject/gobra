@@ -9,7 +9,8 @@ package viper.gobra.translator.encodings
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeLevel.unit
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
@@ -48,11 +49,11 @@ class FloatEncoding extends LeafTypeEncoding {
     * [ (x: floatX) / (y: floatX) ] -> divFloatX([ x ], [ y ])
     * [ floatX(x: int) ] -> fromIntToX([ x ])
     */
-  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+  override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
-    default(super.expr(ctx)) {
+    default(super.expression(ctx)) {
       case (e: in.DfltVal) :: ctx.Float32() / Exclusive =>
         unit(withSrc(vpr.FuncApp(fromIntTo32, Seq(vpr.IntLit(BigInt(0))())), e))
       case (e: in.DfltVal) :: ctx.Float64() / Exclusive =>

@@ -261,6 +261,9 @@ case class PShortForRange(range: PRange, shorts: Vector[PIdnUnk], body: PBlock) 
 
 case class PGoStmt(exp: PExpression) extends PActualStatement
 
+sealed trait PDeferrable extends PNode
+case class PDeferStmt(exp: PDeferrable) extends PActualStatement with PGhostifiableStatement
+
 case class PSelectStmt(send: Vector[PSelectSend], rec: Vector[PSelectRecv], aRec: Vector[PSelectAssRecv], sRec: Vector[PSelectShortRecv], dflt: Vector[PSelectDflt]) extends PActualStatement with PScope
 
 sealed trait PSelectClause extends PNode
@@ -282,8 +285,6 @@ case class PBreak(label: Option[PLabelUse]) extends PActualStatement
 case class PContinue(label: Option[PLabelUse]) extends PActualStatement
 
 case class PGoto(label: PLabelUse) extends PActualStatement
-
-case class PDeferStmt(exp: PExpression) extends PActualStatement
 
 // case class PFallThrough() extends PStatement
 
@@ -318,7 +319,7 @@ case class POutline(body: PStatement, spec: PFunctionSpec) extends PActualStatem
 sealed trait PExpressionOrType extends PNode
 sealed trait PExpressionAndType extends PNode with PExpression with PType
 
-sealed trait PExpression extends PNode with PExpressionOrType
+sealed trait PExpression extends PNode with PExpressionOrType with PDeferrable
 
 sealed trait PActualExpression extends PExpression
 
@@ -902,9 +903,9 @@ case class PExhale(exp: PExpression) extends PGhostStatement
 
 case class PInhale(exp: PExpression) extends PGhostStatement
 
-case class PFold(exp: PPredicateAccess) extends PGhostStatement
+case class PFold(exp: PPredicateAccess) extends PGhostStatement with PDeferrable
 
-case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
+case class PUnfold(exp: PPredicateAccess) extends PGhostStatement with PDeferrable
 
 case class PPackageWand(wand: PMagicWand, proofScript: Option[PBlock]) extends PGhostStatement
 

@@ -1043,12 +1043,12 @@ case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
 
 /* ** Closures */
 sealed trait FunctionLikeLit extends Lit with FunctionLikeMemberOrLit  {
-  def name: Option[String]
+  def name: String
   def captured: Vector[(Expr, Parameter.In)]
 }
 
 case class FunctionLit(
-                     override val name: Option[String],
+                     override val name: String,
                      override val args: Vector[Parameter.In],
                      override val captured: Vector[(Expr, Parameter.In)],
                      override val results: Vector[Parameter.Out],
@@ -1057,11 +1057,11 @@ case class FunctionLit(
                      override val terminationMeasures: Vector[TerminationMeasure],
                      body: Option[MethodBody]
                    )(val info: Source.Parser.Info) extends FunctionLikeLit {
-  override def typ: Type = FunctionT(args.map(_.typ), TupleT(results.map(_.typ), Addressability.rValue), Addressability.literal)
+  override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
 }
 
 case class PureFunctionLit(
-                         override val name: Option[String],
+                         override val name: String,
                          override val args: Vector[Parameter.In],
                          override val captured: Vector[(Expr, Parameter.In)],
                          override val results: Vector[Parameter.Out],
@@ -1070,7 +1070,7 @@ case class PureFunctionLit(
                          override val terminationMeasures: Vector[TerminationMeasure],
                          body: Option[Expr]
                        )(val info: Source.Parser.Info) extends FunctionLikeLit {
-  override def typ: Type = FunctionT(args.map(_.typ), TupleT(results.map(_.typ), Addressability.rValue), Addressability.literal)
+  override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
   require(results.size <= 1)
 }
 
@@ -1234,11 +1234,11 @@ case object VoidT extends PrettyType("void") {
   override def withAddressability(newAddressability: Addressability): VoidT.type = VoidT
 }
 
-case class FunctionT(args: Vector[Type], res: Type, addressability: Addressability) extends PrettyType(f"func(${args})") {
+case class FunctionT(args: Vector[Type], res: Vector[Type], addressability: Addressability) extends PrettyType(f"func${args.mkString("(", ", ", ")")}$res") {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case FunctionT(otherArgs, otherRes, _) => otherArgs.length == args.length &&
       (otherArgs zip args).forall{ t => t._1.equalsWithoutMod(t._2)} &&
-      otherRes.equalsWithoutMod(res)
+      (otherRes zip res).forall{ t => t._1.equalsWithoutMod(t._2)}
     case _ => false
   }
 

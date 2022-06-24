@@ -72,6 +72,7 @@ object Names {
     case in.TupleT(ts, addr) => s"Tuple$$${ts.map(serializeType).mkString("")}$$${serializeAddressability(addr)}"
     case in.PredT(ts, addr) => s"Pred$$${ts.map(serializeType).mkString("")}$$${serializeAddressability(addr)}"
     case in.StructT(fields, addr) => s"Struct${serializeFields(fields)}${serializeAddressability(addr)}"
+    case in.FunctionT(args, res, addr) => s"Func$$${args.map(serializeType).mkString("")}$$${res.map(serializeType).mkString("")}$$${serializeAddressability(addr)}"
     case in.InterfaceT(name, addr) => s"Interface$name${serializeAddressability(addr)}"
     case in.ChannelT(elemT, addr) => s"Channel${serializeType(elemT)}${serializeAddressability(addr)}"
     case t => Violation.violation(s"cannot stringify type $t")
@@ -86,6 +87,36 @@ object Names {
     val serializedFields = fields.map(f => s"${f.name}_${serializeType(f.typ)}").mkString("_")
     // we use a dollar sign to mark the beginning and end of the type list to avoid that `Tuple(Tuple(X), Y)` and `Tuple(Tuple(X, Y))` map to the same name:
     s"$$$serializedFields$$"
+  }
+
+  /**
+    * Serialize the given type to a string.
+    * Information about addressability is disregarded.
+    * Ignoring addressability, there is a 1-to-1 mapping from a type to a string.
+    */
+  def serializeTypeIgnoringAddr(typ: in.Type): String = typ match {
+    case in.BoolT(_) => s"B"
+    case in.StringT(_) => s"String"
+    case in.IntT(_, kind) => s"I$$${kind.name}$$"
+    case in.VoidT => "V"
+    case in.PermissionT(_) => s"Perm"
+    case in.SortT => "Sort"
+    case in.ArrayT(len, elemT, _) => s"Arr$len${serializeTypeIgnoringAddr(elemT)}"
+    case in.SliceT(elemT, _) => s"Sl${serializeTypeIgnoringAddr(elemT)}"
+    case in.MapT(keyT, valueT, _) => s"Map${serializeTypeIgnoringAddr(keyT)}${serializeTypeIgnoringAddr(valueT)}"
+    case in.SequenceT(elemT, _) => s"Seq${serializeTypeIgnoringAddr(elemT)}"
+    case in.SetT(elemT, _) => s"Set${serializeTypeIgnoringAddr(elemT)}"
+    case in.MultisetT(elemT, _) => s"Mset${serializeTypeIgnoringAddr(elemT)}"
+    case in.OptionT(elemT, _) => s"Opt${serializeTypeIgnoringAddr(elemT)}"
+    case in.DefinedT(name, _) => s"Def$$$name$$"
+    case in.PointerT(t, _) => s"Ptr${serializeTypeIgnoringAddr(t)}"
+    case in.TupleT(ts, _) => s"T${ts.map(serializeTypeIgnoringAddr).mkString("")}$$"
+    case in.PredT(ts, _) => s"Pred${ts.map(serializeTypeIgnoringAddr).mkString("")}$$"
+    case in.StructT(fields, _) => s"Struct$$${fields.map(f => s"${f.name}$$${serializeTypeIgnoringAddr(f.typ)}").mkString("$")}$$$$"
+    case in.FunctionT(args, res, _) => s"F${args.map(serializeTypeIgnoringAddr).mkString("")}$$${res.map(serializeTypeIgnoringAddr).mkString("")}$$"
+    case in.InterfaceT(name, _) => s"Ifce$$$name$$"
+    case in.ChannelT(elemT, _) => s"Ch${serializeTypeIgnoringAddr(elemT)}"
+    case t => Violation.violation(s"cannot stringify type $t")
   }
 
   // assert
@@ -105,6 +136,12 @@ object Names {
   def polyValueDomain: String = "Poly"
   def polyValueBoxFunc: String = "box"
   def polyValueUnboxFunc: String = "unbox"
+
+  // closures
+  def closureDomain: String = "Closure"
+  def closureDefaultFunc: String = "closureDefault"
+  def funcLitGetter: String = "getClosure"
+  def satisfiesFunc: String = "closureSatisfies"
 
   // interface
   def emptyInterface: String = "empty_interface"

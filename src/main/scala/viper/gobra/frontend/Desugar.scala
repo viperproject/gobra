@@ -495,7 +495,8 @@ object Desugar {
       }
 
       (capturedVars zip captured).foreach {
-        case (v, p) => specCtx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(meta(v)))(fsrc))
+        case (v, p) => val src = meta(v)
+          specCtx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(src))(src))
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
@@ -536,7 +537,8 @@ object Desugar {
       }
 
       (capturedVars zip capturedSubs).foreach {
-        case (v, p) => ctx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(meta(v)))(fsrc))
+        case (v, p) => val src = meta(v)
+          ctx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(src))(src))
       }
 
       (decl.result.outs zip returnsWithSubs).foreach{
@@ -602,7 +604,8 @@ object Desugar {
       }
 
       (capturedVars zip captured).foreach {
-        case (v, p) => ctx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(meta(v)))(fsrc))
+        case (v, p) => val src = meta(v)
+          ctx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(src))(src))
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
@@ -1665,6 +1668,9 @@ object Desugar {
             case Some(_: ap.BuiltInType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
+            case Some(f: ap.Function) => {
+              violation(s"TODO: IMPLEMENT FUNCTION AS CONSTANTS (pattern $f)")
+            } //TODO
             case p => Violation.violation(s"encountered unexpected pattern: $p")
           }
 
@@ -1695,6 +1701,8 @@ object Desugar {
             case Some(_: ap.BuiltInType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
+            case Some(m: ap.ReceivedMethod) =>
+              violation(s"TODO: IMPLEMENT STRUCT METHODS AS CONSTANTS: $m") //TODO
             case Some(p) => Violation.violation(s"only field selections, global constants, and types can be desugared to an expression, but got $p")
             case _ => Violation.violation(s"could not resolve $n")
           }
@@ -2060,13 +2068,15 @@ object Desugar {
 
     def functionLitD(ctx: FunctionContext)(lit: PFunctionLit): in.FunctionLit = {
       val funcInfo = functionMemberOrLitD(lit.decl.decl, meta(lit), ctx)
-      val name = if (lit.decl.id.nonEmpty) Some(idName(lit.decl.id.get)) else None
+      // Name a nameless literal following the same pattern as a named one, using the base name 'func' and adding a unique id at the end
+      val name = if (lit.decl.id.isEmpty) nm.anonFuncLit(lit.decl.decl, info) else idName(lit.decl.id.get)
       in.FunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit))
     }
 
     def pureFunctionLitD(ctx: FunctionContext)(lit: PFunctionLit): in.PureFunctionLit = {
       val funcInfo = pureFunctionMemberOrLitD(lit.decl.decl, meta(lit), ctx)
-      val name = if (lit.decl.id.nonEmpty) Some(idName(lit.decl.id.get)) else None
+      // Name a nameless literal following the same pattern as a named one, using the base name 'func' and adding a unique id at the end
+      val name = if (lit.decl.id.isEmpty) nm.anonFuncLit(lit.decl.decl, info) else idName(lit.decl.id.get)
       in.PureFunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit))
     }
 
@@ -2521,7 +2531,12 @@ object Desugar {
 
       case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
 
-      case Type.FunctionT(args, result) => in.FunctionT(args.map(typeD(_, Addressability.rValue)(src)), typeD(result, Addressability.rValue)(src), addrMod)
+      case Type.FunctionT(args, result) =>
+        val res = result match {
+          case InternalTupleT(r) => r
+          case r: Type => Vector(r)
+        }
+        in.FunctionT(args.map(typeD(_, Addressability.rValue)(src)), res.map(typeD(_, Addressability.rValue)(src)), addrMod)
 
       case t: Type.InterfaceT =>
         val interfaceName = nm.interface(t)
@@ -3347,7 +3362,6 @@ object Desugar {
     private def nameWithCodeRoot(postfix: String)(n: String, s: PScope, context: ExternalTypeInfo): String = {
       maybeRegister(s, context)
       val codeRoot = context.codeRoot(s).asInstanceOf[PFunctionDecl].id.name
-      // n has occur first in order that function inverse properly works
       s"${n}_${codeRoot}_${context.pkgInfo.viperId}_$postfix${scopeMap(s)}" // deterministic
     }
 
@@ -3358,6 +3372,7 @@ object Desugar {
 
     def variable(n: String, s: PScope, context: ExternalTypeInfo): String = name(VARIABLE_PREFIX)(n, s, context)
     def funcLit(n: String, s: PScope, context: ExternalTypeInfo): String = nameWithCodeRoot(FUNCTION_PREFIX)(n, s, context)
+    def anonFuncLit(s: PScope, context: ExternalTypeInfo): String = nameWithCodeRoot(FUNCTION_PREFIX)("func", s, context) ++ s"_${fresh(s, context)}"
     def global  (n: String, context: ExternalTypeInfo): String = topLevelName(GLOBAL_PREFIX)(n, context)
     def typ     (n: String, context: ExternalTypeInfo): String = topLevelName(TYPE_PREFIX)(n, context)
     def field   (n: String, @unused s: StructT): String = s"$n$FIELD_PREFIX" // Field names must preserve their equality from the Go level

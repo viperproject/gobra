@@ -93,7 +93,7 @@ object TypeHead {
     case _: Float64T => Vector.empty
     case t: PointerT => Vector(t.t)
     case _: DefinedT => Vector.empty
-    case FunctionT(args, res, _) => args ++ Vector(res)
+    case FunctionT(args, res, _) => args ++ res
     case t: StructT => t.fields.map(_.typ)
     case _: InterfaceT => Vector.empty
     case _: DomainT => Vector.empty

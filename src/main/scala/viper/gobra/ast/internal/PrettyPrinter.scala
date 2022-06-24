@@ -534,12 +534,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case NilLit(t) => parens("nil" <> ":" <> showType(t))
 
     case FunctionLit(name, args, captured, results, pres, posts, measures, body) =>
-      "func" <+> text(name.getOrElse("")) <> showCapturedVars(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+      "func" <+> text(name) <> showCapturedVars(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
         opt(body)(b => block(showStmt(b)))
 
     case PureFunctionLit(name, args, captured, results, pres, posts, measures, body) =>
-      "pure func" <+> text(name.getOrElse(""))  <> showCapturedVars(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+      "pure func" <+> text(name)  <> showCapturedVars(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
 
     case ArrayLit(len, typ, elems) => {
@@ -599,7 +599,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Float32T(_) => "float32"
     case Float64T(_) => "float64"
     case VoidT => "void"
-    case FunctionT(args, res, _) => "func" <>  parens(showTypeList(args)) <> showType(res)
+    case FunctionT(args, res, _) => "func" <>  parens(showTypeList(args)) <> parens(showTypeList(res))
     case PermissionT(_) => "perm"
     case DefinedT(name, _) => name
     case PointerT(t, _) => "*" <> showType(t)

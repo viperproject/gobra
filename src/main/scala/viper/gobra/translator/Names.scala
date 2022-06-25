@@ -90,8 +90,7 @@ object Names {
   }
 
   /**
-    * Serialize the given type to a string.
-    * Information about addressability is disregarded.
+    * Serialize the given type to a string, ignoring information about addressability.
     * Ignoring addressability, there is a 1-to-1 mapping from a type to a string.
     */
   def serializeTypeIgnoringAddr(typ: in.Type): String = typ match {
@@ -139,9 +138,11 @@ object Names {
 
   // closures
   def closureDomain: String = "Closure"
+  def closureCaptDomainFunc(i: Int): String = s"capt$i"
+  def closureArg: String = "closure"
   def closureDefaultFunc: String = "closureDefault"
-  def funcLitGetter: String = "getClosure"
-  def satisfiesFunc: String = "closureSatisfies"
+  def funcLitGetter: String = "closureGet"
+  def closureImplementsFunc: String = "closureImplements"
 
   // interface
   def emptyInterface: String = "empty_interface"

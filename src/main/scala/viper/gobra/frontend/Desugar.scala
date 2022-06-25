@@ -453,16 +453,16 @@ object Desugar {
       val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
       val (args, argSubs) = argsWithSubs.unzip
 
-      val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
-      val returnsMergedWithSubs = returnsWithSubs.map{ case (p,s) => s.getOrElse(p) }
-      val (returns, returnSubs) = returnsWithSubs.unzip
-
       val capturedVars = decl match {
         case d: PClosureDecl => info.capturedVars(d)
         case _ => Vector.empty
       }
       val capturedWithSubs = capturedVars.map(capturedVarD)
       val (captured, capturedSubs) = capturedWithSubs.unzip
+
+      val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
+      val returnsMergedWithSubs = returnsWithSubs.map{ case (p,s) => s.getOrElse(p) }
+      val (returns, returnSubs) = returnsWithSubs.unzip
 
       def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
         if (rets.isEmpty) {
@@ -494,7 +494,10 @@ object Desugar {
         case _ =>
       }
 
+      // replace captured variables in function literals
       (capturedVars zip captured).foreach {
+        // we use a newly-generated pointer parameter p to replace captured variable v (v -> *p)
+        // p is treated as a normal argument, information about the original variable is kept in the function literal object
         case (v, p) => val src = meta(v)
           specCtx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(src))(src))
       }
@@ -2081,6 +2084,8 @@ object Desugar {
     }
 
     def capturedVarD(v: PIdnNode): (in.Parameter.In, in.LocalVar) = {
+      // Given a captured variable v, generate an in-parameter and a local variable for the function literal
+      // Both will have type Pointer(typeOf(v))
       val src: Meta = meta(v)
       val refAlias = nm.refAlias(idName(v), info.scope(v), info)
       val param = in.Parameter.In(refAlias, typeD(PointerT(info.typ(v)), Addressability.inParameter)(src))(src)

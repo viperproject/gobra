@@ -480,6 +480,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case n: PExpression => "acc" <> parens(showExpr(n) <> "," <+> showExpr(perm))
       }
       case PMagicWand(left, right) => showSubExpr(expr, left) <+> "--*" <+> showSubExpr(expr, right)
+      case PClosureImplements(closure, spec) => showExpr(closure) <+> "implements" <+> showMisc(spec)
 
       case PTypeOf(exp) => "typeOf" <> parens(showExpr(exp))
       case PTypeExpr(typ) => "type" <> brackets(showType(typ))
@@ -655,6 +656,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case closureDecl: PClosureDecl => showClosureNamedDecl(PClosureNamedDecl(None, closureDecl))
     case misc: PGhostMisc => misc match {
       case n: PClosureNamedDecl => showClosureNamedDecl(n)
+      case s: PClosureSpecInstance => showId(s.func) <> braces(ssep(s.params map showMisc, comma <> space))
+      case PClosureSpecParameter(key, exp) => key match {
+        case Some(key) => showMisc(key) <> colon <+> showExpr(exp)
+        case None => showExpr(exp)
+      }
+      case PClosureSpecParameterKey(name) => name
       case PFPredBase(id) => showId(id)
       case PDottedBase(expr) => showExprOrType(expr)
       case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)

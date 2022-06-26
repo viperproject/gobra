@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, n
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec, MethodSpec}
-import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, FunctionT, PredT, Type, UnknownType}
+import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, FunctionT, InternalTupleT, PredT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -24,7 +24,12 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefGhostMisc(misc: PGhostMisc) = misc match {
     case PClosureNamedDecl(id, PClosureDecl(args, _, _, _)) => wellDefVariadicArgs(args) ++
       id.fold(noMessages)(id => wellDefID(id).out)
-
+    case c@PClosureSpecInstance(id, _) => entity(id) match {
+      case f: SymbolTable.Function => wellDefClosureSpecInstanceParams(c, f)
+      case _ => error(id, s"identifier $id does not identify a user-defined function")
+    }
+    case PClosureSpecParameter(_, exp) => isExpr(exp).out
+    case _: PClosureSpecParameterKey => noMessages
     case PBoundVariable(_, _) => noMessages
     case PTrigger(exprs) => exprs.flatMap(isWeaklyPureExpr)
     case PExplicitGhostParameter(_) => noMessages
@@ -242,6 +247,19 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def ghostMiscType(misc: PGhostMisc): Type = misc match {
     case PClosureNamedDecl(_, decl) => miscType(decl)
+    case PClosureSpecInstance(func, params) =>
+      val fType = idType(func).asInstanceOf[FunctionT]
+      if (params.forall(_.key.isEmpty)) fType.copy(args = fType.args.drop(params.size))
+      else {
+        val f = entity(func).asInstanceOf[SymbolTable.Function]
+        val paramSet = params.map(e => e.key.get.name).toSet
+        fType.copy(args = (f.decl.args zip fType.args).filter{
+          case (PNamedParameter(aId, _), _) if paramSet.contains(aId.name) => false
+          case _ => true
+        }.map(_._2))
+      }
+    case PClosureSpecParameter(_, exp) => exprType(exp)
+    case _: PClosureSpecParameterKey => UnknownType
     case PBoundVariable(_, typ) => typeSymbType(typ)
     case PTrigger(_) => BooleanT
     case PExplicitGhostParameter(param) => miscType(param)
@@ -286,6 +304,20 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p))
   }
 
+  private def wellDefClosureSpecInstanceParams(c: PClosureSpecInstance, f: SymbolTable.Function): Messages = c match {
+    case PClosureSpecInstance(fName, ps) if ps.size > f.args.size =>
+      error(c, s"spec instance $c has too many parameter (more than the arguments of function $fName)")
+    case PClosureSpecInstance(_, ps) if ps.forall(_.key.isEmpty) =>
+      (ps zip f.args) flatMap { case (p, a) => assignableTo.errors((exprType(p.exp), miscType(a)))(p.exp) }
+    case PClosureSpecInstance(fName, ps) if ps.forall(_.key.nonEmpty) =>
+      val argsMap = f.args.flatMap { case a@PNamedParameter(id, _) => Vector(id.name -> a) }.toMap
+      ps flatMap { p => argsMap.get(p.key.get.name) match {
+        case Some(a: PNamedParameter) => assignableTo.errors((exprType(p.exp), miscType(a)))(p.exp)
+        case _ => error(p.key.get, s"could not find argument ${p.key.get} in the function $fName")
+      }}
+    case _ => error(c, "mixture of 'field:expression' and 'expression' elements in closure spec instance")
+  }
+
   private def isConditional(measure: PTerminationMeasure): Boolean = measure match {
     case PTupleTerminationMeasure(_, cond) => cond.nonEmpty
     case PWildcardMeasure(cond) => cond.nonEmpty
@@ -309,5 +341,4 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => noMessages
     }
   }
-
 }

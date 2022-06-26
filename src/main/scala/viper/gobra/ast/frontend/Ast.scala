@@ -434,6 +434,13 @@ case class PClosureDecl(args: Vector[PParameter],
                   spec: PFunctionSpec,
                   body: Option[(PBodyParameterInfo, PBlock)]) extends PFunctionOrClosureDecl with PActualMisc
 
+case class PClosureSpecInstance(func: PIdnUse, params: Vector[PClosureSpecParameter]) extends PGhostMisc
+
+case class PClosureSpecParameter(key: Option[PClosureSpecParameterKey], exp: PExpression) extends PGhostMisc
+
+case class PClosureSpecParameterKey(name: String) extends PGhostMisc
+
+case class PClosureImplements(closure: PExpression, spec: PClosureSpecInstance) extends PGhostExpression
 
 case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends PActualExpression
 

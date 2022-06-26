@@ -96,6 +96,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: POld | _: PLabeledOld | _: PBefore => AddrMod.old
       case _: PConditional | _: PImplication | _: PForall | _: PExists => AddrMod.rValue
       case _: PAccess | _: PPredicateAccess | _: PMagicWand => AddrMod.rValue
+      case _: PClosureImplements => AddrMod.rValue
       case _: PTypeOf | _: PIsComparable => AddrMod.rValue
       case _: PIn | _: PMultiplicity | _: PSequenceAppend |
            _: PGhostCollectionExp | _: PRangeSequence | _: PUnion | _: PIntersection |

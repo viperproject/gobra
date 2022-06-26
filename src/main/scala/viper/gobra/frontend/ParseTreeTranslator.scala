@@ -1076,6 +1076,27 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     (id, sig._1, sig._2, body)
   }
 
+  override def visitClosureSpecInstance(ctx: ClosureSpecInstanceContext): PClosureSpecInstance =
+    PClosureSpecInstance(idnUse.get(ctx.IDENTIFIER()), visitClosureSpecParams(ctx.closureSpecParams()))
+
+  override def visitClosureSpecParams(ctx: ClosureSpecParamsContext): Vector[PClosureSpecParameter] =
+    if (ctx == null) Vector.empty else super.visitClosureSpecParams(ctx) match {
+      case v: Vector[Any] => v collect { case p: PClosureSpecParameter => p }
+      case p: PClosureSpecParameter => Vector(p)
+    }
+
+  override def visitClosureSpecParam(ctx: ClosureSpecParamContext): PClosureSpecParameter = {
+    val id = if(ctx.IDENTIFIER() == null) None else Some(PIdnNodeEx(PClosureSpecParameterKey, _ => None).get(ctx.IDENTIFIER()))
+    PClosureSpecParameter(id, visitNode[PExpression](ctx.expression()))
+  }
+
+  override def visitClosureImplSpecExpr(ctx: ClosureImplSpecExprContext): PClosureImplements = {
+    visitChildren(ctx) match {
+      case Vector(closure: PExpression, "implements", spec: PClosureSpecInstance) =>
+        PClosureImplements(closure, spec)
+    }
+  }
+
   //region Primary Expressions
   /**
     * Visits the rule

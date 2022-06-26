@@ -96,7 +96,7 @@ object Names {
   def serializeTypeIgnoringAddr(typ: in.Type): String = typ match {
     case in.BoolT(_) => s"B"
     case in.StringT(_) => s"String"
-    case in.IntT(_, kind) => s"I$$${kind.name}$$"
+    case in.IntT(_, kind) => s"I$$${kind.name}_"
     case in.VoidT => "V"
     case in.PermissionT(_) => s"Perm"
     case in.SortT => "Sort"
@@ -107,13 +107,13 @@ object Names {
     case in.SetT(elemT, _) => s"Set${serializeTypeIgnoringAddr(elemT)}"
     case in.MultisetT(elemT, _) => s"Mset${serializeTypeIgnoringAddr(elemT)}"
     case in.OptionT(elemT, _) => s"Opt${serializeTypeIgnoringAddr(elemT)}"
-    case in.DefinedT(name, _) => s"Def$$$name$$"
+    case in.DefinedT(name, _) => s"Def$name$$_"
     case in.PointerT(t, _) => s"Ptr${serializeTypeIgnoringAddr(t)}"
-    case in.TupleT(ts, _) => s"T${ts.map(serializeTypeIgnoringAddr).mkString("")}$$"
-    case in.PredT(ts, _) => s"Pred${ts.map(serializeTypeIgnoringAddr).mkString("")}$$"
-    case in.StructT(fields, _) => s"Struct$$${fields.map(f => s"${f.name}$$${serializeTypeIgnoringAddr(f.typ)}").mkString("$")}$$$$"
-    case in.FunctionT(args, res, _) => s"F${args.map(serializeTypeIgnoringAddr).mkString("")}$$${res.map(serializeTypeIgnoringAddr).mkString("")}$$"
-    case in.InterfaceT(name, _) => s"Ifce$$$name$$"
+    case in.TupleT(ts, _) => s"T${ts.map(serializeTypeIgnoringAddr).mkString("")}$$_"
+    case in.PredT(ts, _) => s"Pred${ts.map(serializeTypeIgnoringAddr).mkString("")}$$_"
+    case in.StructT(fields, _) => s"Struct${fields.map(f => s"${f.name}$$$$${serializeTypeIgnoringAddr(f.typ)}").mkString("$_")}$$$$_"
+    case in.FunctionT(args, res, _) => s"F${args.map(serializeTypeIgnoringAddr).mkString("")}$$${res.map(serializeTypeIgnoringAddr).mkString("")}$$_"
+    case in.InterfaceT(name, _) => s"Ifce$name$$$$_"
     case in.ChannelT(elemT, _) => s"Ch${serializeTypeIgnoringAddr(elemT)}"
     case t => Violation.violation(s"cannot stringify type $t")
   }

@@ -75,7 +75,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PClosureImplements => isExpr(n.closure).out ++ ((exprType(n.closure), miscType(n.spec)) match {
       case (tC: FunctionT, tS: FunctionT) if tC == tS => noMessages
-      case (tC: FunctionT, tS: FunctionT) => error(n.spec, s"expected type $tC, got ${n.spec}, which is of type $tS")
+      case (tC: FunctionT, tS: FunctionT) => error(n.spec, s"expected type $tC, got ${n.spec} of type $tS")
       case (tC, _) => error(n.closure, s"expected function type, but got $tC")
     })
 

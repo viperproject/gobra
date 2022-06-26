@@ -242,7 +242,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showCapturedVars(captured: Vector[(Expr, Parameter.In)]): Doc =
     angles(showList(captured) {
-      case (e, p) => showVar(p) <+> showType(p.typ) <> ":=" <+> ampersand <> showExpr(e)
+      case (e, p) => showVar(p) <+> ":=" <+> ampersand <> showExpr(e)
     })
 
   def showFormalArgList[T <: Parameter](list: Vector[T]): Doc =
@@ -330,6 +330,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case FPredicateProxy(name) => name
     case MPredicateProxy(name, _) => name
     case l: LabelProxy => l.name
+    case s: ClosureSpecProxy => s.funcName <>
+      braces(ssep(s.params.map(p => p._1.toString <> colon <> showExpr(p._2)), comma <> space)) <>
+      (if (s.numCaptured > 0) braces(s.numCaptured.toString) else emptyDoc)
   })
 
   def showBlockDecl(x: BlockDeclaration): Doc = x match {
@@ -377,6 +380,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showAss(a: Assertion): Doc = updatePositionStore(a) <> (a match {
     case SepAnd(left, right) => showAss(left) <+> "&&" <+> showAss(right)
     case ExprAssertion(exp) => showExpr(exp)
+    case ClosureImplements(closure, spec) => showExpr(closure) <+> "implements" <+> showProxy(spec)
     case MagicWand(left, right) => showAss(left) <+> "--*" <+> showAss(right)
     case Implication(left, right) => showExpr(left) <+> "==>" <+> showAss(right)
     case Access(e, FullPerm(_)) => "acc" <> parens(showAcc(e))

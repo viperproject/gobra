@@ -155,6 +155,14 @@ assertion:
 
 blockWithBodyParameterInfo: L_CURLY (SHARE identifierList eos)? statementList? R_CURLY;
 
+// Closures
+closureSpecInstance: IDENTIFIER (L_CURLY (closureSpecParams COMMA?)? R_CURLY)?;
+
+closureSpecParams: closureSpecParam (COMMA closureSpecParam)*;
+
+closureSpecParam: (IDENTIFIER COLON)? expression;
+
+
 // Implementation proofs
 implementationProof: type_ IMPL type_ (L_CURLY (implementationProofPredicateAlias eos)* (methodImplementationProof eos)*  R_CURLY)?;
 
@@ -259,6 +267,7 @@ expression:
     | GREATER
     | GREATER_OR_EQUALS
   ) expression #relExpr
+  | expression IMPL closureSpecInstance #closureImplSpecExpr
   | expression LOGICAL_AND expression #andExpr
   | expression LOGICAL_OR expression #orExpr
   |<assoc=right> expression IMPLIES expression #implication
@@ -336,7 +345,7 @@ primaryExpr:
   ) L_PAREN expression R_PAREN #builtInCallExpr // Remove this alternative when predeclared functions are properly handled
   ;
 
-// Added specified function literal
+// Added function literal with specification
 operand: literal | operandName | L_PAREN expression R_PAREN;
 
 literal: basicLit | compositeLit | functionLit;

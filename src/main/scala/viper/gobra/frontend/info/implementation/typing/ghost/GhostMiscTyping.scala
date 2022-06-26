@@ -25,8 +25,11 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case PClosureNamedDecl(id, PClosureDecl(args, _, _, _)) => wellDefVariadicArgs(args) ++
       id.fold(noMessages)(id => wellDefID(id).out)
     case c@PClosureSpecInstance(id, _) => entity(id) match {
-      case f: SymbolTable.Function => wellDefClosureSpecInstanceParams(c, f)
-      case _ => error(id, s"identifier $id does not identify a user-defined function")
+      case f: SymbolTable.Function => wellDefClosureSpecInstanceParams(c, f.args)
+      case l: SymbolTable.Closure =>
+        if (c.params.isEmpty || capturedVariables(l.decl.decl).isEmpty) wellDefClosureSpecInstanceParams(c, l.args)
+        else error(c, s"cannot derive a parametrized closure spec instance from a literal that captures variables")
+      case _ => error(id, s"identifier $id does not identify a user-defined function or function literal")
     }
     case PClosureSpecParameter(_, exp) => isExpr(exp).out
     case _: PClosureSpecParameterKey => noMessages
@@ -304,17 +307,26 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p))
   }
 
-  private def wellDefClosureSpecInstanceParams(c: PClosureSpecInstance, f: SymbolTable.Function): Messages = c match {
-    case PClosureSpecInstance(fName, ps) if ps.size > f.args.size =>
-      error(c, s"spec instance $c has too many parameter (more than the arguments of function $fName)")
+  private def wellDefClosureSpecInstanceParams(c: PClosureSpecInstance, fArgs: Vector[PParameter]): Messages = c match {
+    case PClosureSpecInstance(fName, ps) if ps.size > fArgs.size =>
+      error(c, s"spec instance $c has too many parameters (more than the arguments of function $fName)")
     case PClosureSpecInstance(_, ps) if ps.forall(_.key.isEmpty) =>
-      (ps zip f.args) flatMap { case (p, a) => assignableTo.errors((exprType(p.exp), miscType(a)))(p.exp) }
+      (ps zip fArgs) flatMap { case (p, a) => assignableTo.errors((exprType(p.exp), miscType(a)))(p.exp) }
     case PClosureSpecInstance(fName, ps) if ps.forall(_.key.nonEmpty) =>
-      val argsMap = f.args.flatMap { case a@PNamedParameter(id, _) => Vector(id.name -> a) }.toMap
-      ps flatMap { p => argsMap.get(p.key.get.name) match {
+      val argsMap = fArgs.flatMap { case a@PNamedParameter(id, _) => Vector(id.name -> a) }.toMap
+      val wellDefIfNoDuplicateParams = {
+        var pSet = Set[String]()
+        ps flatMap(p => {
+          val err = if (pSet.contains(p.key.get.name)) error(p.key.get, s"duplicate parameter key ${p.key.get}") else noMessages
+          pSet = pSet + p.key.get.name
+          err
+        })
+      }
+      val wellDefIfCanAssignParams = ps flatMap { p => argsMap.get(p.key.get.name) match {
         case Some(a: PNamedParameter) => assignableTo.errors((exprType(p.exp), miscType(a)))(p.exp)
         case _ => error(p.key.get, s"could not find argument ${p.key.get} in the function $fName")
       }}
+      wellDefIfNoDuplicateParams ++ wellDefIfCanAssignParams
     case _ => error(c, "mixture of 'field:expression' and 'expression' elements in closure spec instance")
   }
 

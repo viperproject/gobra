@@ -143,6 +143,7 @@ object Names {
   def closureDefaultFunc: String = "closureDefault"
   def funcLitGetter: String = "closureGet"
   def closureImplementsFunc: String = "closureImplements"
+  def closureImplementsParam(i: Int): String = s"param$i"
 
   // interface
   def emptyInterface: String = "empty_interface"

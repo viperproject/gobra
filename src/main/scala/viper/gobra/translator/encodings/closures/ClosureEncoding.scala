@@ -9,7 +9,7 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.util.ViperWriter.CodeWriter
-import viper.silver.ast.Member
+import viper.silver.ast.{ErrorTrafo, Exp, Info, Member, Position}
 import viper.silver.{ast => vpr}
 
 class ClosureEncoding extends LeafTypeEncoding {
@@ -17,13 +17,15 @@ class ClosureEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.TypePatterns._
 
+  val specs = new ClosureSpecsManager
+
   /**
     * Translates a type into a Viper type.
     */
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
-    case f@in.FunctionT(_, _, addr) =>
+    case in.FunctionT(_, _, addr) =>
       addr match {
-        case Exclusive => domainManager(f).vprType
+        case Exclusive => vprClosureDomainType
         case Shared    => vpr.Ref
       }
   }
@@ -33,39 +35,41 @@ class ClosureEncoding extends LeafTypeEncoding {
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
 
-    case (l: in.FunctionLikeLit) :: ctx.Function(t) =>
-      val d = domainManager(t, l.captured.size)
-      val (captExpr, captParam) = l.captured.unzip
-      val newMembers = List(implementsFunction(l.name, t, captParam)(ctx, l.info), functionFromLiteral(l)(ctx), funcLitGetter(l, d))
+    case l: in.FunctionLikeLit =>
+      specs.register(l)(ctx)
+      val (captExpr, _) = l.captured.unzip
+      val newMembers = List(functionFromLiteral(l)(ctx), funcLitGetter(l))
       genMembers ++= newMembers
       // return call funcLitGetter(&c1, &c2, ...) where c1, c2... are the captured variables
       ctx.expression(in.PureFunctionCall(
         in.FunctionProxy(funcLitGetterName(l.name))(l.info), captExpr map { e => in.Ref(e)(l.info) }, l.typ)(l.info))
 
-    case e@in.DfltVal(_) :: ctx.Function(t) / Exclusive =>
+    case e@in.DfltVal(_) :: ctx.Function(_) / Exclusive =>
       val (pos, info, errT) = e.vprMeta
-      unit(domainManager(t).dfltGetter(pos, info, errT))
+      unit(vpr.FuncApp(Names.closureDefaultFunc, Seq.empty)(pos, info, vprClosureDomainType, errT))
+  }
+
+  override def assertion(ctx: Context): in.Assertion ==> CodeWriter[Exp] = default(super.assertion(ctx)) {
+    case a@in.ClosureImplements(closure, spec) =>
+      specs.closureImplementsAssertion(closure, spec)(ctx, a.info)
   }
 
   override def finalize(addMemberFn: Member => Unit): Unit = {
-    domainManager.finalize(addMemberFn)
+    if (closureDomainNeeded) {
+      addMemberFn(vprDomain)
+      addMemberFn(dfltFunction)
+    }
     genMembers foreach addMemberFn
+    specs.finalize(addMemberFn)
   }
 
-  private val domainManager: ClosureDomainManager = new ClosureDomainManager
   private var genMembers: List[vpr.Member] = List.empty
 
-  // Generates encoding: function closureImplements_funcName_(closure, parameters) bool
-  private def implementsFunction(funcName: String, funcTyp: in.Type, params: Vector[in.Parameter.In])(ctx: Context, info: Source.Parser.Info): vpr.Member = {
-    val proxy = implementsFunctionProxy(funcName)(info)
-    val closurePar = in.Parameter.In(Names.closureArg, funcTyp)(info)
-    val args = Vector(closurePar) ++ params
-    val result = Vector(in.Parameter.Out("r", in.BoolT(Addressability.outParameter))(info))
-    val func = in.PureFunction(proxy, args, result, Vector.empty, Vector.empty, Vector.empty, None)(info)
-    ctx.defaultEncoding.pureFunction(func)(ctx).res
-  }
-  private def implementsFunctionName(funcName: String): String = s"${Names.closureImplementsFunc}$$$funcName"
-  private def implementsFunctionProxy(funcName: String)(info: Source.Parser.Info): in.FunctionProxy = in.FunctionProxy(implementsFunctionName(funcName))(info)
+  private def closureSpecName(spec: in.ClosureSpecProxy): String =  s"${spec.funcName}$$${spec.params.map(_._1).mkString("_")}"
+  private def implementsFunctionName(spec: in.ClosureSpecProxy): String = s"${Names.closureImplementsFunc}$$${closureSpecName(spec)}"
+  private def implementsFunctionName(funcName: String)(info: Source.Parser.Info): String = implementsFunctionName(in.ClosureSpecProxy(funcName, Vector.empty, 0)(info))
+  private def implementsFunctionProxy(spec: in.ClosureSpecProxy)(info: Source.Parser.Info): in.FunctionProxy = in.FunctionProxy(implementsFunctionName(spec))(info)
+  private def implementsFunctionProxy(funcName: String)(info: Source.Parser.Info): in.FunctionProxy = implementsFunctionProxy(in.ClosureSpecProxy(funcName, Vector.empty, 0)(info))(info)
 
   // Generates the encoding of the function literal as a separate Viper method or function
   private def functionFromLiteral(lit: in.FunctionLikeLit)(ctx: Context): vpr.Member = {
@@ -86,24 +90,41 @@ class ClosureEncoding extends LeafTypeEncoding {
     }
   }
 
+  private def domainFuncName(i: Int): String = s"${Names.closureCaptDomainFunc(i)}${Names.closureDomain}"
+  private def captVarAccess(closure: vpr.Exp, i: Int)(pos: Position, info: Info, errT: ErrorTrafo) =
+    vpr.DomainFuncApp(domainFuncName(i), Seq(closure), Map.empty)(pos, info, vpr.Ref, Names.closureDomain, errT)
+
+  private var closureDomainNeeded: Boolean = false
+  private lazy val vprClosureDomainType: vpr.DomainType = {
+    closureDomainNeeded = true
+    vpr.DomainType(Names.closureDomain, Map.empty)(Vector.empty)
+  }
+  private def vprDomain: vpr.Domain = vpr.Domain(
+    Names.closureDomain, (1 to specs.maxCaptVariables) map
+      { i => vpr.DomainFunc(domainFuncName(i), Seq(vpr.LocalVarDecl(Names.closureArg, vprClosureDomainType)()), vpr.Ref)(domainName = Names.closureDomain)},
+    Seq.empty, Seq.empty)()
+
+  private val dfltFunction: vpr.Function = vpr.Function(Names.closureDefaultFunc, Seq.empty, vprClosureDomainType, Seq.empty, Seq.empty, None)()
+
   /* **
    * Generates encoding:
    *   function closureGet__litName_(pointers to capturedVars): Closure_litType_
    *   ensures result implements _litName_
    *   for i-th captured var c: ensures capt_i__litType_(result) == c
    */
-  private def funcLitGetter(l: in.FunctionLikeLit, d: ClosureDomain): vpr.Member = {
+  private def funcLitGetter(l: in.FunctionLikeLit): vpr.Member = {
     val args = (1 to l.captured.size) map { i => vpr.LocalVarDecl(Names.closureCaptDomainFunc(i), vpr.Ref)() }
     val argsAsVars = (1 to l.captured.size) map { i => vpr.LocalVar(Names.closureCaptDomainFunc(i), vpr.Ref)() }
     val (pos, info, errT) = l.vprMeta
     val capturesVar: Int => vpr.EqCmp = i => vpr.EqCmp(
-      vpr.DomainFuncApp(d.domainFuncName(i), Seq(vpr.Result(d.vprType)()), Map.empty)(pos, info, vpr.Ref, d.domName, errT),
+      captVarAccess(vpr.Result(vprClosureDomainType)(), i)(pos, info, errT),
       argsAsVars(i-1))()
     val satisfiesSpec: vpr.EqCmp = vpr.EqCmp(
-      vpr.FuncApp(implementsFunctionName(l.name), Vector(vpr.Result(d.vprType)()) ++ argsAsVars)(pos, info, vpr.Bool, errT),
+      vpr.FuncApp(implementsFunctionName(l.name)(l.info), Vector(vpr.Result(vprClosureDomainType)()) ++ argsAsVars)(pos, info, vpr.Bool, errT),
       vpr.BoolLit(b=true)())()
     val posts = ((1 to l.captured.size) map { i => capturesVar(i) }) ++ Vector(satisfiesSpec)
-    vpr.Function(funcLitGetterName(l.name), args, d.vprType, Seq.empty, posts, None)(pos, info, errT)
+    vpr.Function(funcLitGetterName(l.name), args, vprClosureDomainType, Seq.empty, posts, None)(pos, info, errT)
   }
   private def funcLitGetterName(funcName: String): String = s"${Names.funcLitGetter}_$funcName"
+
 }

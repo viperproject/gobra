@@ -1074,6 +1074,8 @@ case class PureFunctionLit(
   require(results.size <= 1)
 }
 
+case class ClosureImplements(closure: Expr, spec: ClosureSpecProxy)(override val info: Source.Parser.Info) extends Assertion
+
 /**
   * Represents (full) slice expressions "`base`[`low`:`high`:`max`]".
   * Only the `max` component is optional at this point.
@@ -1487,4 +1489,8 @@ case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Pa
 
 case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BlockDeclaration
 
+case class ClosureSpecProxy(funcName: String, params: Vector[(Int, Expr)], numCaptured: Int)(val info: Source.Parser.Info) extends Proxy {
+  require(params.isEmpty || numCaptured == 0)
 
+  override def name: String = this.toString
+}

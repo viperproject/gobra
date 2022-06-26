@@ -243,6 +243,21 @@ object Desugar {
       in.MPredicateProxy(id.name, name)(meta(id, context))
     }
 
+    def closureSpecProxyD(ctx: FunctionContext)(s: PClosureSpecInstance, context: TypeInfo): in.ClosureSpecProxy = {
+      val funcName = idName(s.func, context)
+      val (fArgs, numCaptured) = info.regular(s.func) match {
+        case st.Function(decl, _, _) => (decl.args, 0)
+        case st.Closure(decl, _) => (decl.decl.args, context.capturedVars(decl.decl).size)
+        case _ => violation("expected function or function literal")
+      }
+      val idxParams = if (s.params.forall(_.key.isEmpty)) s.params.zipWithIndex.map {
+        case (p, idx) => (idx+1, exprD(ctx)(p.exp).res)
+      } else {
+        val argsToIdx = fArgs.zipWithIndex.collect { case (PNamedParameter(a, _), idx) => a.name -> (idx+1) }.toMap
+        s.params.map { p => (argsToIdx(p.key.get.name), exprD(ctx)(p.exp).res) }
+      }
+      in.ClosureSpecProxy(funcName, idxParams, numCaptured)(meta(s, context))
+    }
 
     // proxies to built-in members
     def methodProxy(tag: BuiltInMethodTag, recv: in.Type, args: Vector[in.Type])(src: Meta): in.MethodProxy = {
@@ -3068,6 +3083,9 @@ object Desugar {
 
         case PMagicWand(left, right) =>
           for {l <- goA(left); r <- goA(right)} yield in.MagicWand(l, r)(src)
+
+        case PClosureImplements(closure, spec) =>
+          for {c <- exprD(ctx)(closure)} yield in.ClosureImplements(c, closureSpecProxyD(ctx)(spec, info))(src)
 
         case n: PAnd => for {l <- goA(n.left); r <- goA(n.right)} yield in.SepAnd(l, r)(src)
 

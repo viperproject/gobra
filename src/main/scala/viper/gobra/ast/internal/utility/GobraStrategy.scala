@@ -78,6 +78,7 @@ object GobraStrategy {
       case (_: ExprAssertion, Seq(exp: Expr)) => ExprAssertion(exp)(meta)
       case (_: Implication, Seq(l: Expr, r: Assertion)) => Implication(l, r)(meta)
       case (_: MagicWand, Seq(l: Assertion, r: Assertion)) => MagicWand(l, r)(meta)
+      case (_: ClosureImplements, Seq(closure: Expr, spec: ClosureSpecProxy)) => ClosureImplements(closure, spec)(meta)
       case (_: Access, Seq(acc: Accessible, perm: Permission)) => Access(acc, perm)(meta)
       case (_: Accessible.Address, Seq(d: Deref)) => Accessible.Address(d)
       case (_: Accessible.Predicate, Seq(p: PredicateAccess)) => Accessible.Predicate(p)
@@ -207,7 +208,8 @@ object GobraStrategy {
       case (f: FPredicateProxy, Seq()) => FPredicateProxy(f.name)(meta)
       case (m: MPredicateProxy, Seq()) => MPredicateProxy(m.name, m.uniqueName)(meta)
       case (l: LabelProxy, Seq()) => LabelProxy(l.name)(meta)
-        // Termination Measures
+      case (s: ClosureSpecProxy, Seq(params: Vector[(Int, Expr)@unchecked])) => ClosureSpecProxy(s.funcName, params, s.numCaptured)(meta)
+      // Termination Measures
       case (_: WildcardMeasure, Seq(cond: Option[Expr@unchecked])) => WildcardMeasure(cond)(meta)
       case (_: TupleTerminationMeasure, Seq(tuple: Vector[Node@unchecked], cond: Option[Expr@unchecked])) => TupleTerminationMeasure(tuple, cond)(meta)
     }

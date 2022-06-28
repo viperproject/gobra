@@ -35,6 +35,7 @@ object Nodes {
       case MethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
       case PureMethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
       case Field(_, _, _) => Seq.empty
+      case ClosureSpec(_, params) => params.values.toSeq
       case DomainDefinition(_, funcs, axioms) => funcs ++ axioms
       case DomainFunc(_, args, results) => args ++ Seq(results)
       case DomainAxiom(expr) => Seq(expr)
@@ -106,6 +107,8 @@ object Nodes {
         case PureFunctionCall(func, args, _) => Seq(func) ++ args
         case PureMethodCall(recv, meth, args, _) => Seq(recv, meth) ++ args
         case DomainFunctionCall(func, args, _) => Seq(func) ++ args
+        case FunctionObject(_, _) => Seq.empty
+        case MethodObject(_, _, _) => Seq.empty
         case Conversion(_, expr) => Seq(expr)
         case DfltVal(_) => Seq.empty
         case Tuple(args) => args
@@ -203,9 +206,9 @@ object Nodes {
         case MethodProxy(_, _) => Seq.empty
         case FPredicateProxy(_) => Seq.empty
         case MPredicateProxy(_, _) => Seq.empty
+        case FunctionLitProxy(_) => Seq.empty
         case _: DomainFuncProxy => Seq.empty
         case _: LabelProxy => Seq.empty
-        case ClosureSpecProxy(_, params, _) => params.map(_._2)
       }
     }
 //    n match {

@@ -314,14 +314,9 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       (ps zip fArgs) flatMap { case (p, a) => assignableTo.errors((exprType(p.exp), miscType(a)))(p.exp) }
     case PClosureSpecInstance(fName, ps) if ps.forall(_.key.nonEmpty) =>
       val argsMap = fArgs.flatMap { case a@PNamedParameter(id, _) => Vector(id.name -> a) }.toMap
-      val wellDefIfNoDuplicateParams = {
-        var pSet = Set[String]()
-        ps flatMap(p => {
-          val err = if (pSet.contains(p.key.get.name)) error(p.key.get, s"duplicate parameter key ${p.key.get}") else noMessages
-          pSet = pSet + p.key.get.name
-          err
-        })
-      }
+      val wellDefIfNoDuplicateParams = (ps.map(_.key.get) foldLeft (Set[String](), noMessages)) {
+        case ((seen, msg), k) => (seen + k.name, msg ++ (if (seen.contains(k.name)) error(k, s"duplicate parameter key $k") else noMessages))
+      }._2
       val wellDefIfCanAssignParams = ps flatMap { p => argsMap.get(p.key.get.name) match {
         case Some(a: PNamedParameter) => assignableTo.errors((exprType(p.exp), miscType(a)))(p.exp)
         case _ => error(p.key.get, s"could not find argument ${p.key.get} in the function $fName")

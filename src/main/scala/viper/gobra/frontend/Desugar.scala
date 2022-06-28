@@ -100,7 +100,8 @@ object Desugar {
       combinedMethods ++ builtInMethods,
       combineTableField(_.definedFunctions) ++ builtInFunctions,
       combinedMPredicates ++ builtInMPredicates,
-      combineTableField(_.definedFPredicates) ++ builtInFPredicates      ,
+      combineTableField(_.definedFPredicates) ++ builtInFPredicates,
+      combineTableField(_.definedFuncLiterals),
       combinedMemberProxies,
       combinedImplementations,
       combineImpProofPredAliases
@@ -243,20 +244,31 @@ object Desugar {
       in.MPredicateProxy(id.name, name)(meta(id, context))
     }
 
-    def closureSpecProxyD(ctx: FunctionContext)(s: PClosureSpecInstance, context: TypeInfo): in.ClosureSpecProxy = {
-      val funcName = idName(s.func, context)
-      val (fArgs, numCaptured) = info.regular(s.func) match {
-        case st.Function(decl, _, _) => (decl.args, 0)
-        case st.Closure(decl, _) => (decl.decl.args, context.capturedVars(decl.decl).size)
+    def functionLitProxyD(lit: PFunctionLit, context: TypeInfo): in.FunctionLitProxy = {
+      // If the literal is nameless, generate a unique name
+      val name = if (lit.decl.id.isEmpty) nm.anonFuncLit(lit.decl.decl, context) else idName(lit.decl.id.get, context)
+      val info = if (lit.decl.id.isEmpty) meta(lit, context) else meta(lit.decl.id.get, context)
+      in.FunctionLitProxy(name)(info)
+    }
+
+    def functionLitProxyD(id: PIdnUse, context: TypeInfo): in.FunctionLitProxy = {
+      val name = idName(id, context)
+      in.FunctionLitProxy(name)(meta(id, context))
+    }
+
+    def closureSpecD(ctx: FunctionContext)(s: PClosureSpecInstance, context: TypeInfo): in.ClosureSpec = {
+      val (fArgs, proxy) = info.regular(s.func) match {
+        case st.Function(decl, _, _) => (decl.args, functionProxy(s.func, context))
+        case st.Closure(decl, _) => (decl.decl.args, functionLitProxyD(s.func, context))
         case _ => violation("expected function or function literal")
       }
-      val idxParams = if (s.params.forall(_.key.isEmpty)) s.params.zipWithIndex.map {
-        case (p, idx) => (idx+1, exprD(ctx)(p.exp).res)
-      } else {
+      val params = if (s.params.forall(_.key.isEmpty)) s.params.zipWithIndex.map {
+        case (p, idx) => idx+1 -> exprD(ctx)(p.exp).res
+      }.toMap else {
         val argsToIdx = fArgs.zipWithIndex.collect { case (PNamedParameter(a, _), idx) => a.name -> (idx+1) }.toMap
-        s.params.map { p => (argsToIdx(p.key.get.name), exprD(ctx)(p.exp).res) }
-      }
-      in.ClosureSpecProxy(funcName, idxParams, numCaptured)(meta(s, context))
+        s.params.map { p => argsToIdx(p.key.get.name) -> exprD(ctx)(p.exp).res }
+      }.toMap
+      in.ClosureSpec(proxy, params)(meta(s))
     }
 
     // proxies to built-in members
@@ -384,6 +396,7 @@ object Desugar {
         definedFunctions,
         definedMPredicates,
         definedFPredicates,
+        definedFuncLiterals,
         computeMemberProxies(dMembers ++ additionalMembers, interfaceImplementations, definedTypes),
         interfaceImplementations,
         implementationProofPredicateAliases
@@ -1686,9 +1699,9 @@ object Desugar {
             case Some(_: ap.BuiltInType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
-            case Some(f: ap.Function) => {
-              violation(s"TODO: IMPLEMENT FUNCTION AS CONSTANTS (pattern $f)")
-            } //TODO
+            case Some(f: ap.Function) =>
+              val name = idName(f.id)
+              unit(in.FunctionObject(in.FunctionProxy(name)(src), typeD(info.typ(f.id), Addressability.rValue)(src))(src))
             case p => Violation.violation(s"encountered unexpected pattern: $p")
           }
 
@@ -1720,7 +1733,9 @@ object Desugar {
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
             case Some(m: ap.ReceivedMethod) =>
-              violation(s"TODO: IMPLEMENT STRUCT METHODS AS CONSTANTS: $m") //TODO
+              for {
+                r <- exprD(ctx)(m.recv)
+              } yield in.MethodObject(applyMemberPathD(r, m.path)(src), methodProxy(m.id, info), typeD(info.typ(n), Addressability.rValue)(src))(src)
             case Some(p) => Violation.violation(s"only field selections, global constants, and types can be desugared to an expression, but got $p")
             case _ => Violation.violation(s"could not resolve $n")
           }
@@ -2077,8 +2092,7 @@ object Desugar {
         case PBoolLit(b) => single(in.BoolLit(b))
         case PStringLit(s) => single(in.StringLit(s))
         case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.PointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
-        case f: PFunctionLit if !f.decl.decl.spec.isPure => unit[in.Expr](functionLitD(ctx)(f))
-        case p: PFunctionLit if p.decl.decl.spec.isPure => unit[in.Expr](pureFunctionLitD(ctx)(p))
+        case f: PFunctionLit => unit[in.Expr](registerFunctionLit(f)(ctx))
         case c: PCompositeLit => compositeLitD(ctx)(c)
         case _ => ???
       }
@@ -2086,15 +2100,13 @@ object Desugar {
 
     def functionLitD(ctx: FunctionContext)(lit: PFunctionLit): in.FunctionLit = {
       val funcInfo = functionMemberOrLitD(lit.decl.decl, meta(lit), ctx)
-      // Name a nameless literal following the same pattern as a named one, using the base name 'func' and adding a unique id at the end
-      val name = if (lit.decl.id.isEmpty) nm.anonFuncLit(lit.decl.decl, info) else idName(lit.decl.id.get)
+      val name = functionLitProxyD(lit, info)
       in.FunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit))
     }
 
     def pureFunctionLitD(ctx: FunctionContext)(lit: PFunctionLit): in.PureFunctionLit = {
       val funcInfo = pureFunctionMemberOrLitD(lit.decl.decl, meta(lit), ctx)
-      // Name a nameless literal following the same pattern as a named one, using the base name 'func' and adding a unique id at the end
-      val name = if (lit.decl.id.isEmpty) nm.anonFuncLit(lit.decl.decl, info) else idName(lit.decl.id.get)
+      val name = functionLitProxyD(lit, info)
       in.PureFunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit))
     }
 
@@ -2293,6 +2305,7 @@ object Desugar {
     var definedMethods: Map[in.MethodProxy, in.MethodMember] = Map.empty
     var definedMPredicates: Map[in.MPredicateProxy, in.MPredicate] = Map.empty
     var definedFPredicates: Map[in.FPredicateProxy, in.FPredicate] = Map.empty
+    var definedFuncLiterals: Map[in.FunctionLitProxy, in.FunctionLikeLit] = Map.empty
 
     def registerDefinedType(t: Type.DeclaredT, addrMod: Addressability)(src: Meta): in.DefinedT = {
       // this type was declared in the current package
@@ -2511,6 +2524,12 @@ object Desugar {
       val fPred = fpredicateD(decl)
       definedFPredicates += fPredProxy -> fPred
       fPred
+    }
+
+    def registerFunctionLit(lit: PFunctionLit)(ctx: FunctionContext): in.FunctionLikeLit = {
+      val fLit = if (lit.decl.decl.spec.isPure) pureFunctionLitD(ctx)(lit) else functionLitD(ctx)(lit)
+      definedFuncLiterals += fLit.name -> fLit
+      fLit
     }
 
     def embeddedTypeD(t: PEmbeddedType, addrMod: Addressability)(src: Meta): in.Type = t match {
@@ -3085,7 +3104,7 @@ object Desugar {
           for {l <- goA(left); r <- goA(right)} yield in.MagicWand(l, r)(src)
 
         case PClosureImplements(closure, spec) =>
-          for {c <- exprD(ctx)(closure)} yield in.ClosureImplements(c, closureSpecProxyD(ctx)(spec, info))(src)
+          for {c <- exprD(ctx)(closure)} yield in.ClosureImplements(c, closureSpecD(ctx)(spec, info))(src)
 
         case n: PAnd => for {l <- goA(n.left); r <- goA(n.right)} yield in.SepAnd(l, r)(src)
 

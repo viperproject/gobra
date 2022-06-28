@@ -89,35 +89,6 @@ object Names {
     s"$$$serializedFields$$"
   }
 
-  /**
-    * Serialize the given type to a string, ignoring information about addressability.
-    * Ignoring addressability, there is a 1-to-1 mapping from a type to a string.
-    */
-  def serializeTypeIgnoringAddr(typ: in.Type): String = typ match {
-    case in.BoolT(_) => s"B"
-    case in.StringT(_) => s"String"
-    case in.IntT(_, kind) => s"I$$${kind.name}_"
-    case in.VoidT => "V"
-    case in.PermissionT(_) => s"Perm"
-    case in.SortT => "Sort"
-    case in.ArrayT(len, elemT, _) => s"Arr$len${serializeTypeIgnoringAddr(elemT)}"
-    case in.SliceT(elemT, _) => s"Sl${serializeTypeIgnoringAddr(elemT)}"
-    case in.MapT(keyT, valueT, _) => s"Map${serializeTypeIgnoringAddr(keyT)}${serializeTypeIgnoringAddr(valueT)}"
-    case in.SequenceT(elemT, _) => s"Seq${serializeTypeIgnoringAddr(elemT)}"
-    case in.SetT(elemT, _) => s"Set${serializeTypeIgnoringAddr(elemT)}"
-    case in.MultisetT(elemT, _) => s"Mset${serializeTypeIgnoringAddr(elemT)}"
-    case in.OptionT(elemT, _) => s"Opt${serializeTypeIgnoringAddr(elemT)}"
-    case in.DefinedT(name, _) => s"Def$name$$_"
-    case in.PointerT(t, _) => s"Ptr${serializeTypeIgnoringAddr(t)}"
-    case in.TupleT(ts, _) => s"T${ts.map(serializeTypeIgnoringAddr).mkString("")}$$_"
-    case in.PredT(ts, _) => s"Pred${ts.map(serializeTypeIgnoringAddr).mkString("")}$$_"
-    case in.StructT(fields, _) => s"Struct${fields.map(f => s"${f.name}$$$$${serializeTypeIgnoringAddr(f.typ)}").mkString("$_")}$$$$_"
-    case in.FunctionT(args, res, _) => s"F${args.map(serializeTypeIgnoringAddr).mkString("")}$$${res.map(serializeTypeIgnoringAddr).mkString("")}$$_"
-    case in.InterfaceT(name, _) => s"Ifce$name$$$$_"
-    case in.ChannelT(elemT, _) => s"Ch${serializeTypeIgnoringAddr(elemT)}"
-    case t => Violation.violation(s"cannot stringify type $t")
-  }
-
   // assert
   def assertFunc: String = "assertArg1"
   def typedAssertFunc(t: vpr.Type): String = s"assertArg2_${serializeType(t)}"
@@ -138,10 +109,11 @@ object Names {
 
   // closures
   def closureDomain: String = "Closure"
-  def closureCaptDomainFunc(i: Int): String = s"capt$i"
+  def closureCaptVar(i: Int): String = s"capt$i"
+  def closureCaptDomFunc(i: Int): String = s"${closureCaptVar(i)}$closureDomain"
   def closureArg: String = "closure"
   def closureDefaultFunc: String = "closureDefault"
-  def funcLitGetter: String = "closureGet"
+  def closureGetter: String = "closureGet"
   def closureImplementsFunc: String = "closureImplements"
   def closureImplementsParam(i: Int): String = s"param$i"
 

@@ -90,6 +90,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: Program => showProgram(n)
     case n: Member => showMember(n)
     case n: Field => showField(n)
+    case s: ClosureSpec => showClosureSpec(s)
     case n: DomainFunc => showDomainFunc(n)
     case n: DomainAxiom => showDomainAxiom(n)
     case n: Stmt => showStmt(n)
@@ -216,6 +217,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Field(name, typ, _) => "field" <> name <> ":" <+> showType(typ)
   })
 
+  private def showClosureSpec(spec: ClosureSpec): Doc =
+    showProxy(spec.func) <> braces(ssep(spec.params.map(p => p._1.toString <> colon <> showExpr(p._2)).toSeq, comma <> space))
+
   def showDomainDefinition(n: DomainDefinition): Doc = updatePositionStore(n) <> (
     n.name <+> block(ssep(n.funcs map showDomainFunc, line) <> ssep(n.axioms map showDomainAxiom, line))
   )
@@ -329,10 +333,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case p: DomainFuncProxy => p.name
     case FPredicateProxy(name) => name
     case MPredicateProxy(name, _) => name
+    case FunctionLitProxy(name) => name
     case l: LabelProxy => l.name
-    case s: ClosureSpecProxy => s.funcName <>
-      braces(ssep(s.params.map(p => p._1.toString <> colon <> showExpr(p._2)), comma <> space)) <>
-      (if (s.numCaptured > 0) braces(s.numCaptured.toString) else emptyDoc)
   })
 
   def showBlockDecl(x: BlockDeclaration): Doc = x match {
@@ -380,7 +382,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showAss(a: Assertion): Doc = updatePositionStore(a) <> (a match {
     case SepAnd(left, right) => showAss(left) <+> "&&" <+> showAss(right)
     case ExprAssertion(exp) => showExpr(exp)
-    case ClosureImplements(closure, spec) => showExpr(closure) <+> "implements" <+> showProxy(spec)
+    case ClosureImplements(closure, spec) => showExpr(closure) <+> "implements" <+> showClosureSpec(spec)
     case MagicWand(left, right) => showAss(left) <+> "--*" <+> showAss(right)
     case Implication(left, right) => showExpr(left) <+> "==>" <+> showAss(right)
     case Access(e, FullPerm(_)) => "acc" <> parens(showAcc(e))
@@ -438,10 +440,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       func.name <> parens(showExprList(args))
 
     case PureMethodCall(recv, meth, args, _) =>
-      showExpr(recv) <> meth.name <> parens(showExprList(args))
+      showExpr(recv) <> dot <> meth.name <> parens(showExprList(args))
 
     case DomainFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))
+
+    case FunctionObject(func, _) => func.name
+    case MethodObject(recv, meth, _) => showExpr(recv) <> dot <> meth.name
 
     case IndexedExp(base, index, _) => showExpr(base) <> brackets(showExpr(index))
     case ArrayUpdate(base, left, right) => showExpr(base) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
@@ -538,12 +543,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case NilLit(t) => parens("nil" <> ":" <> showType(t))
 
     case FunctionLit(name, args, captured, results, pres, posts, measures, body) =>
-      "func" <+> text(name) <> showCapturedVars(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+      "func" <+> showProxy(name) <> showCapturedVars(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
         opt(body)(b => block(showStmt(b)))
 
     case PureFunctionLit(name, args, captured, results, pres, posts, measures, body) =>
-      "pure func" <+> text(name)  <> showCapturedVars(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+      "pure func" <+> showProxy(name)  <> showCapturedVars(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
 
     case ArrayLit(len, typ, elems) => {
@@ -718,7 +723,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case MethodCall(targets, recv, meth, args) =>
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
-        showExpr(recv) <> meth.name <> parens(showExprList(args))
+        showExpr(recv) <> dot <> meth.name <> parens(showExprList(args))
 
     case GoFunctionCall(func, args) =>
       "go" <+> func.name <> parens(showExprList(args))

@@ -166,6 +166,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
           definedFunctions = table.getDefinedFunctions,
           definedMPredicates = table.getDefinedMPredicates,
           definedFPredicates = table.getDefinedFPredicates,
+          definedFuncLiterals = table.getDefinedFuncLiterals,
           memberProxies = table.memberProxies,
           interfaceImplementations = table.interfaceImplementations,
           implementationProofPredicateAliases = table.getImplementationProofPredicateAliases

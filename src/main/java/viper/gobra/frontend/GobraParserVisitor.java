@@ -589,6 +589,13 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitGhostPrimaryExpr_(GobraParser.GhostPrimaryExpr_Context ctx);
 	/**
+	 * Visit a parse tree produced by the {@code invokePrimaryExprWithSpec}
+	 * labeled alternative in {@link GobraParser#primaryExpr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitInvokePrimaryExprWithSpec(GobraParser.InvokePrimaryExprWithSpecContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code indexPrimaryExpr}
 	 * labeled alternative in {@link GobraParser#primaryExpr}.
 	 * @param ctx the parse tree

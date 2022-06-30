@@ -74,7 +74,7 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PImport => Import(decl, this)
 
         // Closure literals
-        case decl: PClosureNamedDecl => Closure(decl, this)
+        case decl: PClosureNamedDecl => Closure(decl, isGhost, this)
 
         // Ghost additions
         case decl: PBoundVariable => BoundVariable(decl, this)

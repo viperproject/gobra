@@ -87,6 +87,8 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
 
+      case n: PCallWithSpec if exprType(n.base).isInstanceOf[Type.GhostType] => isGhost
+
       // catches ghost field reads, method calls, function calls since their id is ghost
       case exp => ghost(!noGhostPropagationFromChildren(exp))
     }
@@ -218,6 +220,8 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       case p => Violation.violation(s"expected conversion, function call, or predicate call, but got $p")
     }
   }
+
+  override def expectedArgGhostTyping(call: PCallWithSpec): GhostType = callWithSpecArgsGhostTyping(call.spec)
 
   override def isExprPure(expr: PExpression): Boolean = isPureExpr(expr).isEmpty
 }

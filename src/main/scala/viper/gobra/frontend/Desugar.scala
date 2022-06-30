@@ -259,13 +259,16 @@ object Desugar {
     def closureSpecD(ctx: FunctionContext)(s: PClosureSpecInstance, context: TypeInfo): in.ClosureSpec = {
       val (fArgs, proxy) = info.regular(s.func) match {
         case st.Function(decl, _, _) => (decl.args, functionProxy(s.func, context))
-        case st.Closure(decl, _) => (decl.decl.args, functionLitProxyD(s.func, context))
+        case st.Closure(decl, _, _) => (decl.decl.args, functionLitProxyD(s.func, context))
         case _ => violation("expected function or function literal")
       }
       val params = if (s.params.forall(_.key.isEmpty)) s.params.zipWithIndex.map {
         case (p, idx) => idx+1 -> exprD(ctx)(p.exp).res
       }.toMap else {
-        val argsToIdx = fArgs.zipWithIndex.collect { case (PNamedParameter(a, _), idx) => a.name -> (idx+1) }.toMap
+        val argsToIdx = fArgs.zipWithIndex.collect {
+          case (PNamedParameter(a, _), idx) => a.name -> (idx+1)
+          case (PExplicitGhostParameter(PNamedParameter(a, _)), idx) => a.name -> (idx+1)
+        }.toMap
         s.params.map { p => argsToIdx(p.key.get.name) -> exprD(ctx)(p.exp).res }
       }.toMap
       in.ClosureSpec(proxy, params)(meta(s))
@@ -1355,6 +1358,34 @@ object Desugar {
       } yield in.FieldRef(base, f)(src)
     }
 
+    def callWithSpecD(ctx: FunctionContext)(c: PCallWithSpec): Writer[in.Expr] = {
+      val src = meta(c)
+      val func = info.regular(c.spec.func)
+      val (isPure, fParams, fRes) = func match {
+        case f@st.Function(_, _, _) => (f.isPure, f.args, f.result)
+        case c@st.Closure(_, _, _) => (c.isPure, c.args, c.result)
+        case _ => violation("expected function or function literal")
+      }
+
+      val spec = closureSpecD(ctx)(c.spec, info)
+      val params = fParams.zipWithIndex.collect { case (p, idx) if !spec.params.contains(idx + 1) => func.context.typ(p) }
+
+      if (isPure) for {
+        dArgs <- functionCallArgsD(c.args, params)(ctx, src)
+        args = arguments(dArgs zip params)
+        closure <- exprD(ctx)(c.base)
+        resT = typeD(func.context.typ(fRes), Addressability.callResult)(src)
+      } yield in.PureCallWithSpec(closure, arguments(args zip params), spec, resT)(src)
+      else for {
+        dArgs <- functionCallArgsD(c.args, params)(ctx, src)
+        args = arguments(dArgs zip params)
+        closure <- exprD(ctx)(c.base)
+        targets = fRes.outs map (o => freshExclusiveVar(typeD(func.context.symbType(o.typ), Addressability.exclusiveVariable)(src), c, info)(src))
+        _ <- declare(targets: _*)
+        _ <- write(in.CallWithSpec(targets, closure, arguments(args zip params), spec)(src))
+      } yield if (targets.size == 1) targets.head else in.Tuple(targets)(src)
+    }
+
     def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall, expr: PInvoke)(src: Meta): Writer[in.Expr] = {
       functionCallDAux(ctx)(p, expr)(src) flatMap {
         case Right(exp) => unit(exp)
@@ -1419,51 +1450,7 @@ object Desugar {
           }
         }
 
-        val parameterCount: Int = params.length
-
-        // is of the form Some(x) if the type of the last param is variadic and the type of its elements is x
-        val variadicTypeOption: Option[Type] = params.lastOption match {
-          case Some(VariadicT(elem)) => Some(elem)
-          case _ => None
-        }
-
-        val wRes: Writer[Vector[in.Expr]] = sequence(p.args map exprD(ctx)).map {
-          // go function chaining feature
-          case Vector(in.Tuple(targs)) if parameterCount > 1 => targs
-          case dargs => dargs
-        }
-
-        lazy val getArgsMap = (args: Vector[in.Expr], typ: in.Type) =>
-          args.zipWithIndex.map {
-            case (arg, index) => BigInt(index) -> implicitConversion(arg.typ, typ, arg)
-          }.toMap
-
-        variadicTypeOption match {
-          case Some(variadicTyp) => for {
-            res <- wRes
-            variadicInTyp = typeD(variadicTyp, Addressability.sliceElement)(src)
-            len = res.length
-            argList = res.lastOption.map(_.typ) match {
-              case Some(t) if underlyingType(t).isInstanceOf[in.SliceT] &&
-                len == parameterCount && underlyingType(t).asInstanceOf[in.SliceT].elems == variadicInTyp =>
-                  // corresponds to the case where an unpacked slice is already passed as an argument
-                  res
-              case Some(in.TupleT(_, _)) if len == 1 && parameterCount == 1 =>
-                // supports chaining function calls with variadic functions of one argument
-                val argsMap = getArgsMap(res.last.asInstanceOf[in.Tuple].args, variadicInTyp)
-                Vector(in.SliceLit(variadicInTyp, argsMap)(src))
-              case _ if len >= parameterCount =>
-                val argsMap = getArgsMap(res.drop(parameterCount-1), variadicInTyp)
-                res.take(parameterCount-1) :+ in.SliceLit(variadicInTyp, argsMap)(src)
-              case _ if len == parameterCount - 1 =>
-                // variadic argument not passed
-                res :+ in.NilLit(in.SliceT(variadicInTyp, Addressability.nil))(src)
-              case t => violation(s"this case should be unreachable, but got $t")
-            }
-          } yield argList
-
-          case None => wRes
-        }
+        functionCallArgsD(p.args, params)(ctx, src)
       }
 
       // encode results
@@ -1577,6 +1564,58 @@ object Desugar {
           }
           case sym => Violation.violation(s"expected symbol with arguments and result or a built-in entity, but got $sym")
         }
+      }
+    }
+
+
+    /** Desugars the arguments to a function call or a call with spec.
+      * @param args The expressions passed as arguments
+      * @param params The types of the arguments of the callee (or the spec) */
+    private def functionCallArgsD(args: Vector[PExpression], params: Vector[Type])(ctx: FunctionContext, src: Meta): Writer[Vector[in.Expr]] = {
+      val parameterCount: Int = params.length
+
+      // is of the form Some(x) if the type of the last param is variadic and the type of its elements is x
+      val variadicTypeOption: Option[Type] = params.lastOption match {
+        case Some(VariadicT(elem)) => Some(elem)
+        case _ => None
+      }
+
+      val wRes: Writer[Vector[in.Expr]] = sequence(args map exprD(ctx)).map {
+        // go function chaining feature
+        case Vector(in.Tuple(targs)) if parameterCount > 1 => targs
+        case dargs => dargs
+      }
+
+      lazy val getArgsMap = (args: Vector[in.Expr], typ: in.Type) =>
+        args.zipWithIndex.map {
+          case (arg, index) => BigInt(index) -> implicitConversion(arg.typ, typ, arg)
+        }.toMap
+
+      variadicTypeOption match {
+        case Some(variadicTyp) => for {
+          res <- wRes
+          variadicInTyp = typeD(variadicTyp, Addressability.sliceElement)(src)
+          len = res.length
+          argList = res.lastOption.map(_.typ) match {
+            case Some(t) if underlyingType(t).isInstanceOf[in.SliceT] &&
+              len == parameterCount && underlyingType(t).asInstanceOf[in.SliceT].elems == variadicInTyp =>
+              // corresponds to the case where an unpacked slice is already passed as an argument
+              res
+            case Some(in.TupleT(_, _)) if len == 1 && parameterCount == 1 =>
+              // supports chaining function calls with variadic functions of one argument
+              val argsMap = getArgsMap(res.last.asInstanceOf[in.Tuple].args, variadicInTyp)
+              Vector(in.SliceLit(variadicInTyp, argsMap)(src))
+            case _ if len >= parameterCount =>
+              val argsMap = getArgsMap(res.drop(parameterCount - 1), variadicInTyp)
+              res.take(parameterCount - 1) :+ in.SliceLit(variadicInTyp, argsMap)(src)
+            case _ if len == parameterCount - 1 =>
+              // variadic argument not passed
+              res :+ in.NilLit(in.SliceT(variadicInTyp, Addressability.nil))(src)
+            case t => violation(s"this case should be unreachable, but got $t")
+          }
+        } yield argList
+
+        case None => wRes
       }
     }
 
@@ -1741,6 +1780,8 @@ object Desugar {
           }
 
           case n: PInvoke => invokeD(ctx)(n)
+
+          case n: PCallWithSpec => callWithSpecD(ctx)(n)
 
           case n: PTypeAssertion =>
             for {

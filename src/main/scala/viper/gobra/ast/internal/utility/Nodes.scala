@@ -58,6 +58,7 @@ object Nodes {
         case SingleAss(left, right) => Seq(left, right)
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
         case MethodCall(targets, recv, meth, args) => targets ++ Seq(recv, meth) ++ args
+        case CallWithSpec(targets, closure, args, spec) => targets ++ Seq(closure) ++ args ++ Seq(spec)
         case Return() => Seq.empty
         case Assert(ass) => Seq(ass)
         case Exhale(ass) => Seq(ass)
@@ -107,6 +108,7 @@ object Nodes {
         case PureFunctionCall(func, args, _) => Seq(func) ++ args
         case PureMethodCall(recv, meth, args, _) => Seq(recv, meth) ++ args
         case DomainFunctionCall(func, args, _) => Seq(func) ++ args
+        case PureCallWithSpec(closure, args, spec, _) => Seq(closure) ++ args ++ Seq(spec)
         case FunctionObject(_, _) => Seq.empty
         case MethodObject(_, _, _) => Seq.empty
         case Conversion(_, expr) => Seq(expr)

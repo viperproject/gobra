@@ -11,7 +11,7 @@ import viper.gobra.util.Violation.violation
 import viper.silver.{ast => vpr}
 
 
-class MethodObjectEncoder(domain: ClosureDomainManager) {
+class MethodObjectManager(domain: ClosureDomainManager) {
 
   private val interfaces: InterfaceComponent = new InterfaceComponentImpl
   private val types: TypeComponent = new TypeComponentImpl

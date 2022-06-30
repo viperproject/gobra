@@ -6,9 +6,8 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.ast.frontend.{PBuildIn, PExpression, PInvoke}
+import viper.gobra.ast.frontend.{PBuildIn, PExpression, PInvoke, PCallWithSpec, AstPattern => ap}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.ast.frontend.{AstPattern => ap}
 
 trait Executability extends BaseProperty { this: TypeInfoImpl =>
 
@@ -22,6 +21,7 @@ trait Executability extends BaseProperty { this: TypeInfoImpl =>
           }
         case _ => false
       }
+    case _: PCallWithSpec => true
     case _ => false
   }
 

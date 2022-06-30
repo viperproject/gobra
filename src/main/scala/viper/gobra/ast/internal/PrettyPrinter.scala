@@ -217,7 +217,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Field(name, typ, _) => "field" <> name <> ":" <+> showType(typ)
   })
 
-  private def showClosureSpec(spec: ClosureSpec): Doc =
+  def showClosureSpec(spec: ClosureSpec): Doc =
     showProxy(spec.func) <> braces(ssep(spec.params.map(p => p._1.toString <> colon <> showExpr(p._2)).toSeq, comma <> space))
 
   def showDomainDefinition(n: DomainDefinition): Doc = updatePositionStore(n) <> (
@@ -296,6 +296,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MethodCall(targets, recv, meth, args) =>
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
         showExpr(recv) <> meth.name <> parens(showExprList(args))
+
+    case CallWithSpec(targets, closure, args, spec) =>
+      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
+        showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
 
     case GoFunctionCall(func, args) => "go" <+> func.name <> parens(showExprList(args))
 
@@ -441,6 +445,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case PureMethodCall(recv, meth, args, _) =>
       showExpr(recv) <> dot <> meth.name <> parens(showExprList(args))
+
+    case PureCallWithSpec(closure, args, spec, _) =>
+      showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
 
     case DomainFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))
@@ -724,6 +731,10 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case MethodCall(targets, recv, meth, args) =>
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
         showExpr(recv) <> dot <> meth.name <> parens(showExprList(args))
+
+    case CallWithSpec(targets, closure, args, spec) =>
+      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
+        showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
 
     case GoFunctionCall(func, args) =>
       "go" <+> func.name <> parens(showExprList(args))

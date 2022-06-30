@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, n
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec, MethodSpec}
-import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, FunctionT, InternalTupleT, PredT, Type, UnknownType}
+import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, FunctionT, PredT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -28,7 +28,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case f: SymbolTable.Function => wellDefClosureSpecInstanceParams(c, f.args)
       case l: SymbolTable.Closure =>
         if (c.params.isEmpty || capturedVariables(l.decl.decl).isEmpty) wellDefClosureSpecInstanceParams(c, l.args)
-        else error(c, s"cannot derive a parametrized closure spec instance from a literal that captures variables")
+        else error(c, s"function literal ${l.decl.id.get} captures variables, so it cannot be used to derive a parametrized spec instance")
       case _ => error(id, s"identifier $id does not identify a user-defined function or function literal")
     }
     case PClosureSpecParameter(_, exp) => isExpr(exp).out
@@ -257,7 +257,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         val f = entity(func).asInstanceOf[SymbolTable.Function]
         val paramSet = params.map(e => e.key.get.name).toSet
         fType.copy(args = (f.decl.args zip fType.args).filter{
-          case (PNamedParameter(aId, _), _) if paramSet.contains(aId.name) => false
+          case (PNamedParameter(id, _), _) if paramSet.contains(id.name) => false
+          case (PExplicitGhostParameter(PNamedParameter(id, _)), _) if paramSet.contains(id.name) => false
           case _ => true
         }.map(_._2))
       }
@@ -313,15 +314,18 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case PClosureSpecInstance(_, ps) if ps.forall(_.key.isEmpty) =>
       (ps zip fArgs) flatMap { case (p, a) => assignableTo.errors((exprType(p.exp), miscType(a)))(p.exp) }
     case PClosureSpecInstance(fName, ps) if ps.forall(_.key.nonEmpty) =>
-      val argsMap = fArgs.flatMap { case a@PNamedParameter(id, _) => Vector(id.name -> a) }.toMap
+      val argsMap = fArgs.collect {
+        case a@PNamedParameter(id, _) => id.name -> a
+        case a@PExplicitGhostParameter(PNamedParameter(id, _)) => id.name -> a
+      }.toMap
       val wellDefIfNoDuplicateParams = (ps.map(_.key.get) foldLeft (Set[String](), noMessages)) {
         case ((seen, msg), k) => (seen + k.name, msg ++ (if (seen.contains(k.name)) error(k, s"duplicate parameter key $k") else noMessages))
       }._2
       val wellDefIfCanAssignParams = ps flatMap { p => argsMap.get(p.key.get.name) match {
-        case Some(a: PNamedParameter) => assignableTo.errors((exprType(p.exp), miscType(a)))(p.exp)
+        case Some(a: PParameter) => assignableTo.errors((exprType(p.exp), miscType(a)))(p.exp)
         case _ => error(p.key.get, s"could not find argument ${p.key.get} in the function $fName")
       }}
-      wellDefIfNoDuplicateParams ++ wellDefIfCanAssignParams
+      wellDefIfNoDuplicateParams ++ wellDefIfCanAssignParams ++ c.params.flatMap(p => isPureExpr(p.exp))
     case _ => error(c, "mixture of 'field:expression' and 'expression' elements in closure spec instance")
   }
 

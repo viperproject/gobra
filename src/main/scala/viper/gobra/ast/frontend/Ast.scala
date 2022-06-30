@@ -446,6 +446,8 @@ case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends P
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
+case class PCallWithSpec(base: PExpression, args: Vector[PExpression], spec: PClosureSpecInstance) extends PActualExpression
+
 case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNameOrDot with PTypeName
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee

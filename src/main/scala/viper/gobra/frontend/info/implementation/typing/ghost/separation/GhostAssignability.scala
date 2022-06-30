@@ -11,6 +11,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignMode}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType.ghost
 import viper.gobra.util.Violation
@@ -37,6 +38,34 @@ trait GhostAssignability {
     val argTyping = calleeArgGhostTyping(call).toTuple
     generalGhostAssignableTo[PExpression, Boolean](ghostExprResultTyping){
       case (g, l) => error(call.callee.id, "ghost error: ghost cannot be assigned to non-ghost", g && !l)
+    }(call.args: _*)(argTyping: _*)
+  }
+
+  /** checks that ghost expressions are not assigned to non-ghost parameters  */
+  private[separation] def ghostAssignableToSpecParams(spec: PClosureSpecInstance): Messages = {
+    val isPure = entity(spec.func) match {
+      case f: SymbolTable.Function => f.isPure
+      case c: SymbolTable.Closure => c.isPure
+    }
+    if (isPure) {return noMessages}
+
+    val paramTyping = specParamsOrCallArgsGhostTyping(spec, takeParams=true).toTuple
+    generalGhostAssignableTo[PExpression, Boolean](ghostExprResultTyping){
+      case (g, l) => error(spec.func, "ghost error: ghost cannot be assigned to non-ghost", g && !l)
+    }(spec.params.map(_.exp): _*)(paramTyping: _*)
+  }
+
+  /** checks that ghost arguments are not assigned to non-ghost arguments in a call with spec  */
+  private[separation] def ghostAssignableToCallWithSpec(call: PCallWithSpec): Messages = {
+    val isPure = entity(call.spec.func) match {
+      case f: SymbolTable.Function => f.isPure
+      case c: SymbolTable.Closure => c.isPure
+    }
+    if (isPure) {return noMessages}
+
+    val argTyping = specParamsOrCallArgsGhostTyping(call.spec, takeParams=false).toTuple
+    generalGhostAssignableTo[PExpression, Boolean](ghostExprResultTyping){
+      case (g, l) => error(call.spec.func, "ghost error: ghost cannot be assigned to non-ghost", g && !l)
     }(call.args: _*)(argTyping: _*)
   }
 
@@ -156,6 +185,36 @@ trait GhostAssignability {
       case ap.BuiltInMethodExpr(typ, _, _, symb) => returnGhostTyping(symb.tag, Vector(typeSymbType(typ)))
       case p: ap.ImplicitlyReceivedInterfaceMethod => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
       case _ => GhostType.isGhost // conservative choice
+    }
+  }
+
+  private [separation] def callWithSpecArgsGhostTyping(spec: PClosureSpecInstance): GhostType =
+    specParamsOrCallArgsGhostTyping(spec, takeParams = false)
+
+  /** ghost types of the parameters or call arguments of a closure spec instance where
+    * - the parameters are those specified in the closure spec literal
+    * - the arguments are the remaining arguments of the base functions
+    * The ghost type depends on that of the corresponding argument in the base function.
+    * @param takeParams is used to switch between the two behaviours */
+  private def specParamsOrCallArgsGhostTyping(spec: PClosureSpecInstance, takeParams: Boolean): GhostType = {
+    // a parameter of a ghost member is ghost (even if such a explicit declaration is missing)
+    def argTyping(args: Vector[PParameter], isMemberGhost: Boolean, context: ExternalTypeInfo): GhostType =
+      GhostType.ghostTuple(args.map(p => isMemberGhost || context.isParamGhost(p)))
+
+    val (isMemberGhost, fArgs, context) = entity(spec.func) match {
+      case f: SymbolTable.Function => (f.ghost, f.args, f.context)
+      case c: SymbolTable.Closure => (c.ghost, c.args, c.context)
+    }
+
+    if(spec.params.forall(_.key.isEmpty))
+      argTyping(if (takeParams) fArgs.take(spec.params.size) else fArgs.drop(spec.params.size), isMemberGhost, context)
+    else {
+      val pSet = spec.params.map(p => p.key.get.name).toSet
+      argTyping(fArgs.filter {
+        case PNamedParameter(id, _) if pSet.contains(id.name) => takeParams
+        case PExplicitGhostParameter(PNamedParameter(id, _)) if pSet.contains(id.name) => takeParams
+        case _ => !takeParams
+      }, isMemberGhost, context)
     }
   }
 

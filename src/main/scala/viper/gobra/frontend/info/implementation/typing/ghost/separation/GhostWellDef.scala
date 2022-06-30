@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.frontend.info.base.SymbolTable.{Function, Regular, SingleLocalVariable}
+import viper.gobra.frontend.info.base.SymbolTable.{Closure, Function, Regular, SingleLocalVariable}
 import viper.gobra.util.Violation.violation
 
 trait GhostWellDef { this: TypeInfoImpl =>
@@ -135,6 +135,8 @@ trait GhostWellDef { this: TypeInfoImpl =>
       case _ => violation("expected conversion, function call, or predicate call")
     }
 
+    case call: PCallWithSpec => ghostAssignableToCallWithSpec(call)
+
     case _: PNew => noMessages
 
     case n@PMake(_, args) => error(
@@ -168,11 +170,16 @@ trait GhostWellDef { this: TypeInfoImpl =>
           args.forall(wellGhostSeparated.valid) && wellGhostSeparated.valid(r)
         })
 
+        case Closure(PClosureNamedDecl(_, PClosureDecl(args, r, _, _)), _, _) => unsafeMessage(! {
+          args.forall(wellGhostSeparated.valid) && wellGhostSeparated.valid(r)
+        })
+
         case _ => LocalMessages(noMessages)
       }
   }
 
   private def miscGhostSeparation(misc : PMisc) : Messages = misc match {
+    case p: PClosureSpecInstance => ghostAssignableToSpecParams(p)
     case _: PGhostMisc => noMessages
     case p: PActualParameter => error(p, s"ghost error: expected an actual type but found ${p.typ}",
       isTypeGhost(p.typ) && !enclosingGhostContext(p))

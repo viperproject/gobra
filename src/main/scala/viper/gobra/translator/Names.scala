@@ -114,6 +114,7 @@ object Names {
   def closureArg: String = "closure"
   def closureDefaultFunc: String = "closureDefault"
   def closureGetter: String = "closureGet"
+  def closureCall: String = "closureCall"
   def closureImplementsFunc: String = "closureImplements"
   def closureImplementsParam(i: Int): String = s"param$i"
 

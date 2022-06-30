@@ -255,6 +255,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
     }
 
+    case n@PCallWithSpec(base, args, spec) => isExpr(base).out ++ ((exprType(base), miscType(spec)) match {
+      case (tC: FunctionT, tS: FunctionT) if tC == tS => multiAssignableTo.errors(args map exprType, tC.args)(n) ++ args.flatMap(isExpr(_).out)
+      case (tC: FunctionT, tS: FunctionT) => error(spec, s"expected type $tC, got ${spec} of type $tS")
+      case (tC, _) => error(base, s"expected function type, but got $tC")
+    })
+
     case PBitNegation(op) => isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST)(op)
 
     case n@PIndexedExp(base, index) =>
@@ -602,6 +608,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       case p => violation(s"expected conversion, function call, predicate call, or predicate expression instance, but got $p")
     }
+
+    case PCallWithSpec(_, _, spec) => miscType(spec).asInstanceOf[FunctionT].result
 
     case PIndexedExp(base, index) => (underlyingType(exprType(base)), exprType(index)) match {
       case (ArrayT(_, elem), IntT(_)) => elem

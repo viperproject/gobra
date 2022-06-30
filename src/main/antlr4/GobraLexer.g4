@@ -30,6 +30,7 @@ INV         : 'invariant';
 DEC         : 'decreases' -> mode(NLSEMI);
 PURE        : 'pure' -> mode(NLSEMI);
 IMPL        : 'implements';
+AS          : 'as';
 OLD         : 'old'-> mode(NLSEMI);
 BEFORE      : 'before'-> mode(NLSEMI);
 LHS         : '#lhs';

@@ -1128,6 +1128,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case Vector(pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args)
   }
 
+  override def visitInvokePrimaryExprWithSpec(ctx: InvokePrimaryExprWithSpecContext): AnyRef = super.visitInvokePrimaryExprWithSpec(ctx) match {
+    case Vector(pe: PExpression, InvokeArgs(args), "as", pcs: PClosureSpecInstance) => PCallWithSpec(pe, args, pcs)
+  }
+
   override def visitTypeAssertionPrimaryExpr(ctx: TypeAssertionPrimaryExprContext): AnyRef = super.visitTypeAssertionPrimaryExpr(ctx) match {
     case Vector(pe: PExpression, Vector(".", "(", typ : PType, ")")) => PTypeAssertion(pe, typ)
   }

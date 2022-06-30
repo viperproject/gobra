@@ -8,6 +8,7 @@ package viper.gobra.reporting
 
 import viper.gobra.ast.frontend
 import viper.gobra.ast.frontend.{PReceive, PSendStmt}
+import viper.gobra.reporting.Source.Verifier
 import viper.gobra.util.Violation.violation
 import viper.silver.ast.SourcePosition
 
@@ -162,7 +163,7 @@ case class PostconditionError(info: Source.Verifier.Info) extends VerificationEr
 
 case class PreconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "precondition_error"
-  override def localMessage: String = s"Precondition of call ${info.trySrc[frontend.PInvoke](" ")}might not hold"
+  override def localMessage: String = s"Precondition of call ${info.trySrc[frontend.PInvoke](" ")}${info.trySrc[frontend.PCallWithSpec](" ")}might not hold"
 }
 
 case class AssertError(info: Source.Verifier.Info) extends VerificationError {
@@ -454,6 +455,11 @@ case class TupleBoundedFalseError(info: Source.Verifier.Info) extends Verificati
 case class LabelledStateNotReached(info: Source.Verifier.Info) extends VerificationErrorReason  {
   override def id: String = "labelled_state_not_reached"
   override def message: String = s"Did not reach labelled state required to evaluate ${info.origin.tag.trim}"
+}
+
+case class SpecNotImplementedByClosure(info: Verifier.Info, closure: String, spec: String) extends VerificationErrorReason {
+  override def id = "spec_not_implemented"
+  override def message: String = s"$closure might not implement $spec."
 }
 
 sealed trait VerificationErrorClarification {

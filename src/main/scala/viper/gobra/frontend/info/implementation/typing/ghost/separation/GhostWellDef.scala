@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.frontend.info.base.SymbolTable.{Closure, Function, Regular, SingleLocalVariable}
+import viper.gobra.frontend.info.base.SymbolTable.{Closure, Function, Regular, SingleLocalVariable, WithResult}
 import viper.gobra.util.Violation.violation
 
 trait GhostWellDef { this: TypeInfoImpl =>
@@ -88,7 +88,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
 
     case n@ PReturn(right) =>
-      val res = enclosingCodeRootWithResult(n).result
+      val res = resultFromEnclosingCodeRoot(n).getOrElse(PResult(Vector.empty))
       if (right.nonEmpty) {
         ghostAssignableToParam(right: _*)(res.outs: _*)
       } else noMessages

@@ -1097,6 +1097,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
+  override def visitClosureImplProofStmt(ctx: ClosureImplProofStmtContext): PClosureImplProof = visitChildren(ctx) match {
+    case Vector("proof", closure: PExpression, "implements", spec:PClosureSpecInstance, body: PBlock) =>
+      PClosureImplProof(PClosureImplements(closure, spec), body)
+  }
+
   //region Primary Expressions
   /**
     * Visits the rule

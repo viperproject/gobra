@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.SymbolTable.WithResult
 import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelModus, ChannelT, InterfaceT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -126,9 +127,11 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PReturn(exps) =>
       exps.flatMap(isExpr(_).out) ++ {
         if (exps.nonEmpty) {
-          val res = enclosingCodeRootWithResult(n).result
-          if (res.outs forall wellDefMisc.valid)
-            multiAssignableTo.errors(exps map exprType, res.outs map miscType)(n)
+          val res = resultFromEnclosingCodeRoot(n)
+
+          if (res.isEmpty) error(n, s"return cannot be checked because the enclosing signature has no result")
+          else if (res.get.outs forall wellDefMisc.valid)
+            multiAssignableTo.errors(exps map exprType, res.get.outs map miscType)(n)
           else error(n, s"return cannot be checked because the enclosing signature is incorrect")
         } else noMessages // a return without arguments is always well-defined
       }

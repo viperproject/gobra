@@ -302,6 +302,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitClosureSpecParam(GobraParser.ClosureSpecParamContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#closureImplProofStmt}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitClosureImplProofStmt(GobraParser.ClosureImplProofStmtContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#implementationProof}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

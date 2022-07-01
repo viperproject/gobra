@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.Regular
+import viper.gobra.frontend.info.base.SymbolTable.{Regular, WithResult}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.base.Type.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -59,6 +59,14 @@ trait Enclosing { this: TypeInfoImpl =>
 
   lazy val enclosingCodeRootWithResult: PStatement => PCodeRootWithResult =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRootWithResult => m }
+
+  lazy val resultFromEnclosingCodeRoot: PStatement => Option[PResult] = s => enclosingCodeRoot(s) match {
+    case PClosureImplProof(PClosureImplements(_, PClosureSpecInstance(func, _)), _) => entity(func) match {
+      case f: WithResult => Some(f.result)
+      case _ => None
+    }
+    case _ => Some(enclosingCodeRootWithResult(s).result)
+  }
 
   lazy val enclosingCodeRoot: PNode => PCodeRoot with PScope =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRoot with PScope => m }

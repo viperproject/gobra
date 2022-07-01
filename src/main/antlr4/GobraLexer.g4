@@ -80,3 +80,4 @@ WRITEPERM   : 'writePerm' -> mode(NLSEMI);
 NOPERM      : 'noPerm' -> mode(NLSEMI);
 TRUSTED     : 'trusted' -> mode(NLSEMI);
 OUTLINE     : 'outline';
+PROOF       : 'proof';

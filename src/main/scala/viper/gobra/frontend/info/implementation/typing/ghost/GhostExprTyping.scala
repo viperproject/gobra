@@ -73,11 +73,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // check whether the right operand is either Boolean or an assertion
         assignableToSpec(n.right)
 
-    case n: PClosureImplements => isExpr(n.closure).out ++ ((exprType(n.closure), miscType(n.spec)) match {
-      case (tC: FunctionT, tS: FunctionT) if tC == tS => noMessages
-      case (tC: FunctionT, tS: FunctionT) => error(n.spec, s"expected type $tC, got ${n.spec} of type $tS")
-      case (tC, _) => error(n.closure, s"expected function type, but got $tC")
-    })
+    case n: PClosureImplements => wellDefIfClosureMatchesSpec(n.closure, n.spec)
 
     case n: PAccess =>
       val permWellDef = error(n.perm, s"expected perm or integer division expression, but got ${n.perm}",

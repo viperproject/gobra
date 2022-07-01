@@ -198,7 +198,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       literalAssignableTo.errors(lit, simplifiedT)(n)
 
     case f: PFunctionLit =>
-      capturedVariables(f.decl.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)).toVector
+      capturedVars(f.decl.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)).toVector
 
     case n: PInvoke => {
       val (l, r) = (exprOrType(n.base), resolve(n))
@@ -255,9 +255,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
     }
 
-    case n@PCallWithSpec(base, args, spec) => isExpr(base).out ++ ((exprType(base), miscType(spec)) match {
-      case (tC: FunctionT, tS: FunctionT) if tC == tS => multiAssignableTo.errors(args map exprType, tC.args)(n) ++ args.flatMap(isExpr(_).out)
-      case (tC: FunctionT, tS: FunctionT) => error(spec, s"expected type $tC, got ${spec} of type $tS")
+    case n@PCallWithSpec(base, args, spec) => wellDefIfClosureMatchesSpec(base, spec) ++ ((exprType(base), miscType(spec)) match {
+      case (tC: FunctionT, _: FunctionT) => multiAssignableTo.errors(args map exprType, tC.args)(n) ++ args.flatMap(isExpr(_).out)
       case (tC, _) => error(base, s"expected function type, but got $tC")
     })
 
@@ -971,6 +970,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         error(expr, s"the divisor of the perm expression $expr evaluates to 0", constExprOpt.exists(_._2 == 0))
     case _ => error(expr, s"expected a constant expression, but got $expr instead")
   }
+
+  private[typing] def wellDefIfClosureMatchesSpec(closure: PExpression, spec: PClosureSpecInstance): Messages =
+    isExpr(closure).out ++ ((exprType(closure), miscType(spec)) match {
+      case (tC: FunctionT, tS: FunctionT) => error(spec, s"expected type $tC, got ${spec} of type $tS", cond = !identicalTypes(tC, tS))
+      case (tC, _) => error(closure, s"expected function type, but got $tC")
+    })
 
   private[typing] def typeOfPLength(expr: PLength): Type =
     underlyingType(exprType(expr.exp)) match {

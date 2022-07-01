@@ -162,6 +162,7 @@ closureSpecParams: closureSpecParam (COMMA closureSpecParam)*;
 
 closureSpecParam: (IDENTIFIER COLON)? expression;
 
+closureImplProofStmt: PROOF expression IMPL closureSpecInstance block;
 
 // Implementation proofs
 implementationProof: type_ IMPL type_ (L_CURLY (implementationProofPredicateAlias eos)* (methodImplementationProof eos)*  R_CURLY)?;
@@ -297,7 +298,8 @@ statement:
   | switchStmt
   | selectStmt
   | specForStmt
-  | deferStmt;
+  | deferStmt
+  | closureImplProofStmt;
 
 applyStmt: APPLY expression;
 

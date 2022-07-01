@@ -152,6 +152,7 @@ trait NameResolution { this: TypeInfoImpl =>
   private def defenvin(in: PNode => Environment): PNode ==> Environment = {
     case n: PPackage => addUnorderedDefToEnv(rootenv(initialEnv(n):_*))(n)
     case scope: PUnorderedScope => addUnorderedDefToEnv(enter(in(scope)))(scope)
+    case scope: PScope if scopeSpecialCaseImplicitDefinitions(scope) => addImplicitDefToEnv(enter(in(scope)))(scope)
     case scope: PScope if !scopeSpecialCaseWithNoNewScope(scope) =>
       logger.debug(scope.toString)
       enter(in(scope))
@@ -160,6 +161,25 @@ trait NameResolution { this: TypeInfoImpl =>
   private def scopeSpecialCaseWithNoNewScope(s: PScope): Boolean = s match {
     case tree.parent.pair(_: PBlock, _: PMethodDecl | _: PFunctionDecl) => true
     case _ => false
+  }
+
+  private def scopeSpecialCaseImplicitDefinitions(s: PScope): Boolean = s match {
+    case tree.parent.pair(_: PBlock, _: PClosureImplProof) => true
+    case _ => false
+  }
+
+  private def addImplicitDefToEnv(env: Environment)(n: PScope): Environment = n match {
+    case tree.parent.pair(_: PBlock, p: PClosureImplProof) =>
+      val ids = (entity(p.impl.spec.func) match {
+        case Function(decl, _, _) => decl.args ++ decl.result.outs
+        case Closure(decl, _, _) => decl.decl.args ++ decl.result.outs
+        case _ => Vector.empty
+      }).collect {
+        case PNamedParameter(id, _) => id
+        case PExplicitGhostParameter(PNamedParameter(id, _)) => id
+      }
+      addToEnv(env)(ids)
+    case _ => violation("this case should be unreachable")
   }
 
   private def defenvout(out: PNode => Environment): PNode ==> Environment = {

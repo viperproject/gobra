@@ -348,8 +348,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
 
       case n: PCallWithSpec => entity(n.spec.func) match {
-        case f: Function => f.isPure && isPure(n.base)(strong) && n.args.forall(a => isPure(a)(strong))
-        case c: Closure => c.isPure && isPure(n.base)(strong) && n.args.forall(a => isPure(a)(strong))
+        case f: Function => f.isPure && go(n.base) && n.args.forall(a => go(a))
+        case c: Closure => c.isPure && go(n.base) && n.args.forall(a => go(a))
         case _ => false
       }
 
@@ -454,6 +454,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case m: BuiltInFunction => m.isPure
       case m: Method => m.isPure
       case m: BuiltInMethod => m.isPure
+      case m: Closure => m.isPure
       case _: Predicate | _: BuiltInFPredicate | _: BuiltInMPredicate => !strong
       case _: DomainFunction => true
       case _ => false

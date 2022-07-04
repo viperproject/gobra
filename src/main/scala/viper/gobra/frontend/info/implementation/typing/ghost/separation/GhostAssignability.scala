@@ -63,10 +63,24 @@ trait GhostAssignability {
     }
     if (isPure) {return noMessages}
 
+    lazy val isGhostArg: PExpression => Boolean = {
+      val paramIsGhost = tryEnclosingClosureImplementationProof(call)
+        .map(proof => entity(proof.impl.spec.func).asInstanceOf[SymbolTable.WithArguments with SymbolTable.WithResult])
+        .toVector.flatMap(f => f.args ++ f.result.outs).collect {
+        case PExplicitGhostParameter(PNamedParameter(id, _)) => id.name -> true
+        case PNamedParameter(id, _) => id.name -> false
+      }.toMap
+
+      {
+        case PNamedOperand(id) if paramIsGhost.contains(id.name) => paramIsGhost(id.name)
+        case e => isExprGhost(e)
+      }
+    }
+
     val argTyping = specParamsOrCallArgsGhostTyping(call.spec, takeParams=false).toTuple
-    generalGhostAssignableTo[PExpression, Boolean](ghostExprResultTyping){
-      case (g, l) => error(call.spec.func, "ghost error: ghost cannot be assigned to non-ghost", g && !l)
-    }(call.args: _*)(argTyping: _*)
+    call.args.zip(argTyping).flatMap {
+      case (g, l) => error(g, "ghost error: ghost cannot be assigned to non-ghost", isGhostArg(g) && !l)
+    }
   }
 
   /** conservative ghost separation assignment check */
@@ -197,7 +211,6 @@ trait GhostAssignability {
     * The ghost type depends on that of the corresponding argument in the base function.
     * @param takeParams is used to switch between the two behaviours */
   private def specParamsOrCallArgsGhostTyping(spec: PClosureSpecInstance, takeParams: Boolean): GhostType = {
-    // a parameter of a ghost member is ghost (even if such a explicit declaration is missing)
     def argTyping(args: Vector[PParameter], isMemberGhost: Boolean, context: ExternalTypeInfo): GhostType =
       GhostType.ghostTuple(args.map(p => isMemberGhost || context.isParamGhost(p)))
 

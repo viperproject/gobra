@@ -148,11 +148,17 @@ protected class ClosureSpecsManager {
     val args = Vector(closurePar) ++ captured.map(_._2) ++ lit.args
     val pres = Vector(in.ClosureImplements(closurePar, specWithLitArgs)(spec.info)) ++ lit.pres
     lit match {
-      case _: in.Function | _: in.FunctionLit =>
+      case _: in.Function =>
         val func = in.Function(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, None)(lit.info)
         ctx.defaultEncoding.function(func)(ctx)
-      case _: in.PureFunction | _: in.PureFunctionLit =>
+      case lit: in.FunctionLit =>
+        val func = in.Function(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, lit.body)(lit.info)
+        ctx.defaultEncoding.function(func)(ctx)
+      case _: in.PureFunction =>
         val func = in.PureFunction(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, None)(lit.info)
+        ctx.defaultEncoding.pureFunction(func)(ctx)
+      case lit: in.PureFunctionLit =>
+        val func = in.PureFunction(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, lit.body)(lit.info)
         ctx.defaultEncoding.pureFunction(func)(ctx)
     }
   }

@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{MultiLocalVariable, Regular, SingleLocalVariable}
-import viper.gobra.frontend.info.base.Type
+import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
@@ -87,7 +87,8 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
 
-      case n: PCallWithSpec if exprType(n.base).isInstanceOf[Type.GhostType] => isGhost
+      case n: PCallWithSpec => if (tryEnclosingClosureImplementationProof(n).nonEmpty) notGhost
+      else ghostExprTyping(n.base)
 
       // catches ghost field reads, method calls, function calls since their id is ghost
       case exp => ghost(!noGhostPropagationFromChildren(exp))

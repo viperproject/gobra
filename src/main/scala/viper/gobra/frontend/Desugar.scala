@@ -1787,7 +1787,7 @@ object Desugar {
               for {
                 r <- exprD(ctx)(m.recv)
               } yield in.MethodObject(applyMemberPathD(r, m.path)(src), methodProxy(m.id, info), typeD(info.typ(n), Addressability.rValue)(src))(src)
-            case Some(p) => Violation.violation(s"only field selections, global constants, and types can be desugared to an expression, but got $p")
+            case Some(p) => Violation.violation(s"only field selections, global constants, types and methods can be desugared to an expression, but got $p")
             case _ => Violation.violation(s"could not resolve $n")
           }
 
@@ -2968,11 +2968,13 @@ object Desugar {
 
       val ndBool = in.LocalVar(nm.fresh(proof, info), in.BoolT(Addressability.exclusiveVariable))(src)
       val declarations = Vector(ndBool) ++ argSubs ++ retSubs ++ recvOrClosureAlias.toVector
-      val assignments = argSubs.zipWithIndex.collect {
-        case (v, idx) if spec.params.contains(idx+1) =>
-          val exp = spec.params(idx+1)
-          singleAss(in.Assignee(v), exp)(src)
-      } ++ recvOrClosure.map(exp => singleAss(in.Assignee(recvOrClosureAlias.get), exprD(ctx)(exp).res)(meta(exp))).toVector
+      val assignments =
+        recvOrClosure.map(exp => singleAss(in.Assignee(recvOrClosureAlias.get), exprD(ctx)(exp).res)(meta(exp))).toVector ++
+          argSubs.zipWithIndex.collect {
+            case (v, idx) if spec.params.contains(idx+1) =>
+              val exp = spec.params(idx+1)
+              singleAss(in.Assignee(v), exp)(src)
+          }
 
       val fSpec = func match {
         case f: st.Function => f.decl.spec

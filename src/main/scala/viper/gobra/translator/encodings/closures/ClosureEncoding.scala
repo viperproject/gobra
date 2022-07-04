@@ -37,8 +37,6 @@ class ClosureEncoding extends LeafTypeEncoding {
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
 
     case l: in.FunctionLikeLit =>
-      val vprFunc = functionFromLiteral(l)(ctx)
-      genMembers :+= vprFunc
       specs.callToClosureGetter(l.name, l.captured.map(_._1))(ctx)
 
     case f: in.FunctionObject =>
@@ -67,26 +65,9 @@ class ClosureEncoding extends LeafTypeEncoding {
   }
 
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
-    genMembers foreach addMemberFn
     domain.finalize(addMemberFn)
     specs.finalize(addMemberFn)
     moe.finalize(addMemberFn)
-  }
-
-  private var genMembers: List[vpr.Member] = List.empty
-
-  // Generates the encoding of the function literal as a separate Viper method or function
-  private def functionFromLiteral(lit: in.FunctionLikeLit)(ctx: Context): vpr.Member = {
-    val proxy = in.FunctionProxy(lit.name.name)(lit.info)
-    val args = lit.captured.map(_._2) ++ lit.args
-    lit match {
-      case l: in.FunctionLit =>
-        val func = in.Function(proxy, args, l.results, l.pres, l.posts, l.terminationMeasures, l.body)(lit.info)
-        ctx.defaultEncoding.function(func)(ctx).res
-      case l: in.PureFunctionLit =>
-        val func = in.PureFunction(proxy, args, l.results, l.pres, l.posts, l.terminationMeasures, l.body)(lit.info)
-        ctx.defaultEncoding.pureFunction(func)(ctx).res
-    }
   }
 
   private def specImplementationProof(proof: in.SpecImplementationProof)(ctx: Context): CodeWriter[vpr.Stmt] = {

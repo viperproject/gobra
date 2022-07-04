@@ -256,7 +256,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case n@PCallWithSpec(base, args, spec) => wellDefIfClosureMatchesSpec(base, spec) ++ ((exprType(base), miscType(spec)) match {
-      case (tC: FunctionT, _: FunctionT) => multiAssignableTo.errors(args map exprType, tC.args)(n) ++ args.flatMap(isExpr(_).out)
+      case (tC: FunctionT, _: FunctionT) => args.flatMap(isExpr(_).out) ++
+        (if (args.isEmpty && tC.args.isEmpty) noMessages else multiAssignableTo.errors(args map exprType, tC.args)(n))
       case (tC, _) => error(base, s"expected function type, but got $tC")
     })
 

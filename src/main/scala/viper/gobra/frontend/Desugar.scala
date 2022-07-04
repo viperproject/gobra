@@ -262,14 +262,17 @@ object Desugar {
         case st.Closure(decl, _, _) => (decl.decl.args, functionLitProxyD(s.func, context))
         case _ => violation("expected function or function literal")
       }
-      val params = if (s.params.forall(_.key.isEmpty)) s.params.zipWithIndex.map {
+      val paramsWithIdx = if (s.params.forall(_.key.isEmpty)) s.params.zipWithIndex.map {
         case (p, idx) => idx+1 -> exprD(ctx)(p.exp).res
-      }.toMap else {
+      } else {
         val argsToIdx = fArgs.zipWithIndex.collect {
           case (PNamedParameter(a, _), idx) => a.name -> (idx+1)
           case (PExplicitGhostParameter(PNamedParameter(a, _)), idx) => a.name -> (idx+1)
         }.toMap
         s.params.map { p => argsToIdx(p.key.get.name) -> exprD(ctx)(p.exp).res }
+      }
+      val params = paramsWithIdx.map {
+        case (i, exp) => i -> implicitConversion(exp.typ, typeD(info.typ(fArgs(i-1)), Addressability.inParameter)(exp.info), exp)
       }.toMap
       in.ClosureSpec(proxy, params)(meta(s))
     }
@@ -2896,9 +2899,53 @@ object Desugar {
             case w: in.MagicWand => in.ApplyWand(w)(src)
             case e => Violation.violation(s"Expected a magic wand, but got $e")
           }
+        case p: PClosureImplProof => closureImplProofD(ctx)(p)
         case PExplicitGhostStatement(actual) => stmtD(ctx)(actual)
         case _ => ???
       }
+    }
+
+    private def closureImplProofD(ctx: FunctionContext)(proof: PClosureImplProof): Writer[in.Stmt] = {
+      def localVarFromParam(p: PParameter): in.LocalVar = {
+        val src = meta(p)
+        val typ = typeD(info.typ(p), Addressability.inParameter)(src)
+        freshDeclaredExclusiveVar(typ, proof.block, info)(src).res
+      }
+
+      val func = info.regular(proof.impl.spec.func).asInstanceOf[st.WithArguments with st.WithResult]
+      val argSubs = func.args map localVarFromParam
+      val retSubs = func.result.outs map localVarFromParam
+
+      def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt =
+        if (rets.isEmpty) in.Seqn(Vector.empty)(src)
+        else if (rets.size == 1) in.Seqn(retSubs.zip(rets).map{
+            case (p, v) => singleAss(in.Assignee.Var(p), v)(src)
+          })(src)
+        else if (rets.size == retSubs.size) multiassD(retSubs.map(v => in.Assignee.Var(v)), rets.head, proof.block)(src)
+        else violation(s"found ${rets.size} returns but expected 0, 1, or ${retSubs.size}")
+
+      val newCtx = ctx.copyWith(assignReturns)
+      ((argSubs zip func.args) ++ (retSubs zip func.result.outs)) foreach {
+        case (s, PNamedParameter(id, _)) => newCtx.addSubst(id, s)
+        case (s, PExplicitGhostParameter(PNamedParameter(id, _))) => newCtx.addSubst(id, s)
+        case _ =>
+      }
+
+      val src = meta(proof)
+      val spec = func match {
+        case f: st.Function => f.decl.spec
+        case c: st.Closure => c.decl.decl.spec
+        case _ => violation("function or closure expected")
+      }
+      val pres = (spec.pres ++ spec.preserves) map preconditionD(newCtx)
+      val posts = (spec.preserves ++ spec.posts) map postconditionD(newCtx)
+
+      for {
+        ndBool <- freshDeclaredExclusiveVar(in.BoolT(Addressability.exclusiveVariable), proof, info)(src)
+        closure <- exprD(ctx)(proof.impl.closure)
+        spec = closureSpecD(ctx)(proof.impl.spec, info)
+        body <- stmtD(newCtx)(proof.block)
+      } yield in.SpecImplementationProof(closure, spec, body.asInstanceOf[in.Block], ndBool, argSubs, retSubs, pres, posts)(src)
     }
 
     // Ghost Expression

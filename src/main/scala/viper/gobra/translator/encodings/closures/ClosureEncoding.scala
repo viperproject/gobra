@@ -1,17 +1,20 @@
 package viper.gobra.translator.encodings.closures
 
 import org.bitbucket.inkytonik.kiama.==>
+import viper.gobra.ast.internal.Assignee
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.{ast => vpr}
 
 class ClosureEncoding extends LeafTypeEncoding {
 
   import viper.gobra.translator.util.TypePatterns._
+  import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl, _}
 
   val specs = new ClosureSpecsManager
   val domain = new ClosureDomainManager(specs)
@@ -54,6 +57,9 @@ class ClosureEncoding extends LeafTypeEncoding {
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = default(super.statement(ctx)) {
     case c: in.CallWithSpec =>
       specs.closureCall(c)(ctx)
+
+    case p: in.SpecImplementationProof =>
+      specImplementationProof(p)(ctx)
   }
 
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = default(super.assertion(ctx)) {
@@ -81,5 +87,39 @@ class ClosureEncoding extends LeafTypeEncoding {
         val func = in.PureFunction(proxy, args, l.results, l.pres, l.posts, l.terminationMeasures, l.body)(lit.info)
         ctx.defaultEncoding.pureFunction(func)(ctx).res
     }
+  }
+
+  private def specImplementationProof(proof: in.SpecImplementationProof)(ctx: Context): CodeWriter[vpr.Stmt] = {
+    val argInit = proof.args map (a => vpr.LocalVarDecl(a.id, ctx.typ(a.typ))())
+    val resInit = proof.res map (r => vpr.LocalVarDecl(r.id, ctx.typ(r.typ))())
+    val argAssignments = cl.seqns(proof.args.zipWithIndex
+      .map{ case (v, i) => (v, proof.spec.params.get(i+1))}
+      .collect{ case (v, Some(e)) => ctx.assignment(Assignee(v), e)(e)})
+    val inhalePres = cl.seqns(proof.pres map (a => for {
+          ass <- ctx.assertion(a)
+        } yield vpr.Inhale(ass)(a.vprMeta._1, a.vprMeta._2, a.vprMeta._3)))
+    val exhalePosts = cl.seqns(proof.posts map (a => for {
+      ass <- ctx.assertion(a)
+    } yield vpr.Exhale(ass)(a.vprMeta._1, a.vprMeta._2, a.vprMeta._3)))
+
+    val (pos, info, errT) = proof.vprMeta
+
+    for {
+      ndBoolTrue <- ctx.assertion(in.ExprAssertion(proof.ndBool)(proof.info))
+      ifStmt <- for {
+        assignArgs <- argAssignments
+        whileStmt <- for {
+          inhalePres <- inhalePres
+          body <- ctx.statement(proof.body)
+          exhalePosts <- exhalePosts
+          whileBody = vu.seqn(Vector(inhalePres, body, exhalePosts))(pos, info, errT)
+        } yield vpr.While(ndBoolTrue, Seq.empty, whileBody)(pos, info, errT)
+        assumeFalse = vpr.Assume(vpr.FalseLit()())()
+        ifThen = vpr.Seqn(Seq(assignArgs, whileStmt, assumeFalse), argInit ++ resInit)(pos, info, errT)
+        ifElse = vu.nop(pos, info, errT)
+      } yield vpr.If(ndBoolTrue, ifThen, ifElse)(pos, info, errT)
+      implementsAssertion <- ctx.assertion(in.ClosureImplements(proof.closure, proof.spec)(proof.info))
+      assumeImplements = vpr.Assume(implementsAssertion)()
+    } yield vu.seqn(Vector(ifStmt, assumeImplements))(pos, info, errT)
   }
 }

@@ -88,7 +88,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
 
     case n@ PReturn(right) =>
-      val res = resultFromEnclosingCodeRoot(n).getOrElse(PResult(Vector.empty))
+      val res = resultFromEnclosingScopeWithResult(n).getOrElse(PResult(Vector.empty))
       if (right.nonEmpty) {
         ghostAssignableToParam(right: _*)(res.outs: _*)
       } else noMessages

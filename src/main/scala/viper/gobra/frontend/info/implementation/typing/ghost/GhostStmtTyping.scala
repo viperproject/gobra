@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{AstPattern => ap, _}
+import viper.gobra.ast.frontend.{PClosureImplProof, AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.{ActualDataEntity, WithArguments, WithResult}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -56,71 +56,77 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  private def wellDefClosureImplProof(p: PClosureImplProof): Messages = p match {
-    case PClosureImplProof(impl@PClosureImplements(closure, spec), b: PBlock) =>
-      val func = entity(spec.func).asInstanceOf[ActualDataEntity with WithArguments with WithResult]
-      val specArgs = if (spec.params.forall(_.key.isEmpty)) func.args.drop(spec.params.size)
-        else {
-          val paramSet = spec.params.map(_.key.get.name).toSet
-          func.args.filter(nameFromParam(_).fold(true)(!paramSet.contains(_)))
-        }
-      val isPure = func match {
-        case f: st.Function => f.isPure
-        case c: st.Closure => c.isPure
+  private def wellDefClosureImplProof(p: PClosureImplProof): Messages = {
+    val PClosureImplProof(impl@PClosureImplements(closure, spec), b: PBlock) = p
+
+    val func = entity(spec.func).asInstanceOf[ActualDataEntity with WithArguments with WithResult]
+
+    val specArgs = if (spec.params.forall(_.key.isEmpty)) func.args.drop(spec.params.size)
+    else {
+      val paramSet = spec.params.map(_.key.get.name).toSet
+      func.args.filter(nameFromParam(_).fold(true)(!paramSet.contains(_)))
+    }
+
+    val isPure = func match {
+      case f: st.Function => f.isPure
+      case c: st.Closure => c.isPure
+    }
+
+    lazy val expectedCallArgs = specArgs.flatMap(nameFromParam).map(a => PNamedOperand(PIdnUse(a)))
+
+    def isExpectedCall(e: PExpression): Boolean = e match {
+      case i: PInvoke => i.base == closure && i.args == expectedCallArgs
+      case c: PCallWithSpec => c.base == closure && c.args == expectedCallArgs
+      case _ => false
+    }
+
+    lazy val expectedCallString: String = s"$closure(${specArgs.flatMap(nameFromParam).mkString(",")}) [as _]"
+
+    def wellDefIfNecessaryArgsNamed: Messages = error(spec,
+      s"cannot find a name for all arguments or results required by $spec",
+      cond = !specArgs.forall {
+        case _: PUnnamedParameter | PExplicitGhostParameter(_: PUnnamedParameter) => false
+        case _ => true
       }
-      lazy val expectedCallArgs = specArgs.flatMap(nameFromParam).map(a => PNamedOperand(PIdnUse(a)))
-      def isExpectedCall(e: PExpression): Boolean = e match {
-          case i: PInvoke => i.base == closure && i.args == expectedCallArgs
-          case c: PCallWithSpec => c.base == closure && c.args == expectedCallArgs
-          case _ => false
-      }
-      lazy val expectedCallString: String = s"$closure(${specArgs.flatMap(nameFromParam).mkString(",")}) [as _]"
+    )
 
-      def wellDefIfNecessaryArgsNamed: Messages = error(spec,
-        s"cannot find a name for all arguments or results required by $spec",
-        cond = !specArgs.forall {
-            case _: PUnnamedParameter | PExplicitGhostParameter(_: PUnnamedParameter) => false
-            case _ => true
-          }
-      )
+    def wellDefIfArgNamesDoNotShadowClosure: Messages = {
+      val names = (func.args ++ func.result.outs).map(nameFromParam).filter(_.nonEmpty).map(_.get)
 
-      def wellDefIfArgNamesDoNotShadowClosure: Messages = {
-        val names = (func.args ++ func.result.outs).map(nameFromParam).filter(_.nonEmpty).map(_.get)
-
-        def isShadowed(id: PIdnNode): Boolean = id match {
-          case _: PIdnUse | _: PIdnUnk =>
-            val entityOutside = tryLookupAt(id, impl)
-            entityOutside.nonEmpty && tryLookupAt(id, id).fold(false)(_ eq entityOutside.get) && names.contains(id.name)
-          case _ => false
-        }
-
-        def shadowedInside(n: PNode): Option[PIdnNode] = n match {
-          case id: PIdnNode => Some(id).filter(isShadowed)
-          case _ => tree.child(n).iterator.map(shadowedInside).find(_.nonEmpty).flatten
-        }
-        val shadowed = shadowedInside(closure)
-        error(impl,
-          s"identifier ${shadowed.getOrElse("")} in $closure is shadowed by an argument or result with the same name in ${spec.func}",
-          shadowed.nonEmpty)
+      def isShadowed(id: PIdnNode): Boolean = id match {
+        case _: PIdnUse | _: PIdnUnk =>
+          val entityOutside = tryLookupAt(id, impl)
+          entityOutside.nonEmpty && tryLookupAt(id, id).fold(false)(_ eq entityOutside.get) && names.contains(id.name)
+        case _ => false
       }
 
-      def pureWellDefIfIsSinglePureReturnExpr: Messages = if (isPure) isPureBlock(b) else noMessages
-
-      def pureWellDefIfRightShape: Messages = if (!isPure) {
-        noMessages
-      } else {
-        val retExpr = b.asInstanceOf[PReturn].exps.head
-        pureImplementationProofHasRightShape(retExpr, isExpectedCall, expectedCallString)
-          .asReason(retExpr, "invalid return expression of an implementation proof")
+      def shadowedInside(n: PNode): Option[PIdnNode] = n match {
+        case id: PIdnNode => Some(id).filter(isShadowed)
+        case _ => tree.child(n).iterator.map(shadowedInside).find(_.nonEmpty).flatten
       }
+      val shadowed = shadowedInside(closure)
+      error(impl,
+        s"identifier ${shadowed.getOrElse("")} in $closure is shadowed by an argument or result with the same name in ${spec.func}",
+        shadowed.nonEmpty)
+    }
 
-      def wellDefIfRightShape: Messages =
-        if (isPure) noMessages
-        else implementationProofBodyHasRightShape(b, isExpectedCall, expectedCallString, func.result)
-          .asReason(b, "invalid body of an implementation proof")
+    def pureWellDefIfIsSinglePureReturnExpr: Messages = if (isPure) isPureBlock(b) else noMessages
 
-      Seq(wellDefIfNecessaryArgsNamed, wellDefIfArgNamesDoNotShadowClosure, pureWellDefIfIsSinglePureReturnExpr,
-        pureWellDefIfRightShape, wellDefIfRightShape).iterator.find(_.nonEmpty).getOrElse(noMessages)
+    def pureWellDefIfRightShape: Messages = if (!isPure) {
+      noMessages
+    } else {
+      val retExpr = b.nonEmptyStmts.head.asInstanceOf[PReturn].exps.head
+      pureImplementationProofHasRightShape(retExpr, isExpectedCall, expectedCallString)
+        .asReason(retExpr, "invalid return expression of an implementation proof")
+    }
+
+    def wellDefIfRightShape: Messages =
+      if (isPure) noMessages
+      else implementationProofBodyHasRightShape(b, isExpectedCall, expectedCallString, func.result)
+        .asReason(b, "invalid body of an implementation proof")
+
+    Seq(wellDefIfNecessaryArgsNamed, wellDefIfArgNamesDoNotShadowClosure, pureWellDefIfIsSinglePureReturnExpr,
+      pureWellDefIfRightShape, wellDefIfRightShape).iterator.find(_.nonEmpty).getOrElse(noMessages)
   }
 
   private def nameFromParam(p: PParameter): Option[String] = p match {

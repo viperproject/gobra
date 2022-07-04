@@ -143,9 +143,10 @@ protected class ClosureSpecsManager {
         (lit, lit.captured)
       case f: in.FunctionProxy => (ctx.table.lookup(f).asInstanceOf[in.FunctionMember], Vector.empty)
     }
+    val specWithLitArgs = in.ClosureSpec(spec.func, spec.params.map{ case (i, _) => i -> lit.args(i-1)})(spec.info)
     val closurePar = in.Parameter.In(Names.closureArg, genericFuncType)(lit.info)
     val args = Vector(closurePar) ++ captured.map(_._2) ++ lit.args
-    val pres = Vector(in.ClosureImplements(closurePar, spec)(spec.info)) ++ lit.pres
+    val pres = Vector(in.ClosureImplements(closurePar, specWithLitArgs)(spec.info)) ++ lit.pres
     lit match {
       case _: in.Function | _: in.FunctionLit =>
         val func = in.Function(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, None)(lit.info)

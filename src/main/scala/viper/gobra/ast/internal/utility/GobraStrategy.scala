@@ -59,6 +59,7 @@ object GobraStrategy {
       case (_: FunctionCall, Seq(targets: Vector[LocalVar@unchecked], func: FunctionProxy, args: Vector[Expr@unchecked])) => FunctionCall(targets, func, args)(meta)
       case (_: MethodCall, Seq(targets: Vector[LocalVar@unchecked], recv: Expr, meth: MethodProxy, args: Vector[Expr@unchecked])) => MethodCall(targets, recv, meth, args)(meta)
       case (_: CallWithSpec, Seq(targets: Vector[LocalVar@unchecked], closure: Expr, args: Vector[Expr@unchecked], spec: ClosureSpec)) => CallWithSpec(targets, closure, args, spec)(meta)
+      case (_: SpecImplementationProof, Seq(closure: Expr, spec: ClosureSpec, body: Block, ndBool: LocalVar, args: Vector[LocalVar@unchecked], res: Vector[LocalVar@unchecked], pres: Vector[Assertion@unchecked], posts: Vector[Assertion@unchecked])) => SpecImplementationProof(closure, spec, body, ndBool, args, res, pres, posts)(meta)
       case (_: Defer, Seq(stmt: Deferrable)) => Defer(stmt)(meta)
       case (_: Return, Seq()) => Return()(meta)
       case (_: Assert, Seq(ass: Assertion)) => Assert(ass)(meta)

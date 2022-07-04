@@ -301,6 +301,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
         showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
 
+    case SpecImplementationProof(closure, spec, body, _, args, res, _, _) =>
+      "proof" <+> showExpr(closure) <+> "implements" <+> show(spec) <+>
+        block("args" <+> showBlockDeclList(args) <> line <>
+          "return" <+> showBlockDeclList(res) <> line <> showStmt(body))
+
     case GoFunctionCall(func, args) => "go" <+> func.name <> parens(showExprList(args))
 
     case GoMethodCall(recv, meth, args) =>
@@ -405,7 +410,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showPredicateAcc(access: PredicateAccess): Doc = access match {
     case FPredicateAccess(pred, args) => pred.name <> parens(showExprList(args))
-    case MPredicateAccess(recv, pred, args) => showExpr(recv) <> pred.name <> parens(showExprList(args))
+    case MPredicateAccess(recv, pred, args) => showExpr(recv) <> dot <> pred.name <> parens(showExprList(args))
     case MemoryPredicateAccess(arg) => "memory" <> parens(showExpr(arg))
   }
 
@@ -735,6 +740,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case CallWithSpec(targets, closure, args, spec) =>
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
         showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
+
+    case SpecImplementationProof(closure, spec, body, _, args, res, _, _) =>
+      "proof" <+> showExpr(closure) <+> "implements" <+> show(spec)
 
     case GoFunctionCall(func, args) =>
       "go" <+> func.name <> parens(showExprList(args))

@@ -127,9 +127,9 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PReturn(exps) =>
       exps.flatMap(isExpr(_).out) ++ {
         if (exps.nonEmpty) {
-          val res = resultFromEnclosingCodeRoot(n)
+          val res = resultFromEnclosingScopeWithResult(n)
 
-          if (res.isEmpty) error(n, s"return cannot be checked because the enclosing signature has no result")
+          if (res.isEmpty) error(n, s"Statement does not root in a CodeRoot")
           else if (res.get.outs forall wellDefMisc.valid)
             multiAssignableTo.errors(exps map exprType, res.get.outs map miscType)(n)
           else error(n, s"return cannot be checked because the enclosing signature is incorrect")

@@ -442,7 +442,7 @@ case class PClosureSpecParameterKey(name: String) extends PGhostMisc
 
 case class PClosureImplements(closure: PExpression, spec: PClosureSpecInstance) extends PGhostExpression
 
-case class PClosureImplProof(impl: PClosureImplements, block: PBlock) extends PGhostStatement with PCodeRoot with PScope
+case class PClosureImplProof(impl: PClosureImplements, block: PBlock) extends PGhostStatement with PScope
 
 case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends PActualExpression
 

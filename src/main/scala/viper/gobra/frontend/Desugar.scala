@@ -21,6 +21,7 @@ import viper.gobra.util.Violation.violation
 import viper.gobra.util.{DesugarWriter, TypeBounds, Violation}
 
 import scala.annotation.{tailrec, unused}
+import scala.collection.mutable.ArrayBuffer
 import scala.collection.{Iterable, SortedSet}
 import scala.reflect.ClassTag
 
@@ -345,9 +346,9 @@ object Desugar {
 
     class FunctionContext(
                            val ret: Vector[in.Expr] => Meta => in.Stmt,
-                           private var substitutions: Map[Identity, in.Expr] = Map.empty
+                           private var substitutions: Map[Identity, in.Expr] = Map.empty,
+                           val expD: PExpression => Option[Writer[in.Expr]] = _ => None,
                          ) {
-
       def apply(id: PIdnNode): Option[in.Expr] =
         substitutions.get(abstraction(id))
 
@@ -355,9 +356,11 @@ object Desugar {
       def addSubst(from: PIdnNode, to: in.Expr): Unit =
         substitutions += abstraction(from) -> to
 
-      def copy: FunctionContext = new FunctionContext(ret, substitutions)
+      def copy: FunctionContext = new FunctionContext(ret, substitutions, expD)
 
       def copyWith(ret: Vector[in.Expr] => Meta => in.Stmt): FunctionContext = new FunctionContext(ret, substitutions)
+
+      def copyWithExpD(expD: PExpression => Option[Writer[in.Expr]]) = new FunctionContext(ret, substitutions, expD)
 //
 //      private var proxies: Map[Identity, in.Proxy] = Map.empty
 //
@@ -1730,6 +1733,12 @@ object Desugar {
         }
       }
 
+      // if expD is defined by the context, use that to desugar the expression
+      ctx.expD(expr) match {
+        case Some(res) => return res
+        case None =>
+      }
+
       expr match {
         case NoGhost(noGhost) => noGhost match {
           case n: PNamedOperand => info.resolve(n) match {
@@ -2717,7 +2726,11 @@ object Desugar {
     def freshDeclaredExclusiveVar(typ: in.Type, scope: PNode, ctx: ExternalTypeInfo)(info: Source.Parser.Info): Writer[in.LocalVar] = {
       require(typ.addressability == Addressability.exclusiveVariable)
       val res = in.LocalVar(nm.fresh(scope, ctx), typ)(info)
-      declare(res).map(_ => res)
+      declaredExclusiveVar(res)
+    }
+
+    def declaredExclusiveVar(v: in.LocalVar): Writer[in.LocalVar] = {
+      declare(v).map(_ => v)
     }
 
     def localVarD(ctx: FunctionContext)(id: PIdnNode): in.Expr = {
@@ -2909,7 +2922,7 @@ object Desugar {
       def localVarFromParam(p: PParameter): in.LocalVar = {
         val src = meta(p)
         val typ = typeD(info.typ(p), Addressability.inParameter)(src)
-        freshDeclaredExclusiveVar(typ, proof.block, info)(src).res
+        in.LocalVar(nm.fresh(proof, info), typ)(src)
       }
 
       val func = info.regular(proof.impl.spec.func).asInstanceOf[st.WithArguments with st.WithResult]
@@ -2924,7 +2937,25 @@ object Desugar {
         else if (rets.size == retSubs.size) multiassD(retSubs.map(v => in.Assignee.Var(v)), rets.head, proof.block)(src)
         else violation(s"found ${rets.size} returns but expected 0, 1, or ${retSubs.size}")
 
-      val newCtx = ctx.copyWith(assignReturns)
+      val recvOrClosure: Option[PExpression] = info.resolve(proof.impl.closure) match {
+        case Some(ap.ReceivedMethod(recv, _, _, _)) => Some(recv)
+        case Some(ap.BuiltInReceivedMethod(recv, _, _, _)) => Some(recv)
+        case Some(_: ap.Function) => None
+        case _ if !proof.impl.closure.isInstanceOf[PNamedOperand] => None
+        case _ => Some(proof.impl.closure)
+      }
+
+      val recvOrClosureAlias = recvOrClosure map { exp =>
+        val src = meta(exp)
+        val typ = typeD(info.typ(exp), Addressability.inParameter)(src)
+        in.LocalVar(nm.fresh(proof, info), typ)(src)
+      }
+
+      def replaceRecvOrClosure(exp: PExpression): Option[Writer[in.Expr]] =
+        if (recvOrClosure.contains(exp)) recvOrClosureAlias.map(unit)
+        else None
+
+      val newCtx = ctx.copyWith(assignReturns).copyWithExpD(replaceRecvOrClosure)
       ((argSubs zip func.args) ++ (retSubs zip func.result.outs)) foreach {
         case (s, PNamedParameter(id, _)) => newCtx.addSubst(id, s)
         case (s, PExplicitGhostParameter(PNamedParameter(id, _))) => newCtx.addSubst(id, s)
@@ -2932,20 +2963,32 @@ object Desugar {
       }
 
       val src = meta(proof)
-      val spec = func match {
+
+      val spec = closureSpecD(newCtx)(proof.impl.spec, info)
+
+      val ndBool = in.LocalVar(nm.fresh(proof, info), in.BoolT(Addressability.exclusiveVariable))(src)
+      val declarations = Vector(ndBool) ++ argSubs ++ retSubs ++ recvOrClosureAlias.toVector
+      val assignments = argSubs.zipWithIndex.collect {
+        case (v, idx) if spec.params.contains(idx+1) =>
+          val exp = spec.params(idx+1)
+          singleAss(in.Assignee(v), exp)(src)
+      } ++ recvOrClosure.map(exp => singleAss(in.Assignee(recvOrClosureAlias.get), exprD(ctx)(exp).res)(meta(exp))).toVector
+
+      val fSpec = func match {
         case f: st.Function => f.decl.spec
         case c: st.Closure => c.decl.decl.spec
         case _ => violation("function or closure expected")
       }
-      val pres = (spec.pres ++ spec.preserves) map preconditionD(newCtx)
-      val posts = (spec.preserves ++ spec.posts) map postconditionD(newCtx)
+      val pres = (fSpec.pres ++ fSpec.preserves) map preconditionD(newCtx)
+      val posts = (fSpec.preserves ++ fSpec.posts) map postconditionD(newCtx)
 
       for {
-        ndBool <- freshDeclaredExclusiveVar(in.BoolT(Addressability.exclusiveVariable), proof, info)(src)
-        closure <- exprD(ctx)(proof.impl.closure)
-        spec = closureSpecD(ctx)(proof.impl.spec, info)
-        body <- stmtD(newCtx)(proof.block)
-      } yield in.SpecImplementationProof(closure, spec, body.asInstanceOf[in.Block], ndBool, argSubs, retSubs, pres, posts)(src)
+        proof <- for {
+          closure <- exprD(newCtx)(proof.impl.closure)
+          spec = closureSpecD(newCtx)(proof.impl.spec, info)
+          body <- stmtD(newCtx)(proof.block)
+        } yield in.SpecImplementationProof(closure, spec, ndBool, body.asInstanceOf[in.Block], pres, posts)(src)
+      } yield in.Block(declarations, assignments ++ Vector(proof))(src)
     }
 
     // Ghost Expression

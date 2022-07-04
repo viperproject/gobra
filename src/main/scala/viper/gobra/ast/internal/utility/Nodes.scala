@@ -59,7 +59,7 @@ object Nodes {
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
         case MethodCall(targets, recv, meth, args) => targets ++ Seq(recv, meth) ++ args
         case CallWithSpec(targets, closure, args, spec) => targets ++ Seq(closure) ++ args ++ Seq(spec)
-        case SpecImplementationProof(closure, spec, body, ndBool, args, res, pres, posts) => Seq(closure, spec, body, ndBool) ++ args ++ res ++ pres ++ posts
+        case SpecImplementationProof(closure, spec, ndBool, body, pres, posts) => Seq(closure, spec, ndBool, body) ++ pres ++ posts
         case Return() => Seq.empty
         case Assert(ass) => Seq(ass)
         case Exhale(ass) => Seq(ass)

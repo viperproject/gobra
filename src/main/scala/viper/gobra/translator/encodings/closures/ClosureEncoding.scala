@@ -90,11 +90,6 @@ class ClosureEncoding extends LeafTypeEncoding {
   }
 
   private def specImplementationProof(proof: in.SpecImplementationProof)(ctx: Context): CodeWriter[vpr.Stmt] = {
-    val argInit = proof.args map (a => vpr.LocalVarDecl(a.id, ctx.typ(a.typ))())
-    val resInit = proof.res map (r => vpr.LocalVarDecl(r.id, ctx.typ(r.typ))())
-    val argAssignments = cl.seqns(proof.args.zipWithIndex
-      .map{ case (v, i) => (v, proof.spec.params.get(i+1))}
-      .collect{ case (v, Some(e)) => ctx.assignment(Assignee(v), e)(e)})
     val inhalePres = cl.seqns(proof.pres map (a => for {
           ass <- ctx.assertion(a)
         } yield vpr.Inhale(ass)(a.vprMeta._1, a.vprMeta._2, a.vprMeta._3)))
@@ -107,7 +102,6 @@ class ClosureEncoding extends LeafTypeEncoding {
     for {
       ndBoolTrue <- ctx.assertion(in.ExprAssertion(proof.ndBool)(proof.info))
       ifStmt <- for {
-        assignArgs <- argAssignments
         whileStmt <- for {
           inhalePres <- inhalePres
           body <- ctx.statement(proof.body)
@@ -115,7 +109,7 @@ class ClosureEncoding extends LeafTypeEncoding {
           whileBody = vu.seqn(Vector(inhalePres, body, exhalePosts))(pos, info, errT)
         } yield vpr.While(ndBoolTrue, Seq.empty, whileBody)(pos, info, errT)
         assumeFalse = vpr.Assume(vpr.FalseLit()())()
-        ifThen = vpr.Seqn(Seq(assignArgs, whileStmt, assumeFalse), argInit ++ resInit)(pos, info, errT)
+        ifThen = vu.seqn(Vector(whileStmt, assumeFalse))(pos, info, errT)
         ifElse = vu.nop(pos, info, errT)
       } yield vpr.If(ndBoolTrue, ifThen, ifElse)(pos, info, errT)
       implementsAssertion <- ctx.assertion(in.ClosureImplements(proof.closure, proof.spec)(proof.info))

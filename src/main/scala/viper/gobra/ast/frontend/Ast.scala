@@ -45,7 +45,7 @@ case class PPackage(
                      programs: Vector[PProgram],
                      positions: PositionManager,
                      info: PackageInfo
-                   ) extends PNode with PUnorderedScope with PCodeRoot {
+                   ) extends PNode with PUnorderedScope {
   // TODO: remove duplicate package imports:
   lazy val imports: Vector[PImport] = programs.flatMap(_.imports)
   lazy val declarations: Vector[PMember] = programs.flatMap(_.declarations)
@@ -53,10 +53,10 @@ case class PPackage(
 
 case class PProgram(
                      packageClause: PPackageClause,
-                     programSpec: PFunctionSpec, // spec file // TODO: document, maybe build a type PFileSpec
+                     programSpec: PFunctionSpec, // spec file // TODO: document, maybe build a type PFileSpec - instead, maybe use a list of expr
                      imports: Vector[PImport],
                      declarations: Vector[PMember]
-                   ) extends PNode with PUnorderedScope // imports are in program scopes
+                   ) extends PNode with PUnorderedScope with PCodeRoot // imports are in program scopes
 
 
 class PositionManager(val positions: Positions) extends Messaging(positions) {
@@ -88,7 +88,7 @@ case class PPackageClause(id: PPkgDef) extends PNode
 
 sealed trait PImport extends PNode {
   def importPath: String
-  def importSpec: PFunctionSpec // maybe come up with a better spec subtype
+  def importSpec: PFunctionSpec // TODO: maybe come up with a better spec subtype
 }
 
 sealed trait PQualifiedImport extends PImport

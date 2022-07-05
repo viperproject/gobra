@@ -14,7 +14,7 @@ import com.typesafe.scalalogging.StrictLogging
 import org.slf4j.LoggerFactory
 import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
-import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, GlobalVarProofObligationsGenerator, InternalTransform, OverflowChecksTransform}
+import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, InternalTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, PackageInfo, Parser, ScallopGobraConfig}
@@ -263,8 +263,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * be easily extended to perform more transformations
     */
   private def performInternalTransformations(program: Program, config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], Program] = {
-    var transformations: Vector[InternalTransform] =
-      Vector(CGEdgesTerminationTransform, GlobalVarProofObligationsGenerator)
+    var transformations: Vector[InternalTransform] = Vector(CGEdgesTerminationTransform)
     if (config.checkOverflows) {
       transformations :+= OverflowChecksTransform
     }

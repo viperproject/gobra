@@ -244,9 +244,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showTerminationMeasures(list: Vector[TerminationMeasure]): Doc =
     hcat(list  map ("decreases " <> showTerminationMeasure(_) <> line))
 
-  def showCapturedVars(captured: Vector[(Expr, Parameter.In)]): Doc =
+  def showCaptured(captured: Vector[(Expr, Parameter.In)]): Doc =
     angles(showList(captured) {
-      case (e, p) => showVar(p) <+> ":=" <+> ampersand <> showExpr(e)
+      case (e, p) => showVar(p) <+> ":=" <+> showExpr(e)
     })
 
   def showFormalArgList[T <: Parameter](list: Vector[T]): Doc =
@@ -455,6 +455,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case DomainFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))
 
+    case ClosureObject(func, _) => func.name
     case FunctionObject(func, _) => func.name
     case MethodObject(recv, meth, _) => showExpr(recv) <> dot <> meth.name
 
@@ -553,12 +554,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case NilLit(t) => parens("nil" <> ":" <> showType(t))
 
     case FunctionLit(name, args, captured, results, pres, posts, measures, body) =>
-      "func" <+> showProxy(name) <> showCapturedVars(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+      "func" <+> showProxy(name) <> showCaptured(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
         opt(body)(b => block(showStmt(b)))
 
     case PureFunctionLit(name, args, captured, results, pres, posts, measures, body) =>
-      "pure func" <+> showProxy(name)  <> showCapturedVars(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+      "pure func" <+> showProxy(name)  <> showCaptured(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
 
     case ArrayLit(len, typ, elems) => {

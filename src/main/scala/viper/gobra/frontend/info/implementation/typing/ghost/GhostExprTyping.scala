@@ -341,7 +341,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
               false
             case _ => go(p.arg)
           }
-        case (Left(callee), Some(p: ap.FunctionCall)) => go(callee) && p.args.forall(go)
+        case (Left(callee), Some(p: ap.FunctionCall)) => go(callee) && p.args.forall(go) && (entity(p.callee.id) match {
+          case f: Function => f.isPure
+          case m: Method => m.isPure
+          case c: Closure => c.isPure
+        })
         case (Left(_), Some(_: ap.PredicateCall)) => !strong
         case (Left(_), Some(_: ap.PredExprInstance)) => !strong
         case _ => false
@@ -450,11 +454,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _: Variable => true
       case _: Field => true
       case _: Embbed => true
-      case m: Function => m.isPure
+      // functions and method constants are always pure
+      // the pureness of function or method invocations are checked separately
+      case _: Function => true
+      case _: Method => true
+      case _: Closure => true
       case m: BuiltInFunction => m.isPure
-      case m: Method => m.isPure
       case m: BuiltInMethod => m.isPure
-      case m: Closure => m.isPure
       case _: Predicate | _: BuiltInFPredicate | _: BuiltInMPredicate => !strong
       case _: DomainFunction => true
       case _ => false

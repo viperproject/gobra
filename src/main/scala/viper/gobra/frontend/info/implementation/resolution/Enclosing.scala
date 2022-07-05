@@ -63,6 +63,9 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val tryEnclosingCodeRootWithResult: PStatement => Option[PCodeRootWithResult] =
     down[Option[PCodeRootWithResult]](None) { case m: PCodeRootWithResult => Some(m) }
 
+  lazy val tryEnclosingFunction: PNode => Option[PFunctionDecl] =
+    down[Option[PFunctionDecl]](None) { case m: PFunctionDecl => Some(m) }
+
   lazy val tryEnclosingClosureImplementationProof: PNode => Option[PClosureImplProof] =
     down[Option[PClosureImplProof]](None) { case m: PClosureImplProof => Some(m) }
 
@@ -259,5 +262,29 @@ trait Enclosing { this: TypeInfoImpl =>
     }
   }
 
+  override def capturedVariables(decl: PClosureDecl): Vector[PIdnNode] = capturedVariablesAttr(decl)
+  private lazy val capturedVariablesAttr: PClosureDecl => Vector[PIdnNode] = {
+    def capturedVar(x: PIdnNode, lit: PFunctionLit): Boolean = entity(x) match {
+      case r: SymbolTable.Variable => !containedIn(enclosingScope(r.rep), lit)
+      case _ => false
+    }
 
+    attr[PClosureDecl, Vector[PIdnNode]] { decl =>
+      val funcLit = tree.parent(tree.parent(decl).head).head.asInstanceOf[PFunctionLit]
+      allChildren(decl).collect{ case x: PIdnNode if capturedVar(x, funcLit) => x }.distinctBy(_.name)
+    }
+  }
+
+  override def capturedClosures(decl: PClosureDecl): Vector[PIdnUse] = capturedClosuresAttr(decl)
+  private lazy val capturedClosuresAttr: PClosureDecl => Vector[PIdnUse] = {
+    def capturedClosure(x: PIdnNode, lit: PFunctionLit): Boolean = entity(x) match {
+      case c: SymbolTable.Closure => !containedIn(c.rep, lit)
+      case _ => false
+    }
+
+    attr[PClosureDecl, Vector[PIdnUse]] { decl =>
+      val funcLit = tree.parent(tree.parent(decl).head).head.asInstanceOf[PFunctionLit]
+      allChildren(decl).collect{ case x: PIdnUse if capturedClosure(x, funcLit) => x }.distinctBy(_.name)
+    }
+  }
 }

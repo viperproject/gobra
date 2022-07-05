@@ -1086,6 +1086,8 @@ case class ClosureSpec(func: FunctionMemberOrLitProxy, params: Map[Int, Expr])(o
 case class SpecImplementationProof(closure: Expr, spec: ClosureSpec, ndBool: LocalVar, body: Block, pres: Vector[Assertion], posts: Vector[Assertion])
                                   (override val info: Source.Parser.Info) extends Stmt
 
+case class ClosureObject(func: FunctionLitProxy, override val typ: Type)(override val info: Source.Parser.Info) extends Expr
+
 case class FunctionObject(func: FunctionProxy, override val typ: Type)(override val info: Source.Parser.Info) extends Expr
 
 case class MethodObject(recv: Expr, meth: MethodProxy, override val typ: Type)(override val info: Source.Parser.Info) extends Expr

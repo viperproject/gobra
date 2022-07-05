@@ -425,14 +425,14 @@ case class PLitCompositeVal(lit: PLiteralValue) extends PCompositeVal
 
 case class PFunctionLit(decl: PClosureNamedDecl) extends PLiteral with PActualExpression
 
-case class PClosureNamedDecl(id: Option[PIdnDef], decl: PClosureDecl) extends PCodeRootWithResult with PGhostMisc {
+case class PClosureNamedDecl(id: Option[PIdnDef], decl: PClosureDecl) extends PGhostMisc {
   val result: PResult = decl.result
 }
 
 case class PClosureDecl(args: Vector[PParameter],
                   result: PResult,
                   spec: PFunctionSpec,
-                  body: Option[(PBodyParameterInfo, PBlock)]) extends PFunctionOrClosureDecl with PActualMisc
+                  body: Option[(PBodyParameterInfo, PBlock)]) extends PFunctionOrClosureDecl with PCodeRootWithResult with PActualMisc
 
 case class PClosureSpecInstance(func: PIdnUse, params: Vector[PClosureSpecParameter]) extends PGhostMisc
 

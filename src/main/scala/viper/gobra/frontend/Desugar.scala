@@ -21,7 +21,6 @@ import viper.gobra.util.Violation.violation
 import viper.gobra.util.{DesugarWriter, TypeBounds, Violation}
 
 import scala.annotation.{tailrec, unused}
-import scala.collection.mutable.ArrayBuffer
 import scala.collection.{Iterable, SortedSet}
 import scala.reflect.ClassTag
 
@@ -247,7 +246,7 @@ object Desugar {
 
     def functionLitProxyD(lit: PFunctionLit, context: TypeInfo): in.FunctionLitProxy = {
       // If the literal is nameless, generate a unique name
-      val name = if (lit.decl.id.isEmpty) nm.anonFuncLit(lit.decl.decl, context) else idName(lit.decl.id.get, context)
+      val name = if (lit.decl.id.isEmpty) nm.anonFuncLit(context.enclosingFunction(lit).get, context) else idName(lit.decl.id.get, context)
       val info = if (lit.decl.id.isEmpty) meta(lit, context) else meta(lit.decl.id.get, context)
       in.FunctionLitProxy(name)(info)
     }
@@ -260,7 +259,7 @@ object Desugar {
     def closureSpecD(ctx: FunctionContext)(s: PClosureSpecInstance, context: TypeInfo): in.ClosureSpec = {
       val (fArgs, proxy) = info.regular(s.func) match {
         case st.Function(decl, _, _) => (decl.args, functionProxy(s.func, context))
-        case st.Closure(decl, _, _) => (decl.decl.args, functionLitProxyD(s.func, context))
+        case st.Closure(lit, _, _) => (lit.decl.decl.args, functionLitProxyD(s.func, context))
         case _ => violation("expected function or function literal")
       }
       val paramsWithIdx = if (s.params.forall(_.key.isEmpty)) s.params.zipWithIndex.map {
@@ -490,12 +489,14 @@ object Desugar {
       val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
       val (args, argSubs) = argsWithSubs.unzip
 
-      val capturedVars = decl match {
-        case d: PClosureDecl => info.capturedVars(d)
-        case _ => Vector.empty
+      val (captVars, captClosures) = decl match {
+        case d: PClosureDecl => (info.capturedVariables(d), info.capturedClosures(d))
+        case _ => (Vector.empty, Vector.empty)
       }
-      val capturedWithSubs = capturedVars.map(capturedVarD)
-      val (captured, capturedSubs) = capturedWithSubs.unzip
+      val capturedVarsWithSubs = captVars.map(capturedVarD)
+      val (capturedVars, capturedVarSubs) = capturedVarsWithSubs.unzip
+      val capturedClWithSubs = captClosures.map(capturedClosureD)
+      val (capturedCl, capturedClSubs) = capturedClWithSubs.unzip
 
       val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
       val returnsMergedWithSubs = returnsWithSubs.map{ case (p,s) => s.getOrElse(p) }
@@ -532,11 +533,16 @@ object Desugar {
       }
 
       // replace captured variables in function literals
-      (capturedVars zip captured).foreach {
+      (captVars zip capturedVars).foreach {
         // we use a newly-generated pointer parameter p to replace captured variable v (v -> *p)
         // p is treated as a normal argument, information about the original variable is kept in the function literal object
         case (v, p) => val src = meta(v)
           specCtx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(src))(src))
+      }
+
+      // replace captured closure names
+      (captClosures zip capturedCl).foreach {
+        case (c, p) => specCtx.addSubst(c, p)
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
@@ -556,7 +562,7 @@ object Desugar {
       }
 
       // c1' := c1; ...; cn' := cn
-      val capturedInits = capturedWithSubs.map{
+      val capturedInits = (capturedVarsWithSubs ++ capturedClWithSubs).map{
         case (p, q) => singleAss(in.Assignee.Var(q), p)(p.info)
       }
 
@@ -576,9 +582,13 @@ object Desugar {
         case _ =>
       }
 
-      (capturedVars zip capturedSubs).foreach {
+      (captVars zip capturedVarSubs).foreach {
         case (v, p) => val src = meta(v)
           ctx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(src))(src))
+      }
+
+      (captClosures zip capturedClSubs).foreach {
+        case (c, p) => ctx.addSubst(c, p)
       }
 
       (decl.result.outs zip returnsWithSubs).foreach{
@@ -587,16 +597,21 @@ object Desugar {
         case _ =>
       }
 
-      val capturedWithPointers = capturedVars.map { localVarD(outerCtx)(_) } zip captured
+      val capturedWithAliases = (captVars.map { v => in.Ref(localVarD(outerCtx)(v))(meta(v)) } zip capturedVars) ++ {
+        lazy val parentRoot = info.codeRoot(info.tree.parent(info.codeRoot(decl)).head)
+        captClosures.map { id =>
+          val closure = info.resolve(PNamedOperand(id)).get.asInstanceOf[ap.Closure]
+          closureObjectD(outerCtx)(parentRoot, closure, meta(id)).res} zip capturedCl
+      }
 
       val bodyOpt = decl.body.map{ case (_, s) =>
-        val vars = argSubs.flatten ++ capturedSubs ++ returnSubs.flatten
+        val vars = argSubs.flatten ++ capturedVarSubs ++ capturedClSubs ++ returnSubs.flatten
         val varsInit = vars map (v => in.Initialization(v)(v.info))
         val body = varsInit ++ argInits ++ capturedInits ++ Vector(blockD(ctx)(s))
         in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
-      FunctionInfo(args, capturedWithPointers, returns, pres, posts, terminationMeasures, bodyOpt)
+      FunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasures, bodyOpt)
     }
 
     def pureFunctionD(decl: PFunctionDecl): in.PureFunction = {
@@ -622,11 +637,12 @@ object Desugar {
       val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
       val (args, _) = argsWithSubs.unzip
 
-      val capturedVars = decl match {
-        case d: PClosureDecl => info.capturedVars(d)
-        case _ => Vector.empty
+      val (captVars, captClosures) = decl match {
+        case d: PClosureDecl => (info.capturedVariables(d), info.capturedClosures(d))
+        case _ => (Vector.empty, Vector.empty)
       }
-      val captured = capturedVars.map(c => capturedVarD(c)._1)
+      val capturedVars = captVars.map(c => capturedVarD(c)._1)
+      val capturedCl = captVars.map(c => capturedClosureD(c)._1)
 
       val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
       val (returns, _) = returnsWithSubs.unzip
@@ -643,9 +659,13 @@ object Desugar {
         case _ =>
       }
 
-      (capturedVars zip captured).foreach {
+      (captVars zip capturedVars).foreach {
         case (v, p) => val src = meta(v)
           ctx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(src))(src))
+      }
+
+      (captClosures zip capturedCl).foreach {
+        case (c, p) => ctx.addSubst(c, p)
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
@@ -658,7 +678,12 @@ object Desugar {
       val posts = decl.spec.posts map postconditionD(ctx)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx)).res
 
-      val capturedWithPointers = capturedVars.map { localVarD(outerCtx)(_) } zip captured
+      val capturedWithAliases = (captVars.map { v => in.Ref(localVarD(outerCtx)(v))(meta(v)) } zip capturedVars) ++ {
+        lazy val parentRoot = info.codeRoot(info.tree.parent(info.codeRoot(decl)).head)
+        captClosures.map { id =>
+          val closure = info.resolve(PNamedOperand(id)).get.asInstanceOf[ap.Closure]
+          closureObjectD(outerCtx)(parentRoot, closure, meta(id)).res} zip capturedCl
+      }
 
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
@@ -669,7 +694,7 @@ object Desugar {
           implicitConversion(res.typ, returns.head.typ, res)
       }
 
-      PureFunctionInfo(args, capturedWithPointers, returns, pres, posts, terminationMeasure, bodyOpt)
+      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, bodyOpt)
     }
 
 
@@ -1482,6 +1507,7 @@ object Desugar {
       val isPure = p.callee match {
         case base: ap.Symbolic => base.symb match {
           case f: st.Function => f.isPure
+          case c: st.Closure => c.isPure
           case m: st.Method => m.isPure
           case _: st.DomainFunction => true
           case f: st.BuiltInFunction => f.isPure
@@ -1505,6 +1531,24 @@ object Desugar {
                 convertedArgs = convertArgs(args)
                 fproxy = getFunctionProxy(base, convertedArgs)
               } yield Left((targets, in.FunctionCall(targets, fproxy, convertedArgs)(src)))
+            }
+
+          case c: ap.Closure =>
+            val idSrc = meta(c.id)
+            val proxy = in.FunctionLitProxy(idName(c.id))(idSrc)
+            val spec = in.ClosureSpec(proxy, Map.empty)(idSrc)
+            if (isPure) {
+              for {
+                closure <- closureObjectD(ctx)(info.codeRoot(c.id), c, src)
+                args <- dArgs
+                convertedArgs = convertArgs(args)
+              } yield Right(in.PureCallWithSpec(closure, convertedArgs, spec, resT)(src))
+            } else {
+              for {
+                closure <- closureObjectD(ctx)(info.codeRoot(c.id), c, src)
+                args <- dArgs
+                convertedArgs = convertArgs(args)
+              } yield Left((targets, in.CallWithSpec(targets, closure, convertedArgs, spec)(src)))
             }
 
           case iim: ap.ImplicitlyReceivedInterfaceMethod =>
@@ -1753,6 +1797,8 @@ object Desugar {
             case Some(f: ap.Function) =>
               val name = idName(f.id)
               unit(in.FunctionObject(in.FunctionProxy(name)(src), typeD(info.typ(f.id), Addressability.rValue)(src))(src))
+            case Some(c: ap.Closure) => closureObjectD(ctx)(info.codeRoot(c.id), c, src)
+
             case p => Violation.violation(s"encountered unexpected pattern: $p")
           }
 
@@ -2056,6 +2102,28 @@ object Desugar {
       }
     }
 
+    private def closureObjectD(ctx: FunctionContext)(root: PCodeRoot, c: ap.Closure, src: Meta): Writer[in.Expr] = {
+      val name = idName(c.id, info)
+      val proxy = in.FunctionLitProxy(name)(src)
+      root match {
+        case decl: PClosureDecl if decl eq c.symb.lit.decl.decl =>
+          // The reference to the literal is within the same literal
+          unit(in.ClosureObject(proxy, typeD(info.typ(c.id), Addressability.rValue)(src))(src))
+        case _: PClosureDecl => ctx(c.id) match {
+          // We are within some other function literal, so this closure is captured by the literal.
+          // We expect to find a substitution in the function context.
+          case Some(exp) => unit(exp)
+          case None => Violation.violation("this case should be unreachable")
+        }
+        case _ => functionLitProxyToLocalVar.get(proxy) match {
+          // We are outside any function literal.
+          // The closure has been registered and is associated with a local variable.
+          case Some(v) => unit(v)
+          case None => Violation.violation("this case should be unreachable")
+        }
+      }
+    }
+
     def invokeD(ctx: FunctionContext)(expr: PInvoke): Writer[in.Expr] = {
       val src: Meta = meta(expr)
       info.resolve(expr) match {
@@ -2145,22 +2213,36 @@ object Desugar {
         case PBoolLit(b) => single(in.BoolLit(b))
         case PStringLit(s) => single(in.StringLit(s))
         case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.PointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
-        case f: PFunctionLit => unit[in.Expr](registerFunctionLit(f)(ctx))
+        case f: PFunctionLit => registerFunctionLit(f)(ctx)
         case c: PCompositeLit => compositeLitD(ctx)(c)
         case _ => ???
       }
     }
 
-    def functionLitD(ctx: FunctionContext)(lit: PFunctionLit): in.FunctionLit = {
+    def functionLitD(ctx: FunctionContext)(lit: PFunctionLit): (Writer[in.LocalVar], in.FunctionLit) = {
       val funcInfo = functionMemberOrLitD(lit.decl.decl, meta(lit), ctx)
+      val src = meta(lit)
       val name = functionLitProxyD(lit, info)
-      in.FunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit))
+      val funcLit = in.FunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(src)
+      val typ = typeD(info.typ(lit), Addressability.rValue)(src)
+      val localVar = for {
+        localVar <- declaredExclusiveVar(in.LocalVar(nm.alias(name.name, info.codeRoot(lit), info), typ)(meta(lit.decl.id.getOrElse(lit))))
+        _ <- write(singleAss(in.Assignee(localVar), funcLit)(src))
+      } yield localVar
+      (localVar, funcLit)
     }
 
-    def pureFunctionLitD(ctx: FunctionContext)(lit: PFunctionLit): in.PureFunctionLit = {
+    def pureFunctionLitD(ctx: FunctionContext)(lit: PFunctionLit): (Writer[in.LocalVar], in.PureFunctionLit) = {
       val funcInfo = pureFunctionMemberOrLitD(lit.decl.decl, meta(lit), ctx)
+      val src = meta(lit)
       val name = functionLitProxyD(lit, info)
-      in.PureFunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit))
+      val funcLit = in.PureFunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit))
+      val typ = typeD(info.typ(lit), Addressability.rValue)(src)
+      val localVar = for {
+        localVar <- declaredExclusiveVar(in.LocalVar(nm.alias(name.name, info.codeRoot(lit), info), typ)(meta(lit.decl.id.getOrElse(lit))))
+        _ <- write(singleAss(in.Assignee(localVar), funcLit)(src))
+      } yield localVar
+      (localVar, funcLit)
     }
 
     def capturedVarD(v: PIdnNode): (in.Parameter.In, in.LocalVar) = {
@@ -2170,6 +2252,16 @@ object Desugar {
       val refAlias = nm.refAlias(idName(v), info.scope(v), info)
       val param = in.Parameter.In(refAlias, typeD(PointerT(info.typ(v)), Addressability.inParameter)(src))(src)
       val localVar = in.LocalVar(nm.alias(refAlias, info.scope(v), info), param.typ)(src)
+      (param, localVar)
+    }
+
+    def capturedClosureD(c: PIdnNode): (in.Parameter.In, in.LocalVar) = {
+      // The current function literal is using another closure by name.
+      // Generate aliases in-parameters and local variables. The type is typeOf(c)
+      val src: Meta = meta(c)
+      val alias = nm.alias(idName(c), info.scope(c), info)
+      val param = in.Parameter.In(alias, typeD(info.typ(c), Addressability.inParameter)(src))(src)
+      val localVar = in.LocalVar(nm.alias(alias, info.scope(c), info), param.typ)(src)
       (param, localVar)
     }
 
@@ -2579,11 +2671,15 @@ object Desugar {
       fPred
     }
 
-    def registerFunctionLit(lit: PFunctionLit)(ctx: FunctionContext): in.FunctionLikeLit = {
-      val fLit = if (lit.decl.decl.spec.isPure) pureFunctionLitD(ctx)(lit) else functionLitD(ctx)(lit)
+    /** Desugar the function literal and add it to the map.
+      * Each literal is assigned to a local variable, which is returned, and saved in a separate, internal map. */
+    private def registerFunctionLit(lit: PFunctionLit)(ctx: FunctionContext): Writer[in.LocalVar] = {
+      val (localVar, fLit) = if (lit.decl.decl.spec.isPure) pureFunctionLitD(ctx)(lit) else functionLitD(ctx)(lit)
       definedFuncLiterals += fLit.name -> fLit
-      fLit
+      functionLitProxyToLocalVar += fLit.name -> localVar.res
+      localVar
     }
+    private var functionLitProxyToLocalVar: Map[in.FunctionLitProxy, in.LocalVar] = Map.empty
 
     def embeddedTypeD(t: PEmbeddedType, addrMod: Addressability)(src: Meta): in.Type = t match {
       case PEmbeddedName(typ) => typeD(info.symbType(typ), addrMod)(src)
@@ -2667,7 +2763,7 @@ object Desugar {
       case m: st.MPredicateSpec => nm.spec(id.name, m.itfType, m.context)
       case f: st.DomainFunction => nm.function(id.name, f.context)
       case v: st.Variable => nm.variable(id.name, context.scope(id), v.context)
-      case c: st.Closure => nm.funcLit(id.name, context.scope(id), c.context)
+      case c: st.Closure => nm.funcLit(id.name, context.enclosingFunction(id).get, c.context)
       case sc: st.SingleConstant => nm.global(id.name, sc.context)
       case st.Embbed(_, _, _) | st.Field(_, _, _) => violation(s"expected that fields and embedded field are desugared by using embeddedDeclD resp. fieldDeclD but idName was called with $id")
       case n: st.NamedType => nm.typ(id.name, n.context)
@@ -2978,7 +3074,7 @@ object Desugar {
 
       val fSpec = func match {
         case f: st.Function => f.decl.spec
-        case c: st.Closure => c.decl.decl.spec
+        case c: st.Closure => c.lit.decl.decl.spec
         case _ => violation("function or closure expected")
       }
       val pres = (fSpec.pres ++ fSpec.preserves) map preconditionD(newCtx)
@@ -3534,10 +3630,9 @@ object Desugar {
       s"${n}_$postfix${scopeMap(s)}" // deterministic
     }
 
-    private def nameWithCodeRoot(postfix: String)(n: String, s: PScope, context: ExternalTypeInfo): String = {
-      maybeRegister(s, context)
-      val codeRoot = context.codeRoot(s).asInstanceOf[PFunctionDecl].id.name
-      s"${n}_${codeRoot}_${context.pkgInfo.viperId}_$postfix${scopeMap(s)}" // deterministic
+    private def nameWithEnclosingFunction(postfix: String)(n: String, enclosing: PFunctionDecl, context: ExternalTypeInfo): String = {
+      maybeRegister(enclosing, context)
+      s"${n}_${enclosing.id.name}_${context.pkgInfo.viperId}_$postfix${scopeMap(enclosing)}" // deterministic
     }
 
     private def topLevelName(postfix: String)(n: String, context: ExternalTypeInfo): String = {
@@ -3546,8 +3641,8 @@ object Desugar {
     }
 
     def variable(n: String, s: PScope, context: ExternalTypeInfo): String = name(VARIABLE_PREFIX)(n, s, context)
-    def funcLit(n: String, s: PScope, context: ExternalTypeInfo): String = nameWithCodeRoot(FUNCTION_PREFIX)(n, s, context)
-    def anonFuncLit(s: PScope, context: ExternalTypeInfo): String = nameWithCodeRoot(FUNCTION_PREFIX)("func", s, context) ++ s"_${fresh(s, context)}"
+    def funcLit(n: String, enclosing: PFunctionDecl, context: ExternalTypeInfo): String = nameWithEnclosingFunction(FUNCTION_PREFIX)(n, enclosing, context)
+    def anonFuncLit(enclosing: PFunctionDecl, context: ExternalTypeInfo): String = nameWithEnclosingFunction(FUNCTION_PREFIX)("func", enclosing, context) ++ s"_${fresh(enclosing, context)}"
     def global  (n: String, context: ExternalTypeInfo): String = topLevelName(GLOBAL_PREFIX)(n, context)
     def typ     (n: String, context: ExternalTypeInfo): String = topLevelName(TYPE_PREFIX)(n, context)
     def field   (n: String, @unused s: StructT): String = s"$n$FIELD_PREFIX" // Field names must preserve their equality from the Go level

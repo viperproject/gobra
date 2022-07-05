@@ -54,6 +54,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case s: st.Variable => Some(ap.LocalVariable(n.id, s))
         case s: st.Constant => Some(ap.Constant(n.id, s))
         case s: st.Function => Some(ap.Function(n.id, s))
+        case s: st.Closure => Some(ap.Closure(n.id, s))
         case s: st.FPredicate => Some(ap.Predicate(n.id, s))
         case s: st.DomainFunction => Some(ap.DomainFunction(n.id, s))
         // built-in members

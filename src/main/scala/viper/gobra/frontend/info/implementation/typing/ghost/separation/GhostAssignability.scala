@@ -24,6 +24,7 @@ trait GhostAssignability {
 
     val isPure = call.callee match {
       case p: ap.Function => p.symb.isPure
+      case p: ap.Closure => p.symb.isPure
       case p: ap.MethodExpr => p.symb.isPure
       case p: ap.ReceivedMethod => p.symb.isPure
       case p: ap.BuiltInFunction => p.symb.isPure
@@ -156,6 +157,7 @@ trait GhostAssignability {
 
     call.callee match {
       case p: ap.Function => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
+      case p: ap.Closure => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
       case p: ap.ReceivedMethod => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
       case p: ap.MethodExpr => GhostType.ghostTuple(false +: argTyping(p.symb.args, p.symb.ghost, p.symb.context).toTuple)
       case _: ap.PredicateKind => GhostType.isGhost

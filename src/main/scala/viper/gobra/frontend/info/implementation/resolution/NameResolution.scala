@@ -74,7 +74,7 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PImport => Import(decl, this)
 
         // Closure literals
-        case decl: PClosureNamedDecl => Closure(decl, isGhost, this)
+        case decl: PClosureNamedDecl => Closure(tree.parent(decl).head.asInstanceOf[PFunctionLit], isGhost, this)
 
         // Ghost additions
         case decl: PBoundVariable => BoundVariable(decl, this)
@@ -172,7 +172,7 @@ trait NameResolution { this: TypeInfoImpl =>
     case tree.parent.pair(_: PBlock, p: PClosureImplProof) =>
       val ids = (entity(p.impl.spec.func) match {
         case Function(decl, _, _) => decl.args ++ decl.result.outs
-        case Closure(decl, _, _) => decl.decl.args ++ decl.result.outs
+        case Closure(lit, _, _) => lit.decl.decl.args ++ lit.decl.result.outs
         case _ => Vector.empty
       }).collect {
         case PNamedParameter(id, _) => id

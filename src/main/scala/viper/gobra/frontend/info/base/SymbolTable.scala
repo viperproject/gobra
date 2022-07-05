@@ -74,11 +74,11 @@ object SymbolTable extends Environments[Entity] {
     def isPure: Boolean = decl.spec.isPure
   }
 
-  case class Closure(decl: PClosureNamedDecl, ghost: Boolean, context: ExternalTypeInfo) extends ActualDataEntity with WithArguments with WithResult {
-    override def rep: PNode = decl
-    override val args: Vector[PParameter] = decl.decl.args
-    override val result: PResult = decl.result
-    def isPure: Boolean = decl.decl.spec.isPure
+  case class Closure(lit: PFunctionLit, ghost: Boolean, context: ExternalTypeInfo) extends ActualDataEntity with WithArguments with WithResult {
+    override def rep: PNode = lit
+    override val args: Vector[PParameter] = lit.decl.decl.args
+    override val result: PResult = lit.decl.result
+    def isPure: Boolean = lit.decl.decl.spec.isPure
   }
 
   sealed trait Constant extends DataEntity {

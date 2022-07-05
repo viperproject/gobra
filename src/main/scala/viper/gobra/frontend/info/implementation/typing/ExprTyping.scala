@@ -198,7 +198,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       literalAssignableTo.errors(lit, simplifiedT)(n)
 
     case f: PFunctionLit =>
-      capturedVars(f.decl.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)).toVector
+      capturedVariables(f.decl.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)).toVector
 
     case n: PInvoke => {
       val (l, r) = (exprOrType(n.base), resolve(n))

@@ -27,8 +27,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case c@PClosureSpecInstance(id, _) => entity(id) match {
       case f: SymbolTable.Function => wellDefClosureSpecInstanceParams(c, f.args)
       case l: SymbolTable.Closure =>
-        if (c.params.isEmpty || capturedVars(l.decl.decl).isEmpty) wellDefClosureSpecInstanceParams(c, l.args)
-        else error(c, s"function literal ${l.decl.id.get} captures variables, so it cannot be used to derive a parametrized spec instance")
+        if (c.params.isEmpty || capturedVariables(l.lit.decl.decl).isEmpty) wellDefClosureSpecInstanceParams(c, l.args)
+        else error(c, s"function literal ${l.lit.decl.id.get} captures variables, so it cannot be used to derive a parametrized spec instance")
       case _ => error(id, s"identifier $id does not identify a user-defined function or function literal")
     }
     case PClosureSpecParameter(_, exp) => isExpr(exp).out

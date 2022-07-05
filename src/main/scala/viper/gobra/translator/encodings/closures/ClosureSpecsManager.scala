@@ -1,5 +1,6 @@
 package viper.gobra.translator.encodings.closures
 
+import viper.gobra.ast.internal.{Expr, Parameter}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
 import viper.gobra.reporting.{PreconditionError, Source, SpecNotImplementedByClosure}
@@ -19,9 +20,10 @@ protected class ClosureSpecsManager {
       Vector(a.closure) ++ a.spec.params.toVector.sortBy(_._1).map(_._2), in.BoolT(Addressability.rValue))(a.info))
   }
 
-  def callToClosureGetter(func: in.FunctionMemberOrLitProxy, captured: Vector[in.Expr] = Vector.empty)(ctx: Context): CodeWriter[vpr.Exp] = {
+  def callToClosureGetter(func: in.FunctionMemberOrLitProxy, captured: Vector[(in.Expr, in.Parameter.In)] = Vector.empty)(ctx: Context): CodeWriter[vpr.Exp] = {
     register(in.ClosureSpec(func, Map.empty)(func.info))(ctx, func.info)
-    ctx.expression(in.PureFunctionCall(closureGetterFunctionProxy(func), captured map { e => in.Ref(e)(e.info) }, genericFuncType)(func.info))
+    val capt = Captured(captured)
+    ctx.expression(in.PureFunctionCall(closureGetterFunctionProxy(func), (capt.vars ++ capt.closures).map(c => c._1), genericFuncType)(func.info))
   }
 
   def closureCall(c: in.CallWithSpec)(ctx: Context): CodeWriter[vpr.Stmt] = {
@@ -58,6 +60,20 @@ protected class ClosureSpecsManager {
     genMembers foreach { m => addMemberFn(m.res) }
   }
 
+  private case class Captured(vars: Vector[(in.Expr, in.Parameter.In)], closures: Vector[(in.Expr, in.Parameter.In)])
+
+  private object Captured {
+    def apply(captured: Vector[(in.Expr, in.Parameter.In)]): Captured = {
+      val groups = captured.groupBy(c => c._1.typ.isInstanceOf[in.FunctionT])
+      Captured(groups.getOrElse(false, Vector.empty), groups.getOrElse(true, Vector.empty))
+    }
+
+    def apply(ctx: Context)(func: in.FunctionMemberOrLitProxy): Captured = func match {
+      case _: in.FunctionProxy => Captured(Vector.empty, Vector.empty)
+      case p: in.FunctionLitProxy => Captured(ctx.table.lookup(p).captured)
+    }
+  }
+
   private def register(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): Unit = {
     if (!specsSeen.contains((spec.func, spec.params.keySet))) {
       specsSeen += ((spec.func, spec.params.keySet))
@@ -70,17 +86,16 @@ protected class ClosureSpecsManager {
       funcsUsedAsClosures += spec.func
       val getter = closureGetter(spec.func)(ctx)
       genMembers :+= getter
-      maxCapturedVariables = Math.max(maxCapturedVariables, numCaptVars(spec.func, ctx))
+      val capt = Captured(ctx)(spec.func)
+      maxCapturedVariables = Math.max(maxCapturedVariables, capt.vars.size)
+      maxCapturedClosures = Math.max(maxCapturedClosures, capt.closures.size)
     }
   }
 
-  private def numCaptVars(func: in.FunctionMemberOrLitProxy, ctx: Context): Int = func match {
-    case _: in.FunctionProxy => 0
-    case p: in.FunctionLitProxy => ctx.table.lookup(p).captured.size
-  }
-
   private var maxCapturedVariables: Int = 0
+  private var maxCapturedClosures: Int = 0
   def maxCaptVariables: Int = maxCapturedVariables
+  def maxCaptClosures: Int = maxCapturedClosures
   def numSpecs: Int = specsSeen.size
 
   private var specsSeen: Set[(in.FunctionMemberOrLitProxy, Set[Int])] = Set.empty
@@ -109,56 +124,64 @@ protected class ClosureSpecsManager {
   private def closureGetter(func: in.FunctionMemberOrLitProxy)(ctx: Context): MemberWriter[vpr.Member] = {
     val proxy = closureGetterFunctionProxy(func)
     val info = func.info
-    val numCaptured = numCaptVars(func, ctx)
-    val args = (1 to numCaptured).toVector map { i => in.Parameter.In(Names.closureCaptVar(i), genericPointerType)(info) }
-    val result = in.Parameter.Out("closure", genericFuncType)(info)
+    val result = in.Parameter.Out(Names.closureArg, genericFuncType)(info)
     val satisfiesSpec = in.ClosureImplements(result, in.ClosureSpec(func, Map.empty)(info))(info)
-    val capturesVar: Int => in.Assertion = i => in.ExprAssertion(in.EqCmp(in.DomainFunctionCall(
-      in.DomainFuncProxy(Names.closureCaptDomFunc(i), Names.closureDomain)(info), Vector(result), genericPointerType)(info), args(i-1))(info))(info)
-    val posts = Vector(satisfiesSpec) ++ ((1 to numCaptured) map { i => capturesVar(i) })
-    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, posts, Vector.empty, None)(info)
+    val (args, captAssertions) = capturedArgsAndAssertions(result, Captured(ctx)(func), info)
+    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions, Vector.empty, None)(info)
     ctx.defaultEncoding.pureFunction(getter)(ctx)
   }
 
   private def closureCallArgs(closure: in.Expr, args: Vector[in.Expr], spec: in.ClosureSpec)(ctx: Context): Vector[in.Expr] = {
-    val numCaptured = spec.func match {
-      case f: in.FunctionLitProxy => val lit = ctx.table.lookup(f)
-        if (lit.captured.nonEmpty) lit.captured.size else 0
-      case _ => 0
-    }
-    val captArgs = (1 to numCaptured).map(i => in.DomainFunctionCall(
-      in.DomainFuncProxy(Names.closureCaptDomFunc(i), Names.closureDomain)(closure.info), Vector(closure), genericPointerType)(closure.info))
-
+    val captured = Captured(ctx)(spec.func)
+    val captVarArgs = (1 to captured.vars.size).map(i => in.DomainFunctionCall(
+      in.DomainFuncProxy(Names.closureCaptVarDomFunc(i), Names.closureDomain)(closure.info), Vector(closure), captured.vars(i-1)._2.typ)(closure.info))
+    val captClArgs = (1 to captured.closures.size).map(i => in.DomainFunctionCall(
+      in.DomainFuncProxy(Names.closureCaptVarDomFunc(i), Names.closureDomain)(closure.info), Vector(closure), captured.closures(i-1)._2.typ)(closure.info))
     val argsAndParams = {
       var argsUsed = 0
       (1 to (args.size + spec.params.size)).map(i => if (spec.params.contains(i)) spec.params(i) else { argsUsed += 1; args(argsUsed-1) })
     }
-    Vector(closure) ++ captArgs ++ argsAndParams
+    Vector(closure) ++ captVarArgs ++ captClArgs ++ argsAndParams
+  }
+
+  private def capturedArgsAndAssertions(closure: in.Expr, captured: Captured, info: Source.Parser.Info): (Vector[in.Parameter.In], Vector[in.Assertion]) = {
+    val captVarArgs = captured.vars.map(c => c._2)
+    val captClosureArgs = captured.closures.map(c => c._2)
+    val capturesVar: Int => in.Assertion = i => in.ExprAssertion(in.EqCmp(in.DomainFunctionCall(
+      in.DomainFuncProxy(Names.closureCaptVarDomFunc(i), Names.closureDomain)(info), Vector(closure), captVarArgs(i-1).typ)(info), captVarArgs(i-1))(info))(info)
+    val capturesClosure: Int => in.Assertion = i => in.ExprAssertion(in.EqCmp(in.DomainFunctionCall(
+      in.DomainFuncProxy(Names.closureCaptClDomFunc(i), Names.closureDomain)(info), Vector(closure), captClosureArgs(i-1).typ)(info), captClosureArgs(i-1))(info))(info)
+    val varAssertions = (1 to captured.vars.size).toVector map { i => capturesVar(i) }
+    val closureAssertions = ((1 to captured.closures.size) map { i => capturesClosure(i) })
+    (captVarArgs ++ captClosureArgs, varAssertions ++ closureAssertions)
   }
 
   private def callableMemberWithClosure(spec: in.ClosureSpec)(ctx: Context): MemberWriter[vpr.Member] = {
     val proxy = closureCallProxy(spec)(spec.info)
     val (lit, captured) = spec.func match {
       case f: in.FunctionLitProxy => val lit = ctx.table.lookup(f)
-        (lit, lit.captured)
-      case f: in.FunctionProxy => (ctx.table.lookup(f).asInstanceOf[in.FunctionMember], Vector.empty)
+        (lit, Captured(lit.captured))
+      case f: in.FunctionProxy => (ctx.table.lookup(f).asInstanceOf[in.FunctionMember], Captured(Vector.empty))
     }
     val specWithLitArgs = in.ClosureSpec(spec.func, spec.params.map{ case (i, _) => i -> lit.args(i-1)})(spec.info)
     val closurePar = in.Parameter.In(Names.closureArg, genericFuncType)(lit.info)
-    val args = Vector(closurePar) ++ captured.map(_._2) ++ lit.args
-    val pres = Vector(in.ClosureImplements(closurePar, specWithLitArgs)(spec.info)) ++ lit.pres
+    val (captArgs, captAssertions) = capturedArgsAndAssertions(closurePar, captured, spec.func.info)
+    val args = Vector(closurePar) ++ captArgs ++ lit.args
+    val pres = Vector(in.ClosureImplements(closurePar, specWithLitArgs)(spec.info)) ++ lit.pres ++ captAssertions
     lit match {
       case _: in.Function =>
         val func = in.Function(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, None)(lit.info)
         ctx.defaultEncoding.function(func)(ctx)
       case lit: in.FunctionLit =>
-        val func = in.Function(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, lit.body)(lit.info)
+        val body = if (spec.params.isEmpty) lit.body else None
+        val func = in.Function(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, body)(lit.info)
         ctx.defaultEncoding.function(func)(ctx)
       case _: in.PureFunction =>
         val func = in.PureFunction(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, None)(lit.info)
         ctx.defaultEncoding.pureFunction(func)(ctx)
       case lit: in.PureFunctionLit =>
-        val func = in.PureFunction(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, lit.body)(lit.info)
+        val body = if (spec.params.isEmpty) lit.body else None
+        val func = in.PureFunction(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, body)(lit.info)
         ctx.defaultEncoding.pureFunction(func)(ctx)
     }
   }

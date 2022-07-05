@@ -41,6 +41,7 @@ object AstPattern {
   }
 
   case class Function(id: PIdnUse, symb: st.Function) extends FunctionKind with Symbolic
+  case class Closure(id: PIdnUse, symb: st.Closure) extends FunctionKind with Symbolic
   case class DomainFunction(id: PIdnUse, symb: st.DomainFunction) extends FunctionKind with Symbolic
   case class ReceivedMethod(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.Method) extends FunctionKind with Symbolic
   case class ImplicitlyReceivedInterfaceMethod(id: PIdnUse, symb: st.MethodSpec) extends FunctionKind with Symbolic // for method references withing an interface definition

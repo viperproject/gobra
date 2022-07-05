@@ -7,7 +7,7 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
-import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter, CodeLevel => cl}
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.{ast => vpr}
 
@@ -37,13 +37,18 @@ class ClosureEncoding extends LeafTypeEncoding {
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
 
     case l: in.FunctionLikeLit =>
-      specs.callToClosureGetter(l.name, l.captured.map(_._1))(ctx)
+      specs.callToClosureGetter(l.name, l.captured)(ctx)
 
     case f: in.FunctionObject =>
       specs.callToClosureGetter(f.func)(ctx)
 
     case m: in.MethodObject =>
       moe.callToMethodClosureGetter(m)(ctx)
+
+    case c: in.ClosureObject =>
+      // A closure object is guaranteed to only be present directly within the closure with the same name
+      val (pos, info, errT) = c.vprMeta
+      cl.unit(vpr.LocalVar(Names.closureArg, domain.vprType)(pos, info, errT))
 
     case c: in.PureCallWithSpec =>
       specs.pureClosureCall(c)(ctx)

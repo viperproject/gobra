@@ -27,8 +27,6 @@ trait TypeInfo extends ExternalTypeInfo {
 
   def isDef(n: PIdnUnk): Boolean
 
-  def capturedVars(decl: PClosureDecl): Vector[PIdnNode]
-
   def resolve(n: PExpressionOrType): Option[AstPattern.Pattern]
   def exprOrType(n: PExpressionOrType): Either[PExpression, PType]
 
@@ -43,4 +41,7 @@ trait TypeInfo extends ExternalTypeInfo {
   def freeVariables(n: PNode): Vector[PIdnNode]
   def freeModified(n: PNode): Vector[PIdnNode]
   def freeDeclared(n: PNode): Vector[PIdnNode]
+
+  def capturedVariables(decl: PClosureDecl): Vector[PIdnNode]
+  def capturedClosures(decl: PClosureDecl): Vector[PIdnUse]
 }

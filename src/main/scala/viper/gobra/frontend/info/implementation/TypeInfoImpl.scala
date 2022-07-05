@@ -13,7 +13,7 @@ import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.frontend.info.base.SymbolTable.{Regular, TypeMember, UnknownEntity, lookup}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
-import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, CapturingVars, Enclosing, LabelResolution, MemberPath, MemberResolution, NameResolution}
+import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, LabelResolution, MemberPath, MemberResolution, NameResolution}
 import viper.gobra.frontend.info.implementation.typing._
 import viper.gobra.frontend.info.implementation.typing.ghost._
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostSeparation
@@ -26,7 +26,6 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   with MemberResolution
   with AmbiguityResolution
   with Enclosing
-  with CapturingVars
 
   with ImportTyping
   with MemberTyping
@@ -83,6 +82,8 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   override def scope(n: PIdnNode): PScope = enclosingIdScope(n)
 
   override def codeRoot(n: PNode): PCodeRoot with PScope = enclosingCodeRoot(n)
+
+  override def enclosingFunction(n: PNode): Option[PFunctionDecl] = tryEnclosingFunction(n)
 
   override def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PForStmt] = enclosingLabeledLoop(label, n).toOption
 

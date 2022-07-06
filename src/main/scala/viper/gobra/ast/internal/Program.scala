@@ -107,6 +107,7 @@ sealed trait FunctionLikeMember extends Member {
 }
 
 sealed trait FunctionLikeMemberOrLit {
+  def info: Source.Parser.Info
   def args: Vector[Parameter.In]
   def results: Vector[Parameter.Out]
   def pres: Vector[Assertion]

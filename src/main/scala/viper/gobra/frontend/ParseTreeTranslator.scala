@@ -1076,8 +1076,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     (id, sig._1, sig._2, body)
   }
 
-  override def visitClosureSpecInstance(ctx: ClosureSpecInstanceContext): PClosureSpecInstance =
-    PClosureSpecInstance(idnUse.get(ctx.IDENTIFIER()), visitClosureSpecParams(ctx.closureSpecParams()))
+  override def visitClosureSpecInstance(ctx: ClosureSpecInstanceContext): PClosureSpecInstance = {
+    val nameOrDot = if (ctx.IDENTIFIER() == null) visitQualifiedIdent(ctx.qualifiedIdent())
+                    else PNamedOperand(idnUse.get(ctx.IDENTIFIER()))
+    PClosureSpecInstance(nameOrDot, visitClosureSpecParams(ctx.closureSpecParams()))
+  }
 
   override def visitClosureSpecParams(ctx: ClosureSpecParamsContext): Vector[PClosureSpecParameter] =
     if (ctx == null) Vector.empty else super.visitClosureSpecParams(ctx) match {
@@ -1134,7 +1137,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitInvokePrimaryExprWithSpec(ctx: InvokePrimaryExprWithSpecContext): AnyRef = super.visitInvokePrimaryExprWithSpec(ctx) match {
-    case Vector(pe: PExpression, InvokeArgs(args), "as", pcs: PClosureSpecInstance) => PCallWithSpec(pe, args, pcs)
+    case Vector(pe: PExpression, InvokeArgs(args), "as", pcs: PClosureSpecInstance, _) => PCallWithSpec(pe, args, pcs)
+  }
+
+  override def visitInvokePrimaryExprWithSpecWithParens(ctx: InvokePrimaryExprWithSpecWithParensContext): AnyRef = super.visitInvokePrimaryExprWithSpecWithParens(ctx) match {
+    case Vector("(", pe: PExpression, InvokeArgs(args), "as", pcs: PClosureSpecInstance, ")") => PCallWithSpec(pe, args, pcs)
   }
 
   override def visitTypeAssertionPrimaryExpr(ctx: TypeAssertionPrimaryExprContext): AnyRef = super.visitTypeAssertionPrimaryExpr(ctx) match {

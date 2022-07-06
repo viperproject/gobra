@@ -1,15 +1,16 @@
 package viper.gobra.translator.encodings.closures
 
-import viper.gobra.ast.internal.{Expr, Parameter}
+import viper.gobra.ast.internal.{Expr, FunctionLikeMemberOrLit, Parameter}
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
+import viper.gobra.reporting.BackTranslator.{ErrorTransformer, ReasonTransformer, RichErrorMessage}
 import viper.gobra.reporting.{PreconditionError, Source, SpecNotImplementedByClosure}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
-import viper.gobra.translator.util.ViperWriter.CodeLevel.errorT
+import viper.gobra.translator.util.ViperWriter.CodeLevel.{errorT, reasonR}
+import viper.gobra.translator.util.ViperWriter.MemberKindCompanion.ErrorT
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
-import viper.silver.verifier.{errors => vprerr}
+import viper.silver.verifier.{reasons, errors => vprerr}
 import viper.silver.{ast => vpr}
 
 protected class ClosureSpecsManager {
@@ -21,43 +22,45 @@ protected class ClosureSpecsManager {
   }
 
   def callToClosureGetter(func: in.FunctionMemberOrLitProxy, captured: Vector[(in.Expr, in.Parameter.In)] = Vector.empty)(ctx: Context): CodeWriter[vpr.Exp] = {
-    register(in.ClosureSpec(func, Map.empty)(func.info))(ctx, func.info)
+    val errorTransformers = register(in.ClosureSpec(func, Map.empty)(func.info))(ctx, func.info)
     val capt = Captured(captured)
-    ctx.expression(in.PureFunctionCall(closureGetterFunctionProxy(func), (capt.vars ++ capt.closures).map(c => c._1), genericFuncType)(func.info))
+    for {
+      exp <- ctx.expression(in.PureFunctionCall(closureGetterFunctionProxy(func), (capt.vars ++ capt.closures).map(c => c._1), genericFuncType)(func.info))
+      _ <- errorT(errorTransformers: _*)
+    } yield exp
   }
 
   def closureCall(c: in.CallWithSpec)(ctx: Context): CodeWriter[vpr.Stmt] = {
     register(c.spec)(ctx, c.spec.info)
 
-    def doesNotImplementSpecErr(call: vpr.MethodCall): ErrorTransformer = {
-      case e@vprerr.PreconditionInCallFalse(Source(info), reason, _)
-        if (e causedBy call) && (reason.readableMessage contains s"Assertion ${Names.closureImplementsFunc}") =>
-        PreconditionError(info).dueTo(SpecNotImplementedByClosure(info, c.closure.info.tag, c.spec.info.tag))
-    }
-
     for {
       call <- ctx.statement(in.FunctionCall(c.targets, closureCallProxy(c.spec)(c.info), closureCallArgs(c.closure, c.args, c.spec)(ctx))(c.info))
-      _ <- errorT(doesNotImplementSpecErr(call.collect{ case m: vpr.MethodCall => m }.head))
+      _ <- errorT(doesNotImplementSpecErr(c.closure, c.spec))
     } yield call
   }
 
   def pureClosureCall(c: in.PureCallWithSpec)(ctx: Context): CodeWriter[vpr.Exp] = {
     register(c.spec)(ctx, c.spec.info)
 
-    def doesNotImplementSpecErr(call: vpr.Exp): ErrorTransformer = {
-      case e@vprerr.PreconditionInAppFalse(Source(info), reason, _)
-        if (e causedBy call) && (reason.readableMessage contains s"Assertion ${Names.closureImplementsFunc}") =>
-        PreconditionError(info).dueTo(SpecNotImplementedByClosure(info, c.closure.info.tag, c.spec.info.tag))
-    }
-
     for {
       exp <- ctx.expression(in.PureFunctionCall(closureCallProxy(c.spec)(c.info), closureCallArgs(c.closure, c.args, c.spec)(ctx), c.typ)(c.info))
-      _ <- errorT(doesNotImplementSpecErr(exp))
+      _ <- errorT(doesNotImplementSpecErr(c.closure, c.spec))
     } yield exp
   }
 
   def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     genMembers foreach { m => addMemberFn(m.res) }
+  }
+
+  private def doesNotImplementSpecErr(closureExpr: in.Expr, spec: in.ClosureSpec): ErrorTransformer = {
+    val implementsFuncName = implementsFunctionName(spec)
+
+    def transformer: ErrorTransformer = {
+      case vprerr.PreconditionInCallFalse(Source(info), reasons.AssertionFalse(vpr.FuncApp(implementsFuncName, Seq(closure))), _)
+        if closure.info.isInstanceOf[Source.Verifier.Info] && closure.info.asInstanceOf[Source.Verifier.Info].node == closureExpr =>
+        PreconditionError(info).dueTo(SpecNotImplementedByClosure(info, closureExpr.info.tag, spec.info.tag))
+    }
+    transformer
   }
 
   private case class Captured(vars: Vector[(in.Expr, in.Parameter.In)], closures: Vector[(in.Expr, in.Parameter.In)])
@@ -74,11 +77,18 @@ protected class ClosureSpecsManager {
     }
   }
 
-  private def register(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): Unit = {
+  def memberOrLit(ctx: Context)(func: in.FunctionMemberOrLitProxy): in.FunctionLikeMemberOrLit = func match {
+    case p: in.FunctionProxy => ctx.table.lookup(p).asInstanceOf[in.FunctionMember]
+    case p: in.FunctionLitProxy => ctx.table.lookup(p)
+  }
+
+  private def register(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): Vector[ErrorTransformer] = {
+    var errorTransformers: Vector[ErrorTransformer] = Vector.empty
     if (!specsSeen.contains((spec.func, spec.params.keySet))) {
       specsSeen += ((spec.func, spec.params.keySet))
       val implementsF = implementsFunction(spec)(ctx, info)
       val callable = callableMemberWithClosure(spec)(ctx)
+      errorTransformers = callable.sum.collect{ case ErrorT(t) => t }.toVector
       genMembers :+= implementsF
       genMembers :+= callable
     }
@@ -90,6 +100,8 @@ protected class ClosureSpecsManager {
       maxCapturedVariables = Math.max(maxCapturedVariables, capt.vars.size)
       maxCapturedClosures = Math.max(maxCapturedClosures, capt.closures.size)
     }
+
+    errorTransformers
   }
 
   private var maxCapturedVariables: Int = 0
@@ -106,7 +118,8 @@ protected class ClosureSpecsManager {
   private val genericPointerType: in.PointerT = in.PointerT(in.BoolT(Addressability.Shared) ,Addressability.inParameter)
 
   private def closureSpecName(spec: in.ClosureSpec): String =  s"${spec.func}$$${spec.params.keySet.toSeq.sorted.mkString("_")}"
-  private def implementsFunctionProxy(spec: in.ClosureSpec)(info: Source.Parser.Info): in.FunctionProxy = in.FunctionProxy(s"${Names.closureImplementsFunc}$$${closureSpecName(spec)}")(info)
+  private def implementsFunctionName(spec: in.ClosureSpec) = s"${Names.closureImplementsFunc}$$${closureSpecName(spec)}"
+  private def implementsFunctionProxy(spec: in.ClosureSpec)(info: Source.Parser.Info): in.FunctionProxy = in.FunctionProxy(implementsFunctionName(spec))(info)
   private def closureGetterFunctionProxy(func: in.FunctionMemberOrLitProxy): in.FunctionProxy = in.FunctionProxy(s"${Names.closureGetter}$$$func")(func.info)
   private def closureCallProxy(spec: in.ClosureSpec)(info: Source.Parser.Info): in.FunctionProxy = in.FunctionProxy(s"${Names.closureCall}$$${closureSpecName(spec)}")(info)
 
@@ -127,7 +140,7 @@ protected class ClosureSpecsManager {
     val result = in.Parameter.Out(Names.closureArg, genericFuncType)(info)
     val satisfiesSpec = in.ClosureImplements(result, in.ClosureSpec(func, Map.empty)(info))(info)
     val (args, captAssertions) = capturedArgsAndAssertions(result, Captured(ctx)(func), info)
-    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions, Vector.empty, None)(info)
+    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions, Vector.empty, None)(memberOrLit(ctx)(func).info)
     ctx.defaultEncoding.pureFunction(getter)(ctx)
   }
 
@@ -156,28 +169,32 @@ protected class ClosureSpecsManager {
     (captVarArgs ++ captClosureArgs, varAssertions ++ closureAssertions)
   }
 
+  private def specWithFuncArgs(ctx: Context)(spec: in.ClosureSpec): in.ClosureSpec =
+    specWithFuncArgs(spec, memberOrLit(ctx)(spec.func))
+
+  private def specWithFuncArgs(spec: in.ClosureSpec, f: FunctionLikeMemberOrLit): in.ClosureSpec =
+    in.ClosureSpec(spec.func, spec.params.map{ case (i, _) => i -> f.args(i-1)})(spec.info)
+
   private def callableMemberWithClosure(spec: in.ClosureSpec)(ctx: Context): MemberWriter[vpr.Member] = {
     val proxy = closureCallProxy(spec)(spec.info)
-    val (lit, captured) = spec.func match {
-      case f: in.FunctionLitProxy => val lit = ctx.table.lookup(f)
-        (lit, Captured(lit.captured))
-      case f: in.FunctionProxy => (ctx.table.lookup(f).asInstanceOf[in.FunctionMember], Captured(Vector.empty))
-    }
-    val specWithLitArgs = in.ClosureSpec(spec.func, spec.params.map{ case (i, _) => i -> lit.args(i-1)})(spec.info)
+    val lit = memberOrLit(ctx)(spec.func)
+    val captured = Captured(ctx)(spec.func)
     val closurePar = in.Parameter.In(Names.closureArg, genericFuncType)(lit.info)
     val (captArgs, captAssertions) = capturedArgsAndAssertions(closurePar, captured, spec.func.info)
     val args = Vector(closurePar) ++ captArgs ++ lit.args
-    val pres = Vector(in.ClosureImplements(closurePar, specWithLitArgs)(spec.info)) ++ lit.pres ++ captAssertions
+    val implementsAssertion = in.ClosureImplements(closurePar, specWithFuncArgs(spec, lit))(spec.info)
+    val pres = Vector(implementsAssertion) ++ lit.pres ++ captAssertions
     lit match {
       case _: in.Function =>
-        val func = in.Function(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, None)(lit.info)
+        val func = in.Function(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, None)(spec.info)
         ctx.defaultEncoding.function(func)(ctx)
       case lit: in.FunctionLit =>
         val body = if (spec.params.isEmpty) lit.body else None
         val func = in.Function(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, body)(lit.info)
-        ctx.defaultEncoding.function(func)(ctx)
+        val res = ctx.defaultEncoding.function(func)(ctx)
+        res
       case _: in.PureFunction =>
-        val func = in.PureFunction(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, None)(lit.info)
+        val func = in.PureFunction(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, None)(spec.info)
         ctx.defaultEncoding.pureFunction(func)(ctx)
       case lit: in.PureFunctionLit =>
         val body = if (spec.params.isEmpty) lit.body else None

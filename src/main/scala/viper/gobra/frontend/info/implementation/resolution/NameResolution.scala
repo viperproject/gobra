@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.BuiltInMemberTag
+import viper.gobra.frontend.info.base.{BuiltInMemberTag, SymbolTable}
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag, BuiltInTypeTag}
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type.StructT
@@ -170,15 +170,28 @@ trait NameResolution { this: TypeInfoImpl =>
 
   private def addImplicitDefToEnv(env: Environment)(n: PScope): Environment = n match {
     case tree.parent.pair(_: PBlock, p: PClosureImplProof) =>
-      val ids = (entity(p.impl.spec.func) match {
-        case Function(decl, _, _) => decl.args ++ decl.result.outs
-        case Closure(lit, _, _) => lit.decl.decl.args ++ lit.decl.result.outs
-        case _ => Vector.empty
-      }).collect {
-        case PNamedParameter(id, _) => id
-        case PExplicitGhostParameter(PNamedParameter(id, _)) => id
+      val (fArgs, fRes, fBody) = resolve(p.impl.spec.func) match {
+        case Some(AstPattern.Function(_, f)) => (f.decl.args, f.decl.result.outs, f.decl.body)
+        case Some(AstPattern.Closure(_, c)) => (c.lit.decl.decl.args, c.lit.decl.result.outs, c.lit.decl.decl.body)
+        case _ => (Vector.empty, Vector.empty, None)
       }
-      addToEnv(env)(ids)
+      def canBeUsedAsShared(id: PIdnNode) = fBody.exists(_._1.shareableParameters.exists(_.name == id.name))
+      val ids = (fArgs.collect {
+        case p@PNamedParameter(id, _) =>
+          (id, SymbolTable.InParameter(p, ghost = false, addressable = canBeUsedAsShared(id), this))
+        case PExplicitGhostParameter(p@PNamedParameter(id, _)) =>
+          (id, SymbolTable.InParameter(p, ghost = true, addressable = canBeUsedAsShared(id), this))
+      }) ++ fRes.collect {
+        case p@PNamedParameter(id, _) =>
+          (id, SymbolTable.OutParameter(p, ghost = false, addressable = canBeUsedAsShared(id), this))
+        case PExplicitGhostParameter(p@PNamedParameter(id, _)) =>
+          (id, SymbolTable.OutParameter(p, ghost = true, addressable = canBeUsedAsShared(id), this))
+      }
+      val e = ids.foldLeft(env) {
+        case (e, (id, p)) =>
+          defineIfNew(e, serialize(id), MultipleEntity(), p)
+      }
+      e
     case _ => violation("this case should be unreachable")
   }
 
@@ -271,7 +284,8 @@ trait NameResolution { this: TypeInfoImpl =>
 
   private def addToEnv(env: Environment)(identifiers: Vector[PIdnDef]): Environment = {
     identifiers.foldLeft(env) {
-      case (e, id) => defineIfNew(e, serialize(id), MultipleEntity(), defEntity(id))
+      case (e, id) =>
+        defineIfNew(e, serialize(id), MultipleEntity(), defEntity(id))
     }
   }
 

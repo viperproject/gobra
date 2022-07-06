@@ -416,7 +416,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
       case PFunctionLit(decl) => showClosureNamedDecl(decl)
       case PInvoke(base, args) => showExprOrType(base) <> parens(showExprList(args))
-      case PCallWithSpec(base, args, spec) => showExprOrType(base) <> parens(showExprList(args)) <+> "as" <+> showMisc(spec)
+      case PCallWithSpec(base, args, spec) => parens(showExprOrType(base) <> parens(showExprList(args)) <+> "as" <+> showMisc(spec))
       case PIndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
 
       case PSliceExp(base, low, high, cap) => {
@@ -657,7 +657,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case closureDecl: PClosureDecl => showClosureNamedDecl(PClosureNamedDecl(None, closureDecl))
     case misc: PGhostMisc => misc match {
       case n: PClosureNamedDecl => showClosureNamedDecl(n)
-      case s: PClosureSpecInstance => showId(s.func) <> braces(ssep(s.params map showMisc, comma <> space))
+      case s: PClosureSpecInstance => showExprOrType(s.func) <> braces(ssep(s.params map showMisc, comma <> space))
       case PClosureSpecParameter(key, exp) => key match {
         case Some(key) => showMisc(key) <> colon <+> showExpr(exp)
         case None => showExpr(exp)

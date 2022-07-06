@@ -44,9 +44,9 @@ trait GhostAssignability {
 
   /** checks that ghost expressions are not assigned to non-ghost parameters  */
   private[separation] def ghostAssignableToSpecParams(spec: PClosureSpecInstance): Messages = {
-    val isPure = entity(spec.func) match {
-      case f: SymbolTable.Function => f.isPure
-      case c: SymbolTable.Closure => c.isPure
+    val isPure = resolve(spec.func) match {
+      case Some(ap.Function(_, f)) => f.isPure
+      case Some(ap.Closure(_, c)) => c.isPure
     }
     if (isPure) {return noMessages}
 
@@ -58,16 +58,18 @@ trait GhostAssignability {
 
   /** checks that ghost arguments are not assigned to non-ghost arguments in a call with spec  */
   private[separation] def ghostAssignableToCallWithSpec(call: PCallWithSpec): Messages = {
-    val isPure = entity(call.spec.func) match {
-      case f: SymbolTable.Function => f.isPure
-      case c: SymbolTable.Closure => c.isPure
+    val isPure = resolve(call.spec.func) match {
+      case Some(ap.Function(_, f)) => f.isPure
+      case Some(ap.Closure(_, c)) => c.isPure
     }
     if (isPure) {return noMessages}
 
     lazy val isGhostArg: PExpression => Boolean = {
       val paramIsGhost = tryEnclosingClosureImplementationProof(call)
-        .map(proof => entity(proof.impl.spec.func).asInstanceOf[SymbolTable.WithArguments with SymbolTable.WithResult])
-        .toVector.flatMap(f => f.args ++ f.result.outs).collect {
+        .map(proof => resolve(proof.impl.spec.func) match {
+          case Some(ap.Function(_, f)) => f
+          case Some(ap.Closure(_, c)) => c
+        }).toVector.flatMap(f => f.args ++ f.result.outs).collect {
         case PExplicitGhostParameter(PNamedParameter(id, _)) => id.name -> true
         case PNamedParameter(id, _) => id.name -> false
       }.toMap
@@ -216,9 +218,9 @@ trait GhostAssignability {
     def argTyping(args: Vector[PParameter], isMemberGhost: Boolean, context: ExternalTypeInfo): GhostType =
       GhostType.ghostTuple(args.map(p => isMemberGhost || context.isParamGhost(p)))
 
-    val (isMemberGhost, fArgs, context) = entity(spec.func) match {
-      case f: SymbolTable.Function => (f.ghost, f.args, f.context)
-      case c: SymbolTable.Closure => (c.ghost, c.args, c.context)
+    val (isMemberGhost, fArgs, context) = resolve(spec.func) match {
+      case Some(ap.Function(_, f)) => (f.ghost, f.args, f.context)
+      case Some(ap.Closure(_, c)) => (c.ghost, c.args, c.context)
     }
 
     if(spec.params.forall(_.key.isEmpty))

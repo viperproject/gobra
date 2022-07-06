@@ -12,6 +12,7 @@ import viper.gobra.frontend.info.base.SymbolTable.{ActualDataEntity, WithArgumen
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
+import viper.gobra.util.Violation
 
 import scala.annotation.tailrec
 
@@ -59,7 +60,11 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
   private def wellDefClosureImplProof(p: PClosureImplProof): Messages = {
     val PClosureImplProof(impl@PClosureImplements(closure, spec), b: PBlock) = p
 
-    val func = entity(spec.func).asInstanceOf[ActualDataEntity with WithArguments with WithResult]
+    val func = resolve(spec.func) match {
+      case Some(ap.Function(_, f)) => f
+      case Some(ap.Closure(_, c)) => c
+      case _ => Violation.violation(s"expected a function or closure, but got ${spec.func}")
+    }
 
     val specArgs = if (spec.params.forall(_.key.isEmpty)) func.args.drop(spec.params.size)
     else {

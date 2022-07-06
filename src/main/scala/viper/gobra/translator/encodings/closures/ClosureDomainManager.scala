@@ -1,12 +1,11 @@
 package viper.gobra.translator.encodings.closures
 
 import viper.gobra.translator.Names
-import viper.silver.ast.Member
 import viper.silver.{ast => vpr}
 
 class ClosureDomainManager(specs: ClosureSpecsManager) {
 
-  def finalize(addMemberFn: Member => Unit): Unit = {
+  def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     if (domainNeeded) {
       addMemberFn(vprDomain)
       addMemberFn(dfltFunction)

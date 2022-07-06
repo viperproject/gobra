@@ -70,8 +70,9 @@ trait Enclosing { this: TypeInfoImpl =>
     down[Option[PClosureImplProof]](None) { case m: PClosureImplProof => Some(m) }
 
   lazy val resultFromEnclosingScopeWithResult: PStatement => Option[PResult] = s => tryEnclosingClosureImplementationProof(s) match {
-    case Some(p) => entity(p.impl.spec.func) match {
-      case f: WithResult => Some(f.result)
+    case Some(p) => resolve(p.impl.spec.func) match {
+      case Some(ap.Function(_, f)) => Some(f.result)
+      case Some(ap.Closure(_, c)) => Some(c.result)
       case _ => None
     }
     case None => tryEnclosingCodeRootWithResult(s).map(_.result)

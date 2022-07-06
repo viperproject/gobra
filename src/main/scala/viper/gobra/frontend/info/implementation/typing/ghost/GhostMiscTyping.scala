@@ -24,10 +24,10 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefGhostMisc(misc: PGhostMisc) = misc match {
     case PClosureNamedDecl(id, PClosureDecl(args, _, _, _)) => wellDefVariadicArgs(args) ++
       id.fold(noMessages)(id => wellDefID(id).out)
-    case c@PClosureSpecInstance(id, _) => entity(id) match {
-      case f: SymbolTable.Function => wellDefClosureSpecInstanceParams(c, f.args)
-      case l: SymbolTable.Closure =>
-        if (c.params.isEmpty || capturedVariables(l.lit.decl.decl).isEmpty) wellDefClosureSpecInstanceParams(c, l.args)
+    case c@PClosureSpecInstance(id, _) => resolve(id) match {
+      case Some(ap.Function(_, f)) => wellDefClosureSpecInstanceParams(c, f.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
+      case Some(ap.Closure(_, l)) => if (c.params.isEmpty || capturedVariables(l.lit.decl.decl).isEmpty)
+        wellDefClosureSpecInstanceParams(c, l.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
         else error(c, s"function literal ${l.lit.decl.id.get} captures variables, so it cannot be used to derive a parametrized spec instance")
       case _ => error(id, s"identifier $id does not identify a user-defined function or function literal")
     }
@@ -152,12 +152,16 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def ghostMiscType(misc: PGhostMisc): Type = misc match {
     case PClosureNamedDecl(_, decl) => miscType(decl)
     case PClosureSpecInstance(func, params) =>
-      val fType = idType(func).asInstanceOf[FunctionT]
+      val fType = exprOrTypeType(func).asInstanceOf[FunctionT]
       if (params.forall(_.key.isEmpty)) fType.copy(args = fType.args.drop(params.size))
       else {
-        val f = entity(func).asInstanceOf[SymbolTable.Function]
+        val f = resolve(func) match {
+          case Some(ap.Function(_, f)) => f
+          case Some(ap.Closure(_, c)) => c
+          case _ => Violation.violation(s"expected a function or closure, but got $func")
+        }
         val paramSet = params.map(e => e.key.get.name).toSet
-        fType.copy(args = (f.decl.args zip fType.args).filter{
+        fType.copy(args = (f.args zip fType.args).filter{
           case (PNamedParameter(id, _), _) if paramSet.contains(id.name) => false
           case (PExplicitGhostParameter(PNamedParameter(id, _)), _) if paramSet.contains(id.name) => false
           case _ => true
@@ -209,21 +213,21 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p))
   }
 
-  private def wellDefClosureSpecInstanceParams(c: PClosureSpecInstance, fArgs: Vector[PParameter]): Messages = c match {
+  private def wellDefClosureSpecInstanceParams(c: PClosureSpecInstance, fArgs: Vector[(PParameter, Type)]): Messages = c match {
     case PClosureSpecInstance(fName, ps) if ps.size > fArgs.size =>
       error(c, s"spec instance $c has too many parameters (more than the arguments of function $fName)")
     case PClosureSpecInstance(_, ps) if ps.forall(_.key.isEmpty) =>
-      (ps zip fArgs) flatMap { case (p, a) => assignableTo.errors((exprType(p.exp), miscType(a)))(p.exp) }
+      (ps zip fArgs) flatMap { case (p, a) => assignableTo.errors((exprType(p.exp), a._2))(p.exp) }
     case PClosureSpecInstance(fName, ps) if ps.forall(_.key.nonEmpty) =>
-      val argsMap = fArgs.collect {
-        case a@PNamedParameter(id, _) => id.name -> a
-        case a@PExplicitGhostParameter(PNamedParameter(id, _)) => id.name -> a
+      val argsTypeMap = fArgs.collect {
+        case (PNamedParameter(id, _), t) => id.name -> t
+        case (PExplicitGhostParameter(PNamedParameter(id, _)), t) => id.name -> t
       }.toMap
       val wellDefIfNoDuplicateParams = (ps.map(_.key.get) foldLeft (Set[String](), noMessages)) {
         case ((seen, msg), k) => (seen + k.name, msg ++ (if (seen.contains(k.name)) error(k, s"duplicate parameter key $k") else noMessages))
       }._2
-      val wellDefIfCanAssignParams = ps flatMap { p => argsMap.get(p.key.get.name) match {
-        case Some(a: PParameter) => assignableTo.errors((exprType(p.exp), miscType(a)))(p.exp)
+      val wellDefIfCanAssignParams = ps flatMap { p => argsTypeMap.get(p.key.get.name) match {
+        case Some(t: Type) => assignableTo.errors((exprType(p.exp), t))(p.exp)
         case _ => error(p.key.get, s"could not find argument ${p.key.get} in the function $fName")
       }}
       wellDefIfNoDuplicateParams ++ wellDefIfCanAssignParams ++ c.params.flatMap(p => isPureExpr(p.exp))

@@ -257,9 +257,9 @@ object Desugar {
     }
 
     def closureSpecD(ctx: FunctionContext)(s: PClosureSpecInstance, context: TypeInfo): in.ClosureSpec = {
-      val (fArgs, proxy) = info.regular(s.func) match {
-        case st.Function(decl, _, _) => (decl.args, functionProxy(s.func, context))
-        case st.Closure(lit, _, _) => (lit.decl.decl.args, functionLitProxyD(s.func, context))
+      val (fArgs, proxy) = info.resolve(s.func) match {
+        case Some(ap.Function(id, symb)) => (symb.decl.args, functionProxy(id, context))
+        case Some(ap.Closure(id, symb)) => (symb.lit.decl.decl.args, functionLitProxyD(id, context))
         case _ => violation("expected function or function literal")
       }
       val paramsWithIdx = if (s.params.forall(_.key.isEmpty)) s.params.zipWithIndex.map {
@@ -1391,10 +1391,9 @@ object Desugar {
 
     def callWithSpecD(ctx: FunctionContext)(c: PCallWithSpec): Writer[in.Expr] = {
       val src = meta(c)
-      val func = info.regular(c.spec.func)
-      val (isPure, fParams, fRes) = func match {
-        case f@st.Function(_, _, _) => (f.isPure, f.args, f.result)
-        case c@st.Closure(_, _, _) => (c.isPure, c.args, c.result)
+      val (func, isPure, fParams, fRes) = info.resolve(c.spec.func) match {
+        case Some(ap.Function(_, f)) => (f, f.isPure, f.args, f.result)
+        case Some(ap.Closure(_, c)) => (c, c.isPure, c.args, c.result)
         case _ => violation("expected function or function literal")
       }
 
@@ -1531,24 +1530,6 @@ object Desugar {
                 convertedArgs = convertArgs(args)
                 fproxy = getFunctionProxy(base, convertedArgs)
               } yield Left((targets, in.FunctionCall(targets, fproxy, convertedArgs)(src)))
-            }
-
-          case c: ap.Closure =>
-            val idSrc = meta(c.id)
-            val proxy = in.FunctionLitProxy(idName(c.id))(idSrc)
-            val spec = in.ClosureSpec(proxy, Map.empty)(idSrc)
-            if (isPure) {
-              for {
-                closure <- closureObjectD(ctx)(info.codeRoot(c.id), c, src)
-                args <- dArgs
-                convertedArgs = convertArgs(args)
-              } yield Right(in.PureCallWithSpec(closure, convertedArgs, spec, resT)(src))
-            } else {
-              for {
-                closure <- closureObjectD(ctx)(info.codeRoot(c.id), c, src)
-                args <- dArgs
-                convertedArgs = convertArgs(args)
-              } yield Left((targets, in.CallWithSpec(targets, closure, convertedArgs, spec)(src)))
             }
 
           case iim: ap.ImplicitlyReceivedInterfaceMethod =>
@@ -1829,6 +1810,9 @@ object Desugar {
             case Some(_: ap.BuiltInType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
+            case Some(f: ap.Function) =>
+              val name = idName(f.id)
+              unit(in.FunctionObject(in.FunctionProxy(name)(src), typeD(info.typ(f.id), Addressability.rValue)(src))(src))
             case Some(m: ap.ReceivedMethod) =>
               for {
                 r <- exprD(ctx)(m.recv)
@@ -2219,30 +2203,38 @@ object Desugar {
       }
     }
 
-    def functionLitD(ctx: FunctionContext)(lit: PFunctionLit): (Writer[in.LocalVar], in.FunctionLit) = {
+    def functionLitD(ctx: FunctionContext)(lit: PFunctionLit): (Option[Writer[in.LocalVar]], in.FunctionLit) = {
       val funcInfo = functionMemberOrLitD(lit.decl.decl, meta(lit), ctx)
       val src = meta(lit)
       val name = functionLitProxyD(lit, info)
       val funcLit = in.FunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(src)
       val typ = typeD(info.typ(lit), Addressability.rValue)(src)
-      val localVar = for {
-        localVar <- declaredExclusiveVar(in.LocalVar(nm.alias(name.name, info.codeRoot(lit), info), typ)(meta(lit.decl.id.getOrElse(lit))))
-        _ <- write(singleAss(in.Assignee(localVar), funcLit)(src))
-      } yield localVar
-      (localVar, funcLit)
+      // If the enclosing function is pure, return the literal, else assign to a variable and return it
+      if (info.enclosingFunction(lit).get.spec.isPure) (None, funcLit)
+      else {
+        val localVar = for {
+          localVar <- declaredExclusiveVar(in.LocalVar(nm.alias(name.name, info.codeRoot(lit), info), typ)(meta(lit.decl.id.getOrElse(lit))))
+          _ <- write(singleAss(in.Assignee(localVar), funcLit)(src))
+        } yield localVar
+        (Some(localVar), funcLit)
+      }
     }
 
-    def pureFunctionLitD(ctx: FunctionContext)(lit: PFunctionLit): (Writer[in.LocalVar], in.PureFunctionLit) = {
+    def pureFunctionLitD(ctx: FunctionContext)(lit: PFunctionLit): (Option[Writer[in.LocalVar]], in.PureFunctionLit) = {
       val funcInfo = pureFunctionMemberOrLitD(lit.decl.decl, meta(lit), ctx)
       val src = meta(lit)
       val name = functionLitProxyD(lit, info)
       val funcLit = in.PureFunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit))
       val typ = typeD(info.typ(lit), Addressability.rValue)(src)
-      val localVar = for {
-        localVar <- declaredExclusiveVar(in.LocalVar(nm.alias(name.name, info.codeRoot(lit), info), typ)(meta(lit.decl.id.getOrElse(lit))))
-        _ <- write(singleAss(in.Assignee(localVar), funcLit)(src))
-      } yield localVar
-      (localVar, funcLit)
+      // If the enclosing function is pure, return the literal, else assign to a variable and return it
+      if (info.enclosingFunction(lit).get.spec.isPure) (None, funcLit)
+      else {
+        val localVar = for {
+          localVar <- declaredExclusiveVar(in.LocalVar(nm.alias(name.name, info.codeRoot(lit), info), typ)(meta(lit.decl.id.getOrElse(lit))))
+          _ <- write(singleAss(in.Assignee(localVar), funcLit)(src))
+        } yield localVar
+        (Some(localVar), funcLit)
+      }
     }
 
     def capturedVarD(v: PIdnNode): (in.Parameter.In, in.LocalVar) = {
@@ -2672,12 +2664,17 @@ object Desugar {
     }
 
     /** Desugar the function literal and add it to the map.
-      * Each literal is assigned to a local variable, which is returned, and saved in a separate, internal map. */
-    private def registerFunctionLit(lit: PFunctionLit)(ctx: FunctionContext): Writer[in.LocalVar] = {
+      * If the enclosing function is not pure, each literal is assigned to a local variable, which is returned,
+      * and saved in a separate, internal map. */
+    private def registerFunctionLit(lit: PFunctionLit)(ctx: FunctionContext): Writer[in.Expr] = {
       val (localVar, fLit) = if (lit.decl.decl.spec.isPure) pureFunctionLitD(ctx)(lit) else functionLitD(ctx)(lit)
       definedFuncLiterals += fLit.name -> fLit
-      functionLitProxyToLocalVar += fLit.name -> localVar.res
-      localVar
+      if (localVar.isEmpty) {
+        unit(fLit)
+      } else {
+        functionLitProxyToLocalVar += fLit.name -> localVar.get.res
+        localVar.get
+      }
     }
     private var functionLitProxyToLocalVar: Map[in.FunctionLitProxy, in.LocalVar] = Map.empty
 
@@ -3021,7 +3018,11 @@ object Desugar {
         in.LocalVar(nm.fresh(proof, info), typ)(src)
       }
 
-      val func = info.regular(proof.impl.spec.func).asInstanceOf[st.WithArguments with st.WithResult]
+      val func = info.resolve(proof.impl.spec.func) match {
+        case Some(ap.Function(_, f)) => f
+        case Some(ap.Closure(_, c)) => c
+        case _ => violation("expected function member or literal")
+      }
       val argSubs = func.args map localVarFromParam
       val retSubs = func.result.outs map localVarFromParam
 

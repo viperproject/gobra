@@ -8,7 +8,7 @@ package viper.gobra.reporting
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.relation.NodeNotInTreeException
-import viper.gobra.ast.frontend.{PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor}
+import viper.gobra.ast.frontend.{PClosureDecl, PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor}
 import viper.gobra.ast.internal.BuiltInMember
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.{Info, TypeInfo}
@@ -349,6 +349,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
           isAbstractAndNotImported = false,
           isImported,
           isBuiltIn)
+      // Consider the enclosing function, for closure declarations
+      case p: PClosureDecl => getMemberInformation(nodeTypeInfo.enclosingFunction(p).get, typeInfo, viperMember)
       // Fallback to the node's code root if we can't match the node
       case p: PNode => getMemberInformation(nodeTypeInfo.codeRoot(p), typeInfo, viperMember)
     }

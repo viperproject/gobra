@@ -286,6 +286,11 @@ case class GeneratedImplementationProofError(subT: String, superT: String, error
   }
 }
 
+case class SpecImplementationPostconditionError(info: Source.Verifier.Info, specName: String) extends VerificationError {
+  override def localId: String = "spec_implementation_post_error"
+  override def localMessage: String = s"Postcondition of spec $specName might not hold"
+}
+
 case class ChannelReceiveError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "receive_error"
   override def localMessage: String = s"The receive expression ${info.trySrc[PReceive](" ")}might fail"

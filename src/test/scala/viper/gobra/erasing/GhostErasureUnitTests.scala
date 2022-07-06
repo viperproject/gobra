@@ -219,6 +219,82 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.testProg(input, expected)
   }
 
+  test("Ghost Erasure: spec of a function literal should be erased") {
+    val input =
+      s"""
+         |package pkg
+         |func main() {
+         |  x@ := 0
+         |  c := preserves acc(&x)
+         |       func() int { return x }
+         |}
+         |""".stripMargin
+    val expected =
+      s"""
+         |package pkg
+         |func main() {
+         |  x := 0
+         |  c := func() int { return x }
+         |}
+         |""".stripMargin
+    frontend.testProg(input, expected)
+  }
+
+  test("Ghost Erasure: name of a function literal should be erased") {
+    val input =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func f() int { return 42 }
+         |}
+         |""".stripMargin
+    val expected =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func() int { return 42 }
+         |}
+         |""".stripMargin
+    frontend.testProg(input, expected)
+  }
+
+  test("Ghost Erasure: ghost arguments of a function literal should be erased") {
+    val input =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func f(ghost a int) int { return 42 }
+         |}
+         |""".stripMargin
+    val expected =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func() int { return 42 }
+         |}
+         |""".stripMargin
+    frontend.testProg(input, expected)
+  }
+
+  test("Ghost Erasure: spec should be erased from closure calls") {
+    val input =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func f() int { return 42 }
+         |  c() as f
+         |}
+         |""".stripMargin
+    val expected =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func() int { return 42 }
+         |  c()
+         |}
+         |""".stripMargin
+    frontend.testProg(input, expected)
+  }
 
   /* ** Stubs, mocks, and other test setup  */
 

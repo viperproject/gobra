@@ -189,10 +189,12 @@ class TypeComponentImpl extends TypeComponent {
     * }
     */
   private def genPreciseEqualityAxioms(typeHead: TypeHead, args: Vector[vpr.Type])(ctx: Context): Unit = {
-    if (args.nonEmpty && !preciseTypes.contains(typeHead)) {
-      preciseTypes += typeHead
 
-      val name = serialize(typeHead)
+    val name = serialize(typeHead)
+
+    if (args.nonEmpty && !preciseTypes.contains(name)) {
+      preciseTypes += name
+
 
       val funArgDecl = vpr.LocalVarDecl("t", domainType)()
       val getterVarDecls = args.zipWithIndex map {
@@ -223,7 +225,9 @@ class TypeComponentImpl extends TypeComponent {
       genAxioms ::= axiom
     }
   }
-  private var preciseTypes: Set[TypeHead] = Set.empty
+
+  // Set of serialized type names of types (which guarantees that type synonyms are serialized to the same value).
+  private var preciseTypes: Set[String] = Set.empty
 
 
   /**
@@ -256,11 +260,11 @@ class TypeComponentImpl extends TypeComponent {
     */
   private def genTypeFunc(typeHead: TypeHead, args: Vector[vpr.Type])(ctx: Context): vpr.DomainFunc = {
 
-    if (genTypesMap.contains(typeHead)) {
-      genTypesMap(typeHead)
+    val name = serialize(typeHead)
+    if (genTypesMap.contains(name)) {
+      genTypesMap(name)
     } else {
 
-      val name = serialize(typeHead)
       val varsDecl = args.zipWithIndex.map{ case(t,i) => vpr.LocalVarDecl(s"p$i", t)() }
       val vars = varsDecl map (_.localVar)
 
@@ -315,12 +319,14 @@ class TypeComponentImpl extends TypeComponent {
       genAxioms ::= comparableAxiom
       genBehavioralSubtypeAxioms(ctx)
 
-      genTypesMap += (typeHead -> func)
+      genTypesMap += (name -> func)
 
       func
     }
   }
-  private var genTypesMap: Map[TypeHead, vpr.DomainFunc] = Map.empty
+
+  // Maps serialized type names (which guarantees that type synonyms are serialized to the same value) to DomainFunc.
+  private var genTypesMap: Map[String, vpr.DomainFunc] = Map.empty
 
   /** Type of viper expressions encoding Gobra types.  */
   override def typ()(ctx: Context): vpr.Type = domainType

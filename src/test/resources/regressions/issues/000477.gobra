@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue477
+
+type Pair struct {
+  L, R int
+}
+
+type Wrapper struct {
+  Ps []Pair
+}
+
+func main() {
+  w := &Wrapper{
+    Ps: []Pair{
+      {
+        L: 0,
+        R: 1,
+      },
+    },
+  }
+}

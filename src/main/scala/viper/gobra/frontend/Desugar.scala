@@ -41,15 +41,6 @@ object Desugar {
     // desugar the main package, i.e. the package on which verification is performed:
     val mainDesugarer = new Desugarer(pkg.positions, info)
     mainDesugarer.registerPackage(pkg) // registers pkg to verify its initialization code
-    // TODO document or remove
-    /*
-    mainDesugarer.initSourceToProgram(pkg)
-    mainDesugarer.generateInitObligations()
-    mainDesugarer.registerFilePres(pkg)
-    mainDesugarer.registerFilePosts(pkg)
-
-     */
-
     // combine all desugared results into one Viper program:
     val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
     config.reporter report DesugaredMessage(config.packageInfoInputMap(pkg.info).map(_.name), () => internalProgram)
@@ -358,7 +349,10 @@ object Desugar {
     def packageD(p: PPackage, shouldDesugar: PMember => Boolean = _ => true): in.Program = {
       val consideredDecls = p.declarations.collect { case m@NoGhost(x: PMember) if shouldDesugar(x) => m }
       val dMembers = consideredDecls.flatMap{
-        case NoGhost(x: PGlobalVarDecl) => Vector.empty // Vector(registerGlobalVar(x)) // TODO: make this return empty, handle this in init code? DOC!
+        case NoGhost(_: PGlobalVarDecl) =>
+          // Global Variable Declarations are not handled here. Instead, they are handled together with the
+          // rest of the initialization code in the containing file.
+          Vector.empty
         case NoGhost(x: PConstDecl) => constDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
         case NoGhost(x: PFunctionDecl) => Vector(registerFunction(x))
@@ -2404,105 +2398,6 @@ object Desugar {
     }
     var implementationProofPredicateAliases: Map[(in.Type, in.InterfaceT, String), in.FPredicateProxy] = Map.empty
 
-
-    /*
-    // TODO: guarantee that this state is not deleted after combining two desugarers
-    // TODO: put this in object
-    private var _globalDecls: Map[Source, Vector[in.GlobalVarDecl]] = Map.empty
-    private var _filePres: Map[Source, Vector[in.Assertion]] = Map.empty
-    private var _filePost: Map[Source, Vector[in.Assertion]] = Map.empty
-    private var _sourceToPProgram: Map[Source, PProgram] = Map.empty
-    // TODO: later
-    // private var _initBlocks: Map[Source, Vector[in.Method]] = Map.empty
-    // TODO: register a ppackage instead of globals?
-    def registerGlobalVar(decl: PGlobalVarDecl): in.GlobalVarDecl = {
-      /*
-      -  // TODO:
--  // separate globals per file,
--  // get spec per file
--  // inline inits in initialization code per file and remove from the program
--  // sort vars per decl order and **dependency order** (dependency is the hardest)
-       */
-      val source = pom.positions.getStart(decl) match {
-        case Some(l) => l.source
-        case None => ??? // TODO: violation
-      }
-      // TODO: make optional
-      val declD = globalVarDeclD(decl)
-      // TODO: syntactic shorthands
-      // TODO: order by dependency and declaration order
-      _globalDecls = _globalDecls.updated(source, declD +: _globalDecls.getOrElse(source, Vector.empty))
-      declD
-    }
-
-    def registerFilePres(p: PPackage): Unit = {
-      p.programs.foreach { p =>
-        val source = pom.positions.getStart(p.programSpec) match {
-          case Some(l) => l.source
-          case None => ??? // TODO: violation
-        }
-        p.imports.foreach { i =>
-          val pres = i.importSpec.pres.map(specificationD(FunctionContext.empty(meta(p, info))))
-          _filePres = _filePres.updated(source, pres ++ _filePres.getOrElse(source, Vector.empty))
-        }
-      }
-    }
-
-    def initSourceToProgram(p: PPackage): Unit = {
-      _sourceToPProgram = p.programs.map(prog => pom.positions.getStart(prog).get.source -> prog).toMap;
-      //println(s"${_sourceToPProgram}")
-    }
-
-    def registerFilePosts(p: PPackage): Unit = {
-      p.programs.foreach { p =>
-        val source = pom.positions.getStart(p.programSpec) match {
-          case Some(l) => l.source
-          case None => ??? // TODO: violation
-        }
-        val posts = p.programSpec.posts.map(specificationD(FunctionContext.empty(meta(p, info))))
-        _filePost = _filePost.updated(source, posts ++ _filePost.getOrElse(source, Vector.empty))
-      }
-      println(s"filePost: ${_filePost}")
-    }
-
-    // TODO: doc
-    def generateInitObligations(): Unit = {
-      // TODO: check that all imports together are implied by post of the package, right now we just check ...
-      val sources = _sourceToPProgram.keys.toVector
-      println(s"sources: $sources")
-      sources.foreach { source =>
-        AdditionalMembers.addFinalizingComputation { case () =>
-          val src = meta(_sourceToPProgram(source), info)
-          val checkInitOfFile = in.Function(
-            name = in.FunctionProxy("initzao")(src), // TODO Generate uniq names (e.g., hash of the file
-            args = Vector(),
-            results = Vector(),
-            pres = _filePres(source),
-            posts = _filePost(source),
-            terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)), // TODO: src must be the original PProgram
-            // TODO: inhale all perms to globals defined here, init var in dependency/decl order, execute body of inits
-            body = None /*Some(
-              in.MethodBody(
-                ???,
-                ???,
-                ???
-              )(???)
-            )
-           */
-          )(src)
-          AdditionalMembers.addMember(checkInitOfFile)
-        }
-      }
-    }
-
-    //TODO: later
-    // def registerInitBlock
-     */
-
-    def registerGlobalVar(decl: PGlobalVarDecl): in.GlobalVarDecl = {
-      globalVarDeclD(decl)
-    }
-
     def registerPackage(pkg: PPackage): Unit = {
       // For each file in the program, generate the proof obligations for that file.
       // The init code of two different files in the same package must not interfere.
@@ -2521,13 +2416,11 @@ object Desugar {
           p.imports.flatMap(_.importSpec.pres).map(specificationD(FunctionContext.empty(src))(_))
         val progPosts: Vector[in.Assertion] =
           p.programSpec.posts.map(specificationD(FunctionContext.empty(src))(_))
-        val pGlobalDecls: Vector[PGlobalVarDecl] =
-          for {
-            decl <- p.declarations if decl.isInstanceOf[PGlobalVarDecl]
-          } yield decl.asInstanceOf[PGlobalVarDecl]
+        val pGlobalDecls: Vector[PGlobalVarDecl] = p.declarations.collect{ case d: PGlobalVarDecl => d }
         val globalDecls: Vector[in.GlobalVarDecl] = pGlobalDecls map globalVarDeclD
-        // TODO: explain this
+        // register all global variable declarations
         globalDecls foreach AdditionalMembers.addMember
+
 
         in.Function(
           name = funcProxy,
@@ -2542,21 +2435,23 @@ object Desugar {
           body = Some(
             in.MethodBody(
               decls = Vector(),
-              seqn = in.MethodBodySeqn(
+              seqn = in.MethodBodySeqn {
                 // inhale access to all global variables declared in the FILE
-                globalDecls.flatMap(_.left.map(global =>
-                  in.Inhale(
-                    in.Access(
-                      in.Accessible.Address(global),
-                      in.FullPerm(global.info)
-                    )(global.info)
-                  )(global.info)
-                ))/* ++
-                Vector(
-                  ??? // TODO: continue here
-                )
-                */
-              )(src),
+                val accDeclaredGlobs: Vector[in.Inhale] = globalDecls.flatMap(_.left.map(gVar =>
+                  in.Inhale(in.Access(in.Accessible.Address(gVar), in.FullPerm(gVar.info))(gVar.info))(gVar.info)
+                ))
+                // execute the declaration statements for variables in order of declaration, while satisfying the
+                // dependency relation
+                // TODO
+                /*
+                val declarationsInOrder = {
+                  ???
+                }
+                 */
+                // execute all inits in the order they occur
+                // TODO
+                accDeclaredGlobs
+              }(src),
               postprocessing = Vector()
             )(src)
           )
@@ -2596,12 +2491,6 @@ object Desugar {
       val fPred = fpredicateD(decl)
       definedFPredicates += fPredProxy -> fPred
       fPred
-    }
-
-    def embeddedTypeD(t: PEmbeddedType, addrMod: Addressability)(src: Meta): in.Type = t match {
-      case PEmbeddedName(typ) => typeD(info.symbType(typ), addrMod)(src)
-      case PEmbeddedPointer(typ) =>
-        registerType(in.PointerT(typeD(info.symbType(typ), Addressability.pointerBase)(src), addrMod))
     }
 
     def typeD(t: Type, addrMod: Addressability)(src: Source.Parser.Info): in.Type = t match {

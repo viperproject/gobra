@@ -7,18 +7,24 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
-import viper.gobra.ast.frontend.{PFunctionSpec, PProgram}
+import viper.gobra.ast.frontend.{PFunctionSpec, PGlobalVarDecl, PProgram}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefProgram: WellDefinedness[PProgram] = createWellDef {
-    case PProgram(_, spec, _, _) => isValidProgramSpec(spec)
+    case PProgram(_, spec, _, members) =>
+      val globalDecls = members.collect{ case d: PGlobalVarDecl => d }
+      /* noDynamicBoundCalls(globalDecls) ++*/ isValidProgramSpec(spec)
   }
 
   private def isValidProgramSpec: PFunctionSpec => Messages = {
     case s@ PFunctionSpec(pres, preserves, _, terminationMeasures, isPure, isTrusted) =>
       val validCond = pres.isEmpty && preserves.isEmpty && terminationMeasures.isEmpty && !isPure && !isTrusted
       error(s, s"Only postconditions can be specified in package specifications", !validCond)
+  }
+
+  private def noDynamicBoundCalls: Vector[PGlobalVarDecl] => Messages = {
+    ???
   }
 }

@@ -745,16 +745,6 @@ object ViperChopper {
     }
 
     /**
-      * Decides whether a graph is acyclic using Tarjan's algorithm.
-      * @param nodes Nodes of the graph.
-      * @param edges Edges of the graph.
-      * @return Bool indicating whether graph is acyclic.
-      * */
-    def isAcylic[T](nodes: Seq[T], edges: Seq[Edge[T]]): Boolean = {
-      components(nodes, edges).forall(_.nodes.toVector.length == 1)
-    }
-
-    /**
       * Computes the strongly connected components of a graph using Tarjan's algorithm.
       * @param nodes Nodes of the graph.
       * @param edges Edges of the graph.

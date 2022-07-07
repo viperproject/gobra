@@ -3422,7 +3422,7 @@ object Desugar {
         case Some(v) => Names.hash(v.source.toPath.toString)
         case None => Violation.violation(s"could not find the start position of $p")
       }
-      topLevelName(PROGRAM_INIT_CODE_PREFIX)(progName, context)
+      topLevelName(progName)(PROGRAM_INIT_CODE_PREFIX, context)
     }
     def variable(n: String, s: PScope, context: ExternalTypeInfo): String = name(VARIABLE_PREFIX)(n, s, context)
     def global  (n: String, context: ExternalTypeInfo): String = topLevelName(GLOBAL_PREFIX)(n, context)

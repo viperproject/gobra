@@ -2054,6 +2054,8 @@ object Desugar {
     }
 
     def compositeValD(ctx : FunctionContext)(expr : PCompositeVal, typ : in.Type) : Writer[in.Expr] = {
+      violation(typ.addressability.isExclusive, s"Literals always have exclusive types, but got $typ")
+
       val e = expr match {
         case PExpCompositeVal(e) => exprD(ctx)(e)
         case PLitCompositeVal(lit) => literalValD(ctx)(lit, typ)
@@ -2062,6 +2064,8 @@ object Desugar {
     }
 
     def literalValD(ctx: FunctionContext)(lit: PLiteralValue, t: in.Type): Writer[in.CompositeLit] = {
+      violation(t.addressability.isExclusive, s"Literals always have exclusive types, but got $t")
+
       val src = meta(lit)
 
       compositeTypeD(t) match {
@@ -2113,7 +2117,7 @@ object Desugar {
 
         case CompositeKind.Slice(in.SliceT(typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ))) }
+          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ.withAddressability(Addressability.Exclusive)))) }
             yield in.SliceLit(typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
 
         case CompositeKind.Sequence(in.SequenceT(typ, _)) => for {
@@ -2141,6 +2145,9 @@ object Desugar {
     }
 
     private def handleMapEntries(ctx: FunctionContext)(lit: PLiteralValue, keys: in.Type, values: in.Type): Writer[Seq[(in.Expr, in.Expr)]] = {
+      violation(keys.addressability.isExclusive, s"Map literal keys always have exclusive types, but got $keys")
+      violation(values.addressability.isExclusive, s"Map literal values always have exclusive types, but got $values")
+
       sequence(
         lit.elems map {
           case PKeyedElement(Some(key), value) => for {
@@ -2180,11 +2187,24 @@ object Desugar {
       // this type was declared in the current package
       val name = nm.typ(t.decl.left.name, t.context)
 
-      if (!definedTypesSet.contains(name, addrMod)) {
-        definedTypesSet += ((name, addrMod))
-        val newEntry = typeD(t.context.symbType(t.decl.right), Addressability.underlying(addrMod))(src)
-        definedTypes += (name, addrMod) -> newEntry
+      def register(addrMod: Addressability): Unit = {
+        if (!definedTypesSet.contains(name, addrMod)) {
+          definedTypesSet += ((name, addrMod))
+          val newEntry = typeD(t.context.symbType(t.decl.right), Addressability.underlying(addrMod))(src)
+          definedTypes += (name, addrMod) -> newEntry
+        }
       }
+
+      val invAddrMod = addrMod match {
+        case Addressability.Exclusive => Addressability.Shared
+        case Addressability.Shared => Addressability.Exclusive
+      }
+
+      register(addrMod)
+
+      // [[underlyingType(in.Type)]] assumes that the RHS of a type declaration is in `definedTypes`
+      // if the corresponding type declaration was translated. This is necessary to avoid cycles in the translation.
+      register(invAddrMod)
 
       in.DefinedT(name, addrMod)
     }

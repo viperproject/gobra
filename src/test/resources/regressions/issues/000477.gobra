@@ -3,8 +3,14 @@
 
 package issue477
 
+func main2() {
+    var x@ [5][4]int
+    var s [][4]int = x[:]
+}
+
 type Pair struct {
-  L, R int
+    L, R int
+    Ws []Wrapper
 }
 
 type Wrapper struct {

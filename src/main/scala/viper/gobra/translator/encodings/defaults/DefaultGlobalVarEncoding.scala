@@ -13,6 +13,7 @@ import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.util.ViperWriter.MemberLevel.unit
 import viper.gobra.translator.util.ViperWriter.MemberWriter
 import viper.silver.{ast => vpr}
+import viper.silver.plugin.standard.termination
 
 class DefaultGlobalVarEncoding extends Encoding {
   // TODO: move expressions here
@@ -26,6 +27,7 @@ class DefaultGlobalVarEncoding extends Encoding {
     // TODO: improve doc, draw the encoding
     // global variable declarations are encoded as pure functions that return a pointer
     // to the variable
+    val termMeasure = synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
     unit(
       decl.left map { l =>
         val (pos, info, errTrafo) = l.vprMeta
@@ -34,7 +36,7 @@ class DefaultGlobalVarEncoding extends Encoding {
           name = l.name.uniqueName,
           formalArgs = Seq.empty,
           typ = typ,
-          pres = Seq.empty,
+          pres = Seq(termMeasure),
           posts = Seq.empty,
           body = None
         )(pos, info, errTrafo)

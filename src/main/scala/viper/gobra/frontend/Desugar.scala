@@ -6,6 +6,7 @@
 
 package viper.gobra.frontend
 
+import org.bitbucket.inkytonik.kiama.util.Entity
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.Source.TransformableSource
@@ -355,7 +356,7 @@ object Desugar {
           Vector.empty
         case NoGhost(x: PConstDecl) => constDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
-        case NoGhost(x: PFunctionDecl) => Vector(registerFunction(x))
+        case NoGhost(x: PFunctionDecl) => registerFunction(x)
         case x: PMPredicateDecl => Vector(registerMPredicate(x))
         case x: PFPredicateDecl => Vector(registerFPredicate(x))
         case x: PImplementationProof => registerImplementationProof(x); Vector.empty
@@ -2416,11 +2417,39 @@ object Desugar {
           p.imports.flatMap(_.importSpec.pres).map(specificationD(FunctionContext.empty(src))(_))
         val progPosts: Vector[in.Assertion] =
           p.programSpec.posts.map(specificationD(FunctionContext.empty(src))(_))
-        val pGlobalDecls: Vector[PGlobalVarDecl] = p.declarations.collect{ case d: PGlobalVarDecl => d }
+        val pGlobalDecls: Vector[PGlobalVarDecl] = {
+          val unsortedDecls = p.declarations.collect{ case d: PGlobalVarDecl => d }
+          // sort declarations by the order in which they appear in the program
+          unsortedDecls.sortBy{ decl =>
+            pom.positions.getStart(decl) match {
+              case Some(pos) => (pos.line, pos.column)
+              case None => violation(s"Could not find the position information of node $decl.")
+            }
+          }
+        }
         val globalDecls: Vector[in.GlobalVarDecl] = pGlobalDecls map globalVarDeclD
         // register all global variable declarations
         globalDecls foreach AdditionalMembers.addMember
 
+        // TODO: doc this check, explain the goal
+        {
+          var visitedGlobals = Vector.empty[Entity]
+          pGlobalDecls foreach { decl =>
+            decl.left.foreach { id =>
+              info.regular(id) match {
+                case g: st.GlobalVariable =>
+                  // println(s"Visiting global $g")
+                  // println(s"Dependencies of $g: ${info.dependenciesOfGlobal(g)}")
+                  // println(s"Visited so far: $visitedGlobals")
+                  Violation.violation(info.dependenciesOfGlobal(g).forall(visitedGlobals.contains), "Gobra does not currently support vars bla bla") // TODO
+                  visitedGlobals :+= g
+                  // println(s"Updated visited: $visitedGlobals")
+                case _: st.Wildcard => ???
+                case _ => ??? // TODO violation
+              }
+            }
+          }
+        }
 
         in.Function(
           name = funcProxy,
@@ -2431,7 +2460,7 @@ object Desugar {
           // exhales all postconditions in the current file
           posts = progPosts,
           // in our verification approach, the initialization code must be proven to terminate
-          terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)),
+          terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)), // TODO: better error message
           body = Some(
             in.MethodBody(
               decls = Vector(),
@@ -2442,15 +2471,40 @@ object Desugar {
                 ))
                 // execute the declaration statements for variables in order of declaration, while satisfying the
                 // dependency relation
-                // TODO
-                /*
-                val declarationsInOrder = {
-                  ???
+                val declarationsInOrder: Vector[in.Stmt] = {
+                  // TODO: deal with wildcards
+                  globalDecls.flatMap { decl =>
+                    // TODO: use AssignMode instead
+                    violation(decl.left.length == decl.right.length || decl.right.isEmpty || decl.right.length == 1, "Expected bla bla") // TODO
+                    // TODO: enforce these invariants
+                    if (decl.right.isEmpty) {
+                      Vector(in.Block(decl.decls, decl.left.map(l => in.SingleAss(in.Assignee.Var(l), in.DfltVal(l.typ.withAddressability(Addressability.Exclusive))(src))(src)))(src))
+                    } else if (decl.right.length == 1 && decl.right.length != decl.left.length) {
+                      // Must be a tuple
+                      decl.right match {
+                        case Vector(t: in.Tuple) =>
+                          violation(t.args.length == decl.left.length, "Expected same length")
+                          Vector(
+                            in.Block(decl.decls, decl.stmts ++ (decl.left.zip(t.args).map{ case (l, r) => in.SingleAss(in.Assignee.Var(l), r)(src) }))(src)
+                          )
+                        case o => ??? // println(s"o: $o"); println(s"left: ${decl.left}, right: ${decl.right}");???
+                      }
+                    } else {
+                      Vector(in.Block(decl.decls, decl.stmts ++ (decl.left.zip(decl.right).map{ case (l, r) => in.SingleAss(in.Assignee.Var(l), r)(src) }))(src))
+                    }
+                  }
                 }
-                 */
                 // execute all inits in the order they occur
-                // TODO
-                accDeclaredGlobs
+                // TODO: at the moment, there exists at most one init, but this should change in the future
+                val initBlocks = p.declarations.collect{
+                  case x: PFunctionDecl if x.id.name == "init" =>
+                    // TODO: put "init" in a const
+                    x
+                }
+                // The limitations are in the type checker
+                violation(initBlocks.length <= 1, "at most one init block is supported right now")
+                val initCode: Vector[in.Stmt] = initBlocks.flatMap(b => b.body.toVector.map(_._2).map(blockD(FunctionContext.empty(src))))
+                accDeclaredGlobs ++ declarationsInOrder ++ initCode
               }(src),
               postprocessing = Vector()
             )(src)
@@ -2472,11 +2526,17 @@ object Desugar {
       method
     }
 
-    def registerFunction(decl: PFunctionDecl): in.FunctionMember = {
-      val function = functionD(decl)
-      val functionProxy = functionProxyD(decl, info)
-      definedFunctions += functionProxy -> function
-      function
+    def registerFunction(decl: PFunctionDecl): Vector[in.FunctionMember] = {
+      // TODO: make a const for "init"
+      if(decl.id.name == "init") {
+        // init blocks are handled in
+        Vector()
+      } else {
+        val function = functionD(decl)
+        val functionProxy = functionProxyD(decl, info)
+        definedFunctions += functionProxy -> function
+        Vector(function)
+      }
     }
 
     def registerMPredicate(decl: PMPredicateDecl): in.MPredicate = {

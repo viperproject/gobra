@@ -107,7 +107,13 @@ object SymbolTable extends Environments[Entity] {
   }
 
   // TODO: cleanup params
-  case class SingleGlobalVariable(decl: PGlobalVarDecl, idx: Int, expOpt: Option[PExpression], typOpt: Option[PType], ghost: Boolean, context: ExternalTypeInfo) extends ActualVariable with GlobalVariable {
+  case class SingleGlobalVariable(override val decl: PGlobalVarDecl,
+                                  idx: Int,
+                                  override val expOpt: Option[PExpression],
+                                  override val typOpt: Option[PType],
+                                  override val ghost: Boolean,
+                                  override val context: ExternalTypeInfo
+                                 ) extends ActualVariable with GlobalVariable {
     require(expOpt.isDefined || typOpt.isDefined)
     require(0 <= idx && idx < decl.left.length)
     override def rep: PNode = decl
@@ -116,7 +122,13 @@ object SymbolTable extends Environments[Entity] {
   }
 
   // TODO: cleanup params
-  case class MultiGlobalVariable(decl: PGlobalVarDecl, idx: Int, expOpt: Option[PExpression], typOpt: Option[PType], ghost: Boolean, context: ExternalTypeInfo) extends ActualVariable with GlobalVariable {
+  case class MultiGlobalVariable(override val decl: PGlobalVarDecl,
+                                 idx: Int,
+                                 override val expOpt: Option[PExpression],
+                                 override val typOpt: Option[PType],
+                                 override val ghost: Boolean,
+                                 override val context: ExternalTypeInfo
+                                ) extends ActualVariable with GlobalVariable {
     require(expOpt.isDefined || typOpt.isDefined)
     require(0 <= idx && idx < decl.left.length)
     override def rep: PNode = decl

@@ -89,6 +89,8 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   override def enclosingLoopNode(n: PNode) : Option[PForStmt] = enclosingLoopUntilOutline(n).toOption
 
+  override def dependenciesOfGlobal(n: Regular): Vector[Regular] = samePackageDependenciesGlobals(n)
+
   override def regular(n: PIdnNode): SymbolTable.Regular = entity(n) match {
     case r: Regular => r
     case _ => violation("found non-regular entity")

@@ -23,6 +23,7 @@ trait TypeInfo extends ExternalTypeInfo {
 
   def tree: Tree[PNode, PPackage]
 
+  def dependenciesOfGlobal(n: Regular): Vector[Regular]
   def regular(n: PIdnNode): Regular
 
   def isDef(n: PIdnUnk): Boolean

@@ -2278,28 +2278,6 @@ object Desugar {
           definedMethods += (proxy -> mem)
           AdditionalMembers.addMember(mem)
         }
-
-        embeddedMethods foreach { case (m, mInfo) =>
-          val src = meta(m, mInfo)
-          val recv = implicitThisD(itfT)(src)
-          val proxy = membeddedMethodProxyD(m, t, mInfo)
-          val argsWithSubs = m.args.zipWithIndex map { case (p,i) => inParameterD(p,i,mInfo) }
-          val (args, _) = argsWithSubs.unzip
-          val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i,mInfo) }
-          val (returns, _) = returnsWithSubs.unzip
-          val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
-          val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx)
-          val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx)
-          val terminationMeasures = sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx)).res
-
-          val mem = if (m.spec.isPure) {
-            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
-          } else {
-            in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
-          }
-          definedMethods += (proxy -> mem)
-          AdditionalMembers.addMember(mem)
-        }
       }
     }
     var registeredInterfaces: Set[String] = Set.empty

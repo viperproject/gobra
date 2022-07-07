@@ -703,8 +703,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     val itfT = p.receiver.typ.asInstanceOf[in.InterfaceT]
     val impls = ctx.table.implementations(itfT).toVector
-    println(impls)
-    val cases = impls.map(impl => (impl, ctx.table.lookup(impl, pProxy.name).get))
+    val cases = impls.map(impl => (impl, ctx.table.lookup(impl, pProxy.name))).filter(_._2.isDefined).map(x => (x._1, x._2.get))
 
     val recvDecl = vpr.LocalVarDecl(Names.implicitThis, vprInterfaceType(ctx))(pos, info, errT)
     val recv = recvDecl.localVar

@@ -87,7 +87,7 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val enclosingInterface: PNode => PInterfaceType =
     down((_: PNode) => violation("Node does not root in an interface definition")) { case x: PInterfaceType => x }
 
-  lazy val enclosingFunctionLit: PNode => Option[PFunctionLit] =
+  lazy val tryEnclosingFunctionLit: PNode => Option[PFunctionLit] =
     down[Option[PFunctionLit]](None) { case x: PFunctionLit => Some(x) }
 
   lazy val enclosingExpr: PNode => Option[PExpression] =
@@ -264,19 +264,6 @@ trait Enclosing { this: TypeInfoImpl =>
     attr[PClosureDecl, Vector[PIdnNode]] { decl =>
       val funcLit = tree.parent(tree.parent(decl).head).head.asInstanceOf[PFunctionLit]
       allChildren(decl).collect{ case x: PIdnNode if capturedVar(x, funcLit) => x }.distinctBy(_.name)
-    }
-  }
-
-  override def capturedClosures(decl: PClosureDecl): Vector[PIdnUse] = capturedClosuresAttr(decl)
-  private lazy val capturedClosuresAttr: PClosureDecl => Vector[PIdnUse] = {
-    def capturedClosure(x: PIdnNode, lit: PFunctionLit): Boolean = entity(x) match {
-      case c: SymbolTable.Closure => !containedIn(c.rep, lit)
-      case _ => false
-    }
-
-    attr[PClosureDecl, Vector[PIdnUse]] { decl =>
-      val funcLit = tree.parent(tree.parent(decl).head).head.asInstanceOf[PFunctionLit]
-      allChildren(decl).collect{ case x: PIdnUse if capturedClosure(x, funcLit) => x }.distinctBy(_.name)
     }
   }
 }

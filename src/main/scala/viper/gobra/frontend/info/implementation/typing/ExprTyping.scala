@@ -28,7 +28,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   val MAX_SHIFT: Int = 512
 
   lazy val wellDefExprAndType: WellDefinedness[PExpressionAndType] = createWellDef {
-    case _: PNamedOperand => noMessages // no checks to avoid cycles
+    case n: PNamedOperand =>
+      resolve(n) match {
+        /* A closure name can only be used outside as a spec, if we are not directly within the closure itself
+           (the same limitation applies within closures nested inside the closure itself) */
+        case Some(ap.Closure(id, _)) => error(n, s"here, the closure name ${n} can only be used as a spec",
+          !tree.parent(n).head.isInstanceOf[PClosureSpecInstance] &&
+            tryEnclosingFunctionLit(n).fold(true)(lit => lit.decl.id.fold(true)(encId => encId.name != id.name)))
+        case _ => noMessages
+      } // no more checks to avoid cycles
 
     case n: PDeref =>
       resolve(n) match {
@@ -53,6 +61,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
         case Some(_: ap.Constant) => noMessages
         case Some(_: ap.Function) => noMessages
+        case Some(_: ap.Closure) => violation(s"the name of a function literal should not be accessible from a different package")
         case Some(_: ap.NamedType) => noMessages
         case Some(_: ap.BuiltInType) => noMessages
         case Some(_: ap.Predicate) => noMessages

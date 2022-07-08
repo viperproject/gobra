@@ -1,0 +1,82 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type foo3 interface {
+	foo2
+	foo1
+}
+
+type foo2 interface {
+	h1()
+}
+
+type foo1 interface {
+	foo
+	
+	ensures 0 <= res
+	h() (res int)
+}
+
+type foo interface {
+	bar
+	
+	f()
+}
+
+type bar interface {
+	ensures res == 5
+	pure g() (res int)
+}
+
+type test int
+
+func (x test) f()
+
+ensures res == 5
+pure func (x test) g() (res int)
+
+test implements foo
+
+type test1 int
+
+ensures 0 <= res
+func (x test1) h() (res int)
+
+ensures res == 5
+pure func (x test1) g() (res int)
+
+func (x test1) f()
+
+test1 implements foo1
+
+type test2 int
+
+func (x test2) f()
+
+ensures res == 5
+pure func (x test2) g() (res int)
+
+ensures 1 <= res
+func (x test2) h() (res int)
+
+func (x test2) h1()
+
+func main() {
+	y := test(0)
+	assert y.g() == 5
+	
+	y1 := test1(0)
+	assert y1.g() == 5
+	tmp := y1.h()
+	assert tmp >= 0
+
+	var y2 bar = test1(0)
+	var y3 foo = test1(0)
+	var y4 foo1 = test1(0)
+
+	var y5 foo = y4
+
+	var y6 foo3 = test2(0)
+}

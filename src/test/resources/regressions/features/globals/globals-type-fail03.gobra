@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// Functions named "init" are executed during a package
+// initialization and cannot be called.
+// Currently, init functions cannot have specification, but
+// that might change in the future.
+//:: ExpectedOutput(type_error)
+requires true
+func init()
+
+func callInitFunc() {
+	//:: ExpectedOutput(type_error)
+	init()
+	//:: ExpectedOutput(type_error)
+	go init()
+}
+
+type T int
+func (t T) init()
+
+func callInitMethod() {
+	var t T = T(1)
+	// methods named "init" can be called
+	t.init()
+}

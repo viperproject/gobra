@@ -2399,15 +2399,15 @@ object Desugar {
       // TODO: pick a proper source
       val src = meta(mainPkg, info)
       // TODO: re-write: generate obligations per package
-      info.context.ImportsCollector.registeredPackages().foreach{ pkg =>
-        println(s"currently generating proof obligation for package ${pkg.info.name}")
+      ImportsCollector.registeredPackages().foreach{ pkg =>
+        // println(s"currently generating proof obligation for package ${pkg.info.name}")
         val funcProxy = in.FunctionProxy(nm.packageImports(pkg, info))(src)
         val member = in.Function(
           name = funcProxy,
           args = Vector.empty,
           results = Vector.empty,
-          pres = info.context.ImportsCollector.postsOfPackage(pkg),
-          posts = info.context.ImportsCollector.presOfPackage(pkg), // TODO: rethink the terminology of Pres and Posts here
+          pres = ImportsCollector.postsOfPackage(pkg),
+          posts = ImportsCollector.presOfPackage(pkg), // TODO: rethink the terminology of Pres and Posts here
           terminationMeasures = Vector.empty,
           body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
         )(src) // TODO: better error message
@@ -2425,7 +2425,7 @@ object Desugar {
       }
       mainFuncOpt.foreach{ mainFunc =>
         val src = meta(mainFunc, info)
-        val mainPkgPosts = info.context.ImportsCollector.postsOfPackage(mainPkg)
+        val mainPkgPosts = ImportsCollector.postsOfPackage(mainPkg)
         val mainFuncPre  = mainFunc.spec.pres ++ mainFunc.spec.preserves
         val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty(Source.Parser.Unsourced)))
         val funcProxy = in.FunctionProxy(nm.mainProofObligation(info))(src)
@@ -2442,7 +2442,6 @@ object Desugar {
       }
     }
 
-    // private var _packages: Vector[PPackage] = Vector.empty
     def registerPackage(pkg: PPackage)(config: Config): Unit = {
 
       // Check the contract of every file of all packages
@@ -2463,7 +2462,7 @@ object Desugar {
             val src = meta(imp, info)
             val desugaredPre = imp.importSpec.pres.map(specificationD(FunctionContext.empty(src)))
             // Works because everything is centralized
-            info.context.ImportsCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
+            ImportsCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
           case _ => ??? // TODO: violation
         }
       }
@@ -2473,7 +2472,7 @@ object Desugar {
         val src = meta(exp, info)
         specificationD(FunctionContext.empty(src))(exp)
       }
-      info.context.ImportsCollector.addPackagePosts(pkg, pkgPost)
+      ImportsCollector.addPackagePosts(pkg, pkgPost)
     }
 
     // For each file in the program, generate the proof obligations for that file.
@@ -2589,9 +2588,13 @@ object Desugar {
     }
 
     def registerFunction(decl: PFunctionDecl): Vector[in.FunctionMember] = {
-      // TODO: make a const for "init"
-      if(decl.id.name == "init") {
-        // init blocks are handled in
+      if (decl.id.name == nm.initFunctionName) {
+        /**
+          *  In Go, functions named init are executed during a package initialization,
+          *  and can never be called by any other function. In Gobra, the proof obligations
+          *  associated with init functions are generated in method [[registerPackage]].
+          *  As such, these functions are ignored by [[registerFunction]].
+          */
         Vector()
       } else {
         val function = functionD(decl)
@@ -3624,6 +3627,48 @@ object Desugar {
       val sortedStrings = nodes.map(_.map(trimmedSrcText).sorted)
       Names.hash(sortedStrings.flatten.mkString("|"))
     }
+  }
+}
+
+// TODO: justify it being here
+// TODO: doc, improve name
+// Can be probably be removed from here again and make it a singleton in desugar.scala
+object ImportsCollector { // TODO: the TypeInfo is used to desugar the pres
+  private var importPreconditions: Vector[(PPackage, Vector[in.Assertion])] = Vector.empty
+  private var packagePosts: Vector[(PPackage, Vector[in.Assertion])] = Vector.empty
+
+  def addImportPres(pkg: PPackage, desugaredImportPre: Vector[in.Assertion]): Unit = {
+    // println(s"Inserting $desugaredImportPre in ${pkg.info.name}")
+    importPreconditions :+= (pkg, desugaredImportPre)
+    // println(s"importPreconditions:")
+  }
+
+  def presOfPackage(pkg: PPackage): Vector[in.Assertion] = {
+    // println(s"pkg: ${pkg.info.name}")
+    // println(s"importPreconditions on presOfPackages: ${importPreconditions.map{case (a, b) => (a.info.name, b)}}")
+    val result = importPreconditions.filter(_._1.info.id == pkg.info.id).flatMap(_._2)
+    // println(s"result: $result")
+    result
+  }
+
+  def addPackagePosts(pkg: PPackage, desugaredPosts: Vector[in.Assertion]): Unit = {
+    //println(s"Inserting $desugaredImportPre in ${pkg.info.name}")
+    packagePosts :+= (pkg, desugaredPosts)
+    //println(s"importPreconditions: ${importPreconditions.map{case (a, b) => (a.info.name, b)}}")
+  }
+
+  def postsOfPackage(pkg: PPackage): Vector[in.Assertion] = {
+    packagePosts.filter(_._1.info.id == pkg.info.id).flatMap(_._2)
+  }
+
+  def registeredPackages(): Vector[PPackage] = {
+    // the domain of package posts should have all registered packages
+    packagePosts.map(_._1).distinct
+  }
+
+  def debug() = {
+    println(s"importPreconditions: ${importPreconditions.map{case (a, b) => (a.info.name, b)}}")
+    println(s"packagePostconditions: ${packagePosts.map{case (a, b) => (a.info.name, b)}}")
   }
 }
 

@@ -330,6 +330,7 @@ object Desugar {
     }
 
     object FunctionContext {
+      // TODO: remove src
       def empty(src: Source.Parser.Info) = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src))
     }
 
@@ -2394,7 +2395,7 @@ object Desugar {
       // TODO: explain
       registerPackage(mainPkg)(config)
 
-      // register package and then generate proofs for main
+      // Register package and then generate proofs for main
       // TODO: pick a proper source
       val src = meta(mainPkg, info)
       // TODO: re-write: generate obligations per package
@@ -2413,12 +2414,32 @@ object Desugar {
         AdditionalMembers.addMember(member)
       }
 
-      // generate proof obligations for the main function, if it exists
+      // Generate proof obligations for the main function, if it exists in the main package.
+      // To that end, we just check that the init post-conditions of the current package imply the main function's
+      // precondition. A more complete approach would be to iterate through all packages,
+      // following the order of the dependencies, and exhale its import-preconditions and then inhale its
+      // package postconditions, until we reach the main package. Afterward, we could exhale main's precondition.
       // TODO: explain how
-
-      // Check that the precondition of the main function is established by the initialization
-      // Maybe simpler, check that the posts of the main PACKAGE imply the precondition of main function
-      // TODO
+      val mainFuncOpt = mainPkg.declarations.collectFirst{
+        case f: PFunctionDecl if f.id.name == nm.mainFunctionName => f
+      }
+      mainFuncOpt.foreach{ mainFunc =>
+        val src = meta(mainFunc, info)
+        val mainPkgPosts = info.context.ImportsCollector.postsOfPackage(mainPkg)
+        val mainFuncPre  = mainFunc.spec.pres ++ mainFunc.spec.preserves
+        val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty(Source.Parser.Unsourced)))
+        val funcProxy = in.FunctionProxy(nm.mainProofObligation(info))(src)
+        val proofObligation = in.Function(
+          name = funcProxy,
+          args = Vector.empty,
+          results = Vector.empty,
+          pres = mainPkgPosts,
+          posts = mainFuncPreD, // TODO: rethink the terminology of Pres and Posts here
+          terminationMeasures = Vector.empty,
+          body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
+        )(src)
+        AdditionalMembers.addMember(proofObligation)
+      }
     }
 
     // private var _packages: Vector[PPackage] = Vector.empty
@@ -3417,6 +3438,9 @@ object Desugar {
     private val BUILTIN_PREFIX = "B"
     private val CONTINUE_LABEL_SUFFIX = "$Continue"
     private val BREAK_LABEL_SUFFIX = "$Break"
+    // constants
+    val initFunctionName = "init"
+    val mainFunctionName = "main"
 
     /** the counter to generate fresh names depending on the current code root for which a fresh name should be generated */
     private var nonceCounter: Map[PCodeRoot, Int] = Map.empty
@@ -3472,6 +3496,8 @@ object Desugar {
       val hashedId = Names.hash(p.info.id)
       topLevelName(hashedId)(PACKAGE_IMPORT_OBLIGATIONS, context)
     }
+    // TODO: rename
+    def mainProofObligation(context: ExternalTypeInfo): String = topLevelName("$checkMain")(mainFunctionName, context)
     def variable(n: String, s: PScope, context: ExternalTypeInfo): String = name(VARIABLE_PREFIX)(n, s, context)
     def global  (n: String, context: ExternalTypeInfo): String = topLevelName(GLOBAL_PREFIX)(n, context)
     def typ     (n: String, context: ExternalTypeInfo): String = topLevelName(TYPE_PREFIX)(n, context)

@@ -2258,6 +2258,19 @@ object Desugar {
           embeddedInterfaces ::= (res, dT)
         }
 
+        t.decl.predSpecs foreach { p =>
+          val src = meta(p, xInfo)
+          val proxy = mpredicateProxyD(p, xInfo)
+          val recv = implicitThisD(itfT)(src)
+          val argsWithSubs = p.args.zipWithIndex map { case (p,i) => inParameterD(p,i,xInfo) }
+          val (args, _) = argsWithSubs.unzip
+
+          val mem = in.MPredicate(recv, proxy, args, None)(src)
+
+          definedMPredicates += (proxy -> mem)
+          AdditionalMembers.addMember(mem)
+        }
+
         embeddedPreds foreach { case (p, pinfo) =>
           val src = meta(p, pinfo)
           val recv = implicitThisD(itfT)(src)

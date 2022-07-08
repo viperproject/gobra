@@ -79,4 +79,5 @@ func main() {
 	var y5 foo = y4
 
 	var y6 foo3 = test2(0)
+	y6.h()
 }

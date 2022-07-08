@@ -251,14 +251,6 @@ object Desugar {
       in.MPredicateProxy(decl.id.name, name)(meta(decl, context))
     }
 
-    def membeddedMethodProxyD(decl: PMethodSig, recvType: InterfaceT, context: TypeInfo): in.MethodProxy = {
-      val name = context.regular(decl.id) match {
-        case m: st.MethodSpec => nm.spec(decl.id.name, recvType, m.context)
-        case _ => ???
-      }
-      in.MethodProxy(decl.id.name, name)(meta(decl, context))
-    }
-
     // proxies to built-in members
     def methodProxy(tag: BuiltInMethodTag, recv: in.Type, args: Vector[in.Type])(src: Meta): in.MethodProxy = {
       def create(tag: BuiltInMethodTag, inRecvWithArgs: Vector[in.Type]): in.BuiltInMethod = {
@@ -2266,19 +2258,6 @@ object Desugar {
           embeddedInterfaces ::= (res, dT)
         }
 
-        t.decl.predSpecs foreach { p =>
-          val src = meta(p, xInfo)
-          val proxy = mpredicateProxyD(p, xInfo)
-          val recv = implicitThisD(itfT)(src)
-          val argsWithSubs = p.args.zipWithIndex map { case (p,i) => inParameterD(p,i,xInfo) }
-          val (args, _) = argsWithSubs.unzip
-
-          val mem = in.MPredicate(recv, proxy, args, None)(src)
-
-          definedMPredicates += (proxy -> mem)
-          AdditionalMembers.addMember(mem)
-        }
-
         embeddedPreds foreach { case (p, pinfo) =>
           val src = meta(p, pinfo)
           val recv = implicitThisD(itfT)(src)
@@ -2431,6 +2410,24 @@ object Desugar {
       ret
     }
 
+    private def transitiveClosureHelper(key: in.InterfaceT, value: SortedSet[in.Type], graph: Map[in.InterfaceT, SortedSet[in.Type]]): SortedSet[in.Type] = {
+      val newValue = value.foldLeft(value)((sofar, v) => {
+        v match {
+          case itf:in.InterfaceT =>
+            graph.get(itf) match {
+              case Some(trans_impls) => sofar ++ trans_impls
+              case None => sofar
+            }
+          case _ => sofar
+      }})
+      if (value == newValue) value else transitiveClosureHelper(key, newValue, graph)
+    }
+
+    private def transitiveClosure(graph: Map[in.InterfaceT, SortedSet[in.Type]]): Map[in.InterfaceT, SortedSet[in.Type]] = graph.map(pair => {
+      val (itf, impls) = pair
+      (itf, transitiveClosureHelper(itf, impls, graph))
+    })
+
     lazy val interfaceImplementations: Map[in.InterfaceT, SortedSet[in.Type]] = {
       val firstMap = info.interfaceImplementations.map{ case (itfT, implTs) =>
         (
@@ -2439,7 +2436,7 @@ object Desugar {
         )
       }
       val secondMap = (embeddedInterfaces.groupMap(_._1)(_._2).map(x => (x._1, SortedSet(x._2: _*))): Map[in.InterfaceT, SortedSet[in.Type]])
-      (firstMap.keySet ++ secondMap.keySet).map(k => (k, firstMap.getOrElse(k, SortedSet[in.Type]()) ++ secondMap.getOrElse(k, SortedSet[in.Type]()))).toMap
+      transitiveClosure((firstMap.keySet ++ secondMap.keySet).map(k => (k, firstMap.getOrElse(k, SortedSet[in.Type]()) ++ secondMap.getOrElse(k, SortedSet[in.Type]()))).toMap)
     }
     def missingImplProofs: Vector[in.Member] = {
 

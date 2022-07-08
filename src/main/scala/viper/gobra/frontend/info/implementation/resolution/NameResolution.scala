@@ -354,14 +354,9 @@ trait NameResolution { this: TypeInfoImpl =>
           val dependentEnv = dependentDefenv(scope)
           // perform now a second lookup in this special dependent environment:
           val res = tryLookup(dependentEnv, serialize(n))
-          res match {
-            case None =>
-              scope match {
-                case int : PInterfaceType =>
-                  embeddedInterfaceLookup(n, scope, int)
-                case _ => None
-              }
-            case some => some
+          (res, scope) match {
+            case (None, int : PInterfaceType) => embeddedInterfaceLookup(n, scope, int)
+            case _ => res
           }
         case _ => None
       }

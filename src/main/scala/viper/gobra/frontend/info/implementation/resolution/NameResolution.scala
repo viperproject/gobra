@@ -320,10 +320,16 @@ trait NameResolution { this: TypeInfoImpl =>
         case c: Closure => (c, c.lit.decl.decl.body, c.context)
       }
       case PDot(base: PNamedOperand, id) =>
-        val pkg = symbTableLookup(base.id).asInstanceOf[Import]
-        val f = tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl).get._1.asInstanceOf[Function]
-        (f, f.decl.body, f.context)
-      case _ => violation("this case should be unreachable")
+        val pkg = symbTableLookup(base.id)
+        pkg match {
+          case pkg: Import =>
+            tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl) match {
+              case Some((f: Function, _)) => (f, f.decl.body, f.context)
+              case _ => return UnknownEntity()
+            }
+          case _ => return UnknownEntity()
+        }
+      case _ => return UnknownEntity()
     }
 
     def addressable: Boolean = fBody.exists(_._1.shareableParameters.exists(_.name == id.name))

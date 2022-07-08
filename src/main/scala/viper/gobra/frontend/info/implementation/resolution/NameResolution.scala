@@ -307,34 +307,40 @@ trait NameResolution { this: TypeInfoImpl =>
           findField(litType, id).getOrElse(UnknownEntity())
         } else symbTableLookup(n) // otherwise it is just a variable
 
-      case n: PIdnUse if tryEnclosingClosureImplementationProof(n).nonEmpty =>
-        val proof = tryEnclosingClosureImplementationProof(n).get
-        val (func, fBody, context) = proof.impl.spec.func match {
-          case PNamedOperand(id) => symbTableLookup(id) match {
-            case f: Function => (f, f.decl.body, f.context)
-            case c: Closure => (c, c.lit.decl.decl.body, c.context)
-          }
-          case PDot(base: PNamedOperand, id) =>
-            val pkg = symbTableLookup(base.id).asInstanceOf[Import]
-            val f = tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl).get._1.asInstanceOf[Function]
-            (f, f.decl.body, f.context)
-        }
-        def addressable: Boolean = fBody.exists(_._1.shareableParameters.exists(_.name == n.name))
-        def namedParam(p: PParameter): Option[(PNamedParameter, Boolean)] = p match {
-          case p: PNamedParameter => Some((p, false))
-          case PExplicitGhostParameter(p: PNamedParameter) => Some((p, true))
-          case _ => None
-        }
-        lazy val inParam = func.args.map(namedParam).find(p => p.nonEmpty && p.get._1.id.name == n.name)
-          .map(p => InParameter(p.get._1, p.get._2, addressable, context))
-        lazy val outParam = func.result.outs.map(namedParam).find(p => p.nonEmpty && p.get._1.id.name == n.name)
-          .map(p => OutParameter(p.get._1, p.get._2, addressable, context))
-        if (inParam.nonEmpty) inParam.get
-        else if (outParam.nonEmpty) outParam.get
-        else symbTableLookup(n)
+      case n: PIdnUse if tryEnclosingClosureImplementationProof(n).nonEmpty => entityWithinSpecImplementationProof(n)
 
       case n => symbTableLookup(n)
     }
+
+  private def entityWithinSpecImplementationProof(id: PIdnUse) = {
+    val proof = tryEnclosingClosureImplementationProof(id).get
+    val (func, fBody, context) = proof.impl.spec.func match {
+      case PNamedOperand(id) => symbTableLookup(id) match {
+        case f: Function => (f, f.decl.body, f.context)
+        case c: Closure => (c, c.lit.decl.decl.body, c.context)
+      }
+      case PDot(base: PNamedOperand, id) =>
+        val pkg = symbTableLookup(base.id).asInstanceOf[Import]
+        val f = tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl).get._1.asInstanceOf[Function]
+        (f, f.decl.body, f.context)
+    }
+
+    def addressable: Boolean = fBody.exists(_._1.shareableParameters.exists(_.name == id.name))
+
+    def namedParam(p: PParameter): Option[(PNamedParameter, Boolean)] = p match {
+      case p: PNamedParameter => Some((p, false))
+      case PExplicitGhostParameter(p: PNamedParameter) => Some((p, true))
+      case _ => None
+    }
+
+    lazy val inParam = func.args.map(namedParam).find(p => p.nonEmpty && p.get._1.id.name == id.name)
+      .map(p => InParameter(p.get._1, p.get._2, addressable, context))
+    lazy val outParam = func.result.outs.map(namedParam).find(p => p.nonEmpty && p.get._1.id.name == id.name)
+      .map(p => OutParameter(p.get._1, p.get._2, addressable, context))
+    if (inParam.nonEmpty) inParam.get
+    else if (outParam.nonEmpty) outParam.get
+    else symbTableLookup(id)
+  }
 
   private def symbTableLookup(n: PIdnNode): Entity = {
     type Level = PIdnNode => Option[Entity]

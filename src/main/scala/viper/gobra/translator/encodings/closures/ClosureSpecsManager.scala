@@ -167,8 +167,7 @@ protected class ClosureSpecsManager {
       case lit: in.FunctionLit =>
         val body = if (spec.params.isEmpty) lit.body else None
         val func = in.Function(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, body)(lit.info)
-        val res = ctx.defaultEncoding.function(func)(ctx)
-        res
+        ctx.defaultEncoding.function(func)(ctx)
       case _: in.PureFunction =>
         val func = in.PureFunction(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, None)(spec.info)
         ctx.defaultEncoding.pureFunction(func)(ctx)

@@ -8,7 +8,6 @@ package viper.gobra.translator.encodings.defaults
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.{ViperUtil => vu}
@@ -43,14 +42,11 @@ class DefaultMethodEncoding extends Encoding {
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.postcondition))
       measures <- sequence(x.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
 
-      returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
-
       body <- option(x.body.map{ b => block{
         for {
           init <- vResultInit
-          _ <- cl.global(returnLabel)
           core <- ctx.statement(b)
-        } yield vu.seqn(Vector(init, core, returnLabel))(pos, info, errT)
+        } yield vu.seqn(Vector(init, core))(pos, info, errT)
       }})
 
       method = vpr.Method(
@@ -83,14 +79,11 @@ class DefaultMethodEncoding extends Encoding {
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.postcondition))
       measures <- sequence(x.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
 
-      returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
-
       body <- option(x.body.map{ b => block{
         for {
           init <- vResultInit
-          _ <- cl.global(returnLabel)
           core <- ctx.statement(b)
-        } yield vu.seqn(Vector(init, core, returnLabel))(pos, info, errT)
+        } yield vu.seqn(Vector(init, core))(pos, info, errT)
       }})
 
       method = vpr.Method(

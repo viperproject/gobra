@@ -531,6 +531,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitLoopSpec(GobraParser.LoopSpecContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#deferStmt}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitDeferStmt(GobraParser.DeferStmtContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#basicLit}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -880,12 +886,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitFallthroughStmt(GobraParser.FallthroughStmtContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#deferStmt}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitDeferStmt(GobraParser.DeferStmtContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#ifStmt}.
 	 * @param ctx the parse tree

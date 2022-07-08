@@ -453,25 +453,21 @@ object Desugar {
       val (args, argSubs) = argsWithSubs.unzip
 
       val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
+      val returnsMergedWithSubs = returnsWithSubs.map{ case (p,s) => s.getOrElse(p) }
       val (returns, returnSubs) = returnsWithSubs.unzip
 
       def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
         if (rets.isEmpty) {
-          in.Seqn(
-            returnsWithSubs.flatMap{
-              case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(src))
-              case _ => None
-            } :+ in.Return()(src)
-          )(src)
+          in.Return()(src)
         } else if (rets.size == returns.size) {
           in.Seqn(
-            returns.zip(rets).map{
+            returnsMergedWithSubs.zip(rets).map{
               case (p, v) => singleAss(in.Assignee.Var(p), v)(src)
             } :+ in.Return()(src)
           )(src)
         } else if (rets.size == 1) { // multi assignment
           in.Seqn(Vector(
-            multiassD(returns.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
+            multiassD(returnsMergedWithSubs.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
             in.Return()(src)
           ))(src)
         } else {
@@ -531,8 +527,8 @@ object Desugar {
       val bodyOpt = decl.body.map{ case (_, s) =>
         val vars = argSubs.flatten ++ returnSubs.flatten
         val varsInit = vars map (v => in.Initialization(v)(v.info))
-        val body = varsInit ++ argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
-        in.Block(vars, body)(meta(s))
+        val body = varsInit ++ argInits ++ Vector(blockD(ctx)(s))
+        in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
       in.Function(name, args, returns, pres, posts, terminationMeasures, bodyOpt)(fsrc)
@@ -596,25 +592,21 @@ object Desugar {
       val (args, argSubs) = argsWithSubs.unzip
 
       val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
+      val returnsMergedWithSubs = returnsWithSubs.map{ case (p,s) => s.getOrElse(p) }
       val (returns, returnSubs) = returnsWithSubs.unzip
 
       def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
         if (rets.isEmpty) {
-          in.Seqn(
-            returnsWithSubs.flatMap{
-              case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(src))
-              case _ => None
-            } :+ in.Return()(src)
-          )(src)
+          in.Return()(src)
         } else if (rets.size == returns.size) {
           in.Seqn(
-            returns.zip(rets).map{
+            returnsMergedWithSubs.zip(rets).map{
               case (p, v) => singleAss(in.Assignee.Var(p), v)(src)
             } :+ in.Return()(src)
           )(src)
         } else if (rets.size == 1) { // multi assignment
           in.Seqn(Vector(
-            multiassD(returns.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
+            multiassD(returnsMergedWithSubs.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
             in.Return()(src)
           ))(src)
         } else {
@@ -692,8 +684,8 @@ object Desugar {
       val bodyOpt = decl.body.map{ case (_, s) =>
         val vars = recvSub.toVector ++ argSubs.flatten ++ returnSubs.flatten
         val varsInit = vars map (v => in.Initialization(v)(v.info))
-        val body = varsInit ++ recvInits ++ argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
-        in.Block(vars, body)(meta(s))
+        val body = varsInit ++ recvInits ++ argInits ++ Vector(blockD(ctx)(s))
+        in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
       in.Method(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
@@ -1048,6 +1040,29 @@ object Desugar {
                     }
                   case _ => unexpectedExprError(exp)
                 }
+              case _ => unexpectedExprError(exp)
+            }
+
+          case PDeferStmt(exp) =>
+            def unexpectedExprError(exp: PNode) = violation(s"unexpected expression $exp in defer statement")
+
+            exp match {
+              case inv: PInvoke =>
+                info.resolve(inv) match {
+                  case Some(p: ap.FunctionCall) =>
+                    functionCallDAux(ctx)(p, inv)(src) map {
+                      case Left((_, call: in.Deferrable)) => in.Defer(call)(src)
+                      case _ => unexpectedExprError(exp)
+                    }
+                  case _ => unexpectedExprError(exp)
+                }
+
+              case exp: PStatement =>
+                stmtD(ctx)(exp) map {
+                  case d: in.Deferrable => in.Defer(d)(src)
+                  case _ => unexpectedExprError(exp)
+                }
+
               case _ => unexpectedExprError(exp)
             }
 
@@ -2054,6 +2069,8 @@ object Desugar {
     }
 
     def compositeValD(ctx : FunctionContext)(expr : PCompositeVal, typ : in.Type) : Writer[in.Expr] = {
+      violation(typ.addressability.isExclusive, s"Literals always have exclusive types, but got $typ")
+
       val e = expr match {
         case PExpCompositeVal(e) => exprD(ctx)(e)
         case PLitCompositeVal(lit) => literalValD(ctx)(lit, typ)
@@ -2062,6 +2079,8 @@ object Desugar {
     }
 
     def literalValD(ctx: FunctionContext)(lit: PLiteralValue, t: in.Type): Writer[in.CompositeLit] = {
+      violation(t.addressability.isExclusive, s"Literals always have exclusive types, but got $t")
+
       val src = meta(lit)
 
       compositeTypeD(t) match {
@@ -2113,7 +2132,7 @@ object Desugar {
 
         case CompositeKind.Slice(in.SliceT(typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ))) }
+          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ.withAddressability(Addressability.Exclusive)))) }
             yield in.SliceLit(typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
 
         case CompositeKind.Sequence(in.SequenceT(typ, _)) => for {
@@ -2141,6 +2160,9 @@ object Desugar {
     }
 
     private def handleMapEntries(ctx: FunctionContext)(lit: PLiteralValue, keys: in.Type, values: in.Type): Writer[Seq[(in.Expr, in.Expr)]] = {
+      violation(keys.addressability.isExclusive, s"Map literal keys always have exclusive types, but got $keys")
+      violation(values.addressability.isExclusive, s"Map literal values always have exclusive types, but got $values")
+
       sequence(
         lit.elems map {
           case PKeyedElement(Some(key), value) => for {
@@ -2180,11 +2202,24 @@ object Desugar {
       // this type was declared in the current package
       val name = nm.typ(t.decl.left.name, t.context)
 
-      if (!definedTypesSet.contains(name, addrMod)) {
-        definedTypesSet += ((name, addrMod))
-        val newEntry = typeD(t.context.symbType(t.decl.right), Addressability.underlying(addrMod))(src)
-        definedTypes += (name, addrMod) -> newEntry
+      def register(addrMod: Addressability): Unit = {
+        if (!definedTypesSet.contains(name, addrMod)) {
+          definedTypesSet += ((name, addrMod))
+          val newEntry = typeD(t.context.symbType(t.decl.right), Addressability.underlying(addrMod))(src)
+          definedTypes += (name, addrMod) -> newEntry
+        }
       }
+
+      val invAddrMod = addrMod match {
+        case Addressability.Exclusive => Addressability.Shared
+        case Addressability.Shared => Addressability.Exclusive
+      }
+
+      register(addrMod)
+
+      // [[underlyingType(in.Type)]] assumes that the RHS of a type declaration is in `definedTypes`
+      // if the corresponding type declaration was translated. This is necessary to avoid cycles in the translation.
+      register(invAddrMod)
 
       in.DefinedT(name, addrMod)
     }

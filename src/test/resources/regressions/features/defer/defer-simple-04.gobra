@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+pred Mem(x *int) {
+	acc(x)
+}
+
+ensures Mem(r)
+decreases
+func f() (r *int) {
+	x@ := 2
+	ghost defer fold Mem(&x)
+	return &x
+}

@@ -1952,9 +1952,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
-  override def visitDeferStmt(ctx: DeferStmtContext): PDeferStmt = {
-    val expr : PExpression = visitNode[PExpression](ctx.expression())
-    PDeferStmt(expr).at(ctx)
+  override def visitDeferStmt(ctx: DeferStmtContext): PDeferStmt = super.visitDeferStmt(ctx) match {
+    case Vector("defer", expr: PExpression) => PDeferStmt(expr)
+    case Vector("defer", "fold", predAcc : PPredicateAccess)   => PDeferStmt(PFold(predAcc).at(ctx))
+    case Vector("defer", "unfold", predAcc : PPredicateAccess) => PDeferStmt(PUnfold(predAcc).at(ctx))
   }
   //endregion
 

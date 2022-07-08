@@ -129,7 +129,7 @@ case class Method(
                  override val pres: Vector[Assertion],
                  override val posts: Vector[Assertion],
                  override val terminationMeasures: Vector[TerminationMeasure],
-                 body: Option[Block]
+                 body: Option[MethodBody]
                  )(val info: Source.Parser.Info) extends Member with MethodMember
 
 case class PureMethod(
@@ -185,7 +185,7 @@ case class Function(
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
                      override val terminationMeasures: Vector[TerminationMeasure],
-                     body: Option[Block]
+                     body: Option[MethodBody]
                    )(val info: Source.Parser.Info) extends Member with FunctionMember
 
 case class PureFunction(
@@ -259,13 +259,27 @@ case class DomainFunc(
                        results: Parameter.Out
                      )(val info: Source.Parser.Info) extends Node
 
-
 sealed trait Stmt extends Node
+
+/** This node serves as a target of encoding extensions. See [[viper.gobra.translator.encodings.combinators.TypeEncoding.Extension]]*/
+case class MethodBody(
+                       decls: Vector[BlockDeclaration],
+                       seqn: MethodBodySeqn,
+                       postprocessing: Vector[Stmt] = Vector.empty,
+                     )(val info: Source.Parser.Info) extends Stmt
+
+/**
+  * This node serves as a target of encoding extensions. See [[viper.gobra.translator.encodings.combinators.TypeEncoding.Extension]]
+  * Return statements jump exactly to the end of the encoding of this statement.
+  * */
+case class MethodBodySeqn(stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Stmt
 
 case class Block(
                   decls: Vector[BlockDeclaration],
                   stmts: Vector[Stmt]
-                )(val info: Source.Parser.Info) extends Stmt
+                )(val info: Source.Parser.Info) extends Stmt {
+  def toMethodBody: MethodBody = MethodBody(decls, MethodBodySeqn(stmts)(info))(info)
+}
 
 case class Seqn(stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Stmt
 
@@ -336,10 +350,14 @@ case class New(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) exten
   * */
 case class SafeTypeAssertion(resTarget: LocalVar, successTarget: LocalVar, expr: Expr, typ: Type)(val info: Source.Parser.Info) extends Stmt
 
-case class FunctionCall(targets: Vector[LocalVar], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
-case class MethodCall(targets: Vector[LocalVar], recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
+
+case class FunctionCall(targets: Vector[LocalVar], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt with Deferrable
+case class MethodCall(targets: Vector[LocalVar], recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt with Deferrable
 case class GoFunctionCall(func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 case class GoMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
+
+sealed trait Deferrable extends Stmt
+case class Defer(stmt: Deferrable)(val info: Source.Parser.Info) extends Stmt
 
 case class Return()(val info: Source.Parser.Info) extends Stmt
 
@@ -348,14 +366,14 @@ case class Assume(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Inhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Exhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 
-case class Fold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
+case class Fold(acc: Access)(val info: Source.Parser.Info) extends Stmt with Deferrable {
   require(acc.e.isInstanceOf[Accessible.Predicate])
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
 }
 
 
 
-case class Unfold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
+case class Unfold(acc: Access)(val info: Source.Parser.Info) extends Stmt with Deferrable {
   require(acc.e.isInstanceOf[Accessible.Predicate])
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
 }
@@ -470,7 +488,7 @@ case class Exists(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)
 }
 
 sealed trait Permission extends Expr {
-  override val typ: Type = PermissionT(Addressability.rValue)
+  override def typ: Type = PermissionT(Addressability.rValue)
 }
 
 case class FullPerm(info: Source.Parser.Info) extends Permission
@@ -549,8 +567,8 @@ case class PredicateConstructor(proxy: PredicateProxy, proxyT: PredT, args: Vect
 
 case class PredExprInstance(base: Expr, args: Vector[Expr])(val info: Source.Parser.Info) extends Node
 
-case class PredExprFold(base: PredicateConstructor, args: Vector[Expr], p: Expr)(val info: Source.Parser.Info) extends Stmt
-case class PredExprUnfold(base: PredicateConstructor, args: Vector[Expr], p: Expr)(val info: Source.Parser.Info) extends Stmt
+case class PredExprFold(base: PredicateConstructor, args: Vector[Expr], p: Expr)(val info: Source.Parser.Info) extends Stmt with Deferrable
+case class PredExprUnfold(base: PredicateConstructor, args: Vector[Expr], p: Expr)(val info: Source.Parser.Info) extends Stmt with Deferrable
 
 
 /* ** Option type expressions */
@@ -1007,7 +1025,7 @@ case class IntLit(v: BigInt, kind: IntegerKind = UnboundedInteger, base: NumBase
   override def typ: Type = IntT(Addressability.literal, kind)
 }
 
-case class PermLit(dividend: BigInt, divisor: BigInt)(val info: Source.Parser.Info) extends Lit {
+case class PermLit(dividend: BigInt, divisor: BigInt)(val info: Source.Parser.Info) extends Lit with Permission {
   require(divisor != 0)
   override def typ: Type = PermissionT(Addressability.literal)
 }

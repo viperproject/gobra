@@ -41,6 +41,8 @@ object Nodes {
       case s: Stmt => s match {
         case Break(_, _) => Seq.empty
         case Continue(_, _) => Seq.empty
+        case MethodBody(decls, seqn, postprocessing) => decls ++ Seq(seqn) ++ postprocessing
+        case MethodBodySeqn(stmts) => stmts
         case Block(decls, stmts) => decls ++ stmts
         case Seqn(stmts) => stmts
         case Label(label) => Seq(label)
@@ -69,6 +71,7 @@ object Nodes {
         case SafeTypeAssertion(resTarget, successTarget, expr, _) => Seq(resTarget, successTarget, expr)
         case GoFunctionCall(func, args) => Seq(func) ++ args
         case GoMethodCall(recv, meth, args) => Seq(recv, meth) ++ args
+        case Defer(stmt) => Seq(stmt)
         case SafeReceive(resTarget, successTarget, channel, recvChannel, recvGivenPerm, recvGotPerm, closed) =>
           Seq(resTarget, successTarget, channel, recvChannel, recvGivenPerm, recvGotPerm, closed)
         case Send(channel, expr, sendChannel, sendGivenPerm, sendGotPerm) =>
@@ -168,6 +171,7 @@ object Nodes {
           case c: CurrentPerm => Seq(c.acc)
           case PermMinus(exp) => Seq(exp)
           case BinaryExpr(left, _, right, _) => Seq(left, right)
+          case _: PermLit => Seq.empty
         }
         case l: Lit => l match {
           case IntLit(_, _, _) => Seq.empty

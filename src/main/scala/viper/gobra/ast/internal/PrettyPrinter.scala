@@ -246,6 +246,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // statements
 
   def showStmt(s: Stmt): Doc = updatePositionStore(s) <> (s match {
+    case s: MethodBody =>
+      "decl" <+> showBlockDeclList(s.decls) <> line <>
+        showStmtList(s.seqn.stmts) <> line <>
+        showStmtList(s.postprocessing)
+    case s: MethodBodySeqn => showStmtList(s.stmts)
     case Block(decls, stmts) => "decl" <+> showBlockDeclList(decls) <> line <> showStmtList(stmts)
     case Seqn(stmts) => ssep(stmts map showStmt, line)
     case Label(label) => showProxy(label)
@@ -287,6 +292,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case GoMethodCall(recv, meth, args) =>
       "go" <+> showExpr(recv) <> "." <>  meth.name <> parens(showExprList(args))
+
+    case s: Defer => "defer" <+> showStmt(s.stmt)
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
@@ -653,6 +660,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   // statements
 
   override def showStmt(s: Stmt): Doc = s match {
+    case s: MethodBody => "decl" <+> showBlockDeclList(s.decls)
+    case _: MethodBodySeqn => emptyDoc
     case Block(decls, _) => "decl" <+> showBlockDeclList(decls)
     case Seqn(_) => emptyDoc
     case Label(label) => showProxy(label)
@@ -697,6 +706,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case GoMethodCall(recv, meth, args) =>
       "go" <+> showExpr(recv) <> "." <> meth.name <> parens(showExprList(args))
+
+    case s: Defer => "defer" <+> showStmt(s.stmt)
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)

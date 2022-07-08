@@ -8,7 +8,6 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend.{PClosureImplProof, AstPattern => ap, _}
-import viper.gobra.frontend.info.base.SymbolTable.{ActualDataEntity, WithArguments, WithResult}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -216,15 +215,14 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
           }
 
         // A call alone can only occur if there are no result parameters
-        case PExpressionStmt(e: PExpression) => e match {
-          case _: PInvoke | _: PCallWithSpec =>
-            if (result.outs.nonEmpty) failedProp(s"The call '$e' is missing the out-parameters")
-            else if (isExpectedCall(e)) failedProp(s"The only allowed call is $expectedCall")
-            else {
-              numOfImplemetationCalls += 1
-              successProp
-            }
-        }
+        case PExpressionStmt(e: PExpression) if e.isInstanceOf[PInvoke] || e.isInstanceOf[PCallWithSpec] =>
+          if (result.outs.nonEmpty) failedProp(s"The call '$e' is missing the out-parameters")
+          else if (isExpectedCall(e)) failedProp(s"The only allowed call is $expectedCall")
+          else {
+            numOfImplemetationCalls += 1
+            successProp
+          }
+
 
         case ret@PReturn(exps) =>
           // there has to be at most one return at the end of the block

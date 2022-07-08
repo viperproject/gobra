@@ -11,7 +11,6 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.ExternalTypeInfo
-import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignMode}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType.ghost
 import viper.gobra.util.Violation
@@ -47,6 +46,7 @@ trait GhostAssignability {
     val isPure = resolve(call.spec.func) match {
       case Some(ap.Function(_, f)) => f.isPure
       case Some(ap.Closure(_, c)) => c.isPure
+      case _ => Violation.violation("this case should be unreachable")
     }
 
     // If the closure variable being called is ghost, ghost is assignable to all parameters.
@@ -68,6 +68,7 @@ trait GhostAssignability {
     val (fArgs, fRes, context) = resolve(spec.func) match {
       case Some(ap.Function(_, f)) => (f.args, f.result.outs, f.context)
       case Some(ap.Closure(_, c)) => (c.args, c.result.outs, c.context)
+      case _ => Violation.violation("this case should be unreachable")
     }
 
     val argTyping = if(spec.params.forall(_.key.isEmpty))

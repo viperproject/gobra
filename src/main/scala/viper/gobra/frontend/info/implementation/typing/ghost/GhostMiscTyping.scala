@@ -17,8 +17,6 @@ import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.util.Violation
 import viper.gobra.util.Violation.violation
 
-import scala.annotation.tailrec
-
 trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostMisc(misc: PGhostMisc) = misc match {

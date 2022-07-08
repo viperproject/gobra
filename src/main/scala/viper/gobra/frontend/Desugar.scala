@@ -2167,7 +2167,6 @@ object Desugar {
 
     def pureFunctionLitD(ctx: FunctionContext, info: TypeInfo = info)(lit: PFunctionLit): in.PureFunctionLit = {
       val funcInfo = pureFunctionMemberOrLitD(lit.decl.decl, meta(lit), ctx, info)
-      val src = meta(lit)
       val name = functionLitProxyD(lit, info)
       in.PureFunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit))
     }
@@ -2332,7 +2331,7 @@ object Desugar {
       }
     }
 
-    private def handleMapEntries(ctx: FunctionContext, info: TypeInfo = info)(lit: PLiteralValue, keys: in.Type, values: in.Type): Writer[Seq[(in.Expr, in.Expr)]] = {
+    private def handleMapEntries(ctx: FunctionContext, info: TypeInfo)(lit: PLiteralValue, keys: in.Type, values: in.Type): Writer[Seq[(in.Expr, in.Expr)]] = {
       sequence(
         lit.elems map {
           case PKeyedElement(Some(key), value) => for {

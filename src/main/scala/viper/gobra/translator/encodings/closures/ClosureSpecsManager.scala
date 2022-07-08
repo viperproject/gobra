@@ -1,13 +1,13 @@
 package viper.gobra.translator.encodings.closures
 
-import viper.gobra.ast.internal.{Expr, FunctionLikeMemberOrLit, Parameter}
+import viper.gobra.ast.internal.FunctionLikeMemberOrLit
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.BackTranslator.{ErrorTransformer, ReasonTransformer, RichErrorMessage}
+import viper.gobra.reporting.BackTranslator.ErrorTransformer
 import viper.gobra.reporting.{PreconditionError, Source, SpecNotImplementedByClosure}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
-import viper.gobra.translator.util.ViperWriter.CodeLevel.{errorT, reasonR}
+import viper.gobra.translator.util.ViperWriter.CodeLevel.errorT
 import viper.gobra.translator.util.ViperWriter.MemberKindCompanion.ErrorT
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.silver.verifier.{reasons, errors => vprerr}
@@ -52,14 +52,11 @@ protected class ClosureSpecsManager {
   }
 
   private def doesNotImplementSpecErr(closureExpr: in.Expr, spec: in.ClosureSpec): ErrorTransformer = {
-    val implementsFuncName = implementsFunctionName(spec)
-
-    def transformer: ErrorTransformer = {
-      case vprerr.PreconditionInCallFalse(Source(info), reasons.AssertionFalse(vpr.FuncApp(implementsFuncName, Seq(closure))), _)
-        if closure.info.isInstanceOf[Source.Verifier.Info] && closure.info.asInstanceOf[Source.Verifier.Info].node == closureExpr =>
-        PreconditionError(info).dueTo(SpecNotImplementedByClosure(info, closureExpr.info.tag, spec.info.tag))
-    }
-    transformer
+    case vprerr.PreconditionInCallFalse(Source(info), reasons.AssertionFalse(vpr.FuncApp(funcName, Seq(closure))), _)
+      if info.isInstanceOf[Source.Verifier.Info] &&
+         closure.info.asInstanceOf[Source.Verifier.Info].node == closureExpr &&
+         funcName == implementsFunctionName(spec) =>
+            PreconditionError(info).dueTo(SpecNotImplementedByClosure(info, closureExpr.info.tag, spec.info.tag))
   }
 
   private def captured(ctx: Context)(func: in.FunctionMemberOrLitProxy): Vector[(in.Expr, in.Parameter.In)] = func match {
@@ -101,7 +98,6 @@ protected class ClosureSpecsManager {
   private var genMembers: Vector[MemberWriter[vpr.Member]] = Vector.empty
 
   private val genericFuncType: in.FunctionT = in.FunctionT(Vector.empty, Vector.empty, Addressability.rValue)
-  private val genericPointerType: in.PointerT = in.PointerT(in.BoolT(Addressability.Shared) ,Addressability.inParameter)
 
   private def closureSpecName(spec: in.ClosureSpec): String =  s"${spec.func}$$${spec.params.keySet.toSeq.sorted.mkString("_")}"
   private def implementsFunctionName(spec: in.ClosureSpec) = s"${Names.closureImplementsFunc}$$${closureSpecName(spec)}"

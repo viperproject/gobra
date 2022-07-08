@@ -8,7 +8,6 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.WithResult
 import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelModus, ChannelT, FunctionT, InterfaceT, InternalTupleT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -197,6 +196,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       (resolve(closureImplProof.get.impl.spec.func) match {
         case Some(AstPattern.Function(id, f)) => (idType(id).asInstanceOf[FunctionT].result, f.result.outs)
         case Some(AstPattern.Closure(id, c)) => (idType(id).asInstanceOf[FunctionT].result, c.result.outs)
+        case _ => violation("this case should be unreachable")
       }) match {
         case (InternalTupleT(types), ps) => types zip ps
         case (t, ps) => Vector(t) zip ps

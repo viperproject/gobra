@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{MultiLocalVariable, Regular, SingleLocalVariable}
-import viper.gobra.frontend.info.base.{SymbolTable, Type}
+import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}

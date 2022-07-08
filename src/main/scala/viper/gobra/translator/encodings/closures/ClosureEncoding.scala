@@ -1,7 +1,6 @@
 package viper.gobra.translator.encodings.closures
 
 import org.bitbucket.inkytonik.kiama.==>
-import viper.gobra.ast.internal.Assignee
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting
 import viper.gobra.reporting.BackTranslator.ErrorTransformer
@@ -10,7 +9,6 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
-import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter, CodeLevel => cl}
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.verifier.errors
 import viper.silver.verifier.reasons

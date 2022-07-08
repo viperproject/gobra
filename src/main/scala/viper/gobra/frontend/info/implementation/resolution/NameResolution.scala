@@ -8,10 +8,10 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.PackageResolver.RegularImport
-import viper.gobra.frontend.info.base.{BuiltInMemberTag, SymbolTable}
+import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag, BuiltInTypeTag}
 import viper.gobra.frontend.info.base.SymbolTable._
-import viper.gobra.frontend.info.base.Type.{ImportT, StructT}
+import viper.gobra.frontend.info.base.Type.StructT
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.Violation
@@ -323,6 +323,7 @@ trait NameResolution { this: TypeInfoImpl =>
         val pkg = symbTableLookup(base.id).asInstanceOf[Import]
         val f = tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl).get._1.asInstanceOf[Function]
         (f, f.decl.body, f.context)
+      case _ => violation("this case should be unreachable")
     }
 
     def addressable: Boolean = fBody.exists(_._1.shareableParameters.exists(_.name == id.name))

@@ -42,7 +42,7 @@ sealed trait PUnorderedScope extends PScope
 
 case class PPackage(
                      packageClause: PPackageClause,
-                     programs: Vector[PProgram], // TODO: doc
+                     programs: Vector[PProgram],
                      positions: PositionManager,
                      info: PackageInfo
                    ) extends PNode with PUnorderedScope {
@@ -826,7 +826,6 @@ case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PEx
 
 sealed trait PSpecification extends PGhostNode
 
-// TODO: rename to TopLevelDeclSpec or add an alias
 case class PFunctionSpec(
                       pres: Vector[PExpression],
                       preserves: Vector[PExpression],

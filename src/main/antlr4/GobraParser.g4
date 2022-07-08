@@ -156,7 +156,7 @@ assertion:
 blockWithBodyParameterInfo: L_CURLY (SHARE identifierList eos)? statementList? R_CURLY;
 
 // Closures
-closureSpecInstance: (IDENTIFIER | qualifiedIdent) (L_CURLY (closureSpecParams COMMA?)? R_CURLY)?;
+closureSpecInstance: (qualifiedIdent | IDENTIFIER) (L_CURLY (closureSpecParams COMMA?)? R_CURLY)?;
 
 closureSpecParams: closureSpecParam (COMMA closureSpecParam)*;
 
@@ -338,8 +338,7 @@ primaryExpr:
   | primaryExpr seqUpdExp #seqUpdPrimaryExpr
   | primaryExpr typeAssertion #typeAssertionPrimaryExpr
   | primaryExpr arguments #invokePrimaryExpr
-  | primaryExpr arguments AS closureSpecInstance (EOS|WS) #invokePrimaryExprWithSpec
-  | L_PAREN primaryExpr arguments AS closureSpecInstance R_PAREN #invokePrimaryExprWithSpecWithParens
+  | primaryExpr arguments AS closureSpecInstance #invokePrimaryExprWithSpec
   | primaryExpr predConstructArgs #predConstrPrimaryExpr
   | call_op=(
   LEN

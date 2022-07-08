@@ -1,4 +1,4 @@
-// Generated from /local/home/smilizia/Documents/Gobra/gobra/src/main/antlr4/GobraLexer.g4 by ANTLR 4.9.2
+// Generated from src/main/antlr4/GobraLexer.g4 by ANTLR 4.9.2
 package viper.gobra.frontend;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.CharStream;

@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.WithResult
-import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelModus, ChannelT, InterfaceT}
+import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelModus, ChannelT, FunctionT, InterfaceT, InternalTupleT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
@@ -127,12 +127,13 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PReturn(exps) =>
       exps.flatMap(isExpr(_).out) ++ {
         if (exps.nonEmpty) {
-          val res = resultFromEnclosingScopeWithResult(n)
-
-          if (res.isEmpty) error(n, s"Statement does not root in a CodeRoot")
-          else if (res.get.outs forall wellDefMisc.valid)
-            multiAssignableTo.errors(exps map exprType, res.get.outs map miscType)(n)
-          else error(n, s"return cannot be checked because the enclosing signature is incorrect")
+          val closureImplProof = tryEnclosingClosureImplementationProof(n)
+          if (closureImplProof.isEmpty) {
+            val res = tryEnclosingCodeRootWithResult(n)
+            if (res.isEmpty) return error(n, s"Statement does not root in a CodeRoot")
+            if (!(res.get.result.outs forall wellDefMisc.valid)) return error(n, s"return cannot be checked because the enclosing signature is incorrect")
+          }
+          multiAssignableTo.errors(exps map exprType, returnParamsAndTypes(n).map(_._1))(n)
         } else noMessages // a return without arguments is always well-defined
       }
 
@@ -188,5 +189,21 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       }
 
     case s => violation(s"$s was not handled")
+  }
+
+  private [typing] def returnParamsAndTypes(n: PReturn): Vector[(Type, PParameter)] = {
+    val closureImplProof = tryEnclosingClosureImplementationProof(n)
+    if (closureImplProof.nonEmpty) {
+      (resolve(closureImplProof.get.impl.spec.func) match {
+        case Some(AstPattern.Function(id, f)) => (idType(id).asInstanceOf[FunctionT].result, f.result.outs)
+        case Some(AstPattern.Closure(id, c)) => (idType(id).asInstanceOf[FunctionT].result, c.result.outs)
+      }) match {
+        case (InternalTupleT(types), ps) => types zip ps
+        case (t, ps) => Vector(t) zip ps
+      }
+    } else {
+      val res = tryEnclosingCodeRootWithResult(n)
+      res.get.result.outs map miscType zip res.get.result.outs
+    }
   }
 }

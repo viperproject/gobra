@@ -1,4 +1,4 @@
-// Generated from /local/home/smilizia/Documents/Gobra/gobra/src/main/antlr4/GobraParser.g4 by ANTLR 4.9.2
+// Generated from src/main/antlr4/GobraParser.g4 by ANTLR 4.9.2
 package viper.gobra.frontend;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -594,13 +594,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitGhostPrimaryExpr_(GobraParser.GhostPrimaryExpr_Context ctx);
-	/**
-	 * Visit a parse tree produced by the {@code invokePrimaryExprWithSpecWithParens}
-	 * labeled alternative in {@link GobraParser#primaryExpr}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitInvokePrimaryExprWithSpecWithParens(GobraParser.InvokePrimaryExprWithSpecWithParensContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code invokePrimaryExprWithSpec}
 	 * labeled alternative in {@link GobraParser#primaryExpr}.

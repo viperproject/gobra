@@ -7,10 +7,11 @@
 package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, SymbolTable}
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag, BuiltInTypeTag}
 import viper.gobra.frontend.info.base.SymbolTable._
-import viper.gobra.frontend.info.base.Type.StructT
+import viper.gobra.frontend.info.base.Type.{ImportT, StructT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.Violation
@@ -152,7 +153,6 @@ trait NameResolution { this: TypeInfoImpl =>
   private def defenvin(in: PNode => Environment): PNode ==> Environment = {
     case n: PPackage => addUnorderedDefToEnv(rootenv(initialEnv(n):_*))(n)
     case scope: PUnorderedScope => addUnorderedDefToEnv(enter(in(scope)))(scope)
-    case scope: PScope if scopeSpecialCaseImplicitDefinitions(scope) => addImplicitDefToEnv(enter(in(scope)))(scope)
     case scope: PScope if !scopeSpecialCaseWithNoNewScope(scope) =>
       logger.debug(scope.toString)
       enter(in(scope))
@@ -161,38 +161,6 @@ trait NameResolution { this: TypeInfoImpl =>
   private def scopeSpecialCaseWithNoNewScope(s: PScope): Boolean = s match {
     case tree.parent.pair(_: PBlock, _: PMethodDecl | _: PFunctionDecl) => true
     case _ => false
-  }
-
-  private def scopeSpecialCaseImplicitDefinitions(s: PScope): Boolean = s match {
-    case tree.parent.pair(_: PBlock, _: PClosureImplProof) => true
-    case _ => false
-  }
-
-  private def addImplicitDefToEnv(env: Environment)(n: PScope): Environment = n match {
-    case tree.parent.pair(_: PBlock, p: PClosureImplProof) =>
-      val (fArgs, fRes, fBody) = resolve(p.impl.spec.func) match {
-        case Some(AstPattern.Function(_, f)) => (f.decl.args, f.decl.result.outs, f.decl.body)
-        case Some(AstPattern.Closure(_, c)) => (c.lit.decl.decl.args, c.lit.decl.result.outs, c.lit.decl.decl.body)
-        case _ => (Vector.empty, Vector.empty, None)
-      }
-      def canBeUsedAsShared(id: PIdnNode) = fBody.exists(_._1.shareableParameters.exists(_.name == id.name))
-      val ids = (fArgs.collect {
-        case p@PNamedParameter(id, _) =>
-          (id, SymbolTable.InParameter(p, ghost = false, addressable = canBeUsedAsShared(id), this))
-        case PExplicitGhostParameter(p@PNamedParameter(id, _)) =>
-          (id, SymbolTable.InParameter(p, ghost = true, addressable = canBeUsedAsShared(id), this))
-      }) ++ fRes.collect {
-        case p@PNamedParameter(id, _) =>
-          (id, SymbolTable.OutParameter(p, ghost = false, addressable = canBeUsedAsShared(id), this))
-        case PExplicitGhostParameter(p@PNamedParameter(id, _)) =>
-          (id, SymbolTable.OutParameter(p, ghost = true, addressable = canBeUsedAsShared(id), this))
-      }
-      val e = ids.foldLeft(env) {
-        case (e, (id, p)) =>
-          defineIfNew(e, serialize(id), MultipleEntity(), p)
-      }
-      e
-    case _ => violation("this case should be unreachable")
   }
 
   private def defenvout(out: PNode => Environment): PNode ==> Environment = {
@@ -338,6 +306,32 @@ trait NameResolution { this: TypeInfoImpl =>
         if (underlyingType(litType).isInstanceOf[StructT]) { // if the enclosing literal is a struct then id is a field
           findField(litType, id).getOrElse(UnknownEntity())
         } else symbTableLookup(n) // otherwise it is just a variable
+
+      case n: PIdnUse if tryEnclosingClosureImplementationProof(n).nonEmpty =>
+        val proof = tryEnclosingClosureImplementationProof(n).get
+        val (func, fBody, context) = proof.impl.spec.func match {
+          case PNamedOperand(id) => symbTableLookup(id) match {
+            case f: Function => (f, f.decl.body, f.context)
+            case c: Closure => (c, c.lit.decl.decl.body, c.context)
+          }
+          case PDot(base: PNamedOperand, id) =>
+            val pkg = symbTableLookup(base.id).asInstanceOf[Import]
+            val f = tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl).get._1.asInstanceOf[Function]
+            (f, f.decl.body, f.context)
+        }
+        def addressable: Boolean = fBody.exists(_._1.shareableParameters.exists(_.name == n.name))
+        def namedParam(p: PParameter): Option[(PNamedParameter, Boolean)] = p match {
+          case p: PNamedParameter => Some((p, false))
+          case PExplicitGhostParameter(p: PNamedParameter) => Some((p, true))
+          case _ => None
+        }
+        lazy val inParam = func.args.map(namedParam).find(p => p.nonEmpty && p.get._1.id.name == n.name)
+          .map(p => InParameter(p.get._1, p.get._2, addressable, context))
+        lazy val outParam = func.result.outs.map(namedParam).find(p => p.nonEmpty && p.get._1.id.name == n.name)
+          .map(p => OutParameter(p.get._1, p.get._2, addressable, context))
+        if (inParam.nonEmpty) inParam.get
+        else if (outParam.nonEmpty) outParam.get
+        else symbTableLookup(n)
 
       case n => symbTableLookup(n)
     }

@@ -165,21 +165,21 @@ object Desugar {
 
     private val nm = new NameManager
 
-    type Identity = Meta
+    type Identity = (Meta, TypeInfo)
 
-    private def abstraction(id: PIdnNode): Identity = {
+    private def abstraction(id: PIdnNode, info: TypeInfo = info): Identity = {
       val entity = info.regular(id)
-      meta(entity.rep)
+      (meta(entity.rep, entity.context.getTypeInfo), entity.context.getTypeInfo)
     }
 
     // TODO: make thread safe
     private var proxies: Map[Meta, in.Proxy] = Map.empty
 
     def getProxy(id: PIdnNode): Option[in.Proxy] =
-      proxies.get(abstraction(id))
+      proxies.get(abstraction(id)._1)
 
     def addProxy(from: PIdnNode, to: in.Proxy): Unit =
-      proxies += abstraction(from) -> to
+      proxies += abstraction(from)._1 -> to
 
     def functionProxyD(decl: PFunctionDecl, context: TypeInfo): in.FunctionProxy = {
       val name = idName(decl.id, context)
@@ -256,23 +256,23 @@ object Desugar {
       in.FunctionLitProxy(name)(meta(id, context))
     }
 
-    def closureSpecD(ctx: FunctionContext)(s: PClosureSpecInstance, context: TypeInfo): in.ClosureSpec = {
-      val (fArgs, proxy) = info.resolve(s.func) match {
-        case Some(ap.Function(id, symb)) => (symb.decl.args, functionProxy(id, context))
-        case Some(ap.Closure(id, symb)) => (symb.lit.decl.decl.args, functionLitProxyD(id, context))
+    def closureSpecD(ctx: FunctionContext, info: TypeInfo = info)(s: PClosureSpecInstance): in.ClosureSpec = {
+      val (funcTypeInfo, fArgs, proxy) = info.resolve(s.func) match {
+        case Some(ap.Function(id, symb)) => (symb.context.getTypeInfo, symb.decl.args, functionProxy(id, info))
+        case Some(ap.Closure(id, symb)) => (symb.context.getTypeInfo, symb.lit.decl.decl.args, functionLitProxyD(id, info))
         case _ => violation("expected function or function literal")
       }
       val paramsWithIdx = if (s.params.forall(_.key.isEmpty)) s.params.zipWithIndex.map {
-        case (p, idx) => idx+1 -> exprD(ctx)(p.exp).res
+        case (p, idx) => idx+1 -> exprD(ctx, info)(p.exp).res
       } else {
         val argsToIdx = fArgs.zipWithIndex.collect {
           case (PNamedParameter(a, _), idx) => a.name -> (idx+1)
           case (PExplicitGhostParameter(PNamedParameter(a, _)), idx) => a.name -> (idx+1)
         }.toMap
-        s.params.map { p => argsToIdx(p.key.get.name) -> exprD(ctx)(p.exp).res }
+        s.params.map { p => argsToIdx(p.key.get.name) -> exprD(ctx, info)(p.exp).res }
       }
       val params = paramsWithIdx.map {
-        case (i, exp) => i -> implicitConversion(exp.typ, typeD(info.typ(fArgs(i-1)), Addressability.inParameter)(exp.info), exp)
+        case (i, exp) => i -> implicitConversion(exp.typ, typeD(funcTypeInfo.typ(fArgs(i-1)), Addressability.inParameter)(exp.info), exp)
       }.toMap
       in.ClosureSpec(proxy, params)(meta(s))
     }
@@ -348,12 +348,12 @@ object Desugar {
                            private var substitutions: Map[Identity, in.Expr] = Map.empty,
                            val expD: PExpression => Option[Writer[in.Expr]] = _ => None,
                          ) {
-      def apply(id: PIdnNode): Option[in.Expr] =
-        substitutions.get(abstraction(id))
+      def apply(id: PIdnNode, info: TypeInfo = info): Option[in.Expr] =
+        substitutions.get(abstraction(id, info))
 
 
-      def addSubst(from: PIdnNode, to: in.Expr): Unit =
-        substitutions += abstraction(from) -> to
+      def addSubst(from: PIdnNode, to: in.Expr, info: TypeInfo = info): Unit =
+        substitutions += abstraction(from, info) -> to
 
       def copy: FunctionContext = new FunctionContext(ret, substitutions, expD)
 
@@ -631,7 +631,7 @@ object Desugar {
                                         body: Option[in.Expr])
 
 
-    private def pureFunctionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext = null): PureFunctionInfo = {
+    private def pureFunctionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext = null, info: TypeInfo = info): PureFunctionInfo = {
       require(decl.spec.isPure)
 
       val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
@@ -655,40 +655,40 @@ object Desugar {
       (decl.args zip argsWithSubs).foreach {
         // substitution has to be added since otherwise the parameter is translated as a addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p, info)
         case _ =>
       }
 
       (captVars zip capturedVars).foreach {
         case (v, p) => val src = meta(v)
-          ctx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(src))(src))
+          ctx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(src))(src), info)
       }
 
       (captClosures zip capturedCl).foreach {
-        case (c, p) => ctx.addSubst(c, p)
+        case (c, p) => ctx.addSubst(c, p, info)
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
-        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p, info)
         case _ =>
       }
 
       // translate pre- and postconditions and termination measures
-      val pres = decl.spec.pres map preconditionD(ctx)
-      val posts = decl.spec.posts map postconditionD(ctx)
-      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx)).res
+      val pres = decl.spec.pres map preconditionD(ctx, info)
+      val posts = decl.spec.posts map postconditionD(ctx, info)
+      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
 
-      val capturedWithAliases = (captVars.map { v => in.Ref(localVarD(outerCtx)(v))(meta(v)) } zip capturedVars) ++ {
+      val capturedWithAliases = (captVars.map { v => in.Ref(localVarD(outerCtx, info)(v))(meta(v)) } zip capturedVars) ++ {
         lazy val parentRoot = info.codeRoot(info.tree.parent(info.codeRoot(decl)).head)
         captClosures.map { id =>
           val closure = info.resolve(PNamedOperand(id)).get.asInstanceOf[ap.Closure]
-          closureObjectD(outerCtx)(parentRoot, closure, meta(id)).res} zip capturedCl
+          closureObjectD(outerCtx, info)(parentRoot, closure, meta(id)).res} zip capturedCl
       }
 
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
           val res = b.nonEmptyStmts match {
-            case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
+            case Vector(PReturn(Vector(ret))) => pureExprD(ctx, info)(ret)
             case b => Violation.violation(s"unexpected pure function body: $b")
           }
           implicitConversion(res.typ, returns.head.typ, res)
@@ -907,12 +907,12 @@ object Desugar {
     def maybeStmtD(ctx: FunctionContext)(stmt: Option[PStatement])(src: Source.Parser.Info): Writer[in.Stmt] =
       stmt.map(stmtD(ctx)).getOrElse(unit(in.Seqn(Vector.empty)(src)))
 
-    def blockD(ctx: FunctionContext)(block: PBlock): in.Stmt = {
-      val dStatements = sequence(block.nonEmptyStmts map (s => seqn(stmtD(ctx)(s))))
+    def blockD(ctx: FunctionContext, info: TypeInfo = info)(block: PBlock): in.Stmt = {
+      val dStatements = sequence(block.nonEmptyStmts map (s => seqn(stmtD(ctx, info)(s))))
       blockV(dStatements)(meta(block))
     }
 
-    def stmtD(ctx: FunctionContext)(stmt: PStatement): Writer[in.Stmt] = {
+    def stmtD(ctx: FunctionContext, info: TypeInfo = info)(stmt: PStatement): Writer[in.Stmt] = {
 
       def goS(s: PStatement): Writer[in.Stmt] = stmtD(ctx)(s)
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
@@ -924,7 +924,7 @@ object Desugar {
         * Desugars the left side of an assignment, short variable declaration, and normal variable declaration.
         * If the left side is an identifier definition, a variable declaration and initialization is written, as well.
         */
-      def leftOfAssignmentD(idn: PIdnNode)(t: in.Type): Writer[in.Assignee] = {
+      def leftOfAssignmentD(idn: PIdnNode, info: TypeInfo = info)(t: in.Type): Writer[in.Assignee] = {
         val isDef = idn match {
           case _: PIdnDef => true
           case unk: PIdnUnk if info.isDef(unk) => true
@@ -1377,19 +1377,19 @@ object Desugar {
 
     // Expressions
 
-    def derefD(ctx: FunctionContext)(p: ap.Deref)(src: Meta): Writer[in.Deref] = {
-      exprD(ctx)(p.base) map (in.Deref(_)(src))
+    def derefD(ctx: FunctionContext, info: TypeInfo = info)(p: ap.Deref)(src: Meta): Writer[in.Deref] = {
+      exprD(ctx, info)(p.base) map (in.Deref(_)(src))
     }
 
-    def fieldSelectionD(ctx: FunctionContext)(p: ap.FieldSelection)(src: Meta): Writer[in.FieldRef] = {
+    def fieldSelectionD(ctx: FunctionContext, info: TypeInfo = info)(p: ap.FieldSelection)(src: Meta): Writer[in.FieldRef] = {
       for {
-        r <- exprD(ctx)(p.base)
+        r <- exprD(ctx, info)(p.base)
         base = applyMemberPathD(r, p.path)(src)
         f = structMemberD(p.symb, Addressability.fieldLookup(base.typ.addressability))(src)
       } yield in.FieldRef(base, f)(src)
     }
 
-    def callWithSpecD(ctx: FunctionContext)(c: PCallWithSpec): Writer[in.Expr] = {
+    def callWithSpecD(ctx: FunctionContext, info: TypeInfo = info)(c: PCallWithSpec): Writer[in.Expr] = {
       val src = meta(c)
       val (func, isPure, fParams, fRes) = info.resolve(c.spec.func) match {
         case Some(ap.Function(_, f)) => (f, f.isPure, f.args, f.result)
@@ -1397,27 +1397,27 @@ object Desugar {
         case _ => violation("expected function or function literal")
       }
 
-      val spec = closureSpecD(ctx)(c.spec, info)
+      val spec = closureSpecD(ctx, info)(c.spec)
       val params = fParams.zipWithIndex.collect { case (p, idx) if !spec.params.contains(idx + 1) => func.context.typ(p) }
 
       if (isPure) for {
-        dArgs <- functionCallArgsD(c.args, params)(ctx, src)
+        dArgs <- functionCallArgsD(c.args, params)(ctx, info, src)
         args = arguments(dArgs zip params)
-        closure <- exprD(ctx)(c.base)
+        closure <- exprD(ctx, info)(c.base)
         resT = typeD(func.context.typ(fRes), Addressability.callResult)(src)
       } yield in.PureCallWithSpec(closure, arguments(args zip params), spec, resT)(src)
       else for {
-        dArgs <- functionCallArgsD(c.args, params)(ctx, src)
+        dArgs <- functionCallArgsD(c.args, params)(ctx, info, src)
         args = arguments(dArgs zip params)
-        closure <- exprD(ctx)(c.base)
+        closure <- exprD(ctx, info)(c.base)
         targets = fRes.outs map (o => freshExclusiveVar(typeD(func.context.symbType(o.typ), Addressability.exclusiveVariable)(src), c, info)(src))
         _ <- declare(targets: _*)
         _ <- write(in.CallWithSpec(targets, closure, arguments(args zip params), spec)(src))
       } yield if (targets.size == 1) targets.head else in.Tuple(targets)(src)
     }
 
-    def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall, expr: PInvoke)(src: Meta): Writer[in.Expr] = {
-      functionCallDAux(ctx)(p, expr)(src) flatMap {
+    def functionCallD(ctx: FunctionContext, info: TypeInfo = info)(p: ap.FunctionCall, expr: PInvoke)(src: Meta): Writer[in.Expr] = {
+      functionCallDAux(ctx, info)(p, expr)(src) flatMap {
         case Right(exp) => unit(exp)
         case Left((targets, callStmt)) =>
           val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
@@ -1429,7 +1429,7 @@ object Desugar {
     }
 
     /** Returns either a tuple with targets and call statement or, if the call is pure, the call expression directly. */
-    def functionCallDAux(ctx: FunctionContext)(p: ap.FunctionCall, expr: PInvoke)(src: Meta): Writer[Either[(Vector[in.LocalVar], in.Stmt), in.Expr]] = {
+    def functionCallDAux(ctx: FunctionContext, info: TypeInfo = info)(p: ap.FunctionCall, expr: PInvoke)(src: Meta): Writer[Either[(Vector[in.LocalVar], in.Stmt), in.Expr]] = {
       def getBuiltInFuncType(f: ap.BuiltInFunctionKind): FunctionT = {
         val abstractType = info.typ(f.symb.tag)
         val argsForTyping = f match {
@@ -1480,7 +1480,7 @@ object Desugar {
           }
         }
 
-        functionCallArgsD(p.args, params)(ctx, src)
+        functionCallArgsD(p.args, params)(ctx, info, src)
       }
 
       // encode results
@@ -1602,7 +1602,7 @@ object Desugar {
     /** Desugars the arguments to a function call or a call with spec.
       * @param args The expressions passed as arguments
       * @param params The types of the arguments of the callee (or the spec) */
-    private def functionCallArgsD(args: Vector[PExpression], params: Vector[Type])(ctx: FunctionContext, src: Meta): Writer[Vector[in.Expr]] = {
+    private def functionCallArgsD(args: Vector[PExpression], params: Vector[Type])(ctx: FunctionContext, info: TypeInfo, src: Meta): Writer[Vector[in.Expr]] = {
       val parameterCount: Int = params.length
 
       // is of the form Some(x) if the type of the last param is variadic and the type of its elements is x
@@ -1611,7 +1611,7 @@ object Desugar {
         case _ => None
       }
 
-      val wRes: Writer[Vector[in.Expr]] = sequence(args map exprD(ctx)).map {
+      val wRes: Writer[Vector[in.Expr]] = sequence(args map exprD(ctx, info)).map {
         // go function chaining feature
         case Vector(in.Tuple(targs)) if parameterCount > 1 => targs
         case dargs => dargs
@@ -1691,13 +1691,13 @@ object Desugar {
 
       info.resolve(expr) match {
         case Some(p: ap.LocalVariable) =>
-          unit(in.Assignee(assignableVarD(ctx)(p.id)))
+          unit(in.Assignee(assignableVarD(ctx, info)(p.id)))
         case Some(p: ap.Deref) =>
           derefD(ctx)(p)(src) map in.Assignee.Pointer
         case Some(p: ap.FieldSelection) =>
           fieldSelectionD(ctx)(p)(src) map in.Assignee.Field
         case Some(p : ap.IndexedExp) =>
-          indexedExprD(p.base, p.index)(ctx)(src) map in.Assignee.Index
+          indexedExprD(p.base, p.index)(ctx, info)(src) map in.Assignee.Index
         case Some(ap.BlankIdentifier(decl)) =>
           for {
             dExpr <- exprD(ctx)(decl)
@@ -1707,52 +1707,52 @@ object Desugar {
       }
     }
 
-    def addressableD(ctx: FunctionContext)(expr: PExpression): Writer[in.Addressable] = {
-      val src: Meta = meta(expr)
+    def addressableD(ctx: FunctionContext, info: TypeInfo = info)(expr: PExpression): Writer[in.Addressable] = {
+      val src: Meta = meta(expr, info)
 
       info.resolve(expr) match {
         case Some(p: ap.LocalVariable) =>
-          varD(ctx)(p.id) match {
+          varD(ctx, info)(p.id) match {
             case r: in.LocalVar => unit(in.Addressable.Var(r))
             case r: in.Deref => unit(in.Addressable.Pointer(r))
             case r => Violation.violation(s"expected variable reference but got $r")
           }
         case Some(p: ap.Deref) =>
-          derefD(ctx)(p)(src) map in.Addressable.Pointer
+          derefD(ctx, info)(p)(src) map in.Addressable.Pointer
         case Some(p: ap.FieldSelection) =>
-          fieldSelectionD(ctx)(p)(src) map in.Addressable.Field
+          fieldSelectionD(ctx, info)(p)(src) map in.Addressable.Field
         case Some(p: ap.IndexedExp) =>
-          indexedExprD(p)(ctx)(src) map in.Addressable.Index
+          indexedExprD(p)(ctx, info)(src) map in.Addressable.Index
 
         case p => Violation.violation(s"unexpected ast pattern $p ")
       }
     }
 
 
-    private def indexedExprD(base : PExpression, index : PExpression)(ctx : FunctionContext)(src : Meta) : Writer[in.IndexedExp] = {
+    private def indexedExprD(base : PExpression, index : PExpression)(ctx : FunctionContext, info : TypeInfo)(src : Meta) : Writer[in.IndexedExp] = {
       for {
-        dbase <- exprD(ctx)(base)
-        dindex <- exprD(ctx)(index)
+        dbase <- exprD(ctx, info)(base)
+        dindex <- exprD(ctx, info)(index)
         baseUnderlyingType = underlyingType(dbase.typ)
       } yield in.IndexedExp(dbase, dindex, baseUnderlyingType)(src)
     }
 
-    def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext) : Writer[in.IndexedExp] =
-      indexedExprD(expr.base, expr.index)(ctx)(meta(expr))
-    def indexedExprD(expr : ap.IndexedExp)(ctx : FunctionContext)(src : Meta) : Writer[in.IndexedExp] =
-      indexedExprD(expr.base, expr.index)(ctx)(src)
+    def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext, info : TypeInfo) : Writer[in.IndexedExp] =
+      indexedExprD(expr.base, expr.index)(ctx, info)(meta(expr))
+    def indexedExprD(expr : ap.IndexedExp)(ctx : FunctionContext, info : TypeInfo)(src : Meta) : Writer[in.IndexedExp] =
+      indexedExprD(expr.base, expr.index)(ctx, info)(src)
 
-    def exprD(ctx: FunctionContext)(expr: PExpression): Writer[in.Expr] = {
+    def exprD(ctx: FunctionContext, info: TypeInfo = info)(expr: PExpression): Writer[in.Expr] = {
 
-      def go(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
-      def goTExpr(e: PExpressionOrType): Writer[in.Expr] = exprAndTypeAsExpr(ctx)(e)
+      def go(e: PExpression): Writer[in.Expr] = exprD(ctx, info)(e)
+      def goTExpr(e: PExpressionOrType): Writer[in.Expr] = exprAndTypeAsExpr(ctx, info)(e)
 
-      val src: Meta = meta(expr)
+      val src: Meta = meta(expr, info)
 
       // if expr is a permission and its case is defined in maybePermissionD,
       // then desugaring expr should yield the value returned by that method
       if(info.typ(expr) == PermissionT) {
-        val maybePerm = maybePermissionD(ctx)(expr)
+        val maybePerm = maybePermissionD(ctx, info)(expr)
         if (maybePerm.isDefined) {
           return maybePerm.head
         }
@@ -1768,7 +1768,7 @@ object Desugar {
         case NoGhost(noGhost) => noGhost match {
           case n: PNamedOperand => info.resolve(n) match {
             case Some(p: ap.Constant) => unit(globalConstD(p.symb)(src))
-            case Some(_: ap.LocalVariable) => unit(varD(ctx)(n.id))
+            case Some(_: ap.LocalVariable) => unit(varD(ctx, info)(n.id))
             case Some(_: ap.NamedType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
@@ -1778,13 +1778,13 @@ object Desugar {
             case Some(f: ap.Function) =>
               val name = idName(f.id)
               unit(in.FunctionObject(in.FunctionProxy(name)(src), typeD(info.typ(f.id), Addressability.rValue)(src))(src))
-            case Some(c: ap.Closure) => closureObjectD(ctx)(info.codeRoot(c.id), c, src)
+            case Some(c: ap.Closure) => closureObjectD(ctx, info)(info.codeRoot(c.id), c, src)
 
             case p => Violation.violation(s"encountered unexpected pattern: $p")
           }
 
           case n: PDeref => info.resolve(n) match {
-            case Some(p: ap.Deref) => derefD(ctx)(p)(src)
+            case Some(p: ap.Deref) => derefD(ctx, info)(p)(src)
             case Some(p: ap.PointerType) => for { inElem <- goTExpr(p.base) } yield in.PointerTExpr(inElem)(src)
             case p => Violation.violation(s"encountered unexpected pattern: $p")
           }
@@ -1793,16 +1793,16 @@ object Desugar {
             // The reference of a literal is desugared to a new call
             case c: PCompositeLit =>
               for {
-                c <- compositeLitD(ctx)(c)
+                c <- compositeLitD(ctx, info)(c)
                 v <- freshDeclaredExclusiveVar(in.PointerT(c.typ.withAddressability(Addressability.Shared), Addressability.reference), expr, info)(src)
                 _ <- write(in.New(v, c)(src))
               } yield v
 
-            case _ => addressableD(ctx)(exp) map (a => in.Ref(a, in.PointerT(a.op.typ, Addressability.reference))(src))
+            case _ => addressableD(ctx, info)(exp) map (a => in.Ref(a, in.PointerT(a.op.typ, Addressability.reference))(src))
           }
 
           case n: PDot => info.resolve(n) match {
-            case Some(p: ap.FieldSelection) => fieldSelectionD(ctx)(p)(src)
+            case Some(p: ap.FieldSelection) => fieldSelectionD(ctx, info)(p)(src)
             case Some(p: ap.Constant) => unit[in.Expr](globalConstD(p.symb)(src))
             case Some(_: ap.NamedType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
@@ -1821,9 +1821,9 @@ object Desugar {
             case _ => Violation.violation(s"could not resolve $n")
           }
 
-          case n: PInvoke => invokeD(ctx)(n)
+          case n: PInvoke => invokeD(ctx, info)(n)
 
-          case n: PCallWithSpec => callWithSpecD(ctx)(n)
+          case n: PCallWithSpec => callWithSpecD(ctx, info)(n)
 
           case n: PTypeAssertion =>
             for {
@@ -1836,13 +1836,13 @@ object Desugar {
           case PEquals(left, right) =>
             if (info.typOfExprOrType(left) == PermissionT || info.typOfExprOrType(right) == PermissionT) {
               for {
-                l <- permissionD(ctx)(left.asInstanceOf[PExpression])
-                r <- permissionD(ctx)(right.asInstanceOf[PExpression])
+                l <- permissionD(ctx, info)(left.asInstanceOf[PExpression])
+                r <- permissionD(ctx, info)(right.asInstanceOf[PExpression])
               } yield in.EqCmp(l, r)(src)
             } else {
               for {
-                l <- exprAndTypeAsExpr(ctx)(left)
-                r <- exprAndTypeAsExpr(ctx)(right)
+                l <- exprAndTypeAsExpr(ctx, info)(left)
+                r <- exprAndTypeAsExpr(ctx, info)(right)
               } yield in.EqCmp(l, r)(src)
             }
 
@@ -1904,14 +1904,14 @@ object Desugar {
           case PShiftRight(left, right) => for {l <- go(left); r <- go(right)} yield in.ShiftRight(l, r)(src)
           case PBitNegation(exp) => for {e <- go(exp)} yield in.BitNeg(e)(src)
 
-          case l: PLiteral => litD(ctx)(l)
+          case l: PLiteral => litD(ctx, info)(l)
 
           case PUnfolding(acc, op) =>
-            val dAcc = specificationD(ctx)(acc).asInstanceOf[in.Access]
-            val dOp = pureExprD(ctx)(op)
+            val dAcc = specificationD(ctx, info)(acc).asInstanceOf[in.Access]
+            val dOp = pureExprD(ctx, info)(op)
             unit(in.Unfolding(dAcc, dOp)(src))
 
-          case n : PIndexedExp => indexedExprD(n)(ctx)
+          case n : PIndexedExp => indexedExprD(n)(ctx, info)
 
           case PSliceExp(base, low, high, cap) => for {
             dbase <- go(base)
@@ -1964,7 +1964,7 @@ object Desugar {
             }
           }
 
-          case g: PGhostExpression => ghostExprD(ctx)(g)
+          case g: PGhostExpression => ghostExprD(ctx, info)(g)
 
           case b: PBlankIdentifier =>
             val typ = typeD(info.typ(b), Addressability.exclusiveVariable)(src)
@@ -2057,7 +2057,7 @@ object Desugar {
                 case Some(_: ap.ReceivedPredicate) =>
                   handleBase(b, { case (baseT: in.PredT, dArgs: Vector[Option[in.Expr]]) =>
                     for {
-                      dRecv <- exprAndTypeAsExpr(ctx)(b.recv)
+                      dRecv <- exprAndTypeAsExpr(ctx, info)(b.recv)
                       proxy = getMPredProxy(dRecv.typ, baseT.args)
                       idT = in.PredT(dRecv.typ +: baseT.args, Addressability.rValue)
                     } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
@@ -2086,14 +2086,14 @@ object Desugar {
       }
     }
 
-    private def closureObjectD(ctx: FunctionContext)(root: PCodeRoot, c: ap.Closure, src: Meta): Writer[in.Expr] = {
+    private def closureObjectD(ctx: FunctionContext, info: TypeInfo = info)(root: PCodeRoot, c: ap.Closure, src: Meta): Writer[in.Expr] = {
       val name = idName(c.id, info)
       val proxy = in.FunctionLitProxy(name)(src)
       root match {
         case decl: PClosureDecl if decl eq c.symb.lit.decl.decl =>
           // The reference to the literal is within the same literal
           unit(in.ClosureObject(proxy, typeD(info.typ(c.id), Addressability.rValue)(src))(src))
-        case _: PClosureDecl => ctx(c.id) match {
+        case _: PClosureDecl => ctx(c.id, info) match {
           // We are within some other function literal, so this closure is captured by the literal.
           // We expect to find a substitution in the function context.
           case Some(exp) => unit(exp)
@@ -2108,10 +2108,10 @@ object Desugar {
       }
     }
 
-    def invokeD(ctx: FunctionContext)(expr: PInvoke): Writer[in.Expr] = {
+    def invokeD(ctx: FunctionContext, info: TypeInfo = info)(expr: PInvoke): Writer[in.Expr] = {
       val src: Meta = meta(expr)
       info.resolve(expr) match {
-        case Some(p: ap.FunctionCall) => functionCallD(ctx)(p, expr)(src)
+        case Some(p: ap.FunctionCall) => functionCallD(ctx, info)(p, expr)(src)
         case Some(ap.Conversion(typ, arg)) =>
           val typType = info.symbType(typ)
           val argType = info.typ(arg)
@@ -2121,13 +2121,13 @@ object Desugar {
               val resT = typeD(SliceT(IntT(TypeBounds.Byte)), Addressability.Exclusive)(src)
               for {
                 target <- freshDeclaredExclusiveVar(resT, expr, info)(src)
-                dArg <- exprD(ctx)(arg)
+                dArg <- exprD(ctx, info)(arg)
                 conv: in.EffectfulConversion = in.EffectfulConversion(target, resT, dArg)(src)
                 _ <- write(conv)
               } yield target
             case _ =>
               val desugaredTyp = typeD(typType, info.addressability(expr))(src)
-              for { expr <- exprD(ctx)(arg) } yield in.Conversion(desugaredTyp, expr)(src)
+              for { expr <- exprD(ctx, info)(arg) } yield in.Conversion(desugaredTyp, expr)(src)
           }
 
         case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($expr) to an expression")
@@ -2145,17 +2145,17 @@ object Desugar {
       }}
     }
 
-    def exprAndTypeAsExpr(ctx: FunctionContext)(expr: PExpressionOrType): Writer[in.Expr] = {
+    def exprAndTypeAsExpr(ctx: FunctionContext, info: TypeInfo = info)(expr: PExpressionOrType): Writer[in.Expr] = {
 
-      def go(x: PExpressionOrType): Writer[in.Expr] = exprAndTypeAsExpr(ctx)(x)
+      def go(x: PExpressionOrType): Writer[in.Expr] = exprAndTypeAsExpr(ctx, info)(x)
 
-      val src: Meta = meta(expr)
+      val src: Meta = meta(expr, info)
 
       expr match {
 
         case PTypeExpr(t) => go(t)
 
-        case e: PExpression => exprD(ctx)(e)
+        case e: PExpression => exprD(ctx, info)(e)
 
         case PBoolType() => unit(in.BoolTExpr()(src))
 
@@ -2167,7 +2167,7 @@ object Desugar {
 
         case PArrayType(len, elem) =>
           for {
-            inLen <- exprD(ctx)(len)
+            inLen <- exprD(ctx, info)(len)
             inElem <- go(elem)
           } yield in.ArrayTExpr(inLen, inElem)(src)
 
@@ -2187,9 +2187,9 @@ object Desugar {
     }
 
 
-    def litD(ctx: FunctionContext)(lit: PLiteral): Writer[in.Expr] = {
+    def litD(ctx: FunctionContext, info: TypeInfo = info)(lit: PLiteral): Writer[in.Expr] = {
 
-      val src: Meta = meta(lit)
+      val src: Meta = meta(lit, info)
       def single[E <: in.Expr](gen: Meta => E): Writer[in.Expr] = unit[in.Expr](gen(src))
 
       lit match {
@@ -2197,8 +2197,8 @@ object Desugar {
         case PBoolLit(b) => single(in.BoolLit(b))
         case PStringLit(s) => single(in.StringLit(s))
         case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.PointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
-        case f: PFunctionLit => registerFunctionLit(f)(ctx)
-        case c: PCompositeLit => compositeLitD(ctx)(c)
+        case f: PFunctionLit => registerFunctionLit(ctx, info)(f)
+        case c: PCompositeLit => compositeLitD(ctx, info)(c)
         case _ => ???
       }
     }
@@ -2220,8 +2220,8 @@ object Desugar {
       }
     }
 
-    def pureFunctionLitD(ctx: FunctionContext)(lit: PFunctionLit): (Option[Writer[in.LocalVar]], in.PureFunctionLit) = {
-      val funcInfo = pureFunctionMemberOrLitD(lit.decl.decl, meta(lit), ctx)
+    def pureFunctionLitD(ctx: FunctionContext, info: TypeInfo = info)(lit: PFunctionLit): (Option[Writer[in.LocalVar]], in.PureFunctionLit) = {
+      val funcInfo = pureFunctionMemberOrLitD(lit.decl.decl, meta(lit), ctx, info)
       val src = meta(lit)
       val name = functionLitProxyD(lit, info)
       val funcLit = in.PureFunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit))
@@ -2257,16 +2257,16 @@ object Desugar {
       (param, localVar)
     }
 
-    def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
+    def compositeLitD(ctx: FunctionContext, info: TypeInfo = info)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
 
       case t: PImplicitSizeArrayType =>
         val arrayLen : BigInt = lit.lit.elems.length
         val arrayTyp = typeD(info.symbType(t.elem), Addressability.arrayElement(Addressability.literal))(meta(lit))
-        literalValD(ctx)(lit.lit, in.ArrayT(arrayLen, arrayTyp, Addressability.literal))
+        literalValD(ctx, info)(lit.lit, in.ArrayT(arrayLen, arrayTyp, Addressability.literal))
 
       case t: PType =>
         val it = typeD(info.symbType(t), Addressability.literal)(meta(lit))
-        literalValD(ctx)(lit.lit, it)
+        literalValD(ctx, info)(lit.lit, it)
 
       case _ => ???
     }
@@ -2320,15 +2320,15 @@ object Desugar {
       case _ => None
     }
 
-    def compositeValD(ctx : FunctionContext)(expr : PCompositeVal, typ : in.Type) : Writer[in.Expr] = {
+    def compositeValD(ctx : FunctionContext, info: TypeInfo = info)(expr : PCompositeVal, typ : in.Type) : Writer[in.Expr] = {
       val e = expr match {
-        case PExpCompositeVal(e) => exprD(ctx)(e)
-        case PLitCompositeVal(lit) => literalValD(ctx)(lit, typ)
+        case PExpCompositeVal(e) => exprD(ctx, info)(e)
+        case PLitCompositeVal(lit) => literalValD(ctx, info)(lit, typ)
       }
       e map { exp => implicitConversion(exp.typ, typ, exp) }
     }
 
-    def literalValD(ctx: FunctionContext)(lit: PLiteralValue, t: in.Type): Writer[in.CompositeLit] = {
+    def literalValD(ctx: FunctionContext, info: TypeInfo = info)(lit: PLiteralValue, t: in.Type): Writer[in.CompositeLit] = {
       val src = meta(lit)
 
       compositeTypeD(t) match {
@@ -2339,8 +2339,8 @@ object Desugar {
           if (lit.elems.exists(_.key.isEmpty)) {
             // all elements are not keyed
             val wArgs = fields.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) => exp match {
-              case PExpCompositeVal(ev) => exprD(ctx)(ev)
-              case PLitCompositeVal(lv) => literalValD(ctx)(lv, f.typ)
+              case PExpCompositeVal(ev) => exprD(ctx, info)(ev)
+              case PLitCompositeVal(lv) => literalValD(ctx, info)(lv, f.typ)
             }}
 
             for {
@@ -2355,8 +2355,8 @@ object Desugar {
               case PKeyedElement(Some(PIdentifierKey(key)), exp) =>
                 val f = fMap(key.name)
                 exp match {
-                  case PExpCompositeVal(ev) => f -> exprD(ctx)(ev)
-                  case PLitCompositeVal(lv) => f -> literalValD(ctx)(lv, f.typ)
+                  case PExpCompositeVal(ev) => f -> exprD(ctx, info)(ev)
+                  case PLitCompositeVal(lv) => f -> literalValD(ctx, info)(lv, f.typ)
                 }
 
               case _ => Violation.violation("expected identifier as a key")
@@ -2375,39 +2375,39 @@ object Desugar {
 
         case CompositeKind.Array(in.ArrayT(len, typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ))) }
+          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx, info)(e.exp, typ))) }
             yield in.ArrayLit(len, typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
 
         case CompositeKind.Slice(in.SliceT(typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ))) }
+          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx, info)(e.exp, typ))) }
             yield in.SliceLit(typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
 
         case CompositeKind.Sequence(in.SequenceT(typ, _)) => for {
-          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
+          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx, info)(e.exp, typ)))
           elemsMap = info.keyElementIndices(lit.elems).zip(elemsD).toMap
           lengthD = if (elemsMap.isEmpty) BigInt(0) else elemsMap.maxBy(_._1)._1 + 1
         } yield in.SequenceLit(lengthD, typ, elemsMap)(src)
 
         case CompositeKind.Set(in.SetT(typ, _)) => for {
-          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
+          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx, info)(e.exp, typ)))
         } yield in.SetLit(typ, elemsD)(src)
 
         case CompositeKind.Multiset(in.MultisetT(typ, _)) => for {
-          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
+          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx, info)(e.exp, typ)))
         } yield in.MultisetLit(typ, elemsD)(src)
 
         case CompositeKind.Map(in.MapT(keys, values, _)) => for {
-          entriesD <- handleMapEntries(ctx)(lit, keys, values)
+          entriesD <- handleMapEntries(ctx, info)(lit, keys, values)
         } yield in.MapLit(keys, values, entriesD)(src)
 
         case CompositeKind.MathematicalMap(in.MathMapT(keys, values, _)) => for {
-          entriesD <- handleMapEntries(ctx)(lit, keys, values)
+          entriesD <- handleMapEntries(ctx, info)(lit, keys, values)
         } yield in.MathMapLit(keys, values, entriesD)(src)
       }
     }
 
-    private def handleMapEntries(ctx: FunctionContext)(lit: PLiteralValue, keys: in.Type, values: in.Type): Writer[Seq[(in.Expr, in.Expr)]] = {
+    private def handleMapEntries(ctx: FunctionContext, info: TypeInfo = info)(lit: PLiteralValue, keys: in.Type, values: in.Type): Writer[Seq[(in.Expr, in.Expr)]] = {
       sequence(
         lit.elems map {
           case PKeyedElement(Some(key), value) => for {
@@ -2666,8 +2666,8 @@ object Desugar {
     /** Desugar the function literal and add it to the map.
       * If the enclosing function is not pure, each literal is assigned to a local variable, which is returned,
       * and saved in a separate, internal map. */
-    private def registerFunctionLit(lit: PFunctionLit)(ctx: FunctionContext): Writer[in.Expr] = {
-      val (localVar, fLit) = if (lit.decl.decl.spec.isPure) pureFunctionLitD(ctx)(lit) else functionLitD(ctx)(lit)
+    private def registerFunctionLit(ctx: FunctionContext, info: TypeInfo)(lit: PFunctionLit): Writer[in.Expr] = {
+      val (localVar, fLit) = if (lit.decl.decl.spec.isPure) pureFunctionLitD(ctx, info)(lit) else functionLitD(ctx)(lit)
       definedFuncLiterals += fLit.name -> fLit
       if (localVar.isEmpty) {
         unit(fLit)
@@ -2790,9 +2790,9 @@ object Desugar {
       }
     }
 
-    def varD(ctx: FunctionContext)(id: PIdnNode): in.Expr = {
+    def varD(ctx: FunctionContext, info: TypeInfo = info)(id: PIdnNode): in.Expr = {
       require(info.regular(id).isInstanceOf[st.Variable])
-      ctx(id) match {
+      ctx(id, info) match {
         case Some(v : in.Var) => v
         case Some(d@in.Deref(v, _)) if v.isInstanceOf[in.Var] => d
         case Some(_) => violation("expected a variable or the dereference of a pointer")
@@ -2800,14 +2800,14 @@ object Desugar {
       }
     }
 
-    def assignableVarD(ctx: FunctionContext)(id: PIdnNode) : in.Expr = {
+    def assignableVarD(ctx: FunctionContext, info: TypeInfo = info)(id: PIdnNode) : in.Expr = {
       require(info.regular(id).isInstanceOf[st.Variable])
 
-      ctx(id) match {
+      ctx(id, info) match {
         case Some(v: in.AssignableVar) => v
         case Some(d@in.Deref(v, _)) if v.isInstanceOf[in.Var] => d
         case Some(_) => violation("expected an assignable variable or the dereference of a variable")
-        case None => localVarContextFreeD(id)
+        case None => localVarContextFreeD(id, info)
       }
     }
 
@@ -2826,10 +2826,10 @@ object Desugar {
       declare(v).map(_ => v)
     }
 
-    def localVarD(ctx: FunctionContext)(id: PIdnNode): in.Expr = {
+    def localVarD(ctx: FunctionContext, info: TypeInfo = info)(id: PIdnNode): in.Expr = {
       require(info.regular(id).isInstanceOf[st.Variable]) // TODO: add local check
 
-      ctx(id) match {
+      ctx(id, info) match {
         case Some(v: in.LocalVar) => v
         case Some(d@in.Deref(v, _)) if v.isInstanceOf[in.LocalVar] => d
         case None => localVarContextFreeD(id)
@@ -3012,26 +3012,28 @@ object Desugar {
     }
 
     private def closureImplProofD(ctx: FunctionContext)(proof: PClosureImplProof): Writer[in.Stmt] = {
+      val (func, funcTypeInfo) = info.resolve(proof.impl.spec.func) match {
+        case Some(ap.Function(_, f)) => (f, f.context.getTypeInfo)
+        case Some(ap.Closure(_, c)) => (c, c.context.getTypeInfo)
+        case _ => violation("expected function member or literal")
+      }
+
       def localVarFromParam(p: PParameter): in.LocalVar = {
-        val src = meta(p)
-        val typ = typeD(info.typ(p), Addressability.inParameter)(src)
+        val src = meta(p, funcTypeInfo)
+        val typ = typeD(funcTypeInfo.typ(p), Addressability.inParameter)(src)
         in.LocalVar(nm.fresh(proof, info), typ)(src)
       }
 
-      val func = info.resolve(proof.impl.spec.func) match {
-        case Some(ap.Function(_, f)) => f
-        case Some(ap.Closure(_, c)) => c
-        case _ => violation("expected function member or literal")
-      }
       val argSubs = func.args map localVarFromParam
       val retSubs = func.result.outs map localVarFromParam
 
       def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt =
         if (rets.isEmpty) in.Seqn(Vector.empty)(src)
-        else if (rets.size == 1) in.Seqn(retSubs.zip(rets).map{
-            case (p, v) => singleAss(in.Assignee.Var(p), v)(src)
-          })(src)
-        else if (rets.size == retSubs.size) multiassD(retSubs.map(v => in.Assignee.Var(v)), rets.head, proof.block)(src)
+        else if (rets.size == retSubs.size) in.Seqn(retSubs.zip(rets).map{ case (p, v) => singleAss(in.Assignee.Var(p), v)(src) })(src)
+        else if (rets.size == 1) rets.head match {
+          case in.Tuple(args) => assignReturns(args)(src)
+          case _ => multiassD(retSubs.map(v => in.Assignee.Var(v)), rets.head, proof.block)(src)
+        }
         else violation(s"found ${rets.size} returns but expected 0, 1, or ${retSubs.size}")
 
       val recvOrClosure: Option[PExpression] = info.resolve(proof.impl.closure) match {
@@ -3054,19 +3056,19 @@ object Desugar {
 
       val newCtx = ctx.copyWith(assignReturns).copyWithExpD(replaceRecvOrClosure)
       ((argSubs zip func.args) ++ (retSubs zip func.result.outs)) foreach {
-        case (s, PNamedParameter(id, _)) => newCtx.addSubst(id, s)
-        case (s, PExplicitGhostParameter(PNamedParameter(id, _))) => newCtx.addSubst(id, s)
+        case (s, PNamedParameter(id, _)) => newCtx.addSubst(id, s, funcTypeInfo)
+        case (s, PExplicitGhostParameter(PNamedParameter(id, _))) => newCtx.addSubst(id, s, funcTypeInfo)
         case _ =>
       }
 
       val src = meta(proof)
 
-      val spec = closureSpecD(newCtx)(proof.impl.spec, info)
+      val spec = closureSpecD(newCtx)(proof.impl.spec)
 
       val ndBool = in.LocalVar(nm.fresh(proof, info), in.BoolT(Addressability.exclusiveVariable))(src)
       val declarations = Vector(ndBool) ++ argSubs ++ retSubs ++ recvOrClosureAlias.toVector
       val assignments =
-        recvOrClosure.map(exp => singleAss(in.Assignee(recvOrClosureAlias.get), exprD(ctx)(exp).res)(meta(exp))).toVector ++
+        recvOrClosure.map(exp => singleAss(in.Assignee(recvOrClosureAlias.get), exprD(ctx, info)(exp).res)(meta(exp))).toVector ++
           argSubs.zipWithIndex.collect {
             case (v, idx) if spec.params.contains(idx+1) =>
               val exp = spec.params(idx+1)
@@ -3078,13 +3080,13 @@ object Desugar {
         case c: st.Closure => c.lit.decl.decl.spec
         case _ => violation("function or closure expected")
       }
-      val pres = (fSpec.pres ++ fSpec.preserves) map preconditionD(newCtx)
-      val posts = (fSpec.preserves ++ fSpec.posts) map postconditionD(newCtx)
+      val pres = (fSpec.pres ++ fSpec.preserves) map preconditionD(newCtx, funcTypeInfo)
+      val posts = (fSpec.preserves ++ fSpec.posts) map postconditionD(newCtx, funcTypeInfo)
 
       for {
         proof <- for {
           closure <- exprD(newCtx)(proof.impl.closure)
-          spec = closureSpecD(newCtx)(proof.impl.spec, info)
+          spec = closureSpecD(newCtx)(proof.impl.spec)
           body <- stmtD(newCtx)(proof.block)
         } yield in.SpecImplementationProof(closure, spec, ndBool, body.asInstanceOf[in.Block], pres, posts)(src)
       } yield in.Block(declarations, assignments ++ Vector(proof))(src)
@@ -3092,9 +3094,9 @@ object Desugar {
 
     // Ghost Expression
 
-    def ghostExprD(ctx: FunctionContext)(expr: PGhostExpression): Writer[in.Expr] = {
+    def ghostExprD(ctx: FunctionContext, info: TypeInfo = info)(expr: PGhostExpression): Writer[in.Expr] = {
 
-      def go(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
+      def go(e: PExpression): Writer[in.Expr] = exprD(ctx, info)(e)
 
       val src: Meta = meta(expr)
 
@@ -3111,11 +3113,11 @@ object Desugar {
         } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
         case PForall(vars, triggers, body) =>
-          for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(exprD) }
+          for { (newVars, newTriggers, newBody) <- quantifierD(ctx, info)(vars, triggers, body)(ctx => exprD(ctx, info)) }
             yield in.PureForall(newVars, newTriggers, newBody)(src)
 
         case PExists(vars, triggers, body) =>
-          for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(exprD) }
+          for { (newVars, newTriggers, newBody) <- quantifierD(ctx, info)(vars, triggers, body)(ctx => exprD(ctx, info)) }
             yield in.Exists(newVars, newTriggers, newBody)(src)
 
         case PImplication(left, right) => for {
@@ -3126,8 +3128,8 @@ object Desugar {
 
         case PTypeOf(exp) => for { wExp <- go(exp) } yield in.TypeOf(wExp)(src)
         case PIsComparable(exp) => underlyingType(info.typOfExprOrType(exp)) match {
-          case _: Type.InterfaceT => for { wExp <- exprAndTypeAsExpr(ctx)(exp) } yield in.IsComparableInterface(wExp)(src)
-          case Type.SortT => for { wExp <- exprAndTypeAsExpr(ctx)(exp) } yield in.IsComparableType(wExp)(src)
+          case _: Type.InterfaceT => for { wExp <- exprAndTypeAsExpr(ctx, info)(exp) } yield in.IsComparableInterface(wExp)(src)
+          case Type.SortT => for { wExp <- exprAndTypeAsExpr(ctx, info)(exp) } yield in.IsComparableType(wExp)(src)
           case t => Violation.violation(s"Expected interface or sort type, but got $t")
         }
 
@@ -3242,6 +3244,7 @@ object Desugar {
       * Desugars a quantifier-like structure: a sequence `vars` of variable declarations,
       * together with a sequence `triggers` of triggers and a quantifier `body`.
       * @param ctx A function context consisting of variable substitutions.
+      * @param info External type info, useful if the expression being desugared is from an imported package.
       * @param vars The sequence of variable (declarations) bound by the quantifier.
       * @param triggers The sequence of triggers for the quantifier.
       * @param body The quantifier body.
@@ -3249,7 +3252,7 @@ object Desugar {
       * @tparam T The type of the desugared quantifier body (e.g., expression, or assertion).
       * @return The desugared versions of `vars`, `triggers` and `body`.
       */
-    def quantifierD[T](ctx: FunctionContext)
+    def quantifierD[T](ctx: FunctionContext, info: TypeInfo = info)
                       (vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression)
                       (go : FunctionContext => PExpression => Writer[T])
         : Writer[(Vector[in.BoundVar], Vector[in.Trigger], T)] = {
@@ -3257,10 +3260,10 @@ object Desugar {
 
       // substitution has to be added since otherwise all bound variables are translated to addressable variables
       val bodyCtx = ctx.copy
-      (vars zip newVars).foreach { case (a, b) => bodyCtx.addSubst(a.id, b) }
+      (vars zip newVars).foreach { case (a, b) => bodyCtx.addSubst(a.id, b, info) }
 
       for {
-        newTriggers <- sequence(triggers map triggerD(bodyCtx))
+        newTriggers <- sequence(triggers map triggerD(bodyCtx, info))
         newBody <- go(bodyCtx)(body)
       } yield (newVars, newTriggers, newBody)
     }
@@ -3268,8 +3271,8 @@ object Desugar {
     def boundVariableD(x: PBoundVariable) : in.BoundVar =
       in.BoundVar(idName(x.id), typeD(info.symbType(x.typ), Addressability.boundVariable)(meta(x)))(meta(x))
 
-    def pureExprD(ctx: FunctionContext)(expr: PExpression): in.Expr = {
-      val dExp = exprD(ctx)(expr)
+    def pureExprD(ctx: FunctionContext, info: TypeInfo = info)(expr: PExpression): in.Expr = {
+      val dExp = exprD(ctx, info)(expr)
       Violation.violation(dExp.stmts.isEmpty && dExp.decls.isEmpty, s"expected pure expression, but got $expr")
       dExp.res
     }
@@ -3277,49 +3280,49 @@ object Desugar {
 
     // Assertion
 
-    def specificationD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
-      val condition = assertionD(ctx)(ass)
+    def specificationD(ctx: FunctionContext, info: TypeInfo = info)(ass: PExpression): in.Assertion = {
+      val condition = assertionD(ctx, info)(ass)
       Violation.violation(condition.stmts.isEmpty && condition.decls.isEmpty, s"$ass is not an assertion")
       condition.res
     }
 
-    def preconditionD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
-      specificationD(ctx)(ass)
+    def preconditionD(ctx: FunctionContext, info: TypeInfo = info)(ass: PExpression): in.Assertion = {
+      specificationD(ctx, info)(ass)
     }
 
-    def postconditionD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
-      specificationD(ctx)(ass)
+    def postconditionD(ctx: FunctionContext, info: TypeInfo = info)(ass: PExpression): in.Assertion = {
+      specificationD(ctx, info)(ass)
     }
 
-    def terminationMeasureD(ctx: FunctionContext)(measure: PTerminationMeasure): Writer[in.TerminationMeasure] = {
+    def terminationMeasureD(ctx: FunctionContext, info: TypeInfo = info)(measure: PTerminationMeasure): Writer[in.TerminationMeasure] = {
       val src: Meta = meta(measure)
 
       def goE(expr: PExpression): Writer[in.Node] = expr match {
         case p: PInvoke => info.resolve(p) match {
-          case Some(x: ap.PredicateCall) => predicateCallAccD(ctx)(x)(src)
-          case Some(_: ap.FunctionCall) => exprD(ctx)(p)
+          case Some(x: ap.PredicateCall) => predicateCallAccD(ctx, info)(x)(src)
+          case Some(_: ap.FunctionCall) => exprD(ctx, info)(p)
           case _ => violation(s"Unexpected expression $expr")
         }
-        case _ => exprD(ctx)(expr)
+        case _ => exprD(ctx, info)(expr)
       }
 
       measure match {
         case PWildcardMeasure(cond) =>
-          for { c <- option(cond map exprD(ctx)) } yield in.WildcardMeasure(c)(src)
+          for { c <- option(cond map exprD(ctx, info)) } yield in.WildcardMeasure(c)(src)
         case PTupleTerminationMeasure(tuple, cond) =>
           for {
             t <- sequence(tuple map goE)
-            c <- option(cond map exprD(ctx))
+            c <- option(cond map exprD(ctx, info))
           } yield in.TupleTerminationMeasure(t, c)(src)
       }
     }
 
-    def assertionD(ctx: FunctionContext)(n: PExpression): Writer[in.Assertion] = {
+    def assertionD(ctx: FunctionContext, info: TypeInfo = info)(n: PExpression): Writer[in.Assertion] = {
 
-      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
-      def goA(a: PExpression): Writer[in.Assertion] = assertionD(ctx)(a)
+      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx, info)(e)
+      def goA(a: PExpression): Writer[in.Assertion] = assertionD(ctx, info)(a)
 
-      val src: Meta = meta(n)
+      val src: Meta = meta(n, info)
 
       n match {
         case n: PImplication => for {l <- goE(n.left); r <- goA(n.right)} yield in.Implication(l, r)(src)
@@ -3334,12 +3337,12 @@ object Desugar {
           for {l <- goA(left); r <- goA(right)} yield in.MagicWand(l, r)(src)
 
         case PClosureImplements(closure, spec) =>
-          for {c <- exprD(ctx)(closure)} yield in.ClosureImplements(c, closureSpecD(ctx)(spec, info))(src)
+          for {c <- exprD(ctx, info)(closure)} yield in.ClosureImplements(c, closureSpecD(ctx, info)(spec))(src)
 
         case n: PAnd => for {l <- goA(n.left); r <- goA(n.right)} yield in.SepAnd(l, r)(src)
 
-        case n: PAccess => for {e <- accessibleD(ctx)(n.exp); p <- permissionD(ctx)(n.perm)} yield in.Access(e, p)(src)
-        case n: PPredicateAccess => predicateCallD(ctx)(n.pred, n.perm)
+        case n: PAccess => for {e <- accessibleD(ctx, info)(n.exp); p <- permissionD(ctx, info)(n.perm)} yield in.Access(e, p)(src)
+        case n: PPredicateAccess => predicateCallD(ctx, info)(n.pred, n.perm)
 
         case n: PInvoke =>
           // a predicate invocation corresponds to a predicate access with full permissions
@@ -3347,45 +3350,45 @@ object Desugar {
           // is retrievable in predicateCallD
           val perm = PFullPerm()
           pom.positions.dupPos(n, perm)
-          predicateCallD(ctx)(n, perm)
+          predicateCallD(ctx, info)(n, perm)
 
         case PForall(vars, triggers, body) =>
-          for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(assertionD) }
+          for { (newVars, newTriggers, newBody) <- quantifierD(ctx, info)(vars, triggers, body)(ctx => assertionD(ctx, info)) }
             yield newBody match {
               case in.ExprAssertion(exprBody) =>
                 in.ExprAssertion(in.PureForall(newVars, newTriggers, exprBody)(src))(src)
               case _ => in.SepForall(newVars, newTriggers, newBody)(src)
             }
 
-        case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
+        case _ => exprD(ctx, info)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
       }
     }
 
-    def predicateCallD(ctx: FunctionContext)(n: PInvoke, perm: PExpression): Writer[in.Assertion] = {
+    def predicateCallD(ctx: FunctionContext, info: TypeInfo)(n: PInvoke, perm: PExpression): Writer[in.Assertion] = {
 
       val src: Meta = meta(n)
 
       info.resolve(n) match {
         case Some(p: ap.PredicateCall) =>
           for {
-            predAcc <- predicateCallAccD(ctx)(p)(src)
+            predAcc <- predicateCallAccD(ctx, info)(p)(src)
             p <- permissionD(ctx)(perm)
           } yield in.Access(in.Accessible.Predicate(predAcc), p)(src)
 
         case Some(b: ap.PredExprInstance) =>
           for {
-            base <- exprD(ctx)(n.base.asInstanceOf[PExpression])
-            args <- sequence(n.args.map(exprD(ctx)(_)))
+            base <- exprD(ctx, info)(n.base.asInstanceOf[PExpression])
+            args <- sequence(n.args.map(exprD(ctx, info)(_)))
             implicitlyConvertedArgs = arguments(b.typ, args)
             predExprInstance = in.PredExprInstance(base, implicitlyConvertedArgs)(src)
             p <- permissionD(ctx)(perm)
           } yield in.Access(in.Accessible.PredExpr(predExprInstance), p)(src)
 
-        case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
+        case _ => exprD(ctx, info)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
       }
     }
 
-    def predicateCallAccD(ctx: FunctionContext)(p: ap.PredicateCall)(src: Meta): Writer[in.PredicateAccess] = {
+    def predicateCallAccD(ctx: FunctionContext, info: TypeInfo = info)(p: ap.PredicateCall)(src: Meta): Writer[in.PredicateAccess] = {
 
       def getBuiltInPredType(pk: ap.BuiltInPredicateKind): FunctionT = {
         val abstractType = info.typ(pk.symb.tag)
@@ -3415,7 +3418,7 @@ object Desugar {
       }
 
       /** not-yet implicitly converted args */
-      val dArgs = p.args map pureExprD(ctx)
+      val dArgs = p.args map pureExprD(ctx, info)
 
       p.predicate match {
         case b: ap.Predicate =>
@@ -3423,7 +3426,7 @@ object Desugar {
           unit(in.FPredicateAccess(fproxy, convertArgs(dArgs))(src))
 
         case b: ap.ReceivedPredicate =>
-          val dRecv = pureExprD(ctx)(b.recv)
+          val dRecv = pureExprD(ctx, info)(b.recv)
           val dRecvWithPath = applyMemberPathD(dRecv, b.path)(src)
           val proxy = mpredicateProxyD(b.id, info)
           unit(in.MPredicateAccess(dRecvWithPath, proxy, convertArgs(dArgs))(src))
@@ -3445,7 +3448,7 @@ object Desugar {
           unit(in.FPredicateAccess(fproxy, convertArgs(dArgs))(src))
 
         case b: ap.BuiltInReceivedPredicate =>
-          val dRecv = pureExprD(ctx)(b.recv)
+          val dRecv = pureExprD(ctx, info)(b.recv)
           val dRecvWithPath = applyMemberPathD(dRecv, b.path)(src)
           val convertedArgs = convertArgs(dArgs)
           val proxy = mpredicateProxy(b.symb.tag, dRecvWithPath.typ, convertedArgs.map(_.typ))(src)
@@ -3464,15 +3467,15 @@ object Desugar {
     def implicitThisD(p: in.Type)(src: Source.Parser.Info): in.Parameter.In =
       in.Parameter.In(nm.implicitThis, p.withAddressability(Addressability.receiver))(src)
 
-    def accessibleD(ctx: FunctionContext)(acc: PExpression): Writer[in.Accessible] = {
+    def accessibleD(ctx: FunctionContext, info: TypeInfo = info)(acc: PExpression): Writer[in.Accessible] = {
 
-      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
+      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx, info)(e)
 
       val src: Meta = meta(acc)
 
       info.resolve(acc) match {
         case Some(p: ap.PredicateCall) =>
-          predicateCallAccD(ctx)(p)(src) map (x => in.Accessible.Predicate(x))
+          predicateCallAccD(ctx, info)(p)(src) map (x => in.Accessible.Predicate(x))
 
         case Some(p: ap.PredExprInstance) =>
           for {
@@ -3488,7 +3491,7 @@ object Desugar {
               // [[in.Accessible.Address]] represents '&'.
               // If there is no outermost '&', then adds '&*'.
               acc match {
-                case PReference(op) => addressableD(ctx)(op) map (x => in.Accessible.Address(x.op))
+                case PReference(op) => addressableD(ctx, info)(op) map (x => in.Accessible.Address(x.op))
                 case _ =>
                   goE(acc) map (x => in.Accessible.Address(in.Deref(x, typeD(ut.elem, Addressability.dereference)(src))(src)))
               }
@@ -3505,20 +3508,20 @@ object Desugar {
 
     }
 
-    def permissionD(ctx: FunctionContext)(exp: PExpression): Writer[in.Expr] = {
-      maybePermissionD(ctx)(exp) getOrElse exprD(ctx)(exp)
+    def permissionD(ctx: FunctionContext, info: TypeInfo = info)(exp: PExpression): Writer[in.Expr] = {
+      maybePermissionD(ctx, info)(exp) getOrElse exprD(ctx, info)(exp)
     }
 
-    def maybePermissionD(ctx: FunctionContext)(exp: PExpression): Option[Writer[in.Expr]] = {
+    def maybePermissionD(ctx: FunctionContext, info: TypeInfo = info)(exp: PExpression): Option[Writer[in.Expr]] = {
       val src: Meta = meta(exp)
-      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
+      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx, info)(e)
 
       exp match {
         case n: PInvoke => info.resolve(n) match {
           case Some(_: ap.Conversion) =>
             Some(for {
               // the well-definedness checker ensures that there is exactly one argument
-              arg <- permissionD(ctx)(n.args.head)
+              arg <- permissionD(ctx, info)(n.args.head)
             } yield in.Conversion(in.PermissionT(Addressability.conversionResult), arg)(src))
           case _ => None
         }
@@ -3526,27 +3529,27 @@ object Desugar {
         case PNoPerm() => Some(unit(in.NoPerm(src)))
         case PWildcardPerm() => Some(unit(in.WildcardPerm(src)))
         case PDiv(l, r) => (info.typ(l), info.typ(r)) match {
-          case (PermissionT, IntT(_)) => Some(for { vl <- permissionD(ctx)(l); vr <- goE(r) } yield in.PermDiv(vl, vr)(src))
+          case (PermissionT, IntT(_)) => Some(for { vl <- permissionD(ctx, info)(l); vr <- goE(r) } yield in.PermDiv(vl, vr)(src))
           case (IntT(_), IntT(_)) => Some(for { vl <- goE(l); vr <- goE(r) } yield in.FractionalPerm(vl, vr)(src))
           case err => violation(s"This case should be unreachable, but got $err")
         }
-        case PNegation(exp) => Some(for {e <- permissionD(ctx)(exp)} yield in.PermMinus(e)(src))
-        case PAdd(l, r) => Some(for { vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r) } yield in.PermAdd(vl, vr)(src))
-        case PSub(l, r) => Some(for { vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r) } yield in.PermSub(vl, vr)(src))
-        case PMul(l, r) => Some(for {vl <- goE(l); vr <- permissionD(ctx)(r)} yield in.PermMul(vl, vr)(src))
+        case PNegation(exp) => Some(for {e <- permissionD(ctx, info)(exp)} yield in.PermMinus(e)(src))
+        case PAdd(l, r) => Some(for { vl <- permissionD(ctx, info)(l); vr <- permissionD(ctx, info)(r) } yield in.PermAdd(vl, vr)(src))
+        case PSub(l, r) => Some(for { vl <- permissionD(ctx, info)(l); vr <- permissionD(ctx, info)(r) } yield in.PermSub(vl, vr)(src))
+        case PMul(l, r) => Some(for {vl <- goE(l); vr <- permissionD(ctx, info)(r)} yield in.PermMul(vl, vr)(src))
         case x if info.typ(x).isInstanceOf[IntT] => Some(for { e <- goE(x) } yield in.FractionalPerm(e, in.IntLit(BigInt(1))(src))(src))
         case _ => None
       }
     }
 
-    def triggerD(ctx: FunctionContext)(trigger: PTrigger) : Writer[in.Trigger] = {
+    def triggerD(ctx: FunctionContext, info: TypeInfo)(trigger: PTrigger) : Writer[in.Trigger] = {
       val src: Meta = meta(trigger)
-      for { exprs <- sequence(trigger.exps map triggerExprD(ctx)) } yield in.Trigger(exprs)(src)
+      for { exprs <- sequence(trigger.exps map triggerExprD(ctx, info)) } yield in.Trigger(exprs)(src)
     }
 
-    def triggerExprD(ctx: FunctionContext)(triggerExp: PExpression): Writer[in.TriggerExpr] = info.resolve(triggerExp) match {
-      case Some(p: ap.PredicateCall) => for { pa <- predicateCallAccD(ctx)(p)(meta(triggerExp)) } yield in.Accessible.Predicate(pa)
-      case _ => exprD(ctx)(triggerExp)
+    def triggerExprD(ctx: FunctionContext, info: TypeInfo = info)(triggerExp: PExpression): Writer[in.TriggerExpr] = info.resolve(triggerExp) match {
+      case Some(p: ap.PredicateCall) => for { pa <- predicateCallAccD(ctx, info)(p)(meta(triggerExp)) } yield in.Accessible.Predicate(pa)
+      case _ => exprD(ctx, info)(triggerExp)
     }
 
     private def meta(n: PNode, context: TypeInfo = info): Source.Parser.Single = {

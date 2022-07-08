@@ -69,15 +69,6 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val tryEnclosingClosureImplementationProof: PNode => Option[PClosureImplProof] =
     down[Option[PClosureImplProof]](None) { case m: PClosureImplProof => Some(m) }
 
-  lazy val resultFromEnclosingScopeWithResult: PStatement => Option[PResult] = s => tryEnclosingClosureImplementationProof(s) match {
-    case Some(p) => resolve(p.impl.spec.func) match {
-      case Some(ap.Function(_, f)) => Some(f.result)
-      case Some(ap.Closure(_, c)) => Some(c.result)
-      case _ => None
-    }
-    case None => tryEnclosingCodeRootWithResult(s).map(_.result)
-  }
-
   lazy val enclosingCodeRoot: PNode => PCodeRoot with PScope =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRoot with PScope => m }
 

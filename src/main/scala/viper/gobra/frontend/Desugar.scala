@@ -35,7 +35,8 @@ object Desugar {
       val typeInfo: TypeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
       val d = new Desugarer(importedPackage.positions, typeInfo)
-      d.registerPackage(importedPackage)(config) // registers a package to verify their initialization code
+      // registers a package to verify their initialization code
+      d.registerPackage(importedPackage)(config)
       (d, d.packageD(importedPackage))
     }}
     // desugar the main package, i.e. the package on which verification is performed:
@@ -2463,7 +2464,7 @@ object Desugar {
             val desugaredPre = imp.importSpec.pres.map(specificationD(FunctionContext.empty(src)))
             // Works because everything is centralized
             ImportsCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
-          case _ => ??? // TODO: violation
+          case e => Violation.violation(s"Unexpected value found $e while importing ${imp.importPath}")
         }
       }
 

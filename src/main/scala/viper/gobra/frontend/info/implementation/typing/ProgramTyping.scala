@@ -15,7 +15,6 @@ import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssi
 import viper.gobra.util.Violation
 
 trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
-  // TODO: Check for redeclarations
 
   lazy val wellDefProgram: WellDefinedness[PProgram] = createWellDef {
     case PProgram(_, spec, _, members) =>
@@ -32,7 +31,14 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
           }
         }
       }
-      globalDeclSatisfiesDepOrder(sortedByPosDecls) ++ isValidProgramSpec(spec)
+      // HACK: without this explicit check, Gobra does not find repeated declarations
+      //       of global variables. This has to do with the changes introduced in PR #186.
+      val idsOkMsgs = sortedByPosDecls.flatMap(d => d.left).flatMap(l => wellDefID(l).out)
+      if (idsOkMsgs.isEmpty) {
+        globalDeclSatisfiesDepOrder(sortedByPosDecls) ++ isValidProgramSpec(spec)
+      } else {
+        idsOkMsgs
+      }
   }
 
   private def isValidProgramSpec: PFunctionSpec => Messages = {
@@ -45,6 +51,7 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
       error(s, s"Only postconditions can be specified in package specifications", !validCond)
   }
 
+  // TODO: explain that this is a temporary check
   /** TODO:
     * Currently, Gobra requires that global variables are declared in an order such that all dependencies of a global
     * variable are declared before it. In practice, it rules out declarations like the following:

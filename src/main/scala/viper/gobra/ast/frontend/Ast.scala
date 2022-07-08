@@ -150,7 +150,8 @@ case class PConstSpec(typ: Option[PType], right: Vector[PExpression], left: Vect
 
 case class PLocalVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId], addressable: Vector[Boolean]) extends PActualStatement with PGhostifiableStatement with PDeclaration
 
-case class PGlobalVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId]) extends PActualMember with PGhostifiableMember with PDeclaration
+case class PGlobalVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId]) extends PActualMember
+  with PGhostifiableMember with PDeclaration
 
 case class PFunctionDecl(
                           id: PIdnDef,

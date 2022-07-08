@@ -12,25 +12,28 @@ import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 import scala.collection.mutable
-
+// TODO: rename, doc
 trait Dependency extends BaseProperty { this: TypeInfoImpl =>
 
   // TODO: maybe move to program typing
-  lazy val acyclicGlobalDeclaration: Property[PGlobalVarDecl] = createFlatProperty[PGlobalVarDecl](
-    c => s"$c contains cyclic declarations"
-  )(
-    c => c.left.forall { l =>
+  lazy val acyclicGlobalDeclaration: Property[PGlobalVarDecl] = createProperty[PGlobalVarDecl]{ c =>
+    val results = c.left.map{ l =>
       entity(l) match {
         case g: st.GlobalVariable =>
-          // TODO: quadratic, maybe optimize
-          !samePackageDependenciesGlobals(g).exists(o => samePackageDependenciesGlobals(o).contains(g))
+          failedProp(
+            s"The declaration of $l is cyclical",
+            // TODO: maybe optimize
+            samePackageDependenciesGlobals(g).exists(o => samePackageDependenciesGlobals(o).contains(g))
+          )
         case _: st.Wildcard =>
           // Wildcard declaration can never be cyclical
-          true
-        case _ => ??? // TODO: Violation
+          successProp
+        case _ =>
+          ??? // TODO: Violation
       }
     }
-  )
+    PropertyResult.bigAnd(results)
+  }
 
   // TODO: doc - finds lexical dependencies between global variables -> input and output consist all of glboal vars
   // TODO: Make it return Either[Messages, Vector[Entity]] (a pair could also be useful)

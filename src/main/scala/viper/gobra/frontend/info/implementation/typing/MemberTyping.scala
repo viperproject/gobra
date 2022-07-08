@@ -25,12 +25,17 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case b: PConstDecl =>
       b.specs.flatMap(wellDefConstSpec)
     case g: PGlobalVarDecl =>
-      // TODO: check dependencies are acylcic
       // TODO: check no dynamically bound method calls
-      // TODO: check no access to other FILE's globals? (optional, permissions will take care of that - TODO: DOC)
-      g.right.flatMap(isExpr(_).out) ++
-        declarableTo.errors(g.right map exprType, g.typ map typeSymbType, g.left map idType)(g) ++
-        acyclicGlobalDeclaration.errors(g)(g)
+      // HACK: without this explicit check, Gobra does not find repeated declarations
+      //       of global variables. This has to do with the changes introduced in PR #186.
+      val idsOkMsgs = g.left.flatMap(l => wellDefID(l).out)
+      if (idsOkMsgs.isEmpty) {
+        g.right.flatMap(isExpr(_).out) ++
+          declarableTo.errors(g.right map exprType, g.typ map typeSymbType, g.left map idType)(g) ++
+          acyclicGlobalDeclaration.errors(g)(g)
+      } else {
+        idsOkMsgs
+      }
     case s: PActualStatement =>
       wellDefStmt(s).out
   }

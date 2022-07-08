@@ -42,48 +42,46 @@ trait GhostAssignability {
     }(call.args: _*)(argTyping: _*)
   }
 
-  /** checks that ghost expressions are not assigned to non-ghost parameters  */
-  private[separation] def ghostAssignableToSpecParams(spec: PClosureSpecInstance): Messages = {
-    val isPure = resolve(spec.func) match {
-      case Some(ap.Function(_, f)) => f.isPure
-      case Some(ap.Closure(_, c)) => c.isPure
-    }
-    if (isPure) {return noMessages}
-
-    val paramTyping = specParamsOrCallArgsGhostTyping(spec, takeParams=true).toTuple
-    generalGhostAssignableTo[PExpression, Boolean](ghostExprResultTyping){
-      case (g, l) => error(spec.func, "ghost error: ghost cannot be assigned to non-ghost", g && !l)
-    }(spec.params.map(_.exp): _*)(paramTyping: _*)
-  }
-
   /** checks that ghost arguments are not assigned to non-ghost arguments in a call with spec  */
   private[separation] def ghostAssignableToCallWithSpec(call: PCallWithSpec): Messages = {
     val isPure = resolve(call.spec.func) match {
       case Some(ap.Function(_, f)) => f.isPure
       case Some(ap.Closure(_, c)) => c.isPure
     }
-    if (isPure) {return noMessages}
 
-    lazy val isGhostArg: PExpression => Boolean = {
-      val paramIsGhost = tryEnclosingClosureImplementationProof(call)
-        .map(proof => resolve(proof.impl.spec.func) match {
-          case Some(ap.Function(_, f)) => f
-          case Some(ap.Closure(_, c)) => c
-        }).toVector.flatMap(f => f.args ++ f.result.outs).collect {
-        case PExplicitGhostParameter(PNamedParameter(id, _)) => id.name -> true
-        case PNamedParameter(id, _) => id.name -> false
-      }.toMap
+    // If the closure variable being called is ghost, ghost is assignable to all parameters.
+    if (isPure || isExprGhost(call.base)) { return noMessages }
 
-      {
-        case PNamedOperand(id) if paramIsGhost.contains(id.name) => paramIsGhost(id.name)
-        case e => isExprGhost(e)
-      }
-    }
-
-    val argTyping = specParamsOrCallArgsGhostTyping(call.spec, takeParams=false).toTuple
+    val argTyping = closureSpecArgsAndResGhostTyping(call.spec)._1.toTuple
     call.args.zip(argTyping).flatMap {
-      case (g, l) => error(g, "ghost error: ghost cannot be assigned to non-ghost", isGhostArg(g) && !l)
+      case (g, l) => error(g, "ghost error: ghost cannot be assigned to non-ghost", isExprGhost(g) && !l)
     }
+  }
+
+  /** ghost types of the call arguments and results of a closure spec instance.
+    * The ghost type depends on that of the corresponding argument in the base function,
+    * not on the ghostness of the function. */
+  private [separation] def closureSpecArgsAndResGhostTyping(spec: PClosureSpecInstance): (GhostType, GhostType) = {
+    def paramTyping(params: Vector[PParameter], context: ExternalTypeInfo): GhostType =
+      GhostType.ghostTuple(params.map(p => context.isParamGhost(p)))
+
+    val (fArgs, fRes, context) = resolve(spec.func) match {
+      case Some(ap.Function(_, f)) => (f.args, f.result.outs, f.context)
+      case Some(ap.Closure(_, c)) => (c.args, c.result.outs, c.context)
+    }
+
+    val argTyping = if(spec.params.forall(_.key.isEmpty))
+      paramTyping(fArgs.drop(spec.params.size), context)
+    else {
+      val pSet = spec.params.map(p => p.key.get.name).toSet
+      paramTyping(fArgs.filter {
+        case PNamedParameter(id, _) if pSet.contains(id.name) => false
+        case PExplicitGhostParameter(PNamedParameter(id, _)) if pSet.contains(id.name) => false
+        case _ => true
+      }, context)
+    }
+    val resTyping = paramTyping(fRes, context)
+    (argTyping, resTyping)
   }
 
   /** conservative ghost separation assignment check */
@@ -206,32 +204,50 @@ trait GhostAssignability {
     }
   }
 
-  private [separation] def callWithSpecArgsGhostTyping(spec: PClosureSpecInstance): GhostType =
-    specParamsOrCallArgsGhostTyping(spec, takeParams = false)
-
-  /** ghost types of the parameters or call arguments of a closure spec instance where
-    * - the parameters are those specified in the closure spec literal
-    * - the arguments are the remaining arguments of the base functions
-    * The ghost type depends on that of the corresponding argument in the base function.
-    * @param takeParams is used to switch between the two behaviours */
-  private def specParamsOrCallArgsGhostTyping(spec: PClosureSpecInstance, takeParams: Boolean): GhostType = {
-    def argTyping(args: Vector[PParameter], isMemberGhost: Boolean, context: ExternalTypeInfo): GhostType =
-      GhostType.ghostTuple(args.map(p => isMemberGhost || context.isParamGhost(p)))
-
-    val (isMemberGhost, fArgs, context) = resolve(spec.func) match {
-      case Some(ap.Function(_, f)) => (f.ghost, f.args, f.context)
-      case Some(ap.Closure(_, c)) => (c.ghost, c.args, c.context)
+  /* If a closure is not ghost, the arguments and results of all the specs it can be called with must have
+   * the same ghostness, so that removing ghost arguments yields a consistent result.
+   * To ensure this, we make sure, for all spec implementation proofs, that the ghostness of the arguments and result
+   * of the spec matches that of the call inside. */
+  private [separation] def provenSpecMatchesInGhostnessWithCall(p: PClosureImplProof): Messages = {
+    def findCallDescendent(n: PNode): Option[Either[PInvoke, PCallWithSpec]] = n match {
+      case call: PInvoke => Some(Left(call))
+      case call: PCallWithSpec => Some(Right(call))
+      case _ => tree.child(n).iterator.map(findCallDescendent).find(_.nonEmpty).flatten
     }
 
-    if(spec.params.forall(_.key.isEmpty))
-      argTyping(if (takeParams) fArgs.take(spec.params.size) else fArgs.drop(spec.params.size), isMemberGhost, context)
-    else {
-      val pSet = spec.params.map(p => p.key.get.name).toSet
-      argTyping(fArgs.filter {
-        case PNamedParameter(id, _) if pSet.contains(id.name) => takeParams
-        case PExplicitGhostParameter(PNamedParameter(id, _)) if pSet.contains(id.name) => takeParams
-        case _ => !takeParams
-      }, isMemberGhost, context)
+    val specTyping = closureSpecArgsAndResGhostTyping(p.impl.spec)
+
+    val call = findCallDescendent(p.block)
+    call.get match {
+      case Left(c: PInvoke) =>
+        // If the callee is ghost, we don't care about the ghostness of the arguments.
+        if (isExprGhost(c.base.asInstanceOf[PExpression])) noMessages
+        else resolve(c) match {
+          case Some(call: ap.FunctionCall) => error(c,
+            s"the ghostness of arguments and results of ${p.impl.spec} and ${c.base} does not match",
+            specTyping != (calleeArgGhostTyping(call), calleeReturnGhostTyping(call)))
+          case _ => Violation.violation("expected function call")
+        }
+      case Right(c: PCallWithSpec) =>
+        // If the callee is ghost, we don't care about the ghostness of the arguments.
+        if (isExprGhost(c.base)) noMessages
+        else error(c,
+          s"the ghostness of arguments and results of ${p.impl.spec} and ${c.spec} does not match",
+          specTyping != closureSpecArgsAndResGhostTyping(c.spec)
+        )
+    }
+  }
+
+  private[separation] def callWithSpecReturnGhostTyping(call: PCallWithSpec): GhostType = {
+    // a result is ghost if the closure is ghost (even if such a explicit declaration is missing)
+    def resultTyping(result: PResult, isClosureGhost: Boolean, context: ExternalTypeInfo): GhostType = {
+      GhostType.ghostTuple(result.outs.map(p => isClosureGhost || context.isParamGhost(p)))
+    }
+
+    resolve(call.spec.func) match {
+      case Some(p: ap.Function) => resultTyping(p.symb.result, isExprGhost(call.base), p.symb.context)
+      case Some(p: ap.Closure) => resultTyping(p.symb.result, isExprGhost(call.base), p.symb.context)
+      case _ => GhostType.isGhost // conservative choice
     }
   }
 

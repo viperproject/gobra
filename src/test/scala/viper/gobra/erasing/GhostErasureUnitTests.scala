@@ -296,6 +296,26 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.testProg(input, expected)
   }
 
+  test("Ghost Erasure: ghost arguments should be erased from closure calls") {
+    val input =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func f(x int, ghost y int, z bool) { }
+         |  c(42, 21, false) as f
+         |}
+         |""".stripMargin
+    val expected =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func(x int, z bool) { }
+         |  c(42, false)
+         |}
+         |""".stripMargin
+    frontend.testProg(input, expected)
+  }
+
   /* ** Stubs, mocks, and other test setup  */
 
   class TestFrontend {

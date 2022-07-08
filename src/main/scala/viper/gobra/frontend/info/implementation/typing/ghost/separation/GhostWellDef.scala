@@ -48,6 +48,8 @@ trait GhostWellDef { this: TypeInfoImpl =>
   }
 
   private def stmtGhostSeparation(stmt: PStatement): Messages = stmt match {
+    case p: PClosureImplProof => provenSpecMatchesInGhostnessWithCall(p)
+
     case _: PGhostStatement => noMessages
     case s if enclosingGhostContext(s) => noMessages
 
@@ -178,7 +180,6 @@ trait GhostWellDef { this: TypeInfoImpl =>
   }
 
   private def miscGhostSeparation(misc : PMisc) : Messages = misc match {
-    case p: PClosureSpecInstance => ghostAssignableToSpecParams(p)
     case _: PGhostMisc => noMessages
     case p: PActualParameter => error(p, s"ghost error: expected an actual type but found ${p.typ}",
       isTypeGhost(p.typ) && !enclosingGhostContext(p))

@@ -111,6 +111,8 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
 
+      case n: PCallWithSpec => callWithSpecReturnGhostTyping(n)
+
       case e => ghostExprTyping(e)
     }
   }
@@ -222,7 +224,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     }
   }
 
-  override def expectedArgGhostTyping(call: PCallWithSpec): GhostType = callWithSpecArgsGhostTyping(call.spec)
+  override def expectedArgGhostTyping(spec: PClosureSpecInstance): GhostType = closureSpecArgsAndResGhostTyping(spec)._1
 
   override def isExprPure(expr: PExpression): Boolean = isPureExpr(expr).isEmpty
 }

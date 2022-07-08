@@ -170,7 +170,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
     case n: PCallWithSpec => n.base match {
       case e: PExpression if classifier.isExprGhost(e) => ghostToken
       case _ =>
-        val gt = classifier.expectedArgGhostTyping(n)
+        val gt = classifier.expectedArgGhostTyping(n.spec)
         val aArgs = n.args.zip(gt.toTuple).filter(!_._2).map(_._1)
         super.showExpr(PInvoke(n.base, aArgs))
     }

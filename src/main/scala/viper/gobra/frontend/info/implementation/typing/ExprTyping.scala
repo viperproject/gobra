@@ -30,7 +30,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   lazy val wellDefExprAndType: WellDefinedness[PExpressionAndType] = createWellDef {
     case n: PNamedOperand =>
       resolve(n) match {
-        /* A closure name can only be used outside as a spec, if we are not directly within the closure itself
+        /* A closure name can only be used as a spec, if we are not directly within the closure itself
            (the same limitation applies within closures nested inside the closure itself) */
         case Some(ap.Closure(id, _)) => error(n, s"here, the closure name ${n} can only be used as a spec",
           !tree.parent(n).head.isInstanceOf[PClosureSpecInstance] &&

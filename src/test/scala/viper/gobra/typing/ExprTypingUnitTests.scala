@@ -19,7 +19,6 @@ import viper.gobra.util.TypeBounds.{DefaultInt, UnboundedInteger}
 
 class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
-  private val emptySpec = PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, false, false)
 
   test("TypeChecker: should classify an integer literal as integer") {
     frontend.exprType(PIntLit(42))() should matchPattern {
@@ -3365,7 +3364,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   class TestFrontend {
     def stubProgram(inArgs: Vector[(PParameter, Boolean)], body : PStatement) : PProgram = PProgram(
       PPackageClause(PPkgDef("pkg")),
-      emptySpec,
+      Vector(),
       Vector(),
       Vector(PMethodDecl(
         PIdnDef("foo"),

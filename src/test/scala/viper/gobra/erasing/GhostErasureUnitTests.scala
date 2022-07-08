@@ -223,11 +223,10 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
   /* ** Stubs, mocks, and other test setup  */
 
   class TestFrontend {
-    def emptySpec: PFunctionSpec = PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, false, false)
 
     def stubProgram(inArgs: Vector[(PParameter, Boolean)], body : PStatement) : PProgram = PProgram(
       PPackageClause(PPkgDef("pkg")),
-      emptySpec,
+      Vector(),
       Vector(),
       Vector(PFunctionDecl(
         PIdnDef("foo"),

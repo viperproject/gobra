@@ -79,3 +79,5 @@ WRITEPERM   : 'writePerm' -> mode(NLSEMI);
 NOPERM      : 'noPerm' -> mode(NLSEMI);
 TRUSTED     : 'trusted' -> mode(NLSEMI);
 OUTLINE     : 'outline';
+INIT_POST   : 'initEnsures';
+IMPORT_PRE  : 'importRequires';

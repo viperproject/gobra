@@ -2045,9 +2045,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @return the visitor result
     */
   override def visitSourceFile(ctx: GobraParser.SourceFileContext): PProgram = {
-    val packageClause : PPackageClause = visitNode(ctx.packageClause())
-    val fileSpec : PFunctionSpec = visitNode(ctx.specification())
-    // println(s"fileSpec: $fileSpec")
+    val packageClause: PPackageClause = visitNode(ctx.packageClause())
+    val initPosts: Vector[PExpression] = visitListNode[PExpression](ctx.initPost())
     val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
 
     // Don't parse functions/methods if the identifier is blank
@@ -2060,8 +2059,22 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         PGlobalVarDecl(typ, right, left).at(l).asInstanceOf[PMember with PDeclaration]
       case d => d.asInstanceOf[PMember with PDeclaration]
     }
-    PProgram(packageClause, fileSpec, importDecls, members ++ decls ++ ghostMembers).at(ctx)
+    PProgram(packageClause, initPosts, importDecls, members ++ decls ++ ghostMembers).at(ctx)
   }
+
+  /**
+    * Visists an init postcondition
+    * @param ctx the parse tree
+    * @return the positioned PPackageclause
+    */
+  override def visitInitPost(ctx: InitPostContext): PExpression = visitNode[PExpression](ctx.expression())
+
+  /**
+    * Visists an import precondition
+    * @param ctx the parse tree
+    * @return the positioned PPackageclause
+    */
+  override def visitImportPre(ctx: ImportPreContext): PExpression = visitNode[PExpression](ctx.expression())
 
   /**
     * Visists a package clause
@@ -2080,21 +2093,21 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitImportDecl(ctx: GobraParser.ImportDeclContext): Vector[PImport] = {
     val importsVector: Vector[PImport] = visitListNode[PImport](ctx.importSpec())
-    val importSpec: Option[PFunctionSpec] = visitNodeOrNone[PFunctionSpec](ctx.specification())
+    val importPres: Vector[PExpression] = visitListNode[PExpression](ctx.importPre())
+    // println(s"importPres: $importPres")
     // if there is only a single importSpec and the importDecl has specification,
     // then update the specification of the importSpec with the one from the importDecl
-    if (importsVector.length == 1 && importSpec.nonEmpty) {
-      val spec = importSpec.get
+    if (importsVector.length == 1 && importPres.nonEmpty) {
       importsVector.map {
         case i@ PUnqualifiedImport(importPath, _) =>
-          PUnqualifiedImport(importPath, spec).at(i)
+          PUnqualifiedImport(importPath, importPres).at(i)
         case i@ PExplicitQualifiedImport(qualifier, importPath, _) =>
-          PExplicitQualifiedImport(qualifier, importPath, spec).at(i)
+          PExplicitQualifiedImport(qualifier, importPath, importPres).at(i)
         case i@ PImplicitQualifiedImport(importPath, _) =>
-          PImplicitQualifiedImport(importPath, spec).at(i)
+          PImplicitQualifiedImport(importPath, importPres).at(i)
       }
-    } else if (importSpec.nonEmpty) {
-      violation(s"Expected single import with the provided specification ($importSpec), but instead got $importsVector")
+    } else if (importPres.nonEmpty) {
+      violation(s"Expected single import with the provided specification ($importPres), but instead got $importsVector")
     } else {
       importsVector
     }
@@ -2106,16 +2119,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitImportSpec(ctx: GobraParser.ImportSpecContext): PImport = {
     // Get the actual path
     val path = visitString_(ctx.importPath().string_()).lit
-    val spec : PFunctionSpec = visitNode(ctx.specification())
-    // println(s"spec for import is $spec")
+    val importPres: Vector[PExpression] = visitListNode(ctx.importPre())
+    // println(s"importPres: $importPres")
     if(ctx.DOT() != null){
       // . "<path>"
-      PUnqualifiedImport(path, spec).at(ctx)
+      PUnqualifiedImport(path, importPres).at(ctx)
     } else if (ctx.IDENTIFIER() != null) {
       // (<identifier> | _) "<path>"
-      PExplicitQualifiedImport(idnDefLike.get(ctx.IDENTIFIER()), path, spec).at(ctx)
+      PExplicitQualifiedImport(idnDefLike.get(ctx.IDENTIFIER()), path, importPres).at(ctx)
     } else {
-      PImplicitQualifiedImport(path, spec).at(ctx)
+      PImplicitQualifiedImport(path, importPres).at(ctx)
     }
   }
 

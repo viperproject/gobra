@@ -2461,7 +2461,7 @@ object Desugar {
           case Some(Right(tI)) =>
             // println((tI.getTypeInfo.tree.originalRoot.info.name, imp.importSpec.pres))
             val src = meta(imp, info)
-            val desugaredPre = imp.importSpec.pres.map(specificationD(FunctionContext.empty(src)))
+            val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(src)))
             // Works because everything is centralized
             ImportsCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
           case e => Violation.violation(s"Unexpected value found $e while importing ${imp.importPath}")
@@ -2469,7 +2469,7 @@ object Desugar {
       }
 
       // the postcondition of a package is the conjunction of the postconditions of all its programs
-      val pkgPost = pkg.programs.flatMap(_.programSpec.posts).map{ exp =>
+      val pkgPost = pkg.programs.flatMap(_.initPosts).map{ exp =>
         val src = meta(exp, info)
         specificationD(FunctionContext.empty(src))(exp)
       }
@@ -2491,9 +2491,9 @@ object Desugar {
       val src = meta(p, info)
       val funcProxy = in.FunctionProxy(nm.programInit(p, info))(src)
       val progPres: Vector[in.Assertion] =
-        p.imports.flatMap(_.importSpec.pres).map(specificationD(FunctionContext.empty(src))(_))
+        p.imports.flatMap(_.importPres).map(specificationD(FunctionContext.empty(src))(_))
       val progPosts: Vector[in.Assertion] =
-        p.programSpec.posts.map(specificationD(FunctionContext.empty(src))(_))
+        p.initPosts.map(specificationD(FunctionContext.empty(src))(_))
       val pGlobalDecls: Vector[PGlobalVarDecl] = {
         val unsortedDecls = p.declarations.collect{ case d: PGlobalVarDecl => d }
         // sort declarations by the order in which they appear in the program
@@ -3665,11 +3665,6 @@ object ImportsCollector { // TODO: the TypeInfo is used to desugar the pres
   def registeredPackages(): Vector[PPackage] = {
     // the domain of package posts should have all registered packages
     packagePosts.map(_._1).distinct
-  }
-
-  def debug() = {
-    println(s"importPreconditions: ${importPreconditions.map{case (a, b) => (a.info.name, b)}}")
-    println(s"packagePostconditions: ${packagePosts.map{case (a, b) => (a.info.name, b)}}")
   }
 }
 

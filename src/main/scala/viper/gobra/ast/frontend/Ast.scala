@@ -42,7 +42,7 @@ sealed trait PUnorderedScope extends PScope
 
 case class PPackage(
                      packageClause: PPackageClause,
-                     programs: Vector[PProgram],
+                     programs: Vector[PProgram], // TODO: doc
                      positions: PositionManager,
                      info: PackageInfo
                    ) extends PNode with PUnorderedScope {
@@ -53,7 +53,9 @@ case class PPackage(
 
 case class PProgram(
                      packageClause: PPackageClause,
-                     programSpec: PFunctionSpec, // spec file // TODO: document, maybe build a type PFileSpec - instead, maybe use a list of expr
+                     // init postconditions describe the state and resources right
+                     // after this program is initialized
+                     initPosts: Vector[PExpression],
                      imports: Vector[PImport],
                      declarations: Vector[PMember]
                    ) extends PNode with PUnorderedScope with PCodeRoot // imports are in program scopes
@@ -88,26 +90,30 @@ case class PPackageClause(id: PPkgDef) extends PNode
 
 sealed trait PImport extends PNode {
   def importPath: String
-  def importSpec: PFunctionSpec // TODO: maybe come up with a better spec subtype
+  // Import preconditions must hold when an import occurs.
+  // When the assertions are resources, import preconditions
+  // describe which resources are transferred from the imported
+  // program to the importing program.
+  def importPres: Vector[PExpression]
 }
 
 sealed trait PQualifiedImport extends PImport
 
-case class PExplicitQualifiedImport(qualifier: PDefLikeId, importPath: String, importSpec: PFunctionSpec) extends PQualifiedImport
+case class PExplicitQualifiedImport(qualifier: PDefLikeId, importPath: String, importPres: Vector[PExpression]) extends PQualifiedImport
 
 /** will be converted to an PExplicitQualifiedImport in the parse postprocessing step */
-case class PImplicitQualifiedImport(importPath: String, importSpec: PFunctionSpec) extends PQualifiedImport with Rewritable {
+case class PImplicitQualifiedImport(importPath: String, importPres: Vector[PExpression]) extends PQualifiedImport with Rewritable {
   override def arity: Int = 1
   override def deconstruct: immutable.Seq[Any] = immutable.Seq(importPath)
 
   override def reconstruct(components: immutable.Seq[Any]): Any =
     components match {
-      case immutable.Seq(path: String) => PImplicitQualifiedImport(path, importSpec)
+      case immutable.Seq(path: String) => PImplicitQualifiedImport(path, importPres)
       case _ => new IllegalArgumentException
     }
 }
 
-case class PUnqualifiedImport(importPath: String, importSpec: PFunctionSpec) extends PImport
+case class PUnqualifiedImport(importPath: String, importPres: Vector[PExpression]) extends PImport
 
 sealed trait PGhostifiable extends PNode
 

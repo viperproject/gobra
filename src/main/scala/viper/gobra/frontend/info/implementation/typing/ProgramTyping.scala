@@ -17,7 +17,7 @@ import viper.gobra.util.Violation
 trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefProgram: WellDefinedness[PProgram] = createWellDef {
-    case PProgram(_, spec, _, members) =>
+    case PProgram(_, _, _, members) =>
       // Obtains global variable declarations sorted by the order in which they appear in the file
       val sortedByPosDecls: Vector[PGlobalVarDecl] = {
         val unsortedDecls: Vector[PGlobalVarDecl] = members.collect{ case d: PGlobalVarDecl => d }
@@ -35,20 +35,10 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
       //       of global variables. This has to do with the changes introduced in PR #186.
       val idsOkMsgs = sortedByPosDecls.flatMap(d => d.left).flatMap(l => wellDefID(l).out)
       if (idsOkMsgs.isEmpty) {
-        globalDeclSatisfiesDepOrder(sortedByPosDecls) ++ isValidProgramSpec(spec)
+        globalDeclSatisfiesDepOrder(sortedByPosDecls)
       } else {
         idsOkMsgs
       }
-  }
-
-  private def isValidProgramSpec: PFunctionSpec => Messages = {
-    case s@ PFunctionSpec(pres, preserves, _, terminationMeasures, isPure, isTrusted) =>
-      val validCond = pres.isEmpty &&
-        preserves.isEmpty &&
-        terminationMeasures.isEmpty &&
-        !isPure &&
-        !isTrusted
-      error(s, s"Only postconditions can be specified in package specifications", !validCond)
   }
 
   // TODO: explain that this is a temporary check

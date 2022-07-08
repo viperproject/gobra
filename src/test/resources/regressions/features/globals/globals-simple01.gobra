@@ -1,16 +1,17 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-ensures acc(&A) && acc(&B) && acc(&C, 1/2)
+initEnsures acc(&A) && acc(&B) && acc(&C, 1/2)
 package pkg
 
-requires true
+importRequires true
 import "fmt"
 
 import (
-	requires true
-	"bytes"
-	requires true
+	importRequires true
+	importRequires true
+	bytes"
+	importRequires true
 	"sync"
 )
 

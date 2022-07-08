@@ -796,7 +796,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case r: PReturn =>
           val index = r.exps.indexOf(expr)
-          Some(typeSymbType(enclosingCodeRootWithResult(r).result.outs(index).typ))
+          Some(returnParamsAndTypes(r)(index)._1)
 
         case n: PInvoke =>
           // if the parent of `expr` (i.e. the numeric expression whose type we want to find out) is an invoke expression `inv`,

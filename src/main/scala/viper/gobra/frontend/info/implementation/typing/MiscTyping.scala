@@ -37,9 +37,6 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PEmbeddedName => isType(n.typ).out
     case n: PEmbeddedPointer => isType(n.typ).out
 
-    // TODO: remove
-    // case f: PFieldDecl => isType(f.typ).out ++ isNotPointerTypeP.errors(f.typ)(f)
-
     case n: PExpCompositeVal => isExpr(n.exp).out
     case _: PLiteralValue | _: PKeyedElement | _: PCompositeVal => noMessages // these are checked at the level of the composite literal
   }
@@ -68,9 +65,6 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PEmbeddedName(t) => typeSymbType(t)
     case PEmbeddedPointer(t) => PointerT(typeSymbType(t))
-
-    // TODO: remove
-    // case f: PFieldDecl => typeSymbType(f.typ)
 
     case l: PLiteralValue => expectedMiscType(l)
     case l: PKeyedElement => miscType(l.exp)

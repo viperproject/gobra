@@ -33,6 +33,50 @@ object Info {
     /** stores all cycles that have been discovered so far */
     private var knownImportCycles: Set[Vector[AbstractImport]] = Set()
 
+    // TODO: justify it being here
+    // TODO: doc, improve name
+    // Can be probably be removed from here again and make it a singleton in desugar.scala
+    object ImportsCollector { // TODO: the TypeInfo is used to desugar the pres
+      import viper.gobra.ast.{internal => in}
+
+      private var importPreconditions: Vector[(PPackage, Vector[in.Assertion])] = Vector.empty
+      private var packagePosts: Vector[(PPackage, Vector[in.Assertion])] = Vector.empty
+
+      def addImportPres(pkg: PPackage, desugaredImportPre: Vector[in.Assertion]): Unit = {
+        // println(s"Inserting $desugaredImportPre in ${pkg.info.name}")
+        importPreconditions :+= (pkg, desugaredImportPre)
+        // println(s"importPreconditions:")
+      }
+
+      def presOfPackage(pkg: PPackage): Vector[in.Assertion] = {
+        // println(s"pkg: ${pkg.info.name}")
+        // println(s"importPreconditions on presOfPackages: ${importPreconditions.map{case (a, b) => (a.info.name, b)}}")
+        val result = importPreconditions.filter(_._1.info.id == pkg.info.id).flatMap(_._2)
+        // println(s"result: $result")
+        result
+      }
+
+      def addPackagePosts(pkg: PPackage, desugaredPosts: Vector[in.Assertion]): Unit = {
+        //println(s"Inserting $desugaredImportPre in ${pkg.info.name}")
+        packagePosts :+= (pkg, desugaredPosts)
+        //println(s"importPreconditions: ${importPreconditions.map{case (a, b) => (a.info.name, b)}}")
+      }
+
+      def postsOfPackage(pkg: PPackage): Vector[in.Assertion] = {
+        packagePosts.filter(_._1.info.id == pkg.info.id).flatMap(_._2)
+      }
+
+      def registeredPackages(): Vector[PPackage] = {
+        // the domain of package posts should have all registered packages
+        packagePosts.map(_._1).distinct
+      }
+
+      def debug() = {
+        println(s"importPreconditions: ${importPreconditions.map{case (a, b) => (a.info.name, b)}}")
+        println(s"packagePostconditions: ${packagePosts.toVector.map{case (a, b) => (a.info.name, b)}}")
+      }
+    }
+
     def addPackage(importTarget: AbstractImport, typeInfo: ExternalTypeInfo)(config: Config): Unit = {
       val packageTarget = AbstractPackage(importTarget)(config)
       pendingPackages = pendingPackages.filterNot(_ == importTarget)

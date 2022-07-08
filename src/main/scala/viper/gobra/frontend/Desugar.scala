@@ -6,9 +6,9 @@
 
 package viper.gobra.frontend
 
-import org.bitbucket.inkytonik.kiama.util.Entity
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
+import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.base.SymbolTable.GlobalVariable
@@ -30,18 +30,17 @@ import scala.reflect.ClassTag
 object Desugar {
 
   def desugar(pkg: PPackage, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
-    // println(s"package to desugar: ${pkg.programs}")
     // independently desugar each imported package. Only used members (i.e. members for which `isUsed` returns true will be desugared:
     val importedPrograms = info.context.getContexts map { tI => {
       val typeInfo: TypeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
       val d = new Desugarer(importedPackage.positions, typeInfo)
-      d.registerPackage(importedPackage) // registers a package to verify their initialization code
+      d.registerPackage(importedPackage)(config) // registers a package to verify their initialization code
       (d, d.packageD(importedPackage))
     }}
     // desugar the main package, i.e. the package on which verification is performed:
     val mainDesugarer = new Desugarer(pkg.positions, info)
-    mainDesugarer.registerPackage(pkg) // registers pkg to verify its initialization code
+    mainDesugarer.registerMainPackage(pkg)(config) // registers pkg to verify its initialization code
     // combine all desugared results into one Viper program:
     val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
     config.reporter report DesugaredMessage(config.packageInfoInputMap(pkg.info).map(_.name), () => internalProgram)
@@ -176,15 +175,6 @@ object Desugar {
       val entity = info.regular(id)
       meta(entity.rep)
     }
-
-    // TODO: make thread safe
-    private var proxies: Map[Meta, in.Proxy] = Map.empty
-
-    def getProxy(id: PIdnNode): Option[in.Proxy] =
-      proxies.get(abstraction(id))
-
-    def addProxy(from: PIdnNode, to: in.Proxy): Unit =
-      proxies += abstraction(from) -> to
 
     def functionProxyD(decl: PFunctionDecl, context: TypeInfo): in.FunctionProxy = {
       val name = idName(decl.id, context)
@@ -2399,124 +2389,175 @@ object Desugar {
     }
     var implementationProofPredicateAliases: Map[(in.Type, in.InterfaceT, String), in.FPredicateProxy] = Map.empty
 
-    def registerPackage(pkg: PPackage): Unit = {
-      // For each file in the program, generate the proof obligations for that file.
-      // The init code of two different files in the same package must not interfere.
-      // The init of a file is modeled as the following list of operations done inside
-      // a generated viper method:
-      // - inhale all preconditions of the imports in the file
-      // - inhale access to all global variables declared in the FILE
-      // - execute the operations on the LHS of the declarations by declaration order,
-      //   as long as dependency order is respected
-      // - execute all inits in the current FILE in the order they appear
-      // - exhale all post-conditions of the FILE
-      val fileInitTranslations: Vector[in.Function] = pkg.programs map { p =>
-        val src = meta(p, info)
-        val funcProxy = in.FunctionProxy(nm.programInit(p, info))(src)
-        val progPres: Vector[in.Assertion] =
-          p.imports.flatMap(_.importSpec.pres).map(specificationD(FunctionContext.empty(src))(_))
-        val progPosts: Vector[in.Assertion] =
-          p.programSpec.posts.map(specificationD(FunctionContext.empty(src))(_))
-        val pGlobalDecls: Vector[PGlobalVarDecl] = {
-          val unsortedDecls = p.declarations.collect{ case d: PGlobalVarDecl => d }
-          // sort declarations by the order in which they appear in the program
-          unsortedDecls.sortBy{ decl =>
-            pom.positions.getStart(decl) match {
-              case Some(pos) => (pos.line, pos.column)
-              case None => violation(s"Could not find the position information of node $decl.")
-            }
-          }
-        }
-        val globalDecls: Vector[in.GlobalVarDecl] = pGlobalDecls map globalVarDeclD
-        // register all global variable declarations
-        globalDecls foreach AdditionalMembers.addMember
+    // TODO: doc
+    def registerMainPackage(mainPkg: PPackage)(config: Config): Unit = {
+      // TODO: explain
+      registerPackage(mainPkg)(config)
 
-        // TODO: doc this check, explain the goal
-        {
-          var visitedGlobals = Vector.empty[Entity]
-          pGlobalDecls foreach { decl =>
-            decl.left.foreach { id =>
-              info.regular(id) match {
-                case g: st.GlobalVariable =>
-                  // println(s"Visiting global $g")
-                  // println(s"Dependencies of $g: ${info.dependenciesOfGlobal(g)}")
-                  // println(s"Visited so far: $visitedGlobals")
-                  Violation.violation(info.dependenciesOfGlobal(g).forall(visitedGlobals.contains), "Gobra does not currently support vars bla bla") // TODO
-                  visitedGlobals :+= g
-                  // println(s"Updated visited: $visitedGlobals")
-                case _: st.Wildcard => ???
-                case _ => ??? // TODO violation
-              }
-            }
-          }
-        }
-
-        in.Function(
+      // register package and then generate proofs for main
+      // TODO: pick a proper source
+      val src = meta(mainPkg, info)
+      // TODO: re-write: generate obligations per package
+      info.context.ImportsCollector.registeredPackages().foreach{ pkg =>
+        println(s"currently generating proof obligation for package ${pkg.info.name}")
+        val funcProxy = in.FunctionProxy(nm.packageImports(pkg, info))(src)
+        val member = in.Function(
           name = funcProxy,
-          args = Vector(),
-          results = Vector(),
-          // inhales all preconditions in the imports of the current file
-          pres = progPres,
-          // exhales all postconditions in the current file
-          posts = progPosts,
-          // in our verification approach, the initialization code must be proven to terminate
-          terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)), // TODO: better error message
-          body = Some(
-            in.MethodBody(
-              decls = Vector(),
-              seqn = in.MethodBodySeqn {
-                // inhale access to all global variables declared in the FILE
-                val accDeclaredGlobs: Vector[in.Inhale] = globalDecls.flatMap(_.left.map(gVar =>
-                  in.Inhale(in.Access(in.Accessible.Address(gVar), in.FullPerm(gVar.info))(gVar.info))(gVar.info)
-                ))
-                // execute the declaration statements for variables in order of declaration, while satisfying the
-                // dependency relation
-                val declarationsInOrder: Vector[in.Stmt] = {
-                  // TODO: deal with wildcards
-                  globalDecls.flatMap { decl =>
-                    // TODO: use AssignMode instead
-                    violation(decl.left.length == decl.right.length || decl.right.isEmpty || decl.right.length == 1, "Expected bla bla") // TODO
-                    // TODO: enforce these invariants
-                    if (decl.right.isEmpty) {
-                      Vector(in.Block(decl.decls, decl.left.map(l => in.SingleAss(in.Assignee.Var(l), in.DfltVal(l.typ.withAddressability(Addressability.Exclusive))(src))(src)))(src))
-                    } else if (decl.right.length == 1 && decl.right.length != decl.left.length) {
-                      // Must be a tuple
-                      decl.right match {
-                        case Vector(t: in.Tuple) =>
-                          violation(t.args.length == decl.left.length, "Expected same length")
-                          Vector(
-                            in.Block(decl.decls, decl.stmts ++ (decl.left.zip(t.args).map{ case (l, r) => in.SingleAss(in.Assignee.Var(l), r)(src) }))(src)
-                          )
-                        case o => ??? // println(s"o: $o"); println(s"left: ${decl.left}, right: ${decl.right}");???
-                      }
-                    } else {
-                      Vector(in.Block(decl.decls, decl.stmts ++ (decl.left.zip(decl.right).map{ case (l, r) => in.SingleAss(in.Assignee.Var(l), r)(src) }))(src))
-                    }
-                  }
-                }
-                // execute all inits in the order they occur
-                // TODO: at the moment, there exists at most one init, but this should change in the future
-                val initBlocks = p.declarations.collect{
-                  case x: PFunctionDecl if x.id.name == "init" =>
-                    // TODO: put "init" in a const
-                    x
-                }
-                // The limitations are in the type checker
-                violation(initBlocks.length <= 1, "at most one init block is supported right now")
-                val initCode: Vector[in.Stmt] = initBlocks.flatMap(b => b.body.toVector.map(_._2).map(blockD(FunctionContext.empty(src))))
-                accDeclaredGlobs ++ declarationsInOrder ++ initCode
-              }(src),
-              postprocessing = Vector()
-            )(src)
-          )
-        )(src)
+          args = Vector.empty,
+          results = Vector.empty,
+          pres = info.context.ImportsCollector.postsOfPackage(pkg),
+          posts = info.context.ImportsCollector.presOfPackage(pkg), // TODO: rethink the terminology of Pres and Posts here
+          terminationMeasures = Vector.empty,
+          body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
+        )(src) // TODO: better error message
+        AdditionalMembers.addMember(member)
       }
-      fileInitTranslations foreach AdditionalMembers.addMember
 
+      // generate proof obligations for the main function, if it exists
+      // TODO: explain how
+
+      // Check that the precondition of the main function is established by the initialization
+      // Maybe simpler, check that the posts of the main PACKAGE imply the precondition of main function
+      // TODO
+    }
+
+    // private var _packages: Vector[PPackage] = Vector.empty
+    def registerPackage(pkg: PPackage)(config: Config): Unit = {
+
+      // Check the contract of every file of all packages
+      val fileInitTranslations: Vector[in.Function] = pkg.programs.map(checkProgramInitContract)
+      fileInitTranslations.foreach(AdditionalMembers.addMember)
+
+      // TODO: rewrite and properlu doc
+      // Check the validity of all imports of imported packages:
       // Collect all places where this package is imported and its pre-conditions.
       // The post-condition of the package, which consists of the conjunction of the
       // post-condition of all its files, must imply the conjunction of all import's preconditions.
-      // TODO
+      // This is done in two phases:
+      //   Phase 1 - register import preconditions during desugaring:
+      pkg.imports.foreach{ imp =>
+        info.context.getTypeInfo(RegularImport(imp.importPath))(config) match {
+          case Some(Right(tI)) =>
+            // println((tI.getTypeInfo.tree.originalRoot.info.name, imp.importSpec.pres))
+            val src = meta(imp, info)
+            val desugaredPre = imp.importSpec.pres.map(specificationD(FunctionContext.empty(src)))
+            // Works because everything is centralized
+            info.context.ImportsCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
+          case _ => ??? // TODO: violation
+        }
+      }
+
+      // the postcondition of a package is the conjunction of the postconditions of all its programs
+      val pkgPost = pkg.programs.flatMap(_.programSpec.posts).map{ exp =>
+        val src = meta(exp, info)
+        specificationD(FunctionContext.empty(src))(exp)
+      }
+      info.context.ImportsCollector.addPackagePosts(pkg, pkgPost)
+    }
+
+    // For each file in the program, generate the proof obligations for that file.
+    // The init code of two different files in the same package must not interfere.
+    // The init of a file is modeled as the following list of operations done inside
+    // a generated viper method:
+    // - inhale all preconditions of the imports in the file
+    // - inhale access to all global variables declared in the FILE
+    // - execute the operations on the LHS of the declarations by declaration order,
+    //   as long as dependency order is respected
+    // - execute all inits in the current FILE in the order they appear
+    // - exhale all post-conditions of the FILE
+    // TODO: split method, improve doc
+    def checkProgramInitContract(p: PProgram): in.Function = {
+      val src = meta(p, info)
+      val funcProxy = in.FunctionProxy(nm.programInit(p, info))(src)
+      val progPres: Vector[in.Assertion] =
+        p.imports.flatMap(_.importSpec.pres).map(specificationD(FunctionContext.empty(src))(_))
+      val progPosts: Vector[in.Assertion] =
+        p.programSpec.posts.map(specificationD(FunctionContext.empty(src))(_))
+      val pGlobalDecls: Vector[PGlobalVarDecl] = {
+        val unsortedDecls = p.declarations.collect{ case d: PGlobalVarDecl => d }
+        // sort declarations by the order in which they appear in the program
+        unsortedDecls.sortBy{ decl =>
+          pom.positions.getStart(decl) match {
+            case Some(pos) => (pos.line, pos.column)
+            case None => violation(s"Could not find the position information of node $decl.")
+          }
+        }
+      }
+      val globalDecls: Vector[in.GlobalVarDecl] = pGlobalDecls map globalVarDeclD
+      // register all global variable declarations
+      globalDecls foreach AdditionalMembers.addMember
+
+      in.Function(
+        name = funcProxy,
+        args = Vector(),
+        results = Vector(),
+        // inhales all preconditions in the imports of the current file
+        pres = progPres,
+        // exhales all postconditions in the current file
+        posts = progPosts,
+        // in our verification approach, the initialization code must be proven to terminate
+        terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)), // TODO: better error message
+        body = Some(
+          in.MethodBody(
+            decls = Vector(),
+            seqn = in.MethodBodySeqn {
+              // inhale access to all global variables declared in the FILE
+              val accDeclaredGlobs: Vector[in.Inhale] = globalDecls.flatMap(_.left.map(gVar =>
+                in.Inhale(in.Access(in.Accessible.Address(gVar), in.FullPerm(gVar.info))(gVar.info))(gVar.info)
+              ))
+              // execute the declaration statements for variables in order of declaration, while satisfying the
+              // dependency relation
+              val declarationsInOrder: Vector[in.Stmt] = {
+                /**
+                  * TODO:
+                  * Currently, this simple solution of execution the declarations in the order they appear in the file
+                  * without any kind of reordering is OK because ???. When lifting this restriction, care must be taken
+                  * when dealing with cases like:
+                  *   var C = A
+                  *   var A, B = 1, 2
+                  * In this case, we must "split" variable declarations and reorder the declaration operations such that
+                  * the obtained code performs the operations in the following order:
+                  *   var A = 1
+                  *   var C = A
+                  *   var B = 2
+                  */
+                globalDecls.flatMap { decl =>
+                  // TODO: use AssignMode instead
+                  violation(decl.left.length == decl.right.length || decl.right.isEmpty || decl.right.length == 1, "Expected bla bla") // TODO
+                  // TODO: enforce these invariants
+                  if (decl.right.isEmpty) {
+                    Vector(in.Block(decl.decls, decl.left.map(l => in.SingleAss(in.Assignee.Var(l), in.DfltVal(l.typ.withAddressability(Addressability.Exclusive))(src))(src)))(src))
+                  } else if (decl.right.length == 1 && decl.right.length != decl.left.length) {
+                    // Must be a tuple
+                    decl.right match {
+                      case Vector(t: in.Tuple) =>
+                        violation(t.args.length == decl.left.length, "Expected same length")
+                        Vector(
+                          in.Block(decl.decls, decl.stmts ++ (decl.left.zip(t.args).map{ case (l, r) => in.SingleAss(in.Assignee.Var(l), r)(src) }))(src)
+                        )
+                      case _ => ??? // println(s"o: $o"); println(s"left: ${decl.left}, right: ${decl.right}");???
+                    }
+                  } else {
+                    Vector(in.Block(decl.decls, decl.stmts ++ (decl.left.zip(decl.right).map{ case (l, r) => in.SingleAss(in.Assignee.Var(l), r)(src) }))(src))
+                  }
+                }
+              }
+              // execute all inits in the order they occur
+              // TODO: at the moment, there exists at most one init, but this should change in the future
+              val initBlocks = p.declarations.collect{
+                case x: PFunctionDecl if x.id.name == "init" =>
+                  // TODO: put "init" in a const
+                  x
+              }
+              // The limitations are in the type checker
+              violation(initBlocks.length <= 1, "at most one init block is supported right now")
+              val initCode: Vector[in.Stmt] = initBlocks.flatMap(b => b.body.toVector.map(_._2).map(blockD(FunctionContext.empty(src))))
+              accDeclaredGlobs ++ declarationsInOrder ++ initCode
+            }(src),
+            postprocessing = Vector()
+          )(src)
+        )
+      )(src)
     }
 
     def registerMethod(decl: PMethodDecl): in.MethodMember = {
@@ -3367,6 +3408,8 @@ object Desugar {
     private val METHOD_PREFIX = "M"
     private val TYPE_PREFIX = "T"
     private val PROGRAM_INIT_CODE_PREFIX = "INIT"
+    //TODO: rename
+    private val PACKAGE_IMPORT_OBLIGATIONS = "IMPORTS"
     private val INTERFACE_PREFIX = "Y"
     private val DOMAIN_PREFIX = "D"
     private val LABEL_PREFIX = "L"
@@ -3424,6 +3467,11 @@ object Desugar {
       }
       topLevelName(progName)(PROGRAM_INIT_CODE_PREFIX, context)
     }
+    def packageImports(p: PPackage, context: ExternalTypeInfo): String = {
+      // a package id might contain invalid symbols
+      val hashedId = Names.hash(p.info.id)
+      topLevelName(hashedId)(PACKAGE_IMPORT_OBLIGATIONS, context)
+    }
     def variable(n: String, s: PScope, context: ExternalTypeInfo): String = name(VARIABLE_PREFIX)(n, s, context)
     def global  (n: String, context: ExternalTypeInfo): String = topLevelName(GLOBAL_PREFIX)(n, context)
     def typ     (n: String, context: ExternalTypeInfo): String = topLevelName(TYPE_PREFIX)(n, context)
@@ -3470,7 +3518,7 @@ object Desugar {
       val pom = info.getTypeInfo.tree.originalRoot.positions
       val lpos = pom.positions.getStart(node).get
       val rpos = pom.positions.getStart(info.codeRoot(node)).get
-      return ("L$" + (lpos.line - rpos.line) + "$" + (lpos.column - rpos.column)).replace("-", "_")
+      ("L$" + (lpos.line - rpos.line) + "$" + (lpos.column - rpos.column)).replace("-", "_")
     }
 
     /** returns the relativeId with the CONTINUE_LABEL_SUFFIX appended */

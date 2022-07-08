@@ -8,6 +8,7 @@ package viper.gobra.frontend.info
 
 import org.bitbucket.inkytonik.kiama.relation.Tree
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
@@ -23,7 +24,9 @@ trait TypeInfo extends ExternalTypeInfo {
 
   def tree: Tree[PNode, PPackage]
 
-  def dependenciesOfGlobal(n: Regular): Vector[Regular]
+  def dependenciesOfGlobal(n: SymbolTable.GlobalVariable): Vector[SymbolTable.GlobalVariable]
+  def globalsExprDependsOn(n: PExpression): Vector[SymbolTable.GlobalVariable]
+
   def regular(n: PIdnNode): Regular
 
   def isDef(n: PIdnUnk): Boolean

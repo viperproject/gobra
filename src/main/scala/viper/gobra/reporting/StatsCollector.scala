@@ -8,7 +8,7 @@ package viper.gobra.reporting
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.relation.NodeNotInTreeException
-import viper.gobra.ast.frontend.{PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGlobalVarDecl, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor, PProgram}
+import viper.gobra.ast.frontend.{PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGlobalVarDecl, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PPackage, PParameter, PPredConstructor, PProgram}
 import viper.gobra.ast.internal.BuiltInMember
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.{Info, TypeInfo}
@@ -368,6 +368,18 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
           pkgId,
           pkgName,
           memberName = "globalTestInit", // TODO: fix
+          "",
+          Package,
+          false,
+          false,
+          isAbstractAndNotImported = false,
+          false,
+          false)
+      case _: PPackage =>
+        GobraMemberInfo(
+          pkgId,
+          pkgName,
+          memberName = "PPackage", // TODO: fix
           "",
           Package,
           false,

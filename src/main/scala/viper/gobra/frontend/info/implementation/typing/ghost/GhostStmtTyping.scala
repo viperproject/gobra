@@ -56,6 +56,20 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
+  lazy val closureImplProofCallAttr: PClosureImplProof => Either[PInvoke, PCallWithSpec] =
+    attr[PClosureImplProof, Either[PInvoke, PCallWithSpec]] { proof =>
+      def findCallDescendent(n: PNode): Option[Either[PInvoke, PCallWithSpec]] = n match {
+        case call: PInvoke => resolve(call) match {
+          case Some(_: ap.FunctionCall) => Some(Left(call))
+          case _ => None
+        }
+        case call: PCallWithSpec => Some(Right(call))
+        case _ => tree.child(n).iterator.map(findCallDescendent).find(_.nonEmpty).flatten
+      }
+
+      findCallDescendent(proof).get
+    }
+
   private def wellDefClosureImplProof(p: PClosureImplProof): Messages = {
     val PClosureImplProof(impl@PClosureImplements(closure, spec), b: PBlock) = p
 
@@ -84,7 +98,10 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => false
     }
 
-    lazy val expectedCallString: String = s"$closure(${specArgs.flatMap(nameFromParam).mkString(",")}) [as _]"
+    lazy val expectedCallString: String = resolve(closure) match {
+      case Some(_: ap.LocalVariable) => s"$closure(${specArgs.flatMap(nameFromParam).mkString(",")}) as _"
+      case _ => s"$closure(${specArgs.flatMap(nameFromParam).mkString(",")}) [as _]"
+    }
 
     def wellDefIfNecessaryArgsNamed: Messages = error(spec,
       s"cannot find a name for all arguments or results required by $spec",
@@ -129,8 +146,27 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
       else implementationProofBodyHasRightShape(b, isExpectedCall, expectedCallString, func.result)
         .asReason(b, "invalid body of an implementation proof")
 
+    def wellDefIfTerminationMeasuresConsistent: Messages = {
+      val specMeasures = func match {
+        case st.Function(decl, _, _) => decl.spec.terminationMeasures
+        case st.Closure(lit, _, _) => lit.decl.decl.spec.terminationMeasures
+      }
+
+      lazy val callMeasures = terminationMeasuresForProofCall(p)
+
+      // If the spec has termination measures, then the call inside the proof
+      // must be done with a spec that also has termination measures
+      if (specMeasures.isEmpty) noMessages
+      else error(p, s"spec ${p.impl.spec} has termination measures, so also ${
+        closureImplProofCallAttr(p) match {
+          case Left(invoke) => invoke.base
+          case Right(withSpec) => withSpec.spec
+        }} (used inside the proof) must", callMeasures.isEmpty)
+    }
+
     Seq(wellDefIfNecessaryArgsNamed, wellDefIfArgNamesDoNotShadowClosure, pureWellDefIfIsSinglePureReturnExpr,
-      pureWellDefIfRightShape, wellDefIfRightShape).iterator.find(_.nonEmpty).getOrElse(noMessages)
+      pureWellDefIfRightShape, wellDefIfRightShape, wellDefIfTerminationMeasuresConsistent)
+      .iterator.find(_.nonEmpty).getOrElse(noMessages)
   }
 
   private def nameFromParam(p: PParameter): Option[String] = p match {
@@ -217,7 +253,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
         // A call alone can only occur if there are no result parameters
         case PExpressionStmt(e: PExpression) if e.isInstanceOf[PInvoke] || e.isInstanceOf[PCallWithSpec] =>
           if (result.outs.nonEmpty) failedProp(s"The call '$e' is missing the out-parameters")
-          else if (isExpectedCall(e)) failedProp(s"The only allowed call is $expectedCall")
+          else if (!isExpectedCall(e)) failedProp(s"The only allowed call is $expectedCall")
           else {
             numOfImplemetationCalls += 1
             successProp
@@ -246,4 +282,32 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     bodyHasRightShape and notTooManyCalls
   }
+
+  /** Returns the termination measures of the spec used in the call within the body of the implementation proof */
+  private def terminationMeasuresForProofCall(p: PClosureImplProof): Vector[PTerminationMeasure] = {
+    def measuresFromMethod(m: st.Method): Vector[PTerminationMeasure] = m match {
+      case st.MethodSpec(spec, _, _, _) => spec.spec.terminationMeasures
+      case st.MethodImpl(decl, _, _) => decl.spec.terminationMeasures
+    }
+    closureImplProofCallAttr(p) match {
+        case Left(invoke) => resolve(invoke) match {
+          case Some(ap.FunctionCall(callee, _)) => callee match {
+            case ap.Function(_, symb) => symb.decl.spec.terminationMeasures
+            case ap.Closure(_, symb) => symb.lit.decl.decl.spec.terminationMeasures
+            case ap.ReceivedMethod(_, _, _, symb) => measuresFromMethod(symb)
+            case ap.ImplicitlyReceivedInterfaceMethod(_, symb) => symb.spec.spec.terminationMeasures
+            case ap.MethodExpr(_, _, _, symb) => measuresFromMethod(symb)
+            case _ => Violation.violation("this case should be unreachable")
+          }
+          case _ => Violation.violation("this case should be unreachable")
+        }
+        case Right(PCallWithSpec(_, _, spec)) => resolve(spec.func) match {
+          case Some(ap.Function(_, f)) => f.decl.spec.terminationMeasures
+          case Some(ap.Closure(_, c)) => c.lit.decl.decl.spec.terminationMeasures
+          case _ => Violation.violation("this case should be unreachable")
+        }
+    }
+  }
+
 }
+

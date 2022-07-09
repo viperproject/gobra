@@ -128,7 +128,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
                     if (n.isPure) {
                       block.nonEmptyStmts match {
                         case Vector(PReturn(Vector(ret))) =>
-                          pureImplementationProofHasRightShape(ret, _ != expectedInvoke, expectedInvoke.toString)
+                          pureImplementationProofHasRightShape(ret, _ == expectedInvoke, expectedInvoke.toString)
 
                         case _ => successProp // already checked before
                       }

@@ -90,7 +90,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
 
     case n@ PReturn(right) =>
-      if (right.nonEmpty) {
+      if (right.nonEmpty && tryEnclosingClosureImplementationProof(n).isEmpty) {
         ghostAssignableToParam(right: _*)(returnParamsAndTypes(n).map(_._2): _*)
       } else noMessages
   }

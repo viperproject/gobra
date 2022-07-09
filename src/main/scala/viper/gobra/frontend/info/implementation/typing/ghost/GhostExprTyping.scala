@@ -341,10 +341,16 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
               false
             case _ => go(p.arg)
           }
-        case (Left(callee), Some(p: ap.FunctionCall)) => go(callee) && p.args.forall(go) && (entity(p.callee.id) match {
-          case f: Function => f.isPure
-          case m: Method => m.isPure
-          case c: Closure => c.isPure
+        case (Left(callee), Some(p@ap.FunctionCall(f, _))) => go(callee) && p.args.forall(go) && (f match {
+          case ap.Function(_, symb) => symb.isPure
+          case ap.Closure(_, symb) => symb.isPure
+          case ap.DomainFunction(_, _) => true
+          case ap.ReceivedMethod(_, _, _, symb) => symb.isPure
+          case ap.ImplicitlyReceivedInterfaceMethod(_, symb) => symb.isPure
+          case ap.MethodExpr(_, _, _, symb) => symb.isPure
+          case ap.BuiltInReceivedMethod(_, _, _, symb) => symb.isPure
+          case ap.BuiltInMethodExpr(_, _, _, symb) => symb.isPure
+          case ap.BuiltInFunction(_, symb) => symb.isPure
         })
         case (Left(_), Some(_: ap.PredicateCall)) => !strong
         case (Left(_), Some(_: ap.PredExprInstance)) => !strong

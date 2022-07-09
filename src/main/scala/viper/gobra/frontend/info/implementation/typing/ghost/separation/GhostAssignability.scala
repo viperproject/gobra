@@ -210,16 +210,9 @@ trait GhostAssignability {
    * To ensure this, we make sure, for all spec implementation proofs, that the ghostness of the arguments and result
    * of the spec matches that of the call inside. */
   private [separation] def provenSpecMatchesInGhostnessWithCall(p: PClosureImplProof): Messages = {
-    def findCallDescendent(n: PNode): Option[Either[PInvoke, PCallWithSpec]] = n match {
-      case call: PInvoke => Some(Left(call))
-      case call: PCallWithSpec => Some(Right(call))
-      case _ => tree.child(n).iterator.map(findCallDescendent).find(_.nonEmpty).flatten
-    }
-
     val specTyping = closureSpecArgsAndResGhostTyping(p.impl.spec)
 
-    val call = findCallDescendent(p.block)
-    call.get match {
+    closureImplProofCallAttr(p) match {
       case Left(c: PInvoke) =>
         // If the callee is ghost, we don't care about the ghostness of the arguments.
         if (isExprGhost(c.base.asInstanceOf[PExpression])) noMessages

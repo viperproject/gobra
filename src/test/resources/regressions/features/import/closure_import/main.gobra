@@ -1,0 +1,34 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I ./)
+import foo "foo"
+
+func main() {
+    c := pure func f() (r int) {
+            return 2
+         }
+
+    proof c implements foo.p2{0} {
+        r = c() as f
+    }
+
+    r := c() as foo.p2{0}
+    assert r == 2
+
+    d := ensures r == x + 2
+         func f1(x int) (r int) {
+           return x + 2
+         }
+
+    proof d implements foo.p2 {
+        r = d(x) as f1
+    }
+
+    r := d(5) as foo.p2
+    assert r == 7
+
+    e := foo.S1{4}.getx
+}

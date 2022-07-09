@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package foo
+
+type S1 struct { x int }
+
+pure func (self S1) getx() (r int) {
+    return self.x
+}
+
+ensures r == x + 2
+func p2(x int) (r int) {
+    return x + 2
+}
+
+pure func p1(x int) (r int) {
+    return x + 1
+}

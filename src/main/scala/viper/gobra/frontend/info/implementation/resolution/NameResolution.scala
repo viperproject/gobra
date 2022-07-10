@@ -318,6 +318,7 @@ trait NameResolution { this: TypeInfoImpl =>
       case PNamedOperand(id) => symbTableLookup(id) match {
         case f: Function => (f, f.decl.body, f.context)
         case c: Closure => (c, c.lit.decl.decl.body, c.context)
+        case _ => return UnknownEntity()
       }
       case PDot(base: PNamedOperand, id) =>
         val pkg = symbTableLookup(base.id)

@@ -81,17 +81,24 @@ class ClosureEncoding extends LeafTypeEncoding {
   private def specImplementationProof(proof: in.SpecImplementationProof)(ctx: Context): CodeWriter[vpr.Stmt] = {
     val inhalePres = cl.seqns(proof.pres map (a => for {
           ass <- ctx.assertion(a)
-        } yield vpr.Inhale(ass)(a.vprMeta._1, a.vprMeta._2, a.vprMeta._3)))
-    val exhalePosts = cl.seqns(proof.posts map (a => for {
-      ass <- ctx.assertion(a)
-    } yield vpr.Exhale(ass)(a.vprMeta._1, a.vprMeta._2, a.vprMeta._3)))
+        } yield vpr.Inhale(ass)()))
+    val exhalePosts = for {
+      assertions <- proof.posts.foldLeft(cl.unit(vpr.TrueLit() ().asInstanceOf[vpr.Exp])) ((acc, a) => for {
+        rest <- acc
+        ass <- ctx.assertion (a)
+      } yield vpr.And(rest, ass) ())
+    } yield vpr.Exhale(assertions)()
 
-    val exhaleSet = exhalePosts.res.ss.toSet
     def failedExhale: ErrorTransformer = {
-      case errors.ExhaleFailed(offendingNode, reason: reasons.AssertionFalse, _) if exhaleSet.contains(offendingNode) =>
-        val info = proof.spec.vprMeta._2.asInstanceOf[Source.Verifier.Info]
-        reporting.SpecImplementationPostconditionError(info, proof.spec.info.tag)
-          .dueTo(reporting.AssertionFalseError(reason.offendingNode.info.asInstanceOf[Source.Verifier.Info]))
+      case errors.ExhaleFailed(offendingNode, reason, _) if exhalePosts.res.contains(offendingNode) =>
+        val info = proof.vprMeta._2.asInstanceOf[Source.Verifier.Info]
+        reason match {
+          case reason: reasons.AssertionFalse => reporting.SpecImplementationPostconditionError(info, proof.spec.info.tag)
+            .dueTo(reporting.AssertionFalseError(reason.offendingNode.info.asInstanceOf[Source.Verifier.Info]))
+          case reason: reasons.InsufficientPermission => reporting.SpecImplementationPostconditionError(info, proof.spec.info.tag)
+            .dueTo(reporting.InsufficientPermissionError(reason.offendingNode.info.asInstanceOf[Source.Verifier.Info]))
+          case _ => reporting.SpecImplementationPostconditionError(info, proof.spec.info.tag)
+        }
     }
 
     val (pos, info, errT) = proof.vprMeta

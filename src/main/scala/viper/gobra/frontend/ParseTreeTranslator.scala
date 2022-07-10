@@ -1078,7 +1078,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   override def visitClosureSpecInstance(ctx: ClosureSpecInstanceContext): PClosureSpecInstance = {
     val nameOrDot = if (ctx.IDENTIFIER() == null) visitQualifiedIdent(ctx.qualifiedIdent())
-                    else PNamedOperand(idnUse.get(ctx.IDENTIFIER()))
+                    else PNamedOperand(idnUse.get(ctx.IDENTIFIER())).at(ctx.IDENTIFIER())
     PClosureSpecInstance(nameOrDot, visitClosureSpecParams(ctx.closureSpecParams()))
   }
 

@@ -2996,15 +2996,32 @@ object Desugar {
         case c: st.Closure => c.lit.decl.decl.spec
         case _ => violation("function or closure expected")
       }
+
       val pres = (fSpec.pres ++ fSpec.preserves) map preconditionD(newCtx, funcTypeInfo)
-      val posts = (fSpec.preserves ++ fSpec.posts) map postconditionD(newCtx, funcTypeInfo)
+
+      // For the postcondition, we need to replace all old() expressions with labeled old expressions,
+      // and add a label at the beginning of the proof body
+      var postsCtx = newCtx.copy
+      val oldLabelProxy = in.LabelProxy(nm.label(nm.fresh(proof, info)))(src)
+      val oldLabel = in.Label(oldLabelProxy)(src)
+      def replaceOldLabel(old: POld): Writer[in.Expr] = for {
+        operand <- exprD(postsCtx, funcTypeInfo)(old.operand)
+      } yield in.LabeledOld(oldLabelProxy, operand)(src)
+      postsCtx = postsCtx.copyWithExpD({
+        case old: POld =>
+          Some(replaceOldLabel(old))
+        case exp =>
+          replaceRecvOrClosure(exp)
+      })
+      val posts = (fSpec.preserves ++ fSpec.posts) map postconditionD(postsCtx, funcTypeInfo)
 
       for {
         proof <- for {
           closure <- exprD(newCtx)(proof.impl.closure)
           spec = closureSpecD(newCtx)(proof.impl.spec)
           body <- stmtD(newCtx)(proof.block)
-        } yield in.SpecImplementationProof(closure, spec, ndBool, body.asInstanceOf[in.Block], pres, posts)(src)
+          block = in.Block(Vector.empty, Vector(oldLabel, body))(meta(proof.block))
+        } yield in.SpecImplementationProof(closure, spec, ndBool, block, pres, posts)(src)
       } yield in.Block(declarations, assignments ++ Vector(proof))(src)
     }
 

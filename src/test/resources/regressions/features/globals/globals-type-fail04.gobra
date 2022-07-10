@@ -8,3 +8,14 @@ package pkg
 var A int
 //:: ExpectedOutput(type_error)
 var A struct{}
+
+type T interface {
+    f() int
+}
+
+func newT() T
+
+// calls to dynamically-bound methods are not allowed
+// in global variable declarations, given that dependency
+// analysis cannot be performed.
+var B = newT().f()

@@ -20,8 +20,10 @@ var B, C = f()
 var _ = g()
 var D struct{}
 
+decreases
 func f() (int, bool)
 
+decreases
 func g() interface{}
 
 requires acc(&A, 1/2) && A == 1

@@ -19,7 +19,7 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualMember(member: PActualMember): Messages = member match {
     case n: PFunctionDecl =>
-      wellDefVariadicArgs(n.args) ++ wellDefIfPureFunction(n) ++ wellDefIfInitBlock(n)
+      wellDefVariadicArgs(n.args) ++ wellDefIfPureFunction(n) ++ wellDefIfInitBlock(n) ++ wellDefIfMain(n)
     case m: PMethodDecl =>
       wellDefVariadicArgs(m.args) ++ isReceiverType.errors(miscType(m.receiver))(member) ++ wellDefIfPureMethod(m)
     case b: PConstDecl =>
@@ -57,6 +57,8 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
       p => error(p, s"Only the last argument can be variadic, got $p instead", p.typ.isInstanceOf[PVariadicType])
     }
 
+  // TODO: move "init" and "main" to singleton
+
   private def wellDefIfInitBlock(n: PFunctionDecl): Messages = {
     val errorMsg =
       "Currently, 'init' blocks cannot be specified. Instead, use package postconditions and import preconditions."
@@ -66,7 +68,17 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
       n.spec.preserves.isEmpty &&
       n.spec.posts.isEmpty &&
       n.spec.terminationMeasures.isEmpty
-    val isInitFunction = n.id.name == "init"
-    error(n, errorMsg, !hasEmptySpec && isInitFunction)
+    val isInitFunc = n.id.name == "init"
+    error(n, errorMsg, isInitFunc && !hasEmptySpec)
+  }
+
+  private def wellDefIfMain(n: PFunctionDecl): Messages = {
+    // same message as the Go compiler
+    val errorMsg = "func main must have no arguments and no return values"
+    val isMainFunc = n.id.name == "main"
+    // TODO: add support for ghost out-params
+    val noInputsAndOutputs = n.args.isEmpty && n.result.outs.isEmpty
+    error(n, errorMsg, isMainFunc && !noInputsAndOutputs)
+
   }
 }

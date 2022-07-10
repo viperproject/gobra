@@ -23,7 +23,7 @@ trait ImportTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  // TODO: rename and explain
+  // TODO: rename and explain, imports cannot be lazy anymore, adapthing that requires a large refactoring
   def forceImport(importPath: String, errNode: PNode): Unit = {
     val abstractImport = RegularImport(importPath)
     getTypeChecker(abstractImport, errNode)

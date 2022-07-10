@@ -2573,7 +2573,7 @@ object Desugar {
                       case _ => ??? // println(s"o: $o"); println(s"left: ${decl.left}, right: ${decl.right}");???
                     }
                   } else {
-                    Vector(in.Block(decl.decls, decl.stmts ++ (decl.left.zip(decl.right).map{ case (l, r) => in.SingleAss(in.Assignee.Var(l), r)(src) }))(src))
+                    Vector(in.Block(decl.decls, decl.stmts ++ decl.left.zip(decl.right).map{ case (l, r) => singleAss(in.Assignee.Var(l), r)(src) })(src))
                   }
                 }
               }

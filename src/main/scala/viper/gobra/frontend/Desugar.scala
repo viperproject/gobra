@@ -3042,7 +3042,7 @@ object Desugar {
           body <- stmtD(newCtx)(proof.block)
           block = in.Block(Vector.empty, Vector(oldLabel, body))(meta(proof.block))
         } yield in.SpecImplementationProof(closure, spec, ndBool, block, pres, posts)(src)
-      } yield in.Block(declarations, assignments ++ Vector(proof))(src)
+      } yield in.Block(declarations ++ Vector(oldLabelProxy), assignments ++ Vector(proof))(src)
     }
 
     // Ghost Expression

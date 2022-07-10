@@ -1,0 +1,64 @@
+package closuresMap 
+
+type Inv interface {
+    pred inv()
+
+    requires inv()
+    pure res(x int) int
+}
+
+ghost
+preserves p != nil && p.inv()
+ensures y == p.res(x)
+ensures forall x int :: old(p.res(x)) == p.res(x)
+func mapF(ghost p Inv, x int)(y int)
+
+
+requires c implements mapF{p} && p != nil && p.inv()
+requires forall i int :: i >= 0 && i < len(v) ==> acc(&v[i])
+ensures p.inv() && forall i int :: i >= 0 && i < len(v) ==> acc(&v[i]) && v[i] == p.res(old(v[i]))
+ensures forall x int :: old(p.res(x)) == p.res(x)
+func mapOverVector(ghost p Inv, c func(int)int, v []int) {
+    invariant i >= 0 && i <= len(v) && p.inv()
+    invariant forall j int :: j >= 0 && j < len(v) ==> acc(&v[j])
+    invariant forall j int :: j >= i && j < len(v) ==> v[j] == old(v[j])
+    invariant forall j int :: j >= 0 && j < i ==> v[j] == p.res(old(v[j]))
+    invariant forall x int :: old(p.res(x)) == p.res(x)
+    for i := 0; i < len(v); i += 1 {
+        v[i] = c(v[i]) as mapF{p}
+    }
+}
+
+
+type Add10 struct { n *int }
+pred (self Add10) inv() {
+    acc(self.n, 1/2)
+}
+requires self.inv()
+pure func (self Add10) res(x int) int {
+    return unfolding self.inv() in (*self.n + x)
+}
+
+func main() {
+    a@ := 10
+    c :=    preserves acc(&a, 1/2)
+            ensures y == a + x && a == old(a)
+            func addA(x int)(y int) {
+                return a + x
+            }
+    
+    proof c implements mapF{Add10{&a}} {
+        unfold Add10{&a}.inv()
+        y = c(x) as addA
+        fold Add10{&a}.inv()
+    }
+    fold Add10{&a}.inv()
+
+    v := []int{1,2,3,4,5,6}
+
+    ghost var p Inv = Add10{&a}
+    mapOverVector(p, c, v)
+
+    assert v[5] == p.res(6)
+    assert v[5] == 16
+}

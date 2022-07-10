@@ -15,7 +15,6 @@ import viper.gobra.util.{Decimal, Hexadecimal}
 
 class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   private val frontend = new ParserTestFrontend()
-  private val emptySpec = PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, false, false)
 
   test("Parser: Dot") {
     frontend.parseExpOrFail("self.Contains") should matchPattern {
@@ -85,39 +84,37 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: multi import") {
     frontend.parseImportDecl("import (\"f\";\"g\")") should matchPattern {
-      case Vector(PImplicitQualifiedImport("f", spec1), PImplicitQualifiedImport("g", spec2))
-        if spec1 == emptySpec && spec2 == emptySpec =>
+      case Vector(PImplicitQualifiedImport("f", Vector()), PImplicitQualifiedImport("g", Vector())) =>
     }
   }
 
   test("Parser: dot import") {
     frontend.parseImportDecl("import . \"lib/math\"") should matchPattern {
-      case Vector(PUnqualifiedImport("lib/math", spec)) if spec == emptySpec =>
+      case Vector(PUnqualifiedImport("lib/math", Vector())) =>
     }
   }
 
   test("Parser: underscore import") {
     frontend.parseImportDecl("import _ \"lib/math\"") should matchPattern {
-      case Vector(PExplicitQualifiedImport(PWildcard(), "lib/math", spec))
-        if spec == emptySpec =>
+      case Vector(PExplicitQualifiedImport(PWildcard(), "lib/math", Vector())) =>
     }
   }
 
   test("Parser: default import") {
     frontend.parseImportDecl("import \"lib/math\"") should matchPattern {
-      case Vector(PImplicitQualifiedImport("lib/math", spec)) if spec == emptySpec =>
+      case Vector(PImplicitQualifiedImport("lib/math", Vector())) =>
     }
   }
 
   test("Parser: qualified import") {
     frontend.parseImportDecl("import m \"lib/math\"") should matchPattern {
-      case Vector(PExplicitQualifiedImport(PIdnDef("m"), "lib/math", spec)) if spec == emptySpec =>
+      case Vector(PExplicitQualifiedImport(PIdnDef("m"), "lib/math", Vector())) =>
     }
   }
 
   test("Parser: import path with minus") {
     frontend.parseImportDecl("import m \"foo-bar/math\"") should matchPattern {
-      case Vector(PExplicitQualifiedImport(PIdnDef("m"), "foo-bar/math", spec)) if spec == emptySpec =>
+      case Vector(PExplicitQualifiedImport(PIdnDef("m"), "foo-bar/math", Vector())) =>
     }
   }
 

@@ -123,7 +123,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             sv.typOpt.map(sv.context.symbType).getOrElse(sv.context.typ(sv.expOpt.get))
           case mv: MultiGlobalVariable => mv.expOpt.map(mv.context.typ) match {
             case Some(t: InternalTupleT) => t.ts(mv.idx)
-            case Some(_: InternalSingleMulti) => ???
             case t => violation(s"Expected a tuple, but got $t instead")
           }
         }

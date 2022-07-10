@@ -90,6 +90,8 @@ object SymbolTable extends Environments[Entity] {
 
   sealed trait GlobalVariable extends Variable {
     def decl: PGlobalVarDecl
+    // index that the identifier of the var takes in the declaration
+    def idx: Int
     def id: PDefLikeId
     def expOpt: Option[PExpression]
     def typOpt: Option[PType]
@@ -106,10 +108,8 @@ object SymbolTable extends Environments[Entity] {
     override def rep: PNode = exp
   }
 
-  // TODO: cleanup params
   case class SingleGlobalVariable(override val decl: PGlobalVarDecl,
-                                  // index of the identifier in the declaration
-                                  idx: Int,
+                                  override val idx: Int,
                                   override val expOpt: Option[PExpression],
                                   override val typOpt: Option[PType],
                                   override val ghost: Boolean,
@@ -122,9 +122,8 @@ object SymbolTable extends Environments[Entity] {
     override def id: PDefLikeId = decl.left(idx)
   }
 
-  // TODO: cleanup params
   case class MultiGlobalVariable(override val decl: PGlobalVarDecl,
-                                 idx: Int,
+                                 override val idx: Int,
                                  override val expOpt: Option[PExpression],
                                  override val typOpt: Option[PType],
                                  override val ghost: Boolean,

@@ -32,34 +32,32 @@ trait NameResolution { this: TypeInfoImpl =>
 
         p match {
 
-          case decl: PConstSpec =>
-            val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+        case decl: PConstSpec =>
+          val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-            StrictAssignMode(decl.left.size, decl.right.size) match {
-              case AssignMode.Single => decl.left(idx) match {
-                case idn: PIdnDef => SingleConstant(decl, idn, decl.right(idx), decl.typ, isGhost, this)
-                case w: PWildcard => Wildcard(w, this)
-              }
-              case _ => UnknownEntity()
+          StrictAssignMode(decl.left.size, decl.right.size) match {
+            case AssignMode.Single => decl.left(idx) match {
+              case idn: PIdnDef => SingleConstant(decl, idn, decl.right(idx), decl.typ, isGhost, this)
+              case w: PWildcard => Wildcard(w, this)
             }
-          case decl: PLocalVarDecl =>
-            val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
-            StrictAssignMode(decl.left.size, decl.right.size) match {
-              case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, decl.addressable(idx), this)
-              case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
-              case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, isGhost, decl.addressable(idx), this)
-              case _ => UnknownEntity()
-            }
-          case decl: PGlobalVarDecl =>
-            val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
-            // println(s"zipWith: ${decl.left.zipWithIndex}, id: $id, idx: $idx")
-            StrictAssignMode(decl.left.size, decl.right.size) match {
-              // TODO: improve
-              case AssignMode.Single => SingleGlobalVariable(decl, idx, Some(decl.right(idx)), decl.typ, isGhost, this)
-              case AssignMode.Multi  => MultiGlobalVariable(decl, idx, decl.right.headOption, decl.typ, isGhost, this)
-              case _ if decl.right.isEmpty => SingleGlobalVariable(decl, idx, None, decl.typ, isGhost, this)
-              case _ => UnknownEntity()
-            }
+            case _ => UnknownEntity()
+          }
+        case decl: PLocalVarDecl =>
+          val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+          StrictAssignMode(decl.left.size, decl.right.size) match {
+            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, decl.addressable(idx), this)
+            case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
+            case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, isGhost, decl.addressable(idx), this)
+            case _ => UnknownEntity()
+          }
+        case decl: PGlobalVarDecl =>
+          val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+          StrictAssignMode(decl.left.size, decl.right.size) match {
+            case AssignMode.Single => SingleGlobalVariable(decl, idx, Some(decl.right(idx)), decl.typ, isGhost, this)
+            case AssignMode.Multi  => MultiGlobalVariable(decl, idx, decl.right.headOption, decl.typ, isGhost, this)
+            case _ if decl.right.isEmpty => SingleGlobalVariable(decl, idx, None, decl.typ, isGhost, this)
+            case _ => UnknownEntity()
+          }
         case decl: PTypeDef => NamedType(decl, isGhost, this)
         case decl: PTypeAlias => TypeAlias(decl, isGhost, this)
         case decl: PFunctionDecl => Function(decl, isGhost, this)

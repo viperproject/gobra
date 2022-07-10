@@ -27,7 +27,7 @@ import java.io.File
 object GobraNodeType extends Enumeration {
   type GobraNodeType = Value
   val MethodDeclaration, FunctionDeclaration, MethodSignature, FunctionPredicateDeclaration, MethodPredicateDeclaration,
-  MethodImplementationProof, MethodPredicateSignature, PredicateConstructor, Variable, Package = Value
+  MethodImplementationProof, MethodPredicateSignature, PredicateConstructor, Variable, Package, Program = Value
 }
 
 /**
@@ -349,44 +349,42 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
           isAbstractAndNotImported = false,
           isImported,
           isBuiltIn)
-        // TODO: put param names everywhere
-      case p: PGlobalVarDecl => // TODO: fix code
+      case p: PGlobalVarDecl =>
         GobraMemberInfo(
-          pkgId,
-          pkgName,
-          memberName = "globalTest" + pkgId + p.left.map(_.name), // TODO: fix
-          "",
-          Variable,
-          false,
-          false,
+          pkgId = pkgId,
+          pkg  = pkgName,
+          memberName = p.left.map(_.formattedShort).mkString(";"),
+          args = "",
+          nodeType = Variable,
+          hasSpecification = false,
+          isTrusted = false,
           isAbstractAndNotImported = false,
-          isImported,
-          isBuiltIn)
-      // TODO: put param names everywhere
+          isImported = isImported,
+          isBuiltIn = isBuiltIn)
       case _: PProgram =>
         GobraMemberInfo(
-          pkgId,
-          pkgName,
-          memberName = "globalTestInit", // TODO: fix
-          "",
-          Package,
-          false,
-          false,
+          pkgId = pkgId,
+          pkg = pkgName,
+          memberName = pkgId ++ "_program_init",
+          args = "",
+          nodeType = Program,
+          hasSpecification = true,
+          isTrusted = false,
           isAbstractAndNotImported = false,
-          false,
-          false)
+          isImported = isImported,
+          isBuiltIn = isBuiltIn)
       case _: PPackage =>
         GobraMemberInfo(
-          pkgId,
-          pkgName,
-          memberName = "PPackage", // TODO: fix
-          "",
-          Package,
-          false,
-          false,
+          pkgId = pkgId,
+          pkg = pkgName,
+          memberName = pkgId ++ "_package_init",
+          args = "",
+          nodeType = Package,
+          hasSpecification = false,
+          isTrusted = false,
           isAbstractAndNotImported = false,
-          false,
-          false)
+          isImported = isImported,
+          isBuiltIn = isBuiltIn)
 
       // Fallback to the node's code root if we can't match the node
       case p: PNode => getMemberInformation(nodeTypeInfo.codeRoot(p), typeInfo, viperMember)

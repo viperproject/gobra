@@ -8,6 +8,7 @@ import "fmt"
 var A = 1
 var _, B = f()
 
+decreases
 func f() (int, bool)
 
 func testRead() {

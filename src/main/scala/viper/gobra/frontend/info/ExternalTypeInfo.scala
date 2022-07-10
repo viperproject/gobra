@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info
 
-import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PKeyedElement, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType, PLabelUse}
+import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PKeyedElement, PLabelUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMemberTag
 import viper.gobra.frontend.info.base.Type.{AbstractType, InterfaceT, StructT, Type}
@@ -14,6 +14,7 @@ import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
 import viper.gobra.ast.frontend.PForStmt
+import viper.gobra.frontend.info.base.SymbolTable
 
 trait ExternalTypeInfo {
 
@@ -103,4 +104,7 @@ trait ExternalTypeInfo {
 
   /** if it exists, it returns the for loop node that contains 'n' */
   def enclosingLoopNode(n: PNode) : Option[PForStmt]
+
+  /** returns all variables declared on the same package as 'n' on which the declaration of 'n' depends */
+  def samePkgDepsOfGlobalVar(n: SymbolTable.GlobalVariable): Vector[SymbolTable.GlobalVariable]
 }

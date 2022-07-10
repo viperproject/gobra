@@ -60,16 +60,19 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
   // TODO: move "init" and "main" to singleton
 
   private def wellDefIfInitBlock(n: PFunctionDecl): Messages = {
-    val errorMsg =
-      "Currently, 'init' blocks cannot be specified. Instead, use package postconditions and import preconditions."
+    val errorMsgEmptySpec =
+      "Currently, init blocks cannot be specified. Instead, use package postconditions and import preconditions."
+    val errorMsgNoInOut = "func init must have no arguments and no return values"
+    val isInitFunc = n.id.name == "init"
+    val noInputsAndOutputs = n.args.isEmpty && n.result.outs.isEmpty
     val hasEmptySpec = !n.spec.isPure &&
       !n.spec.isTrusted &&
       n.spec.pres.isEmpty &&
       n.spec.preserves.isEmpty &&
       n.spec.posts.isEmpty &&
       n.spec.terminationMeasures.isEmpty
-    val isInitFunc = n.id.name == "init"
-    error(n, errorMsg, isInitFunc && !hasEmptySpec)
+    error(n, errorMsgEmptySpec, isInitFunc && !hasEmptySpec) ++
+      error(n, errorMsgNoInOut, isInitFunc && !noInputsAndOutputs)
   }
 
   private def wellDefIfMain(n: PFunctionDecl): Messages = {

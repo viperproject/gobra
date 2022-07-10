@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Entity
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
-import viper.gobra.ast.frontend.{PFunctionSpec, PGlobalVarDecl, PPackage, PProgram}
+import viper.gobra.ast.frontend.{PGlobalVarDecl, PPackage, PProgram}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
@@ -59,7 +59,7 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
       decl.left.zipWithIndex.flatMap{ case (id, idx) =>
         val visitedAllDeps: Boolean = regular(id) match {
           case g: st.GlobalVariable =>
-            val result = dependenciesOfGlobal(g).forall(visitedGlobals.contains)
+            val result = samePkgDepsOfGlobalVar(g).forall(visitedGlobals.contains)
             visitedGlobals :+= g
             result
           case _: st.Wildcard if decl.right.isEmpty => true

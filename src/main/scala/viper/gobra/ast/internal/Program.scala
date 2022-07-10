@@ -114,9 +114,12 @@ sealed trait FunctionMember extends FunctionLikeMember {
 
 sealed trait Location extends Expr
 
-
-// TODO: right, decls, stmts are all fields of a Writer and essentially correspond to everything that is needed to execute the expr
-case class GlobalVarDecl(left: Vector[GlobalVar], right: Vector[Expr], decls: Vector[BlockDeclaration], stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Member {
+case class GlobalVarDecl(left: Vector[GlobalVar],
+                         // the following fields store the same information as a Writer[Expr] would
+                         right: Vector[Expr], // desugared (pure) expressions on the RHS
+                         decls: Vector[BlockDeclaration], // decls that must occur before the statements in [stmts]
+                         stmts: Vector[Stmt] // statements that must occur before accessing the expressions in [right]
+                        )(val info: Source.Parser.Info) extends Member {
   require((stmts.isEmpty && decls.isEmpty) || right.nonEmpty)
 }
 

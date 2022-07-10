@@ -48,7 +48,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   with Convertibility
   with Comparability
-  with Dependency
+  with DependencyAnalysis
   with Assignability
   with Addressability
   with TypeIdentity
@@ -89,7 +89,11 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   override def enclosingLoopNode(n: PNode) : Option[PForStmt] = enclosingLoopUntilOutline(n).toOption
 
-  override def dependenciesOfGlobal(n: SymbolTable.GlobalVariable): Vector[SymbolTable.GlobalVariable] = samePackageDependenciesGlobals(n)
+  override def samePkgDepsOfGlobalVar(n: SymbolTable.GlobalVariable): Vector[SymbolTable.GlobalVariable] =
+    samePackageDependenciesGlobals(n) match {
+      case Right(deps) => deps
+      case Left(errs) => violation(s"found errors while computing dependencies of $n: $errs")
+    }
 
   override def regular(n: PIdnNode): SymbolTable.Regular = entity(n) match {
     case r: Regular => r

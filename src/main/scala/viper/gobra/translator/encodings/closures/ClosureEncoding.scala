@@ -78,6 +78,17 @@ class ClosureEncoding extends LeafTypeEncoding {
     moe.finalize(addMemberFn)
   }
 
+  /** Encodes a spec implementation proof as:
+    *
+    * if (*) {
+    *   initialize args and results
+    *   assign parameters
+    *   while(true) {
+    *     inhale precondition of spec
+    *     [ body ]
+    *     exhale postcondition of spec
+    *   }
+    * }*/
   private def specImplementationProof(proof: in.SpecImplementationProof)(ctx: Context): CodeWriter[vpr.Stmt] = {
     val inhalePres = cl.seqns(proof.pres map (a => for {
           ass <- ctx.assertion(a)

@@ -69,6 +69,8 @@ protected class ClosureSpecsManager {
     case p: in.FunctionLitProxy => ctx.table.lookup(p)
   }
 
+  /** Registers a spec. For all specs, an "implements" function and a method/function callable with a closure is
+    * generated. Keeps track of the maximum number of captured variables seen. */
   private def register(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): Vector[ErrorTransformer] = {
     var errorTransformers: Vector[ErrorTransformer] = Vector.empty
     if (!specsSeen.contains((spec.func, spec.params.keySet))) {
@@ -105,7 +107,7 @@ protected class ClosureSpecsManager {
   private def closureGetterFunctionProxy(func: in.FunctionMemberOrLitProxy): in.FunctionProxy = in.FunctionProxy(s"${Names.closureGetter}$$$func")(func.info)
   private def closureCallProxy(spec: in.ClosureSpec)(info: Source.Parser.Info): in.FunctionProxy = in.FunctionProxy(s"${Names.closureCall}$$${closureSpecName(spec)}")(info)
 
-  // Generates encoding: function closureImplements_funcName_(closure, parameters) bool
+  // Generates encoding: function closureImplements$funcName$(closure, parameters) bool
   private def implementsFunction(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): MemberWriter[vpr.Member] = {
     val proxy = implementsFunctionProxy(spec)(info)
     val closurePar = in.Parameter.In(Names.closureArg, genericFuncType)(info)
@@ -148,6 +150,10 @@ protected class ClosureSpecsManager {
   private def specWithFuncArgs(spec: in.ClosureSpec, f: FunctionLikeMemberOrLit): in.ClosureSpec =
     in.ClosureSpec(spec.func, spec.params.map{ case (i, _) => i -> f.args(i-1)})(spec.info)
 
+  /** Generates a Viper method/function with the same specification as the original, but with an additional
+    * closure argument and closure implementation precondition.
+    * For function literals, also inlcudes captured variables among the arguments, and encodes the body as
+    * well as the specification, so that the literal is verified. */
   private def callableMemberWithClosure(spec: in.ClosureSpec)(ctx: Context): MemberWriter[vpr.Member] = {
     val proxy = closureCallProxy(spec)(spec.info)
     val func = memberOrLit(ctx)(spec.func)

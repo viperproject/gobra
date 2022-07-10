@@ -97,13 +97,14 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
 
       case exp @ in.Slice((base : in.Location) :: ctx.Array(_, _) / Shared, low, high, max, _) => for {
         baseT <- ctx.reference(base)
-        unboxedBaseT = arrayEmb.unbox(baseT, base.typ.asInstanceOf[in.ArrayT])(base)(ctx)
+        baseType = base.typ.asInstanceOf[in.ArrayT]
+        unboxedBaseT = arrayEmb.unbox(baseT, baseType)(base)(ctx)
         lowT <- goE(low)
         highT <- goE(high)
         maxOptT <- option(max map goE)
       } yield maxOptT match {
-        case None => withSrc(sliceFromArray(vpr.Ref, unboxedBaseT, lowT, highT)(ctx), exp)
-        case Some(maxT) => withSrc(fullSliceFromArray(vpr.Ref, unboxedBaseT, lowT, highT, maxT)(ctx), exp)
+        case None => withSrc(sliceFromArray(unboxedBaseT, lowT, highT)(ctx), exp)
+        case Some(maxT) => withSrc(fullSliceFromArray(unboxedBaseT, lowT, highT, maxT)(ctx), exp)
       }
 
       case exp @ in.Slice((base : in.Expr) :: ctx.Slice(_), low, high, max, _) => for {
@@ -112,8 +113,8 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         highT <- goE(high)
         maxOptT <- option(max map goE)
       } yield maxOptT match {
-        case None => withSrc(sliceFromSlice(vpr.Ref, baseT, lowT, highT)(ctx), exp)
-        case Some(maxT) => withSrc(fullSliceFromSlice(vpr.Ref, baseT, lowT, highT, maxT)(ctx), exp)
+        case None => withSrc(sliceFromSlice(baseT, lowT, highT)(ctx), exp)
+        case Some(maxT) => withSrc(fullSliceFromSlice(baseT, lowT, highT, maxT)(ctx), exp)
       }
 
       case (lit : in.SliceLit) :: ctx.Slice(_) =>
@@ -287,25 +288,33 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
   private def construct(typ : vpr.Type, base : vpr.Exp, offset : vpr.Exp, len : vpr.Exp, cap : vpr.Exp)(ctx : Context)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.FuncApp =
     constructGenerator(Vector(base, offset, len, cap), typ)(pos, info, errT)(ctx)
 
-  /** An application of the "sfullSliceFromArray[`typ`](...)" Viper function. */
-  private def fullSliceFromArray(typ : vpr.Type, base : vpr.Exp, i : vpr.Exp, j : vpr.Exp, k : vpr.Exp)(ctx : Context)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.FuncApp =
+  /** An application of the "sfullSliceFromArray" Viper function. */
+  private def fullSliceFromArray(base : vpr.Exp, i : vpr.Exp, j : vpr.Exp, k : vpr.Exp)(ctx : Context)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.FuncApp = {
+    val typ = base.typ.asInstanceOf[vpr.DomainType].typeArguments.head
     fullSliceFromArrayGenerator(Vector(base, i, j, k), typ)(pos, info, errT)(ctx)
+  }
 
-  /** An application of the "sfullSliceFromSlice[`typ`](...)" Viper function. */
-  private def fullSliceFromSlice(typ : vpr.Type, base : vpr.Exp, i : vpr.Exp, j : vpr.Exp, k : vpr.Exp)(ctx : Context)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.FuncApp =
+  /** An application of the "sfullSliceFromSlice" Viper function. */
+  private def fullSliceFromSlice(base : vpr.Exp, i : vpr.Exp, j : vpr.Exp, k : vpr.Exp)(ctx : Context)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.FuncApp = {
+    val typ = base.typ.asInstanceOf[vpr.DomainType].typeArguments.head
     fullSliceFromSliceGenerator(Vector(base, i, j, k), typ)(pos, info, errT)(ctx)
+  }
 
   /** Gives the 'nil' slice of inner type `typ`. */
   private def nilSlice(typ: in.Type)(ctx : Context)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.FuncApp =
     nilSliceGenerator(Vector(), typ)(pos, info, errT)(ctx)
 
-  /** An application of the "ssliceFromArray[`typ`](...)" Viper function. */
-  private def sliceFromArray(typ : vpr.Type, base : vpr.Exp, i : vpr.Exp, j : vpr.Exp)(ctx : Context)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.FuncApp =
+  /** An application of the "ssliceFromArray" Viper function. */
+  private def sliceFromArray(base : vpr.Exp, i : vpr.Exp, j : vpr.Exp)(ctx : Context)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.FuncApp = {
+    val typ = base.typ.asInstanceOf[vpr.DomainType].typeArguments.head
     sliceFromArrayGenerator(Vector(base, i, j), typ)(pos, info, errT)(ctx)
+  }
 
-  /** An application of the "ssliceFromSlice[`typ`](...)" Viper function. */
-  private def sliceFromSlice(typ : vpr.Type, base : vpr.Exp, i : vpr.Exp, j : vpr.Exp)(ctx : Context)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.FuncApp =
+  /** An application of the "ssliceFromSlice" Viper function. */
+  private def sliceFromSlice(base : vpr.Exp, i : vpr.Exp, j : vpr.Exp)(ctx : Context)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.FuncApp = {
+    val typ = base.typ.asInstanceOf[vpr.DomainType].typeArguments.head
     sliceFromSliceGenerator(Vector(base, i, j), typ)(pos, info, errT)(ctx)
+  }
 
 
   /* ** Generators */
@@ -463,7 +472,6 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       // function body
       val offset = ctx.slice.offset(sDecl.localVar)()
       val body = fullSliceFromArray(
-        typ,
         ctx.slice.array(sDecl.localVar)(),
         vpr.Add(offset, iDecl.localVar)(),
         vpr.Add(offset, jDecl.localVar)(),
@@ -520,7 +528,6 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
 
       // function body
       val body = fullSliceFromArray(
-        typ,
         aDecl.localVar,
         iDecl.localVar,
         jDecl.localVar,
@@ -578,7 +585,6 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
 
       // function body
       val body = fullSliceFromSlice(
-        typ,
         sDecl.localVar,
         iDecl.localVar,
         jDecl.localVar,

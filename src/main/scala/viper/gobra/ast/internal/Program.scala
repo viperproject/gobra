@@ -494,7 +494,7 @@ case class Exists(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)
 }
 
 sealed trait Permission extends Expr {
-  override val typ: Type = PermissionT(Addressability.rValue)
+  override def typ: Type = PermissionT(Addressability.rValue)
 }
 
 case class FullPerm(info: Source.Parser.Info) extends Permission
@@ -1032,7 +1032,7 @@ case class IntLit(v: BigInt, kind: IntegerKind = UnboundedInteger, base: NumBase
   override def typ: Type = IntT(Addressability.literal, kind)
 }
 
-case class PermLit(dividend: BigInt, divisor: BigInt)(val info: Source.Parser.Info) extends Lit {
+case class PermLit(dividend: BigInt, divisor: BigInt)(val info: Source.Parser.Info) extends Lit with Permission {
   require(divisor != 0)
   override def typ: Type = PermissionT(Addressability.literal)
 }

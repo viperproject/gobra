@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue477
+
+func main2() {
+    var x@ [5][4]int
+    var s [][4]int = x[:]
+}
+
+type Pair struct {
+    L, R int
+    Ws []Wrapper
+}
+
+type Wrapper struct {
+  Ps []Pair
+}
+
+func main() {
+  w := &Wrapper{
+    Ps: []Pair{
+      {
+        L: 0,
+        R: 1,
+      },
+    },
+  }
+}

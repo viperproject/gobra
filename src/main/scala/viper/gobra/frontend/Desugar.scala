@@ -384,18 +384,46 @@ object Desugar {
     }
 
     def globalVarDeclD(decl: PGlobalVarDecl): in.GlobalVarDecl = {
+      violation(
+        // single-assign
+        decl.left.length == decl.right.length ||
+          // all variables are declared with the default value of their types
+          decl.right.isEmpty ||
+          // multi-assign
+          decl.right.length == 1,
+        "Unexpected case reached")
       val src = meta(decl)
       val gvars = decl.left.map(info.regular) map {
         case g: st.GlobalVariable => globalVarD(g)(src)
         case w: st.Wildcard =>
           val typ = typeD(info.typ(w.decl), Addressability.globalVariable)(src)
-          val scope = info.codeRoot(decl).asInstanceOf[PProgram] // TODO: explain cast as a test
+          val scope = info.codeRoot(decl).asInstanceOf[PProgram]
           freshGlobalVar(typ, scope, w.context)(src)
         case e => Violation.violation(s"Expected a global variable or wildcard, but instead got $e")
       }
-      val ctx = FunctionContext.empty
-      val exps = sequence(decl.right.map(exprD(ctx)))
-      in.GlobalVarDecl(gvars, exps.res, exps.decls, exps.stmts)(src)
+      val exps = decl.right.map(exprD(FunctionContext.empty))
+      if (decl.right.isEmpty) {
+        // assign to all variables its default value:
+        val assignsToDefault =
+          gvars.map{ v => singleAss(in.Assignee.Var(v), in.DfltVal(v.typ.withAddressability(Addressability.Exclusive))(src))(src) }
+        in.GlobalVarDecl(gvars, assignsToDefault)(src)
+      } else if (decl.right.length == 1 && decl.right.length != decl.left.length) {
+        // multi-assign mode:
+        val assigns = block(exps.head.map {
+          // the desugared expression should have the same arity as the number of variables on the lhs of the assignment
+          case t: in.Tuple if t.args.length == gvars.length =>
+            in.Block(
+              decls = Vector(),
+              stmts = gvars.zip(t.args).map{ case (l, r) => singleAss(in.Assignee.Var(l), r)(src) }
+            )(src)
+          case c => violation(s"Expected this case to be unreachable, but found $c instead.")
+        })
+        in.GlobalVarDecl(gvars, Vector(assigns))(src)
+      } else {
+        // single-assign mode:
+        val assigns = gvars.zip(exps).map{ case (l, wr) => block(for { r <- wr } yield singleAss(in.Assignee.Var(l), r)(src)) }
+        in.GlobalVarDecl(gvars, assigns)(src)
+      }
     }
 
     def globalVarD(v: st.GlobalVariable)(src: Meta): in.GlobalVar = {
@@ -1570,7 +1598,7 @@ object Desugar {
           }
         case Some(p: ap.GlobalVariable) =>
           val globVar = globalVarD(p.symb)(src)
-          unit(in.Addressable.GlobVar(globVar))
+          unit(in.Addressable.GlobalVar(globVar))
         case Some(p: ap.Deref) =>
           derefD(ctx)(p)(src) map in.Addressable.Pointer
         case Some(p: ap.FieldSelection) =>
@@ -2556,26 +2584,7 @@ object Desugar {
                   *   var C = A
                   *   var B = 2
                   */
-                globalDecls.flatMap { decl =>
-                  // TODO: use AssignMode instead
-                  violation(decl.left.length == decl.right.length || decl.right.isEmpty || decl.right.length == 1, "Expected bla bla") // TODO
-                  // TODO: enforce these invariants
-                  if (decl.right.isEmpty) {
-                    Vector(in.Block(decl.decls, decl.left.map(l => in.SingleAss(in.Assignee.Var(l), in.DfltVal(l.typ.withAddressability(Addressability.Exclusive))(src))(src)))(src))
-                  } else if (decl.right.length == 1 && decl.right.length != decl.left.length) {
-                    // Must be a tuple
-                    decl.right match {
-                      case Vector(t: in.Tuple) =>
-                        violation(t.args.length == decl.left.length, "Expected same length")
-                        Vector(
-                          in.Block(decl.decls, decl.stmts ++ (decl.left.zip(t.args).map{ case (l, r) => in.SingleAss(in.Assignee.Var(l), r)(src) }))(src)
-                        )
-                      case _ => ??? // println(s"o: $o"); println(s"left: ${decl.left}, right: ${decl.right}");???
-                    }
-                  } else {
-                    Vector(in.Block(decl.decls, decl.stmts ++ decl.left.zip(decl.right).map{ case (l, r) => singleAss(in.Assignee.Var(l), r)(src) })(src))
-                  }
-                }
+                globalDecls.flatMap{ _.declStmts }
               }
               // execute all inits in the order they occur
               // TODO: at the moment, there exists at most one init, but this should change in the future

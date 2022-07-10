@@ -23,7 +23,6 @@ object Nodes {
     * As a consequence, it is not sufficient to compare the subnodes of two
     * nodes for equality if one has to compare those two nodes for equality.
     */
-    // TODO: Complete
   def subnodes(n: Node): Seq[Node] = { // TODO: maybe can be solved generally
     val subnodesWithoutType: Seq[Node] = n match {
       case Program(_, members, _) => members
@@ -37,10 +36,15 @@ object Nodes {
         case PureFunction(name, args, results, pres, posts, measures, body) => Seq(name) ++ args ++ results ++ pres ++ posts ++ measures ++ body
         case FPredicate(name, args, body) => Seq(name) ++ args ++ body
         case MPredicate(recv, name, args, body) => Seq(recv, name) ++ args ++ body
-        case GlobalVarDecl(lefts, rights, decls, stmts) => lefts ++ rights ++ decls ++ stmts
+        case GlobalVarDecl(lefts, declStmts) => lefts ++ declStmts
         case MethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
         case PureMethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
         case DomainDefinition(_, funcs, axioms) => funcs ++ axioms
+        case BuiltInFPredicate(_, name, _) => Seq(name)
+        case BuiltInFunction(_, name, _) => Seq(name)
+        case BuiltInMPredicate(_, _, name, _) => Seq(name)
+        case BuiltInMethod(_, _, name, _) => Seq(name)
+        case GlobalConstDecl(left, lit) => Seq(left, lit)
       }
       case s: Stmt => s match {
         case Break(_, _) => Seq.empty

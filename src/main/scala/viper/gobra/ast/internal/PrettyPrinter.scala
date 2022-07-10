@@ -196,10 +196,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showGlobalVarDecl(decl: GlobalVarDecl): Doc = {
-    "var" <+> showVarDeclList(decl.left) <+> (decl.right match {
-      case l if l.isEmpty => emptyDoc
-      case l  => "=" <+> showExprList(l)
-    })
+    "var" <+> showVarDeclList(decl.left) <+> block(showStmtList(decl.declStmts))
   }
 
   def showBuiltInMember(member: BuiltInMember): Doc = {

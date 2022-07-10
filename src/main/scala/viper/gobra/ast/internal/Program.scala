@@ -115,12 +115,11 @@ sealed trait FunctionMember extends FunctionLikeMember {
 sealed trait Location extends Expr
 
 case class GlobalVarDecl(left: Vector[GlobalVar],
-                         // the following fields store the same information as a Writer[Expr] would
-                         right: Vector[Expr], // desugared (pure) expressions on the RHS
-                         decls: Vector[BlockDeclaration], // decls that must occur before the statements in [stmts]
-                         stmts: Vector[Stmt] // statements that must occur before accessing the expressions in [right]
+                         // statements involved in declaring the variables on [left]; should include an assignment
+                         // to every variable on the left
+                         declStmts: Vector[Stmt]
                         )(val info: Source.Parser.Info) extends Member {
-  require((stmts.isEmpty && decls.isEmpty) || right.nonEmpty)
+  require(declStmts.nonEmpty)
 }
 
 case class GlobalConstDecl(left: GlobalConst, right: Lit)(val info: Source.Parser.Info) extends Member
@@ -925,9 +924,10 @@ sealed trait Addressable extends Node {
 }
 
 object Addressable {
+  import viper.gobra.ast.{internal => in}
 
   case class Var(op: LocalVar) extends Addressable
-  case class GlobVar(op: GlobalVar) extends Addressable // TODO: obtain better name
+  case class GlobalVar(op: in.GlobalVar) extends Addressable
   case class Pointer(op: Deref) extends Addressable
   case class Field(op: FieldRef) extends Addressable
   case class Index(op: IndexedExp) extends Addressable

@@ -19,7 +19,6 @@ object GobraStrategy {
     case (n, args, info) => gobraDuplicator(n, args, info)
   }
 
-  // TODO:
   def gobraDuplicator[N <: Node](x: N, args: Seq[AnyRef], meta: Node.Meta): N = {
     val node: Node = (x, args) match {
         // Members
@@ -30,6 +29,7 @@ object GobraStrategy {
       case (_: PureFunction, Seq(name: FunctionProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], terminationMeasures: Vector[TerminationMeasure@unchecked], b: Option[Expr@unchecked])) => PureFunction(name, arg, res, pre, post, terminationMeasures, b)(meta)
       case (_: MPredicate, Seq(recv: Parameter.In, name: MPredicateProxy, args: Vector[Parameter.In@unchecked], b: Option[Assertion@unchecked])) => MPredicate(recv, name, args, b)(meta)
       case (_: FPredicate, Seq(name: FPredicateProxy, args: Vector[Parameter.In@unchecked], b: Option[Assertion@unchecked])) => FPredicate(name, args, b)(meta)
+      case (_: GlobalVarDecl, Seq(left: Vector[GlobalVar@unchecked], declStmts: Vector[Stmt@unchecked])) => GlobalVarDecl(left, declStmts)(meta)
       case (n: MethodSubtypeProof, Seq(subProxy: MethodProxy, superProxy: MethodProxy, rec: Parameter.In, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], b: Option[Block@unchecked])) => MethodSubtypeProof(subProxy, n.superT, superProxy, rec, arg, res, b)(meta)
       case (n: PureMethodSubtypeProof, Seq(subProxy: MethodProxy, superProxy: MethodProxy, rec: Parameter.In, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], b: Option[Expr@unchecked])) => PureMethodSubtypeProof(subProxy, n.superT, superProxy, rec, arg, res, b)(meta)
       case (f: Field, Seq()) => Field(f.name, f.typ, f.ghost)(meta)
@@ -192,6 +192,7 @@ object GobraStrategy {
       case (p: Parameter.In, Seq()) => Parameter.In(p.id, p.typ)(meta)
       case (p: Parameter.Out, Seq()) => Parameter.Out(p.id, p.typ)(meta)
       case (l: LocalVar, Seq()) => LocalVar(l.id, l.typ)(meta)
+      case (g: GlobalVar, Seq()) => LocalVar(g.id, g.typ)(meta)
       case (g: GlobalConst.Val, Seq()) => GlobalConst.Val(g.id, g.typ)(meta)
       case (_: Addressable.Var, Seq(v: LocalVar)) => Addressable.Var(v)
       case (_: Addressable.Pointer, Seq(v: Deref)) => Addressable.Pointer(v)

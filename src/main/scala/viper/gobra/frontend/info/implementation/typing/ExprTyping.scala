@@ -12,7 +12,7 @@ import viper.gobra.frontend.info.base.SymbolTable.{MultiGlobalVariable, SingleCo
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
-import viper.gobra.util.Violation
+import viper.gobra.util.{Constants, Violation}
 
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -226,7 +226,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
           val isCallToInit =
-            error(n, "init function is not callable", c.callee.isInstanceOf[ap.Function] && c.callee.id.name == "init")
+            error(n, s"${Constants.INIT_FUNC_NAME} function is not callable",
+              c.callee.isInstanceOf[ap.Function] && c.callee.id.name == Constants.INIT_FUNC_NAME)
           // arguments have to be assignable to function
           val wellTypedArgs = exprType(callee) match {
             case FunctionT(args, _) => // TODO: add special assignment

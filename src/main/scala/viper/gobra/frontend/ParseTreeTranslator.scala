@@ -2094,7 +2094,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitImportDecl(ctx: GobraParser.ImportDeclContext): Vector[PImport] = {
     val importsVector: Vector[PImport] = visitListNode[PImport](ctx.importSpec())
     val importPres: Vector[PExpression] = visitListNode[PExpression](ctx.importPre())
-    // println(s"importPres: $importPres")
     // if there is only a single importSpec and the importDecl has specification,
     // then update the specification of the importSpec with the one from the importDecl
     if (importsVector.length == 1 && importPres.nonEmpty) {
@@ -2120,7 +2119,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     // Get the actual path
     val path = visitString_(ctx.importPath().string_()).lit
     val importPres: Vector[PExpression] = visitListNode(ctx.importPre())
-    // println(s"importPres: $importPres")
     if(ctx.DOT() != null){
       // . "<path>"
       PUnqualifiedImport(path, importPres).at(ctx)

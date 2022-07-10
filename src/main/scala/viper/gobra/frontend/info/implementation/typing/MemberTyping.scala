@@ -9,6 +9,7 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.Constants
 
 trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -25,7 +26,6 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case b: PConstDecl =>
       b.specs.flatMap(wellDefConstSpec)
     case g: PGlobalVarDecl =>
-      // TODO: check no dynamically bound method calls
       // HACK: without this explicit check, Gobra does not find repeated declarations
       //       of global variables. This has to do with the changes introduced in PR #186.
       val idsOkMsgs = g.left.flatMap(l => wellDefID(l).out)
@@ -57,14 +57,14 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
       p => error(p, s"Only the last argument can be variadic, got $p instead", p.typ.isInstanceOf[PVariadicType])
     }
 
-  // TODO: move "init" and "main" to singleton
-
   private def wellDefIfInitBlock(n: PFunctionDecl): Messages = {
     val errorMsgEmptySpec =
-      "Currently, init blocks cannot be specified. Instead, use package postconditions and import preconditions."
-    val errorMsgNoInOut = "func init must have no arguments and no return values"
-    val isInitFunc = n.id.name == "init"
+      s"Currently, ${Constants.INIT_FUNC_NAME} blocks cannot be specified. Instead, use package postconditions and import preconditions."
+    val errorMsgNoInOut = s"func ${Constants.INIT_FUNC_NAME} must have no arguments and no return values"
+    val errorMsgNotAbstract = s"func ${Constants.INIT_FUNC_NAME} cannot be abstract"
+    val isInitFunc = n.id.name == Constants.INIT_FUNC_NAME
     val noInputsAndOutputs = n.args.isEmpty && n.result.outs.isEmpty
+    val notAbstract = n.body.nonEmpty
     val hasEmptySpec = !n.spec.isPure &&
       !n.spec.isTrusted &&
       n.spec.pres.isEmpty &&
@@ -72,16 +72,16 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
       n.spec.posts.isEmpty &&
       n.spec.terminationMeasures.isEmpty
     error(n, errorMsgEmptySpec, isInitFunc && !hasEmptySpec) ++
-      error(n, errorMsgNoInOut, isInitFunc && !noInputsAndOutputs)
+      error(n, errorMsgNoInOut, isInitFunc && !noInputsAndOutputs) ++
+      error(n, errorMsgNotAbstract, isInitFunc && !notAbstract)
   }
 
   private def wellDefIfMain(n: PFunctionDecl): Messages = {
     // same message as the Go compiler
-    val errorMsg = "func main must have no arguments and no return values"
-    val isMainFunc = n.id.name == "main"
+    val errorMsg = s"func ${Constants.MAIN_FUNC_NAME} must have no arguments and no return values"
+    val isMainFunc = n.id.name == Constants.MAIN_FUNC_NAME
     // TODO: add support for ghost out-params
     val noInputsAndOutputs = n.args.isEmpty && n.result.outs.isEmpty
     error(n, errorMsg, isMainFunc && !noInputsAndOutputs)
-
   }
 }

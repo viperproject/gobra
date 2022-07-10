@@ -108,6 +108,7 @@ object SymbolTable extends Environments[Entity] {
 
   // TODO: cleanup params
   case class SingleGlobalVariable(override val decl: PGlobalVarDecl,
+                                  // index of the identifier in the declaration
                                   idx: Int,
                                   override val expOpt: Option[PExpression],
                                   override val typOpt: Option[PType],

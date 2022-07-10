@@ -64,12 +64,15 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
             result
           case _: st.Wildcard if decl.right.isEmpty => true
           case _: st.Wildcard =>
-            val deps = StrictAssignMode(decl.left.length, decl.right.length) match {
+            val errOrDeps = StrictAssignMode(decl.left.length, decl.right.length) match {
               case AssignMode.Single => globalsExprDependsOn(decl.right(idx))
               case AssignMode.Multi => globalsExprDependsOn(decl.right.head)
               case m => Violation.violation(s"Expected this case to be unreachable, but got $m instead.")
             }
-            deps.forall(visitedGlobals.contains)
+            errOrDeps match {
+              case Right(l) => l.forall(visitedGlobals.contains)
+              case _ => true
+            }
           case e =>
             Violation.violation(s"Expected this case to be unreachable, but resolved $id as a $e.")
         }

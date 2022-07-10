@@ -16,6 +16,7 @@ import scala.collection.mutable
 // TODO: rename, doc
 trait DependencyAnalysis extends BaseProperty { this: TypeInfoImpl =>
 
+  // TODO: cannot call abstract functions
   // TODO: maybe move to program typing
   lazy val acyclicGlobalDeclaration: Property[PGlobalVarDecl] = createProperty[PGlobalVarDecl]{ c =>
     val results = c.left.map{ l =>
@@ -27,7 +28,9 @@ trait DependencyAnalysis extends BaseProperty { this: TypeInfoImpl =>
                 samePackageDependenciesGlobals(o) match {
                   case Right(oDeps) if oDeps.contains(g) => failedProp(s"The declaration of $l is cyclical")
                   case Right(_) => successProp
-                  case Left(errs) => failedPropFromMessages(errs)
+                  case Left(_) =>
+                    // Errors are reported on the nodes that cause them
+                    successProp
                 }
               }
               PropertyResult.bigAnd(collectedResults)

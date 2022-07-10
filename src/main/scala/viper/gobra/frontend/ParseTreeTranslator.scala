@@ -2055,7 +2055,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     // This UGLY HACK allows us to create instances of PGlobalVarDecl representing global variable declarations without
     // having to make significant changes to our language's grammar.
     val decls = ctx.declaration().asScala.toVector.flatMap(visitDeclaration(_).asInstanceOf[Vector[PDeclaration]]).map {
-      case l@ PLocalVarDecl(typ, right, left, _) =>
+      case l@PLocalVarDecl(typ, right, left, _) =>
         PGlobalVarDecl(typ, right, left).at(l).asInstanceOf[PMember with PDeclaration]
       case d => d.asInstanceOf[PMember with PDeclaration]
     }

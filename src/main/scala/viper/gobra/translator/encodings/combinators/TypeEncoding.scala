@@ -57,7 +57,6 @@ trait TypeEncoding extends Generator {
         funcname = v.name.uniqueName,
         args = Seq.empty
       )(pos, info, typ, errT)
-      // TODO: improve doc
       unit(vpr.FieldAccess(encodedVar, ctx.field.field(v.typ.withAddressability(Exclusive))(ctx))(pos, info, errT))
   }
 
@@ -70,7 +69,7 @@ trait TypeEncoding extends Generator {
     * Viper members that are added through [[finalize]] must not be contained in the result.
     * Furthermore, Viper members that are the same for different internal members have to be handled by [[finalize]].
     *
-    * The default returns the result of [[method]], [[function]], [[predicate]]
+    * The default returns the result of [[method]], [[function]], [[predicate]], [[globalVarDeclaration]]
     * */
   def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
     val m = finalMethod(ctx); val f = finalFunction(ctx);
@@ -102,7 +101,9 @@ trait TypeEncoding extends Generator {
     }
   }
 
-  /** TODO */
+  /**
+    * Encodes global variable declarations.
+    */
   def globalVarDeclaration(@unused ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Function]] = PartialFunction.empty
 
   /**
@@ -216,7 +217,6 @@ trait TypeEncoding extends Generator {
     */
   def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     case (v: in.BodyVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar)
-    // TODO: replace everywhere in.Global by in.GlobalConst; remove super type in.Global
     case (v: in.Global) :: t / Exclusive if typ(ctx).isDefinedAt(t) => globalVar(ctx)(v)
     case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) => ctx.expression(expr)
   }
@@ -351,9 +351,11 @@ trait TypeEncoding extends Generator {
     val f = predicate(ctx); { case n@f(v) => extendPredicate(ctx).lift(n).fold(v)(_(v)) }
   }
 
-  /** Adds to the encoding of [[globalVarDeclaration]]. The extension is applied to the result of the final TODO??? encoding. */
-    // TODO
-  def extendGlobalVarDeclaration(@unused ctx: Context): in.Member ==> Extension[MemberWriter[Vector[vpr.Function]]] = PartialFunction.empty
+  /** Adds to the encoding of [[globalVarDeclaration]]. The extension is applied to the result of the global variable
+    * declaration encoding.
+    */
+  def extendGlobalVarDeclaration(@unused ctx: Context): in.Member ==> Extension[MemberWriter[Vector[vpr.Function]]] =
+      PartialFunction.empty
   final def finalGlobalVarDeclatarion(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Function]] = {
     val f = globalVarDeclaration(ctx); { case n@f(v) => extendGlobalVarDeclaration(ctx).lift(n).fold(v)(_(v)) }
   }

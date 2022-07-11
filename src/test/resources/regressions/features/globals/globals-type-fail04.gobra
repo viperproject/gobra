@@ -20,3 +20,7 @@ func newT() T
 // analysis cannot be performed.
 //:: ExpectedOutput(type_error)
 var B = newT().f()
+
+//:: ExpectedOutput(type_error)
+ghost
+func init() {}

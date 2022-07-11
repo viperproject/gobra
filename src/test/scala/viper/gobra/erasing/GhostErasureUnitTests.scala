@@ -21,9 +21,9 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Ghost Erasure: variable declaration should not have a trailing equal sign") {
     // var value int
-    val decl = PLocalVarDecl(Some(PIntType()), Vector(), Vector(PIdnDef("value")), Vector(false))
+    val decl = PVarDecl(Some(PIntType()), Vector(), Vector(PIdnDef("value")), Vector(false))
     frontend.ghostLessStmt(decl)() should matchPattern {
-      case d: PLocalVarDecl if d == decl =>
+      case d: PVarDecl if d == decl =>
     }
   }
 
@@ -321,7 +321,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     private def equal(actual: PMember, expected: PMember): Assertion = {
       (actual, expected) match {
         case (a: PConstDecl, e: PConstDecl) => assert(a == e)
-        case (a: PGlobalVarDecl, e: PGlobalVarDecl) => assert(a == e)
+        case (a: PVarDecl, e: PVarDecl) => assert(a == e)
         case (PFunctionDecl(aId, aArgs, aResult, aSpec, aBody), PFunctionDecl(eId, eArgs, eResult, eSpec, eBody)) =>
           assert(aId == eId)
           assert(aArgs == eArgs)

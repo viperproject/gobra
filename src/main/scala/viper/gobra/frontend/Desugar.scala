@@ -342,7 +342,7 @@ object Desugar {
     def packageD(p: PPackage, shouldDesugar: PMember => Boolean = _ => true): in.Program = {
       val consideredDecls = p.declarations.collect { case m@NoGhost(x: PMember) if shouldDesugar(x) => m }
       val dMembers = consideredDecls.flatMap{
-        case NoGhost(_: PGlobalVarDecl) =>
+        case NoGhost(_: PVarDecl) =>
           // Global Variable Declarations are not handled here. Instead, they are handled together with the
           // rest of the initialization code in the containing file. The corresponding proof obligations are generated
           // in methods [registerPackage] and [registerMainPackage].
@@ -381,7 +381,7 @@ object Desugar {
       in.Program(types.toVector, dMembers ++ additionalMembers, table)(meta(p))
     }
 
-    def globalVarDeclD(decl: PGlobalVarDecl): in.GlobalVarDecl = {
+    def globalVarDeclD(decl: PVarDecl): in.GlobalVarDecl = {
       violation(
         // single-assign
         decl.left.length == decl.right.length ||
@@ -985,7 +985,7 @@ object Desugar {
               } yield multiassD(les, re, stmt)(src))
             } else { violation("invalid assignment") }
 
-          case PLocalVarDecl(typOpt, right, left, _) =>
+          case PVarDecl(typOpt, right, left, _) =>
 
             if (left.size == right.size) {
               seqn(sequence((left zip right).map{ case (l, r) =>
@@ -2478,8 +2478,8 @@ object Desugar {
       // Desugar all declarations of globals in `pkg` to generate the members that correspond to the global variables.
       // Each entry in `pGlobalDecls` contains the declarations of a file in `pkg` sorted by the order in which they
       // appear in the program.
-      val pGlobalDecls: Vector[Vector[PGlobalVarDecl]] = pkg.programs.map{ p =>
-        val unsortedDecls = p.declarations.collect{ case d: PGlobalVarDecl => d }
+      val pGlobalDecls: Vector[Vector[PVarDecl]] = pkg.programs.map{ p =>
+        val unsortedDecls = p.declarations.collect{ case d: PVarDecl => d }
         // TODO: this is currently fine, given that we currently require global variable declarations to come after
         //       the declarations of all of the dependencies of the declared variables. This should be changed when
         //       we lift this restriction.

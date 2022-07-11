@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.ast.frontend.{PDot, PExpression, PGlobalVarDecl, PNamedOperand, PNode, AstPattern => ap}
+import viper.gobra.ast.frontend.{PDot, PExpression, PNamedOperand, PNode, PVarDecl, AstPattern => ap}
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation
@@ -18,7 +18,7 @@ trait DependencyAnalysis extends BaseProperty { this: TypeInfoImpl =>
 
   // TODO: cannot call abstract functions
   // TODO: maybe move to program typing
-  lazy val acyclicGlobalDeclaration: Property[PGlobalVarDecl] = createProperty[PGlobalVarDecl]{ c =>
+  lazy val acyclicGlobalDeclaration: Property[PVarDecl] = createProperty[PVarDecl]{ c =>
     val results = c.left.map{ l =>
       entity(l) match {
         case g: st.GlobalVariable =>

@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Entity
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
-import viper.gobra.ast.frontend.{PGlobalVarDecl, PPackage, PProgram}
+import viper.gobra.ast.frontend.{PPackage, PProgram, PVarDecl}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
@@ -19,8 +19,8 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
   lazy val wellDefProgram: WellDefinedness[PProgram] = createWellDef {
     case PProgram(_, _, _, members) =>
       // Obtains global variable declarations sorted by the order in which they appear in the file
-      val sortedByPosDecls: Vector[PGlobalVarDecl] = {
-        val unsortedDecls: Vector[PGlobalVarDecl] = members.collect{ case d: PGlobalVarDecl => d }
+      val sortedByPosDecls: Vector[PVarDecl] = {
+        val unsortedDecls: Vector[PVarDecl] = members.collect{ case d: PVarDecl => d }
         // we require a package to be able to obtain position information
         val pkgOpt: Option[PPackage] = unsortedDecls.headOption.flatMap(tryEnclosingPackage)
         // sort declarations by the order in which they appear in the program
@@ -53,7 +53,7 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
     * This is not limiting, as an order can always be found such that the declaration order is compatible
     * with the dependency relation. Nonetheless, this should be addressed in the future.
     */
-  private def globalDeclSatisfiesDepOrder(globalDeclsInPosOrder: Vector[PGlobalVarDecl]): Messages = {
+  private def globalDeclSatisfiesDepOrder(globalDeclsInPosOrder: Vector[PVarDecl]): Messages = {
     var visitedGlobals = Vector.empty[Entity]
     globalDeclsInPosOrder.flatMap{ decl =>
       decl.left.zipWithIndex.flatMap{ case (id, idx) =>

@@ -28,7 +28,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
           declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
     }
 
-    case n@PLocalVarDecl(typ, right, left, _) =>
+    case n@PVarDecl(typ, right, left, _) =>
       right.flatMap(isExpr(_).out) ++
         declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
 

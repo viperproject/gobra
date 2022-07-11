@@ -21,6 +21,9 @@ func newT() T
 //:: ExpectedOutput(type_error)
 var B = newT().f()
 
-//:: ExpectedOutput(type_error)
 ghost
+//:: ExpectedOutput(type_error)
 func init() {}
+
+//:: ExpectedOutput(type_error)
+ghost var C int

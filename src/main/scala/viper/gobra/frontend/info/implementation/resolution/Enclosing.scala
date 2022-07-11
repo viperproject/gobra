@@ -75,6 +75,9 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val isEnclosingDomain: PNode => Boolean =
     down(false){ case _: PDomainType => true }
 
+  def isGlobalVarDeclaration(n: PVarDecl): Boolean =
+    enclosingCodeRoot(n).isInstanceOf[PPackage]
+
   lazy val enclosingInterface: PNode => PInterfaceType =
     down((_: PNode) => violation("Node does not root in an interface definition")) { case x: PInterfaceType => x }
 
@@ -119,7 +122,7 @@ trait Enclosing { this: TypeInfoImpl =>
       n match {
         case tree.parent(p) => p match {
           case PConstSpec(t, _, _) => t.map(symbType)
-          case PLocalVarDecl(t, _, _, _) => t.map(symbType)
+          case PVarDecl(t, _, _, _) => t.map(symbType)
           case _: PExpressionStmt => None
           case PSendStmt(channel, `n`) => Some(typ(channel).asInstanceOf[Type.ChannelT].elem)
           case PAssignment(right, left) => Some(typ(left(right.indexOf(n))))
@@ -211,8 +214,7 @@ trait Enclosing { this: TypeInfoImpl =>
   private lazy val freeDeclaredAttr: PNode => Vector[PIdnNode] = {
     attr[PNode, Vector[PIdnNode]] { node =>
       val allDeclared = allChildren(node).collect[Vector[PIdnNode]] {
-        case decl: PLocalVarDecl => decl.left.collect{ case id: PIdnDef => id }
-        case decl: PGlobalVarDecl => decl.left.collect{ case id: PIdnDef => id }
+        case decl: PVarDecl => decl.left.collect{ case id: PIdnDef => id }
         case decl: PShortVarDecl => decl.left.collect { case id: PIdnUnk if isDef(id) => id }
       }.flatten.distinctBy(_.name)
 

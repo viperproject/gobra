@@ -42,20 +42,20 @@ trait NameResolution { this: TypeInfoImpl =>
             }
             case _ => UnknownEntity()
           }
-        case decl: PLocalVarDecl =>
-          val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
-          StrictAssignMode(decl.left.size, decl.right.size) match {
-            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, decl.addressable(idx), this)
-            case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
-            case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, isGhost, decl.addressable(idx), this)
-            case _ => UnknownEntity()
-          }
-        case decl: PGlobalVarDecl =>
+        case decl: PVarDecl if isGlobalVarDeclaration(decl) =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
           StrictAssignMode(decl.left.size, decl.right.size) match {
             case AssignMode.Single => SingleGlobalVariable(decl, idx, Some(decl.right(idx)), decl.typ, isGhost, this)
             case AssignMode.Multi  => MultiGlobalVariable(decl, idx, decl.right.headOption, decl.typ, isGhost, this)
             case _ if decl.right.isEmpty => SingleGlobalVariable(decl, idx, None, decl.typ, isGhost, this)
+            case _ => UnknownEntity()
+          }
+        case decl: PVarDecl =>
+          val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+          StrictAssignMode(decl.left.size, decl.right.size) match {
+            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, decl.addressable(idx), this)
+            case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
+            case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, isGhost, decl.addressable(idx), this)
             case _ => UnknownEntity()
           }
         case decl: PTypeDef => NamedType(decl, isGhost, this)
@@ -199,7 +199,7 @@ trait NameResolution { this: TypeInfoImpl =>
     m match {
       case a: PActualMember => a match {
         case d: PConstDecl => d.specs.flatMap(v => v.left.collect{ case x: PIdnDef => x })
-        case d: PGlobalVarDecl => d.left.collect{ case x: PIdnDef => x }
+        case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
         case d: PFunctionDecl => Vector(d.id)
         case d: PTypeDecl => Vector(d.left) ++ leakingIdentifier(d.right)
         case d: PMethodDecl => Vector(d.id)

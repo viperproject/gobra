@@ -9,7 +9,9 @@ package pkg
 // that might change in the future.
 //:: ExpectedOutput(type_error)
 requires true
-func init()
+func init() {
+
+}
 
 func callInitFunc() {
 	//:: ExpectedOutput(type_error)

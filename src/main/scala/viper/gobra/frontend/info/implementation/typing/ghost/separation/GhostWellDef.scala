@@ -36,7 +36,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
     case _: PGhostMember => noMessages
 
-    case n : PGlobalVarDecl => n.typ match {
+    case n : PVarDecl => n.typ match {
       case Some(typ) => error(n, s"ghost error: expected an actual type but found $typ",
         isTypeGhost(typ) && !enclosingGhostContext(n))
       case None => noMessages
@@ -82,11 +82,6 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PDeferStmt
       ) => error(n, "ghost error: Found ghost child expression but expected none", !noGhostPropagationFromChildren(n))
 
-    case n : PLocalVarDecl => n.typ match {
-      case Some(typ) => error(n, s"ghost error: expected an actual type but found $typ",
-        isTypeGhost(typ) && !enclosingGhostContext(n))
-      case None => noMessages
-    }
     case PAssignment(right, left) => ghostAssignableToAssignee(right: _*)(left: _*)
     case PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
 

@@ -57,18 +57,14 @@ trait GhostAssignability {
     case PNamedOperand(id) => // x := e ~ ghost(e) ==> ghost(x)
       error(left, "ghost error: ghost cannot be assigned to non-ghost", isRightGhost && !ghostIdClassification(id))
 
-    case n: PDot => {
-      resolve(n) match {
-        case Some(_: ap.GlobalVariable) => noMessages // TODO: do a stronger check here
-        case _ => exprOrType(n.base) match {
-          case Left(base) => // x.f := e ~ (ghost(x) || ghost(e)) ==> ghost(f)
-            error(left, "ghost error: ghost cannot be assigned to non-ghost field", isRightGhost && !ghostIdClassification(n.id)) ++
-              error(left, "ghost error: cannot assign to non-ghost field of ghost reference", ghostExprResultClassification(base) && !ghostIdClassification(n.id))
-      }
-
-        case _ => error(left, "ghost error: selections on types are not assignable")
-      }
-    }
+    case n: PDot => exprOrType(n.base) match {
+      case Left(base) => // x.f := e ~ (ghost(x) || ghost(e)) ==> ghost(f)
+        error(left, "ghost error: ghost cannot be assigned to non-ghost field", isRightGhost && !ghostIdClassification(n.id)) ++
+          error(left, "ghost error: cannot assign to non-ghost field of ghost reference", ghostExprResultClassification(base) && !ghostIdClassification(n.id))
+      case _ if resolve(n).exists(_.isInstanceOf[ap.GlobalVariable]) =>
+        error(left, "ghost error: ghost cannot be assigned to a global variable", isRightGhost)
+      case _ => error(left, "ghost error: selections on types are not assignable")
+  }
 
     case PBlankIdentifier() => noMessages
   }

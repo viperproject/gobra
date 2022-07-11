@@ -243,7 +243,7 @@ class GobrafyUnitTests extends AnyFunSuite with Matchers with Inside {
   test("call with spec, with only actual arguments") {
     val input =
       """
-        |cl(a, b) /*@ as foo{} @*/
+        |cl(a, b) /*@ as foo{}@*/
         |cl(c, d) /*@ as foo{} @*//*@ with: @*/
         |cl(c, d) /*@ as foo{1, 2} @*//*@ with: @*/
         |cl(c, d) /*@ as foo{x: 1, y: 2} @*//*@ with: @*/

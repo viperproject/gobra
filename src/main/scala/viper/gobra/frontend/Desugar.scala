@@ -15,7 +15,7 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
-import viper.gobra.reporting.Source.AutoImplProofAnnotation
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, MainPreNotEstablished}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
@@ -2534,7 +2534,9 @@ object Desugar {
         args = Vector.empty,
         results = Vector.empty,
         pres = specCollector.postsOfPackage(pkg),
-        posts = specCollector.presImportsOfPackage(pkg),
+        posts = specCollector.presImportsOfPackage(pkg).map{ a =>
+          a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(ImportPreNotEstablished))
+        },
         terminationMeasures = Vector.empty,
         body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
       )(src)
@@ -2559,7 +2561,9 @@ object Desugar {
         val src = meta(mainFunc, info)
         val mainPkgPosts = specCollector.postsOfPackage(mainPkg)
         val mainFuncPre  = mainFunc.spec.pres ++ mainFunc.spec.preserves
-        val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty))
+        val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty)).map{ a =>
+          a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(MainPreNotEstablished))
+        }
         val funcProxy = in.FunctionProxy(nm.mainFuncProofObligation(info))(src)
         in.Function(
           name = funcProxy,

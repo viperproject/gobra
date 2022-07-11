@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Entity
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
-import viper.gobra.ast.frontend.{PPackage, PProgram, PVarDecl}
+import viper.gobra.ast.frontend.{PExpression, POld, PPackage, PProgram, PVarDecl}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
@@ -17,7 +17,7 @@ import viper.gobra.util.Violation
 trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefProgram: WellDefinedness[PProgram] = createWellDef {
-    case PProgram(_, _, _, members) =>
+    case PProgram(_, posts, imports, members) =>
       // Obtains global variable declarations sorted by the order in which they appear in the file
       val sortedByPosDecls: Vector[PVarDecl] = {
         val unsortedDecls: Vector[PVarDecl] = members.collect{ case d: PVarDecl => d }
@@ -35,7 +35,9 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
       //       of global variables. This has to do with the changes introduced in PR #186.
       val idsOkMsgs = sortedByPosDecls.flatMap(d => d.left).flatMap(l => wellDefID(l).out)
       if (idsOkMsgs.isEmpty) {
-        globalDeclSatisfiesDepOrder(sortedByPosDecls)
+        globalDeclSatisfiesDepOrder(sortedByPosDecls) ++
+          hasOldExpression(posts) ++
+          hasOldExpression(imports.flatMap(_.importPres))
       } else {
         idsOkMsgs
       }
@@ -79,6 +81,13 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
         val errorMsg: String = "Currently, Gobra requires dependencies of a global variable to be declared before it."
         error(decl, errorMsg, !visitedAllDeps)
       }
+    }
+  }
+
+  private def hasOldExpression(posts: Vector[PExpression]): Messages = {
+    posts.flatMap{n =>
+      val hasOld = allChildren(n).exists(_.isInstanceOf[POld])
+      error(n, "'old' expressions cannot occur in init-postconditions and import-preconditions", hasOld)
     }
   }
 }

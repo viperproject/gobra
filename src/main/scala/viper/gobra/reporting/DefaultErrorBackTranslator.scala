@@ -6,7 +6,7 @@
 
 package viper.gobra.reporting
 
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, OverflowCheckAnnotation, ReceiverNotNilCheckAnnotation}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, MainPreNotEstablished, OverflowCheckAnnotation, ReceiverNotNilCheckAnnotation}
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
@@ -167,6 +167,16 @@ class DefaultErrorBackTranslator(
 
       case _ / AutoImplProofAnnotation(subT, superT) =>
         GeneratedImplementationProofError(subT, superT, x)
+
+      case _ / MainPreNotEstablished =>
+        x.reasons.foldLeft(MainPreconditionNotEstablished(x.info): VerificationError){
+          case (err, reason) => err dueTo reason
+        }
+
+      case _ / ImportPreNotEstablished =>
+        x.reasons.foldLeft(ImportPreconditionNotEstablished(x.info): VerificationError){
+          case (err, reason) => err dueTo reason
+        }
 
       case _ => x
     }

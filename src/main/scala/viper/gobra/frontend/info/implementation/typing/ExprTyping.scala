@@ -274,7 +274,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PIndexedExp(base, index) =>
       isExpr(base).out ++ isExpr(index).out ++
-        ((underlyingType(exprType(base)), exprType(index)) match {
+        ((underlyingType(exprType(base)), underlyingType(exprType(index))) match {
           case (ArrayT(l, _), IntT(_)) =>
             val idxOpt = intConstantEval(index)
             error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
@@ -618,7 +618,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case p => violation(s"expected conversion, function call, predicate call, or predicate expression instance, but got $p")
     }
 
-    case PIndexedExp(base, index) => (underlyingType(exprType(base)), exprType(index)) match {
+    case PIndexedExp(base, index) => (underlyingType(exprType(base)), underlyingType(exprType(index))) match {
       case (ArrayT(_, elem), IntT(_)) => elem
       case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
       case (SequenceT(elem), IntT(_)) => elem

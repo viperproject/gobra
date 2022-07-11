@@ -3,10 +3,18 @@
 
 package foo
 
+type I1 interface {
+    pure getx() int
+}
+
 type S1 struct { x int }
 
 pure func (self S1) getx() (r int) {
     return self.x
+}
+
+pure func ret2() int {
+    return 2
 }
 
 ensures r == x + 2

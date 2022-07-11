@@ -30,12 +30,12 @@ func mapOverVector(ghost p Inv, c func(int)int, v []int) {
 }
 
 
-type Add10 struct { n *int }
-pred (self Add10) inv() {
+type Add struct { n *int }
+pred (self Add) inv() {
     acc(self.n, 1/2)
 }
 requires self.inv()
-pure func (self Add10) res(x int) int {
+pure func (self Add) res(x int) int {
     return unfolding self.inv() in (*self.n + x)
 }
 
@@ -47,16 +47,16 @@ func main() {
                 return a + x
             }
     
-    proof c implements mapF{Add10{&a}} {
-        unfold Add10{&a}.inv()
+    proof c implements mapF{Add{&a}} {
+        unfold Add{&a}.inv()
         y = c(x) as addA
-        fold Add10{&a}.inv()
+        fold Add{&a}.inv()
     }
-    fold Add10{&a}.inv()
+    fold Add{&a}.inv()
 
     v := []int{1,2,3,4,5,6}
 
-    ghost var p Inv = Add10{&a}
+    ghost var p Inv = Add{&a}
     mapOverVector(p, c, v)
 
     assert v[5] == p.res(6)

@@ -1,13 +1,16 @@
 package viper.gobra.translator.encodings.closures
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.Source
+import viper.gobra.reporting.BackTranslator.ErrorTransformer
+import viper.gobra.reporting.{InterfaceReceiverIsNilReason, MethodObjectGetterPreconditionError, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.interfaces.{InterfaceComponent, InterfaceComponentImpl, InterfaceUtils, PolymorphValueComponent, PolymorphValueComponentImpl, TypeComponent, TypeComponentImpl}
+import viper.gobra.translator.util.ViperWriter.CodeLevel.errorT
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter, MemberLevel => ml}
 import viper.gobra.util.Violation.violation
+import viper.silver.verifier.{errors => vprerr}
 import viper.silver.{ast => vpr}
 
 
@@ -20,7 +23,7 @@ class MethodObjectManager(domain: ClosureDomainManager) {
 
   def callToMethodClosureGetter(m: in.MethodObject)(ctx: Context): CodeWriter[vpr.Exp] = {
     register(m)(ctx)
-    ctx.expression(callToGetterFunction(m.recv, m.meth)(m.info))
+    callToGetterFunction(m)(m.info)(ctx)
   }
 
   def finalize(addMemberFn: vpr.Member => Unit): Unit = {
@@ -29,6 +32,8 @@ class MethodObjectManager(domain: ClosureDomainManager) {
 
   private val genericFuncType: in.FunctionT = in.FunctionT(Vector.empty, Vector.empty, Addressability.rValue)
 
+  /** For all methods that are used as closure variables (e.g. assigned to a variables, or used within a call with spec),
+    * a getter function is generated. */
   private def register(m: in.MethodObject)(ctx: Context): Unit = m.recv.typ match {
     case d: in.DefinedT => ctx.table.lookup(d) match {
       case i: in.InterfaceT => ctx.table.implementations(i) foreach {
@@ -51,6 +56,8 @@ class MethodObjectManager(domain: ClosureDomainManager) {
   private def getterFunctionProxy(meth: in.MethodProxy): in.MethodProxy =
     in.MethodProxy(s"${Names.closureGetter}$$${meth.name}", s"${Names.closureGetter}$$${meth.uniqueName}")(meth.info)
 
+  /** Encodes simple getter function for struct method objects, encoded as:
+    *   function closureGet$[methodName](self: [structType]): Closure */
   private def getter(recvType: in.DefinedT, meth: in.MethodProxy)(ctx: Context): MemberWriter[vpr.Member] = {
     val proxy = getterFunctionProxy(meth)
     val info = meth.info
@@ -60,6 +67,13 @@ class MethodObjectManager(domain: ClosureDomainManager) {
     ctx.defaultEncoding.pureMethod(getter)(ctx)
   }
 
+  /** Encodes a getter function for interface method objects, encoded as follows:
+    *   function closureGet$[methodName](thisItf: [interfaceType]): Closure
+    *     requires [thisItf != nil]
+    *     ensures [typeOf(thisItf) == strN] ==> result == closureGet$[strNMethodName]([unbox(thisItf)])
+    *
+    *     where there is a postcondition for all implementing structs
+    */
   private def getter(recvType: in.InterfaceT, meth: in.MethodProxy)(ctx: Context): MemberWriter[vpr.Member] = {
     val proxy = getterFunctionProxy(meth)
     val receiver = in.Parameter.In("thisItf", recvType)(meth.info)
@@ -75,6 +89,15 @@ class MethodObjectManager(domain: ClosureDomainManager) {
     ml.unit(vpr.Function(proxy.uniqueName, Seq(ctx.variable(receiver)), domain.vprType, Seq(recvNotNil), posts, None)())
   }
 
-  private def callToGetterFunction(recv: in.Expr, meth: in.MethodProxy)(info: Source.Parser.Info): in.PureMethodCall =
-    in.PureMethodCall(recv, getterFunctionProxy(meth), Vector.empty, genericFuncType)(info)
+  private def receiverNilErr(m: in.MethodObject, call: vpr.Exp): ErrorTransformer = {
+    case vprerr.PreconditionInAppFalse(offendingNode, _, _) if call eq offendingNode =>
+      val info = m.vprMeta._2.asInstanceOf[Source.Verifier.Info]
+      val recvInfo = m.recv.vprMeta._2.asInstanceOf[Source.Verifier.Info]
+      MethodObjectGetterPreconditionError(info).dueTo(InterfaceReceiverIsNilReason(recvInfo))
+  }
+
+  private def callToGetterFunction(m: in.MethodObject)(info: Source.Parser.Info)(ctx: Context): CodeWriter[vpr.Exp] = for {
+    call <- ctx.expression(in.PureMethodCall(m.recv, getterFunctionProxy(m.meth), Vector.empty, genericFuncType)(info))
+    _ <- errorT(receiverNilErr(m, call))
+  } yield call
 }

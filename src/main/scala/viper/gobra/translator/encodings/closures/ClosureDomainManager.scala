@@ -18,6 +18,8 @@ class ClosureDomainManager(specs: ClosureSpecsManager) {
     vpr.DomainType(Names.closureDomain, Map.empty)(Vector.empty)
   }
 
+  /** Domain Closure, with as many domain functions as the maximum number of captured variables.
+    * Domain function captVarNClosure(c) returns a Ref, since a closure keeps pointers to the captured variables.  */
   private def vprDomain: vpr.Domain = vpr.Domain(
     Names.closureDomain,
     ((1 to specs.maxCaptVariables) map { i => vpr.DomainFunc(Names.closureCaptVarDomFunc(i), Seq(vpr.LocalVarDecl(Names.closureArg, vprType)()), vpr.Ref)(domainName = Names.closureDomain)}) ++

@@ -45,7 +45,7 @@ case class PPackage(
                      programs: Vector[PProgram],
                      positions: PositionManager,
                      info: PackageInfo
-                   ) extends PNode with PUnorderedScope {
+                   ) extends PNode with PUnorderedScope with PCodeRoot {
   // TODO: remove duplicate package imports:
   lazy val imports: Vector[PImport] = programs.flatMap(_.imports)
   lazy val declarations: Vector[PMember] = programs.flatMap(_.declarations)
@@ -58,7 +58,7 @@ case class PProgram(
                      initPosts: Vector[PExpression],
                      imports: Vector[PImport],
                      declarations: Vector[PMember]
-                   ) extends PNode with PUnorderedScope with PCodeRoot // imports are in program scopes
+                   ) extends PNode with PUnorderedScope // imports are in program scopes
 
 
 class PositionManager(val positions: Positions) extends Messaging(positions) {

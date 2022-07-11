@@ -6,9 +6,9 @@ package pkg
 import "fmt"
 
 var A = 1
+//:: ExpectedOutput(function_termination_error)
 var _, B = f()
 
-decreases
 func f() (int, bool)
 
 func testRead() {

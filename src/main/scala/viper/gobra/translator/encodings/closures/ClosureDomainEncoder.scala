@@ -3,7 +3,7 @@ package viper.gobra.translator.encodings.closures
 import viper.gobra.translator.Names
 import viper.silver.{ast => vpr}
 
-class ClosureDomainManager(specs: ClosureSpecsManager) {
+class ClosureDomainEncoder(specs: ClosureSpecsEncoder) {
 
   def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     if (domainNeeded) {

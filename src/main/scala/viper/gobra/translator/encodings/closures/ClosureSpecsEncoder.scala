@@ -13,7 +13,7 @@ import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.silver.verifier.{reasons, errors => vprerr}
 import viper.silver.{ast => vpr}
 
-protected class ClosureSpecsManager {
+protected class ClosureSpecsEncoder {
 
   def closureImplementsAssertion(a: in.ClosureImplements)(ctx: Context): CodeWriter[vpr.Exp] = {
     register(a.spec)(ctx, a.info)

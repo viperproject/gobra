@@ -14,7 +14,7 @@ import viper.silver.verifier.{errors => vprerr}
 import viper.silver.{ast => vpr}
 
 
-class MethodObjectManager(domain: ClosureDomainManager) {
+class MethodObjectEncoder(domain: ClosureDomainEncoder) {
 
   private val interfaces: InterfaceComponent = new InterfaceComponentImpl
   private val types: TypeComponent = new TypeComponentImpl

@@ -19,9 +19,9 @@ class ClosureEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.TypePatterns._
   import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl, _}
 
-  val specs = new ClosureSpecsManager
-  val domain = new ClosureDomainManager(specs)
-  val moe = new MethodObjectManager(domain)
+  val specs = new ClosureSpecsEncoder
+  val domain = new ClosureDomainEncoder(specs)
+  val moe = new MethodObjectEncoder(domain)
 
   /**
     * Translates a type into a Viper type.

@@ -1,8 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
 package closuresMap 
 
 type Inv interface {
     pred inv()
 
+    ghost
     requires inv()
     pure res(x int) int
 }
@@ -34,11 +38,13 @@ type Add struct { n *int }
 pred (self Add) inv() {
     acc(self.n, 1/2)
 }
+ghost
 requires self.inv()
 pure func (self Add) res(x int) int {
     return unfolding self.inv() in (*self.n + x)
 }
 
+requires true
 func main() {
     a@ := 10
     c :=    preserves acc(&a, 1/2)
@@ -53,6 +59,10 @@ func main() {
         fold Add{&a}.inv()
     }
     fold Add{&a}.inv()
+
+    ghost {
+        assert (unfolding Add{&a}.inv() in *(Add{&a}.n)) == 10
+    }
 
     v := []int{1,2,3,4,5,6}
 

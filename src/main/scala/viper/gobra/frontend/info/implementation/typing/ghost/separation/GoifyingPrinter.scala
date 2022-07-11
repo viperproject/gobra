@@ -31,7 +31,16 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
   lazy val isInGoifiedScope: PNode => Boolean =
     decorators.down(false){
       case _: PFPredicateDecl | _: PMPredicateDecl | _: PFunctionSpec | _: PGhostStatement | _: PUnfolding  => true
+      case m: PMember => classifier.isMemberGhost(m)
+      case s: PStatement => classifier.isStmtGhost(s)
     }
+  def isWithinGoifiedScope(n: PNode): Boolean = info.tree.parent(n) match {
+    case Vector(parent) =>
+      val res = isInGoifiedScope(parent)
+      res
+    case _ =>
+      false
+  }
 
   /**
     * Keywords used in Goified files.
@@ -104,6 +113,9 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     */
   override def showMember(mem: PMember): Doc = mem match {
 
+    case _ if isWithinGoifiedScope(mem) => super.showMember(mem)
+    case _ if classifier.isMemberGhost(mem) => blockSpecComment(super.showMember(mem))
+
     case PMethodDecl(id, rec, args, res, spec, body) =>
       showDeclarationSpec(DeclarationSpec(getGhostParams(args), getGhostParams(res.outs), spec)) <>
       super.showMember(
@@ -133,7 +145,6 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
     case pred: PMPredicateDecl => blockSpecComment(super.showMember(pred))
 
-    case m if classifier.isMemberGhost(m) => specComment <+> super.showMember(m)
     case m => super.showMember(m)
   }
 
@@ -146,12 +157,15 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
   /**
     * Shows a ghost statement in the goified version with a given prefix.
     */
-  def showGhostStmt(stmt: PStatement, prefix: Doc): Doc = specComment <> prefix <+> super.showStmt(stmt)
+  def showGhostStmt(stmt: PStatement, prefix: Doc): Doc = stmt match {
+    case _: PClosureImplProof | _: PExplicitGhostStatement => blockSpecComment(prefix <+> super.showStmt(stmt))
+    case _ => specComment <> prefix <+> super.showStmt(stmt)
+  }
   def showGhostExprList(exprs: Vector[PExpression], prefix: Doc): Doc = specComment <> prefix <+> super.showExprList(exprs)
 
   override def showStmt(stmt: PStatement): Doc = stmt match {
 
-    case s if !isInGoifiedScope(s) => super.showStmt(s)
+    case s if isWithinGoifiedScope(s) => super.showStmt(s)
     case s if classifier.isStmtGhost(s) => showGhostStmt(stmt, emptyDoc)
 
     case PAssignment(right, left) =>
@@ -226,14 +240,23 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
   override def showExpr(expr: PExpression): Doc = expr match {
 
-    case e if !isInGoifiedScope(e) => super.showExpr(e)
+    case e if isWithinGoifiedScope(e) => super.showExpr(e)
     
-    case n: PInvoke if !isInGoifiedScope(n) =>
+    case n: PInvoke =>
       val gt = classifier.expectedArgGhostTyping(n)
       val aArgs = n.args.zip(gt.toTuple).filter(!_._2).map(_._1)
       val ghostArgs = n.args.zip(gt.toTuple).filter(_._2).map(_._1)
 
       super.showExpr(n.copy(args = aArgs)) <> (if (ghostArgs.isEmpty) emptyDoc else space <> inlinedSpecComment(with_keyword <+> showExprList(ghostArgs)))
+
+    case n: PCallWithSpec =>
+      val gt = classifier.expectedArgGhostTyping(n.spec)
+      val aArgs = n.args.zip(gt.toTuple).filter(!_._2).map(_._1)
+      val ghostArgs = n.args.zip(gt.toTuple).filter(_._2).map(_._1)
+
+      super.showExpr(PInvoke(n.base, aArgs)) <+> inlinedSpecComment("as" <+> showMisc(n.spec)) <>
+        (if (ghostArgs.isEmpty) emptyDoc else space <> inlinedSpecComment(with_keyword <+> showExprList(ghostArgs)))
+
 
     case e: PProofAnnotation => e match {
       case e: PUnfolding =>
@@ -264,14 +287,14 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
       val (actualPspecs, ghostPspecs) = partitionInterfaceClauses(pspecs)
 
       "interface" <+> block(
-        ssep(actualEmbedded map showInterfaceClause, line) <>
-        (if (ghostEmbedded.isEmpty) emptyDoc else ssep(ghostEmbedded map (specComment <+> showInterfaceClause(_)), line)) <>
+        ssep(actualEmbedded map showInterfaceClause, line) <> line <>
+        (if (ghostEmbedded.isEmpty) emptyDoc else ssep(ghostEmbedded map (specComment <+> showInterfaceClause(_)), line) <> line) <>
 
-        ssep(actualMspecs map showInterfaceClause, line) <>
-        (if (ghostMspecs.isEmpty) emptyDoc else ssep(ghostMspecs map (specComment <+> showInterfaceClause(_)), line)) <>
+        ssep(actualMspecs map showInterfaceClause, line) <> line <>
+        (if (ghostMspecs.isEmpty) emptyDoc else ssep(ghostMspecs map (m => inlinedSpecComment(showInterfaceClause(m))), line) <> line) <>
 
         ssep(actualPspecs map showInterfaceClause, line) <>
-        (if (ghostPspecs.isEmpty) emptyDoc else ssep(ghostPspecs map (specComment <+> showInterfaceClause(_)), line))
+        (if (ghostPspecs.isEmpty) emptyDoc else ssep(ghostPspecs map (specComment <+> showInterfaceClause(_)), line) <> line)
       )
 
     case t => super.showType(t)

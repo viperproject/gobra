@@ -240,6 +240,58 @@ class GobrafyUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.gobrafy(input, expected)
   }
 
+  test("call with spec, with only actual arguments") {
+    val input =
+      """
+        |cl(a, b) /*@ as foo{} @*/
+        |cl(c, d) /*@ as foo{} @*//*@ with: @*/
+        |cl(c, d) /*@ as foo{1, 2} @*//*@ with: @*/
+        |cl(c, d) /*@ as foo{x: 1, y: 2} @*//*@ with: @*/
+        |cl(e, f) /*@ as foo{} @*///@ with:
+        |""".stripMargin
+    val expected =
+      """
+        |cl(a, b)  as foo{}
+        |cl(c, d) as foo{}
+        |cl(c, d) as foo{1, 2}
+        |cl(c, d) as foo{x: 1, y: 2}
+        |cl(e, f) as foo{}
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
+  test("call with spec, with only ghost arguments") {
+    val input =
+      """
+        |cl() /*@ as foo{} @*//*@ with: a, b @*/
+        |cl() /*@ as foo{} @*///@ with: c, d
+        |cl() /*@ as foo{1, 2} @*///@ with: c, d
+        |cl() /*@ as foo{x: 1, y: 2} @*///@ with: c, d
+        |""".stripMargin
+    val expected =
+      """
+        |cl(a, b) as foo{}
+        |cl(c, d) as foo{}
+        |cl(c, d) as foo{1, 2}
+        |cl(c, d) as foo{x: 1, y: 2}
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
+  test("call with spec, with mixed arguments") {
+    val input =
+      """
+        |cl(a, b) /*@ as foo{} @*//*@ with: c, d @*/
+        |cl(e, f) /*@ as foo{} @*///@ with: g, h
+        |""".stripMargin
+    val expected =
+      """
+        |cl(a, b, c, d) as foo{}
+        |cl(e, f, g, h) as foo{}
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
   test("unfolding predicate instance") {
     val input =
       """

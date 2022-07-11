@@ -50,6 +50,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       case PAssignmentWithOp(_, _, left) => ghostExprClassification(left)
       case PShortVarDecl(right, left, _) => varDeclClassification(left, right)
       case PVarDecl(_, right, left, _) => varDeclClassification(left, right)
+      case PExpressionStmt(exp) => ghostExprClassification(exp)
       case _ => false
     }
   }
@@ -206,7 +207,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
   override def isInterfaceClauseGhost(clause: PInterfaceClause): Boolean = clause match {
     case _: PInterfaceName => false
-    case _: PMethodSig => false
+    case m: PMethodSig => m.isGhost
     case _: PMPredicateSig => true
   }
 

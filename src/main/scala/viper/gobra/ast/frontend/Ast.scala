@@ -154,7 +154,7 @@ case class PConstDecl(specs: Vector[PConstSpec]) extends PActualMember with PAct
 
 case class PConstSpec(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId]) extends PNode
 
-case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId], addressable: Vector[Boolean])  extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
+case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId], addressable: Vector[Boolean]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
 
 case class PFunctionDecl(
                           id: PIdnDef,

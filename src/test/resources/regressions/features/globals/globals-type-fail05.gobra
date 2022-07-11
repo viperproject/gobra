@@ -7,5 +7,6 @@ package pkg
 
 // ##(-I ./imports)
 
+//:: ExpectedOutput(type_error)
 importRequires old(1) == 1
 import _ "path"

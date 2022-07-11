@@ -43,8 +43,7 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
       }
   }
 
-  // TODO: explain that this is a temporary check
-  /** TODO:
+  /**
     * Currently, Gobra requires that global variables are declared in an order such that all dependencies of a global
     * variable are declared before it. In practice, it rules out declarations like the following:
     *     var B int = A
@@ -53,7 +52,10 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
     *     var A int
     *     var B int = A
     * This is not limiting, as an order can always be found such that the declaration order is compatible
-    * with the dependency relation. Nonetheless, this should be addressed in the future.
+    * with the dependency relation.
+    * TODO: this is meant to be a temporary limitation that should be eventually
+    *      replaced by a check that declarations acyclical (there is already
+    *      a check for acyclicity implemented in [[DependencyAnalysis]]).
     */
   private def globalDeclSatisfiesDepOrder(globalDeclsInPosOrder: Vector[PVarDecl]): Messages = {
     var visitedGlobals = Vector.empty[Entity]

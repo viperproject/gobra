@@ -13,28 +13,19 @@ import viper.gobra.util.Violation
 
 import scala.collection.mutable
 
-// TODO: rename, doc
 trait DependencyAnalysis extends BaseProperty { this: TypeInfoImpl =>
 
-  // TODO: cannot call abstract functions
-  // TODO: maybe move to program typing
+  /**
+    * Checks that a global declaration is acyclic.
+    */
   lazy val acyclicGlobalDeclaration: Property[PVarDecl] = createProperty[PVarDecl]{ c =>
     val results = c.left.map{ l =>
       entity(l) match {
         case g: st.GlobalVariable =>
           samePackageDependenciesGlobals(g) match {
-            case Right(gDeps) =>
-              val collectedResults = gDeps.map{ o =>
-                samePackageDependenciesGlobals(o) match {
-                  case Right(oDeps) if oDeps.contains(g) => failedProp(s"The declaration of $l is cyclical")
-                  case Right(_) => successProp
-                  case Left(_) =>
-                    // Errors are reported on the nodes that cause them
-                    successProp
-                }
-              }
-              PropertyResult.bigAnd(collectedResults)
-            case Left(errs) => failedPropFromMessages(errs)
+            case Right(gDeps) if gDeps.contains(g) => failedProp(s"The declaration of $l is cyclical")
+            case Right(_) => successProp
+            case Left(errs) => failedProp(errs)
           }
         case _: st.Wildcard =>
           // Wildcard declaration can never be cyclical
@@ -45,21 +36,29 @@ trait DependencyAnalysis extends BaseProperty { this: TypeInfoImpl =>
     PropertyResult.bigAnd(results)
   }
 
-  // TODO: doc - finds lexical dependencies between global variables -> input and output consist all of glboal vars
-  // TODO: Make it return Either[Messages, Vector[Entity]] (a pair could also be useful)
-  protected def samePackageDependenciesGlobals: st.GlobalVariable => Either[Vector[String], Vector[st.GlobalVariable]] = {
+  /**
+    * Find all dependencies of a global variable, or an error message if the analysis cannot be carried out to
+    * completion
+    */
+  protected def samePackageDependenciesGlobals: st.GlobalVariable => Either[String, Vector[st.GlobalVariable]] = {
     _.expOpt.toVector.map(globalsExprDependsOn).fold(Right(Vector())){
       case (l, r) => for { lVars <- l; rVars <- r } yield lVars ++ rVars
     }
   }
 
-  // TODO: make return errors
-  def globalsExprDependsOn(exp: PExpression): Either[Vector[String], Vector[st.GlobalVariable]] = {
+  /**
+    * Finds all global variables on which an expression depends. Returns a list of errors if dependency
+    * anlasys cannot be carried successfully.
+    * @param exp
+    * @return
+    */
+  def globalsExprDependsOn(exp: PExpression): Either[String, Vector[st.GlobalVariable]] = {
+    val enclosingPkg = tryEnclosingPackage(exp).get
     val stack = mutable.Stack[PNode](exp)
     var visitedEntities = Seq[st.Regular]()
     // Stores all dependencies of a node (including itself).
     var dependencies = Seq[st.GlobalVariable]()
-    var errors: Vector[String] = Vector.empty
+    var foundError: Option[String] = None
 
     // According to the Go language spec:
     //  Dependency analysis does not rely on the actual values of the variables, only on lexical
@@ -73,15 +72,14 @@ trait DependencyAnalysis extends BaseProperty { this: TypeInfoImpl =>
     //    - A variable, function, or method x depends on a variable y if x's initialization expression or
     //      body (for functions and methods) contains a reference to y or to a function or
     //      method that depends on y.
-    while (stack.nonEmpty) {
+    while (stack.nonEmpty && foundError.isEmpty) {
       val elem = stack.pop()
-      reflexiveAllChildren(elem) foreach {
+      reflexiveAllChildren(elem).foreach{
         case n: PNamedOperand =>
           // If it is a function call, it is not a ghost call,
           // and it is not dynamically-bound, collect the method info if it has not been collected.
           // If it is a global variable, collect its dependencies if it has not been traversed yet.
           resolve(n) match {
-            // TODO: test with ghost calls to see if it makes a difference
             case Some(g: ap.GlobalVariable) if !isEnclosingGhost(n) =>
               if (!visitedEntities.contains(g.symb)) {
                 dependencies :+= g.symb
@@ -99,32 +97,33 @@ trait DependencyAnalysis extends BaseProperty { this: TypeInfoImpl =>
           // If it is from another package, do not analyse.
           // If it is a reference to a method declared in the current package, it is not in a ghost-context,
           // and it is not dynamically-bound, collect the method info if it has not been collected.
-          // Otherwise, ignore.
-          // TODO: only check if it is in the same package
           resolve(n) match {
-            // TODO: test with ghost calls to see if it makes a difference
-            case Some(f: ap.ReceivedMethod) if !isEnclosingGhost(n) && underlyingType(typ(f.recv)).isInstanceOf[Type.InterfaceT] =>
-              errors :+= s"Dynamically-bound methods are not allowed in initialization code"
-            case Some(f: ap.ReceivedMethod) if !isEnclosingGhost(n) =>
+            case Some(f: ap.ReceivedMethod) if !isEnclosingGhost(n) &&
+              underlyingType(typ(f.recv)).isInstanceOf[Type.InterfaceT] =>
+              foundError = Some(s"Dynamically-bound methods are not allowed in initialization code")
+            case Some(f: ap.ReceivedMethod) if !isEnclosingGhost(n) &&
+              // only follow definitions for methods defined in the same package
+              tryEnclosingPackage(n).contains(enclosingPkg) =>
               if (!visitedEntities.contains(f.symb)) {
                 visitedEntities :+= f.symb
                 stack.push(f.symb.rep)
               }
-            case Some(f: ap.MethodExpr) if !isEnclosingGhost(n) && underlyingType(symbType(f.typ)).isInstanceOf[Type.InterfaceT] =>
-              errors :+= s"Dynamically-bound methods are not allowed in initialization code"
-            case Some(f: ap.MethodExpr) if !isEnclosingGhost(n) =>
+            case Some(f: ap.MethodExpr) if !isEnclosingGhost(n) &&
+              underlyingType(symbType(f.typ)).isInstanceOf[Type.InterfaceT] =>
+              foundError = Some(s"Dynamically-bound methods are not allowed in initialization code")
+            case Some(f: ap.MethodExpr) if !isEnclosingGhost(n) &&
+              // only follow definitions for methods defined in the same package
+              tryEnclosingPackage(n).contains(enclosingPkg) =>
               if (!visitedEntities.contains(f.symb)) {
                 visitedEntities :+= f.symb
                 stack.push(f.symb.rep)
               }
             case _ =>
           }
-        // TODO: only non-ghost references matter!
-        // TODO: non-ghost calls to interface methods disallowed
         case _ =>
       }
     }
-    if (errors.nonEmpty) Left(errors) else Right(dependencies.toVector)
+    foundError.toLeft(dependencies.toVector)
   }
 
   private def reflexiveAllChildren(n: PNode): Vector[PNode] = n +: allChildren(n)

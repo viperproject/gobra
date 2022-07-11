@@ -1,0 +1,71 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+requires acc(x)
+ensures acc(x) && *x == old(*x) + n
+func add(x *int, n int) {
+    *x += n
+    return
+}
+
+requires acc(x)
+ensures acc(x) && *x == old(*x) * n
+func mult(x *int, n int) {
+    *x *= n
+    return
+}
+
+requires acc(x)
+ensures acc(x) && *x == 6
+func test1(x *int) {
+    defer add(x,1)
+    *x = 5
+}
+
+requires acc(x)
+ensures acc(x) && *x == 11
+func test2(x *int) {
+    defer add(x,1)
+    defer mult(x,2)
+    *x = 5
+}
+
+requires acc(x)
+ensures acc(x) && *x == 6
+func test3(x *int) {
+    defer add(x,1)
+    *x = 5
+    return
+    *x = 6
+}
+
+requires acc(x)
+ensures acc(x) && *x == 11
+func test4(x *int) {
+    defer add(x,1)
+    defer mult(x,2)
+    *x = 5
+    return
+    *x = 6
+}
+
+requires acc(x)
+ensures acc(x) && (old(*x) <= 0 ? *x == 6 : *x == 5)
+func test5(x *int) {
+    if *x <= 0 {
+        defer add(x,1)
+    }
+    *x = 5
+}
+
+requires acc(x)
+ensures acc(x) && *x == 6
+func test6(x *int) {
+    n := 1
+    defer add(x,n)
+    n := 2
+    *x = 5
+    n := 3
+}

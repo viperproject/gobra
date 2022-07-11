@@ -124,6 +124,10 @@ sealed trait PActualMember extends PMember
 
 sealed trait PGhostifiableMember extends PActualMember with PGhostifiable
 
+sealed trait PProofAnnotation extends PNode {
+  def nonGhostChildren: Vector[PNode]
+}
+
 /**
   * node declaring an identifier that is placed in a scope that depends on something.
   * examples:
@@ -255,6 +259,9 @@ case class PShortForRange(range: PRange, shorts: Vector[PIdnUnk], spec: PLoopSpe
 
 case class PGoStmt(exp: PExpression) extends PActualStatement
 
+sealed trait PDeferrable extends PNode
+case class PDeferStmt(exp: PDeferrable) extends PActualStatement with PGhostifiableStatement
+
 case class PSelectStmt(send: Vector[PSelectSend], rec: Vector[PSelectRecv], aRec: Vector[PSelectAssRecv], sRec: Vector[PSelectShortRecv], dflt: Vector[PSelectDflt]) extends PActualStatement with PScope
 
 sealed trait PSelectClause extends PNode
@@ -277,8 +284,6 @@ case class PContinue(label: Option[PLabelUse]) extends PActualStatement
 
 case class PGoto(label: PLabelUse) extends PActualStatement
 
-case class PDeferStmt(exp: PExpression) extends PActualStatement
-
 // case class PFallThrough() extends PStatement
 
 
@@ -300,6 +305,10 @@ case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhosti
   }
 }
 
+case class POutline(body: PStatement, spec: PFunctionSpec) extends PActualStatement with PProofAnnotation {
+  override def nonGhostChildren: Vector[PNode] = Vector(body)
+}
+
 /**
   * Expressions
   */
@@ -308,7 +317,7 @@ case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhosti
 sealed trait PExpressionOrType extends PNode
 sealed trait PExpressionAndType extends PNode with PExpression with PType
 
-sealed trait PExpression extends PNode with PExpressionOrType
+sealed trait PExpression extends PNode with PExpressionOrType with PDeferrable
 
 sealed trait PActualExpression extends PExpression
 
@@ -513,13 +522,8 @@ case class PShiftLeft(left: PExpression, right: PExpression) extends PBinaryExp[
 
 case class PShiftRight(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
-
-sealed trait PActualExprProofAnnotation extends PActualExpression {
-  def nonGhostChildren: Vector[PExpression]
-}
-
-case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualExprProofAnnotation {
-  override def nonGhostChildren: Vector[PExpression] = Vector(op)
+case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualExpression with PProofAnnotation {
+  override def nonGhostChildren: Vector[PNode] = Vector(op)
 }
 
 /**
@@ -896,9 +900,9 @@ case class PExhale(exp: PExpression) extends PGhostStatement
 
 case class PInhale(exp: PExpression) extends PGhostStatement
 
-case class PFold(exp: PPredicateAccess) extends PGhostStatement
+case class PFold(exp: PPredicateAccess) extends PGhostStatement with PDeferrable
 
-case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
+case class PUnfold(exp: PPredicateAccess) extends PGhostStatement with PDeferrable
 
 case class PPackageWand(wand: PMagicWand, proofScript: Option[PBlock]) extends PGhostStatement
 
@@ -927,6 +931,8 @@ case class PWildcardPerm() extends PPermission
 case class POld(operand: PExpression) extends PGhostExpression
 
 case class PLabeledOld(label: PLabelUse, operand: PExpression) extends PGhostExpression
+
+case class PBefore(operand: PExpression) extends PGhostExpression
 
 case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) extends PGhostExpression
 

@@ -68,6 +68,10 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
       val aRight = right.zip(gt.toTuple).filter(!_._2).map(_._1)
       super.showStmt(PReturn(aRight))
 
+    case n: PProofAnnotation => n match {
+      case n: POutline => showStmt(n.body)
+    }
+
     case s if classifier.isStmtGhost(s) => ghostToken
     case _ => super.showStmt(stmt)
   }
@@ -163,7 +167,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
         super.showExpr(n.copy(args = aArgs))
     }
 
-    case e: PActualExprProofAnnotation => e match {
+    case e: PProofAnnotation => e match {
       case PUnfolding(_, op) => showExpr(op)
     }
     case e if classifier.isExprGhost(e) => ghostToken

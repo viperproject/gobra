@@ -133,43 +133,55 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         } else noMessages // a return without arguments is always well-defined
       }
 
-    case n@PDeferStmt(exp) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
+    case n@PDeferStmt(exp: PExpression) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
+    case PDeferStmt(_: PUnfold | _: PFold) => noMessages
 
     case _: PBlock => noMessages
     case _: PSeq => noMessages
+
+    case n: POutline =>
+      val invalidNodes: Vector[Messages] = allChildren(n) collect {
+        case n@ (_: POld | _: PLabeledOld) => error(n, "outline statements must not contain old expressions, use a before expression instead.")
+        case n: PDeferStmt => error(n, "Currently, outline statements are not allowed to contain defer statements.")
+        case n: PReturn => error(n, "outline statements must not contain return statements.")
+      }
+      error(n, s"pure outline statements are not supported.", n.spec.isPure) ++ invalidNodes.flatten
+
     case _: PEmptyStmt => noMessages
     case _: PGoto => ???
 
     case n@PBreak(l) =>
       l match {
         case None =>
-          enclosingLoop(n) match {
-            case None => error(n, s"break must be inside a loop")
-            case Some(_) => noMessages
+          enclosingLoopUntilOutline(n) match {
+            case Left(Some(_: POutline)) => error(n, "break must be inside of a loop without an outline statement in between.")
+            case Left(_) => error(n, s"break must be inside a loop.")
+            case Right(_) => noMessages
           }
-        case Some(label) => {
+        case Some(label) =>
           val maybeLoop = enclosingLabeledLoop(label, n)
           maybeLoop match {
-            case None => error(n, s"break label must point to an outer labeled loop")
-            case Some(_) => noMessages
+            case Left(Some(_: POutline)) => error(n, "break label must point to an outer labeled loop without an outline statement in between.")
+            case Left(_) => error(n, s"break label must point to an outer labeled loop.")
+            case Right(_) => noMessages
           }
-        }
       }
 
     case n@PContinue(l) =>
       l match {
         case None =>
-          enclosingLoop(n) match {
-            case None => error(n, s"continue must be inside a loop")
-            case Some(_) => noMessages
+          enclosingLoopUntilOutline(n) match {
+            case Left(Some(_: POutline)) => error(n, "continue must be inside of a loop without an outline statement in between.")
+            case Left(_) => error(n, s"continue must be inside a loop.")
+            case Right(_) => noMessages
           }
-        case Some(label) => {
+        case Some(label) =>
           val maybeLoop = enclosingLabeledLoop(label, n)
           maybeLoop match {
-            case None => error(n, s"continue label must point to an outer labeled loop")
-            case Some(_) => noMessages
+            case Left(Some(_: POutline)) => error(n, "continue label must point to an outer labeled loop without an outline statement in between.")
+            case Left(_) => error(n, s"continue label must point to an outer labeled loop.")
+            case Right(_) => noMessages
           }
-        }
       }
 
     case s => violation(s"$s was not handled")

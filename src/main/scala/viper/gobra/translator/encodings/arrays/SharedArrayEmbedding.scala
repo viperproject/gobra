@@ -7,7 +7,7 @@
 package viper.gobra.translator.encodings.arrays
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.context.Context
 import viper.silver.{ast => vpr}
 
 trait SharedArrayEmbedding {

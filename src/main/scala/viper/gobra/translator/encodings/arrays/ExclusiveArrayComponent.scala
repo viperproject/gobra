@@ -6,11 +6,11 @@
 
 package viper.gobra.translator.encodings.arrays
 
-import viper.gobra.translator.interfaces.Context
-import viper.gobra.translator.interfaces.translator.Generator
 import viper.gobra.ast.{internal => in}
 import viper.silver.{ast => vpr}
 import ArrayEncoding.ComponentParameter
+import viper.gobra.translator.library.Generator
+import viper.gobra.translator.context.Context
 
 trait ExclusiveArrayComponent extends Generator {
 

@@ -9,7 +9,8 @@ package viper.gobra.translator.encodings
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 
@@ -35,8 +36,8 @@ class BoolEncoding extends LeafTypeEncoding {
     * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
     */
-  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
-    default(super.expr(ctx)){
+  override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+    default(super.expression(ctx)){
       case (e: in.DfltVal) :: ctx.Bool() / Exclusive => unit(withSrc(vpr.BoolLit(b = false), e))
       case lit: in.BoolLit => unit(withSrc(vpr.BoolLit(lit.b), lit))
     }

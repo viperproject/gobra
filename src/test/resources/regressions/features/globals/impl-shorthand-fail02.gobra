@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type Ifc interface {
+	f()
+}
+
+type Impl *struct{}
+
+// Because of this precondition, Impl is
+// not a behavioral subtype of Ifc
+//:: ExpectedOutput(generated_implementation_proof:precondition_error)
+requires false
+func (i Impl) f() {
+	return
+}
+
+var _ Ifc = Impl(nil)

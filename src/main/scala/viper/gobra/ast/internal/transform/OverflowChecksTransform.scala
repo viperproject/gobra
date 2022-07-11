@@ -58,11 +58,14 @@ object OverflowChecksTransform extends InternalTransform {
   }
 
   /**
-    * Adds overflow checks to the body of a block.
+    * Adds overflow checks to the body of a method.
     */
-  private def computeNewBody(body: Block): Block = {
-    val blockStmts = body.stmts map stmtTransform
-    Block(body.decls, blockStmts)(body.info)
+  private def computeNewBody(body: MethodBody): MethodBody = {
+    MethodBody(
+      body.decls,
+      MethodBodySeqn(body.seqn.stmts map stmtTransform)(body.seqn.info),
+      body.postprocessing map stmtTransform,
+    )(body.info)
   }
 
   /**
@@ -112,6 +115,10 @@ object OverflowChecksTransform extends InternalTransform {
     case m@GoMethodCall(recv, _, args) =>
       Seqn(genOverflowChecksExprs(recv +: args) :+ m)(m.info)
 
+    case d@Defer(FunctionCall(_, _, args)) => Seqn(genOverflowChecksExprs(args) :+ d)(d.info)
+    case d@Defer(MethodCall(_, recv, _, args)) => Seqn(genOverflowChecksExprs(recv +: args) :+ d)(d.info)
+    case d@Defer(_: Fold | _: Unfold | _: PredExprFold | _: PredExprUnfold) => d
+
     case m@Send(_, expr, _, _, _) =>
       Seqn(genOverflowChecksExprs(Vector(expr)) :+ m)(m.info)
 
@@ -129,7 +136,7 @@ object OverflowChecksTransform extends InternalTransform {
 
     // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added
     case x@(_: Inhale | _: Exhale | _: Assert | _: Assume
-            | _: Return | _: Fold | _: Unfold | _: PredExprFold | _: PredExprUnfold
+            | _: Return | _: Fold | _: Unfold | _: PredExprFold | _: PredExprUnfold | _: Outline
             | _: SafeTypeAssertion | _: SafeReceive | _: Label | _: Initialization ) => x
 
     case _ => violation("Unexpected case reached.")

@@ -1355,6 +1355,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitBefore(ctx: BeforeContext): PGhostExpression = super.visitBefore(ctx) match {
+    case Vector("before", "(", exp : PExpression, ")") => PBefore(exp)
+  }
+
 
   /**
     * {@inheritDoc  }
@@ -1942,9 +1952,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
-  override def visitDeferStmt(ctx: DeferStmtContext): PDeferStmt = {
-    val expr : PExpression = visitNode[PExpression](ctx.expression())
-    PDeferStmt(expr).at(ctx)
+  override def visitDeferStmt(ctx: DeferStmtContext): PDeferStmt = super.visitDeferStmt(ctx) match {
+    case Vector("defer", expr: PExpression) => PDeferStmt(expr)
+    case Vector("defer", "fold", predAcc : PPredicateAccess)   => PDeferStmt(PFold(predAcc).at(ctx))
+    case Vector("defer", "unfold", predAcc : PPredicateAccess) => PDeferStmt(PUnfold(predAcc).at(ctx))
   }
   //endregion
 
@@ -1978,6 +1989,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       case "inhale" => PInhale(expr)
       case "exhale" => PExhale(expr)
     }
+  }
+
+  override def visitStatementWithSpec(ctx: StatementWithSpecContext): PStatement = super.visitStatementWithSpec(ctx) match {
+    case Vector(spec: PFunctionSpec, body: PStatement) => POutline(body, spec)
+  }
+
+  override def visitOutlineStatement(ctx: OutlineStatementContext): PSeq = super.visitOutlineStatement(ctx) match {
+    case Vector(_, _, stmts: Vector[PStatement@unchecked], _) => PSeq(stmts)
   }
 
 

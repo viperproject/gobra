@@ -52,6 +52,16 @@ ghostStatement:
   | kind=(ASSUME | ASSERT | INHALE | EXHALE) expression #proofStatement
   ;
 
+// Auxiliary statements
+
+auxiliaryStatement:
+  statementWithSpec
+  ;
+
+statementWithSpec: specification (outlineStatement[$specification.trusted, $specification.pure]);
+
+outlineStatement[boolean trusted, boolean pure]:  OUTLINE L_PAREN statementList? R_PAREN;
+
 // Ghost Primary Expressions
 
 ghostPrimaryExpr: range
@@ -60,6 +70,7 @@ ghostPrimaryExpr: range
   | typeExpr
   | isComparable
   | old
+  | before
   | sConversion
   | optionNone | optionSome | optionGet
   | permission;
@@ -95,6 +106,8 @@ old: OLD (L_BRACKET oldLabelUse R_BRACKET)? L_PAREN expression R_PAREN;
 oldLabelUse: labelUse | LHS;
 
 labelUse: IDENTIFIER;
+
+before: BEFORE L_PAREN expression R_PAREN;
 
 isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 
@@ -259,6 +272,7 @@ expression:
 // Added ghost statements
 statement:
   ghostStatement
+  | auxiliaryStatement
   | packageStmt
   | applyStmt
   | declaration
@@ -285,6 +299,9 @@ specForStmt: loopSpec forStmt;
 
 loopSpec: (INV expression eos)* (DEC terminationMeasure eos)?;
 
+deferStmt:
+  DEFER expression
+  | DEFER fold_stmt=(FOLD | UNFOLD) predicateAccess;
 
 // Added true, false as literals
 basicLit:

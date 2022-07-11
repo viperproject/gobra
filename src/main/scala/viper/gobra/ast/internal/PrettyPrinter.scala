@@ -246,6 +246,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // statements
 
   def showStmt(s: Stmt): Doc = updatePositionStore(s) <> (s match {
+    case s: MethodBody =>
+      "decl" <+> showBlockDeclList(s.decls) <> line <>
+        showStmtList(s.seqn.stmts) <> line <>
+        showStmtList(s.postprocessing)
+    case s: MethodBodySeqn => showStmtList(s.stmts)
     case Block(decls, stmts) => "decl" <+> showBlockDeclList(decls) <> line <> showStmtList(stmts)
     case Seqn(stmts) => ssep(stmts map showStmt, line)
     case Label(label) => showProxy(label)
@@ -288,6 +293,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case GoMethodCall(recv, meth, args) =>
       "go" <+> showExpr(recv) <> "." <>  meth.name <> parens(showExprList(args))
 
+    case s: Defer => "defer" <+> showStmt(s.stmt)
+
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
     case Assume(ass) => "assume" <+> showAss(ass)
@@ -304,7 +311,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(mapLookup)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
-
+    case Outline(_, pres, posts, measures, body, trusted) =>
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+          "outline" <> (if (trusted) emptyDoc else parens(nest(line <> showStmt(body)) <> line))
     case Continue(l, _) => "continue" <+> opt(l)(text)
     case Break(l, _) => "break" <+> opt(l)(text)
   })
@@ -369,6 +378,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Access(e, p) => "acc" <> parens(showAcc(e) <> "," <+> showExpr(p))
     case SepForall(vars, triggers, body) =>
       "forall" <+> showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showAss(body)
+    case t: TerminationMeasure => showTerminationMeasure(t)
   })
 
   def showAcc(acc: Accessible): Doc = updatePositionStore(acc) <> (acc match {
@@ -514,6 +524,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       }
       prefix + lit.toString(base.base)
     case StringLit(s) => "\"" <> s <> "\""
+    case PermLit(a, b) => "perm" <> parens(a.toString() <> "/" <> b.toString())
     case BoolLit(b) => if (b) "true" else "false"
     case NilLit(t) => parens("nil" <> ":" <> showType(t))
 
@@ -649,6 +660,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   // statements
 
   override def showStmt(s: Stmt): Doc = s match {
+    case s: MethodBody => "decl" <+> showBlockDeclList(s.decls)
+    case _: MethodBodySeqn => emptyDoc
     case Block(decls, _) => "decl" <+> showBlockDeclList(decls)
     case Seqn(_) => emptyDoc
     case Label(label) => showProxy(label)
@@ -694,6 +707,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case GoMethodCall(recv, meth, args) =>
       "go" <+> showExpr(recv) <> "." <> meth.name <> parens(showExprList(args))
 
+    case s: Defer => "defer" <+> showStmt(s.stmt)
+
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
     case Assume(ass) => "assume" <+> showAss(ass)
@@ -710,5 +725,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case Continue(l, _) => "continue" <+> opt(l)(text)
     case Break(l, _) => "break" <+> opt(l)(text)
+    case Outline(_, pres, posts, measures, _, _) =>
+      spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+        "outline"
   }
 }

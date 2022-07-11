@@ -375,7 +375,20 @@ object Desugar {
       in.Program(types.toVector, dMembers ++ additionalMembers, table)(meta(p))
     }
 
-    def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
+    def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = {
+      val leftAreWildcards = decl.left.forall(_.isInstanceOf[PWildcard])
+      val typIsInterface = decl.typ.exists { p =>
+        val typ = info.symbType(p)
+        underlyingType(typ).isInstanceOf[Type.InterfaceT]
+      }
+      val rightArePureExpr = decl.right.forall(info.isPureExpression)
+      if (leftAreWildcards && typIsInterface && rightArePureExpr) {
+        // When the lhs is a wildcard of an interface type and the rhs are pure expressions,
+        // the variable declaration can be safely ignored. In some codebases, this idiom is
+        // used to check that types implement interfaces.
+        Vector()
+      } else ???
+    }
 
     def constDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constSpecD)
 
@@ -393,6 +406,9 @@ object Desugar {
           case x if underlyingType(x).isInstanceOf[in.IntT] && x.addressability == Addressability.Exclusive =>
             val constValue = sc.context.intConstantEvaluation(sc.exp)
             in.IntLit(constValue.get)(src)
+          case in.PermissionT(Addressability.Exclusive) =>
+            val constValue = sc.context.permConstantEvaluation(sc.exp)
+            in.PermLit(constValue.get._1, constValue.get._2)(src)
           case _ => ???
         }
         Vector(in.GlobalConstDecl(gVar, lit)(src))
@@ -422,25 +438,21 @@ object Desugar {
       val (args, argSubs) = argsWithSubs.unzip
 
       val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
+      val returnsMergedWithSubs = returnsWithSubs.map{ case (p,s) => s.getOrElse(p) }
       val (returns, returnSubs) = returnsWithSubs.unzip
 
       def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
         if (rets.isEmpty) {
-          in.Seqn(
-            returnsWithSubs.flatMap{
-              case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(src))
-              case _ => None
-            } :+ in.Return()(src)
-          )(src)
+          in.Return()(src)
         } else if (rets.size == returns.size) {
           in.Seqn(
-            returns.zip(rets).map{
+            returnsMergedWithSubs.zip(rets).map{
               case (p, v) => singleAss(in.Assignee.Var(p), v)(src)
             } :+ in.Return()(src)
           )(src)
         } else if (rets.size == 1) { // multi assignment
           in.Seqn(Vector(
-            multiassD(returns.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
+            multiassD(returnsMergedWithSubs.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
             in.Return()(src)
           ))(src)
         } else {
@@ -500,8 +512,8 @@ object Desugar {
       val bodyOpt = decl.body.map{ case (_, s) =>
         val vars = argSubs.flatten ++ returnSubs.flatten
         val varsInit = vars map (v => in.Initialization(v)(v.info))
-        val body = varsInit ++ argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
-        in.Block(vars, body)(meta(s))
+        val body = varsInit ++ argInits ++ Vector(blockD(ctx)(s))
+        in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
       in.Function(name, args, returns, pres, posts, terminationMeasures, bodyOpt)(fsrc)
@@ -565,25 +577,21 @@ object Desugar {
       val (args, argSubs) = argsWithSubs.unzip
 
       val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
+      val returnsMergedWithSubs = returnsWithSubs.map{ case (p,s) => s.getOrElse(p) }
       val (returns, returnSubs) = returnsWithSubs.unzip
 
       def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
         if (rets.isEmpty) {
-          in.Seqn(
-            returnsWithSubs.flatMap{
-              case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(src))
-              case _ => None
-            } :+ in.Return()(src)
-          )(src)
+          in.Return()(src)
         } else if (rets.size == returns.size) {
           in.Seqn(
-            returns.zip(rets).map{
+            returnsMergedWithSubs.zip(rets).map{
               case (p, v) => singleAss(in.Assignee.Var(p), v)(src)
             } :+ in.Return()(src)
           )(src)
         } else if (rets.size == 1) { // multi assignment
           in.Seqn(Vector(
-            multiassD(returns.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
+            multiassD(returnsMergedWithSubs.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
             in.Return()(src)
           ))(src)
         } else {
@@ -661,8 +669,8 @@ object Desugar {
       val bodyOpt = decl.body.map{ case (_, s) =>
         val vars = recvSub.toVector ++ argSubs.flatten ++ returnSubs.flatten
         val varsInit = vars map (v => in.Initialization(v)(v.info))
-        val body = varsInit ++ recvInits ++ argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
-        in.Block(vars, body)(meta(s))
+        val body = varsInit ++ recvInits ++ argInits ++ Vector(blockD(ctx)(s))
+        in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
       in.Method(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
@@ -1020,6 +1028,29 @@ object Desugar {
               case _ => unexpectedExprError(exp)
             }
 
+          case PDeferStmt(exp) =>
+            def unexpectedExprError(exp: PNode) = violation(s"unexpected expression $exp in defer statement")
+
+            exp match {
+              case inv: PInvoke =>
+                info.resolve(inv) match {
+                  case Some(p: ap.FunctionCall) =>
+                    functionCallDAux(ctx)(p, inv)(src) map {
+                      case Left((_, call: in.Deferrable)) => in.Defer(call)(src)
+                      case _ => unexpectedExprError(exp)
+                    }
+                  case _ => unexpectedExprError(exp)
+                }
+
+              case exp: PStatement =>
+                stmtD(ctx)(exp) map {
+                  case d: in.Deferrable => in.Defer(d)(src)
+                  case _ => unexpectedExprError(exp)
+                }
+
+              case _ => unexpectedExprError(exp)
+            }
+
           case PSendStmt(channel, msg) =>
             for {
               dchannel <- goE(channel)
@@ -1053,6 +1084,44 @@ object Desugar {
                   }
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
+
+          case n: POutline =>
+            val name = s"${rootName(n, info)}$$${nm.relativeId(n, info)}"
+            val pres = (n.spec.pres ++ n.spec.preserves) map preconditionD(ctx)
+            val posts = (n.spec.preserves ++ n.spec.posts) map postconditionD(ctx)
+            val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx)).res
+
+            if (!n.spec.isTrusted) {
+              for {
+                body <- seqn(stmtD(ctx)(n.body))
+              } yield in.Outline(name, pres, posts, terminationMeasures, body, trusted = false)(src)
+            } else {
+              val declared = info.freeDeclared(n).map(localVarContextFreeD(_, info))
+              // The dummy body preserves the reads and writes of the real body that target free variables.
+              // This is done to avoid desugaring the actual body which may fail for trusted code.
+              //
+              // var arguments' := arguments
+              // modified := dflt
+              //  where
+              //    arguments is the set of free variables in the body
+              //    modified  is the set of free variables in the body that are modified
+              val dummyBody = {
+                val arguments = info.freeVariables(n).map(localVarContextFreeD(_, info))
+                val modified = info.freeModified(n).map(localVarContextFreeD(_, info)).filter(_.typ.addressability.isExclusive)
+                val argumentsCopy = arguments map (v => v.copy(id = s"${v.id}$$copy")(src))
+                in.Block(
+                  argumentsCopy,
+                  (argumentsCopy zip arguments).map { case (l, r) => in.SingleAss(in.Assignee.Var(l), r)(src) } ++
+                    modified.map(l => in.SingleAss(in.Assignee.Var(l), in.DfltVal(l.typ)(src))(src))
+                )(src)
+              }
+
+              for {
+                // since the body of an outline is not a separate scope, we have to preserve variable declarations.
+                _ <- declare(declared:_*)
+              } yield in.Outline(name, pres, posts, terminationMeasures, dummyBody, trusted = true)(src)
+            }
+
 
           case n@PContinue(label) => unit(in.Continue(label.map(x => x.name), nm.fetchContinueLabel(n, info))(src))
 
@@ -1996,6 +2065,8 @@ object Desugar {
     }
 
     def compositeValD(ctx : FunctionContext)(expr : PCompositeVal, typ : in.Type) : Writer[in.Expr] = {
+      violation(typ.addressability.isExclusive, s"Literals always have exclusive types, but got $typ")
+
       val e = expr match {
         case PExpCompositeVal(e) => exprD(ctx)(e)
         case PLitCompositeVal(lit) => literalValD(ctx)(lit, typ)
@@ -2004,6 +2075,8 @@ object Desugar {
     }
 
     def literalValD(ctx: FunctionContext)(lit: PLiteralValue, t: in.Type): Writer[in.CompositeLit] = {
+      violation(t.addressability.isExclusive, s"Literals always have exclusive types, but got $t")
+
       val src = meta(lit)
 
       compositeTypeD(t) match {
@@ -2055,7 +2128,7 @@ object Desugar {
 
         case CompositeKind.Slice(in.SliceT(typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ))) }
+          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ.withAddressability(Addressability.Exclusive)))) }
             yield in.SliceLit(typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
 
         case CompositeKind.Sequence(in.SequenceT(typ, _)) => for {
@@ -2083,6 +2156,9 @@ object Desugar {
     }
 
     private def handleMapEntries(ctx: FunctionContext)(lit: PLiteralValue, keys: in.Type, values: in.Type): Writer[Seq[(in.Expr, in.Expr)]] = {
+      violation(keys.addressability.isExclusive, s"Map literal keys always have exclusive types, but got $keys")
+      violation(values.addressability.isExclusive, s"Map literal values always have exclusive types, but got $values")
+
       sequence(
         lit.elems map {
           case PKeyedElement(Some(key), value) => for {
@@ -2122,11 +2198,24 @@ object Desugar {
       // this type was declared in the current package
       val name = nm.typ(t.decl.left.name, t.context)
 
-      if (!definedTypesSet.contains(name, addrMod)) {
-        definedTypesSet += ((name, addrMod))
-        val newEntry = typeD(t.context.symbType(t.decl.right), Addressability.underlying(addrMod))(src)
-        definedTypes += (name, addrMod) -> newEntry
+      def register(addrMod: Addressability): Unit = {
+        if (!definedTypesSet.contains(name, addrMod)) {
+          definedTypesSet += ((name, addrMod))
+          val newEntry = typeD(t.context.symbType(t.decl.right), Addressability.underlying(addrMod))(src)
+          definedTypes += (name, addrMod) -> newEntry
+        }
       }
+
+      val invAddrMod = addrMod match {
+        case Addressability.Exclusive => Addressability.Shared
+        case Addressability.Shared => Addressability.Exclusive
+      }
+
+      register(addrMod)
+
+      // [[underlyingType(in.Type)]] assumes that the RHS of a type declaration is in `definedTypes`
+      // if the corresponding type declaration was translated. This is necessary to avoid cycles in the translation.
+      register(invAddrMod)
 
       in.DefinedT(name, addrMod)
     }
@@ -2420,6 +2509,20 @@ object Desugar {
       case _ => ???
     }
 
+    /** Returns a name for the code root that `n` is contained in. */
+    def rootName(n: PNode, context: TypeInfo): String = {
+      info.codeRoot(n) match {
+        case decl: PMethodDecl     => idName(decl.id, context)
+        case decl: PFunctionDecl   => idName(decl.id, context)
+        case decl: PMPredicateDecl => idName(decl.id, context)
+        case decl: PFPredicateDecl => idName(decl.id, context)
+        case decl: PMethodSig      => idName(decl.id, context)
+        case decl: PMPredicateSig  => idName(decl.id, context)
+        case decl: PDomainFunction => idName(decl.id, context)
+        case _ => ??? // axiom and method-implementation-proof
+      }
+    }
+
     def globalConstD(c: st.Constant)(src: Meta): in.GlobalConst = {
       c match {
         case sc: st.SingleConstant =>
@@ -2656,6 +2759,7 @@ object Desugar {
       expr match {
         case POld(op) => for {o <- go(op)} yield in.Old(o, typ)(src)
         case PLabeledOld(l, op) => for {o <- go(op)} yield in.LabeledOld(labelProxy(l), o)(src)
+        case PBefore(op) => for {o <- go(op)} yield in.LabeledOld(in.LabelProxy("before")(src), o)(src)
         case PConditional(cond, thn, els) =>  for {
           wcond <- go(cond)
           wthn <- go(thn)
@@ -3216,28 +3320,28 @@ object Desugar {
     }
 
     /**
-      * Returns a unique id for a for loop node with respect to its code root.
-      * The id is of the form 'L_<a>_<b>' where a is the difference of the lines
-      * of the for loop with the code root and b is the difference of the columns
-      * of the for loop with the code root.
+      * Returns an id for a node with respect to its code root.
+      * The id is of the form 'L$<a>$<b>' where a is the difference of the lines
+      * of the node with the code root and b is the difference of the columns
+      * of the node with the code root.
       * If a differce is negative, the '-' character is replaced with '_'.
       *
-      * @param loop the for loop we are interested in
+      * @param node the node we are interested in
       * @param info type info to get position information
       * @return     string
       */
-    private def loopId(loop: PForStmt, info: TypeInfo) : String = {
+    def relativeId(node: PNode, info: TypeInfo) : String = {
       val pom = info.getTypeInfo.tree.originalRoot.positions
-      val lpos = pom.positions.getStart(loop).get
-      val rpos = pom.positions.getStart(info.codeRoot(loop)).get
-      return ("L_" + (lpos.line - rpos.line) + "_" + (lpos.column - rpos.column)).replace("-", "_")
+      val lpos = pom.positions.getStart(node).get
+      val rpos = pom.positions.getStart(info.codeRoot(node)).get
+      return ("L$" + (lpos.line - rpos.line) + "$" + (lpos.column - rpos.column)).replace("-", "_")
     }
 
-    /** returns the loopId with the CONTINUE_LABEL_SUFFIX appended */
-    def continueLabel(loop: PForStmt, info: TypeInfo) : String = loopId(loop, info) + CONTINUE_LABEL_SUFFIX
+    /** returns the relativeId with the CONTINUE_LABEL_SUFFIX appended */
+    def continueLabel(loop: PForStmt, info: TypeInfo) : String = relativeId(loop, info) + CONTINUE_LABEL_SUFFIX
 
-    /** returns the loopId with the BREAK_LABEL_SUFFIX appended */
-    def breakLabel(loop: PForStmt, info: TypeInfo) : String = loopId(loop, info) + BREAK_LABEL_SUFFIX
+    /** returns the relativeId with the BREAK_LABEL_SUFFIX appended */
+    def breakLabel(loop: PForStmt, info: TypeInfo) : String = relativeId(loop, info) + BREAK_LABEL_SUFFIX
 
     /**
       * Finds the enclosing loop which the continue statement refers to and fetches its
@@ -3268,7 +3372,6 @@ object Desugar {
           breakLabel(loop, info)
       }
     }
-
 
     def inParam(idx: Int, s: PScope, context: ExternalTypeInfo): String = name(IN_PARAMETER_PREFIX)("P" + idx, s, context)
     def outParam(idx: Int, s: PScope, context: ExternalTypeInfo): String = name(OUT_PARAMETER_PREFIX)("P" + idx, s, context)

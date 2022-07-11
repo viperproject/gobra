@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type Ifc interface {
+	f()
+}
+
+type Impl *struct{}
+
+func (i Impl) f() {
+	return
+}
+
+var _ Ifc = Impl(nil)

@@ -48,6 +48,3 @@ class DefaultGlobalVarEncoding extends Encoding {
     )
   }
 }
-
-
-

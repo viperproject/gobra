@@ -883,14 +883,15 @@ case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class DomainFunctionCall(func: DomainFuncProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 
-case class Deref(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr with Location {
-  require(exp.typ.isInstanceOf[PointerT])
+case class Deref(exp: Expr, underlyingTypeExpr: Type, typ: Type)
+                (val info: Source.Parser.Info) extends Expr with Location {
+  require(underlyingTypeExpr.isInstanceOf[PointerT])
 }
 
 object Deref {
-  def apply(exp: Expr)(info: Source.Parser.Info): Deref = {
-    require(exp.typ.isInstanceOf[PointerT])
-    Deref(exp, exp.typ.asInstanceOf[PointerT].t)(info)
+  def apply(exp: Expr, underlyingTypeExpr: Type)(info: Source.Parser.Info): Deref = {
+    require(underlyingTypeExpr.isInstanceOf[PointerT])
+    Deref(exp, underlyingTypeExpr, underlyingTypeExpr.asInstanceOf[PointerT].t)(info)
   }
 
 }

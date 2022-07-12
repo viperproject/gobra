@@ -19,7 +19,7 @@ func (t *T) inc() {
 	t.i += 1
 }
 
-// todo: spec
+// todo: add asserts on main
 
 func f(t T) {
 	share t

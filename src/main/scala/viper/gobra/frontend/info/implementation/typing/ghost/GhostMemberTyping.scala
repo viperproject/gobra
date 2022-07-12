@@ -11,7 +11,6 @@ import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMemb
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 
 trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>

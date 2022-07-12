@@ -243,14 +243,6 @@ object Desugar {
       in.MPredicateProxy(id.name, name)(meta(id, context))
     }
 
-    def membeddedPredicateProxyD(decl: PMPredicateSig, recvType: InterfaceT, context: TypeInfo): in.MPredicateProxy = {
-      val name = context.regular(decl.id) match {
-        case m: st.MPredicateSpec => nm.spec(decl.id.name, recvType, m.context)
-        case _ => ???
-      }
-      in.MPredicateProxy(decl.id.name, name)(meta(decl, context))
-    }
-
     // proxies to built-in members
     def methodProxy(tag: BuiltInMethodTag, recv: in.Type, args: Vector[in.Type])(src: Meta): in.MethodProxy = {
       def create(tag: BuiltInMethodTag, inRecvWithArgs: Vector[in.Type]): in.BuiltInMethod = {

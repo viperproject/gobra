@@ -11,6 +11,7 @@ import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMemb
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 
 trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
@@ -129,7 +130,11 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   def wellImplementationProofs: Either[Messages, Vector[(Type, InterfaceT, MethodImpl, MethodSpec)]] = {
     // the main context reports missing implementation proof for all packages (i.e. all packages that have been parsed & typechecked so far)
     if (isMainContext) {
-      val allRequiredImplements = localRequiredImplements ++ context.getContexts.flatMap(_.localRequiredImplements)
+      val allRequiredImplements = {
+        val foundRequired = localRequiredImplements ++ context.getContexts.flatMap(_.localRequiredImplements)
+        val foundGuaranteed = localGuaranteedImplements ++ context.getContexts.flatMap(_.localGuaranteedImplements)
+        foundRequired diff foundGuaranteed
+      }
       if (allRequiredImplements.nonEmpty) {
         // For every required implementation, check that there is at most one proof
         // and if not all predicates are defined, then check that there is a proof.
@@ -139,15 +144,31 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
           (impl, itf, providedImplProofs.collect{ case (`impl`, `itf`, alias, proofs) => (alias, proofs) })
         }
         val multiples = groupedProofs.collect{ case (impl, itf, ls) if ls.size > 1 => (impl, itf) }
+
+        lazy val groupedProofs2 = groupedProofs.foldLeft(Map.empty[(MethodImpl, MethodSpec), Vector[(Type, InterfaceT)]]){
+          case (res, (impl, itf, aliasAndProofs)) =>
+            if (aliasAndProofs.nonEmpty) {
+              val x = aliasAndProofs.head._2.flatMap{ methodName => (getMember(impl, methodName), getMember(itf, methodName)) match {
+                case (Some((implSymb: MethodImpl, _)), Some((itfSymb: MethodSpec, _))) => Some((implSymb, itfSymb) -> (impl, itf))
+                case _ => None
+              }}.toMap
+              (res.keySet ++ x.keySet).map(k => k -> (res.getOrElse(k, Vector.empty) ++ x.get(k))).toMap
+            } else res
+        }
+        // if there is more than one proof for the same pair of implementation and spec (can happen with embedded interfaces)
+        lazy val multiples2 = groupedProofs2.toVector.collect{ case (key, values) if values.size > 1 => (key, values) }
+
         val msgs = if (multiples.nonEmpty) {
-          error(tree.root, s"There is more than one proof for ${multiples.mkString(", ")}")
+          error(tree.root, s"There is more than one proof for ${multiples.mkString(", ")}") // TODO Dionisi improve error message
+        } else if (multiples2.nonEmpty) {
+          error(tree.root, s"There is more than one proof for $multiples2.") // TODO Dionisi improve error message
         } else {
           // check that all predicates are defined
-          groupedProofs.flatMap{ case (impl, itf, ls) =>
+          groupedProofs.flatMap { case (impl, itf, ls) =>
             if (ls.nonEmpty) noMessages //
             else {
-              val superPredNames = memberSet(itf).collect{ case (n, m: MPredicateSpec) => (n, m) }
-              val allPredicatesDefined = PropertyResult.bigAnd(superPredNames.map{ case (name, symb) =>
+              val superPredNames = memberSet(itf).collect { case (n, m: MPredicateSpec) => (n, m) }
+              val allPredicatesDefined = PropertyResult.bigAnd(superPredNames.map { case (name, symb) =>
                 val valid = tryMethodLikeLookup(impl, PIdnUse(name)).isDefined
                 failedProp({
                   val argTypes = symb.args map symb.context.typ
@@ -165,23 +186,49 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         if (msgs.nonEmpty) Left(msgs)
         else {
-          Right(
-            // missing implementation proofs
-            groupedProofs.flatMap{ case (impl, itf, ls) =>
-              val superMethNames = memberSet(itf).collect{ case (n, m: MethodSpec) => (n, m) }
-              val proofs = if (ls.isEmpty) Vector.empty else ls.head._2
-              val missingSuperMethNames = superMethNames.flatMap{
-                case (n, itfSymb) if !proofs.contains(n) =>
-                  getMember(impl, n) match {
-                    case Some((implSymb: MethodImpl, _)) =>
-                      Some((itfSymb, implSymb))
-                    case _ => None
-                  }
-                case _ => None
-              }
-              missingSuperMethNames.map{ case (itfSymb, implSymb) => (impl, itf, implSymb, itfSymb) }
-            }
-          )
+          // missing implementation proofs
+
+          val requiredImplMethAndSuperMeth = allRequiredImplements.flatMap { case (impl, itf) =>
+            val superMethNames = memberSet(itf).collect { case (n, m: MethodSpec) => (n, m) }
+            superMethNames.flatMap{ case (name, itfSymb) => getMember(impl, name) match {
+              case Some((implSymb: MethodImpl, _)) => Some((implSymb, itfSymb))
+              case _ => None
+            }}
+          }
+
+          val missingImplMethAndSuperMeth = requiredImplMethAndSuperMeth
+            .filter{ case (implSymb, itfSymb) => !groupedProofs2.contains((implSymb, itfSymb))}
+
+          Right(missingImplMethAndSuperMeth.toVector.map{ case (implSymb, itfSymb) =>
+            val impl = implSymb.context.symbType(implSymb.decl.receiver.typ)
+            val itf = itfSymb.itfType
+            (impl, itf, implSymb, itfSymb)
+          })
+
+//          val withDuplicates = allRequiredImplements.toVector.flatMap { case (impl, itf) =>
+//            val superMethNames = memberSet(itf).collect { case (n, m: MethodSpec) => (n, m) }
+//            val implMethAndSuperMeth = superMethNames.flatMap{ case (name, itfSymb) => getMember(impl, name) match {
+//              case Some((implSymb: MethodImpl, _)) => Some((name, implSymb, itfSymb))
+//              case _ => None
+//            }}
+//            val missingImplMethAndSuperMeth = implMethAndSuperMeth.filter{ case (_, implSymb, itfSymb) => !groupedProofs2.contains((implSymb, itfSymb))}
+//            def path(n: String): Vector[MemberPath.EmbeddedInterface] = memberSet(itf).lookupWithPath(n).get._2.collect{ case s: MemberPath.EmbeddedInterface => s }
+//            missingImplMethAndSuperMeth.map{ case (name, implSymb, itfSymb) => (impl, itf, implSymb, itfSymb, path(name)) }
+//          }
+//
+//          def smaller(l: Vector[MemberPath.EmbeddedInterface], r: Vector[MemberPath.EmbeddedInterface]): Boolean = {
+//            import scala.math.Ordering.Implicits._
+//            l.size < r.size || (l.size == r.size && l.map(_.id) < r.map(_.id))
+//          }
+//          // an interface shares methods with its embedded interfaces, these can lead to duplicates
+//          val withoutDuplicates = withDuplicates.foldLeft(Map.empty[(MethodImpl, MethodSpec), (Type, InterfaceT, Vector[MemberPath.EmbeddedInterface])]){
+//            case (res, (impl, itf, implSymb, itfSymb, path)) => res.get((implSymb, itfSymb)) match {
+//              case Some((_, _, pathOther)) if !smaller(path, pathOther) => res
+//              case _ => res ++ Map((implSymb, itfSymb) -> (impl, itf, path))
+//            }
+//          }
+//
+//          Right(withoutDuplicates.toVector.map{ case ((implSymb, itfSymb), (impl, itf, _)) => (impl, itf, implSymb, itfSymb) })
         }
       } else Left(noMessages)
     } else Left(noMessages)

@@ -8,7 +8,6 @@ package viper.gobra.ast.internal.transform
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation
-import scala.collection.SortedSet
 
 /**
   * Transformation responsible for generating call-graph edges from interface methods to their implementations' methods.
@@ -26,9 +25,9 @@ object CGEdgesTerminationTransform extends InternalTransform {
       var methodsToAdd: Set[in.Member] = Set.empty
       var definedMethodsDelta: Map[in.MethodProxy, in.MethodLikeMember] = Map.empty
 
-      table.memberProxies.foreach {
+      table.getMembers.foreach {
         case (t: in.InterfaceT, proxies) =>
-          val implementations = table.interfaceImplementations.getOrElse(t, SortedSet[in.Type]())
+          val implementations = table.lookupImplementations(t)
           proxies.foreach {
             case proxy: in.MethodProxy =>
               table.lookup(proxy) match {
@@ -161,16 +160,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
       in.Program(
         types = p.types,
         members = p.members.diff(methodsToRemove.toSeq).appendedAll(methodsToAdd),
-        table = new in.LookupTable(
-          definedTypes = table.getDefinedTypes,
-          definedMethods = table.getDefinedMethods ++ definedMethodsDelta,
-          definedFunctions = table.getDefinedFunctions,
-          definedMPredicates = table.getDefinedMPredicates,
-          definedFPredicates = table.getDefinedFPredicates,
-          memberProxies = table.memberProxies,
-          interfaceImplementations = table.interfaceImplementations,
-          implementationProofPredicateAliases = table.getImplementationProofPredicateAliases
-        )
+        table = p.table.merge(new in.LookupTable(definedMethods = definedMethodsDelta)),
       )(p.info)
   }
 

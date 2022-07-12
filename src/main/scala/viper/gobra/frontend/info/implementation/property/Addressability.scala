@@ -109,6 +109,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
     path.foldLeft(base){
       case (b, MemberPath.Underlying) => b
       case (b, _: MemberPath.Next) => AddrMod.fieldLookup(b)
+      case (b, _: MemberPath.EmbeddedInterface) => b
       case (_, MemberPath.Deref) => AddrMod.dereference
       case (_, MemberPath.Ref) => AddrMod.reference
     }

@@ -132,7 +132,10 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PPredType(args) => PredT(args map typeSymbType)
 
-    case t: PInterfaceType => InterfaceT(t, this)
+    case t: PInterfaceType =>
+      val res = InterfaceT(t, this)
+      addDemandedEmbeddedInterfaceImplements(res)
+      res
 
     case n: PNamedOperand => idSymType(n.id)
 

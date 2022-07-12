@@ -10,7 +10,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag, BuiltInTypeTag}
 import viper.gobra.frontend.info.base.SymbolTable._
-import viper.gobra.frontend.info.base.Type.StructT
+import viper.gobra.frontend.info.base.Type.{InterfaceT, StructT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.Violation
@@ -304,31 +304,6 @@ trait NameResolution { this: TypeInfoImpl =>
       case n => symbTableLookup(n)
     }
 
-  private def getAllEmbedded(scope: PUnorderedScope, int: PInterfaceType): Vector[PInterfaceType] = {
-    val allEmbedded = int.embedded.map[Option[Vector[PInterfaceType]]](emb => {
-      val embt = tryLookup(sequentialDefenv(scope), emb.typ.id.name)
-      embt match {
-        case Some(embnt : NamedType) =>
-          embnt.decl.right match {
-            case embint : PInterfaceType => Some(getAllEmbedded(scope, embint))
-            case _ => None
-          }
-        case _ => None
-      }
-    })
-    Vector(int) ++ allEmbedded.filter(_.isDefined).flatten.flatten
-  }
-
-  private def embeddedInterfaceLookup(n: PIdnNode, s: PUnorderedScope, int: PInterfaceType): Option[Entity] = {
-    val embedded = getAllEmbedded(s, int)
-    val look = embedded.map((x: PInterfaceType) => tryLookup(dependentDefenv(x), serialize(n))).filter(_.isDefined)
-    look.length match {
-      case 0 => None
-      case 1 => look.head
-      case _ => violation(s"Multiple instances of $n detected")
-    }
-  }
-
   private def symbTableLookup(n: PIdnNode): Entity = {
     type Level = PIdnNode => Option[Entity]
 
@@ -355,7 +330,8 @@ trait NameResolution { this: TypeInfoImpl =>
           // perform now a second lookup in this special dependent environment:
           val res = tryLookup(dependentEnv, serialize(n))
           (res, scope) match {
-            case (None, int : PInterfaceType) => embeddedInterfaceLookup(n, scope, int)
+              // TODO: probably causes a loop if an embedded interface cannot be found
+            case (None, int : PInterfaceType) => memberSet(InterfaceT(int, this)).lookup(n.name) // lookup in the embeddedFields
             case _ => res
           }
         case _ => None

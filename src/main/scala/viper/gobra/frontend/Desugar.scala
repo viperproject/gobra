@@ -1937,6 +1937,7 @@ object Desugar {
         case MemberPath.Ref => in.Ref(e)(pinfo)
         case MemberPath.Next(g) =>
           in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(e.typ.addressability), g.context)(pinfo))(pinfo)
+        case _: MemberPath.EmbeddedInterface => e
       }}
     }
 
@@ -2216,66 +2217,19 @@ object Desugar {
       in.DefinedT(name, addrMod)
     }
 
-    def embeddedInterfaceMethodsAndPredicates(names: Vector[PInterfaceName], info: TypeInfo): (Vector[(PInterfaceType, TypeInfo)], Vector[(PMethodSig, TypeInfo)], Vector[(PMPredicateSig, TypeInfo)]) = {
-      val maybeInterfaces = names.map(x => info.resolve(x.typ))
-      val interfaces = maybeInterfaces.map(x =>
-        x match {
-          case Some(nt : ap.NamedType) => nt.symb match {
-            case n : st.NamedType => n.decl match {
-              case t : PTypeDef => t.right match {
-                case int : PInterfaceType => (int, n.context.getTypeInfo)
-                case _ => violation("Embedded fields in interfaces should be interfaces.")
-              }
-              case _ => violation("Embedded fields in interfaces should be interfaces.")
-            }
-            case _ => violation("Embedded fields in interfaces should be interfaces.")
-          }
-          case _ => ???
-        })
-      val meths = interfaces.map(x => x._1.methSpecs.map((_, x._2))).flatten
-      val preds = interfaces.map(x => x._1.predSpecs.map((_, x._2))).flatten
-      interfaces.map(
-        x => embeddedInterfaceMethodsAndPredicates(x._1.embedded, x._2)
-      ).foldLeft((interfaces, meths, preds))(
-        (a, b) => (a._1 ++ b._1, a._2 ++ b._2, a._3 ++ b._3)
-      )
-    }
-
-
     def registerInterface(t: Type.InterfaceT, dT: in.InterfaceT): Unit = {
 
- 
       if (!registeredInterfaces.contains(dT.name) && info == t.context.getTypeInfo) {
-        val (embeddedInts, embeddedMethods, embeddedPreds) = embeddedInterfaceMethodsAndPredicates(t.decl.embedded, t.context.getTypeInfo)
         registeredInterfaces += dT.name
 
         val itfT = dT.withAddressability(Addressability.Exclusive)
         val xInfo = t.context.getTypeInfo
-
-        embeddedInts foreach { case (int, info) =>
-          val interfaceName = nm.interface(info.symbType(int).asInstanceOf[InterfaceT])
-          val res = in.InterfaceT(interfaceName, Addressability.Exclusive)
-          embeddedInterfaces ::= (res, dT)
-        }
 
         t.decl.predSpecs foreach { p =>
           val src = meta(p, xInfo)
           val proxy = mpredicateProxyD(p, xInfo)
           val recv = implicitThisD(itfT)(src)
           val argsWithSubs = p.args.zipWithIndex map { case (p,i) => inParameterD(p,i,xInfo) }
-          val (args, _) = argsWithSubs.unzip
-
-          val mem = in.MPredicate(recv, proxy, args, None)(src)
-
-          definedMPredicates += (proxy -> mem)
-          AdditionalMembers.addMember(mem)
-        }
-
-        embeddedPreds foreach { case (p, pinfo) =>
-          val src = meta(p, pinfo)
-          val recv = implicitThisD(itfT)(src)
-          val proxy = membeddedPredicateProxyD(p, t, pinfo)
-          val argsWithSubs = p.args.zipWithIndex map { case (p,i) => inParameterD(p,i,pinfo) }
           val (args, _) = argsWithSubs.unzip
 
           val mem = in.MPredicate(recv, proxy, args, None)(src)
@@ -2308,7 +2262,6 @@ object Desugar {
       }
     }
     var registeredInterfaces: Set[String] = Set.empty
-    var embeddedInterfaces: List[(in.InterfaceT, in.InterfaceT)] = List.empty
 
 
     object AdditionalMembers {
@@ -2414,46 +2367,17 @@ object Desugar {
       }
     }
 
-    def removeDuplicates(proofs: Vector[(Type, InterfaceT, st.MethodImpl, st.MethodSpec)]) : Vector[(Type, InterfaceT, st.MethodImpl, st.MethodSpec)] = {
-      val (_, ret) = proofs.foldLeft((Set[(Type, st.MethodImpl, st.MethodSpec)](), Vector[(Type, InterfaceT, st.MethodImpl, st.MethodSpec)]()))(
-        (s: (Set[(Type, st.MethodImpl, st.MethodSpec)], Vector[(Type, InterfaceT, st.MethodImpl, st.MethodSpec)]), proof : (Type, InterfaceT, st.MethodImpl, st.MethodSpec)) =>
-        if (s._1((proof._1, proof._3, proof._4))) s
-        else (s._1 + ((proof._1, proof._3, proof._4)), s._2 ++ Vector(proof))
-      )
-      ret
-    }
-
-    private def transitiveClosureHelper(key: in.InterfaceT, value: SortedSet[in.Type], graph: Map[in.InterfaceT, SortedSet[in.Type]]): SortedSet[in.Type] = {
-      val newValue = value.foldLeft(value)((sofar, v) => {
-        v match {
-          case itf:in.InterfaceT =>
-            graph.get(itf) match {
-              case Some(trans_impls) => sofar ++ trans_impls
-              case None => sofar
-            }
-          case _ => sofar
-      }})
-      if (value == newValue) value else transitiveClosureHelper(key, newValue, graph)
-    }
-
-    private def transitiveClosure(graph: Map[in.InterfaceT, SortedSet[in.Type]]): Map[in.InterfaceT, SortedSet[in.Type]] = graph.map(pair => {
-      val (itf, impls) = pair
-      (itf, transitiveClosureHelper(itf, impls, graph))
-    })
-
     lazy val interfaceImplementations: Map[in.InterfaceT, SortedSet[in.Type]] = {
-      val firstMap = info.interfaceImplementations.map{ case (itfT, implTs) =>
+      info.interfaceImplementations.map{ case (itfT, implTs) =>
         (
           interfaceType(typeD(itfT, Addressability.Exclusive)(Source.Parser.Unsourced)).get,
           SortedSet(implTs.map(implT => typeD(implT, Addressability.Exclusive)(Source.Parser.Unsourced)).toSeq: _*)
         )
       }
-      val secondMap = (embeddedInterfaces.groupMap(_._1)(_._2).map(x => (x._1, SortedSet(x._2: _*))): Map[in.InterfaceT, SortedSet[in.Type]])
-      transitiveClosure((firstMap.keySet ++ secondMap.keySet).map(k => (k, firstMap.getOrElse(k, SortedSet[in.Type]()) ++ secondMap.getOrElse(k, SortedSet[in.Type]()))).toMap)
     }
-    def missingImplProofs: Vector[in.Member] = {
 
-      removeDuplicates(info.missingImplProofs).map{ case (implT, itfT, implSymb, itfSymb) =>
+    def missingImplProofs: Vector[in.Member] = {
+      info.missingImplProofs.map{ case (implT, itfT, implSymb, itfSymb) =>
         val subProxy = methodProxyFromSymb(implSymb)
         val superT = interfaceType(typeD(itfT, Addressability.Exclusive)(Source.Parser.Unsourced)).get
         val superProxy = methodProxyFromSymb(itfSymb)

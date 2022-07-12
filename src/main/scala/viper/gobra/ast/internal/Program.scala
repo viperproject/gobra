@@ -33,22 +33,22 @@ case class Program(
 }
 
 class LookupTable(
-                 definedTypes: Map[(String, Addressability), Type],
-                 definedMethods: Map[MethodProxy, MethodLikeMember],
-                 definedFunctions: Map[FunctionProxy, FunctionLikeMember],
-                 definedMPredicates: Map[MPredicateProxy, MPredicateLikeMember],
-                 definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember],
+                 private val definedTypes: Map[(String, Addressability), Type] = Map.empty,
+                 private val definedMethods: Map[MethodProxy, MethodLikeMember] = Map.empty,
+                 private val definedFunctions: Map[FunctionProxy, FunctionLikeMember] = Map.empty,
+                 private val definedMPredicates: Map[MPredicateProxy, MPredicateLikeMember] = Map.empty,
+                 private val definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember] = Map.empty,
                  /**
                    * only has to be defined on types that implement an interface // might change depending on how embedding support changes
                    * SortedSet is used to achieve a consistent ordering of members across runs of Gobra
                    */
-                 val memberProxies: Map[Type, SortedSet[MemberProxy]],
+                 private val directMemberProxies: Map[Type, SortedSet[MemberProxy]] = Map.empty,
                  /**
                    * empty interface does not have to be included
                    * SortedSet is used to achieve a consistent ordering of members across runs of Gobra
                    */
-                 val interfaceImplementations: Map[InterfaceT, SortedSet[Type]],
-                 implementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy]
+                 private val directInterfaceImplementations: Map[InterfaceT, SortedSet[Type]] = Map.empty,
+                 private val implementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy] = Map.empty,
                  ) {
   def lookup(t: DefinedT): Type = definedTypes(t.name, t.addressability)
   def lookup(m: MethodProxy): MethodLikeMember = definedMethods(m)
@@ -61,21 +61,57 @@ class LookupTable(
   def getMPredicates: Iterable[MPredicateLikeMember] = definedMPredicates.values
   def getFPredicates: Iterable[FPredicateLikeMember] = definedFPredicates.values
 
-  def getDefinedTypes: Map[(String, Addressability), Type] = definedTypes
-  def getDefinedMethods: Map[MethodProxy, MethodLikeMember] = definedMethods
-  def getDefinedFunctions: Map[FunctionProxy, FunctionLikeMember] = definedFunctions
-  def getDefinedMPredicates: Map[MPredicateProxy, MPredicateLikeMember] = definedMPredicates
-  def getDefinedFPredicates: Map[FPredicateProxy, FPredicateLikeMember] = definedFPredicates
-  def getImplementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy] = implementationProofPredicateAliases
-
-  def implementations(t: InterfaceT): SortedSet[Type] = interfaceImplementations.getOrElse(t.withAddressability(Addressability.Exclusive), SortedSet.empty)
-  def members(t: Type): SortedSet[MemberProxy] = memberProxies.getOrElse(t.withAddressability(Addressability.Exclusive), SortedSet.empty)
-  def lookup(t: Type, name: String): Option[MemberProxy] = members(t).find(_.name == name)
-
+  def lookupImplementations(t: InterfaceT): SortedSet[Type] = getImplementations.getOrElse(t.withAddressability(Addressability.Exclusive), SortedSet.empty)
+  def lookupMembers(t: Type): SortedSet[MemberProxy] = getMembers.getOrElse(t.withAddressability(Addressability.Exclusive), SortedSet.empty)
+  def lookup(t: Type, name: String): Option[MemberProxy] = lookupMembers(t).find(_.name == name)
   def lookupImplementationPredicate(impl: Type, itf: InterfaceT, name: String): Option[PredicateProxy] = {
     lookup(impl, name).collect{ case m: MPredicateProxy => m }.orElse{
       implementationProofPredicateAliases.get(impl, itf, name)
     }
+  }
+
+  def getImplementations: Map[InterfaceT, SortedSet[Type]] = transitiveInterfaceImplementations
+  def getMembers: Map[Type, SortedSet[MemberProxy]] = transitiveMemberProxies
+
+  def merge(other: LookupTable): LookupTable = new LookupTable(
+    definedTypes ++ other.definedTypes,
+    definedMethods ++ other.definedMethods,
+    definedFunctions ++ other.definedFunctions,
+    definedMPredicates ++ other.definedMPredicates,
+    definedFPredicates ++ other.definedFPredicates,
+    directMemberProxies ++ other.directMemberProxies,
+    directInterfaceImplementations ++ other.directInterfaceImplementations,
+    implementationProofPredicateAliases ++ other.implementationProofPredicateAliases,
+  )
+
+  private lazy val (transitiveInterfaceImplementations, transitiveMemberProxies) = {
+    var res = directInterfaceImplementations
+    var resMemberProxies = directMemberProxies
+
+    var change = false
+
+    def mergeProxies(l: SortedSet[MemberProxy], r: SortedSet[MemberProxy]): SortedSet[MemberProxy] = {
+      (l ++ r).foldLeft((SortedSet.empty[MemberProxy], SortedSet.empty[String])){ // always take first in sorted set
+        case ((res, set), x) if set.contains(x.name) => (res, set)
+        case ((res, set), x) => (res ++ SortedSet(x), set ++ SortedSet(x.name))
+      }._1
+    }
+    val mapsTo = res.compose[Type]{ case t: InterfaceT => t }
+    def trans(key: Type, t: Type): SortedSet[Type] = t match {
+      case mapsTo(set) =>
+        change = true
+        resMemberProxies += (key -> mergeProxies(resMemberProxies(key), resMemberProxies(t)))
+        set
+
+      case _ => SortedSet(t)
+    }
+
+    do {
+      change = false
+      res = res.map{ case (key, values) => (key, values.flatMap(trans(key, _))) }
+    } while (change)
+
+    (res, resMemberProxies)
   }
 }
 

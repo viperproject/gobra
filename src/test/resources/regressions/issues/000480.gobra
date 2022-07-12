@@ -3,7 +3,9 @@
 
 package test
 
-type T struct{}
+type T struct{
+	i int
+}
 
 func f() {
 	var exclusiveArray [3]T = [3]T{}
@@ -11,4 +13,5 @@ func f() {
 
 	assert acc(&sharedArray)
 	assert acc(&sharedArray[0])
+	assert acc(&sharedArray[0].i)
 }

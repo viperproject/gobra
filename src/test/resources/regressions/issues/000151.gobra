@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type G *struct {
+	i int
+}
+
+requires acc(&g.i)
+func changeI(g G, i int) {
+	g.i = i
+}

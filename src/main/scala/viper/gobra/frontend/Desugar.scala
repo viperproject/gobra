@@ -3132,7 +3132,11 @@ object Desugar {
               acc match {
                 case PReference(op) => addressableD(ctx)(op) map (x => in.Accessible.Address(x.op))
                 case _ =>
-                  goE(acc) map (x => in.Accessible.Address(in.Deref(x, underlyingType(typeD(ut.elem, Addressability.dereference)(src)))(src)))
+                  goE(acc).map{ x =>
+                    val typ = typeD(ut.elem, Addressability.dereference)(src)
+                    val underlyingT = typeD(ut, Addressability.reference)(src)
+                    in.Accessible.Address(in.Deref(x, underlyingT, typ)(src))
+                  }
               }
 
             case Single(_: Type.SliceT) =>

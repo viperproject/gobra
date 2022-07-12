@@ -204,31 +204,6 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
             val itf = itfSymb.itfType
             (impl, itf, implSymb, itfSymb)
           })
-
-//          val withDuplicates = allRequiredImplements.toVector.flatMap { case (impl, itf) =>
-//            val superMethNames = memberSet(itf).collect { case (n, m: MethodSpec) => (n, m) }
-//            val implMethAndSuperMeth = superMethNames.flatMap{ case (name, itfSymb) => getMember(impl, name) match {
-//              case Some((implSymb: MethodImpl, _)) => Some((name, implSymb, itfSymb))
-//              case _ => None
-//            }}
-//            val missingImplMethAndSuperMeth = implMethAndSuperMeth.filter{ case (_, implSymb, itfSymb) => !groupedProofs2.contains((implSymb, itfSymb))}
-//            def path(n: String): Vector[MemberPath.EmbeddedInterface] = memberSet(itf).lookupWithPath(n).get._2.collect{ case s: MemberPath.EmbeddedInterface => s }
-//            missingImplMethAndSuperMeth.map{ case (name, implSymb, itfSymb) => (impl, itf, implSymb, itfSymb, path(name)) }
-//          }
-//
-//          def smaller(l: Vector[MemberPath.EmbeddedInterface], r: Vector[MemberPath.EmbeddedInterface]): Boolean = {
-//            import scala.math.Ordering.Implicits._
-//            l.size < r.size || (l.size == r.size && l.map(_.id) < r.map(_.id))
-//          }
-//          // an interface shares methods with its embedded interfaces, these can lead to duplicates
-//          val withoutDuplicates = withDuplicates.foldLeft(Map.empty[(MethodImpl, MethodSpec), (Type, InterfaceT, Vector[MemberPath.EmbeddedInterface])]){
-//            case (res, (impl, itf, implSymb, itfSymb, path)) => res.get((implSymb, itfSymb)) match {
-//              case Some((_, _, pathOther)) if !smaller(path, pathOther) => res
-//              case _ => res ++ Map((implSymb, itfSymb) -> (impl, itf, path))
-//            }
-//          }
-//
-//          Right(withoutDuplicates.toVector.map{ case ((implSymb, itfSymb), (impl, itf, _)) => (impl, itf, implSymb, itfSymb) })
         }
       } else Left(noMessages)
     } else Left(noMessages)

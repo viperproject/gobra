@@ -1,0 +1,34 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func main() {
+	t@ := T{1}
+	// fmt.Println(t) // 1
+	t.inc()
+	// fmt.Println(t) // 2
+}
+
+type T struct{
+	i int
+}
+
+requires acc(t)
+func (t *T) inc() {
+	t.i += 1
+}
+
+// todo: spec
+
+func f(t T) {
+	share t
+	t.inc()
+}
+
+/* TODO
+func (t T) g() {
+	share t
+	t.inc()
+}
+*/

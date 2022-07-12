@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func main() {
+	t := T(1)
+	// fmt.Println(t) // 1
+	t.inc()
+	// fmt.Println(t) // 2
+}
+
+type T int
+
+func (t *T) inc() {
+	*t += 1
+}

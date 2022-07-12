@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+type T struct{}
+
+func f() {
+	var exclusiveArray [3]T = [3]T{}
+	var sharedArray@   [3]T = [3]T{}
+
+	assert acc(&sharedArray)
+	assert acc(&sharedArray[0])
+}

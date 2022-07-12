@@ -6,22 +6,20 @@
 
 package viper.gobra.util
 
-
-import viper.silver.{ast => vpr}
-import viper.gobra.util.ViperChopper.Vertex.Always
-
 import scala.annotation.tailrec
 import scala.collection.{immutable, mutable}
+import viper.silver.{ast => vpr}
 
 object ViperChopper {
 
   /**
-    * chops 'choppee' into multiple Viper programs.
+    * chops `choppee` into multiple Viper programs.
+    *
     * @param choppee Targeted program.
     * @param isolate Specifies which members of the program should be verified.
     *                If none, then all members that induce a proof obligation are verified.
-    * @param bound Specifies upper bound on the number of returned programs.
-    *              If none, then maximum number of programs is returned.
+    * @param bound   Specifies upper bound on the number of returned programs.
+    *                If none, then maximum number of programs is returned.
     * @param penalty Specifies penalty of merging programs.
     * @return Chopped programs.
     */
@@ -30,29 +28,53 @@ object ViperChopper {
     bound: Option[Int] = Some(1),
     penalty: Penalty[Vertex] = Penalty.Default
   ): Vector[vpr.Program] = {
-
-    val (n, isolatesIds, edges, idToVertex, inverse) = ViperGraph.toGraph(choppee, isolate)
-    val programs = Cut.boundedCut(n, isolatesIds, edges, idToVertex)(bound, penalty)
-    programs flatMap (list => inverse(list))
+    chopWithMetrics(choppee)(isolate, bound, penalty)._1
   }
 
-  object Cut {
+  /**
+    * chops `choppee` into multiple Viper programs.
+    *
+    * @param choppee Targeted program.
+    * @param isolate Specifies which members of the program should be verified.
+    *                If none, then all members that induce a proof obligation are verified.
+    * @param bound   Specifies upper bound on the number of returned programs.
+    *                If none, then maximum number of programs is returned.
+    * @param penalty Specifies penalty of merging programs.
+    * @return Chopped programs and metrics.
+    */
+  def chopWithMetrics(choppee: vpr.Program)(
+    isolate: Option[vpr.Member => Boolean] = None,
+    bound: Option[Int] = Some(1),
+    penalty: Penalty[Vertex] = Penalty.Default
+  ): (Vector[vpr.Program], Metrics) = {
+
+    val graph = ViperGraph.toGraph(choppee, isolate)
+    val (programs, metrics) = Cut.boundedCut(graph)(bound, penalty)
+    (programs flatMap (list => graph.unapply(list)), metrics)
+  }
+
+  case class Metrics(
+                      maxNumberOfParts: Int,
+                      timeSCC: Option[BigDecimal],
+                      timeCutting: BigDecimal,
+                      timeMerging: BigDecimal,
+                    )
+
+  private object Cut {
 
     /**
       * Returns a set of chopped programs where the number of programs is bounded by `bound`.
-      * @param N Number of nodes.
-      * @param nodes Nodes that must be included.
-      * @param edges Edges of the dependency graph.
-      * @param idToVertex Mapping from node ids to vertices used for price computations.
-      * @param bound Specifies upper bound on the number of returned programs.
-      *              If none, then maximum number of programs is returned.
+      *
+      * @param graph   Graph representation of the Viper program.
+      * @param bound   Specifies upper bound on the number of returned programs.
+      *                If none, then maximum number of programs is returned.
       * @param penalty Specifies penalty of merging programs.
       * @return Set of programs.
       */
-    def boundedCut[T](N: Int, nodes: Vector[Int], edges: Array[mutable.SortedSet[Int]], idToVertex: Int => Vertex)(
+    def boundedCut[T](graph: ViperGraph)(
       bound: Option[Int],
       penalty: Penalty[Vertex]
-    ): Vector[Set[Int]] = {
+    ): (Vector[Set[Int]], Metrics) = {
       require(bound.forall(_ > 0), s"Got $bound as the size of the cut, but expected positive number")
 
       /**
@@ -62,18 +84,20 @@ object ViperChopper {
         * the merge penalty can, together with the merging, be computed in linear time, too.
         */
 
-      var timeSCC = BigDecimal(0)
+      var timeSCC: Option[BigDecimal] = None
       var timeCutting = BigDecimal(0)
       var timeMerging = BigDecimal(0)
       var maxNumberOfParts = 0
       var forallSmallNode: (Int => Boolean) => Boolean = null // for the safety check
 
       val result = {
-        if (nodes.size <= 2) {
+        if (graph.importantNodes.size <= 2) {
           val t1 = System.nanoTime()
-          val smallestPrograms = smallestCutWithCycles(N, nodes, edges, identity[Int])
+          val smallestPrograms = smallestCutWithCycles(
+            graph.numberOfNodes, graph.importantNodes, graph.edges, identity[Int]
+          )
           val t2 = System.nanoTime()
-          val mergedPrograms = mergePrograms(smallestPrograms)(bound, penalty.contravariantLift(idToVertex))
+          val mergedPrograms = mergePrograms(smallestPrograms)(bound, penalty.contravariantLift(graph.toVertex))
           val res = mergedPrograms.map(_.toSet)
           val t3 = System.nanoTime()
           timeCutting = BigDecimal((t2 - t1) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP)
@@ -83,16 +107,16 @@ object ViperChopper {
           res
         } else {
           val t0 = System.nanoTime()
-          val (_, idToSCC, sccEdges) = SCC.fastCompute(N, edges)
-          val sccNodes = nodes.map(idToSCC) // may contain duplicates, but smallestCut can deal with that
+          val (_, idToSCC, sccEdges) = SCC.fastCompute(graph.numberOfNodes, graph.edges)
+          val sccNodes = graph.importantNodes.map(idToSCC) // may contain duplicates, but smallestCut can deal with that
           val t1 = System.nanoTime()
           // SCC.fastCompute guarantees that sccEdges has no cycles
-          val smallestPrograms = smallestCutWithoutCycles(N, sccNodes, sccEdges, (x: SCC.Component[Int]) => x.proxy)
+          val smallestPrograms = smallestCutWithoutCycles(graph.numberOfNodes, sccNodes, sccEdges, (x: SCC.Component[Int]) => x.proxy)
           val t2 = System.nanoTime()
-          val mergedPrograms = mergePrograms(smallestPrograms)(bound, penalty.contravariantSumLift(_.nodes.map(idToVertex)))
+          val mergedPrograms = mergePrograms(smallestPrograms)(bound, penalty.contravariantSumLift(_.nodes.map(graph.toVertex)))
           val res = mergedPrograms.map(_.toSet.flatMap((c: SCC.Component[Int]) => c.nodes))
           val t3 = System.nanoTime()
-          timeSCC     = BigDecimal((t1 - t0) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP)
+          timeSCC = Some(BigDecimal((t1 - t0) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP))
           timeCutting = BigDecimal((t2 - t1) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP)
           timeMerging = BigDecimal((t3 - t2) / 1e9d).setScale(2, BigDecimal.RoundingMode.HALF_UP)
           maxNumberOfParts = smallestPrograms.size
@@ -101,32 +125,35 @@ object ViperChopper {
         }
       }
 
-      println(s"Chopped verification condition into ${result.size} parts. Maximum number of parts is $maxNumberOfParts. (Time: ${timeSCC}s + ${timeCutting}s + ${timeMerging}s)")
+      val metrics = Metrics(maxNumberOfParts, timeSCC, timeCutting, timeMerging)
 
-      // Safety check validating the result partially. Can be removed in a year if no error has been found.
+      // Safety check validating the result partially.
       {
-        val containedInResult = Array.ofDim[Boolean](N)
-        for (program <- result; node <- program) { containedInResult(node) = true }
+        val containedInResult = Array.ofDim[Boolean](graph.numberOfNodes)
+        for (program <- result; node <- program) {
+          containedInResult(node) = true
+        }
         // check all nodes of the smallest programs are present (no node should be lost)
         val smallestProgramContainedInResult = forallSmallNode(containedInResult(_))
         assert(smallestProgramContainedInResult, "Chopper Error: Lost nodes during merging step.")
 
-        val containedInSmallest = Array.ofDim[Boolean](N)
-        forallSmallNode{node => containedInSmallest(node) = true; true }
+        val containedInSmallest = Array.ofDim[Boolean](graph.numberOfNodes)
+        forallSmallNode { node => containedInSmallest(node) = true; true }
         // checks all selected notes are present in the result
-        val selectedNodesContainedInSmallest = nodes.forall(containedInSmallest(_))
+        val selectedNodesContainedInSmallest = graph.importantNodes.forall(containedInSmallest(_))
         assert(selectedNodesContainedInSmallest, "Chopper Error: Not all selected nodes present in solution.")
       }
 
-      result
+      (result, metrics)
     }
 
     /**
       * Returns the set of smallest possible programs.
-      * @param N Number of nodes.
+      *
+      * @param N     Number of nodes.
       * @param nodes Nodes that must be included. The vector may be unsorted and may contain duplicates.
       * @param edges Edges of the dependency graph. The graph must have no cycles.
-      * @param id Mapping from nodes to node ids. The result is used as the index for `edges`.
+      * @param id    Mapping from nodes to node ids. The result is used as the index for `edges`.
       * @return Set of smallest possible programs. A program is represented as a *sorted* list of node ids.
       */
     private def smallestCutWithoutCycles[T](N: Int, nodes: Vector[T], edges: Array[mutable.SortedSet[T]], id: T => Int): Vector[List[T]] = {
@@ -140,7 +167,7 @@ object ViperChopper {
       sealed trait State
       case object NotVisited extends State
       case object NotFinalized extends State
-      case class  Finalized(startId: Int) extends State
+      case class Finalized(startId: Int) extends State
       val state = Array.fill[State](N)(NotVisited)
 
       // Stores whether a node is not a root.
@@ -172,7 +199,7 @@ object ViperChopper {
                   case (result, neighbor) => result ++ reachableNodes(id(neighbor))
                 }
             case Finalized(`startId`) =>
-              // node was visited in another call to dfs with the same argument ('nodes' may contain duplicates).
+            // node was visited in another call to dfs with the same argument (`nodes` may contain duplicates).
             case _: Finalized =>
               // node was visited in another call to dfs with a different argument.
               notRoot(nodeId) = true
@@ -186,10 +213,11 @@ object ViperChopper {
 
     /**
       * Returns the set of smallest possible programs.
-      * @param N Number of nodes.
+      *
+      * @param N     Number of nodes.
       * @param nodes Nodes that must be included. The vector may be unsorted and may contain duplicates.
       * @param edges Edges of the dependency graph. The graph may have cycles.
-      * @param id Mapping from nodes to node ids. The result is used as the index for `edges`.
+      * @param id    Mapping from nodes to node ids. The result is used as the index for `edges`.
       * @return Set of smallest possible programs. A program is represented as a *sorted* list of node ids.
       */
     private def smallestCutWithCycles[T](N: Int, nodes: Vector[T], edges: Array[mutable.SortedSet[T]], id: T => Int): Vector[List[T]] = {
@@ -222,7 +250,9 @@ object ViperChopper {
           if (!localVisited(nodeId)) {
             localVisited(nodeId) = true
 
-            if (globalVisited(nodeId)) { notRoot(nodeId) = true }
+            if (globalVisited(nodeId)) {
+              notRoot(nodeId) = true
+            }
             globalVisited(nodeId) = true
 
             result.add(node)
@@ -238,10 +268,11 @@ object ViperChopper {
 
     /**
       * Merges set of programs into smaller set of programs bounded by `bound`.
+      *
       * @param programs Vector of programs. A program is represented as a *sorted* list of node ids.
-      * @param bound Specifies upper bound on the number of returned programs.
-      *              If none, then maximum number of programs is returned.
-      * @param penalty Specifies penalty of merging programs.
+      * @param bound    Specifies upper bound on the number of returned programs.
+      *                 If none, then maximum number of programs is returned.
+      * @param penalty  Specifies penalty of merging programs.
       * @return
       */
     private def mergePrograms[T](programs: Vector[List[T]])(
@@ -263,8 +294,8 @@ object ViperChopper {
         */
 
       val start = programs.map(_.map(c => (c, penalty.price(c))))
-      val entries = start.zipWithIndex.map{ case (p,idx) => (idx,p) }
-      val sets = mutable.Map(entries:_*) // current set of programs. Keys are used as indices.
+      val entries = start.zipWithIndex.map { case (p, idx) => (idx, p) }
+      val sets = mutable.Map(entries: _*) // current set of programs. Keys are used as indices.
       var counter = entries.size // not used as key in map
       def isAlive(x: (Int, Int)): Boolean = sets.contains(x._1) && sets.contains(x._2) // checks if merge is valid based on indices
 
@@ -273,20 +304,23 @@ object ViperChopper {
         (aIdx, a) <- entries
         (bIdx, b) <- entries
         if aIdx < bIdx
-        (price, rep) = penaltyAndMerge(a,b)(penalty)
+        (price, rep) = penaltyAndMerge(a, b)(penalty)
       } yield (price, (aIdx, bIdx), rep) // penalty, both indices, and merge result (in this order)
 
-      val queue = mutable.PriorityQueue(init:_*)(Ordering.by(- _._1))
+      val queue = mutable.PriorityQueue(init: _*)(Ordering.by(-_._1))
 
-      while (queue.headOption.exists(_._1 <= 0) || bound.exists(sets.size > _)) {
+      while (queue.exists(e => isAlive(e._2)) && (queue.headOption.exists(_._1 <= 0) || bound.exists(sets.size > _))) {
         var x = queue.dequeue()
-        while (!isAlive(x._2)) { x = queue.dequeue() } // dequeue until valid merge
+        while (!isAlive(x._2)) {
+          x = queue.dequeue()
+        } // dequeue until valid merge
 
         // if head had penalty 0 before, this might be outdated now.
         // Therefore, loop condition is checked again.
         if (x._1 <= 0 || bound.exists(sets.size > _)) {
           val (_, (lIdx, rIdx), newRep) = x
-          sets.remove(lIdx); sets.remove(rIdx)
+          sets.remove(lIdx);
+          sets.remove(rIdx)
           val newIdx = counter
           counter += 1
 
@@ -314,9 +348,9 @@ object ViperChopper {
           case (Nil, ys) => (a, b + ys.map(_._2).sum, c, acc.reverse ++ ys)
           case ((xId, xScore) :: xs, (yId, yScore) :: ys) =>
             val comp = order.compare(xId, yId)
-            if (comp == 0)     go(xs, ys, a, b, c+xScore, (xId,xScore)::acc)
-            else if (comp < 0) go(xs, r,  a+xScore, b, c, (xId,xScore)::acc)
-            else               go(l,  ys, a, b+yScore, c, (yId,yScore)::acc)
+            if (comp == 0) go(xs, ys, a, b, c + xScore, (xId, xScore) :: acc)
+            else if (comp < 0) go(xs, r, a + xScore, b, c, (xId, xScore) :: acc)
+            else go(l, ys, a, b + yScore, c, (yId, yScore) :: acc)
         }
       }
 
@@ -329,9 +363,10 @@ object ViperChopper {
 
     /**
       * Returns penalty of merging two programs X and Y.
+      *
       * @param lhsExclusivePrice Summed prices of components that are in X, but not in Y.
       * @param rhsExclusivePrice Summed prices of components that are in Y, but not in X.
-      * @param sharedPrice Summed prices of components that are in the intersection of X and Y.
+      * @param sharedPrice       Summed prices of components that are in the intersection of X and Y.
       * @return Penalty of merging X and Y. A merge with penalty <= 0 is always performed.
       */
     def mergePenalty(lhsExclusivePrice: Int, rhsExclusivePrice: Int, sharedPrice: Int): Int
@@ -341,13 +376,15 @@ object ViperChopper {
 
     /** contravariant map */
     def contravariantLift[S](f: S => T): Penalty[S] = new Penalty.SumPenalty(this, x => Some(f(x)))
+
     def contravariantSumLift[S](f: S => Iterable[T]): Penalty[S] = new Penalty.SumPenalty(this, f)
   }
 
   object Penalty {
 
-    private class SumPenalty[T,R](p: Penalty[R], f: T => Iterable[R]) extends Penalty[T] {
+    private class SumPenalty[T, R](p: Penalty[R], f: T => Iterable[R]) extends Penalty[T] {
       override def price(x: T): Int = f(x).map(p.price).sum
+
       override def mergePenalty(exclusive1: Int, exclusive2: Int, shared: Int): Int =
         p.mergePenalty(exclusive1, exclusive2, shared)
     }
@@ -374,15 +411,15 @@ object ViperChopper {
     class DefaultImpl(conf: PenaltyConfig) extends Penalty[Vertex] {
 
       override def price(xs: Vertex): Int = xs match {
-        case _: Vertex.Method         => conf.method
-        case _: Vertex.MethodSpec     => conf.methodSpec
-        case _: Vertex.Function       => conf.function
-        case _: Vertex.PredicateBody  => conf.predicate
-        case _: Vertex.PredicateSig   => conf.predicateSig
-        case _: Vertex.Field          => conf.field
-        case _: Vertex.DomainType     => conf.domainType
+        case _: Vertex.Method => conf.method
+        case _: Vertex.MethodSpec => conf.methodSpec
+        case _: Vertex.Function => conf.function
+        case _: Vertex.PredicateBody => conf.predicate
+        case _: Vertex.PredicateSig => conf.predicateSig
+        case _: Vertex.Field => conf.field
+        case _: Vertex.DomainType => conf.domainType
         case _: Vertex.DomainFunction => conf.domainFunction
-        case _: Vertex.DomainAxiom    => conf.domainAxiom
+        case _: Vertex.DomainAxiom => conf.domainAxiom
         case Vertex.Always => 0
       }
 
@@ -397,27 +434,42 @@ object ViperChopper {
       override def mergePenalty(lhsExclusivePrice: Int, rhsExclusivePrice: Int, sharedPrice: Int): Int =
         Math.max(super.mergePenalty(lhsExclusivePrice, rhsExclusivePrice, sharedPrice), 1)
     }
+
+  }
+
+  /**
+    * Graph representation of a Viper program that enables us to use efficient algorithms to chop the program.
+    *
+    * @param numberOfNodes  Number of nodes.
+    * @param importantNodes Important nodes, i.e. nodes that must be included in one of the chopped programs.
+    *                       Vector is not sorted and may contain duplicates.
+    * @param edges          Edges of the dependency graph.
+    * @param toVertex       Map from node id's to their vertex representation.
+    * @param toVpr          Function that takes a set of nodes and returns the corresponding Viper program.
+    */
+  class ViperGraph private(
+                            val numberOfNodes: Int,
+                            val importantNodes: Vector[Int],
+                            val edges: Array[mutable.SortedSet[Int]],
+                            val toVertex: Int => Vertex,
+                            private val toVpr: Set[Int] => vpr.Program,
+                          ) {
+    def unapply(nodes: Set[Int]): Option[vpr.Program] = Some(toVpr(nodes))
   }
 
   object ViperGraph {
 
     /**
-      * Transforms program into a graph with int nodes, which enable faster algorithms.
-      * @return
-      *   _1 : Number of nodes.
-      *   _2 : Isolated nodes, i.e. nodes that must be included in one of the chopped programs.
-      *        Vector is not sorted and may contain duplicates.
-      *   _3 : Edges of the dependency graph.
-      *   _4 : Map from node id's to their vertex representation.
-      *   _5 : Function that takes a set of nodes and returns the corresponding Viper program.
+      * Transforms program into a graph with int nodes, which enable us to use faster algorithms.
       * */
     def toGraph(
                  program: vpr.Program,
                  isolate: Option[vpr.Member => Boolean] = None
-               ): (Int, Vector[Int], Array[mutable.SortedSet[Int]], Int => Vertex, Set[Int] => Option[vpr.Program]) = {
+               ): ViperGraph = {
 
       var vertexToId = Map.empty[Vertex, Int]
       var N = 0
+
       def id(v: Vertex): Int = {
         vertexToId.getOrElse(v, {
           val idx = N
@@ -429,49 +481,73 @@ object ViperChopper {
 
       val members = program.members.toVector
       val vertexEdges = members.flatMap(Edges.dependencies)
-      val edges = vertexEdges.map{ case (l,r) => (id(l),id(r)) }
-      val selector: vpr.Member => Boolean = isolate.getOrElse{
-        // per default, isolated nodes are everything with a proof obligation, i.e. methods, functions, and predicates
-        // We could filter further by checking that the member was present in the input (i.e. not generated by Gobra).
-        // However, this information is not stored reliably at this point in time.
-        case _: vpr.Method | _: vpr.Function | _: vpr.Predicate => true; case _ => false
+      val edges = vertexEdges.map { case (l, r) => (id(l), id(r)) }
+      val selector: vpr.Member => Boolean = isolate.getOrElse {
+        // Per default, the important nodes are all nodes with a proof obligation, i.e. methods, functions, and predicates.
+        case _: vpr.Method | _: vpr.Function | _: vpr.Predicate => true;
+        case _ => false
       }
-      // The isotated nodes are always and all selected nodes
-      val alwaysId = id(Always)
-      val isolatedNodes = alwaysId +: members.filter(selector).map(m => id(Vertex.toDefVertex(m)))
+      // The important nodes are all selected nodes
+      val importantNodes = members.filter(selector).map(m => id(Vertex.toDefVertex(m)))
 
       val vertices = Array.ofDim[Vertex](N)
-      for ((vertex, idx) <- vertexToId) { vertices(idx) = vertex }
+      for ((vertex, idx) <- vertexToId) {
+        vertices(idx) = vertex
+      }
       val idToVertex = vertices.apply _
 
       val fastEdges = Array.fill(N)(mutable.SortedSet.empty[Int])
-      for ((l,r) <- edges) { fastEdges(l).add(r) }
+      for ((l, r) <- edges) {
+        fastEdges(l).add(r)
+      }
 
       val setOfVerticesToProgram = Vertex.inverse(program)
-      val setOfIdsToProgram = (set: Set[Int]) =>
-        if (set == Set(alwaysId)) None else Some(setOfVerticesToProgram(set map idToVertex))
+      val setOfIdsToProgram = (set: Set[Int]) => setOfVerticesToProgram(set map idToVertex)
 
-      (N, isolatedNodes, fastEdges, idToVertex, setOfIdsToProgram)
+      new ViperGraph(
+        numberOfNodes = N,
+        importantNodes = importantNodes,
+        edges = fastEdges,
+        toVertex = idToVertex,
+        toVpr = setOfIdsToProgram,
+      )
     }
   }
 
   /** Abstract the smallest parts of a Viper program and provides necessary information to compute merge penalties. */
   sealed trait Vertex
+
   object Vertex {
-    case class Method private[Vertex] (methodName: String) extends Vertex
+
+    case class Method private[Vertex](methodName: String) extends Vertex
+
     case class MethodSpec(methodName: String) extends Vertex
+
     case class Function(functionName: String) extends Vertex
+
     case class PredicateSig(predicateName: String) extends Vertex
-    case class PredicateBody private[Vertex] (predicateName: String) extends Vertex
+
+    case class PredicateBody private[Vertex](predicateName: String) extends Vertex
+
     case class Field(fieldName: String) extends Vertex
+
     case class DomainFunction(funcName: String) extends Vertex
+
     case class DomainAxiom(v: vpr.DomainAxiom, d: vpr.Domain) extends Vertex
+
     case class DomainType(v: vpr.DomainType) extends Vertex
+
     case object Always extends Vertex // if something always has to be included, then it is a dependency of Always
 
     // the creation of the following vertices has special cases and should not happen outside of the Vertex object
-    object Method { private[Vertex] def apply(methodName: String): Method = new Method(methodName) }
-    object PredicateBody { private[Vertex] def apply(predicateName: String): PredicateBody = new PredicateBody(predicateName) }
+    object Method {
+      private[Vertex] def apply(methodName: String): Method = new Method(methodName)
+    }
+
+    object PredicateBody {
+      private[Vertex] def apply(predicateName: String): PredicateBody = new PredicateBody(predicateName)
+    }
+
     /** This function is only allowed to be called in the following cases:
       * 1) applying [[toDefVertex]] to the predicate referenced by `predicateName` returns a [[Vertex.PredicateBody]] instance.
       * 2) The result is used as the target of a dependency.
@@ -483,16 +559,20 @@ object ViperChopper {
       m match {
         case m: vpr.Method => m.body match {
           case Some(_) => Vertex.Method(m.name)
-          case None    => Vertex.MethodSpec(m.name)
+          case None => Vertex.MethodSpec(m.name)
         }
         case m: vpr.Predicate => m.body match {
           case Some(_) => Vertex.PredicateBody(m.name)
-          case None    => Vertex.PredicateSig(m.name)
+          case None => Vertex.PredicateSig(m.name)
         }
         case m: vpr.Function => Vertex.Function(m.name)
         case m: vpr.Field => Vertex.Field(m.name)
         case m: vpr.Domain => Vertex.DomainType(vpr.DomainType(domain = m, (m.typVars zip m.typVars).toMap))
-        case _: vpr.ExtensionMember => ???
+        case _: vpr.ExtensionMember =>
+          throw new IllegalArgumentException(
+            "The chopper does not support nodes introduced by Viper plugins." +
+              "Apply the chopper to the result of SilverPlugin.beforeVerify."
+          )
       }
     }
 
@@ -503,7 +583,11 @@ object ViperChopper {
         case m: vpr.Predicate => Vertex.PredicateSig(m.name)
         case m: vpr.Field => Vertex.Field(m.name)
         case m: vpr.Domain => Vertex.DomainType(vpr.DomainType(domain = m, (m.typVars zip m.typVars).toMap))
-        case _: vpr.ExtensionMember => ???
+        case _: vpr.ExtensionMember =>
+          throw new IllegalArgumentException(
+            "The chopper does not support nodes introduced by Viper plugins." +
+              "Apply the chopper to the result of SilverPlugin.beforeVerify."
+          )
       }
     }
 
@@ -519,26 +603,26 @@ object ViperChopper {
       { (vertices: Set[Vertex]) =>
 
         val methods = {
-          val ms = vertices.collect{ case v: Method => methodTable(v.methodName) }
-          val stubs = vertices.collect{ case v: MethodSpec => val m = methodTable(v.methodName); m.copy(body = None)(m.pos, m.info, m.errT) }
+          val ms = vertices.collect { case v: Method => methodTable(v.methodName) }
+          val stubs = vertices.collect { case v: MethodSpec => val m = methodTable(v.methodName); m.copy(body = None)(m.pos, m.info, m.errT) }
           val filteredStubs = stubs.filterNot(stub => ms.exists(_.name == stub.name))
           (ms ++ filteredStubs).toSeq
         }
-        val funcs = vertices.collect{ case v: Function => functionTable(v.functionName) }.toSeq
+        val funcs = vertices.collect { case v: Function => functionTable(v.functionName) }.toSeq
         val preds = {
-          val psigs = vertices.collect{ case v: PredicateSig => val p = predicateTable(v.predicateName); p.copy(body = None)(p.pos, p.info, p.errT) }.toSeq
-          val pbodies = vertices.collect{ case v: PredicateBody => predicateTable(v.predicateName) }.toSeq
+          val psigs = vertices.collect { case v: PredicateSig => val p = predicateTable(v.predicateName); p.copy(body = None)(p.pos, p.info, p.errT) }.toSeq
+          val pbodies = vertices.collect { case v: PredicateBody => predicateTable(v.predicateName) }.toSeq
           val filteredSigs = psigs.filterNot(sig => pbodies.exists(_.name == sig.name))
           pbodies ++ filteredSigs
         }
-        val fields = vertices.collect{ case v: Field => fieldTable(v.fieldName) }.toSeq
+        val fields = vertices.collect { case v: Field => fieldTable(v.fieldName) }.toSeq
         val domains = {
-          val fs = vertices.collect{ case v: DomainFunction => domainFunctionTable(v.funcName) }.toSeq.groupMap(_._2)(_._1)
-          val as = vertices.collect{ case v: DomainAxiom => (v.v, v.d)}.toSeq.groupMap(_._2)(_._1)
-          val ds = vertices.collect{ case v: DomainType => domainTable(v.v.domainName) }.toSeq
+          val fs = vertices.collect { case v: DomainFunction => domainFunctionTable(v.funcName) }.toSeq.groupMap(_._2)(_._1)
+          val as = vertices.collect { case v: DomainAxiom => (v.v, v.d) }.toSeq.groupMap(_._2)(_._1)
+          val ds = vertices.collect { case v: DomainType => domainTable(v.v.domainName) }.toSeq
           val totalDs = (ds ++ fs.keys ++ as.keys).distinct
 
-          totalDs.map{ d =>
+          totalDs.map { d =>
             d.copy(functions = fs.getOrElse(d, Seq.empty), axioms = as.getOrElse(d, Seq.empty))(d.pos, d.info, d.errT)
           }
         }
@@ -555,6 +639,7 @@ object ViperChopper {
   }
 
   type Edge[T] = (T, T)
+
   object Edges {
 
     /**
@@ -566,7 +651,7 @@ object ViperChopper {
       val defVertex = Vertex.toDefVertex(member)
       val useVertex = Vertex.toUseVertex(member)
 
-      member match {
+      val usageDependencies = member match {
         case m: vpr.Method =>
           dependenciesToChildren(member, defVertex) ++
             (m.pres ++ m.posts ++ m.formalArgs ++ m.formalReturns).flatMap(dependenciesToChildren(_, useVertex))
@@ -580,6 +665,7 @@ object ViperChopper {
 
         case d: vpr.Domain =>
           d.axioms.flatMap { ax =>
+
             /**
               * For Axioms, we do not make the distinction between vertices that depend on the axiom
               * and vertices that the axiom depends on. Instead, all vertices that are in a relation with the axiom
@@ -596,10 +682,17 @@ object ViperChopper {
 
         case _ => Vector.empty
       }
+      // to ensure that nodes that depend on Vertex.Always are indeed always included
+      val alwaysDependencies = Seq(
+        defVertex -> Vertex.Always,
+        useVertex -> Vertex.Always,
+      )
+
+      usageDependencies ++ alwaysDependencies
     }
 
     /** Returns edges from `nodeVertex` to all children of `node` that are usages. */
-    def dependenciesToChildren(node: vpr.Node, nodeVertex: Vertex): Seq[Edge[Vertex]] = {
+    private def dependenciesToChildren(node: vpr.Node, nodeVertex: Vertex): Seq[Edge[Vertex]] = {
       usages(node) map (nodeVertex -> _)
     }
 
@@ -617,29 +710,33 @@ object ViperChopper {
         case _ => Seq.empty
       })
 
-      n.deepCollect{
-        case n: vpr.MethodCall      => Seq(Vertex.MethodSpec(n.methodName))
-        case n: vpr.FuncApp         => Seq(Vertex.Function(n.funcname))
-        case n: vpr.DomainFuncApp   => Seq(Vertex.DomainFunction(n.funcname))
+      n.deepCollect {
+        case n: vpr.MethodCall => Seq(Vertex.MethodSpec(n.methodName))
+        case n: vpr.FuncApp => Seq(Vertex.Function(n.funcname))
+        case n: vpr.DomainFuncApp => Seq(Vertex.DomainFunction(n.funcname))
         case n: vpr.PredicateAccess => Seq(Vertex.PredicateSig(n.predicateName))
         // The call is fine because the result is used as the target of a dependency.
-        case n: vpr.Unfold          => Seq(Vertex.predicateBody_check_that_call_is_ok(n.acc.loc.predicateName))
-        case n: vpr.Fold            => Seq(Vertex.predicateBody_check_that_call_is_ok(n.acc.loc.predicateName))
-        case n: vpr.Unfolding       => Seq(Vertex.predicateBody_check_that_call_is_ok(n.acc.loc.predicateName))
-        case n: vpr.FieldAccess     => Seq(Vertex.Field(n.field.name))
-        case n: vpr.Type => deepType(n).collect{ case t: vpr.DomainType => Vertex.DomainType(t) }
+        case n: vpr.Unfold => Seq(Vertex.predicateBody_check_that_call_is_ok(n.acc.loc.predicateName))
+        case n: vpr.Fold => Seq(Vertex.predicateBody_check_that_call_is_ok(n.acc.loc.predicateName))
+        case n: vpr.Unfolding => Seq(Vertex.predicateBody_check_that_call_is_ok(n.acc.loc.predicateName))
+        case n: vpr.FieldAccess => Seq(Vertex.Field(n.field.name))
+        case n: vpr.Type => deepType(n).collect { case t: vpr.DomainType => Vertex.DomainType(t) }
       }.flatten
     }
   }
 
   object SCC {
 
-    case class Component[T](nodes: Iterable[T]) { val proxy: T = nodes.head }
+    case class Component[T](nodes: Iterable[T]) {
+      val proxy: T = nodes.head
+    }
+
     implicit val orderingIntComponent: Ordering[Component[Int]] = Ordering.by(_.proxy)
 
     /**
       * Computes the strongly connected components of a graph using Tarjan's algorithm.
-      * @param N Number of vertices in the graph.
+      *
+      * @param N     Number of vertices in the graph.
       * @param edges Edges of the graph.
       * @return Vector containing the strongly connected components of the graph.
       * */
@@ -647,10 +744,10 @@ object ViperChopper {
 
       var index = 0
       val stack = mutable.Stack.empty[Int]
-      val visited  = Array.ofDim[Boolean](N)
-      val indices  = Array.ofDim[Int](N)
+      val visited = Array.ofDim[Boolean](N)
+      val indices = Array.ofDim[Int](N)
       val lowLinks = Array.ofDim[Int](N)
-      val onStack  = Array.ofDim[Boolean](N)
+      val onStack = Array.ofDim[Boolean](N)
       var components = List.empty[Component[Int]]
 
       def strongConnect(currentNode: Int): Unit = {
@@ -687,24 +784,29 @@ object ViperChopper {
       }
 
       // perform algorithm on all vertices
-      for (v <- 0 until N if !visited(v)) { strongConnect(v) }
+      for (v <- 0 until N if !visited(v)) {
+        strongConnect(v)
+      }
       components.toVector
     }
 
     /**
       * Computes the strongly connected components of a graph using Tarjan's algorithm.
-      * @param N Number of vertices in the graph.
+      *
+      * @param N     Number of vertices in the graph.
       * @param edges Edges of the graph.
       * @return
-      *    _1 : Vector containing the strongly connected components of the graph.
-      *    _2 : Mapping from node ids to the component that the node is contained in.
-      *    _3 : Edges between the components in the graph. This induced graph on components is acyclic.
+      * _1 : Vector containing the strongly connected components of the graph.
+      * _2 : Mapping from node ids to the component that the node is contained in.
+      * _3 : Edges between the components in the graph. This induced graph on components is acyclic.
       * */
     def fastCompute(N: Int, edges: Array[mutable.SortedSet[Int]]): (Vector[Component[Int]], Int => Component[Int], Array[mutable.SortedSet[Component[Int]]]) = {
       val cs = fastComponents(N, edges)
 
       val idToComponent = Array.ofDim[Component[Int]](N)
-      for (c <- cs; v <- c.nodes) { idToComponent(v) = c }
+      for (c <- cs; v <- c.nodes) {
+        idToComponent(v) = c
+      }
       val idToComponentF = idToComponent.apply _
 
       val csEdges = Array.fill(N)(mutable.SortedSet.empty[Component[Int]])
@@ -734,6 +836,7 @@ object ViperChopper {
 
     /**
       * Computes the strongly connected components of a graph using Tarjan's algorithm.
+      *
       * @param nodes Nodes of the graph.
       * @param edges Edges of the graph.
       * @return Vector containing the strongly connected components of the graph.
@@ -746,12 +849,13 @@ object ViperChopper {
 
     /**
       * Computes the strongly connected components of a graph using Tarjan's algorithm.
+      *
       * @param nodes Nodes of the graph.
       * @param edges Edges of the graph.
       * @return
-      *    _1 : Vector containing the strongly connected components of the graph.
-      *    _2 : Mapping from nodes to the component that the node is contained in.
-      *    _3 : Edges between the components in the graph. This induced graph on components is acyclic.
+      * _1 : Vector containing the strongly connected components of the graph.
+      * _2 : Mapping from nodes to the component that the node is contained in.
+      * _3 : Edges between the components in the graph. This induced graph on components is acyclic.
       * */
     def compute[T](nodes: Seq[T], edges: Seq[Edge[T]]): (Vector[Component[T]], Map[T, Component[T]], Seq[Edge[Component[T]]]) = {
       val cs = components(nodes, edges)
@@ -762,17 +866,19 @@ object ViperChopper {
 
     /**
       * Translates a graph to a graph on node ids.
+      *
       * @param nodes Nodes of the graph.
       * @param edges Edges of the graph.
       * @return
-      *    _1 : Number of nodes in the result graph.
-      *    _2 : Edges of the result graph.
-      *    _3 : Mapping from nodes to node ids.
-      *    _4 : Mapping from node ids to nodes.
+      * _1 : Number of nodes in the result graph.
+      * _2 : Edges of the result graph.
+      * _3 : Mapping from nodes to node ids.
+      * _4 : Mapping from node ids to nodes.
       * */
     private def toFastGraph[T](nodes: Seq[T], edges: Seq[Edge[T]]): (Int, Array[mutable.SortedSet[Int]], T => Int, Int => T) = {
       var counter = 0
       val indices = mutable.HashMap[T, Int]()
+
       def id(x: T): Int = indices.getOrElse(x, {
         val index = counter
         indices.put(x, index)
@@ -781,11 +887,13 @@ object ViperChopper {
       })
 
       nodes.foreach(id)
-      val idEdges = edges.map{ case (l,r) => (id(l), id(r)) }
+      val idEdges = edges.map { case (l, r) => (id(l), id(r)) }
       var rev = Map.empty[Int, T]
-      for ((t,idx) <- indices) rev += (idx -> t)
+      for ((t, idx) <- indices) rev += (idx -> t)
       val fastIdEdges = Array.fill(counter)(mutable.SortedSet.empty[Int])
-      for ((l,r) <- idEdges) { fastIdEdges(l).add(r) }
+      for ((l, r) <- idEdges) {
+        fastIdEdges(l).add(r)
+      }
 
       (counter, fastIdEdges, id, rev(_))
     }

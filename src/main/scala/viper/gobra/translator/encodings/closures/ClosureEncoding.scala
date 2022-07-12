@@ -106,8 +106,10 @@ class ClosureEncoding extends LeafTypeEncoding {
       } yield vpr.And(rest, ass) ())
     } yield vpr.Exhale(assertions)()
 
+
+    def isSubnode(sub: vpr.Node, n: vpr.Node): Boolean = (sub eq n) || n.subnodes.exists(n => isSubnode(sub, n))
     def failedExhale: ErrorTransformer = {
-      case errors.ExhaleFailed(offendingNode, reason, _) if exhalePosts.res.contains(offendingNode) =>
+      case errors.ExhaleFailed(offendingNode, reason, _) if isSubnode(offendingNode, exhalePosts.res) =>
         val info = proof.vprMeta._2.asInstanceOf[Source.Verifier.Info]
         reason match {
           case reason: reasons.AssertionFalse => reporting.SpecImplementationPostconditionError(info, proof.spec.info.tag)

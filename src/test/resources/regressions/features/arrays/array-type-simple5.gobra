@@ -9,6 +9,5 @@ type Point struct {
 }
 
 func foo() {
-	// should be implemented later, but does not work currently...
 	var a [2]Point
 }

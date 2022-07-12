@@ -495,7 +495,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))
-    case Deref(exp, _, _) => "*" <> showExpr(exp)
+    case Deref(exp, _) => "*" <> showExpr(exp)
     case Ref(ref, _) => "&" <> showAddressable(ref)
     case FieldRef(recv, field) => showExpr(recv) <> "."  <> field.name
     case StructUpdate(base, field, newVal) => showExpr(base) <> brackets(showField(field) <+> ":=" <+> showExpr(newVal))

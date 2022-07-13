@@ -281,14 +281,11 @@ trait MemberResolution { this: TypeInfoImpl =>
       case Left(expr) =>
         val methodLikeAttempts = tryMethodLikeLookup(expr, id)
         methodLikeAttempts match {
-          case (Some(_), Some(_)) =>
-            val errEntity = ErrorMsgEntity(error(id, s"cannot resolve $id: it is declared multiple times"))
-            Some((errEntity, Vector()))
           case (Some(v), _) if effAddressable(expr) => Some(v)
+          case (_, Some(v)) if !effAddressable(expr) => Some(v)
           case (Some(_), _) =>
             val errEntity = ErrorMsgEntity(error(id, s"$id requires the receiver to be effectively addressable, but got $expr instead"))
             Some((errEntity, Vector()))
-          case (_, Some(v)) if !effAddressable(expr) => Some(v)
           case (_, Some(_)) =>
             val errEntity = ErrorMsgEntity(error(id, s"$id expects a non-effectively addressable receiver, but got $expr instead"))
             Some((errEntity, Vector()))

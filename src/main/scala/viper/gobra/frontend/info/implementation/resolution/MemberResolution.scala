@@ -285,10 +285,10 @@ trait MemberResolution { this: TypeInfoImpl =>
 
         if (isEffAddressable && addr.nonEmpty) {
           addr
-        } else if (isGoEffAddressable && !isEffAddressable && addr.nonEmpty) {
-          val errEntity = ErrorMsgEntity(error(id, s"$id requires a shared receiver (an '@' annotation might be missing)."))
+        } else if (isGoEffAddressable && addr.nonEmpty && nonAddr.isEmpty) {
+          val errEntity = ErrorMsgEntity(error(id, s"$id requires a shared receiver ('share' or '@' annotations might be missing)."))
           Some((errEntity, Vector()))
-        } else if (isEffAddressable && nonAddr.nonEmpty) {
+        } else if (isEffAddressable && addr.isEmpty && nonAddr.nonEmpty) {
           val errEntity = ErrorMsgEntity(error(id, s"$id expects a non-effectively addressable receiver, but got $expr instead"))
           Some((errEntity, Vector()))
         } else if (!isEffAddressable && nonAddr.nonEmpty) {

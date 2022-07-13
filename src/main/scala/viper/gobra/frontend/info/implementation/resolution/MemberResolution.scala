@@ -198,7 +198,6 @@ trait MemberResolution { this: TypeInfoImpl =>
   def tryFieldLookup(t: Type, id: PIdnUse): Option[(StructMember, Vector[MemberPath])] =
     structMemberSet(t).lookupWithPath(id.name)
 
-  // TODO: doc
   def tryMethodLikeLookup(e: PExpression, id: PIdnUse):
     (Option[(TypeMember, Vector[MemberPath])], Option[(TypeMember, Vector[MemberPath])]) = {
     // check whether e is well-defined:

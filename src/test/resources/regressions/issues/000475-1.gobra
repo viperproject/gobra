@@ -31,9 +31,7 @@ func f(t T) {
 	t.inc()
 }
 
-// This did not work before this PR, even though the receiver can be marked as
-// addressable. Allowing it to ALSO appear in a 'share' clause makes the
-// language more consistent.
+// This did not work before PR #483, despite Gobra not complaining about it.
 func (t T) g() {
 	share t
 	t.inc()

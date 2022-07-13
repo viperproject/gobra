@@ -67,7 +67,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
         case tree.parent.pair(decl: PNamedParameter, _: PResult) => OutParameter(decl, isGhost, canParameterBeUsedAsShared(decl), this)
         case decl: PNamedParameter => InParameter(decl, isGhost, canParameterBeUsedAsShared(decl), this)
-        case decl: PNamedReceiver => ReceiverParameter(decl, isGhost, decl.addressable, this)
+        case decl: PNamedReceiver => ReceiverParameter(decl, isGhost, decl.addressable || canReceiverBeUsedAsShared(decl), this)
 
         case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost, addressable = false, this) // TODO: check if type switch variables are addressable in Go
 

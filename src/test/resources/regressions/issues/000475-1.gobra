@@ -4,31 +4,37 @@
 package main
 
 func main() {
-	t@ := T{1}
-	// fmt.Println(t) // 1
-	t.inc()
-	// fmt.Println(t) // 2
+	t1@ := T{1}
+	// fmt.Println(t1) // 1
+	assert t1.i == 1
+	t1.inc()
+	// fmt.Println(t1) // 2
+	assert t1.i == 2
+
+	t2 := T{1}
+	t2.g()
+	assert t2.i == 1
 }
 
 type T struct{
 	i int
 }
 
-requires acc(t)
+preserves acc(t)
+ensures   t.i == old(t.i) + 1
 func (t *T) inc() {
 	t.i += 1
 }
 
-// todo: add asserts on main
-
 func f(t T) {
-	share t
+	share t 
 	t.inc()
 }
 
-/* TODO
+// This did not work before this PR, even though the receiver can be marked as
+// addressable. Allowing it to ALSO appear in a 'share' clause makes the
+// language more consistent.
 func (t T) g() {
 	share t
 	t.inc()
 }
-*/

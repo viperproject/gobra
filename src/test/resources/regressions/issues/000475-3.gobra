@@ -3,12 +3,24 @@
 
 package main
 
-type T int
-
-// Go complains about redeclaration here
-func (t *T) inc() {
-	*t += 1
+type A struct {
+	F int
 }
 
-// Go complains about redeclaration here
-func (t T) inc() {}
+type B struct {
+	As []A
+}
+
+preserves acc(a)
+func (a *A) get_f() int {
+	return a.F
+}
+
+requires acc(b)
+requires acc(b.As)
+requires len(b.As) > 1
+func (b *B) sum() int {
+	first@ := b.As[0]
+	second@ := b.As[1]
+	return first.get_f() + second.get_f()
+}

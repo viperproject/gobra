@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import org.bitbucket.inkytonik.kiama.relation.Relation
 import org.bitbucket.inkytonik.kiama.util.Entity
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, error}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.PackageResolver.{AbstractImport, BuiltInImport, RegularImport}
 import viper.gobra.frontend.info.base.BuiltInMemberTag
@@ -198,14 +198,15 @@ trait MemberResolution { this: TypeInfoImpl =>
   def tryFieldLookup(t: Type, id: PIdnUse): Option[(StructMember, Vector[MemberPath])] =
     structMemberSet(t).lookupWithPath(id.name)
 
-  def tryMethodLikeLookup(e: PExpression, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])] = {
+  // TODO: doc
+  def tryMethodLikeLookup(e: PExpression, id: PIdnUse):
+    (Option[(TypeMember, Vector[MemberPath])], Option[(TypeMember, Vector[MemberPath])]) = {
     // check whether e is well-defined:
     if (wellDefExpr(e).valid) {
       val typ = exprType(e)
       val context = getMethodReceiverContext(typ)
-      if (effAddressable(e)) context.tryAddressableMethodLikeLookup(typ, id)
-      else context.tryNonAddressableMethodLikeLookup(typ, id)
-    } else None
+      (context.tryAddressableMethodLikeLookup(typ, id), context.tryNonAddressableMethodLikeLookup(typ, id))
+    } else (None, None)
   }
 
   def tryMethodLikeLookup(e: Type, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])] = {
@@ -279,9 +280,21 @@ trait MemberResolution { this: TypeInfoImpl =>
   def tryDotLookup(b: PExpressionOrType, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
     exprOrType(b) match {
       case Left(expr) =>
-        val methodLikeAttempt = tryMethodLikeLookup(expr, id)
-        if (methodLikeAttempt.isDefined) methodLikeAttempt
-        else tryFieldLookup(exprType(expr), id)
+        val methodLikeAttempts = tryMethodLikeLookup(expr, id)
+        methodLikeAttempts match {
+          case (Some(_), Some(_)) =>
+            val errEntity = ErrorMsgEntity(error(id, s"cannot resolve $id: it is declared multiple times"))
+            Some((errEntity, Vector()))
+          case (Some(v), _) if effAddressable(expr) => Some(v)
+          case (Some(_), _) =>
+            val errEntity = ErrorMsgEntity(error(id, s"$id requires the receiver to be effectively addressable, but got $expr instead"))
+            Some((errEntity, Vector()))
+          case (_, Some(v)) if !effAddressable(expr) => Some(v)
+          case (_, Some(_)) =>
+            val errEntity = ErrorMsgEntity(error(id, s"$id expects a non-effectively addressable receiver, but got $expr instead"))
+            Some((errEntity, Vector()))
+          case (None, None) => tryFieldLookup(exprType(expr), id)
+        }
 
       case Right(typ) =>
         val methodLikeAttempt = tryMethodLikeLookup(typ, id)

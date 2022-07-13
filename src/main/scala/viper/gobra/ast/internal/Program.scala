@@ -62,6 +62,7 @@ class LookupTable(
   def getFPredicates: Iterable[FPredicateLikeMember] = definedFPredicates.values
 
   def lookupImplementations(t: InterfaceT): SortedSet[Type] = getImplementations.getOrElse(t.withAddressability(Addressability.Exclusive), SortedSet.empty)
+  def lookupNonInterfaceImplementations(t: InterfaceT): SortedSet[Type] = lookupImplementations(t).filterNot(_.isInstanceOf[InterfaceT])
   def lookupMembers(t: Type): SortedSet[MemberProxy] = getMembers.getOrElse(t.withAddressability(Addressability.Exclusive), SortedSet.empty)
   def lookup(t: Type, name: String): Option[MemberProxy] = lookupMembers(t).find(_.name == name)
   def lookupImplementationPredicate(impl: Type, itf: InterfaceT, name: String): Option[PredicateProxy] = {
@@ -88,27 +89,34 @@ class LookupTable(
     var res = directInterfaceImplementations
     var resMemberProxies = directMemberProxies
 
-    var change = false
+    for ((_, values) <- res; t <- values) t match {
+      case t: InterfaceT if !res.contains(t) => res += (t -> SortedSet.empty)
+      case _ =>
+    }
 
-    def mergeProxies(l: SortedSet[MemberProxy], r: SortedSet[MemberProxy]): SortedSet[MemberProxy] = {
-      (l ++ r).foldLeft((SortedSet.empty[MemberProxy], SortedSet.empty[String])){ // always take first in sorted set
-        case ((res, set), x) if set.contains(x.name) => (res, set)
+    var change = false
+    var temp = res
+
+    def mergeProxies(l: Option[SortedSet[MemberProxy]], r: Option[SortedSet[MemberProxy]]): SortedSet[MemberProxy] = {
+      (l.getOrElse(SortedSet.empty[MemberProxy]) ++ r.getOrElse(SortedSet.empty[MemberProxy])).foldLeft((SortedSet.empty[MemberProxy], SortedSet.empty[String])){
+        case ((res, set), x) if set.contains(x.name) => (res, set) // always take first in sorted set
         case ((res, set), x) => (res ++ SortedSet(x), set ++ SortedSet(x.name))
       }._1
     }
-    val mapsTo = res.compose[Type]{ case t: InterfaceT => t }
-    def trans(key: Type, t: Type): SortedSet[Type] = t match {
+    val mapsTo = temp.compose[Type]{ case t: InterfaceT => t }
+    def trans(key: InterfaceT, t: Type): SortedSet[Type] = t match {
       case mapsTo(set) =>
         change = true
-        resMemberProxies += (key -> mergeProxies(resMemberProxies(key), resMemberProxies(t)))
+        res += (key -> (res(key) ++ set))
+        resMemberProxies += (t -> mergeProxies(resMemberProxies.get(t), resMemberProxies.get(key)))
         set
 
-      case _ => SortedSet(t)
+      case _ => SortedSet.empty
     }
 
     do {
       change = false
-      res = res.map{ case (key, values) => (key, values.flatMap(trans(key, _))) }
+      temp = temp.map{ case (key, values) => (key, values.flatMap(trans(key, _))) }
     } while (change)
 
     (res, resMemberProxies)

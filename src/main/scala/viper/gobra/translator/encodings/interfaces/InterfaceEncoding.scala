@@ -702,7 +702,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val pProxy = Names.InterfaceMethod.origin(p.name)
 
     val itfT = p.receiver.typ.asInstanceOf[in.InterfaceT]
-    val impls = ctx.table.lookupImplementations(itfT).toVector
+    val impls = ctx.table.lookupNonInterfaceImplementations(itfT).toVector
     val cases = impls.flatMap(impl => ctx.table.lookup(impl, pProxy.name).map(impl -> _))
 
     val recvDecl = vpr.LocalVarDecl(Names.implicitThis, vprInterfaceType(ctx))(pos, info, errT)

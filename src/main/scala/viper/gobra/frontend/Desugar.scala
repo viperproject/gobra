@@ -1128,15 +1128,62 @@ object Desugar {
           case n@PBreak(label) => unit(in.Break(label.map(x => x.name), nm.fetchBreakLabel(n, info))(src))
 
           case n@PShortForRange(range, shorts, spec, body) => for {
-            x <- exprD(ctx)(range.exp)
-            _ = x.typ match {
-              case _ : in.SliceT => println("slice")
-              case _ : in.ArrayT => println("array")
-              case _ : in.MapT => println("map")
-              case _ : in.StringT => println("string")
+            exp <- goE(range.exp)
+            ret <- exp.typ match {
+              case slice : in.SliceT =>
+                for {
+                  copiedVar <- freshDeclaredExclusiveVar(exp.typ, n, info)(src)
+                  _ <- write(in.Initialization(copiedVar)(src))
+                  copyAss = singleAss(in.Assignee.Var(copiedVar), exp)(src)
+                  _ = println(s"COPYASS: $copyAss")
+
+                  indexLeft <- leftOfAssignmentD(shorts(0))(in.IntT(Addressability.exclusiveVariable))
+                  indexVar = in.Assignee.Var(indexLeft)
+                  indexAss = singleAss(indexVar, in.IntLit(0)(src))(src)
+                  _ = println(s"INDEXASS: $indexAss")
+
+                  valueLeft <- leftOfAssignmentD(shorts(1))(slice.elems)
+                  valueVar = in.Assignee.Var(valueLeft)
+                  valueAss = singleAss(valueVar, in.IndexedExp(copiedVar, in.IntLit(0)(src), slice)(src))(src)
+                  _ = println(s"VALUEASS: $valueAss")
+
+                  incrIndex = singleAss(indexVar, in.Add(indexLeft, in.IntLit(1)(src))(src))(src)
+                  _ = println(s"ICRINDEX: $incrIndex")
+
+                  incrValue = singleAss(valueVar, in.IndexedExp(copiedVar, indexLeft, slice)(src))(src)
+                  _ = println(s"INCRVALUE: $incrValue")
+
+                  length = in.Length(copiedVar)(src)
+                  cond = in.LessCmp(valueLeft, length)(src)
+                  _ = println(s"COND: $cond")
+
+                  (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
+                  (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
+                  dBody = blockD(ctx)(body)
+
+                  continueLabelName = nm.continueLabel(n, info)
+                  continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
+                  continueLoopLabel = in.Label(continueLoopLabelProxy)(src)
+
+                  breakLabelName = nm.breakLabel(n, info)
+                  breakLoopLabelProxy = in.LabelProxy(breakLabelName)(src)
+                  _ <- declare(breakLoopLabelProxy)
+                  breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
+
+                  wh = in.Seqn(
+                    Vector(copyAss, indexAss, valueAss) ++ dInvPre ++ dTerPre ++ Vector(
+                      in.While(cond, dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
+                        Vector(incrValue, dBody, continueLoopLabel, incrIndex) ++ dInvPre ++ dTerPre
+                      )(src))(src), breakLoopLabel
+                    )
+                  )(src)
+                } yield wh
+              case _ : in.ArrayT => violation("Arrays are not supported yet in range")
+              case _ : in.MapT => violation("Maps are not supported yet in range")
+              case _ : in.StringT => violation("Strings are not supported yet in range")
               case t => violation(s"Range not applicable to type $t")
             }
-          } yield ???
+          } yield ret
 
           case _ => ???
         }
@@ -3338,10 +3385,10 @@ object Desugar {
     }
 
     /** returns the relativeId with the CONTINUE_LABEL_SUFFIX appended */
-    def continueLabel(loop: PForStmt, info: TypeInfo) : String = relativeId(loop, info) + CONTINUE_LABEL_SUFFIX
+    def continueLabel(loop: PNode, info: TypeInfo) : String = relativeId(loop, info) + CONTINUE_LABEL_SUFFIX
 
     /** returns the relativeId with the BREAK_LABEL_SUFFIX appended */
-    def breakLabel(loop: PForStmt, info: TypeInfo) : String = relativeId(loop, info) + BREAK_LABEL_SUFFIX
+    def breakLabel(loop: PNode, info: TypeInfo) : String = relativeId(loop, info) + BREAK_LABEL_SUFFIX
 
     /**
       * Finds the enclosing loop which the continue statement refers to and fetches its

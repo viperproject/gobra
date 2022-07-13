@@ -141,7 +141,6 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
   /** a receiver can be used as shared if it is included in the shared clause of the enclosing function or method */
   lazy val canReceiverBeUsedAsShared: PReceiver => Boolean =
     attr[PReceiver, Boolean] {
-      case n: PNamedReceiver if n.addressable => true
       case n: PNamedReceiver =>
         enclosingCodeRoot(n) match {
           case c: PMethodDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))

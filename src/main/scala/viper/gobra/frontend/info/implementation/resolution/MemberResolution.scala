@@ -279,19 +279,26 @@ trait MemberResolution { this: TypeInfoImpl =>
   def tryDotLookup(b: PExpressionOrType, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
     exprOrType(b) match {
       case Left(expr) =>
-        val methodLikeAttempts = tryMethodLikeLookup(expr, id)
-        methodLikeAttempts match {
-          case (Some(v), _) if effAddressable(expr) => Some(v)
-          case (_, Some(v)) if !effAddressable(expr) => Some(v)
-          case (Some(_), _) =>
-            val errEntity = ErrorMsgEntity(error(id, s"$id requires the receiver to be effectively addressable, but got $expr instead"))
-            Some((errEntity, Vector()))
-          case (_, Some(_)) =>
-            val errEntity = ErrorMsgEntity(error(id, s"$id expects a non-effectively addressable receiver, but got $expr instead"))
-            Some((errEntity, Vector()))
-          case (None, None) => tryFieldLookup(exprType(expr), id)
-        }
+        val (addr, nonAddr) = tryMethodLikeLookup(expr, id)
+        val isGoEffAddressable = goEffAddressable(expr)
+        val isEffAddressable = effAddressable(expr)
 
+        if (isEffAddressable && addr.nonEmpty) {
+          addr
+        } else if (isGoEffAddressable && !isEffAddressable && addr.nonEmpty) {
+          val errEntity = ErrorMsgEntity(error(id, s"$id requires a shared receiver (an '@' annotation might be missing)."))
+          Some((errEntity, Vector()))
+        } else if (isEffAddressable && nonAddr.nonEmpty) {
+          val errEntity = ErrorMsgEntity(error(id, s"$id expects a non-effectively addressable receiver, but got $expr instead"))
+          Some((errEntity, Vector()))
+        } else if (!isEffAddressable && nonAddr.nonEmpty) {
+          nonAddr
+        } else if (!isEffAddressable && addr.nonEmpty) {
+          val errEntity = ErrorMsgEntity(error(id, s"$id requires the receiver to be effectively addressable, but got $expr instead"))
+          Some((errEntity, Vector()))
+        } else {
+          tryFieldLookup(exprType(expr), id)
+        }
       case Right(typ) =>
         val methodLikeAttempt = tryMethodLikeLookup(typ, id)
         if (methodLikeAttempt.isDefined) methodLikeAttempt

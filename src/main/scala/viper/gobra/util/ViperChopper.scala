@@ -74,7 +74,7 @@ object ViperChopper {
     def boundedCut[T](graph: ViperGraph)(
       bound: Option[Int],
       penalty: Penalty[Vertex]
-    ): (Vector[Set[Int]], Metrics) = {
+    ): (Vector[ViperGraph.Program], Metrics) = {
       require(bound.forall(_ > 0), s"Got $bound as the size of the cut, but expected positive number")
 
       /**
@@ -309,17 +309,17 @@ object ViperChopper {
 
       val queue = mutable.PriorityQueue(init: _*)(Ordering.by(-_._1))
 
-      while (queue.exists(e => isAlive(e._2)) && (queue.headOption.exists(_._1 <= 0) || bound.exists(sets.size > _))) {
+      while (queue.nonEmpty && (queue.head._1 <= 0 || bound.exists(sets.size > _))) {
         var x = queue.dequeue()
-        while (!isAlive(x._2)) {
+        while (!isAlive(x._2) && queue.nonEmpty) {
           x = queue.dequeue()
         } // dequeue until valid merge
 
         // if head had penalty 0 before, this might be outdated now.
         // Therefore, loop condition is checked again.
-        if (x._1 <= 0 || bound.exists(sets.size > _)) {
+        if (isAlive(x._2) && (x._1 <= 0 || bound.exists(sets.size > _))) {
           val (_, (lIdx, rIdx), newRep) = x
-          sets.remove(lIdx);
+          sets.remove(lIdx)
           sets.remove(rIdx)
           val newIdx = counter
           counter += 1
@@ -452,12 +452,14 @@ object ViperChopper {
                             val importantNodes: Vector[Int],
                             val edges: Array[mutable.SortedSet[Int]],
                             val toVertex: Int => Vertex,
-                            private val toVpr: Set[Int] => vpr.Program,
+                            private val toVpr: ViperGraph.Program => vpr.Program,
                           ) {
-    def unapply(nodes: Set[Int]): Option[vpr.Program] = Some(toVpr(nodes))
+    def unapply(nodes: ViperGraph.Program): Option[vpr.Program] = Some(toVpr(nodes))
   }
 
   object ViperGraph {
+
+    type Program = Set[Int]
 
     /**
       * Transforms program into a graph with int nodes, which enable us to use faster algorithms.
@@ -502,7 +504,7 @@ object ViperChopper {
       }
 
       val setOfVerticesToProgram = Vertex.inverse(program)
-      val setOfIdsToProgram = (set: Set[Int]) => setOfVerticesToProgram(set map idToVertex)
+      val setOfIdsToProgram = (set: ViperGraph.Program) => setOfVerticesToProgram(set map idToVertex)
 
       new ViperGraph(
         numberOfNodes = N,

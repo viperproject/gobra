@@ -1133,32 +1133,39 @@ object Desugar {
               case slice : in.SliceT =>
                 for {
                   copiedVar <- freshDeclaredExclusiveVar(exp.typ, n, info)(src)
-                  _ <- write(in.Initialization(copiedVar)(src))
                   copyAss = singleAss(in.Assignee.Var(copiedVar), exp)(src)
-                  _ = println(s"COPYASS: $copyAss")
 
                   indexLeft <- leftOfAssignmentD(shorts(0))(in.IntT(Addressability.exclusiveVariable))
                   indexVar = in.Assignee.Var(indexLeft)
                   indexAss = singleAss(indexVar, in.IntLit(0)(src))(src)
-                  _ = println(s"INDEXASS: $indexAss")
 
                   valueLeft <- leftOfAssignmentD(shorts(1))(slice.elems)
                   valueVar = in.Assignee.Var(valueLeft)
                   valueAss = singleAss(valueVar, in.IndexedExp(copiedVar, in.IntLit(0)(src), slice)(src))(src)
-                  _ = println(s"VALUEASS: $valueAss")
 
                   incrIndex = singleAss(indexVar, in.Add(indexLeft, in.IntLit(1)(src))(src))(src)
-                  _ = println(s"ICRINDEX: $incrIndex")
 
-                  incrValue = singleAss(valueVar, in.IndexedExp(copiedVar, indexLeft, slice)(src))(src)
-                  _ = println(s"INCRVALUE: $incrValue")
+                  updateValue = singleAss(valueVar, in.IndexedExp(copiedVar, indexLeft, slice)(src))(src)
 
                   length = in.Length(copiedVar)(src)
-                  cond = in.LessCmp(valueLeft, length)(src)
-                  _ = println(s"COND: $cond")
+                  cond = in.LessCmp(indexLeft, length)(src)
 
                   (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
+                  forAllVar = in.BoundVar(nm.fresh(n, info), in.IntT(Addressability.exclusiveVariable))(src)
+                  sliceInvs = Vector[in.Assertion](
+                    in.ExprAssertion(in.And(in.AtMostCmp(in.IntLit(0)(src), indexLeft)(src), in.AtMostCmp(indexLeft, length)(src))(src))(src),
+                    in.SepForall(
+                    Vector(forAllVar),
+                    Vector.empty,
+                    in.Implication(
+                      in.And(
+                        in.AtMostCmp(in.IntLit(0)(src), forAllVar)(src),
+                        in.LessCmp(forAllVar, length)(src))(src),
+                      in.Access(in.Accessible.Address(in.IndexedExp(copiedVar, forAllVar, slice)(src)), in.FullPerm(src))(src)
+                    )(src))(src))
+
                   (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
+
                   dBody = blockD(ctx)(body)
 
                   continueLabelName = nm.continueLabel(n, info)
@@ -1172,8 +1179,8 @@ object Desugar {
 
                   wh = in.Seqn(
                     Vector(copyAss, indexAss, valueAss) ++ dInvPre ++ dTerPre ++ Vector(
-                      in.While(cond, dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
-                        Vector(incrValue, dBody, continueLoopLabel, incrIndex) ++ dInvPre ++ dTerPre
+                      in.While(cond, /*sliceInvs ++ */dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
+                        Vector(dBody, continueLoopLabel, incrIndex, updateValue) ++ dInvPre ++ dTerPre
                       )(src))(src), breakLoopLabel
                     )
                   )(src)

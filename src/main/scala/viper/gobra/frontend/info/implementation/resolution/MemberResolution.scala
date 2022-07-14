@@ -280,10 +280,13 @@ trait MemberResolution { this: TypeInfoImpl =>
     exprOrType(b) match {
       case Left(expr) =>
         val (addr, nonAddr) = tryMethodLikeLookup(expr, id)
-        val isGoEffAddressable = goEffAddressable(expr)
-        val isEffAddressable = effAddressable(expr)
+        lazy val isGoEffAddressable = goEffAddressable(expr)
+        lazy val isEffAddressable = effAddressable(expr)
 
-        if (isEffAddressable && addr.nonEmpty) {
+        if (addr.isEmpty && nonAddr.isEmpty) {
+          // could not find the corresponding member
+          tryFieldLookup(exprType(expr), id)
+        } else if (isEffAddressable && addr.nonEmpty) {
           addr
         } else if (isGoEffAddressable && addr.nonEmpty && nonAddr.isEmpty) {
           val errEntity = ErrorMsgEntity(error(id, s"$id requires a shared receiver ('share' or '@' annotations might be missing)."))
@@ -297,7 +300,7 @@ trait MemberResolution { this: TypeInfoImpl =>
           val errEntity = ErrorMsgEntity(error(id, s"$id requires the receiver to be effectively addressable, but got $expr instead"))
           Some((errEntity, Vector()))
         } else {
-          tryFieldLookup(exprType(expr), id)
+          Violation.violation(s"unexpected case reached: $expr")
         }
       case Right(typ) =>
         val methodLikeAttempt = tryMethodLikeLookup(typ, id)

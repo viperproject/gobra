@@ -137,4 +137,16 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: PUnnamedParameter => false
       case PExplicitGhostParameter(p) => canParameterBeUsedAsShared(p)
     }
+
+  /** a receiver can be used as shared if it is included in the shared clause of the enclosing function or method */
+  lazy val canReceiverBeUsedAsShared: PReceiver => Boolean =
+    attr[PReceiver, Boolean] {
+      case n: PNamedReceiver =>
+        enclosingCodeRoot(n) match {
+          case c: PMethodDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
+          case c: PFunctionDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
+          case _ => false
+        }
+      case _: PUnnamedReceiver => false
+    }
 }

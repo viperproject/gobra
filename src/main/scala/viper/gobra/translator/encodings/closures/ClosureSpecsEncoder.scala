@@ -58,9 +58,12 @@ protected class ClosureSpecsEncoder {
   }
 
   private def doesNotImplementSpecErr(closureExpr: in.Expr, spec: in.ClosureSpec): ErrorTransformer = {
-    case vprerr.PreconditionInCallFalse(Source(info), reasons.AssertionFalse(vpr.FuncApp(funcName, Seq(closure))), _)
+    case vprerr.PreconditionInCallFalse(Source(info), reasons.AssertionFalse(vpr.FuncApp(funcName, args)), _)
       if info.isInstanceOf[Source.Verifier.Info] &&
-         closure.info.asInstanceOf[Source.Verifier.Info].node == closureExpr &&
+        args.size == 1 + spec.params.size &&
+        args.head.info.asInstanceOf[Source.Verifier.Info].node == closureExpr &&
+        args.tail.zip(spec.params.toVector.sortBy(p => p._1).map(p => p._2))
+          .forall(p => p._1.info.asInstanceOf[Source.Verifier.Info].node == p._2) &&
          funcName == implementsFunctionName(spec) =>
             PreconditionError(info).dueTo(SpecNotImplementedByClosure(info, closureExpr.info.tag, spec.info.tag))
   }

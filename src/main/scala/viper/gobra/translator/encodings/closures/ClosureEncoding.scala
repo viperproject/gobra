@@ -64,6 +64,9 @@ class ClosureEncoding extends LeafTypeEncoding {
 
     case e@in.DfltVal(_) :: ctx.Function(t) / Exclusive =>
       ctx.expression(in.PureFunctionCall(in.FunctionProxy(Names.closureDefaultFunc)(e.info), Vector.empty, t)(e.info))
+
+    case e@in.NilLit(_) :: ctx.Function(t) =>
+      ctx.expression(in.PureFunctionCall(in.FunctionProxy(Names.closureDefaultFunc)(e.info), Vector.empty, t)(e.info))
   }
 
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = default(super.statement(ctx)) {

@@ -288,16 +288,16 @@ trait MemberResolution { this: TypeInfoImpl =>
           tryFieldLookup(exprType(expr), id)
         } else if (isEffAddressable && addr.nonEmpty) {
           addr
+        } else if (!isEffAddressable && nonAddr.nonEmpty) {
+          nonAddr
         } else if (isGoEffAddressable && addr.nonEmpty && nonAddr.isEmpty) {
           val errEntity = ErrorMsgEntity(error(id, s"$id requires a shared receiver ('share' or '@' annotations might be missing)."))
           Some((errEntity, Vector()))
-        } else if (isEffAddressable && addr.isEmpty && nonAddr.nonEmpty) {
-          val errEntity = ErrorMsgEntity(error(id, s"$id expects a non-effectively addressable receiver, but got $expr instead"))
-          Some((errEntity, Vector()))
-        } else if (!isEffAddressable && nonAddr.nonEmpty) {
-          nonAddr
         } else if (!isEffAddressable && addr.nonEmpty) {
           val errEntity = ErrorMsgEntity(error(id, s"$id requires the receiver to be effectively addressable, but got $expr instead"))
+          Some((errEntity, Vector()))
+        } else if (isEffAddressable && addr.isEmpty && nonAddr.nonEmpty) {
+          val errEntity = ErrorMsgEntity(error(id, s"$id expects a non-effectively addressable receiver, but got $expr instead"))
           Some((errEntity, Vector()))
         } else {
           Violation.violation(s"unexpected case reached: $expr")

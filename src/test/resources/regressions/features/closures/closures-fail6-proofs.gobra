@@ -1,0 +1,68 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresFail6Proofs
+
+ghost
+requires x >= 0
+ensures y == x
+pure func pspec(x int) (y int)
+
+func test1() {
+    cl :=
+        requires x >= 10
+        pure func id(x int)(y int) {
+            return x
+        }
+
+    proof cl implements pspec {
+        //:: ExpectedOutput(precondition_error)
+        return cl(x) as id
+    } 
+}
+
+func test2() {
+    cl :=
+        requires x >= 0
+        pure func id(x int)(y int) {
+            return x + 1
+        }
+
+    //:: ExpectedOutput(spec_implementation_post_error:assertion_error)
+    proof cl implements pspec {
+        return cl(x) as id
+    }
+}
+
+ghost
+requires x >= 0
+ensures y == x + 2
+func spec(x int) (y int)
+
+func test3() {
+    cl :=
+        requires x >= 10
+        ensures y == x + 2
+        func id(x int)(y int) {
+            return x + 2
+        }
+
+    proof cl implements spec {
+        //:: ExpectedOutput(precondition_error)
+        return cl(x) as id
+    } 
+}
+
+func test4() {
+    cl :=
+        requires x >= 0
+        ensures y == x + 1
+        func id(x int)(y int) {
+            return x + 1
+        }
+
+    //:: ExpectedOutput(spec_implementation_post_error:assertion_error)
+    proof cl implements spec {
+        return cl(x) as id
+    } 
+}

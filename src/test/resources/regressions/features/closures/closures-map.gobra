@@ -1,74 +1,154 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package closuresMap 
+// Adapted from Wolff et al. (2021)
+
+package mapVec
 
 type Inv interface {
-    pred inv()
+    pred inv(ghost seq[int])
 
     ghost
-    requires inv()
-    pure res(x int) int
+    requires len(calls) > 0
+    pure res(ghost calls seq[int]) int
 }
 
 ghost
-preserves p != nil && p.inv()
-ensures y == p.res(x)
-ensures forall x int :: old(p.res(x)) == p.res(x)
-func mapF(ghost p Inv, x int)(y int)
+requires inv != nil && inv.inv(prev_calls)
+ensures inv.inv(prev_calls ++ seq[int]{x}) && y == inv.res(prev_calls ++ seq[int]{x})
+func fspec(ghost inv Inv, ghost prev_calls seq[int], x int)(y int)
 
+ghost
+requires forall i int :: i >= 0 && i < len(v) ==> acc(&v[i], _)
+ensures len(s) == len(v)
+ensures forall i int :: i >= 0 && i < len(v) ==> s[i] == v[i]
+pure func toSeq(v []int) (s seq[int]) {
+    return len(v) == 0 ? seq[int]{} : (toSeq(v[:len(v)-1]) ++ seq[int]{v[len(v)-1]})
+}
 
-requires c implements mapF{p} && p != nil && p.inv()
+requires inv != nil && inv.inv(seq[int]{}) && f implements fspec{inv}
 requires forall i int :: i >= 0 && i < len(v) ==> acc(&v[i])
-ensures p.inv() && forall i int :: i >= 0 && i < len(v) ==> acc(&v[i]) && v[i] == p.res(old(v[i]))
-ensures forall x int :: old(p.res(x)) == p.res(x)
-func mapOverVector(ghost p Inv, c func(int)int, v []int) {
-    invariant i >= 0 && i <= len(v) && p.inv()
+ensures inv.inv(old(toSeq(v)))
+ensures forall i int :: i >= 0 && i < len(v) ==> acc(&v[i]) && v[i] == inv.res(old(toSeq(v))[:(i+1)])
+func mapVec(v []int, ghost inv Inv, f func(ghost seq[int], int)int) {
+    ghost s := toSeq(v)
+
+    invariant i >= 0 && i <= len(v)
+    invariant inv.inv(s[:i])
     invariant forall j int :: j >= 0 && j < len(v) ==> acc(&v[j])
-    invariant forall j int :: j >= i && j < len(v) ==> v[j] == old(v[j])
-    invariant forall j int :: j >= 0 && j < i ==> v[j] == p.res(old(v[j]))
-    invariant forall x int :: old(p.res(x)) == p.res(x)
+    invariant forall j int :: j >= 0 && j < i ==> v[j] == inv.res(s[:(j+1)])
+    invariant forall j int :: j >= i && j < len(v) ==> v[j] == s[j]
     for i := 0; i < len(v); i += 1 {
-        v[i] = c(v[i]) as mapF{p}
+        assert v[i] == s[i]
+        v[i] = f(s[:i], v[i]) as fspec{inv}
+        assert s[:(i+1)] == s[:i] ++ seq[int]{s[i]}
+        assert v[i] == inv.res(s[:(i+1)])
     }
 }
 
-
-type Add struct { n *int }
-pred (self Add) inv() {
-    acc(self.n, 1/2)
-}
+type Times3 struct{}
+pred (self Times3) inv(ghost seq[int]) { true }
 ghost
-requires self.inv()
-pure func (self Add) res(x int) int {
-    return unfolding self.inv() in (*self.n + x)
+requires len(calls) > 0
+pure func (self Times3) res(ghost calls seq[int]) int {
+    return calls[len(calls)-1] * 3
 }
 
-requires true
-func main() {
-    a@ := 10
-    c :=    preserves acc(&a, 1/2)
-            ensures y == a + x && a == old(a)
-            func addA(x int)(y int) {
-                return a + x
+func test1() {
+    v := []int{1,2,3}
+
+    cl :=   pure func t3(ghost seq[int], x int)int {
+                return x * 3
             }
+    proof cl implements fspec{Times3{}} {
+        unfold Times3{}.inv(prev_calls)
+        y = cl(prev_calls, x) as t3
+        fold Times3{}.inv(prev_calls ++ seq[int]{x})
+    }
+
+    fold Times3{}.inv(seq[int]{})
+    mapVec(v, Times3{}, cl)
+
+    assert v[0] == 3
+    assert v[1] == 6
+    assert v[2] == 9
+}
+
+type CntFrom struct { c *int; from int }
+pred (self CntFrom) inv(ghost calls seq[int]) { acc(self.c) && *self.c == self.from + len(calls) }
+ghost
+requires len(calls) > 0
+pure func (self CntFrom) res(ghost calls seq[int]) int {
+    return self.from + len(calls) - 1
+}
+
+func test2() {
+    v := []int{1,2,3}
+
+    n@ := 7
+    cl :=   preserves acc(&n)
+            ensures y == old(n) && n == old(n) + 1
+            func ctr(ghost seq[int], int)(y int) {
+                y = n
+                n += 1
+            }
+    proof cl implements fspec{CntFrom{&n, 7}} {
+        unfold CntFrom{&n, 7}.inv(prev_calls)
+        y = cl(prev_calls, x) as ctr
+        fold CntFrom{&n, 7}.inv(prev_calls ++ seq[int]{x})
+    }
+
+    fold CntFrom{&n, 7}.inv(seq[int]{})
+    ghost s := toSeq(v)
+    mapVec(v, CntFrom{&n, 7}, cl)
+
+    assert v[0] == 7
+    assert v[1] == 8
+    assert v[2] == 9
+
+    unfold CntFrom{&n, 7}.inv(s)
+    assert n == 10
+}
+
+ghost
+ensures forall k int :: k > 0 && len(s) == k ==> res == s[k-1] + seqSum(s[:(k-1)])
+pure func seqSum(s seq[int]) (res int) {
+    return len(s) == 0 ? 0 : (s[len(s)-1] + seqSum(s[:(len(s)-1)]))
+}
+
+type Acc struct { s *int; from int }
+pred (self Acc) inv(ghost calls seq[int]) { acc(self.s) && *self.s == seqSum(calls) + self.from }
+ghost
+requires len(calls) > 0
+pure func (self Acc) res(ghost calls seq[int]) int {
+    return self.from + seqSum(calls)
+}
+
+func test3() {
+    v := []int{1,2,3}
+
+    a@ := 2
+    cl :=   preserves acc(&a)
+            ensures y == a && a == old(a) + x
+            func accumulate(ghost seq[int], x int)(y int) {
+                a += x
+                return a
+            }
+    proof cl implements fspec{Acc{&a, 2}} {
+        unfold Acc{&a, 2}.inv(prev_calls)
+        y = cl(prev_calls, x) as accumulate
+        assert (prev_calls ++ seq[int]{x})[:(len(prev_calls))] == prev_calls
+        fold Acc{&a, 2}.inv(prev_calls ++ seq[int]{x})
+    }
     
-    proof c implements mapF{Add{&a}} {
-        unfold Add{&a}.inv()
-        y = c(x) as addA
-        fold Add{&a}.inv()
-    }
-    fold Add{&a}.inv()
 
-    ghost {
-        assert (unfolding Add{&a}.inv() in *(Add{&a}.n)) == 10
-    }
+    fold Acc{&a, 2}.inv(seq[int]{})
+    
+    ghost s := toSeq(v)
+    mapVec(v, Acc{&a, 2}, cl)
 
-    v := []int{1,2,3,4,5,6}
 
-    ghost var p Inv = Add{&a}
-    mapOverVector(p, c, v)
-
-    assert v[5] == p.res(6)
-    assert v[5] == 16
+    assert v[0] == 3
+    assert v[1] == 5
+    assert v[2] == 8
 }

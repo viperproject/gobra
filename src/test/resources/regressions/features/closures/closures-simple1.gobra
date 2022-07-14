@@ -3,14 +3,6 @@
 
 package closuresSimple1
 
-ghost
-requires p.inv() && a >= 0
-ensures p.inv() && r >= 0
-func pos(ghost p interface{pred inv();}, a int) (r int)
-
-type proof1 struct { x *int }
-pred (p proof1) inv() { acc(p.x) && *p.x >= 0 }
-
 func main() {
 	x@ := 0
 	c := preserves acc(&x)
@@ -23,19 +15,6 @@ func main() {
     r := c(10) as f
     assert x == 10 && r == 10
 
-	proof c implements pos{p: proof1{&x}} {
-		unfold proof1{&x}.inv()
-		r = c(a) as f
-		fold proof1{&x}.inv()
-	}
-
-	fold proof1{&x}.inv()
-
-	hof(c, proof1{&x})
-}
-
-preserves p.inv() && c implements pos{p}
-func hof(c func(int) int, ghost p interface{pred inv()}) {
-	v := c(42) as pos{p: p}
-	assert v >= 0
+	r = c(5) as f
+	assert x == 15 && r == 15
 }

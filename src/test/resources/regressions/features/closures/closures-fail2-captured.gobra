@@ -1,0 +1,50 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresFail2Captured
+
+func test1() {
+    x := 0
+    // x is not addressable
+
+    cl :=
+        //:: ExpectedOutput(type_error)   
+        preserves acc(&x)
+        func(n int)int {
+            return n + x
+        }
+}
+
+func test2() {
+    x := 0
+    // x is not addressable
+
+    cl :=
+        //:: ExpectedOutput(type_error)   
+        requires acc(&x)
+        pure func(n int)int {
+            return n + x
+        }
+}
+
+func test3() {
+    x := 0
+    // x is not addressable
+
+    cl :=
+        func(n int)int {
+            //:: ExpectedOutput(type_error)   
+            return n + x
+        }
+}
+
+func test4() {
+    x := 0
+    // x is not addressable
+
+    cl :=
+        pure func(n int)int {
+            //:: ExpectedOutput(type_error)   
+            return n + x
+        }
+}

@@ -135,10 +135,11 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     def pureWellDefIfRightShape: Messages = if (!isPure) {
       noMessages
-    } else {
-      val retExpr = b.nonEmptyStmts.head.asInstanceOf[PReturn].exps.head
-      pureImplementationProofHasRightShape(retExpr, isExpectedCall, expectedCallString)
-        .asReason(retExpr, "invalid return expression of an implementation proof")
+    } else b.nonEmptyStmts match {
+      case Vector(PReturn(Vector(retExpr))) =>
+        pureImplementationProofHasRightShape(retExpr, isExpectedCall, expectedCallString)
+          .asReason(retExpr, "invalid return expression of an implementation proof")
+      case _ => error(b, "invalid body of a pure implementation proof: expected a single return")
     }
 
     def wellDefIfRightShape: Messages =

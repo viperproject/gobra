@@ -10,7 +10,7 @@ func test1() {
           }
     assert cl(2) as s == 3
 
-    //:: ExpectedOutput(precondition_error)
+    //:: ExpectedOutput(precondition_error:assertion_error)
     assert cl(-1) as s == 0
 }
 
@@ -21,7 +21,7 @@ func test2() {
             return n + 1
           }
     cl(2) as s
-    //:: ExpectedOutput(precondition_error)
+    //:: ExpectedOutput(precondition_error:assertion_error)
     cl(-1) as s
 }
 
@@ -34,7 +34,7 @@ func test3() {
     assert cl() as s == 1
 
     x = -1
-    //:: ExpectedOutput(precondition_error)
+    //:: ExpectedOutput(precondition_error:assertion_error)
     assert cl() as s == 0 
 }
 
@@ -48,7 +48,7 @@ func test4() {
           }
     cl() as s
     cl() as s
-    //:: ExpectedOutput(precondition_error)
+    //:: ExpectedOutput(precondition_error:assertion_error)
     cl() as s
 }
 
@@ -63,6 +63,22 @@ func test5() {
     cl() as s
     // Lost access to x
     
-    //:: ExpectedOutput(precondition_error)
+    //:: ExpectedOutput(precondition_error:permission_error)
     cl() as s
+}
+
+ensures res >= 0
+func spec()(res int)
+
+func test6() {
+    x@ := 1
+    cl := requires acc(&x)
+          ensures res == old(x)
+          func s()(res int) {
+            return x
+          }
+
+    // cl does not implement spec
+    //:: ExpectedOutput(precondition_error:spec_not_implemented)
+    cl() as spec
 }

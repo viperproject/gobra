@@ -1,7 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package closuresRecursion
+package closuresRecursion1Simple
 
 ghost
 requires n >= 0
@@ -14,6 +14,7 @@ func main() {
     c = requires n >= 0
         preserves acc(&c, 1/2) && c == factorial
         ensures r == fact(n)
+        decreases n
         func factorial(n int) (r int) {
             if n == 0 {
                 return 1

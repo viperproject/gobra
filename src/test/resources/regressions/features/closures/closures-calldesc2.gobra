@@ -1,0 +1,72 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresCallDesc2
+
+// This example shows how it is possible for a higher-order function to express
+// that some calls happened in a specific order
+
+type Calls interface {
+    // The invariant and result might depends on the entire sequence of calls
+    pred inv(ghost seq[int])
+
+    ghost
+    requires len(calls) > 0
+    pure res(ghost calls seq[int]) int
+}
+
+
+ghost
+requires x >= 0 && cs != nil && cs.inv(prev)
+ensures cs.inv(prev ++ seq[int]{x}) && res == cs.res(prev ++ seq[int]{x})
+func spec(ghost cs Calls, ghost prev seq[int], x int) (res int)
+
+requires f implements spec{cs}
+requires cs != nil && cs.inv(seq[int]{})
+ensures cs.inv(seq[int]{2,3,5})
+ensures res == cs.res(seq[int]{2}) + cs.res(seq[int]{2,3}) + cs.res(seq[int]{2,3,5})
+func hof(ghost cs Calls, f func(ghost seq[int], int)int)(res int) {
+    res = f(seq[int]{}, 2) as spec{cs}
+    res += f(seq[int]{2}, 3) as spec{cs}
+    res += f(seq[int]{2, 3}, 5) as spec{cs}
+}
+
+ghost
+ensures forall k int :: k > 0 && len(s) == k ==> res == s[k-1] + seqSum(s[:(k-1)])
+pure func seqSum(s seq[int]) (res int) {
+    return len(s) == 0 ? 0 : (s[len(s)-1] + seqSum(s[:(len(s)-1)]))
+}
+
+type Acc struct { accum *int }
+pred (self Acc) inv(ghost calls seq[int]) {
+    acc(self.accum) && *self.accum >= 0 && *self.accum == seqSum(calls)
+}
+ghost
+pure func (self Acc) res(ghost calls seq[int])int {
+    return seqSum(calls)
+}
+
+func main() {
+    accum@ := 0
+    cl :=   requires x >= 0
+            preserves acc(&accum) && accum >= 0
+            ensures accum == old(accum) + x && y == accum
+            func accumulate(ghost seq[int], x int)(y int) {
+                accum += x
+                return accum
+            }
+
+    proof cl implements spec{Acc{&accum}} {
+        unfold Acc{&accum}.inv(prev)
+        res = cl(prev, x) as accumulate
+        assert (prev ++ seq[int]{x})[:(len(prev))] == prev
+        fold Acc{&accum}.inv(prev ++ seq[int]{x})
+    }
+
+    fold Acc{&accum}.inv(seq[int]{})
+    r := hof(Acc{&accum}, cl)
+    assert r == 2 + (2 + 3) + (2 + 3 + 5)
+
+    unfold Acc{&accum}.inv(seq[int]{2, 3, 5})
+    assert accum == 2 + 3 + 5
+}

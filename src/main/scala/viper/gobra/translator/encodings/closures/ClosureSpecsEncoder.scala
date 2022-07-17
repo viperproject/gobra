@@ -82,6 +82,7 @@ protected class ClosureSpecsEncoder {
     * generated. Keeps track of the maximum number of captured variables seen. */
   private def register(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): Vector[ErrorTransformer] = {
     var errorTransformers: Vector[ErrorTransformer] = Vector.empty
+    updateCaptVarTypes(ctx)(captured(ctx)(spec.func).map(_._1.typ))
     if (!specsSeen.contains((spec.func, spec.params.keySet))) {
       specsSeen += ((spec.func, spec.params.keySet))
       val implementsF = implementsFunction(spec)(ctx, info)
@@ -94,14 +95,20 @@ protected class ClosureSpecsEncoder {
       funcsUsedAsClosures += spec.func
       val getter = closureGetter(spec.func)(ctx)
       genMembers :+= getter
-      maxCapturedVariables = Math.max(maxCapturedVariables, captured(ctx)(spec.func).size)
     }
 
     errorTransformers
   }
 
-  private var maxCapturedVariables: Int = 0
-  def maxCaptVariables: Int = maxCapturedVariables
+  private var captVarTypeIdAndNum = Map[vpr.Type, (Int, Int)]()
+  def captVarsTypeMap: Map[vpr.Type, (Int, Int)] = captVarTypeIdAndNum
+  private def updateCaptVarTypes(ctx: Context)(types: Vector[in.Type]): Unit = {
+    types.groupBy(ctx.typ).foreach {
+      case (typ, vec) =>
+        val (id, num) = captVarTypeIdAndNum.getOrElse(typ, (captVarTypeIdAndNum.size, 0))
+        if (vec.size > num) captVarTypeIdAndNum += typ -> (id, vec.size)
+    }
+  }
   def numSpecs: Int = specsSeen.size
 
   private var specsSeen: Set[(in.FunctionMemberOrLitProxy, Set[Int])] = Set.empty
@@ -132,15 +139,15 @@ protected class ClosureSpecsEncoder {
     val info = func.info
     val result = in.Parameter.Out(Names.closureArg, genericFuncType)(info)
     val satisfiesSpec = in.ClosureImplements(result, in.ClosureSpec(func, Map.empty)(info))(info)
-    val (args, captAssertions) = capturedArgsAndAssertions(result, captured(ctx)(func), info)
+    val (args, captAssertions) = capturedArgsAndAssertions(ctx)(result, captured(ctx)(func), info)
     val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions, Vector.empty, None)(memberOrLit(ctx)(func).info)
     ctx.defaultEncoding.pureFunction(getter)(ctx)
   }
 
   private def closureCallArgs(closure: in.Expr, args: Vector[in.Expr], spec: in.ClosureSpec)(ctx: Context): Vector[in.Expr] = {
     val capt = captured(ctx)(spec.func)
-    val captArgs = (1 to capt.size).map(i => in.DomainFunctionCall(
-      in.DomainFuncProxy(Names.closureCaptVarDomFunc(i), Names.closureDomain)(closure.info), Vector(closure), capt(i-1)._2.typ)(closure.info))
+    val captProxies = captVarProxies(ctx)(capt.map(_._1.typ), spec.func.info)
+    val captArgs = (1 to capt.size).map(i => in.DomainFunctionCall(captProxies(i-1), Vector(closure), capt(i-1)._2.typ)(closure.info))
     val argsAndParams = {
       var argsUsed = 0
       (1 to (args.size + spec.params.size)).map(i => if (spec.params.contains(i)) spec.params(i) else { argsUsed += 1; args(argsUsed-1) })
@@ -148,12 +155,27 @@ protected class ClosureSpecsEncoder {
     Vector(closure) ++ captArgs ++ argsAndParams
   }
 
-  private def capturedArgsAndAssertions(closure: in.Expr, captured: Vector[(in.Expr, in.Parameter.In)], info: Source.Parser.Info): (Vector[in.Parameter.In], Vector[in.Assertion]) = {
+  private def capturedArgsAndAssertions(ctx: Context)(closure: in.Expr, captured: Vector[(in.Expr, in.Parameter.In)], info: Source.Parser.Info): (Vector[in.Parameter.In], Vector[in.Assertion]) = {
     val captArgs = captured.map(c => c._2)
+    val captProxies = captVarProxies(ctx)(captured.map(c => c._1.typ), info)
     val capturesVar: Int => in.Assertion = i => in.ExprAssertion(in.EqCmp(in.DomainFunctionCall(
-      in.DomainFuncProxy(Names.closureCaptVarDomFunc(i), Names.closureDomain)(info), Vector(closure), captArgs(i-1).typ)(info), captArgs(i-1))(info))(info)
+      captProxies(i-1), Vector(closure), captArgs(i-1).typ)(info), captArgs(i-1))(info))(info)
     val assertions = (1 to captured.size).toVector map { i => capturesVar(i) }
     (captArgs, assertions)
+  }
+
+  /** Generate the proxies for the domain functions corresponding to the variables captured by the closure.
+    * The name is captVarNClosure_T, where T is an id different for each Viper type, and N denotes the position
+    * of the variable among all the variables with the same type. */
+  private def captVarProxies(ctx: Context)(types: Vector[in.Type], info: Source.Parser.Info): Vector[in.DomainFuncProxy] = {
+    var seenSoFar = Map[vpr.Type, Int]()
+    types map { t =>
+      val vprTyp = ctx.typ(t)
+      val i = seenSoFar.getOrElse(vprTyp, 0) + 1
+      seenSoFar += vprTyp -> i
+      val (tid, _) = captVarsTypeMap(vprTyp)
+      in.DomainFuncProxy(Names.closureCaptVarDomFunc(i, tid), Names.closureDomain)(info)
+    }
   }
 
   private def specWithFuncArgs(spec: in.ClosureSpec, f: FunctionLikeMemberOrLit): in.ClosureSpec =
@@ -167,7 +189,7 @@ protected class ClosureSpecsEncoder {
     val proxy = closureCallProxy(spec)(spec.info)
     val func = memberOrLit(ctx)(spec.func)
     val closurePar = in.Parameter.In(Names.closureArg, genericFuncType)(func.info)
-    val (captArgs, captAssertions) = capturedArgsAndAssertions(closurePar, captured(ctx)(spec.func), spec.func.info)
+    val (captArgs, captAssertions) = capturedArgsAndAssertions(ctx)(closurePar, captured(ctx)(spec.func), spec.func.info)
     val args = Vector(closurePar) ++ captArgs ++ func.args
     val implementsAssertion = in.ClosureImplements(closurePar, specWithFuncArgs(spec, func))(spec.info)
     val pres = Vector(implementsAssertion) ++ func.pres ++ captAssertions

@@ -24,12 +24,17 @@ class ClosureDomainEncoder(specs: ClosureSpecsEncoder) {
     vpr.DomainType(Names.closureDomain, Map.empty)(Vector.empty)
   }
 
-  /** Domain Closure, with as many domain functions as the maximum number of captured variables.
-    * Domain function captVarNClosure(c) returns a Ref, since a closure keeps pointers to the captured variables.  */
-  private def vprDomain: vpr.Domain = vpr.Domain(
-    Names.closureDomain,
-    ((1 to specs.maxCaptVariables) map { i => vpr.DomainFunc(Names.closureCaptVarDomFunc(i), Seq(vpr.LocalVarDecl(Names.closureArg, vprType)()), vpr.Ref)(domainName = Names.closureDomain)}) ++
-    Seq.empty, Seq.empty)()
+
+  /** Domain Closure. Domain functions captVarNClosure_tid(c) are grouped by type. For each type, there are as many
+    * captured variables as the maximum number of captured variables of this type in a single closure. */
+  private def vprDomain: vpr.Domain = vpr.Domain(Names.closureDomain, capturedVarsDomainFuncs, Seq.empty, Seq.empty)()
+
+  private def capturedVarsDomainFuncs: Seq[vpr.DomainFunc] = {
+    specs.captVarsTypeMap.flatMap {
+      case (typ, (tid, num)) =>
+        (1 to num) map { i =>  vpr.DomainFunc(Names.closureCaptVarDomFunc(i, tid), Seq(vpr.LocalVarDecl(Names.closureArg, vprType)()), typ)(domainName = Names.closureDomain) }
+    }.toSeq
+  }
 
   private val dfltFunction: vpr.Function = vpr.Function(Names.closureDefaultFunc, Seq.empty, vprType, Seq.empty, Seq.empty, None)()
 }

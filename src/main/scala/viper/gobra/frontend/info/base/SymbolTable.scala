@@ -76,9 +76,9 @@ object SymbolTable extends Environments[Entity] {
 
   case class Closure(lit: PFunctionLit, ghost: Boolean, context: ExternalTypeInfo) extends ActualDataEntity with WithArguments with WithResult {
     override def rep: PNode = lit
-    override val args: Vector[PParameter] = lit.decl.decl.args
+    override val args: Vector[PParameter] = lit.args
     override val result: PResult = lit.decl.result
-    def isPure: Boolean = lit.decl.decl.spec.isPure
+    def isPure: Boolean = lit.spec.isPure
   }
 
   sealed trait Constant extends DataEntity {

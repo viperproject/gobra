@@ -171,7 +171,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
           args.forall(wellGhostSeparated.valid) && wellGhostSeparated.valid(r)
         })
 
-        case Closure(PFunctionLit(PClosureNamedDecl(_, PClosureDecl(args, r, _, _))), _, _) => unsafeMessage(! {
+        case Closure(PFunctionLit(_, PClosureDecl(args, r, _, _)), _, _) => unsafeMessage(! {
           args.forall(wellGhostSeparated.valid) && wellGhostSeparated.valid(r)
         })
 

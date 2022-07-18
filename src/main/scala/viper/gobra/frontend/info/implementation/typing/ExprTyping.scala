@@ -34,7 +34,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
            (the same limitation applies within closures nested inside the closure itself) */
         case Some(ap.Closure(id, _)) => error(n, s"here, the closure name ${n} can only be used as a spec",
           !tree.parent(n).head.isInstanceOf[PClosureSpecInstance] &&
-            tryEnclosingFunctionLit(n).fold(true)(lit => lit.decl.id.fold(true)(encId => encId.name != id.name)))
+            tryEnclosingFunctionLit(n).fold(true)(lit => lit.id.fold(true)(encId => encId.name != id.name)))
         case _ => noMessages
       } // no more checks to avoid cycles
 
@@ -207,7 +207,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       literalAssignableTo.errors(lit, simplifiedT)(n)
 
     case f: PFunctionLit =>
-      capturedVariables(f.decl.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)).toVector
+      capturedVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
+        wellDefVariadicArgs(f.args) ++
+        f.id.fold(noMessages)(id => wellDefID(id).out)
 
     case n: PInvoke => {
       val (l, r) = (exprOrType(n.base), resolve(n))
@@ -598,7 +600,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case cl: PCompositeLit => expectedCompositeLitType(cl)
 
-    case PFunctionLit(PClosureNamedDecl(_, PClosureDecl(args, result, _, _))) =>
+    case PFunctionLit(_, PClosureDecl(args, result, _, _)) =>
       FunctionT(args map miscType, miscType(result))
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {

@@ -175,7 +175,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
         super.showExpr(PInvoke(n.base, aArgs))
     }
 
-    case PFunctionLit(PClosureNamedDecl(_, PClosureDecl(args, result, _, body))) => super.showMisc(PClosureDecl(
+    case PFunctionLit(_, PClosureDecl(args, result, _, body)) => super.showMisc(PClosureDecl(
       filterParamList(args),
       filterResult(result),
       PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),

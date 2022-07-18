@@ -423,10 +423,11 @@ case class PExpCompositeVal(exp: PExpression) extends PCompositeVal // exp is ne
 
 case class PLitCompositeVal(lit: PLiteralValue) extends PCompositeVal
 
-case class PFunctionLit(decl: PClosureNamedDecl) extends PLiteral with PActualExpression
-
-case class PClosureNamedDecl(id: Option[PIdnDef], decl: PClosureDecl) extends PGhostMisc {
+case class PFunctionLit(id: Option[PIdnDef], decl: PClosureDecl) extends PLiteral {
+  val args: Vector[PParameter] = decl.args
   val result: PResult = decl.result
+  val spec: PFunctionSpec = decl.spec
+  val body: Option[(PBodyParameterInfo, PBlock)] = decl.body
 }
 
 case class PClosureDecl(args: Vector[PParameter],

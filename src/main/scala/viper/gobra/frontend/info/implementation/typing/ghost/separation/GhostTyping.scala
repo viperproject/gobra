@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{MultiLocalVariable, Regular, SingleLocalVariable}
+import viper.gobra.frontend.info.base.SymbolTable.{Closure, MultiLocalVariable, Regular, SingleLocalVariable}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -133,6 +133,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       ent match {
         case r: SingleLocalVariable => r.ghost || r.exp.exists(ghostExprResultClassification)
         case r: MultiLocalVariable => r.ghost || ghostExprResultTyping(r.exp).isIdxGhost(r.idx)
+        case _: Closure => true
         case r: Regular => r.ghost
         case _ => Violation.violation("expected Regular Entity")
       }

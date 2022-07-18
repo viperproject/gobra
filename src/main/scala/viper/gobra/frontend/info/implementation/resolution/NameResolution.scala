@@ -75,7 +75,7 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PImport => Import(decl, this)
 
         // Closure literals
-        case decl: PClosureNamedDecl => Closure(tree.parent(decl).head.asInstanceOf[PFunctionLit], isGhost, this)
+        case decl: PFunctionLit => Closure(decl, isGhost, this)
 
         // Ghost additions
         case decl: PBoundVariable => BoundVariable(decl, this)
@@ -317,7 +317,7 @@ trait NameResolution { this: TypeInfoImpl =>
     val (func, fBody, context) = proof.impl.spec.func match {
       case PNamedOperand(id) => symbTableLookup(id) match {
         case f: Function => (f, f.decl.body, f.context)
-        case c: Closure => (c, c.lit.decl.decl.body, c.context)
+        case c: Closure => (c, c.lit.body, c.context)
         case _ => return UnknownEntity()
       }
       case PDot(base: PNamedOperand, id) =>

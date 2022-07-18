@@ -246,8 +246,8 @@ object Desugar {
 
     def functionLitProxyD(lit: PFunctionLit, context: TypeInfo): in.FunctionLitProxy = {
       // If the literal is nameless, generate a unique name
-      val name = if (lit.decl.id.isEmpty) nm.anonFuncLit(context.enclosingFunction(lit).get, context) else idName(lit.decl.id.get, context)
-      val info = if (lit.decl.id.isEmpty) meta(lit, context) else meta(lit.decl.id.get, context)
+      val name = if (lit.id.isEmpty) nm.anonFuncLit(context.enclosingFunction(lit).get, context) else idName(lit.id.get, context)
+      val info = if (lit.id.isEmpty) meta(lit, context) else meta(lit.id.get, context)
       in.FunctionLitProxy(name)(info)
     }
 
@@ -259,7 +259,7 @@ object Desugar {
     def closureSpecD(ctx: FunctionContext, info: TypeInfo = info)(s: PClosureSpecInstance): in.ClosureSpec = {
       val (funcTypeInfo, fArgs, proxy) = info.resolve(s.func) match {
         case Some(ap.Function(id, symb)) => (symb.context.getTypeInfo, symb.decl.args, functionProxy(id, info))
-        case Some(ap.Closure(id, symb)) => (symb.context.getTypeInfo, symb.lit.decl.decl.args, functionLitProxyD(id, info))
+        case Some(ap.Closure(id, symb)) => (symb.context.getTypeInfo, symb.lit.args, functionLitProxyD(id, info))
         case _ => violation("expected function or function literal")
       }
       val paramsWithIdx = if (s.params.forall(_.key.isEmpty)) s.params.zipWithIndex.map {
@@ -2159,14 +2159,14 @@ object Desugar {
     }
 
     def functionLitD(ctx: FunctionContext)(lit: PFunctionLit): in.FunctionLit = {
-      val funcInfo = functionMemberOrLitD(lit.decl.decl, meta(lit), ctx)
+      val funcInfo = functionMemberOrLitD(lit.decl, meta(lit), ctx)
       val src = meta(lit)
       val name = functionLitProxyD(lit, info)
       in.FunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(src)
     }
 
     def pureFunctionLitD(ctx: FunctionContext, info: TypeInfo = info)(lit: PFunctionLit): in.PureFunctionLit = {
-      val funcInfo = pureFunctionMemberOrLitD(lit.decl.decl, meta(lit), ctx, info)
+      val funcInfo = pureFunctionMemberOrLitD(lit.decl, meta(lit), ctx, info)
       val name = functionLitProxyD(lit, info)
       in.PureFunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit))
     }
@@ -2609,7 +2609,7 @@ object Desugar {
 
     /** Desugar the function literal and add it to the map. */
     private def registerFunctionLit(ctx: FunctionContext, info: TypeInfo)(lit: PFunctionLit): Writer[in.Expr] = {
-      val fLit = if (lit.decl.decl.spec.isPure) pureFunctionLitD(ctx, info)(lit) else functionLitD(ctx)(lit)
+      val fLit = if (lit.spec.isPure) pureFunctionLitD(ctx, info)(lit) else functionLitD(ctx)(lit)
       definedFuncLiterals += fLit.name -> fLit
       unit(fLit)
     }
@@ -3013,7 +3013,7 @@ object Desugar {
 
       val fSpec = func match {
         case f: st.Function => f.decl.spec
-        case c: st.Closure => c.lit.decl.decl.spec
+        case c: st.Closure => c.lit.spec
         case _ => violation("function or closure expected")
       }
 

@@ -20,13 +20,11 @@ import viper.gobra.util.Violation.violation
 trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostMisc(misc: PGhostMisc) = misc match {
-    case PClosureNamedDecl(id, PClosureDecl(args, _, _, _)) => wellDefVariadicArgs(args) ++
-      id.fold(noMessages)(id => wellDefID(id).out)
     case c@PClosureSpecInstance(id, _) => resolve(id) match {
       case Some(ap.Function(_, f)) => wellDefClosureSpecInstanceParams(c, f.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
-      case Some(ap.Closure(_, l)) => if (c.params.isEmpty || capturedVariables(l.lit.decl.decl).isEmpty)
+      case Some(ap.Closure(_, l)) => if (c.params.isEmpty || capturedVariables(l.lit.decl).isEmpty)
         wellDefClosureSpecInstanceParams(c, l.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
-        else error(c, s"function literal ${l.lit.decl.id.get} captures variables, so it cannot be used to derive a parametrized spec instance")
+        else error(c, s"function literal ${l.lit.id.get} captures variables, so it cannot be used to derive a parametrized spec instance")
       case _ => error(id, s"identifier $id does not identify a user-defined function or function literal")
     }
     case PClosureSpecParameter(_, exp) => isExpr(exp).out
@@ -148,7 +146,6 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def ghostMiscType(misc: PGhostMisc): Type = misc match {
-    case PClosureNamedDecl(_, decl) => miscType(decl)
     case PClosureSpecInstance(func, params) =>
       val fType = exprOrTypeType(func).asInstanceOf[FunctionT]
       if (params.forall(_.key.isEmpty)) fType.copy(args = fType.args.drop(params.size))

@@ -157,8 +157,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showList[T](list: Vector[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
 
-  def showClosureNamedDecl(decl: PClosureNamedDecl): Doc = decl match {
-    case PClosureNamedDecl(id, PClosureDecl(args, result, spec, body)) =>
+  def showFunctionLit(lit: PFunctionLit): Doc = lit match {
+    case PFunctionLit(id, PClosureDecl(args, result, spec, body)) =>
       showSpec(spec) <> "func" <> id.fold(emptyDoc)(id => emptyDoc <+> showId(id)) <> parens(showParameterList(args)) <> showResult(result) <>
         opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
   }
@@ -414,7 +414,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PNilLit() => "nil"
       case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
-      case PFunctionLit(decl) => showClosureNamedDecl(decl)
+      case lit: PFunctionLit => showFunctionLit(lit)
       case PInvoke(base, args) => showExprOrType(base) <> parens(showExprList(args))
       case PCallWithSpec(base, args, spec) => showExprOrType(base) <> parens(showExprList(args)) <+> "as" <+> showMisc(spec)
       case PIndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
@@ -654,9 +654,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case literalValue: PLiteralValue => showLiteralValue(literalValue)
     case keyedElement: PKeyedElement => showKeyedElement(keyedElement)
     case compositeVal: PCompositeVal => showCompositeVal(compositeVal)
-    case closureDecl: PClosureDecl => showClosureNamedDecl(PClosureNamedDecl(None, closureDecl))
+    case closureDecl: PClosureDecl => showFunctionLit(PFunctionLit(None, closureDecl))
     case misc: PGhostMisc => misc match {
-      case n: PClosureNamedDecl => showClosureNamedDecl(n)
       case s: PClosureSpecInstance => showExprOrType(s.func) <> braces(ssep(s.params map showMisc, comma <> space))
       case PClosureSpecParameter(key, exp) => key match {
         case Some(key) => showMisc(key) <> colon <+> showExpr(exp)
@@ -709,8 +708,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     }
   }
 
-  override def showClosureNamedDecl(decl: PClosureNamedDecl): Doc = decl match {
-    case PClosureNamedDecl(id, PClosureDecl(args, result, spec, _)) =>
+  override def showFunctionLit(lit: PFunctionLit): Doc = lit match {
+    case PFunctionLit(id, PClosureDecl(args, result, spec, _)) =>
       showSpec(spec) <> "func" <+> id.fold(emptyDoc)(showId) <> parens(showParameterList(args)) <> showResult(result)
   }
 }

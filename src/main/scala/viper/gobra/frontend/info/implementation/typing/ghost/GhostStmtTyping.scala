@@ -150,7 +150,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     def wellDefIfTerminationMeasuresConsistent: Messages = {
       val specMeasures = func match {
         case st.Function(decl, _, _) => decl.spec.terminationMeasures
-        case st.Closure(lit, _, _) => lit.decl.decl.spec.terminationMeasures
+        case st.Closure(lit, _, _) => lit.spec.terminationMeasures
       }
 
       lazy val callMeasures = terminationMeasuresForProofCall(p)
@@ -294,7 +294,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
         case Left(invoke) => resolve(invoke) match {
           case Some(ap.FunctionCall(callee, _)) => callee match {
             case ap.Function(_, symb) => symb.decl.spec.terminationMeasures
-            case ap.Closure(_, symb) => symb.lit.decl.decl.spec.terminationMeasures
+            case ap.Closure(_, symb) => symb.lit.spec.terminationMeasures
             case ap.ReceivedMethod(_, _, _, symb) => measuresFromMethod(symb)
             case ap.ImplicitlyReceivedInterfaceMethod(_, symb) => symb.spec.spec.terminationMeasures
             case ap.MethodExpr(_, _, _, symb) => measuresFromMethod(symb)
@@ -304,7 +304,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         case Right(PCallWithSpec(_, _, spec)) => resolve(spec.func) match {
           case Some(ap.Function(_, f)) => f.decl.spec.terminationMeasures
-          case Some(ap.Closure(_, c)) => c.lit.decl.decl.spec.terminationMeasures
+          case Some(ap.Closure(_, c)) => c.lit.spec.terminationMeasures
           case _ => Violation.violation("this case should be unreachable")
         }
     }

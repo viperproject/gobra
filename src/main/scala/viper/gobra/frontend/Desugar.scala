@@ -812,7 +812,7 @@ object Desugar {
         }
       }
 
-      stmt match {
+      val result = stmt match {
         case NoGhost(noGhost) => noGhost match {
           case _: PEmptyStmt => unit(in.Seqn(Vector.empty)(src))
 
@@ -1129,6 +1129,7 @@ object Desugar {
           case _ => ???
         }
       }
+      seqn(result)
     }
 
     def switchCaseD(switchCase: PExprSwitchCase, scrutinee: in.LocalVar)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] = {

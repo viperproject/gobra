@@ -158,9 +158,10 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         lazy val multiples2 = groupedProofs2.toVector.collect{ case (key, values) if values.size > 1 => (key, values) }
 
         val msgs = if (multiples.nonEmpty) {
-          error(tree.root, s"There is more than one proof for ${multiples.mkString(", ")}") // TODO Dionisi improve error message
+          error(multiples.head._2.decl, s"There is more than one proof for type ${multiples.head._1} implementing an interface")
         } else if (multiples2.nonEmpty) {
-          error(tree.root, s"There is more than one proof for $multiples2.") // TODO Dionisi improve error message
+          val firstNode = multiples2.head._1._1.context.getTypeInfo.regular(multiples2.head._1._1.decl.id).rep
+          error(firstNode, s"There is more than one proof for ${multiples2.map(x => x._1._1.decl.id.name).mkString(", ")}.")
         } else {
           // check that all predicates are defined
           groupedProofs.flatMap { case (impl, itf, ls) =>

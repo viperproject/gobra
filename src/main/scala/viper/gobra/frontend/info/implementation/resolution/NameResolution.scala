@@ -330,8 +330,13 @@ trait NameResolution { this: TypeInfoImpl =>
           // perform now a second lookup in this special dependent environment:
           val res = tryLookup(dependentEnv, serialize(n))
           (res, scope) match {
-              // TODO Dionisi: probably causes a loop if an embedded interface cannot be found
-            case (None, int : PInterfaceType) => memberSet(InterfaceT(int, this)).lookup(n.name) // lookup in the embeddedFields
+            case (None, int : PInterfaceType) =>
+              try {
+                memberSet(InterfaceT(int, this)).lookup(n.name) // lookup in the embeddedFields
+              }
+              catch {
+                case _ : IllegalStateException => None
+              }
             case _ => res
           }
         case _ => None

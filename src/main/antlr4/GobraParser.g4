@@ -348,11 +348,6 @@ primaryExpr:
   ) L_PAREN expression R_PAREN #builtInCallExpr // Remove this alternative when predeclared functions are properly handled
   ;
 
-// Added function literal with specification
-operand: literal | operandName | L_PAREN expression R_PAREN;
-
-literal: basicLit | compositeLit | functionLit;
-
 functionLit: specification closureDecl[$specification.trusted, $specification.pure];
 
 closureDecl[boolean trusted, boolean pure]:  FUNC IDENTIFIER? (signature blockWithBodyParameterInfo?);

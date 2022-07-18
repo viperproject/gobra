@@ -106,8 +106,7 @@ sealed trait FunctionLikeMember extends Member {
   def name: FunctionProxy
 }
 
-sealed trait FunctionLikeMemberOrLit {
-  def info: Source.Parser.Info
+sealed trait FunctionLikeMemberOrLit extends Node {
   def args: Vector[Parameter.In]
   def results: Vector[Parameter.Out]
   def pres: Vector[Assertion]

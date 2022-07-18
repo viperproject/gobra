@@ -1076,21 +1076,23 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     (id, sig._1, sig._2, body)
   }
 
-  override def visitClosureSpecInstance(ctx: ClosureSpecInstanceContext): PClosureSpecInstance = {
-    val nameOrDot = if (ctx.IDENTIFIER() == null) visitQualifiedIdent(ctx.qualifiedIdent())
-                    else PNamedOperand(idnUse.get(ctx.IDENTIFIER())).at(ctx.IDENTIFIER())
-    PClosureSpecInstance(nameOrDot, visitClosureSpecParams(ctx.closureSpecParams()))
+  override def visitClosureSpecInstance(ctx: ClosureSpecInstanceContext): PClosureSpecInstance = visitChildren(ctx) match {
+    case name: TerminalNode => PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), Vector.empty)
+    case imported: PDot => PClosureSpecInstance(imported, Vector.empty)
+    case Vector(name: TerminalNode, "{", "}") => PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), Vector.empty)
+    case Vector(imported: PDot, "{", "}") => PClosureSpecInstance(imported, Vector.empty)
+    case Vector(name: TerminalNode, "{", params: Vector[PClosureSpecParameter@unchecked], "}") => PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), params)
+    case Vector(imported: PDot, "{", params: Vector[PClosureSpecParameter@unchecked], "}") => PClosureSpecInstance(imported, params)
   }
 
-  override def visitClosureSpecParams(ctx: ClosureSpecParamsContext): Vector[PClosureSpecParameter] =
-    if (ctx == null) Vector.empty else super.visitClosureSpecParams(ctx) match {
-      case v: Vector[Any] => v collect { case p: PClosureSpecParameter => p }
-      case p: PClosureSpecParameter => Vector(p)
-    }
+  override def visitClosureSpecParams(ctx: ClosureSpecParamsContext): Vector[PClosureSpecParameter] = visitChildren(ctx) match {
+    case v: Vector[_] => v collect { case p: PClosureSpecParameter => p }
+    case p: PClosureSpecParameter => Vector(p)
+  }
 
-  override def visitClosureSpecParam(ctx: ClosureSpecParamContext): PClosureSpecParameter = {
-    val id = if(ctx.IDENTIFIER() == null) None else Some(PIdnNodeEx(PClosureSpecParameterKey, _ => None).get(ctx.IDENTIFIER()))
-    PClosureSpecParameter(id, visitNode[PExpression](ctx.expression()))
+  override def visitClosureSpecParam(ctx: ClosureSpecParamContext): PClosureSpecParameter = visitChildren(ctx) match {
+    case e: PExpression => PClosureSpecParameter(None, e)
+    case Vector(name: TerminalNode, ":", e: PExpression) => PClosureSpecParameter(Some(PIdnNodeEx(PClosureSpecParameterKey, _ => None).get(name)), e)
   }
 
   override def visitClosureImplSpecExpr(ctx: ClosureImplSpecExprContext): PClosureImplements = {

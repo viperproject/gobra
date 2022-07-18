@@ -55,23 +55,26 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   val newBody = {
                     in.Block(
                       decls = Vector.empty,
-                      stmts = assumeFalse +: implementations.toVector.flatMap { t: in.Type =>
-                        table.lookup(t, proxy.name).map {
-                          case implProxy: in.MethodProxy =>
-                            in.If(
-                              in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(t)(src))(src),
-                              in.Seqn(Vector(
-                                in.MethodCall(
-                                  m.results map parameterAsLocalValVar,
-                                  in.TypeAssertion(m.receiver, t)(src),
-                                  implProxy, m.args
-                                )(src),
-                                in.Return()(src)
-                              ))(src),
+                      stmts = assumeFalse +: implementations.toVector.flatMap {
+                        case t: in.Type =>
+                          table.lookup(t, proxy.name).map {
+                            case implProxy: in.MethodProxy if !t.isInstanceOf[in.InterfaceT] =>
+                              in.If(
+                                in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(t)(src))(src),
+                                in.Seqn(Vector(
+                                  in.MethodCall(
+                                    m.results map parameterAsLocalValVar,
+                                    in.TypeAssertion(m.receiver, t)(src),
+                                    implProxy, m.args
+                                  )(src),
+                                  in.Return()(src)
+                                ))(src),
+                                in.Seqn(Vector())(src)
+                              )(src)
+                            case _ : in.MethodProxy if t.isInstanceOf[in.InterfaceT] =>
                               in.Seqn(Vector())(src)
-                            )(src)
-                          case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
-                        }
+                            case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
+                          }
                       }
                     )(src)
                   }
@@ -127,13 +130,15 @@ object CGEdgesTerminationTransform extends InternalTransform {
                     val bodyFalseBranch = implementations.toVector.foldLeft[in.Expr](fallbackProxyCall) {
                       case (accum: in.Expr, impl: in.Type) =>
                         table.lookup(impl, proxy.name) match {
-                          case Some(implProxy: in.MethodProxy) =>
+                          case Some(implProxy: in.MethodProxy) if !impl.isInstanceOf[in.InterfaceT] =>
                             in.Conditional(
                               in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(impl)(src))(src),
                               in.PureMethodCall(in.TypeAssertion(m.receiver, impl)(src), implProxy, m.args, returnType)(src),
                               accum,
                               returnType
                             )(src)
+                          case Some(implProxy: in.MethodProxy) if impl.isInstanceOf[in.InterfaceT] =>
+                            in.PureMethodCall(in.TypeAssertion(m.receiver, impl)(src), implProxy, m.args, returnType)(src)
                           case None => accum
                           case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
                         }

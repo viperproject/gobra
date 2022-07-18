@@ -334,7 +334,7 @@ trait NameResolution { this: TypeInfoImpl =>
               try {
                 memberSet(InterfaceT(int, this)).lookup(n.name) // lookup in the embeddedFields
               }
-              catch {
+              catch { // happens if we are in a cycle because of unknown interface members
                 case _ : IllegalStateException => None
               }
             case _ => res

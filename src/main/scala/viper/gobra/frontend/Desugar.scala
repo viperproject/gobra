@@ -812,7 +812,7 @@ object Desugar {
         }
       }
 
-      stmt match {
+      val result = stmt match {
         case NoGhost(noGhost) => noGhost match {
           case _: PEmptyStmt => unit(in.Seqn(Vector.empty)(src))
 
@@ -1129,6 +1129,7 @@ object Desugar {
           case _ => ???
         }
       }
+      seqn(result)
     }
 
     def switchCaseD(switchCase: PExprSwitchCase, scrutinee: in.LocalVar)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] = {
@@ -1244,7 +1245,7 @@ object Desugar {
     // Expressions
 
     def derefD(ctx: FunctionContext)(p: ap.Deref)(src: Meta): Writer[in.Deref] = {
-      exprD(ctx)(p.base) map (in.Deref(_)(src))
+      exprD(ctx)(p.base).map(e => in.Deref(e, underlyingType(e.typ))(src))
     }
 
     def fieldSelectionD(ctx: FunctionContext)(p: ap.FieldSelection)(src: Meta): Writer[in.FieldRef] = {
@@ -1925,7 +1926,7 @@ object Desugar {
     def applyMemberPathD(base: in.Expr, path: Vector[MemberPath])(pinfo: Source.Parser.Info): in.Expr = {
       path.foldLeft(base){ case (e, p) => p match {
         case MemberPath.Underlying => e
-        case MemberPath.Deref => in.Deref(e)(pinfo)
+        case MemberPath.Deref => in.Deref(e, underlyingType(e.typ))(pinfo)
         case MemberPath.Ref => in.Ref(e)(pinfo)
         case MemberPath.Next(g) =>
           in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(e.typ.addressability), g.context)(pinfo))(pinfo)
@@ -3130,7 +3131,10 @@ object Desugar {
               acc match {
                 case PReference(op) => addressableD(ctx)(op) map (x => in.Accessible.Address(x.op))
                 case _ =>
-                  goE(acc) map (x => in.Accessible.Address(in.Deref(x, typeD(ut.elem, Addressability.dereference)(src))(src)))
+                  goE(acc).map{ x =>
+                    val underlyingT = typeD(ut, Addressability.reference)(src)
+                    in.Accessible.Address(in.Deref(x, underlyingT)(src))
+                  }
               }
 
             case Single(_: Type.SliceT) =>

@@ -389,7 +389,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showAss(a: Assertion): Doc = updatePositionStore(a) <> (a match {
     case SepAnd(left, right) => showAss(left) <+> "&&" <+> showAss(right)
     case ExprAssertion(exp) => showExpr(exp)
-    case ClosureImplements(closure, spec) => showExpr(closure) <+> "implements" <+> showClosureSpec(spec)
     case MagicWand(left, right) => showAss(left) <+> "--*" <+> showAss(right)
     case Implication(left, right) => showExpr(left) <+> "==>" <+> showAss(right)
     case Access(e, FullPerm(_)) => "acc" <> parens(showAcc(e))
@@ -458,6 +457,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case ClosureObject(func, _) => func.name
     case FunctionObject(func, _) => func.name
     case MethodObject(recv, meth, _) => showExpr(recv) <> dot <> meth.name
+
+    case ClosureImplements(closure, spec) => showExpr(closure) <+> "implements" <+> showClosureSpec(spec)
 
     case IndexedExp(base, index, _) => showExpr(base) <> brackets(showExpr(index))
     case ArrayUpdate(base, left, right) => showExpr(base) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))

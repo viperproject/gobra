@@ -62,6 +62,9 @@ class ClosureEncoding extends LeafTypeEncoding {
     case c: in.PureCallWithSpec =>
       specs.pureClosureCall(c)(ctx)
 
+    case a: in.ClosureImplements =>
+      specs.closureImplementsExpression(a)(ctx)
+
     case e@in.DfltVal(_) :: ctx.Function(t) / Exclusive =>
       ctx.expression(in.PureFunctionCall(in.FunctionProxy(Names.closureDefaultFunc)(e.info), Vector.empty, t)(e.info))
 
@@ -75,10 +78,6 @@ class ClosureEncoding extends LeafTypeEncoding {
 
     case p: in.SpecImplementationProof =>
       specImplementationProof(p)(ctx)
-  }
-
-  override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = default(super.assertion(ctx)) {
-    case a: in.ClosureImplements => specs.closureImplementsAssertion(a)(ctx)
   }
 
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
@@ -137,7 +136,7 @@ class ClosureEncoding extends LeafTypeEncoding {
         ifThen = vu.seqn(Vector(whileStmt, assumeFalse))(pos, info, errT)
         ifElse = vu.nop(pos, info, errT)
       } yield vpr.If(ndBoolTrue, ifThen, ifElse)(pos, info, errT)
-      implementsAssertion <- ctx.assertion(in.ClosureImplements(proof.closure, proof.spec)(proof.info))
+      implementsAssertion <- ctx.expression(in.ClosureImplements(proof.closure, proof.spec)(proof.info))
       assumeImplements = vpr.Assume(implementsAssertion)()
       _ <- cl.errorT(failedExhale)
     } yield vu.seqn(Vector(ifStmt, assumeImplements))(pos, info, errT)

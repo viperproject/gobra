@@ -90,7 +90,6 @@ object Nodes {
         case ExprAssertion(exp) => Seq(exp)
         case Implication(left, right) => Seq(left, right)
         case MagicWand(left, right) => Seq(left, right)
-        case ClosureImplements(closure, spec) => Seq(closure, spec)
         case Access(e, p) => Seq(e, p)
         case m: TerminationMeasure => m match {
           case m: WildcardMeasure => m.cond.toSeq
@@ -113,6 +112,7 @@ object Nodes {
         case ClosureObject(_, _) => Seq.empty
         case FunctionObject(_, _) => Seq.empty
         case MethodObject(_, _, _) => Seq.empty
+        case ClosureImplements(closure, spec) => Seq(closure, spec)
         case Conversion(_, expr) => Seq(expr)
         case DfltVal(_) => Seq.empty
         case Tuple(args) => args

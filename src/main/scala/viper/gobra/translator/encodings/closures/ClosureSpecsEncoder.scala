@@ -21,7 +21,7 @@ import viper.silver.{ast => vpr}
 
 protected class ClosureSpecsEncoder {
 
-  def closureImplementsAssertion(a: in.ClosureImplements)(ctx: Context): CodeWriter[vpr.Exp] = {
+  def closureImplementsExpression(a: in.ClosureImplements)(ctx: Context): CodeWriter[vpr.Exp] = {
     register(a.spec)(ctx, a.info)
     ctx.expression(in.PureFunctionCall(implementsFunctionProxy(a.spec)(a.info),
       Vector(a.closure) ++ a.spec.params.toVector.sortBy(_._1).map(_._2), in.BoolT(Addressability.rValue))(a.info))
@@ -127,7 +127,7 @@ protected class ClosureSpecsEncoder {
   private def implementsFunction(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): MemberWriter[vpr.Member] = {
     val proxy = implementsFunctionProxy(spec)(info)
     val closurePar = in.Parameter.In(Names.closureArg, genericFuncType)(info)
-    val params = spec.params.map(p => in.Parameter.In(Names.closureImplementsParam(p._1), p._2.typ)(p._2.info))
+    val params = spec.params.map(p => in.Parameter.In(Names.closureImplementsParam(p._1), p._2.typ.withAddressability(Addressability.inParameter))(p._2.info))
     val args = Vector(closurePar) ++ params
     val result = Vector(in.Parameter.Out("r", in.BoolT(Addressability.outParameter))(info))
     val func = in.PureFunction(proxy, args, result, Vector.empty, Vector.empty, Vector.empty, None)(info)
@@ -138,7 +138,7 @@ protected class ClosureSpecsEncoder {
     val proxy = closureGetterFunctionProxy(func)
     val info = func.info
     val result = in.Parameter.Out(Names.closureArg, genericFuncType)(info)
-    val satisfiesSpec = in.ClosureImplements(result, in.ClosureSpec(func, Map.empty)(info))(info)
+    val satisfiesSpec = in.ExprAssertion(in.ClosureImplements(result, in.ClosureSpec(func, Map.empty)(info))(info))(info)
     val (args, captAssertions) = capturedArgsAndAssertions(ctx)(result, captured(ctx)(func), info)
     val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions, Vector.empty, None)(memberOrLit(ctx)(func).info)
     ctx.defaultEncoding.pureFunction(getter)(ctx)
@@ -191,7 +191,7 @@ protected class ClosureSpecsEncoder {
     val closurePar = in.Parameter.In(Names.closureArg, genericFuncType)(func.info)
     val (captArgs, captAssertions) = capturedArgsAndAssertions(ctx)(closurePar, captured(ctx)(spec.func), spec.func.info)
     val args = Vector(closurePar) ++ captArgs ++ func.args
-    val implementsAssertion = in.ClosureImplements(closurePar, specWithFuncArgs(spec, func))(spec.info)
+    val implementsAssertion = in.ExprAssertion(in.ClosureImplements(closurePar, specWithFuncArgs(spec, func))(spec.info))(spec.info)
     val pres = Vector(implementsAssertion) ++ func.pres ++ captAssertions
     func match {
       case _: in.Function =>

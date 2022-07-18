@@ -1080,7 +1080,9 @@ case class PureFunctionLit(
   require(results.size <= 1)
 }
 
-case class ClosureImplements(closure: Expr, spec: ClosureSpec)(override val info: Source.Parser.Info) extends Assertion
+case class ClosureImplements(closure: Expr, spec: ClosureSpec)(override val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = BoolT(Addressability.rValue)
+}
 
 case class ClosureSpec(func: FunctionMemberOrLitProxy, params: Map[Int, Expr])(override val info: Source.Parser.Info) extends Node
 

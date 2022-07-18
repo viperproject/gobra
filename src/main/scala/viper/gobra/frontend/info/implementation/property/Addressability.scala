@@ -134,6 +134,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
         enclosingCodeRoot(n) match {
           case c: PMethodDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
           case c: PFunctionDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
+          case c: PClosureDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
           case _ => false
         }
       case _: PUnnamedParameter => false

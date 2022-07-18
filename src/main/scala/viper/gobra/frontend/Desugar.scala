@@ -3189,6 +3189,10 @@ object Desugar {
           t = underlyingType(e.typ)
         } yield in.MapValues(e, t)(src)
 
+        case PClosureImplements(closure, spec) => for {
+          c <- exprD(ctx, info)(closure)
+        } yield in.ClosureImplements(c, closureSpecD(ctx, info)(spec))(src)
+
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }
     }
@@ -3288,9 +3292,6 @@ object Desugar {
 
         case PMagicWand(left, right) =>
           for {l <- goA(left); r <- goA(right)} yield in.MagicWand(l, r)(src)
-
-        case PClosureImplements(closure, spec) =>
-          for {c <- exprD(ctx, info)(closure)} yield in.ClosureImplements(c, closureSpecD(ctx, info)(spec))(src)
 
         case n: PAnd => for {l <- goA(n.left); r <- goA(n.right)} yield in.SepAnd(l, r)(src)
 

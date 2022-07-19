@@ -262,14 +262,14 @@ object Desugar {
         case Some(ap.Closure(id, symb)) => (symb.context.getTypeInfo, symb.lit.args, functionLitProxyD(id, info))
         case _ => violation("expected function or function literal")
       }
-      val paramsWithIdx = if (s.params.forall(_.key.isEmpty)) s.params.zipWithIndex.map {
-        case (p, idx) => idx+1 -> exprD(ctx, info)(p.exp).res
+      val paramsWithIdx = if (s.paramKeys.isEmpty) s.paramExprs.zipWithIndex.map {
+        case (exp, idx) => idx+1 -> exprD(ctx, info)(exp).res
       } else {
         val argsToIdx = fArgs.zipWithIndex.collect {
           case (PNamedParameter(a, _), idx) => a.name -> (idx+1)
           case (PExplicitGhostParameter(PNamedParameter(a, _)), idx) => a.name -> (idx+1)
         }.toMap
-        s.params.map { p => argsToIdx(p.key.get.name) -> exprD(ctx, info)(p.exp).res }
+        (s.paramKeys zip s.paramExprs) map { case (k, exp) => argsToIdx(k) -> exprD(ctx, info)(exp).res }
       }
       val params = paramsWithIdx.map {
         case (i, exp) => i -> implicitConversion(exp.typ, typeD(funcTypeInfo.typ(fArgs(i-1)), Addressability.inParameter)(exp.info), exp)

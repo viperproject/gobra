@@ -1081,18 +1081,19 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case imported: PDot => PClosureSpecInstance(imported, Vector.empty)
     case Vector(name: TerminalNode, "{", "}") => PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), Vector.empty)
     case Vector(imported: PDot, "{", "}") => PClosureSpecInstance(imported, Vector.empty)
-    case Vector(name: TerminalNode, "{", params: Vector[PClosureSpecParameter@unchecked], "}") => PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), params)
-    case Vector(imported: PDot, "{", params: Vector[PClosureSpecParameter@unchecked], "}") => PClosureSpecInstance(imported, params)
+    case Vector(name: TerminalNode, "{", params: Vector[PKeyedElement@unchecked], "}") => PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), params)
+    case Vector(imported: PDot, "{", params: Vector[PKeyedElement@unchecked], "}") => PClosureSpecInstance(imported, params)
   }
 
-  override def visitClosureSpecParams(ctx: ClosureSpecParamsContext): Vector[PClosureSpecParameter] = visitChildren(ctx) match {
-    case v: Vector[_] => v collect { case p: PClosureSpecParameter => p }
-    case p: PClosureSpecParameter => Vector(p)
+  override def visitClosureSpecParams(ctx: ClosureSpecParamsContext): Vector[PKeyedElement] = visitChildren(ctx) match {
+    case v: Vector[_] => v collect { case p: PKeyedElement => p }
+    case p: PKeyedElement => Vector(p)
   }
 
-  override def visitClosureSpecParam(ctx: ClosureSpecParamContext): PClosureSpecParameter = visitChildren(ctx) match {
-    case e: PExpression => PClosureSpecParameter(None, e)
-    case Vector(name: TerminalNode, ":", e: PExpression) => PClosureSpecParameter(Some(PIdnNodeEx(PClosureSpecParameterKey, _ => None).get(name)), e)
+  override def visitClosureSpecParam(ctx: ClosureSpecParamContext): PKeyedElement = visitChildren(ctx) match {
+    case e: PExpression => PKeyedElement(None, PExpCompositeVal(e).at(e))
+    case Vector(name: TerminalNode, ":", e: PExpression) =>
+      PKeyedElement(Some(PIdentifierKey(idnUse.get(name)).at(name)), PExpCompositeVal(e).at(e))
   }
 
   override def visitClosureImplSpecExpr(ctx: ClosureImplSpecExprContext): PClosureImplements = {

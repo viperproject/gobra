@@ -435,11 +435,12 @@ case class PClosureDecl(args: Vector[PParameter],
                   spec: PFunctionSpec,
                   body: Option[(PBodyParameterInfo, PBlock)]) extends PFunctionOrClosureDecl with PCodeRootWithResult with PActualMisc
 
-case class PClosureSpecInstance(func: PNameOrDot, params: Vector[PClosureSpecParameter]) extends PGhostMisc
-
-case class PClosureSpecParameter(key: Option[PClosureSpecParameterKey], exp: PExpression) extends PGhostMisc
-
-case class PClosureSpecParameterKey(name: String) extends PGhostMisc
+case class PClosureSpecInstance(func: PNameOrDot, params: Vector[PKeyedElement]) extends PGhostMisc {
+  require(params.forall(p => p.exp.isInstanceOf[PExpCompositeVal]))
+  require(params.forall(p => p.key.isEmpty || p.key.get.isInstanceOf[PIdentifierKey]))
+  val paramKeys: Vector[String] = params.collect{ case PKeyedElement(Some(PIdentifierKey(id)), _) => id.name }
+  val paramExprs: Vector[PExpression] = params.collect{ case PKeyedElement(_, PExpCompositeVal(exp)) => exp }
+}
 
 case class PClosureImplements(closure: PExpression, spec: PClosureSpecInstance) extends PGhostExpression
 

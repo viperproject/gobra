@@ -657,11 +657,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case closureDecl: PClosureDecl => showFunctionLit(PFunctionLit(None, closureDecl))
     case misc: PGhostMisc => misc match {
       case s: PClosureSpecInstance => showExprOrType(s.func) <> braces(ssep(s.params map showMisc, comma <> space))
-      case PClosureSpecParameter(key, exp) => key match {
-        case Some(key) => showMisc(key) <> colon <+> showExpr(exp)
-        case None => showExpr(exp)
-      }
-      case PClosureSpecParameterKey(name) => name
       case PFPredBase(id) => showId(id)
       case PDottedBase(expr) => showExprOrType(expr)
       case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)

@@ -81,7 +81,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     val specArgs = if (spec.params.forall(_.key.isEmpty)) func.args.drop(spec.params.size)
     else {
-      val paramSet = spec.params.map(_.key.get.name).toSet
+      val paramSet = spec.paramKeys.toSet
       func.args.filter(nameFromParam(_).fold(true)(!paramSet.contains(_)))
     }
 

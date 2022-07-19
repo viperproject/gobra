@@ -16,7 +16,8 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.Violation
 
-trait NameResolution { this: TypeInfoImpl =>
+trait NameResolution {
+  this: TypeInfoImpl =>
 
   import org.bitbucket.inkytonik.kiama.util.Entity
   import org.bitbucket.inkytonik.kiama.==>
@@ -27,67 +28,67 @@ trait NameResolution { this: TypeInfoImpl =>
   private[resolution] lazy val defEntity: PDefLikeId => Entity =
     attr[PDefLikeId, Entity] {
       case w: PWildcard => Wildcard(w, this)
-      case id@ tree.parent(p) =>
+      case id@tree.parent(p) =>
 
         val isGhost = isGhostDef(id)
 
         p match {
 
-        case decl: PConstSpec =>
-          val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+          case decl: PConstSpec =>
+            val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          StrictAssignMode(decl.left.size, decl.right.size) match {
-            case AssignMode.Single => decl.left(idx) match {
-              case idn: PIdnDef => SingleConstant(decl, idn, decl.right(idx), decl.typ, isGhost, this)
-              case w: PWildcard => Wildcard(w, this)
+            StrictAssignMode(decl.left.size, decl.right.size) match {
+              case AssignMode.Single => decl.left(idx) match {
+                case idn: PIdnDef => SingleConstant(decl, idn, decl.right(idx), decl.typ, isGhost, this)
+                case w: PWildcard => Wildcard(w, this)
+              }
+              case _ => UnknownEntity()
             }
-            case _ => UnknownEntity()
-          }
 
-        case decl: PVarDecl =>
-          val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+          case decl: PVarDecl =>
+            val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          StrictAssignMode(decl.left.size, decl.right.size) match {
-            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, decl.addressable(idx), this)
-            case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
-            case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, isGhost, decl.addressable(idx), this)
-            case _ => UnknownEntity()
-          }
+            StrictAssignMode(decl.left.size, decl.right.size) match {
+              case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, decl.addressable(idx), this)
+              case AssignMode.Multi => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
+              case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, isGhost, decl.addressable(idx), this)
+              case _ => UnknownEntity()
+            }
 
-        case decl: PTypeDef => NamedType(decl, isGhost, this)
-        case decl: PTypeAlias => TypeAlias(decl, isGhost, this)
-        case decl: PFunctionDecl => Function(decl, isGhost, this)
-        case decl: PMethodDecl => MethodImpl(decl, isGhost, this)
-        case tree.parent.pair(spec: PMethodSig, tdef: PInterfaceType) =>
-          // note that a ghost method is not wrapped in a ghost wrapper. Instead, `spec` has a ghost field.
-          // therefore, we do not use `isGhost` but `spec.isGhost`:
-          MethodSpec(spec, tdef, spec.isGhost, this)
+          case decl: PTypeDef => NamedType(decl, isGhost, this)
+          case decl: PTypeAlias => TypeAlias(decl, isGhost, this)
+          case decl: PFunctionDecl => Function(decl, isGhost, this)
+          case decl: PMethodDecl => MethodImpl(decl, isGhost, this)
+          case tree.parent.pair(spec: PMethodSig, tdef: PInterfaceType) =>
+            // note that a ghost method is not wrapped in a ghost wrapper. Instead, `spec` has a ghost field.
+            // therefore, we do not use `isGhost` but `spec.isGhost`:
+            MethodSpec(spec, tdef, spec.isGhost, this)
 
-        case decl: PFieldDecl => Field(decl, isGhost, this)
-        case decl: PEmbeddedDecl => Embbed(decl, isGhost, this)
+          case decl: PFieldDecl => Field(decl, isGhost, this)
+          case decl: PEmbeddedDecl => Embbed(decl, isGhost, this)
 
-        case tree.parent.pair(decl: PNamedParameter, _: PResult) => OutParameter(decl, isGhost, canParameterBeUsedAsShared(decl), this)
-        case decl: PNamedParameter => InParameter(decl, isGhost, canParameterBeUsedAsShared(decl), this)
-        case decl: PNamedReceiver => ReceiverParameter(decl, isGhost, decl.addressable, this)
+          case tree.parent.pair(decl: PNamedParameter, _: PResult) => OutParameter(decl, isGhost, canParameterBeUsedAsShared(decl), this)
+          case decl: PNamedParameter => InParameter(decl, isGhost, canParameterBeUsedAsShared(decl), this)
+          case decl: PNamedReceiver => ReceiverParameter(decl, isGhost, decl.addressable, this)
 
-        case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost, addressable = false, this) // TODO: check if type switch variables are addressable in Go
+          case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost, addressable = false, this) // TODO: check if type switch variables are addressable in Go
 
-        case decl: PImport => Import(decl, this)
+          case decl: PImport => Import(decl, this)
 
-        // Closure literals
-        case decl: PFunctionLit => Closure(decl, isGhost, this)
+          // Closure literals
+          case decl: PFunctionLit => Closure(decl, isGhost, this)
 
-        // Ghost additions
-        case decl: PBoundVariable => BoundVariable(decl, this)
+          // Ghost additions
+          case decl: PBoundVariable => BoundVariable(decl, this)
 
-        case decl: PFPredicateDecl => FPredicate(decl, this)
-        case decl: PMPredicateDecl => MPredicateImpl(decl, this)
-        case tree.parent.pair(decl: PMPredicateSig, tdef: PInterfaceType) => MPredicateSpec(decl, tdef, this)
+          case decl: PFPredicateDecl => FPredicate(decl, this)
+          case decl: PMPredicateDecl => MPredicateImpl(decl, this)
+          case tree.parent.pair(decl: PMPredicateSig, tdef: PInterfaceType) => MPredicateSpec(decl, tdef, this)
 
-        case tree.parent.pair(decl: PDomainFunction, domain: PDomainType) => DomainFunction(decl, domain, this)
+          case tree.parent.pair(decl: PDomainFunction, domain: PDomainType) => DomainFunction(decl, domain, this)
 
-        case c => Violation.violation(s"This case should be unreachable, but got $c")
-      }
+          case c => Violation.violation(s"This case should be unreachable, but got $c")
+        }
       case c => Violation.violation(s"Only the root has no parent, but got $c")
     }
 
@@ -98,31 +99,31 @@ trait NameResolution { this: TypeInfoImpl =>
         val isGhost = isGhostDef(id)
 
         p match {
-        case decl: PShortVarDecl =>
-          val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+          case decl: PShortVarDecl =>
+            val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          StrictAssignMode(decl.left.size, decl.right.size) match {
-            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, decl, isGhost, decl.addressable(idx), this)
-            case AssignMode.Multi => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
-            case _ => UnknownEntity()
-          }
+            StrictAssignMode(decl.left.size, decl.right.size) match {
+              case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, decl, isGhost, decl.addressable(idx), this)
+              case AssignMode.Multi => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
+              case _ => UnknownEntity()
+            }
 
-        case decl: PShortForRange =>
-          val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
-          RangeVariable(idx, decl.range, isGhost, addressable = false, this) // TODO: check if range variables are addressable in Go
+          case decl: PShortForRange =>
+            val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
+            RangeVariable(idx, decl.range, isGhost, addressable = false, this) // TODO: check if range variables are addressable in Go
 
-        case decl: PSelectShortRecv =>
-          val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
-          val len = decl.shorts.size
+          case decl: PSelectShortRecv =>
+            val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
+            val len = decl.shorts.size
 
-          StrictAssignMode(len, 1) match { // TODO: check if selection variables are addressable in Go
-            case AssignMode.Single => SingleLocalVariable(Some(decl.recv), None, decl, isGhost, addressable = false, this)
-            case AssignMode.Multi  => MultiLocalVariable(idx, decl.recv, isGhost, addressable = false, this)
-            case _ => UnknownEntity()
-          }
+            StrictAssignMode(len, 1) match { // TODO: check if selection variables are addressable in Go
+              case AssignMode.Single => SingleLocalVariable(Some(decl.recv), None, decl, isGhost, addressable = false, this)
+              case AssignMode.Multi => MultiLocalVariable(idx, decl.recv, isGhost, addressable = false, this)
+              case _ => UnknownEntity()
+            }
 
-        case _ => violation("unexpected parent of unknown id")
-      }
+          case _ => violation("unexpected parent of unknown id")
+        }
       case _ => violation("PIdnUnk always has a parent")
     }
 
@@ -151,7 +152,7 @@ trait NameResolution { this: TypeInfoImpl =>
   }
 
   private def defenvin(in: PNode => Environment): PNode ==> Environment = {
-    case n: PPackage => addUnorderedDefToEnv(rootenv(initialEnv(n):_*))(n)
+    case n: PPackage => addUnorderedDefToEnv(rootenv(initialEnv(n): _*))(n)
     case scope: PUnorderedScope => addUnorderedDefToEnv(enter(in(scope)))(scope)
     case scope: PScope if !scopeSpecialCaseWithNoNewScope(scope) =>
       logger.debug(scope.toString)
@@ -197,8 +198,8 @@ trait NameResolution { this: TypeInfoImpl =>
 
     m match {
       case a: PActualMember => a match {
-        case d: PConstDecl => d.specs.flatMap(v => v.left.collect{ case x: PIdnDef => x })
-        case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
+        case d: PConstDecl => d.specs.flatMap(v => v.left.collect { case x: PIdnDef => x })
+        case d: PVarDecl => d.left.collect { case x: PIdnDef => x }
         case d: PFunctionDecl => Vector(d.id)
         case d: PTypeDecl => Vector(d.left) ++ leakingIdentifier(d.right)
         case d: PMethodDecl => Vector(d.id)
@@ -239,7 +240,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
       // domain members are added at the package level
       case _: PDomainType => Vector.empty
-  }
+    }
 
   private def addUnorderedDefToEnv(env: Environment)(n: PUnorderedScope): Environment = {
     addToEnv(env)(definitionsForScope(n).filter(doesAddEntry))
@@ -264,6 +265,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
   /** returns whether or not identified `id` is defined at node `n`. */
   def isDefinedAt(id: PIdnNode, n: PNode): Boolean = isDefinedInScope(sequentialDefenv.in(n), serialize(id))
+
   def tryLookupAt(id: PIdnNode, n: PNode): Option[Entity] = tryLookup(sequentialDefenv.in(n), serialize(id))
 
 
@@ -307,45 +309,54 @@ trait NameResolution { this: TypeInfoImpl =>
           findField(litType, id).getOrElse(UnknownEntity())
         } else symbTableLookup(n) // otherwise it is just a variable
 
-      case n: PIdnUse if tryEnclosingClosureImplementationProof(n).nonEmpty => entityWithinClosureImplementationProof(n)
+      case tree.parent.pair(id: PIdnUse, tree.parent.pair(_: PIdentifierKey, tree.parent(spec: PClosureSpecInstance))) =>
+        lookupFunctionMemberOrLit(spec.func).flatMap(func => lookupParamForClosureSpec(id, func)) match {
+          case Some(p: InParameter) => p
+          case _ => UnknownEntity() // only in-parameter names can be used as keys
+        }
+
+      case n: PIdnUse if tryEnclosingClosureImplementationProof(n).nonEmpty =>
+        val proof = tryEnclosingClosureImplementationProof(n).get
+        lookupFunctionMemberOrLit(proof.impl.spec.func).flatMap(func => lookupParamForClosureSpec(n, func)) match {
+          case Some(p: InParameter) => p
+          case Some(p: OutParameter) => p
+          case _ => symbTableLookup(n)
+        }
 
       case n => symbTableLookup(n)
     }
 
-  private def entityWithinClosureImplementationProof(id: PIdnUse): Entity = {
-    val proof = tryEnclosingClosureImplementationProof(id).get
-    val (func, context) = proof.impl.spec.func match  {
-      case PNamedOperand(id) => symbTableLookup(id) match {
-        case f: Function => (f, f.context)
-        case c: Closure => (c, c.context)
-        case _ => return UnknownEntity()
-      }
-      case PDot(base: PNamedOperand, id) => symbTableLookup(base.id) match {
-          case pkg: Import =>
-            tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl) match {
-              case Some((f: Function, _)) => (f, f.context)
-              case _ => return UnknownEntity()
-            }
-          case _ => return UnknownEntity()
-        }
-      case _ => return UnknownEntity()
-    }
-
+  private def lookupParamForClosureSpec(id: PIdnUse, func: ActualDataEntity with WithArguments with WithResult): Option[ActualVariable] = {
     def namedParam(p: PParameter): Option[PNamedParameter] = p match {
       case p: PNamedParameter => Some(p)
       case PExplicitGhostParameter(p: PNamedParameter) => Some(p)
       case _ => None
     }
 
-    // Within a spec implementation proof, consider all arguments of the spec non-ghost and all results ghost.
-    // This is to be as permissive as possible at this point, since all ghostness-related checks are done at the proof level.
+    // Within a spec implementation proof or closure instance, consider all arguments of the spec non-ghost and all results ghost.
+    // This is to be as permissive as possible at this point, since all ghostness-related checks are done later on.
     lazy val inParam = func.args.map(namedParam).find(p => p.nonEmpty && p.get.id.name == id.name)
-      .map(p => InParameter(p.get, ghost = false, addressable = false, context))
-    lazy val outParam = func.result.outs.map(namedParam).find(p => p.nonEmpty && p.get.id.name == id.name)
-      .map(p => OutParameter(p.get, ghost = true, addressable = false, context))
-    if (inParam.nonEmpty) inParam.get
-    else if (outParam.nonEmpty) outParam.get
-    else symbTableLookup(id)
+      .map(p => InParameter(p.get, ghost = false, addressable = false, func.context))
+    if (inParam.nonEmpty) Some(inParam.get)
+    else  func.result.outs.map(namedParam).find(p => p.nonEmpty && p.get.id.name == id.name)
+      .map(p => OutParameter(p.get, ghost = true, addressable = false, func.context))
+  }
+
+  private def lookupFunctionMemberOrLit(name: PNameOrDot): Option[ActualDataEntity with WithArguments with WithResult] = name match {
+    case PNamedOperand(id) => symbTableLookup(id) match {
+      case f: Function => Some(f)
+      case c: Closure => Some(c)
+      case _ => None
+    }
+    case PDot(base: PNamedOperand, id) => symbTableLookup(base.id) match {
+      case pkg: Import =>
+        tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl) match {
+          case Some((f: Function, _)) => Some(f)
+          case _ => None
+        }
+      case _ => None
+    }
+    case _ => None
   }
 
   private def symbTableLookup(n: PIdnNode): Entity = {

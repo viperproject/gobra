@@ -74,7 +74,7 @@ trait GhostAssignability {
     val argTyping = if(spec.params.forall(_.key.isEmpty))
       paramTyping(fArgs.drop(spec.params.size), context)
     else {
-      val pSet = spec.params.map(p => p.key.get.name).toSet
+      val pSet = spec.paramKeys.toSet
       paramTyping(fArgs.filter {
         case PNamedParameter(id, _) if pSet.contains(id.name) => false
         case PExplicitGhostParameter(PNamedParameter(id, _)) if pSet.contains(id.name) => false

@@ -535,7 +535,7 @@ object Desugar {
         // we use a newly-generated pointer parameter p to replace captured variable v (v -> *p)
         // p is treated as a normal argument, information about the original variable is kept in the function literal object
         case (v, (p, _)) => val src = meta(v)
-          specCtx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(src))(src))
+          specCtx.addSubst(v, in.Deref(p, underlyingType(p.typ))(src))
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
@@ -577,7 +577,7 @@ object Desugar {
 
       (captured zip capturedSubs).foreach {
         case (v, p) => val src = meta(v)
-          ctx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(src))(src))
+          ctx.addSubst(v, in.Deref(p, underlyingType(p.typ))(src))
       }
 
       (decl.result.outs zip returnsWithSubs).foreach{
@@ -645,7 +645,7 @@ object Desugar {
 
       (captured zip capturedWithSubs).foreach {
         case (v, (p, _)) => val src = meta(v)
-          ctx.addSubst(v, in.Deref(p, typeD(info.typ(v), Addressability.sharedVariable)(src))(src), info)
+          ctx.addSubst(v, in.Deref(p, underlyingType(p.typ))(src), info)
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {

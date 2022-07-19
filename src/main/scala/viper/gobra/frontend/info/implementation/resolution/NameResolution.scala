@@ -314,26 +314,22 @@ trait NameResolution { this: TypeInfoImpl =>
 
   private def entityWithinClosureImplementationProof(id: PIdnUse): Entity = {
     val proof = tryEnclosingClosureImplementationProof(id).get
-    val (func, fBody, context) = proof.impl.spec.func match {
+    val (func, context) = proof.impl.spec.func match  {
       case PNamedOperand(id) => symbTableLookup(id) match {
-        case f: Function => (f, f.decl.body, f.context)
-        case c: Closure => (c, c.lit.body, c.context)
+        case f: Function => (f, f.context)
+        case c: Closure => (c, c.context)
         case _ => return UnknownEntity()
       }
-      case PDot(base: PNamedOperand, id) =>
-        val pkg = symbTableLookup(base.id)
-        pkg match {
+      case PDot(base: PNamedOperand, id) => symbTableLookup(base.id) match {
           case pkg: Import =>
             tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl) match {
-              case Some((f: Function, _)) => (f, f.decl.body, f.context)
+              case Some((f: Function, _)) => (f, f.context)
               case _ => return UnknownEntity()
             }
           case _ => return UnknownEntity()
         }
       case _ => return UnknownEntity()
     }
-
-    def addressable: Boolean = fBody.exists(_._1.shareableParameters.exists(_.name == id.name))
 
     def namedParam(p: PParameter): Option[PNamedParameter] = p match {
       case p: PNamedParameter => Some(p)
@@ -344,9 +340,9 @@ trait NameResolution { this: TypeInfoImpl =>
     // Within a spec implementation proof, consider all arguments of the spec non-ghost and all results ghost.
     // This is to be as permissive as possible at this point, since all ghostness-related checks are done at the proof level.
     lazy val inParam = func.args.map(namedParam).find(p => p.nonEmpty && p.get.id.name == id.name)
-      .map(p => InParameter(p.get, ghost = false, addressable, context))
+      .map(p => InParameter(p.get, ghost = false, addressable = false, context))
     lazy val outParam = func.result.outs.map(namedParam).find(p => p.nonEmpty && p.get.id.name == id.name)
-      .map(p => OutParameter(p.get, ghost = true, addressable, context))
+      .map(p => OutParameter(p.get, ghost = true, addressable = false, context))
     if (inParam.nonEmpty) inParam.get
     else if (outParam.nonEmpty) outParam.get
     else symbTableLookup(id)

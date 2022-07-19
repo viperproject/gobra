@@ -32,7 +32,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       resolve(n) match {
         /* A closure name can only be used as a spec, if we are not directly within the closure itself
            (the same limitation applies within closures nested inside the closure itself) */
-        case Some(ap.Closure(id, _)) => error(n, s"here, the closure name ${n} can only be used as a spec",
+        case Some(ap.Closure(id, _)) => error(n, s"expected valid operand, got closure declaration name $n",
           !tree.parent(n).head.isInstanceOf[PClosureSpecInstance] &&
             tryEnclosingFunctionLit(n).fold(true)(lit => lit.id.fold(true)(encId => encId.name != id.name)))
         case _ => noMessages

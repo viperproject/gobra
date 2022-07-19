@@ -120,6 +120,7 @@ object TypeHead {
     case t: PointerTExpr => Vector(t.elems)
     case _: DefinedTExpr => Vector.empty
     case t: StructTExpr => t.fields.map(_._2)
+    case _: InterfaceTExpr => Vector.empty
     case t: ArrayTExpr => Vector(t.elems)
     case t: SliceTExpr => Vector(t.elems)
     case t: MapTExpr => Vector(t.keys, t.elems)
@@ -142,6 +143,7 @@ object TypeHead {
     case _: PointerTExpr => PointerHD
     case t: DefinedTExpr => DefinedHD(t.name)
     case t: StructTExpr => StructHD(t.fields.map(t => (t._1, t._3)))
+    case t: InterfaceTExpr => InterfaceHD(t.name)
     case _: ArrayTExpr => ArrayHD
     case _: SliceTExpr => SliceHD
     case _: MapTExpr => MapHD

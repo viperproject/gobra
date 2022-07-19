@@ -55,26 +55,42 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   val newBody = {
                     in.Block(
                       decls = Vector.empty,
-                      stmts = assumeFalse +: implementations.toVector.flatMap {
-                        case t: in.Type =>
-                          table.lookup(t, proxy.name).map {
-                            case implProxy: in.MethodProxy if !t.isInstanceOf[in.InterfaceT] =>
-                              in.If(
-                                in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(t)(src))(src),
-                                in.Seqn(Vector(
-                                  in.MethodCall(
-                                    m.results map parameterAsLocalValVar,
-                                    in.TypeAssertion(m.receiver, t)(src),
-                                    implProxy, m.args
-                                  )(src),
-                                  in.Return()(src)
-                                ))(src),
-                                in.Seqn(Vector())(src)
-                              )(src)
-                            case _ : in.MethodProxy if t.isInstanceOf[in.InterfaceT] =>
+                      stmts = assumeFalse +: implementations.toVector.flatMap { t: in.Type =>
+                        table.lookup(t, proxy.name).map {
+                          case implProxy: in.MethodProxy if !t.isInstanceOf[in.InterfaceT] =>
+                            in.If(
+                              in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(t)(src))(src),
+                              in.Seqn(Vector(
+                                in.MethodCall(
+                                  m.results map parameterAsLocalValVar,
+                                  in.TypeAssertion(m.receiver, t)(src),
+                                  implProxy, m.args
+                                )(src),
+                                in.Return()(src)
+                              ))(src),
                               in.Seqn(Vector())(src)
-                            case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
-                          }
+                            )(src)
+                          case implProxy: in.MethodProxy if t.isInstanceOf[in.InterfaceT] =>
+                            // TODO. also, make sure no duplicated methods are generated (give a better name to the generated member?)
+                            //       also, check whether similar problems exist for pure members
+                            //       also, write a test for both pure and non pure, two cases for each where the test should and should not terminate,
+                            //       and for each, a test where one interface is a subtype of the other by embbeddedi interfaces and
+                            //       another by implementing the same methods
+                            in.If(
+                              in.IsBehaviouralSubtype(in.TypeOf(m.receiver)(src), typeAsExpr(t)(src))(src),
+                              in.Seqn(Vector(
+                                in.MethodCall(
+                                  // cast before
+                                  m.results map parameterAsLocalValVar,
+                                  in.ToInterface(m.receiver, t)(src),
+                                  implProxy, m.args
+                                )(src),
+                                in.Return()(src)
+                              ))(src),
+                              in.Seqn(Vector())(src)
+                            )(src)
+                          case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
+                        }
                       }
                     )(src)
                   }
@@ -138,7 +154,12 @@ object CGEdgesTerminationTransform extends InternalTransform {
                               returnType
                             )(src)
                           case Some(implProxy: in.MethodProxy) if impl.isInstanceOf[in.InterfaceT] =>
-                            in.PureMethodCall(in.TypeAssertion(m.receiver, impl)(src), implProxy, m.args, returnType)(src)
+                            in.Conditional(
+                              in.IsBehaviouralSubtype(in.TypeOf(m.receiver)(src), typeAsExpr(t)(src))(src),
+                              in.PureMethodCall(in.TypeAssertion(m.receiver, impl)(src), implProxy, m.args, returnType)(src),
+                              accum,
+                              returnType
+                            )(src)
                           case None => accum
                           case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
                         }
@@ -192,6 +213,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
       case in.TupleT(ts, _) => in.TupleTExpr(ts map(typeAsExpr(_)(src)))(src)
       case in.StructT(fields: Vector[in.Field], _) =>
         in.StructTExpr(fields.map(field => (field.name, typeAsExpr(field.typ)(src), field.ghost)))(src)
+      case in.InterfaceT(name, _) => in.InterfaceTExpr(name)(src)
       case _ => Violation.violation(s"no corresponding type expression matched: $t")
     }
   }

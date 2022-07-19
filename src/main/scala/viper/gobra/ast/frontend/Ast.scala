@@ -446,11 +446,11 @@ case class PClosureImplements(closure: PExpression, spec: PClosureSpecInstance) 
 
 case class PClosureImplProof(impl: PClosureImplements, block: PBlock) extends PGhostStatement with PScope
 
-case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends PActualExpression
+case class PInvoke(base: PExpressionOrType, args: Vector[PExpression], spec: Option[PClosureSpecInstance]) extends PActualExpression {
+  require(base.isInstanceOf[PExpression] || spec.isEmpty)
+}
 
 // TODO: Check Arguments in language specification, also allows preceding type
-
-case class PCallWithSpec(base: PExpression, args: Vector[PExpression], spec: PClosureSpecInstance) extends PActualExpression
 
 case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNameOrDot with PTypeName
 

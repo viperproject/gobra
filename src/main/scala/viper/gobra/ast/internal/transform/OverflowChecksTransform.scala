@@ -100,10 +100,10 @@ object OverflowChecksTransform extends InternalTransform {
       val assertBounds = Assert(assertionExprInBounds(r, l.op.typ)(info))(info)
       Seqn(Vector(assertBounds, ass))(l.op.info)
 
-    case f@FunctionCall(_, _, args) =>
+    case f@FunctionCall(_, _, args, _) =>
       Seqn(genOverflowChecksExprs(args) :+ f)(f.info)
 
-    case m@MethodCall(_, recv, _, args) =>
+    case m@MethodCall(_, recv, _, args, _) =>
       Seqn(genOverflowChecksExprs(recv +: args) :+ m)(m.info)
 
     case m@New(_, expr) =>
@@ -115,8 +115,8 @@ object OverflowChecksTransform extends InternalTransform {
     case m@GoMethodCall(recv, _, args) =>
       Seqn(genOverflowChecksExprs(recv +: args) :+ m)(m.info)
 
-    case d@Defer(FunctionCall(_, _, args)) => Seqn(genOverflowChecksExprs(args) :+ d)(d.info)
-    case d@Defer(MethodCall(_, recv, _, args)) => Seqn(genOverflowChecksExprs(recv +: args) :+ d)(d.info)
+    case d@Defer(FunctionCall(_, _, args, _)) => Seqn(genOverflowChecksExprs(args) :+ d)(d.info)
+    case d@Defer(MethodCall(_, recv, _, args, _)) => Seqn(genOverflowChecksExprs(recv +: args) :+ d)(d.info)
     case d@Defer(_: Fold | _: Unfold | _: PredExprFold | _: PredExprUnfold) => d
 
     case m@Send(_, expr, _, _, _) =>

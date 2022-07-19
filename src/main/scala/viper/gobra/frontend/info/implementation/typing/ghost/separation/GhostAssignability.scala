@@ -42,17 +42,17 @@ trait GhostAssignability {
   }
 
   /** checks that ghost arguments are not assigned to non-ghost arguments in a call with spec  */
-  private[separation] def ghostAssignableToCallWithSpec(call: PCallWithSpec): Messages = {
-    val isPure = resolve(call.spec.func) match {
+  private[separation] def ghostAssignableToClosureCall(call: ap.ClosureCall): Messages = {
+    val isPure = resolve(call.maybeSpec.get.func) match {
       case Some(ap.Function(_, f)) => f.isPure
       case Some(ap.Closure(_, c)) => c.isPure
       case _ => Violation.violation("this case should be unreachable")
     }
 
     // If the closure variable being called is ghost, ghost is assignable to all parameters.
-    if (isPure || isExprGhost(call.base)) { return noMessages }
+    if (isPure || isExprGhost(call.callee)) { return noMessages }
 
-    val argTyping = closureSpecArgsAndResGhostTyping(call.spec)._1.toTuple
+    val argTyping = closureSpecArgsAndResGhostTyping(call.maybeSpec.get)._1.toTuple
     call.args.zip(argTyping).flatMap {
       case (g, l) => error(g, "ghost error: ghost cannot be assigned to non-ghost", isExprGhost(g) && !l)
     }
@@ -213,34 +213,31 @@ trait GhostAssignability {
     val specTyping = closureSpecArgsAndResGhostTyping(p.impl.spec)
 
     closureImplProofCallAttr(p) match {
-      case Left(c: PInvoke) =>
+      case c: PInvoke =>
         // If the callee is ghost, we don't care about the ghostness of the arguments.
         if (isExprGhost(c.base.asInstanceOf[PExpression])) noMessages
         else resolve(c) match {
           case Some(call: ap.FunctionCall) => error(c,
             s"the ghostness of arguments and results of ${p.impl.spec} and ${c.base} does not match",
             specTyping != (calleeArgGhostTyping(call), calleeReturnGhostTyping(call)))
+          case Some(c: ap.ClosureCall) => error(c,
+            s"the ghostness of arguments and results of ${p.impl.spec} and ${c.spec} does not match",
+            specTyping != closureSpecArgsAndResGhostTyping(c.spec)
+          )
           case _ => Violation.violation("expected function call")
         }
-      case Right(c: PCallWithSpec) =>
-        // If the callee is ghost, we don't care about the ghostness of the arguments.
-        if (isExprGhost(c.base)) noMessages
-        else error(c,
-          s"the ghostness of arguments and results of ${p.impl.spec} and ${c.spec} does not match",
-          specTyping != closureSpecArgsAndResGhostTyping(c.spec)
-        )
     }
   }
 
-  private[separation] def callWithSpecReturnGhostTyping(call: PCallWithSpec): GhostType = {
+  private[separation] def closureCallReturnGhostTyping(call: PInvoke): GhostType = {
     // a result is ghost if the closure is ghost (even if such a explicit declaration is missing)
     def resultTyping(result: PResult, isClosureGhost: Boolean, context: ExternalTypeInfo): GhostType = {
       GhostType.ghostTuple(result.outs.map(p => isClosureGhost || context.isParamGhost(p)))
     }
 
-    resolve(call.spec.func) match {
-      case Some(p: ap.Function) => resultTyping(p.symb.result, isExprGhost(call.base), p.symb.context)
-      case Some(p: ap.Closure) => resultTyping(p.symb.result, isExprGhost(call.base), p.symb.context)
+    resolve(call.spec.get.func) match {
+      case Some(p: ap.Function) => resultTyping(p.symb.result, isExprGhost(call.base.asInstanceOf[PExpression]), p.symb.context)
+      case Some(p: ap.Closure) => resultTyping(p.symb.result, isExprGhost(call.base.asInstanceOf[PExpression]), p.symb.context)
       case _ => GhostType.isGhost // conservative choice
     }
   }

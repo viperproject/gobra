@@ -11,6 +11,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting
 import viper.gobra.reporting.BackTranslator.ErrorTransformer
 import viper.gobra.reporting.Source
+import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
@@ -59,22 +60,47 @@ class ClosureEncoding extends LeafTypeEncoding {
       val (pos, info, errT) = c.vprMeta
       cl.unit(vpr.LocalVar(Names.closureArg, domain.vprType)(pos, info, errT))
 
-    case c: in.PureCallWithSpec =>
+    case c@in.PureFunctionCall(Left(_), _, Some(_), _) =>
       specs.pureClosureCall(c)(ctx)
+
+    case c@in.PureFunctionCall(Right(proxy), args, Some(spec), typ) =>
+      val member = ctx.lookup(proxy)
+      val fType = in.FunctionT(member.args.map(_.typ), member.results.map(_.typ), Addressability.rValue)
+      val fObject = in.FunctionObject(proxy, fType)(c.info)
+      specs.pureClosureCall(in.PureFunctionCall(Left(fObject), args, Some(spec), typ)(c.info))(ctx)
+
+    case c@in.PureMethodCall(recv, meth, args, Some(spec), typ) =>
+      val member = ctx.lookup(meth)
+      val mType = in.FunctionT(member.args.map(_.typ), member.results.map(_.typ), Addressability.rValue)
+      val mObject = in.MethodObject(recv, meth, mType)(c.info)
+      specs.pureClosureCall(in.PureFunctionCall(Left(mObject), args, Some(spec), typ)(c.info))(ctx)
 
     case a: in.ClosureImplements =>
       specs.closureImplementsExpression(a)(ctx)
 
-    case e@in.DfltVal(_) :: ctx.Function(t) / Exclusive =>
-      ctx.expression(in.PureFunctionCall(in.FunctionProxy(Names.closureDefaultFunc)(e.info), Vector.empty, t)(e.info))
+    case e@in.DfltVal(_) :: ctx.Function(t) / Exclusive => dfltVal(e, t)(ctx)
 
-    case e@in.NilLit(_) :: ctx.Function(t) =>
-      ctx.expression(in.PureFunctionCall(in.FunctionProxy(Names.closureDefaultFunc)(e.info), Vector.empty, t)(e.info))
+    case e@in.NilLit(_) :: ctx.Function(t) => dfltVal(e, t)(ctx)
   }
 
+  private def dfltVal(e: in.Expr, fTyp: in.FunctionT)(ctx: Context): CodeWriter[vpr.Exp] =
+    ctx.expression(in.PureFunctionCall(Right(in.FunctionProxy(Names.closureDefaultFunc)(e.info)), Vector.empty, None, fTyp)(e.info))
+
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = default(super.statement(ctx)) {
-    case c: in.CallWithSpec =>
+    case c@in.FunctionCall(_, Left(_), _, Some(_)) =>
       specs.closureCall(c)(ctx)
+
+    case c@in.FunctionCall(targets, Right(proxy), args, Some(spec)) =>
+      val member = ctx.lookup(proxy)
+      val fType = in.FunctionT(member.args.map(_.typ), member.results.map(_.typ), Addressability.rValue)
+      val fObject = in.FunctionObject(proxy, fType)(c.info)
+      specs.closureCall(in.FunctionCall(targets, Left(fObject), args, Some(spec))(c.info))(ctx)
+
+    case c@in.MethodCall(targets, recv, meth, args, Some(spec)) =>
+      val member = ctx.lookup(meth)
+      val mType = in.FunctionT(member.args.map(_.typ), member.results.map(_.typ), Addressability.rValue)
+      val mObject = in.MethodObject(recv, meth, mType)(c.info)
+      specs.closureCall(in.FunctionCall(targets, Left(mObject), args, Some(spec))(c.info))(ctx)
 
     case p: in.SpecImplementationProof =>
       specImplementationProof(p)(ctx)

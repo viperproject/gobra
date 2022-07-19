@@ -1120,13 +1120,14 @@ object Desugar {
               case inv: PInvoke =>
                 info.resolve(inv) match {
                   case Some(p: ap.FunctionCall) =>
+                    // No closure calls for now
                     functionCallDAux(ctx)(p, inv)(src) map {
                       case Left((_, call: in.FunctionCall)) =>
-                        in.GoFunctionCall(call.func, call.args)(src)
+                        in.GoFunctionCall(call.func.getOrElse(violation("Expected proxy")), call.args)(src)
                       case Left((_, call: in.MethodCall)) =>
                         in.GoMethodCall(call.recv, call.meth, call.args)(src)
                       case Right(call: in.PureFunctionCall) =>
-                        in.GoFunctionCall(call.func, call.args)(src)
+                        in.GoFunctionCall(call.func.getOrElse(violation("Expected proxy")), call.args)(src)
                       case Right(call: in.PureMethodCall) =>
                         in.GoMethodCall(call.recv, call.meth, call.args)(src)
                       case _ => unexpectedExprError(exp)
@@ -1142,8 +1143,8 @@ object Desugar {
             exp match {
               case inv: PInvoke =>
                 info.resolve(inv) match {
-                  case Some(p: ap.FunctionCall) =>
-                    functionCallDAux(ctx)(p, inv)(src) map {
+                  case Some(p: ap.FunctionLikeCall) =>
+                    functionLikeCallDAux(ctx)(p, inv)(src) map {
                       case Left((_, call: in.Deferrable)) => in.Defer(call)(src)
                       case _ => unexpectedExprError(exp)
                     }
@@ -1365,35 +1366,8 @@ object Desugar {
       } yield in.FieldRef(base, f)(src)
     }
 
-    def callWithSpecD(ctx: FunctionContext, info: TypeInfo = info)(c: PCallWithSpec): Writer[in.Expr] = {
-      val src = meta(c)
-      val (func, isPure, fParams, fRes) = info.resolve(c.spec.func) match {
-        case Some(ap.Function(_, f)) => (f, f.isPure, f.args, f.result)
-        case Some(ap.Closure(_, c)) => (c, c.isPure, c.args, c.result)
-        case _ => violation("expected function or function literal")
-      }
-
-      val spec = closureSpecD(ctx, info)(c.spec)
-      val params = fParams.zipWithIndex.collect { case (p, idx) if !spec.params.contains(idx + 1) => func.context.typ(p) }
-
-      if (isPure) for {
-        dArgs <- functionCallArgsD(c.args, params)(ctx, info, src)
-        args = arguments(dArgs zip params)
-        closure <- exprD(ctx, info)(c.base)
-        resT = typeD(func.context.typ(fRes), Addressability.callResult)(src)
-      } yield in.PureCallWithSpec(closure, arguments(args zip params), spec, resT)(src)
-      else for {
-        dArgs <- functionCallArgsD(c.args, params)(ctx, info, src)
-        args = arguments(dArgs zip params)
-        closure <- exprD(ctx, info)(c.base)
-        targets = fRes.outs map (o => freshExclusiveVar(typeD(func.context.symbType(o.typ), Addressability.exclusiveVariable)(src), c, info)(src))
-        _ <- declare(targets: _*)
-        _ <- write(in.CallWithSpec(targets, closure, arguments(args zip params), spec)(src))
-      } yield if (targets.size == 1) targets.head else in.Tuple(targets)(src)
-    }
-
-    def functionCallD(ctx: FunctionContext, info: TypeInfo = info)(p: ap.FunctionCall, expr: PInvoke)(src: Meta): Writer[in.Expr] = {
-      functionCallDAux(ctx, info)(p, expr)(src) flatMap {
+    def functionLikeCallD(ctx: FunctionContext, info: TypeInfo = info)(p: ap.FunctionLikeCall, expr: PInvoke)(src: Meta): Writer[in.Expr] = {
+      functionLikeCallDAux(ctx, info)(p, expr)(src) flatMap {
         case Right(exp) => unit(exp)
         case Left((targets, callStmt)) =>
           val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
@@ -1402,6 +1376,11 @@ object Desugar {
             _ <- write(callStmt)
           } yield res
       }
+    }
+
+    def functionLikeCallDAux(ctx: FunctionContext, info: TypeInfo = info)(p: ap.FunctionLikeCall, expr: PInvoke)(src: Meta): Writer[Either[(Vector[in.LocalVar], in.Stmt), in.Expr]] = p match {
+      case p: ap.FunctionCall => functionCallDAux(ctx, info)(p, expr)(src)
+      case _: ap.ClosureCall => closureCallDAux(ctx, info)(expr)(src)
     }
 
     /** Returns either a tuple with targets and call statement or, if the call is pure, the call expression directly. */
@@ -1499,13 +1478,15 @@ object Desugar {
                 args <- dArgs
                 convertedArgs = convertArgs(args)
                 fproxy = getFunctionProxy(base, convertedArgs)
-              } yield Right(in.PureFunctionCall(fproxy, convertedArgs, resT)(src))
+                spec = p.maybeSpec.map(closureSpecD(ctx, info))
+              } yield Right(in.PureFunctionCall(Right(fproxy), convertedArgs, spec, resT)(src))
             } else {
               for {
                 args <- dArgs
                 convertedArgs = convertArgs(args)
                 fproxy = getFunctionProxy(base, convertedArgs)
-              } yield Left((targets, in.FunctionCall(targets, fproxy, convertedArgs)(src)))
+                spec = p.maybeSpec.map(closureSpecD(ctx, info))
+              } yield Left((targets, in.FunctionCall(targets, Right(fproxy), convertedArgs, spec)(src)))
             }
 
           case iim: ap.ImplicitlyReceivedInterfaceMethod =>
@@ -1517,14 +1498,16 @@ object Desugar {
                 convertedArgs = convertArgs(args)
                 proxy = methodProxy(iim.id, iim.symb.context.getTypeInfo)
                 recvType = typeD(iim.symb.itfType, Addressability.receiver)(src)
-              } yield Right(in.PureMethodCall(implicitThisD(recvType)(src), proxy, convertedArgs, resT)(src))
+                spec = p.maybeSpec.map(closureSpecD(ctx, info))
+              } yield Right(in.PureMethodCall(implicitThisD(recvType)(src), proxy, convertedArgs, spec, resT)(src))
             } else {
               for {
                 args <- dArgs
                 convertedArgs = convertArgs(args)
                 proxy = methodProxy(iim.id, iim.symb.context.getTypeInfo)
                 recvType = typeD(iim.symb.itfType, Addressability.receiver)(src)
-              } yield Left((targets, in.MethodCall(targets, implicitThisD(recvType)(src), proxy, convertedArgs)(src)))
+                spec = p.maybeSpec.map(closureSpecD(ctx, info))
+              } yield Left((targets, in.MethodCall(targets, implicitThisD(recvType)(src), proxy, args, spec)(src)))
             }
 
           case df: ap.DomainFunction =>
@@ -1560,18 +1543,45 @@ object Desugar {
                 (recv, args) <- dRecvWithArgs
                 convertedArgs = convertArgs(args)
                 mproxy = getMethodProxy(base, recv, convertedArgs)
-              } yield Right(in.PureMethodCall(recv, mproxy, convertedArgs, resT)(src))
+                spec = p.maybeSpec.map(closureSpecD(ctx, info))
+              } yield Right(in.PureMethodCall(recv, mproxy, convertedArgs, spec, resT)(src))
             } else {
               for {
                 (recv, args) <- dRecvWithArgs
                 convertedArgs = convertArgs(args)
                 mproxy = getMethodProxy(base, recv, convertedArgs)
-              } yield Left((targets, in.MethodCall(targets, recv, mproxy, convertedArgs)(src)))
+                spec = p.maybeSpec.map(closureSpecD(ctx, info))
+              } yield Left((targets, in.MethodCall(targets, recv, mproxy, convertedArgs, spec)(src)))
             }
           }
           case sym => Violation.violation(s"expected symbol with arguments and result or a built-in entity, but got $sym")
         }
       }
+    }
+
+    /** Returns either a tuple with targets and call statement or, if the call is pure, the call expression directly. */
+    def closureCallDAux(ctx: FunctionContext, info: TypeInfo = info)(expr: PInvoke)(src: Meta): Writer[Either[(Vector[in.LocalVar], in.Stmt), in.Expr]] = {
+      val (func, isPure) = info.resolve(expr.spec.get.func) match {
+        case Some(ap.Function(_, f)) => (f, f.isPure)
+        case Some(ap.Closure(_, c)) => (c, c.isPure)
+        case _ => violation("expected function or function literal")
+      }
+
+      val spec = closureSpecD(ctx, info)(expr.spec.get)
+      val params = func.args.zipWithIndex.collect { case (p, idx) if !spec.params.contains(idx + 1) => func.context.typ(p) }
+
+      if (isPure) for {
+        dArgs <- functionCallArgsD(expr.args, params)(ctx, info, src)
+        args = arguments(dArgs zip params)
+        closure <- exprD(ctx, info)(expr.base.asInstanceOf[PExpression])
+        resT = typeD(func.context.typ(func.result), Addressability.callResult)(src)
+      } yield Right(in.PureFunctionCall(Left(closure), arguments(args zip params), Some(spec), resT)(src))
+      else for {
+        dArgs <- functionCallArgsD(expr.args, params)(ctx, info, src)
+        args = arguments(dArgs zip params)
+        closure <- exprD(ctx, info)(expr.base.asInstanceOf[PExpression])
+        targets = func.result.outs map (o => freshExclusiveVar(typeD(func.context.symbType(o.typ), Addressability.exclusiveVariable)(src), expr, info)(src))
+      } yield Left((targets, in.FunctionCall(targets, Left(closure), arguments(args zip params), Some(spec))(src)))
     }
 
 
@@ -1800,8 +1810,6 @@ object Desugar {
           }
 
           case n: PInvoke => invokeD(ctx, info)(n)
-
-          case n: PCallWithSpec => callWithSpecD(ctx, info)(n)
 
           case n: PTypeAssertion =>
             for {
@@ -2067,7 +2075,7 @@ object Desugar {
     def invokeD(ctx: FunctionContext, info: TypeInfo = info)(expr: PInvoke): Writer[in.Expr] = {
       val src: Meta = meta(expr)
       info.resolve(expr) match {
-        case Some(p: ap.FunctionCall) => functionCallD(ctx, info)(p, expr)(src)
+        case Some(p: ap.FunctionLikeCall) => functionLikeCallD(ctx, info)(p, expr)(src)
         case Some(ap.Conversion(typ, arg)) =>
           val typType = info.symbType(typ)
           val argType = info.typ(arg)

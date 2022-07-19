@@ -227,11 +227,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case (Left(callee), Some(_: ap.FunctionCall)) => // arguments have to be assignable to function
           exprType(callee) match {
             case FunctionT(args, _) => // TODO: add special assignment
-              if (n.args.isEmpty && args.isEmpty) noMessages
+              if (n.spec.nonEmpty) wellDefCallWithSpec(n)
+              else if (n.args.isEmpty && args.isEmpty) noMessages
               else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n, s"type error: got $t but expected function type or AbstractType")
           }
+
+        case (Left(_), Some(_: ap.ClosureCall)) => wellDefCallWithSpec(n)
 
         case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
           val pureReceiverMsgs = p.predicate match {
@@ -265,12 +268,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
       }
     }
-
-    case n@PCallWithSpec(base, args, spec) => wellDefIfClosureMatchesSpec(base, spec) ++ ((exprType(base), miscType(spec)) match {
-      case (tC: FunctionT, _: FunctionT) => args.flatMap(isExpr(_).out) ++
-        (if (args.isEmpty && tC.args.isEmpty) noMessages else multiAssignableTo.errors(args map exprType, tC.args)(n))
-      case (tC, _) => error(base, s"expected function type, but got $tC")
-    })
 
     case PBitNegation(op) => isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST)(op)
 
@@ -608,7 +605,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (Left(_), Some(_: ap.PredExprInstance)) =>
         // a PInvoke on a predicate expression instance must fully apply the predicate arguments
         AssertionT
-      case (Left(callee), Some(_: ap.FunctionCall | _: ap.PredicateCall)) =>
+      case (Left(callee), Some(_: ap.FunctionCall | _: ap.PredicateCall | _: ap.ClosureCall)) =>
         exprType(callee) match {
           case FunctionT(_, res) => res
           case t: AbstractType =>
@@ -619,8 +616,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       case p => violation(s"expected conversion, function call, predicate call, or predicate expression instance, but got $p")
     }
-
-    case PCallWithSpec(_, _, spec) => miscType(spec).asInstanceOf[FunctionT].result
 
     case PIndexedExp(base, index) => (underlyingType(exprType(base)), exprType(index)) match {
       case (ArrayT(_, elem), IntT(_)) => elem
@@ -807,7 +802,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           // PInvoke and thus, `expr` can onlu appear in `n` as an argument
           lazy val errorMessage = s"violation of assumption: a numeric expression $expr does not occur as an argument of its parent $n"
           resolve(n) match {
-            case Some(ap.FunctionCall(_, args)) =>
+            case Some(ap.FunctionCall(_, args, _)) =>
               val index = args.indexWhere(_.eq(expr))
               violation(index >= 0, errorMessage)
               typOfExprOrType(n.base) match {
@@ -982,6 +977,19 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       error(expr, s"expected constant perm expression, but got $expr instead", constExprOpt.isEmpty) ++
         error(expr, s"the divisor of the perm expression $expr evaluates to 0", constExprOpt.exists(_._2 == 0))
     case _ => error(expr, s"expected a constant expression, but got $expr instead")
+  }
+
+  private[typing] def wellDefCallWithSpec(n: PInvoke): Messages = {
+    val base = n.base.asInstanceOf[PExpression]
+    val closureMatchesSpec = wellDefIfClosureMatchesSpec(base, n.spec.get)
+    val assignableArgs = (exprType(base), miscType(n.spec.get)) match {
+      case (tC: FunctionT, _: FunctionT) => n.args.flatMap(isExpr(_).out) ++ (
+        if (n.args.isEmpty && tC.args.isEmpty) noMessages
+        else multiAssignableTo.errors(n.args map exprType, tC.args)(base))
+      case (tC, _) => error(base, s"expected function type, but got $tC")
+    }
+
+    closureMatchesSpec ++ assignableArgs
   }
 
   private[typing] def wellDefIfClosureMatchesSpec(closure: PExpression, spec: PClosureSpecInstance): Messages =

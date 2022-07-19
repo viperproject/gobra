@@ -247,16 +247,9 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
       val aArgs = n.args.zip(gt.toTuple).filter(!_._2).map(_._1)
       val ghostArgs = n.args.zip(gt.toTuple).filter(_._2).map(_._1)
 
-      super.showExpr(n.copy(args = aArgs)) <> (if (ghostArgs.isEmpty) emptyDoc else space <> inlinedSpecComment(with_keyword <+> showExprList(ghostArgs)))
-
-    case n: PCallWithSpec =>
-      val gt = classifier.expectedArgGhostTyping(n.spec)
-      val aArgs = n.args.zip(gt.toTuple).filter(!_._2).map(_._1)
-      val ghostArgs = n.args.zip(gt.toTuple).filter(_._2).map(_._1)
-
-      super.showExpr(PInvoke(n.base, aArgs)) <+> inlinedSpecComment("as" <+> showMisc(n.spec)) <>
-        (if (ghostArgs.isEmpty) emptyDoc else space <> inlinedSpecComment(with_keyword <+> showExprList(ghostArgs)))
-
+      super.showExpr(n.copy(args = aArgs)) <>
+        opt(n.spec)(s => emptyDoc <+> inlinedSpecComment("as" <+> showMisc(s))) <>
+          (if (ghostArgs.isEmpty) emptyDoc else space <> inlinedSpecComment(with_keyword <+> showExprList(ghostArgs)))
 
     case e: PProofAnnotation => e match {
       case e: PUnfolding =>

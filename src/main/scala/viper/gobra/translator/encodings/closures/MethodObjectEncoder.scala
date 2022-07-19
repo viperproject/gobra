@@ -103,7 +103,7 @@ class MethodObjectEncoder(domain: ClosureDomainEncoder) {
   }
 
   private def callToGetterFunction(m: in.MethodObject)(info: Source.Parser.Info)(ctx: Context): CodeWriter[vpr.Exp] = for {
-    call <- ctx.expression(in.PureMethodCall(m.recv, getterFunctionProxy(m.meth), Vector.empty, genericFuncType)(info))
+    call <- ctx.expression(in.PureMethodCall(m.recv, getterFunctionProxy(m.meth), Vector.empty, None, genericFuncType)(info))
     _ <- errorT(receiverNilErr(m, call))
   } yield call
 }

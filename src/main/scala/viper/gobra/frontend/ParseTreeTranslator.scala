@@ -1136,11 +1136,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitInvokePrimaryExpr(ctx: InvokePrimaryExprContext): AnyRef = super.visitInvokePrimaryExpr(ctx) match {
-    case Vector(pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args)
+    case Vector(pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args, None)
   }
 
   override def visitInvokePrimaryExprWithSpec(ctx: InvokePrimaryExprWithSpecContext): AnyRef = super.visitInvokePrimaryExprWithSpec(ctx) match {
-    case Vector(pe: PExpression, InvokeArgs(args), "as", pcs: PClosureSpecInstance) => PCallWithSpec(pe, args, pcs)
+    case Vector(pe: PExpression, InvokeArgs(args), "as", pcs: PClosureSpecInstance) => PInvoke(pe, args, Some(pcs))
   }
 
   override def visitTypeAssertionPrimaryExpr(ctx: TypeAssertionPrimaryExprContext): AnyRef = super.visitTypeAssertionPrimaryExpr(ctx) match {
@@ -1169,7 +1169,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     *     */
   override def visitConversion(ctx: ConversionContext): PInvoke= {
     visitChildren(ctx) match {
-      case Vector(typ : PType, "(", exp : PExpression, _*) => PInvoke(typ, Vector(exp)).at(ctx)
+      case Vector(typ : PType, "(", exp : PExpression, _*) => PInvoke(typ, Vector(exp), None).at(ctx)
     }
   }
 

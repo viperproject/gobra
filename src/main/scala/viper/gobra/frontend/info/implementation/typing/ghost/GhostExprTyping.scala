@@ -341,7 +341,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
               false
             case _ => go(p.arg)
           }
-        case (Left(callee), Some(p@ap.FunctionCall(f, _))) => go(callee) && p.args.forall(go) && (f match {
+        case (Left(callee), Some(p@ap.FunctionCall(f, _, _))) => go(callee) && p.args.forall(go) && (f match {
           case ap.Function(_, symb) => symb.isPure
           case ap.Closure(_, symb) => symb.isPure
           case ap.DomainFunction(_, _) => true
@@ -352,14 +352,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case ap.BuiltInMethodExpr(_, _, _, symb) => symb.isPure
           case ap.BuiltInFunction(_, symb) => symb.isPure
         })
+        case (Left(callee), Some(_: ap.ClosureCall)) => resolve(n.spec.get.func) match {
+          case Some(ap.Function(_, f)) => f.isPure && go(callee) && n.args.forall(a => go(a))
+          case Some(ap.Closure(_, c)) => c.isPure && go(callee) && n.args.forall(a => go(a))
+          case _ => false
+        }
         case (Left(_), Some(_: ap.PredicateCall)) => !strong
         case (Left(_), Some(_: ap.PredExprInstance)) => !strong
-        case _ => false
-      }
-
-      case n: PCallWithSpec => resolve(n.spec.func) match {
-        case Some(ap.Function(_, f)) => f.isPure && go(n.base) && n.args.forall(a => go(a))
-        case Some(ap.Closure(_, c)) => c.isPure && go(n.base) && n.args.forall(a => go(a))
         case _ => false
       }
 
@@ -509,7 +508,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     expr match {
       case PDot(base, _) => goEorT(base)
-      case PInvoke(base, args) => {
+      case PInvoke(base, args, None) => {
         val res1 = goEorT(base)
         val res2 = combineTriggerResults(args.map(validTriggerPattern))
         combineTriggerResults(res1, res2)

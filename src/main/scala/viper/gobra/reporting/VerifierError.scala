@@ -163,7 +163,7 @@ case class PostconditionError(info: Source.Verifier.Info) extends VerificationEr
 
 case class PreconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "precondition_error"
-  override def localMessage: String = s"Precondition of call ${info.trySrc[frontend.PInvoke](" ")}${info.trySrc[frontend.PCallWithSpec](" ")}might not hold"
+  override def localMessage: String = s"Precondition of call ${info.trySrc[frontend.PInvoke](" ")}might not hold"
 }
 
 case class AssertError(info: Source.Verifier.Info) extends VerificationError {

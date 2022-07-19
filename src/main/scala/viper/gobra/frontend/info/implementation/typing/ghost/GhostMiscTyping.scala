@@ -119,7 +119,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
                     failedProp("Receiver and arguments must be named so that they can be used in a call")
                   } else {
                     val expectedReceiver = expectedReceiverOpt.getOrElse(violation(""))
-                    val expectedInvoke = PInvoke(PDot(expectedReceiver, n.id), expectedArgs)
+                    val expectedInvoke = PInvoke(PDot(expectedReceiver, n.id), expectedArgs, None)
 
                     if (n.isPure) {
                       block.nonEmptyStmts match {

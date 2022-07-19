@@ -355,11 +355,12 @@ case class New(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) exten
 case class SafeTypeAssertion(resTarget: LocalVar, successTarget: LocalVar, expr: Expr, typ: Type)(val info: Source.Parser.Info) extends Stmt
 
 
-case class FunctionCall(targets: Vector[LocalVar], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt with Deferrable
-case class MethodCall(targets: Vector[LocalVar], recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt with Deferrable
+case class FunctionCall(targets: Vector[LocalVar], func: Either[Expr, FunctionProxy], args: Vector[Expr], spec: Option[ClosureSpec])(val info: Source.Parser.Info) extends Stmt with Deferrable {
+  require(func.isLeft || spec.isEmpty)
+}
+case class MethodCall(targets: Vector[LocalVar], recv: Expr, meth: MethodProxy, args: Vector[Expr], spec: Option[ClosureSpec])(val info: Source.Parser.Info) extends Stmt with Deferrable
 case class GoFunctionCall(func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 case class GoMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
-case class CallWithSpec(targets: Vector[LocalVar], closure: Expr, args: Vector[Expr], spec: ClosureSpec)(val info: Source.Parser.Info) extends Stmt
 
 sealed trait Deferrable extends Stmt
 case class Defer(stmt: Deferrable)(val info: Source.Parser.Info) extends Stmt
@@ -884,10 +885,11 @@ case class MapValues(exp : Expr, expUnderlyingType: Type)(val info : Source.Pars
   }
 }
 
-case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
-case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
+case class PureFunctionCall(func: Either[Expr, FunctionProxy], args: Vector[Expr], spec: Option[ClosureSpec], typ: Type)(val info: Source.Parser.Info) extends Expr {
+  require(func.isLeft || spec.isEmpty)
+}
+case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], spec: Option[ClosureSpec], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class DomainFunctionCall(func: DomainFuncProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
-case class PureCallWithSpec(closure: Expr, args: Vector[Expr], spec: ClosureSpec, typ: Type)(val info: Source.Parser.Info) extends Expr
 
 case class Deref(exp: Expr, underlyingTypeExpr: Type)(val info: Source.Parser.Info) extends Expr with Location {
   require(underlyingTypeExpr.isInstanceOf[PointerT])

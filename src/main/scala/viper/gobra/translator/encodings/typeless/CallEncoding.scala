@@ -21,7 +21,7 @@ class CallEncoding extends Encoding {
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
-    case x@in.PureFunctionCall(func, args, typ) =>
+    case x@in.PureFunctionCall(Right(func), args, None, typ) =>
       val (pos, info, errT) = x.vprMeta
       val resultType = ctx.typ(typ)
 
@@ -30,7 +30,7 @@ class CallEncoding extends Encoding {
         app = vpr.FuncApp(func.name, vArgs)(pos, info, resultType, errT)
       } yield app
 
-    case x@in.PureMethodCall(recv, meth, args, typ) =>
+    case x@in.PureMethodCall(recv, meth, args, None, typ) =>
       val (pos, info, errT) = x.vprMeta
       val resultType = ctx.typ(typ)
 
@@ -42,7 +42,7 @@ class CallEncoding extends Encoding {
   }
 
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
-    case x@in.FunctionCall(targets, func, args) =>
+    case x@in.FunctionCall(targets, Right(func), args, None) =>
       val (pos, info, errT) = x.vprMeta
       for {
         vArgss <- sequence(args map ctx.expression)
@@ -57,7 +57,7 @@ class CallEncoding extends Encoding {
         assignToTargets = vpr.Seqn(backAssignments, Seq())(pos, info, errT)
       } yield assignToTargets
 
-    case x@in.MethodCall(targets, recv, meth, args) =>
+    case x@in.MethodCall(targets, recv, meth, args, None) =>
       val (pos, info, errT) = x.vprMeta
       for {
         vRecv <- ctx.expression(recv)

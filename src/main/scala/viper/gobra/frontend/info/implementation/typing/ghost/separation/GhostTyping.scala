@@ -83,13 +83,15 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(_: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
-        case (Left(_), Some(call: ap.FunctionCall)) => calleeGhostTyping(call)
+        case (Left(_), Some(call: ap.FunctionCall)) =>
+          if (tryEnclosingClosureImplementationProof(n).nonEmpty) notGhost
+          else calleeGhostTyping(call)
+        case (Left(_), Some(_: ap.ClosureCall)) =>
+          if (tryEnclosingClosureImplementationProof(n).nonEmpty) notGhost
+          else ghostExprTyping(n.base.asInstanceOf[PExpression])
         case (Left(_), Some(_: ap.PredicateCall)) => isGhost
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
-
-      case n: PCallWithSpec => if (tryEnclosingClosureImplementationProof(n).nonEmpty) notGhost
-      else ghostExprTyping(n.base)
 
       // catches ghost field reads, method calls, function calls since their id is ghost
       case exp => ghost(!noGhostPropagationFromChildren(exp))
@@ -108,11 +110,10 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(_: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
         case (Left(_), Some(call: ap.FunctionCall)) => calleeReturnGhostTyping(call)
+        case (Left(_), Some(_: ap.ClosureCall)) => closureCallReturnGhostTyping(n)
         case (Left(_), Some(_: ap.PredicateCall)) => isGhost
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
-
-      case n: PCallWithSpec => callWithSpecReturnGhostTyping(n)
 
       case e => ghostExprTyping(e)
     }
@@ -221,6 +222,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(_: ap.Conversion)) => GhostType.notGhost
       case (Left(_), Some(call: ap.FunctionCall)) => calleeArgGhostTyping(call)
+      case (Left(_), Some(call: ap.ClosureCall)) => expectedArgGhostTyping(call.maybeSpec.get)
       case (Left(_), Some(_: ap.PredicateCall)) => GhostType.isGhost
       case p => Violation.violation(s"expected conversion, function call, or predicate call, but got $p")
     }

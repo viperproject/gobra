@@ -131,12 +131,11 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(_: ap.Conversion)) =>  error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
       case (Left(_), Some(call: ap.FunctionCall)) => ghostAssignableToCallExpr(call)
+      case (Left(_), Some(call: ap.ClosureCall)) => ghostAssignableToClosureCall(call)
       case (Left(_), Some(_: ap.PredicateCall)) => noMessages
       case (Left(_), Some(_: ap.PredExprInstance)) => noMessages
       case _ => violation("expected conversion, function call, or predicate call")
     }
-
-    case call: PCallWithSpec => ghostAssignableToCallWithSpec(call)
 
     case _: PNew => noMessages
 

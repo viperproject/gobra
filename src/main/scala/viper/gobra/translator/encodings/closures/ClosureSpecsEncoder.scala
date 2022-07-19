@@ -16,6 +16,7 @@ import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeLevel.errorT
 import viper.gobra.translator.util.ViperWriter.MemberKindCompanion.ErrorT
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
+import viper.gobra.util.Violation
 import viper.silver.verifier.{reasons, errors => vprerr}
 import viper.silver.{ast => vpr}
 
@@ -23,33 +24,39 @@ protected class ClosureSpecsEncoder {
 
   def closureImplementsExpression(a: in.ClosureImplements)(ctx: Context): CodeWriter[vpr.Exp] = {
     register(a.spec)(ctx, a.info)
-    ctx.expression(in.PureFunctionCall(implementsFunctionProxy(a.spec)(a.info),
-      Vector(a.closure) ++ a.spec.params.toVector.sortBy(_._1).map(_._2), in.BoolT(Addressability.rValue))(a.info))
+    ctx.expression(in.PureFunctionCall(Right(implementsFunctionProxy(a.spec)(a.info)),
+      Vector(a.closure) ++ a.spec.params.toVector.sortBy(_._1).map(_._2), None, in.BoolT(Addressability.rValue))(a.info))
   }
 
   def callToClosureGetter(func: in.FunctionMemberOrLitProxy, captured: Vector[(in.Expr, in.Parameter.In)] = Vector.empty)(ctx: Context): CodeWriter[vpr.Exp] = {
     val errorTransformers = register(in.ClosureSpec(func, Map.empty)(func.info))(ctx, func.info)
     for {
-      exp <- ctx.expression(in.PureFunctionCall(closureGetterFunctionProxy(func), captured.map(c => c._1), genericFuncType)(func.info))
+      exp <- ctx.expression(in.PureFunctionCall(Right(closureGetterFunctionProxy(func)), captured.map(c => c._1), None, genericFuncType)(func.info))
       _ <- errorT(errorTransformers: _*)
     } yield exp
   }
 
-  def closureCall(c: in.CallWithSpec)(ctx: Context): CodeWriter[vpr.Stmt] = {
-    register(c.spec)(ctx, c.spec.info)
+  def closureCall(c: in.FunctionCall)(ctx: Context): CodeWriter[vpr.Stmt] = {
+    require(c.spec.nonEmpty)
+    register(c.spec.get)(ctx, c.spec.get.info)
+
+    val closure = c.func.left.getOrElse(Violation.violation("Expected expression"))
 
     for {
-      call <- ctx.statement(in.FunctionCall(c.targets, closureCallProxy(c.spec)(c.info), closureCallArgs(c.closure, c.args, c.spec)(ctx))(c.info))
-      _ <- errorT(doesNotImplementSpecErr(c.closure, c.spec))
+      call <- ctx.statement(in.FunctionCall(c.targets, Right(closureCallProxy(c.spec.get)(c.info)), closureCallArgs(closure, c.args, c.spec.get)(ctx), None)(c.info))
+      _ <- errorT(doesNotImplementSpecErr(closure, c.spec.get))
     } yield call
   }
 
-  def pureClosureCall(c: in.PureCallWithSpec)(ctx: Context): CodeWriter[vpr.Exp] = {
-    register(c.spec)(ctx, c.spec.info)
+  def pureClosureCall(c: in.PureFunctionCall)(ctx: Context): CodeWriter[vpr.Exp] = {
+    require(c.spec.nonEmpty)
+    register(c.spec.get)(ctx, c.spec.get.info)
+    val closure = c.func.left.getOrElse(Violation.violation("Expected expression"))
 
     for {
-      exp <- ctx.expression(in.PureFunctionCall(closureCallProxy(c.spec)(c.info), closureCallArgs(c.closure, c.args, c.spec)(ctx), c.typ)(c.info))
-      _ <- errorT(doesNotImplementSpecErr(c.closure, c.spec))
+      exp <- ctx.expression(in.PureFunctionCall(Right(closureCallProxy(c.spec.get)(c.info)),
+        closureCallArgs(closure, c.args, c.spec.get)(ctx), None, c.typ)(c.info))
+      _ <- errorT(doesNotImplementSpecErr(closure, c.spec.get))
     } yield exp
   }
 

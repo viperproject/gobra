@@ -32,7 +32,16 @@ object AstPattern {
   case class Deref(base: PExpression) extends Expr
   case class FieldSelection(base: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.StructMember) extends Expr with Symbolic
   case class Conversion(typ: PType, arg: PExpression) extends Expr
-  case class FunctionCall(callee: FunctionKind, args: Vector[PExpression]) extends Expr
+
+  sealed trait FunctionLikeCall extends Expr {
+    def args: Vector[PExpression]
+    def maybeSpec: Option[PClosureSpecInstance]
+  }
+  case class FunctionCall(callee: FunctionKind, args: Vector[PExpression], maybeSpec: Option[PClosureSpecInstance]) extends FunctionLikeCall
+  case class ClosureCall(callee: PExpression, args: Vector[PExpression], spec: PClosureSpecInstance) extends FunctionLikeCall {
+    override def maybeSpec: Option[PClosureSpecInstance] = Some(spec)
+  }
+
   case class IndexedExp(base : PExpression, index : PExpression) extends Expr
   case class BlankIdentifier(decl: PBlankIdentifier) extends Expr
 

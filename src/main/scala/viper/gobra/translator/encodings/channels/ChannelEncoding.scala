@@ -156,7 +156,7 @@ class ChannelEncoding extends LeafTypeEncoding {
             _ <- write(vprIsChannelInhale)
 
             // inhale [a].BufferSize() == [bufferSize]
-            bufferSizeCall = in.PureMethodCall(a, bufferSizeMProxy, Vector(), in.IntT(Addressability.outParameter))(makeStmt.info)
+            bufferSizeCall = in.PureMethodCall(a, bufferSizeMProxy, Vector(), None, in.IntT(Addressability.outParameter))(makeStmt.info)
             bufferSizeEq = in.EqCmp(bufferSizeCall, bufferSizeArg)(makeStmt.info)
             vprBufferSizeEq <- ctx.expression(bufferSizeEq)
             vprBufferSizeInhale = vpr.Inhale(vprBufferSizeEq)(pos, info, errT)
@@ -262,7 +262,7 @@ class ChannelEncoding extends LeafTypeEncoding {
     */
   private def getChannelInvariantAccess(channel: in.Expr, invariant: in.MethodProxy, args: Vector[in.Expr])(src: Source.Parser.Info): in.Access = {
     val permReturnT = in.PredT(args.map(_.typ), Addressability.outParameter)
-    val permPred = in.PureMethodCall(channel, invariant, Vector(), permReturnT)(src)
+    val permPred = in.PureMethodCall(channel, invariant, Vector(), None, permReturnT)(src)
     in.Access(in.Accessible.PredExpr(in.PredExprInstance(permPred, args)(src)), in.FullPerm(src))(src)
   }
 }

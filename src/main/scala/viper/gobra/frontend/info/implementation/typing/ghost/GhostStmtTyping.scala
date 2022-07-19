@@ -56,14 +56,14 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  lazy val closureImplProofCallAttr: PClosureImplProof => Either[PInvoke, PCallWithSpec] =
-    attr[PClosureImplProof, Either[PInvoke, PCallWithSpec]] { proof =>
-      def findCallDescendent(n: PNode): Option[Either[PInvoke, PCallWithSpec]] = n match {
+  lazy val closureImplProofCallAttr: PClosureImplProof => PInvoke =
+    attr[PClosureImplProof, PInvoke] { proof =>
+      def findCallDescendent(n: PNode): Option[PInvoke] = n match {
         case call: PInvoke => resolve(call) match {
-          case Some(_: ap.FunctionCall) => Some(Left(call))
+          case Some(_: ap.FunctionCall) => Some(call)
+          case Some(_: ap.ClosureCall) => Some(call)
           case _ => None
         }
-        case call: PCallWithSpec => Some(Right(call))
         case _ => tree.child(n).iterator.map(findCallDescendent).find(_.nonEmpty).flatten
       }
 
@@ -92,11 +92,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     lazy val expectedCallArgs = specArgs.flatMap(nameFromParam).map(a => PNamedOperand(PIdnUse(a)))
 
-    def isExpectedCall(e: PExpression): Boolean = e match {
-      case i: PInvoke => i.base == closure && i.args == expectedCallArgs
-      case c: PCallWithSpec => c.base == closure && c.args == expectedCallArgs
-      case _ => false
-    }
+    def isExpectedCall(i: PInvoke): Boolean = i.base == closure && i.args == expectedCallArgs
 
     lazy val expectedCallString: String = resolve(closure) match {
       case Some(_: ap.LocalVariable) => s"$closure(${specArgs.flatMap(nameFromParam).mkString(",")}) as _"
@@ -158,11 +154,8 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
       // If the spec has termination measures, then the call inside the proof
       // must be done with a spec that also has termination measures
       if (specMeasures.isEmpty) noMessages
-      else error(p, s"spec ${p.impl.spec} has termination measures, so also ${
-        closureImplProofCallAttr(p) match {
-          case Left(invoke) => invoke.base
-          case Right(withSpec) => withSpec.spec
-        }} (used inside the proof) must", callMeasures.isEmpty)
+      else error(p, s"spec ${p.impl.spec} has termination measures, so also ${closureImplProofCallAttr(p).base}" +
+        s"(used inside the proof) must", callMeasures.isEmpty)
     }
 
     Seq(wellDefIfNecessaryArgsNamed, wellDefIfArgNamesDoNotShadowClosure, pureWellDefIfIsSinglePureReturnExpr,
@@ -177,11 +170,11 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private [ghost] def pureImplementationProofHasRightShape(retExpr: PExpression,
-                                                           isExpectedCall: PExpression => Boolean,
+                                                           isExpectedCall: PInvoke => Boolean,
                                                            expectedCall: String): PropertyResult = {
     @tailrec
     def validExpression(expr: PExpression): PropertyResult = expr match {
-      case _: PInvoke | _: PCallWithSpec => failedProp(s"The call must be $expectedCall", !isExpectedCall(expr))
+      case invoke: PInvoke => failedProp(s"The call must be $expectedCall", !isExpectedCall(invoke))
       case f: PUnfolding => validExpression(f.op)
       case _ => failedProp(s"only unfolding expressions and the call $expectedCall is allowed")
     }
@@ -191,21 +184,22 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
   // the body can only contain fold, unfold, and the call
   private [ghost] def implementationProofBodyHasRightShape(body: PBlock,
-                                                           isExpectedCall: PExpression => Boolean,
+                                                           isExpectedCall: PInvoke => Boolean,
                                                            expectedCall: String,
                                                            result: PResult): PropertyResult = {
     val expectedResults = result.outs.flatMap(nameFromParam).map(t => PNamedOperand(PIdnUse(t)))
 
-    def isExpectedAssignment(ass: PAssignment): Boolean = {
-      result.outs.nonEmpty && expectedResults.size == result.outs.size &&
-      ass.right.size == 1 && isExpectedCall(ass.right.head) && expectedResults == ass.left
+    def isExpectedAssignment(ass: PAssignment): Boolean = ass match{
+      case PAssignment(Vector(i: PInvoke), left) if isExpectedCall(i) && expectedResults == left => true
+      case _ => false
     }
 
     def isExpectedReturn(ret: PReturn): Boolean = ret match {
       case PReturn(exps) =>
         if (result.outs.isEmpty) exps == Vector.empty
-        else if (result.outs.size != expectedResults.size) exps == Vector.empty || (exps.size == 1 && isExpectedCall(exps.head))
-        else exps == Vector.empty || exps == expectedResults || (exps.size == 1 && isExpectedCall(exps.head))
+        else if (result.outs.size != expectedResults.size)
+          exps == Vector.empty || (exps.size == 1 && exps.head.isInstanceOf[PInvoke] && isExpectedCall(exps.head.asInstanceOf[PInvoke]))
+        else exps == Vector.empty || exps == expectedResults || (exps.size == 1 && exps.head.isInstanceOf[PInvoke] && isExpectedCall(exps.head.asInstanceOf[PInvoke]))
     }
 
     lazy val expectedReturns: Seq[String] =
@@ -252,21 +246,20 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
           }
 
         // A call alone can only occur if there are no result parameters
-        case PExpressionStmt(e: PExpression) if e.isInstanceOf[PInvoke] || e.isInstanceOf[PCallWithSpec] =>
-          if (result.outs.nonEmpty) failedProp(s"The call '$e' is missing the out-parameters")
-          else if (!isExpectedCall(e)) failedProp(s"The only allowed call is $expectedCall")
+        case PExpressionStmt(call: PInvoke) =>
+          if (result.outs.nonEmpty) failedProp(s"The call '$call' is missing the out-parameters")
+          else if (!isExpectedCall(call)) failedProp(s"The only allowed call is $expectedCall")
           else {
             numOfImplemetationCalls += 1
             successProp
           }
-
 
         case ret@PReturn(exps) =>
           // there has to be at most one return at the end of the block
           if (lastStatement != ret) {
             failedProp("A return must be the last statement")
           } else if (isExpectedReturn(ret)) {
-            if (exps.size == 1 && isExpectedCall(exps.head)) numOfImplemetationCalls += 1
+            if (exps.size == 1 && exps.head.isInstanceOf[PInvoke] && isExpectedCall(exps.head.asInstanceOf[PInvoke])) numOfImplemetationCalls += 1
             successProp
           } else failedProp(s"A return must be one of ${expectedReturns.mkString(", ")}")
 
@@ -290,9 +283,8 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
       case st.MethodSpec(spec, _, _, _) => spec.spec.terminationMeasures
       case st.MethodImpl(decl, _, _) => decl.spec.terminationMeasures
     }
-    closureImplProofCallAttr(p) match {
-        case Left(invoke) => resolve(invoke) match {
-          case Some(ap.FunctionCall(callee, _)) => callee match {
+    resolve(closureImplProofCallAttr(p)) match {
+        case Some(ap.FunctionCall(callee, _, _)) => callee match {
             case ap.Function(_, symb) => symb.decl.spec.terminationMeasures
             case ap.Closure(_, symb) => symb.lit.spec.terminationMeasures
             case ap.ReceivedMethod(_, _, _, symb) => measuresFromMethod(symb)
@@ -300,13 +292,12 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
             case ap.MethodExpr(_, _, _, symb) => measuresFromMethod(symb)
             case _ => Violation.violation("this case should be unreachable")
           }
-          case _ => Violation.violation("this case should be unreachable")
-        }
-        case Right(PCallWithSpec(_, _, spec)) => resolve(spec.func) match {
+        case Some(ap.ClosureCall(_, _, spec)) => resolve(spec.func) match {
           case Some(ap.Function(_, f)) => f.decl.spec.terminationMeasures
           case Some(ap.Closure(_, c)) => c.lit.spec.terminationMeasures
           case _ => Violation.violation("this case should be unreachable")
         }
+        case _ => Violation.violation("this case should be unreachable")
     }
   }
 

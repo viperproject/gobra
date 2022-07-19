@@ -79,10 +79,10 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case n: PInvoke => resolve(n) match {
         case Some(_: ap.Conversion) => AddrMod.conversionResult
         case Some(_: ap.FunctionCall) => AddrMod.callResult
+        case Some(_: ap.ClosureCall) => AddrMod.callResult
         case Some(_: ap.PredicateCall) => AddrMod.rValue
         case p => Violation.violation(s"Unexpected invoke resolve, got $p")
       }
-      case _: PCallWithSpec => AddrMod.callResult
       case _: PLength | _: PCapacity => AddrMod.callResult
       case _: PSliceExp => AddrMod.sliceExpr
       case _: PTypeAssertion => AddrMod.typeAssertionResult

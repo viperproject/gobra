@@ -1143,26 +1143,24 @@ object Desugar {
                   valueVar = in.Assignee.Var(valueLeft)
                   valueAss = singleAss(valueVar, in.IndexedExp(copiedVar, in.IntLit(0)(src), slice)(src))(src)
 
-                  incrIndex = singleAss(indexVar, in.Add(indexLeft, in.IntLit(1)(src))(src))(src)
-
-                  updateValue = singleAss(valueVar, in.IndexedExp(copiedVar, indexLeft, slice)(src))(src)
-
                   length = in.Length(copiedVar)(src)
                   cond = in.LessCmp(indexLeft, length)(src)
+                  updateValue = in.If(cond, singleAss(valueVar, in.IndexedExp(copiedVar, indexLeft, slice)(src))(src), in.Seqn(Vector())(src))(src)
+                  incrIndex = singleAss(indexVar, in.Add(indexLeft, in.IntLit(1)(src))(src))(src)
+
+
 
                   (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
                   forAllVar = in.BoundVar(nm.fresh(n, info), in.IntT(Addressability.exclusiveVariable))(src)
-                  sliceInvs = Vector[in.Assertion](
-                    in.ExprAssertion(in.And(in.AtMostCmp(in.IntLit(0)(src), indexLeft)(src), in.AtMostCmp(indexLeft, length)(src))(src))(src),
-                    in.SepForall(
+                  eqAssertion = in.Assert(in.SepForall(
                     Vector(forAllVar),
                     Vector.empty,
                     in.Implication(
                       in.And(
                         in.AtMostCmp(in.IntLit(0)(src), forAllVar)(src),
                         in.LessCmp(forAllVar, length)(src))(src),
-                      in.Access(in.Accessible.Address(in.IndexedExp(copiedVar, forAllVar, slice)(src)), in.FullPerm(src))(src)
-                    )(src))(src))
+                      in.ExprAssertion(in.EqCmp(in.Ref(in.IndexedExp(copiedVar, forAllVar, slice)(src))(src), in.Ref(in.IndexedExp(exp, forAllVar, slice)(src))(src))(src))(src)
+                    )(src))(src))(src)
 
                   (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
 
@@ -1178,8 +1176,8 @@ object Desugar {
                   breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
 
                   wh = in.Seqn(
-                    Vector(copyAss, indexAss, valueAss) ++ dInvPre ++ dTerPre ++ Vector(
-                      in.While(cond, /*sliceInvs ++ */dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
+                    Vector(copyAss, indexAss, valueAss, eqAssertion) ++ dInvPre ++ dTerPre ++ Vector(
+                      in.While(cond, dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
                         Vector(dBody, continueLoopLabel, incrIndex, updateValue) ++ dInvPre ++ dTerPre
                       )(src))(src), breakLoopLabel
                     )

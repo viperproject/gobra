@@ -888,11 +888,6 @@ case class Deref(exp: Expr, underlyingTypeExpr: Type)(val info: Source.Parser.In
   override val typ: Type = underlyingTypeExpr.asInstanceOf[PointerT].t
 }
 
-case class UncheckedDeref(exp: Expr, underlyingTypeExpr: Type)(val info: Source.Parser.Info) extends Expr with Location {
-  require(underlyingTypeExpr.isInstanceOf[PointerT])
-  override val typ: Type = underlyingTypeExpr.asInstanceOf[PointerT].t
-}
-
 case class Ref(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) extends Expr with Location
 
 object Ref {

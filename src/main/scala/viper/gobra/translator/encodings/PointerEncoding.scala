@@ -77,15 +77,15 @@ class PointerEncoding extends LeafTypeEncoding {
     */
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
     case (loc: in.Deref) :: _ / Shared =>
-      val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>
-        DerefError(x).dueTo(ReceiverIsNilReason(x))
-      for {
-        e <- ctx.expression(loc.exp)
-        cond <- ctx.expression(in.UneqCmp(loc.exp, in.NilLit(loc.exp.typ)(loc.info))(loc.info))
-        res <- assert(cond, e, errorT)(ctx)
-      } yield res
-
-    case (loc: in.UncheckedDeref) :: _ / Shared =>
-      ctx.expression(loc.exp)
+      if (ctx.within[in.Assertion]) ctx.expression(loc.exp)
+      else {
+        val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>
+          DerefError(x).dueTo(ReceiverIsNilReason(x))
+        for {
+          e <- ctx.expression(loc.exp)
+          cond <- ctx.expression(in.UneqCmp(loc.exp, in.NilLit(loc.exp.typ)(loc.info))(loc.info))
+          res <- assert(cond, e, errorT)(ctx)
+        } yield res
+      }
   }
 }

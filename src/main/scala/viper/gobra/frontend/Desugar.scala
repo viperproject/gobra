@@ -3135,7 +3135,7 @@ object Desugar {
                 case _ =>
                   goE(acc).map{ x =>
                     val underlyingT = typeD(ut, Addressability.reference)(src)
-                    in.Accessible.Address(in.UncheckedDeref(x, underlyingT)(src))
+                    in.Accessible.Address(in.Deref(x, underlyingT)(src))
                   }
               }
 

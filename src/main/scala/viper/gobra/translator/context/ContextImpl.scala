@@ -64,23 +64,23 @@ case class ContextImpl(
   }
 
   /** copy constructor */
-  override def :=(
-                   fieldN: Fields = field,
-                   arrayN: Arrays = array,
-                   seqToSetN: SeqToSet = seqToSet,
-                   seqToMultisetN: SeqToMultiset = seqToMultiset,
-                   seqMultiplicityN: SeqMultiplicity = seqMultiplicity,
-                   optionN: Options = option,
-                   optionToSeqN: OptionToSeq = optionToSeq,
-                   sliceN: Slices = slice,
-                   fixpointN: Fixpoint = fixpoint,
-                   tupleN: Tuples = tuple,
-                   equalityN: Equality = equality,
-                   conditionN: Conditions = condition,
-                   unknownValueN: UnknownValues = unknownValue,
-                   typeEncodingN: TypeEncoding = typeEncoding,
-                   defaultEncodingN: DefaultEncoding = defaultEncoding,
-                   initialFreshCounterValueN: Int = internalFreshNames.getValue
+  override protected def update(
+                   fieldN: Fields,
+                   arrayN: Arrays,
+                   seqToSetN: SeqToSet,
+                   seqToMultisetN: SeqToMultiset,
+                   seqMultiplicityN: SeqMultiplicity,
+                   optionN: Options,
+                   optionToSeqN: OptionToSeq,
+                   sliceN: Slices,
+                   fixpointN: Fixpoint,
+                   tupleN: Tuples,
+                   equalityN: Equality,
+                   conditionN: Conditions,
+                   unknownValueN: UnknownValues,
+                   typeEncodingN: TypeEncoding,
+                   defaultEncodingN: DefaultEncoding,
+                   initialFreshCounterValueN: Int,
                  ): Context = copy(
     fieldN,
     arrayN,
@@ -97,7 +97,8 @@ case class ContextImpl(
     unknownValueN,
     typeEncodingN,
     defaultEncodingN,
-    initialFreshCounterValue = initialFreshCounterValueN
+    table,
+    initialFreshCounterValue,
   )
 
   override def addVars(vars: LocalVarDecl*): Context = this

@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type A struct {
+	x int
+}
+
+func foo() {
+	var x *A
+	//:: ExpectedOutput(dereference_error:receiver_is_nil_error)
+	var y *A = &(*x)
+}
+
+func bar() {
+	var x *[3]int
+	//:: ExpectedOutput(dereference_error:receiver_is_nil_error)
+	var y []int = (*x)[:]
+}

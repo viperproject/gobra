@@ -155,6 +155,11 @@ case class CallError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "Call might fail"
 }
 
+case class DerefError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "dereference_error"
+  override def localMessage: String = "Dereference might fail"
+}
+
 case class PostconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "postcondition_error"
   override def localMessage: String = "Postcondition might not hold"
@@ -381,7 +386,7 @@ case class OverflowErrorReason(node: Source.Verifier.Info) extends VerificationE
   override def message: String = s"Expression ${node.origin.tag.trim} might cause integer overflow."
 }
 
-case class InterfaceReceiverIsNilReason(node: Source.Verifier.Info) extends VerificationErrorReason {
+case class ReceiverIsNilReason(node: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "receiver_is_nil_error"
   override def message: String = s"The receiver might be nil"
 }

@@ -172,7 +172,7 @@ object OverflowChecksTransform extends InternalTransform {
     // this stops Gobra from throwing overflow errors in field accesses and pointer dereferences because Gobra was not able to prove that
     // they were within bounds even though that is guaranteed by the expression's type
     val valuesWithinBounds = intSubExprsWithType.filter(elem => elem._1 match {
-      case _: Var | _: FieldRef | _: IndexedExp | _: Deref => true
+      case _: Var | _: FieldRef | _: IndexedExp | _: Deref | _: UncheckedDeref => true
       case _ => false
     })
 

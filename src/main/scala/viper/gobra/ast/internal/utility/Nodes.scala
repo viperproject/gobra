@@ -109,6 +109,7 @@ object Nodes {
         case DfltVal(_) => Seq.empty
         case Tuple(args) => args
         case Deref(exp, _) => Seq(exp)
+        case UncheckedDeref(exp, _) => Seq(exp)
         case Ref(ref, _) => Seq(ref)
         case FieldRef(recv, field) => Seq(recv, field)
         case StructUpdate(base, field, newVal) => Seq(base, field, newVal)

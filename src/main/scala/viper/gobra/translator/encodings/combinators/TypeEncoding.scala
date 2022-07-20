@@ -283,13 +283,13 @@ trait TypeEncoding extends Generator {
     * This includes new-statements.
     *
     * The default implements:
-    * [v: *T = new(lit)] -> var z (*T)°; inhale Footprint[*z] && [*z == lit]; [v = z]
+    * [v: *T = new(lit)] -> var z (*T)°; inhale Footprint[unchecked *z] && [unchecked *z == lit]; [v = z]
     */
   def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     case newStmt@in.New(target, expr) if typ(ctx).isDefinedAt(expr.typ) =>
       val (pos, info, errT) = newStmt.vprMeta
       val z = in.LocalVar(ctx.freshNames.next(), target.typ.withAddressability(Exclusive))(newStmt.info)
-      val zDeref = in.Deref(z, underlyingType(z.typ)(ctx))(newStmt.info)
+      val zDeref = in.UncheckedDeref(z, underlyingType(z.typ)(ctx))(newStmt.info)
       seqn(
         for {
           _ <- local(ctx.variable(z))

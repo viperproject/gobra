@@ -73,6 +73,7 @@ class PointerEncoding extends LeafTypeEncoding {
     * Super implements shared variables with [[variable]].
     *
     * Ref[*e] -> assert [e != nil]; [e]
+    * Ref[unchecked *e] -> [e]
     */
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
     case (loc: in.Deref) :: _ / Shared =>
@@ -83,5 +84,8 @@ class PointerEncoding extends LeafTypeEncoding {
         cond <- ctx.expression(in.UneqCmp(loc.exp, in.NilLit(loc.exp.typ)(loc.info))(loc.info))
         res <- assert(cond, e, errorT)(ctx)
       } yield res
+
+    case (loc: in.UncheckedDeref) :: _ / Shared =>
+      ctx.expression(loc.exp)
   }
 }

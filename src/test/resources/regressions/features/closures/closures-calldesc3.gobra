@@ -1,51 +1,35 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package closuresCallDesc2
+package closuresCallDesc3
 
 // This example shows how it is possible for a higher-order function to express
 // that a certain specification is required to hold only once
 
 type Once interface {
-    pred inv()
+    pred invBefore()
+    pred invAfter(n int)
 
-    ghost
-    requires inv()
-    pure holds()bool
-
-    ghost
-    requires inv()
-    pure calledWith(x int)bool
-
-    ghost pure res(x int)int
+    ghost pure res(n int)int
 }
 
-requires o != nil && o.inv() && o.holds()
-ensures o.inv() && o.calledWith(x) && res == o.res(x)
-ensures res == x
-func onceId(ghost o Once, x int) (res int)
+requires o != nil && o.invBefore()
+ensures o.invAfter(n) && res == o.res(n)
+ensures res >= n
+func onceGT(ghost o Once, n int) (res int)
 
-requires f implements onceId{o}
-requires o != nil && o.inv() && o.holds()
-ensures o.inv() && o.calledWith(42) && res == 42
+requires f implements onceGT{o}
+requires o != nil && o.invBefore()
+ensures o.invAfter(42) && res == o.res(42) && res >= 42
 func hof(ghost o Once, f func(int)int)(res int) {
-    return f(42) as onceId{o}
+    return f(42) as onceGT{o}
 }
 
-type OnceId struct { accum *int }
-pred (self OnceId) inv() { acc(self.accum) }
-ghost
-requires self.inv()
-pure func (self OnceId) holds()bool {
-    return unfolding self.inv() in (*self.accum == 0)
-}
-ghost
-requires self.inv()
-pure func (self OnceId) calledWith(x int)bool {
-    return unfolding self.inv() in (*self.accum == x)
-}
-ghost pure func (self OnceId) res(x int)int {
-    return x
+type OnceID struct { accum *int }
+pred (self OnceID) invBefore() { acc(self.accum) && *self.accum == 0 }
+pred (self OnceID) invAfter(n int) { acc(self.accum) && *self.accum == n }
+ghost pure func (self OnceID) res(n int)int {
+    return n
 }
 
 func main() {
@@ -57,16 +41,16 @@ func main() {
                 accum += x
                 return accum
             }
-    proof cl implements onceId{OnceId{&accum}} {
-        unfold OnceId{&accum}.inv()
-        res = cl(x) as accumulate
-        fold OnceId{&accum}.inv()
+    proof cl implements onceGT{OnceID{&accum}} {
+        unfold OnceID{&accum}.invBefore()
+        res = cl(n) as accumulate
+        fold OnceID{&accum}.invAfter(n)
     }
 
-    fold OnceId{&accum}.inv()
-    r := hof(OnceId{&accum}, cl)
+    fold OnceID{&accum}.invBefore()
+    r := hof(OnceID{&accum}, cl)
     assert r == 42
 
-    unfold OnceId{&accum}.inv()
+    unfold OnceID{&accum}.invAfter(42)
     assert accum == 42
 }

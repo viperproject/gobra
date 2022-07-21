@@ -77,7 +77,7 @@ class PointerEncoding extends LeafTypeEncoding {
     */
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
     case (loc: in.Deref) :: _ / Shared =>
-      if (true) ctx.expression(loc.exp)
+      if (ctx.isNoCheckedContext) ctx.expression(loc.exp)
       else {
         val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>
           DerefError(x).dueTo(ReceiverIsNilReason(x))

@@ -220,9 +220,9 @@ trait GhostAssignability {
           case Some(call: ap.FunctionCall) => error(c,
             s"the ghostness of arguments and results of ${p.impl.spec} and ${c.base} does not match",
             specTyping != (calleeArgGhostTyping(call), calleeReturnGhostTyping(call)))
-          case Some(c: ap.ClosureCall) => error(c,
+          case Some(call: ap.ClosureCall) => error(c,
             s"the ghostness of arguments and results of ${p.impl.spec} and ${c.spec} does not match",
-            specTyping != closureSpecArgsAndResGhostTyping(c.spec)
+            specTyping != closureSpecArgsAndResGhostTyping(call.spec)
           )
           case _ => Violation.violation("expected function call")
         }

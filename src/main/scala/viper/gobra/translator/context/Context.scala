@@ -23,8 +23,6 @@ import viper.gobra.translator.library.tuples.Tuples
 import viper.gobra.translator.library.unknowns.UnknownValues
 import viper.silver.{ast => vpr}
 
-import scala.reflect.ClassTag
-
 trait Context {
 
   // components
@@ -61,17 +59,17 @@ trait Context {
 
   def typ(x: in.Type): vpr.Type = typeEncoding.typ(this)(x)
 
-  def variable(x: in.BodyVar): vpr.LocalVarDecl = typeEncoding.variable(push(x))(x)
+  def variable(x: in.BodyVar): vpr.LocalVarDecl = typeEncoding.variable(this)(x)
 
-  def globalVar(x: in.GlobalVar): CodeWriter[vpr.Exp] = typeEncoding.globalVar(push(x))(x)
+  def globalVar(x: in.GlobalVar): CodeWriter[vpr.Exp] = typeEncoding.globalVar(this)(x)
 
-  def member(x: in.Member): MemberWriter[Vector[vpr.Member]] = typeEncoding.member(push(x))(x)
+  def member(x: in.Member): MemberWriter[Vector[vpr.Member]] = typeEncoding.member(this)(x)
 
-  def method(x: in.Member): MemberWriter[vpr.Method] = typeEncoding.finalMethod(push(x))(x)
+  def method(x: in.Member): MemberWriter[vpr.Method] = typeEncoding.finalMethod(this)(x)
 
-  def function(x: in.Member): MemberWriter[vpr.Function] = typeEncoding.finalFunction(push(x))(x)
+  def function(x: in.Member): MemberWriter[vpr.Function] = typeEncoding.finalFunction(this)(x)
 
-  def predicate(x: in.Member): MemberWriter[vpr.Predicate] = typeEncoding.finalPredicate(push(x))(x)
+  def predicate(x: in.Member): MemberWriter[vpr.Predicate] = typeEncoding.finalPredicate(this)(x)
 
   def varPrecondition(x: in.Parameter.In): Option[MemberWriter[vpr.Exp]] = typeEncoding.varPrecondition(this).lift(x)
 
@@ -85,9 +83,9 @@ trait Context {
 
   def goEqual(lhs: in.Expr, rhs: in.Expr)(src: in.Node): CodeWriter[vpr.Exp] = typeEncoding.goEqual(this)(lhs, rhs, src)
 
-  def expression(x: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.finalExpression(push(x))(x)
+  def expression(x: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.finalExpression(this)(x)
 
-  def assertion(x: in.Assertion): CodeWriter[vpr.Exp] = typeEncoding.finalAssertion(push(x))(x)
+  def assertion(x: in.Assertion): CodeWriter[vpr.Exp] = typeEncoding.finalAssertion(thisWithNoCheck)(x)
 
   def invariant(x: in.Assertion): (CodeWriter[Unit], vpr.Exp) = typeEncoding.invariant(this)(x)
 
@@ -97,11 +95,11 @@ trait Context {
 
   def reference(x: in.Location): CodeWriter[vpr.Exp] = typeEncoding.reference(this)(x)
 
-  def footprint(x: in.Location, perm: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.addressFootprint(this)(x, perm)
+  def footprint(x: in.Location, perm: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.addressFootprint(thisWithNoCheck)(x, perm)
 
   def isComparable(x: in.Expr): Either[Boolean, CodeWriter[vpr.Exp]] = typeEncoding.isComparable(this)(x)
 
-  def statement(x: in.Stmt): CodeWriter[vpr.Stmt] = typeEncoding.finalStatement(push(x))(x)
+  def statement(x: in.Stmt): CodeWriter[vpr.Stmt] = typeEncoding.finalStatement(this)(x)
 
   // lookup
   def table: LookupTable
@@ -134,13 +132,13 @@ trait Context {
   }
 
   // path
-  private var stack: List[in.Node] = Nil
-  private def push(x: in.Node): Context = {
+  private var _isNoCheckedContext: Boolean = false
+  def isNoCheckedContext: Boolean = _isNoCheckedContext
+  private def thisWithNoCheck: Context = {
     val res = this.:=()
-    res.stack ::= x
+    res._isNoCheckedContext = true
     res
   }
-  def within[T: ClassTag]: Boolean = stack.collectFirst{ case _: T => true }.getOrElse(false)
 
   // mapping
   def addVars(vars: vpr.LocalVarDecl*): Context
@@ -150,7 +148,7 @@ trait Context {
   def freshNames: Iterator[String] = internalFreshNames
 
   /** internal fresh name iterator that additionally provides a getter function for its counter value */
-  protected def internalFreshNames: FreshNameIterator
+  protected def internalFreshNames: Context.FreshNameIterator
 
   /** copy constructor */
   def :=(
@@ -169,10 +167,10 @@ trait Context {
           unknownValueN: UnknownValues = unknownValue,
           typeEncodingN: TypeEncoding = typeEncoding,
           defaultEncodingN: DefaultEncoding = defaultEncoding,
-          initialFreshCounterValueN: Int = internalFreshNames.getValue,
+          initialFreshCounterValueN: Option[Int] = None,
         ): Context = {
     val res = update(fieldN, arrayN, seqToSetN, seqToMultisetN, seqMultiplicityN, optionN, optionToSeqN, sliceN, fixpointN, tupleN, equalityN, conditionN, unknownValueN, typeEncodingN, defaultEncodingN, initialFreshCounterValueN)
-    res.stack = this.stack
+    res._isNoCheckedContext = this._isNoCheckedContext
     res
   }
 
@@ -192,7 +190,7 @@ trait Context {
           unknownValueN: UnknownValues,
           typeEncodingN: TypeEncoding,
           defaultEncodingN: DefaultEncoding,
-          initialFreshCounterValueN: Int,
+          initialFreshCounterValueN: Option[Int],
         ): Context
 
 
@@ -216,8 +214,10 @@ trait Context {
     col.finalize(typeEncoding)
   }
 
+}
+
+object Context {
   trait FreshNameIterator extends Iterator[String] {
     def getValue: Int
   }
-
 }

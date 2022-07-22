@@ -1139,6 +1139,8 @@ object Desugar {
                   indexVar = in.Assignee.Var(indexLeft)
                   indexAss = singleAss(indexVar, in.IntLit(0)(src))(src)
 
+                  _ = println("LWEIJFLWIEJFOWIEJFOWJIEF")
+                  _ = println(slice.elems)
                   valueLeft <- leftOfAssignmentD(shorts(1))(slice.elems)
                   valueVar = in.Assignee.Var(valueLeft)
                   valueAss = singleAss(valueVar, in.IndexedExp(copiedVar, in.IntLit(0)(src), slice)(src))(src)

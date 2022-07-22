@@ -106,7 +106,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         AdvancedMemberSet.union {
           topLevel +: es.map(e => interfaceMethodSet(
             entity(e.typ.id) match {
-              // TODO: might break if there is a cycle, might break for imported interfaces
+              // TODO: might break for imported interfaces
               case NamedType(PTypeDef(t: PInterfaceType, _), _, _) => InterfaceT(t, ctxt)
               case _ => ???
             }

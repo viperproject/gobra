@@ -64,15 +64,10 @@ class LookupTable(
   def lookupImplementations(t: InterfaceT): SortedSet[Type] = getImplementations.getOrElse(t.withAddressability(Addressability.Exclusive), SortedSet.empty)
   def lookupNonInterfaceImplementations(t: InterfaceT): SortedSet[Type] = lookupImplementations(t).filterNot(_.isInstanceOf[InterfaceT])
   def lookupMembers(t: Type): SortedSet[MemberProxy] = getMembers.getOrElse(t.withAddressability(Addressability.Exclusive), SortedSet.empty)
-  def lookup(t: Type, name: String): SortedSet[MemberProxy] = lookupMembers(t).filter(_.name == name)
+  def lookup(t: Type, name: String): Option[MemberProxy] = lookupMembers(t).find(_.name == name)
   def lookupImplementationPredicate(impl: Type, itf: InterfaceT, name: String): Option[PredicateProxy] = {
-    val predicateProxies = lookup(impl, name).collect{ case m: MPredicateProxy => m }
-    if (predicateProxies.isEmpty) {
+    lookup(impl, name).collect{ case m: MPredicateProxy => m }.orElse{
       implementationProofPredicateAliases.get(impl, itf, name)
-    } else if (predicateProxies.size == 1) {
-      predicateProxies.headOption
-    } else {
-      Violation.violation(s"Found multiple predicate proxies for the pair ($impl, $name), but expected at most one.")
     }
   }
 
@@ -104,6 +99,10 @@ class LookupTable(
 
     def mergeProxies(l: Option[SortedSet[MemberProxy]], r: Option[SortedSet[MemberProxy]]): SortedSet[MemberProxy] = {
       (l.getOrElse(SortedSet.empty[MemberProxy]) ++ r.getOrElse(SortedSet.empty[MemberProxy])).foldLeft((SortedSet.empty[MemberProxy], SortedSet.empty[String])){
+        case ((res, set), x) if set.contains(x.name) =>
+          // method redeclarations are currently rejected
+          Violation.violation(x.isInstanceOf[PredicateProxy], s"Found re-declaration or override of $x, which is currently not supported")
+          (res, set) // always take first in sorted set
         case ((res, set), x) => (res ++ SortedSet(x), set ++ SortedSet(x.name))
       }._1
     }

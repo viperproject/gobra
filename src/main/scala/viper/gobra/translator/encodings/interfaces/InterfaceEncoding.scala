@@ -703,14 +703,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     val itfT = p.receiver.typ.asInstanceOf[in.InterfaceT]
     val impls = ctx.table.lookupNonInterfaceImplementations(itfT).toVector
-    val cases = impls.flatMap{ impl =>
-      val lookupRes = ctx.table.lookup(impl, pProxy.name).map(impl -> _)
-      if (lookupRes.size > 1) {
-        Violation.violation(s"Found multiple proxies for the pair ($impl, ${pProxy.name}), but expected at most one.")
-      } else {
-        lookupRes.headOption
-      }
-    }
+    val cases = impls.flatMap(impl => ctx.table.lookup(impl, pProxy.name).map(impl -> _))
 
     val recvDecl = vpr.LocalVarDecl(Names.implicitThis, vprInterfaceType(ctx))(pos, info, errT)
     val recv = recvDecl.localVar
@@ -861,16 +854,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
 
     val itfFuncs = ctx.table.lookupMembers(itfT).collect{ case x: in.MethodProxy if ctx.lookup(x).isInstanceOf[in.PureMethod] => x }
-    val matchingFuncs = itfFuncs.map{ f =>
-      val lookupRes = ctx.table.lookup(impl, f.name)
-      if (lookupRes.size > 1) {
-        Violation.violation(s"Found multiple proxies for the pair ($impl, ${f.name}), but expected at most one")
-      } else if (lookupRes.size == 1) {
-        (f, ctx.table.lookup(impl, f.name).head)
-      } else {
-        Violation.violation(s"Could not find a proxy for the pair ($impl, ${f.name})")
-      }
-    }
+    val matchingFuncs = itfFuncs.map(f => (f, ctx.table.lookup(impl, f.name).get))
     val nameMap = matchingFuncs.map{ case (itfProxy, implProxy) => (itfProxy.uniqueName, proofName(recv.typ, implProxy, itfProxy)) }.toMap
 
     val newRecv = boxInterface(vRecv, types.typeToExpr(impl)()(ctx))()(ctx)

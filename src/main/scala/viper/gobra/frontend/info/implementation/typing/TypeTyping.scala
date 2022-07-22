@@ -37,9 +37,6 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PBoolType | _: PIntegerType | _: PFloatType | _: PStringType | _: PPermissionType => noMessages
 
-    case typ @ PArrayType(_, PNamedOperand(_)) =>
-      error(typ, s"arrays of custom declared types are currently not supported")
-
     case n @ PArrayType(len, t) => isType(t).out ++ {
       intConstantEval(len) match {
         case None => error(n, s"expected constant array length, but got $len")

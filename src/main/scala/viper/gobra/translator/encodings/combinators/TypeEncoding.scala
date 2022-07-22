@@ -289,7 +289,7 @@ trait TypeEncoding extends Generator {
     case newStmt@in.New(target, expr) if typ(ctx).isDefinedAt(expr.typ) =>
       val (pos, info, errT) = newStmt.vprMeta
       val z = in.LocalVar(ctx.freshNames.next(), target.typ.withAddressability(Exclusive))(newStmt.info)
-      val zDeref = in.Deref(z)(newStmt.info)
+      val zDeref = in.Deref(z, underlyingType(z.typ)(ctx))(newStmt.info)
       seqn(
         for {
           _ <- local(ctx.variable(z))

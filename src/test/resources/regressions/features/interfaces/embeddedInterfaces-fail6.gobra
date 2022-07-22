@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+
+type foo interface {
+	//:: ExpectedOutput(type_error)
+	foo
+	bar
+}
+
+type bar interface {
+	g()
+}

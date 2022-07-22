@@ -63,7 +63,14 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       structMemberSet(structSymbType(t)).errors(t) ++ addressableMethodSet(structSymbType(t)).errors(t) ++
       error(t, "invalid recursive struct", cyclicStructDef(t))
 
-    case t: PInterfaceType => addressableMethodSet(InterfaceT(t, this)).errors(t)
+    case t: PInterfaceType =>
+      val isRecursiveInterface = error(t, "invalid recursive interface", cyclicInterfaceDef(t))
+      if (isRecursiveInterface.isEmpty) {
+        addressableMethodSet(InterfaceT(t, this)).errors(t) ++
+          containsRedeclarations(t) // temporary check
+      } else {
+        isRecursiveInterface
+      }
 
     case t: PExpressionAndType => wellDefExprAndType(t).out
   }
@@ -205,5 +212,64 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     isCyclic(struct, name.map(_.name).toSet, this)
+  }
+
+  /**
+    * Checks whether an interface is cyclically defined in terms of itself (if its name is provided)
+    * or other cyclic interfaces.
+    */
+  def cyclicInterfaceDef(itfT: PInterfaceType, name: Option[PIdnDef] = None): Boolean = {
+    // `visitedTypes` keeps track of the types that were already discovered and checked,
+    // used for detecting cyclic definition chains
+    // `ctx` of type UnderlyingType represents the current context in which a lookup should happen
+    // ExternalTypeInfo is not used as we need access to `underlyingTypeWithCtxP`, which is not exposed by the interface.
+    def isCyclic: (PInterfaceType, Set[String], UnderlyingType) => Boolean = (itfT, visitedTypes, ctx) => {
+      val fieldTypes = itfT.embedded.map(_.typ)
+      fieldTypes exists {
+        case n: PUnqualifiedTypeName if visitedTypes.contains(n.name) => true
+        case n: PUnqualifiedTypeName if isUnderlyingInterfaceType(n, ctx).isDefined =>
+          val (itfT, itfCtx) = isUnderlyingInterfaceType(n, ctx).get
+          isCyclic(itfT, visitedTypes + n.name, itfCtx)
+        // Qualified type names do not need to be handled because cycles are prevented by non-cyclic imports
+        case _ => false
+      }
+    }
+
+    isCyclic(itfT, name.map(_.name).toSet, this)
+  }
+
+  /**
+    * Checks whether an interface contains a redeclaration of an embedded method, which is currently not allowed.
+    * We expect this to change in the near future by introducing support for refining the contract of an embedded field.
+    * This method expects an acyclic interface type.
+    */
+  def containsRedeclarations(t: PInterfaceType): Messages = {
+    def findAllEmbeddedMethods: (PInterfaceType, UnderlyingType) => Set[String] = (itfT, ctx) => {
+      val fieldTypes = itfT.embedded.map(_.typ).toSet
+      fieldTypes.flatMap{
+        case n: PTypeName if isUnderlyingInterfaceType(n, ctx).isDefined =>
+          val (itfT, itfCtx) = isUnderlyingInterfaceType(n, ctx).get
+          itfT.methSpecs.map(_.id.name) ++ findAllEmbeddedMethods(itfT, itfCtx)
+        case _: PTypeName =>
+          // if the type is ill-formed and Gobra the previous case was not entered,
+          // then we assume that another error will be reported while type-checking
+          // this type
+          Set.empty
+      }
+    }
+
+    val allEmbeddedMethods = findAllEmbeddedMethods(t, this)
+    t.methSpecs.flatMap { sig =>
+      error(sig, s"interface redeclares embedded method ${sig.id.name}", allEmbeddedMethods.contains(sig.id.name))
+    }
+
+  }
+
+  // this function is indirectly cached because `underlyingTypeWithCtxP` is cached.
+  private def isUnderlyingInterfaceType(n: PTypeName, ctx: UnderlyingType): Option[(PInterfaceType, UnderlyingType)] = {
+    ctx.underlyingTypeWithCtxP(n) match {
+      case Some((itfT: PInterfaceType, itfCtx)) => Some(itfT, itfCtx)
+      case _ => None
+    }
   }
 }

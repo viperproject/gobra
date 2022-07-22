@@ -594,7 +594,6 @@ case class Float32TExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class Float64TExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends TypeExpr
 case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
-case class InterfaceTExpr(name: String)(val info: Source.Parser.Info) extends TypeExpr
 case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class SliceTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class MapTExpr(keys: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr

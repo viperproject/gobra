@@ -298,7 +298,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
   /**
     * Generates:
     * function arrayConversion(x: [([n]T)@]): ([n]T)°
-    *   requires Footprint[x]
+    *   requires acc(Footprint[x], _)
     *   ensures  [x == result]
     * */
   private val conversionFunc: FunctionGenerator[ComponentParameter] = new FunctionGenerator[ComponentParameter]{
@@ -318,7 +318,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         name = s"${Names.arrayConversionFunc}_${t.serialize}",
         formalArgs = Vector(variable(ctx)(x)),
         typ = vResultType,
-        pres = Vector(pure(addressFootprint(ctx)(x, in.FullPerm(Source.Parser.Internal)))(ctx).res),
+        pres = Vector(pure(addressFootprint(ctx)(x, in.WildcardPerm(Source.Parser.Internal)))(ctx).res),
         posts = Vector(post),
         body = None
       )()

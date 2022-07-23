@@ -112,7 +112,7 @@ object Names {
   def closureCaptVar(i: Int): String = s"captVar$i"
   def closureCaptVarDomFunc(i: Int, tid: Int): String = s"${closureCaptVar(i)}${closureDomain}_$tid"
   def closureArg: String = "closure"
-  def closureDefaultFunc: String = "closureDefault"
+  def closureNilFunc: String = "closureNil"
   def closureGetter: String = "closureGet"
   def closureCall: String = "closureCall"
   def closureImplementsFunc: String = "closureImplements"

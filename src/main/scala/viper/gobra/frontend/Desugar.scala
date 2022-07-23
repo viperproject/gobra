@@ -1123,11 +1123,11 @@ object Desugar {
                     // No closure calls for now
                     functionCallDAux(ctx)(p, inv)(src) map {
                       case Left((_, call: in.FunctionCall)) =>
-                        in.GoFunctionCall(call.func.getOrElse(violation("Expected proxy")), call.args)(src)
+                        in.GoFunctionCall(call.func, call.args)(src)
                       case Left((_, call: in.MethodCall)) =>
                         in.GoMethodCall(call.recv, call.meth, call.args)(src)
                       case Right(call: in.PureFunctionCall) =>
-                        in.GoFunctionCall(call.func.getOrElse(violation("Expected proxy")), call.args)(src)
+                        in.GoFunctionCall(call.func, call.args)(src)
                       case Right(call: in.PureMethodCall) =>
                         in.GoMethodCall(call.recv, call.meth, call.args)(src)
                       case _ => unexpectedExprError(exp)
@@ -1405,11 +1405,47 @@ object Desugar {
         case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
 
+      def functionCall(targets: Vector[in.LocalVar], func: ap.FunctionKind, args: Vector[in.Expr], spec: Option[in.ClosureSpec]): in.Stmt = spec match {
+        case Some(spec) =>
+          val funcObject = in.FunctionObject(getFunctionProxy(func, args), typeD(info.typ(func.id), Addressability.rValue)(src))(src)
+          in.ClosureCall(targets, funcObject, args, spec)(src)
+        case _ => in.FunctionCall(targets, getFunctionProxy(func, args), args)(src)
+      }
+
+      def pureFunctionCall(func: ap.FunctionKind, args: Vector[in.Expr], spec: Option[in.ClosureSpec], resT: in.Type): in.Expr = spec match {
+        case Some(spec) =>
+          val funcObject = in.FunctionObject(getFunctionProxy(func, args), typeD(info.typ(func.id), Addressability.rValue)(src))(src)
+          in.PureClosureCall(funcObject, args, spec, resT)(src)
+        case _ => in.PureFunctionCall(getFunctionProxy(func, args), args, resT)(src)
+      }
+
       def getMethodProxy(f: ap.FunctionKind, recv: in.Expr, args: Vector[in.Expr]): in.MethodProxy = f match {
         case ap.ReceivedMethod(_, id, _, _) => methodProxy(id, info)
         case ap.MethodExpr(_, id, _, _) => methodProxy(id, info)
         case bm: ap.BuiltInMethodKind => methodProxy(bm.symb.tag, recv.typ, args.map(_.typ))(src)
         case c => Violation.violation(s"This case should be unreachable, but got $c")
+      }
+
+      def methodCall(targets: Vector[in.LocalVar], recv: in.Expr, meth: in.MethodProxy, args: Vector[in.Expr], resT: in.Type, spec: Option[in.ClosureSpec]): in.Stmt = spec match {
+        case Some(spec) =>
+          val resType = resT match {
+            case in.TupleT(ts, _) => ts
+            case _ => Vector(resT)
+          }
+          val methObject = in.MethodObject(recv, meth, in.FunctionT(args.map(_.typ), resType, Addressability.rValue))(src)
+          in.ClosureCall(targets, methObject, args, spec)(src)
+        case _ => in.MethodCall(targets, recv, meth, args)(src)
+      }
+
+      def pureMethodCall(recv: in.Expr, meth: in.MethodProxy, args: Vector[in.Expr], spec: Option[in.ClosureSpec], resT: in.Type): in.Expr = spec match {
+        case Some(spec) =>
+          val resType = resT match {
+            case in.TupleT(ts, _) => ts
+            case _ => Vector(resT)
+          }
+          val methObject = in.MethodObject(recv, meth, in.FunctionT(args.map(_.typ), resType, Addressability.rValue))(src)
+          in.PureClosureCall(methObject, args, spec, resT)(src)
+        case _ => in.PureMethodCall(recv, meth, args, resT)(src)
       }
 
       def convertArgs(args: Vector[in.Expr]): Vector[in.Expr] = {
@@ -1477,16 +1513,15 @@ object Desugar {
               for {
                 args <- dArgs
                 convertedArgs = convertArgs(args)
-                fproxy = getFunctionProxy(base, convertedArgs)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Right(in.PureFunctionCall(Right(fproxy), convertedArgs, spec, resT)(src))
+              } yield Right(pureFunctionCall(base, convertedArgs, spec, resT))
             } else {
               for {
                 args <- dArgs
                 convertedArgs = convertArgs(args)
                 fproxy = getFunctionProxy(base, convertedArgs)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Left((targets, in.FunctionCall(targets, Right(fproxy), convertedArgs, spec)(src)))
+              } yield Left((targets, functionCall(targets, base, convertedArgs, spec)))
             }
 
           case iim: ap.ImplicitlyReceivedInterfaceMethod =>
@@ -1499,7 +1534,7 @@ object Desugar {
                 proxy = methodProxy(iim.id, iim.symb.context.getTypeInfo)
                 recvType = typeD(iim.symb.itfType, Addressability.receiver)(src)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Right(in.PureMethodCall(implicitThisD(recvType)(src), proxy, convertedArgs, spec, resT)(src))
+              } yield Right(pureMethodCall(implicitThisD(recvType)(src), proxy, args, spec, resT))
             } else {
               for {
                 args <- dArgs
@@ -1507,7 +1542,7 @@ object Desugar {
                 proxy = methodProxy(iim.id, iim.symb.context.getTypeInfo)
                 recvType = typeD(iim.symb.itfType, Addressability.receiver)(src)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Left((targets, in.MethodCall(targets, implicitThisD(recvType)(src), proxy, args, spec)(src)))
+              } yield Left((targets, methodCall(targets, implicitThisD(recvType)(src), proxy, convertedArgs, resT, spec)))
             }
 
           case df: ap.DomainFunction =>
@@ -1544,14 +1579,14 @@ object Desugar {
                 convertedArgs = convertArgs(args)
                 mproxy = getMethodProxy(base, recv, convertedArgs)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Right(in.PureMethodCall(recv, mproxy, convertedArgs, spec, resT)(src))
+              } yield Right(pureMethodCall(recv, mproxy, convertedArgs, spec, resT))
             } else {
               for {
                 (recv, args) <- dRecvWithArgs
                 convertedArgs = convertArgs(args)
                 mproxy = getMethodProxy(base, recv, convertedArgs)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Left((targets, in.MethodCall(targets, recv, mproxy, convertedArgs, spec)(src)))
+              } yield Left((targets, methodCall(targets, recv, mproxy, convertedArgs, resT, spec)))
             }
           }
           case sym => Violation.violation(s"expected symbol with arguments and result or a built-in entity, but got $sym")
@@ -1575,13 +1610,13 @@ object Desugar {
         args = arguments(dArgs zip params)
         closure <- exprD(ctx, info)(expr.base.asInstanceOf[PExpression])
         resT = typeD(func.context.typ(func.result), Addressability.callResult)(src)
-      } yield Right(in.PureFunctionCall(Left(closure), arguments(args zip params), Some(spec), resT)(src))
+      } yield Right(in.PureClosureCall(closure, arguments(args zip params), spec, resT)(src))
       else for {
         dArgs <- functionCallArgsD(expr.args, params)(ctx, info, src)
         args = arguments(dArgs zip params)
         closure <- exprD(ctx, info)(expr.base.asInstanceOf[PExpression])
         targets = func.result.outs map (o => freshExclusiveVar(typeD(func.context.symbType(o.typ), Addressability.exclusiveVariable)(src), expr, info)(src))
-      } yield Left((targets, in.FunctionCall(targets, Left(closure), arguments(args zip params), Some(spec))(src)))
+      } yield Left((targets, in.ClosureCall(targets, closure, arguments(args zip params), spec)(src)))
     }
 
 

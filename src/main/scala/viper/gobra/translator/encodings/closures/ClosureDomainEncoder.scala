@@ -36,5 +36,5 @@ class ClosureDomainEncoder(specs: ClosureSpecsEncoder) {
     }.toSeq
   }
 
-  private val dfltFunction: vpr.Function = vpr.Function(Names.closureDefaultFunc, Seq.empty, vprType, Seq.empty, Seq.empty, None)()
+  private val dfltFunction: vpr.Function = vpr.Function(Names.closureNilFunc, Seq.empty, vprType, Seq.empty, Seq.empty, None)()
 }

@@ -64,7 +64,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                                 in.MethodCall(
                                   m.results map parameterAsLocalValVar,
                                   in.TypeAssertion(m.receiver, t)(src),
-                                  implProxy, m.args, None
+                                  implProxy, m.args
                                 )(src),
                                 in.Return()(src)
                               ))(src),
@@ -123,14 +123,14 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   // new body to check termination
                   val terminationCheckBody = {
                     val returnType = m.results.head.typ
-                    val fallbackProxyCall = in.PureMethodCall(m.receiver, fallbackProxy, m.args, None, returnType)(src)
+                    val fallbackProxyCall = in.PureMethodCall(m.receiver, fallbackProxy, m.args, returnType)(src)
                     val bodyFalseBranch = implementations.toVector.foldLeft[in.Expr](fallbackProxyCall) {
                       case (accum: in.Expr, impl: in.Type) =>
                         table.lookup(impl, proxy.name) match {
                           case Some(implProxy: in.MethodProxy) =>
                             in.Conditional(
                               in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(impl)(src))(src),
-                              in.PureMethodCall(in.TypeAssertion(m.receiver, impl)(src), implProxy, m.args, None, returnType)(src),
+                              in.PureMethodCall(in.TypeAssertion(m.receiver, impl)(src), implProxy, m.args, returnType)(src),
                               accum,
                               returnType
                             )(src)

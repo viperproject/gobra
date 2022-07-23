@@ -676,6 +676,6 @@ class BuiltInEncoding extends Encoding {
     */
   private def builtInPureMethodCall(tag: BuiltInMethodTag, recv: in.Expr, args: Vector[in.Expr], retType: in.Type)(src: Source.Parser.Info)(ctx: Context): in.PureMethodCall = {
     val method = getOrGenerateMethod(tag, recv.typ, args.map(_.typ))(src)(ctx)
-    in.PureMethodCall(recv, method, args, None, retType)(src)
+    in.PureMethodCall(recv, method, args, retType)(src)
   }
 }

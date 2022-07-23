@@ -289,13 +289,15 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Initialization(left) => "init" <+> showVar(left)
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
 
-    case FunctionCall(targets, func, args, spec) =>
-      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
-        func.fold(e => showExpr(e), id => id.name) <> parens(showExprList(args)) <> opt(spec)(s => emptyDoc <+> "as" <+> showClosureSpec(s))
+    case FunctionCall(targets, func, args) =>
+      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <> func.name <> parens(showExprList(args))
 
-    case MethodCall(targets, recv, meth, args, spec) =>
+    case MethodCall(targets, recv, meth, args) =>
+      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <> showExpr(recv) <> meth.name <> parens(showExprList(args))
+
+    case ClosureCall(targets, closure, args, spec) =>
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
-        showExpr(recv) <> meth.name <> parens(showExprList(args)) <> opt(spec)(s => emptyDoc <+> "as" <+> showClosureSpec(s))
+        showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
 
     case SpecImplementationProof(closure, spec, _, body, _, _) =>
       "proof" <+> showExpr(closure) <+> "implements" <+> show(spec) <+> block(showStmt(body))
@@ -438,11 +440,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case c: CurrentPerm => "perm" <> parens(showAcc(c.acc))
     case PermMinus(exp) => "-" <> showExpr(exp)
 
-    case PureFunctionCall(func, args, spec, _) =>
-      func.fold(e => showExpr(e), id => text(id.name)) <> parens(showExprList(args)) <> opt(spec)(s => emptyDoc <+> "as" <+> showClosureSpec(s))
+    case PureFunctionCall(func, args, _) => func.name <> parens(showExprList(args))
 
-    case PureMethodCall(recv, meth, args, spec, _) =>
-      showExpr(recv) <> dot <> meth.name <> parens(showExprList(args)) <> opt(spec)(s => emptyDoc <+> "as" <+> showClosureSpec(s))
+    case PureMethodCall(recv, meth, args, _) => showExpr(recv) <> dot <> meth.name <> parens(showExprList(args))
+
+    case PureClosureCall(closure, args, spec, _) => showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
 
     case DomainFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))
@@ -722,13 +724,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Initialization(left) => "init" <+> showVar(left)
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
 
-    case FunctionCall(targets, func, args, spec) =>
-      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
-        func.fold(e => showExpr(e), id => id.name) <> parens(showExprList(args)) <> opt(spec)(s => emptyDoc <+> "as" <+> showClosureSpec(s))
-
-    case MethodCall(targets, recv, meth, args, spec) =>
-      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
-        showExpr(recv) <> dot <> meth.name <> parens(showExprList(args)) <> opt(spec)(s => emptyDoc <+> "as" <+> showClosureSpec(s))
+    case _: FunctionCall | _: MethodCall | _: ClosureCall => super.showStmt(s)
 
     case SpecImplementationProof(closure, spec, _, _, _, _) =>
       "proof" <+> showExpr(closure) <+> "implements" <+> show(spec)

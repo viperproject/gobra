@@ -56,8 +56,9 @@ object Nodes {
         case SafeMapLookup(resTarget, successTarget, mapLookup) => Vector(resTarget, successTarget, mapLookup)
         case Initialization(left) => Seq(left)
         case SingleAss(left, right) => Seq(left, right)
-        case FunctionCall(targets, func, args, spec) => targets ++ Seq(func.fold(e => e, p => p)) ++ args ++ spec
-        case MethodCall(targets, recv, meth, args, spec) => targets ++ Seq(recv, meth) ++ args ++ spec
+        case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
+        case MethodCall(targets, recv, meth, args) => targets ++ Seq(recv, meth) ++ args
+        case ClosureCall(targets, closure, args, spec) => targets ++ Seq(closure) ++ args ++ Seq(spec)
         case SpecImplementationProof(closure, spec, ndBool, body, pres, posts) => Seq(closure, spec, ndBool, body) ++ pres ++ posts
         case Return() => Seq.empty
         case Assert(ass) => Seq(ass)
@@ -104,8 +105,9 @@ object Nodes {
       case PredExprInstance(base, args) => Seq(base) ++ args
       case e: Expr => e match {
         case Unfolding(acc, op) => Seq(acc, op)
-        case PureFunctionCall(func, args, spec, _) => Seq(func.fold(e => e, p => p)) ++ args ++ spec
-        case PureMethodCall(recv, meth, args, spec, _) => Seq(recv, meth) ++ args ++ spec
+        case PureFunctionCall(func, args, _) => Seq(func) ++ args
+        case PureMethodCall(recv, meth, args, _) => Seq(recv, meth) ++ args
+        case PureClosureCall(closure, args, spec, _) => Seq(closure) ++ args ++ Seq(spec)
         case DomainFunctionCall(func, args, _) => Seq(func) ++ args
         case ClosureObject(_, _) => Seq.empty
         case FunctionObject(_, _) => Seq.empty

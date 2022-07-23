@@ -1956,9 +1956,8 @@ object Desugar {
 
         case PArrayType(len, elem) =>
           for {
-            inLen <- exprD(ctx)(len)
             inElem <- go(elem)
-          } yield in.ArrayTExpr(inLen, inElem)(src)
+          } yield in.ArrayTExpr(info.evalInt(len), inElem)(src)
 
         case PSliceType(elem) =>
           for {

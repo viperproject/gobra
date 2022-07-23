@@ -135,7 +135,7 @@ object GobraStrategy {
       case (e: DefinedTExpr, Seq()) => DefinedTExpr(e.name)(meta)
       case (_: PointerTExpr, Seq(elems: Expr)) => PointerTExpr(elems)(meta)
       case (e: StructTExpr, Seq()) => StructTExpr(e.fields)(meta)
-      case (_: ArrayTExpr, Seq(length: Expr, elems: Expr)) => ArrayTExpr(length, elems)(meta)
+      case (e: ArrayTExpr, Seq(elems: Expr)) => ArrayTExpr(e.length, elems)(meta)
       case (_: SliceTExpr, Seq(elems: Expr)) => SliceTExpr(elems)(meta)
       case (_: SequenceTExpr, Seq(elems: Expr)) => SequenceTExpr(elems)(meta)
       case (_: SetTExpr, Seq(elems: Expr)) => SetTExpr(elems)(meta)

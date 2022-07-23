@@ -482,7 +482,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PermTExpr() => "perm"
     case PointerTExpr(elem) => "*" <> showExpr(elem)
     case StructTExpr(fs) => "struct" <> braces(showList(fs)(f => f._1 <> ":" <+> showExpr(f._2)))
-    case ArrayTExpr(len, elem) => brackets(showExpr(len)) <> showExpr(elem)
+    case ArrayTExpr(len, elem) => brackets(len.toString()) <> showExpr(elem)
     case SliceTExpr(elem) => brackets(emptyDoc) <> showExpr(elem)
     case MapTExpr(key, elem) => "map" <> brackets(showExpr(key) <> comma <+> showExpr(elem))
     case SequenceTExpr(elem) => "seq" <> brackets(showExpr(elem))

@@ -127,7 +127,7 @@ object Nodes {
         case PermTExpr() => Seq.empty
         case PointerTExpr(elem) => Seq(elem)
         case StructTExpr(_) => Seq.empty
-        case ArrayTExpr(len, elem) => Seq(len, elem)
+        case ArrayTExpr(_, elem) => Seq(elem)
         case SliceTExpr(elem) => Seq(elem)
         case MapTExpr(key, elem) => Seq(key, elem)
         case SequenceTExpr(elem) => Seq(elem)

@@ -41,4 +41,9 @@ trait TypeInfo extends ExternalTypeInfo {
   def freeVariables(n: PNode): Vector[PIdnNode]
   def freeModified(n: PNode): Vector[PIdnNode]
   def freeDeclared(n: PNode): Vector[PIdnNode]
+
+  def evalBool(exp: PExpression): Boolean
+  def evalInt(exp: PExpression): BigInt
+  def evalString(exp: PExpression): String
+  def evalPerm(exp: PExpression): (BigInt, BigInt)
 }

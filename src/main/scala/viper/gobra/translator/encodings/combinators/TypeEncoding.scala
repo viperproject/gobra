@@ -10,15 +10,15 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.ast.internal.theory.Comparability
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
-import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, Source}
+import viper.gobra.reporting.{DefaultErrorBackTranslator, DerefError, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, ReceiverIsNilReason, Source}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.library.Generator
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
-import viper.silver.verifier.{errors => vprerr}
+import viper.silver.verifier.{ErrorReason, errors => vprerr}
 import viper.silver.{ast => vpr}
 
-import scala.annotation.unused
+import scala.annotation.{tailrec, unused}
 
 trait TypeEncoding extends Generator {
 
@@ -123,7 +123,7 @@ trait TypeEncoding extends Generator {
       for {
         footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
         eq1 <- ctx.equal(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info))(loc)
-        eq2 <- ctx.equal(in.Ref(loc)(loc.info), in.NilLit(in.PointerT(t, Exclusive))(loc.info))(loc)
+        eq2 <- ctx.equal(in.UncheckedRef(loc)(loc.info), in.NilLit(in.PointerT(t, Exclusive))(loc.info))(loc)
       } yield vpr.Inhale(vpr.And(footprint, vpr.And(eq1, vpr.Not(eq2)(pos, info, errT))(pos, info, errT))(pos, info, errT))(pos, info, errT)
   }
 
@@ -260,6 +260,41 @@ trait TypeEncoding extends Generator {
     */
   def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
     case (v: in.BodyVar) :: t / Shared if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar: vpr.Exp)
+  }
+
+  /**
+    * Checks whether an L-value is safe, i.e. does not cause a runtime panic due to dereferencing nil.
+    * Instead of checking that a dereference is safe immediately, the encoding checks that usages of l-values are safe.
+    * Usages of L-values are: (1) taking a reference, (2) taking a slice, (3) converting to R-value
+    *
+    * SafeRef[loc: T@] => assert [&loc != nil: *T°]; Ref[loc]
+    */
+  final def safeReference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
+
+    @tailrec
+    def cannotBeNil(l: in.Expr): Boolean = l match {
+      case _: in.Var => true
+      case l: in.FieldRef => cannotBeNil(l.recv)
+      case l: in.IndexedExp => cannotBeNil(l.base)
+      case _ => false
+    }
+
+    val r = reference(ctx); { case loc@r(w) =>
+      if (cannotBeNil(loc)) w
+      else {
+        val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>
+          DerefError(x).dueTo(ReceiverIsNilReason(x))
+
+        for {
+          e <- w
+          cond <- ctx.expression(in.UneqCmp(
+            in.UncheckedRef(loc)(loc.info),
+            in.NilLit(in.PointerT(loc.typ, Exclusive))(loc.info)
+          )(loc.info))
+          checked <- assert(cond, e, errorT)(ctx)
+        } yield checked
+      }
+    }
   }
 
   /**

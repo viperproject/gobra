@@ -16,7 +16,8 @@ import viper.silver.{ast => vpr}
 class MemoryEncoding extends Encoding {
 
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
-    case r: in.Ref => ctx.reference(r.ref.op)
+    case r: in.UncheckedRef => ctx.reference(r.ref.op)
+    case r: in.Ref => ctx.safeReference(r.ref.op)
     case x@ in.EqCmp(l, r) => ctx.goEqual(l, r)(x)
     case x@ in.UneqCmp(l, r) => ctx.goEqual(l, r)(x).map(v => withSrc(vpr.Not(v), x))
 

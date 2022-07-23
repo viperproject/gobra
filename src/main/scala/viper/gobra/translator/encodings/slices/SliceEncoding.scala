@@ -69,8 +69,8 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     * R[ nil: []T° ] -> nilSlice()
     * R[ len(e: []T) ] -> slen([e])
     * R[ cap(e: []T) ] -> scap([e])
-    * R[ (e: [n]T@)[e1:e2] ] -> sliceFromArray([e], [e1], [e2])
-    * R[ (e: [n]T@)[e1:e2:e3] ] -> fullSliceFromArray([e], [e1], [e2], [e3])
+    * R[ (e: [n]T@)[e1:e2] ] -> sliceFromArray(SafeRef[e], [e1], [e2])
+    * R[ (e: [n]T@)[e1:e2:e3] ] -> fullSliceFromArray(SafeRef[e], [e1], [e2], [e3])
     * R[ (e: []T@)[e1:e2] ] -> sliceFromSlice([e], [e1], [e2])
     * R[ (e: []T@)[e1:e2:e3] ] -> fullSliceFromSlice([e], [e1], [e2], [e3])
     * R[ sliceLit(E) ] -> R[ arrayLit(E)[0:|E|] ]
@@ -96,7 +96,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       } yield withSrc(ctx.slice.cap(expT), exp)
 
       case exp @ in.Slice((base : in.Location) :: ctx.Array(_, _) / Shared, low, high, max, _) => for {
-        baseT <- ctx.reference(base)
+        baseT <- ctx.safeReference(base)
         baseType = base.typ.asInstanceOf[in.ArrayT]
         unboxedBaseT = arrayEmb.unbox(baseT, baseType)(base)(ctx)
         lowT <- goE(low)

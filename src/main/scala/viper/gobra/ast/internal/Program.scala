@@ -888,7 +888,18 @@ case class Deref(exp: Expr, underlyingTypeExpr: Type)(val info: Source.Parser.In
   override val typ: Type = underlyingTypeExpr.asInstanceOf[PointerT].t
 }
 
-case class Ref(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) extends Expr with Location
+/** Only used internally to separate the type encodings. Should not be created by the desugarer. */
+case class UncheckedRef(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) extends Expr {
+  def checked: Ref = Ref(ref, typ)(info)
+}
+
+object UncheckedRef {
+  def apply(exp: Expr)(info: Source.Parser.Info): UncheckedRef = Ref(exp)(info).unchecked
+}
+
+case class Ref(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) extends Expr {
+  def unchecked: UncheckedRef = UncheckedRef(ref, typ)(info)
+}
 
 object Ref {
   def apply(ref: Expr)(info: Source.Parser.Info): Ref = {

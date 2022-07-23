@@ -95,6 +95,7 @@ object GobraStrategy {
       case (d: DfltVal, Seq()) => DfltVal(d.typ)(meta)
       case (_: Tuple, Seq(args: Vector[Expr@unchecked])) => Tuple(args)(meta)
       case (d: Deref, Seq(e: Expr)) => Deref(e, d.typ)(meta)
+      case (_: UncheckedRef, Seq(ref: Addressable, t: PointerT)) => UncheckedRef(ref, t)(meta)
       case (_: Ref, Seq(ref: Addressable, t: PointerT)) => Ref(ref, t)(meta)
       case (_: FieldRef, Seq(recv: Expr, field: Field)) => FieldRef(recv, field)(meta)
       case (_: IndexedExp, Seq(base: Expr, idx: Expr, underlyingType: Type)) => IndexedExp(base, idx, underlyingType)(meta)

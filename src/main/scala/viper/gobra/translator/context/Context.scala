@@ -85,7 +85,7 @@ trait Context {
 
   def expression(x: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.finalExpression(this)(x)
 
-  def assertion(x: in.Assertion): CodeWriter[vpr.Exp] = typeEncoding.finalAssertion(thisWithNoCheck)(x)
+  def assertion(x: in.Assertion): CodeWriter[vpr.Exp] = typeEncoding.finalAssertion(this)(x)
 
   def invariant(x: in.Assertion): (CodeWriter[Unit], vpr.Exp) = typeEncoding.invariant(this)(x)
 
@@ -95,7 +95,9 @@ trait Context {
 
   def reference(x: in.Location): CodeWriter[vpr.Exp] = typeEncoding.reference(this)(x)
 
-  def footprint(x: in.Location, perm: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.addressFootprint(thisWithNoCheck)(x, perm)
+  def safeReference(x: in.Location): CodeWriter[vpr.Exp] = typeEncoding.safeReference(this)(x)
+
+  def footprint(x: in.Location, perm: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.addressFootprint(this)(x, perm)
 
   def isComparable(x: in.Expr): Either[Boolean, CodeWriter[vpr.Exp]] = typeEncoding.isComparable(this)(x)
 
@@ -131,15 +133,6 @@ trait Context {
     case t => t
   }
 
-  // path
-  private var _isNoCheckedContext: Boolean = false
-  def isNoCheckedContext: Boolean = _isNoCheckedContext
-  private def thisWithNoCheck: Context = {
-    val res = this.:=()
-    res._isNoCheckedContext = true
-    res
-  }
-
   // mapping
   def addVars(vars: vpr.LocalVarDecl*): Context
 
@@ -169,9 +162,7 @@ trait Context {
           defaultEncodingN: DefaultEncoding = defaultEncoding,
           initialFreshCounterValueN: Option[Int] = None,
         ): Context = {
-    val res = update(fieldN, arrayN, seqToSetN, seqToMultisetN, seqMultiplicityN, optionN, optionToSeqN, sliceN, fixpointN, tupleN, equalityN, conditionN, unknownValueN, typeEncodingN, defaultEncodingN, initialFreshCounterValueN)
-    res._isNoCheckedContext = this._isNoCheckedContext
-    res
+    update(fieldN, arrayN, seqToSetN, seqToMultisetN, seqMultiplicityN, optionN, optionToSeqN, sliceN, fixpointN, tupleN, equalityN, conditionN, unknownValueN, typeEncodingN, defaultEncodingN, initialFreshCounterValueN)
   }
 
   protected def update(

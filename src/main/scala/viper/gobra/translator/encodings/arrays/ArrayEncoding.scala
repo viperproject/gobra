@@ -166,7 +166,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * R[ mset(e: [n]T) ] -> seqToMultiset(ex_array_toSeq([e]))
     * R[ x in (e: [n]T) ] -> [x] in ex_array_toSeq([e])
     * R[ x # (e: [n]T) ] -> [x] # ex_array_toSeq([e])
-    * R[ loc: ([n]T)@ ] -> arrayConversion(L[loc])
+    * R[ loc: ([n]T)@ ] -> arrayConversion(Ref[loc])
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
     case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx, _)) :: _ / Exclusive =>

@@ -253,7 +253,7 @@ class StructEncoding extends TypeEncoding {
       val src = in.DfltVal(resType)(Source.Parser.Internal)
       // variable name does not matter because it is turned into a vpr.Result
       val resDummy = in.LocalVar("res", resType)(src.info)
-      val resFAccs = fs.map(f => in.Ref(in.FieldRef(resDummy, f)(src.info))(src.info))
+      val resFAccs = fs.map(f => in.UncheckedRef(in.FieldRef(resDummy, f)(src.info))(src.info))
       val fieldEq = resFAccs map (f => ctx.equal(f, in.DfltVal(f.typ)(src.info))(src))
       val post = pure(sequence(fieldEq).map(VU.bigAnd(_)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)))(ctx).res
           .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }

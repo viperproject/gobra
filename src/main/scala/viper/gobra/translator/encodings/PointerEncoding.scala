@@ -8,17 +8,14 @@ package viper.gobra.translator.encodings
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.{DerefError, ReceiverIsNilReason, Source}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
-import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
 
 class PointerEncoding extends LeafTypeEncoding {
 
-  import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.TypePatterns._
 
   /**
@@ -72,20 +69,9 @@ class PointerEncoding extends LeafTypeEncoding {
     * To avoid conflicts with other encodings, an encoding for type T should be defined at shared operations on type T.
     * Super implements shared variables with [[variable]].
     *
-    * Ref[*e] -> assert [e != nil]; [e]
-    * Ref[unchecked *e] -> [e]
+    * Ref[*e] -> [e]
     */
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
-    case (loc: in.Deref) :: _ / Shared =>
-      if (ctx.isNoCheckedContext) ctx.expression(loc.exp)
-      else {
-        val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>
-          DerefError(x).dueTo(ReceiverIsNilReason(x))
-        for {
-          e <- ctx.expression(loc.exp)
-          cond <- ctx.expression(in.UneqCmp(loc.exp, in.NilLit(loc.exp.typ)(loc.info))(loc.info))
-          res <- assert(cond, e, errorT)(ctx)
-        } yield res
-      }
+    case (loc: in.Deref) :: _ / Shared => ctx.expression(loc.exp)
   }
 }

@@ -6,6 +6,7 @@
 
 package viper.gobra.translator.util
 
+import viper.gobra.ast.internal.theory.TypeHead.isZeroSize
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
@@ -40,6 +41,11 @@ object TypePatterns {
 
   /** One pattern for every type. The patterns disregard the addressability modifier. */
   implicit class ContextTypePattern(ctx: Context) {
+
+    object ZeroSize {
+      def unapply(arg: in.Type): Boolean =
+        isZeroSize(underlyingType(arg)(ctx))(ctx.table)
+    }
 
     /**
       * Returns T for exclusive *T and shared T.

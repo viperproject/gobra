@@ -22,6 +22,7 @@ import scala.annotation.{tailrec, unused}
 
 trait TypeEncoding extends Generator {
 
+  import viper.gobra.translator.encodings.combinators.TypeEncoding._
   import viper.gobra.translator.util.TypePatterns._
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.ViperWriter.{MemberLevel => ml}
@@ -270,32 +271,15 @@ trait TypeEncoding extends Generator {
     * SafeRef[loc: T@] => assert [&loc != nil: *T°]; Ref[loc]
     */
   final def safeReference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
-
-    @tailrec
-    def cannotBeNil(l: in.Expr): Boolean = l match {
-      case _: in.Var => true
-      case l: in.FieldRef => cannotBeNil(l.recv)
-      case l: in.IndexedExp => cannotBeNil(l.base)
-      case _ => false
-    }
-
     val r = reference(ctx); { case loc@r(w) =>
-      if (cannotBeNil(loc)) w
-      else {
-        val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>
-          DerefError(x).dueTo(ReceiverIsNilReason(x))
-
-        for {
-          e <- w
-          cond <- ctx.expression(in.UneqCmp(
-            in.UncheckedRef(loc)(loc.info),
-            in.NilLit(in.PointerT(loc.typ, Exclusive))(loc.info)
-          )(loc.info))
-          checked <- assert(cond, e, errorT)(ctx)
-        } yield checked
-      }
+      for {
+        vprLoc <- w
+        checked <- checkNotNil(loc, vprLoc)(ctx)
+      } yield checked
     }
   }
+
+
 
   /**
     * Encodes the permissions for all addresses of a shared type,
@@ -394,7 +378,6 @@ trait TypeEncoding extends Generator {
     }
   }
 
-
   /**
     * Alternative version of `orElse` to simplify delegations to super implementations.
     *
@@ -418,4 +401,41 @@ trait TypeEncoding extends Generator {
   /** Adds simple (source) information to a node without source information. */
   protected def synthesized[T](node: (vpr.Position, vpr.Info, vpr.ErrorTrafo) => T)(comment: String): T =
     node(vpr.NoPosition, vpr.SimpleInfo(Seq(comment)), vpr.NoTrafos)
+}
+
+object TypeEncoding {
+
+  /**
+    * Checks whether an L-value is safe, i.e. does not cause a runtime panic due to dereferencing nil.
+    *
+    * assert [&loc != nil: *T°]; res
+    *
+    */
+  final def checkNotNil(loc: in.Location, res: vpr.Exp)(ctx: Context): CodeWriter[vpr.Exp] = {
+
+    import viper.gobra.translator.util.ViperWriter.CodeLevel._
+
+    @tailrec
+    def cannotBeNil(l: in.Expr): Boolean = l match {
+      case _: in.Var => true
+      case l: in.FieldRef => cannotBeNil(l.recv)
+      case l: in.IndexedExp => cannotBeNil(l.base)
+      case _ => false
+    }
+
+    if (cannotBeNil(loc)) unit(res)
+    else {
+      val offendingSource = loc.vprMeta._2.asInstanceOf[Source.Verifier.Info]
+      val errorT = (_: Source.Verifier.Info, _: ErrorReason) =>
+        DerefError(offendingSource).dueTo(ReceiverIsNilReason(offendingSource))
+
+      for {
+        cond <- ctx.expression(in.UneqCmp(
+          in.UncheckedRef(loc)(loc.info),
+          in.NilLit(in.PointerT(loc.typ, Exclusive))(loc.info)
+        )(loc.info))
+        checked <- assert(cond, res, errorT)(ctx)
+      } yield checked
+    }
+  }
 }

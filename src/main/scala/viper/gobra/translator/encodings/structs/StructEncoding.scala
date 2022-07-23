@@ -117,28 +117,14 @@ class StructEncoding extends TypeEncoding {
     * [lhs: *T° == rhs: *T] -> [lhs] == [rhs]
     *
     * [(lhs: Struct{F}) == rhs: Struct{_}] -> AND f in F: [lhs.f == rhs.f]
-    * // According to the Go spec, pointers to distinct zero-sized data may or may not be equal. Thus:
-    * [(x: *Struct{}°) == x: *Struct{}] -> true
-    * [(lhs: *Struct{}°) == rhs: *Struct{}] -> unknown()
-    * [(lhs: *Struct{F}°) == rhs: *Struct{_}] -> [lhs] == [rhs]
     */
-  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
+  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = default(super.equal(ctx)){
     case (lhs :: ctx.Struct(lhsFs), rhs :: ctx.Struct(rhsFs), src) =>
       val lhsFAccs = fieldAccesses(lhs, lhsFs)
       val rhsFAccs = fieldAccesses(rhs, rhsFs)
       val equalFields = sequence((lhsFAccs zip rhsFAccs).map{ case (lhsFA, rhsFA) => ctx.equal(lhsFA, rhsFA)(src) })
       val (pos, info, errT) = src.vprMeta
       equalFields.map(VU.bigAnd(_)(pos, info, errT))
-
-    case (lhs :: ctx.*(ctx.Struct(lhsFs)) / Exclusive, rhs :: ctx.*(ctx.Struct(_)), src) =>
-      if (lhsFs.isEmpty) {
-        unit(withSrc(if (lhs == rhs) vpr.TrueLit() else ctx.unknownValue.unkownValue(vpr.Bool), src))
-      } else {
-        for {
-          vLhs <- ctx.expression(lhs)
-          vRhs <- ctx.expression(rhs)
-        } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
-      }
   }
 
   /**
@@ -153,7 +139,7 @@ class StructEncoding extends TypeEncoding {
     * R[ (base: Struct{F})[f = e] ] -> ex_struct_upd([base], f, [e], F)
     * R[ dflt(Struct{F}) ] -> create_ex_struct( [T] | (f: T) in F )
     * R[ structLit(E) ] -> create_ex_struct( [e] | e in E )
-    * R[ loc: Struct{F}@ ] -> convert_to_exclusive( Ref[loc] )
+    * R[ loc: Struct{F}@ ] -> convert_to_exclusive( Ref[loc] ) // assert [&loc != nil] if Struct{F} has size zero
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
     case (loc@ in.FieldRef(recv :: ctx.Struct(fs), field)) :: _ / Exclusive =>

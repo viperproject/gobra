@@ -7,14 +7,50 @@ type A struct {
 	x int
 }
 
-func foo() {
+func test1() {
 	var x *A
 	//:: ExpectedOutput(dereference_error:receiver_is_nil_error)
 	var y *A = &(*x)
 }
 
-func bar() {
+func test2() {
 	var x *[3]int
 	//:: ExpectedOutput(dereference_error:receiver_is_nil_error)
 	var y []int = (*x)[:]
+}
+
+requires x != nil
+func test3(x *struct{}) {
+  v := *x
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}
+
+requires x != nil
+func test4(x *[0]int) {
+  v := *x
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}
+
+func test5(x *struct{}) {
+  //:: ExpectedOutput(dereference_error:receiver_is_nil_error)
+  v := *x
+}
+
+func test6(x *[0]int) {
+  //:: ExpectedOutput(dereference_error:receiver_is_nil_error)
+  v := *x
+}
+
+func test7(x, y *struct{}) {
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert x == y
+}
+
+func test8(x, y *[0]int) {
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert x == y
 }

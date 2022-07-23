@@ -17,6 +17,7 @@ import viper.gobra.util.Violation
 import StructEncoding.{ComponentParameter, cptParam}
 import viper.gobra.translator.library.Generator
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.encodings.combinators.TypeEncoding
 
 trait SharedStructComponent extends Generator {
 
@@ -31,14 +32,25 @@ trait SharedStructComponent extends Generator {
     * All permissions involved in the conversion should be returned by [[addressFootprint]].
     *
     * The default implementation is:
-    * Convert[loc: Struct{F}@] -> create_ex_struct( R[loc.f] | f in F )
+    * Convert[loc: Struct{F}@] -> create_ex_struct( [loc.f] | f in F ) // assert [&loc != nil] if Struct{F} has size zero
     */
   def convertToExclusive(loc: in.Location)(ctx: Context, ex: ExclusiveStructComponent): CodeWriter[vpr.Exp] = {
     loc match {
-      case _ :: ctx.Struct(fs) / Shared =>
+      case t :: ctx.Struct(fs) / Shared =>
         val vti = cptParam(fs)(ctx)
         val locFAs = fs.map(f => in.FieldRef(loc, f)(loc.info))
-        sequence(locFAs.map(fa => ctx.expression(fa))).map(ex.create(_, vti)(loc)(ctx))
+        val exclusive = sequence(locFAs.map(fa => ctx.expression(fa))).map(ex.create(_, vti)(loc)(ctx))
+
+        t match {
+          case _ :: ctx.ZeroSize() =>
+            for {
+              res <- exclusive
+              checked <- TypeEncoding.checkNotNil(loc, res)(ctx) // check not nil if struct has size zero
+            } yield checked
+
+          case _ => exclusive
+        }
+
 
       case _ :: t => Violation.violation(s"expected struct, but got $t")
     }

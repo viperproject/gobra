@@ -288,7 +288,7 @@ case class GeneratedImplementationProofError(subT: String, superT: String, error
 
 case class MethodObjectGetterPreconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "method_object_nil_error"
-  override def localMessage: String = s"Cannot get method object ${info.origin.tag}"
+  override def localMessage: String = s"The receiver of ${info.origin.tag} might be nil"
 }
 
 case class SpecImplementationPostconditionError(info: Source.Verifier.Info, specName: String) extends VerificationError {

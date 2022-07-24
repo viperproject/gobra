@@ -299,7 +299,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
         showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
 
-    case SpecImplementationProof(closure, spec, _, body, _, _) =>
+    case SpecImplementationProof(closure, spec, body, _, _) =>
       "proof" <+> showExpr(closure) <+> "implements" <+> show(spec) <+> block(showStmt(body))
 
     case GoFunctionCall(func, args) => "go" <+> func.name <> parens(showExprList(args))
@@ -726,7 +726,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case _: FunctionCall | _: MethodCall | _: ClosureCall => super.showStmt(s)
 
-    case SpecImplementationProof(closure, spec, _, _, _, _) =>
+    case SpecImplementationProof(closure, spec, _, _, _) =>
       "proof" <+> showExpr(closure) <+> "implements" <+> show(spec)
 
     case GoFunctionCall(func, args) =>

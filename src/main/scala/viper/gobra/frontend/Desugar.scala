@@ -3045,8 +3045,7 @@ object Desugar {
 
       val spec = closureSpecD(newCtx)(proof.impl.spec)
 
-      val ndBool = in.LocalVar(nm.fresh(proof, info), in.BoolT(Addressability.exclusiveVariable))(src)
-      val declarations = Vector(ndBool) ++ argSubs ++ retSubs ++ recvOrClosureAlias.toVector
+      val declarations = argSubs ++ retSubs ++ recvOrClosureAlias.toVector
       val assignments =
         recvOrClosure.map(exp => singleAss(in.Assignee(recvOrClosureAlias.get), exprD(ctx, info)(exp).res)(meta(exp))).toVector ++
           argSubs.zipWithIndex.collect {
@@ -3085,7 +3084,7 @@ object Desugar {
           spec = closureSpecD(newCtx)(proof.impl.spec)
           body <- stmtD(newCtx)(proof.block)
           block = in.Block(Vector.empty, Vector(oldLabel, body))(meta(proof.block))
-        } yield in.SpecImplementationProof(closure, spec, ndBool, block, pres, posts)(src)
+        } yield in.SpecImplementationProof(closure, spec, block, pres, posts)(src)
       } yield in.Block(declarations ++ Vector(oldLabelProxy), assignments ++ Vector(proof))(src)
     }
 

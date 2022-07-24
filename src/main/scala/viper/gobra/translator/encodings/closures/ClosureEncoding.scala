@@ -11,6 +11,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting
 import viper.gobra.reporting.BackTranslator.ErrorTransformer
 import viper.gobra.reporting.Source
+import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
@@ -49,7 +50,7 @@ class ClosureEncoding extends LeafTypeEncoding {
 
     case f: in.FunctionObject => specs.callToClosureGetter(f.func)(ctx)
 
-    case m: in.MethodObject => moe.callToMethodClosureGetter(m)(ctx)
+    case m: in.MethodObject => moe.encodeMethodObject(m)(ctx)
 
     case c: in.ClosureObject =>
       // A closure object is guaranteed to only be present directly within the closure with the same name
@@ -83,14 +84,17 @@ class ClosureEncoding extends LeafTypeEncoding {
 
   /** Encodes a spec implementation proof as:
     *
+    * [ args, results already initialised ]
+    * [ parameters already assigned ]
     * if (*) {
-    *   initialize args and results
-    *   assign parameters
-    *   while(true) {
+    *   while(true)
+    *     decreases _ // assume that the loop terminates
+    *   {
     *     inhale precondition of spec
     *     [ body ]
     *     exhale postcondition of spec
     *   }
+    *   assume false
     * }*/
   private def specImplementationProof(proof: in.SpecImplementationProof)(ctx: Context): CodeWriter[vpr.Stmt] = {
     val inhalePres = cl.seqns(proof.pres map (a => for {
@@ -118,15 +122,20 @@ class ClosureEncoding extends LeafTypeEncoding {
 
     val (pos, info, errT) = proof.vprMeta
 
+    val ifNdBool = in.LocalVar(ctx.freshNames.next(), in.BoolT(Addressability.exclusiveVariable))(proof.info)
+
     for {
-      ndBoolTrue <- ctx.assertion(in.ExprAssertion(proof.ndBool)(proof.info))
+      _ <- cl.local(vpr.LocalVarDecl(ifNdBool.id, ctx.typ(ifNdBool.typ))(pos, info, errT))
+      ndBoolTrue <- ctx.assertion(in.ExprAssertion(ifNdBool)(proof.info))
       ifStmt <- for {
         whileStmt <- for {
+          trueBool <- ctx.assertion(in.ExprAssertion(in.BoolLit(b=true)(proof.info))(proof.info))
           inhalePres <- inhalePres
           body <- ctx.statement(proof.body)
           exhalePosts <- exhalePosts
           whileBody = vu.seqn(Vector(inhalePres, body, exhalePosts))(pos, info, errT)
-        } yield vpr.While(ndBoolTrue, Seq.empty, whileBody)(pos, info, errT)
+          assumeTermination <- ctx.assertion(in.WildcardMeasure(None)(proof.info))
+        } yield vpr.While(trueBool, Seq(assumeTermination), whileBody)(pos, info, errT)
         assumeFalse = vpr.Assume(vpr.FalseLit()())()
         ifThen = vu.seqn(Vector(whileStmt, assumeFalse))(pos, info, errT)
         ifElse = vu.nop(pos, info, errT)

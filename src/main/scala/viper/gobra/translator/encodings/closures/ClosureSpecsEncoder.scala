@@ -130,7 +130,8 @@ protected class ClosureSpecsEncoder {
     val params = spec.params.map(p => in.Parameter.In(Names.closureImplementsParam(p._1), p._2.typ.withAddressability(Addressability.inParameter))(p._2.info))
     val args = Vector(closurePar) ++ params
     val result = Vector(in.Parameter.Out("r", in.BoolT(Addressability.outParameter))(info))
-    val func = in.PureFunction(proxy, args, result, Vector.empty, Vector.empty, Vector.empty, None)(info)
+    val terminates = in.WildcardMeasure(None)(info)
+    val func = in.PureFunction(proxy, args, result, Vector(terminates), Vector.empty, Vector.empty, None)(info)
     ctx.defaultEncoding.pureFunction(func)(ctx)
   }
 
@@ -139,8 +140,9 @@ protected class ClosureSpecsEncoder {
     val info = func.info
     val result = in.Parameter.Out(Names.closureArg, genericFuncType)(info)
     val satisfiesSpec = in.ExprAssertion(in.ClosureImplements(result, in.ClosureSpec(func, Map.empty)(info))(info))(info)
+    val terminates = in.WildcardMeasure(None)(info)
     val (args, captAssertions) = capturedArgsAndAssertions(ctx)(result, captured(ctx)(func), info)
-    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions, Vector.empty, None)(memberOrLit(ctx)(func).info)
+    val getter = in.PureFunction(proxy, args, Vector(result), Vector(terminates), Vector(satisfiesSpec) ++ captAssertions, Vector.empty, None)(memberOrLit(ctx)(func).info)
     ctx.defaultEncoding.pureFunction(getter)(ctx)
   }
 

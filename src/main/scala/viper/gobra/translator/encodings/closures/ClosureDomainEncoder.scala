@@ -26,7 +26,7 @@ class ClosureDomainEncoder(specs: ClosureSpecsEncoder) {
   }
 
 
-  /** Encodes the Closure domain. This is used to represent variables with function types. It looks as follows:
+  /** Encoding of the Closure domain. This is used to represent variables with function types. It looks as follows:
     *
     * domain Closure {
     *   function captVar1Closure_0(closure: Closure): Type0

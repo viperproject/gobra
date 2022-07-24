@@ -4,8 +4,8 @@
 package pkg
 
 
+//:: ExpectedOutput(type_error)
 type foo interface {
-	//:: ExpectedOutput(type_error)
 	foo
 	bar
 }

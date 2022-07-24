@@ -113,8 +113,8 @@ class MethodObjectEncoder(domain: ClosureDomainEncoder) {
 
   private def receiverNilErr(m: in.MethodObject, call: vpr.Exp): ErrorTransformer = {
     case vprerr.PreconditionInAppFalse(offendingNode, _, _) if call eq offendingNode =>
-      val (_, info as Source.Verifier.Info, _) = m.vprMeta
-      val (_, recvInfo as Source.Verifier.Info, _) = m.recv.vprMeta
+      val info = m.vprMeta._2.asInstanceOf[Source.Verifier.Info]
+      val recvInfo = m.recv.vprMeta._2.asInstanceOf[Source.Verifier.Info]
       MethodObjectGetterPreconditionError(info).dueTo(InterfaceReceiverIsNilReason(recvInfo))
   }
 }

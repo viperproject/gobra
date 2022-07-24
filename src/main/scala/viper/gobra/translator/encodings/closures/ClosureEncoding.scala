@@ -42,7 +42,16 @@ class ClosureEncoding extends LeafTypeEncoding {
   }
 
   /**
-    * Encodes literal function expressions and calls to the default closure generator.
+    * Encodes expressions as values that do not occupy some identifiable location in memory.
+    *
+    * R[ pure? func funcLitName(_)_ { _ } ] -> closureGet$funcLitName([ pointers to captured vars ])
+    * R[ funcName ] -> closureGet$funcName()
+    * R[ recv.methName ] -> closureGet$[methName]([recv])
+    * R[ funcLitName ] -> closure (only appears inside the body of funcLitName)
+    * R[ cl(args) as spec{params} ] -> closureCall$[spec]$[idx of params]([cl], [vars captured by cl], [args + params])
+    * R[ cl implements spec{params} ] -> closureImplements$[spec]$[idx of params]([cl], [params])
+    * R[ nil: func(_)_ ] -> closureNil()
+    * R[ dflt(func(_)_) ] -> closureNil()
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
 
@@ -69,6 +78,10 @@ class ClosureEncoding extends LeafTypeEncoding {
   private def nilClosure(e: in.Expr, fTyp: in.FunctionT)(ctx: Context): CodeWriter[vpr.Exp] =
     ctx.expression(in.PureFunctionCall(in.FunctionProxy(Names.closureNilFunc)(e.info), Vector.empty, fTyp)(e.info))
 
+  /**
+    * [ts := cl(args) as spec{params}] -> [ts] := closureCall$[spec]$[idx of params]([cl], [vars captured by cl], [args + params])
+    * [proof cl implements spec { BODY }] -> see [[specImplementationProof]]
+    */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = default(super.statement(ctx)) {
     case c: in.ClosureCall => specs.closureCall(c)(ctx)
 

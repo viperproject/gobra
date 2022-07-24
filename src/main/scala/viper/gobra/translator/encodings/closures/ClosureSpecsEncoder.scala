@@ -21,12 +21,28 @@ import viper.silver.{ast => vpr}
 
 protected class ClosureSpecsEncoder {
 
+  /** Encodes spec implementation expressions as calls to the corresponding generated function.
+    * R[ cl implements spec{params} ] -> closureImplements$[spec]$[idx of params]([cl], [params])
+    * */
   def closureImplementsExpression(a: in.ClosureImplements)(ctx: Context): CodeWriter[vpr.Exp] = {
     register(a.spec)(ctx, a.info)
     ctx.expression(in.PureFunctionCall(implementsFunctionProxy(a.spec)(a.info),
       Vector(a.closure) ++ a.spec.params.toVector.sortBy(_._1).map(_._2), in.BoolT(Addressability.rValue))(a.info))
   }
 
+  /**
+    * Encodes:
+    *   - function literal getters
+    *   - function getters
+    *
+    * R[ pure? func funcLitName(_)_ { _ } ] ->
+    *   register spec instance funcLitName{}
+    *   return closureGet$funcLitName([ pointers to captured vars ])
+    *
+    * R[ funcName ] ->
+    *   register spec instance funcName{}
+    *   return closureGet$funcName()
+    */
   def callToClosureGetter(func: in.FunctionMemberOrLitProxy, captured: Vector[(in.Expr, in.Parameter.In)] = Vector.empty)(ctx: Context): CodeWriter[vpr.Exp] = {
     val errorTransformers = register(in.ClosureSpec(func, Map.empty)(func.info))(ctx, func.info)
     for {
@@ -35,6 +51,11 @@ protected class ClosureSpecsEncoder {
     } yield exp
   }
 
+  /**
+    * Encodes (non-pure) closure calls.
+    *
+    * [ts := cl(args) as spec{params}] -> [ts] := closureCall$[spec]$[idx of params]([cl], [params], [args])
+    */
   def closureCall(c: in.ClosureCall)(ctx: Context): CodeWriter[vpr.Stmt] = {
     register(c.spec)(ctx, c.spec.info)
 
@@ -44,6 +65,11 @@ protected class ClosureSpecsEncoder {
     } yield call
   }
 
+  /**
+    * Encodes pure closure calls.
+    *
+    * [cl(args) as spec{params}] -> closureCall$[spec]$[idx of params]([cl], [vars captured by cl], [args + params])
+    */
   def pureClosureCall(c: in.PureClosureCall)(ctx: Context): CodeWriter[vpr.Exp] = {
     register(c.spec)(ctx, c.spec.info)
 
@@ -78,8 +104,18 @@ protected class ClosureSpecsEncoder {
     case p: in.FunctionLitProxy => ctx.table.lookup(p)
   }
 
-  /** Registers a spec. For all specs, an "implements" function and a method/function callable with a closure is
-    * generated. Keeps track of the maximum number of captured variables seen. */
+  /**
+    * Registers spec fName{params}:
+    * - if necessary, updates the maximum number of captured variables for the corresponding type
+    * - if the spec has not already been registered:
+    *   > generates a closureImplements$[spec] function (see [[implementsFunction]])
+    *   > generates a closureCall$[spec] method/function (see [[callableMemberWithClosure]])
+    *   > collects any error transformers generated while encoding closureCall$[...]
+    * - if no spec with base function fName has already been registered:
+    *   > generates a closureGet$fName getter function (see [[closureGetter]])
+    * - Adds all of the generated members to [[genMembers]]
+    * - Returns the collected error transformers
+    * */
   private def register(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): Vector[ErrorTransformer] = {
     var errorTransformers: Vector[ErrorTransformer] = Vector.empty
     updateCaptVarTypes(ctx)(captured(ctx)(spec.func).map(_._1.typ))
@@ -102,6 +138,11 @@ protected class ClosureSpecsEncoder {
 
   private var captVarTypeIdAndNum = Map[vpr.Type, (Int, Int)]()
   def captVarsTypeMap: Map[vpr.Type, (Int, Int)] = captVarTypeIdAndNum
+
+  /**
+    * Updates the maximum counts of captured variables for each encountered type.
+    * Assigns a unique id to each encountered type.
+    */
   private def updateCaptVarTypes(ctx: Context)(types: Vector[in.Type]): Unit = {
     types.groupBy(ctx.typ).foreach {
       case (typ, vec) =>
@@ -123,7 +164,10 @@ protected class ClosureSpecsEncoder {
   private def closureGetterFunctionProxy(func: in.FunctionMemberOrLitProxy): in.FunctionProxy = in.FunctionProxy(s"${Names.closureGetter}$$$func")(func.info)
   private def closureCallProxy(spec: in.ClosureSpec)(info: Source.Parser.Info): in.FunctionProxy = in.FunctionProxy(s"${Names.closureCall}$$${closureSpecName(spec)}")(info)
 
-  // Generates encoding: function closureImplements$funcName$(closure, parameters) bool
+  /**
+    * Given spec{params}, generates:
+    * function closureImplements$[spec]$[idx of params](closure: Closure, [params name and type]): Bool
+    * */
   private def implementsFunction(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): MemberWriter[vpr.Member] = {
     val proxy = implementsFunctionProxy(spec)(info)
     val closurePar = in.Parameter.In(Names.closureArg, genericFuncType)(info)
@@ -135,6 +179,12 @@ protected class ClosureSpecsEncoder {
     ctx.defaultEncoding.pureFunction(func)(ctx)
   }
 
+  /**
+    * Given fName, generates:
+    * function closureGet$[fName](captvar1_0: Type0, captvar2_0: Type0, captvar1_1: Type1, ...): Closure
+    *   ensures [result implements fName]
+    *   for X-th captured variable of T-th type: ensures captVarXClosure_T(result) == captvarX_T(result)
+    * */
   private def closureGetter(func: in.FunctionMemberOrLitProxy)(ctx: Context): MemberWriter[vpr.Member] = {
     val proxy = closureGetterFunctionProxy(func)
     val info = func.info
@@ -146,6 +196,10 @@ protected class ClosureSpecsEncoder {
     ctx.defaultEncoding.pureFunction(getter)(ctx)
   }
 
+  /**
+    * Returns the arguments for an encoded closure call:
+    *   (closure, args, fName{params}) -> (closure, vars captured by fName, args + params)
+   */
   private def closureCallArgs(closure: in.Expr, args: Vector[in.Expr], spec: in.ClosureSpec)(ctx: Context): Vector[in.Expr] = {
     val capt = captured(ctx)(spec.func)
     val captProxies = captVarProxies(ctx)(capt.map(_._1.typ), spec.func.info)
@@ -157,6 +211,12 @@ protected class ClosureSpecsEncoder {
     Vector(closure) ++ captArgs ++ argsAndParams
   }
 
+  /**
+    * Returns (captArgs, assertions), where:
+    *   - captArgs is the list of parameters corresponding to the variables captured by the closure
+    *   - assertions is the list of assertions, one for each captured variable captVarXClosure_T, of the form:
+    *       captVarXClosure_T(result) == captvarX_T(result)
+    */
   private def capturedArgsAndAssertions(ctx: Context)(closure: in.Expr, captured: Vector[(in.Expr, in.Parameter.In)], info: Source.Parser.Info): (Vector[in.Parameter.In], Vector[in.Assertion]) = {
     val captArgs = captured.map(c => c._2)
     val captProxies = captVarProxies(ctx)(captured.map(c => c._1.typ), info)
@@ -180,6 +240,7 @@ protected class ClosureSpecsEncoder {
     }
   }
 
+  /** Replaces all the parameter expressions in spec with the corresponding in-parameter of function f */
   private def specWithFuncArgs(spec: in.ClosureSpec, f: FunctionLikeMemberOrLit): in.ClosureSpec =
     in.ClosureSpec(spec.func, spec.params.map{ case (i, _) => i -> f.args(i-1)})(spec.info)
 
@@ -216,8 +277,9 @@ protected class ClosureSpecsEncoder {
   }
 
   /** From { body }, get assertion result == body
-    * This is useful to avoid multiple error messages when using specs derived from pure functions,
-    * by encoding the body as a postcondition. */
+    * This is useful to avoid multiple error messages when the body does not verify,
+    * by encoding the body as a postcondition.
+    * The original body is still encoded, so this does not affect correctness. */
   private def assertionFromPureFunctionBody(body: Option[in.Expr], res: in.Expr): Option[in.Assertion] =
     body.map(e => in.ExprAssertion(in.EqCmp(res, e)(e.info))(e.info))
 }

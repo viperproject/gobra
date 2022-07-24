@@ -9,6 +9,7 @@ package viper.gobra.translator.encodings.closures
 import viper.gobra.translator.Names
 import viper.silver.{ast => vpr}
 
+// Encodes the Closure domain, if needed
 class ClosureDomainEncoder(specs: ClosureSpecsEncoder) {
 
   def finalize(addMemberFn: vpr.Member => Unit): Unit = {
@@ -25,8 +26,22 @@ class ClosureDomainEncoder(specs: ClosureSpecsEncoder) {
   }
 
 
-  /** Domain Closure. Domain functions captVarNClosure_tid(c) are grouped by type. For each type, there are as many
-    * captured variables as the maximum number of captured variables of this type in a single closure. */
+  /** Encodes the Closure domain. This is used to represent variables with function types. It looks as follows:
+    *
+    * domain Closure {
+    *   function captVar1Closure_0(closure: Closure): Type0
+    *   [...]
+    *   function captVarNClosure_0(closure: Closure): Type0
+    *
+    *   function captVar1Closure_1(closure: Closure): Type1
+    *   [...]
+    *   function captVar1Closure_M(closure: Closure): TypeM
+    *}
+    *
+    * Domain function captVarXClosure_T is used to retrieve the X-th captured variable of T-th type,
+    * for closures obtained from function literals. For each type TypeT, the number of domain functions
+    * is the maximum number of variables with type TypeT captured by a literal within the package.
+    * */
   private def vprDomain: vpr.Domain = vpr.Domain(Names.closureDomain, capturedVarsDomainFuncs, Seq.empty, Seq.empty)()
 
   private def capturedVarsDomainFuncs: Seq[vpr.DomainFunc] = {

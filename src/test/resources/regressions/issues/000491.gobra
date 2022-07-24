@@ -64,3 +64,10 @@ func test10(x *[0]int) {
   //:: ExpectedOutput(assignment_error:receiver_is_nil_error)
   *x = [0]int{}
 }
+
+func test11() {
+  var x *[10]int
+
+  //:: ExpectedOutput(dereference_error:receiver_is_nil_error)
+  assert len(*x) == 10
+}

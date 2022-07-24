@@ -388,7 +388,7 @@ case class OverflowErrorReason(node: Source.Verifier.Info) extends VerificationE
 
 case class ReceiverIsNilReason(node: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "receiver_is_nil_error"
-  override def message: String = s"The receiver might be nil"
+  override def message: String = s"The receiver ${node.origin.tag.trim} might be nil"
 }
 
 case class DynamicValueNotASubtypeReason(node: Source.Verifier.Info) extends VerificationErrorReason {

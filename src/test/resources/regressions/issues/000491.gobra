@@ -54,3 +54,13 @@ func test8(x, y *[0]int) {
   //:: ExpectedOutput(assert_error:assertion_error)
   assert x == y
 }
+
+func test9(x *struct{}) {
+  //:: ExpectedOutput(assignment_error:receiver_is_nil_error)
+  *x = struct{}{}
+}
+
+func test10(x *[0]int) {
+  //:: ExpectedOutput(assignment_error:receiver_is_nil_error)
+  *x = [0]int{}
+}

@@ -17,7 +17,6 @@ import viper.gobra.util.Violation
 import StructEncoding.{ComponentParameter, cptParam}
 import viper.gobra.translator.library.Generator
 import viper.gobra.translator.context.Context
-import viper.gobra.translator.encodings.combinators.TypeEncoding
 
 trait SharedStructComponent extends Generator {
 
@@ -32,25 +31,14 @@ trait SharedStructComponent extends Generator {
     * All permissions involved in the conversion should be returned by [[addressFootprint]].
     *
     * The default implementation is:
-    * Convert[loc: Struct{F}@] -> create_ex_struct( [loc.f] | f in F ) // assert [&loc != nil] if Struct{F} has size zero
+    * Convert[loc: Struct{F}@] -> create_ex_struct( [loc.f] | f in F )
     */
   def convertToExclusive(loc: in.Location)(ctx: Context, ex: ExclusiveStructComponent): CodeWriter[vpr.Exp] = {
     loc match {
-      case t :: ctx.Struct(fs) / Shared =>
+      case _ :: ctx.Struct(fs) / Shared =>
         val vti = cptParam(fs)(ctx)
         val locFAs = fs.map(f => in.FieldRef(loc, f)(loc.info))
-        val exclusive = sequence(locFAs.map(fa => ctx.expression(fa))).map(ex.create(_, vti)(loc)(ctx))
-
-        t match {
-          case _ :: ctx.ZeroSize() =>
-            for {
-              res <- exclusive
-              checked <- TypeEncoding.checkNotNil(loc, res)(ctx) // check not nil if struct has size zero
-            } yield checked
-
-          case _ => exclusive
-        }
-
+        sequence(locFAs.map(fa => ctx.expression(fa))).map(ex.create(_, vti)(loc)(ctx))
 
       case _ :: t => Violation.violation(s"expected struct, but got $t")
     }
@@ -61,7 +49,6 @@ trait SharedStructComponent extends Generator {
     * i.e. all permissions involved in converting the shared location to an exclusive value ([[convertToExclusive]]).
     * An encoding for type T should be defined at all shared locations of type T.
     *
-    * The default implementation is:
     * Footprint[loc: Struct{F}@] -> AND f in F: Footprint[loc.f]
     */
   def addressFootprint(loc: in.Location, perm: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {

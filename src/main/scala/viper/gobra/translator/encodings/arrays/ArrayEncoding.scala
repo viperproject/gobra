@@ -197,16 +197,11 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         vE <- ctx.expression(e)
       } yield ctx.seqMultiplicity.create(vX, ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT)
 
-    case (loc: in.Location) :: ctx.Array(len, t) / Shared =>
+    case (loc: in.Location) :: ctx.NoZeroSize(ctx.Array(len, t)) / Shared =>
       val (pos, info, errT) = loc.vprMeta
       for {
         arg <- ctx.reference(loc)
-        checkedArg <- loc match {
-          case _ :: ctx.ZeroSize() =>
-            TypeEncoding.checkNotNil(loc, arg)(ctx) // check not nil if array has size zero
-          case _ => unit(arg)
-        }
-      } yield conversionFunc(Vector(checkedArg), cptParam(len, t)(ctx))(pos, info, errT)(ctx)
+      } yield conversionFunc(Vector(arg), cptParam(len, t)(ctx))(pos, info, errT)(ctx)
   }
 
   /**
@@ -230,12 +225,15 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * i.e. all permissions involved in converting the shared location to an exclusive r-value.
     * An encoding for type T should be defined at all shared locations of type T.
     *
+    * The default implements:
+    * Footprint[loc: T@ if sizeOf(T) == 0] -> [&loc != nil: *T°]
+    *
     * Footprint[loc: [n]T] -> forall idx :: {trigger} 0 <= idx < n ==> Footprint[ loc[idx] ]
     *   where trigger = sh_array_get(Ref[loc], idx, n)
     *
     * We do not use let because (at the moment) Viper does not accept quantified permissions with let expressions.
     */
-  override def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = {
+  override def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = super.addressFootprint(ctx).orElse {
     case (loc :: ctx.Array(len, t) / Shared, perm) =>
       val (pos, info, errT) = loc.vprMeta
       val typ = underlyingType(loc.typ)(ctx)

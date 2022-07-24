@@ -42,11 +42,6 @@ object TypePatterns {
   /** One pattern for every type. The patterns disregard the addressability modifier. */
   implicit class ContextTypePattern(ctx: Context) {
 
-    object ZeroSize {
-      def unapply(arg: in.Type): Boolean =
-        isZeroSize(underlyingType(arg)(ctx))(ctx.table)
-    }
-
     /**
       * Returns T for exclusive *T and shared T.
       * Both these types have the same memory layout, used to encode the address of a type.
@@ -221,6 +216,18 @@ object TypePatterns {
       def unapply(arg: in.Type): Option[Vector[in.Type]] = underlyingType(arg)(ctx) match {
         case t : in.PredT => Some(t.args)
         case _ => None
+      }
+    }
+
+    object ZeroSize {
+      def unapply(arg: in.Type): Boolean =
+        isZeroSize(underlyingType(arg)(ctx))(ctx.table)
+    }
+
+    object NoZeroSize {
+      def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
+        case ctx.ZeroSize() => None
+        case t => Some(t)
       }
     }
   }

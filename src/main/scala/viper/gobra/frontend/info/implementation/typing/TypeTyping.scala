@@ -187,7 +187,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     // used for detecting cyclic definition chains
     // `ctx` of type UnderlyingType represents the current context in which a lookup should happen
     // ExternalTypeInfo is not used as we need access to `underlyingTypeWithCtxP`, which is not exposed by the interface.
-    def isCyclic: (PStructType, Set[String], UnderlyingType) => Boolean = (struct, visitedTypes, ctx) => {
+    def isCyclic(struct: PStructType, visitedTypes: Set[String], ctx: UnderlyingType): Boolean = {
       // the goal is to detect whether a struct type has infinity size and cause a corresponding error before
       // running into non-termination issues in Gobra.
       // Cycles in the field types are one possible source for infinite size of the resulting struct.
@@ -223,7 +223,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     // used for detecting cyclic definition chains
     // `ctx` of type UnderlyingType represents the current context in which a lookup should happen
     // ExternalTypeInfo is not used as we need access to `underlyingTypeWithCtxP`, which is not exposed by the interface.
-    def isCyclic: (PInterfaceType, Set[String], UnderlyingType) => Boolean = (itfT, visitedTypes, ctx) => {
+    def isCyclic(itfT: PInterfaceType, visitedTypes: Set[String], ctx: UnderlyingType): Boolean = {
       val fieldTypes = itfT.embedded.map(_.typ)
       fieldTypes exists {
         case n: PUnqualifiedTypeName if visitedTypes.contains(n.name) => true
@@ -244,7 +244,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     * This method expects an acyclic interface type.
     */
   def containsRedeclarations(t: PInterfaceType): Messages = {
-    def findAllEmbeddedMethods: (PInterfaceType, UnderlyingType) => Set[String] = (itfT, ctx) => {
+    def findAllEmbeddedMethods(itfT: PInterfaceType, ctx: UnderlyingType): Set[String] = {
       val fieldTypes = itfT.embedded.map(_.typ).toSet
       fieldTypes.flatMap{
         case n: PTypeName if isUnderlyingInterfaceType(n, ctx).isDefined =>

@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type A interface {
+    pred mem()
+}
+
+type B interface {
+	pred mem()
+}
+
+type C interface {
+	pred mem()
+	A
+	B
+}
+
+type X struct {
+	x int
+}
+
+pred (self *X) mem() {
+	acc(self)
+}
+
+(*X) implements C

@@ -690,7 +690,7 @@ case class PPredType(args: Vector[PType]) extends PTypeLit
 case class PInterfaceType(
                            embedded: Vector[PInterfaceName],
                            methSpecs: Vector[PMethodSig],
-                           predSpec: Vector[PMPredicateSig]
+                           predSpecs: Vector[PMPredicateSig]
                          ) extends PTypeLit with PUnorderedScope
 
 sealed trait PInterfaceClause extends PNode

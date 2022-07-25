@@ -94,7 +94,7 @@ object Type {
   case class InterfaceT(decl: PInterfaceType, context: ExternalTypeInfo) extends ContextualType {
 
     lazy val isEmpty: Boolean = {
-      decl.methSpecs.isEmpty && decl.predSpec.isEmpty &&
+      decl.methSpecs.isEmpty && decl.predSpecs.isEmpty &&
         decl.embedded.isEmpty
     }
 

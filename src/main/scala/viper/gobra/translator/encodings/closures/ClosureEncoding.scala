@@ -17,8 +17,8 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.util.{ViperUtil => vu}
-import viper.silver.verifier.errors
-import viper.silver.verifier.reasons
+import viper.silver.plugin.standard.termination
+import viper.silver.verifier.{errors, reasons}
 import viper.silver.{ast => vpr}
 
 class ClosureEncoding extends LeafTypeEncoding {
@@ -93,22 +93,47 @@ class ClosureEncoding extends LeafTypeEncoding {
     domain.finalize(addMemberFn)
     specs.finalize(addMemberFn)
     moe.finalize(addMemberFn)
+    if (needProofIterator) {
+      addMemberFn(proofIterator)
+    }
   }
+
+  /**
+    * Encodes:
+    * method closureProofIterator() returns (res: Int)
+    *   requires decreases
+    * This is used in [[specImplementationProof]]
+    */
+  private lazy val proofIterator: vpr.Method = {
+    needProofIterator = true
+    vpr.Method(
+      Names.closureProofIterator,
+      Seq.empty,
+      Seq(vpr.LocalVarDecl("res", vpr.Int)()),
+      Seq(termination.DecreasesTuple(Nil)()), Seq.empty, None
+    )()
+  }
+  private var needProofIterator: Boolean = false
 
   /** Encodes a spec implementation proof as:
     *
     * [ args, results already initialised ]
     * [ parameters already assigned ]
     * if (*) {
-    *   while(true)
-    *     decreases _ // assume that the loop terminates
+    *   var numIterations: Int
+    *   numIterations := proofIterator()
+    *   while(numIterations > 0)
+    *     decreases numIterations
     *   {
     *     inhale precondition of spec
     *     [ body ]
     *     exhale postcondition of spec
+    *     numIterations := numIterations - 1
     *   }
     *   assume false
-    * }*/
+    * }
+    * inhale closureImplements$[spec]([closure], [params])
+    */
   private def specImplementationProof(proof: in.SpecImplementationProof)(ctx: Context): CodeWriter[vpr.Stmt] = {
     val inhalePres = cl.seqns(proof.pres map (a => for {
           ass <- ctx.assertion(a)
@@ -134,26 +159,31 @@ class ClosureEncoding extends LeafTypeEncoding {
     }
 
     val (pos, info, errT) = proof.vprMeta
+    val src = proof.info
 
-    val ifNdBool = in.LocalVar(ctx.freshNames.next(), in.BoolT(Addressability.exclusiveVariable))(proof.info)
+    val ifNdBool = in.LocalVar(ctx.freshNames.next(), in.BoolT(Addressability.exclusiveVariable))(src)
+    val numIterations = in.LocalVar(ctx.freshNames.next(), in.IntT(Addressability.exclusiveVariable))(src)
 
     for {
       _ <- cl.local(vpr.LocalVarDecl(ifNdBool.id, ctx.typ(ifNdBool.typ))(pos, info, errT))
-      ndBoolTrue <- ctx.assertion(in.ExprAssertion(ifNdBool)(proof.info))
+      ndBoolTrue <- ctx.assertion(in.ExprAssertion(ifNdBool)(src))
       ifStmt <- for {
+        _ <- cl.local(vpr.LocalVarDecl(numIterations.id, ctx.typ(numIterations.typ))(pos, info, errT))
+        assignNumIterations <- ctx.statement(in.FunctionCall(Vector(numIterations), in.FunctionProxy(proofIterator.name)(src), Vector.empty)(src))
         whileStmt <- for {
-          trueBool <- ctx.assertion(in.ExprAssertion(in.BoolLit(b=true)(proof.info))(proof.info))
+          numIterationsGT0 <- ctx.assertion(in.ExprAssertion(in.GreaterCmp(numIterations, in.IntLit(0)(src))(src))(src))
           inhalePres <- inhalePres
           body <- ctx.statement(proof.body)
           exhalePosts <- exhalePosts
-          whileBody = vu.seqn(Vector(inhalePres, body, exhalePosts))(pos, info, errT)
-          assumeTermination <- ctx.assertion(in.WildcardMeasure(None)(proof.info))
-        } yield vpr.While(trueBool, Seq(assumeTermination), whileBody)(pos, info, errT)
+          decreaseNumIterations <- ctx.statement(in.SingleAss(in.Assignee(numIterations), in.Sub(numIterations, in.IntLit(1)(src))(src))(src))
+          whileBody = vu.seqn(Vector(inhalePres, body, exhalePosts, decreaseNumIterations))(pos, info, errT)
+          terminationMeasure <- ctx.assertion(in.TupleTerminationMeasure(Vector(numIterations), None)(src))
+        } yield vpr.While(numIterationsGT0, Seq(terminationMeasure), whileBody)(pos, info, errT)
         assumeFalse = vpr.Assume(vpr.FalseLit()())()
-        ifThen = vu.seqn(Vector(whileStmt, assumeFalse))(pos, info, errT)
+        ifThen = vu.seqn(Vector(assignNumIterations, whileStmt, assumeFalse))(pos, info, errT)
         ifElse = vu.nop(pos, info, errT)
       } yield vpr.If(ndBoolTrue, ifThen, ifElse)(pos, info, errT)
-      implementsAssertion <- ctx.expression(in.ClosureImplements(proof.closure, proof.spec)(proof.info))
+      implementsAssertion <- ctx.expression(in.ClosureImplements(proof.closure, proof.spec)(src))
       assumeImplements = vpr.Assume(implementsAssertion)()
       _ <- cl.errorT(failedExhale)
     } yield vu.seqn(Vector(ifStmt, assumeImplements))(pos, info, errT)

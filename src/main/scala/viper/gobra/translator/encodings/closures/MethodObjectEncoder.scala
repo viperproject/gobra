@@ -24,6 +24,8 @@ import scala.annotation.tailrec
 /** Encoding of method objects */
 class MethodObjectEncoder(domain: ClosureDomainEncoder) {
 
+  import viper.gobra.translator.util.TypePatterns._
+
   def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     generatedConversions foreach (x => addMemberFn(x._2))
   }
@@ -71,12 +73,8 @@ class MethodObjectEncoder(domain: ClosureDomainEncoder) {
       val receiver = in.Parameter.In("self", recvType)(meth.info)
       val vprReceiver =  ctx.variable(receiver)
       val vprReceiverVar = vprReceiver.localVar
-      val terminates = termination.DecreasesWildcard()(pos, info, errT)
 
-      def conversionForNonInterfaceType: vpr.Function =
-        vpr.Function(proxy.uniqueName, Seq(ctx.variable(receiver)), domain.vprType, Seq.empty, Seq(terminates), None)(pos, info, errT)
-      @tailrec
-      def conversionForType(recvType: in.Type): vpr.Function = recvType match {
+      val result = underlyingType(recvType)(ctx) match {
         case recvType: in.InterfaceT =>
           val recvNotNil = interfaceUtils.receiverNotNil(vprReceiverVar)(pos, info, errT)(ctx)
           val defTCall: in.Type => vpr.Exp = t => {
@@ -88,17 +86,12 @@ class MethodObjectEncoder(domain: ClosureDomainEncoder) {
             vpr.EqCmp(vpr.Result(domain.vprType)(), defTCall(t))()
           )()
           val posts = ctx.table.implementations(recvType).toSeq.map(valueMatchesIfTypeIs)
-          vpr.Function(proxy.uniqueName, Seq(ctx.variable(receiver)), domain.vprType, Seq(recvNotNil, terminates), posts, None)(pos, info, errT)
+          vpr.Function(proxy.uniqueName, Seq(ctx.variable(receiver)), domain.vprType, Seq(recvNotNil), posts, None)(pos, info, errT)
 
-        case defT: in.DefinedT => ctx.table.lookup(defT) match {
-          case recvType: in.InterfaceT => conversionForType(recvType)
-          case _ => conversionForNonInterfaceType
-        }
-
-        case _ => conversionForNonInterfaceType
+        case _ =>
+          vpr.Function(proxy.uniqueName, Seq(ctx.variable(receiver)), domain.vprType, Seq.empty, Seq.empty, None)(pos, info, errT)
       }
 
-      val result = conversionForType(recvType)
       generatedConversions += (meth -> result)
       result
     })

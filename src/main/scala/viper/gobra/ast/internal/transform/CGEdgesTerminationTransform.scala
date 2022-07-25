@@ -86,7 +86,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                         // via an interface embedding, then the contract of the method is the same and
                         // there is no need to generate extra proof obligations.
                         // The soundness of this argument critically relies on the fact that if a type T implements
-                        // and interface B and B has interface A embedded, then T must implement A too.
+                        // an interface B and B has interface A embedded, then T must implement A too.
                         in.Seqn(Vector())(src)
 
                       case _: in.MethodProxy if subT.isInstanceOf[in.InterfaceT] =>

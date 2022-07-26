@@ -16,4 +16,5 @@ object MemberPath {
   case object Deref extends MemberPath
   case object Ref extends MemberPath
   case class Next(decl: Embbed) extends MemberPath
+  case class EmbeddedInterface(id: String) extends MemberPath
 }

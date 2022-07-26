@@ -241,7 +241,6 @@ object Desugar {
       in.MPredicateProxy(id.name, name)(meta(id, context))
     }
 
-
     // proxies to built-in members
     def methodProxy(tag: BuiltInMethodTag, recv: in.Type, args: Vector[in.Type])(src: Meta): in.MethodProxy = {
       def create(tag: BuiltInMethodTag, inRecvWithArgs: Vector[in.Type]): in.BuiltInMethod = {
@@ -858,7 +857,7 @@ object Desugar {
         }
       }
 
-      stmt match {
+      val result = stmt match {
         case NoGhost(noGhost) => noGhost match {
           case _: PEmptyStmt => unit(in.Seqn(Vector.empty)(src))
 
@@ -1175,6 +1174,7 @@ object Desugar {
           case _ => ???
         }
       }
+      seqn(result)
     }
 
     def switchCaseD(switchCase: PExprSwitchCase, scrutinee: in.LocalVar)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] = {
@@ -1290,7 +1290,7 @@ object Desugar {
     // Expressions
 
     def derefD(ctx: FunctionContext)(p: ap.Deref)(src: Meta): Writer[in.Deref] = {
-      exprD(ctx)(p.base) map (in.Deref(_)(src))
+      exprD(ctx)(p.base).map(e => in.Deref(e, underlyingType(e.typ))(src))
     }
 
     def fieldSelectionD(ctx: FunctionContext)(p: ap.FieldSelection)(src: Meta): Writer[in.FieldRef] = {
@@ -1978,10 +1978,11 @@ object Desugar {
     def applyMemberPathD(base: in.Expr, path: Vector[MemberPath])(pinfo: Source.Parser.Info): in.Expr = {
       path.foldLeft(base){ case (e, p) => p match {
         case MemberPath.Underlying => e
-        case MemberPath.Deref => in.Deref(e)(pinfo)
+        case MemberPath.Deref => in.Deref(e, underlyingType(e.typ))(pinfo)
         case MemberPath.Ref => in.Ref(e)(pinfo)
         case MemberPath.Next(g) =>
           in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(e.typ.addressability), g.context)(pinfo))(pinfo)
+        case _: MemberPath.EmbeddedInterface => e
       }}
     }
 
@@ -2262,7 +2263,6 @@ object Desugar {
     }
 
     def registerInterface(t: Type.InterfaceT, dT: in.InterfaceT): Unit = {
-      Violation.violation(t.decl.embedded.isEmpty, "embeddings in interfaces are currently not supported")
 
       if (!registeredInterfaces.contains(dT.name) && info == t.context.getTypeInfo) {
         registeredInterfaces += dT.name
@@ -2270,7 +2270,7 @@ object Desugar {
         val itfT = dT.withAddressability(Addressability.Exclusive)
         val xInfo = t.context.getTypeInfo
 
-        t.decl.predSpec foreach { p =>
+        t.decl.predSpecs foreach { p =>
           val src = meta(p, xInfo)
           val proxy = mpredicateProxyD(p, xInfo)
           val recv = implicitThisD(itfT)(src)
@@ -2307,7 +2307,6 @@ object Desugar {
       }
     }
     var registeredInterfaces: Set[String] = Set.empty
-
 
 
     object AdditionalMembers {
@@ -2421,8 +2420,8 @@ object Desugar {
         )
       }
     }
-    def missingImplProofs: Vector[in.Member] = {
 
+    def missingImplProofs: Vector[in.Member] = {
       info.missingImplProofs.map{ case (implT, itfT, implSymb, itfSymb) =>
         val subProxy = methodProxyFromSymb(implSymb)
         val superT = interfaceType(typeD(itfT, Addressability.Exclusive)(Source.Parser.Unsourced)).get
@@ -3401,7 +3400,10 @@ object Desugar {
               acc match {
                 case PReference(op) => addressableD(ctx)(op) map (x => in.Accessible.Address(x.op))
                 case _ =>
-                  goE(acc) map (x => in.Accessible.Address(in.Deref(x, typeD(ut.elem, Addressability.dereference)(src))(src)))
+                  goE(acc).map{ x =>
+                    val underlyingT = typeD(ut, Addressability.reference)(src)
+                    in.Accessible.Address(in.Deref(x, underlyingT)(src))
+                  }
               }
 
             case Single(_: Type.SliceT) =>
@@ -3658,7 +3660,7 @@ object Desugar {
         Names.emptyInterface
       } else {
         val pom = s.context.getTypeInfo.tree.originalRoot.positions
-        val hash = srcTextName(pom, s.decl.embedded, s.decl.methSpecs, s.decl.predSpec)
+        val hash = srcTextName(pom, s.decl.embedded, s.decl.methSpecs, s.decl.predSpecs)
         s"$INTERFACE_PREFIX$$${topLevelName("")(hash, s.context)}"
       }
     }

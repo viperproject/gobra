@@ -627,8 +627,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
       implicit val tuple3Ordering: Ordering[(in.MPredicateProxy, in.InterfaceT, SortedSet[in.Type])] = Ordering.by(_._1)
 
       val itfNodes = for {
-        (itf, impls) <- ctx.table.interfaceImplementations.toSet
-        itfProxy <- ctx.table.members(itf).collect{ case m: in.MPredicateProxy => m }
+        (itf, impls) <- ctx.table.getImplementations.toSet
+        itfProxy <- ctx.table.lookupMembers(itf).collect{ case m: in.MPredicateProxy => m }
       } yield (itfProxy, itf, impls)
 
       val edges = for {
@@ -702,8 +702,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val pProxy = Names.InterfaceMethod.origin(p.name)
 
     val itfT = p.receiver.typ.asInstanceOf[in.InterfaceT]
-    val impls = ctx.table.implementations(itfT).toVector
-    val cases = impls.map(impl => (impl, ctx.table.lookup(impl, pProxy.name).get))
+    val impls = ctx.table.lookupNonInterfaceImplementations(itfT).toVector
+    val cases = impls.flatMap(impl => ctx.table.lookup(impl, pProxy.name).map(impl -> _))
 
     val recvDecl = vpr.LocalVarDecl(Names.implicitThis, vprInterfaceType(ctx))(pos, info, errT)
     val recv = recvDecl.localVar
@@ -853,7 +853,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val vArgs = vArgDecls map (_.localVar)
 
 
-    val itfFuncs = ctx.table.members(itfT).collect{ case x: in.MethodProxy if ctx.lookup(x).isInstanceOf[in.PureMethod] => x }
+    val itfFuncs = ctx.table.lookupMembers(itfT).collect{ case x: in.MethodProxy if ctx.lookup(x).isInstanceOf[in.PureMethod] => x }
     val matchingFuncs = itfFuncs.map(f => (f, ctx.table.lookup(impl, f.name).get))
     val nameMap = matchingFuncs.map{ case (itfProxy, implProxy) => (itfProxy.uniqueName, proofName(recv.typ, implProxy, itfProxy)) }.toMap
 

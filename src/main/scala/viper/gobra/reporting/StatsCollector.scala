@@ -455,12 +455,15 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   private def timeoutError(gobraEntry: GobraMemberEntry) = TimeoutError(s"The verification of member ${gobraEntry.info.id} did not terminate")
 
   /**
-   * Writes all statistics that have been collected with this instance of the StatsCollector to a file
+   * Writes all statistics that have been collected with this instance of the StatsCollector to a file.
+   * Returns true iff the file was written.
    */
-  def writeJsonReportToFile(file: File): Unit = {
-    if((file.exists() && file.canWrite) || file.getParentFile.canWrite) {
+  def writeJsonReportToFile(file: File): Boolean = {
+    val canWrite = (file.exists() && file.canWrite) || file.getParentFile.canWrite
+    if (canWrite) {
       FileUtils.writeStringToFile(file, getJsonReport, UTF_8)
     }
+    canWrite
   }
 
   def getJsonReport: String = {
@@ -473,7 +476,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   /**
    * Returns a set of warnings for all members in a package
    */
-  def getWarnings(pkgId: String, config: Config): Set[Warning] =
+  def getMessagesAboutDependencies(pkgId: String, config: Config): Set[Warning] =
     memberMap.values
       .filter(gobraMember => gobraMember.info.pkgId == pkgId)
       .flatMap(gobraMember => {
@@ -481,12 +484,12 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         gobraMember.dependencies().flatMap({
           // Trusted implies abstracted, so we match trusted first
           case GobraMemberEntry(info, _) if info.isTrusted =>
-            Some("Warning: Member " + name + " depends on trusted member " + info.pkg + "." + info.memberName + info.args + "\n")
+            Some("Member " + name + " depends on trusted member " + info.pkg + "." + info.memberName + info.args + "\n")
           case GobraMemberEntry(info, _) if info.isAbstractAndNotImported =>
-            Some("Warning: Member " + name + " depends on abstract member " + info.pkg + "." + info.memberName + info.args + "\n")
+            Some("Member " + name + " depends on abstract member " + info.pkg + "." + info.memberName + info.args + "\n")
           // Only generate warnings about non-verified packages, when we actually have any info about which packages are verified
           case GobraMemberEntry(info, _) if config.packageInfoInputMap.nonEmpty && !config.packageInfoInputMap.keys.exists(_.id == info.pkgId) =>
-            Some("Warning: Depending on imported package that is not verified: " + info.pkgId)
+            Some("Depending on imported package that is not verified: " + info.pkgId)
           case _ => None
         })
       }).toSet

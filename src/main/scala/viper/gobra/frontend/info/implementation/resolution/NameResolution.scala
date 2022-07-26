@@ -10,7 +10,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag, BuiltInTypeTag}
 import viper.gobra.frontend.info.base.SymbolTable._
-import viper.gobra.frontend.info.base.Type.StructT
+import viper.gobra.frontend.info.base.Type.{InterfaceT, StructT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.Violation
@@ -72,7 +72,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
         case tree.parent.pair(decl: PNamedParameter, _: PResult) => OutParameter(decl, isGhost, canParameterBeUsedAsShared(decl), this)
         case decl: PNamedParameter => InParameter(decl, isGhost, canParameterBeUsedAsShared(decl), this)
-        case decl: PNamedReceiver => ReceiverParameter(decl, isGhost, decl.addressable, this)
+        case decl: PNamedReceiver => ReceiverParameter(decl, isGhost, canReceiverBeUsedAsShared(decl), this)
 
         case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost, addressable = false, this) // TODO: check if type switch variables are addressable in Go
 
@@ -236,7 +236,7 @@ trait NameResolution { this: TypeInfoImpl =>
       }
 
       case n: PInterfaceType =>
-        n.methSpecs.map(_.id) ++ n.predSpec.map(_.id)
+        n.methSpecs.map(_.id) ++ n.predSpecs.map(_.id)
 
       // domain members are added at the package level
       case _: PDomainType => Vector.empty
@@ -333,7 +333,16 @@ trait NameResolution { this: TypeInfoImpl =>
           val dependentEnv = dependentDefenv(scope)
           // perform now a second lookup in this special dependent environment:
           val res = tryLookup(dependentEnv, serialize(n))
-          res
+          (res, scope) match {
+            case (None, int : PInterfaceType) =>
+              try {
+                memberSet(InterfaceT(int, this)).lookup(n.name) // lookup in the embeddedFields
+              }
+              catch { // happens if we are in a cycle because of unknown interface members
+                case _ : IllegalStateException => None
+              }
+            case _ => res
+          }
         case _ => None
       }
 

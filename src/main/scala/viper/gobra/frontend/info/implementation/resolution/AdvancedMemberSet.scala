@@ -21,7 +21,7 @@ class AdvancedMemberSet[M <: TypeMember] private(
   type Record = (M, Vector[MemberPath], Int)
 
   def rank(path: Vector[MemberPath]): Int = path.count {
-    case _: MemberPath.Next => true
+    case _: MemberPath.Next | _: MemberPath.EmbeddedInterface => true
     case _ => false
   }
 
@@ -45,6 +45,7 @@ class AdvancedMemberSet[M <: TypeMember] private(
 
   def surface: AdvancedMemberSet[M] = updatePath { case (m, p, l) => (m, MemberPath.Underlying +: p, l) }
   def promote(f: Embbed): AdvancedMemberSet[M] = updatePath { case (m, p, l) => (m, MemberPath.Next(f) +: p, l + 1) }
+  def promoteItf(id: String): AdvancedMemberSet[M] = updatePath { case (m, p, l) => (m, MemberPath.EmbeddedInterface(id) +: p, l + 1) }
   def ref: AdvancedMemberSet[M] = updatePath { case (m, p, l) => (m, MemberPath.Deref +: p, l) }
   def deref: AdvancedMemberSet[M] = updatePath { case (m, p, l) => (m, MemberPath.Ref +: p, l) }
 

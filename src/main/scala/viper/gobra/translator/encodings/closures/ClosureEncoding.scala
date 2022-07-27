@@ -76,7 +76,7 @@ class ClosureEncoding extends LeafTypeEncoding {
   }
 
   private def nilClosure(e: in.Expr, fTyp: in.FunctionT)(ctx: Context): CodeWriter[vpr.Exp] =
-    ctx.expression(in.PureFunctionCall(in.FunctionProxy(Names.closureNilFunc)(e.info), Vector.empty, fTyp)(e.info))
+    ctx.expression(in.DomainFunctionCall(in.DomainFuncProxy(Names.closureNilFunc, Names.closureDomain)(e.info), Vector.empty, fTyp)(e.info))
 
   /**
     * [ts := cl(args) as spec{params}] -> [ts] := closureCall$[spec]$[idx of params]([cl], [vars captured by cl], [args + params])

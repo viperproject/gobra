@@ -15,7 +15,6 @@ class ClosureDomainEncoder(specs: ClosureSpecsEncoder) {
   def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     if (domainNeeded) {
       addMemberFn(vprDomain)
-      addMemberFn(dfltFunction)
     }
   }
 
@@ -29,21 +28,35 @@ class ClosureDomainEncoder(specs: ClosureSpecsEncoder) {
   /** Encoding of the Closure domain. This is used to represent variables with function types. It looks as follows:
     *
     * domain Closure {
-    *   function captVar1Closure_0(closure: Closure): Type0
-    *   [...]
-    *   function captVarNClosure_0(closure: Closure): Type0
+    *   function closureNil(): Closure
     *
-    *   function captVar1Closure_1(closure: Closure): Type1
-    *   [...]
-    *   function captVar1Closure_M(closure: Closure): TypeM
+    *   [[capturedVarsDomainFuncs]]
+    *
+    *   foreach spec in the package:
+    *     function closureImplements$[spec](closure: Closure, [spec.params])
     *}
     *
     * Domain function captVarXClosure_T is used to retrieve the X-th captured variable of T-th type,
     * for closures obtained from function literals. For each type TypeT, the number of domain functions
     * is the maximum number of variables with type TypeT captured by a literal within the package.
     * */
-  private def vprDomain: vpr.Domain = vpr.Domain(Names.closureDomain, capturedVarsDomainFuncs, Seq.empty, Seq.empty)()
+  private def vprDomain: vpr.Domain =
+    vpr.Domain(
+      Names.closureDomain,
+      Seq(nilClosureDomainFunc) ++ capturedVarsDomainFuncs ++ specs.generatedDomainFunctions,
+      Seq.empty,
+      Seq.empty)()
 
+  /**
+    * Assume there are M encoded types of captured variables in the package.
+    * Denote each of these types as TypeT, where T=1..M.
+    * Let N(T) be the maximum number of variables with type TypeT.
+    *
+    * Generates, and returns in a sequence, the following domain functions:
+    * for T=1..M
+    *   for X=1..N(T)
+    *     function captVarXClosure_T(closure: Closure): TypeT
+    */
   private def capturedVarsDomainFuncs: Seq[vpr.DomainFunc] = {
     specs.captVarsTypeMap.flatMap {
       case (typ, (tid, num)) =>
@@ -51,5 +64,5 @@ class ClosureDomainEncoder(specs: ClosureSpecsEncoder) {
     }.toSeq
   }
 
-  private val dfltFunction: vpr.Function = vpr.Function(Names.closureNilFunc, Seq.empty, vprType, Seq.empty, Seq.empty, None)()
+  private val nilClosureDomainFunc: vpr.DomainFunc = vpr.DomainFunc(Names.closureNilFunc, Seq.empty, vprType)(domainName = Names.closureDomain)
 }

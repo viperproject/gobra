@@ -21,12 +21,12 @@ import viper.silver.{ast => vpr}
 
 protected class ClosureSpecsEncoder {
 
-  /** Encodes spec implementation expressions as calls to the corresponding generated function.
+  /** Encodes spec implementation expressions as calls to the corresponding generated domain function.
     * R[ cl implements spec{params} ] -> closureImplements$[spec]$[idx of params]([cl], [params])
     * */
   def closureImplementsExpression(a: in.ClosureImplements)(ctx: Context): CodeWriter[vpr.Exp] = {
     register(a.spec)(ctx, a.info)
-    ctx.expression(in.PureFunctionCall(implementsFunctionProxy(a.spec)(a.info),
+    ctx.expression(in.DomainFunctionCall(implementsFunctionProxy(a.spec)(a.info),
       Vector(a.closure) ++ a.spec.params.toVector.sortBy(_._1).map(_._2), in.BoolT(Addressability.rValue))(a.info))
   }
 
@@ -84,7 +84,7 @@ protected class ClosureSpecsEncoder {
   }
 
   private def doesNotImplementSpecErr(closureExpr: in.Expr, spec: in.ClosureSpec): ErrorTransformer = {
-    case vprerr.PreconditionInCallFalse(Source(info), reasons.AssertionFalse(vpr.FuncApp(funcName, args)), _)
+    case vprerr.PreconditionInCallFalse(Source(info), reasons.AssertionFalse(vpr.DomainFuncApp(funcName, args, _)), _)
       if info.isInstanceOf[Source.Verifier.Info] &&
         args.size == 1 + spec.params.size &&
         args.head.info.asInstanceOf[Source.Verifier.Info].node == closureExpr &&
@@ -108,7 +108,7 @@ protected class ClosureSpecsEncoder {
     * Registers spec fName{params}:
     * - if necessary, updates the maximum number of captured variables for the corresponding type
     * - if the spec has not already been registered:
-    *   > generates a closureImplements$[spec] function (see [[implementsFunction]])
+    *   > generates a closureImplements$[spec] domain function (see [[implementsFunction]])
     *   > generates a closureCall$[spec] method/function (see [[callableMemberWithClosure]])
     *   > collects any error transformers generated while encoding closureCall$[...]
     * - if no spec with base function fName has already been registered:
@@ -124,7 +124,7 @@ protected class ClosureSpecsEncoder {
       val implementsF = implementsFunction(spec)(ctx, info)
       val callable = callableMemberWithClosure(spec)(ctx)
       errorTransformers = callable.sum.collect{ case ErrorT(t) => t }.toVector
-      genMembers :+= implementsF
+      genDomFuncs :+= implementsF
       genMembers :+= callable
     }
     if (!funcsUsedAsClosures.contains(spec.func)) {
@@ -150,33 +150,31 @@ protected class ClosureSpecsEncoder {
         if (vec.size > num) captVarTypeIdAndNum += typ -> (id, vec.size)
     }
   }
-  def numSpecs: Int = specsSeen.size
 
   private var specsSeen: Set[(in.FunctionMemberOrLitProxy, Set[Int])] = Set.empty
   private var funcsUsedAsClosures: Set[in.FunctionMemberOrLitProxy] = Set.empty
   private var genMembers: Vector[MemberWriter[vpr.Member]] = Vector.empty
+  private var genDomFuncs: Vector[vpr.DomainFunc] = Vector.empty
+
+  def generatedDomainFunctions: Vector[vpr.DomainFunc] = genDomFuncs
 
   private val genericFuncType: in.FunctionT = in.FunctionT(Vector.empty, Vector.empty, Addressability.rValue)
 
   private def closureSpecName(spec: in.ClosureSpec): String =  s"${spec.func}$$${spec.params.keySet.toSeq.sorted.mkString("_")}"
   private def implementsFunctionName(spec: in.ClosureSpec) = s"${Names.closureImplementsFunc}$$${closureSpecName(spec)}"
-  private def implementsFunctionProxy(spec: in.ClosureSpec)(info: Source.Parser.Info): in.FunctionProxy = in.FunctionProxy(implementsFunctionName(spec))(info)
+  private def implementsFunctionProxy(spec: in.ClosureSpec)(info: Source.Parser.Info): in.DomainFuncProxy = in.DomainFuncProxy(implementsFunctionName(spec), Names.closureDomain)(info)
   private def closureGetterFunctionProxy(func: in.FunctionMemberOrLitProxy): in.FunctionProxy = in.FunctionProxy(s"${Names.closureGetter}$$$func")(func.info)
   private def closureCallProxy(spec: in.ClosureSpec)(info: Source.Parser.Info): in.FunctionProxy = in.FunctionProxy(s"${Names.closureCall}$$${closureSpecName(spec)}")(info)
 
   /**
-    * Given spec{params}, generates:
+    * Given spec{params}, generates domain function:
     * function closureImplements$[spec]$[idx of params](closure: Closure, [params name and type]): Bool
     * */
-  private def implementsFunction(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): MemberWriter[vpr.Member] = {
-    val proxy = implementsFunctionProxy(spec)(info)
+  private def implementsFunction(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): vpr.DomainFunc = {
     val closurePar = in.Parameter.In(Names.closureArg, genericFuncType)(info)
     val params = spec.params.map(p => in.Parameter.In(Names.closureImplementsParam(p._1), p._2.typ.withAddressability(Addressability.inParameter))(p._2.info))
-    val args = Vector(closurePar) ++ params
-    val result = Vector(in.Parameter.Out("r", in.BoolT(Addressability.outParameter))(info))
-    val terminates = in.WildcardMeasure(None)(info)
-    val func = in.PureFunction(proxy, args, result, Vector(terminates), Vector.empty, Vector.empty, None)(info)
-    ctx.defaultEncoding.pureFunction(func)(ctx)
+    val args = (Vector(closurePar) ++ params) map ctx.variable
+    vpr.DomainFunc(implementsFunctionName(spec), args, vpr.Bool)(domainName = Names.closureDomain)
   }
 
   /**
@@ -245,7 +243,13 @@ protected class ClosureSpecsEncoder {
 
   /** Generates a Viper method/function with the same specification as the original, but with an additional
     * closure argument and closure implementation precondition.
-    * For function literals, also inlcudes captured variables among the arguments, and encodes the body as
+    *
+    * For pure functions, adds a postcondition:
+    *   ensures result == [RETURN EXPRESSION]
+    * We need this because, for pure functions, we consider the body as part of the specification
+    *   (i.e. after a call, we can make assertions based on the body)
+    *
+    * For function literals, also includes captured variables among the arguments, and encodes the body as
     * well as the specification, so that the literal is verified. */
   private def callableMemberWithClosure(spec: in.ClosureSpec)(ctx: Context): MemberWriter[vpr.Member] = {
     val proxy = closureCallProxy(spec)(spec.info)

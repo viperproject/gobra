@@ -335,11 +335,15 @@ trait NameResolution {
 
     // Within a spec implementation proof or closure instance, consider all arguments of the spec non-ghost and all results ghost.
     // This is to be as permissive as possible at this point, since all ghostness-related checks are done later on.
-    lazy val inParam = func.args.map(namedParam).find(p => p.nonEmpty && p.get.id.name == id.name)
-      .map(p => InParameter(p.get, ghost = false, addressable = false, func.context))
-    if (inParam.nonEmpty) Some(inParam.get)
-    else  func.result.outs.map(namedParam).find(p => p.nonEmpty && p.get.id.name == id.name)
-      .map(p => OutParameter(p.get, ghost = true, addressable = false, func.context))
+    val inParam = func.args.flatMap(namedParam)
+      .find(_.id.name == id.name)
+      .map(InParameter(_, ghost = false, addressable = false, func.context))
+
+    inParam.orElse{
+      func.result.outs.flatMap(namedParam)
+        .find(_.id.name == id.name)
+        .map(OutParameter(_, ghost = true, addressable = false, func.context))
+    }
   }
 
   private def lookupFunctionMemberOrLit(name: PNameOrDot): Option[ActualDataEntity with WithArguments with WithResult] = name match {

@@ -34,6 +34,7 @@ class StructEncoding extends TypeEncoding {
   import viper.gobra.translator.util.TypePatterns._
   import viper.gobra.translator.util.{ViperUtil => VU}
   import StructEncoding.{ComponentParameter, cptParam}
+  import viper.silver.plugin.standard.termination
 
   private val ex: ExclusiveStructComponent = new ExclusiveStructComponent{ // For now, we use a simple tuple domain.
     override def typ(vti: ComponentParameter)(ctx: Context): vpr.Type = ctx.tuple.typ(vti.map(_._1))
@@ -245,6 +246,7 @@ class StructEncoding extends TypeEncoding {
     * Generates:
     * function shStructDefault(): [Struct{F}@]
     *   ensures AND (f: T) in F. [&result.f == dflt(T)]
+    *   decreases _
     */
   private val shDfltFunc: FunctionGenerator[Vector[in.Field]] = new FunctionGenerator[Vector[in.Field]] {
     override def genFunction(fs: Vector[in.Field])(ctx: Context): vpr.Function = {
@@ -255,6 +257,8 @@ class StructEncoding extends TypeEncoding {
       val resDummy = in.LocalVar("res", resType)(src.info)
       val resFAccs = fs.map(f => in.Ref(in.FieldRef(resDummy, f)(src.info))(src.info))
       val fieldEq = resFAccs map (f => ctx.equal(f, in.DfltVal(f.typ)(src.info))(src))
+      // termination measure
+      val pre = synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
       val post = pure(sequence(fieldEq).map(VU.bigAnd(_)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)))(ctx).res
           .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
 
@@ -262,7 +266,7 @@ class StructEncoding extends TypeEncoding {
         name = s"${Names.sharedStructDfltFunc}_${Names.serializeFields(fs)}",
         formalArgs = Seq.empty,
         typ = vResType,
-        pres = Seq.empty,
+        pres = Seq(pre),
         posts = Seq(post),
         body = None
       )()

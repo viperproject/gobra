@@ -1126,70 +1126,136 @@ object Desugar {
 
           case n@PBreak(label) => unit(in.Break(label.map(x => x.name), nm.fetchBreakLabel(n, info))(src))
 
-          case n@PShortForRange(range, shorts, spec, body) => for {
-            exp <- goE(range.exp)
-            ret <- exp.typ match {
-              case slice : in.SliceT =>
-                for {
-                  copiedVar <- freshDeclaredExclusiveVar(exp.typ, n, info)(src)
-                  copyAss = singleAss(in.Assignee.Var(copiedVar), exp)(src)
+          case n@PShortForRange(range, shorts, spec, body) =>
+            seqn(for {
+              exp <- goE(range.exp)
+              (elems, typ) = exp.typ match {
+                case slice : in.SliceT => (slice.elems, slice)
+                case array : in.ArrayT => (array.elems, array)
+                case _ : in.MapT => violation("Maps are not supported yet in range")
+                case _ : in.StringT => violation("Strings are not supported yet in range")
+                case t => violation(s"Range not applicable to type $t")
+              }
+              indexLeft <- leftOfAssignmentD(shorts(0))(in.IntT(Addressability.exclusiveVariable))
+              indexVar = in.Assignee.Var(indexLeft)
+              indexAss = singleAss(indexVar, in.IntLit(0)(meta(range)))(meta(shorts(0)))
+              incrIndex = singleAss(indexVar, in.Add(indexLeft, in.IntLit(1)(meta(shorts(0))))(meta(shorts(0))))(meta(shorts(0)))
 
-                  indexLeft <- leftOfAssignmentD(shorts(0))(in.IntT(Addressability.exclusiveVariable))
-                  indexVar = in.Assignee.Var(indexLeft)
-                  indexAss = singleAss(indexVar, in.IntLit(0)(src))(src)
+              copiedVar <- freshDeclaredExclusiveVar(exp.typ, n, info)(meta(range.exp))
+              copyAss = singleAss(in.Assignee.Var(copiedVar), exp)(meta(range.exp))
 
-                  _ = println("LWEIJFLWIEJFOWIEJFOWJIEF")
-                  _ = println(slice.elems)
-                  valueLeft <- leftOfAssignmentD(shorts(1))(slice.elems)
-                  valueVar = in.Assignee.Var(valueLeft)
-                  valueAss = singleAss(valueVar, in.IndexedExp(copiedVar, in.IntLit(0)(src), slice)(src))(src)
+              length = in.Length(copiedVar)(meta(range))
+              cond = in.LessCmp(indexLeft, length)(meta(range))
 
-                  length = in.Length(copiedVar)(src)
-                  cond = in.LessCmp(indexLeft, length)(src)
-                  updateValue = in.If(cond, singleAss(valueVar, in.IndexedExp(copiedVar, indexLeft, slice)(src))(src), in.Seqn(Vector())(src))(src)
-                  incrIndex = singleAss(indexVar, in.Add(indexLeft, in.IntLit(1)(src))(src))(src)
+              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
+              (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
 
+              dBody = blockD(ctx)(body)
 
+              continueLabelName = nm.continueLabel(n, info)
+              continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
+              continueLoopLabel = in.Label(continueLoopLabelProxy)(src)
 
-                  (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
-                  forAllVar = in.BoundVar(nm.fresh(n, info), in.IntT(Addressability.exclusiveVariable))(src)
-                  eqAssertion = in.Assert(in.SepForall(
-                    Vector(forAllVar),
-                    Vector.empty,
-                    in.Implication(
-                      in.And(
-                        in.AtMostCmp(in.IntLit(0)(src), forAllVar)(src),
-                        in.LessCmp(forAllVar, length)(src))(src),
-                      in.ExprAssertion(in.EqCmp(in.Ref(in.IndexedExp(copiedVar, forAllVar, slice)(src))(src), in.Ref(in.IndexedExp(exp, forAllVar, slice)(src))(src))(src))(src)
-                    )(src))(src))(src)
+              breakLabelName = nm.breakLabel(n, info)
+              breakLoopLabelProxy = in.LabelProxy(breakLabelName)(src)
+              _ <- declare(breakLoopLabelProxy)
+              breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
 
-                  (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
+              wh = if (shorts.length == 2) {
+                val valueLeft = assignableVarD(ctx)(shorts(1))
+                val valueVar = in.Assignee.Var(valueLeft)
+                val valueAss = singleAss(valueVar, in.IndexedExp(copiedVar, in.IntLit(0)(meta(shorts(1))), typ)(meta(shorts(1))))(meta(shorts(1)))
+                val updateValue = in.If(cond, singleAss(valueVar, in.IndexedExp(copiedVar, indexLeft, typ)(meta(shorts(1))))(meta(shorts(1))), in.Seqn(Vector())(meta(shorts(1))))(meta(shorts(1)))
+                
+                val indexValueEq = in.Implication(
+                  in.And(
+                    in.AtMostCmp(in.IntLit(0)(meta(shorts(0))), indexLeft)(meta(shorts(0))),
+                    in.LessCmp(indexLeft, length)(meta(shorts(0))))(meta(shorts(0))),
+                  in.ExprAssertion(in.EqCmp(in.IndexedExp(copiedVar, indexLeft, typ)(meta(range.exp)), valueLeft)(meta(range.exp)))(meta(range.exp))
+              )(meta(range))
+                in.Block(
+                  Vector(valueLeft.asInstanceOf[in.LocalVar]),
+                  Vector(copyAss, indexAss, valueAss) ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(cond, dInv ++ Vector(indexValueEq), dTer, in.Block(Vector(continueLoopLabelProxy),
+                      Vector(dBody, continueLoopLabel, incrIndex, updateValue) ++ dInvPre ++ dTerPre
+                    )(src))(src), breakLoopLabel
+                  )
+                )(src)
+              }
+              else {
+                in.Seqn(
+                  Vector(copyAss, indexAss) ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(cond, dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
+                      Vector(dBody, continueLoopLabel, incrIndex) ++ dInvPre ++ dTerPre
+                    )(src))(src), breakLoopLabel
+                  )
+                )(src)
+              }
+            } yield wh)
 
-                  dBody = blockD(ctx)(body)
+          case n@PAssForRange(range, ass, spec, body) =>
+            seqn(for {
+              exp <- goE(range.exp)
+              typ = exp.typ match {
+                case slice : in.SliceT => slice
+                case array : in.ArrayT => array
+                case _ : in.MapT => violation("Maps are not supported yet in range")
+                case _ : in.StringT => violation("Strings are not supported yet in range")
+                case t => violation(s"Range not applicable to type $t")
+              }
+              indexLeft <- goL(ass(0))
+              indexAss = singleAss(indexLeft, in.IntLit(0)(meta(range)))(meta(ass(0)))
+              incrIndex = singleAss(indexLeft, in.Add(indexLeft.op, in.IntLit(1)(meta(ass(0))))(meta(ass(0))))(meta(ass(0)))
 
-                  continueLabelName = nm.continueLabel(n, info)
-                  continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
-                  continueLoopLabel = in.Label(continueLoopLabelProxy)(src)
+              copiedVar <- freshDeclaredExclusiveVar(exp.typ, n, info)(meta(range.exp))
+              copyAss = singleAss(in.Assignee.Var(copiedVar), exp)(meta(range.exp))
 
-                  breakLabelName = nm.breakLabel(n, info)
-                  breakLoopLabelProxy = in.LabelProxy(breakLabelName)(src)
-                  _ <- declare(breakLoopLabelProxy)
-                  breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
+              length = in.Length(copiedVar)(meta(range))
+              cond = in.LessCmp(indexLeft.op, length)(meta(range))
 
-                  wh = in.Seqn(
-                    Vector(copyAss, indexAss, valueAss, eqAssertion) ++ dInvPre ++ dTerPre ++ Vector(
-                      in.While(cond, dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
-                        Vector(dBody, continueLoopLabel, incrIndex, updateValue) ++ dInvPre ++ dTerPre
-                      )(src))(src), breakLoopLabel
-                    )
-                  )(src)
-                } yield wh
-              case _ : in.ArrayT => violation("Arrays are not supported yet in range")
-              case _ : in.MapT => violation("Maps are not supported yet in range")
-              case _ : in.StringT => violation("Strings are not supported yet in range")
-              case t => violation(s"Range not applicable to type $t")
-            }
-          } yield ret
+              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
+              (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
+
+              dBody = blockD(ctx)(body)
+
+              continueLabelName = nm.continueLabel(n, info)
+              continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
+              continueLoopLabel = in.Label(continueLoopLabelProxy)(src)
+
+              breakLabelName = nm.breakLabel(n, info)
+              breakLoopLabelProxy = in.LabelProxy(breakLabelName)(src)
+              _ <- declare(breakLoopLabelProxy)
+              breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
+
+              wh = if (ass.length == 2) {
+                val valueLeft = goL(ass(1)).res
+                val valueAss = singleAss(valueLeft, in.IndexedExp(copiedVar, in.IntLit(0)(meta(ass(1))), typ)(meta(ass(1))))(meta(ass(1)))
+                val updateValue = in.If(cond, singleAss(valueLeft, in.IndexedExp(copiedVar, indexLeft.op, typ)(meta(ass(1))))(meta(ass(1))), in.Seqn(Vector())(meta(ass(1))))(meta(ass(1)))
+                
+                val indexValueEq = in.Implication(
+                  in.And(
+                    in.AtMostCmp(in.IntLit(0)(meta(ass(0))), indexLeft.op)(meta(ass(0))),
+                    in.LessCmp(indexLeft.op, length)(meta(ass(0))))(meta(ass(0))),
+                  in.ExprAssertion(in.EqCmp(in.IndexedExp(copiedVar, indexLeft.op, typ)(meta(range.exp)), valueLeft.op)(meta(range.exp)))(meta(range.exp))
+              )(meta(range))
+                in.Seqn(
+                  Vector(copyAss, indexAss, valueAss) ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(cond, dInv ++ Vector(indexValueEq), dTer, in.Block(Vector(continueLoopLabelProxy),
+                      Vector(dBody, continueLoopLabel, incrIndex, updateValue) ++ dInvPre ++ dTerPre
+                    )(src))(src), breakLoopLabel
+                  )
+                )(src)
+              }
+              else {
+                in.Seqn(
+                  Vector(copyAss, indexAss) ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(cond, dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
+                      Vector(dBody, continueLoopLabel, incrIndex) ++ dInvPre ++ dTerPre
+                    )(src))(src), breakLoopLabel
+                  )
+                )(src)
+              }
+            } yield wh)
 
           case _ => ???
         }

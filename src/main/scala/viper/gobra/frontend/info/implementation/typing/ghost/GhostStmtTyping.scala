@@ -284,7 +284,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
       case st.MethodImpl(decl, _, _) => decl.spec.terminationMeasures
     }
     resolve(closureImplProofCallAttr(p)) match {
-        case Some(ap.FunctionCall(callee, _, _)) => callee match {
+        case Some(ap.FunctionCall(callee, _)) => callee match {
             case ap.Function(_, symb) => symb.decl.spec.terminationMeasures
             case ap.Closure(_, symb) => symb.lit.spec.terminationMeasures
             case ap.ReceivedMethod(_, _, _, symb) => measuresFromMethod(symb)

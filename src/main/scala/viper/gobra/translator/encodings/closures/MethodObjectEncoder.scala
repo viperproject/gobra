@@ -14,11 +14,8 @@ import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.interfaces.{InterfaceComponent, InterfaceComponentImpl, InterfaceUtils, PolymorphValueComponent, PolymorphValueComponentImpl, TypeComponent, TypeComponentImpl}
 import viper.gobra.translator.util.ViperWriter.CodeLevel.errorT
 import viper.gobra.translator.util.ViperWriter.CodeWriter
-import viper.silver.plugin.standard.termination
 import viper.silver.verifier.{errors => vprerr}
 import viper.silver.{ast => vpr}
-
-import scala.annotation.tailrec
 
 
 /** Encoding of method objects */

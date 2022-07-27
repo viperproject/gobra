@@ -802,7 +802,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           // PInvoke and thus, `expr` can onlu appear in `n` as an argument
           lazy val errorMessage = s"violation of assumption: a numeric expression $expr does not occur as an argument of its parent $n"
           resolve(n) match {
-            case Some(ap.FunctionCall(_, args, _)) =>
+            case Some(ap.FunctionCall(_, args)) =>
               val index = args.indexWhere(_.eq(expr))
               violation(index >= 0, errorMessage)
               typOfExprOrType(n.base) match {

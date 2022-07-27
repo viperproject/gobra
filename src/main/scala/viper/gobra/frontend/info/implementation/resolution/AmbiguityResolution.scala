@@ -107,10 +107,10 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
           resolve(e) match {
             case Some(ap.BuiltInType(_, st.BuiltInType(tag, _, _))) if n.args.length == 1 =>
               Some(ap.Conversion(tag.node , n.args.head))
-            case Some(p: ap.FunctionKind) if !p.isInstanceOf[ap.Closure] => Some(ap.FunctionCall(p, n.args, n.spec))
+            case _ if n.spec.nonEmpty && exprType(e).isInstanceOf[FunctionT] => Some(ap.ClosureCall(e, n.args, n.spec.get))
+            case Some(p: ap.FunctionKind) => Some(ap.FunctionCall(p, n.args))
             case Some(p: ap.PredicateKind) => Some(ap.PredicateCall(p, n.args))
             case _ if exprType(e).isInstanceOf[PredT] => Some(ap.PredExprInstance(e, n.args, exprType(e).asInstanceOf[PredT]))
-            case _ if n.spec.nonEmpty && exprType(e).isInstanceOf[FunctionT] => Some(ap.ClosureCall(e, n.args, n.spec.get))
             case _ => None
           }
         case _ => violation(s"unexpected case reached: type conversion with arguments ${n.args}, expected single argument instead")

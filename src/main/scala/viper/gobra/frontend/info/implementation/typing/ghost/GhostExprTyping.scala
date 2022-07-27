@@ -341,7 +341,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
               false
             case _ => go(p.arg)
           }
-        case (Left(callee), Some(p@ap.FunctionCall(f, _, _))) => go(callee) && p.args.forall(go) && (f match {
+        case (Left(callee), Some(p@ap.FunctionCall(f, _))) => go(callee) && p.args.forall(go) && (f match {
           case ap.Function(_, symb) => symb.isPure
           case ap.Closure(_, symb) => symb.isPure
           case ap.DomainFunction(_, _) => true

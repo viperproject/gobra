@@ -37,7 +37,9 @@ object AstPattern {
     def args: Vector[PExpression]
     def maybeSpec: Option[PClosureSpecInstance]
   }
-  case class FunctionCall(callee: FunctionKind, args: Vector[PExpression], maybeSpec: Option[PClosureSpecInstance]) extends FunctionLikeCall
+  case class FunctionCall(callee: FunctionKind, args: Vector[PExpression]) extends FunctionLikeCall {
+    override def maybeSpec: Option[PClosureSpecInstance] = None
+  }
   case class ClosureCall(callee: PExpression, args: Vector[PExpression], spec: PClosureSpecInstance) extends FunctionLikeCall {
     override def maybeSpec: Option[PClosureSpecInstance] = Some(spec)
   }

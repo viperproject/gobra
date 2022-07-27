@@ -2140,6 +2140,7 @@ object Desugar {
         case MemberPath.Ref => in.Ref(e)(pinfo)
         case MemberPath.Next(g) =>
           in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(e.typ.addressability), g.context)(pinfo))(pinfo)
+        case _: MemberPath.EmbeddedInterface => e
       }}
     }
 
@@ -2445,7 +2446,6 @@ object Desugar {
     }
 
     def registerInterface(t: Type.InterfaceT, dT: in.InterfaceT): Unit = {
-      Violation.violation(t.decl.embedded.isEmpty, "embeddings in interfaces are currently not supported")
 
       if (!registeredInterfaces.contains(dT.name) && info == t.context.getTypeInfo) {
         registeredInterfaces += dT.name
@@ -2453,7 +2453,7 @@ object Desugar {
         val itfT = dT.withAddressability(Addressability.Exclusive)
         val xInfo = t.context.getTypeInfo
 
-        t.decl.predSpec foreach { p =>
+        t.decl.predSpecs foreach { p =>
           val src = meta(p, xInfo)
           val proxy = mpredicateProxyD(p, xInfo)
           val recv = implicitThisD(itfT)(src)
@@ -2490,7 +2490,6 @@ object Desugar {
       }
     }
     var registeredInterfaces: Set[String] = Set.empty
-
 
 
     object AdditionalMembers {
@@ -2604,8 +2603,8 @@ object Desugar {
         )
       }
     }
-    def missingImplProofs: Vector[in.Member] = {
 
+    def missingImplProofs: Vector[in.Member] = {
       info.missingImplProofs.map{ case (implT, itfT, implSymb, itfSymb) =>
         val subProxy = methodProxyFromSymb(implSymb)
         val superT = interfaceType(typeD(itfT, Addressability.Exclusive)(Source.Parser.Unsourced)).get
@@ -3741,7 +3740,7 @@ object Desugar {
         Names.emptyInterface
       } else {
         val pom = s.context.getTypeInfo.tree.originalRoot.positions
-        val hash = srcTextName(pom, s.decl.embedded, s.decl.methSpecs, s.decl.predSpec)
+        val hash = srcTextName(pom, s.decl.embedded, s.decl.methSpecs, s.decl.predSpecs)
         s"$INTERFACE_PREFIX$$${topLevelName("")(hash, s.context)}"
       }
     }

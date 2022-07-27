@@ -57,13 +57,13 @@ object ConfigDefaults {
   // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
   // to verify.
   lazy val DefaultOnlyFilesWithHeader: Boolean = false
-  lazy val DefaultGobraDirectory: String = ".gobra"
+  lazy val DefaultGobraDirectory: Path = Path.of(".gobra")
   lazy val DefaultTaskName: String = "gobra-task"
   lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
 }
 
 case class Config(
-                   gobraDirectory: Path = Path.of(ConfigDefaults.DefaultGobraDirectory),
+                   gobraDirectory: Path = ConfigDefaults.DefaultGobraDirectory,
                    // Used as an identifier of a verification task, ideally it shouldn't change between verifications
                    // because it is used as a caching key. Additionally it should be unique when using the StatsCollector
                    taskName: String = ConfigDefaults.DefaultTaskName,
@@ -162,7 +162,8 @@ object Config {
 }
 
 // have a look at `Config` to see an inline description of some of these parameters
-case class BaseConfig(moduleName: String = ConfigDefaults.DefaultModuleName,
+case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirectory,
+                      moduleName: String = ConfigDefaults.DefaultModuleName,
                       includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
                       reporter: GobraReporter = ConfigDefaults.DefaultReporter,
                       backend: ViperBackend = ConfigDefaults.DefaultBackend,
@@ -204,6 +205,7 @@ trait RawConfig {
   protected def baseConfig: BaseConfig
 
   protected def createConfig(packageInfoInputMap: Map[PackageInfo, Vector[Source]]): Config = Config(
+    gobraDirectory = baseConfig.gobraDirectory,
     packageInfoInputMap = packageInfoInputMap,
     moduleName = baseConfig.moduleName,
     includeDirs = baseConfig.includeDirs,
@@ -392,7 +394,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   val gobraDirectory: ScallopOption[Path] = opt[Path](
     name = "gobraDirectory",
     descr = "Output directory for Gobra",
-    default = Some(Path.of(ConfigDefaults.DefaultGobraDirectory)),
+    default = Some(ConfigDefaults.DefaultGobraDirectory),
     short = 'g'
   )(singleArgConverter(arg => Path.of(arg)))
 
@@ -633,6 +635,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   )
 
   private def baseConfig(isolate: List[(Path, List[Int])]): BaseConfig = BaseConfig(
+    gobraDirectory = gobraDirectory(),
     moduleName = module(),
     includeDirs = includeDirs,
     reporter = FileWriterReporter(

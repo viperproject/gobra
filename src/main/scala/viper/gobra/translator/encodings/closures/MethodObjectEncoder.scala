@@ -82,7 +82,7 @@ class MethodObjectEncoder(domain: ClosureDomainEncoder) {
             vpr.EqCmp(interfaces.dynTypeOf(vprReceiverVar)(pos, info, errT)(ctx), types.typeToExpr(t)(pos, info, errT)(ctx))(pos, info, errT),
             vpr.EqCmp(vpr.Result(domain.vprType)(), defTCall(t))()
           )()
-          val posts = ctx.table.implementations(recvType).toSeq.map(valueMatchesIfTypeIs)
+          val posts = ctx.table.getImplementations(recvType).toSeq.map(valueMatchesIfTypeIs)
           vpr.Function(proxy.uniqueName, Seq(ctx.variable(receiver)), domain.vprType, Seq(recvNotNil), posts, None)(pos, info, errT)
 
         case _ =>

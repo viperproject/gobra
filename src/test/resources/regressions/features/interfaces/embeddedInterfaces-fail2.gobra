@@ -1,0 +1,31 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+
+type foo interface {
+	bar
+	f()
+}
+
+type bar interface {
+	decreases
+	g()
+
+	pure
+	decreases
+	h() int
+}
+
+type test int
+
+func (x test) f()
+
+//:: ExpectedOutput(generated_implementation_proof:function_termination_error)
+func (x test) g()
+
+//:: ExpectedOutput(generated_implementation_proof:pure_function_termination_error)
+pure func (x test) h() int
+
+test implements foo

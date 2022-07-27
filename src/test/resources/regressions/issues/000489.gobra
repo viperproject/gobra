@@ -1,0 +1,25 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+pred (t *T) Mem() {
+	acc(t) && t.Cons()
+}
+
+pred (t T) Cons() {
+	t.f[0] == 0
+}
+
+type T struct {
+	f [1]int
+}
+
+preserves acc(t.Mem(), 1/2)
+func (t *T) foo() {
+	unfold acc(t.Mem(), 1/2)
+	unfold acc(t.Cons(), 1/2)
+	fold acc(t.Cons(), 1/2)
+	fold acc(t.Mem(), 1/2)
+	return
+}

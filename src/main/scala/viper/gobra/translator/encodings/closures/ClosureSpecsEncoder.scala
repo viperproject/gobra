@@ -83,15 +83,31 @@ protected class ClosureSpecsEncoder {
     genMembers foreach { m => addMemberFn(m.res) }
   }
 
+  /**
+    * Catches errors caused by the fact that a closure does not implement a spec in a call.
+    * This may cause the failure of preconditions of the forms:
+    *   - closure == closureGet$[spec.func]([capture variable arguments])
+    *   - closureImplements$[spec](closure, [spec.params])
+    *  See [[callableMemberWithClosure]] for more information.
+    */
   private def doesNotImplementSpecErr(closureExpr: in.Expr, spec: in.ClosureSpec): ErrorTransformer = {
-    case vprerr.PreconditionInCallFalse(Source(info), reasons.AssertionFalse(vpr.DomainFuncApp(funcName, args, _)), _)
-      if info.isInstanceOf[Source.Verifier.Info] &&
-        args.size == 1 + spec.params.size &&
+    def isRelevantError(funcname: String, args: Seq[vpr.Exp]): Boolean = {
+      args.size == 1 + spec.params.size &&
         args.head.info.asInstanceOf[Source.Verifier.Info].node == closureExpr &&
         args.tail.zip(spec.params.toVector.sortBy(p => p._1).map(p => p._2))
           .forall(p => p._1.info.asInstanceOf[Source.Verifier.Info].node == p._2) &&
-         funcName == implementsFunctionName(spec) =>
-            PreconditionError(info).dueTo(SpecNotImplementedByClosure(info, closureExpr.info.tag, spec.info.tag))
+        (funcname == implementsFunctionName(spec) || funcname == closureGetterName(spec.func))
+    }
+    {
+      case vprerr.PreconditionInCallFalse(Source(info), reasons.AssertionFalse(vpr.DomainFuncApp(funcname, args, _)), _)
+        if isRelevantError(funcname, args) => PreconditionError(info).dueTo(SpecNotImplementedByClosure(info, closureExpr.info.tag, spec.info.tag))
+      case vprerr.PreconditionInAppFalse(Source(info), reasons.AssertionFalse(vpr.DomainFuncApp(funcname, args, _)), _)
+        if isRelevantError(funcname, args) => PreconditionError(info).dueTo(SpecNotImplementedByClosure(info, closureExpr.info.tag, spec.info.tag))
+      case vprerr.PreconditionInCallFalse(Source(info), reasons.AssertionFalse(vpr.EqCmp(_, vpr.FuncApp(funcname, args))), _)
+        if isRelevantError(funcname, args) => PreconditionError(info).dueTo(SpecNotImplementedByClosure(info, closureExpr.info.tag, spec.info.tag))
+      case vprerr.PreconditionInAppFalse(Source(info), reasons.AssertionFalse(vpr.EqCmp(_, vpr.FuncApp(funcname, args))), _)
+        if isRelevantError(funcname, args) => PreconditionError(info).dueTo(SpecNotImplementedByClosure(info, closureExpr.info.tag, spec.info.tag))
+    }
   }
 
   private def captured(ctx: Context)(func: in.FunctionMemberOrLitProxy): Vector[(in.Expr, in.Parameter.In)] = func match {
@@ -163,7 +179,8 @@ protected class ClosureSpecsEncoder {
   private def closureSpecName(spec: in.ClosureSpec): String =  s"${spec.func}$$${spec.params.keySet.toSeq.sorted.mkString("_")}"
   private def implementsFunctionName(spec: in.ClosureSpec) = s"${Names.closureImplementsFunc}$$${closureSpecName(spec)}"
   private def implementsFunctionProxy(spec: in.ClosureSpec)(info: Source.Parser.Info): in.DomainFuncProxy = in.DomainFuncProxy(implementsFunctionName(spec), Names.closureDomain)(info)
-  private def closureGetterFunctionProxy(func: in.FunctionMemberOrLitProxy): in.FunctionProxy = in.FunctionProxy(s"${Names.closureGetter}$$$func")(func.info)
+  private def closureGetterName(func: in.FunctionMemberOrLitProxy): String = s"${Names.closureGetter}$$$func"
+  private def closureGetterFunctionProxy(func: in.FunctionMemberOrLitProxy): in.FunctionProxy = in.FunctionProxy(closureGetterName(func))(func.info)
   private def closureCallProxy(spec: in.ClosureSpec)(info: Source.Parser.Info): in.FunctionProxy = in.FunctionProxy(s"${Names.closureCall}$$${closureSpecName(spec)}")(info)
 
   /**
@@ -241,8 +258,12 @@ protected class ClosureSpecsEncoder {
   private def specWithFuncArgs(spec: in.ClosureSpec, f: FunctionLikeMemberOrLit): in.ClosureSpec =
     in.ClosureSpec(spec.func, spec.params.map{ case (i, _) => i -> f.args(i-1)})(spec.info)
 
-  /** Generates a Viper method/function with the same specification as the original, but with an additional
-    * closure argument and closure implementation precondition.
+  /** Generates a Viper method/function with the same specification as the original.
+    *
+    * For function literals that capture variables, adds precondition:
+    *   closure == closureGet$[spec.func]([capture variable arguments])
+    * For function literals that do not capture variables or function members, adds precondition:
+    *   closureImplements$[spec](closure, [spec.params])
     *
     * For pure functions, adds a postcondition:
     *   ensures result == [RETURN EXPRESSION]
@@ -255,10 +276,15 @@ protected class ClosureSpecsEncoder {
     val proxy = closureCallProxy(spec)(spec.info)
     val func = memberOrLit(ctx)(spec.func)
     val closurePar = in.Parameter.In(Names.closureArg, genericFuncType)(func.info)
-    val (captArgs, captAssertions) = capturedArgsAndAssertions(ctx)(closurePar, captured(ctx)(spec.func), spec.func.info)
+    val captArgs = captured(ctx)(spec.func).map(_._2)
+    val implementsAssertion = if (captArgs.isEmpty)
+      Some(in.ExprAssertion(in.ClosureImplements(closurePar, specWithFuncArgs(spec, func))(spec.info))(spec.info)) else None
+    val fromClosureGetter = if (captArgs.nonEmpty)
+      Some(in.ExprAssertion(in.EqCmp(closurePar,
+        in.PureFunctionCall(closureGetterFunctionProxy(spec.func), captArgs, genericFuncType)(spec.func.info))(spec.func.info)
+      )(spec.info)) else None
     val args = Vector(closurePar) ++ captArgs ++ func.args
-    val implementsAssertion = in.ExprAssertion(in.ClosureImplements(closurePar, specWithFuncArgs(spec, func))(spec.info))(spec.info)
-    val pres = Vector(implementsAssertion) ++ func.pres ++ captAssertions
+    val pres = implementsAssertion.toVector ++ fromClosureGetter ++ func.pres
     func match {
       case _: in.Function =>
         val m = in.Function(proxy, args, func.results, pres, func.posts, func.terminationMeasures, None)(spec.info)

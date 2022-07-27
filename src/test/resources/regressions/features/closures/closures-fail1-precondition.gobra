@@ -3,69 +3,69 @@
 
 package closuresFail1Precondition
 
-func test1() {
-    cl := requires n >= 0
-          pure func s(n int)int {
-              return n + 1
-          }
-    assert cl(2) as s == 3
+// func test1() {
+//     cl := requires n >= 0
+//           pure func s(n int)int {
+//               return n + 1
+//           }
+//     assert cl(2) as s == 3
 
-    //:: ExpectedOutput(precondition_error:assertion_error)
-    assert cl(-1) as s == 0
-}
+//     //:: ExpectedOutput(precondition_error:assertion_error)
+//     assert cl(-1) as s == 0
+// }
 
-func test2() {
-    cl := requires n >= 0
-          ensures res == n + 1
-          func s(n int) (res int) {
-            return n + 1
-          }
-    cl(2) as s
-    //:: ExpectedOutput(precondition_error:assertion_error)
-    cl(-1) as s
-}
+// func test2() {
+//     cl := requires n >= 0
+//           ensures res == n + 1
+//           func s(n int) (res int) {
+//             return n + 1
+//           }
+//     cl(2) as s
+//     //:: ExpectedOutput(precondition_error:assertion_error)
+//     cl(-1) as s
+// }
 
-func test3() {
-    x@ := 0
-    cl := requires acc(&x) && x >= 0
-          pure func s()int {
-            return x + 1
-          }
-    assert cl() as s == 1
+// func test3() {
+//     x@ := 0
+//     cl := requires acc(&x) && x >= 0
+//           pure func s()int {
+//             return x + 1
+//           }
+//     assert cl() as s == 1
 
-    x = -1
-    //:: ExpectedOutput(precondition_error:assertion_error)
-    assert cl() as s == 0 
-}
+//     x = -1
+//     //:: ExpectedOutput(precondition_error:assertion_error)
+//     assert cl() as s == 0 
+// }
 
-func test4() {
-    x@ := 1
-    cl := requires acc(&x) && x >= 0
-          ensures acc(&x) && res == old(x) && x == old(x) - 1
-          func s()(res int) {
-            x -= 1
-            return x + 1
-          }
-    cl() as s
-    cl() as s
-    //:: ExpectedOutput(precondition_error:assertion_error)
-    cl() as s
-}
+// func test4() {
+//     x@ := 1
+//     cl := requires acc(&x) && x >= 0
+//           ensures acc(&x) && res == old(x) && x == old(x) - 1
+//           func s()(res int) {
+//             x -= 1
+//             return x + 1
+//           }
+//     cl() as s
+//     cl() as s
+//     //:: ExpectedOutput(precondition_error:assertion_error)
+//     cl() as s
+// }
 
-func test5() {
-    x@ := 1
-    cl := requires acc(&x)
-          ensures res == old(x)
-          func s()(res int) {
-            return x
-          }
+// func test5() {
+//     x@ := 1
+//     cl := requires acc(&x)
+//           ensures res == old(x)
+//           func s()(res int) {
+//             return x
+//           }
 
-    cl() as s
-    // Lost access to x
+//     cl() as s
+//     // Lost access to x
     
-    //:: ExpectedOutput(precondition_error:permission_error)
-    cl() as s
-}
+//     //:: ExpectedOutput(precondition_error:permission_error)
+//     cl() as s
+// }
 
 ensures res >= 0
 func spec()(res int)
@@ -81,4 +81,46 @@ func test6() {
     // cl does not implement spec
     //:: ExpectedOutput(precondition_error:spec_not_implemented)
     cl() as spec
+}
+
+ensures res >= 0
+pure func pspec()(res int)
+
+func test7() {
+    x@ := 1
+    cl := requires acc(&x)
+          pure func s()(res int) {
+            return x
+          }
+
+    // cl does not implement spec
+    // :: ExpectedOutput(precondition_error:spec_not_implemented)
+    r := cl() as pspec
+}
+
+func test8() {
+    x@ := 1
+    cl := requires acc(&x)
+          ensures res == old(x)
+          func s()(res int) {
+            return x
+          }
+
+    var cl1 func()int
+    // cl1 does not implement s
+    //:: ExpectedOutput(precondition_error:spec_not_implemented)
+    cl1() as s
+}
+
+func test9() {
+    x@ := 1
+    cl := requires acc(&x)
+          pure func s()(res int) {
+            return x
+          }
+
+    var cl1 func()int
+    // cl does not implement s
+    //:: ExpectedOutput(precondition_error:spec_not_implemented)
+    r := cl1() as s
 }

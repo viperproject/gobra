@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Constants
@@ -60,22 +60,26 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
   private def wellDefIfInitBlock(n: PFunctionDecl): Messages = {
-    val errorMsgEmptySpec =
-      s"Currently, ${Constants.INIT_FUNC_NAME} blocks cannot have specification. Instead, use package postconditions and import preconditions."
-    val errorMsgNoInOut = s"func ${Constants.INIT_FUNC_NAME} must have no arguments and no return values"
-    val errorMsgGhost = s"func ${Constants.INIT_FUNC_NAME} cannot be ghost"
     val isInitFunc = n.id.name == Constants.INIT_FUNC_NAME
-    val isGhost = isEnclosingGhost(n)
-    val noInputsAndOutputs = n.args.isEmpty && n.result.outs.isEmpty
-    val hasEmptySpec = !n.spec.isPure &&
-      !n.spec.isTrusted &&
-      n.spec.pres.isEmpty &&
-      n.spec.preserves.isEmpty &&
-      n.spec.posts.isEmpty &&
-      n.spec.terminationMeasures.isEmpty
-    error(n, errorMsgEmptySpec, isInitFunc && !hasEmptySpec) ++
-      error(n, errorMsgNoInOut, isInitFunc && !noInputsAndOutputs) ++
-      error(n, errorMsgGhost, isInitFunc && isGhost)
+    if (isInitFunc) {
+      val errorMsgEmptySpec =
+        s"Currently, ${Constants.INIT_FUNC_NAME} blocks cannot have specification. Instead, use package postconditions and import preconditions."
+      val errorMsgNoInOut = s"func ${Constants.INIT_FUNC_NAME} must have no arguments and no return values"
+      val errorMsgGhost = s"func ${Constants.INIT_FUNC_NAME} cannot be ghost"
+      val isGhost = isEnclosingGhost(n)
+      val noInputsAndOutputs = n.args.isEmpty && n.result.outs.isEmpty
+      val hasEmptySpec = !n.spec.isPure &&
+        !n.spec.isTrusted &&
+        n.spec.pres.isEmpty &&
+        n.spec.preserves.isEmpty &&
+        n.spec.posts.isEmpty &&
+        n.spec.terminationMeasures.isEmpty
+      error(n, errorMsgEmptySpec, !hasEmptySpec) ++
+        error(n, errorMsgNoInOut, !noInputsAndOutputs) ++
+        error(n, errorMsgGhost, isGhost)
+    } else {
+      noMessages
+    }
   }
 
   private def wellDefIfMain(n: PFunctionDecl): Messages = {

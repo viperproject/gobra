@@ -100,7 +100,7 @@ trait DependencyAnalysis extends BaseProperty { this: TypeInfoImpl =>
           resolve(n) match {
             case Some(f: ap.ReceivedMethod) if !isEnclosingGhost(n) &&
               underlyingType(typ(f.recv)).isInstanceOf[Type.InterfaceT] =>
-              foundError = Some(s"Dynamically-bound methods are not allowed in initialization code")
+              foundError = Some(s"Calls to dynamically-bound non-ghost methods are not allowed in initialization code, but found $n.")
             case Some(f: ap.ReceivedMethod) if !isEnclosingGhost(n) &&
               // only follow definitions for methods defined in the same package
               tryEnclosingPackage(n).contains(enclosingPkg) =>
@@ -110,7 +110,7 @@ trait DependencyAnalysis extends BaseProperty { this: TypeInfoImpl =>
               }
             case Some(f: ap.MethodExpr) if !isEnclosingGhost(n) &&
               underlyingType(symbType(f.typ)).isInstanceOf[Type.InterfaceT] =>
-              foundError = Some(s"Dynamically-bound methods are not allowed in initialization code")
+              foundError = Some(s"Calls to dynamically-bound non-ghost methods are not allowed in initialization code, but found $n.")
             case Some(f: ap.MethodExpr) if !isEnclosingGhost(n) &&
               // only follow definitions for methods defined in the same package
               tryEnclosingPackage(n).contains(enclosingPkg) =>

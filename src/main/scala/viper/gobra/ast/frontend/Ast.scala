@@ -90,10 +90,9 @@ case class PPackageClause(id: PPkgDef) extends PNode
 
 sealed trait PImport extends PNode {
   def importPath: String
-  // Import preconditions must hold when an import occurs.
-  // When the assertions are resources, import preconditions
-  // describe which resources are transferred from the imported
-  // program to the importing program.
+  // Import preconditions specify in which state the importing package expects the imported package to be.
+  // When the assertions contain resources, import preconditions describe which resources are transferred from
+  // the imported package to the importing package.
   def importPres: Vector[PExpression]
 }
 

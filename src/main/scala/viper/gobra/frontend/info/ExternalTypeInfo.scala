@@ -108,6 +108,6 @@ trait ExternalTypeInfo {
   /** if it exists, it returns the for loop node that contains 'n' */
   def enclosingLoopNode(n: PNode) : Option[PForStmt]
 
-  /** returns all variables declared on the same package as 'n' on which the declaration of 'n' depends */
+  /** returns all global variables declared in the same package as 'n' on which the declaration of 'n' depends */
   def samePkgDepsOfGlobalVar(n: SymbolTable.GlobalVariable): Vector[SymbolTable.GlobalVariable]
 }

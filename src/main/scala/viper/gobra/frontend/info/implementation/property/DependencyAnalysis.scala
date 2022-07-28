@@ -48,7 +48,7 @@ trait DependencyAnalysis extends BaseProperty { this: TypeInfoImpl =>
 
   /**
     * Finds all global variables on which an expression depends. Returns a list of errors if dependency
-    * anlasys cannot be carried successfully.
+    * analysis cannot be carried out successfully.
     * @param exp
     * @return
     */

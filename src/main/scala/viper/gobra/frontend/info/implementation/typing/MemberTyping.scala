@@ -61,7 +61,7 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def wellDefIfInitBlock(n: PFunctionDecl): Messages = {
     val errorMsgEmptySpec =
-      s"Currently, ${Constants.INIT_FUNC_NAME} blocks cannot be specified. Instead, use package postconditions and import preconditions."
+      s"Currently, ${Constants.INIT_FUNC_NAME} blocks cannot have specification. Instead, use package postconditions and import preconditions."
     val errorMsgNoInOut = s"func ${Constants.INIT_FUNC_NAME} must have no arguments and no return values"
     val errorMsgGhost = s"func ${Constants.INIT_FUNC_NAME} cannot be ghost"
     val isInitFunc = n.id.name == Constants.INIT_FUNC_NAME

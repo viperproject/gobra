@@ -10,6 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelModus, ChannelT, InterfaceT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.base.Type
 
 trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -104,12 +105,31 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PForStmt(_, cond, _, _, _) => isExpr(cond).out ++ comparableTypes.errors(exprType(cond), BooleanT)(n)
 
     case _@PShortForRange(range, shorts, _, _) =>
-      if (shorts.forall(pointsToData))
-        multiAssignableTo.errors(Vector(miscType(range)), shorts map idType)(range)
+      if (shorts.forall(pointsToData)) {
+        val typ = miscType(range).asInstanceOf[Type.InternalTupleT]
+        if (shorts.length > 0 && shorts.length <= typ.ts.length) {
+          if (typ.ts.take(shorts.length).zip(shorts map idType).forall(assignableTo))
+            noMessages
+          else error(range, "Can not assign range types to identifiers")
+        }
+        else error(range.exp, "Wrong number of identifiers for range")
+      }
       else error(range.exp, s"at least one assignee in $shorts points to a type")
 
-    case _@PAssForRange(range, ass, _, _) =>
-      multiAssignableTo.errors(Vector(miscType(range)), ass map exprType)(range) ++ ass.flatMap(a => assignable.errors(a)(a))
+    case _@PAssForRange(range, ass, _, _) => {
+      val typs = ass.map(v => v match {
+        case b : PBlankIdentifier => getBlankIdType(b)
+        case e => exprType(e)
+      })
+      val typ = miscType(range).asInstanceOf[Type.InternalTupleT]
+      if (ass.length > 0 && ass.length <= typ.ts.length) {
+        if (typ.ts.take(ass.length).zip(typs).forall(assignableTo))
+          noMessages
+        else error(range, "Can not assign range types to identifiers")
+      }
+      else error(range.exp, "Wrong number of identifiers for range") ++
+      ass.flatMap(a => assignable.errors(a)(a))
+    }
 
     case n@PGoStmt(exp) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
 

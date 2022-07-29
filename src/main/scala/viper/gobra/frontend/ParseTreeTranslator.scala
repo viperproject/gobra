@@ -2088,19 +2088,51 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitImportDecl(ctx: GobraParser.ImportDeclContext): Vector[PImport] = {
     val importsVector: Vector[PImport] = visitListNode[PImport](ctx.importSpec())
     val importPres: Vector[PExpression] = visitListNode[PExpression](ctx.importPre())
-    // if there is only a single importSpec and the importDecl has specification,
-    // then update the specification of the importSpec with the one from the importDecl
-    if (importsVector.length == 1 && importPres.nonEmpty) {
+
+    if (importsVector.length != 1 && importPres.length.nonEmpty) {
+      /* The following is rejected:
+       *   importRequires P
+       *   import (
+       *      "pkg1"
+       *      "pkg2"
+       *   )
+       */
+      fail(ctx, "An import declaration can have import preconditions only when it lists a single package")
+    } else if (importsVector.length == 1 && importPres.length.nonEmpty && importsVector.exists(_.importPres.nonEmpty)) {
+      /* The following is rejected:
+       *   importRequires P
+       *   import (
+       *       importRequires Q
+       *       "pkg1"
+       *   )
+       */
+      fail(ctx, "An import declaration can have import preconditions only when the single package that is listed does not have import preconditions")
+    } else if (importsVector.length == 1 && importPres.nonEmpty) {
+      /* if there is only a single importSpec and the importDecl has specification,
+       * then update the specification of the importSpec with the one from the importDecl.
+       * In other words, the following
+       *   importRequires P
+       *   import (
+       *       "pkg1"
+       *   )
+       * is transformed into
+       *   import (
+       *       importRequires P
+       *       pkg1"
+       *   )
+       * This makes it easier to find the import precondition of a PImport later on (in particular, we do not need to find
+       * the parent of the PImport to find its import preconditions)
+       */
       importsVector.map {
-        case i@ PUnqualifiedImport(importPath, _) =>
+        case i@PUnqualifiedImport(importPath, Vector()) =>
           PUnqualifiedImport(importPath, importPres).at(i)
-        case i@ PExplicitQualifiedImport(qualifier, importPath, _) =>
+        case i@PExplicitQualifiedImport(qualifier, importPath, Vector()) =>
           PExplicitQualifiedImport(qualifier, importPath, importPres).at(i)
-        case i@ PImplicitQualifiedImport(importPath, _) =>
+        case i@PImplicitQualifiedImport(importPath, Vector()) =>
           PImplicitQualifiedImport(importPath, importPres).at(i)
+        case i =>
+          violation(s"Found unexpected import clause $i")
       }
-    } else if (importPres.nonEmpty) {
-      violation(s"Expected single import with the provided specification ($importPres), but instead got $importsVector")
     } else {
       importsVector
     }

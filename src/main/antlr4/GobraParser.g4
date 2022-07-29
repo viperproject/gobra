@@ -45,8 +45,7 @@ importPre: IMPORT_PRE expression;
 
 importSpec: (importPre eos)* alias = (DOT | IDENTIFIER)? importPath;
 
-importDecl: (importPre eos)* IMPORT importSpec
-  | IMPORT L_PAREN (importSpec eos)* R_PAREN;
+importDecl: (importPre eos)* (IMPORT importSpec | IMPORT L_PAREN (importSpec eos)* R_PAREN);
 
 ghostMember: implementationProof
   | fpredicateDecl

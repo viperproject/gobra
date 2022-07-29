@@ -774,6 +774,8 @@ public class GobraParser extends GobraParserBase {
 		public ImportSpecContext importSpec(int i) {
 			return getRuleContext(ImportSpecContext.class,i);
 		}
+		public TerminalNode L_PAREN() { return getToken(GobraParser.L_PAREN, 0); }
+		public TerminalNode R_PAREN() { return getToken(GobraParser.R_PAREN, 0); }
 		public List<ImportPreContext> importPre() {
 			return getRuleContexts(ImportPreContext.class);
 		}
@@ -786,8 +788,6 @@ public class GobraParser extends GobraParserBase {
 		public EosContext eos(int i) {
 			return getRuleContext(EosContext.class,i);
 		}
-		public TerminalNode L_PAREN() { return getToken(GobraParser.L_PAREN, 0); }
-		public TerminalNode R_PAREN() { return getToken(GobraParser.R_PAREN, 0); }
 		public ImportDeclContext(ParserRuleContext parent, int invokingState) {
 			super(parent, invokingState);
 		}
@@ -804,28 +804,29 @@ public class GobraParser extends GobraParserBase {
 		enterRule(_localctx, 18, RULE_importDecl);
 		int _la;
 		try {
+			enterOuterAlt(_localctx, 1);
+			{
+			setState(417);
+			_errHandler.sync(this);
+			_la = _input.LA(1);
+			while (_la==IMPORT_PRE) {
+				{
+				{
+				setState(412);
+				importPre();
+				setState(413);
+				eos();
+				}
+				}
+				setState(419);
+				_errHandler.sync(this);
+				_la = _input.LA(1);
+			}
 			setState(433);
 			_errHandler.sync(this);
 			switch ( getInterpreter().adaptivePredict(_input,10,_ctx) ) {
 			case 1:
-				enterOuterAlt(_localctx, 1);
 				{
-				setState(417);
-				_errHandler.sync(this);
-				_la = _input.LA(1);
-				while (_la==IMPORT_PRE) {
-					{
-					{
-					setState(412);
-					importPre();
-					setState(413);
-					eos();
-					}
-					}
-					setState(419);
-					_errHandler.sync(this);
-					_la = _input.LA(1);
-				}
 				setState(420);
 				match(IMPORT);
 				setState(421);
@@ -833,7 +834,6 @@ public class GobraParser extends GobraParserBase {
 				}
 				break;
 			case 2:
-				enterOuterAlt(_localctx, 2);
 				{
 				setState(422);
 				match(IMPORT);
@@ -859,6 +859,7 @@ public class GobraParser extends GobraParserBase {
 				match(R_PAREN);
 				}
 				break;
+			}
 			}
 		}
 		catch (RecognitionException re) {
@@ -11909,7 +11910,7 @@ public class GobraParser extends GobraParserBase {
 		"\u0099\u0099\4\2\u0084\u0087\u0089\u008a\3\2\u0090\u0091\2\u06d6\2\u0156"+
 		"\3\2\2\2\4\u0159\3\2\2\2\6\u015c\3\2\2\2\b\u015f\3\2\2\2\n\u0167\3\2\2"+
 		"\2\f\u0170\3\2\2\2\16\u018b\3\2\2\2\20\u018e\3\2\2\2\22\u0196\3\2\2\2"+
-		"\24\u01b3\3\2\2\2\26\u01b9\3\2\2\2\30\u01c1\3\2\2\2\32\u01c3\3\2\2\2\34"+
+		"\24\u01a3\3\2\2\2\26\u01b9\3\2\2\2\30\u01c1\3\2\2\2\32\u01c3\3\2\2\2\34"+
 		"\u01c5\3\2\2\2\36\u01c8\3\2\2\2 \u01db\3\2\2\2\"\u01dd\3\2\2\2$\u01df"+
 		"\3\2\2\2&\u01e4\3\2\2\2(\u01ef\3\2\2\2*\u01fc\3\2\2\2,\u01ff\3\2\2\2."+
 		"\u020a\3\2\2\2\60\u020c\3\2\2\2\62\u0211\3\2\2\2\64\u0216\3\2\2\2\66\u021b"+
@@ -11976,12 +11977,12 @@ public class GobraParser extends GobraParserBase {
 		"\2\2\u019a\u0199\3\2\2\2\u019a\u019b\3\2\2\2\u019b\u019c\3\2\2\2\u019c"+
 		"\u019d\5\u00bc_\2\u019d\23\3\2\2\2\u019e\u019f\5\20\t\2\u019f\u01a0\5"+
 		"\u0154\u00ab\2\u01a0\u01a2\3\2\2\2\u01a1\u019e\3\2\2\2\u01a2\u01a5\3\2"+
-		"\2\2\u01a3\u01a1\3\2\2\2\u01a3\u01a4\3\2\2\2\u01a4\u01a6\3\2\2\2\u01a5"+
+		"\2\2\u01a3\u01a1\3\2\2\2\u01a3\u01a4\3\2\2\2\u01a4\u01b3\3\2\2\2\u01a5"+
 		"\u01a3\3\2\2\2\u01a6\u01a7\7[\2\2\u01a7\u01b4\5\22\n\2\u01a8\u01a9\7["+
 		"\2\2\u01a9\u01af\7`\2\2\u01aa\u01ab\5\22\n\2\u01ab\u01ac\5\u0154\u00ab"+
 		"\2\u01ac\u01ae\3\2\2\2\u01ad\u01aa\3\2\2\2\u01ae\u01b1\3\2\2\2\u01af\u01ad"+
 		"\3\2\2\2\u01af\u01b0\3\2\2\2\u01b0\u01b2\3\2\2\2\u01b1\u01af\3\2\2\2\u01b2"+
-		"\u01b4\7a\2\2\u01b3\u01a3\3\2\2\2\u01b3\u01a8\3\2\2\2\u01b4\25\3\2\2\2"+
+		"\u01b4\7a\2\2\u01b3\u01a6\3\2\2\2\u01b3\u01a8\3\2\2\2\u01b4\25\3\2\2\2"+
 		"\u01b5\u01ba\5`\61\2\u01b6\u01ba\5v<\2\u01b7\u01ba\5z>\2\u01b8\u01ba\5"+
 		"t;\2\u01b9\u01b5\3\2\2\2\u01b9\u01b6\3\2\2\2\u01b9\u01b7\3\2\2\2\u01b9"+
 		"\u01b8\3\2\2\2\u01ba\27\3\2\2\2\u01bb\u01bc\7\33\2\2\u01bc\u01c2\5\u008c"+

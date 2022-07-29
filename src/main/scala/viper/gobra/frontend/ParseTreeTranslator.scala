@@ -2089,7 +2089,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val importsVector: Vector[PImport] = visitListNode[PImport](ctx.importSpec())
     val importPres: Vector[PExpression] = visitListNode[PExpression](ctx.importPre())
 
-    if (importsVector.length != 1 && importPres.length.nonEmpty) {
+    if (importsVector.length != 1 && importPres.nonEmpty) {
       /* The following is rejected:
        *   importRequires P
        *   import (
@@ -2098,7 +2098,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
        *   )
        */
       fail(ctx, "An import declaration can have import preconditions only when it lists a single package")
-    } else if (importsVector.length == 1 && importPres.length.nonEmpty && importsVector.exists(_.importPres.nonEmpty)) {
+    } else if (importsVector.length == 1 && importPres.nonEmpty && importsVector.exists(_.importPres.nonEmpty)) {
       /* The following is rejected:
        *   importRequires P
        *   import (

@@ -1150,6 +1150,8 @@ object Desugar {
 
               // in go the range expression is only computed once before the iteration begins
               // we do that by storing it in copiedVar
+              // this also ensures that the elements iterated through do not change
+              // even if the range expression is modified in the loop body
               copiedVar <- freshDeclaredExclusiveVar(exp.typ, n, info)(rangeExpSrc)
               copyAss = singleAss(in.Assignee.Var(copiedVar), exp)(rangeExpSrc)
 
@@ -1178,7 +1180,13 @@ object Desugar {
               breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
 
               wh = if (shorts.length == 2) {
-                // here we know we have the value variable which we create
+                // in this case we know that the loop looks like this:
+                // for i, j := range x { ...
+                // until now we have only created the variable i since it is not mandatory for j to exist
+                // if it does, we have to declare it and add the code that will update it in each iteration
+                // which looks like this:
+                // if i < length(x) { j = x[i] }
+                // note that this will happen after we have incremented i
                 val valueSrc = meta(shorts(1))
                 val valueLeft = assignableVarD(ctx)(shorts(1))
                 val valueVar = in.Assignee.Var(valueLeft)
@@ -1202,10 +1210,11 @@ object Desugar {
                     )(src))(src), breakLoopLabel
                   )
                 )(src)
-              }
-              else {
+              } else {
                 // else we do not have a value variable and the while loop has only
                 // the index in bounds invariant added
+                // the loop in this case looks like this:
+                // for i := range x { ...
                 in.Seqn(
                   Vector(copyAss, indexAss) ++ dInvPre ++ dTerPre ++ Vector(
                     in.While(cond, dInv ++ Vector(indexBoundsInv), dTer, in.Block(Vector(continueLoopLabelProxy),
@@ -1282,8 +1291,7 @@ object Desugar {
                     )(src))(src), breakLoopLabel
                   )
                 )(src)
-              }
-              else {
+              } else {
                 in.Seqn(
                   Vector(copyAss, indexAss) ++ dInvPre ++ dTerPre ++ Vector(
                     in.While(cond, dInv ++ Vector(indexBoundsInv), dTer, in.Block(Vector(continueLoopLabelProxy),
@@ -3497,10 +3505,10 @@ object Desugar {
     }
 
     /** returns the relativeId with the CONTINUE_LABEL_SUFFIX appended */
-    def continueLabel(loop: PNode, info: TypeInfo) : String = relativeId(loop, info) + CONTINUE_LABEL_SUFFIX
+    def continueLabel(loop: PGeneralForStmt, info: TypeInfo) : String = relativeId(loop, info) + CONTINUE_LABEL_SUFFIX
 
     /** returns the relativeId with the BREAK_LABEL_SUFFIX appended */
-    def breakLabel(loop: PNode, info: TypeInfo) : String = relativeId(loop, info) + BREAK_LABEL_SUFFIX
+    def breakLabel(loop: PGeneralForStmt, info: TypeInfo) : String = relativeId(loop, info) + BREAK_LABEL_SUFFIX
 
     /**
       * Finds the enclosing loop which the continue statement refers to and fetches its

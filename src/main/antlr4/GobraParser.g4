@@ -155,6 +155,15 @@ assertion:
 
 blockWithBodyParameterInfo: L_CURLY (SHARE identifierList eos)? statementList? R_CURLY;
 
+// Closures
+closureSpecInstance: (qualifiedIdent | IDENTIFIER) (L_CURLY (closureSpecParams COMMA?)? R_CURLY)?;
+
+closureSpecParams: closureSpecParam (COMMA closureSpecParam)*;
+
+closureSpecParam: (IDENTIFIER COLON)? expression;
+
+closureImplProofStmt: PROOF expression IMPL closureSpecInstance block;
+
 // Implementation proofs
 implementationProof: type_ IMPL type_ (L_CURLY (implementationProofPredicateAlias eos)* (methodImplementationProof eos)*  R_CURLY)?;
 
@@ -196,7 +205,6 @@ fpredicateDecl: PRED IDENTIFIER parameters predicateBody?;
 predicateBody: L_CURLY expression eos R_CURLY;
 
 mpredicateDecl: PRED receiver IDENTIFIER parameters predicateBody?;
-
 
 // Addressability
 
@@ -260,6 +268,7 @@ expression:
     | GREATER
     | GREATER_OR_EQUALS
   ) expression #relExpr
+  | expression IMPL closureSpecInstance #closureImplSpecExpr
   | expression LOGICAL_AND expression #andExpr
   | expression LOGICAL_OR expression #orExpr
   |<assoc=right> expression IMPLIES expression #implication
@@ -289,7 +298,8 @@ statement:
   | switchStmt
   | selectStmt
   | specForStmt
-  | deferStmt;
+  | deferStmt
+  | closureImplProofStmt;
 
 applyStmt: APPLY expression;
 
@@ -328,6 +338,7 @@ primaryExpr:
   | primaryExpr seqUpdExp #seqUpdPrimaryExpr
   | primaryExpr typeAssertion #typeAssertionPrimaryExpr
   | primaryExpr arguments #invokePrimaryExpr
+  | primaryExpr arguments AS closureSpecInstance #invokePrimaryExprWithSpec
   | primaryExpr predConstructArgs #predConstrPrimaryExpr
   | call_op=(
   LEN
@@ -336,6 +347,10 @@ primaryExpr:
     | RANGE
   ) L_PAREN expression R_PAREN #builtInCallExpr // Remove this alternative when predeclared functions are properly handled
   ;
+
+functionLit: specification closureDecl[$specification.trusted, $specification.pure];
+
+closureDecl[boolean trusted, boolean pure]:  FUNC IDENTIFIER? (signature blockWithBodyParameterInfo?);
 
 predConstructArgs: L_PRED expressionList? COMMA? R_PRED;
 

@@ -60,6 +60,15 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val enclosingCodeRootWithResult: PStatement => PCodeRootWithResult =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRootWithResult => m }
 
+  lazy val tryEnclosingCodeRootWithResult: PStatement => Option[PCodeRootWithResult] =
+    down[Option[PCodeRootWithResult]](None) { case m: PCodeRootWithResult => Some(m) }
+
+  lazy val tryEnclosingFunction: PNode => Option[PFunctionDecl] =
+    down[Option[PFunctionDecl]](None) { case m: PFunctionDecl => Some(m) }
+
+  lazy val tryEnclosingClosureImplementationProof: PNode => Option[PClosureImplProof] =
+    down[Option[PClosureImplProof]](None) { case m: PClosureImplProof => Some(m) }
+
   lazy val enclosingCodeRoot: PNode => PCodeRoot with PScope =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRoot with PScope => m }
 
@@ -77,6 +86,12 @@ trait Enclosing { this: TypeInfoImpl =>
 
   lazy val enclosingInterface: PNode => PInterfaceType =
     down((_: PNode) => violation("Node does not root in an interface definition")) { case x: PInterfaceType => x }
+
+  lazy val tryEnclosingFunctionLit: PNode => Option[PFunctionLit] =
+    down[Option[PFunctionLit]](None) { case x: PFunctionLit => Some(x) }
+
+  lazy val enclosingExpr: PNode => Option[PExpression] =
+    down[Option[PExpression]](None) { case x: PExpression => Some(x) }
 
   lazy val enclosingStruct: PNode => Option[PStructType] =
     down[Option[PStructType]](None) { case x: PStructType => Some(x) }
@@ -239,5 +254,16 @@ trait Enclosing { this: TypeInfoImpl =>
     }
   }
 
+  override def capturedVariables(decl: PClosureDecl): Vector[PIdnNode] =
+    capturedVariablesAttr(tree.parent(decl).head.asInstanceOf[PFunctionLit])
+  private lazy val capturedVariablesAttr: PFunctionLit => Vector[PIdnNode] = {
+    def capturedVar(x: PIdnNode, lit: PFunctionLit): Boolean = entity(x) match {
+      case r: SymbolTable.Variable => !containedIn(enclosingScope(r.rep), lit)
+      case _ => false
+    }
 
+    attr[PFunctionLit, Vector[PIdnNode]] { lit =>
+      allChildren(lit.decl).collect{ case x: PIdnNode if capturedVar(x, lit) => x }.distinctBy(_.name)
+    }
+  }
 }

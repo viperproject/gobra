@@ -1,0 +1,38 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresSimple2
+
+ghost
+requires p.inv() && a >= 0
+ensures p.inv() && r >= 0
+func pos(ghost p interface{pred inv();}, a int) (r int)
+
+type proof1 struct { x *int }
+pred (p proof1) inv() { acc(p.x) && *p.x >= 0 }
+
+func main() {
+	x@ := 0
+	c := preserves acc(&x)
+		 ensures x == old(x) + n && m == x
+		 func f(n int) (m int) {
+            x += n;
+		    return x
+         }
+
+	proof c implements pos{p: proof1{&x}} {
+		unfold proof1{&x}.inv()
+		r = c(a) as f
+		fold proof1{&x}.inv()
+	}
+
+	fold proof1{&x}.inv()
+
+	hof(c, proof1{&x})
+}
+
+preserves p.inv() && c implements pos{p}
+func hof(c func(int) int, ghost p interface{pred inv()}) {
+	v := c(42) as pos{p: p}
+	assert v >= 0
+}

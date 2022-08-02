@@ -32,7 +32,18 @@ object AstPattern {
   case class Deref(base: PExpression) extends Expr
   case class FieldSelection(base: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.StructMember) extends Expr with Symbolic
   case class Conversion(typ: PType, arg: PExpression) extends Expr
-  case class FunctionCall(callee: FunctionKind, args: Vector[PExpression]) extends Expr
+
+  sealed trait FunctionLikeCall extends Expr {
+    def args: Vector[PExpression]
+    def maybeSpec: Option[PClosureSpecInstance]
+  }
+  case class FunctionCall(callee: FunctionKind, args: Vector[PExpression]) extends FunctionLikeCall {
+    override def maybeSpec: Option[PClosureSpecInstance] = None
+  }
+  case class ClosureCall(callee: PExpression, args: Vector[PExpression], spec: PClosureSpecInstance) extends FunctionLikeCall {
+    override def maybeSpec: Option[PClosureSpecInstance] = Some(spec)
+  }
+
   case class IndexedExp(base : PExpression, index : PExpression) extends Expr
   case class BlankIdentifier(decl: PBlankIdentifier) extends Expr
 
@@ -41,6 +52,7 @@ object AstPattern {
   }
 
   case class Function(id: PIdnUse, symb: st.Function) extends FunctionKind with Symbolic
+  case class Closure(id: PIdnUse, symb: st.Closure) extends FunctionKind with Symbolic
   case class DomainFunction(id: PIdnUse, symb: st.DomainFunction) extends FunctionKind with Symbolic
   case class ReceivedMethod(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.Method) extends FunctionKind with Symbolic
   case class ImplicitlyReceivedInterfaceMethod(id: PIdnUse, symb: st.MethodSpec) extends FunctionKind with Symbolic // for method references withing an interface definition

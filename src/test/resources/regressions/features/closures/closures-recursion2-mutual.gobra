@@ -1,0 +1,73 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresMutualRecursion
+
+type Inv interface {
+    pred inv()
+}
+
+type EvenInv struct{ e *func(int)bool; o *func(int)bool }
+pred (self EvenInv) inv() {
+    acc(self.o, 1/2) && *self.o implements odd_spec{OddInv{self.e, self.o}} && OddInv{self.e, self.o}.inv()
+}
+
+type OddInv struct{ e *func(int)bool; o *func(int)bool }
+pred (self OddInv) inv() {
+    acc(self.e, 1/2) && *self.e implements even_spec{EvenInv{self.e, self.o}} && EvenInv{self.e, self.o}.inv()
+}
+
+ghost
+requires x >= 0
+preserves i.inv()
+ensures (x%2 == 0 ==> even) && (even ==> x%2 == 0)
+decreases x
+func even_spec(i Inv, x int)(even bool)
+
+ghost
+requires y >= 0
+preserves i.inv()
+ensures (y%2 == 1 ==> odd) && (odd ==> y%2 == 1)
+decreases y
+func odd_spec(i Inv, y int)(odd bool)
+
+func main() {
+    var e@ func(int)bool
+    var o@ func(int)bool
+
+    e = requires x >= 0
+        preserves acc(&o, 1/2) && OddInv{&e, &o}.inv() && o implements odd_spec{OddInv{&e, &o}}
+        ensures (x%2 == 0 ==> even) && (even ==> x%2 == 0)
+        decreases x
+        func is_even(x int)(even bool) {
+            if x == 0 {
+                return true
+            } else {
+                return o(x-1) as odd_spec{OddInv{&e, &o}}
+            }
+        }
+
+    proof e implements even_spec{EvenInv{&e, &o}} {
+        unfold EvenInv{&e, &o}.inv()
+        even = e(x) as is_even
+        fold EvenInv{&e, &o}.inv()
+    }
+
+    o = requires y >= 0
+        preserves acc(&e, 1/2) && EvenInv{&e, &o}.inv() && e implements even_spec{EvenInv{&e, &o}}
+        ensures (y%2 == 1 ==> odd) && (odd ==> y%2 == 1)
+        decreases y
+        func is_odd(y int)(odd bool) {
+            if y == 0 {
+                return false
+            } else {
+                return e(y-1) as even_spec{EvenInv{&e, &o}}
+            }
+        }
+
+    proof o implements odd_spec{OddInv{&e, &o}} {
+        unfold OddInv{&e, &o}.inv()
+        odd = o(y) as is_odd
+        fold OddInv{&e, &o}.inv()
+    }
+}

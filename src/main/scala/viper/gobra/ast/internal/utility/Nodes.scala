@@ -35,6 +35,7 @@ object Nodes {
       case MethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
       case PureMethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
       case Field(_, _, _) => Seq.empty
+      case ClosureSpec(_, params) => params.values.toSeq
       case DomainDefinition(_, funcs, axioms) => funcs ++ axioms
       case DomainFunc(_, args, results) => args ++ Seq(results)
       case DomainAxiom(expr) => Seq(expr)
@@ -57,6 +58,8 @@ object Nodes {
         case SingleAss(left, right) => Seq(left, right)
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
         case MethodCall(targets, recv, meth, args) => targets ++ Seq(recv, meth) ++ args
+        case ClosureCall(targets, closure, args, spec) => targets ++ Seq(closure) ++ args ++ Seq(spec)
+        case SpecImplementationProof(closure, spec, body, pres, posts) => Seq(closure, spec, body) ++ pres ++ posts
         case Return() => Seq.empty
         case Assert(ass) => Seq(ass)
         case Exhale(ass) => Seq(ass)
@@ -104,7 +107,12 @@ object Nodes {
         case Unfolding(acc, op) => Seq(acc, op)
         case PureFunctionCall(func, args, _) => Seq(func) ++ args
         case PureMethodCall(recv, meth, args, _) => Seq(recv, meth) ++ args
+        case PureClosureCall(closure, args, spec, _) => Seq(closure) ++ args ++ Seq(spec)
         case DomainFunctionCall(func, args, _) => Seq(func) ++ args
+        case ClosureObject(_, _) => Seq.empty
+        case FunctionObject(_, _) => Seq.empty
+        case MethodObject(_, _, _) => Seq.empty
+        case ClosureImplements(closure, spec) => Seq(closure, spec)
         case Conversion(_, expr) => Seq(expr)
         case DfltVal(_) => Seq.empty
         case Tuple(args) => args
@@ -179,6 +187,8 @@ object Nodes {
           case PermLit(_, _) => Seq.empty
           case StringLit(_) => Seq.empty
           case NilLit(_) => Seq.empty
+          case FunctionLit(_, args, captured, results, pres, posts, measures, body) => args ++ captured.flatMap(c => Vector(c._1, c._2)) ++ results ++ pres ++ posts ++ measures ++ body
+          case PureFunctionLit(_, args, captured, results, pres, posts, measures, body) => args ++ captured.flatMap(c => Vector(c._1, c._2)) ++ results ++ pres ++ posts ++ measures ++ body
           case ArrayLit(_, _, elems) => elems.values.toSeq
           case SliceLit(_, elems) => elems.values.toSeq
           case MapLit(_, _, entries) => entries flatMap { case (x, y) => Seq(x, y) }
@@ -201,6 +211,7 @@ object Nodes {
         case MethodProxy(_, _) => Seq.empty
         case FPredicateProxy(_) => Seq.empty
         case MPredicateProxy(_, _) => Seq.empty
+        case FunctionLitProxy(_) => Seq.empty
         case _: DomainFuncProxy => Seq.empty
         case _: LabelProxy => Seq.empty
       }

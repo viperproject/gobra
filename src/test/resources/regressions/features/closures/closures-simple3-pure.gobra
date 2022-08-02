@@ -1,0 +1,43 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresSimple3Pure
+
+ghost
+requires p.inv() && a >= 0
+ensures r >= 0
+pure func pos(ghost p interface{pred inv();}, a int) (r int)
+
+type proof1 struct { x *int }
+pred (p proof1) inv() { acc(p.x, 1/2) && *p.x >= 0 }
+
+func main() {
+	x@ := 10
+	c := requires acc(&x, _)
+		 ensures m == x + n
+		 pure func f(n int) (m int) {
+		    return x + n
+         }
+
+    assert c(2) as f == 12
+
+	proof c implements pos{p: proof1{&x}} {
+        return unfolding proof1{&x}.inv() in (c(a) as f)
+	}
+
+	fold proof1{&x}.inv()
+
+	r := hof(c, proof1{&x})
+    assert r >= 0
+
+    unfold proof1{&x}.inv()
+
+    x = x + 5
+
+    assert c(5) as f == 20
+}
+
+requires p.inv() && c implements pos{p}
+pure func hof(c func(int) int, ghost p interface{pred inv()}) (r int) {
+	return c(42) as pos{p: p}
+}

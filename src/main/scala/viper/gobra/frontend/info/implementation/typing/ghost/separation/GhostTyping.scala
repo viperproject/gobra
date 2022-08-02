@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{MultiLocalVariable, Regular, SingleLocalVariable}
+import viper.gobra.frontend.info.base.SymbolTable.{Closure, MultiLocalVariable, Regular, SingleLocalVariable}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -50,6 +50,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       case PAssignmentWithOp(_, _, left) => ghostExprClassification(left)
       case PShortVarDecl(right, left, _) => varDeclClassification(left, right)
       case PVarDecl(_, right, left, _) => varDeclClassification(left, right)
+      case PExpressionStmt(exp) => ghostExprClassification(exp)
       case _ => false
     }
   }
@@ -78,9 +79,16 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
       case PNamedOperand(id) => ghost(ghostIdClassification(id))
 
+      case _: PFunctionLit => notGhost
+
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(_: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
-        case (Left(_), Some(call: ap.FunctionCall)) => calleeGhostTyping(call)
+        case (Left(_), Some(call: ap.FunctionCall)) =>
+          if (tryEnclosingClosureImplementationProof(n).nonEmpty) notGhost
+          else calleeGhostTyping(call)
+        case (Left(_), Some(_: ap.ClosureCall)) =>
+          if (tryEnclosingClosureImplementationProof(n).nonEmpty) notGhost
+          else ghostExprTyping(n.base.asInstanceOf[PExpression])
         case (Left(_), Some(_: ap.PredicateCall)) => isGhost
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
@@ -102,6 +110,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(_: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
         case (Left(_), Some(call: ap.FunctionCall)) => calleeReturnGhostTyping(call)
+        case (Left(_), Some(_: ap.ClosureCall)) => closureCallReturnGhostTyping(n)
         case (Left(_), Some(_: ap.PredicateCall)) => isGhost
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
@@ -120,11 +129,15 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
   /** returns true iff identifier is classified as ghost */
   private[separation] lazy val ghostIdClassification: PIdnNode => Boolean = createGhostClassification[PIdnNode]{
-    id => entity(id) match {
-      case r: SingleLocalVariable => r.ghost || r.exp.exists(ghostExprResultClassification)
-      case r: MultiLocalVariable => r.ghost || ghostExprResultTyping(r.exp).isIdxGhost(r.idx)
-      case r: Regular => r.ghost
-      case _ => Violation.violation("expected Regular Entity")
+    id => {
+      val ent = entity(id)
+      ent match {
+        case r: SingleLocalVariable => r.ghost || r.exp.exists(ghostExprResultClassification)
+        case r: MultiLocalVariable => r.ghost || ghostExprResultTyping(r.exp).isIdxGhost(r.idx)
+        case _: Closure => true
+        case r: Regular => r.ghost
+        case _ => Violation.violation("expected Regular Entity")
+      }
     }
   }
 
@@ -196,7 +209,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
   override def isInterfaceClauseGhost(clause: PInterfaceClause): Boolean = clause match {
     case _: PInterfaceName => false
-    case _: PMethodSig => false
+    case m: PMethodSig => m.isGhost
     case _: PMPredicateSig => true
   }
 
@@ -209,10 +222,13 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(_: ap.Conversion)) => GhostType.notGhost
       case (Left(_), Some(call: ap.FunctionCall)) => calleeArgGhostTyping(call)
+      case (Left(_), Some(call: ap.ClosureCall)) => expectedArgGhostTyping(call.maybeSpec.get)
       case (Left(_), Some(_: ap.PredicateCall)) => GhostType.isGhost
       case p => Violation.violation(s"expected conversion, function call, or predicate call, but got $p")
     }
   }
+
+  override def expectedArgGhostTyping(spec: PClosureSpecInstance): GhostType = closureSpecArgsAndResGhostTyping(spec)._1
 
   override def isExprPure(expr: PExpression): Boolean = isPureExpr(expr).isEmpty
 }

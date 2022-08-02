@@ -79,6 +79,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case n: PInvoke => resolve(n) match {
         case Some(_: ap.Conversion) => AddrMod.conversionResult
         case Some(_: ap.FunctionCall) => AddrMod.callResult
+        case Some(_: ap.ClosureCall) => AddrMod.callResult
         case Some(_: ap.PredicateCall) => AddrMod.rValue
         case p => Violation.violation(s"Unexpected invoke resolve, got $p")
       }
@@ -96,6 +97,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: POld | _: PLabeledOld | _: PBefore => AddrMod.old
       case _: PConditional | _: PImplication | _: PForall | _: PExists => AddrMod.rValue
       case _: PAccess | _: PPredicateAccess | _: PMagicWand => AddrMod.rValue
+      case _: PClosureImplements => AddrMod.rValue
       case _: PTypeOf | _: PIsComparable => AddrMod.rValue
       case _: PIn | _: PMultiplicity | _: PSequenceAppend |
            _: PGhostCollectionExp | _: PRangeSequence | _: PUnion | _: PIntersection |
@@ -133,6 +135,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
         enclosingCodeRoot(n) match {
           case c: PMethodDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
           case c: PFunctionDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
+          case c: PClosureDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
           case _ => false
         }
       case _: PUnnamedParameter => false

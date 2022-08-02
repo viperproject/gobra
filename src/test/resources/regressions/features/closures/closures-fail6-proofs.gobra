@@ -1,0 +1,174 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresFail6Proofs
+
+ghost
+requires x >= 0
+ensures y == x
+pure func pspec(x int) (y int)
+
+func test1() {
+    cl :=
+        requires x >= 10
+        pure func id(x int) int {
+            return x
+        }
+
+    proof cl implements pspec {
+        //:: ExpectedOutput(precondition_error)
+        return cl(x) as id
+    } 
+}
+
+func test2() {
+    cl :=
+        requires x >= 0
+        pure func id(x int) int {
+            return x + 1
+        }
+
+    //:: ExpectedOutput(spec_implementation_post_error:assertion_error)
+    proof cl implements pspec {
+        return cl(x) as id
+    }
+}
+
+pred inv(x *int) {
+    acc(x)
+}
+
+pred inv1(x *int) {
+    acc(x)
+}
+
+ghost
+requires inv(n) && unfolding inv(n) in (*n >= 0)
+pure func permpspec(n *int) (y int)
+
+func test3() {
+    x@ := 0
+
+    cl :=
+        requires acc(&x) && x >= 0
+        pure func getx() int {
+            return x
+        }
+
+    proof cl implements permpspec{&x} {
+        //:: ExpectedOutput(precondition_error)
+        return cl() as getx
+    }
+}
+
+func test4() {
+    x@ := 0
+
+    cl :=
+        requires acc(&x) && x >= 0
+        pure func getx() int {
+            return x
+        }
+
+    proof cl implements permpspec{&x} {
+        //:: ExpectedOutput(assignment_error)
+        return unfolding inv1(&x) in (cl() as getx)
+    }
+}
+
+ghost
+requires x >= 0
+ensures y == x + 2
+func spec(x int) (y int)
+
+func test5() {
+    cl :=
+        requires x >= 10
+        ensures y == x + 2
+        func plus2(x int)(y int) {
+            return x + 2
+        }
+
+    proof cl implements spec {
+        //:: ExpectedOutput(precondition_error)
+        return cl(x) as plus2
+    } 
+}
+
+func test6() {
+    cl :=
+        requires x >= 10
+        ensures y == x + 1
+        func plus1(x int)(y int) {
+            return x + 1
+        }
+
+    cl1 :=
+        requires x >= 0
+        ensures y == x + 2
+        func plus2(x int)(y int) {
+            return x + 2
+        }
+
+    proof cl implements spec {
+        //:: ExpectedOutput(precondition_error)
+        return cl(x) as plus2
+    } 
+}
+
+func test7() {
+    cl :=
+        requires x >= 0
+        ensures y == x + 1
+        func plus1(x int)(y int) {
+            return x + 1
+        }
+
+    //:: ExpectedOutput(spec_implementation_post_error:assertion_error)
+    proof cl implements spec {
+        return cl(x) as plus1
+    } 
+}
+
+ghost
+requires inv(n) && unfolding inv(n) in (*n >= 0)
+ensures inv1(n)
+func permspec(n *int) (y int)
+
+func test8() {
+    x@ := 0
+
+    cl :=
+        requires acc(&x) && x >= 0
+        ensures acc(&x) && x == old(x) + 2 && y == x
+        func plus2()(y int) {
+            x += 2
+            return x
+        }
+
+    proof cl implements permspec{&x} {
+        //:: ExpectedOutput(unfold_error:permission_error)
+        unfold inv1(&x)
+        y = cl() as plus2
+        fold inv1(&x)
+    }
+}
+
+func test9() {
+    x@ := 0
+
+    cl :=
+        requires acc(&x) && x >= 0
+        ensures acc(&x) && x == old(x) + 2 && y == x
+        func plus2()(y int) {
+            x += 2
+            return x
+        }
+
+    //:: ExpectedOutput(spec_implementation_post_error:permission_error)
+    proof cl implements permspec{&x} {
+        unfold inv(&x)
+        y = cl() as plus2
+        fold inv(&x)
+    }
+}

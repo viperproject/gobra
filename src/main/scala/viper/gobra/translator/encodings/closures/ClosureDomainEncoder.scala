@@ -66,5 +66,5 @@ class ClosureDomainEncoder(specs: ClosureSpecsEncoder) {
     }.toSeq
   }
 
-  private val nilClosureDomainFunc: vpr.DomainFunc = vpr.DomainFunc(Names.closureNilFunc, Seq.empty, vprType)(domainName = Names.closureDomain)
+  private lazy val nilClosureDomainFunc: vpr.DomainFunc = vpr.DomainFunc(Names.closureNilFunc, Seq.empty, vprType)(domainName = Names.closureDomain)
 }

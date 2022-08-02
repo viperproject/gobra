@@ -447,7 +447,7 @@ case class PClosureImplements(closure: PExpression, spec: PClosureSpecInstance) 
 case class PClosureImplProof(impl: PClosureImplements, block: PBlock) extends PGhostStatement with PScope
 
 case class PInvoke(base: PExpressionOrType, args: Vector[PExpression], spec: Option[PClosureSpecInstance]) extends PActualExpression {
-  require(base.isInstanceOf[PExpression] || spec.isEmpty)
+  require(base.isInstanceOf[PExpression] || spec.isEmpty) // `base` is a type for conversions only, for which `spec` is empty
 }
 
 // TODO: Check Arguments in language specification, also allows preceding type

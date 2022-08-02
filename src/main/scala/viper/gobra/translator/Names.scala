@@ -110,7 +110,7 @@ object Names {
   // closures
   def closureDomain: String = "Closure"
   def closureCaptVar(i: Int): String = s"captVar$i"
-  def closureCaptVarDomFunc(i: Int, tid: Int): String = s"${closureCaptVar(i)}${closureDomain}_$tid"
+  def closureCaptVarDomFunc(i: Int, typ: vpr.Type): String = s"${closureCaptVar(i)}${closureDomain}_${serializeType(typ)}"
   def closureArg: String = "closure"
   def closureNilFunc: String = "closureNil"
   def closureGetter: String = "closureGet"

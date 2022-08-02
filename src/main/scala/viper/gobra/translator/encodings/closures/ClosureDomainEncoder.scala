@@ -48,19 +48,20 @@ class ClosureDomainEncoder(specs: ClosureSpecsEncoder) {
       Seq.empty)()
 
   /**
-    * Assume there are M encoded types of captured variables in the package.
-    * Denote each of these types as TypeT, where T=1..M.
-    * Let N(T) be the maximum number of variables with type TypeT.
+    * Assume Types is the set of captured variables in the package.
     *
     * Generates, and returns in a sequence, the following domain functions:
-    * for T=1..M
+    * for TypeT in Types
     *   for X=1..N(T)
-    *     function captVarXClosure_T(closure: Closure): TypeT
+    *     function captVarXClosure_[TypeT](closure: Closure): TypeT
+    *
+    * [TypeT] is the serialized name of TypeT
     */
   private def capturedVarsDomainFuncs: Seq[vpr.DomainFunc] = {
     specs.captVarsTypeMap.flatMap {
-      case (typ, (tid, num)) =>
-        (1 to num) map { i =>  vpr.DomainFunc(Names.closureCaptVarDomFunc(i, tid), Seq(vpr.LocalVarDecl(Names.closureArg, vprType)()), typ)(domainName = Names.closureDomain) }
+      case (typ, num) =>
+        (1 to num) map { i =>  vpr.DomainFunc(Names.closureCaptVarDomFunc(i, typ),
+          Seq(vpr.LocalVarDecl(Names.closureArg, vprType)()), typ)(domainName = Names.closureDomain) }
     }.toSeq
   }
 

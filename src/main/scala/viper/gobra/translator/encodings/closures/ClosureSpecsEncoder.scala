@@ -127,8 +127,8 @@ protected class ClosureSpecsEncoder {
     errorTransformers
   }
 
-  private var captVarTypeIdAndNum = Map[vpr.Type, (Int, Int)]()
-  def captVarsTypeMap: Map[vpr.Type, (Int, Int)] = captVarTypeIdAndNum
+  private var captVarTypeAmount = Map[vpr.Type, Int]()
+  def captVarsTypeMap: Map[vpr.Type, Int] = captVarTypeAmount
 
   /**
     * Updates the maximum counts of captured variables for each encountered type.
@@ -137,8 +137,8 @@ protected class ClosureSpecsEncoder {
   private def updateCaptVarTypes(ctx: Context)(types: Vector[in.Type]): Unit = {
     types.groupBy(ctx.typ).foreach {
       case (typ, vec) =>
-        val (id, num) = captVarTypeIdAndNum.getOrElse(typ, (captVarTypeIdAndNum.size, 0))
-        if (vec.size > num) captVarTypeIdAndNum += typ -> (id, vec.size)
+        val amount = captVarTypeAmount.getOrElse(typ, 0)
+        if (vec.size > amount) captVarTypeAmount += typ -> vec.size
     }
   }
 
@@ -216,16 +216,15 @@ protected class ClosureSpecsEncoder {
   }
 
   /** Generate the proxies for the domain functions corresponding to the variables captured by the closure.
-    * The name is captVarNClosure_T, where T is an id different for each Viper type, and N denotes the position
-    * of the variable among all the variables with the same type. */
+    * The name is captVarNClosure_[type], where [type] is the serialized Viper type of the variable, and N denotes
+    * the position of the variable among all the variables with the same type. */
   private def captVarProxies(ctx: Context)(types: Vector[in.Type], info: Source.Parser.Info): Vector[in.DomainFuncProxy] = {
     var seenSoFar = Map[vpr.Type, Int]()
     types map { t =>
       val vprTyp = ctx.typ(t)
       val i = seenSoFar.getOrElse(vprTyp, 0) + 1
       seenSoFar += vprTyp -> i
-      val (tid, _) = captVarsTypeMap(vprTyp)
-      in.DomainFuncProxy(Names.closureCaptVarDomFunc(i, tid), Names.closureDomain)(info)
+      in.DomainFuncProxy(Names.closureCaptVarDomFunc(i, vprTyp), Names.closureDomain)(info)
     }
   }
 

@@ -1593,7 +1593,8 @@ object Desugar {
       }
     }
 
-    /** Returns either a tuple with targets and call statement or, if the call is pure, the call expression directly. */
+    /** Returns either a tuple with targets and call statement or, if the call is pure, the call expression directly.
+      * This method encodes closure calls, i.e. calls of the type c(_) as _, where c is a closure expression (and not a function/method proxy). */
     def closureCallDAux(ctx: FunctionContext, info: TypeInfo)(expr: PInvoke)(src: Meta): Writer[Either[(Vector[in.LocalVar], in.Stmt), in.Expr]] = {
       val (func, isPure) = info.resolve(expr.spec.get.func) match {
         case Some(ap.Function(_, f)) => (f, f.isPure)
@@ -2417,7 +2418,7 @@ object Desugar {
     var definedMethods: Map[in.MethodProxy, in.MethodMember] = Map.empty
     var definedMPredicates: Map[in.MPredicateProxy, in.MPredicate] = Map.empty
     var definedFPredicates: Map[in.FPredicateProxy, in.FPredicate] = Map.empty
-    var definedFuncLiterals: Map[in.FunctionLitProxy, in.FunctionLikeLit] = Map.empty
+    var definedFuncLiterals: Map[in.FunctionLitProxy, in.FunctionLitLike] = Map.empty
 
     def registerDefinedType(t: Type.DeclaredT, addrMod: Addressability)(src: Meta): in.DefinedT = {
       // this type was declared in the current package
@@ -2772,7 +2773,7 @@ object Desugar {
       require(info.regular(id).isInstanceOf[st.Variable])
       ctx(id, info) match {
         case Some(v : in.Var) => v
-        case Some(d@in.Deref(v, _)) if v.isInstanceOf[in.Var] => d
+        case Some(d@in.Deref(_: in.Var, _)) => d
         case Some(_) => violation("expected a variable or the dereference of a pointer")
         case None => localVarContextFreeD(id, info)
       }
@@ -2783,7 +2784,7 @@ object Desugar {
 
       ctx(id, info) match {
         case Some(v: in.AssignableVar) => v
-        case Some(d@in.Deref(v, _)) if v.isInstanceOf[in.Var] => d
+        case Some(d@in.Deref(_: in.Var, _)) => d
         case Some(_) => violation("expected an assignable variable or the dereference of a variable")
         case None => localVarContextFreeD(id, info)
       }
@@ -2989,6 +2990,17 @@ object Desugar {
       }
     }
 
+    /**
+      * Desugar a specification entailment proof (proof c implements spec{params} { BODY }), as follows:
+      * - Declare a fresh variable for all the arguments and results of spec.
+      * - If c is a closure variable, assign it to a new fresh variable and replace it within the body.
+      * - If c has the shape `recv.methodName`, assign recv to a new fresh variable and replace it within the body.
+      * - Assign the parameters to the fresh variable corresponding to the related argument.
+      * - Replace all argument and result names inside the body with the newly-generated variables.
+      * - Replace all argument names inside the pre- and postcondition of spec. These modified pre- and
+      *     postconditions are part of the internal node [[in.SpecImplementationProof]]
+      * - Replace any `return` statements with an assignment.
+      */
     private def closureImplProofD(ctx: FunctionContext)(proof: PClosureImplProof): Writer[in.Stmt] = {
       val (func, funcTypeInfo) = info.resolve(proof.impl.spec.func) match {
         case Some(ap.Function(_, f)) => (f, f.context.getTypeInfo)
@@ -2996,6 +3008,7 @@ object Desugar {
         case _ => violation("expected function member or literal")
       }
 
+      // Generate a new local variable for an argument or result of the spec function.
       def localVarFromParam(p: PParameter): in.LocalVar = {
         val src = meta(p, funcTypeInfo)
         val typ = typeD(funcTypeInfo.typ(p), Addressability.inParameter)(src)
@@ -3005,6 +3018,8 @@ object Desugar {
       val argSubs = func.args map localVarFromParam
       val retSubs = func.result.outs map localVarFromParam
 
+      // We replace a return statement inside the proof with the equivalent assignment to the result variables.
+      @tailrec
       def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt =
         if (rets.isEmpty) in.Seqn(Vector.empty)(src)
         else if (rets.size == retSubs.size) in.Seqn(retSubs.zip(rets).map{ case (p, v) => singleAss(in.Assignee.Var(p), v)(src) })(src)
@@ -3014,6 +3029,10 @@ object Desugar {
         }
         else violation(s"found ${rets.size} returns but expected 0, 1, or ${retSubs.size}")
 
+      // Depending on the shape of c in `proof c implements ...`, get:
+      // - the receiver, if c corresponds to a received method
+      // - the closure expression, if c is the name of a closure variable
+      // - nothing, if c is a function name
       val recvOrClosure: Option[PExpression] = info.resolve(proof.impl.closure) match {
         case Some(ap.ReceivedMethod(recv, _, _, _)) => Some(recv)
         case Some(ap.BuiltInReceivedMethod(recv, _, _, _)) => Some(recv)
@@ -3022,17 +3041,20 @@ object Desugar {
         case _ => Some(proof.impl.closure)
       }
 
+      // Create a local variable, as an alias of c (or recv, if c has the form recv.methodName)
       val recvOrClosureAlias = recvOrClosure map { exp =>
         val src = meta(exp, info)
         val typ = typeD(info.typ(exp), Addressability.inParameter)(src)
         in.LocalVar(nm.fresh(proof, info), typ)(src)
       }
 
+      // If the expression matches [[recvOrClosure]], replace it with [[recvOrClosureAlias]]
       def replaceRecvOrClosure(exp: PExpression): Option[Writer[in.Expr]] =
         if (recvOrClosure.contains(exp)) recvOrClosureAlias.map(unit)
         else None
 
       val newCtx = ctx.copyWith(assignReturns).copyWithExpD(replaceRecvOrClosure)
+      // We need to substitute the argument and result names with the corresponding fresh variables.
       ((argSubs zip func.args) ++ (retSubs zip func.result.outs)) foreach {
         case (s, PNamedParameter(id, _)) => newCtx.addSubst(id, s, funcTypeInfo)
         case (s, PExplicitGhostParameter(PNamedParameter(id, _))) => newCtx.addSubst(id, s, funcTypeInfo)
@@ -3043,7 +3065,9 @@ object Desugar {
 
       val spec = closureSpecD(newCtx, info)(proof.impl.spec)
 
+      // Declare all the aliases
       val declarations = argSubs ++ retSubs ++ recvOrClosureAlias.toVector
+      // Assign the parameter values to the corresponding argument aliases
       val assignments =
         recvOrClosure.map(exp => singleAss(in.Assignee(recvOrClosureAlias.get), exprD(ctx, info)(exp).res)(meta(exp, info))).toVector ++
           argSubs.zipWithIndex.collect {
@@ -3058,6 +3082,7 @@ object Desugar {
         case _ => violation("function or closure expected")
       }
 
+      // Desugar the precondition of spec, replacing the argument and results with their aliases
       val pres = (fSpec.pres ++ fSpec.preserves) map preconditionD(newCtx, funcTypeInfo)
 
       // For the postcondition, we need to replace all old() expressions with labeled old expressions,
@@ -3076,6 +3101,8 @@ object Desugar {
       })
       val posts = (fSpec.preserves ++ fSpec.posts) map postconditionD(postsCtx, funcTypeInfo)
 
+      // Desugar the proof as a block containing all the aliases declarations and assignments, and
+      // the corresponding internal proof node.
       for {
         proof <- for {
           closure <- exprD(newCtx, info)(proof.impl.closure)
@@ -3087,7 +3114,6 @@ object Desugar {
     }
 
     // Ghost Expression
-
     def ghostExprD(ctx: FunctionContext, info: TypeInfo)(expr: PGhostExpression): Writer[in.Expr] = {
 
       def go(e: PExpression): Writer[in.Expr] = exprD(ctx, info)(e)

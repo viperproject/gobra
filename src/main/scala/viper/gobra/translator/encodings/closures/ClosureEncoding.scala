@@ -55,7 +55,7 @@ class ClosureEncoding extends LeafTypeEncoding {
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
 
-    case l: in.FunctionLikeLit => specs.callToClosureGetter(l.name, l.captured)(ctx)
+    case l: in.FunctionLitLike => specs.callToClosureGetter(l.name, l.captured)(ctx)
 
     case f: in.FunctionObject => specs.callToClosureGetter(f.func)(ctx)
 

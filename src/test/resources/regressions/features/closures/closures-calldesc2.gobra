@@ -17,7 +17,7 @@ type Calls interface {
 
 
 ghost
-requires x >= 0 && cs != nil && cs.inv(prev)
+requires cs != nil && cs.inv(prev)
 ensures cs.inv(prev ++ seq[int]{x}) && res == cs.res(prev ++ seq[int]{x})
 func spec(ghost cs Calls, ghost prev seq[int], x int) (res int)
 
@@ -39,7 +39,7 @@ pure func seqSum(s seq[int]) (res int) {
 
 type Acc struct { accum *int }
 pred (self Acc) inv(ghost calls seq[int]) {
-    acc(self.accum) && *self.accum >= 0 && *self.accum == seqSum(calls)
+    acc(self.accum) && *self.accum == seqSum(calls)
 }
 ghost
 pure func (self Acc) res(ghost calls seq[int])int {
@@ -48,8 +48,7 @@ pure func (self Acc) res(ghost calls seq[int])int {
 
 func main() {
     accum@ := 0
-    cl :=   requires x >= 0
-            preserves acc(&accum) && accum >= 0
+    cl :=   preserves acc(&accum)
             ensures accum == old(accum) + x && y == accum
             func accumulate(ghost seq[int], x int)(y int) {
                 accum += x

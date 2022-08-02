@@ -30,11 +30,9 @@ ensures cs.inv() && exists a int, b int :: cs.res(2, a) && cs.res(3, b) && res =
 ensures cs.called(2) && cs.called(3)
 func hof(ghost cs Calls, f func(int)int, choice bool)(res int) {
     if choice {
-        res = f(2) as spec{cs}
-        res += f(3) as spec{cs}
+        res = (f(2) as spec{cs}) + (f(3) as spec{cs})
     } else {
-        res = f(3) as spec{cs}
-        res += f(2) as spec{cs}
+        res = (f(3) as spec{cs}) +  (f(2) as spec{cs})
     }
     f(5) as spec{cs}
 }

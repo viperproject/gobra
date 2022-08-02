@@ -33,31 +33,31 @@ case class Program(
 }
 
 class LookupTable(
-                 private val definedTypes: Map[(String, Addressability), Type] = Map.empty,
-                 private val definedMethods: Map[MethodProxy, MethodLikeMember] = Map.empty,
-                 private val definedFunctions: Map[FunctionProxy, FunctionLikeMember] = Map.empty,
-                 private val definedMPredicates: Map[MPredicateProxy, MPredicateLikeMember] = Map.empty,
-                 private val definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember] = Map.empty,
-                 private val definedFuncLiterals: Map[FunctionLitProxy, FunctionLikeLit] = Map.empty,
+                   private val definedTypes: Map[(String, Addressability), Type] = Map.empty,
+                   private val definedMethods: Map[MethodProxy, MethodLikeMember] = Map.empty,
+                   private val definedFunctions: Map[FunctionProxy, FunctionLikeMember] = Map.empty,
+                   private val definedMPredicates: Map[MPredicateProxy, MPredicateLikeMember] = Map.empty,
+                   private val definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember] = Map.empty,
+                   private val definedFuncLiterals: Map[FunctionLitProxy, FunctionLitLike] = Map.empty,
 
-                 /**
+                   /**
                    * only has to be defined on types that implement an interface // might change depending on how embedding support changes
                    * SortedSet is used to achieve a consistent ordering of members across runs of Gobra
                    */
-                 private val directMemberProxies: Map[Type, SortedSet[MemberProxy]] = Map.empty,
-                 /**
+                   private val directMemberProxies: Map[Type, SortedSet[MemberProxy]] = Map.empty,
+                   /**
                    * empty interface does not have to be included
                    * SortedSet is used to achieve a consistent ordering of members across runs of Gobra
                    */
-                 private val directInterfaceImplementations: Map[InterfaceT, SortedSet[Type]] = Map.empty,
-                 private val implementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy] = Map.empty,
+                   private val directInterfaceImplementations: Map[InterfaceT, SortedSet[Type]] = Map.empty,
+                   private val implementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy] = Map.empty,
                  ) {
   def lookup(t: DefinedT): Type = definedTypes(t.name, t.addressability)
   def lookup(m: MethodProxy): MethodLikeMember = definedMethods(m)
   def lookup(f: FunctionProxy): FunctionLikeMember = definedFunctions(f)
   def lookup(m: MPredicateProxy): MPredicateLikeMember = definedMPredicates(m)
   def lookup(f: FPredicateProxy): FPredicateLikeMember = definedFPredicates(f)
-  def lookup(l: FunctionLitProxy): FunctionLikeLit = definedFuncLiterals(l)
+  def lookup(l: FunctionLitProxy): FunctionLitLike = definedFuncLiterals(l)
 
   def getMethods: Iterable[MethodLikeMember] = definedMethods.values
   def getFunctions: Iterable[FunctionLikeMember] = definedFunctions.values
@@ -1090,7 +1090,7 @@ case class StringLit(s: String)(val info: Source.Parser.Info) extends Lit {
 case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
 
 /* ** Closures */
-sealed trait FunctionLikeLit extends Lit with FunctionLikeMemberOrLit  {
+sealed trait FunctionLitLike extends Lit with FunctionLikeMemberOrLit  {
   def name: FunctionLitProxy
   def captured: Vector[(Expr, Parameter.In)]
 }
@@ -1104,7 +1104,7 @@ case class FunctionLit(
                      override val posts: Vector[Assertion],
                      override val terminationMeasures: Vector[TerminationMeasure],
                      body: Option[MethodBody]
-                   )(val info: Source.Parser.Info) extends FunctionLikeLit {
+                   )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
 }
 
@@ -1117,7 +1117,7 @@ case class PureFunctionLit(
                          override val posts: Vector[Assertion],
                          override val terminationMeasures: Vector[TerminationMeasure],
                          body: Option[Expr]
-                       )(val info: Source.Parser.Info) extends FunctionLikeLit {
+                       )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
   require(results.size <= 1)
 }

@@ -85,6 +85,8 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   override def codeRoot(n: PNode): PCodeRoot with PScope = enclosingCodeRoot(n)
 
+  override def enclosingFunction(n: PNode): Option[PFunctionDecl] = tryEnclosingFunction(n)
+
   override def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PForStmt] = enclosingLabeledLoop(label, n).toOption
 
   override def enclosingLoopNode(n: PNode) : Option[PForStmt] = enclosingLoopUntilOutline(n).toOption

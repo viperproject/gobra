@@ -164,13 +164,21 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
       case _ =>
         val gt = classifier.expectedArgGhostTyping(n)
         val aArgs = n.args.zip(gt.toTuple).filter(!_._2).map(_._1)
-        super.showExpr(n.copy(args = aArgs))
+        super.showExpr(n.copy(args = aArgs, spec = None))
     }
+
+    case PFunctionLit(_, PClosureDecl(args, result, _, body)) => super.showMisc(PClosureDecl(
+      filterParamList(args),
+      filterResult(result),
+      PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+      body.map( b => (PBodyParameterInfo(Vector.empty), b._2) )
+    ))
 
     case e: PProofAnnotation => e match {
       case PUnfolding(_, op) => showExpr(op)
     }
     case e if classifier.isExprGhost(e) => ghostToken
+
     case e => super.showExpr(e)
   }
 

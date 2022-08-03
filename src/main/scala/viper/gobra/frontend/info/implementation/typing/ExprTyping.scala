@@ -28,8 +28,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   val MAX_SHIFT: Int = 512
 
   lazy val wellDefExprAndType: WellDefinedness[PExpressionAndType] = createWellDef {
-
-    case _: PNamedOperand => noMessages // no checks to avoid cycles
+    case n: PNamedOperand =>
+      resolve(n) match {
+        /* A closure name can only be used as a spec, if we are not directly within the closure itself
+           (the same limitation applies within closures nested inside the closure itself) */
+        case Some(ap.Closure(id, _)) => error(n, s"expected valid operand, got closure declaration name $n",
+          !tree.parent(n).head.isInstanceOf[PClosureSpecInstance] &&
+            tryEnclosingFunctionLit(n).fold(true)(lit => lit.id.fold(true)(encId => encId.name != id.name)))
+        case _ => noMessages
+      } // no more checks to avoid cycles
 
     case n: PDeref =>
       resolve(n) match {
@@ -55,6 +62,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.Constant) => noMessages
         case Some(_: ap.GlobalVariable) => noMessages
         case Some(_: ap.Function) => noMessages
+        case Some(_: ap.Closure) => violation(s"the name of a function literal should not be accessible from a different package")
         case Some(_: ap.NamedType) => noMessages
         case Some(_: ap.BuiltInType) => noMessages
         case Some(_: ap.Predicate) => noMessages
@@ -83,8 +91,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   lazy val exprAndTypeType: Typing[PExpressionAndType] = createTyping[PExpressionAndType] {
-    case n: PNamedOperand =>
-      exprOrType(n).fold(x => idType(x.asInstanceOf[PNamedOperand].id), _ => SortT)
+    case n: PNamedOperand => exprOrType(n).fold(x => idType(x.asInstanceOf[PNamedOperand].id), _ => SortT)
 
     case n: PDeref =>
       resolve(n) match {
@@ -208,7 +215,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       literalAssignableTo.errors(lit, simplifiedT)(n)
 
-    case _: PFunctionLit => noMessages
+    case f: PFunctionLit =>
+      capturedVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
+        wellDefVariadicArgs(f.args) ++
+        f.id.fold(noMessages)(id => wellDefID(id).out)
 
     case n: PInvoke => {
       val (l, r) = (exprOrType(n.base), resolve(n))
@@ -230,12 +240,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           // arguments have to be assignable to function
           val wellTypedArgs = exprType(callee) match {
             case FunctionT(args, _) => // TODO: add special assignment
-              if (n.args.isEmpty && args.isEmpty) noMessages
+              if (n.spec.nonEmpty) wellDefCallWithSpec(n)
+              else if (n.args.isEmpty && args.isEmpty) noMessages
               else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n, s"type error: got $t but expected function type or AbstractType")
           }
           isCallToInit ++ wellTypedArgs
+
+        case (Left(_), Some(_: ap.ClosureCall)) => wellDefCallWithSpec(n)
 
         case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
           val pureReceiverMsgs = p.predicate match {
@@ -598,15 +611,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case cl: PCompositeLit => expectedCompositeLitType(cl)
 
-    case PFunctionLit(args, r, _) =>
-      FunctionT(args map miscType, miscType(r))
+    case PFunctionLit(_, PClosureDecl(args, result, _, _)) =>
+      FunctionT(args map miscType, miscType(result))
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(p: ap.Conversion)) => typeSymbType(p.typ)
       case (Left(_), Some(_: ap.PredExprInstance)) =>
         // a PInvoke on a predicate expression instance must fully apply the predicate arguments
         AssertionT
-      case (Left(callee), Some(_: ap.FunctionCall | _: ap.PredicateCall)) =>
+      case (Left(callee), Some(_: ap.FunctionCall | _: ap.PredicateCall | _: ap.ClosureCall)) =>
         exprType(callee) match {
           case FunctionT(_, res) => res
           case t: AbstractType =>
@@ -794,7 +807,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case r: PReturn =>
           val index = r.exps.indexOf(expr)
-          Some(typeSymbType(enclosingCodeRootWithResult(r).result.outs(index).typ))
+          val returns = returnParamsAndTypes(r)
+          if (returns.size <= index) None else Some(returns(index)._1)
 
         case n: PInvoke =>
           // if the parent of `expr` (i.e. the numeric expression whose type we want to find out) is an invoke expression `inv`,
@@ -978,6 +992,25 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         error(expr, s"the divisor of the perm expression $expr evaluates to 0", constExprOpt.exists(_._2 == 0))
     case _ => error(expr, s"expected a constant expression, but got $expr instead")
   }
+
+  private[typing] def wellDefCallWithSpec(n: PInvoke): Messages = {
+    val base = n.base.asInstanceOf[PExpression]
+    val closureMatchesSpec = wellDefIfClosureMatchesSpec(base, n.spec.get)
+    val assignableArgs = (exprType(base), miscType(n.spec.get)) match {
+      case (tC: FunctionT, _: FunctionT) => n.args.flatMap(isExpr(_).out) ++ (
+        if (n.args.isEmpty && tC.args.isEmpty) noMessages
+        else multiAssignableTo.errors(n.args map exprType, tC.args)(base))
+      case (tC, _) => error(base, s"expected function type, but got $tC")
+    }
+
+    closureMatchesSpec ++ assignableArgs
+  }
+
+  private[typing] def wellDefIfClosureMatchesSpec(closure: PExpression, spec: PClosureSpecInstance): Messages =
+    isExpr(closure).out ++ ((exprType(closure), miscType(spec)) match {
+      case (tC: FunctionT, tS: FunctionT) => error(spec, s"expected type $tC, got ${spec} of type $tS", cond = !identicalTypes(tC, tS))
+      case (tC, _) => error(closure, s"expected function type, but got $tC")
+    })
 
   private[typing] def typeOfPLength(expr: PLength): Type =
     underlyingType(exprType(expr.exp)) match {

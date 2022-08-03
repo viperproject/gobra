@@ -138,8 +138,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       hcat(pres map (showPre(_) <> line)) <>
         hcat(preserves map (showPreserves(_) <> line)) <>
         hcat(posts map (showPost(_) <> line)) <>
-        hcat(measures map (showTerminationMeasure(_) <> line)) <>
-        line
+        hcat(measures map (showTerminationMeasure(_) <> line))
 
     case PLoopSpec(inv, measure) =>
       hcat(inv map (showInv(_) <> line)) <> opt(measure)(showTerminationMeasure) <> line
@@ -165,6 +164,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showIdList[T <: PIdnNode](list: Vector[T]): Doc = showList(list)(showId)
 
   def showList[T](list: Vector[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
+
+  def showFunctionLit(lit: PFunctionLit): Doc = lit match {
+    case PFunctionLit(id, PClosureDecl(args, result, spec, body)) =>
+      showSpec(spec) <> "func" <> id.fold(emptyDoc)(id => emptyDoc <+> showId(id)) <> parens(showParameterList(args)) <> showResult(result) <>
+        opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
+  }
 
   def showVarDecl(decl: PVarDecl): Doc = decl match {
     case PVarDecl(typ, right, left, addressable) =>
@@ -271,6 +276,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PFold(exp) => "fold" <+> showExpr(exp)
       case PPackageWand(wand, blockOpt) => "package" <+> showExpr(wand) <+> opt(blockOpt)(showStmt)
       case PApplyWand(wand) => "apply" <+> showExpr(wand)
+      case PClosureImplProof(impl, PBlock(stmts)) => "proof" <+> showExpr(impl) <> block(showStmtList(stmts))
     }
   }
 
@@ -416,9 +422,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PNilLit() => "nil"
       case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
-      case PFunctionLit(args, result, body) =>
-        "func" <> parens(showParameterList(args)) <> showResult(result) <> block(showStmt(body))
-      case PInvoke(base, args) => showExprOrType(base) <> parens(showExprList(args))
+      case lit: PFunctionLit => showFunctionLit(lit)
+      case PInvoke(base, args, spec) => showExprOrType(base) <> parens(showExprList(args)) <> opt(spec)(s => emptyDoc <+> "as" <+> showMisc(s))
       case PIndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
 
       case PSliceExp(base, low, high, cap) => {
@@ -483,6 +488,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case n: PExpression => "acc" <> parens(showExpr(n) <> "," <+> showExpr(perm))
       }
       case PMagicWand(left, right) => showSubExpr(expr, left) <+> "--*" <+> showSubExpr(expr, right)
+      case PClosureImplements(closure, spec) => showExpr(closure) <+> "implements" <+> showMisc(spec)
 
       case PTypeOf(exp) => "typeOf" <> parens(showExpr(exp))
       case PTypeExpr(typ) => "type" <> brackets(showType(typ))
@@ -655,7 +661,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case literalValue: PLiteralValue => showLiteralValue(literalValue)
     case keyedElement: PKeyedElement => showKeyedElement(keyedElement)
     case compositeVal: PCompositeVal => showCompositeVal(compositeVal)
+    case closureDecl: PClosureDecl => showFunctionLit(PFunctionLit(None, closureDecl))
     case misc: PGhostMisc => misc match {
+      case s: PClosureSpecInstance => showExprOrType(s.func) <> braces(ssep(s.params map showMisc, comma <> space))
       case PFPredBase(id) => showId(id)
       case PDottedBase(expr) => showExprOrType(expr)
       case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)
@@ -700,5 +708,10 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       case ip: PImplementationProof =>
         showType(ip.subT) <+> "implements" <+> showType(ip.superT)
     }
+  }
+
+  override def showFunctionLit(lit: PFunctionLit): Doc = lit match {
+    case PFunctionLit(id, PClosureDecl(args, result, spec, _)) =>
+      showSpec(spec) <> "func" <+> id.fold(emptyDoc)(showId) <> parens(showParameterList(args)) <> showResult(result)
   }
 }

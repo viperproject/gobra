@@ -155,13 +155,20 @@ case class PConstSpec(typ: Option[PType], right: Vector[PExpression], left: Vect
 
 case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId], addressable: Vector[Boolean]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
 
+sealed trait PFunctionOrClosureDecl extends PScope {
+  def args: Vector[PParameter]
+  def result: PResult
+  def spec: PFunctionSpec
+  def body: Option[(PBodyParameterInfo, PBlock)]
+}
+
 case class PFunctionDecl(
                           id: PIdnDef,
                           args: Vector[PParameter],
                           result: PResult,
                           spec: PFunctionSpec,
                           body: Option[(PBodyParameterInfo, PBlock)]
-                        ) extends PActualMember with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
+                        ) extends PFunctionOrClosureDecl with PActualMember with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
 case class PMethodDecl(
                         id: PIdnDef,
@@ -421,9 +428,32 @@ case class PExpCompositeVal(exp: PExpression) extends PCompositeVal // exp is ne
 
 case class PLitCompositeVal(lit: PLiteralValue) extends PCompositeVal
 
-case class PFunctionLit(args: Vector[PParameter], result: PResult, body: PBlock) extends PLiteral with PCodeRootWithResult with PScope
+case class PFunctionLit(id: Option[PIdnDef], decl: PClosureDecl) extends PLiteral {
+  val args: Vector[PParameter] = decl.args
+  val result: PResult = decl.result
+  val spec: PFunctionSpec = decl.spec
+  val body: Option[(PBodyParameterInfo, PBlock)] = decl.body
+}
 
-case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends PActualExpression
+case class PClosureDecl(args: Vector[PParameter],
+                  result: PResult,
+                  spec: PFunctionSpec,
+                  body: Option[(PBodyParameterInfo, PBlock)]) extends PFunctionOrClosureDecl with PCodeRootWithResult with PActualMisc
+
+case class PClosureSpecInstance(func: PNameOrDot, params: Vector[PKeyedElement]) extends PGhostMisc {
+  require(params.forall(p => p.exp.isInstanceOf[PExpCompositeVal]))
+  require(params.forall(p => p.key.isEmpty || p.key.get.isInstanceOf[PIdentifierKey]))
+  val paramKeys: Vector[String] = params.collect{ case PKeyedElement(Some(PIdentifierKey(id)), _) => id.name }
+  val paramExprs: Vector[PExpression] = params.collect{ case PKeyedElement(_, PExpCompositeVal(exp)) => exp }
+}
+
+case class PClosureImplements(closure: PExpression, spec: PClosureSpecInstance) extends PGhostExpression
+
+case class PClosureImplProof(impl: PClosureImplements, block: PBlock) extends PGhostStatement with PScope
+
+case class PInvoke(base: PExpressionOrType, args: Vector[PExpression], spec: Option[PClosureSpecInstance]) extends PActualExpression {
+  require(base.isInstanceOf[PExpression] || spec.isEmpty) // `base` is a type for conversions only, for which `spec` is empty
+}
 
 // TODO: Check Arguments in language specification, also allows preceding type
 

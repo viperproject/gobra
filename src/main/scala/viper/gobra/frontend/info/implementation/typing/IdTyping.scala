@@ -91,6 +91,10 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       args.forall(wellDefMisc.valid) && miscType.valid(r)
     })
 
+    case Closure(PFunctionLit(_, PClosureDecl(args, r, _, _)), _, _) => unsafeMessage(! {
+      args.forall(wellDefMisc.valid) && miscType.valid(r)
+    })
+
     case NamedType(_, _, _) => LocalMessages(noMessages)
 
     case TypeAlias(PTypeAlias(right, _), _, _) => unsafeMessage(! {
@@ -191,6 +195,9 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       })
 
     case Function(PFunctionDecl(_, args, r, _, _), _, context) =>
+      FunctionT(args map context.typ, context.typ(r))
+
+    case Closure(PFunctionLit(_, PClosureDecl(args, r, _, _)), _, context) =>
       FunctionT(args map context.typ, context.typ(r))
 
       // case is relevant only for typing within an interface definition.

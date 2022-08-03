@@ -19,29 +19,29 @@ public class GobraParser extends GobraParserBase {
 	public static final int
 		FLOAT_LIT=1, DECIMAL_FLOAT_LIT=2, TRUE=3, FALSE=4, ASSERT=5, ASSUME=6, 
 		INHALE=7, EXHALE=8, PRE=9, PRESERVES=10, POST=11, INV=12, DEC=13, PURE=14, 
-		IMPL=15, OLD=16, BEFORE=17, LHS=18, FORALL=19, EXISTS=20, ACCESS=21, FOLD=22, 
-		UNFOLD=23, UNFOLDING=24, GHOST=25, IN=26, MULTI=27, SUBSET=28, UNION=29, 
-		INTERSECTION=30, SETMINUS=31, IMPLIES=32, WAND=33, APPLY=34, QMARK=35, 
-		L_PRED=36, R_PRED=37, SEQ=38, SET=39, MSET=40, DICT=41, OPT=42, LEN=43, 
-		NEW=44, MAKE=45, CAP=46, SOME=47, GET=48, DOM=49, AXIOM=50, NONE=51, PRED=52, 
-		TYPE_OF=53, IS_COMPARABLE=54, SHARE=55, ADDR_MOD=56, DOT_DOT=57, SHARED=58, 
-		EXCLUSIVE=59, PREDICATE=60, WRITEPERM=61, NOPERM=62, TRUSTED=63, OUTLINE=64, 
-		INIT_POST=65, IMPORT_PRE=66, BREAK=67, DEFAULT=68, FUNC=69, INTERFACE=70, 
-		SELECT=71, CASE=72, DEFER=73, GO=74, MAP=75, STRUCT=76, CHAN=77, ELSE=78, 
-		GOTO=79, PACKAGE=80, SWITCH=81, CONST=82, FALLTHROUGH=83, IF=84, RANGE=85, 
-		TYPE=86, CONTINUE=87, FOR=88, IMPORT=89, RETURN=90, VAR=91, NIL_LIT=92, 
-		IDENTIFIER=93, L_PAREN=94, R_PAREN=95, L_CURLY=96, R_CURLY=97, L_BRACKET=98, 
-		R_BRACKET=99, ASSIGN=100, COMMA=101, SEMI=102, COLON=103, DOT=104, PLUS_PLUS=105, 
-		MINUS_MINUS=106, DECLARE_ASSIGN=107, ELLIPSIS=108, LOGICAL_OR=109, LOGICAL_AND=110, 
-		EQUALS=111, NOT_EQUALS=112, LESS=113, LESS_OR_EQUALS=114, GREATER=115, 
-		GREATER_OR_EQUALS=116, OR=117, DIV=118, MOD=119, LSHIFT=120, RSHIFT=121, 
-		BIT_CLEAR=122, EXCLAMATION=123, PLUS=124, MINUS=125, CARET=126, STAR=127, 
-		AMPERSAND=128, RECEIVE=129, DECIMAL_LIT=130, BINARY_LIT=131, OCTAL_LIT=132, 
-		HEX_LIT=133, HEX_FLOAT_LIT=134, IMAGINARY_LIT=135, RUNE_LIT=136, BYTE_VALUE=137, 
-		OCTAL_BYTE_VALUE=138, HEX_BYTE_VALUE=139, LITTLE_U_VALUE=140, BIG_U_VALUE=141, 
-		RAW_STRING_LIT=142, INTERPRETED_STRING_LIT=143, WS=144, COMMENT=145, TERMINATOR=146, 
-		LINE_COMMENT=147, WS_NLSEMI=148, COMMENT_NLSEMI=149, LINE_COMMENT_NLSEMI=150, 
-		EOS=151, OTHER=152;
+		IMPL=15, AS=16, OLD=17, BEFORE=18, LHS=19, FORALL=20, EXISTS=21, ACCESS=22, 
+		FOLD=23, UNFOLD=24, UNFOLDING=25, GHOST=26, IN=27, MULTI=28, SUBSET=29, 
+		UNION=30, INTERSECTION=31, SETMINUS=32, IMPLIES=33, WAND=34, APPLY=35, 
+		QMARK=36, L_PRED=37, R_PRED=38, SEQ=39, SET=40, MSET=41, DICT=42, OPT=43, 
+		LEN=44, NEW=45, MAKE=46, CAP=47, SOME=48, GET=49, DOM=50, AXIOM=51, NONE=52, 
+		PRED=53, TYPE_OF=54, IS_COMPARABLE=55, SHARE=56, ADDR_MOD=57, DOT_DOT=58, 
+		SHARED=59, EXCLUSIVE=60, PREDICATE=61, WRITEPERM=62, NOPERM=63, TRUSTED=64, 
+		OUTLINE=65, INIT_POST=66, IMPORT_PRE=67, PROOF=68, BREAK=69, DEFAULT=70, 
+		FUNC=71, INTERFACE=72, SELECT=73, CASE=74, DEFER=75, GO=76, MAP=77, STRUCT=78, 
+		CHAN=79, ELSE=80, GOTO=81, PACKAGE=82, SWITCH=83, CONST=84, FALLTHROUGH=85, 
+		IF=86, RANGE=87, TYPE=88, CONTINUE=89, FOR=90, IMPORT=91, RETURN=92, VAR=93, 
+		NIL_LIT=94, IDENTIFIER=95, L_PAREN=96, R_PAREN=97, L_CURLY=98, R_CURLY=99, 
+		L_BRACKET=100, R_BRACKET=101, ASSIGN=102, COMMA=103, SEMI=104, COLON=105, 
+		DOT=106, PLUS_PLUS=107, MINUS_MINUS=108, DECLARE_ASSIGN=109, ELLIPSIS=110, 
+		LOGICAL_OR=111, LOGICAL_AND=112, EQUALS=113, NOT_EQUALS=114, LESS=115, 
+		LESS_OR_EQUALS=116, GREATER=117, GREATER_OR_EQUALS=118, OR=119, DIV=120, 
+		MOD=121, LSHIFT=122, RSHIFT=123, BIT_CLEAR=124, EXCLAMATION=125, PLUS=126, 
+		MINUS=127, CARET=128, STAR=129, AMPERSAND=130, RECEIVE=131, DECIMAL_LIT=132, 
+		BINARY_LIT=133, OCTAL_LIT=134, HEX_LIT=135, HEX_FLOAT_LIT=136, IMAGINARY_LIT=137, 
+		RUNE_LIT=138, BYTE_VALUE=139, OCTAL_BYTE_VALUE=140, HEX_BYTE_VALUE=141, 
+		LITTLE_U_VALUE=142, BIG_U_VALUE=143, RAW_STRING_LIT=144, INTERPRETED_STRING_LIT=145, 
+		WS=146, COMMENT=147, TERMINATOR=148, LINE_COMMENT=149, WS_NLSEMI=150, 
+		COMMENT_NLSEMI=151, LINE_COMMENT_NLSEMI=152, EOS=153, OTHER=154;
 	public static final int
 		RULE_exprOnly = 0, RULE_stmtOnly = 1, RULE_typeOnly = 2, RULE_maybeAddressableIdentifierList = 3, 
 		RULE_maybeAddressableIdentifier = 4, RULE_sourceFile = 5, RULE_initPost = 6, 
@@ -56,41 +56,43 @@ public class GobraParser extends GobraParserBase {
 		RULE_seqUpdClause = 36, RULE_ghostTypeLit = 37, RULE_domainType = 38, 
 		RULE_domainClause = 39, RULE_ghostSliceType = 40, RULE_sqType = 41, RULE_specification = 42, 
 		RULE_specStatement = 43, RULE_terminationMeasure = 44, RULE_assertion = 45, 
-		RULE_blockWithBodyParameterInfo = 46, RULE_implementationProof = 47, RULE_methodImplementationProof = 48, 
-		RULE_nonLocalReceiver = 49, RULE_selection = 50, RULE_implementationProofPredicateAlias = 51, 
-		RULE_make = 52, RULE_new_ = 53, RULE_specMember = 54, RULE_functionDecl = 55, 
-		RULE_methodDecl = 56, RULE_explicitGhostMember = 57, RULE_fpredicateDecl = 58, 
-		RULE_predicateBody = 59, RULE_mpredicateDecl = 60, RULE_varSpec = 61, 
-		RULE_shortVarDecl = 62, RULE_receiver = 63, RULE_parameterDecl = 64, RULE_actualParameterDecl = 65, 
-		RULE_ghostParameterDecl = 66, RULE_parameterType = 67, RULE_expression = 68, 
-		RULE_statement = 69, RULE_applyStmt = 70, RULE_packageStmt = 71, RULE_specForStmt = 72, 
-		RULE_loopSpec = 73, RULE_deferStmt = 74, RULE_basicLit = 75, RULE_primaryExpr = 76, 
-		RULE_predConstructArgs = 77, RULE_interfaceType = 78, RULE_predicateSpec = 79, 
-		RULE_methodSpec = 80, RULE_type_ = 81, RULE_typeLit = 82, RULE_predType = 83, 
-		RULE_predTypeParams = 84, RULE_literalType = 85, RULE_implicitArray = 86, 
-		RULE_slice_ = 87, RULE_low = 88, RULE_high = 89, RULE_cap = 90, RULE_assign_op = 91, 
-		RULE_packageClause = 92, RULE_importPath = 93, RULE_declaration = 94, 
-		RULE_constDecl = 95, RULE_constSpec = 96, RULE_identifierList = 97, RULE_expressionList = 98, 
-		RULE_typeDecl = 99, RULE_typeSpec = 100, RULE_varDecl = 101, RULE_block = 102, 
-		RULE_statementList = 103, RULE_simpleStmt = 104, RULE_expressionStmt = 105, 
-		RULE_sendStmt = 106, RULE_incDecStmt = 107, RULE_assignment = 108, RULE_emptyStmt = 109, 
-		RULE_labeledStmt = 110, RULE_returnStmt = 111, RULE_breakStmt = 112, RULE_continueStmt = 113, 
-		RULE_gotoStmt = 114, RULE_fallthroughStmt = 115, RULE_ifStmt = 116, RULE_switchStmt = 117, 
-		RULE_exprSwitchStmt = 118, RULE_exprCaseClause = 119, RULE_exprSwitchCase = 120, 
-		RULE_typeSwitchStmt = 121, RULE_typeSwitchGuard = 122, RULE_typeCaseClause = 123, 
-		RULE_typeSwitchCase = 124, RULE_typeList = 125, RULE_selectStmt = 126, 
-		RULE_commClause = 127, RULE_commCase = 128, RULE_recvStmt = 129, RULE_forStmt = 130, 
-		RULE_forClause = 131, RULE_rangeClause = 132, RULE_goStmt = 133, RULE_typeName = 134, 
-		RULE_arrayType = 135, RULE_arrayLength = 136, RULE_elementType = 137, 
-		RULE_pointerType = 138, RULE_sliceType = 139, RULE_mapType = 140, RULE_channelType = 141, 
-		RULE_functionType = 142, RULE_signature = 143, RULE_result = 144, RULE_parameters = 145, 
-		RULE_conversion = 146, RULE_nonNamedType = 147, RULE_operand = 148, RULE_literal = 149, 
-		RULE_integer = 150, RULE_operandName = 151, RULE_qualifiedIdent = 152, 
-		RULE_compositeLit = 153, RULE_literalValue = 154, RULE_elementList = 155, 
-		RULE_keyedElement = 156, RULE_key = 157, RULE_element = 158, RULE_structType = 159, 
-		RULE_fieldDecl = 160, RULE_string_ = 161, RULE_embeddedField = 162, RULE_functionLit = 163, 
-		RULE_index = 164, RULE_typeAssertion = 165, RULE_arguments = 166, RULE_methodExpr = 167, 
-		RULE_receiverType = 168, RULE_eos = 169;
+		RULE_blockWithBodyParameterInfo = 46, RULE_closureSpecInstance = 47, RULE_closureSpecParams = 48, 
+		RULE_closureSpecParam = 49, RULE_closureImplProofStmt = 50, RULE_implementationProof = 51, 
+		RULE_methodImplementationProof = 52, RULE_nonLocalReceiver = 53, RULE_selection = 54, 
+		RULE_implementationProofPredicateAlias = 55, RULE_make = 56, RULE_new_ = 57, 
+		RULE_specMember = 58, RULE_functionDecl = 59, RULE_methodDecl = 60, RULE_explicitGhostMember = 61, 
+		RULE_fpredicateDecl = 62, RULE_predicateBody = 63, RULE_mpredicateDecl = 64, 
+		RULE_varSpec = 65, RULE_shortVarDecl = 66, RULE_receiver = 67, RULE_parameterDecl = 68, 
+		RULE_actualParameterDecl = 69, RULE_ghostParameterDecl = 70, RULE_parameterType = 71, 
+		RULE_expression = 72, RULE_statement = 73, RULE_applyStmt = 74, RULE_packageStmt = 75, 
+		RULE_specForStmt = 76, RULE_loopSpec = 77, RULE_deferStmt = 78, RULE_basicLit = 79, 
+		RULE_primaryExpr = 80, RULE_functionLit = 81, RULE_closureDecl = 82, RULE_predConstructArgs = 83, 
+		RULE_interfaceType = 84, RULE_predicateSpec = 85, RULE_methodSpec = 86, 
+		RULE_type_ = 87, RULE_typeLit = 88, RULE_predType = 89, RULE_predTypeParams = 90, 
+		RULE_literalType = 91, RULE_implicitArray = 92, RULE_slice_ = 93, RULE_low = 94, 
+		RULE_high = 95, RULE_cap = 96, RULE_assign_op = 97, RULE_packageClause = 98, 
+		RULE_importPath = 99, RULE_declaration = 100, RULE_constDecl = 101, RULE_constSpec = 102, 
+		RULE_identifierList = 103, RULE_expressionList = 104, RULE_typeDecl = 105, 
+		RULE_typeSpec = 106, RULE_varDecl = 107, RULE_block = 108, RULE_statementList = 109, 
+		RULE_simpleStmt = 110, RULE_expressionStmt = 111, RULE_sendStmt = 112, 
+		RULE_incDecStmt = 113, RULE_assignment = 114, RULE_emptyStmt = 115, RULE_labeledStmt = 116, 
+		RULE_returnStmt = 117, RULE_breakStmt = 118, RULE_continueStmt = 119, 
+		RULE_gotoStmt = 120, RULE_fallthroughStmt = 121, RULE_ifStmt = 122, RULE_switchStmt = 123, 
+		RULE_exprSwitchStmt = 124, RULE_exprCaseClause = 125, RULE_exprSwitchCase = 126, 
+		RULE_typeSwitchStmt = 127, RULE_typeSwitchGuard = 128, RULE_typeCaseClause = 129, 
+		RULE_typeSwitchCase = 130, RULE_typeList = 131, RULE_selectStmt = 132, 
+		RULE_commClause = 133, RULE_commCase = 134, RULE_recvStmt = 135, RULE_forStmt = 136, 
+		RULE_forClause = 137, RULE_rangeClause = 138, RULE_goStmt = 139, RULE_typeName = 140, 
+		RULE_arrayType = 141, RULE_arrayLength = 142, RULE_elementType = 143, 
+		RULE_pointerType = 144, RULE_sliceType = 145, RULE_mapType = 146, RULE_channelType = 147, 
+		RULE_functionType = 148, RULE_signature = 149, RULE_result = 150, RULE_parameters = 151, 
+		RULE_conversion = 152, RULE_nonNamedType = 153, RULE_operand = 154, RULE_literal = 155, 
+		RULE_integer = 156, RULE_operandName = 157, RULE_qualifiedIdent = 158, 
+		RULE_compositeLit = 159, RULE_literalValue = 160, RULE_elementList = 161, 
+		RULE_keyedElement = 162, RULE_key = 163, RULE_element = 164, RULE_structType = 165, 
+		RULE_fieldDecl = 166, RULE_string_ = 167, RULE_embeddedField = 168, RULE_index = 169, 
+		RULE_typeAssertion = 170, RULE_arguments = 171, RULE_methodExpr = 172, 
+		RULE_receiverType = 173, RULE_eos = 174;
 	private static String[] makeRuleNames() {
 		return new String[] {
 			"exprOnly", "stmtOnly", "typeOnly", "maybeAddressableIdentifierList", 
@@ -102,30 +104,32 @@ public class GobraParser extends GobraParserBase {
 			"old", "oldLabelUse", "labelUse", "before", "isComparable", "typeOf", 
 			"access", "range", "seqUpdExp", "seqUpdClause", "ghostTypeLit", "domainType", 
 			"domainClause", "ghostSliceType", "sqType", "specification", "specStatement", 
-			"terminationMeasure", "assertion", "blockWithBodyParameterInfo", "implementationProof", 
+			"terminationMeasure", "assertion", "blockWithBodyParameterInfo", "closureSpecInstance", 
+			"closureSpecParams", "closureSpecParam", "closureImplProofStmt", "implementationProof", 
 			"methodImplementationProof", "nonLocalReceiver", "selection", "implementationProofPredicateAlias", 
 			"make", "new_", "specMember", "functionDecl", "methodDecl", "explicitGhostMember", 
 			"fpredicateDecl", "predicateBody", "mpredicateDecl", "varSpec", "shortVarDecl", 
 			"receiver", "parameterDecl", "actualParameterDecl", "ghostParameterDecl", 
 			"parameterType", "expression", "statement", "applyStmt", "packageStmt", 
-			"specForStmt", "loopSpec", "deferStmt", "basicLit", "primaryExpr", "predConstructArgs", 
-			"interfaceType", "predicateSpec", "methodSpec", "type_", "typeLit", "predType", 
-			"predTypeParams", "literalType", "implicitArray", "slice_", "low", "high", 
-			"cap", "assign_op", "packageClause", "importPath", "declaration", "constDecl", 
-			"constSpec", "identifierList", "expressionList", "typeDecl", "typeSpec", 
-			"varDecl", "block", "statementList", "simpleStmt", "expressionStmt", 
-			"sendStmt", "incDecStmt", "assignment", "emptyStmt", "labeledStmt", "returnStmt", 
-			"breakStmt", "continueStmt", "gotoStmt", "fallthroughStmt", "ifStmt", 
-			"switchStmt", "exprSwitchStmt", "exprCaseClause", "exprSwitchCase", "typeSwitchStmt", 
-			"typeSwitchGuard", "typeCaseClause", "typeSwitchCase", "typeList", "selectStmt", 
-			"commClause", "commCase", "recvStmt", "forStmt", "forClause", "rangeClause", 
-			"goStmt", "typeName", "arrayType", "arrayLength", "elementType", "pointerType", 
+			"specForStmt", "loopSpec", "deferStmt", "basicLit", "primaryExpr", "functionLit", 
+			"closureDecl", "predConstructArgs", "interfaceType", "predicateSpec", 
+			"methodSpec", "type_", "typeLit", "predType", "predTypeParams", "literalType", 
+			"implicitArray", "slice_", "low", "high", "cap", "assign_op", "packageClause", 
+			"importPath", "declaration", "constDecl", "constSpec", "identifierList", 
+			"expressionList", "typeDecl", "typeSpec", "varDecl", "block", "statementList", 
+			"simpleStmt", "expressionStmt", "sendStmt", "incDecStmt", "assignment", 
+			"emptyStmt", "labeledStmt", "returnStmt", "breakStmt", "continueStmt", 
+			"gotoStmt", "fallthroughStmt", "ifStmt", "switchStmt", "exprSwitchStmt", 
+			"exprCaseClause", "exprSwitchCase", "typeSwitchStmt", "typeSwitchGuard", 
+			"typeCaseClause", "typeSwitchCase", "typeList", "selectStmt", "commClause", 
+			"commCase", "recvStmt", "forStmt", "forClause", "rangeClause", "goStmt", 
+			"typeName", "arrayType", "arrayLength", "elementType", "pointerType", 
 			"sliceType", "mapType", "channelType", "functionType", "signature", "result", 
 			"parameters", "conversion", "nonNamedType", "operand", "literal", "integer", 
 			"operandName", "qualifiedIdent", "compositeLit", "literalValue", "elementList", 
 			"keyedElement", "key", "element", "structType", "fieldDecl", "string_", 
-			"embeddedField", "functionLit", "index", "typeAssertion", "arguments", 
-			"methodExpr", "receiverType", "eos"
+			"embeddedField", "index", "typeAssertion", "arguments", "methodExpr", 
+			"receiverType", "eos"
 		};
 	}
 	public static final String[] ruleNames = makeRuleNames();
@@ -134,15 +138,15 @@ public class GobraParser extends GobraParserBase {
 		return new String[] {
 			null, null, null, "'true'", "'false'", "'assert'", "'assume'", "'inhale'", 
 			"'exhale'", "'requires'", "'preserves'", "'ensures'", "'invariant'", 
-			"'decreases'", "'pure'", "'implements'", "'old'", "'before'", "'#lhs'", 
-			"'forall'", "'exists'", "'acc'", "'fold'", "'unfold'", "'unfolding'", 
+			"'decreases'", "'pure'", "'implements'", "'as'", "'old'", "'before'", 
+			"'#lhs'", "'forall'", "'exists'", "'acc'", "'fold'", "'unfold'", "'unfolding'", 
 			"'ghost'", "'in'", "'#'", "'subset'", "'union'", "'intersection'", "'setminus'", 
 			"'==>'", "'--*'", "'apply'", "'?'", "'!<'", "'!>'", "'seq'", "'set'", 
 			"'mset'", "'dict'", "'option'", "'len'", "'new'", "'make'", "'cap'", 
 			"'some'", "'get'", "'domain'", "'axiom'", "'none'", "'pred'", "'typeOf'", 
 			"'isComparable'", "'share'", "'@'", "'..'", "'shared'", "'exclusive'", 
 			"'predicate'", "'writePerm'", "'noPerm'", "'trusted'", "'outline'", "'initEnsures'", 
-			"'importRequires'", "'break'", "'default'", "'func'", "'interface'", 
+			"'importRequires'", "'proof'", "'break'", "'default'", "'func'", "'interface'", 
 			"'select'", "'case'", "'defer'", "'go'", "'map'", "'struct'", "'chan'", 
 			"'else'", "'goto'", "'package'", "'switch'", "'const'", "'fallthrough'", 
 			"'if'", "'range'", "'type'", "'continue'", "'for'", "'import'", "'return'", 
@@ -157,15 +161,15 @@ public class GobraParser extends GobraParserBase {
 		return new String[] {
 			null, "FLOAT_LIT", "DECIMAL_FLOAT_LIT", "TRUE", "FALSE", "ASSERT", "ASSUME", 
 			"INHALE", "EXHALE", "PRE", "PRESERVES", "POST", "INV", "DEC", "PURE", 
-			"IMPL", "OLD", "BEFORE", "LHS", "FORALL", "EXISTS", "ACCESS", "FOLD", 
+			"IMPL", "AS", "OLD", "BEFORE", "LHS", "FORALL", "EXISTS", "ACCESS", "FOLD", 
 			"UNFOLD", "UNFOLDING", "GHOST", "IN", "MULTI", "SUBSET", "UNION", "INTERSECTION", 
 			"SETMINUS", "IMPLIES", "WAND", "APPLY", "QMARK", "L_PRED", "R_PRED", 
 			"SEQ", "SET", "MSET", "DICT", "OPT", "LEN", "NEW", "MAKE", "CAP", "SOME", 
 			"GET", "DOM", "AXIOM", "NONE", "PRED", "TYPE_OF", "IS_COMPARABLE", "SHARE", 
 			"ADDR_MOD", "DOT_DOT", "SHARED", "EXCLUSIVE", "PREDICATE", "WRITEPERM", 
-			"NOPERM", "TRUSTED", "OUTLINE", "INIT_POST", "IMPORT_PRE", "BREAK", "DEFAULT", 
-			"FUNC", "INTERFACE", "SELECT", "CASE", "DEFER", "GO", "MAP", "STRUCT", 
-			"CHAN", "ELSE", "GOTO", "PACKAGE", "SWITCH", "CONST", "FALLTHROUGH", 
+			"NOPERM", "TRUSTED", "OUTLINE", "INIT_POST", "IMPORT_PRE", "PROOF", "BREAK", 
+			"DEFAULT", "FUNC", "INTERFACE", "SELECT", "CASE", "DEFER", "GO", "MAP", 
+			"STRUCT", "CHAN", "ELSE", "GOTO", "PACKAGE", "SWITCH", "CONST", "FALLTHROUGH", 
 			"IF", "RANGE", "TYPE", "CONTINUE", "FOR", "IMPORT", "RETURN", "VAR", 
 			"NIL_LIT", "IDENTIFIER", "L_PAREN", "R_PAREN", "L_CURLY", "R_CURLY", 
 			"L_BRACKET", "R_BRACKET", "ASSIGN", "COMMA", "SEMI", "COLON", "DOT", 
@@ -254,9 +258,9 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(340);
+			setState(350);
 			expression(0);
-			setState(341);
+			setState(351);
 			match(EOF);
 			}
 		}
@@ -293,9 +297,9 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(343);
+			setState(353);
 			statement();
-			setState(344);
+			setState(354);
 			match(EOF);
 			}
 		}
@@ -332,9 +336,9 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(346);
+			setState(356);
 			type_();
-			setState(347);
+			setState(357);
 			match(EOF);
 			}
 		}
@@ -378,21 +382,21 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(349);
+			setState(359);
 			maybeAddressableIdentifier();
-			setState(354);
+			setState(364);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==COMMA) {
 				{
 				{
-				setState(350);
+				setState(360);
 				match(COMMA);
-				setState(351);
+				setState(361);
 				maybeAddressableIdentifier();
 				}
 				}
-				setState(356);
+				setState(366);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
@@ -430,14 +434,14 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(357);
+			setState(367);
 			match(IDENTIFIER);
-			setState(359);
+			setState(369);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==ADDR_MOD) {
 				{
-				setState(358);
+				setState(368);
 				match(ADDR_MOD);
 				}
 			}
@@ -514,34 +518,14 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(366);
+			setState(376);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==INIT_POST) {
 				{
 				{
-				setState(361);
-				initPost();
-				setState(362);
-				eos();
-				}
-				}
-				setState(368);
-				_errHandler.sync(this);
-				_la = _input.LA(1);
-			}
-			setState(369);
-			packageClause();
-			setState(370);
-			eos();
-			setState(376);
-			_errHandler.sync(this);
-			_la = _input.LA(1);
-			while (_la==IMPORT_PRE || _la==IMPORT) {
-				{
-				{
 				setState(371);
-				importDecl();
+				initPost();
 				setState(372);
 				eos();
 				}
@@ -550,43 +534,63 @@ public class GobraParser extends GobraParserBase {
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
-			setState(388);
+			setState(379);
+			packageClause();
+			setState(380);
+			eos();
+			setState(386);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
-			while ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << PRE) | (1L << PRESERVES) | (1L << POST) | (1L << DEC) | (1L << PURE) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << DOM) | (1L << PRED) | (1L << TRUSTED))) != 0) || ((((_la - 69)) & ~0x3f) == 0 && ((1L << (_la - 69)) & ((1L << (FUNC - 69)) | (1L << (INTERFACE - 69)) | (1L << (MAP - 69)) | (1L << (STRUCT - 69)) | (1L << (CHAN - 69)) | (1L << (CONST - 69)) | (1L << (TYPE - 69)) | (1L << (VAR - 69)) | (1L << (IDENTIFIER - 69)) | (1L << (L_PAREN - 69)) | (1L << (L_BRACKET - 69)) | (1L << (STAR - 69)) | (1L << (RECEIVE - 69)))) != 0)) {
+			while (_la==IMPORT_PRE || _la==IMPORT) {
 				{
 				{
+				setState(381);
+				importDecl();
 				setState(382);
+				eos();
+				}
+				}
+				setState(388);
+				_errHandler.sync(this);
+				_la = _input.LA(1);
+			}
+			setState(398);
+			_errHandler.sync(this);
+			_la = _input.LA(1);
+			while (((((_la - 9)) & ~0x3f) == 0 && ((1L << (_la - 9)) & ((1L << (PRE - 9)) | (1L << (PRESERVES - 9)) | (1L << (POST - 9)) | (1L << (DEC - 9)) | (1L << (PURE - 9)) | (1L << (GHOST - 9)) | (1L << (SEQ - 9)) | (1L << (SET - 9)) | (1L << (MSET - 9)) | (1L << (DICT - 9)) | (1L << (OPT - 9)) | (1L << (DOM - 9)) | (1L << (PRED - 9)) | (1L << (TRUSTED - 9)) | (1L << (FUNC - 9)) | (1L << (INTERFACE - 9)))) != 0) || ((((_la - 77)) & ~0x3f) == 0 && ((1L << (_la - 77)) & ((1L << (MAP - 77)) | (1L << (STRUCT - 77)) | (1L << (CHAN - 77)) | (1L << (CONST - 77)) | (1L << (TYPE - 77)) | (1L << (VAR - 77)) | (1L << (IDENTIFIER - 77)) | (1L << (L_PAREN - 77)) | (1L << (L_BRACKET - 77)) | (1L << (STAR - 77)) | (1L << (RECEIVE - 77)))) != 0)) {
+				{
+				{
+				setState(392);
 				_errHandler.sync(this);
 				switch ( getInterpreter().adaptivePredict(_input,4,_ctx) ) {
 				case 1:
 					{
-					setState(379);
+					setState(389);
 					specMember();
 					}
 					break;
 				case 2:
 					{
-					setState(380);
+					setState(390);
 					declaration();
 					}
 					break;
 				case 3:
 					{
-					setState(381);
+					setState(391);
 					ghostMember();
 					}
 					break;
 				}
-				setState(384);
+				setState(394);
 				eos();
 				}
 				}
-				setState(390);
+				setState(400);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
-			setState(391);
+			setState(401);
 			match(EOF);
 			}
 		}
@@ -623,9 +627,9 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(393);
+			setState(403);
 			match(INIT_POST);
-			setState(394);
+			setState(404);
 			expression(0);
 			}
 		}
@@ -662,9 +666,9 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(396);
+			setState(406);
 			match(IMPORT_PRE);
-			setState(397);
+			setState(407);
 			expression(0);
 			}
 		}
@@ -716,28 +720,28 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(404);
+			setState(414);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==IMPORT_PRE) {
 				{
 				{
-				setState(399);
+				setState(409);
 				importPre();
-				setState(400);
+				setState(410);
 				eos();
 				}
 				}
-				setState(406);
+				setState(416);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
-			setState(408);
+			setState(418);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==IDENTIFIER || _la==DOT) {
 				{
-				setState(407);
+				setState(417);
 				((ImportSpecContext)_localctx).alias = _input.LT(1);
 				_la = _input.LA(1);
 				if ( !(_la==IDENTIFIER || _la==DOT) ) {
@@ -751,7 +755,7 @@ public class GobraParser extends GobraParserBase {
 				}
 			}
 
-			setState(410);
+			setState(420);
 			importPath();
 			}
 		}
@@ -806,56 +810,56 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(417);
+			setState(427);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==IMPORT_PRE) {
 				{
 				{
-				setState(412);
+				setState(422);
 				importPre();
-				setState(413);
+				setState(423);
 				eos();
 				}
 				}
-				setState(419);
+				setState(429);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
-			setState(433);
+			setState(443);
 			_errHandler.sync(this);
 			switch ( getInterpreter().adaptivePredict(_input,10,_ctx) ) {
 			case 1:
 				{
-				setState(420);
+				setState(430);
 				match(IMPORT);
-				setState(421);
+				setState(431);
 				importSpec();
 				}
 				break;
 			case 2:
 				{
-				setState(422);
+				setState(432);
 				match(IMPORT);
-				setState(423);
+				setState(433);
 				match(L_PAREN);
-				setState(429);
+				setState(439);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
-				while (((((_la - 66)) & ~0x3f) == 0 && ((1L << (_la - 66)) & ((1L << (IMPORT_PRE - 66)) | (1L << (IDENTIFIER - 66)) | (1L << (DOT - 66)))) != 0) || _la==RAW_STRING_LIT || _la==INTERPRETED_STRING_LIT) {
+				while (((((_la - 67)) & ~0x3f) == 0 && ((1L << (_la - 67)) & ((1L << (IMPORT_PRE - 67)) | (1L << (IDENTIFIER - 67)) | (1L << (DOT - 67)))) != 0) || _la==RAW_STRING_LIT || _la==INTERPRETED_STRING_LIT) {
 					{
 					{
-					setState(424);
+					setState(434);
 					importSpec();
-					setState(425);
+					setState(435);
 					eos();
 					}
 					}
-					setState(431);
+					setState(441);
 					_errHandler.sync(this);
 					_la = _input.LA(1);
 				}
-				setState(432);
+				setState(442);
 				match(R_PAREN);
 				}
 				break;
@@ -901,34 +905,34 @@ public class GobraParser extends GobraParserBase {
 		GhostMemberContext _localctx = new GhostMemberContext(_ctx, getState());
 		enterRule(_localctx, 20, RULE_ghostMember);
 		try {
-			setState(439);
+			setState(449);
 			_errHandler.sync(this);
 			switch ( getInterpreter().adaptivePredict(_input,11,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(435);
+				setState(445);
 				implementationProof();
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(436);
+				setState(446);
 				fpredicateDecl();
 				}
 				break;
 			case 3:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(437);
+				setState(447);
 				mpredicateDecl();
 				}
 				break;
 			case 4:
 				enterOuterAlt(_localctx, 4);
 				{
-				setState(438);
+				setState(448);
 				explicitGhostMember();
 				}
 				break;
@@ -1004,16 +1008,16 @@ public class GobraParser extends GobraParserBase {
 		enterRule(_localctx, 22, RULE_ghostStatement);
 		int _la;
 		try {
-			setState(447);
+			setState(457);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case GHOST:
 				_localctx = new ExplicitGhostStatementContext(_localctx);
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(441);
+				setState(451);
 				match(GHOST);
-				setState(442);
+				setState(452);
 				statement();
 				}
 				break;
@@ -1022,7 +1026,7 @@ public class GobraParser extends GobraParserBase {
 				_localctx = new FoldStatementContext(_localctx);
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(443);
+				setState(453);
 				((FoldStatementContext)_localctx).fold_stmt = _input.LT(1);
 				_la = _input.LA(1);
 				if ( !(_la==FOLD || _la==UNFOLD) ) {
@@ -1033,7 +1037,7 @@ public class GobraParser extends GobraParserBase {
 					_errHandler.reportMatch(this);
 					consume();
 				}
-				setState(444);
+				setState(454);
 				predicateAccess();
 				}
 				break;
@@ -1044,7 +1048,7 @@ public class GobraParser extends GobraParserBase {
 				_localctx = new ProofStatementContext(_localctx);
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(445);
+				setState(455);
 				((ProofStatementContext)_localctx).kind = _input.LT(1);
 				_la = _input.LA(1);
 				if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << ASSERT) | (1L << ASSUME) | (1L << INHALE) | (1L << EXHALE))) != 0)) ) {
@@ -1055,7 +1059,7 @@ public class GobraParser extends GobraParserBase {
 					_errHandler.reportMatch(this);
 					consume();
 				}
-				setState(446);
+				setState(456);
 				expression(0);
 				}
 				break;
@@ -1095,7 +1099,7 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(449);
+			setState(459);
 			statementWithSpec();
 			}
 		}
@@ -1135,10 +1139,10 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(451);
+			setState(461);
 			((StatementWithSpecContext)_localctx).specification = specification();
 			{
-			setState(452);
+			setState(462);
 			outlineStatement(((StatementWithSpecContext)_localctx).specification.trusted, ((StatementWithSpecContext)_localctx).specification.pure);
 			}
 			}
@@ -1183,21 +1187,21 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(454);
+			setState(464);
 			match(OUTLINE);
-			setState(455);
+			setState(465);
 			match(L_PAREN);
-			setState(457);
+			setState(467);
 			_errHandler.sync(this);
 			switch ( getInterpreter().adaptivePredict(_input,13,_ctx) ) {
 			case 1:
 				{
-				setState(456);
+				setState(466);
 				statementList();
 				}
 				break;
 			}
-			setState(459);
+			setState(469);
 			match(R_PAREN);
 			}
 		}
@@ -1264,90 +1268,90 @@ public class GobraParser extends GobraParserBase {
 		GhostPrimaryExprContext _localctx = new GhostPrimaryExprContext(_ctx, getState());
 		enterRule(_localctx, 30, RULE_ghostPrimaryExpr);
 		try {
-			setState(473);
+			setState(483);
 			_errHandler.sync(this);
 			switch ( getInterpreter().adaptivePredict(_input,14,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(461);
+				setState(471);
 				range();
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(462);
+				setState(472);
 				access();
 				}
 				break;
 			case 3:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(463);
+				setState(473);
 				typeOf();
 				}
 				break;
 			case 4:
 				enterOuterAlt(_localctx, 4);
 				{
-				setState(464);
+				setState(474);
 				typeExpr();
 				}
 				break;
 			case 5:
 				enterOuterAlt(_localctx, 5);
 				{
-				setState(465);
+				setState(475);
 				isComparable();
 				}
 				break;
 			case 6:
 				enterOuterAlt(_localctx, 6);
 				{
-				setState(466);
+				setState(476);
 				old();
 				}
 				break;
 			case 7:
 				enterOuterAlt(_localctx, 7);
 				{
-				setState(467);
+				setState(477);
 				before();
 				}
 				break;
 			case 8:
 				enterOuterAlt(_localctx, 8);
 				{
-				setState(468);
+				setState(478);
 				sConversion();
 				}
 				break;
 			case 9:
 				enterOuterAlt(_localctx, 9);
 				{
-				setState(469);
+				setState(479);
 				optionNone();
 				}
 				break;
 			case 10:
 				enterOuterAlt(_localctx, 10);
 				{
-				setState(470);
+				setState(480);
 				optionSome();
 				}
 				break;
 			case 11:
 				enterOuterAlt(_localctx, 11);
 				{
-				setState(471);
+				setState(481);
 				optionGet();
 				}
 				break;
 			case 12:
 				enterOuterAlt(_localctx, 12);
 				{
-				setState(472);
+				setState(482);
 				permission();
 				}
 				break;
@@ -1385,7 +1389,7 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(475);
+			setState(485);
 			_la = _input.LA(1);
 			if ( !(_la==WRITEPERM || _la==NOPERM) ) {
 			_errHandler.recoverInline(this);
@@ -1432,13 +1436,13 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(477);
+			setState(487);
 			match(TYPE);
-			setState(478);
+			setState(488);
 			match(L_BRACKET);
-			setState(479);
+			setState(489);
 			type_();
-			setState(480);
+			setState(490);
 			match(R_BRACKET);
 			}
 		}
@@ -1483,32 +1487,32 @@ public class GobraParser extends GobraParserBase {
 			int _alt;
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(482);
+			setState(492);
 			boundVariableDecl();
-			setState(487);
+			setState(497);
 			_errHandler.sync(this);
 			_alt = getInterpreter().adaptivePredict(_input,15,_ctx);
 			while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
 				if ( _alt==1 ) {
 					{
 					{
-					setState(483);
+					setState(493);
 					match(COMMA);
-					setState(484);
+					setState(494);
 					boundVariableDecl();
 					}
 					} 
 				}
-				setState(489);
+				setState(499);
 				_errHandler.sync(this);
 				_alt = getInterpreter().adaptivePredict(_input,15,_ctx);
 			}
-			setState(491);
+			setState(501);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==COMMA) {
 				{
-				setState(490);
+				setState(500);
 				match(COMMA);
 				}
 			}
@@ -1556,25 +1560,25 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(493);
+			setState(503);
 			match(IDENTIFIER);
-			setState(498);
+			setState(508);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==COMMA) {
 				{
 				{
-				setState(494);
+				setState(504);
 				match(COMMA);
-				setState(495);
+				setState(505);
 				match(IDENTIFIER);
 				}
 				}
-				setState(500);
+				setState(510);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
-			setState(501);
+			setState(511);
 			elementType();
 			}
 		}
@@ -1614,17 +1618,17 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(506);
+			setState(516);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==L_CURLY) {
 				{
 				{
-				setState(503);
+				setState(513);
 				trigger();
 				}
 				}
-				setState(508);
+				setState(518);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
@@ -1672,27 +1676,27 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(509);
+			setState(519);
 			match(L_CURLY);
-			setState(510);
+			setState(520);
 			expression(0);
-			setState(515);
+			setState(525);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==COMMA) {
 				{
 				{
-				setState(511);
+				setState(521);
 				match(COMMA);
-				setState(512);
+				setState(522);
 				expression(0);
 				}
 				}
-				setState(517);
+				setState(527);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
-			setState(518);
+			setState(528);
 			match(R_CURLY);
 			}
 		}
@@ -1728,7 +1732,7 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(520);
+			setState(530);
 			primaryExpr(0);
 			}
 		}
@@ -1767,13 +1771,13 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(522);
+			setState(532);
 			match(SOME);
-			setState(523);
+			setState(533);
 			match(L_PAREN);
-			setState(524);
+			setState(534);
 			expression(0);
-			setState(525);
+			setState(535);
 			match(R_PAREN);
 			}
 		}
@@ -1812,13 +1816,13 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(527);
+			setState(537);
 			match(NONE);
-			setState(528);
+			setState(538);
 			match(L_BRACKET);
-			setState(529);
+			setState(539);
 			type_();
-			setState(530);
+			setState(540);
 			match(R_BRACKET);
 			}
 		}
@@ -1857,13 +1861,13 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(532);
+			setState(542);
 			match(GET);
-			setState(533);
+			setState(543);
 			match(L_PAREN);
-			setState(534);
+			setState(544);
 			expression(0);
-			setState(535);
+			setState(545);
 			match(R_PAREN);
 			}
 		}
@@ -1906,7 +1910,7 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(537);
+			setState(547);
 			((SConversionContext)_localctx).kind = _input.LT(1);
 			_la = _input.LA(1);
 			if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << SEQ) | (1L << SET) | (1L << MSET))) != 0)) ) {
@@ -1917,11 +1921,11 @@ public class GobraParser extends GobraParserBase {
 				_errHandler.reportMatch(this);
 				consume();
 			}
-			setState(538);
+			setState(548);
 			match(L_PAREN);
-			setState(539);
+			setState(549);
 			expression(0);
-			setState(540);
+			setState(550);
 			match(R_PAREN);
 			}
 		}
@@ -1966,27 +1970,27 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(542);
+			setState(552);
 			match(OLD);
-			setState(547);
+			setState(557);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==L_BRACKET) {
 				{
-				setState(543);
+				setState(553);
 				match(L_BRACKET);
-				setState(544);
+				setState(554);
 				oldLabelUse();
-				setState(545);
+				setState(555);
 				match(R_BRACKET);
 				}
 			}
 
-			setState(549);
+			setState(559);
 			match(L_PAREN);
-			setState(550);
+			setState(560);
 			expression(0);
-			setState(551);
+			setState(561);
 			match(R_PAREN);
 			}
 		}
@@ -2021,20 +2025,20 @@ public class GobraParser extends GobraParserBase {
 		OldLabelUseContext _localctx = new OldLabelUseContext(_ctx, getState());
 		enterRule(_localctx, 56, RULE_oldLabelUse);
 		try {
-			setState(555);
+			setState(565);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case IDENTIFIER:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(553);
+				setState(563);
 				labelUse();
 				}
 				break;
 			case LHS:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(554);
+				setState(564);
 				match(LHS);
 				}
 				break;
@@ -2072,7 +2076,7 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(557);
+			setState(567);
 			match(IDENTIFIER);
 			}
 		}
@@ -2111,13 +2115,13 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(559);
+			setState(569);
 			match(BEFORE);
-			setState(560);
+			setState(570);
 			match(L_PAREN);
-			setState(561);
+			setState(571);
 			expression(0);
-			setState(562);
+			setState(572);
 			match(R_PAREN);
 			}
 		}
@@ -2156,13 +2160,13 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(564);
+			setState(574);
 			match(IS_COMPARABLE);
-			setState(565);
+			setState(575);
 			match(L_PAREN);
-			setState(566);
+			setState(576);
 			expression(0);
-			setState(567);
+			setState(577);
 			match(R_PAREN);
 			}
 		}
@@ -2201,13 +2205,13 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(569);
+			setState(579);
 			match(TYPE_OF);
-			setState(570);
+			setState(580);
 			match(L_PAREN);
-			setState(571);
+			setState(581);
 			expression(0);
-			setState(572);
+			setState(582);
 			match(R_PAREN);
 			}
 		}
@@ -2251,25 +2255,25 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(574);
+			setState(584);
 			match(ACCESS);
-			setState(575);
+			setState(585);
 			match(L_PAREN);
-			setState(576);
+			setState(586);
 			expression(0);
-			setState(579);
+			setState(589);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==COMMA) {
 				{
-				setState(577);
+				setState(587);
 				match(COMMA);
-				setState(578);
+				setState(588);
 				expression(0);
 				}
 			}
 
-			setState(581);
+			setState(591);
 			match(R_PAREN);
 			}
 		}
@@ -2316,7 +2320,7 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(583);
+			setState(593);
 			((RangeContext)_localctx).kind = _input.LT(1);
 			_la = _input.LA(1);
 			if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << SEQ) | (1L << SET) | (1L << MSET))) != 0)) ) {
@@ -2327,15 +2331,15 @@ public class GobraParser extends GobraParserBase {
 				_errHandler.reportMatch(this);
 				consume();
 			}
-			setState(584);
+			setState(594);
 			match(L_BRACKET);
-			setState(585);
+			setState(595);
 			expression(0);
-			setState(586);
+			setState(596);
 			match(DOT_DOT);
-			setState(587);
+			setState(597);
 			expression(0);
-			setState(588);
+			setState(598);
 			match(R_BRACKET);
 			}
 		}
@@ -2381,29 +2385,29 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(590);
+			setState(600);
 			match(L_BRACKET);
 			{
-			setState(591);
+			setState(601);
 			seqUpdClause();
-			setState(596);
+			setState(606);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==COMMA) {
 				{
 				{
-				setState(592);
+				setState(602);
 				match(COMMA);
-				setState(593);
+				setState(603);
 				seqUpdClause();
 				}
 				}
-				setState(598);
+				setState(608);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
 			}
-			setState(599);
+			setState(609);
 			match(R_BRACKET);
 			}
 		}
@@ -2443,11 +2447,11 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(601);
+			setState(611);
 			expression(0);
-			setState(602);
+			setState(612);
 			match(ASSIGN);
-			setState(603);
+			setState(613);
 			expression(0);
 			}
 		}
@@ -2487,7 +2491,7 @@ public class GobraParser extends GobraParserBase {
 		GhostTypeLitContext _localctx = new GhostTypeLitContext(_ctx, getState());
 		enterRule(_localctx, 74, RULE_ghostTypeLit);
 		try {
-			setState(608);
+			setState(618);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case SEQ:
@@ -2497,21 +2501,21 @@ public class GobraParser extends GobraParserBase {
 			case OPT:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(605);
+				setState(615);
 				sqType();
 				}
 				break;
 			case GHOST:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(606);
+				setState(616);
 				ghostSliceType();
 				}
 				break;
 			case DOM:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(607);
+				setState(617);
 				domainType();
 				}
 				break;
@@ -2564,27 +2568,27 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(610);
+			setState(620);
 			match(DOM);
-			setState(611);
+			setState(621);
 			match(L_CURLY);
-			setState(617);
+			setState(627);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==AXIOM || _la==FUNC) {
 				{
 				{
-				setState(612);
+				setState(622);
 				domainClause();
-				setState(613);
+				setState(623);
 				eos();
 				}
 				}
-				setState(619);
+				setState(629);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
-			setState(620);
+			setState(630);
 			match(R_CURLY);
 			}
 		}
@@ -2629,32 +2633,32 @@ public class GobraParser extends GobraParserBase {
 		DomainClauseContext _localctx = new DomainClauseContext(_ctx, getState());
 		enterRule(_localctx, 78, RULE_domainClause);
 		try {
-			setState(631);
+			setState(641);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case FUNC:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(622);
+				setState(632);
 				match(FUNC);
-				setState(623);
+				setState(633);
 				match(IDENTIFIER);
-				setState(624);
+				setState(634);
 				signature();
 				}
 				break;
 			case AXIOM:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(625);
+				setState(635);
 				match(AXIOM);
-				setState(626);
+				setState(636);
 				match(L_CURLY);
-				setState(627);
+				setState(637);
 				expression(0);
-				setState(628);
+				setState(638);
 				eos();
-				setState(629);
+				setState(639);
 				match(R_CURLY);
 				}
 				break;
@@ -2697,13 +2701,13 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(633);
+			setState(643);
 			match(GHOST);
-			setState(634);
+			setState(644);
 			match(L_BRACKET);
-			setState(635);
+			setState(645);
 			match(R_BRACKET);
-			setState(636);
+			setState(646);
 			elementType();
 			}
 		}
@@ -2749,7 +2753,7 @@ public class GobraParser extends GobraParserBase {
 		enterRule(_localctx, 82, RULE_sqType);
 		int _la;
 		try {
-			setState(649);
+			setState(659);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case SEQ:
@@ -2759,7 +2763,7 @@ public class GobraParser extends GobraParserBase {
 				enterOuterAlt(_localctx, 1);
 				{
 				{
-				setState(638);
+				setState(648);
 				((SqTypeContext)_localctx).kind = _input.LT(1);
 				_la = _input.LA(1);
 				if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << OPT))) != 0)) ) {
@@ -2770,11 +2774,11 @@ public class GobraParser extends GobraParserBase {
 					_errHandler.reportMatch(this);
 					consume();
 				}
-				setState(639);
+				setState(649);
 				match(L_BRACKET);
-				setState(640);
+				setState(650);
 				type_();
-				setState(641);
+				setState(651);
 				match(R_BRACKET);
 				}
 				}
@@ -2782,15 +2786,15 @@ public class GobraParser extends GobraParserBase {
 			case DICT:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(643);
+				setState(653);
 				((SqTypeContext)_localctx).kind = match(DICT);
-				setState(644);
+				setState(654);
 				match(L_BRACKET);
-				setState(645);
+				setState(655);
 				type_();
-				setState(646);
+				setState(656);
 				match(R_BRACKET);
-				setState(647);
+				setState(657);
 				type_();
 				}
 				break;
@@ -2851,14 +2855,14 @@ public class GobraParser extends GobraParserBase {
 			int _alt;
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(661);
+			setState(671);
 			_errHandler.sync(this);
 			_alt = getInterpreter().adaptivePredict(_input,29,_ctx);
 			while ( _alt!=1 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
 				if ( _alt==1+1 ) {
 					{
 					{
-					setState(656);
+					setState(666);
 					_errHandler.sync(this);
 					switch (_input.LA(1)) {
 					case PRE:
@@ -2866,20 +2870,20 @@ public class GobraParser extends GobraParserBase {
 					case POST:
 					case DEC:
 						{
-						setState(651);
+						setState(661);
 						specStatement();
 						}
 						break;
 					case PURE:
 						{
-						setState(652);
+						setState(662);
 						match(PURE);
 						((SpecificationContext)_localctx).pure =  true;
 						}
 						break;
 					case TRUSTED:
 						{
-						setState(654);
+						setState(664);
 						match(TRUSTED);
 						((SpecificationContext)_localctx).trusted =  true;
 						}
@@ -2887,21 +2891,21 @@ public class GobraParser extends GobraParserBase {
 					default:
 						throw new NoViableAltException(this);
 					}
-					setState(658);
+					setState(668);
 					eos();
 					}
 					} 
 				}
-				setState(663);
+				setState(673);
 				_errHandler.sync(this);
 				_alt = getInterpreter().adaptivePredict(_input,29,_ctx);
 			}
-			setState(666);
+			setState(676);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==PURE) {
 				{
-				setState(664);
+				setState(674);
 				match(PURE);
 				((SpecificationContext)_localctx).pure =  true;
 				}
@@ -2947,42 +2951,42 @@ public class GobraParser extends GobraParserBase {
 		SpecStatementContext _localctx = new SpecStatementContext(_ctx, getState());
 		enterRule(_localctx, 86, RULE_specStatement);
 		try {
-			setState(676);
+			setState(686);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case PRE:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(668);
+				setState(678);
 				((SpecStatementContext)_localctx).kind = match(PRE);
-				setState(669);
+				setState(679);
 				assertion();
 				}
 				break;
 			case PRESERVES:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(670);
+				setState(680);
 				((SpecStatementContext)_localctx).kind = match(PRESERVES);
-				setState(671);
+				setState(681);
 				assertion();
 				}
 				break;
 			case POST:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(672);
+				setState(682);
 				((SpecStatementContext)_localctx).kind = match(POST);
-				setState(673);
+				setState(683);
 				assertion();
 				}
 				break;
 			case DEC:
 				enterOuterAlt(_localctx, 4);
 				{
-				setState(674);
+				setState(684);
 				((SpecStatementContext)_localctx).kind = match(DEC);
-				setState(675);
+				setState(685);
 				terminationMeasure();
 				}
 				break;
@@ -3026,24 +3030,24 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(679);
+			setState(689);
 			_errHandler.sync(this);
 			switch ( getInterpreter().adaptivePredict(_input,32,_ctx) ) {
 			case 1:
 				{
-				setState(678);
+				setState(688);
 				expressionList();
 				}
 				break;
 			}
-			setState(683);
+			setState(693);
 			_errHandler.sync(this);
 			switch ( getInterpreter().adaptivePredict(_input,33,_ctx) ) {
 			case 1:
 				{
-				setState(681);
+				setState(691);
 				match(IF);
-				setState(682);
+				setState(692);
 				expression(0);
 				}
 				break;
@@ -3080,7 +3084,7 @@ public class GobraParser extends GobraParserBase {
 		AssertionContext _localctx = new AssertionContext(_ctx, getState());
 		enterRule(_localctx, 90, RULE_assertion);
 		try {
-			setState(687);
+			setState(697);
 			_errHandler.sync(this);
 			switch ( getInterpreter().adaptivePredict(_input,34,_ctx) ) {
 			case 1:
@@ -3091,7 +3095,7 @@ public class GobraParser extends GobraParserBase {
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(686);
+				setState(696);
 				expression(0);
 				}
 				break;
@@ -3138,34 +3142,288 @@ public class GobraParser extends GobraParserBase {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(689);
+			setState(699);
 			match(L_CURLY);
-			setState(694);
+			setState(704);
 			_errHandler.sync(this);
 			switch ( getInterpreter().adaptivePredict(_input,35,_ctx) ) {
 			case 1:
 				{
-				setState(690);
+				setState(700);
 				match(SHARE);
-				setState(691);
+				setState(701);
 				identifierList();
-				setState(692);
+				setState(702);
 				eos();
 				}
 				break;
 			}
-			setState(697);
+			setState(707);
 			_errHandler.sync(this);
 			switch ( getInterpreter().adaptivePredict(_input,36,_ctx) ) {
 			case 1:
 				{
-				setState(696);
+				setState(706);
 				statementList();
 				}
 				break;
 			}
-			setState(699);
+			setState(709);
 			match(R_CURLY);
+			}
+		}
+		catch (RecognitionException re) {
+			_localctx.exception = re;
+			_errHandler.reportError(this, re);
+			_errHandler.recover(this, re);
+		}
+		finally {
+			exitRule();
+		}
+		return _localctx;
+	}
+
+	public static class ClosureSpecInstanceContext extends ParserRuleContext {
+		public QualifiedIdentContext qualifiedIdent() {
+			return getRuleContext(QualifiedIdentContext.class,0);
+		}
+		public TerminalNode IDENTIFIER() { return getToken(GobraParser.IDENTIFIER, 0); }
+		public TerminalNode L_CURLY() { return getToken(GobraParser.L_CURLY, 0); }
+		public TerminalNode R_CURLY() { return getToken(GobraParser.R_CURLY, 0); }
+		public ClosureSpecParamsContext closureSpecParams() {
+			return getRuleContext(ClosureSpecParamsContext.class,0);
+		}
+		public TerminalNode COMMA() { return getToken(GobraParser.COMMA, 0); }
+		public ClosureSpecInstanceContext(ParserRuleContext parent, int invokingState) {
+			super(parent, invokingState);
+		}
+		@Override public int getRuleIndex() { return RULE_closureSpecInstance; }
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof GobraParserVisitor ) return ((GobraParserVisitor<? extends T>)visitor).visitClosureSpecInstance(this);
+			else return visitor.visitChildren(this);
+		}
+	}
+
+	public final ClosureSpecInstanceContext closureSpecInstance() throws RecognitionException {
+		ClosureSpecInstanceContext _localctx = new ClosureSpecInstanceContext(_ctx, getState());
+		enterRule(_localctx, 94, RULE_closureSpecInstance);
+		int _la;
+		try {
+			enterOuterAlt(_localctx, 1);
+			{
+			setState(713);
+			_errHandler.sync(this);
+			switch ( getInterpreter().adaptivePredict(_input,37,_ctx) ) {
+			case 1:
+				{
+				setState(711);
+				qualifiedIdent();
+				}
+				break;
+			case 2:
+				{
+				setState(712);
+				match(IDENTIFIER);
+				}
+				break;
+			}
+			setState(723);
+			_errHandler.sync(this);
+			switch ( getInterpreter().adaptivePredict(_input,40,_ctx) ) {
+			case 1:
+				{
+				setState(715);
+				match(L_CURLY);
+				setState(720);
+				_errHandler.sync(this);
+				_la = _input.LA(1);
+				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << PRE) | (1L << PRESERVES) | (1L << POST) | (1L << DEC) | (1L << PURE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (TRUSTED - 64)) | (1L << (FUNC - 64)) | (1L << (INTERFACE - 64)) | (1L << (MAP - 64)) | (1L << (STRUCT - 64)) | (1L << (CHAN - 64)) | (1L << (RANGE - 64)) | (1L << (TYPE - 64)) | (1L << (NIL_LIT - 64)) | (1L << (IDENTIFIER - 64)) | (1L << (L_PAREN - 64)) | (1L << (L_BRACKET - 64)) | (1L << (EXCLAMATION - 64)) | (1L << (PLUS - 64)) | (1L << (MINUS - 64)))) != 0) || ((((_la - 128)) & ~0x3f) == 0 && ((1L << (_la - 128)) & ((1L << (CARET - 128)) | (1L << (STAR - 128)) | (1L << (AMPERSAND - 128)) | (1L << (RECEIVE - 128)) | (1L << (DECIMAL_LIT - 128)) | (1L << (BINARY_LIT - 128)) | (1L << (OCTAL_LIT - 128)) | (1L << (HEX_LIT - 128)) | (1L << (IMAGINARY_LIT - 128)) | (1L << (RUNE_LIT - 128)) | (1L << (RAW_STRING_LIT - 128)) | (1L << (INTERPRETED_STRING_LIT - 128)))) != 0)) {
+					{
+					setState(716);
+					closureSpecParams();
+					setState(718);
+					_errHandler.sync(this);
+					_la = _input.LA(1);
+					if (_la==COMMA) {
+						{
+						setState(717);
+						match(COMMA);
+						}
+					}
+
+					}
+				}
+
+				setState(722);
+				match(R_CURLY);
+				}
+				break;
+			}
+			}
+		}
+		catch (RecognitionException re) {
+			_localctx.exception = re;
+			_errHandler.reportError(this, re);
+			_errHandler.recover(this, re);
+		}
+		finally {
+			exitRule();
+		}
+		return _localctx;
+	}
+
+	public static class ClosureSpecParamsContext extends ParserRuleContext {
+		public List<ClosureSpecParamContext> closureSpecParam() {
+			return getRuleContexts(ClosureSpecParamContext.class);
+		}
+		public ClosureSpecParamContext closureSpecParam(int i) {
+			return getRuleContext(ClosureSpecParamContext.class,i);
+		}
+		public List<TerminalNode> COMMA() { return getTokens(GobraParser.COMMA); }
+		public TerminalNode COMMA(int i) {
+			return getToken(GobraParser.COMMA, i);
+		}
+		public ClosureSpecParamsContext(ParserRuleContext parent, int invokingState) {
+			super(parent, invokingState);
+		}
+		@Override public int getRuleIndex() { return RULE_closureSpecParams; }
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof GobraParserVisitor ) return ((GobraParserVisitor<? extends T>)visitor).visitClosureSpecParams(this);
+			else return visitor.visitChildren(this);
+		}
+	}
+
+	public final ClosureSpecParamsContext closureSpecParams() throws RecognitionException {
+		ClosureSpecParamsContext _localctx = new ClosureSpecParamsContext(_ctx, getState());
+		enterRule(_localctx, 96, RULE_closureSpecParams);
+		try {
+			int _alt;
+			enterOuterAlt(_localctx, 1);
+			{
+			setState(725);
+			closureSpecParam();
+			setState(730);
+			_errHandler.sync(this);
+			_alt = getInterpreter().adaptivePredict(_input,41,_ctx);
+			while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
+				if ( _alt==1 ) {
+					{
+					{
+					setState(726);
+					match(COMMA);
+					setState(727);
+					closureSpecParam();
+					}
+					} 
+				}
+				setState(732);
+				_errHandler.sync(this);
+				_alt = getInterpreter().adaptivePredict(_input,41,_ctx);
+			}
+			}
+		}
+		catch (RecognitionException re) {
+			_localctx.exception = re;
+			_errHandler.reportError(this, re);
+			_errHandler.recover(this, re);
+		}
+		finally {
+			exitRule();
+		}
+		return _localctx;
+	}
+
+	public static class ClosureSpecParamContext extends ParserRuleContext {
+		public ExpressionContext expression() {
+			return getRuleContext(ExpressionContext.class,0);
+		}
+		public TerminalNode IDENTIFIER() { return getToken(GobraParser.IDENTIFIER, 0); }
+		public TerminalNode COLON() { return getToken(GobraParser.COLON, 0); }
+		public ClosureSpecParamContext(ParserRuleContext parent, int invokingState) {
+			super(parent, invokingState);
+		}
+		@Override public int getRuleIndex() { return RULE_closureSpecParam; }
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof GobraParserVisitor ) return ((GobraParserVisitor<? extends T>)visitor).visitClosureSpecParam(this);
+			else return visitor.visitChildren(this);
+		}
+	}
+
+	public final ClosureSpecParamContext closureSpecParam() throws RecognitionException {
+		ClosureSpecParamContext _localctx = new ClosureSpecParamContext(_ctx, getState());
+		enterRule(_localctx, 98, RULE_closureSpecParam);
+		try {
+			enterOuterAlt(_localctx, 1);
+			{
+			setState(735);
+			_errHandler.sync(this);
+			switch ( getInterpreter().adaptivePredict(_input,42,_ctx) ) {
+			case 1:
+				{
+				setState(733);
+				match(IDENTIFIER);
+				setState(734);
+				match(COLON);
+				}
+				break;
+			}
+			setState(737);
+			expression(0);
+			}
+		}
+		catch (RecognitionException re) {
+			_localctx.exception = re;
+			_errHandler.reportError(this, re);
+			_errHandler.recover(this, re);
+		}
+		finally {
+			exitRule();
+		}
+		return _localctx;
+	}
+
+	public static class ClosureImplProofStmtContext extends ParserRuleContext {
+		public TerminalNode PROOF() { return getToken(GobraParser.PROOF, 0); }
+		public ExpressionContext expression() {
+			return getRuleContext(ExpressionContext.class,0);
+		}
+		public TerminalNode IMPL() { return getToken(GobraParser.IMPL, 0); }
+		public ClosureSpecInstanceContext closureSpecInstance() {
+			return getRuleContext(ClosureSpecInstanceContext.class,0);
+		}
+		public BlockContext block() {
+			return getRuleContext(BlockContext.class,0);
+		}
+		public ClosureImplProofStmtContext(ParserRuleContext parent, int invokingState) {
+			super(parent, invokingState);
+		}
+		@Override public int getRuleIndex() { return RULE_closureImplProofStmt; }
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof GobraParserVisitor ) return ((GobraParserVisitor<? extends T>)visitor).visitClosureImplProofStmt(this);
+			else return visitor.visitChildren(this);
+		}
+	}
+
+	public final ClosureImplProofStmtContext closureImplProofStmt() throws RecognitionException {
+		ClosureImplProofStmtContext _localctx = new ClosureImplProofStmtContext(_ctx, getState());
+		enterRule(_localctx, 100, RULE_closureImplProofStmt);
+		try {
+			enterOuterAlt(_localctx, 1);
+			{
+			setState(739);
+			match(PROOF);
+			setState(740);
+			expression(0);
+			setState(741);
+			match(IMPL);
+			setState(742);
+			closureSpecInstance();
+			setState(743);
+			block();
 			}
 		}
 		catch (RecognitionException re) {
@@ -3220,57 +3478,57 @@ public class GobraParser extends GobraParserBase {
 
 	public final ImplementationProofContext implementationProof() throws RecognitionException {
 		ImplementationProofContext _localctx = new ImplementationProofContext(_ctx, getState());
-		enterRule(_localctx, 94, RULE_implementationProof);
+		enterRule(_localctx, 102, RULE_implementationProof);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(701);
+			setState(745);
 			type_();
-			setState(702);
+			setState(746);
 			match(IMPL);
-			setState(703);
+			setState(747);
 			type_();
-			setState(722);
+			setState(766);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,39,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,45,_ctx) ) {
 			case 1:
 				{
-				setState(704);
+				setState(748);
 				match(L_CURLY);
-				setState(710);
+				setState(754);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				while (_la==PRED) {
 					{
 					{
-					setState(705);
+					setState(749);
 					implementationProofPredicateAlias();
-					setState(706);
+					setState(750);
 					eos();
 					}
 					}
-					setState(712);
+					setState(756);
 					_errHandler.sync(this);
 					_la = _input.LA(1);
 				}
-				setState(718);
+				setState(762);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				while (_la==PURE || _la==L_PAREN) {
 					{
 					{
-					setState(713);
+					setState(757);
 					methodImplementationProof();
-					setState(714);
+					setState(758);
 					eos();
 					}
 					}
-					setState(720);
+					setState(764);
 					_errHandler.sync(this);
 					_la = _input.LA(1);
 				}
-				setState(721);
+				setState(765);
 				match(R_CURLY);
 				}
 				break;
@@ -3313,33 +3571,33 @@ public class GobraParser extends GobraParserBase {
 
 	public final MethodImplementationProofContext methodImplementationProof() throws RecognitionException {
 		MethodImplementationProofContext _localctx = new MethodImplementationProofContext(_ctx, getState());
-		enterRule(_localctx, 96, RULE_methodImplementationProof);
+		enterRule(_localctx, 104, RULE_methodImplementationProof);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(725);
+			setState(769);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==PURE) {
 				{
-				setState(724);
+				setState(768);
 				match(PURE);
 				}
 			}
 
-			setState(727);
+			setState(771);
 			nonLocalReceiver();
-			setState(728);
+			setState(772);
 			match(IDENTIFIER);
-			setState(729);
+			setState(773);
 			signature();
-			setState(731);
+			setState(775);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,41,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,47,_ctx) ) {
 			case 1:
 				{
-				setState(730);
+				setState(774);
 				block();
 				}
 				break;
@@ -3378,36 +3636,36 @@ public class GobraParser extends GobraParserBase {
 
 	public final NonLocalReceiverContext nonLocalReceiver() throws RecognitionException {
 		NonLocalReceiverContext _localctx = new NonLocalReceiverContext(_ctx, getState());
-		enterRule(_localctx, 98, RULE_nonLocalReceiver);
+		enterRule(_localctx, 106, RULE_nonLocalReceiver);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(733);
+			setState(777);
 			match(L_PAREN);
-			setState(735);
+			setState(779);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,42,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,48,_ctx) ) {
 			case 1:
 				{
-				setState(734);
+				setState(778);
 				match(IDENTIFIER);
 				}
 				break;
 			}
-			setState(738);
+			setState(782);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==STAR) {
 				{
-				setState(737);
+				setState(781);
 				match(STAR);
 				}
 			}
 
-			setState(740);
+			setState(784);
 			typeName();
-			setState(741);
+			setState(785);
 			match(R_PAREN);
 			}
 		}
@@ -3444,26 +3702,26 @@ public class GobraParser extends GobraParserBase {
 
 	public final SelectionContext selection() throws RecognitionException {
 		SelectionContext _localctx = new SelectionContext(_ctx, getState());
-		enterRule(_localctx, 100, RULE_selection);
+		enterRule(_localctx, 108, RULE_selection);
 		try {
-			setState(748);
+			setState(792);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,44,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,50,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(743);
+				setState(787);
 				primaryExpr(0);
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(744);
+				setState(788);
 				type_();
-				setState(745);
+				setState(789);
 				match(DOT);
-				setState(746);
+				setState(790);
 				match(IDENTIFIER);
 				}
 				break;
@@ -3503,28 +3761,28 @@ public class GobraParser extends GobraParserBase {
 
 	public final ImplementationProofPredicateAliasContext implementationProofPredicateAlias() throws RecognitionException {
 		ImplementationProofPredicateAliasContext _localctx = new ImplementationProofPredicateAliasContext(_ctx, getState());
-		enterRule(_localctx, 102, RULE_implementationProofPredicateAlias);
+		enterRule(_localctx, 110, RULE_implementationProofPredicateAlias);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(750);
+			setState(794);
 			match(PRED);
-			setState(751);
+			setState(795);
 			match(IDENTIFIER);
-			setState(752);
+			setState(796);
 			match(DECLARE_ASSIGN);
-			setState(755);
+			setState(799);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,45,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,51,_ctx) ) {
 			case 1:
 				{
-				setState(753);
+				setState(797);
 				selection();
 				}
 				break;
 			case 2:
 				{
-				setState(754);
+				setState(798);
 				operandName();
 				}
 				break;
@@ -3566,30 +3824,30 @@ public class GobraParser extends GobraParserBase {
 
 	public final MakeContext make() throws RecognitionException {
 		MakeContext _localctx = new MakeContext(_ctx, getState());
-		enterRule(_localctx, 104, RULE_make);
+		enterRule(_localctx, 112, RULE_make);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(757);
+			setState(801);
 			match(MAKE);
-			setState(758);
+			setState(802);
 			match(L_PAREN);
-			setState(759);
+			setState(803);
 			type_();
-			setState(762);
+			setState(806);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==COMMA) {
 				{
-				setState(760);
+				setState(804);
 				match(COMMA);
-				setState(761);
+				setState(805);
 				expressionList();
 				}
 			}
 
-			setState(764);
+			setState(808);
 			match(R_PAREN);
 			}
 		}
@@ -3624,17 +3882,17 @@ public class GobraParser extends GobraParserBase {
 
 	public final New_Context new_() throws RecognitionException {
 		New_Context _localctx = new New_Context(_ctx, getState());
-		enterRule(_localctx, 106, RULE_new_);
+		enterRule(_localctx, 114, RULE_new_);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(766);
+			setState(810);
 			match(NEW);
-			setState(767);
+			setState(811);
 			match(L_PAREN);
-			setState(768);
+			setState(812);
 			type_();
-			setState(769);
+			setState(813);
 			match(R_PAREN);
 			}
 		}
@@ -3673,24 +3931,24 @@ public class GobraParser extends GobraParserBase {
 
 	public final SpecMemberContext specMember() throws RecognitionException {
 		SpecMemberContext _localctx = new SpecMemberContext(_ctx, getState());
-		enterRule(_localctx, 108, RULE_specMember);
+		enterRule(_localctx, 116, RULE_specMember);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(771);
+			setState(815);
 			((SpecMemberContext)_localctx).specification = specification();
-			setState(774);
+			setState(818);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,47,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,53,_ctx) ) {
 			case 1:
 				{
-				setState(772);
+				setState(816);
 				functionDecl(((SpecMemberContext)_localctx).specification.trusted, ((SpecMemberContext)_localctx).specification.pure);
 				}
 				break;
 			case 2:
 				{
-				setState(773);
+				setState(817);
 				methodDecl(((SpecMemberContext)_localctx).specification.trusted, ((SpecMemberContext)_localctx).specification.pure);
 				}
 				break;
@@ -3735,23 +3993,23 @@ public class GobraParser extends GobraParserBase {
 
 	public final FunctionDeclContext functionDecl(boolean trusted,boolean pure) throws RecognitionException {
 		FunctionDeclContext _localctx = new FunctionDeclContext(_ctx, getState(), trusted, pure);
-		enterRule(_localctx, 110, RULE_functionDecl);
+		enterRule(_localctx, 118, RULE_functionDecl);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(776);
+			setState(820);
 			match(FUNC);
-			setState(777);
+			setState(821);
 			match(IDENTIFIER);
 			{
-			setState(778);
+			setState(822);
 			signature();
-			setState(780);
+			setState(824);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,48,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,54,_ctx) ) {
 			case 1:
 				{
-				setState(779);
+				setState(823);
 				blockWithBodyParameterInfo();
 				}
 				break;
@@ -3800,25 +4058,25 @@ public class GobraParser extends GobraParserBase {
 
 	public final MethodDeclContext methodDecl(boolean trusted,boolean pure) throws RecognitionException {
 		MethodDeclContext _localctx = new MethodDeclContext(_ctx, getState(), trusted, pure);
-		enterRule(_localctx, 112, RULE_methodDecl);
+		enterRule(_localctx, 120, RULE_methodDecl);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(782);
+			setState(826);
 			match(FUNC);
-			setState(783);
+			setState(827);
 			receiver();
-			setState(784);
+			setState(828);
 			match(IDENTIFIER);
 			{
-			setState(785);
+			setState(829);
 			signature();
-			setState(787);
+			setState(831);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,49,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,55,_ctx) ) {
 			case 1:
 				{
-				setState(786);
+				setState(830);
 				blockWithBodyParameterInfo();
 				}
 				break;
@@ -3858,13 +4116,13 @@ public class GobraParser extends GobraParserBase {
 
 	public final ExplicitGhostMemberContext explicitGhostMember() throws RecognitionException {
 		ExplicitGhostMemberContext _localctx = new ExplicitGhostMemberContext(_ctx, getState());
-		enterRule(_localctx, 114, RULE_explicitGhostMember);
+		enterRule(_localctx, 122, RULE_explicitGhostMember);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(789);
+			setState(833);
 			match(GHOST);
-			setState(792);
+			setState(836);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case PRE:
@@ -3875,7 +4133,7 @@ public class GobraParser extends GobraParserBase {
 			case TRUSTED:
 			case FUNC:
 				{
-				setState(790);
+				setState(834);
 				specMember();
 				}
 				break;
@@ -3883,7 +4141,7 @@ public class GobraParser extends GobraParserBase {
 			case TYPE:
 			case VAR:
 				{
-				setState(791);
+				setState(835);
 				declaration();
 				}
 				break;
@@ -3925,22 +4183,22 @@ public class GobraParser extends GobraParserBase {
 
 	public final FpredicateDeclContext fpredicateDecl() throws RecognitionException {
 		FpredicateDeclContext _localctx = new FpredicateDeclContext(_ctx, getState());
-		enterRule(_localctx, 116, RULE_fpredicateDecl);
+		enterRule(_localctx, 124, RULE_fpredicateDecl);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(794);
+			setState(838);
 			match(PRED);
-			setState(795);
+			setState(839);
 			match(IDENTIFIER);
-			setState(796);
+			setState(840);
 			parameters();
-			setState(798);
+			setState(842);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,51,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,57,_ctx) ) {
 			case 1:
 				{
-				setState(797);
+				setState(841);
 				predicateBody();
 				}
 				break;
@@ -3980,17 +4238,17 @@ public class GobraParser extends GobraParserBase {
 
 	public final PredicateBodyContext predicateBody() throws RecognitionException {
 		PredicateBodyContext _localctx = new PredicateBodyContext(_ctx, getState());
-		enterRule(_localctx, 118, RULE_predicateBody);
+		enterRule(_localctx, 126, RULE_predicateBody);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(800);
+			setState(844);
 			match(L_CURLY);
-			setState(801);
+			setState(845);
 			expression(0);
-			setState(802);
+			setState(846);
 			eos();
-			setState(803);
+			setState(847);
 			match(R_CURLY);
 			}
 		}
@@ -4030,24 +4288,24 @@ public class GobraParser extends GobraParserBase {
 
 	public final MpredicateDeclContext mpredicateDecl() throws RecognitionException {
 		MpredicateDeclContext _localctx = new MpredicateDeclContext(_ctx, getState());
-		enterRule(_localctx, 120, RULE_mpredicateDecl);
+		enterRule(_localctx, 128, RULE_mpredicateDecl);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(805);
+			setState(849);
 			match(PRED);
-			setState(806);
+			setState(850);
 			receiver();
-			setState(807);
+			setState(851);
 			match(IDENTIFIER);
-			setState(808);
+			setState(852);
 			parameters();
-			setState(810);
+			setState(854);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,52,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,58,_ctx) ) {
 			case 1:
 				{
-				setState(809);
+				setState(853);
 				predicateBody();
 				}
 				break;
@@ -4089,13 +4347,13 @@ public class GobraParser extends GobraParserBase {
 
 	public final VarSpecContext varSpec() throws RecognitionException {
 		VarSpecContext _localctx = new VarSpecContext(_ctx, getState());
-		enterRule(_localctx, 122, RULE_varSpec);
+		enterRule(_localctx, 130, RULE_varSpec);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(812);
+			setState(856);
 			maybeAddressableIdentifierList();
-			setState(820);
+			setState(864);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case GHOST:
@@ -4117,16 +4375,16 @@ public class GobraParser extends GobraParserBase {
 			case STAR:
 			case RECEIVE:
 				{
-				setState(813);
+				setState(857);
 				type_();
-				setState(816);
+				setState(860);
 				_errHandler.sync(this);
-				switch ( getInterpreter().adaptivePredict(_input,53,_ctx) ) {
+				switch ( getInterpreter().adaptivePredict(_input,59,_ctx) ) {
 				case 1:
 					{
-					setState(814);
+					setState(858);
 					match(ASSIGN);
-					setState(815);
+					setState(859);
 					expressionList();
 					}
 					break;
@@ -4135,9 +4393,9 @@ public class GobraParser extends GobraParserBase {
 				break;
 			case ASSIGN:
 				{
-				setState(818);
+				setState(862);
 				match(ASSIGN);
-				setState(819);
+				setState(863);
 				expressionList();
 				}
 				break;
@@ -4178,15 +4436,15 @@ public class GobraParser extends GobraParserBase {
 
 	public final ShortVarDeclContext shortVarDecl() throws RecognitionException {
 		ShortVarDeclContext _localctx = new ShortVarDeclContext(_ctx, getState());
-		enterRule(_localctx, 124, RULE_shortVarDecl);
+		enterRule(_localctx, 132, RULE_shortVarDecl);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(822);
+			setState(866);
 			maybeAddressableIdentifierList();
-			setState(823);
+			setState(867);
 			match(DECLARE_ASSIGN);
-			setState(824);
+			setState(868);
 			expressionList();
 			}
 		}
@@ -4224,36 +4482,36 @@ public class GobraParser extends GobraParserBase {
 
 	public final ReceiverContext receiver() throws RecognitionException {
 		ReceiverContext _localctx = new ReceiverContext(_ctx, getState());
-		enterRule(_localctx, 126, RULE_receiver);
+		enterRule(_localctx, 134, RULE_receiver);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(826);
+			setState(870);
 			match(L_PAREN);
-			setState(828);
+			setState(872);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,55,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,61,_ctx) ) {
 			case 1:
 				{
-				setState(827);
+				setState(871);
 				maybeAddressableIdentifier();
 				}
 				break;
 			}
-			setState(830);
+			setState(874);
 			type_();
-			setState(832);
+			setState(876);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==COMMA) {
 				{
-				setState(831);
+				setState(875);
 				match(COMMA);
 				}
 			}
 
-			setState(834);
+			setState(878);
 			match(R_PAREN);
 			}
 		}
@@ -4288,22 +4546,22 @@ public class GobraParser extends GobraParserBase {
 
 	public final ParameterDeclContext parameterDecl() throws RecognitionException {
 		ParameterDeclContext _localctx = new ParameterDeclContext(_ctx, getState());
-		enterRule(_localctx, 128, RULE_parameterDecl);
+		enterRule(_localctx, 136, RULE_parameterDecl);
 		try {
-			setState(838);
+			setState(882);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,57,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,63,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(836);
+				setState(880);
 				actualParameterDecl();
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(837);
+				setState(881);
 				ghostParameterDecl();
 				}
 				break;
@@ -4340,21 +4598,21 @@ public class GobraParser extends GobraParserBase {
 
 	public final ActualParameterDeclContext actualParameterDecl() throws RecognitionException {
 		ActualParameterDeclContext _localctx = new ActualParameterDeclContext(_ctx, getState());
-		enterRule(_localctx, 130, RULE_actualParameterDecl);
+		enterRule(_localctx, 138, RULE_actualParameterDecl);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(841);
+			setState(885);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,58,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,64,_ctx) ) {
 			case 1:
 				{
-				setState(840);
+				setState(884);
 				identifierList();
 				}
 				break;
 			}
-			setState(843);
+			setState(887);
 			parameterType();
 			}
 		}
@@ -4390,23 +4648,23 @@ public class GobraParser extends GobraParserBase {
 
 	public final GhostParameterDeclContext ghostParameterDecl() throws RecognitionException {
 		GhostParameterDeclContext _localctx = new GhostParameterDeclContext(_ctx, getState());
-		enterRule(_localctx, 132, RULE_ghostParameterDecl);
+		enterRule(_localctx, 140, RULE_ghostParameterDecl);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(845);
+			setState(889);
 			match(GHOST);
-			setState(847);
+			setState(891);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,59,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,65,_ctx) ) {
 			case 1:
 				{
-				setState(846);
+				setState(890);
 				identifierList();
 				}
 				break;
 			}
-			setState(849);
+			setState(893);
 			parameterType();
 			}
 		}
@@ -4439,22 +4697,22 @@ public class GobraParser extends GobraParserBase {
 
 	public final ParameterTypeContext parameterType() throws RecognitionException {
 		ParameterTypeContext _localctx = new ParameterTypeContext(_ctx, getState());
-		enterRule(_localctx, 134, RULE_parameterType);
+		enterRule(_localctx, 142, RULE_parameterType);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(852);
+			setState(896);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==ELLIPSIS) {
 				{
-				setState(851);
+				setState(895);
 				match(ELLIPSIS);
 				}
 			}
 
-			setState(854);
+			setState(898);
 			type_();
 			}
 		}
@@ -4478,6 +4736,21 @@ public class GobraParser extends GobraParserBase {
 		public ExpressionContext() { }
 		public void copyFrom(ExpressionContext ctx) {
 			super.copyFrom(ctx);
+		}
+	}
+	public static class ClosureImplSpecExprContext extends ExpressionContext {
+		public ExpressionContext expression() {
+			return getRuleContext(ExpressionContext.class,0);
+		}
+		public TerminalNode IMPL() { return getToken(GobraParser.IMPL, 0); }
+		public ClosureSpecInstanceContext closureSpecInstance() {
+			return getRuleContext(ClosureSpecInstanceContext.class,0);
+		}
+		public ClosureImplSpecExprContext(ExpressionContext ctx) { copyFrom(ctx); }
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof GobraParserVisitor ) return ((GobraParserVisitor<? extends T>)visitor).visitClosureImplSpecExpr(this);
+			else return visitor.visitChildren(this);
 		}
 	}
 	public static class PrimaryExpr_Context extends ExpressionContext {
@@ -4720,26 +4993,26 @@ public class GobraParser extends GobraParserBase {
 		int _parentState = getState();
 		ExpressionContext _localctx = new ExpressionContext(_ctx, _parentState);
 		ExpressionContext _prevctx = _localctx;
-		int _startState = 136;
-		enterRecursionRule(_localctx, 136, RULE_expression, _p);
+		int _startState = 144;
+		enterRecursionRule(_localctx, 144, RULE_expression, _p);
 		int _la;
 		try {
 			int _alt;
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(872);
+			setState(916);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,61,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,67,_ctx) ) {
 			case 1:
 				{
 				_localctx = new UnaryExprContext(_localctx);
 				_ctx = _localctx;
 				_prevctx = _localctx;
 
-				setState(857);
+				setState(901);
 				((UnaryExprContext)_localctx).unary_op = _input.LT(1);
 				_la = _input.LA(1);
-				if ( !(((((_la - 123)) & ~0x3f) == 0 && ((1L << (_la - 123)) & ((1L << (EXCLAMATION - 123)) | (1L << (PLUS - 123)) | (1L << (MINUS - 123)) | (1L << (CARET - 123)) | (1L << (STAR - 123)) | (1L << (AMPERSAND - 123)) | (1L << (RECEIVE - 123)))) != 0)) ) {
+				if ( !(((((_la - 125)) & ~0x3f) == 0 && ((1L << (_la - 125)) & ((1L << (EXCLAMATION - 125)) | (1L << (PLUS - 125)) | (1L << (MINUS - 125)) | (1L << (CARET - 125)) | (1L << (STAR - 125)) | (1L << (AMPERSAND - 125)) | (1L << (RECEIVE - 125)))) != 0)) ) {
 					((UnaryExprContext)_localctx).unary_op = (Token)_errHandler.recoverInline(this);
 				}
 				else {
@@ -4747,8 +5020,8 @@ public class GobraParser extends GobraParserBase {
 					_errHandler.reportMatch(this);
 					consume();
 				}
-				setState(858);
-				expression(13);
+				setState(902);
+				expression(14);
 				}
 				break;
 			case 2:
@@ -4756,7 +5029,7 @@ public class GobraParser extends GobraParserBase {
 				_localctx = new PrimaryExpr_Context(_localctx);
 				_ctx = _localctx;
 				_prevctx = _localctx;
-				setState(859);
+				setState(903);
 				primaryExpr(0);
 				}
 				break;
@@ -4765,13 +5038,13 @@ public class GobraParser extends GobraParserBase {
 				_localctx = new UnfoldingContext(_localctx);
 				_ctx = _localctx;
 				_prevctx = _localctx;
-				setState(860);
+				setState(904);
 				match(UNFOLDING);
-				setState(861);
+				setState(905);
 				predicateAccess();
-				setState(862);
+				setState(906);
 				match(IN);
-				setState(863);
+				setState(907);
 				expression(2);
 				}
 				break;
@@ -4780,7 +5053,7 @@ public class GobraParser extends GobraParserBase {
 				_localctx = new QuantificationContext(_localctx);
 				_ctx = _localctx;
 				_prevctx = _localctx;
-				setState(865);
+				setState(909);
 				_la = _input.LA(1);
 				if ( !(_la==FORALL || _la==EXISTS) ) {
 				_errHandler.recoverInline(this);
@@ -4790,41 +5063,41 @@ public class GobraParser extends GobraParserBase {
 					_errHandler.reportMatch(this);
 					consume();
 				}
-				setState(866);
+				setState(910);
 				boundVariables();
-				setState(867);
+				setState(911);
 				match(COLON);
-				setState(868);
+				setState(912);
 				match(COLON);
-				setState(869);
+				setState(913);
 				triggers();
-				setState(870);
+				setState(914);
 				expression(1);
 				}
 				break;
 			}
 			_ctx.stop = _input.LT(-1);
-			setState(906);
+			setState(953);
 			_errHandler.sync(this);
-			_alt = getInterpreter().adaptivePredict(_input,63,_ctx);
+			_alt = getInterpreter().adaptivePredict(_input,69,_ctx);
 			while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
 				if ( _alt==1 ) {
 					if ( _parseListeners!=null ) triggerExitRuleEvent();
 					_prevctx = _localctx;
 					{
-					setState(904);
+					setState(951);
 					_errHandler.sync(this);
-					switch ( getInterpreter().adaptivePredict(_input,62,_ctx) ) {
+					switch ( getInterpreter().adaptivePredict(_input,68,_ctx) ) {
 					case 1:
 						{
 						_localctx = new MulExprContext(new ExpressionContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
-						setState(874);
-						if (!(precpred(_ctx, 11))) throw new FailedPredicateException(this, "precpred(_ctx, 11)");
-						setState(875);
+						setState(918);
+						if (!(precpred(_ctx, 12))) throw new FailedPredicateException(this, "precpred(_ctx, 12)");
+						setState(919);
 						((MulExprContext)_localctx).mul_op = _input.LT(1);
 						_la = _input.LA(1);
-						if ( !(((((_la - 118)) & ~0x3f) == 0 && ((1L << (_la - 118)) & ((1L << (DIV - 118)) | (1L << (MOD - 118)) | (1L << (LSHIFT - 118)) | (1L << (RSHIFT - 118)) | (1L << (BIT_CLEAR - 118)) | (1L << (STAR - 118)) | (1L << (AMPERSAND - 118)))) != 0)) ) {
+						if ( !(((((_la - 120)) & ~0x3f) == 0 && ((1L << (_la - 120)) & ((1L << (DIV - 120)) | (1L << (MOD - 120)) | (1L << (LSHIFT - 120)) | (1L << (RSHIFT - 120)) | (1L << (BIT_CLEAR - 120)) | (1L << (STAR - 120)) | (1L << (AMPERSAND - 120)))) != 0)) ) {
 							((MulExprContext)_localctx).mul_op = (Token)_errHandler.recoverInline(this);
 						}
 						else {
@@ -4832,20 +5105,20 @@ public class GobraParser extends GobraParserBase {
 							_errHandler.reportMatch(this);
 							consume();
 						}
-						setState(876);
-						expression(12);
+						setState(920);
+						expression(13);
 						}
 						break;
 					case 2:
 						{
 						_localctx = new AddExprContext(new ExpressionContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
-						setState(877);
-						if (!(precpred(_ctx, 10))) throw new FailedPredicateException(this, "precpred(_ctx, 10)");
-						setState(878);
+						setState(921);
+						if (!(precpred(_ctx, 11))) throw new FailedPredicateException(this, "precpred(_ctx, 11)");
+						setState(922);
 						((AddExprContext)_localctx).add_op = _input.LT(1);
 						_la = _input.LA(1);
-						if ( !(_la==WAND || ((((_la - 105)) & ~0x3f) == 0 && ((1L << (_la - 105)) & ((1L << (PLUS_PLUS - 105)) | (1L << (OR - 105)) | (1L << (PLUS - 105)) | (1L << (MINUS - 105)) | (1L << (CARET - 105)))) != 0)) ) {
+						if ( !(_la==WAND || ((((_la - 107)) & ~0x3f) == 0 && ((1L << (_la - 107)) & ((1L << (PLUS_PLUS - 107)) | (1L << (OR - 107)) | (1L << (PLUS - 107)) | (1L << (MINUS - 107)) | (1L << (CARET - 107)))) != 0)) ) {
 							((AddExprContext)_localctx).add_op = (Token)_errHandler.recoverInline(this);
 						}
 						else {
@@ -4853,17 +5126,17 @@ public class GobraParser extends GobraParserBase {
 							_errHandler.reportMatch(this);
 							consume();
 						}
-						setState(879);
-						expression(11);
+						setState(923);
+						expression(12);
 						}
 						break;
 					case 3:
 						{
 						_localctx = new P42ExprContext(new ExpressionContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
-						setState(880);
-						if (!(precpred(_ctx, 9))) throw new FailedPredicateException(this, "precpred(_ctx, 9)");
-						setState(881);
+						setState(924);
+						if (!(precpred(_ctx, 10))) throw new FailedPredicateException(this, "precpred(_ctx, 10)");
+						setState(925);
 						((P42ExprContext)_localctx).p42_op = _input.LT(1);
 						_la = _input.LA(1);
 						if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << UNION) | (1L << INTERSECTION) | (1L << SETMINUS))) != 0)) ) {
@@ -4874,17 +5147,17 @@ public class GobraParser extends GobraParserBase {
 							_errHandler.reportMatch(this);
 							consume();
 						}
-						setState(882);
-						expression(10);
+						setState(926);
+						expression(11);
 						}
 						break;
 					case 4:
 						{
 						_localctx = new P41ExprContext(new ExpressionContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
-						setState(883);
-						if (!(precpred(_ctx, 8))) throw new FailedPredicateException(this, "precpred(_ctx, 8)");
-						setState(884);
+						setState(927);
+						if (!(precpred(_ctx, 9))) throw new FailedPredicateException(this, "precpred(_ctx, 9)");
+						setState(928);
 						((P41ExprContext)_localctx).p41_op = _input.LT(1);
 						_la = _input.LA(1);
 						if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << IN) | (1L << MULTI) | (1L << SUBSET))) != 0)) ) {
@@ -4895,20 +5168,20 @@ public class GobraParser extends GobraParserBase {
 							_errHandler.reportMatch(this);
 							consume();
 						}
-						setState(885);
-						expression(9);
+						setState(929);
+						expression(10);
 						}
 						break;
 					case 5:
 						{
 						_localctx = new RelExprContext(new ExpressionContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
-						setState(886);
-						if (!(precpred(_ctx, 7))) throw new FailedPredicateException(this, "precpred(_ctx, 7)");
-						setState(887);
+						setState(930);
+						if (!(precpred(_ctx, 8))) throw new FailedPredicateException(this, "precpred(_ctx, 8)");
+						setState(931);
 						((RelExprContext)_localctx).rel_op = _input.LT(1);
 						_la = _input.LA(1);
-						if ( !(((((_la - 111)) & ~0x3f) == 0 && ((1L << (_la - 111)) & ((1L << (EQUALS - 111)) | (1L << (NOT_EQUALS - 111)) | (1L << (LESS - 111)) | (1L << (LESS_OR_EQUALS - 111)) | (1L << (GREATER - 111)) | (1L << (GREATER_OR_EQUALS - 111)))) != 0)) ) {
+						if ( !(((((_la - 113)) & ~0x3f) == 0 && ((1L << (_la - 113)) & ((1L << (EQUALS - 113)) | (1L << (NOT_EQUALS - 113)) | (1L << (LESS - 113)) | (1L << (LESS_OR_EQUALS - 113)) | (1L << (GREATER - 113)) | (1L << (GREATER_OR_EQUALS - 113)))) != 0)) ) {
 							((RelExprContext)_localctx).rel_op = (Token)_errHandler.recoverInline(this);
 						}
 						else {
@@ -4916,19 +5189,19 @@ public class GobraParser extends GobraParserBase {
 							_errHandler.reportMatch(this);
 							consume();
 						}
-						setState(888);
-						expression(8);
+						setState(932);
+						expression(9);
 						}
 						break;
 					case 6:
 						{
 						_localctx = new AndExprContext(new ExpressionContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
-						setState(889);
+						setState(933);
 						if (!(precpred(_ctx, 6))) throw new FailedPredicateException(this, "precpred(_ctx, 6)");
-						setState(890);
+						setState(934);
 						match(LOGICAL_AND);
-						setState(891);
+						setState(935);
 						expression(7);
 						}
 						break;
@@ -4936,11 +5209,11 @@ public class GobraParser extends GobraParserBase {
 						{
 						_localctx = new OrExprContext(new ExpressionContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
-						setState(892);
+						setState(936);
 						if (!(precpred(_ctx, 5))) throw new FailedPredicateException(this, "precpred(_ctx, 5)");
-						setState(893);
+						setState(937);
 						match(LOGICAL_OR);
-						setState(894);
+						setState(938);
 						expression(6);
 						}
 						break;
@@ -4948,11 +5221,11 @@ public class GobraParser extends GobraParserBase {
 						{
 						_localctx = new ImplicationContext(new ExpressionContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
-						setState(895);
+						setState(939);
 						if (!(precpred(_ctx, 4))) throw new FailedPredicateException(this, "precpred(_ctx, 4)");
-						setState(896);
+						setState(940);
 						match(IMPLIES);
-						setState(897);
+						setState(941);
 						expression(4);
 						}
 						break;
@@ -4960,24 +5233,36 @@ public class GobraParser extends GobraParserBase {
 						{
 						_localctx = new TernaryExprContext(new ExpressionContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
-						setState(898);
+						setState(942);
 						if (!(precpred(_ctx, 3))) throw new FailedPredicateException(this, "precpred(_ctx, 3)");
-						setState(899);
+						setState(943);
 						match(QMARK);
-						setState(900);
+						setState(944);
 						expression(0);
-						setState(901);
+						setState(945);
 						match(COLON);
-						setState(902);
+						setState(946);
 						expression(3);
+						}
+						break;
+					case 10:
+						{
+						_localctx = new ClosureImplSpecExprContext(new ExpressionContext(_parentctx, _parentState));
+						pushNewRecursionContext(_localctx, _startState, RULE_expression);
+						setState(948);
+						if (!(precpred(_ctx, 7))) throw new FailedPredicateException(this, "precpred(_ctx, 7)");
+						setState(949);
+						match(IMPL);
+						setState(950);
+						closureSpecInstance();
 						}
 						break;
 					}
 					} 
 				}
-				setState(908);
+				setState(955);
 				_errHandler.sync(this);
-				_alt = getInterpreter().adaptivePredict(_input,63,_ctx);
+				_alt = getInterpreter().adaptivePredict(_input,69,_ctx);
 			}
 			}
 		}
@@ -5050,6 +5335,9 @@ public class GobraParser extends GobraParserBase {
 		public DeferStmtContext deferStmt() {
 			return getRuleContext(DeferStmtContext.class,0);
 		}
+		public ClosureImplProofStmtContext closureImplProofStmt() {
+			return getRuleContext(ClosureImplProofStmtContext.class,0);
+		}
 		public StatementContext(ParserRuleContext parent, int invokingState) {
 			super(parent, invokingState);
 		}
@@ -5063,142 +5351,149 @@ public class GobraParser extends GobraParserBase {
 
 	public final StatementContext statement() throws RecognitionException {
 		StatementContext _localctx = new StatementContext(_ctx, getState());
-		enterRule(_localctx, 138, RULE_statement);
+		enterRule(_localctx, 146, RULE_statement);
 		try {
-			setState(928);
+			setState(976);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,64,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,70,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(909);
+				setState(956);
 				ghostStatement();
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(910);
+				setState(957);
 				auxiliaryStatement();
 				}
 				break;
 			case 3:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(911);
+				setState(958);
 				packageStmt();
 				}
 				break;
 			case 4:
 				enterOuterAlt(_localctx, 4);
 				{
-				setState(912);
+				setState(959);
 				applyStmt();
 				}
 				break;
 			case 5:
 				enterOuterAlt(_localctx, 5);
 				{
-				setState(913);
+				setState(960);
 				declaration();
 				}
 				break;
 			case 6:
 				enterOuterAlt(_localctx, 6);
 				{
-				setState(914);
+				setState(961);
 				labeledStmt();
 				}
 				break;
 			case 7:
 				enterOuterAlt(_localctx, 7);
 				{
-				setState(915);
+				setState(962);
 				simpleStmt();
 				}
 				break;
 			case 8:
 				enterOuterAlt(_localctx, 8);
 				{
-				setState(916);
+				setState(963);
 				goStmt();
 				}
 				break;
 			case 9:
 				enterOuterAlt(_localctx, 9);
 				{
-				setState(917);
+				setState(964);
 				returnStmt();
 				}
 				break;
 			case 10:
 				enterOuterAlt(_localctx, 10);
 				{
-				setState(918);
+				setState(965);
 				breakStmt();
 				}
 				break;
 			case 11:
 				enterOuterAlt(_localctx, 11);
 				{
-				setState(919);
+				setState(966);
 				continueStmt();
 				}
 				break;
 			case 12:
 				enterOuterAlt(_localctx, 12);
 				{
-				setState(920);
+				setState(967);
 				gotoStmt();
 				}
 				break;
 			case 13:
 				enterOuterAlt(_localctx, 13);
 				{
-				setState(921);
+				setState(968);
 				fallthroughStmt();
 				}
 				break;
 			case 14:
 				enterOuterAlt(_localctx, 14);
 				{
-				setState(922);
+				setState(969);
 				block();
 				}
 				break;
 			case 15:
 				enterOuterAlt(_localctx, 15);
 				{
-				setState(923);
+				setState(970);
 				ifStmt();
 				}
 				break;
 			case 16:
 				enterOuterAlt(_localctx, 16);
 				{
-				setState(924);
+				setState(971);
 				switchStmt();
 				}
 				break;
 			case 17:
 				enterOuterAlt(_localctx, 17);
 				{
-				setState(925);
+				setState(972);
 				selectStmt();
 				}
 				break;
 			case 18:
 				enterOuterAlt(_localctx, 18);
 				{
-				setState(926);
+				setState(973);
 				specForStmt();
 				}
 				break;
 			case 19:
 				enterOuterAlt(_localctx, 19);
 				{
-				setState(927);
+				setState(974);
 				deferStmt();
+				}
+				break;
+			case 20:
+				enterOuterAlt(_localctx, 20);
+				{
+				setState(975);
+				closureImplProofStmt();
 				}
 				break;
 			}
@@ -5232,13 +5527,13 @@ public class GobraParser extends GobraParserBase {
 
 	public final ApplyStmtContext applyStmt() throws RecognitionException {
 		ApplyStmtContext _localctx = new ApplyStmtContext(_ctx, getState());
-		enterRule(_localctx, 140, RULE_applyStmt);
+		enterRule(_localctx, 148, RULE_applyStmt);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(930);
+			setState(978);
 			match(APPLY);
-			setState(931);
+			setState(979);
 			expression(0);
 			}
 		}
@@ -5274,20 +5569,20 @@ public class GobraParser extends GobraParserBase {
 
 	public final PackageStmtContext packageStmt() throws RecognitionException {
 		PackageStmtContext _localctx = new PackageStmtContext(_ctx, getState());
-		enterRule(_localctx, 142, RULE_packageStmt);
+		enterRule(_localctx, 150, RULE_packageStmt);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(933);
+			setState(981);
 			match(PACKAGE);
-			setState(934);
+			setState(982);
 			expression(0);
-			setState(936);
+			setState(984);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,65,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,71,_ctx) ) {
 			case 1:
 				{
-				setState(935);
+				setState(983);
 				block();
 				}
 				break;
@@ -5325,13 +5620,13 @@ public class GobraParser extends GobraParserBase {
 
 	public final SpecForStmtContext specForStmt() throws RecognitionException {
 		SpecForStmtContext _localctx = new SpecForStmtContext(_ctx, getState());
-		enterRule(_localctx, 144, RULE_specForStmt);
+		enterRule(_localctx, 152, RULE_specForStmt);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(938);
+			setState(986);
 			loopSpec();
-			setState(939);
+			setState(987);
 			forStmt();
 			}
 		}
@@ -5380,39 +5675,39 @@ public class GobraParser extends GobraParserBase {
 
 	public final LoopSpecContext loopSpec() throws RecognitionException {
 		LoopSpecContext _localctx = new LoopSpecContext(_ctx, getState());
-		enterRule(_localctx, 146, RULE_loopSpec);
+		enterRule(_localctx, 154, RULE_loopSpec);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(947);
+			setState(995);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==INV) {
 				{
 				{
-				setState(941);
+				setState(989);
 				match(INV);
-				setState(942);
+				setState(990);
 				expression(0);
-				setState(943);
+				setState(991);
 				eos();
 				}
 				}
-				setState(949);
+				setState(997);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
-			setState(954);
+			setState(1002);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==DEC) {
 				{
-				setState(950);
+				setState(998);
 				match(DEC);
-				setState(951);
+				setState(999);
 				terminationMeasure();
-				setState(952);
+				setState(1000);
 				eos();
 				}
 			}
@@ -5454,27 +5749,27 @@ public class GobraParser extends GobraParserBase {
 
 	public final DeferStmtContext deferStmt() throws RecognitionException {
 		DeferStmtContext _localctx = new DeferStmtContext(_ctx, getState());
-		enterRule(_localctx, 148, RULE_deferStmt);
+		enterRule(_localctx, 156, RULE_deferStmt);
 		int _la;
 		try {
-			setState(961);
+			setState(1009);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,68,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,74,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(956);
+				setState(1004);
 				match(DEFER);
-				setState(957);
+				setState(1005);
 				expression(0);
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(958);
+				setState(1006);
 				match(DEFER);
-				setState(959);
+				setState(1007);
 				((DeferStmtContext)_localctx).fold_stmt = _input.LT(1);
 				_la = _input.LA(1);
 				if ( !(_la==FOLD || _la==UNFOLD) ) {
@@ -5485,7 +5780,7 @@ public class GobraParser extends GobraParserBase {
 					_errHandler.reportMatch(this);
 					consume();
 				}
-				setState(960);
+				setState(1008);
 				predicateAccess();
 				}
 				break;
@@ -5528,64 +5823,64 @@ public class GobraParser extends GobraParserBase {
 
 	public final BasicLitContext basicLit() throws RecognitionException {
 		BasicLitContext _localctx = new BasicLitContext(_ctx, getState());
-		enterRule(_localctx, 150, RULE_basicLit);
+		enterRule(_localctx, 158, RULE_basicLit);
 		try {
-			setState(971);
+			setState(1019);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,69,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,75,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(963);
+				setState(1011);
 				match(TRUE);
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(964);
+				setState(1012);
 				match(FALSE);
 				}
 				break;
 			case 3:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(965);
+				setState(1013);
 				match(NIL_LIT);
 				}
 				break;
 			case 4:
 				enterOuterAlt(_localctx, 4);
 				{
-				setState(966);
+				setState(1014);
 				integer();
 				}
 				break;
 			case 5:
 				enterOuterAlt(_localctx, 5);
 				{
-				setState(967);
+				setState(1015);
 				string_();
 				}
 				break;
 			case 6:
 				enterOuterAlt(_localctx, 6);
 				{
-				setState(968);
+				setState(1016);
 				match(FLOAT_LIT);
 				}
 				break;
 			case 7:
 				enterOuterAlt(_localctx, 7);
 				{
-				setState(969);
+				setState(1017);
 				match(IMAGINARY_LIT);
 				}
 				break;
 			case 8:
 				enterOuterAlt(_localctx, 8);
 				{
-				setState(970);
+				setState(1018);
 				match(RUNE_LIT);
 				}
 				break;
@@ -5643,6 +5938,24 @@ public class GobraParser extends GobraParserBase {
 		@Override
 		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
 			if ( visitor instanceof GobraParserVisitor ) return ((GobraParserVisitor<? extends T>)visitor).visitGhostPrimaryExpr_(this);
+			else return visitor.visitChildren(this);
+		}
+	}
+	public static class InvokePrimaryExprWithSpecContext extends PrimaryExprContext {
+		public PrimaryExprContext primaryExpr() {
+			return getRuleContext(PrimaryExprContext.class,0);
+		}
+		public ArgumentsContext arguments() {
+			return getRuleContext(ArgumentsContext.class,0);
+		}
+		public TerminalNode AS() { return getToken(GobraParser.AS, 0); }
+		public ClosureSpecInstanceContext closureSpecInstance() {
+			return getRuleContext(ClosureSpecInstanceContext.class,0);
+		}
+		public InvokePrimaryExprWithSpecContext(PrimaryExprContext ctx) { copyFrom(ctx); }
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof GobraParserVisitor ) return ((GobraParserVisitor<? extends T>)visitor).visitInvokePrimaryExprWithSpec(this);
 			else return visitor.visitChildren(this);
 		}
 	}
@@ -5804,23 +6117,23 @@ public class GobraParser extends GobraParserBase {
 		int _parentState = getState();
 		PrimaryExprContext _localctx = new PrimaryExprContext(_ctx, _parentState);
 		PrimaryExprContext _prevctx = _localctx;
-		int _startState = 152;
-		enterRecursionRule(_localctx, 152, RULE_primaryExpr, _p);
+		int _startState = 160;
+		enterRecursionRule(_localctx, 160, RULE_primaryExpr, _p);
 		int _la;
 		try {
 			int _alt;
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(985);
+			setState(1033);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,70,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,76,_ctx) ) {
 			case 1:
 				{
 				_localctx = new OperandPrimaryExprContext(_localctx);
 				_ctx = _localctx;
 				_prevctx = _localctx;
 
-				setState(974);
+				setState(1022);
 				operand();
 				}
 				break;
@@ -5829,7 +6142,7 @@ public class GobraParser extends GobraParserBase {
 				_localctx = new ConversionPrimaryExprContext(_localctx);
 				_ctx = _localctx;
 				_prevctx = _localctx;
-				setState(975);
+				setState(1023);
 				conversion();
 				}
 				break;
@@ -5838,7 +6151,7 @@ public class GobraParser extends GobraParserBase {
 				_localctx = new MethodPrimaryExprContext(_localctx);
 				_ctx = _localctx;
 				_prevctx = _localctx;
-				setState(976);
+				setState(1024);
 				methodExpr();
 				}
 				break;
@@ -5847,7 +6160,7 @@ public class GobraParser extends GobraParserBase {
 				_localctx = new GhostPrimaryExpr_Context(_localctx);
 				_ctx = _localctx;
 				_prevctx = _localctx;
-				setState(977);
+				setState(1025);
 				ghostPrimaryExpr();
 				}
 				break;
@@ -5856,7 +6169,7 @@ public class GobraParser extends GobraParserBase {
 				_localctx = new NewExprContext(_localctx);
 				_ctx = _localctx;
 				_prevctx = _localctx;
-				setState(978);
+				setState(1026);
 				new_();
 				}
 				break;
@@ -5865,7 +6178,7 @@ public class GobraParser extends GobraParserBase {
 				_localctx = new MakeExprContext(_localctx);
 				_ctx = _localctx;
 				_prevctx = _localctx;
-				setState(979);
+				setState(1027);
 				make();
 				}
 				break;
@@ -5874,10 +6187,10 @@ public class GobraParser extends GobraParserBase {
 				_localctx = new BuiltInCallExprContext(_localctx);
 				_ctx = _localctx;
 				_prevctx = _localctx;
-				setState(980);
+				setState(1028);
 				((BuiltInCallExprContext)_localctx).call_op = _input.LT(1);
 				_la = _input.LA(1);
-				if ( !(((((_la - 43)) & ~0x3f) == 0 && ((1L << (_la - 43)) & ((1L << (LEN - 43)) | (1L << (CAP - 43)) | (1L << (DOM - 43)) | (1L << (RANGE - 43)))) != 0)) ) {
+				if ( !(((((_la - 44)) & ~0x3f) == 0 && ((1L << (_la - 44)) & ((1L << (LEN - 44)) | (1L << (CAP - 44)) | (1L << (DOM - 44)) | (1L << (RANGE - 44)))) != 0)) ) {
 					((BuiltInCallExprContext)_localctx).call_op = (Token)_errHandler.recoverInline(this);
 				}
 				else {
@@ -5885,36 +6198,36 @@ public class GobraParser extends GobraParserBase {
 					_errHandler.reportMatch(this);
 					consume();
 				}
-				setState(981);
+				setState(1029);
 				match(L_PAREN);
-				setState(982);
+				setState(1030);
 				expression(0);
-				setState(983);
+				setState(1031);
 				match(R_PAREN);
 				}
 				break;
 			}
 			_ctx.stop = _input.LT(-1);
-			setState(1004);
+			setState(1057);
 			_errHandler.sync(this);
-			_alt = getInterpreter().adaptivePredict(_input,72,_ctx);
+			_alt = getInterpreter().adaptivePredict(_input,78,_ctx);
 			while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
 				if ( _alt==1 ) {
 					if ( _parseListeners!=null ) triggerExitRuleEvent();
 					_prevctx = _localctx;
 					{
-					setState(1002);
+					setState(1055);
 					_errHandler.sync(this);
-					switch ( getInterpreter().adaptivePredict(_input,71,_ctx) ) {
+					switch ( getInterpreter().adaptivePredict(_input,77,_ctx) ) {
 					case 1:
 						{
 						_localctx = new SelectorPrimaryExprContext(new PrimaryExprContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_primaryExpr);
-						setState(987);
-						if (!(precpred(_ctx, 8))) throw new FailedPredicateException(this, "precpred(_ctx, 8)");
-						setState(988);
+						setState(1035);
+						if (!(precpred(_ctx, 9))) throw new FailedPredicateException(this, "precpred(_ctx, 9)");
+						setState(1036);
 						match(DOT);
-						setState(989);
+						setState(1037);
 						match(IDENTIFIER);
 						}
 						break;
@@ -5922,9 +6235,9 @@ public class GobraParser extends GobraParserBase {
 						{
 						_localctx = new IndexPrimaryExprContext(new PrimaryExprContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_primaryExpr);
-						setState(990);
-						if (!(precpred(_ctx, 7))) throw new FailedPredicateException(this, "precpred(_ctx, 7)");
-						setState(991);
+						setState(1038);
+						if (!(precpred(_ctx, 8))) throw new FailedPredicateException(this, "precpred(_ctx, 8)");
+						setState(1039);
 						index();
 						}
 						break;
@@ -5932,9 +6245,9 @@ public class GobraParser extends GobraParserBase {
 						{
 						_localctx = new SlicePrimaryExprContext(new PrimaryExprContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_primaryExpr);
-						setState(992);
-						if (!(precpred(_ctx, 6))) throw new FailedPredicateException(this, "precpred(_ctx, 6)");
-						setState(993);
+						setState(1040);
+						if (!(precpred(_ctx, 7))) throw new FailedPredicateException(this, "precpred(_ctx, 7)");
+						setState(1041);
 						slice_();
 						}
 						break;
@@ -5942,9 +6255,9 @@ public class GobraParser extends GobraParserBase {
 						{
 						_localctx = new SeqUpdPrimaryExprContext(new PrimaryExprContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_primaryExpr);
-						setState(994);
-						if (!(precpred(_ctx, 5))) throw new FailedPredicateException(this, "precpred(_ctx, 5)");
-						setState(995);
+						setState(1042);
+						if (!(precpred(_ctx, 6))) throw new FailedPredicateException(this, "precpred(_ctx, 6)");
+						setState(1043);
 						seqUpdExp();
 						}
 						break;
@@ -5952,9 +6265,9 @@ public class GobraParser extends GobraParserBase {
 						{
 						_localctx = new TypeAssertionPrimaryExprContext(new PrimaryExprContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_primaryExpr);
-						setState(996);
-						if (!(precpred(_ctx, 4))) throw new FailedPredicateException(this, "precpred(_ctx, 4)");
-						setState(997);
+						setState(1044);
+						if (!(precpred(_ctx, 5))) throw new FailedPredicateException(this, "precpred(_ctx, 5)");
+						setState(1045);
 						typeAssertion();
 						}
 						break;
@@ -5962,28 +6275,42 @@ public class GobraParser extends GobraParserBase {
 						{
 						_localctx = new InvokePrimaryExprContext(new PrimaryExprContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_primaryExpr);
-						setState(998);
-						if (!(precpred(_ctx, 3))) throw new FailedPredicateException(this, "precpred(_ctx, 3)");
-						setState(999);
+						setState(1046);
+						if (!(precpred(_ctx, 4))) throw new FailedPredicateException(this, "precpred(_ctx, 4)");
+						setState(1047);
 						arguments();
 						}
 						break;
 					case 7:
 						{
+						_localctx = new InvokePrimaryExprWithSpecContext(new PrimaryExprContext(_parentctx, _parentState));
+						pushNewRecursionContext(_localctx, _startState, RULE_primaryExpr);
+						setState(1048);
+						if (!(precpred(_ctx, 3))) throw new FailedPredicateException(this, "precpred(_ctx, 3)");
+						setState(1049);
+						arguments();
+						setState(1050);
+						match(AS);
+						setState(1051);
+						closureSpecInstance();
+						}
+						break;
+					case 8:
+						{
 						_localctx = new PredConstrPrimaryExprContext(new PrimaryExprContext(_parentctx, _parentState));
 						pushNewRecursionContext(_localctx, _startState, RULE_primaryExpr);
-						setState(1000);
+						setState(1053);
 						if (!(precpred(_ctx, 2))) throw new FailedPredicateException(this, "precpred(_ctx, 2)");
-						setState(1001);
+						setState(1054);
 						predConstructArgs();
 						}
 						break;
 					}
 					} 
 				}
-				setState(1006);
+				setState(1059);
 				_errHandler.sync(this);
-				_alt = getInterpreter().adaptivePredict(_input,72,_ctx);
+				_alt = getInterpreter().adaptivePredict(_input,78,_ctx);
 			}
 			}
 		}
@@ -5994,6 +6321,119 @@ public class GobraParser extends GobraParserBase {
 		}
 		finally {
 			unrollRecursionContexts(_parentctx);
+		}
+		return _localctx;
+	}
+
+	public static class FunctionLitContext extends ParserRuleContext {
+		public SpecificationContext specification;
+		public SpecificationContext specification() {
+			return getRuleContext(SpecificationContext.class,0);
+		}
+		public ClosureDeclContext closureDecl() {
+			return getRuleContext(ClosureDeclContext.class,0);
+		}
+		public FunctionLitContext(ParserRuleContext parent, int invokingState) {
+			super(parent, invokingState);
+		}
+		@Override public int getRuleIndex() { return RULE_functionLit; }
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof GobraParserVisitor ) return ((GobraParserVisitor<? extends T>)visitor).visitFunctionLit(this);
+			else return visitor.visitChildren(this);
+		}
+	}
+
+	public final FunctionLitContext functionLit() throws RecognitionException {
+		FunctionLitContext _localctx = new FunctionLitContext(_ctx, getState());
+		enterRule(_localctx, 162, RULE_functionLit);
+		try {
+			enterOuterAlt(_localctx, 1);
+			{
+			setState(1060);
+			((FunctionLitContext)_localctx).specification = specification();
+			setState(1061);
+			closureDecl(((FunctionLitContext)_localctx).specification.trusted, ((FunctionLitContext)_localctx).specification.pure);
+			}
+		}
+		catch (RecognitionException re) {
+			_localctx.exception = re;
+			_errHandler.reportError(this, re);
+			_errHandler.recover(this, re);
+		}
+		finally {
+			exitRule();
+		}
+		return _localctx;
+	}
+
+	public static class ClosureDeclContext extends ParserRuleContext {
+		public boolean trusted;
+		public boolean pure;
+		public TerminalNode FUNC() { return getToken(GobraParser.FUNC, 0); }
+		public SignatureContext signature() {
+			return getRuleContext(SignatureContext.class,0);
+		}
+		public TerminalNode IDENTIFIER() { return getToken(GobraParser.IDENTIFIER, 0); }
+		public BlockWithBodyParameterInfoContext blockWithBodyParameterInfo() {
+			return getRuleContext(BlockWithBodyParameterInfoContext.class,0);
+		}
+		public ClosureDeclContext(ParserRuleContext parent, int invokingState) { super(parent, invokingState); }
+		public ClosureDeclContext(ParserRuleContext parent, int invokingState, boolean trusted, boolean pure) {
+			super(parent, invokingState);
+			this.trusted = trusted;
+			this.pure = pure;
+		}
+		@Override public int getRuleIndex() { return RULE_closureDecl; }
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof GobraParserVisitor ) return ((GobraParserVisitor<? extends T>)visitor).visitClosureDecl(this);
+			else return visitor.visitChildren(this);
+		}
+	}
+
+	public final ClosureDeclContext closureDecl(boolean trusted,boolean pure) throws RecognitionException {
+		ClosureDeclContext _localctx = new ClosureDeclContext(_ctx, getState(), trusted, pure);
+		enterRule(_localctx, 164, RULE_closureDecl);
+		int _la;
+		try {
+			enterOuterAlt(_localctx, 1);
+			{
+			setState(1063);
+			match(FUNC);
+			setState(1065);
+			_errHandler.sync(this);
+			_la = _input.LA(1);
+			if (_la==IDENTIFIER) {
+				{
+				setState(1064);
+				match(IDENTIFIER);
+				}
+			}
+
+			{
+			setState(1067);
+			signature();
+			setState(1069);
+			_errHandler.sync(this);
+			switch ( getInterpreter().adaptivePredict(_input,80,_ctx) ) {
+			case 1:
+				{
+				setState(1068);
+				blockWithBodyParameterInfo();
+				}
+				break;
+			}
+			}
+			}
+		}
+		catch (RecognitionException re) {
+			_localctx.exception = re;
+			_errHandler.reportError(this, re);
+			_errHandler.recover(this, re);
+		}
+		finally {
+			exitRule();
 		}
 		return _localctx;
 	}
@@ -6018,34 +6458,34 @@ public class GobraParser extends GobraParserBase {
 
 	public final PredConstructArgsContext predConstructArgs() throws RecognitionException {
 		PredConstructArgsContext _localctx = new PredConstructArgsContext(_ctx, getState());
-		enterRule(_localctx, 154, RULE_predConstructArgs);
+		enterRule(_localctx, 166, RULE_predConstructArgs);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1007);
+			setState(1071);
 			match(L_PRED);
-			setState(1009);
+			setState(1073);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
-			if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 69)) & ~0x3f) == 0 && ((1L << (_la - 69)) & ((1L << (FUNC - 69)) | (1L << (INTERFACE - 69)) | (1L << (MAP - 69)) | (1L << (STRUCT - 69)) | (1L << (CHAN - 69)) | (1L << (RANGE - 69)) | (1L << (TYPE - 69)) | (1L << (NIL_LIT - 69)) | (1L << (IDENTIFIER - 69)) | (1L << (L_PAREN - 69)) | (1L << (L_BRACKET - 69)) | (1L << (EXCLAMATION - 69)) | (1L << (PLUS - 69)) | (1L << (MINUS - 69)) | (1L << (CARET - 69)) | (1L << (STAR - 69)) | (1L << (AMPERSAND - 69)) | (1L << (RECEIVE - 69)) | (1L << (DECIMAL_LIT - 69)) | (1L << (BINARY_LIT - 69)) | (1L << (OCTAL_LIT - 69)))) != 0) || ((((_la - 133)) & ~0x3f) == 0 && ((1L << (_la - 133)) & ((1L << (HEX_LIT - 133)) | (1L << (IMAGINARY_LIT - 133)) | (1L << (RUNE_LIT - 133)) | (1L << (RAW_STRING_LIT - 133)) | (1L << (INTERPRETED_STRING_LIT - 133)))) != 0)) {
+			if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << PRE) | (1L << PRESERVES) | (1L << POST) | (1L << DEC) | (1L << PURE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (TRUSTED - 64)) | (1L << (FUNC - 64)) | (1L << (INTERFACE - 64)) | (1L << (MAP - 64)) | (1L << (STRUCT - 64)) | (1L << (CHAN - 64)) | (1L << (RANGE - 64)) | (1L << (TYPE - 64)) | (1L << (NIL_LIT - 64)) | (1L << (IDENTIFIER - 64)) | (1L << (L_PAREN - 64)) | (1L << (L_BRACKET - 64)) | (1L << (EXCLAMATION - 64)) | (1L << (PLUS - 64)) | (1L << (MINUS - 64)))) != 0) || ((((_la - 128)) & ~0x3f) == 0 && ((1L << (_la - 128)) & ((1L << (CARET - 128)) | (1L << (STAR - 128)) | (1L << (AMPERSAND - 128)) | (1L << (RECEIVE - 128)) | (1L << (DECIMAL_LIT - 128)) | (1L << (BINARY_LIT - 128)) | (1L << (OCTAL_LIT - 128)) | (1L << (HEX_LIT - 128)) | (1L << (IMAGINARY_LIT - 128)) | (1L << (RUNE_LIT - 128)) | (1L << (RAW_STRING_LIT - 128)) | (1L << (INTERPRETED_STRING_LIT - 128)))) != 0)) {
 				{
-				setState(1008);
+				setState(1072);
 				expressionList();
 				}
 			}
 
-			setState(1012);
+			setState(1076);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==COMMA) {
 				{
-				setState(1011);
+				setState(1075);
 				match(COMMA);
 				}
 			}
 
-			setState(1014);
+			setState(1078);
 			match(R_PRED);
 			}
 		}
@@ -6101,52 +6541,52 @@ public class GobraParser extends GobraParserBase {
 
 	public final InterfaceTypeContext interfaceType() throws RecognitionException {
 		InterfaceTypeContext _localctx = new InterfaceTypeContext(_ctx, getState());
-		enterRule(_localctx, 156, RULE_interfaceType);
+		enterRule(_localctx, 168, RULE_interfaceType);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1016);
+			setState(1080);
 			match(INTERFACE);
-			setState(1017);
+			setState(1081);
 			match(L_CURLY);
-			setState(1027);
+			setState(1091);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
-			while ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << PRE) | (1L << PRESERVES) | (1L << POST) | (1L << DEC) | (1L << PURE) | (1L << GHOST) | (1L << PRED) | (1L << TRUSTED))) != 0) || _la==IDENTIFIER) {
+			while ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << PRE) | (1L << PRESERVES) | (1L << POST) | (1L << DEC) | (1L << PURE) | (1L << GHOST) | (1L << PRED))) != 0) || _la==TRUSTED || _la==IDENTIFIER) {
 				{
 				{
-				setState(1021);
+				setState(1085);
 				_errHandler.sync(this);
-				switch ( getInterpreter().adaptivePredict(_input,75,_ctx) ) {
+				switch ( getInterpreter().adaptivePredict(_input,83,_ctx) ) {
 				case 1:
 					{
-					setState(1018);
+					setState(1082);
 					methodSpec();
 					}
 					break;
 				case 2:
 					{
-					setState(1019);
+					setState(1083);
 					typeName();
 					}
 					break;
 				case 3:
 					{
-					setState(1020);
+					setState(1084);
 					predicateSpec();
 					}
 					break;
 				}
-				setState(1023);
+				setState(1087);
 				eos();
 				}
 				}
-				setState(1029);
+				setState(1093);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
-			setState(1030);
+			setState(1094);
 			match(R_CURLY);
 			}
 		}
@@ -6180,15 +6620,15 @@ public class GobraParser extends GobraParserBase {
 
 	public final PredicateSpecContext predicateSpec() throws RecognitionException {
 		PredicateSpecContext _localctx = new PredicateSpecContext(_ctx, getState());
-		enterRule(_localctx, 158, RULE_predicateSpec);
+		enterRule(_localctx, 170, RULE_predicateSpec);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1032);
+			setState(1096);
 			match(PRED);
-			setState(1033);
+			setState(1097);
 			match(IDENTIFIER);
-			setState(1034);
+			setState(1098);
 			parameters();
 			}
 		}
@@ -6228,53 +6668,53 @@ public class GobraParser extends GobraParserBase {
 
 	public final MethodSpecContext methodSpec() throws RecognitionException {
 		MethodSpecContext _localctx = new MethodSpecContext(_ctx, getState());
-		enterRule(_localctx, 160, RULE_methodSpec);
+		enterRule(_localctx, 172, RULE_methodSpec);
 		int _la;
 		try {
-			setState(1051);
+			setState(1115);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,79,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,87,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1037);
+				setState(1101);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				if (_la==GHOST) {
 					{
-					setState(1036);
+					setState(1100);
 					match(GHOST);
 					}
 				}
 
-				setState(1039);
+				setState(1103);
 				specification();
-				setState(1040);
+				setState(1104);
 				match(IDENTIFIER);
-				setState(1041);
+				setState(1105);
 				parameters();
-				setState(1042);
+				setState(1106);
 				result();
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1045);
+				setState(1109);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				if (_la==GHOST) {
 					{
-					setState(1044);
+					setState(1108);
 					match(GHOST);
 					}
 				}
 
-				setState(1047);
+				setState(1111);
 				specification();
-				setState(1048);
+				setState(1112);
 				match(IDENTIFIER);
-				setState(1049);
+				setState(1113);
 				parameters();
 				}
 				break;
@@ -6319,15 +6759,15 @@ public class GobraParser extends GobraParserBase {
 
 	public final Type_Context type_() throws RecognitionException {
 		Type_Context _localctx = new Type_Context(_ctx, getState());
-		enterRule(_localctx, 162, RULE_type_);
+		enterRule(_localctx, 174, RULE_type_);
 		try {
-			setState(1060);
+			setState(1124);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case IDENTIFIER:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1053);
+				setState(1117);
 				typeName();
 				}
 				break;
@@ -6342,7 +6782,7 @@ public class GobraParser extends GobraParserBase {
 			case RECEIVE:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1054);
+				setState(1118);
 				typeLit();
 				}
 				break;
@@ -6355,18 +6795,18 @@ public class GobraParser extends GobraParserBase {
 			case DOM:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(1055);
+				setState(1119);
 				ghostTypeLit();
 				}
 				break;
 			case L_PAREN:
 				enterOuterAlt(_localctx, 4);
 				{
-				setState(1056);
+				setState(1120);
 				match(L_PAREN);
-				setState(1057);
+				setState(1121);
 				type_();
-				setState(1058);
+				setState(1122);
 				match(R_PAREN);
 				}
 				break;
@@ -6426,71 +6866,71 @@ public class GobraParser extends GobraParserBase {
 
 	public final TypeLitContext typeLit() throws RecognitionException {
 		TypeLitContext _localctx = new TypeLitContext(_ctx, getState());
-		enterRule(_localctx, 164, RULE_typeLit);
+		enterRule(_localctx, 176, RULE_typeLit);
 		try {
-			setState(1071);
+			setState(1135);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,81,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,89,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1062);
+				setState(1126);
 				arrayType();
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1063);
+				setState(1127);
 				structType();
 				}
 				break;
 			case 3:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(1064);
+				setState(1128);
 				pointerType();
 				}
 				break;
 			case 4:
 				enterOuterAlt(_localctx, 4);
 				{
-				setState(1065);
+				setState(1129);
 				functionType();
 				}
 				break;
 			case 5:
 				enterOuterAlt(_localctx, 5);
 				{
-				setState(1066);
+				setState(1130);
 				interfaceType();
 				}
 				break;
 			case 6:
 				enterOuterAlt(_localctx, 6);
 				{
-				setState(1067);
+				setState(1131);
 				sliceType();
 				}
 				break;
 			case 7:
 				enterOuterAlt(_localctx, 7);
 				{
-				setState(1068);
+				setState(1132);
 				mapType();
 				}
 				break;
 			case 8:
 				enterOuterAlt(_localctx, 8);
 				{
-				setState(1069);
+				setState(1133);
 				channelType();
 				}
 				break;
 			case 9:
 				enterOuterAlt(_localctx, 9);
 				{
-				setState(1070);
+				setState(1134);
 				predType();
 				}
 				break;
@@ -6525,13 +6965,13 @@ public class GobraParser extends GobraParserBase {
 
 	public final PredTypeContext predType() throws RecognitionException {
 		PredTypeContext _localctx = new PredTypeContext(_ctx, getState());
-		enterRule(_localctx, 166, RULE_predType);
+		enterRule(_localctx, 178, RULE_predType);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1073);
+			setState(1137);
 			match(PRED);
-			setState(1074);
+			setState(1138);
 			predTypeParams();
 			}
 		}
@@ -6572,45 +7012,45 @@ public class GobraParser extends GobraParserBase {
 
 	public final PredTypeParamsContext predTypeParams() throws RecognitionException {
 		PredTypeParamsContext _localctx = new PredTypeParamsContext(_ctx, getState());
-		enterRule(_localctx, 168, RULE_predTypeParams);
+		enterRule(_localctx, 180, RULE_predTypeParams);
 		int _la;
 		try {
 			int _alt;
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1076);
+			setState(1140);
 			match(L_PAREN);
-			setState(1088);
+			setState(1152);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
-			if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << DOM) | (1L << PRED))) != 0) || ((((_la - 69)) & ~0x3f) == 0 && ((1L << (_la - 69)) & ((1L << (FUNC - 69)) | (1L << (INTERFACE - 69)) | (1L << (MAP - 69)) | (1L << (STRUCT - 69)) | (1L << (CHAN - 69)) | (1L << (IDENTIFIER - 69)) | (1L << (L_PAREN - 69)) | (1L << (L_BRACKET - 69)) | (1L << (STAR - 69)) | (1L << (RECEIVE - 69)))) != 0)) {
+			if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << DOM) | (1L << PRED))) != 0) || ((((_la - 71)) & ~0x3f) == 0 && ((1L << (_la - 71)) & ((1L << (FUNC - 71)) | (1L << (INTERFACE - 71)) | (1L << (MAP - 71)) | (1L << (STRUCT - 71)) | (1L << (CHAN - 71)) | (1L << (IDENTIFIER - 71)) | (1L << (L_PAREN - 71)) | (1L << (L_BRACKET - 71)) | (1L << (STAR - 71)) | (1L << (RECEIVE - 71)))) != 0)) {
 				{
-				setState(1077);
+				setState(1141);
 				type_();
-				setState(1082);
+				setState(1146);
 				_errHandler.sync(this);
-				_alt = getInterpreter().adaptivePredict(_input,82,_ctx);
+				_alt = getInterpreter().adaptivePredict(_input,90,_ctx);
 				while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
 					if ( _alt==1 ) {
 						{
 						{
-						setState(1078);
+						setState(1142);
 						match(COMMA);
-						setState(1079);
+						setState(1143);
 						type_();
 						}
 						} 
 					}
-					setState(1084);
+					setState(1148);
 					_errHandler.sync(this);
-					_alt = getInterpreter().adaptivePredict(_input,82,_ctx);
+					_alt = getInterpreter().adaptivePredict(_input,90,_ctx);
 				}
-				setState(1086);
+				setState(1150);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				if (_la==COMMA) {
 					{
-					setState(1085);
+					setState(1149);
 					match(COMMA);
 					}
 				}
@@ -6618,7 +7058,7 @@ public class GobraParser extends GobraParserBase {
 				}
 			}
 
-			setState(1090);
+			setState(1154);
 			match(R_PAREN);
 			}
 		}
@@ -6668,57 +7108,57 @@ public class GobraParser extends GobraParserBase {
 
 	public final LiteralTypeContext literalType() throws RecognitionException {
 		LiteralTypeContext _localctx = new LiteralTypeContext(_ctx, getState());
-		enterRule(_localctx, 170, RULE_literalType);
+		enterRule(_localctx, 182, RULE_literalType);
 		try {
-			setState(1099);
+			setState(1163);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,85,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,93,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1092);
+				setState(1156);
 				structType();
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1093);
+				setState(1157);
 				arrayType();
 				}
 				break;
 			case 3:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(1094);
+				setState(1158);
 				implicitArray();
 				}
 				break;
 			case 4:
 				enterOuterAlt(_localctx, 4);
 				{
-				setState(1095);
+				setState(1159);
 				sliceType();
 				}
 				break;
 			case 5:
 				enterOuterAlt(_localctx, 5);
 				{
-				setState(1096);
+				setState(1160);
 				mapType();
 				}
 				break;
 			case 6:
 				enterOuterAlt(_localctx, 6);
 				{
-				setState(1097);
+				setState(1161);
 				ghostTypeLit();
 				}
 				break;
 			case 7:
 				enterOuterAlt(_localctx, 7);
 				{
-				setState(1098);
+				setState(1162);
 				typeName();
 				}
 				break;
@@ -6755,17 +7195,17 @@ public class GobraParser extends GobraParserBase {
 
 	public final ImplicitArrayContext implicitArray() throws RecognitionException {
 		ImplicitArrayContext _localctx = new ImplicitArrayContext(_ctx, getState());
-		enterRule(_localctx, 172, RULE_implicitArray);
+		enterRule(_localctx, 184, RULE_implicitArray);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1101);
+			setState(1165);
 			match(L_BRACKET);
-			setState(1102);
+			setState(1166);
 			match(ELLIPSIS);
-			setState(1103);
+			setState(1167);
 			match(R_BRACKET);
-			setState(1104);
+			setState(1168);
 			elementType();
 			}
 		}
@@ -6809,36 +7249,36 @@ public class GobraParser extends GobraParserBase {
 
 	public final Slice_Context slice_() throws RecognitionException {
 		Slice_Context _localctx = new Slice_Context(_ctx, getState());
-		enterRule(_localctx, 174, RULE_slice_);
+		enterRule(_localctx, 186, RULE_slice_);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1106);
+			setState(1170);
 			match(L_BRACKET);
-			setState(1122);
+			setState(1186);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,89,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,97,_ctx) ) {
 			case 1:
 				{
-				setState(1108);
+				setState(1172);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
-				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 69)) & ~0x3f) == 0 && ((1L << (_la - 69)) & ((1L << (FUNC - 69)) | (1L << (INTERFACE - 69)) | (1L << (MAP - 69)) | (1L << (STRUCT - 69)) | (1L << (CHAN - 69)) | (1L << (RANGE - 69)) | (1L << (TYPE - 69)) | (1L << (NIL_LIT - 69)) | (1L << (IDENTIFIER - 69)) | (1L << (L_PAREN - 69)) | (1L << (L_BRACKET - 69)) | (1L << (EXCLAMATION - 69)) | (1L << (PLUS - 69)) | (1L << (MINUS - 69)) | (1L << (CARET - 69)) | (1L << (STAR - 69)) | (1L << (AMPERSAND - 69)) | (1L << (RECEIVE - 69)) | (1L << (DECIMAL_LIT - 69)) | (1L << (BINARY_LIT - 69)) | (1L << (OCTAL_LIT - 69)))) != 0) || ((((_la - 133)) & ~0x3f) == 0 && ((1L << (_la - 133)) & ((1L << (HEX_LIT - 133)) | (1L << (IMAGINARY_LIT - 133)) | (1L << (RUNE_LIT - 133)) | (1L << (RAW_STRING_LIT - 133)) | (1L << (INTERPRETED_STRING_LIT - 133)))) != 0)) {
+				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << PRE) | (1L << PRESERVES) | (1L << POST) | (1L << DEC) | (1L << PURE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (TRUSTED - 64)) | (1L << (FUNC - 64)) | (1L << (INTERFACE - 64)) | (1L << (MAP - 64)) | (1L << (STRUCT - 64)) | (1L << (CHAN - 64)) | (1L << (RANGE - 64)) | (1L << (TYPE - 64)) | (1L << (NIL_LIT - 64)) | (1L << (IDENTIFIER - 64)) | (1L << (L_PAREN - 64)) | (1L << (L_BRACKET - 64)) | (1L << (EXCLAMATION - 64)) | (1L << (PLUS - 64)) | (1L << (MINUS - 64)))) != 0) || ((((_la - 128)) & ~0x3f) == 0 && ((1L << (_la - 128)) & ((1L << (CARET - 128)) | (1L << (STAR - 128)) | (1L << (AMPERSAND - 128)) | (1L << (RECEIVE - 128)) | (1L << (DECIMAL_LIT - 128)) | (1L << (BINARY_LIT - 128)) | (1L << (OCTAL_LIT - 128)) | (1L << (HEX_LIT - 128)) | (1L << (IMAGINARY_LIT - 128)) | (1L << (RUNE_LIT - 128)) | (1L << (RAW_STRING_LIT - 128)) | (1L << (INTERPRETED_STRING_LIT - 128)))) != 0)) {
 					{
-					setState(1107);
+					setState(1171);
 					low();
 					}
 				}
 
-				setState(1110);
+				setState(1174);
 				match(COLON);
-				setState(1112);
+				setState(1176);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
-				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 69)) & ~0x3f) == 0 && ((1L << (_la - 69)) & ((1L << (FUNC - 69)) | (1L << (INTERFACE - 69)) | (1L << (MAP - 69)) | (1L << (STRUCT - 69)) | (1L << (CHAN - 69)) | (1L << (RANGE - 69)) | (1L << (TYPE - 69)) | (1L << (NIL_LIT - 69)) | (1L << (IDENTIFIER - 69)) | (1L << (L_PAREN - 69)) | (1L << (L_BRACKET - 69)) | (1L << (EXCLAMATION - 69)) | (1L << (PLUS - 69)) | (1L << (MINUS - 69)) | (1L << (CARET - 69)) | (1L << (STAR - 69)) | (1L << (AMPERSAND - 69)) | (1L << (RECEIVE - 69)) | (1L << (DECIMAL_LIT - 69)) | (1L << (BINARY_LIT - 69)) | (1L << (OCTAL_LIT - 69)))) != 0) || ((((_la - 133)) & ~0x3f) == 0 && ((1L << (_la - 133)) & ((1L << (HEX_LIT - 133)) | (1L << (IMAGINARY_LIT - 133)) | (1L << (RUNE_LIT - 133)) | (1L << (RAW_STRING_LIT - 133)) | (1L << (INTERPRETED_STRING_LIT - 133)))) != 0)) {
+				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << PRE) | (1L << PRESERVES) | (1L << POST) | (1L << DEC) | (1L << PURE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (TRUSTED - 64)) | (1L << (FUNC - 64)) | (1L << (INTERFACE - 64)) | (1L << (MAP - 64)) | (1L << (STRUCT - 64)) | (1L << (CHAN - 64)) | (1L << (RANGE - 64)) | (1L << (TYPE - 64)) | (1L << (NIL_LIT - 64)) | (1L << (IDENTIFIER - 64)) | (1L << (L_PAREN - 64)) | (1L << (L_BRACKET - 64)) | (1L << (EXCLAMATION - 64)) | (1L << (PLUS - 64)) | (1L << (MINUS - 64)))) != 0) || ((((_la - 128)) & ~0x3f) == 0 && ((1L << (_la - 128)) & ((1L << (CARET - 128)) | (1L << (STAR - 128)) | (1L << (AMPERSAND - 128)) | (1L << (RECEIVE - 128)) | (1L << (DECIMAL_LIT - 128)) | (1L << (BINARY_LIT - 128)) | (1L << (OCTAL_LIT - 128)) | (1L << (HEX_LIT - 128)) | (1L << (IMAGINARY_LIT - 128)) | (1L << (RUNE_LIT - 128)) | (1L << (RAW_STRING_LIT - 128)) | (1L << (INTERPRETED_STRING_LIT - 128)))) != 0)) {
 					{
-					setState(1111);
+					setState(1175);
 					high();
 					}
 				}
@@ -6847,28 +7287,28 @@ public class GobraParser extends GobraParserBase {
 				break;
 			case 2:
 				{
-				setState(1115);
+				setState(1179);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
-				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 69)) & ~0x3f) == 0 && ((1L << (_la - 69)) & ((1L << (FUNC - 69)) | (1L << (INTERFACE - 69)) | (1L << (MAP - 69)) | (1L << (STRUCT - 69)) | (1L << (CHAN - 69)) | (1L << (RANGE - 69)) | (1L << (TYPE - 69)) | (1L << (NIL_LIT - 69)) | (1L << (IDENTIFIER - 69)) | (1L << (L_PAREN - 69)) | (1L << (L_BRACKET - 69)) | (1L << (EXCLAMATION - 69)) | (1L << (PLUS - 69)) | (1L << (MINUS - 69)) | (1L << (CARET - 69)) | (1L << (STAR - 69)) | (1L << (AMPERSAND - 69)) | (1L << (RECEIVE - 69)) | (1L << (DECIMAL_LIT - 69)) | (1L << (BINARY_LIT - 69)) | (1L << (OCTAL_LIT - 69)))) != 0) || ((((_la - 133)) & ~0x3f) == 0 && ((1L << (_la - 133)) & ((1L << (HEX_LIT - 133)) | (1L << (IMAGINARY_LIT - 133)) | (1L << (RUNE_LIT - 133)) | (1L << (RAW_STRING_LIT - 133)) | (1L << (INTERPRETED_STRING_LIT - 133)))) != 0)) {
+				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << PRE) | (1L << PRESERVES) | (1L << POST) | (1L << DEC) | (1L << PURE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (TRUSTED - 64)) | (1L << (FUNC - 64)) | (1L << (INTERFACE - 64)) | (1L << (MAP - 64)) | (1L << (STRUCT - 64)) | (1L << (CHAN - 64)) | (1L << (RANGE - 64)) | (1L << (TYPE - 64)) | (1L << (NIL_LIT - 64)) | (1L << (IDENTIFIER - 64)) | (1L << (L_PAREN - 64)) | (1L << (L_BRACKET - 64)) | (1L << (EXCLAMATION - 64)) | (1L << (PLUS - 64)) | (1L << (MINUS - 64)))) != 0) || ((((_la - 128)) & ~0x3f) == 0 && ((1L << (_la - 128)) & ((1L << (CARET - 128)) | (1L << (STAR - 128)) | (1L << (AMPERSAND - 128)) | (1L << (RECEIVE - 128)) | (1L << (DECIMAL_LIT - 128)) | (1L << (BINARY_LIT - 128)) | (1L << (OCTAL_LIT - 128)) | (1L << (HEX_LIT - 128)) | (1L << (IMAGINARY_LIT - 128)) | (1L << (RUNE_LIT - 128)) | (1L << (RAW_STRING_LIT - 128)) | (1L << (INTERPRETED_STRING_LIT - 128)))) != 0)) {
 					{
-					setState(1114);
+					setState(1178);
 					low();
 					}
 				}
 
-				setState(1117);
+				setState(1181);
 				match(COLON);
-				setState(1118);
+				setState(1182);
 				high();
-				setState(1119);
+				setState(1183);
 				match(COLON);
-				setState(1120);
+				setState(1184);
 				cap();
 				}
 				break;
 			}
-			setState(1124);
+			setState(1188);
 			match(R_BRACKET);
 			}
 		}
@@ -6900,11 +7340,11 @@ public class GobraParser extends GobraParserBase {
 
 	public final LowContext low() throws RecognitionException {
 		LowContext _localctx = new LowContext(_ctx, getState());
-		enterRule(_localctx, 176, RULE_low);
+		enterRule(_localctx, 188, RULE_low);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1126);
+			setState(1190);
 			expression(0);
 			}
 		}
@@ -6936,11 +7376,11 @@ public class GobraParser extends GobraParserBase {
 
 	public final HighContext high() throws RecognitionException {
 		HighContext _localctx = new HighContext(_ctx, getState());
-		enterRule(_localctx, 178, RULE_high);
+		enterRule(_localctx, 190, RULE_high);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1128);
+			setState(1192);
 			expression(0);
 			}
 		}
@@ -6972,11 +7412,11 @@ public class GobraParser extends GobraParserBase {
 
 	public final CapContext cap() throws RecognitionException {
 		CapContext _localctx = new CapContext(_ctx, getState());
-		enterRule(_localctx, 180, RULE_cap);
+		enterRule(_localctx, 192, RULE_cap);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1130);
+			setState(1194);
 			expression(0);
 			}
 		}
@@ -7018,20 +7458,20 @@ public class GobraParser extends GobraParserBase {
 
 	public final Assign_opContext assign_op() throws RecognitionException {
 		Assign_opContext _localctx = new Assign_opContext(_ctx, getState());
-		enterRule(_localctx, 182, RULE_assign_op);
+		enterRule(_localctx, 194, RULE_assign_op);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1133);
+			setState(1197);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
-			if (((((_la - 117)) & ~0x3f) == 0 && ((1L << (_la - 117)) & ((1L << (OR - 117)) | (1L << (DIV - 117)) | (1L << (MOD - 117)) | (1L << (LSHIFT - 117)) | (1L << (RSHIFT - 117)) | (1L << (BIT_CLEAR - 117)) | (1L << (PLUS - 117)) | (1L << (MINUS - 117)) | (1L << (CARET - 117)) | (1L << (STAR - 117)) | (1L << (AMPERSAND - 117)))) != 0)) {
+			if (((((_la - 119)) & ~0x3f) == 0 && ((1L << (_la - 119)) & ((1L << (OR - 119)) | (1L << (DIV - 119)) | (1L << (MOD - 119)) | (1L << (LSHIFT - 119)) | (1L << (RSHIFT - 119)) | (1L << (BIT_CLEAR - 119)) | (1L << (PLUS - 119)) | (1L << (MINUS - 119)) | (1L << (CARET - 119)) | (1L << (STAR - 119)) | (1L << (AMPERSAND - 119)))) != 0)) {
 				{
-				setState(1132);
+				setState(1196);
 				((Assign_opContext)_localctx).ass_op = _input.LT(1);
 				_la = _input.LA(1);
-				if ( !(((((_la - 117)) & ~0x3f) == 0 && ((1L << (_la - 117)) & ((1L << (OR - 117)) | (1L << (DIV - 117)) | (1L << (MOD - 117)) | (1L << (LSHIFT - 117)) | (1L << (RSHIFT - 117)) | (1L << (BIT_CLEAR - 117)) | (1L << (PLUS - 117)) | (1L << (MINUS - 117)) | (1L << (CARET - 117)) | (1L << (STAR - 117)) | (1L << (AMPERSAND - 117)))) != 0)) ) {
+				if ( !(((((_la - 119)) & ~0x3f) == 0 && ((1L << (_la - 119)) & ((1L << (OR - 119)) | (1L << (DIV - 119)) | (1L << (MOD - 119)) | (1L << (LSHIFT - 119)) | (1L << (RSHIFT - 119)) | (1L << (BIT_CLEAR - 119)) | (1L << (PLUS - 119)) | (1L << (MINUS - 119)) | (1L << (CARET - 119)) | (1L << (STAR - 119)) | (1L << (AMPERSAND - 119)))) != 0)) ) {
 					((Assign_opContext)_localctx).ass_op = (Token)_errHandler.recoverInline(this);
 				}
 				else {
@@ -7042,7 +7482,7 @@ public class GobraParser extends GobraParserBase {
 				}
 			}
 
-			setState(1135);
+			setState(1199);
 			match(ASSIGN);
 			}
 		}
@@ -7074,13 +7514,13 @@ public class GobraParser extends GobraParserBase {
 
 	public final PackageClauseContext packageClause() throws RecognitionException {
 		PackageClauseContext _localctx = new PackageClauseContext(_ctx, getState());
-		enterRule(_localctx, 184, RULE_packageClause);
+		enterRule(_localctx, 196, RULE_packageClause);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1137);
+			setState(1201);
 			match(PACKAGE);
-			setState(1138);
+			setState(1202);
 			((PackageClauseContext)_localctx).packageName = match(IDENTIFIER);
 			}
 		}
@@ -7112,11 +7552,11 @@ public class GobraParser extends GobraParserBase {
 
 	public final ImportPathContext importPath() throws RecognitionException {
 		ImportPathContext _localctx = new ImportPathContext(_ctx, getState());
-		enterRule(_localctx, 186, RULE_importPath);
+		enterRule(_localctx, 198, RULE_importPath);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1140);
+			setState(1204);
 			string_();
 			}
 		}
@@ -7154,29 +7594,29 @@ public class GobraParser extends GobraParserBase {
 
 	public final DeclarationContext declaration() throws RecognitionException {
 		DeclarationContext _localctx = new DeclarationContext(_ctx, getState());
-		enterRule(_localctx, 188, RULE_declaration);
+		enterRule(_localctx, 200, RULE_declaration);
 		try {
-			setState(1145);
+			setState(1209);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case CONST:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1142);
+				setState(1206);
 				constDecl();
 				}
 				break;
 			case TYPE:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1143);
+				setState(1207);
 				typeDecl();
 				}
 				break;
 			case VAR:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(1144);
+				setState(1208);
 				varDecl();
 				}
 				break;
@@ -7224,43 +7664,43 @@ public class GobraParser extends GobraParserBase {
 
 	public final ConstDeclContext constDecl() throws RecognitionException {
 		ConstDeclContext _localctx = new ConstDeclContext(_ctx, getState());
-		enterRule(_localctx, 190, RULE_constDecl);
+		enterRule(_localctx, 202, RULE_constDecl);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1147);
+			setState(1211);
 			match(CONST);
-			setState(1159);
+			setState(1223);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case IDENTIFIER:
 				{
-				setState(1148);
+				setState(1212);
 				constSpec();
 				}
 				break;
 			case L_PAREN:
 				{
-				setState(1149);
+				setState(1213);
 				match(L_PAREN);
-				setState(1155);
+				setState(1219);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				while (_la==IDENTIFIER) {
 					{
 					{
-					setState(1150);
+					setState(1214);
 					constSpec();
-					setState(1151);
+					setState(1215);
 					eos();
 					}
 					}
-					setState(1157);
+					setState(1221);
 					_errHandler.sync(this);
 					_la = _input.LA(1);
 				}
-				setState(1158);
+				setState(1222);
 				match(R_PAREN);
 				}
 				break;
@@ -7304,31 +7744,31 @@ public class GobraParser extends GobraParserBase {
 
 	public final ConstSpecContext constSpec() throws RecognitionException {
 		ConstSpecContext _localctx = new ConstSpecContext(_ctx, getState());
-		enterRule(_localctx, 192, RULE_constSpec);
+		enterRule(_localctx, 204, RULE_constSpec);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1161);
+			setState(1225);
 			identifierList();
-			setState(1167);
+			setState(1231);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,95,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,103,_ctx) ) {
 			case 1:
 				{
-				setState(1163);
+				setState(1227);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
-				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << DOM) | (1L << PRED))) != 0) || ((((_la - 69)) & ~0x3f) == 0 && ((1L << (_la - 69)) & ((1L << (FUNC - 69)) | (1L << (INTERFACE - 69)) | (1L << (MAP - 69)) | (1L << (STRUCT - 69)) | (1L << (CHAN - 69)) | (1L << (IDENTIFIER - 69)) | (1L << (L_PAREN - 69)) | (1L << (L_BRACKET - 69)) | (1L << (STAR - 69)) | (1L << (RECEIVE - 69)))) != 0)) {
+				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << DOM) | (1L << PRED))) != 0) || ((((_la - 71)) & ~0x3f) == 0 && ((1L << (_la - 71)) & ((1L << (FUNC - 71)) | (1L << (INTERFACE - 71)) | (1L << (MAP - 71)) | (1L << (STRUCT - 71)) | (1L << (CHAN - 71)) | (1L << (IDENTIFIER - 71)) | (1L << (L_PAREN - 71)) | (1L << (L_BRACKET - 71)) | (1L << (STAR - 71)) | (1L << (RECEIVE - 71)))) != 0)) {
 					{
-					setState(1162);
+					setState(1226);
 					type_();
 					}
 				}
 
-				setState(1165);
+				setState(1229);
 				match(ASSIGN);
-				setState(1166);
+				setState(1230);
 				expressionList();
 				}
 				break;
@@ -7368,30 +7808,30 @@ public class GobraParser extends GobraParserBase {
 
 	public final IdentifierListContext identifierList() throws RecognitionException {
 		IdentifierListContext _localctx = new IdentifierListContext(_ctx, getState());
-		enterRule(_localctx, 194, RULE_identifierList);
+		enterRule(_localctx, 206, RULE_identifierList);
 		try {
 			int _alt;
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1169);
+			setState(1233);
 			match(IDENTIFIER);
-			setState(1174);
+			setState(1238);
 			_errHandler.sync(this);
-			_alt = getInterpreter().adaptivePredict(_input,96,_ctx);
+			_alt = getInterpreter().adaptivePredict(_input,104,_ctx);
 			while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
 				if ( _alt==1 ) {
 					{
 					{
-					setState(1170);
+					setState(1234);
 					match(COMMA);
-					setState(1171);
+					setState(1235);
 					match(IDENTIFIER);
 					}
 					} 
 				}
-				setState(1176);
+				setState(1240);
 				_errHandler.sync(this);
-				_alt = getInterpreter().adaptivePredict(_input,96,_ctx);
+				_alt = getInterpreter().adaptivePredict(_input,104,_ctx);
 			}
 			}
 		}
@@ -7430,30 +7870,30 @@ public class GobraParser extends GobraParserBase {
 
 	public final ExpressionListContext expressionList() throws RecognitionException {
 		ExpressionListContext _localctx = new ExpressionListContext(_ctx, getState());
-		enterRule(_localctx, 196, RULE_expressionList);
+		enterRule(_localctx, 208, RULE_expressionList);
 		try {
 			int _alt;
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1177);
+			setState(1241);
 			expression(0);
-			setState(1182);
+			setState(1246);
 			_errHandler.sync(this);
-			_alt = getInterpreter().adaptivePredict(_input,97,_ctx);
+			_alt = getInterpreter().adaptivePredict(_input,105,_ctx);
 			while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
 				if ( _alt==1 ) {
 					{
 					{
-					setState(1178);
+					setState(1242);
 					match(COMMA);
-					setState(1179);
+					setState(1243);
 					expression(0);
 					}
 					} 
 				}
-				setState(1184);
+				setState(1248);
 				_errHandler.sync(this);
-				_alt = getInterpreter().adaptivePredict(_input,97,_ctx);
+				_alt = getInterpreter().adaptivePredict(_input,105,_ctx);
 			}
 			}
 		}
@@ -7497,43 +7937,43 @@ public class GobraParser extends GobraParserBase {
 
 	public final TypeDeclContext typeDecl() throws RecognitionException {
 		TypeDeclContext _localctx = new TypeDeclContext(_ctx, getState());
-		enterRule(_localctx, 198, RULE_typeDecl);
+		enterRule(_localctx, 210, RULE_typeDecl);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1185);
+			setState(1249);
 			match(TYPE);
-			setState(1197);
+			setState(1261);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case IDENTIFIER:
 				{
-				setState(1186);
+				setState(1250);
 				typeSpec();
 				}
 				break;
 			case L_PAREN:
 				{
-				setState(1187);
+				setState(1251);
 				match(L_PAREN);
-				setState(1193);
+				setState(1257);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				while (_la==IDENTIFIER) {
 					{
 					{
-					setState(1188);
+					setState(1252);
 					typeSpec();
-					setState(1189);
+					setState(1253);
 					eos();
 					}
 					}
-					setState(1195);
+					setState(1259);
 					_errHandler.sync(this);
 					_la = _input.LA(1);
 				}
-				setState(1196);
+				setState(1260);
 				match(R_PAREN);
 				}
 				break;
@@ -7572,24 +8012,24 @@ public class GobraParser extends GobraParserBase {
 
 	public final TypeSpecContext typeSpec() throws RecognitionException {
 		TypeSpecContext _localctx = new TypeSpecContext(_ctx, getState());
-		enterRule(_localctx, 200, RULE_typeSpec);
+		enterRule(_localctx, 212, RULE_typeSpec);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1199);
+			setState(1263);
 			match(IDENTIFIER);
-			setState(1201);
+			setState(1265);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==ASSIGN) {
 				{
-				setState(1200);
+				setState(1264);
 				match(ASSIGN);
 				}
 			}
 
-			setState(1203);
+			setState(1267);
 			type_();
 			}
 		}
@@ -7633,43 +8073,43 @@ public class GobraParser extends GobraParserBase {
 
 	public final VarDeclContext varDecl() throws RecognitionException {
 		VarDeclContext _localctx = new VarDeclContext(_ctx, getState());
-		enterRule(_localctx, 202, RULE_varDecl);
+		enterRule(_localctx, 214, RULE_varDecl);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1205);
+			setState(1269);
 			match(VAR);
-			setState(1217);
+			setState(1281);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case IDENTIFIER:
 				{
-				setState(1206);
+				setState(1270);
 				varSpec();
 				}
 				break;
 			case L_PAREN:
 				{
-				setState(1207);
+				setState(1271);
 				match(L_PAREN);
-				setState(1213);
+				setState(1277);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				while (_la==IDENTIFIER) {
 					{
 					{
-					setState(1208);
+					setState(1272);
 					varSpec();
-					setState(1209);
+					setState(1273);
 					eos();
 					}
 					}
-					setState(1215);
+					setState(1279);
 					_errHandler.sync(this);
 					_la = _input.LA(1);
 				}
-				setState(1216);
+				setState(1280);
 				match(R_PAREN);
 				}
 				break;
@@ -7708,23 +8148,23 @@ public class GobraParser extends GobraParserBase {
 
 	public final BlockContext block() throws RecognitionException {
 		BlockContext _localctx = new BlockContext(_ctx, getState());
-		enterRule(_localctx, 204, RULE_block);
+		enterRule(_localctx, 216, RULE_block);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1219);
+			setState(1283);
 			match(L_CURLY);
-			setState(1221);
+			setState(1285);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,103,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,111,_ctx) ) {
 			case 1:
 				{
-				setState(1220);
+				setState(1284);
 				statementList();
 				}
 				break;
 			}
-			setState(1223);
+			setState(1287);
 			match(R_CURLY);
 			}
 		}
@@ -7765,12 +8205,12 @@ public class GobraParser extends GobraParserBase {
 
 	public final StatementListContext statementList() throws RecognitionException {
 		StatementListContext _localctx = new StatementListContext(_ctx, getState());
-		enterRule(_localctx, 206, RULE_statementList);
+		enterRule(_localctx, 218, RULE_statementList);
 		try {
 			int _alt;
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1231); 
+			setState(1295); 
 			_errHandler.sync(this);
 			_alt = 1;
 			do {
@@ -7778,19 +8218,19 @@ public class GobraParser extends GobraParserBase {
 				case 1:
 					{
 					{
-					setState(1226);
+					setState(1290);
 					_errHandler.sync(this);
-					switch ( getInterpreter().adaptivePredict(_input,104,_ctx) ) {
+					switch ( getInterpreter().adaptivePredict(_input,112,_ctx) ) {
 					case 1:
 						{
-						setState(1225);
+						setState(1289);
 						eos();
 						}
 						break;
 					}
-					setState(1228);
+					setState(1292);
 					statement();
-					setState(1229);
+					setState(1293);
 					eos();
 					}
 					}
@@ -7798,9 +8238,9 @@ public class GobraParser extends GobraParserBase {
 				default:
 					throw new NoViableAltException(this);
 				}
-				setState(1233); 
+				setState(1297); 
 				_errHandler.sync(this);
-				_alt = getInterpreter().adaptivePredict(_input,105,_ctx);
+				_alt = getInterpreter().adaptivePredict(_input,113,_ctx);
 			} while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
 			}
 		}
@@ -7844,43 +8284,43 @@ public class GobraParser extends GobraParserBase {
 
 	public final SimpleStmtContext simpleStmt() throws RecognitionException {
 		SimpleStmtContext _localctx = new SimpleStmtContext(_ctx, getState());
-		enterRule(_localctx, 208, RULE_simpleStmt);
+		enterRule(_localctx, 220, RULE_simpleStmt);
 		try {
-			setState(1240);
+			setState(1304);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,106,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,114,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1235);
+				setState(1299);
 				sendStmt();
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1236);
+				setState(1300);
 				incDecStmt();
 				}
 				break;
 			case 3:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(1237);
+				setState(1301);
 				assignment();
 				}
 				break;
 			case 4:
 				enterOuterAlt(_localctx, 4);
 				{
-				setState(1238);
+				setState(1302);
 				expressionStmt();
 				}
 				break;
 			case 5:
 				enterOuterAlt(_localctx, 5);
 				{
-				setState(1239);
+				setState(1303);
 				shortVarDecl();
 				}
 				break;
@@ -7914,11 +8354,11 @@ public class GobraParser extends GobraParserBase {
 
 	public final ExpressionStmtContext expressionStmt() throws RecognitionException {
 		ExpressionStmtContext _localctx = new ExpressionStmtContext(_ctx, getState());
-		enterRule(_localctx, 210, RULE_expressionStmt);
+		enterRule(_localctx, 222, RULE_expressionStmt);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1242);
+			setState(1306);
 			expression(0);
 			}
 		}
@@ -7955,15 +8395,15 @@ public class GobraParser extends GobraParserBase {
 
 	public final SendStmtContext sendStmt() throws RecognitionException {
 		SendStmtContext _localctx = new SendStmtContext(_ctx, getState());
-		enterRule(_localctx, 212, RULE_sendStmt);
+		enterRule(_localctx, 224, RULE_sendStmt);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1244);
+			setState(1308);
 			((SendStmtContext)_localctx).channel = expression(0);
-			setState(1245);
+			setState(1309);
 			match(RECEIVE);
-			setState(1246);
+			setState(1310);
 			expression(0);
 			}
 		}
@@ -7997,14 +8437,14 @@ public class GobraParser extends GobraParserBase {
 
 	public final IncDecStmtContext incDecStmt() throws RecognitionException {
 		IncDecStmtContext _localctx = new IncDecStmtContext(_ctx, getState());
-		enterRule(_localctx, 214, RULE_incDecStmt);
+		enterRule(_localctx, 226, RULE_incDecStmt);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1248);
+			setState(1312);
 			expression(0);
-			setState(1249);
+			setState(1313);
 			_la = _input.LA(1);
 			if ( !(_la==PLUS_PLUS || _la==MINUS_MINUS) ) {
 			_errHandler.recoverInline(this);
@@ -8050,15 +8490,15 @@ public class GobraParser extends GobraParserBase {
 
 	public final AssignmentContext assignment() throws RecognitionException {
 		AssignmentContext _localctx = new AssignmentContext(_ctx, getState());
-		enterRule(_localctx, 216, RULE_assignment);
+		enterRule(_localctx, 228, RULE_assignment);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1251);
+			setState(1315);
 			expressionList();
-			setState(1252);
+			setState(1316);
 			assign_op();
-			setState(1253);
+			setState(1317);
 			expressionList();
 			}
 		}
@@ -8089,12 +8529,12 @@ public class GobraParser extends GobraParserBase {
 
 	public final EmptyStmtContext emptyStmt() throws RecognitionException {
 		EmptyStmtContext _localctx = new EmptyStmtContext(_ctx, getState());
-		enterRule(_localctx, 218, RULE_emptyStmt);
+		enterRule(_localctx, 230, RULE_emptyStmt);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1255);
+			setState(1319);
 			_la = _input.LA(1);
 			if ( !(_la==SEMI || _la==EOS) ) {
 			_errHandler.recoverInline(this);
@@ -8136,20 +8576,20 @@ public class GobraParser extends GobraParserBase {
 
 	public final LabeledStmtContext labeledStmt() throws RecognitionException {
 		LabeledStmtContext _localctx = new LabeledStmtContext(_ctx, getState());
-		enterRule(_localctx, 220, RULE_labeledStmt);
+		enterRule(_localctx, 232, RULE_labeledStmt);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1257);
+			setState(1321);
 			match(IDENTIFIER);
-			setState(1258);
+			setState(1322);
 			match(COLON);
-			setState(1260);
+			setState(1324);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,107,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,115,_ctx) ) {
 			case 1:
 				{
-				setState(1259);
+				setState(1323);
 				statement();
 				}
 				break;
@@ -8185,18 +8625,18 @@ public class GobraParser extends GobraParserBase {
 
 	public final ReturnStmtContext returnStmt() throws RecognitionException {
 		ReturnStmtContext _localctx = new ReturnStmtContext(_ctx, getState());
-		enterRule(_localctx, 222, RULE_returnStmt);
+		enterRule(_localctx, 234, RULE_returnStmt);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1262);
+			setState(1326);
 			match(RETURN);
-			setState(1264);
+			setState(1328);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,108,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,116,_ctx) ) {
 			case 1:
 				{
-				setState(1263);
+				setState(1327);
 				expressionList();
 				}
 				break;
@@ -8230,18 +8670,18 @@ public class GobraParser extends GobraParserBase {
 
 	public final BreakStmtContext breakStmt() throws RecognitionException {
 		BreakStmtContext _localctx = new BreakStmtContext(_ctx, getState());
-		enterRule(_localctx, 224, RULE_breakStmt);
+		enterRule(_localctx, 236, RULE_breakStmt);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1266);
+			setState(1330);
 			match(BREAK);
-			setState(1268);
+			setState(1332);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,109,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,117,_ctx) ) {
 			case 1:
 				{
-				setState(1267);
+				setState(1331);
 				match(IDENTIFIER);
 				}
 				break;
@@ -8275,18 +8715,18 @@ public class GobraParser extends GobraParserBase {
 
 	public final ContinueStmtContext continueStmt() throws RecognitionException {
 		ContinueStmtContext _localctx = new ContinueStmtContext(_ctx, getState());
-		enterRule(_localctx, 226, RULE_continueStmt);
+		enterRule(_localctx, 238, RULE_continueStmt);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1270);
+			setState(1334);
 			match(CONTINUE);
-			setState(1272);
+			setState(1336);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,110,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,118,_ctx) ) {
 			case 1:
 				{
-				setState(1271);
+				setState(1335);
 				match(IDENTIFIER);
 				}
 				break;
@@ -8320,13 +8760,13 @@ public class GobraParser extends GobraParserBase {
 
 	public final GotoStmtContext gotoStmt() throws RecognitionException {
 		GotoStmtContext _localctx = new GotoStmtContext(_ctx, getState());
-		enterRule(_localctx, 228, RULE_gotoStmt);
+		enterRule(_localctx, 240, RULE_gotoStmt);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1274);
+			setState(1338);
 			match(GOTO);
-			setState(1275);
+			setState(1339);
 			match(IDENTIFIER);
 			}
 		}
@@ -8356,11 +8796,11 @@ public class GobraParser extends GobraParserBase {
 
 	public final FallthroughStmtContext fallthroughStmt() throws RecognitionException {
 		FallthroughStmtContext _localctx = new FallthroughStmtContext(_ctx, getState());
-		enterRule(_localctx, 230, RULE_fallthroughStmt);
+		enterRule(_localctx, 242, RULE_fallthroughStmt);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1277);
+			setState(1341);
 			match(FALLTHROUGH);
 			}
 		}
@@ -8409,61 +8849,61 @@ public class GobraParser extends GobraParserBase {
 
 	public final IfStmtContext ifStmt() throws RecognitionException {
 		IfStmtContext _localctx = new IfStmtContext(_ctx, getState());
-		enterRule(_localctx, 232, RULE_ifStmt);
+		enterRule(_localctx, 244, RULE_ifStmt);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1279);
+			setState(1343);
 			match(IF);
-			setState(1288);
+			setState(1352);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,111,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,119,_ctx) ) {
 			case 1:
 				{
-				setState(1280);
+				setState(1344);
 				expression(0);
 				}
 				break;
 			case 2:
 				{
-				setState(1281);
+				setState(1345);
 				eos();
-				setState(1282);
+				setState(1346);
 				expression(0);
 				}
 				break;
 			case 3:
 				{
-				setState(1284);
+				setState(1348);
 				simpleStmt();
-				setState(1285);
+				setState(1349);
 				eos();
-				setState(1286);
+				setState(1350);
 				expression(0);
 				}
 				break;
 			}
-			setState(1290);
+			setState(1354);
 			block();
-			setState(1296);
+			setState(1360);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,113,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,121,_ctx) ) {
 			case 1:
 				{
-				setState(1291);
+				setState(1355);
 				match(ELSE);
-				setState(1294);
+				setState(1358);
 				_errHandler.sync(this);
 				switch (_input.LA(1)) {
 				case IF:
 					{
-					setState(1292);
+					setState(1356);
 					ifStmt();
 					}
 					break;
 				case L_CURLY:
 					{
-					setState(1293);
+					setState(1357);
 					block();
 					}
 					break;
@@ -8506,22 +8946,22 @@ public class GobraParser extends GobraParserBase {
 
 	public final SwitchStmtContext switchStmt() throws RecognitionException {
 		SwitchStmtContext _localctx = new SwitchStmtContext(_ctx, getState());
-		enterRule(_localctx, 234, RULE_switchStmt);
+		enterRule(_localctx, 246, RULE_switchStmt);
 		try {
-			setState(1300);
+			setState(1364);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,114,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,122,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1298);
+				setState(1362);
 				exprSwitchStmt();
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1299);
+				setState(1363);
 				typeSwitchStmt();
 				}
 				break;
@@ -8570,24 +9010,24 @@ public class GobraParser extends GobraParserBase {
 
 	public final ExprSwitchStmtContext exprSwitchStmt() throws RecognitionException {
 		ExprSwitchStmtContext _localctx = new ExprSwitchStmtContext(_ctx, getState());
-		enterRule(_localctx, 236, RULE_exprSwitchStmt);
+		enterRule(_localctx, 248, RULE_exprSwitchStmt);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1302);
+			setState(1366);
 			match(SWITCH);
-			setState(1313);
+			setState(1377);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,118,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,126,_ctx) ) {
 			case 1:
 				{
-				setState(1304);
+				setState(1368);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
-				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 69)) & ~0x3f) == 0 && ((1L << (_la - 69)) & ((1L << (FUNC - 69)) | (1L << (INTERFACE - 69)) | (1L << (MAP - 69)) | (1L << (STRUCT - 69)) | (1L << (CHAN - 69)) | (1L << (RANGE - 69)) | (1L << (TYPE - 69)) | (1L << (NIL_LIT - 69)) | (1L << (IDENTIFIER - 69)) | (1L << (L_PAREN - 69)) | (1L << (L_BRACKET - 69)) | (1L << (EXCLAMATION - 69)) | (1L << (PLUS - 69)) | (1L << (MINUS - 69)) | (1L << (CARET - 69)) | (1L << (STAR - 69)) | (1L << (AMPERSAND - 69)) | (1L << (RECEIVE - 69)) | (1L << (DECIMAL_LIT - 69)) | (1L << (BINARY_LIT - 69)) | (1L << (OCTAL_LIT - 69)))) != 0) || ((((_la - 133)) & ~0x3f) == 0 && ((1L << (_la - 133)) & ((1L << (HEX_LIT - 133)) | (1L << (IMAGINARY_LIT - 133)) | (1L << (RUNE_LIT - 133)) | (1L << (RAW_STRING_LIT - 133)) | (1L << (INTERPRETED_STRING_LIT - 133)))) != 0)) {
+				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << PRE) | (1L << PRESERVES) | (1L << POST) | (1L << DEC) | (1L << PURE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (TRUSTED - 64)) | (1L << (FUNC - 64)) | (1L << (INTERFACE - 64)) | (1L << (MAP - 64)) | (1L << (STRUCT - 64)) | (1L << (CHAN - 64)) | (1L << (RANGE - 64)) | (1L << (TYPE - 64)) | (1L << (NIL_LIT - 64)) | (1L << (IDENTIFIER - 64)) | (1L << (L_PAREN - 64)) | (1L << (L_BRACKET - 64)) | (1L << (EXCLAMATION - 64)) | (1L << (PLUS - 64)) | (1L << (MINUS - 64)))) != 0) || ((((_la - 128)) & ~0x3f) == 0 && ((1L << (_la - 128)) & ((1L << (CARET - 128)) | (1L << (STAR - 128)) | (1L << (AMPERSAND - 128)) | (1L << (RECEIVE - 128)) | (1L << (DECIMAL_LIT - 128)) | (1L << (BINARY_LIT - 128)) | (1L << (OCTAL_LIT - 128)) | (1L << (HEX_LIT - 128)) | (1L << (IMAGINARY_LIT - 128)) | (1L << (RUNE_LIT - 128)) | (1L << (RAW_STRING_LIT - 128)) | (1L << (INTERPRETED_STRING_LIT - 128)))) != 0)) {
 					{
-					setState(1303);
+					setState(1367);
 					expression(0);
 					}
 				}
@@ -8596,24 +9036,24 @@ public class GobraParser extends GobraParserBase {
 				break;
 			case 2:
 				{
-				setState(1307);
+				setState(1371);
 				_errHandler.sync(this);
-				switch ( getInterpreter().adaptivePredict(_input,116,_ctx) ) {
+				switch ( getInterpreter().adaptivePredict(_input,124,_ctx) ) {
 				case 1:
 					{
-					setState(1306);
+					setState(1370);
 					simpleStmt();
 					}
 					break;
 				}
-				setState(1309);
+				setState(1373);
 				eos();
-				setState(1311);
+				setState(1375);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
-				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 69)) & ~0x3f) == 0 && ((1L << (_la - 69)) & ((1L << (FUNC - 69)) | (1L << (INTERFACE - 69)) | (1L << (MAP - 69)) | (1L << (STRUCT - 69)) | (1L << (CHAN - 69)) | (1L << (RANGE - 69)) | (1L << (TYPE - 69)) | (1L << (NIL_LIT - 69)) | (1L << (IDENTIFIER - 69)) | (1L << (L_PAREN - 69)) | (1L << (L_BRACKET - 69)) | (1L << (EXCLAMATION - 69)) | (1L << (PLUS - 69)) | (1L << (MINUS - 69)) | (1L << (CARET - 69)) | (1L << (STAR - 69)) | (1L << (AMPERSAND - 69)) | (1L << (RECEIVE - 69)) | (1L << (DECIMAL_LIT - 69)) | (1L << (BINARY_LIT - 69)) | (1L << (OCTAL_LIT - 69)))) != 0) || ((((_la - 133)) & ~0x3f) == 0 && ((1L << (_la - 133)) & ((1L << (HEX_LIT - 133)) | (1L << (IMAGINARY_LIT - 133)) | (1L << (RUNE_LIT - 133)) | (1L << (RAW_STRING_LIT - 133)) | (1L << (INTERPRETED_STRING_LIT - 133)))) != 0)) {
+				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << PRE) | (1L << PRESERVES) | (1L << POST) | (1L << DEC) | (1L << PURE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (TRUSTED - 64)) | (1L << (FUNC - 64)) | (1L << (INTERFACE - 64)) | (1L << (MAP - 64)) | (1L << (STRUCT - 64)) | (1L << (CHAN - 64)) | (1L << (RANGE - 64)) | (1L << (TYPE - 64)) | (1L << (NIL_LIT - 64)) | (1L << (IDENTIFIER - 64)) | (1L << (L_PAREN - 64)) | (1L << (L_BRACKET - 64)) | (1L << (EXCLAMATION - 64)) | (1L << (PLUS - 64)) | (1L << (MINUS - 64)))) != 0) || ((((_la - 128)) & ~0x3f) == 0 && ((1L << (_la - 128)) & ((1L << (CARET - 128)) | (1L << (STAR - 128)) | (1L << (AMPERSAND - 128)) | (1L << (RECEIVE - 128)) | (1L << (DECIMAL_LIT - 128)) | (1L << (BINARY_LIT - 128)) | (1L << (OCTAL_LIT - 128)) | (1L << (HEX_LIT - 128)) | (1L << (IMAGINARY_LIT - 128)) | (1L << (RUNE_LIT - 128)) | (1L << (RAW_STRING_LIT - 128)) | (1L << (INTERPRETED_STRING_LIT - 128)))) != 0)) {
 					{
-					setState(1310);
+					setState(1374);
 					expression(0);
 					}
 				}
@@ -8621,23 +9061,23 @@ public class GobraParser extends GobraParserBase {
 				}
 				break;
 			}
-			setState(1315);
+			setState(1379);
 			match(L_CURLY);
-			setState(1319);
+			setState(1383);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==DEFAULT || _la==CASE) {
 				{
 				{
-				setState(1316);
+				setState(1380);
 				exprCaseClause();
 				}
 				}
-				setState(1321);
+				setState(1385);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
-			setState(1322);
+			setState(1386);
 			match(R_CURLY);
 			}
 		}
@@ -8673,20 +9113,20 @@ public class GobraParser extends GobraParserBase {
 
 	public final ExprCaseClauseContext exprCaseClause() throws RecognitionException {
 		ExprCaseClauseContext _localctx = new ExprCaseClauseContext(_ctx, getState());
-		enterRule(_localctx, 238, RULE_exprCaseClause);
+		enterRule(_localctx, 250, RULE_exprCaseClause);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1324);
+			setState(1388);
 			exprSwitchCase();
-			setState(1325);
+			setState(1389);
 			match(COLON);
-			setState(1327);
+			setState(1391);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,120,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,128,_ctx) ) {
 			case 1:
 				{
-				setState(1326);
+				setState(1390);
 				statementList();
 				}
 				break;
@@ -8723,24 +9163,24 @@ public class GobraParser extends GobraParserBase {
 
 	public final ExprSwitchCaseContext exprSwitchCase() throws RecognitionException {
 		ExprSwitchCaseContext _localctx = new ExprSwitchCaseContext(_ctx, getState());
-		enterRule(_localctx, 240, RULE_exprSwitchCase);
+		enterRule(_localctx, 252, RULE_exprSwitchCase);
 		try {
-			setState(1332);
+			setState(1396);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case CASE:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1329);
+				setState(1393);
 				match(CASE);
-				setState(1330);
+				setState(1394);
 				expressionList();
 				}
 				break;
 			case DEFAULT:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1331);
+				setState(1395);
 				match(DEFAULT);
 				}
 				break;
@@ -8791,58 +9231,58 @@ public class GobraParser extends GobraParserBase {
 
 	public final TypeSwitchStmtContext typeSwitchStmt() throws RecognitionException {
 		TypeSwitchStmtContext _localctx = new TypeSwitchStmtContext(_ctx, getState());
-		enterRule(_localctx, 242, RULE_typeSwitchStmt);
+		enterRule(_localctx, 254, RULE_typeSwitchStmt);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1334);
+			setState(1398);
 			match(SWITCH);
-			setState(1343);
+			setState(1407);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,122,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,130,_ctx) ) {
 			case 1:
 				{
-				setState(1335);
+				setState(1399);
 				typeSwitchGuard();
 				}
 				break;
 			case 2:
 				{
-				setState(1336);
+				setState(1400);
 				eos();
-				setState(1337);
+				setState(1401);
 				typeSwitchGuard();
 				}
 				break;
 			case 3:
 				{
-				setState(1339);
+				setState(1403);
 				simpleStmt();
-				setState(1340);
+				setState(1404);
 				eos();
-				setState(1341);
+				setState(1405);
 				typeSwitchGuard();
 				}
 				break;
 			}
-			setState(1345);
+			setState(1409);
 			match(L_CURLY);
-			setState(1349);
+			setState(1413);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==DEFAULT || _la==CASE) {
 				{
 				{
-				setState(1346);
+				setState(1410);
 				typeCaseClause();
 				}
 				}
-				setState(1351);
+				setState(1415);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
-			setState(1352);
+			setState(1416);
 			match(R_CURLY);
 			}
 		}
@@ -8880,31 +9320,31 @@ public class GobraParser extends GobraParserBase {
 
 	public final TypeSwitchGuardContext typeSwitchGuard() throws RecognitionException {
 		TypeSwitchGuardContext _localctx = new TypeSwitchGuardContext(_ctx, getState());
-		enterRule(_localctx, 244, RULE_typeSwitchGuard);
+		enterRule(_localctx, 256, RULE_typeSwitchGuard);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1356);
+			setState(1420);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,124,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,132,_ctx) ) {
 			case 1:
 				{
-				setState(1354);
+				setState(1418);
 				match(IDENTIFIER);
-				setState(1355);
+				setState(1419);
 				match(DECLARE_ASSIGN);
 				}
 				break;
 			}
-			setState(1358);
+			setState(1422);
 			primaryExpr(0);
-			setState(1359);
+			setState(1423);
 			match(DOT);
-			setState(1360);
+			setState(1424);
 			match(L_PAREN);
-			setState(1361);
+			setState(1425);
 			match(TYPE);
-			setState(1362);
+			setState(1426);
 			match(R_PAREN);
 			}
 		}
@@ -8940,20 +9380,20 @@ public class GobraParser extends GobraParserBase {
 
 	public final TypeCaseClauseContext typeCaseClause() throws RecognitionException {
 		TypeCaseClauseContext _localctx = new TypeCaseClauseContext(_ctx, getState());
-		enterRule(_localctx, 246, RULE_typeCaseClause);
+		enterRule(_localctx, 258, RULE_typeCaseClause);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1364);
+			setState(1428);
 			typeSwitchCase();
-			setState(1365);
+			setState(1429);
 			match(COLON);
-			setState(1367);
+			setState(1431);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,125,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,133,_ctx) ) {
 			case 1:
 				{
-				setState(1366);
+				setState(1430);
 				statementList();
 				}
 				break;
@@ -8990,24 +9430,24 @@ public class GobraParser extends GobraParserBase {
 
 	public final TypeSwitchCaseContext typeSwitchCase() throws RecognitionException {
 		TypeSwitchCaseContext _localctx = new TypeSwitchCaseContext(_ctx, getState());
-		enterRule(_localctx, 248, RULE_typeSwitchCase);
+		enterRule(_localctx, 260, RULE_typeSwitchCase);
 		try {
-			setState(1372);
+			setState(1436);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case CASE:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1369);
+				setState(1433);
 				match(CASE);
-				setState(1370);
+				setState(1434);
 				typeList();
 				}
 				break;
 			case DEFAULT:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1371);
+				setState(1435);
 				match(DEFAULT);
 				}
 				break;
@@ -9054,12 +9494,12 @@ public class GobraParser extends GobraParserBase {
 
 	public final TypeListContext typeList() throws RecognitionException {
 		TypeListContext _localctx = new TypeListContext(_ctx, getState());
-		enterRule(_localctx, 250, RULE_typeList);
+		enterRule(_localctx, 262, RULE_typeList);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1376);
+			setState(1440);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case GHOST:
@@ -9081,28 +9521,28 @@ public class GobraParser extends GobraParserBase {
 			case STAR:
 			case RECEIVE:
 				{
-				setState(1374);
+				setState(1438);
 				type_();
 				}
 				break;
 			case NIL_LIT:
 				{
-				setState(1375);
+				setState(1439);
 				match(NIL_LIT);
 				}
 				break;
 			default:
 				throw new NoViableAltException(this);
 			}
-			setState(1385);
+			setState(1449);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==COMMA) {
 				{
 				{
-				setState(1378);
+				setState(1442);
 				match(COMMA);
-				setState(1381);
+				setState(1445);
 				_errHandler.sync(this);
 				switch (_input.LA(1)) {
 				case GHOST:
@@ -9124,13 +9564,13 @@ public class GobraParser extends GobraParserBase {
 				case STAR:
 				case RECEIVE:
 					{
-					setState(1379);
+					setState(1443);
 					type_();
 					}
 					break;
 				case NIL_LIT:
 					{
-					setState(1380);
+					setState(1444);
 					match(NIL_LIT);
 					}
 					break;
@@ -9139,7 +9579,7 @@ public class GobraParser extends GobraParserBase {
 				}
 				}
 				}
-				setState(1387);
+				setState(1451);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
@@ -9179,30 +9619,30 @@ public class GobraParser extends GobraParserBase {
 
 	public final SelectStmtContext selectStmt() throws RecognitionException {
 		SelectStmtContext _localctx = new SelectStmtContext(_ctx, getState());
-		enterRule(_localctx, 252, RULE_selectStmt);
+		enterRule(_localctx, 264, RULE_selectStmt);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1388);
+			setState(1452);
 			match(SELECT);
-			setState(1389);
+			setState(1453);
 			match(L_CURLY);
-			setState(1393);
+			setState(1457);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==DEFAULT || _la==CASE) {
 				{
 				{
-				setState(1390);
+				setState(1454);
 				commClause();
 				}
 				}
-				setState(1395);
+				setState(1459);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
-			setState(1396);
+			setState(1460);
 			match(R_CURLY);
 			}
 		}
@@ -9238,20 +9678,20 @@ public class GobraParser extends GobraParserBase {
 
 	public final CommClauseContext commClause() throws RecognitionException {
 		CommClauseContext _localctx = new CommClauseContext(_ctx, getState());
-		enterRule(_localctx, 254, RULE_commClause);
+		enterRule(_localctx, 266, RULE_commClause);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1398);
+			setState(1462);
 			commCase();
-			setState(1399);
+			setState(1463);
 			match(COLON);
-			setState(1401);
+			setState(1465);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,131,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,139,_ctx) ) {
 			case 1:
 				{
-				setState(1400);
+				setState(1464);
 				statementList();
 				}
 				break;
@@ -9291,28 +9731,28 @@ public class GobraParser extends GobraParserBase {
 
 	public final CommCaseContext commCase() throws RecognitionException {
 		CommCaseContext _localctx = new CommCaseContext(_ctx, getState());
-		enterRule(_localctx, 256, RULE_commCase);
+		enterRule(_localctx, 268, RULE_commCase);
 		try {
-			setState(1409);
+			setState(1473);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case CASE:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1403);
+				setState(1467);
 				match(CASE);
-				setState(1406);
+				setState(1470);
 				_errHandler.sync(this);
-				switch ( getInterpreter().adaptivePredict(_input,132,_ctx) ) {
+				switch ( getInterpreter().adaptivePredict(_input,140,_ctx) ) {
 				case 1:
 					{
-					setState(1404);
+					setState(1468);
 					sendStmt();
 					}
 					break;
 				case 2:
 					{
-					setState(1405);
+					setState(1469);
 					recvStmt();
 					}
 					break;
@@ -9322,7 +9762,7 @@ public class GobraParser extends GobraParserBase {
 			case DEFAULT:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1408);
+				setState(1472);
 				match(DEFAULT);
 				}
 				break;
@@ -9367,31 +9807,31 @@ public class GobraParser extends GobraParserBase {
 
 	public final RecvStmtContext recvStmt() throws RecognitionException {
 		RecvStmtContext _localctx = new RecvStmtContext(_ctx, getState());
-		enterRule(_localctx, 258, RULE_recvStmt);
+		enterRule(_localctx, 270, RULE_recvStmt);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1417);
+			setState(1481);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,134,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,142,_ctx) ) {
 			case 1:
 				{
-				setState(1411);
+				setState(1475);
 				expressionList();
-				setState(1412);
+				setState(1476);
 				match(ASSIGN);
 				}
 				break;
 			case 2:
 				{
-				setState(1414);
+				setState(1478);
 				identifierList();
-				setState(1415);
+				setState(1479);
 				match(DECLARE_ASSIGN);
 				}
 				break;
 			}
-			setState(1419);
+			setState(1483);
 			((RecvStmtContext)_localctx).recvExpr = expression(0);
 			}
 		}
@@ -9433,35 +9873,35 @@ public class GobraParser extends GobraParserBase {
 
 	public final ForStmtContext forStmt() throws RecognitionException {
 		ForStmtContext _localctx = new ForStmtContext(_ctx, getState());
-		enterRule(_localctx, 260, RULE_forStmt);
+		enterRule(_localctx, 272, RULE_forStmt);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1421);
+			setState(1485);
 			match(FOR);
-			setState(1425);
+			setState(1489);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,135,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,143,_ctx) ) {
 			case 1:
 				{
-				setState(1422);
+				setState(1486);
 				expression(0);
 				}
 				break;
 			case 2:
 				{
-				setState(1423);
+				setState(1487);
 				forClause();
 				}
 				break;
 			case 3:
 				{
-				setState(1424);
+				setState(1488);
 				rangeClause();
 				}
 				break;
 			}
-			setState(1427);
+			setState(1491);
 			block();
 			}
 		}
@@ -9507,41 +9947,41 @@ public class GobraParser extends GobraParserBase {
 
 	public final ForClauseContext forClause() throws RecognitionException {
 		ForClauseContext _localctx = new ForClauseContext(_ctx, getState());
-		enterRule(_localctx, 262, RULE_forClause);
+		enterRule(_localctx, 274, RULE_forClause);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1430);
+			setState(1494);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,136,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,144,_ctx) ) {
 			case 1:
 				{
-				setState(1429);
+				setState(1493);
 				((ForClauseContext)_localctx).initStmt = simpleStmt();
 				}
 				break;
 			}
-			setState(1432);
+			setState(1496);
 			eos();
-			setState(1434);
+			setState(1498);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,137,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,145,_ctx) ) {
 			case 1:
 				{
-				setState(1433);
+				setState(1497);
 				expression(0);
 				}
 				break;
 			}
-			setState(1436);
+			setState(1500);
 			eos();
-			setState(1438);
+			setState(1502);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
-			if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 69)) & ~0x3f) == 0 && ((1L << (_la - 69)) & ((1L << (FUNC - 69)) | (1L << (INTERFACE - 69)) | (1L << (MAP - 69)) | (1L << (STRUCT - 69)) | (1L << (CHAN - 69)) | (1L << (RANGE - 69)) | (1L << (TYPE - 69)) | (1L << (NIL_LIT - 69)) | (1L << (IDENTIFIER - 69)) | (1L << (L_PAREN - 69)) | (1L << (L_BRACKET - 69)) | (1L << (EXCLAMATION - 69)) | (1L << (PLUS - 69)) | (1L << (MINUS - 69)) | (1L << (CARET - 69)) | (1L << (STAR - 69)) | (1L << (AMPERSAND - 69)) | (1L << (RECEIVE - 69)) | (1L << (DECIMAL_LIT - 69)) | (1L << (BINARY_LIT - 69)) | (1L << (OCTAL_LIT - 69)))) != 0) || ((((_la - 133)) & ~0x3f) == 0 && ((1L << (_la - 133)) & ((1L << (HEX_LIT - 133)) | (1L << (IMAGINARY_LIT - 133)) | (1L << (RUNE_LIT - 133)) | (1L << (RAW_STRING_LIT - 133)) | (1L << (INTERPRETED_STRING_LIT - 133)))) != 0)) {
+			if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << PRE) | (1L << PRESERVES) | (1L << POST) | (1L << DEC) | (1L << PURE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (TRUSTED - 64)) | (1L << (FUNC - 64)) | (1L << (INTERFACE - 64)) | (1L << (MAP - 64)) | (1L << (STRUCT - 64)) | (1L << (CHAN - 64)) | (1L << (RANGE - 64)) | (1L << (TYPE - 64)) | (1L << (NIL_LIT - 64)) | (1L << (IDENTIFIER - 64)) | (1L << (L_PAREN - 64)) | (1L << (L_BRACKET - 64)) | (1L << (EXCLAMATION - 64)) | (1L << (PLUS - 64)) | (1L << (MINUS - 64)))) != 0) || ((((_la - 128)) & ~0x3f) == 0 && ((1L << (_la - 128)) & ((1L << (CARET - 128)) | (1L << (STAR - 128)) | (1L << (AMPERSAND - 128)) | (1L << (RECEIVE - 128)) | (1L << (DECIMAL_LIT - 128)) | (1L << (BINARY_LIT - 128)) | (1L << (OCTAL_LIT - 128)) | (1L << (HEX_LIT - 128)) | (1L << (IMAGINARY_LIT - 128)) | (1L << (RUNE_LIT - 128)) | (1L << (RAW_STRING_LIT - 128)) | (1L << (INTERPRETED_STRING_LIT - 128)))) != 0)) {
 				{
-				setState(1437);
+				setState(1501);
 				((ForClauseContext)_localctx).postStmt = simpleStmt();
 				}
 			}
@@ -9585,33 +10025,33 @@ public class GobraParser extends GobraParserBase {
 
 	public final RangeClauseContext rangeClause() throws RecognitionException {
 		RangeClauseContext _localctx = new RangeClauseContext(_ctx, getState());
-		enterRule(_localctx, 264, RULE_rangeClause);
+		enterRule(_localctx, 276, RULE_rangeClause);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1446);
+			setState(1510);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,139,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,147,_ctx) ) {
 			case 1:
 				{
-				setState(1440);
+				setState(1504);
 				expressionList();
-				setState(1441);
+				setState(1505);
 				match(ASSIGN);
 				}
 				break;
 			case 2:
 				{
-				setState(1443);
+				setState(1507);
 				identifierList();
-				setState(1444);
+				setState(1508);
 				match(DECLARE_ASSIGN);
 				}
 				break;
 			}
-			setState(1448);
+			setState(1512);
 			match(RANGE);
-			setState(1449);
+			setState(1513);
 			expression(0);
 			}
 		}
@@ -9644,13 +10084,13 @@ public class GobraParser extends GobraParserBase {
 
 	public final GoStmtContext goStmt() throws RecognitionException {
 		GoStmtContext _localctx = new GoStmtContext(_ctx, getState());
-		enterRule(_localctx, 266, RULE_goStmt);
+		enterRule(_localctx, 278, RULE_goStmt);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1451);
+			setState(1515);
 			match(GO);
-			setState(1452);
+			setState(1516);
 			expression(0);
 			}
 		}
@@ -9683,22 +10123,22 @@ public class GobraParser extends GobraParserBase {
 
 	public final TypeNameContext typeName() throws RecognitionException {
 		TypeNameContext _localctx = new TypeNameContext(_ctx, getState());
-		enterRule(_localctx, 268, RULE_typeName);
+		enterRule(_localctx, 280, RULE_typeName);
 		try {
-			setState(1456);
+			setState(1520);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,140,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,148,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1454);
+				setState(1518);
 				qualifiedIdent();
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1455);
+				setState(1519);
 				match(IDENTIFIER);
 				}
 				break;
@@ -9737,17 +10177,17 @@ public class GobraParser extends GobraParserBase {
 
 	public final ArrayTypeContext arrayType() throws RecognitionException {
 		ArrayTypeContext _localctx = new ArrayTypeContext(_ctx, getState());
-		enterRule(_localctx, 270, RULE_arrayType);
+		enterRule(_localctx, 282, RULE_arrayType);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1458);
+			setState(1522);
 			match(L_BRACKET);
-			setState(1459);
+			setState(1523);
 			arrayLength();
-			setState(1460);
+			setState(1524);
 			match(R_BRACKET);
-			setState(1461);
+			setState(1525);
 			elementType();
 			}
 		}
@@ -9779,11 +10219,11 @@ public class GobraParser extends GobraParserBase {
 
 	public final ArrayLengthContext arrayLength() throws RecognitionException {
 		ArrayLengthContext _localctx = new ArrayLengthContext(_ctx, getState());
-		enterRule(_localctx, 272, RULE_arrayLength);
+		enterRule(_localctx, 284, RULE_arrayLength);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1463);
+			setState(1527);
 			expression(0);
 			}
 		}
@@ -9815,11 +10255,11 @@ public class GobraParser extends GobraParserBase {
 
 	public final ElementTypeContext elementType() throws RecognitionException {
 		ElementTypeContext _localctx = new ElementTypeContext(_ctx, getState());
-		enterRule(_localctx, 274, RULE_elementType);
+		enterRule(_localctx, 286, RULE_elementType);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1465);
+			setState(1529);
 			type_();
 			}
 		}
@@ -9852,13 +10292,13 @@ public class GobraParser extends GobraParserBase {
 
 	public final PointerTypeContext pointerType() throws RecognitionException {
 		PointerTypeContext _localctx = new PointerTypeContext(_ctx, getState());
-		enterRule(_localctx, 276, RULE_pointerType);
+		enterRule(_localctx, 288, RULE_pointerType);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1467);
+			setState(1531);
 			match(STAR);
-			setState(1468);
+			setState(1532);
 			type_();
 			}
 		}
@@ -9892,15 +10332,15 @@ public class GobraParser extends GobraParserBase {
 
 	public final SliceTypeContext sliceType() throws RecognitionException {
 		SliceTypeContext _localctx = new SliceTypeContext(_ctx, getState());
-		enterRule(_localctx, 278, RULE_sliceType);
+		enterRule(_localctx, 290, RULE_sliceType);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1470);
+			setState(1534);
 			match(L_BRACKET);
-			setState(1471);
+			setState(1535);
 			match(R_BRACKET);
-			setState(1472);
+			setState(1536);
 			elementType();
 			}
 		}
@@ -9938,19 +10378,19 @@ public class GobraParser extends GobraParserBase {
 
 	public final MapTypeContext mapType() throws RecognitionException {
 		MapTypeContext _localctx = new MapTypeContext(_ctx, getState());
-		enterRule(_localctx, 280, RULE_mapType);
+		enterRule(_localctx, 292, RULE_mapType);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1474);
+			setState(1538);
 			match(MAP);
-			setState(1475);
+			setState(1539);
 			match(L_BRACKET);
-			setState(1476);
+			setState(1540);
 			type_();
-			setState(1477);
+			setState(1541);
 			match(R_BRACKET);
-			setState(1478);
+			setState(1542);
 			elementType();
 			}
 		}
@@ -9984,37 +10424,37 @@ public class GobraParser extends GobraParserBase {
 
 	public final ChannelTypeContext channelType() throws RecognitionException {
 		ChannelTypeContext _localctx = new ChannelTypeContext(_ctx, getState());
-		enterRule(_localctx, 282, RULE_channelType);
+		enterRule(_localctx, 294, RULE_channelType);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1485);
+			setState(1549);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,141,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,149,_ctx) ) {
 			case 1:
 				{
-				setState(1480);
+				setState(1544);
 				match(CHAN);
 				}
 				break;
 			case 2:
 				{
-				setState(1481);
+				setState(1545);
 				match(CHAN);
-				setState(1482);
+				setState(1546);
 				match(RECEIVE);
 				}
 				break;
 			case 3:
 				{
-				setState(1483);
+				setState(1547);
 				match(RECEIVE);
-				setState(1484);
+				setState(1548);
 				match(CHAN);
 				}
 				break;
 			}
-			setState(1487);
+			setState(1551);
 			elementType();
 			}
 		}
@@ -10047,13 +10487,13 @@ public class GobraParser extends GobraParserBase {
 
 	public final FunctionTypeContext functionType() throws RecognitionException {
 		FunctionTypeContext _localctx = new FunctionTypeContext(_ctx, getState());
-		enterRule(_localctx, 284, RULE_functionType);
+		enterRule(_localctx, 296, RULE_functionType);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1489);
+			setState(1553);
 			match(FUNC);
-			setState(1490);
+			setState(1554);
 			signature();
 			}
 		}
@@ -10088,24 +10528,24 @@ public class GobraParser extends GobraParserBase {
 
 	public final SignatureContext signature() throws RecognitionException {
 		SignatureContext _localctx = new SignatureContext(_ctx, getState());
-		enterRule(_localctx, 286, RULE_signature);
+		enterRule(_localctx, 298, RULE_signature);
 		try {
-			setState(1496);
+			setState(1560);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,142,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,150,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1492);
+				setState(1556);
 				parameters();
-				setState(1493);
+				setState(1557);
 				result();
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1495);
+				setState(1559);
 				parameters();
 				}
 				break;
@@ -10142,22 +10582,22 @@ public class GobraParser extends GobraParserBase {
 
 	public final ResultContext result() throws RecognitionException {
 		ResultContext _localctx = new ResultContext(_ctx, getState());
-		enterRule(_localctx, 288, RULE_result);
+		enterRule(_localctx, 300, RULE_result);
 		try {
-			setState(1500);
+			setState(1564);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,143,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,151,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1498);
+				setState(1562);
 				parameters();
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1499);
+				setState(1563);
 				type_();
 				}
 				break;
@@ -10200,45 +10640,45 @@ public class GobraParser extends GobraParserBase {
 
 	public final ParametersContext parameters() throws RecognitionException {
 		ParametersContext _localctx = new ParametersContext(_ctx, getState());
-		enterRule(_localctx, 290, RULE_parameters);
+		enterRule(_localctx, 302, RULE_parameters);
 		int _la;
 		try {
 			int _alt;
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1502);
+			setState(1566);
 			match(L_PAREN);
-			setState(1514);
+			setState(1578);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
-			if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << DOM) | (1L << PRED))) != 0) || ((((_la - 69)) & ~0x3f) == 0 && ((1L << (_la - 69)) & ((1L << (FUNC - 69)) | (1L << (INTERFACE - 69)) | (1L << (MAP - 69)) | (1L << (STRUCT - 69)) | (1L << (CHAN - 69)) | (1L << (IDENTIFIER - 69)) | (1L << (L_PAREN - 69)) | (1L << (L_BRACKET - 69)) | (1L << (ELLIPSIS - 69)) | (1L << (STAR - 69)) | (1L << (RECEIVE - 69)))) != 0)) {
+			if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << DOM) | (1L << PRED))) != 0) || ((((_la - 71)) & ~0x3f) == 0 && ((1L << (_la - 71)) & ((1L << (FUNC - 71)) | (1L << (INTERFACE - 71)) | (1L << (MAP - 71)) | (1L << (STRUCT - 71)) | (1L << (CHAN - 71)) | (1L << (IDENTIFIER - 71)) | (1L << (L_PAREN - 71)) | (1L << (L_BRACKET - 71)) | (1L << (ELLIPSIS - 71)) | (1L << (STAR - 71)) | (1L << (RECEIVE - 71)))) != 0)) {
 				{
-				setState(1503);
+				setState(1567);
 				parameterDecl();
-				setState(1508);
+				setState(1572);
 				_errHandler.sync(this);
-				_alt = getInterpreter().adaptivePredict(_input,144,_ctx);
+				_alt = getInterpreter().adaptivePredict(_input,152,_ctx);
 				while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
 					if ( _alt==1 ) {
 						{
 						{
-						setState(1504);
+						setState(1568);
 						match(COMMA);
-						setState(1505);
+						setState(1569);
 						parameterDecl();
 						}
 						} 
 					}
-					setState(1510);
+					setState(1574);
 					_errHandler.sync(this);
-					_alt = getInterpreter().adaptivePredict(_input,144,_ctx);
+					_alt = getInterpreter().adaptivePredict(_input,152,_ctx);
 				}
-				setState(1512);
+				setState(1576);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				if (_la==COMMA) {
 					{
-					setState(1511);
+					setState(1575);
 					match(COMMA);
 					}
 				}
@@ -10246,7 +10686,7 @@ public class GobraParser extends GobraParserBase {
 				}
 			}
 
-			setState(1516);
+			setState(1580);
 			match(R_PAREN);
 			}
 		}
@@ -10284,28 +10724,28 @@ public class GobraParser extends GobraParserBase {
 
 	public final ConversionContext conversion() throws RecognitionException {
 		ConversionContext _localctx = new ConversionContext(_ctx, getState());
-		enterRule(_localctx, 292, RULE_conversion);
+		enterRule(_localctx, 304, RULE_conversion);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1518);
+			setState(1582);
 			nonNamedType();
-			setState(1519);
+			setState(1583);
 			match(L_PAREN);
-			setState(1520);
+			setState(1584);
 			expression(0);
-			setState(1522);
+			setState(1586);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==COMMA) {
 				{
-				setState(1521);
+				setState(1585);
 				match(COMMA);
 				}
 			}
 
-			setState(1524);
+			setState(1588);
 			match(R_PAREN);
 			}
 		}
@@ -10342,9 +10782,9 @@ public class GobraParser extends GobraParserBase {
 
 	public final NonNamedTypeContext nonNamedType() throws RecognitionException {
 		NonNamedTypeContext _localctx = new NonNamedTypeContext(_ctx, getState());
-		enterRule(_localctx, 294, RULE_nonNamedType);
+		enterRule(_localctx, 306, RULE_nonNamedType);
 		try {
-			setState(1531);
+			setState(1595);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case PRED:
@@ -10358,18 +10798,18 @@ public class GobraParser extends GobraParserBase {
 			case RECEIVE:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1526);
+				setState(1590);
 				typeLit();
 				}
 				break;
 			case L_PAREN:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1527);
+				setState(1591);
 				match(L_PAREN);
-				setState(1528);
+				setState(1592);
 				nonNamedType();
-				setState(1529);
+				setState(1593);
 				match(R_PAREN);
 				}
 				break;
@@ -10413,33 +10853,33 @@ public class GobraParser extends GobraParserBase {
 
 	public final OperandContext operand() throws RecognitionException {
 		OperandContext _localctx = new OperandContext(_ctx, getState());
-		enterRule(_localctx, 296, RULE_operand);
+		enterRule(_localctx, 308, RULE_operand);
 		try {
-			setState(1539);
+			setState(1603);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,149,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,157,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1533);
+				setState(1597);
 				literal();
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1534);
+				setState(1598);
 				operandName();
 				}
 				break;
 			case 3:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(1535);
+				setState(1599);
 				match(L_PAREN);
-				setState(1536);
+				setState(1600);
 				expression(0);
-				setState(1537);
+				setState(1601);
 				match(R_PAREN);
 				}
 				break;
@@ -10479,9 +10919,9 @@ public class GobraParser extends GobraParserBase {
 
 	public final LiteralContext literal() throws RecognitionException {
 		LiteralContext _localctx = new LiteralContext(_ctx, getState());
-		enterRule(_localctx, 298, RULE_literal);
+		enterRule(_localctx, 310, RULE_literal);
 		try {
-			setState(1544);
+			setState(1608);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case FLOAT_LIT:
@@ -10498,7 +10938,7 @@ public class GobraParser extends GobraParserBase {
 			case INTERPRETED_STRING_LIT:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1541);
+				setState(1605);
 				basicLit();
 				}
 				break;
@@ -10515,14 +10955,20 @@ public class GobraParser extends GobraParserBase {
 			case L_BRACKET:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1542);
+				setState(1606);
 				compositeLit();
 				}
 				break;
+			case PRE:
+			case PRESERVES:
+			case POST:
+			case DEC:
+			case PURE:
+			case TRUSTED:
 			case FUNC:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(1543);
+				setState(1607);
 				functionLit();
 				}
 				break;
@@ -10561,14 +11007,14 @@ public class GobraParser extends GobraParserBase {
 
 	public final IntegerContext integer() throws RecognitionException {
 		IntegerContext _localctx = new IntegerContext(_ctx, getState());
-		enterRule(_localctx, 300, RULE_integer);
+		enterRule(_localctx, 312, RULE_integer);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1546);
+			setState(1610);
 			_la = _input.LA(1);
-			if ( !(((((_la - 130)) & ~0x3f) == 0 && ((1L << (_la - 130)) & ((1L << (DECIMAL_LIT - 130)) | (1L << (BINARY_LIT - 130)) | (1L << (OCTAL_LIT - 130)) | (1L << (HEX_LIT - 130)) | (1L << (IMAGINARY_LIT - 130)) | (1L << (RUNE_LIT - 130)))) != 0)) ) {
+			if ( !(((((_la - 132)) & ~0x3f) == 0 && ((1L << (_la - 132)) & ((1L << (DECIMAL_LIT - 132)) | (1L << (BINARY_LIT - 132)) | (1L << (OCTAL_LIT - 132)) | (1L << (HEX_LIT - 132)) | (1L << (IMAGINARY_LIT - 132)) | (1L << (RUNE_LIT - 132)))) != 0)) ) {
 			_errHandler.recoverInline(this);
 			}
 			else {
@@ -10604,11 +11050,11 @@ public class GobraParser extends GobraParserBase {
 
 	public final OperandNameContext operandName() throws RecognitionException {
 		OperandNameContext _localctx = new OperandNameContext(_ctx, getState());
-		enterRule(_localctx, 302, RULE_operandName);
+		enterRule(_localctx, 314, RULE_operandName);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1548);
+			setState(1612);
 			match(IDENTIFIER);
 			}
 		}
@@ -10642,15 +11088,15 @@ public class GobraParser extends GobraParserBase {
 
 	public final QualifiedIdentContext qualifiedIdent() throws RecognitionException {
 		QualifiedIdentContext _localctx = new QualifiedIdentContext(_ctx, getState());
-		enterRule(_localctx, 304, RULE_qualifiedIdent);
+		enterRule(_localctx, 316, RULE_qualifiedIdent);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1550);
+			setState(1614);
 			match(IDENTIFIER);
-			setState(1551);
+			setState(1615);
 			match(DOT);
-			setState(1552);
+			setState(1616);
 			match(IDENTIFIER);
 			}
 		}
@@ -10685,13 +11131,13 @@ public class GobraParser extends GobraParserBase {
 
 	public final CompositeLitContext compositeLit() throws RecognitionException {
 		CompositeLitContext _localctx = new CompositeLitContext(_ctx, getState());
-		enterRule(_localctx, 306, RULE_compositeLit);
+		enterRule(_localctx, 318, RULE_compositeLit);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1554);
+			setState(1618);
 			literalType();
-			setState(1555);
+			setState(1619);
 			literalValue();
 			}
 		}
@@ -10726,26 +11172,26 @@ public class GobraParser extends GobraParserBase {
 
 	public final LiteralValueContext literalValue() throws RecognitionException {
 		LiteralValueContext _localctx = new LiteralValueContext(_ctx, getState());
-		enterRule(_localctx, 308, RULE_literalValue);
+		enterRule(_localctx, 320, RULE_literalValue);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1557);
+			setState(1621);
 			match(L_CURLY);
-			setState(1562);
+			setState(1626);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
-			if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 69)) & ~0x3f) == 0 && ((1L << (_la - 69)) & ((1L << (FUNC - 69)) | (1L << (INTERFACE - 69)) | (1L << (MAP - 69)) | (1L << (STRUCT - 69)) | (1L << (CHAN - 69)) | (1L << (RANGE - 69)) | (1L << (TYPE - 69)) | (1L << (NIL_LIT - 69)) | (1L << (IDENTIFIER - 69)) | (1L << (L_PAREN - 69)) | (1L << (L_CURLY - 69)) | (1L << (L_BRACKET - 69)) | (1L << (EXCLAMATION - 69)) | (1L << (PLUS - 69)) | (1L << (MINUS - 69)) | (1L << (CARET - 69)) | (1L << (STAR - 69)) | (1L << (AMPERSAND - 69)) | (1L << (RECEIVE - 69)) | (1L << (DECIMAL_LIT - 69)) | (1L << (BINARY_LIT - 69)) | (1L << (OCTAL_LIT - 69)))) != 0) || ((((_la - 133)) & ~0x3f) == 0 && ((1L << (_la - 133)) & ((1L << (HEX_LIT - 133)) | (1L << (IMAGINARY_LIT - 133)) | (1L << (RUNE_LIT - 133)) | (1L << (RAW_STRING_LIT - 133)) | (1L << (INTERPRETED_STRING_LIT - 133)))) != 0)) {
+			if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << PRE) | (1L << PRESERVES) | (1L << POST) | (1L << DEC) | (1L << PURE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (TRUSTED - 64)) | (1L << (FUNC - 64)) | (1L << (INTERFACE - 64)) | (1L << (MAP - 64)) | (1L << (STRUCT - 64)) | (1L << (CHAN - 64)) | (1L << (RANGE - 64)) | (1L << (TYPE - 64)) | (1L << (NIL_LIT - 64)) | (1L << (IDENTIFIER - 64)) | (1L << (L_PAREN - 64)) | (1L << (L_CURLY - 64)) | (1L << (L_BRACKET - 64)) | (1L << (EXCLAMATION - 64)) | (1L << (PLUS - 64)) | (1L << (MINUS - 64)))) != 0) || ((((_la - 128)) & ~0x3f) == 0 && ((1L << (_la - 128)) & ((1L << (CARET - 128)) | (1L << (STAR - 128)) | (1L << (AMPERSAND - 128)) | (1L << (RECEIVE - 128)) | (1L << (DECIMAL_LIT - 128)) | (1L << (BINARY_LIT - 128)) | (1L << (OCTAL_LIT - 128)) | (1L << (HEX_LIT - 128)) | (1L << (IMAGINARY_LIT - 128)) | (1L << (RUNE_LIT - 128)) | (1L << (RAW_STRING_LIT - 128)) | (1L << (INTERPRETED_STRING_LIT - 128)))) != 0)) {
 				{
-				setState(1558);
+				setState(1622);
 				elementList();
-				setState(1560);
+				setState(1624);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				if (_la==COMMA) {
 					{
-					setState(1559);
+					setState(1623);
 					match(COMMA);
 					}
 				}
@@ -10753,7 +11199,7 @@ public class GobraParser extends GobraParserBase {
 				}
 			}
 
-			setState(1564);
+			setState(1628);
 			match(R_CURLY);
 			}
 		}
@@ -10792,30 +11238,30 @@ public class GobraParser extends GobraParserBase {
 
 	public final ElementListContext elementList() throws RecognitionException {
 		ElementListContext _localctx = new ElementListContext(_ctx, getState());
-		enterRule(_localctx, 310, RULE_elementList);
+		enterRule(_localctx, 322, RULE_elementList);
 		try {
 			int _alt;
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1566);
+			setState(1630);
 			keyedElement();
-			setState(1571);
+			setState(1635);
 			_errHandler.sync(this);
-			_alt = getInterpreter().adaptivePredict(_input,153,_ctx);
+			_alt = getInterpreter().adaptivePredict(_input,161,_ctx);
 			while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
 				if ( _alt==1 ) {
 					{
 					{
-					setState(1567);
+					setState(1631);
 					match(COMMA);
-					setState(1568);
+					setState(1632);
 					keyedElement();
 					}
 					} 
 				}
-				setState(1573);
+				setState(1637);
 				_errHandler.sync(this);
-				_alt = getInterpreter().adaptivePredict(_input,153,_ctx);
+				_alt = getInterpreter().adaptivePredict(_input,161,_ctx);
 			}
 			}
 		}
@@ -10851,23 +11297,23 @@ public class GobraParser extends GobraParserBase {
 
 	public final KeyedElementContext keyedElement() throws RecognitionException {
 		KeyedElementContext _localctx = new KeyedElementContext(_ctx, getState());
-		enterRule(_localctx, 312, RULE_keyedElement);
+		enterRule(_localctx, 324, RULE_keyedElement);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1577);
+			setState(1641);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,154,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,162,_ctx) ) {
 			case 1:
 				{
-				setState(1574);
+				setState(1638);
 				key();
-				setState(1575);
+				setState(1639);
 				match(COLON);
 				}
 				break;
 			}
-			setState(1579);
+			setState(1643);
 			element();
 			}
 		}
@@ -10902,14 +11348,19 @@ public class GobraParser extends GobraParserBase {
 
 	public final KeyContext key() throws RecognitionException {
 		KeyContext _localctx = new KeyContext(_ctx, getState());
-		enterRule(_localctx, 314, RULE_key);
+		enterRule(_localctx, 326, RULE_key);
 		try {
-			setState(1583);
+			setState(1647);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case FLOAT_LIT:
 			case TRUE:
 			case FALSE:
+			case PRE:
+			case PRESERVES:
+			case POST:
+			case DEC:
+			case PURE:
 			case OLD:
 			case BEFORE:
 			case FORALL:
@@ -10935,6 +11386,7 @@ public class GobraParser extends GobraParserBase {
 			case IS_COMPARABLE:
 			case WRITEPERM:
 			case NOPERM:
+			case TRUSTED:
 			case FUNC:
 			case INTERFACE:
 			case MAP:
@@ -10963,14 +11415,14 @@ public class GobraParser extends GobraParserBase {
 			case INTERPRETED_STRING_LIT:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1581);
+				setState(1645);
 				expression(0);
 				}
 				break;
 			case L_CURLY:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1582);
+				setState(1646);
 				literalValue();
 				}
 				break;
@@ -11009,14 +11461,19 @@ public class GobraParser extends GobraParserBase {
 
 	public final ElementContext element() throws RecognitionException {
 		ElementContext _localctx = new ElementContext(_ctx, getState());
-		enterRule(_localctx, 316, RULE_element);
+		enterRule(_localctx, 328, RULE_element);
 		try {
-			setState(1587);
+			setState(1651);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case FLOAT_LIT:
 			case TRUE:
 			case FALSE:
+			case PRE:
+			case PRESERVES:
+			case POST:
+			case DEC:
+			case PURE:
 			case OLD:
 			case BEFORE:
 			case FORALL:
@@ -11042,6 +11499,7 @@ public class GobraParser extends GobraParserBase {
 			case IS_COMPARABLE:
 			case WRITEPERM:
 			case NOPERM:
+			case TRUSTED:
 			case FUNC:
 			case INTERFACE:
 			case MAP:
@@ -11070,14 +11528,14 @@ public class GobraParser extends GobraParserBase {
 			case INTERPRETED_STRING_LIT:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1585);
+				setState(1649);
 				expression(0);
 				}
 				break;
 			case L_CURLY:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1586);
+				setState(1650);
 				literalValue();
 				}
 				break;
@@ -11125,32 +11583,32 @@ public class GobraParser extends GobraParserBase {
 
 	public final StructTypeContext structType() throws RecognitionException {
 		StructTypeContext _localctx = new StructTypeContext(_ctx, getState());
-		enterRule(_localctx, 318, RULE_structType);
+		enterRule(_localctx, 330, RULE_structType);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1589);
+			setState(1653);
 			match(STRUCT);
-			setState(1590);
+			setState(1654);
 			match(L_CURLY);
-			setState(1596);
+			setState(1660);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==IDENTIFIER || _la==STAR) {
 				{
 				{
-				setState(1591);
+				setState(1655);
 				fieldDecl();
-				setState(1592);
+				setState(1656);
 				eos();
 				}
 				}
-				setState(1598);
+				setState(1662);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
-			setState(1599);
+			setState(1663);
 			match(R_CURLY);
 			}
 		}
@@ -11192,34 +11650,34 @@ public class GobraParser extends GobraParserBase {
 
 	public final FieldDeclContext fieldDecl() throws RecognitionException {
 		FieldDeclContext _localctx = new FieldDeclContext(_ctx, getState());
-		enterRule(_localctx, 320, RULE_fieldDecl);
+		enterRule(_localctx, 332, RULE_fieldDecl);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1605);
+			setState(1669);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,158,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,166,_ctx) ) {
 			case 1:
 				{
-				setState(1601);
+				setState(1665);
 				identifierList();
-				setState(1602);
+				setState(1666);
 				type_();
 				}
 				break;
 			case 2:
 				{
-				setState(1604);
+				setState(1668);
 				embeddedField();
 				}
 				break;
 			}
-			setState(1608);
+			setState(1672);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,159,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,167,_ctx) ) {
 			case 1:
 				{
-				setState(1607);
+				setState(1671);
 				((FieldDeclContext)_localctx).tag = string_();
 				}
 				break;
@@ -11253,12 +11711,12 @@ public class GobraParser extends GobraParserBase {
 
 	public final String_Context string_() throws RecognitionException {
 		String_Context _localctx = new String_Context(_ctx, getState());
-		enterRule(_localctx, 322, RULE_string_);
+		enterRule(_localctx, 334, RULE_string_);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1610);
+			setState(1674);
 			_la = _input.LA(1);
 			if ( !(_la==RAW_STRING_LIT || _la==INTERPRETED_STRING_LIT) ) {
 			_errHandler.recoverInline(this);
@@ -11299,67 +11757,23 @@ public class GobraParser extends GobraParserBase {
 
 	public final EmbeddedFieldContext embeddedField() throws RecognitionException {
 		EmbeddedFieldContext _localctx = new EmbeddedFieldContext(_ctx, getState());
-		enterRule(_localctx, 324, RULE_embeddedField);
+		enterRule(_localctx, 336, RULE_embeddedField);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1613);
+			setState(1677);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==STAR) {
 				{
-				setState(1612);
+				setState(1676);
 				match(STAR);
 				}
 			}
 
-			setState(1615);
+			setState(1679);
 			typeName();
-			}
-		}
-		catch (RecognitionException re) {
-			_localctx.exception = re;
-			_errHandler.reportError(this, re);
-			_errHandler.recover(this, re);
-		}
-		finally {
-			exitRule();
-		}
-		return _localctx;
-	}
-
-	public static class FunctionLitContext extends ParserRuleContext {
-		public TerminalNode FUNC() { return getToken(GobraParser.FUNC, 0); }
-		public SignatureContext signature() {
-			return getRuleContext(SignatureContext.class,0);
-		}
-		public BlockContext block() {
-			return getRuleContext(BlockContext.class,0);
-		}
-		public FunctionLitContext(ParserRuleContext parent, int invokingState) {
-			super(parent, invokingState);
-		}
-		@Override public int getRuleIndex() { return RULE_functionLit; }
-		@Override
-		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-			if ( visitor instanceof GobraParserVisitor ) return ((GobraParserVisitor<? extends T>)visitor).visitFunctionLit(this);
-			else return visitor.visitChildren(this);
-		}
-	}
-
-	public final FunctionLitContext functionLit() throws RecognitionException {
-		FunctionLitContext _localctx = new FunctionLitContext(_ctx, getState());
-		enterRule(_localctx, 326, RULE_functionLit);
-		try {
-			enterOuterAlt(_localctx, 1);
-			{
-			setState(1617);
-			match(FUNC);
-			setState(1618);
-			signature();
-			setState(1619);
-			block();
 			}
 		}
 		catch (RecognitionException re) {
@@ -11392,15 +11806,15 @@ public class GobraParser extends GobraParserBase {
 
 	public final IndexContext index() throws RecognitionException {
 		IndexContext _localctx = new IndexContext(_ctx, getState());
-		enterRule(_localctx, 328, RULE_index);
+		enterRule(_localctx, 338, RULE_index);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1621);
+			setState(1681);
 			match(L_BRACKET);
-			setState(1622);
+			setState(1682);
 			expression(0);
-			setState(1623);
+			setState(1683);
 			match(R_BRACKET);
 			}
 		}
@@ -11435,17 +11849,17 @@ public class GobraParser extends GobraParserBase {
 
 	public final TypeAssertionContext typeAssertion() throws RecognitionException {
 		TypeAssertionContext _localctx = new TypeAssertionContext(_ctx, getState());
-		enterRule(_localctx, 330, RULE_typeAssertion);
+		enterRule(_localctx, 340, RULE_typeAssertion);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1625);
+			setState(1685);
 			match(DOT);
-			setState(1626);
+			setState(1686);
 			match(L_PAREN);
-			setState(1627);
+			setState(1687);
 			type_();
-			setState(1628);
+			setState(1688);
 			match(R_PAREN);
 			}
 		}
@@ -11487,39 +11901,39 @@ public class GobraParser extends GobraParserBase {
 
 	public final ArgumentsContext arguments() throws RecognitionException {
 		ArgumentsContext _localctx = new ArgumentsContext(_ctx, getState());
-		enterRule(_localctx, 332, RULE_arguments);
+		enterRule(_localctx, 342, RULE_arguments);
 		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1630);
+			setState(1690);
 			match(L_PAREN);
-			setState(1645);
+			setState(1705);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
-			if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 69)) & ~0x3f) == 0 && ((1L << (_la - 69)) & ((1L << (FUNC - 69)) | (1L << (INTERFACE - 69)) | (1L << (MAP - 69)) | (1L << (STRUCT - 69)) | (1L << (CHAN - 69)) | (1L << (RANGE - 69)) | (1L << (TYPE - 69)) | (1L << (NIL_LIT - 69)) | (1L << (IDENTIFIER - 69)) | (1L << (L_PAREN - 69)) | (1L << (L_BRACKET - 69)) | (1L << (EXCLAMATION - 69)) | (1L << (PLUS - 69)) | (1L << (MINUS - 69)) | (1L << (CARET - 69)) | (1L << (STAR - 69)) | (1L << (AMPERSAND - 69)) | (1L << (RECEIVE - 69)) | (1L << (DECIMAL_LIT - 69)) | (1L << (BINARY_LIT - 69)) | (1L << (OCTAL_LIT - 69)))) != 0) || ((((_la - 133)) & ~0x3f) == 0 && ((1L << (_la - 133)) & ((1L << (HEX_LIT - 133)) | (1L << (IMAGINARY_LIT - 133)) | (1L << (RUNE_LIT - 133)) | (1L << (RAW_STRING_LIT - 133)) | (1L << (INTERPRETED_STRING_LIT - 133)))) != 0)) {
+			if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FLOAT_LIT) | (1L << TRUE) | (1L << FALSE) | (1L << PRE) | (1L << PRESERVES) | (1L << POST) | (1L << DEC) | (1L << PURE) | (1L << OLD) | (1L << BEFORE) | (1L << FORALL) | (1L << EXISTS) | (1L << ACCESS) | (1L << UNFOLDING) | (1L << GHOST) | (1L << SEQ) | (1L << SET) | (1L << MSET) | (1L << DICT) | (1L << OPT) | (1L << LEN) | (1L << NEW) | (1L << MAKE) | (1L << CAP) | (1L << SOME) | (1L << GET) | (1L << DOM) | (1L << NONE) | (1L << PRED) | (1L << TYPE_OF) | (1L << IS_COMPARABLE) | (1L << WRITEPERM) | (1L << NOPERM))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (TRUSTED - 64)) | (1L << (FUNC - 64)) | (1L << (INTERFACE - 64)) | (1L << (MAP - 64)) | (1L << (STRUCT - 64)) | (1L << (CHAN - 64)) | (1L << (RANGE - 64)) | (1L << (TYPE - 64)) | (1L << (NIL_LIT - 64)) | (1L << (IDENTIFIER - 64)) | (1L << (L_PAREN - 64)) | (1L << (L_BRACKET - 64)) | (1L << (EXCLAMATION - 64)) | (1L << (PLUS - 64)) | (1L << (MINUS - 64)))) != 0) || ((((_la - 128)) & ~0x3f) == 0 && ((1L << (_la - 128)) & ((1L << (CARET - 128)) | (1L << (STAR - 128)) | (1L << (AMPERSAND - 128)) | (1L << (RECEIVE - 128)) | (1L << (DECIMAL_LIT - 128)) | (1L << (BINARY_LIT - 128)) | (1L << (OCTAL_LIT - 128)) | (1L << (HEX_LIT - 128)) | (1L << (IMAGINARY_LIT - 128)) | (1L << (RUNE_LIT - 128)) | (1L << (RAW_STRING_LIT - 128)) | (1L << (INTERPRETED_STRING_LIT - 128)))) != 0)) {
 				{
-				setState(1637);
+				setState(1697);
 				_errHandler.sync(this);
-				switch ( getInterpreter().adaptivePredict(_input,162,_ctx) ) {
+				switch ( getInterpreter().adaptivePredict(_input,170,_ctx) ) {
 				case 1:
 					{
-					setState(1631);
+					setState(1691);
 					expressionList();
 					}
 					break;
 				case 2:
 					{
-					setState(1632);
+					setState(1692);
 					nonNamedType();
-					setState(1635);
+					setState(1695);
 					_errHandler.sync(this);
-					switch ( getInterpreter().adaptivePredict(_input,161,_ctx) ) {
+					switch ( getInterpreter().adaptivePredict(_input,169,_ctx) ) {
 					case 1:
 						{
-						setState(1633);
+						setState(1693);
 						match(COMMA);
-						setState(1634);
+						setState(1694);
 						expressionList();
 						}
 						break;
@@ -11527,22 +11941,22 @@ public class GobraParser extends GobraParserBase {
 					}
 					break;
 				}
-				setState(1640);
+				setState(1700);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				if (_la==ELLIPSIS) {
 					{
-					setState(1639);
+					setState(1699);
 					match(ELLIPSIS);
 					}
 				}
 
-				setState(1643);
+				setState(1703);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				if (_la==COMMA) {
 					{
-					setState(1642);
+					setState(1702);
 					match(COMMA);
 					}
 				}
@@ -11550,7 +11964,7 @@ public class GobraParser extends GobraParserBase {
 				}
 			}
 
-			setState(1647);
+			setState(1707);
 			match(R_PAREN);
 			}
 		}
@@ -11584,15 +11998,15 @@ public class GobraParser extends GobraParserBase {
 
 	public final MethodExprContext methodExpr() throws RecognitionException {
 		MethodExprContext _localctx = new MethodExprContext(_ctx, getState());
-		enterRule(_localctx, 334, RULE_methodExpr);
+		enterRule(_localctx, 344, RULE_methodExpr);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1649);
+			setState(1709);
 			nonNamedType();
-			setState(1650);
+			setState(1710);
 			match(DOT);
-			setState(1651);
+			setState(1711);
 			match(IDENTIFIER);
 			}
 		}
@@ -11624,11 +12038,11 @@ public class GobraParser extends GobraParserBase {
 
 	public final ReceiverTypeContext receiverType() throws RecognitionException {
 		ReceiverTypeContext _localctx = new ReceiverTypeContext(_ctx, getState());
-		enterRule(_localctx, 336, RULE_receiverType);
+		enterRule(_localctx, 346, RULE_receiverType);
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(1653);
+			setState(1713);
 			type_();
 			}
 		}
@@ -11660,36 +12074,36 @@ public class GobraParser extends GobraParserBase {
 
 	public final EosContext eos() throws RecognitionException {
 		EosContext _localctx = new EosContext(_ctx, getState());
-		enterRule(_localctx, 338, RULE_eos);
+		enterRule(_localctx, 348, RULE_eos);
 		try {
-			setState(1659);
+			setState(1719);
 			_errHandler.sync(this);
-			switch ( getInterpreter().adaptivePredict(_input,166,_ctx) ) {
+			switch ( getInterpreter().adaptivePredict(_input,174,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(1655);
+				setState(1715);
 				match(SEMI);
 				}
 				break;
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(1656);
+				setState(1716);
 				match(EOF);
 				}
 				break;
 			case 3:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(1657);
+				setState(1717);
 				match(EOS);
 				}
 				break;
 			case 4:
 				enterOuterAlt(_localctx, 4);
 				{
-				setState(1658);
+				setState(1718);
 				if (!(closingBracket())) throw new FailedPredicateException(this, "closingBracket()");
 				}
 				break;
@@ -11708,11 +12122,11 @@ public class GobraParser extends GobraParserBase {
 
 	public boolean sempred(RuleContext _localctx, int ruleIndex, int predIndex) {
 		switch (ruleIndex) {
-		case 68:
+		case 72:
 			return expression_sempred((ExpressionContext)_localctx, predIndex);
-		case 76:
+		case 80:
 			return primaryExpr_sempred((PrimaryExprContext)_localctx, predIndex);
-		case 169:
+		case 174:
 			return eos_sempred((EosContext)_localctx, predIndex);
 		}
 		return true;
@@ -11720,15 +12134,15 @@ public class GobraParser extends GobraParserBase {
 	private boolean expression_sempred(ExpressionContext _localctx, int predIndex) {
 		switch (predIndex) {
 		case 0:
-			return precpred(_ctx, 11);
+			return precpred(_ctx, 12);
 		case 1:
-			return precpred(_ctx, 10);
+			return precpred(_ctx, 11);
 		case 2:
-			return precpred(_ctx, 9);
+			return precpred(_ctx, 10);
 		case 3:
-			return precpred(_ctx, 8);
+			return precpred(_ctx, 9);
 		case 4:
-			return precpred(_ctx, 7);
+			return precpred(_ctx, 8);
 		case 5:
 			return precpred(_ctx, 6);
 		case 6:
@@ -11737,38 +12151,42 @@ public class GobraParser extends GobraParserBase {
 			return precpred(_ctx, 4);
 		case 8:
 			return precpred(_ctx, 3);
+		case 9:
+			return precpred(_ctx, 7);
 		}
 		return true;
 	}
 	private boolean primaryExpr_sempred(PrimaryExprContext _localctx, int predIndex) {
 		switch (predIndex) {
-		case 9:
-			return precpred(_ctx, 8);
 		case 10:
-			return precpred(_ctx, 7);
+			return precpred(_ctx, 9);
 		case 11:
-			return precpred(_ctx, 6);
+			return precpred(_ctx, 8);
 		case 12:
-			return precpred(_ctx, 5);
+			return precpred(_ctx, 7);
 		case 13:
-			return precpred(_ctx, 4);
+			return precpred(_ctx, 6);
 		case 14:
-			return precpred(_ctx, 3);
+			return precpred(_ctx, 5);
 		case 15:
+			return precpred(_ctx, 4);
+		case 16:
+			return precpred(_ctx, 3);
+		case 17:
 			return precpred(_ctx, 2);
 		}
 		return true;
 	}
 	private boolean eos_sempred(EosContext _localctx, int predIndex) {
 		switch (predIndex) {
-		case 16:
+		case 18:
 			return closingBracket();
 		}
 		return true;
 	}
 
 	public static final String _serializedATN =
-		"\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3\u009a\u0680\4\2\t"+
+		"\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3\u009c\u06bc\4\2\t"+
 		"\2\4\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t\n\4\13"+
 		"\t\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22"+
 		"\4\23\t\23\4\24\t\24\4\25\t\25\4\26\t\26\4\27\t\27\4\30\t\30\4\31\t\31"+
@@ -11791,641 +12209,670 @@ public class GobraParser extends GobraParserBase {
 		"\4\u009c\t\u009c\4\u009d\t\u009d\4\u009e\t\u009e\4\u009f\t\u009f\4\u00a0"+
 		"\t\u00a0\4\u00a1\t\u00a1\4\u00a2\t\u00a2\4\u00a3\t\u00a3\4\u00a4\t\u00a4"+
 		"\4\u00a5\t\u00a5\4\u00a6\t\u00a6\4\u00a7\t\u00a7\4\u00a8\t\u00a8\4\u00a9"+
-		"\t\u00a9\4\u00aa\t\u00aa\4\u00ab\t\u00ab\3\2\3\2\3\2\3\3\3\3\3\3\3\4\3"+
-		"\4\3\4\3\5\3\5\3\5\7\5\u0163\n\5\f\5\16\5\u0166\13\5\3\6\3\6\5\6\u016a"+
-		"\n\6\3\7\3\7\3\7\7\7\u016f\n\7\f\7\16\7\u0172\13\7\3\7\3\7\3\7\3\7\3\7"+
-		"\7\7\u0179\n\7\f\7\16\7\u017c\13\7\3\7\3\7\3\7\5\7\u0181\n\7\3\7\3\7\7"+
-		"\7\u0185\n\7\f\7\16\7\u0188\13\7\3\7\3\7\3\b\3\b\3\b\3\t\3\t\3\t\3\n\3"+
-		"\n\3\n\7\n\u0195\n\n\f\n\16\n\u0198\13\n\3\n\5\n\u019b\n\n\3\n\3\n\3\13"+
-		"\3\13\3\13\7\13\u01a2\n\13\f\13\16\13\u01a5\13\13\3\13\3\13\3\13\3\13"+
-		"\3\13\3\13\3\13\7\13\u01ae\n\13\f\13\16\13\u01b1\13\13\3\13\5\13\u01b4"+
-		"\n\13\3\f\3\f\3\f\3\f\5\f\u01ba\n\f\3\r\3\r\3\r\3\r\3\r\3\r\5\r\u01c2"+
-		"\n\r\3\16\3\16\3\17\3\17\3\17\3\20\3\20\3\20\5\20\u01cc\n\20\3\20\3\20"+
-		"\3\21\3\21\3\21\3\21\3\21\3\21\3\21\3\21\3\21\3\21\3\21\3\21\5\21\u01dc"+
-		"\n\21\3\22\3\22\3\23\3\23\3\23\3\23\3\23\3\24\3\24\3\24\7\24\u01e8\n\24"+
-		"\f\24\16\24\u01eb\13\24\3\24\5\24\u01ee\n\24\3\25\3\25\3\25\7\25\u01f3"+
-		"\n\25\f\25\16\25\u01f6\13\25\3\25\3\25\3\26\7\26\u01fb\n\26\f\26\16\26"+
-		"\u01fe\13\26\3\27\3\27\3\27\3\27\7\27\u0204\n\27\f\27\16\27\u0207\13\27"+
-		"\3\27\3\27\3\30\3\30\3\31\3\31\3\31\3\31\3\31\3\32\3\32\3\32\3\32\3\32"+
-		"\3\33\3\33\3\33\3\33\3\33\3\34\3\34\3\34\3\34\3\34\3\35\3\35\3\35\3\35"+
-		"\3\35\5\35\u0226\n\35\3\35\3\35\3\35\3\35\3\36\3\36\5\36\u022e\n\36\3"+
-		"\37\3\37\3 \3 \3 \3 \3 \3!\3!\3!\3!\3!\3\"\3\"\3\"\3\"\3\"\3#\3#\3#\3"+
-		"#\3#\5#\u0246\n#\3#\3#\3$\3$\3$\3$\3$\3$\3$\3%\3%\3%\3%\7%\u0255\n%\f"+
-		"%\16%\u0258\13%\3%\3%\3&\3&\3&\3&\3\'\3\'\3\'\5\'\u0263\n\'\3(\3(\3(\3"+
-		"(\3(\7(\u026a\n(\f(\16(\u026d\13(\3(\3(\3)\3)\3)\3)\3)\3)\3)\3)\3)\5)"+
-		"\u027a\n)\3*\3*\3*\3*\3*\3+\3+\3+\3+\3+\3+\3+\3+\3+\3+\3+\5+\u028c\n+"+
-		"\3,\3,\3,\3,\3,\5,\u0293\n,\3,\7,\u0296\n,\f,\16,\u0299\13,\3,\3,\5,\u029d"+
-		"\n,\3-\3-\3-\3-\3-\3-\3-\3-\5-\u02a7\n-\3.\5.\u02aa\n.\3.\3.\5.\u02ae"+
-		"\n.\3/\3/\5/\u02b2\n/\3\60\3\60\3\60\3\60\3\60\5\60\u02b9\n\60\3\60\5"+
-		"\60\u02bc\n\60\3\60\3\60\3\61\3\61\3\61\3\61\3\61\3\61\3\61\7\61\u02c7"+
-		"\n\61\f\61\16\61\u02ca\13\61\3\61\3\61\3\61\7\61\u02cf\n\61\f\61\16\61"+
-		"\u02d2\13\61\3\61\5\61\u02d5\n\61\3\62\5\62\u02d8\n\62\3\62\3\62\3\62"+
-		"\3\62\5\62\u02de\n\62\3\63\3\63\5\63\u02e2\n\63\3\63\5\63\u02e5\n\63\3"+
-		"\63\3\63\3\63\3\64\3\64\3\64\3\64\3\64\5\64\u02ef\n\64\3\65\3\65\3\65"+
-		"\3\65\3\65\5\65\u02f6\n\65\3\66\3\66\3\66\3\66\3\66\5\66\u02fd\n\66\3"+
-		"\66\3\66\3\67\3\67\3\67\3\67\3\67\38\38\38\58\u0309\n8\39\39\39\39\59"+
-		"\u030f\n9\3:\3:\3:\3:\3:\5:\u0316\n:\3;\3;\3;\5;\u031b\n;\3<\3<\3<\3<"+
-		"\5<\u0321\n<\3=\3=\3=\3=\3=\3>\3>\3>\3>\3>\5>\u032d\n>\3?\3?\3?\3?\5?"+
-		"\u0333\n?\3?\3?\5?\u0337\n?\3@\3@\3@\3@\3A\3A\5A\u033f\nA\3A\3A\5A\u0343"+
-		"\nA\3A\3A\3B\3B\5B\u0349\nB\3C\5C\u034c\nC\3C\3C\3D\3D\5D\u0352\nD\3D"+
-		"\3D\3E\5E\u0357\nE\3E\3E\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F"+
-		"\3F\5F\u036b\nF\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F"+
-		"\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\7F\u038b\nF\fF\16F\u038e\13F\3G\3"+
-		"G\3G\3G\3G\3G\3G\3G\3G\3G\3G\3G\3G\3G\3G\3G\3G\3G\3G\5G\u03a3\nG\3H\3"+
-		"H\3H\3I\3I\3I\5I\u03ab\nI\3J\3J\3J\3K\3K\3K\3K\7K\u03b4\nK\fK\16K\u03b7"+
-		"\13K\3K\3K\3K\3K\5K\u03bd\nK\3L\3L\3L\3L\3L\5L\u03c4\nL\3M\3M\3M\3M\3"+
-		"M\3M\3M\3M\5M\u03ce\nM\3N\3N\3N\3N\3N\3N\3N\3N\3N\3N\3N\3N\5N\u03dc\n"+
-		"N\3N\3N\3N\3N\3N\3N\3N\3N\3N\3N\3N\3N\3N\3N\3N\7N\u03ed\nN\fN\16N\u03f0"+
-		"\13N\3O\3O\5O\u03f4\nO\3O\5O\u03f7\nO\3O\3O\3P\3P\3P\3P\3P\5P\u0400\n"+
-		"P\3P\3P\7P\u0404\nP\fP\16P\u0407\13P\3P\3P\3Q\3Q\3Q\3Q\3R\5R\u0410\nR"+
-		"\3R\3R\3R\3R\3R\3R\5R\u0418\nR\3R\3R\3R\3R\5R\u041e\nR\3S\3S\3S\3S\3S"+
-		"\3S\3S\5S\u0427\nS\3T\3T\3T\3T\3T\3T\3T\3T\3T\5T\u0432\nT\3U\3U\3U\3V"+
-		"\3V\3V\3V\7V\u043b\nV\fV\16V\u043e\13V\3V\5V\u0441\nV\5V\u0443\nV\3V\3"+
-		"V\3W\3W\3W\3W\3W\3W\3W\5W\u044e\nW\3X\3X\3X\3X\3X\3Y\3Y\5Y\u0457\nY\3"+
-		"Y\3Y\5Y\u045b\nY\3Y\5Y\u045e\nY\3Y\3Y\3Y\3Y\3Y\5Y\u0465\nY\3Y\3Y\3Z\3"+
-		"Z\3[\3[\3\\\3\\\3]\5]\u0470\n]\3]\3]\3^\3^\3^\3_\3_\3`\3`\3`\5`\u047c"+
-		"\n`\3a\3a\3a\3a\3a\3a\7a\u0484\na\fa\16a\u0487\13a\3a\5a\u048a\na\3b\3"+
-		"b\5b\u048e\nb\3b\3b\5b\u0492\nb\3c\3c\3c\7c\u0497\nc\fc\16c\u049a\13c"+
-		"\3d\3d\3d\7d\u049f\nd\fd\16d\u04a2\13d\3e\3e\3e\3e\3e\3e\7e\u04aa\ne\f"+
-		"e\16e\u04ad\13e\3e\5e\u04b0\ne\3f\3f\5f\u04b4\nf\3f\3f\3g\3g\3g\3g\3g"+
-		"\3g\7g\u04be\ng\fg\16g\u04c1\13g\3g\5g\u04c4\ng\3h\3h\5h\u04c8\nh\3h\3"+
-		"h\3i\5i\u04cd\ni\3i\3i\3i\6i\u04d2\ni\ri\16i\u04d3\3j\3j\3j\3j\3j\5j\u04db"+
-		"\nj\3k\3k\3l\3l\3l\3l\3m\3m\3m\3n\3n\3n\3n\3o\3o\3p\3p\3p\5p\u04ef\np"+
-		"\3q\3q\5q\u04f3\nq\3r\3r\5r\u04f7\nr\3s\3s\5s\u04fb\ns\3t\3t\3t\3u\3u"+
-		"\3v\3v\3v\3v\3v\3v\3v\3v\3v\5v\u050b\nv\3v\3v\3v\3v\5v\u0511\nv\5v\u0513"+
-		"\nv\3w\3w\5w\u0517\nw\3x\3x\5x\u051b\nx\3x\5x\u051e\nx\3x\3x\5x\u0522"+
-		"\nx\5x\u0524\nx\3x\3x\7x\u0528\nx\fx\16x\u052b\13x\3x\3x\3y\3y\3y\5y\u0532"+
-		"\ny\3z\3z\3z\5z\u0537\nz\3{\3{\3{\3{\3{\3{\3{\3{\3{\5{\u0542\n{\3{\3{"+
-		"\7{\u0546\n{\f{\16{\u0549\13{\3{\3{\3|\3|\5|\u054f\n|\3|\3|\3|\3|\3|\3"+
-		"|\3}\3}\3}\5}\u055a\n}\3~\3~\3~\5~\u055f\n~\3\177\3\177\5\177\u0563\n"+
-		"\177\3\177\3\177\3\177\5\177\u0568\n\177\7\177\u056a\n\177\f\177\16\177"+
-		"\u056d\13\177\3\u0080\3\u0080\3\u0080\7\u0080\u0572\n\u0080\f\u0080\16"+
-		"\u0080\u0575\13\u0080\3\u0080\3\u0080\3\u0081\3\u0081\3\u0081\5\u0081"+
-		"\u057c\n\u0081\3\u0082\3\u0082\3\u0082\5\u0082\u0581\n\u0082\3\u0082\5"+
-		"\u0082\u0584\n\u0082\3\u0083\3\u0083\3\u0083\3\u0083\3\u0083\3\u0083\5"+
-		"\u0083\u058c\n\u0083\3\u0083\3\u0083\3\u0084\3\u0084\3\u0084\3\u0084\5"+
-		"\u0084\u0594\n\u0084\3\u0084\3\u0084\3\u0085\5\u0085\u0599\n\u0085\3\u0085"+
-		"\3\u0085\5\u0085\u059d\n\u0085\3\u0085\3\u0085\5\u0085\u05a1\n\u0085\3"+
-		"\u0086\3\u0086\3\u0086\3\u0086\3\u0086\3\u0086\5\u0086\u05a9\n\u0086\3"+
-		"\u0086\3\u0086\3\u0086\3\u0087\3\u0087\3\u0087\3\u0088\3\u0088\5\u0088"+
-		"\u05b3\n\u0088\3\u0089\3\u0089\3\u0089\3\u0089\3\u0089\3\u008a\3\u008a"+
-		"\3\u008b\3\u008b\3\u008c\3\u008c\3\u008c\3\u008d\3\u008d\3\u008d\3\u008d"+
-		"\3\u008e\3\u008e\3\u008e\3\u008e\3\u008e\3\u008e\3\u008f\3\u008f\3\u008f"+
-		"\3\u008f\3\u008f\5\u008f\u05d0\n\u008f\3\u008f\3\u008f\3\u0090\3\u0090"+
-		"\3\u0090\3\u0091\3\u0091\3\u0091\3\u0091\5\u0091\u05db\n\u0091\3\u0092"+
-		"\3\u0092\5\u0092\u05df\n\u0092\3\u0093\3\u0093\3\u0093\3\u0093\7\u0093"+
-		"\u05e5\n\u0093\f\u0093\16\u0093\u05e8\13\u0093\3\u0093\5\u0093\u05eb\n"+
-		"\u0093\5\u0093\u05ed\n\u0093\3\u0093\3\u0093\3\u0094\3\u0094\3\u0094\3"+
-		"\u0094\5\u0094\u05f5\n\u0094\3\u0094\3\u0094\3\u0095\3\u0095\3\u0095\3"+
-		"\u0095\3\u0095\5\u0095\u05fe\n\u0095\3\u0096\3\u0096\3\u0096\3\u0096\3"+
-		"\u0096\3\u0096\5\u0096\u0606\n\u0096\3\u0097\3\u0097\3\u0097\5\u0097\u060b"+
-		"\n\u0097\3\u0098\3\u0098\3\u0099\3\u0099\3\u009a\3\u009a\3\u009a\3\u009a"+
-		"\3\u009b\3\u009b\3\u009b\3\u009c\3\u009c\3\u009c\5\u009c\u061b\n\u009c"+
-		"\5\u009c\u061d\n\u009c\3\u009c\3\u009c\3\u009d\3\u009d\3\u009d\7\u009d"+
-		"\u0624\n\u009d\f\u009d\16\u009d\u0627\13\u009d\3\u009e\3\u009e\3\u009e"+
-		"\5\u009e\u062c\n\u009e\3\u009e\3\u009e\3\u009f\3\u009f\5\u009f\u0632\n"+
-		"\u009f\3\u00a0\3\u00a0\5\u00a0\u0636\n\u00a0\3\u00a1\3\u00a1\3\u00a1\3"+
-		"\u00a1\3\u00a1\7\u00a1\u063d\n\u00a1\f\u00a1\16\u00a1\u0640\13\u00a1\3"+
-		"\u00a1\3\u00a1\3\u00a2\3\u00a2\3\u00a2\3\u00a2\5\u00a2\u0648\n\u00a2\3"+
-		"\u00a2\5\u00a2\u064b\n\u00a2\3\u00a3\3\u00a3\3\u00a4\5\u00a4\u0650\n\u00a4"+
-		"\3\u00a4\3\u00a4\3\u00a5\3\u00a5\3\u00a5\3\u00a5\3\u00a6\3\u00a6\3\u00a6"+
-		"\3\u00a6\3\u00a7\3\u00a7\3\u00a7\3\u00a7\3\u00a7\3\u00a8\3\u00a8\3\u00a8"+
-		"\3\u00a8\3\u00a8\5\u00a8\u0666\n\u00a8\5\u00a8\u0668\n\u00a8\3\u00a8\5"+
-		"\u00a8\u066b\n\u00a8\3\u00a8\5\u00a8\u066e\n\u00a8\5\u00a8\u0670\n\u00a8"+
-		"\3\u00a8\3\u00a8\3\u00a9\3\u00a9\3\u00a9\3\u00a9\3\u00aa\3\u00aa\3\u00ab"+
-		"\3\u00ab\3\u00ab\3\u00ab\5\u00ab\u067e\n\u00ab\3\u00ab\3\u0297\4\u008a"+
-		"\u009a\u00ac\2\4\6\b\n\f\16\20\22\24\26\30\32\34\36 \"$&(*,.\60\62\64"+
-		"\668:<>@BDFHJLNPRTVXZ\\^`bdfhjlnprtvxz|~\u0080\u0082\u0084\u0086\u0088"+
-		"\u008a\u008c\u008e\u0090\u0092\u0094\u0096\u0098\u009a\u009c\u009e\u00a0"+
-		"\u00a2\u00a4\u00a6\u00a8\u00aa\u00ac\u00ae\u00b0\u00b2\u00b4\u00b6\u00b8"+
-		"\u00ba\u00bc\u00be\u00c0\u00c2\u00c4\u00c6\u00c8\u00ca\u00cc\u00ce\u00d0"+
-		"\u00d2\u00d4\u00d6\u00d8\u00da\u00dc\u00de\u00e0\u00e2\u00e4\u00e6\u00e8"+
-		"\u00ea\u00ec\u00ee\u00f0\u00f2\u00f4\u00f6\u00f8\u00fa\u00fc\u00fe\u0100"+
-		"\u0102\u0104\u0106\u0108\u010a\u010c\u010e\u0110\u0112\u0114\u0116\u0118"+
-		"\u011a\u011c\u011e\u0120\u0122\u0124\u0126\u0128\u012a\u012c\u012e\u0130"+
-		"\u0132\u0134\u0136\u0138\u013a\u013c\u013e\u0140\u0142\u0144\u0146\u0148"+
-		"\u014a\u014c\u014e\u0150\u0152\u0154\2\25\4\2__jj\3\2\30\31\3\2\7\n\3"+
-		"\2?@\3\2(*\4\2(*,,\3\2}\u0083\3\2\25\26\4\2x|\u0081\u0082\6\2##kkww~\u0080"+
-		"\3\2\37!\3\2\34\36\3\2qv\6\2--\60\60\63\63WW\4\2w|~\u0082\3\2kl\4\2hh"+
-		"\u0099\u0099\4\2\u0084\u0087\u0089\u008a\3\2\u0090\u0091\2\u06d6\2\u0156"+
-		"\3\2\2\2\4\u0159\3\2\2\2\6\u015c\3\2\2\2\b\u015f\3\2\2\2\n\u0167\3\2\2"+
-		"\2\f\u0170\3\2\2\2\16\u018b\3\2\2\2\20\u018e\3\2\2\2\22\u0196\3\2\2\2"+
-		"\24\u01a3\3\2\2\2\26\u01b9\3\2\2\2\30\u01c1\3\2\2\2\32\u01c3\3\2\2\2\34"+
-		"\u01c5\3\2\2\2\36\u01c8\3\2\2\2 \u01db\3\2\2\2\"\u01dd\3\2\2\2$\u01df"+
-		"\3\2\2\2&\u01e4\3\2\2\2(\u01ef\3\2\2\2*\u01fc\3\2\2\2,\u01ff\3\2\2\2."+
-		"\u020a\3\2\2\2\60\u020c\3\2\2\2\62\u0211\3\2\2\2\64\u0216\3\2\2\2\66\u021b"+
-		"\3\2\2\28\u0220\3\2\2\2:\u022d\3\2\2\2<\u022f\3\2\2\2>\u0231\3\2\2\2@"+
-		"\u0236\3\2\2\2B\u023b\3\2\2\2D\u0240\3\2\2\2F\u0249\3\2\2\2H\u0250\3\2"+
-		"\2\2J\u025b\3\2\2\2L\u0262\3\2\2\2N\u0264\3\2\2\2P\u0279\3\2\2\2R\u027b"+
-		"\3\2\2\2T\u028b\3\2\2\2V\u0297\3\2\2\2X\u02a6\3\2\2\2Z\u02a9\3\2\2\2\\"+
-		"\u02b1\3\2\2\2^\u02b3\3\2\2\2`\u02bf\3\2\2\2b\u02d7\3\2\2\2d\u02df\3\2"+
-		"\2\2f\u02ee\3\2\2\2h\u02f0\3\2\2\2j\u02f7\3\2\2\2l\u0300\3\2\2\2n\u0305"+
-		"\3\2\2\2p\u030a\3\2\2\2r\u0310\3\2\2\2t\u0317\3\2\2\2v\u031c\3\2\2\2x"+
-		"\u0322\3\2\2\2z\u0327\3\2\2\2|\u032e\3\2\2\2~\u0338\3\2\2\2\u0080\u033c"+
-		"\3\2\2\2\u0082\u0348\3\2\2\2\u0084\u034b\3\2\2\2\u0086\u034f\3\2\2\2\u0088"+
-		"\u0356\3\2\2\2\u008a\u036a\3\2\2\2\u008c\u03a2\3\2\2\2\u008e\u03a4\3\2"+
-		"\2\2\u0090\u03a7\3\2\2\2\u0092\u03ac\3\2\2\2\u0094\u03b5\3\2\2\2\u0096"+
-		"\u03c3\3\2\2\2\u0098\u03cd\3\2\2\2\u009a\u03db\3\2\2\2\u009c\u03f1\3\2"+
-		"\2\2\u009e\u03fa\3\2\2\2\u00a0\u040a\3\2\2\2\u00a2\u041d\3\2\2\2\u00a4"+
-		"\u0426\3\2\2\2\u00a6\u0431\3\2\2\2\u00a8\u0433\3\2\2\2\u00aa\u0436\3\2"+
-		"\2\2\u00ac\u044d\3\2\2\2\u00ae\u044f\3\2\2\2\u00b0\u0454\3\2\2\2\u00b2"+
-		"\u0468\3\2\2\2\u00b4\u046a\3\2\2\2\u00b6\u046c\3\2\2\2\u00b8\u046f\3\2"+
-		"\2\2\u00ba\u0473\3\2\2\2\u00bc\u0476\3\2\2\2\u00be\u047b\3\2\2\2\u00c0"+
-		"\u047d\3\2\2\2\u00c2\u048b\3\2\2\2\u00c4\u0493\3\2\2\2\u00c6\u049b\3\2"+
-		"\2\2\u00c8\u04a3\3\2\2\2\u00ca\u04b1\3\2\2\2\u00cc\u04b7\3\2\2\2\u00ce"+
-		"\u04c5\3\2\2\2\u00d0\u04d1\3\2\2\2\u00d2\u04da\3\2\2\2\u00d4\u04dc\3\2"+
-		"\2\2\u00d6\u04de\3\2\2\2\u00d8\u04e2\3\2\2\2\u00da\u04e5\3\2\2\2\u00dc"+
-		"\u04e9\3\2\2\2\u00de\u04eb\3\2\2\2\u00e0\u04f0\3\2\2\2\u00e2\u04f4\3\2"+
-		"\2\2\u00e4\u04f8\3\2\2\2\u00e6\u04fc\3\2\2\2\u00e8\u04ff\3\2\2\2\u00ea"+
-		"\u0501\3\2\2\2\u00ec\u0516\3\2\2\2\u00ee\u0518\3\2\2\2\u00f0\u052e\3\2"+
-		"\2\2\u00f2\u0536\3\2\2\2\u00f4\u0538\3\2\2\2\u00f6\u054e\3\2\2\2\u00f8"+
-		"\u0556\3\2\2\2\u00fa\u055e\3\2\2\2\u00fc\u0562\3\2\2\2\u00fe\u056e\3\2"+
-		"\2\2\u0100\u0578\3\2\2\2\u0102\u0583\3\2\2\2\u0104\u058b\3\2\2\2\u0106"+
-		"\u058f\3\2\2\2\u0108\u0598\3\2\2\2\u010a\u05a8\3\2\2\2\u010c\u05ad\3\2"+
-		"\2\2\u010e\u05b2\3\2\2\2\u0110\u05b4\3\2\2\2\u0112\u05b9\3\2\2\2\u0114"+
-		"\u05bb\3\2\2\2\u0116\u05bd\3\2\2\2\u0118\u05c0\3\2\2\2\u011a\u05c4\3\2"+
-		"\2\2\u011c\u05cf\3\2\2\2\u011e\u05d3\3\2\2\2\u0120\u05da\3\2\2\2\u0122"+
-		"\u05de\3\2\2\2\u0124\u05e0\3\2\2\2\u0126\u05f0\3\2\2\2\u0128\u05fd\3\2"+
-		"\2\2\u012a\u0605\3\2\2\2\u012c\u060a\3\2\2\2\u012e\u060c\3\2\2\2\u0130"+
-		"\u060e\3\2\2\2\u0132\u0610\3\2\2\2\u0134\u0614\3\2\2\2\u0136\u0617\3\2"+
-		"\2\2\u0138\u0620\3\2\2\2\u013a\u062b\3\2\2\2\u013c\u0631\3\2\2\2\u013e"+
-		"\u0635\3\2\2\2\u0140\u0637\3\2\2\2\u0142\u0647\3\2\2\2\u0144\u064c\3\2"+
-		"\2\2\u0146\u064f\3\2\2\2\u0148\u0653\3\2\2\2\u014a\u0657\3\2\2\2\u014c"+
-		"\u065b\3\2\2\2\u014e\u0660\3\2\2\2\u0150\u0673\3\2\2\2\u0152\u0677\3\2"+
-		"\2\2\u0154\u067d\3\2\2\2\u0156\u0157\5\u008aF\2\u0157\u0158\7\2\2\3\u0158"+
-		"\3\3\2\2\2\u0159\u015a\5\u008cG\2\u015a\u015b\7\2\2\3\u015b\5\3\2\2\2"+
-		"\u015c\u015d\5\u00a4S\2\u015d\u015e\7\2\2\3\u015e\7\3\2\2\2\u015f\u0164"+
-		"\5\n\6\2\u0160\u0161\7g\2\2\u0161\u0163\5\n\6\2\u0162\u0160\3\2\2\2\u0163"+
-		"\u0166\3\2\2\2\u0164\u0162\3\2\2\2\u0164\u0165\3\2\2\2\u0165\t\3\2\2\2"+
-		"\u0166\u0164\3\2\2\2\u0167\u0169\7_\2\2\u0168\u016a\7:\2\2\u0169\u0168"+
-		"\3\2\2\2\u0169\u016a\3\2\2\2\u016a\13\3\2\2\2\u016b\u016c\5\16\b\2\u016c"+
-		"\u016d\5\u0154\u00ab\2\u016d\u016f\3\2\2\2\u016e\u016b\3\2\2\2\u016f\u0172"+
-		"\3\2\2\2\u0170\u016e\3\2\2\2\u0170\u0171\3\2\2\2\u0171\u0173\3\2\2\2\u0172"+
-		"\u0170\3\2\2\2\u0173\u0174\5\u00ba^\2\u0174\u017a\5\u0154\u00ab\2\u0175"+
-		"\u0176\5\24\13\2\u0176\u0177\5\u0154\u00ab\2\u0177\u0179\3\2\2\2\u0178"+
-		"\u0175\3\2\2\2\u0179\u017c\3\2\2\2\u017a\u0178\3\2\2\2\u017a\u017b\3\2"+
-		"\2\2\u017b\u0186\3\2\2\2\u017c\u017a\3\2\2\2\u017d\u0181\5n8\2\u017e\u0181"+
-		"\5\u00be`\2\u017f\u0181\5\26\f\2\u0180\u017d\3\2\2\2\u0180\u017e\3\2\2"+
-		"\2\u0180\u017f\3\2\2\2\u0181\u0182\3\2\2\2\u0182\u0183\5\u0154\u00ab\2"+
-		"\u0183\u0185\3\2\2\2\u0184\u0180\3\2\2\2\u0185\u0188\3\2\2\2\u0186\u0184"+
-		"\3\2\2\2\u0186\u0187\3\2\2\2\u0187\u0189\3\2\2\2\u0188\u0186\3\2\2\2\u0189"+
-		"\u018a\7\2\2\3\u018a\r\3\2\2\2\u018b\u018c\7C\2\2\u018c\u018d\5\u008a"+
-		"F\2\u018d\17\3\2\2\2\u018e\u018f\7D\2\2\u018f\u0190\5\u008aF\2\u0190\21"+
-		"\3\2\2\2\u0191\u0192\5\20\t\2\u0192\u0193\5\u0154\u00ab\2\u0193\u0195"+
-		"\3\2\2\2\u0194\u0191\3\2\2\2\u0195\u0198\3\2\2\2\u0196\u0194\3\2\2\2\u0196"+
-		"\u0197\3\2\2\2\u0197\u019a\3\2\2\2\u0198\u0196\3\2\2\2\u0199\u019b\t\2"+
-		"\2\2\u019a\u0199\3\2\2\2\u019a\u019b\3\2\2\2\u019b\u019c\3\2\2\2\u019c"+
-		"\u019d\5\u00bc_\2\u019d\23\3\2\2\2\u019e\u019f\5\20\t\2\u019f\u01a0\5"+
-		"\u0154\u00ab\2\u01a0\u01a2\3\2\2\2\u01a1\u019e\3\2\2\2\u01a2\u01a5\3\2"+
-		"\2\2\u01a3\u01a1\3\2\2\2\u01a3\u01a4\3\2\2\2\u01a4\u01b3\3\2\2\2\u01a5"+
-		"\u01a3\3\2\2\2\u01a6\u01a7\7[\2\2\u01a7\u01b4\5\22\n\2\u01a8\u01a9\7["+
-		"\2\2\u01a9\u01af\7`\2\2\u01aa\u01ab\5\22\n\2\u01ab\u01ac\5\u0154\u00ab"+
-		"\2\u01ac\u01ae\3\2\2\2\u01ad\u01aa\3\2\2\2\u01ae\u01b1\3\2\2\2\u01af\u01ad"+
-		"\3\2\2\2\u01af\u01b0\3\2\2\2\u01b0\u01b2\3\2\2\2\u01b1\u01af\3\2\2\2\u01b2"+
-		"\u01b4\7a\2\2\u01b3\u01a6\3\2\2\2\u01b3\u01a8\3\2\2\2\u01b4\25\3\2\2\2"+
-		"\u01b5\u01ba\5`\61\2\u01b6\u01ba\5v<\2\u01b7\u01ba\5z>\2\u01b8\u01ba\5"+
-		"t;\2\u01b9\u01b5\3\2\2\2\u01b9\u01b6\3\2\2\2\u01b9\u01b7\3\2\2\2\u01b9"+
-		"\u01b8\3\2\2\2\u01ba\27\3\2\2\2\u01bb\u01bc\7\33\2\2\u01bc\u01c2\5\u008c"+
-		"G\2\u01bd\u01be\t\3\2\2\u01be\u01c2\5.\30\2\u01bf\u01c0\t\4\2\2\u01c0"+
-		"\u01c2\5\u008aF\2\u01c1\u01bb\3\2\2\2\u01c1\u01bd\3\2\2\2\u01c1\u01bf"+
-		"\3\2\2\2\u01c2\31\3\2\2\2\u01c3\u01c4\5\34\17\2\u01c4\33\3\2\2\2\u01c5"+
-		"\u01c6\5V,\2\u01c6\u01c7\5\36\20\2\u01c7\35\3\2\2\2\u01c8\u01c9\7B\2\2"+
-		"\u01c9\u01cb\7`\2\2\u01ca\u01cc\5\u00d0i\2\u01cb\u01ca\3\2\2\2\u01cb\u01cc"+
-		"\3\2\2\2\u01cc\u01cd\3\2\2\2\u01cd\u01ce\7a\2\2\u01ce\37\3\2\2\2\u01cf"+
-		"\u01dc\5F$\2\u01d0\u01dc\5D#\2\u01d1\u01dc\5B\"\2\u01d2\u01dc\5$\23\2"+
-		"\u01d3\u01dc\5@!\2\u01d4\u01dc\58\35\2\u01d5\u01dc\5> \2\u01d6\u01dc\5"+
-		"\66\34\2\u01d7\u01dc\5\62\32\2\u01d8\u01dc\5\60\31\2\u01d9\u01dc\5\64"+
-		"\33\2\u01da\u01dc\5\"\22\2\u01db\u01cf\3\2\2\2\u01db\u01d0\3\2\2\2\u01db"+
-		"\u01d1\3\2\2\2\u01db\u01d2\3\2\2\2\u01db\u01d3\3\2\2\2\u01db\u01d4\3\2"+
-		"\2\2\u01db\u01d5\3\2\2\2\u01db\u01d6\3\2\2\2\u01db\u01d7\3\2\2\2\u01db"+
-		"\u01d8\3\2\2\2\u01db\u01d9\3\2\2\2\u01db\u01da\3\2\2\2\u01dc!\3\2\2\2"+
-		"\u01dd\u01de\t\5\2\2\u01de#\3\2\2\2\u01df\u01e0\7X\2\2\u01e0\u01e1\7d"+
-		"\2\2\u01e1\u01e2\5\u00a4S\2\u01e2\u01e3\7e\2\2\u01e3%\3\2\2\2\u01e4\u01e9"+
-		"\5(\25\2\u01e5\u01e6\7g\2\2\u01e6\u01e8\5(\25\2\u01e7\u01e5\3\2\2\2\u01e8"+
-		"\u01eb\3\2\2\2\u01e9\u01e7\3\2\2\2\u01e9\u01ea\3\2\2\2\u01ea\u01ed\3\2"+
-		"\2\2\u01eb\u01e9\3\2\2\2\u01ec\u01ee\7g\2\2\u01ed\u01ec\3\2\2\2\u01ed"+
-		"\u01ee\3\2\2\2\u01ee\'\3\2\2\2\u01ef\u01f4\7_\2\2\u01f0\u01f1\7g\2\2\u01f1"+
-		"\u01f3\7_\2\2\u01f2\u01f0\3\2\2\2\u01f3\u01f6\3\2\2\2\u01f4\u01f2\3\2"+
-		"\2\2\u01f4\u01f5\3\2\2\2\u01f5\u01f7\3\2\2\2\u01f6\u01f4\3\2\2\2\u01f7"+
-		"\u01f8\5\u0114\u008b\2\u01f8)\3\2\2\2\u01f9\u01fb\5,\27\2\u01fa\u01f9"+
-		"\3\2\2\2\u01fb\u01fe\3\2\2\2\u01fc\u01fa\3\2\2\2\u01fc\u01fd\3\2\2\2\u01fd"+
-		"+\3\2\2\2\u01fe\u01fc\3\2\2\2\u01ff\u0200\7b\2\2\u0200\u0205\5\u008aF"+
-		"\2\u0201\u0202\7g\2\2\u0202\u0204\5\u008aF\2\u0203\u0201\3\2\2\2\u0204"+
-		"\u0207\3\2\2\2\u0205\u0203\3\2\2\2\u0205\u0206\3\2\2\2\u0206\u0208\3\2"+
-		"\2\2\u0207\u0205\3\2\2\2\u0208\u0209\7c\2\2\u0209-\3\2\2\2\u020a\u020b"+
-		"\5\u009aN\2\u020b/\3\2\2\2\u020c\u020d\7\61\2\2\u020d\u020e\7`\2\2\u020e"+
-		"\u020f\5\u008aF\2\u020f\u0210\7a\2\2\u0210\61\3\2\2\2\u0211\u0212\7\65"+
-		"\2\2\u0212\u0213\7d\2\2\u0213\u0214\5\u00a4S\2\u0214\u0215\7e\2\2\u0215"+
-		"\63\3\2\2\2\u0216\u0217\7\62\2\2\u0217\u0218\7`\2\2\u0218\u0219\5\u008a"+
-		"F\2\u0219\u021a\7a\2\2\u021a\65\3\2\2\2\u021b\u021c\t\6\2\2\u021c\u021d"+
-		"\7`\2\2\u021d\u021e\5\u008aF\2\u021e\u021f\7a\2\2\u021f\67\3\2\2\2\u0220"+
-		"\u0225\7\22\2\2\u0221\u0222\7d\2\2\u0222\u0223\5:\36\2\u0223\u0224\7e"+
-		"\2\2\u0224\u0226\3\2\2\2\u0225\u0221\3\2\2\2\u0225\u0226\3\2\2\2\u0226"+
-		"\u0227\3\2\2\2\u0227\u0228\7`\2\2\u0228\u0229\5\u008aF\2\u0229\u022a\7"+
-		"a\2\2\u022a9\3\2\2\2\u022b\u022e\5<\37\2\u022c\u022e\7\24\2\2\u022d\u022b"+
-		"\3\2\2\2\u022d\u022c\3\2\2\2\u022e;\3\2\2\2\u022f\u0230\7_\2\2\u0230="+
-		"\3\2\2\2\u0231\u0232\7\23\2\2\u0232\u0233\7`\2\2\u0233\u0234\5\u008aF"+
-		"\2\u0234\u0235\7a\2\2\u0235?\3\2\2\2\u0236\u0237\78\2\2\u0237\u0238\7"+
-		"`\2\2\u0238\u0239\5\u008aF\2\u0239\u023a\7a\2\2\u023aA\3\2\2\2\u023b\u023c"+
-		"\7\67\2\2\u023c\u023d\7`\2\2\u023d\u023e\5\u008aF\2\u023e\u023f\7a\2\2"+
-		"\u023fC\3\2\2\2\u0240\u0241\7\27\2\2\u0241\u0242\7`\2\2\u0242\u0245\5"+
-		"\u008aF\2\u0243\u0244\7g\2\2\u0244\u0246\5\u008aF\2\u0245\u0243\3\2\2"+
-		"\2\u0245\u0246\3\2\2\2\u0246\u0247\3\2\2\2\u0247\u0248\7a\2\2\u0248E\3"+
-		"\2\2\2\u0249\u024a\t\6\2\2\u024a\u024b\7d\2\2\u024b\u024c\5\u008aF\2\u024c"+
-		"\u024d\7;\2\2\u024d\u024e\5\u008aF\2\u024e\u024f\7e\2\2\u024fG\3\2\2\2"+
-		"\u0250\u0251\7d\2\2\u0251\u0256\5J&\2\u0252\u0253\7g\2\2\u0253\u0255\5"+
-		"J&\2\u0254\u0252\3\2\2\2\u0255\u0258\3\2\2\2\u0256\u0254\3\2\2\2\u0256"+
-		"\u0257\3\2\2\2\u0257\u0259\3\2\2\2\u0258\u0256\3\2\2\2\u0259\u025a\7e"+
-		"\2\2\u025aI\3\2\2\2\u025b\u025c\5\u008aF\2\u025c\u025d\7f\2\2\u025d\u025e"+
-		"\5\u008aF\2\u025eK\3\2\2\2\u025f\u0263\5T+\2\u0260\u0263\5R*\2\u0261\u0263"+
-		"\5N(\2\u0262\u025f\3\2\2\2\u0262\u0260\3\2\2\2\u0262\u0261\3\2\2\2\u0263"+
-		"M\3\2\2\2\u0264\u0265\7\63\2\2\u0265\u026b\7b\2\2\u0266\u0267\5P)\2\u0267"+
-		"\u0268\5\u0154\u00ab\2\u0268\u026a\3\2\2\2\u0269\u0266\3\2\2\2\u026a\u026d"+
-		"\3\2\2\2\u026b\u0269\3\2\2\2\u026b\u026c\3\2\2\2\u026c\u026e\3\2\2\2\u026d"+
-		"\u026b\3\2\2\2\u026e\u026f\7c\2\2\u026fO\3\2\2\2\u0270\u0271\7G\2\2\u0271"+
-		"\u0272\7_\2\2\u0272\u027a\5\u0120\u0091\2\u0273\u0274\7\64\2\2\u0274\u0275"+
-		"\7b\2\2\u0275\u0276\5\u008aF\2\u0276\u0277\5\u0154\u00ab\2\u0277\u0278"+
-		"\7c\2\2\u0278\u027a\3\2\2\2\u0279\u0270\3\2\2\2\u0279\u0273\3\2\2\2\u027a"+
-		"Q\3\2\2\2\u027b\u027c\7\33\2\2\u027c\u027d\7d\2\2\u027d\u027e\7e\2\2\u027e"+
-		"\u027f\5\u0114\u008b\2\u027fS\3\2\2\2\u0280\u0281\t\7\2\2\u0281\u0282"+
-		"\7d\2\2\u0282\u0283\5\u00a4S\2\u0283\u0284\7e\2\2\u0284\u028c\3\2\2\2"+
-		"\u0285\u0286\7+\2\2\u0286\u0287\7d\2\2\u0287\u0288\5\u00a4S\2\u0288\u0289"+
-		"\7e\2\2\u0289\u028a\5\u00a4S\2\u028a\u028c\3\2\2\2\u028b\u0280\3\2\2\2"+
-		"\u028b\u0285\3\2\2\2\u028cU\3\2\2\2\u028d\u0293\5X-\2\u028e\u028f\7\20"+
-		"\2\2\u028f\u0293\b,\1\2\u0290\u0291\7A\2\2\u0291\u0293\b,\1\2\u0292\u028d"+
-		"\3\2\2\2\u0292\u028e\3\2\2\2\u0292\u0290\3\2\2\2\u0293\u0294\3\2\2\2\u0294"+
-		"\u0296\5\u0154\u00ab\2\u0295\u0292\3\2\2\2\u0296\u0299\3\2\2\2\u0297\u0298"+
-		"\3\2\2\2\u0297\u0295\3\2\2\2\u0298\u029c\3\2\2\2\u0299\u0297\3\2\2\2\u029a"+
-		"\u029b\7\20\2\2\u029b\u029d\b,\1\2\u029c\u029a\3\2\2\2\u029c\u029d\3\2"+
-		"\2\2\u029dW\3\2\2\2\u029e\u029f\7\13\2\2\u029f\u02a7\5\\/\2\u02a0\u02a1"+
-		"\7\f\2\2\u02a1\u02a7\5\\/\2\u02a2\u02a3\7\r\2\2\u02a3\u02a7\5\\/\2\u02a4"+
-		"\u02a5\7\17\2\2\u02a5\u02a7\5Z.\2\u02a6\u029e\3\2\2\2\u02a6\u02a0\3\2"+
-		"\2\2\u02a6\u02a2\3\2\2\2\u02a6\u02a4\3\2\2\2\u02a7Y\3\2\2\2\u02a8\u02aa"+
-		"\5\u00c6d\2\u02a9\u02a8\3\2\2\2\u02a9\u02aa\3\2\2\2\u02aa\u02ad\3\2\2"+
-		"\2\u02ab\u02ac\7V\2\2\u02ac\u02ae\5\u008aF\2\u02ad\u02ab\3\2\2\2\u02ad"+
-		"\u02ae\3\2\2\2\u02ae[\3\2\2\2\u02af\u02b2\3\2\2\2\u02b0\u02b2\5\u008a"+
-		"F\2\u02b1\u02af\3\2\2\2\u02b1\u02b0\3\2\2\2\u02b2]\3\2\2\2\u02b3\u02b8"+
-		"\7b\2\2\u02b4\u02b5\79\2\2\u02b5\u02b6\5\u00c4c\2\u02b6\u02b7\5\u0154"+
-		"\u00ab\2\u02b7\u02b9\3\2\2\2\u02b8\u02b4\3\2\2\2\u02b8\u02b9\3\2\2\2\u02b9"+
-		"\u02bb\3\2\2\2\u02ba\u02bc\5\u00d0i\2\u02bb\u02ba\3\2\2\2\u02bb\u02bc"+
-		"\3\2\2\2\u02bc\u02bd\3\2\2\2\u02bd\u02be\7c\2\2\u02be_\3\2\2\2\u02bf\u02c0"+
-		"\5\u00a4S\2\u02c0\u02c1\7\21\2\2\u02c1\u02d4\5\u00a4S\2\u02c2\u02c8\7"+
-		"b\2\2\u02c3\u02c4\5h\65\2\u02c4\u02c5\5\u0154\u00ab\2\u02c5\u02c7\3\2"+
-		"\2\2\u02c6\u02c3\3\2\2\2\u02c7\u02ca\3\2\2\2\u02c8\u02c6\3\2\2\2\u02c8"+
-		"\u02c9\3\2\2\2\u02c9\u02d0\3\2\2\2\u02ca\u02c8\3\2\2\2\u02cb\u02cc\5b"+
-		"\62\2\u02cc\u02cd\5\u0154\u00ab\2\u02cd\u02cf\3\2\2\2\u02ce\u02cb\3\2"+
-		"\2\2\u02cf\u02d2\3\2\2\2\u02d0\u02ce\3\2\2\2\u02d0\u02d1\3\2\2\2\u02d1"+
-		"\u02d3\3\2\2\2\u02d2\u02d0\3\2\2\2\u02d3\u02d5\7c\2\2\u02d4\u02c2\3\2"+
-		"\2\2\u02d4\u02d5\3\2\2\2\u02d5a\3\2\2\2\u02d6\u02d8\7\20\2\2\u02d7\u02d6"+
-		"\3\2\2\2\u02d7\u02d8\3\2\2\2\u02d8\u02d9\3\2\2\2\u02d9\u02da\5d\63\2\u02da"+
-		"\u02db\7_\2\2\u02db\u02dd\5\u0120\u0091\2\u02dc\u02de\5\u00ceh\2\u02dd"+
-		"\u02dc\3\2\2\2\u02dd\u02de\3\2\2\2\u02dec\3\2\2\2\u02df\u02e1\7`\2\2\u02e0"+
-		"\u02e2\7_\2\2\u02e1\u02e0\3\2\2\2\u02e1\u02e2\3\2\2\2\u02e2\u02e4\3\2"+
-		"\2\2\u02e3\u02e5\7\u0081\2\2\u02e4\u02e3\3\2\2\2\u02e4\u02e5\3\2\2\2\u02e5"+
-		"\u02e6\3\2\2\2\u02e6\u02e7\5\u010e\u0088\2\u02e7\u02e8\7a\2\2\u02e8e\3"+
-		"\2\2\2\u02e9\u02ef\5\u009aN\2\u02ea\u02eb\5\u00a4S\2\u02eb\u02ec\7j\2"+
-		"\2\u02ec\u02ed\7_\2\2\u02ed\u02ef\3\2\2\2\u02ee\u02e9\3\2\2\2\u02ee\u02ea"+
-		"\3\2\2\2\u02efg\3\2\2\2\u02f0\u02f1\7\66\2\2\u02f1\u02f2\7_\2\2\u02f2"+
-		"\u02f5\7m\2\2\u02f3\u02f6\5f\64\2\u02f4\u02f6\5\u0130\u0099\2\u02f5\u02f3"+
-		"\3\2\2\2\u02f5\u02f4\3\2\2\2\u02f6i\3\2\2\2\u02f7\u02f8\7/\2\2\u02f8\u02f9"+
-		"\7`\2\2\u02f9\u02fc\5\u00a4S\2\u02fa\u02fb\7g\2\2\u02fb\u02fd\5\u00c6"+
-		"d\2\u02fc\u02fa\3\2\2\2\u02fc\u02fd\3\2\2\2\u02fd\u02fe\3\2\2\2\u02fe"+
-		"\u02ff\7a\2\2\u02ffk\3\2\2\2\u0300\u0301\7.\2\2\u0301\u0302\7`\2\2\u0302"+
-		"\u0303\5\u00a4S\2\u0303\u0304\7a\2\2\u0304m\3\2\2\2\u0305\u0308\5V,\2"+
-		"\u0306\u0309\5p9\2\u0307\u0309\5r:\2\u0308\u0306\3\2\2\2\u0308\u0307\3"+
-		"\2\2\2\u0309o\3\2\2\2\u030a\u030b\7G\2\2\u030b\u030c\7_\2\2\u030c\u030e"+
-		"\5\u0120\u0091\2\u030d\u030f\5^\60\2\u030e\u030d\3\2\2\2\u030e\u030f\3"+
-		"\2\2\2\u030fq\3\2\2\2\u0310\u0311\7G\2\2\u0311\u0312\5\u0080A\2\u0312"+
-		"\u0313\7_\2\2\u0313\u0315\5\u0120\u0091\2\u0314\u0316\5^\60\2\u0315\u0314"+
-		"\3\2\2\2\u0315\u0316\3\2\2\2\u0316s\3\2\2\2\u0317\u031a\7\33\2\2\u0318"+
-		"\u031b\5n8\2\u0319\u031b\5\u00be`\2\u031a\u0318\3\2\2\2\u031a\u0319\3"+
-		"\2\2\2\u031bu\3\2\2\2\u031c\u031d\7\66\2\2\u031d\u031e\7_\2\2\u031e\u0320"+
-		"\5\u0124\u0093\2\u031f\u0321\5x=\2\u0320\u031f\3\2\2\2\u0320\u0321\3\2"+
-		"\2\2\u0321w\3\2\2\2\u0322\u0323\7b\2\2\u0323\u0324\5\u008aF\2\u0324\u0325"+
-		"\5\u0154\u00ab\2\u0325\u0326\7c\2\2\u0326y\3\2\2\2\u0327\u0328\7\66\2"+
-		"\2\u0328\u0329\5\u0080A\2\u0329\u032a\7_\2\2\u032a\u032c\5\u0124\u0093"+
-		"\2\u032b\u032d\5x=\2\u032c\u032b\3\2\2\2\u032c\u032d\3\2\2\2\u032d{\3"+
-		"\2\2\2\u032e\u0336\5\b\5\2\u032f\u0332\5\u00a4S\2\u0330\u0331\7f\2\2\u0331"+
-		"\u0333\5\u00c6d\2\u0332\u0330\3\2\2\2\u0332\u0333\3\2\2\2\u0333\u0337"+
-		"\3\2\2\2\u0334\u0335\7f\2\2\u0335\u0337\5\u00c6d\2\u0336\u032f\3\2\2\2"+
-		"\u0336\u0334\3\2\2\2\u0337}\3\2\2\2\u0338\u0339\5\b\5\2\u0339\u033a\7"+
-		"m\2\2\u033a\u033b\5\u00c6d\2\u033b\177\3\2\2\2\u033c\u033e\7`\2\2\u033d"+
-		"\u033f\5\n\6\2\u033e\u033d\3\2\2\2\u033e\u033f\3\2\2\2\u033f\u0340\3\2"+
-		"\2\2\u0340\u0342\5\u00a4S\2\u0341\u0343\7g\2\2\u0342\u0341\3\2\2\2\u0342"+
-		"\u0343\3\2\2\2\u0343\u0344\3\2\2\2\u0344\u0345\7a\2\2\u0345\u0081\3\2"+
-		"\2\2\u0346\u0349\5\u0084C\2\u0347\u0349\5\u0086D\2\u0348\u0346\3\2\2\2"+
-		"\u0348\u0347\3\2\2\2\u0349\u0083\3\2\2\2\u034a\u034c\5\u00c4c\2\u034b"+
-		"\u034a\3\2\2\2\u034b\u034c\3\2\2\2\u034c\u034d\3\2\2\2\u034d\u034e\5\u0088"+
-		"E\2\u034e\u0085\3\2\2\2\u034f\u0351\7\33\2\2\u0350\u0352\5\u00c4c\2\u0351"+
-		"\u0350\3\2\2\2\u0351\u0352\3\2\2\2\u0352\u0353\3\2\2\2\u0353\u0354\5\u0088"+
-		"E\2\u0354\u0087\3\2\2\2\u0355\u0357\7n\2\2\u0356\u0355\3\2\2\2\u0356\u0357"+
-		"\3\2\2\2\u0357\u0358\3\2\2\2\u0358\u0359\5\u00a4S\2\u0359\u0089\3\2\2"+
-		"\2\u035a\u035b\bF\1\2\u035b\u035c\t\b\2\2\u035c\u036b\5\u008aF\17\u035d"+
-		"\u036b\5\u009aN\2\u035e\u035f\7\32\2\2\u035f\u0360\5.\30\2\u0360\u0361"+
-		"\7\34\2\2\u0361\u0362\5\u008aF\4\u0362\u036b\3\2\2\2\u0363\u0364\t\t\2"+
-		"\2\u0364\u0365\5&\24\2\u0365\u0366\7i\2\2\u0366\u0367\7i\2\2\u0367\u0368"+
-		"\5*\26\2\u0368\u0369\5\u008aF\3\u0369\u036b\3\2\2\2\u036a\u035a\3\2\2"+
-		"\2\u036a\u035d\3\2\2\2\u036a\u035e\3\2\2\2\u036a\u0363\3\2\2\2\u036b\u038c"+
-		"\3\2\2\2\u036c\u036d\f\r\2\2\u036d\u036e\t\n\2\2\u036e\u038b\5\u008aF"+
-		"\16\u036f\u0370\f\f\2\2\u0370\u0371\t\13\2\2\u0371\u038b\5\u008aF\r\u0372"+
-		"\u0373\f\13\2\2\u0373\u0374\t\f\2\2\u0374\u038b\5\u008aF\f\u0375\u0376"+
-		"\f\n\2\2\u0376\u0377\t\r\2\2\u0377\u038b\5\u008aF\13\u0378\u0379\f\t\2"+
-		"\2\u0379\u037a\t\16\2\2\u037a\u038b\5\u008aF\n\u037b\u037c\f\b\2\2\u037c"+
-		"\u037d\7p\2\2\u037d\u038b\5\u008aF\t\u037e\u037f\f\7\2\2\u037f\u0380\7"+
-		"o\2\2\u0380\u038b\5\u008aF\b\u0381\u0382\f\6\2\2\u0382\u0383\7\"\2\2\u0383"+
-		"\u038b\5\u008aF\6\u0384\u0385\f\5\2\2\u0385\u0386\7%\2\2\u0386\u0387\5"+
-		"\u008aF\2\u0387\u0388\7i\2\2\u0388\u0389\5\u008aF\5\u0389\u038b\3\2\2"+
-		"\2\u038a\u036c\3\2\2\2\u038a\u036f\3\2\2\2\u038a\u0372\3\2\2\2\u038a\u0375"+
-		"\3\2\2\2\u038a\u0378\3\2\2\2\u038a\u037b\3\2\2\2\u038a\u037e\3\2\2\2\u038a"+
-		"\u0381\3\2\2\2\u038a\u0384\3\2\2\2\u038b\u038e\3\2\2\2\u038c\u038a\3\2"+
-		"\2\2\u038c\u038d\3\2\2\2\u038d\u008b\3\2\2\2\u038e\u038c\3\2\2\2\u038f"+
-		"\u03a3\5\30\r\2\u0390\u03a3\5\32\16\2\u0391\u03a3\5\u0090I\2\u0392\u03a3"+
-		"\5\u008eH\2\u0393\u03a3\5\u00be`\2\u0394\u03a3\5\u00dep\2\u0395\u03a3"+
-		"\5\u00d2j\2\u0396\u03a3\5\u010c\u0087\2\u0397\u03a3\5\u00e0q\2\u0398\u03a3"+
-		"\5\u00e2r\2\u0399\u03a3\5\u00e4s\2\u039a\u03a3\5\u00e6t\2\u039b\u03a3"+
-		"\5\u00e8u\2\u039c\u03a3\5\u00ceh\2\u039d\u03a3\5\u00eav\2\u039e\u03a3"+
-		"\5\u00ecw\2\u039f\u03a3\5\u00fe\u0080\2\u03a0\u03a3\5\u0092J\2\u03a1\u03a3"+
-		"\5\u0096L\2\u03a2\u038f\3\2\2\2\u03a2\u0390\3\2\2\2\u03a2\u0391\3\2\2"+
-		"\2\u03a2\u0392\3\2\2\2\u03a2\u0393\3\2\2\2\u03a2\u0394\3\2\2\2\u03a2\u0395"+
-		"\3\2\2\2\u03a2\u0396\3\2\2\2\u03a2\u0397\3\2\2\2\u03a2\u0398\3\2\2\2\u03a2"+
-		"\u0399\3\2\2\2\u03a2\u039a\3\2\2\2\u03a2\u039b\3\2\2\2\u03a2\u039c\3\2"+
-		"\2\2\u03a2\u039d\3\2\2\2\u03a2\u039e\3\2\2\2\u03a2\u039f\3\2\2\2\u03a2"+
-		"\u03a0\3\2\2\2\u03a2\u03a1\3\2\2\2\u03a3\u008d\3\2\2\2\u03a4\u03a5\7$"+
-		"\2\2\u03a5\u03a6\5\u008aF\2\u03a6\u008f\3\2\2\2\u03a7\u03a8\7R\2\2\u03a8"+
-		"\u03aa\5\u008aF\2\u03a9\u03ab\5\u00ceh\2\u03aa\u03a9\3\2\2\2\u03aa\u03ab"+
-		"\3\2\2\2\u03ab\u0091\3\2\2\2\u03ac\u03ad\5\u0094K\2\u03ad\u03ae\5\u0106"+
-		"\u0084\2\u03ae\u0093\3\2\2\2\u03af\u03b0\7\16\2\2\u03b0\u03b1\5\u008a"+
-		"F\2\u03b1\u03b2\5\u0154\u00ab\2\u03b2\u03b4\3\2\2\2\u03b3\u03af\3\2\2"+
-		"\2\u03b4\u03b7\3\2\2\2\u03b5\u03b3\3\2\2\2\u03b5\u03b6\3\2\2\2\u03b6\u03bc"+
-		"\3\2\2\2\u03b7\u03b5\3\2\2\2\u03b8\u03b9\7\17\2\2\u03b9\u03ba\5Z.\2\u03ba"+
-		"\u03bb\5\u0154\u00ab\2\u03bb\u03bd\3\2\2\2\u03bc\u03b8\3\2\2\2\u03bc\u03bd"+
-		"\3\2\2\2\u03bd\u0095\3\2\2\2\u03be\u03bf\7K\2\2\u03bf\u03c4\5\u008aF\2"+
-		"\u03c0\u03c1\7K\2\2\u03c1\u03c2\t\3\2\2\u03c2\u03c4\5.\30\2\u03c3\u03be"+
-		"\3\2\2\2\u03c3\u03c0\3\2\2\2\u03c4\u0097\3\2\2\2\u03c5\u03ce\7\5\2\2\u03c6"+
-		"\u03ce\7\6\2\2\u03c7\u03ce\7^\2\2\u03c8\u03ce\5\u012e\u0098\2\u03c9\u03ce"+
-		"\5\u0144\u00a3\2\u03ca\u03ce\7\3\2\2\u03cb\u03ce\7\u0089\2\2\u03cc\u03ce"+
-		"\7\u008a\2\2\u03cd\u03c5\3\2\2\2\u03cd\u03c6\3\2\2\2\u03cd\u03c7\3\2\2"+
-		"\2\u03cd\u03c8\3\2\2\2\u03cd\u03c9\3\2\2\2\u03cd\u03ca\3\2\2\2\u03cd\u03cb"+
-		"\3\2\2\2\u03cd\u03cc\3\2\2\2\u03ce\u0099\3\2\2\2\u03cf\u03d0\bN\1\2\u03d0"+
-		"\u03dc\5\u012a\u0096\2\u03d1\u03dc\5\u0126\u0094\2\u03d2\u03dc\5\u0150"+
-		"\u00a9\2\u03d3\u03dc\5 \21\2\u03d4\u03dc\5l\67\2\u03d5\u03dc\5j\66\2\u03d6"+
-		"\u03d7\t\17\2\2\u03d7\u03d8\7`\2\2\u03d8\u03d9\5\u008aF\2\u03d9\u03da"+
-		"\7a\2\2\u03da\u03dc\3\2\2\2\u03db\u03cf\3\2\2\2\u03db\u03d1\3\2\2\2\u03db"+
-		"\u03d2\3\2\2\2\u03db\u03d3\3\2\2\2\u03db\u03d4\3\2\2\2\u03db\u03d5\3\2"+
-		"\2\2\u03db\u03d6\3\2\2\2\u03dc\u03ee\3\2\2\2\u03dd\u03de\f\n\2\2\u03de"+
-		"\u03df\7j\2\2\u03df\u03ed\7_\2\2\u03e0\u03e1\f\t\2\2\u03e1\u03ed\5\u014a"+
-		"\u00a6\2\u03e2\u03e3\f\b\2\2\u03e3\u03ed\5\u00b0Y\2\u03e4\u03e5\f\7\2"+
-		"\2\u03e5\u03ed\5H%\2\u03e6\u03e7\f\6\2\2\u03e7\u03ed\5\u014c\u00a7\2\u03e8"+
-		"\u03e9\f\5\2\2\u03e9\u03ed\5\u014e\u00a8\2\u03ea\u03eb\f\4\2\2\u03eb\u03ed"+
-		"\5\u009cO\2\u03ec\u03dd\3\2\2\2\u03ec\u03e0\3\2\2\2\u03ec\u03e2\3\2\2"+
-		"\2\u03ec\u03e4\3\2\2\2\u03ec\u03e6\3\2\2\2\u03ec\u03e8\3\2\2\2\u03ec\u03ea"+
-		"\3\2\2\2\u03ed\u03f0\3\2\2\2\u03ee\u03ec\3\2\2\2\u03ee\u03ef\3\2\2\2\u03ef"+
-		"\u009b\3\2\2\2\u03f0\u03ee\3\2\2\2\u03f1\u03f3\7&\2\2\u03f2\u03f4\5\u00c6"+
-		"d\2\u03f3\u03f2\3\2\2\2\u03f3\u03f4\3\2\2\2\u03f4\u03f6\3\2\2\2\u03f5"+
-		"\u03f7\7g\2\2\u03f6\u03f5\3\2\2\2\u03f6\u03f7\3\2\2\2\u03f7\u03f8\3\2"+
-		"\2\2\u03f8\u03f9\7\'\2\2\u03f9\u009d\3\2\2\2\u03fa\u03fb\7H\2\2\u03fb"+
-		"\u0405\7b\2\2\u03fc\u0400\5\u00a2R\2\u03fd\u0400\5\u010e\u0088\2\u03fe"+
-		"\u0400\5\u00a0Q\2\u03ff\u03fc\3\2\2\2\u03ff\u03fd\3\2\2\2\u03ff\u03fe"+
-		"\3\2\2\2\u0400\u0401\3\2\2\2\u0401\u0402\5\u0154\u00ab\2\u0402\u0404\3"+
-		"\2\2\2\u0403\u03ff\3\2\2\2\u0404\u0407\3\2\2\2\u0405\u0403\3\2\2\2\u0405"+
-		"\u0406\3\2\2\2\u0406\u0408\3\2\2\2\u0407\u0405\3\2\2\2\u0408\u0409\7c"+
-		"\2\2\u0409\u009f\3\2\2\2\u040a\u040b\7\66\2\2\u040b\u040c\7_\2\2\u040c"+
-		"\u040d\5\u0124\u0093\2\u040d\u00a1\3\2\2\2\u040e\u0410\7\33\2\2\u040f"+
-		"\u040e\3\2\2\2\u040f\u0410\3\2\2\2\u0410\u0411\3\2\2\2\u0411\u0412\5V"+
-		",\2\u0412\u0413\7_\2\2\u0413\u0414\5\u0124\u0093\2\u0414\u0415\5\u0122"+
-		"\u0092\2\u0415\u041e\3\2\2\2\u0416\u0418\7\33\2\2\u0417\u0416\3\2\2\2"+
-		"\u0417\u0418\3\2\2\2\u0418\u0419\3\2\2\2\u0419\u041a\5V,\2\u041a\u041b"+
-		"\7_\2\2\u041b\u041c\5\u0124\u0093\2\u041c\u041e\3\2\2\2\u041d\u040f\3"+
-		"\2\2\2\u041d\u0417\3\2\2\2\u041e\u00a3\3\2\2\2\u041f\u0427\5\u010e\u0088"+
-		"\2\u0420\u0427\5\u00a6T\2\u0421\u0427\5L\'\2\u0422\u0423\7`\2\2\u0423"+
-		"\u0424\5\u00a4S\2\u0424\u0425\7a\2\2\u0425\u0427\3\2\2\2\u0426\u041f\3"+
-		"\2\2\2\u0426\u0420\3\2\2\2\u0426\u0421\3\2\2\2\u0426\u0422\3\2\2\2\u0427"+
-		"\u00a5\3\2\2\2\u0428\u0432\5\u0110\u0089\2\u0429\u0432\5\u0140\u00a1\2"+
-		"\u042a\u0432\5\u0116\u008c\2\u042b\u0432\5\u011e\u0090\2\u042c\u0432\5"+
-		"\u009eP\2\u042d\u0432\5\u0118\u008d\2\u042e\u0432\5\u011a\u008e\2\u042f"+
-		"\u0432\5\u011c\u008f\2\u0430\u0432\5\u00a8U\2\u0431\u0428\3\2\2\2\u0431"+
-		"\u0429\3\2\2\2\u0431\u042a\3\2\2\2\u0431\u042b\3\2\2\2\u0431\u042c\3\2"+
-		"\2\2\u0431\u042d\3\2\2\2\u0431\u042e\3\2\2\2\u0431\u042f\3\2\2\2\u0431"+
-		"\u0430\3\2\2\2\u0432\u00a7\3\2\2\2\u0433\u0434\7\66\2\2\u0434\u0435\5"+
-		"\u00aaV\2\u0435\u00a9\3\2\2\2\u0436\u0442\7`\2\2\u0437\u043c\5\u00a4S"+
-		"\2\u0438\u0439\7g\2\2\u0439\u043b\5\u00a4S\2\u043a\u0438\3\2\2\2\u043b"+
-		"\u043e\3\2\2\2\u043c\u043a\3\2\2\2\u043c\u043d\3\2\2\2\u043d\u0440\3\2"+
-		"\2\2\u043e\u043c\3\2\2\2\u043f\u0441\7g\2\2\u0440\u043f\3\2\2\2\u0440"+
-		"\u0441\3\2\2\2\u0441\u0443\3\2\2\2\u0442\u0437\3\2\2\2\u0442\u0443\3\2"+
-		"\2\2\u0443\u0444\3\2\2\2\u0444\u0445\7a\2\2\u0445\u00ab\3\2\2\2\u0446"+
-		"\u044e\5\u0140\u00a1\2\u0447\u044e\5\u0110\u0089\2\u0448\u044e\5\u00ae"+
-		"X\2\u0449\u044e\5\u0118\u008d\2\u044a\u044e\5\u011a\u008e\2\u044b\u044e"+
-		"\5L\'\2\u044c\u044e\5\u010e\u0088\2\u044d\u0446\3\2\2\2\u044d\u0447\3"+
-		"\2\2\2\u044d\u0448\3\2\2\2\u044d\u0449\3\2\2\2\u044d\u044a\3\2\2\2\u044d"+
-		"\u044b\3\2\2\2\u044d\u044c\3\2\2\2\u044e\u00ad\3\2\2\2\u044f\u0450\7d"+
-		"\2\2\u0450\u0451\7n\2\2\u0451\u0452\7e\2\2\u0452\u0453\5\u0114\u008b\2"+
-		"\u0453\u00af\3\2\2\2\u0454\u0464\7d\2\2\u0455\u0457\5\u00b2Z\2\u0456\u0455"+
-		"\3\2\2\2\u0456\u0457\3\2\2\2\u0457\u0458\3\2\2\2\u0458\u045a\7i\2\2\u0459"+
-		"\u045b\5\u00b4[\2\u045a\u0459\3\2\2\2\u045a\u045b\3\2\2\2\u045b\u0465"+
-		"\3\2\2\2\u045c\u045e\5\u00b2Z\2\u045d\u045c\3\2\2\2\u045d\u045e\3\2\2"+
-		"\2\u045e\u045f\3\2\2\2\u045f\u0460\7i\2\2\u0460\u0461\5\u00b4[\2\u0461"+
-		"\u0462\7i\2\2\u0462\u0463\5\u00b6\\\2\u0463\u0465\3\2\2\2\u0464\u0456"+
-		"\3\2\2\2\u0464\u045d\3\2\2\2\u0465\u0466\3\2\2\2\u0466\u0467\7e\2\2\u0467"+
-		"\u00b1\3\2\2\2\u0468\u0469\5\u008aF\2\u0469\u00b3\3\2\2\2\u046a\u046b"+
-		"\5\u008aF\2\u046b\u00b5\3\2\2\2\u046c\u046d\5\u008aF\2\u046d\u00b7\3\2"+
-		"\2\2\u046e\u0470\t\20\2\2\u046f\u046e\3\2\2\2\u046f\u0470\3\2\2\2\u0470"+
-		"\u0471\3\2\2\2\u0471\u0472\7f\2\2\u0472\u00b9\3\2\2\2\u0473\u0474\7R\2"+
-		"\2\u0474\u0475\7_\2\2\u0475\u00bb\3\2\2\2\u0476\u0477\5\u0144\u00a3\2"+
-		"\u0477\u00bd\3\2\2\2\u0478\u047c\5\u00c0a\2\u0479\u047c\5\u00c8e\2\u047a"+
-		"\u047c\5\u00ccg\2\u047b\u0478\3\2\2\2\u047b\u0479\3\2\2\2\u047b\u047a"+
-		"\3\2\2\2\u047c\u00bf\3\2\2\2\u047d\u0489\7T\2\2\u047e\u048a\5\u00c2b\2"+
-		"\u047f\u0485\7`\2\2\u0480\u0481\5\u00c2b\2\u0481\u0482\5\u0154\u00ab\2"+
-		"\u0482\u0484\3\2\2\2\u0483\u0480\3\2\2\2\u0484\u0487\3\2\2\2\u0485\u0483"+
-		"\3\2\2\2\u0485\u0486\3\2\2\2\u0486\u0488\3\2\2\2\u0487\u0485\3\2\2\2\u0488"+
-		"\u048a\7a\2\2\u0489\u047e\3\2\2\2\u0489\u047f\3\2\2\2\u048a\u00c1\3\2"+
-		"\2\2\u048b\u0491\5\u00c4c\2\u048c\u048e\5\u00a4S\2\u048d\u048c\3\2\2\2"+
-		"\u048d\u048e\3\2\2\2\u048e\u048f\3\2\2\2\u048f\u0490\7f\2\2\u0490\u0492"+
-		"\5\u00c6d\2\u0491\u048d\3\2\2\2\u0491\u0492\3\2\2\2\u0492\u00c3\3\2\2"+
-		"\2\u0493\u0498\7_\2\2\u0494\u0495\7g\2\2\u0495\u0497\7_\2\2\u0496\u0494"+
-		"\3\2\2\2\u0497\u049a\3\2\2\2\u0498\u0496\3\2\2\2\u0498\u0499\3\2\2\2\u0499"+
-		"\u00c5\3\2\2\2\u049a\u0498\3\2\2\2\u049b\u04a0\5\u008aF\2\u049c\u049d"+
-		"\7g\2\2\u049d\u049f\5\u008aF\2\u049e\u049c\3\2\2\2\u049f\u04a2\3\2\2\2"+
-		"\u04a0\u049e\3\2\2\2\u04a0\u04a1\3\2\2\2\u04a1\u00c7\3\2\2\2\u04a2\u04a0"+
-		"\3\2\2\2\u04a3\u04af\7X\2\2\u04a4\u04b0\5\u00caf\2\u04a5\u04ab\7`\2\2"+
-		"\u04a6\u04a7\5\u00caf\2\u04a7\u04a8\5\u0154\u00ab\2\u04a8\u04aa\3\2\2"+
-		"\2\u04a9\u04a6\3\2\2\2\u04aa\u04ad\3\2\2\2\u04ab\u04a9\3\2\2\2\u04ab\u04ac"+
-		"\3\2\2\2\u04ac\u04ae\3\2\2\2\u04ad\u04ab\3\2\2\2\u04ae\u04b0\7a\2\2\u04af"+
-		"\u04a4\3\2\2\2\u04af\u04a5\3\2\2\2\u04b0\u00c9\3\2\2\2\u04b1\u04b3\7_"+
-		"\2\2\u04b2\u04b4\7f\2\2\u04b3\u04b2\3\2\2\2\u04b3\u04b4\3\2\2\2\u04b4"+
-		"\u04b5\3\2\2\2\u04b5\u04b6\5\u00a4S\2\u04b6\u00cb\3\2\2\2\u04b7\u04c3"+
-		"\7]\2\2\u04b8\u04c4\5|?\2\u04b9\u04bf\7`\2\2\u04ba\u04bb\5|?\2\u04bb\u04bc"+
-		"\5\u0154\u00ab\2\u04bc\u04be\3\2\2\2\u04bd\u04ba\3\2\2\2\u04be\u04c1\3"+
-		"\2\2\2\u04bf\u04bd\3\2\2\2\u04bf\u04c0\3\2\2\2\u04c0\u04c2\3\2\2\2\u04c1"+
-		"\u04bf\3\2\2\2\u04c2\u04c4\7a\2\2\u04c3\u04b8\3\2\2\2\u04c3\u04b9\3\2"+
-		"\2\2\u04c4\u00cd\3\2\2\2\u04c5\u04c7\7b\2\2\u04c6\u04c8\5\u00d0i\2\u04c7"+
-		"\u04c6\3\2\2\2\u04c7\u04c8\3\2\2\2\u04c8\u04c9\3\2\2\2\u04c9\u04ca\7c"+
-		"\2\2\u04ca\u00cf\3\2\2\2\u04cb\u04cd\5\u0154\u00ab\2\u04cc\u04cb\3\2\2"+
-		"\2\u04cc\u04cd\3\2\2\2\u04cd\u04ce\3\2\2\2\u04ce\u04cf\5\u008cG\2\u04cf"+
-		"\u04d0\5\u0154\u00ab\2\u04d0\u04d2\3\2\2\2\u04d1\u04cc\3\2\2\2\u04d2\u04d3"+
-		"\3\2\2\2\u04d3\u04d1\3\2\2\2\u04d3\u04d4\3\2\2\2\u04d4\u00d1\3\2\2\2\u04d5"+
-		"\u04db\5\u00d6l\2\u04d6\u04db\5\u00d8m\2\u04d7\u04db\5\u00dan\2\u04d8"+
-		"\u04db\5\u00d4k\2\u04d9\u04db\5~@\2\u04da\u04d5\3\2\2\2\u04da\u04d6\3"+
-		"\2\2\2\u04da\u04d7\3\2\2\2\u04da\u04d8\3\2\2\2\u04da\u04d9\3\2\2\2\u04db"+
-		"\u00d3\3\2\2\2\u04dc\u04dd\5\u008aF\2\u04dd\u00d5\3\2\2\2\u04de\u04df"+
-		"\5\u008aF\2\u04df\u04e0\7\u0083\2\2\u04e0\u04e1\5\u008aF\2\u04e1\u00d7"+
-		"\3\2\2\2\u04e2\u04e3\5\u008aF\2\u04e3\u04e4\t\21\2\2\u04e4\u00d9\3\2\2"+
-		"\2\u04e5\u04e6\5\u00c6d\2\u04e6\u04e7\5\u00b8]\2\u04e7\u04e8\5\u00c6d"+
-		"\2\u04e8\u00db\3\2\2\2\u04e9\u04ea\t\22\2\2\u04ea\u00dd\3\2\2\2\u04eb"+
-		"\u04ec\7_\2\2\u04ec\u04ee\7i\2\2\u04ed\u04ef\5\u008cG\2\u04ee\u04ed\3"+
-		"\2\2\2\u04ee\u04ef\3\2\2\2\u04ef\u00df\3\2\2\2\u04f0\u04f2\7\\\2\2\u04f1"+
-		"\u04f3\5\u00c6d\2\u04f2\u04f1\3\2\2\2\u04f2\u04f3\3\2\2\2\u04f3\u00e1"+
-		"\3\2\2\2\u04f4\u04f6\7E\2\2\u04f5\u04f7\7_\2\2\u04f6\u04f5\3\2\2\2\u04f6"+
-		"\u04f7\3\2\2\2\u04f7\u00e3\3\2\2\2\u04f8\u04fa\7Y\2\2\u04f9\u04fb\7_\2"+
-		"\2\u04fa\u04f9\3\2\2\2\u04fa\u04fb\3\2\2\2\u04fb\u00e5\3\2\2\2\u04fc\u04fd"+
-		"\7Q\2\2\u04fd\u04fe\7_\2\2\u04fe\u00e7\3\2\2\2\u04ff\u0500\7U\2\2\u0500"+
-		"\u00e9\3\2\2\2\u0501\u050a\7V\2\2\u0502\u050b\5\u008aF\2\u0503\u0504\5"+
-		"\u0154\u00ab\2\u0504\u0505\5\u008aF\2\u0505\u050b\3\2\2\2\u0506\u0507"+
-		"\5\u00d2j\2\u0507\u0508\5\u0154\u00ab\2\u0508\u0509\5\u008aF\2\u0509\u050b"+
-		"\3\2\2\2\u050a\u0502\3\2\2\2\u050a\u0503\3\2\2\2\u050a\u0506\3\2\2\2\u050b"+
-		"\u050c\3\2\2\2\u050c\u0512\5\u00ceh\2\u050d\u0510\7P\2\2\u050e\u0511\5"+
-		"\u00eav\2\u050f\u0511\5\u00ceh\2\u0510\u050e\3\2\2\2\u0510\u050f\3\2\2"+
-		"\2\u0511\u0513\3\2\2\2\u0512\u050d\3\2\2\2\u0512\u0513\3\2\2\2\u0513\u00eb"+
-		"\3\2\2\2\u0514\u0517\5\u00eex\2\u0515\u0517\5\u00f4{\2\u0516\u0514\3\2"+
-		"\2\2\u0516\u0515\3\2\2\2\u0517\u00ed\3\2\2\2\u0518\u0523\7S\2\2\u0519"+
-		"\u051b\5\u008aF\2\u051a\u0519\3\2\2\2\u051a\u051b\3\2\2\2\u051b\u0524"+
-		"\3\2\2\2\u051c\u051e\5\u00d2j\2\u051d\u051c\3\2\2\2\u051d\u051e\3\2\2"+
-		"\2\u051e\u051f\3\2\2\2\u051f\u0521\5\u0154\u00ab\2\u0520\u0522\5\u008a"+
-		"F\2\u0521\u0520\3\2\2\2\u0521\u0522\3\2\2\2\u0522\u0524\3\2\2\2\u0523"+
-		"\u051a\3\2\2\2\u0523\u051d\3\2\2\2\u0524\u0525\3\2\2\2\u0525\u0529\7b"+
-		"\2\2\u0526\u0528\5\u00f0y\2\u0527\u0526\3\2\2\2\u0528\u052b\3\2\2\2\u0529"+
-		"\u0527\3\2\2\2\u0529\u052a\3\2\2\2\u052a\u052c\3\2\2\2\u052b\u0529\3\2"+
-		"\2\2\u052c\u052d\7c\2\2\u052d\u00ef\3\2\2\2\u052e\u052f\5\u00f2z\2\u052f"+
-		"\u0531\7i\2\2\u0530\u0532\5\u00d0i\2\u0531\u0530\3\2\2\2\u0531\u0532\3"+
-		"\2\2\2\u0532\u00f1\3\2\2\2\u0533\u0534\7J\2\2\u0534\u0537\5\u00c6d\2\u0535"+
-		"\u0537\7F\2\2\u0536\u0533\3\2\2\2\u0536\u0535\3\2\2\2\u0537\u00f3\3\2"+
-		"\2\2\u0538\u0541\7S\2\2\u0539\u0542\5\u00f6|\2\u053a\u053b\5\u0154\u00ab"+
-		"\2\u053b\u053c\5\u00f6|\2\u053c\u0542\3\2\2\2\u053d\u053e\5\u00d2j\2\u053e"+
-		"\u053f\5\u0154\u00ab\2\u053f\u0540\5\u00f6|\2\u0540\u0542\3\2\2\2\u0541"+
-		"\u0539\3\2\2\2\u0541\u053a\3\2\2\2\u0541\u053d\3\2\2\2\u0542\u0543\3\2"+
-		"\2\2\u0543\u0547\7b\2\2\u0544\u0546\5\u00f8}\2\u0545\u0544\3\2\2\2\u0546"+
-		"\u0549\3\2\2\2\u0547\u0545\3\2\2\2\u0547\u0548\3\2\2\2\u0548\u054a\3\2"+
-		"\2\2\u0549\u0547\3\2\2\2\u054a\u054b\7c\2\2\u054b\u00f5\3\2\2\2\u054c"+
-		"\u054d\7_\2\2\u054d\u054f\7m\2\2\u054e\u054c\3\2\2\2\u054e\u054f\3\2\2"+
-		"\2\u054f\u0550\3\2\2\2\u0550\u0551\5\u009aN\2\u0551\u0552\7j\2\2\u0552"+
-		"\u0553\7`\2\2\u0553\u0554\7X\2\2\u0554\u0555\7a\2\2\u0555\u00f7\3\2\2"+
-		"\2\u0556\u0557\5\u00fa~\2\u0557\u0559\7i\2\2\u0558\u055a\5\u00d0i\2\u0559"+
-		"\u0558\3\2\2\2\u0559\u055a\3\2\2\2\u055a\u00f9\3\2\2\2\u055b\u055c\7J"+
-		"\2\2\u055c\u055f\5\u00fc\177\2\u055d\u055f\7F\2\2\u055e\u055b\3\2\2\2"+
-		"\u055e\u055d\3\2\2\2\u055f\u00fb\3\2\2\2\u0560\u0563\5\u00a4S\2\u0561"+
-		"\u0563\7^\2\2\u0562\u0560\3\2\2\2\u0562\u0561\3\2\2\2\u0563\u056b\3\2"+
-		"\2\2\u0564\u0567\7g\2\2\u0565\u0568\5\u00a4S\2\u0566\u0568\7^\2\2\u0567"+
-		"\u0565\3\2\2\2\u0567\u0566\3\2\2\2\u0568\u056a\3\2\2\2\u0569\u0564\3\2"+
-		"\2\2\u056a\u056d\3\2\2\2\u056b\u0569\3\2\2\2\u056b\u056c\3\2\2\2\u056c"+
-		"\u00fd\3\2\2\2\u056d\u056b\3\2\2\2\u056e\u056f\7I\2\2\u056f\u0573\7b\2"+
-		"\2\u0570\u0572\5\u0100\u0081\2\u0571\u0570\3\2\2\2\u0572\u0575\3\2\2\2"+
-		"\u0573\u0571\3\2\2\2\u0573\u0574\3\2\2\2\u0574\u0576\3\2\2\2\u0575\u0573"+
-		"\3\2\2\2\u0576\u0577\7c\2\2\u0577\u00ff\3\2\2\2\u0578\u0579\5\u0102\u0082"+
-		"\2\u0579\u057b\7i\2\2\u057a\u057c\5\u00d0i\2\u057b\u057a\3\2\2\2\u057b"+
-		"\u057c\3\2\2\2\u057c\u0101\3\2\2\2\u057d\u0580\7J\2\2\u057e\u0581\5\u00d6"+
-		"l\2\u057f\u0581\5\u0104\u0083\2\u0580\u057e\3\2\2\2\u0580\u057f\3\2\2"+
-		"\2\u0581\u0584\3\2\2\2\u0582\u0584\7F\2\2\u0583\u057d\3\2\2\2\u0583\u0582"+
-		"\3\2\2\2\u0584\u0103\3\2\2\2\u0585\u0586\5\u00c6d\2\u0586\u0587\7f\2\2"+
-		"\u0587\u058c\3\2\2\2\u0588\u0589\5\u00c4c\2\u0589\u058a\7m\2\2\u058a\u058c"+
-		"\3\2\2\2\u058b\u0585\3\2\2\2\u058b\u0588\3\2\2\2\u058b\u058c\3\2\2\2\u058c"+
-		"\u058d\3\2\2\2\u058d\u058e\5\u008aF\2\u058e\u0105\3\2\2\2\u058f\u0593"+
-		"\7Z\2\2\u0590\u0594\5\u008aF\2\u0591\u0594\5\u0108\u0085\2\u0592\u0594"+
-		"\5\u010a\u0086\2\u0593\u0590\3\2\2\2\u0593\u0591\3\2\2\2\u0593\u0592\3"+
-		"\2\2\2\u0593\u0594\3\2\2\2\u0594\u0595\3\2\2\2\u0595\u0596\5\u00ceh\2"+
-		"\u0596\u0107\3\2\2\2\u0597\u0599\5\u00d2j\2\u0598\u0597\3\2\2\2\u0598"+
-		"\u0599\3\2\2\2\u0599\u059a\3\2\2\2\u059a\u059c\5\u0154\u00ab\2\u059b\u059d"+
-		"\5\u008aF\2\u059c\u059b\3\2\2\2\u059c\u059d\3\2\2\2\u059d\u059e\3\2\2"+
-		"\2\u059e\u05a0\5\u0154\u00ab\2\u059f\u05a1\5\u00d2j\2\u05a0\u059f\3\2"+
-		"\2\2\u05a0\u05a1\3\2\2\2\u05a1\u0109\3\2\2\2\u05a2\u05a3\5\u00c6d\2\u05a3"+
-		"\u05a4\7f\2\2\u05a4\u05a9\3\2\2\2\u05a5\u05a6\5\u00c4c\2\u05a6\u05a7\7"+
-		"m\2\2\u05a7\u05a9\3\2\2\2\u05a8\u05a2\3\2\2\2\u05a8\u05a5\3\2\2\2\u05a8"+
-		"\u05a9\3\2\2\2\u05a9\u05aa\3\2\2\2\u05aa\u05ab\7W\2\2\u05ab\u05ac\5\u008a"+
-		"F\2\u05ac\u010b\3\2\2\2\u05ad\u05ae\7L\2\2\u05ae\u05af\5\u008aF\2\u05af"+
-		"\u010d\3\2\2\2\u05b0\u05b3\5\u0132\u009a\2\u05b1\u05b3\7_\2\2\u05b2\u05b0"+
-		"\3\2\2\2\u05b2\u05b1\3\2\2\2\u05b3\u010f\3\2\2\2\u05b4\u05b5\7d\2\2\u05b5"+
-		"\u05b6\5\u0112\u008a\2\u05b6\u05b7\7e\2\2\u05b7\u05b8\5\u0114\u008b\2"+
-		"\u05b8\u0111\3\2\2\2\u05b9\u05ba\5\u008aF\2\u05ba\u0113\3\2\2\2\u05bb"+
-		"\u05bc\5\u00a4S\2\u05bc\u0115\3\2\2\2\u05bd\u05be\7\u0081\2\2\u05be\u05bf"+
-		"\5\u00a4S\2\u05bf\u0117\3\2\2\2\u05c0\u05c1\7d\2\2\u05c1\u05c2\7e\2\2"+
-		"\u05c2\u05c3\5\u0114\u008b\2\u05c3\u0119\3\2\2\2\u05c4\u05c5\7M\2\2\u05c5"+
-		"\u05c6\7d\2\2\u05c6\u05c7\5\u00a4S\2\u05c7\u05c8\7e\2\2\u05c8\u05c9\5"+
-		"\u0114\u008b\2\u05c9\u011b\3\2\2\2\u05ca\u05d0\7O\2\2\u05cb\u05cc\7O\2"+
-		"\2\u05cc\u05d0\7\u0083\2\2\u05cd\u05ce\7\u0083\2\2\u05ce\u05d0\7O\2\2"+
-		"\u05cf\u05ca\3\2\2\2\u05cf\u05cb\3\2\2\2\u05cf\u05cd\3\2\2\2\u05d0\u05d1"+
-		"\3\2\2\2\u05d1\u05d2\5\u0114\u008b\2\u05d2\u011d\3\2\2\2\u05d3\u05d4\7"+
-		"G\2\2\u05d4\u05d5\5\u0120\u0091\2\u05d5\u011f\3\2\2\2\u05d6\u05d7\5\u0124"+
-		"\u0093\2\u05d7\u05d8\5\u0122\u0092\2\u05d8\u05db\3\2\2\2\u05d9\u05db\5"+
-		"\u0124\u0093\2\u05da\u05d6\3\2\2\2\u05da\u05d9\3\2\2\2\u05db\u0121\3\2"+
-		"\2\2\u05dc\u05df\5\u0124\u0093\2\u05dd\u05df\5\u00a4S\2\u05de\u05dc\3"+
-		"\2\2\2\u05de\u05dd\3\2\2\2\u05df\u0123\3\2\2\2\u05e0\u05ec\7`\2\2\u05e1"+
-		"\u05e6\5\u0082B\2\u05e2\u05e3\7g\2\2\u05e3\u05e5\5\u0082B\2\u05e4\u05e2"+
-		"\3\2\2\2\u05e5\u05e8\3\2\2\2\u05e6\u05e4\3\2\2\2\u05e6\u05e7\3\2\2\2\u05e7"+
-		"\u05ea\3\2\2\2\u05e8\u05e6\3\2\2\2\u05e9\u05eb\7g\2\2\u05ea\u05e9\3\2"+
-		"\2\2\u05ea\u05eb\3\2\2\2\u05eb\u05ed\3\2\2\2\u05ec\u05e1\3\2\2\2\u05ec"+
-		"\u05ed\3\2\2\2\u05ed\u05ee\3\2\2\2\u05ee\u05ef\7a\2\2\u05ef\u0125\3\2"+
-		"\2\2\u05f0\u05f1\5\u0128\u0095\2\u05f1\u05f2\7`\2\2\u05f2\u05f4\5\u008a"+
-		"F\2\u05f3\u05f5\7g\2\2\u05f4\u05f3\3\2\2\2\u05f4\u05f5\3\2\2\2\u05f5\u05f6"+
-		"\3\2\2\2\u05f6\u05f7\7a\2\2\u05f7\u0127\3\2\2\2\u05f8\u05fe\5\u00a6T\2"+
-		"\u05f9\u05fa\7`\2\2\u05fa\u05fb\5\u0128\u0095\2\u05fb\u05fc\7a\2\2\u05fc"+
-		"\u05fe\3\2\2\2\u05fd\u05f8\3\2\2\2\u05fd\u05f9\3\2\2\2\u05fe\u0129\3\2"+
-		"\2\2\u05ff\u0606\5\u012c\u0097\2\u0600\u0606\5\u0130\u0099\2\u0601\u0602"+
-		"\7`\2\2\u0602\u0603\5\u008aF\2\u0603\u0604\7a\2\2\u0604\u0606\3\2\2\2"+
-		"\u0605\u05ff\3\2\2\2\u0605\u0600\3\2\2\2\u0605\u0601\3\2\2\2\u0606\u012b"+
-		"\3\2\2\2\u0607\u060b\5\u0098M\2\u0608\u060b\5\u0134\u009b\2\u0609\u060b"+
-		"\5\u0148\u00a5\2\u060a\u0607\3\2\2\2\u060a\u0608\3\2\2\2\u060a\u0609\3"+
-		"\2\2\2\u060b\u012d\3\2\2\2\u060c\u060d\t\23\2\2\u060d\u012f\3\2\2\2\u060e"+
-		"\u060f\7_\2\2\u060f\u0131\3\2\2\2\u0610\u0611\7_\2\2\u0611\u0612\7j\2"+
-		"\2\u0612\u0613\7_\2\2\u0613\u0133\3\2\2\2\u0614\u0615\5\u00acW\2\u0615"+
-		"\u0616\5\u0136\u009c\2\u0616\u0135\3\2\2\2\u0617\u061c\7b\2\2\u0618\u061a"+
-		"\5\u0138\u009d\2\u0619\u061b\7g\2\2\u061a\u0619\3\2\2\2\u061a\u061b\3"+
-		"\2\2\2\u061b\u061d\3\2\2\2\u061c\u0618\3\2\2\2\u061c\u061d\3\2\2\2\u061d"+
-		"\u061e\3\2\2\2\u061e\u061f\7c\2\2\u061f\u0137\3\2\2\2\u0620\u0625\5\u013a"+
-		"\u009e\2\u0621\u0622\7g\2\2\u0622\u0624\5\u013a\u009e\2\u0623\u0621\3"+
-		"\2\2\2\u0624\u0627\3\2\2\2\u0625\u0623\3\2\2\2\u0625\u0626\3\2\2\2\u0626"+
-		"\u0139\3\2\2\2\u0627\u0625\3\2\2\2\u0628\u0629\5\u013c\u009f\2\u0629\u062a"+
-		"\7i\2\2\u062a\u062c\3\2\2\2\u062b\u0628\3\2\2\2\u062b\u062c\3\2\2\2\u062c"+
-		"\u062d\3\2\2\2\u062d\u062e\5\u013e\u00a0\2\u062e\u013b\3\2\2\2\u062f\u0632"+
-		"\5\u008aF\2\u0630\u0632\5\u0136\u009c\2\u0631\u062f\3\2\2\2\u0631\u0630"+
-		"\3\2\2\2\u0632\u013d\3\2\2\2\u0633\u0636\5\u008aF\2\u0634\u0636\5\u0136"+
-		"\u009c\2\u0635\u0633\3\2\2\2\u0635\u0634\3\2\2\2\u0636\u013f\3\2\2\2\u0637"+
-		"\u0638\7N\2\2\u0638\u063e\7b\2\2\u0639\u063a\5\u0142\u00a2\2\u063a\u063b"+
-		"\5\u0154\u00ab\2\u063b\u063d\3\2\2\2\u063c\u0639\3\2\2\2\u063d\u0640\3"+
-		"\2\2\2\u063e\u063c\3\2\2\2\u063e\u063f\3\2\2\2\u063f\u0641\3\2\2\2\u0640"+
-		"\u063e\3\2\2\2\u0641\u0642\7c\2\2\u0642\u0141\3\2\2\2\u0643\u0644\5\u00c4"+
-		"c\2\u0644\u0645\5\u00a4S\2\u0645\u0648\3\2\2\2\u0646\u0648\5\u0146\u00a4"+
-		"\2\u0647\u0643\3\2\2\2\u0647\u0646\3\2\2\2\u0648\u064a\3\2\2\2\u0649\u064b"+
-		"\5\u0144\u00a3\2\u064a\u0649\3\2\2\2\u064a\u064b\3\2\2\2\u064b\u0143\3"+
-		"\2\2\2\u064c\u064d\t\24\2\2\u064d\u0145\3\2\2\2\u064e\u0650\7\u0081\2"+
-		"\2\u064f\u064e\3\2\2\2\u064f\u0650\3\2\2\2\u0650\u0651\3\2\2\2\u0651\u0652"+
-		"\5\u010e\u0088\2\u0652\u0147\3\2\2\2\u0653\u0654\7G\2\2\u0654\u0655\5"+
-		"\u0120\u0091\2\u0655\u0656\5\u00ceh\2\u0656\u0149\3\2\2\2\u0657\u0658"+
-		"\7d\2\2\u0658\u0659\5\u008aF\2\u0659\u065a\7e\2\2\u065a\u014b\3\2\2\2"+
-		"\u065b\u065c\7j\2\2\u065c\u065d\7`\2\2\u065d\u065e\5\u00a4S\2\u065e\u065f"+
-		"\7a\2\2\u065f\u014d\3\2\2\2\u0660\u066f\7`\2\2\u0661\u0668\5\u00c6d\2"+
-		"\u0662\u0665\5\u0128\u0095\2\u0663\u0664\7g\2\2\u0664\u0666\5\u00c6d\2"+
-		"\u0665\u0663\3\2\2\2\u0665\u0666\3\2\2\2\u0666\u0668\3\2\2\2\u0667\u0661"+
-		"\3\2\2\2\u0667\u0662\3\2\2\2\u0668\u066a\3\2\2\2\u0669\u066b\7n\2\2\u066a"+
-		"\u0669\3\2\2\2\u066a\u066b\3\2\2\2\u066b\u066d\3\2\2\2\u066c\u066e\7g"+
-		"\2\2\u066d\u066c\3\2\2\2\u066d\u066e\3\2\2\2\u066e\u0670\3\2\2\2\u066f"+
-		"\u0667\3\2\2\2\u066f\u0670\3\2\2\2\u0670\u0671\3\2\2\2\u0671\u0672\7a"+
-		"\2\2\u0672\u014f\3\2\2\2\u0673\u0674\5\u0128\u0095\2\u0674\u0675\7j\2"+
-		"\2\u0675\u0676\7_\2\2\u0676\u0151\3\2\2\2\u0677\u0678\5\u00a4S\2\u0678"+
-		"\u0153\3\2\2\2\u0679\u067e\7h\2\2\u067a\u067e\7\2\2\3\u067b\u067e\7\u0099"+
-		"\2\2\u067c\u067e\6\u00ab\22\2\u067d\u0679\3\2\2\2\u067d\u067a\3\2\2\2"+
-		"\u067d\u067b\3\2\2\2\u067d\u067c\3\2\2\2\u067e\u0155\3\2\2\2\u00a9\u0164"+
-		"\u0169\u0170\u017a\u0180\u0186\u0196\u019a\u01a3\u01af\u01b3\u01b9\u01c1"+
-		"\u01cb\u01db\u01e9\u01ed\u01f4\u01fc\u0205\u0225\u022d\u0245\u0256\u0262"+
-		"\u026b\u0279\u028b\u0292\u0297\u029c\u02a6\u02a9\u02ad\u02b1\u02b8\u02bb"+
-		"\u02c8\u02d0\u02d4\u02d7\u02dd\u02e1\u02e4\u02ee\u02f5\u02fc\u0308\u030e"+
-		"\u0315\u031a\u0320\u032c\u0332\u0336\u033e\u0342\u0348\u034b\u0351\u0356"+
-		"\u036a\u038a\u038c\u03a2\u03aa\u03b5\u03bc\u03c3\u03cd\u03db\u03ec\u03ee"+
-		"\u03f3\u03f6\u03ff\u0405\u040f\u0417\u041d\u0426\u0431\u043c\u0440\u0442"+
-		"\u044d\u0456\u045a\u045d\u0464\u046f\u047b\u0485\u0489\u048d\u0491\u0498"+
-		"\u04a0\u04ab\u04af\u04b3\u04bf\u04c3\u04c7\u04cc\u04d3\u04da\u04ee\u04f2"+
-		"\u04f6\u04fa\u050a\u0510\u0512\u0516\u051a\u051d\u0521\u0523\u0529\u0531"+
-		"\u0536\u0541\u0547\u054e\u0559\u055e\u0562\u0567\u056b\u0573\u057b\u0580"+
-		"\u0583\u058b\u0593\u0598\u059c\u05a0\u05a8\u05b2\u05cf\u05da\u05de\u05e6"+
-		"\u05ea\u05ec\u05f4\u05fd\u0605\u060a\u061a\u061c\u0625\u062b\u0631\u0635"+
-		"\u063e\u0647\u064a\u064f\u0665\u0667\u066a\u066d\u066f\u067d";
+		"\t\u00a9\4\u00aa\t\u00aa\4\u00ab\t\u00ab\4\u00ac\t\u00ac\4\u00ad\t\u00ad"+
+		"\4\u00ae\t\u00ae\4\u00af\t\u00af\4\u00b0\t\u00b0\3\2\3\2\3\2\3\3\3\3\3"+
+		"\3\3\4\3\4\3\4\3\5\3\5\3\5\7\5\u016d\n\5\f\5\16\5\u0170\13\5\3\6\3\6\5"+
+		"\6\u0174\n\6\3\7\3\7\3\7\7\7\u0179\n\7\f\7\16\7\u017c\13\7\3\7\3\7\3\7"+
+		"\3\7\3\7\7\7\u0183\n\7\f\7\16\7\u0186\13\7\3\7\3\7\3\7\5\7\u018b\n\7\3"+
+		"\7\3\7\7\7\u018f\n\7\f\7\16\7\u0192\13\7\3\7\3\7\3\b\3\b\3\b\3\t\3\t\3"+
+		"\t\3\n\3\n\3\n\7\n\u019f\n\n\f\n\16\n\u01a2\13\n\3\n\5\n\u01a5\n\n\3\n"+
+		"\3\n\3\13\3\13\3\13\7\13\u01ac\n\13\f\13\16\13\u01af\13\13\3\13\3\13\3"+
+		"\13\3\13\3\13\3\13\3\13\7\13\u01b8\n\13\f\13\16\13\u01bb\13\13\3\13\5"+
+		"\13\u01be\n\13\3\f\3\f\3\f\3\f\5\f\u01c4\n\f\3\r\3\r\3\r\3\r\3\r\3\r\5"+
+		"\r\u01cc\n\r\3\16\3\16\3\17\3\17\3\17\3\20\3\20\3\20\5\20\u01d6\n\20\3"+
+		"\20\3\20\3\21\3\21\3\21\3\21\3\21\3\21\3\21\3\21\3\21\3\21\3\21\3\21\5"+
+		"\21\u01e6\n\21\3\22\3\22\3\23\3\23\3\23\3\23\3\23\3\24\3\24\3\24\7\24"+
+		"\u01f2\n\24\f\24\16\24\u01f5\13\24\3\24\5\24\u01f8\n\24\3\25\3\25\3\25"+
+		"\7\25\u01fd\n\25\f\25\16\25\u0200\13\25\3\25\3\25\3\26\7\26\u0205\n\26"+
+		"\f\26\16\26\u0208\13\26\3\27\3\27\3\27\3\27\7\27\u020e\n\27\f\27\16\27"+
+		"\u0211\13\27\3\27\3\27\3\30\3\30\3\31\3\31\3\31\3\31\3\31\3\32\3\32\3"+
+		"\32\3\32\3\32\3\33\3\33\3\33\3\33\3\33\3\34\3\34\3\34\3\34\3\34\3\35\3"+
+		"\35\3\35\3\35\3\35\5\35\u0230\n\35\3\35\3\35\3\35\3\35\3\36\3\36\5\36"+
+		"\u0238\n\36\3\37\3\37\3 \3 \3 \3 \3 \3!\3!\3!\3!\3!\3\"\3\"\3\"\3\"\3"+
+		"\"\3#\3#\3#\3#\3#\5#\u0250\n#\3#\3#\3$\3$\3$\3$\3$\3$\3$\3%\3%\3%\3%\7"+
+		"%\u025f\n%\f%\16%\u0262\13%\3%\3%\3&\3&\3&\3&\3\'\3\'\3\'\5\'\u026d\n"+
+		"\'\3(\3(\3(\3(\3(\7(\u0274\n(\f(\16(\u0277\13(\3(\3(\3)\3)\3)\3)\3)\3"+
+		")\3)\3)\3)\5)\u0284\n)\3*\3*\3*\3*\3*\3+\3+\3+\3+\3+\3+\3+\3+\3+\3+\3"+
+		"+\5+\u0296\n+\3,\3,\3,\3,\3,\5,\u029d\n,\3,\7,\u02a0\n,\f,\16,\u02a3\13"+
+		",\3,\3,\5,\u02a7\n,\3-\3-\3-\3-\3-\3-\3-\3-\5-\u02b1\n-\3.\5.\u02b4\n"+
+		".\3.\3.\5.\u02b8\n.\3/\3/\5/\u02bc\n/\3\60\3\60\3\60\3\60\3\60\5\60\u02c3"+
+		"\n\60\3\60\5\60\u02c6\n\60\3\60\3\60\3\61\3\61\5\61\u02cc\n\61\3\61\3"+
+		"\61\3\61\5\61\u02d1\n\61\5\61\u02d3\n\61\3\61\5\61\u02d6\n\61\3\62\3\62"+
+		"\3\62\7\62\u02db\n\62\f\62\16\62\u02de\13\62\3\63\3\63\5\63\u02e2\n\63"+
+		"\3\63\3\63\3\64\3\64\3\64\3\64\3\64\3\64\3\65\3\65\3\65\3\65\3\65\3\65"+
+		"\3\65\7\65\u02f3\n\65\f\65\16\65\u02f6\13\65\3\65\3\65\3\65\7\65\u02fb"+
+		"\n\65\f\65\16\65\u02fe\13\65\3\65\5\65\u0301\n\65\3\66\5\66\u0304\n\66"+
+		"\3\66\3\66\3\66\3\66\5\66\u030a\n\66\3\67\3\67\5\67\u030e\n\67\3\67\5"+
+		"\67\u0311\n\67\3\67\3\67\3\67\38\38\38\38\38\58\u031b\n8\39\39\39\39\3"+
+		"9\59\u0322\n9\3:\3:\3:\3:\3:\5:\u0329\n:\3:\3:\3;\3;\3;\3;\3;\3<\3<\3"+
+		"<\5<\u0335\n<\3=\3=\3=\3=\5=\u033b\n=\3>\3>\3>\3>\3>\5>\u0342\n>\3?\3"+
+		"?\3?\5?\u0347\n?\3@\3@\3@\3@\5@\u034d\n@\3A\3A\3A\3A\3A\3B\3B\3B\3B\3"+
+		"B\5B\u0359\nB\3C\3C\3C\3C\5C\u035f\nC\3C\3C\5C\u0363\nC\3D\3D\3D\3D\3"+
+		"E\3E\5E\u036b\nE\3E\3E\5E\u036f\nE\3E\3E\3F\3F\5F\u0375\nF\3G\5G\u0378"+
+		"\nG\3G\3G\3H\3H\5H\u037e\nH\3H\3H\3I\5I\u0383\nI\3I\3I\3J\3J\3J\3J\3J"+
+		"\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J\5J\u0397\nJ\3J\3J\3J\3J\3J\3J\3J\3J"+
+		"\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J\3J"+
+		"\3J\3J\7J\u03ba\nJ\fJ\16J\u03bd\13J\3K\3K\3K\3K\3K\3K\3K\3K\3K\3K\3K\3"+
+		"K\3K\3K\3K\3K\3K\3K\3K\3K\5K\u03d3\nK\3L\3L\3L\3M\3M\3M\5M\u03db\nM\3"+
+		"N\3N\3N\3O\3O\3O\3O\7O\u03e4\nO\fO\16O\u03e7\13O\3O\3O\3O\3O\5O\u03ed"+
+		"\nO\3P\3P\3P\3P\3P\5P\u03f4\nP\3Q\3Q\3Q\3Q\3Q\3Q\3Q\3Q\5Q\u03fe\nQ\3R"+
+		"\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\5R\u040c\nR\3R\3R\3R\3R\3R\3R\3R\3R"+
+		"\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\7R\u0422\nR\fR\16R\u0425\13R\3S\3"+
+		"S\3S\3T\3T\5T\u042c\nT\3T\3T\5T\u0430\nT\3U\3U\5U\u0434\nU\3U\5U\u0437"+
+		"\nU\3U\3U\3V\3V\3V\3V\3V\5V\u0440\nV\3V\3V\7V\u0444\nV\fV\16V\u0447\13"+
+		"V\3V\3V\3W\3W\3W\3W\3X\5X\u0450\nX\3X\3X\3X\3X\3X\3X\5X\u0458\nX\3X\3"+
+		"X\3X\3X\5X\u045e\nX\3Y\3Y\3Y\3Y\3Y\3Y\3Y\5Y\u0467\nY\3Z\3Z\3Z\3Z\3Z\3"+
+		"Z\3Z\3Z\3Z\5Z\u0472\nZ\3[\3[\3[\3\\\3\\\3\\\3\\\7\\\u047b\n\\\f\\\16\\"+
+		"\u047e\13\\\3\\\5\\\u0481\n\\\5\\\u0483\n\\\3\\\3\\\3]\3]\3]\3]\3]\3]"+
+		"\3]\5]\u048e\n]\3^\3^\3^\3^\3^\3_\3_\5_\u0497\n_\3_\3_\5_\u049b\n_\3_"+
+		"\5_\u049e\n_\3_\3_\3_\3_\3_\5_\u04a5\n_\3_\3_\3`\3`\3a\3a\3b\3b\3c\5c"+
+		"\u04b0\nc\3c\3c\3d\3d\3d\3e\3e\3f\3f\3f\5f\u04bc\nf\3g\3g\3g\3g\3g\3g"+
+		"\7g\u04c4\ng\fg\16g\u04c7\13g\3g\5g\u04ca\ng\3h\3h\5h\u04ce\nh\3h\3h\5"+
+		"h\u04d2\nh\3i\3i\3i\7i\u04d7\ni\fi\16i\u04da\13i\3j\3j\3j\7j\u04df\nj"+
+		"\fj\16j\u04e2\13j\3k\3k\3k\3k\3k\3k\7k\u04ea\nk\fk\16k\u04ed\13k\3k\5"+
+		"k\u04f0\nk\3l\3l\5l\u04f4\nl\3l\3l\3m\3m\3m\3m\3m\3m\7m\u04fe\nm\fm\16"+
+		"m\u0501\13m\3m\5m\u0504\nm\3n\3n\5n\u0508\nn\3n\3n\3o\5o\u050d\no\3o\3"+
+		"o\3o\6o\u0512\no\ro\16o\u0513\3p\3p\3p\3p\3p\5p\u051b\np\3q\3q\3r\3r\3"+
+		"r\3r\3s\3s\3s\3t\3t\3t\3t\3u\3u\3v\3v\3v\5v\u052f\nv\3w\3w\5w\u0533\n"+
+		"w\3x\3x\5x\u0537\nx\3y\3y\5y\u053b\ny\3z\3z\3z\3{\3{\3|\3|\3|\3|\3|\3"+
+		"|\3|\3|\3|\5|\u054b\n|\3|\3|\3|\3|\5|\u0551\n|\5|\u0553\n|\3}\3}\5}\u0557"+
+		"\n}\3~\3~\5~\u055b\n~\3~\5~\u055e\n~\3~\3~\5~\u0562\n~\5~\u0564\n~\3~"+
+		"\3~\7~\u0568\n~\f~\16~\u056b\13~\3~\3~\3\177\3\177\3\177\5\177\u0572\n"+
+		"\177\3\u0080\3\u0080\3\u0080\5\u0080\u0577\n\u0080\3\u0081\3\u0081\3\u0081"+
+		"\3\u0081\3\u0081\3\u0081\3\u0081\3\u0081\3\u0081\5\u0081\u0582\n\u0081"+
+		"\3\u0081\3\u0081\7\u0081\u0586\n\u0081\f\u0081\16\u0081\u0589\13\u0081"+
+		"\3\u0081\3\u0081\3\u0082\3\u0082\5\u0082\u058f\n\u0082\3\u0082\3\u0082"+
+		"\3\u0082\3\u0082\3\u0082\3\u0082\3\u0083\3\u0083\3\u0083\5\u0083\u059a"+
+		"\n\u0083\3\u0084\3\u0084\3\u0084\5\u0084\u059f\n\u0084\3\u0085\3\u0085"+
+		"\5\u0085\u05a3\n\u0085\3\u0085\3\u0085\3\u0085\5\u0085\u05a8\n\u0085\7"+
+		"\u0085\u05aa\n\u0085\f\u0085\16\u0085\u05ad\13\u0085\3\u0086\3\u0086\3"+
+		"\u0086\7\u0086\u05b2\n\u0086\f\u0086\16\u0086\u05b5\13\u0086\3\u0086\3"+
+		"\u0086\3\u0087\3\u0087\3\u0087\5\u0087\u05bc\n\u0087\3\u0088\3\u0088\3"+
+		"\u0088\5\u0088\u05c1\n\u0088\3\u0088\5\u0088\u05c4\n\u0088\3\u0089\3\u0089"+
+		"\3\u0089\3\u0089\3\u0089\3\u0089\5\u0089\u05cc\n\u0089\3\u0089\3\u0089"+
+		"\3\u008a\3\u008a\3\u008a\3\u008a\5\u008a\u05d4\n\u008a\3\u008a\3\u008a"+
+		"\3\u008b\5\u008b\u05d9\n\u008b\3\u008b\3\u008b\5\u008b\u05dd\n\u008b\3"+
+		"\u008b\3\u008b\5\u008b\u05e1\n\u008b\3\u008c\3\u008c\3\u008c\3\u008c\3"+
+		"\u008c\3\u008c\5\u008c\u05e9\n\u008c\3\u008c\3\u008c\3\u008c\3\u008d\3"+
+		"\u008d\3\u008d\3\u008e\3\u008e\5\u008e\u05f3\n\u008e\3\u008f\3\u008f\3"+
+		"\u008f\3\u008f\3\u008f\3\u0090\3\u0090\3\u0091\3\u0091\3\u0092\3\u0092"+
+		"\3\u0092\3\u0093\3\u0093\3\u0093\3\u0093\3\u0094\3\u0094\3\u0094\3\u0094"+
+		"\3\u0094\3\u0094\3\u0095\3\u0095\3\u0095\3\u0095\3\u0095\5\u0095\u0610"+
+		"\n\u0095\3\u0095\3\u0095\3\u0096\3\u0096\3\u0096\3\u0097\3\u0097\3\u0097"+
+		"\3\u0097\5\u0097\u061b\n\u0097\3\u0098\3\u0098\5\u0098\u061f\n\u0098\3"+
+		"\u0099\3\u0099\3\u0099\3\u0099\7\u0099\u0625\n\u0099\f\u0099\16\u0099"+
+		"\u0628\13\u0099\3\u0099\5\u0099\u062b\n\u0099\5\u0099\u062d\n\u0099\3"+
+		"\u0099\3\u0099\3\u009a\3\u009a\3\u009a\3\u009a\5\u009a\u0635\n\u009a\3"+
+		"\u009a\3\u009a\3\u009b\3\u009b\3\u009b\3\u009b\3\u009b\5\u009b\u063e\n"+
+		"\u009b\3\u009c\3\u009c\3\u009c\3\u009c\3\u009c\3\u009c\5\u009c\u0646\n"+
+		"\u009c\3\u009d\3\u009d\3\u009d\5\u009d\u064b\n\u009d\3\u009e\3\u009e\3"+
+		"\u009f\3\u009f\3\u00a0\3\u00a0\3\u00a0\3\u00a0\3\u00a1\3\u00a1\3\u00a1"+
+		"\3\u00a2\3\u00a2\3\u00a2\5\u00a2\u065b\n\u00a2\5\u00a2\u065d\n\u00a2\3"+
+		"\u00a2\3\u00a2\3\u00a3\3\u00a3\3\u00a3\7\u00a3\u0664\n\u00a3\f\u00a3\16"+
+		"\u00a3\u0667\13\u00a3\3\u00a4\3\u00a4\3\u00a4\5\u00a4\u066c\n\u00a4\3"+
+		"\u00a4\3\u00a4\3\u00a5\3\u00a5\5\u00a5\u0672\n\u00a5\3\u00a6\3\u00a6\5"+
+		"\u00a6\u0676\n\u00a6\3\u00a7\3\u00a7\3\u00a7\3\u00a7\3\u00a7\7\u00a7\u067d"+
+		"\n\u00a7\f\u00a7\16\u00a7\u0680\13\u00a7\3\u00a7\3\u00a7\3\u00a8\3\u00a8"+
+		"\3\u00a8\3\u00a8\5\u00a8\u0688\n\u00a8\3\u00a8\5\u00a8\u068b\n\u00a8\3"+
+		"\u00a9\3\u00a9\3\u00aa\5\u00aa\u0690\n\u00aa\3\u00aa\3\u00aa\3\u00ab\3"+
+		"\u00ab\3\u00ab\3\u00ab\3\u00ac\3\u00ac\3\u00ac\3\u00ac\3\u00ac\3\u00ad"+
+		"\3\u00ad\3\u00ad\3\u00ad\3\u00ad\5\u00ad\u06a2\n\u00ad\5\u00ad\u06a4\n"+
+		"\u00ad\3\u00ad\5\u00ad\u06a7\n\u00ad\3\u00ad\5\u00ad\u06aa\n\u00ad\5\u00ad"+
+		"\u06ac\n\u00ad\3\u00ad\3\u00ad\3\u00ae\3\u00ae\3\u00ae\3\u00ae\3\u00af"+
+		"\3\u00af\3\u00b0\3\u00b0\3\u00b0\3\u00b0\5\u00b0\u06ba\n\u00b0\3\u00b0"+
+		"\3\u02a1\4\u0092\u00a2\u00b1\2\4\6\b\n\f\16\20\22\24\26\30\32\34\36 \""+
+		"$&(*,.\60\62\64\668:<>@BDFHJLNPRTVXZ\\^`bdfhjlnprtvxz|~\u0080\u0082\u0084"+
+		"\u0086\u0088\u008a\u008c\u008e\u0090\u0092\u0094\u0096\u0098\u009a\u009c"+
+		"\u009e\u00a0\u00a2\u00a4\u00a6\u00a8\u00aa\u00ac\u00ae\u00b0\u00b2\u00b4"+
+		"\u00b6\u00b8\u00ba\u00bc\u00be\u00c0\u00c2\u00c4\u00c6\u00c8\u00ca\u00cc"+
+		"\u00ce\u00d0\u00d2\u00d4\u00d6\u00d8\u00da\u00dc\u00de\u00e0\u00e2\u00e4"+
+		"\u00e6\u00e8\u00ea\u00ec\u00ee\u00f0\u00f2\u00f4\u00f6\u00f8\u00fa\u00fc"+
+		"\u00fe\u0100\u0102\u0104\u0106\u0108\u010a\u010c\u010e\u0110\u0112\u0114"+
+		"\u0116\u0118\u011a\u011c\u011e\u0120\u0122\u0124\u0126\u0128\u012a\u012c"+
+		"\u012e\u0130\u0132\u0134\u0136\u0138\u013a\u013c\u013e\u0140\u0142\u0144"+
+		"\u0146\u0148\u014a\u014c\u014e\u0150\u0152\u0154\u0156\u0158\u015a\u015c"+
+		"\u015e\2\25\4\2aall\3\2\31\32\3\2\7\n\3\2@A\3\2)+\4\2)+--\3\2\177\u0085"+
+		"\3\2\26\27\4\2z~\u0083\u0084\6\2$$mmyy\u0080\u0082\3\2 \"\3\2\35\37\3"+
+		"\2sx\6\2..\61\61\64\64YY\4\2y~\u0080\u0084\3\2mn\4\2jj\u009b\u009b\4\2"+
+		"\u0086\u0089\u008b\u008c\3\2\u0092\u0093\2\u0718\2\u0160\3\2\2\2\4\u0163"+
+		"\3\2\2\2\6\u0166\3\2\2\2\b\u0169\3\2\2\2\n\u0171\3\2\2\2\f\u017a\3\2\2"+
+		"\2\16\u0195\3\2\2\2\20\u0198\3\2\2\2\22\u01a0\3\2\2\2\24\u01ad\3\2\2\2"+
+		"\26\u01c3\3\2\2\2\30\u01cb\3\2\2\2\32\u01cd\3\2\2\2\34\u01cf\3\2\2\2\36"+
+		"\u01d2\3\2\2\2 \u01e5\3\2\2\2\"\u01e7\3\2\2\2$\u01e9\3\2\2\2&\u01ee\3"+
+		"\2\2\2(\u01f9\3\2\2\2*\u0206\3\2\2\2,\u0209\3\2\2\2.\u0214\3\2\2\2\60"+
+		"\u0216\3\2\2\2\62\u021b\3\2\2\2\64\u0220\3\2\2\2\66\u0225\3\2\2\28\u022a"+
+		"\3\2\2\2:\u0237\3\2\2\2<\u0239\3\2\2\2>\u023b\3\2\2\2@\u0240\3\2\2\2B"+
+		"\u0245\3\2\2\2D\u024a\3\2\2\2F\u0253\3\2\2\2H\u025a\3\2\2\2J\u0265\3\2"+
+		"\2\2L\u026c\3\2\2\2N\u026e\3\2\2\2P\u0283\3\2\2\2R\u0285\3\2\2\2T\u0295"+
+		"\3\2\2\2V\u02a1\3\2\2\2X\u02b0\3\2\2\2Z\u02b3\3\2\2\2\\\u02bb\3\2\2\2"+
+		"^\u02bd\3\2\2\2`\u02cb\3\2\2\2b\u02d7\3\2\2\2d\u02e1\3\2\2\2f\u02e5\3"+
+		"\2\2\2h\u02eb\3\2\2\2j\u0303\3\2\2\2l\u030b\3\2\2\2n\u031a\3\2\2\2p\u031c"+
+		"\3\2\2\2r\u0323\3\2\2\2t\u032c\3\2\2\2v\u0331\3\2\2\2x\u0336\3\2\2\2z"+
+		"\u033c\3\2\2\2|\u0343\3\2\2\2~\u0348\3\2\2\2\u0080\u034e\3\2\2\2\u0082"+
+		"\u0353\3\2\2\2\u0084\u035a\3\2\2\2\u0086\u0364\3\2\2\2\u0088\u0368\3\2"+
+		"\2\2\u008a\u0374\3\2\2\2\u008c\u0377\3\2\2\2\u008e\u037b\3\2\2\2\u0090"+
+		"\u0382\3\2\2\2\u0092\u0396\3\2\2\2\u0094\u03d2\3\2\2\2\u0096\u03d4\3\2"+
+		"\2\2\u0098\u03d7\3\2\2\2\u009a\u03dc\3\2\2\2\u009c\u03e5\3\2\2\2\u009e"+
+		"\u03f3\3\2\2\2\u00a0\u03fd\3\2\2\2\u00a2\u040b\3\2\2\2\u00a4\u0426\3\2"+
+		"\2\2\u00a6\u0429\3\2\2\2\u00a8\u0431\3\2\2\2\u00aa\u043a\3\2\2\2\u00ac"+
+		"\u044a\3\2\2\2\u00ae\u045d\3\2\2\2\u00b0\u0466\3\2\2\2\u00b2\u0471\3\2"+
+		"\2\2\u00b4\u0473\3\2\2\2\u00b6\u0476\3\2\2\2\u00b8\u048d\3\2\2\2\u00ba"+
+		"\u048f\3\2\2\2\u00bc\u0494\3\2\2\2\u00be\u04a8\3\2\2\2\u00c0\u04aa\3\2"+
+		"\2\2\u00c2\u04ac\3\2\2\2\u00c4\u04af\3\2\2\2\u00c6\u04b3\3\2\2\2\u00c8"+
+		"\u04b6\3\2\2\2\u00ca\u04bb\3\2\2\2\u00cc\u04bd\3\2\2\2\u00ce\u04cb\3\2"+
+		"\2\2\u00d0\u04d3\3\2\2\2\u00d2\u04db\3\2\2\2\u00d4\u04e3\3\2\2\2\u00d6"+
+		"\u04f1\3\2\2\2\u00d8\u04f7\3\2\2\2\u00da\u0505\3\2\2\2\u00dc\u0511\3\2"+
+		"\2\2\u00de\u051a\3\2\2\2\u00e0\u051c\3\2\2\2\u00e2\u051e\3\2\2\2\u00e4"+
+		"\u0522\3\2\2\2\u00e6\u0525\3\2\2\2\u00e8\u0529\3\2\2\2\u00ea\u052b\3\2"+
+		"\2\2\u00ec\u0530\3\2\2\2\u00ee\u0534\3\2\2\2\u00f0\u0538\3\2\2\2\u00f2"+
+		"\u053c\3\2\2\2\u00f4\u053f\3\2\2\2\u00f6\u0541\3\2\2\2\u00f8\u0556\3\2"+
+		"\2\2\u00fa\u0558\3\2\2\2\u00fc\u056e\3\2\2\2\u00fe\u0576\3\2\2\2\u0100"+
+		"\u0578\3\2\2\2\u0102\u058e\3\2\2\2\u0104\u0596\3\2\2\2\u0106\u059e\3\2"+
+		"\2\2\u0108\u05a2\3\2\2\2\u010a\u05ae\3\2\2\2\u010c\u05b8\3\2\2\2\u010e"+
+		"\u05c3\3\2\2\2\u0110\u05cb\3\2\2\2\u0112\u05cf\3\2\2\2\u0114\u05d8\3\2"+
+		"\2\2\u0116\u05e8\3\2\2\2\u0118\u05ed\3\2\2\2\u011a\u05f2\3\2\2\2\u011c"+
+		"\u05f4\3\2\2\2\u011e\u05f9\3\2\2\2\u0120\u05fb\3\2\2\2\u0122\u05fd\3\2"+
+		"\2\2\u0124\u0600\3\2\2\2\u0126\u0604\3\2\2\2\u0128\u060f\3\2\2\2\u012a"+
+		"\u0613\3\2\2\2\u012c\u061a\3\2\2\2\u012e\u061e\3\2\2\2\u0130\u0620\3\2"+
+		"\2\2\u0132\u0630\3\2\2\2\u0134\u063d\3\2\2\2\u0136\u0645\3\2\2\2\u0138"+
+		"\u064a\3\2\2\2\u013a\u064c\3\2\2\2\u013c\u064e\3\2\2\2\u013e\u0650\3\2"+
+		"\2\2\u0140\u0654\3\2\2\2\u0142\u0657\3\2\2\2\u0144\u0660\3\2\2\2\u0146"+
+		"\u066b\3\2\2\2\u0148\u0671\3\2\2\2\u014a\u0675\3\2\2\2\u014c\u0677\3\2"+
+		"\2\2\u014e\u0687\3\2\2\2\u0150\u068c\3\2\2\2\u0152\u068f\3\2\2\2\u0154"+
+		"\u0693\3\2\2\2\u0156\u0697\3\2\2\2\u0158\u069c\3\2\2\2\u015a\u06af\3\2"+
+		"\2\2\u015c\u06b3\3\2\2\2\u015e\u06b9\3\2\2\2\u0160\u0161\5\u0092J\2\u0161"+
+		"\u0162\7\2\2\3\u0162\3\3\2\2\2\u0163\u0164\5\u0094K\2\u0164\u0165\7\2"+
+		"\2\3\u0165\5\3\2\2\2\u0166\u0167\5\u00b0Y\2\u0167\u0168\7\2\2\3\u0168"+
+		"\7\3\2\2\2\u0169\u016e\5\n\6\2\u016a\u016b\7i\2\2\u016b\u016d\5\n\6\2"+
+		"\u016c\u016a\3\2\2\2\u016d\u0170\3\2\2\2\u016e\u016c\3\2\2\2\u016e\u016f"+
+		"\3\2\2\2\u016f\t\3\2\2\2\u0170\u016e\3\2\2\2\u0171\u0173\7a\2\2\u0172"+
+		"\u0174\7;\2\2\u0173\u0172\3\2\2\2\u0173\u0174\3\2\2\2\u0174\13\3\2\2\2"+
+		"\u0175\u0176\5\16\b\2\u0176\u0177\5\u015e\u00b0\2\u0177\u0179\3\2\2\2"+
+		"\u0178\u0175\3\2\2\2\u0179\u017c\3\2\2\2\u017a\u0178\3\2\2\2\u017a\u017b"+
+		"\3\2\2\2\u017b\u017d\3\2\2\2\u017c\u017a\3\2\2\2\u017d\u017e\5\u00c6d"+
+		"\2\u017e\u0184\5\u015e\u00b0\2\u017f\u0180\5\24\13\2\u0180\u0181\5\u015e"+
+		"\u00b0\2\u0181\u0183\3\2\2\2\u0182\u017f\3\2\2\2\u0183\u0186\3\2\2\2\u0184"+
+		"\u0182\3\2\2\2\u0184\u0185\3\2\2\2\u0185\u0190\3\2\2\2\u0186\u0184\3\2"+
+		"\2\2\u0187\u018b\5v<\2\u0188\u018b\5\u00caf\2\u0189\u018b\5\26\f\2\u018a"+
+		"\u0187\3\2\2\2\u018a\u0188\3\2\2\2\u018a\u0189\3\2\2\2\u018b\u018c\3\2"+
+		"\2\2\u018c\u018d\5\u015e\u00b0\2\u018d\u018f\3\2\2\2\u018e\u018a\3\2\2"+
+		"\2\u018f\u0192\3\2\2\2\u0190\u018e\3\2\2\2\u0190\u0191\3\2\2\2\u0191\u0193"+
+		"\3\2\2\2\u0192\u0190\3\2\2\2\u0193\u0194\7\2\2\3\u0194\r\3\2\2\2\u0195"+
+		"\u0196\7D\2\2\u0196\u0197\5\u0092J\2\u0197\17\3\2\2\2\u0198\u0199\7E\2"+
+		"\2\u0199\u019a\5\u0092J\2\u019a\21\3\2\2\2\u019b\u019c\5\20\t\2\u019c"+
+		"\u019d\5\u015e\u00b0\2\u019d\u019f\3\2\2\2\u019e\u019b\3\2\2\2\u019f\u01a2"+
+		"\3\2\2\2\u01a0\u019e\3\2\2\2\u01a0\u01a1\3\2\2\2\u01a1\u01a4\3\2\2\2\u01a2"+
+		"\u01a0\3\2\2\2\u01a3\u01a5\t\2\2\2\u01a4\u01a3\3\2\2\2\u01a4\u01a5\3\2"+
+		"\2\2\u01a5\u01a6\3\2\2\2\u01a6\u01a7\5\u00c8e\2\u01a7\23\3\2\2\2\u01a8"+
+		"\u01a9\5\20\t\2\u01a9\u01aa\5\u015e\u00b0\2\u01aa\u01ac\3\2\2\2\u01ab"+
+		"\u01a8\3\2\2\2\u01ac\u01af\3\2\2\2\u01ad\u01ab\3\2\2\2\u01ad\u01ae\3\2"+
+		"\2\2\u01ae\u01bd\3\2\2\2\u01af\u01ad\3\2\2\2\u01b0\u01b1\7]\2\2\u01b1"+
+		"\u01be\5\22\n\2\u01b2\u01b3\7]\2\2\u01b3\u01b9\7b\2\2\u01b4\u01b5\5\22"+
+		"\n\2\u01b5\u01b6\5\u015e\u00b0\2\u01b6\u01b8\3\2\2\2\u01b7\u01b4\3\2\2"+
+		"\2\u01b8\u01bb\3\2\2\2\u01b9\u01b7\3\2\2\2\u01b9\u01ba\3\2\2\2\u01ba\u01bc"+
+		"\3\2\2\2\u01bb\u01b9\3\2\2\2\u01bc\u01be\7c\2\2\u01bd\u01b0\3\2\2\2\u01bd"+
+		"\u01b2\3\2\2\2\u01be\25\3\2\2\2\u01bf\u01c4\5h\65\2\u01c0\u01c4\5~@\2"+
+		"\u01c1\u01c4\5\u0082B\2\u01c2\u01c4\5|?\2\u01c3\u01bf\3\2\2\2\u01c3\u01c0"+
+		"\3\2\2\2\u01c3\u01c1\3\2\2\2\u01c3\u01c2\3\2\2\2\u01c4\27\3\2\2\2\u01c5"+
+		"\u01c6\7\34\2\2\u01c6\u01cc\5\u0094K\2\u01c7\u01c8\t\3\2\2\u01c8\u01cc"+
+		"\5.\30\2\u01c9\u01ca\t\4\2\2\u01ca\u01cc\5\u0092J\2\u01cb\u01c5\3\2\2"+
+		"\2\u01cb\u01c7\3\2\2\2\u01cb\u01c9\3\2\2\2\u01cc\31\3\2\2\2\u01cd\u01ce"+
+		"\5\34\17\2\u01ce\33\3\2\2\2\u01cf\u01d0\5V,\2\u01d0\u01d1\5\36\20\2\u01d1"+
+		"\35\3\2\2\2\u01d2\u01d3\7C\2\2\u01d3\u01d5\7b\2\2\u01d4\u01d6\5\u00dc"+
+		"o\2\u01d5\u01d4\3\2\2\2\u01d5\u01d6\3\2\2\2\u01d6\u01d7\3\2\2\2\u01d7"+
+		"\u01d8\7c\2\2\u01d8\37\3\2\2\2\u01d9\u01e6\5F$\2\u01da\u01e6\5D#\2\u01db"+
+		"\u01e6\5B\"\2\u01dc\u01e6\5$\23\2\u01dd\u01e6\5@!\2\u01de\u01e6\58\35"+
+		"\2\u01df\u01e6\5> \2\u01e0\u01e6\5\66\34\2\u01e1\u01e6\5\62\32\2\u01e2"+
+		"\u01e6\5\60\31\2\u01e3\u01e6\5\64\33\2\u01e4\u01e6\5\"\22\2\u01e5\u01d9"+
+		"\3\2\2\2\u01e5\u01da\3\2\2\2\u01e5\u01db\3\2\2\2\u01e5\u01dc\3\2\2\2\u01e5"+
+		"\u01dd\3\2\2\2\u01e5\u01de\3\2\2\2\u01e5\u01df\3\2\2\2\u01e5\u01e0\3\2"+
+		"\2\2\u01e5\u01e1\3\2\2\2\u01e5\u01e2\3\2\2\2\u01e5\u01e3\3\2\2\2\u01e5"+
+		"\u01e4\3\2\2\2\u01e6!\3\2\2\2\u01e7\u01e8\t\5\2\2\u01e8#\3\2\2\2\u01e9"+
+		"\u01ea\7Z\2\2\u01ea\u01eb\7f\2\2\u01eb\u01ec\5\u00b0Y\2\u01ec\u01ed\7"+
+		"g\2\2\u01ed%\3\2\2\2\u01ee\u01f3\5(\25\2\u01ef\u01f0\7i\2\2\u01f0\u01f2"+
+		"\5(\25\2\u01f1\u01ef\3\2\2\2\u01f2\u01f5\3\2\2\2\u01f3\u01f1\3\2\2\2\u01f3"+
+		"\u01f4\3\2\2\2\u01f4\u01f7\3\2\2\2\u01f5\u01f3\3\2\2\2\u01f6\u01f8\7i"+
+		"\2\2\u01f7\u01f6\3\2\2\2\u01f7\u01f8\3\2\2\2\u01f8\'\3\2\2\2\u01f9\u01fe"+
+		"\7a\2\2\u01fa\u01fb\7i\2\2\u01fb\u01fd\7a\2\2\u01fc\u01fa\3\2\2\2\u01fd"+
+		"\u0200\3\2\2\2\u01fe\u01fc\3\2\2\2\u01fe\u01ff\3\2\2\2\u01ff\u0201\3\2"+
+		"\2\2\u0200\u01fe\3\2\2\2\u0201\u0202\5\u0120\u0091\2\u0202)\3\2\2\2\u0203"+
+		"\u0205\5,\27\2\u0204\u0203\3\2\2\2\u0205\u0208\3\2\2\2\u0206\u0204\3\2"+
+		"\2\2\u0206\u0207\3\2\2\2\u0207+\3\2\2\2\u0208\u0206\3\2\2\2\u0209\u020a"+
+		"\7d\2\2\u020a\u020f\5\u0092J\2\u020b\u020c\7i\2\2\u020c\u020e\5\u0092"+
+		"J\2\u020d\u020b\3\2\2\2\u020e\u0211\3\2\2\2\u020f\u020d\3\2\2\2\u020f"+
+		"\u0210\3\2\2\2\u0210\u0212\3\2\2\2\u0211\u020f\3\2\2\2\u0212\u0213\7e"+
+		"\2\2\u0213-\3\2\2\2\u0214\u0215\5\u00a2R\2\u0215/\3\2\2\2\u0216\u0217"+
+		"\7\62\2\2\u0217\u0218\7b\2\2\u0218\u0219\5\u0092J\2\u0219\u021a\7c\2\2"+
+		"\u021a\61\3\2\2\2\u021b\u021c\7\66\2\2\u021c\u021d\7f\2\2\u021d\u021e"+
+		"\5\u00b0Y\2\u021e\u021f\7g\2\2\u021f\63\3\2\2\2\u0220\u0221\7\63\2\2\u0221"+
+		"\u0222\7b\2\2\u0222\u0223\5\u0092J\2\u0223\u0224\7c\2\2\u0224\65\3\2\2"+
+		"\2\u0225\u0226\t\6\2\2\u0226\u0227\7b\2\2\u0227\u0228\5\u0092J\2\u0228"+
+		"\u0229\7c\2\2\u0229\67\3\2\2\2\u022a\u022f\7\23\2\2\u022b\u022c\7f\2\2"+
+		"\u022c\u022d\5:\36\2\u022d\u022e\7g\2\2\u022e\u0230\3\2\2\2\u022f\u022b"+
+		"\3\2\2\2\u022f\u0230\3\2\2\2\u0230\u0231\3\2\2\2\u0231\u0232\7b\2\2\u0232"+
+		"\u0233\5\u0092J\2\u0233\u0234\7c\2\2\u02349\3\2\2\2\u0235\u0238\5<\37"+
+		"\2\u0236\u0238\7\25\2\2\u0237\u0235\3\2\2\2\u0237\u0236\3\2\2\2\u0238"+
+		";\3\2\2\2\u0239\u023a\7a\2\2\u023a=\3\2\2\2\u023b\u023c\7\24\2\2\u023c"+
+		"\u023d\7b\2\2\u023d\u023e\5\u0092J\2\u023e\u023f\7c\2\2\u023f?\3\2\2\2"+
+		"\u0240\u0241\79\2\2\u0241\u0242\7b\2\2\u0242\u0243\5\u0092J\2\u0243\u0244"+
+		"\7c\2\2\u0244A\3\2\2\2\u0245\u0246\78\2\2\u0246\u0247\7b\2\2\u0247\u0248"+
+		"\5\u0092J\2\u0248\u0249\7c\2\2\u0249C\3\2\2\2\u024a\u024b\7\30\2\2\u024b"+
+		"\u024c\7b\2\2\u024c\u024f\5\u0092J\2\u024d\u024e\7i\2\2\u024e\u0250\5"+
+		"\u0092J\2\u024f\u024d\3\2\2\2\u024f\u0250\3\2\2\2\u0250\u0251\3\2\2\2"+
+		"\u0251\u0252\7c\2\2\u0252E\3\2\2\2\u0253\u0254\t\6\2\2\u0254\u0255\7f"+
+		"\2\2\u0255\u0256\5\u0092J\2\u0256\u0257\7<\2\2\u0257\u0258\5\u0092J\2"+
+		"\u0258\u0259\7g\2\2\u0259G\3\2\2\2\u025a\u025b\7f\2\2\u025b\u0260\5J&"+
+		"\2\u025c\u025d\7i\2\2\u025d\u025f\5J&\2\u025e\u025c\3\2\2\2\u025f\u0262"+
+		"\3\2\2\2\u0260\u025e\3\2\2\2\u0260\u0261\3\2\2\2\u0261\u0263\3\2\2\2\u0262"+
+		"\u0260\3\2\2\2\u0263\u0264\7g\2\2\u0264I\3\2\2\2\u0265\u0266\5\u0092J"+
+		"\2\u0266\u0267\7h\2\2\u0267\u0268\5\u0092J\2\u0268K\3\2\2\2\u0269\u026d"+
+		"\5T+\2\u026a\u026d\5R*\2\u026b\u026d\5N(\2\u026c\u0269\3\2\2\2\u026c\u026a"+
+		"\3\2\2\2\u026c\u026b\3\2\2\2\u026dM\3\2\2\2\u026e\u026f\7\64\2\2\u026f"+
+		"\u0275\7d\2\2\u0270\u0271\5P)\2\u0271\u0272\5\u015e\u00b0\2\u0272\u0274"+
+		"\3\2\2\2\u0273\u0270\3\2\2\2\u0274\u0277\3\2\2\2\u0275\u0273\3\2\2\2\u0275"+
+		"\u0276\3\2\2\2\u0276\u0278\3\2\2\2\u0277\u0275\3\2\2\2\u0278\u0279\7e"+
+		"\2\2\u0279O\3\2\2\2\u027a\u027b\7I\2\2\u027b\u027c\7a\2\2\u027c\u0284"+
+		"\5\u012c\u0097\2\u027d\u027e\7\65\2\2\u027e\u027f\7d\2\2\u027f\u0280\5"+
+		"\u0092J\2\u0280\u0281\5\u015e\u00b0\2\u0281\u0282\7e\2\2\u0282\u0284\3"+
+		"\2\2\2\u0283\u027a\3\2\2\2\u0283\u027d\3\2\2\2\u0284Q\3\2\2\2\u0285\u0286"+
+		"\7\34\2\2\u0286\u0287\7f\2\2\u0287\u0288\7g\2\2\u0288\u0289\5\u0120\u0091"+
+		"\2\u0289S\3\2\2\2\u028a\u028b\t\7\2\2\u028b\u028c\7f\2\2\u028c\u028d\5"+
+		"\u00b0Y\2\u028d\u028e\7g\2\2\u028e\u0296\3\2\2\2\u028f\u0290\7,\2\2\u0290"+
+		"\u0291\7f\2\2\u0291\u0292\5\u00b0Y\2\u0292\u0293\7g\2\2\u0293\u0294\5"+
+		"\u00b0Y\2\u0294\u0296\3\2\2\2\u0295\u028a\3\2\2\2\u0295\u028f\3\2\2\2"+
+		"\u0296U\3\2\2\2\u0297\u029d\5X-\2\u0298\u0299\7\20\2\2\u0299\u029d\b,"+
+		"\1\2\u029a\u029b\7B\2\2\u029b\u029d\b,\1\2\u029c\u0297\3\2\2\2\u029c\u0298"+
+		"\3\2\2\2\u029c\u029a\3\2\2\2\u029d\u029e\3\2\2\2\u029e\u02a0\5\u015e\u00b0"+
+		"\2\u029f\u029c\3\2\2\2\u02a0\u02a3\3\2\2\2\u02a1\u02a2\3\2\2\2\u02a1\u029f"+
+		"\3\2\2\2\u02a2\u02a6\3\2\2\2\u02a3\u02a1\3\2\2\2\u02a4\u02a5\7\20\2\2"+
+		"\u02a5\u02a7\b,\1\2\u02a6\u02a4\3\2\2\2\u02a6\u02a7\3\2\2\2\u02a7W\3\2"+
+		"\2\2\u02a8\u02a9\7\13\2\2\u02a9\u02b1\5\\/\2\u02aa\u02ab\7\f\2\2\u02ab"+
+		"\u02b1\5\\/\2\u02ac\u02ad\7\r\2\2\u02ad\u02b1\5\\/\2\u02ae\u02af\7\17"+
+		"\2\2\u02af\u02b1\5Z.\2\u02b0\u02a8\3\2\2\2\u02b0\u02aa\3\2\2\2\u02b0\u02ac"+
+		"\3\2\2\2\u02b0\u02ae\3\2\2\2\u02b1Y\3\2\2\2\u02b2\u02b4\5\u00d2j\2\u02b3"+
+		"\u02b2\3\2\2\2\u02b3\u02b4\3\2\2\2\u02b4\u02b7\3\2\2\2\u02b5\u02b6\7X"+
+		"\2\2\u02b6\u02b8\5\u0092J\2\u02b7\u02b5\3\2\2\2\u02b7\u02b8\3\2\2\2\u02b8"+
+		"[\3\2\2\2\u02b9\u02bc\3\2\2\2\u02ba\u02bc\5\u0092J\2\u02bb\u02b9\3\2\2"+
+		"\2\u02bb\u02ba\3\2\2\2\u02bc]\3\2\2\2\u02bd\u02c2\7d\2\2\u02be\u02bf\7"+
+		":\2\2\u02bf\u02c0\5\u00d0i\2\u02c0\u02c1\5\u015e\u00b0\2\u02c1\u02c3\3"+
+		"\2\2\2\u02c2\u02be\3\2\2\2\u02c2\u02c3\3\2\2\2\u02c3\u02c5\3\2\2\2\u02c4"+
+		"\u02c6\5\u00dco\2\u02c5\u02c4\3\2\2\2\u02c5\u02c6\3\2\2\2\u02c6\u02c7"+
+		"\3\2\2\2\u02c7\u02c8\7e\2\2\u02c8_\3\2\2\2\u02c9\u02cc\5\u013e\u00a0\2"+
+		"\u02ca\u02cc\7a\2\2\u02cb\u02c9\3\2\2\2\u02cb\u02ca\3\2\2\2\u02cc\u02d5"+
+		"\3\2\2\2\u02cd\u02d2\7d\2\2\u02ce\u02d0\5b\62\2\u02cf\u02d1\7i\2\2\u02d0"+
+		"\u02cf\3\2\2\2\u02d0\u02d1\3\2\2\2\u02d1\u02d3\3\2\2\2\u02d2\u02ce\3\2"+
+		"\2\2\u02d2\u02d3\3\2\2\2\u02d3\u02d4\3\2\2\2\u02d4\u02d6\7e\2\2\u02d5"+
+		"\u02cd\3\2\2\2\u02d5\u02d6\3\2\2\2\u02d6a\3\2\2\2\u02d7\u02dc\5d\63\2"+
+		"\u02d8\u02d9\7i\2\2\u02d9\u02db\5d\63\2\u02da\u02d8\3\2\2\2\u02db\u02de"+
+		"\3\2\2\2\u02dc\u02da\3\2\2\2\u02dc\u02dd\3\2\2\2\u02ddc\3\2\2\2\u02de"+
+		"\u02dc\3\2\2\2\u02df\u02e0\7a\2\2\u02e0\u02e2\7k\2\2\u02e1\u02df\3\2\2"+
+		"\2\u02e1\u02e2\3\2\2\2\u02e2\u02e3\3\2\2\2\u02e3\u02e4\5\u0092J\2\u02e4"+
+		"e\3\2\2\2\u02e5\u02e6\7F\2\2\u02e6\u02e7\5\u0092J\2\u02e7\u02e8\7\21\2"+
+		"\2\u02e8\u02e9\5`\61\2\u02e9\u02ea\5\u00dan\2\u02eag\3\2\2\2\u02eb\u02ec"+
+		"\5\u00b0Y\2\u02ec\u02ed\7\21\2\2\u02ed\u0300\5\u00b0Y\2\u02ee\u02f4\7"+
+		"d\2\2\u02ef\u02f0\5p9\2\u02f0\u02f1\5\u015e\u00b0\2\u02f1\u02f3\3\2\2"+
+		"\2\u02f2\u02ef\3\2\2\2\u02f3\u02f6\3\2\2\2\u02f4\u02f2\3\2\2\2\u02f4\u02f5"+
+		"\3\2\2\2\u02f5\u02fc\3\2\2\2\u02f6\u02f4\3\2\2\2\u02f7\u02f8\5j\66\2\u02f8"+
+		"\u02f9\5\u015e\u00b0\2\u02f9\u02fb\3\2\2\2\u02fa\u02f7\3\2\2\2\u02fb\u02fe"+
+		"\3\2\2\2\u02fc\u02fa\3\2\2\2\u02fc\u02fd\3\2\2\2\u02fd\u02ff\3\2\2\2\u02fe"+
+		"\u02fc\3\2\2\2\u02ff\u0301\7e\2\2\u0300\u02ee\3\2\2\2\u0300\u0301\3\2"+
+		"\2\2\u0301i\3\2\2\2\u0302\u0304\7\20\2\2\u0303\u0302\3\2\2\2\u0303\u0304"+
+		"\3\2\2\2\u0304\u0305\3\2\2\2\u0305\u0306\5l\67\2\u0306\u0307\7a\2\2\u0307"+
+		"\u0309\5\u012c\u0097\2\u0308\u030a\5\u00dan\2\u0309\u0308\3\2\2\2\u0309"+
+		"\u030a\3\2\2\2\u030ak\3\2\2\2\u030b\u030d\7b\2\2\u030c\u030e\7a\2\2\u030d"+
+		"\u030c\3\2\2\2\u030d\u030e\3\2\2\2\u030e\u0310\3\2\2\2\u030f\u0311\7\u0083"+
+		"\2\2\u0310\u030f\3\2\2\2\u0310\u0311\3\2\2\2\u0311\u0312\3\2\2\2\u0312"+
+		"\u0313\5\u011a\u008e\2\u0313\u0314\7c\2\2\u0314m\3\2\2\2\u0315\u031b\5"+
+		"\u00a2R\2\u0316\u0317\5\u00b0Y\2\u0317\u0318\7l\2\2\u0318\u0319\7a\2\2"+
+		"\u0319\u031b\3\2\2\2\u031a\u0315\3\2\2\2\u031a\u0316\3\2\2\2\u031bo\3"+
+		"\2\2\2\u031c\u031d\7\67\2\2\u031d\u031e\7a\2\2\u031e\u0321\7o\2\2\u031f"+
+		"\u0322\5n8\2\u0320\u0322\5\u013c\u009f\2\u0321\u031f\3\2\2\2\u0321\u0320"+
+		"\3\2\2\2\u0322q\3\2\2\2\u0323\u0324\7\60\2\2\u0324\u0325\7b\2\2\u0325"+
+		"\u0328\5\u00b0Y\2\u0326\u0327\7i\2\2\u0327\u0329\5\u00d2j\2\u0328\u0326"+
+		"\3\2\2\2\u0328\u0329\3\2\2\2\u0329\u032a\3\2\2\2\u032a\u032b\7c\2\2\u032b"+
+		"s\3\2\2\2\u032c\u032d\7/\2\2\u032d\u032e\7b\2\2\u032e\u032f\5\u00b0Y\2"+
+		"\u032f\u0330\7c\2\2\u0330u\3\2\2\2\u0331\u0334\5V,\2\u0332\u0335\5x=\2"+
+		"\u0333\u0335\5z>\2\u0334\u0332\3\2\2\2\u0334\u0333\3\2\2\2\u0335w\3\2"+
+		"\2\2\u0336\u0337\7I\2\2\u0337\u0338\7a\2\2\u0338\u033a\5\u012c\u0097\2"+
+		"\u0339\u033b\5^\60\2\u033a\u0339\3\2\2\2\u033a\u033b\3\2\2\2\u033by\3"+
+		"\2\2\2\u033c\u033d\7I\2\2\u033d\u033e\5\u0088E\2\u033e\u033f\7a\2\2\u033f"+
+		"\u0341\5\u012c\u0097\2\u0340\u0342\5^\60\2\u0341\u0340\3\2\2\2\u0341\u0342"+
+		"\3\2\2\2\u0342{\3\2\2\2\u0343\u0346\7\34\2\2\u0344\u0347\5v<\2\u0345\u0347"+
+		"\5\u00caf\2\u0346\u0344\3\2\2\2\u0346\u0345\3\2\2\2\u0347}\3\2\2\2\u0348"+
+		"\u0349\7\67\2\2\u0349\u034a\7a\2\2\u034a\u034c\5\u0130\u0099\2\u034b\u034d"+
+		"\5\u0080A\2\u034c\u034b\3\2\2\2\u034c\u034d\3\2\2\2\u034d\177\3\2\2\2"+
+		"\u034e\u034f\7d\2\2\u034f\u0350\5\u0092J\2\u0350\u0351\5\u015e\u00b0\2"+
+		"\u0351\u0352\7e\2\2\u0352\u0081\3\2\2\2\u0353\u0354\7\67\2\2\u0354\u0355"+
+		"\5\u0088E\2\u0355\u0356\7a\2\2\u0356\u0358\5\u0130\u0099\2\u0357\u0359"+
+		"\5\u0080A\2\u0358\u0357\3\2\2\2\u0358\u0359\3\2\2\2\u0359\u0083\3\2\2"+
+		"\2\u035a\u0362\5\b\5\2\u035b\u035e\5\u00b0Y\2\u035c\u035d\7h\2\2\u035d"+
+		"\u035f\5\u00d2j\2\u035e\u035c\3\2\2\2\u035e\u035f\3\2\2\2\u035f\u0363"+
+		"\3\2\2\2\u0360\u0361\7h\2\2\u0361\u0363\5\u00d2j\2\u0362\u035b\3\2\2\2"+
+		"\u0362\u0360\3\2\2\2\u0363\u0085\3\2\2\2\u0364\u0365\5\b\5\2\u0365\u0366"+
+		"\7o\2\2\u0366\u0367\5\u00d2j\2\u0367\u0087\3\2\2\2\u0368\u036a\7b\2\2"+
+		"\u0369\u036b\5\n\6\2\u036a\u0369\3\2\2\2\u036a\u036b\3\2\2\2\u036b\u036c"+
+		"\3\2\2\2\u036c\u036e\5\u00b0Y\2\u036d\u036f\7i\2\2\u036e\u036d\3\2\2\2"+
+		"\u036e\u036f\3\2\2\2\u036f\u0370\3\2\2\2\u0370\u0371\7c\2\2\u0371\u0089"+
+		"\3\2\2\2\u0372\u0375\5\u008cG\2\u0373\u0375\5\u008eH\2\u0374\u0372\3\2"+
+		"\2\2\u0374\u0373\3\2\2\2\u0375\u008b\3\2\2\2\u0376\u0378\5\u00d0i\2\u0377"+
+		"\u0376\3\2\2\2\u0377\u0378\3\2\2\2\u0378\u0379\3\2\2\2\u0379\u037a\5\u0090"+
+		"I\2\u037a\u008d\3\2\2\2\u037b\u037d\7\34\2\2\u037c\u037e\5\u00d0i\2\u037d"+
+		"\u037c\3\2\2\2\u037d\u037e\3\2\2\2\u037e\u037f\3\2\2\2\u037f\u0380\5\u0090"+
+		"I\2\u0380\u008f\3\2\2\2\u0381\u0383\7p\2\2\u0382\u0381\3\2\2\2\u0382\u0383"+
+		"\3\2\2\2\u0383\u0384\3\2\2\2\u0384\u0385\5\u00b0Y\2\u0385\u0091\3\2\2"+
+		"\2\u0386\u0387\bJ\1\2\u0387\u0388\t\b\2\2\u0388\u0397\5\u0092J\20\u0389"+
+		"\u0397\5\u00a2R\2\u038a\u038b\7\33\2\2\u038b\u038c\5.\30\2\u038c\u038d"+
+		"\7\35\2\2\u038d\u038e\5\u0092J\4\u038e\u0397\3\2\2\2\u038f\u0390\t\t\2"+
+		"\2\u0390\u0391\5&\24\2\u0391\u0392\7k\2\2\u0392\u0393\7k\2\2\u0393\u0394"+
+		"\5*\26\2\u0394\u0395\5\u0092J\3\u0395\u0397\3\2\2\2\u0396\u0386\3\2\2"+
+		"\2\u0396\u0389\3\2\2\2\u0396\u038a\3\2\2\2\u0396\u038f\3\2\2\2\u0397\u03bb"+
+		"\3\2\2\2\u0398\u0399\f\16\2\2\u0399\u039a\t\n\2\2\u039a\u03ba\5\u0092"+
+		"J\17\u039b\u039c\f\r\2\2\u039c\u039d\t\13\2\2\u039d\u03ba\5\u0092J\16"+
+		"\u039e\u039f\f\f\2\2\u039f\u03a0\t\f\2\2\u03a0\u03ba\5\u0092J\r\u03a1"+
+		"\u03a2\f\13\2\2\u03a2\u03a3\t\r\2\2\u03a3\u03ba\5\u0092J\f\u03a4\u03a5"+
+		"\f\n\2\2\u03a5\u03a6\t\16\2\2\u03a6\u03ba\5\u0092J\13\u03a7\u03a8\f\b"+
+		"\2\2\u03a8\u03a9\7r\2\2\u03a9\u03ba\5\u0092J\t\u03aa\u03ab\f\7\2\2\u03ab"+
+		"\u03ac\7q\2\2\u03ac\u03ba\5\u0092J\b\u03ad\u03ae\f\6\2\2\u03ae\u03af\7"+
+		"#\2\2\u03af\u03ba\5\u0092J\6\u03b0\u03b1\f\5\2\2\u03b1\u03b2\7&\2\2\u03b2"+
+		"\u03b3\5\u0092J\2\u03b3\u03b4\7k\2\2\u03b4\u03b5\5\u0092J\5\u03b5\u03ba"+
+		"\3\2\2\2\u03b6\u03b7\f\t\2\2\u03b7\u03b8\7\21\2\2\u03b8\u03ba\5`\61\2"+
+		"\u03b9\u0398\3\2\2\2\u03b9\u039b\3\2\2\2\u03b9\u039e\3\2\2\2\u03b9\u03a1"+
+		"\3\2\2\2\u03b9\u03a4\3\2\2\2\u03b9\u03a7\3\2\2\2\u03b9\u03aa\3\2\2\2\u03b9"+
+		"\u03ad\3\2\2\2\u03b9\u03b0\3\2\2\2\u03b9\u03b6\3\2\2\2\u03ba\u03bd\3\2"+
+		"\2\2\u03bb\u03b9\3\2\2\2\u03bb\u03bc\3\2\2\2\u03bc\u0093\3\2\2\2\u03bd"+
+		"\u03bb\3\2\2\2\u03be\u03d3\5\30\r\2\u03bf\u03d3\5\32\16\2\u03c0\u03d3"+
+		"\5\u0098M\2\u03c1\u03d3\5\u0096L\2\u03c2\u03d3\5\u00caf\2\u03c3\u03d3"+
+		"\5\u00eav\2\u03c4\u03d3\5\u00dep\2\u03c5\u03d3\5\u0118\u008d\2\u03c6\u03d3"+
+		"\5\u00ecw\2\u03c7\u03d3\5\u00eex\2\u03c8\u03d3\5\u00f0y\2\u03c9\u03d3"+
+		"\5\u00f2z\2\u03ca\u03d3\5\u00f4{\2\u03cb\u03d3\5\u00dan\2\u03cc\u03d3"+
+		"\5\u00f6|\2\u03cd\u03d3\5\u00f8}\2\u03ce\u03d3\5\u010a\u0086\2\u03cf\u03d3"+
+		"\5\u009aN\2\u03d0\u03d3\5\u009eP\2\u03d1\u03d3\5f\64\2\u03d2\u03be\3\2"+
+		"\2\2\u03d2\u03bf\3\2\2\2\u03d2\u03c0\3\2\2\2\u03d2\u03c1\3\2\2\2\u03d2"+
+		"\u03c2\3\2\2\2\u03d2\u03c3\3\2\2\2\u03d2\u03c4\3\2\2\2\u03d2\u03c5\3\2"+
+		"\2\2\u03d2\u03c6\3\2\2\2\u03d2\u03c7\3\2\2\2\u03d2\u03c8\3\2\2\2\u03d2"+
+		"\u03c9\3\2\2\2\u03d2\u03ca\3\2\2\2\u03d2\u03cb\3\2\2\2\u03d2\u03cc\3\2"+
+		"\2\2\u03d2\u03cd\3\2\2\2\u03d2\u03ce\3\2\2\2\u03d2\u03cf\3\2\2\2\u03d2"+
+		"\u03d0\3\2\2\2\u03d2\u03d1\3\2\2\2\u03d3\u0095\3\2\2\2\u03d4\u03d5\7%"+
+		"\2\2\u03d5\u03d6\5\u0092J\2\u03d6\u0097\3\2\2\2\u03d7\u03d8\7T\2\2\u03d8"+
+		"\u03da\5\u0092J\2\u03d9\u03db\5\u00dan\2\u03da\u03d9\3\2\2\2\u03da\u03db"+
+		"\3\2\2\2\u03db\u0099\3\2\2\2\u03dc\u03dd\5\u009cO\2\u03dd\u03de\5\u0112"+
+		"\u008a\2\u03de\u009b\3\2\2\2\u03df\u03e0\7\16\2\2\u03e0\u03e1\5\u0092"+
+		"J\2\u03e1\u03e2\5\u015e\u00b0\2\u03e2\u03e4\3\2\2\2\u03e3\u03df\3\2\2"+
+		"\2\u03e4\u03e7\3\2\2\2\u03e5\u03e3\3\2\2\2\u03e5\u03e6\3\2\2\2\u03e6\u03ec"+
+		"\3\2\2\2\u03e7\u03e5\3\2\2\2\u03e8\u03e9\7\17\2\2\u03e9\u03ea\5Z.\2\u03ea"+
+		"\u03eb\5\u015e\u00b0\2\u03eb\u03ed\3\2\2\2\u03ec\u03e8\3\2\2\2\u03ec\u03ed"+
+		"\3\2\2\2\u03ed\u009d\3\2\2\2\u03ee\u03ef\7M\2\2\u03ef\u03f4\5\u0092J\2"+
+		"\u03f0\u03f1\7M\2\2\u03f1\u03f2\t\3\2\2\u03f2\u03f4\5.\30\2\u03f3\u03ee"+
+		"\3\2\2\2\u03f3\u03f0\3\2\2\2\u03f4\u009f\3\2\2\2\u03f5\u03fe\7\5\2\2\u03f6"+
+		"\u03fe\7\6\2\2\u03f7\u03fe\7`\2\2\u03f8\u03fe\5\u013a\u009e\2\u03f9\u03fe"+
+		"\5\u0150\u00a9\2\u03fa\u03fe\7\3\2\2\u03fb\u03fe\7\u008b\2\2\u03fc\u03fe"+
+		"\7\u008c\2\2\u03fd\u03f5\3\2\2\2\u03fd\u03f6\3\2\2\2\u03fd\u03f7\3\2\2"+
+		"\2\u03fd\u03f8\3\2\2\2\u03fd\u03f9\3\2\2\2\u03fd\u03fa\3\2\2\2\u03fd\u03fb"+
+		"\3\2\2\2\u03fd\u03fc\3\2\2\2\u03fe\u00a1\3\2\2\2\u03ff\u0400\bR\1\2\u0400"+
+		"\u040c\5\u0136\u009c\2\u0401\u040c\5\u0132\u009a\2\u0402\u040c\5\u015a"+
+		"\u00ae\2\u0403\u040c\5 \21\2\u0404\u040c\5t;\2\u0405\u040c\5r:\2\u0406"+
+		"\u0407\t\17\2\2\u0407\u0408\7b\2\2\u0408\u0409\5\u0092J\2\u0409\u040a"+
+		"\7c\2\2\u040a\u040c\3\2\2\2\u040b\u03ff\3\2\2\2\u040b\u0401\3\2\2\2\u040b"+
+		"\u0402\3\2\2\2\u040b\u0403\3\2\2\2\u040b\u0404\3\2\2\2\u040b\u0405\3\2"+
+		"\2\2\u040b\u0406\3\2\2\2\u040c\u0423\3\2\2\2\u040d\u040e\f\13\2\2\u040e"+
+		"\u040f\7l\2\2\u040f\u0422\7a\2\2\u0410\u0411\f\n\2\2\u0411\u0422\5\u0154"+
+		"\u00ab\2\u0412\u0413\f\t\2\2\u0413\u0422\5\u00bc_\2\u0414\u0415\f\b\2"+
+		"\2\u0415\u0422\5H%\2\u0416\u0417\f\7\2\2\u0417\u0422\5\u0156\u00ac\2\u0418"+
+		"\u0419\f\6\2\2\u0419\u0422\5\u0158\u00ad\2\u041a\u041b\f\5\2\2\u041b\u041c"+
+		"\5\u0158\u00ad\2\u041c\u041d\7\22\2\2\u041d\u041e\5`\61\2\u041e\u0422"+
+		"\3\2\2\2\u041f\u0420\f\4\2\2\u0420\u0422\5\u00a8U\2\u0421\u040d\3\2\2"+
+		"\2\u0421\u0410\3\2\2\2\u0421\u0412\3\2\2\2\u0421\u0414\3\2\2\2\u0421\u0416"+
+		"\3\2\2\2\u0421\u0418\3\2\2\2\u0421\u041a\3\2\2\2\u0421\u041f\3\2\2\2\u0422"+
+		"\u0425\3\2\2\2\u0423\u0421\3\2\2\2\u0423\u0424\3\2\2\2\u0424\u00a3\3\2"+
+		"\2\2\u0425\u0423\3\2\2\2\u0426\u0427\5V,\2\u0427\u0428\5\u00a6T\2\u0428"+
+		"\u00a5\3\2\2\2\u0429\u042b\7I\2\2\u042a\u042c\7a\2\2\u042b\u042a\3\2\2"+
+		"\2\u042b\u042c\3\2\2\2\u042c\u042d\3\2\2\2\u042d\u042f\5\u012c\u0097\2"+
+		"\u042e\u0430\5^\60\2\u042f\u042e\3\2\2\2\u042f\u0430\3\2\2\2\u0430\u00a7"+
+		"\3\2\2\2\u0431\u0433\7\'\2\2\u0432\u0434\5\u00d2j\2\u0433\u0432\3\2\2"+
+		"\2\u0433\u0434\3\2\2\2\u0434\u0436\3\2\2\2\u0435\u0437\7i\2\2\u0436\u0435"+
+		"\3\2\2\2\u0436\u0437\3\2\2\2\u0437\u0438\3\2\2\2\u0438\u0439\7(\2\2\u0439"+
+		"\u00a9\3\2\2\2\u043a\u043b\7J\2\2\u043b\u0445\7d\2\2\u043c\u0440\5\u00ae"+
+		"X\2\u043d\u0440\5\u011a\u008e\2\u043e\u0440\5\u00acW\2\u043f\u043c\3\2"+
+		"\2\2\u043f\u043d\3\2\2\2\u043f\u043e\3\2\2\2\u0440\u0441\3\2\2\2\u0441"+
+		"\u0442\5\u015e\u00b0\2\u0442\u0444\3\2\2\2\u0443\u043f\3\2\2\2\u0444\u0447"+
+		"\3\2\2\2\u0445\u0443\3\2\2\2\u0445\u0446\3\2\2\2\u0446\u0448\3\2\2\2\u0447"+
+		"\u0445\3\2\2\2\u0448\u0449\7e\2\2\u0449\u00ab\3\2\2\2\u044a\u044b\7\67"+
+		"\2\2\u044b\u044c\7a\2\2\u044c\u044d\5\u0130\u0099\2\u044d\u00ad\3\2\2"+
+		"\2\u044e\u0450\7\34\2\2\u044f\u044e\3\2\2\2\u044f\u0450\3\2\2\2\u0450"+
+		"\u0451\3\2\2\2\u0451\u0452\5V,\2\u0452\u0453\7a\2\2\u0453\u0454\5\u0130"+
+		"\u0099\2\u0454\u0455\5\u012e\u0098\2\u0455\u045e\3\2\2\2\u0456\u0458\7"+
+		"\34\2\2\u0457\u0456\3\2\2\2\u0457\u0458\3\2\2\2\u0458\u0459\3\2\2\2\u0459"+
+		"\u045a\5V,\2\u045a\u045b\7a\2\2\u045b\u045c\5\u0130\u0099\2\u045c\u045e"+
+		"\3\2\2\2\u045d\u044f\3\2\2\2\u045d\u0457\3\2\2\2\u045e\u00af\3\2\2\2\u045f"+
+		"\u0467\5\u011a\u008e\2\u0460\u0467\5\u00b2Z\2\u0461\u0467\5L\'\2\u0462"+
+		"\u0463\7b\2\2\u0463\u0464\5\u00b0Y\2\u0464\u0465\7c\2\2\u0465\u0467\3"+
+		"\2\2\2\u0466\u045f\3\2\2\2\u0466\u0460\3\2\2\2\u0466\u0461\3\2\2\2\u0466"+
+		"\u0462\3\2\2\2\u0467\u00b1\3\2\2\2\u0468\u0472\5\u011c\u008f\2\u0469\u0472"+
+		"\5\u014c\u00a7\2\u046a\u0472\5\u0122\u0092\2\u046b\u0472\5\u012a\u0096"+
+		"\2\u046c\u0472\5\u00aaV\2\u046d\u0472\5\u0124\u0093\2\u046e\u0472\5\u0126"+
+		"\u0094\2\u046f\u0472\5\u0128\u0095\2\u0470\u0472\5\u00b4[\2\u0471\u0468"+
+		"\3\2\2\2\u0471\u0469\3\2\2\2\u0471\u046a\3\2\2\2\u0471\u046b\3\2\2\2\u0471"+
+		"\u046c\3\2\2\2\u0471\u046d\3\2\2\2\u0471\u046e\3\2\2\2\u0471\u046f\3\2"+
+		"\2\2\u0471\u0470\3\2\2\2\u0472\u00b3\3\2\2\2\u0473\u0474\7\67\2\2\u0474"+
+		"\u0475\5\u00b6\\\2\u0475\u00b5\3\2\2\2\u0476\u0482\7b\2\2\u0477\u047c"+
+		"\5\u00b0Y\2\u0478\u0479\7i\2\2\u0479\u047b\5\u00b0Y\2\u047a\u0478\3\2"+
+		"\2\2\u047b\u047e\3\2\2\2\u047c\u047a\3\2\2\2\u047c\u047d\3\2\2\2\u047d"+
+		"\u0480\3\2\2\2\u047e\u047c\3\2\2\2\u047f\u0481\7i\2\2\u0480\u047f\3\2"+
+		"\2\2\u0480\u0481\3\2\2\2\u0481\u0483\3\2\2\2\u0482\u0477\3\2\2\2\u0482"+
+		"\u0483\3\2\2\2\u0483\u0484\3\2\2\2\u0484\u0485\7c\2\2\u0485\u00b7\3\2"+
+		"\2\2\u0486\u048e\5\u014c\u00a7\2\u0487\u048e\5\u011c\u008f\2\u0488\u048e"+
+		"\5\u00ba^\2\u0489\u048e\5\u0124\u0093\2\u048a\u048e\5\u0126\u0094\2\u048b"+
+		"\u048e\5L\'\2\u048c\u048e\5\u011a\u008e\2\u048d\u0486\3\2\2\2\u048d\u0487"+
+		"\3\2\2\2\u048d\u0488\3\2\2\2\u048d\u0489\3\2\2\2\u048d\u048a\3\2\2\2\u048d"+
+		"\u048b\3\2\2\2\u048d\u048c\3\2\2\2\u048e\u00b9\3\2\2\2\u048f\u0490\7f"+
+		"\2\2\u0490\u0491\7p\2\2\u0491\u0492\7g\2\2\u0492\u0493\5\u0120\u0091\2"+
+		"\u0493\u00bb\3\2\2\2\u0494\u04a4\7f\2\2\u0495\u0497\5\u00be`\2\u0496\u0495"+
+		"\3\2\2\2\u0496\u0497\3\2\2\2\u0497\u0498\3\2\2\2\u0498\u049a\7k\2\2\u0499"+
+		"\u049b\5\u00c0a\2\u049a\u0499\3\2\2\2\u049a\u049b\3\2\2\2\u049b\u04a5"+
+		"\3\2\2\2\u049c\u049e\5\u00be`\2\u049d\u049c\3\2\2\2\u049d\u049e\3\2\2"+
+		"\2\u049e\u049f\3\2\2\2\u049f\u04a0\7k\2\2\u04a0\u04a1\5\u00c0a\2\u04a1"+
+		"\u04a2\7k\2\2\u04a2\u04a3\5\u00c2b\2\u04a3\u04a5\3\2\2\2\u04a4\u0496\3"+
+		"\2\2\2\u04a4\u049d\3\2\2\2\u04a5\u04a6\3\2\2\2\u04a6\u04a7\7g\2\2\u04a7"+
+		"\u00bd\3\2\2\2\u04a8\u04a9\5\u0092J\2\u04a9\u00bf\3\2\2\2\u04aa\u04ab"+
+		"\5\u0092J\2\u04ab\u00c1\3\2\2\2\u04ac\u04ad\5\u0092J\2\u04ad\u00c3\3\2"+
+		"\2\2\u04ae\u04b0\t\20\2\2\u04af\u04ae\3\2\2\2\u04af\u04b0\3\2\2\2\u04b0"+
+		"\u04b1\3\2\2\2\u04b1\u04b2\7h\2\2\u04b2\u00c5\3\2\2\2\u04b3\u04b4\7T\2"+
+		"\2\u04b4\u04b5\7a\2\2\u04b5\u00c7\3\2\2\2\u04b6\u04b7\5\u0150\u00a9\2"+
+		"\u04b7\u00c9\3\2\2\2\u04b8\u04bc\5\u00ccg\2\u04b9\u04bc\5\u00d4k\2\u04ba"+
+		"\u04bc\5\u00d8m\2\u04bb\u04b8\3\2\2\2\u04bb\u04b9\3\2\2\2\u04bb\u04ba"+
+		"\3\2\2\2\u04bc\u00cb\3\2\2\2\u04bd\u04c9\7V\2\2\u04be\u04ca\5\u00ceh\2"+
+		"\u04bf\u04c5\7b\2\2\u04c0\u04c1\5\u00ceh\2\u04c1\u04c2\5\u015e\u00b0\2"+
+		"\u04c2\u04c4\3\2\2\2\u04c3\u04c0\3\2\2\2\u04c4\u04c7\3\2\2\2\u04c5\u04c3"+
+		"\3\2\2\2\u04c5\u04c6\3\2\2\2\u04c6\u04c8\3\2\2\2\u04c7\u04c5\3\2\2\2\u04c8"+
+		"\u04ca\7c\2\2\u04c9\u04be\3\2\2\2\u04c9\u04bf\3\2\2\2\u04ca\u00cd\3\2"+
+		"\2\2\u04cb\u04d1\5\u00d0i\2\u04cc\u04ce\5\u00b0Y\2\u04cd\u04cc\3\2\2\2"+
+		"\u04cd\u04ce\3\2\2\2\u04ce\u04cf\3\2\2\2\u04cf\u04d0\7h\2\2\u04d0\u04d2"+
+		"\5\u00d2j\2\u04d1\u04cd\3\2\2\2\u04d1\u04d2\3\2\2\2\u04d2\u00cf\3\2\2"+
+		"\2\u04d3\u04d8\7a\2\2\u04d4\u04d5\7i\2\2\u04d5\u04d7\7a\2\2\u04d6\u04d4"+
+		"\3\2\2\2\u04d7\u04da\3\2\2\2\u04d8\u04d6\3\2\2\2\u04d8\u04d9\3\2\2\2\u04d9"+
+		"\u00d1\3\2\2\2\u04da\u04d8\3\2\2\2\u04db\u04e0\5\u0092J\2\u04dc\u04dd"+
+		"\7i\2\2\u04dd\u04df\5\u0092J\2\u04de\u04dc\3\2\2\2\u04df\u04e2\3\2\2\2"+
+		"\u04e0\u04de\3\2\2\2\u04e0\u04e1\3\2\2\2\u04e1\u00d3\3\2\2\2\u04e2\u04e0"+
+		"\3\2\2\2\u04e3\u04ef\7Z\2\2\u04e4\u04f0\5\u00d6l\2\u04e5\u04eb\7b\2\2"+
+		"\u04e6\u04e7\5\u00d6l\2\u04e7\u04e8\5\u015e\u00b0\2\u04e8\u04ea\3\2\2"+
+		"\2\u04e9\u04e6\3\2\2\2\u04ea\u04ed\3\2\2\2\u04eb\u04e9\3\2\2\2\u04eb\u04ec"+
+		"\3\2\2\2\u04ec\u04ee\3\2\2\2\u04ed\u04eb\3\2\2\2\u04ee\u04f0\7c\2\2\u04ef"+
+		"\u04e4\3\2\2\2\u04ef\u04e5\3\2\2\2\u04f0\u00d5\3\2\2\2\u04f1\u04f3\7a"+
+		"\2\2\u04f2\u04f4\7h\2\2\u04f3\u04f2\3\2\2\2\u04f3\u04f4\3\2\2\2\u04f4"+
+		"\u04f5\3\2\2\2\u04f5\u04f6\5\u00b0Y\2\u04f6\u00d7\3\2\2\2\u04f7\u0503"+
+		"\7_\2\2\u04f8\u0504\5\u0084C\2\u04f9\u04ff\7b\2\2\u04fa\u04fb\5\u0084"+
+		"C\2\u04fb\u04fc\5\u015e\u00b0\2\u04fc\u04fe\3\2\2\2\u04fd\u04fa\3\2\2"+
+		"\2\u04fe\u0501\3\2\2\2\u04ff\u04fd\3\2\2\2\u04ff\u0500\3\2\2\2\u0500\u0502"+
+		"\3\2\2\2\u0501\u04ff\3\2\2\2\u0502\u0504\7c\2\2\u0503\u04f8\3\2\2\2\u0503"+
+		"\u04f9\3\2\2\2\u0504\u00d9\3\2\2\2\u0505\u0507\7d\2\2\u0506\u0508\5\u00dc"+
+		"o\2\u0507\u0506\3\2\2\2\u0507\u0508\3\2\2\2\u0508\u0509\3\2\2\2\u0509"+
+		"\u050a\7e\2\2\u050a\u00db\3\2\2\2\u050b\u050d\5\u015e\u00b0\2\u050c\u050b"+
+		"\3\2\2\2\u050c\u050d\3\2\2\2\u050d\u050e\3\2\2\2\u050e\u050f\5\u0094K"+
+		"\2\u050f\u0510\5\u015e\u00b0\2\u0510\u0512\3\2\2\2\u0511\u050c\3\2\2\2"+
+		"\u0512\u0513\3\2\2\2\u0513\u0511\3\2\2\2\u0513\u0514\3\2\2\2\u0514\u00dd"+
+		"\3\2\2\2\u0515\u051b\5\u00e2r\2\u0516\u051b\5\u00e4s\2\u0517\u051b\5\u00e6"+
+		"t\2\u0518\u051b\5\u00e0q\2\u0519\u051b\5\u0086D\2\u051a\u0515\3\2\2\2"+
+		"\u051a\u0516\3\2\2\2\u051a\u0517\3\2\2\2\u051a\u0518\3\2\2\2\u051a\u0519"+
+		"\3\2\2\2\u051b\u00df\3\2\2\2\u051c\u051d\5\u0092J\2\u051d\u00e1\3\2\2"+
+		"\2\u051e\u051f\5\u0092J\2\u051f\u0520\7\u0085\2\2\u0520\u0521\5\u0092"+
+		"J\2\u0521\u00e3\3\2\2\2\u0522\u0523\5\u0092J\2\u0523\u0524\t\21\2\2\u0524"+
+		"\u00e5\3\2\2\2\u0525\u0526\5\u00d2j\2\u0526\u0527\5\u00c4c\2\u0527\u0528"+
+		"\5\u00d2j\2\u0528\u00e7\3\2\2\2\u0529\u052a\t\22\2\2\u052a\u00e9\3\2\2"+
+		"\2\u052b\u052c\7a\2\2\u052c\u052e\7k\2\2\u052d\u052f\5\u0094K\2\u052e"+
+		"\u052d\3\2\2\2\u052e\u052f\3\2\2\2\u052f\u00eb\3\2\2\2\u0530\u0532\7^"+
+		"\2\2\u0531\u0533\5\u00d2j\2\u0532\u0531\3\2\2\2\u0532\u0533\3\2\2\2\u0533"+
+		"\u00ed\3\2\2\2\u0534\u0536\7G\2\2\u0535\u0537\7a\2\2\u0536\u0535\3\2\2"+
+		"\2\u0536\u0537\3\2\2\2\u0537\u00ef\3\2\2\2\u0538\u053a\7[\2\2\u0539\u053b"+
+		"\7a\2\2\u053a\u0539\3\2\2\2\u053a\u053b\3\2\2\2\u053b\u00f1\3\2\2\2\u053c"+
+		"\u053d\7S\2\2\u053d\u053e\7a\2\2\u053e\u00f3\3\2\2\2\u053f\u0540\7W\2"+
+		"\2\u0540\u00f5\3\2\2\2\u0541\u054a\7X\2\2\u0542\u054b\5\u0092J\2\u0543"+
+		"\u0544\5\u015e\u00b0\2\u0544\u0545\5\u0092J\2\u0545\u054b\3\2\2\2\u0546"+
+		"\u0547\5\u00dep\2\u0547\u0548\5\u015e\u00b0\2\u0548\u0549\5\u0092J\2\u0549"+
+		"\u054b\3\2\2\2\u054a\u0542\3\2\2\2\u054a\u0543\3\2\2\2\u054a\u0546\3\2"+
+		"\2\2\u054b\u054c\3\2\2\2\u054c\u0552\5\u00dan\2\u054d\u0550\7R\2\2\u054e"+
+		"\u0551\5\u00f6|\2\u054f\u0551\5\u00dan\2\u0550\u054e\3\2\2\2\u0550\u054f"+
+		"\3\2\2\2\u0551\u0553\3\2\2\2\u0552\u054d\3\2\2\2\u0552\u0553\3\2\2\2\u0553"+
+		"\u00f7\3\2\2\2\u0554\u0557\5\u00fa~\2\u0555\u0557\5\u0100\u0081\2\u0556"+
+		"\u0554\3\2\2\2\u0556\u0555\3\2\2\2\u0557\u00f9\3\2\2\2\u0558\u0563\7U"+
+		"\2\2\u0559\u055b\5\u0092J\2\u055a\u0559\3\2\2\2\u055a\u055b\3\2\2\2\u055b"+
+		"\u0564\3\2\2\2\u055c\u055e\5\u00dep\2\u055d\u055c\3\2\2\2\u055d\u055e"+
+		"\3\2\2\2\u055e\u055f\3\2\2\2\u055f\u0561\5\u015e\u00b0\2\u0560\u0562\5"+
+		"\u0092J\2\u0561\u0560\3\2\2\2\u0561\u0562\3\2\2\2\u0562\u0564\3\2\2\2"+
+		"\u0563\u055a\3\2\2\2\u0563\u055d\3\2\2\2\u0564\u0565\3\2\2\2\u0565\u0569"+
+		"\7d\2\2\u0566\u0568\5\u00fc\177\2\u0567\u0566\3\2\2\2\u0568\u056b\3\2"+
+		"\2\2\u0569\u0567\3\2\2\2\u0569\u056a\3\2\2\2\u056a\u056c\3\2\2\2\u056b"+
+		"\u0569\3\2\2\2\u056c\u056d\7e\2\2\u056d\u00fb\3\2\2\2\u056e\u056f\5\u00fe"+
+		"\u0080\2\u056f\u0571\7k\2\2\u0570\u0572\5\u00dco\2\u0571\u0570\3\2\2\2"+
+		"\u0571\u0572\3\2\2\2\u0572\u00fd\3\2\2\2\u0573\u0574\7L\2\2\u0574\u0577"+
+		"\5\u00d2j\2\u0575\u0577\7H\2\2\u0576\u0573\3\2\2\2\u0576\u0575\3\2\2\2"+
+		"\u0577\u00ff\3\2\2\2\u0578\u0581\7U\2\2\u0579\u0582\5\u0102\u0082\2\u057a"+
+		"\u057b\5\u015e\u00b0\2\u057b\u057c\5\u0102\u0082\2\u057c\u0582\3\2\2\2"+
+		"\u057d\u057e\5\u00dep\2\u057e\u057f\5\u015e\u00b0\2\u057f\u0580\5\u0102"+
+		"\u0082\2\u0580\u0582\3\2\2\2\u0581\u0579\3\2\2\2\u0581\u057a\3\2\2\2\u0581"+
+		"\u057d\3\2\2\2\u0582\u0583\3\2\2\2\u0583\u0587\7d\2\2\u0584\u0586\5\u0104"+
+		"\u0083\2\u0585\u0584\3\2\2\2\u0586\u0589\3\2\2\2\u0587\u0585\3\2\2\2\u0587"+
+		"\u0588\3\2\2\2\u0588\u058a\3\2\2\2\u0589\u0587\3\2\2\2\u058a\u058b\7e"+
+		"\2\2\u058b\u0101\3\2\2\2\u058c\u058d\7a\2\2\u058d\u058f\7o\2\2\u058e\u058c"+
+		"\3\2\2\2\u058e\u058f\3\2\2\2\u058f\u0590\3\2\2\2\u0590\u0591\5\u00a2R"+
+		"\2\u0591\u0592\7l\2\2\u0592\u0593\7b\2\2\u0593\u0594\7Z\2\2\u0594\u0595"+
+		"\7c\2\2\u0595\u0103\3\2\2\2\u0596\u0597\5\u0106\u0084\2\u0597\u0599\7"+
+		"k\2\2\u0598\u059a\5\u00dco\2\u0599\u0598\3\2\2\2\u0599\u059a\3\2\2\2\u059a"+
+		"\u0105\3\2\2\2\u059b\u059c\7L\2\2\u059c\u059f\5\u0108\u0085\2\u059d\u059f"+
+		"\7H\2\2\u059e\u059b\3\2\2\2\u059e\u059d\3\2\2\2\u059f\u0107\3\2\2\2\u05a0"+
+		"\u05a3\5\u00b0Y\2\u05a1\u05a3\7`\2\2\u05a2\u05a0\3\2\2\2\u05a2\u05a1\3"+
+		"\2\2\2\u05a3\u05ab\3\2\2\2\u05a4\u05a7\7i\2\2\u05a5\u05a8\5\u00b0Y\2\u05a6"+
+		"\u05a8\7`\2\2\u05a7\u05a5\3\2\2\2\u05a7\u05a6\3\2\2\2\u05a8\u05aa\3\2"+
+		"\2\2\u05a9\u05a4\3\2\2\2\u05aa\u05ad\3\2\2\2\u05ab\u05a9\3\2\2\2\u05ab"+
+		"\u05ac\3\2\2\2\u05ac\u0109\3\2\2\2\u05ad\u05ab\3\2\2\2\u05ae\u05af\7K"+
+		"\2\2\u05af\u05b3\7d\2\2\u05b0\u05b2\5\u010c\u0087\2\u05b1\u05b0\3\2\2"+
+		"\2\u05b2\u05b5\3\2\2\2\u05b3\u05b1\3\2\2\2\u05b3\u05b4\3\2\2\2\u05b4\u05b6"+
+		"\3\2\2\2\u05b5\u05b3\3\2\2\2\u05b6\u05b7\7e\2\2\u05b7\u010b\3\2\2\2\u05b8"+
+		"\u05b9\5\u010e\u0088\2\u05b9\u05bb\7k\2\2\u05ba\u05bc\5\u00dco\2\u05bb"+
+		"\u05ba\3\2\2\2\u05bb\u05bc\3\2\2\2\u05bc\u010d\3\2\2\2\u05bd\u05c0\7L"+
+		"\2\2\u05be\u05c1\5\u00e2r\2\u05bf\u05c1\5\u0110\u0089\2\u05c0\u05be\3"+
+		"\2\2\2\u05c0\u05bf\3\2\2\2\u05c1\u05c4\3\2\2\2\u05c2\u05c4\7H\2\2\u05c3"+
+		"\u05bd\3\2\2\2\u05c3\u05c2\3\2\2\2\u05c4\u010f\3\2\2\2\u05c5\u05c6\5\u00d2"+
+		"j\2\u05c6\u05c7\7h\2\2\u05c7\u05cc\3\2\2\2\u05c8\u05c9\5\u00d0i\2\u05c9"+
+		"\u05ca\7o\2\2\u05ca\u05cc\3\2\2\2\u05cb\u05c5\3\2\2\2\u05cb\u05c8\3\2"+
+		"\2\2\u05cb\u05cc\3\2\2\2\u05cc\u05cd\3\2\2\2\u05cd\u05ce\5\u0092J\2\u05ce"+
+		"\u0111\3\2\2\2\u05cf\u05d3\7\\\2\2\u05d0\u05d4\5\u0092J\2\u05d1\u05d4"+
+		"\5\u0114\u008b\2\u05d2\u05d4\5\u0116\u008c\2\u05d3\u05d0\3\2\2\2\u05d3"+
+		"\u05d1\3\2\2\2\u05d3\u05d2\3\2\2\2\u05d3\u05d4\3\2\2\2\u05d4\u05d5\3\2"+
+		"\2\2\u05d5\u05d6\5\u00dan\2\u05d6\u0113\3\2\2\2\u05d7\u05d9\5\u00dep\2"+
+		"\u05d8\u05d7\3\2\2\2\u05d8\u05d9\3\2\2\2\u05d9\u05da\3\2\2\2\u05da\u05dc"+
+		"\5\u015e\u00b0\2\u05db\u05dd\5\u0092J\2\u05dc\u05db\3\2\2\2\u05dc\u05dd"+
+		"\3\2\2\2\u05dd\u05de\3\2\2\2\u05de\u05e0\5\u015e\u00b0\2\u05df\u05e1\5"+
+		"\u00dep\2\u05e0\u05df\3\2\2\2\u05e0\u05e1\3\2\2\2\u05e1\u0115\3\2\2\2"+
+		"\u05e2\u05e3\5\u00d2j\2\u05e3\u05e4\7h\2\2\u05e4\u05e9\3\2\2\2\u05e5\u05e6"+
+		"\5\u00d0i\2\u05e6\u05e7\7o\2\2\u05e7\u05e9\3\2\2\2\u05e8\u05e2\3\2\2\2"+
+		"\u05e8\u05e5\3\2\2\2\u05e8\u05e9\3\2\2\2\u05e9\u05ea\3\2\2\2\u05ea\u05eb"+
+		"\7Y\2\2\u05eb\u05ec\5\u0092J\2\u05ec\u0117\3\2\2\2\u05ed\u05ee\7N\2\2"+
+		"\u05ee\u05ef\5\u0092J\2\u05ef\u0119\3\2\2\2\u05f0\u05f3\5\u013e\u00a0"+
+		"\2\u05f1\u05f3\7a\2\2\u05f2\u05f0\3\2\2\2\u05f2\u05f1\3\2\2\2\u05f3\u011b"+
+		"\3\2\2\2\u05f4\u05f5\7f\2\2\u05f5\u05f6\5\u011e\u0090\2\u05f6\u05f7\7"+
+		"g\2\2\u05f7\u05f8\5\u0120\u0091\2\u05f8\u011d\3\2\2\2\u05f9\u05fa\5\u0092"+
+		"J\2\u05fa\u011f\3\2\2\2\u05fb\u05fc\5\u00b0Y\2\u05fc\u0121\3\2\2\2\u05fd"+
+		"\u05fe\7\u0083\2\2\u05fe\u05ff\5\u00b0Y\2\u05ff\u0123\3\2\2\2\u0600\u0601"+
+		"\7f\2\2\u0601\u0602\7g\2\2\u0602\u0603\5\u0120\u0091\2\u0603\u0125\3\2"+
+		"\2\2\u0604\u0605\7O\2\2\u0605\u0606\7f\2\2\u0606\u0607\5\u00b0Y\2\u0607"+
+		"\u0608\7g\2\2\u0608\u0609\5\u0120\u0091\2\u0609\u0127\3\2\2\2\u060a\u0610"+
+		"\7Q\2\2\u060b\u060c\7Q\2\2\u060c\u0610\7\u0085\2\2\u060d\u060e\7\u0085"+
+		"\2\2\u060e\u0610\7Q\2\2\u060f\u060a\3\2\2\2\u060f\u060b\3\2\2\2\u060f"+
+		"\u060d\3\2\2\2\u0610\u0611\3\2\2\2\u0611\u0612\5\u0120\u0091\2\u0612\u0129"+
+		"\3\2\2\2\u0613\u0614\7I\2\2\u0614\u0615\5\u012c\u0097\2\u0615\u012b\3"+
+		"\2\2\2\u0616\u0617\5\u0130\u0099\2\u0617\u0618\5\u012e\u0098\2\u0618\u061b"+
+		"\3\2\2\2\u0619\u061b\5\u0130\u0099\2\u061a\u0616\3\2\2\2\u061a\u0619\3"+
+		"\2\2\2\u061b\u012d\3\2\2\2\u061c\u061f\5\u0130\u0099\2\u061d\u061f\5\u00b0"+
+		"Y\2\u061e\u061c\3\2\2\2\u061e\u061d\3\2\2\2\u061f\u012f\3\2\2\2\u0620"+
+		"\u062c\7b\2\2\u0621\u0626\5\u008aF\2\u0622\u0623\7i\2\2\u0623\u0625\5"+
+		"\u008aF\2\u0624\u0622\3\2\2\2\u0625\u0628\3\2\2\2\u0626\u0624\3\2\2\2"+
+		"\u0626\u0627\3\2\2\2\u0627\u062a\3\2\2\2\u0628\u0626\3\2\2\2\u0629\u062b"+
+		"\7i\2\2\u062a\u0629\3\2\2\2\u062a\u062b\3\2\2\2\u062b\u062d\3\2\2\2\u062c"+
+		"\u0621\3\2\2\2\u062c\u062d\3\2\2\2\u062d\u062e\3\2\2\2\u062e\u062f\7c"+
+		"\2\2\u062f\u0131\3\2\2\2\u0630\u0631\5\u0134\u009b\2\u0631\u0632\7b\2"+
+		"\2\u0632\u0634\5\u0092J\2\u0633\u0635\7i\2\2\u0634\u0633\3\2\2\2\u0634"+
+		"\u0635\3\2\2\2\u0635\u0636\3\2\2\2\u0636\u0637\7c\2\2\u0637\u0133\3\2"+
+		"\2\2\u0638\u063e\5\u00b2Z\2\u0639\u063a\7b\2\2\u063a\u063b\5\u0134\u009b"+
+		"\2\u063b\u063c\7c\2\2\u063c\u063e\3\2\2\2\u063d\u0638\3\2\2\2\u063d\u0639"+
+		"\3\2\2\2\u063e\u0135\3\2\2\2\u063f\u0646\5\u0138\u009d\2\u0640\u0646\5"+
+		"\u013c\u009f\2\u0641\u0642\7b\2\2\u0642\u0643\5\u0092J\2\u0643\u0644\7"+
+		"c\2\2\u0644\u0646\3\2\2\2\u0645\u063f\3\2\2\2\u0645\u0640\3\2\2\2\u0645"+
+		"\u0641\3\2\2\2\u0646\u0137\3\2\2\2\u0647\u064b\5\u00a0Q\2\u0648\u064b"+
+		"\5\u0140\u00a1\2\u0649\u064b\5\u00a4S\2\u064a\u0647\3\2\2\2\u064a\u0648"+
+		"\3\2\2\2\u064a\u0649\3\2\2\2\u064b\u0139\3\2\2\2\u064c\u064d\t\23\2\2"+
+		"\u064d\u013b\3\2\2\2\u064e\u064f\7a\2\2\u064f\u013d\3\2\2\2\u0650\u0651"+
+		"\7a\2\2\u0651\u0652\7l\2\2\u0652\u0653\7a\2\2\u0653\u013f\3\2\2\2\u0654"+
+		"\u0655\5\u00b8]\2\u0655\u0656\5\u0142\u00a2\2\u0656\u0141\3\2\2\2\u0657"+
+		"\u065c\7d\2\2\u0658\u065a\5\u0144\u00a3\2\u0659\u065b\7i\2\2\u065a\u0659"+
+		"\3\2\2\2\u065a\u065b\3\2\2\2\u065b\u065d\3\2\2\2\u065c\u0658\3\2\2\2\u065c"+
+		"\u065d\3\2\2\2\u065d\u065e\3\2\2\2\u065e\u065f\7e\2\2\u065f\u0143\3\2"+
+		"\2\2\u0660\u0665\5\u0146\u00a4\2\u0661\u0662\7i\2\2\u0662\u0664\5\u0146"+
+		"\u00a4\2\u0663\u0661\3\2\2\2\u0664\u0667\3\2\2\2\u0665\u0663\3\2\2\2\u0665"+
+		"\u0666\3\2\2\2\u0666\u0145\3\2\2\2\u0667\u0665\3\2\2\2\u0668\u0669\5\u0148"+
+		"\u00a5\2\u0669\u066a\7k\2\2\u066a\u066c\3\2\2\2\u066b\u0668\3\2\2\2\u066b"+
+		"\u066c\3\2\2\2\u066c\u066d\3\2\2\2\u066d\u066e\5\u014a\u00a6\2\u066e\u0147"+
+		"\3\2\2\2\u066f\u0672\5\u0092J\2\u0670\u0672\5\u0142\u00a2\2\u0671\u066f"+
+		"\3\2\2\2\u0671\u0670\3\2\2\2\u0672\u0149\3\2\2\2\u0673\u0676\5\u0092J"+
+		"\2\u0674\u0676\5\u0142\u00a2\2\u0675\u0673\3\2\2\2\u0675\u0674\3\2\2\2"+
+		"\u0676\u014b\3\2\2\2\u0677\u0678\7P\2\2\u0678\u067e\7d\2\2\u0679\u067a"+
+		"\5\u014e\u00a8\2\u067a\u067b\5\u015e\u00b0\2\u067b\u067d\3\2\2\2\u067c"+
+		"\u0679\3\2\2\2\u067d\u0680\3\2\2\2\u067e\u067c\3\2\2\2\u067e\u067f\3\2"+
+		"\2\2\u067f\u0681\3\2\2\2\u0680\u067e\3\2\2\2\u0681\u0682\7e\2\2\u0682"+
+		"\u014d\3\2\2\2\u0683\u0684\5\u00d0i\2\u0684\u0685\5\u00b0Y\2\u0685\u0688"+
+		"\3\2\2\2\u0686\u0688\5\u0152\u00aa\2\u0687\u0683\3\2\2\2\u0687\u0686\3"+
+		"\2\2\2\u0688\u068a\3\2\2\2\u0689\u068b\5\u0150\u00a9\2\u068a\u0689\3\2"+
+		"\2\2\u068a\u068b\3\2\2\2\u068b\u014f\3\2\2\2\u068c\u068d\t\24\2\2\u068d"+
+		"\u0151\3\2\2\2\u068e\u0690\7\u0083\2\2\u068f\u068e\3\2\2\2\u068f\u0690"+
+		"\3\2\2\2\u0690\u0691\3\2\2\2\u0691\u0692\5\u011a\u008e\2\u0692\u0153\3"+
+		"\2\2\2\u0693\u0694\7f\2\2\u0694\u0695\5\u0092J\2\u0695\u0696\7g\2\2\u0696"+
+		"\u0155\3\2\2\2\u0697\u0698\7l\2\2\u0698\u0699\7b\2\2\u0699\u069a\5\u00b0"+
+		"Y\2\u069a\u069b\7c\2\2\u069b\u0157\3\2\2\2\u069c\u06ab\7b\2\2\u069d\u06a4"+
+		"\5\u00d2j\2\u069e\u06a1\5\u0134\u009b\2\u069f\u06a0\7i\2\2\u06a0\u06a2"+
+		"\5\u00d2j\2\u06a1\u069f\3\2\2\2\u06a1\u06a2\3\2\2\2\u06a2\u06a4\3\2\2"+
+		"\2\u06a3\u069d\3\2\2\2\u06a3\u069e\3\2\2\2\u06a4\u06a6\3\2\2\2\u06a5\u06a7"+
+		"\7p\2\2\u06a6\u06a5\3\2\2\2\u06a6\u06a7\3\2\2\2\u06a7\u06a9\3\2\2\2\u06a8"+
+		"\u06aa\7i\2\2\u06a9\u06a8\3\2\2\2\u06a9\u06aa\3\2\2\2\u06aa\u06ac\3\2"+
+		"\2\2\u06ab\u06a3\3\2\2\2\u06ab\u06ac\3\2\2\2\u06ac\u06ad\3\2\2\2\u06ad"+
+		"\u06ae\7c\2\2\u06ae\u0159\3\2\2\2\u06af\u06b0\5\u0134\u009b\2\u06b0\u06b1"+
+		"\7l\2\2\u06b1\u06b2\7a\2\2\u06b2\u015b\3\2\2\2\u06b3\u06b4\5\u00b0Y\2"+
+		"\u06b4\u015d\3\2\2\2\u06b5\u06ba\7j\2\2\u06b6\u06ba\7\2\2\3\u06b7\u06ba"+
+		"\7\u009b\2\2\u06b8\u06ba\6\u00b0\24\2\u06b9\u06b5\3\2\2\2\u06b9\u06b6"+
+		"\3\2\2\2\u06b9\u06b7\3\2\2\2\u06b9\u06b8\3\2\2\2\u06ba\u015f\3\2\2\2\u00b1"+
+		"\u016e\u0173\u017a\u0184\u018a\u0190\u01a0\u01a4\u01ad\u01b9\u01bd\u01c3"+
+		"\u01cb\u01d5\u01e5\u01f3\u01f7\u01fe\u0206\u020f\u022f\u0237\u024f\u0260"+
+		"\u026c\u0275\u0283\u0295\u029c\u02a1\u02a6\u02b0\u02b3\u02b7\u02bb\u02c2"+
+		"\u02c5\u02cb\u02d0\u02d2\u02d5\u02dc\u02e1\u02f4\u02fc\u0300\u0303\u0309"+
+		"\u030d\u0310\u031a\u0321\u0328\u0334\u033a\u0341\u0346\u034c\u0358\u035e"+
+		"\u0362\u036a\u036e\u0374\u0377\u037d\u0382\u0396\u03b9\u03bb\u03d2\u03da"+
+		"\u03e5\u03ec\u03f3\u03fd\u040b\u0421\u0423\u042b\u042f\u0433\u0436\u043f"+
+		"\u0445\u044f\u0457\u045d\u0466\u0471\u047c\u0480\u0482\u048d\u0496\u049a"+
+		"\u049d\u04a4\u04af\u04bb\u04c5\u04c9\u04cd\u04d1\u04d8\u04e0\u04eb\u04ef"+
+		"\u04f3\u04ff\u0503\u0507\u050c\u0513\u051a\u052e\u0532\u0536\u053a\u054a"+
+		"\u0550\u0552\u0556\u055a\u055d\u0561\u0563\u0569\u0571\u0576\u0581\u0587"+
+		"\u058e\u0599\u059e\u05a2\u05a7\u05ab\u05b3\u05bb\u05c0\u05c3\u05cb\u05d3"+
+		"\u05d8\u05dc\u05e0\u05e8\u05f2\u060f\u061a\u061e\u0626\u062a\u062c\u0634"+
+		"\u063d\u0645\u064a\u065a\u065c\u0665\u066b\u0671\u0675\u067e\u0687\u068a"+
+		"\u068f\u06a1\u06a3\u06a6\u06a9\u06ab\u06b9";
 	public static final ATN _ATN =
 		new ATNDeserializer().deserialize(_serializedATN.toCharArray());
 	static {

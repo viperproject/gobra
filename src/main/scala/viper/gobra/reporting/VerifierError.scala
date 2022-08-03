@@ -8,6 +8,7 @@ package viper.gobra.reporting
 
 import viper.gobra.ast.frontend
 import viper.gobra.ast.frontend.{PReceive, PSendStmt}
+import viper.gobra.reporting.Source.Verifier
 import viper.gobra.util.Constants
 import viper.gobra.util.Violation.violation
 import viper.silver.ast.SourcePosition
@@ -298,6 +299,16 @@ case class GeneratedImplementationProofError(subT: String, superT: String, error
   }
 }
 
+case class MethodObjectGetterPreconditionError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "method_object_nil_error"
+  override def localMessage: String = s"The receiver of ${info.origin.tag} might be nil"
+}
+
+case class SpecImplementationPostconditionError(info: Source.Verifier.Info, specName: String) extends VerificationError {
+  override def localId: String = "spec_implementation_post_error"
+  override def localMessage: String = s"Postcondition of spec $specName might not hold"
+}
+
 case class ChannelReceiveError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "receive_error"
   override def localMessage: String = s"The receive expression ${info.trySrc[PReceive](" ")}might fail"
@@ -467,6 +478,11 @@ case class TupleBoundedFalseError(info: Source.Verifier.Info) extends Verificati
 case class LabelledStateNotReached(info: Source.Verifier.Info) extends VerificationErrorReason  {
   override def id: String = "labelled_state_not_reached"
   override def message: String = s"Did not reach labelled state required to evaluate ${info.origin.tag.trim}"
+}
+
+case class SpecNotImplementedByClosure(info: Verifier.Info, closure: String, spec: String) extends VerificationErrorReason {
+  override def id = "spec_not_implemented"
+  override def message: String = s"$closure might not implement $spec."
 }
 
 sealed trait VerificationErrorClarification {

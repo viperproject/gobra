@@ -27,6 +27,7 @@ object Nodes {
     val subnodesWithoutType: Seq[Node] = n match {
       case Program(_, members, _) => members
       case Field(_, _, _) => Seq.empty
+      case ClosureSpec(_, params) => params.values.toSeq
       case DomainFunc(_, args, results) => args ++ Seq(results)
       case DomainAxiom(expr) => Seq(expr)
       case m: Member => m match {
@@ -65,6 +66,8 @@ object Nodes {
         case SingleAss(left, right) => Seq(left, right)
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
         case MethodCall(targets, recv, meth, args) => targets ++ Seq(recv, meth) ++ args
+        case ClosureCall(targets, closure, args, spec) => targets ++ Seq(closure) ++ args ++ Seq(spec)
+        case SpecImplementationProof(closure, spec, body, pres, posts) => Seq(closure, spec, body) ++ pres ++ posts
         case Return() => Seq.empty
         case Assert(ass) => Seq(ass)
         case Exhale(ass) => Seq(ass)
@@ -112,7 +115,12 @@ object Nodes {
         case Unfolding(acc, op) => Seq(acc, op)
         case PureFunctionCall(func, args, _) => Seq(func) ++ args
         case PureMethodCall(recv, meth, args, _) => Seq(recv, meth) ++ args
+        case PureClosureCall(closure, args, spec, _) => Seq(closure) ++ args ++ Seq(spec)
         case DomainFunctionCall(func, args, _) => Seq(func) ++ args
+        case ClosureObject(_, _) => Seq.empty
+        case FunctionObject(_, _) => Seq.empty
+        case MethodObject(_, _, _) => Seq.empty
+        case ClosureImplements(closure, spec) => Seq(closure, spec)
         case Conversion(_, expr) => Seq(expr)
         case DfltVal(_) => Seq.empty
         case Tuple(args) => args
@@ -187,6 +195,8 @@ object Nodes {
           case PermLit(_, _) => Seq.empty
           case StringLit(_) => Seq.empty
           case NilLit(_) => Seq.empty
+          case FunctionLit(_, args, captured, results, pres, posts, measures, body) => args ++ captured.flatMap(c => Vector(c._1, c._2)) ++ results ++ pres ++ posts ++ measures ++ body
+          case PureFunctionLit(_, args, captured, results, pres, posts, measures, body) => args ++ captured.flatMap(c => Vector(c._1, c._2)) ++ results ++ pres ++ posts ++ measures ++ body
           case ArrayLit(_, _, elems) => elems.values.toSeq
           case SliceLit(_, elems) => elems.values.toSeq
           case MapLit(_, _, entries) => entries flatMap { case (x, y) => Seq(x, y) }
@@ -213,6 +223,7 @@ object Nodes {
         case DomainFuncProxy(_, _) => Seq.empty
         case LabelProxy(_) => Seq.empty
         case GlobalVarProxy(_, _) => Seq.empty
+        case FunctionLitProxy(_) => Seq.empty
       }
     }
 //    n match {

@@ -39,6 +39,8 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PExpCompositeVal => isExpr(n.exp).out
     case _: PLiteralValue | _: PKeyedElement | _: PCompositeVal => noMessages // these are checked at the level of the composite literal
+
+    case _: PClosureDecl => noMessages // checks are done at the PFunctionLit level
   }
 
   lazy val miscType: Typing[PMisc] = createTyping {
@@ -62,6 +64,8 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case r: PReceiver => typeSymbType(r.typ)
     case PResult(outs) =>
       if (outs.size == 1) miscType(outs.head) else InternalTupleT(outs.map(miscType))
+
+    case PClosureDecl(args, res, _, _)  => FunctionT(args.map(typ), miscType(res))
 
     case PEmbeddedName(t) => typeSymbType(t)
     case PEmbeddedPointer(t) => PointerT(typeSymbType(t))

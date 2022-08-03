@@ -38,6 +38,7 @@ object Gobrafier {
   private val argList = "\\((.*?)\\)"
   private val functionInvocation = s"$identifier$argList"
   private val functionDecl = s"$func_keyword\\s+$identifier\\s*$argList\\s*($argList)?"
+  private val closureSpec = s"$identifier\\{([^@]*)\\}"
   private val spec = "(.*?)"
   private val vars = "(.*?)"
   private val predicate = "(.*?)"
@@ -56,6 +57,8 @@ object Gobrafier {
   private val addressableVariablesRegex = s"(?m)(^.*?)\\s*${singlelineComment(addressable_variables)}$vars$$".r
   private val ghostInvocationSinglelineRegex = s"(?m)$functionInvocation\\s*${singlelineComment(s"$with_keyword\\s*$args")}$$".r
   private val ghostInvocationMultilineRegex = s"(?m)$functionInvocation\\s*${multilineComment(s"$with_keyword\\s*$args")}".r
+  private val ghostCallWithSpecSinglelineRegex = s"(?m)$functionInvocation\\s*${multilineComment(s"as\\s*$closureSpec")}\\s*${singlelineComment(s"$with_keyword\\s*$args")}$$".r
+  private val ghostCallWithSpecMultilineRegex = s"(?m)$functionInvocation\\s*${multilineComment(s"as\\s*$closureSpec")}\\s*${multilineComment(s"$with_keyword\\s*$args")}".r
   private val unfoldingAccessRegex = s"(?m)${multilineComment(s"$unfolding_keyword$predicate\\s*")}".r
   
   private val non_newline = "[\t\r\f]"
@@ -72,6 +75,11 @@ object Gobrafier {
     * Add parenthesis around the given string.
     */
   private def parens(str: String): String = "(" + str + ")"
+
+  /**
+    * Add braces around the given string.
+    */
+  private def braces(str: String): String = "{" + str + "}"
 
   /**
     * Add ghost keywords between parameters.
@@ -226,6 +234,26 @@ object Gobrafier {
     }
     newFileContents = ghostInvocationSinglelineRegex.replaceAllIn(newFileContents, ghostInvocationTransformer)
     newFileContents = ghostInvocationMultilineRegex.replaceAllIn(newFileContents, ghostInvocationTransformer)
+
+    /**
+      * Add ghost parameters back to a call with spec.
+      */
+    val ghostCallWithSpecTransformer: Regex.Match => String = m => {
+      val functionName = m.group(1)
+      val actualArgs = m.group(2)
+      val specName = m.group(3)
+      val specParams = m.group(4)
+      val ghostArgs = m.group(5)
+
+      functionName +
+        parens(
+          actualArgs +
+            (if (actualArgs == null || actualArgs == "" || ghostArgs == null || ghostArgs == "") "" else ", ") +
+            ghostArgs) +
+          " as " + specName + braces(specParams)
+    }
+    newFileContents = ghostCallWithSpecSinglelineRegex.replaceAllIn(newFileContents, ghostCallWithSpecTransformer)
+    newFileContents = ghostCallWithSpecMultilineRegex.replaceAllIn(newFileContents, ghostCallWithSpecTransformer)
 
     /**
       * Put unfolding expressions back.

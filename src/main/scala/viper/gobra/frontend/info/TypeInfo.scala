@@ -41,4 +41,6 @@ trait TypeInfo extends ExternalTypeInfo {
   def freeVariables(n: PNode): Vector[PIdnNode]
   def freeModified(n: PNode): Vector[PIdnNode]
   def freeDeclared(n: PNode): Vector[PIdnNode]
+
+  def capturedVariables(decl: PClosureDecl): Vector[PIdnNode]
 }

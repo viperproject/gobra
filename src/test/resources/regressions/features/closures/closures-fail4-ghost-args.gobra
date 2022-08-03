@@ -1,0 +1,51 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresFail4GhostArgs
+
+ghost
+func spec(a int, ghost b int)(c int, ghost d int)
+
+func test1() {
+    cl := func f(a int, ghost b int)(c int, ghost d int) {}
+
+    proof cl implements spec {
+        return cl(a, b) as f
+    }
+}
+
+func test2() {
+    cl := func f(ghost a int, ghost b int)(c int, ghost d int) {}
+
+    proof cl implements spec {
+        //:: ExpectedOutput(type_error)
+        return cl(a, b) as f
+    }
+}
+
+func test3() {
+    cl := func f(a int, b int)(c int, ghost d int) {}
+
+    proof cl implements spec {
+        //:: ExpectedOutput(type_error)
+        return cl(a, b) as f
+    }
+}
+
+func test4() {
+    cl := func f(a int, ghost b int)(c int, d int) {}
+
+    proof cl implements spec {
+        //:: ExpectedOutput(type_error)
+        return cl(a, b) as f
+    }
+}
+
+func test5() {
+    cl := func f(a int, ghost b int)(ghost c int, ghost d int) {}
+
+    proof cl implements spec {
+        //:: ExpectedOutput(type_error)
+        return cl(a, b) as f
+    }
+}

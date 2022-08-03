@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.resolution
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
-import viper.gobra.frontend.info.base.Type.{ImportT, PredT}
+import viper.gobra.frontend.info.base.Type.{ImportT, PredT, FunctionT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation.violation
 
@@ -57,6 +57,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         }
         case s: st.Constant => Some(ap.Constant(n.id, s))
         case s: st.Function => Some(ap.Function(n.id, s))
+        case s: st.Closure => Some(ap.Closure(n.id, s))
         case s: st.FPredicate => Some(ap.Predicate(n.id, s))
         case s: st.DomainFunction => Some(ap.DomainFunction(n.id, s))
         // built-in members
@@ -110,6 +111,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
           resolve(e) match {
             case Some(ap.BuiltInType(_, st.BuiltInType(tag, _, _))) if n.args.length == 1 =>
               Some(ap.Conversion(tag.node , n.args.head))
+            case _ if n.spec.nonEmpty && exprType(e).isInstanceOf[FunctionT] => Some(ap.ClosureCall(e, n.args, n.spec.get))
             case Some(p: ap.FunctionKind) => Some(ap.FunctionCall(p, n.args))
             case Some(p: ap.PredicateKind) => Some(ap.PredicateCall(p, n.args))
             case _ if exprType(e).isInstanceOf[PredT] => Some(ap.PredExprInstance(e, n.args, exprType(e).asInstanceOf[PredT]))

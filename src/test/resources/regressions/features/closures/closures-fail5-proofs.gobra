@@ -1,0 +1,182 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresFail5Proofs
+
+ghost
+requires x >= 0
+pure func pspec(x int) (y int)
+
+func test1() {
+    cl :=
+        requires x >= 0
+        ensures y == x
+        func id(x int)(y int) {
+            return x
+        }
+
+    proof cl implements pspec {
+        // The spec is pure, the call is not
+        //:: ExpectedOutput(type_error)
+        return cl(x) as id
+    } 
+}
+
+func test2() {
+    cl :=
+        requires x >= 0
+        ensures y == x
+        pure func id(x int)(y int) {
+            return x
+        }
+    //:: ExpectedOutput(type_error)
+    proof cl implements pspec {
+        y = cl(x) as id
+    } 
+}
+
+func test3() {
+    cl :=
+        requires x >= 0
+        ensures y == x
+        pure func id(x int)(y int) {
+            return x
+        }
+
+    proof cl implements pspec {
+        //:: ExpectedOutput(type_error)
+        return cl(0) as id
+    } 
+}
+
+func test4() {
+    cl :=
+        requires x >= 10
+        ensures y == x
+        pure func id(x int)(y int) {
+            return x
+        }
+
+    cl1 :=
+        requires x >= 0
+        ensures y == x
+        pure func id1(x int)(y int) {
+            return x
+        }
+
+    //:: ExpectedOutput(type_error)
+    proof cl implements pspec {
+        x = 2
+        y = cl1(x) as id1
+    }
+}
+
+ghost
+decreases
+requires x >= 0
+pure func tpspec(x int) (y int)
+
+func test5() {
+    cl :=
+        requires x >= 0
+        ensures y == x
+        pure func id(x int)(y int) {
+            return x
+        }
+
+    // id does not have termination measures
+    //:: ExpectedOutput(type_error)
+    proof cl implements tpspec {
+        return cl(x) as id
+    } 
+}
+
+ghost
+requires x >= 0
+func spec(x int) (y int)
+
+func test6() {
+    cl :=
+        requires x >= 0
+        ensures y == x
+        func id(x int)(y int) {
+            return x
+        }
+
+    //:: ExpectedOutput(type_error)
+    proof cl implements spec {
+        return cl(0) as id
+    } 
+}
+
+func test7() {
+    cl :=
+        requires x >= 10
+        ensures y == x
+        func id(x int)(y int) {
+            return x
+        }
+
+    //:: ExpectedOutput(type_error)
+    proof cl implements pspec {
+        inhale x >= 10
+        return cl(x) as id
+    } 
+}
+
+func test8() {
+    cl :=
+        requires x >= 10
+        ensures y == x
+        func id(x int)(y int) {
+            return x
+        }
+
+    //:: ExpectedOutput(type_error)
+    proof cl implements pspec {
+        y = cl(x) as id
+        y = cl(x) as id
+    } 
+}
+
+func test9() {
+    cl :=
+        requires x >= 10
+        ensures y == x
+        func id(x int)(y int) {
+            return x
+        }
+
+    cl1 :=
+        requires x >= 0
+        ensures y == x
+        func id1(x int)(y int) {
+            return x
+        }
+
+    //:: ExpectedOutput(type_error)
+    proof cl implements pspec {
+        y = cl1(x) as id1
+    } 
+}
+
+ghost
+decreases
+requires x >= 0
+func tspec(x int) (y int)
+
+
+func test10() {
+    cl :=
+        requires x >= 0
+        ensures y == x
+        func id(x int)(y int) {
+            return x
+        }
+
+    // id does not have termination measures
+    //:: ExpectedOutput(type_error)
+    proof cl implements tspec {
+        y = cl(x) as id
+    } 
+}

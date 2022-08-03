@@ -369,7 +369,7 @@ object Desugar {
     }
 
     object FunctionContext {
-      def empty = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(Source.Parser.Unsourced))
+      def empty() = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(Source.Parser.Unsourced))
     }
 
     /**
@@ -437,7 +437,7 @@ object Desugar {
           freshGlobalVar(typ, scope, w.context)(src)
         case e => Violation.violation(s"Expected a global variable or wildcard, but instead got $e")
       }
-      val exps = decl.right.map(exprD(FunctionContext.empty, info))
+      val exps = decl.right.map(exprD(FunctionContext.empty(), info))
       if (decl.right.isEmpty) {
         // assign to all variables its default value:
         val assignsToDefault =
@@ -2743,14 +2743,14 @@ object Desugar {
       pkg.imports.foreach{ imp =>
         info.context.getTypeInfo(RegularImport(imp.importPath))(config) match {
           case Some(Right(tI)) =>
-            val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty, info))
+            val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
             specCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
           case e => Violation.violation(s"Unexpected value found $e while importing ${imp.importPath}")
         }
       }
 
       // Collect and register all postconditions of all PPrograms (i.e., files) in pkg
-      val pkgPost = pkg.programs.flatMap(_.initPosts).map(specificationD(FunctionContext.empty, info))
+      val pkgPost = pkg.programs.flatMap(_.initPosts).map(specificationD(FunctionContext.empty(), info))
       specCollector.addPackagePosts(pkg, pkgPost)
     }
 
@@ -2797,7 +2797,7 @@ object Desugar {
         val src = meta(mainFunc, info)
         val mainPkgPosts = specCollector.postsOfPackage(mainPkg)
         val mainFuncPre  = mainFunc.spec.pres ++ mainFunc.spec.preserves
-        val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty, info)).map{ a =>
+        val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty(), info)).map{ a =>
           a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(MainPreNotEstablished))
         }
         val funcProxy = in.FunctionProxy(nm.mainFuncProofObligation(info))(src)
@@ -2832,8 +2832,8 @@ object Desugar {
       // all errors found during init are reported in the package clause of the file
       val src = meta(p.packageClause, info)
       val funcProxy = in.FunctionProxy(nm.programInit(p, info))(src)
-      val progPres: Vector[in.Assertion] = p.imports.flatMap(_.importPres).map(specificationD(FunctionContext.empty, info)(_))
-      val progPosts: Vector[in.Assertion] = p.initPosts.map(specificationD(FunctionContext.empty, info)(_))
+      val progPres: Vector[in.Assertion] = p.imports.flatMap(_.importPres).map(specificationD(FunctionContext.empty(), info)(_))
+      val progPosts: Vector[in.Assertion] = p.initPosts.map(specificationD(FunctionContext.empty(), info)(_))
 
       in.Function(
         name = funcProxy,
@@ -2877,7 +2877,7 @@ object Desugar {
               }
               violation(initBlocks.length <= 1, "at most one init block is supported right now")
               val initCode: Vector[in.Stmt] =
-                initBlocks.flatMap(b => b.body.toVector.map(_._2).map(blockD(FunctionContext.empty, info)))
+                initBlocks.flatMap(b => b.body.toVector.map(_._2).map(blockD(FunctionContext.empty(), info)))
 
               // body of the generated method
               accDeclaredGlobs ++ declarationsInOrder ++ initCode

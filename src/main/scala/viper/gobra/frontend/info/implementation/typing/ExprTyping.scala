@@ -923,11 +923,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   def getBlankIdType(b: PBlankIdentifier): Type = b match {
     case tree.parent(p) => p match {
       case PAssignment(right, left) => getBlankAssigneeType(b, left, right)
-      case PAssForRange(range, ass, _, _) =>
-        val pos = ass indexWhere (b eq _)
-        val typ = miscType(range).asInstanceOf[InternalTupleT]
-        if (typ.ts.length > pos) typ.ts(pos)
-        else violation("more variables given to range than permitted")
+      case PAssForRange(range, ass, _, _) => getBlankAssigneeTypeRange(b, ass, range)
       case PSelectAssRecv(_, _, _) => ??? // TODO: implement when select statements are supported
       case x => violation("blank identifier not supported in node " + x)
     }

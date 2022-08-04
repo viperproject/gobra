@@ -1248,14 +1248,14 @@ object Desugar {
               }
 
               // index is the place where we store the indices of the range expression
-              indexLeft <- leftOfAssignmentD(shorts(0))(in.IntT(Addressability.exclusiveVariable))
-              indexVar = in.Assignee.Var(indexLeft)
-              indexSrc = meta(shorts(0))
-              rangeSrc = meta(range)
+              indexLeft <- leftOfAssignmentD(shorts(0), info)(in.IntT(Addressability.exclusiveVariable))
+              indexVar = in.Assignee.Var(indexLeft.op.asInstanceOf[in.AssignableVar])
+              indexSrc = meta(shorts(0), info)
+              rangeSrc = meta(range, info)
               indexAss = singleAss(indexVar, in.IntLit(0)(rangeSrc))(indexSrc)
-              incrIndex = singleAss(indexVar, in.Add(indexLeft, in.IntLit(1)(indexSrc))(indexSrc))(indexSrc)
+              incrIndex = singleAss(indexVar, in.Add(indexLeft.op, in.IntLit(1)(indexSrc))(indexSrc))(indexSrc)
 
-              rangeExpSrc = meta(range.exp)
+              rangeExpSrc = meta(range.exp, info)
 
               // in go the range expression is only computed once before the iteration begins
               // we do that by storing it in copiedVar
@@ -1266,18 +1266,18 @@ object Desugar {
 
               // get the length of the expression
               length = in.Length(copiedVar)(rangeSrc)
-              cond = in.LessCmp(indexLeft, length)(rangeSrc)
+              cond = in.LessCmp(indexLeft.op, length)(rangeSrc)
 
               // this invariant states that the index is between 0 and the length of the array/slice (both inclusive)
               indexBoundsInv = in.ExprAssertion(in.And(
-                in.AtMostCmp(in.IntLit(0)(rangeSrc), indexLeft)(rangeSrc),
-                in.AtMostCmp(indexLeft, length)(rangeSrc))(rangeSrc))(rangeSrc)
+                in.AtMostCmp(in.IntLit(0)(rangeSrc), indexLeft.op)(rangeSrc),
+                in.AtMostCmp(indexLeft.op, length)(rangeSrc))(rangeSrc))(rangeSrc)
 
               // standard for loop desugaring
-              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
-              (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
+              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
+              (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
 
-              dBody = blockD(ctx)(body)
+              dBody = blockD(ctx, info)(body)
 
               continueLabelName = nm.continueLabel(n, info)
               continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
@@ -1296,20 +1296,20 @@ object Desugar {
                 // which looks like this:
                 // if i < length(x) { j = x[i] }
                 // note that this will happen after we have incremented i
-                val valueSrc = meta(shorts(1))
-                val valueLeft = assignableVarD(ctx)(shorts(1))
-                val valueVar = in.Assignee.Var(valueLeft)
+                val valueSrc = meta(shorts(1), info)
+                val valueLeft = assignableVarD(ctx, info)(shorts(1))
+                val valueVar = in.Assignee.Var(valueLeft.asInstanceOf[in.AssignableVar])
                 val valueAss = singleAss(valueVar, in.IndexedExp(copiedVar, in.IntLit(0)(valueSrc), typ)(valueSrc))(valueSrc)
-                val updateValue = in.If(cond, singleAss(valueVar, in.IndexedExp(copiedVar, indexLeft, typ)(valueSrc))(valueSrc), in.Seqn(Vector())(valueSrc))(valueSrc)
+                val updateValue = in.If(cond, singleAss(valueVar, in.IndexedExp(copiedVar, indexLeft.op, typ)(valueSrc))(valueSrc), in.Seqn(Vector())(valueSrc))(valueSrc)
 
                 // we also need an invariant that states that
                 // for index i and value j and range expression x
                 // invariant 0 <= i && i < len(x) ==> j == x[i]
                 val indexValueEq = in.Implication(
                   in.And(
-                    in.AtMostCmp(in.IntLit(0)(indexSrc), indexLeft)(indexSrc),
-                    in.LessCmp(indexLeft, length)(indexSrc))(indexSrc),
-                  in.ExprAssertion(in.EqCmp(in.IndexedExp(copiedVar, indexLeft, typ)(rangeExpSrc), valueLeft)(rangeExpSrc))(rangeExpSrc)
+                    in.AtMostCmp(in.IntLit(0)(indexSrc), indexLeft.op)(indexSrc),
+                    in.LessCmp(indexLeft.op, length)(indexSrc))(indexSrc),
+                  in.ExprAssertion(in.EqCmp(in.IndexedExp(copiedVar, indexLeft.op, typ)(rangeExpSrc), valueLeft)(rangeExpSrc))(rangeExpSrc)
               )(rangeSrc)
                 in.Block(
                   Vector(valueLeft.asInstanceOf[in.LocalVar]),
@@ -1346,9 +1346,9 @@ object Desugar {
                 case t => violation(s"Range not applicable to type $t")
               }
               indexLeft <- goL(ass(0))
-              rangeSrc = meta(range)
-              indexSrc = meta(ass(0))
-              rangeExpSrc = meta(range.exp)
+              rangeSrc = meta(range, info)
+              indexSrc = meta(ass(0), info)
+              rangeExpSrc = meta(range.exp, info)
               indexAss = singleAss(indexLeft, in.IntLit(0)(rangeSrc))(indexSrc)
               incrIndex = singleAss(indexLeft, in.Add(indexLeft.op, in.IntLit(1)(indexSrc))(indexSrc))(indexSrc)
 
@@ -1362,10 +1362,10 @@ object Desugar {
                 in.AtMostCmp(in.IntLit(0)(rangeSrc), indexLeft.op)(rangeSrc),
                 in.AtMostCmp(indexLeft.op, length)(rangeSrc))(rangeSrc))(rangeSrc)
 
-              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
-              (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
+              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
+              (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
 
-              dBody = blockD(ctx)(body)
+              dBody = blockD(ctx, info)(body)
 
               continueLabelName = nm.continueLabel(n, info)
               continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
@@ -1382,7 +1382,7 @@ object Desugar {
                   case _: PBlankIdentifier => Vector(valueLeft.asInstanceOf[in.Assignee.Var].op.asInstanceOf[in.LocalVar])
                   case _ => Vector.empty
                 }
-                val valueSrc = meta(ass(1))
+                val valueSrc = meta(ass(1), info)
                 val valueAss = singleAss(valueLeft, in.IndexedExp(copiedVar, in.IntLit(0)(valueSrc), typ)(valueSrc))(valueSrc)
                 val updateValue = in.If(cond, singleAss(valueLeft, in.IndexedExp(copiedVar, indexLeft.op, typ)(valueSrc))(valueSrc), in.Seqn(Vector())(valueSrc))(valueSrc)
                 

@@ -53,12 +53,12 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def actualMiscType(misc: PActualMisc): Type = misc match {
 
     case PRange(exp) => exprType(exp) match {
-      case ArrayT(_, elem) => InternalTupleT(Vector(IntT(config.typeBounds.Int), elem))
-      case PointerT(ArrayT(_, elem)) => InternalTupleT(Vector(IntT(config.typeBounds.Int), elem))
-      case SliceT(elem) => InternalTupleT(Vector(IntT(config.typeBounds.Int), elem))
-      case GhostSliceT(elem) => InternalTupleT(Vector(IntT(config.typeBounds.Int), elem))
-      case MapT(key, elem) => InternalTupleT(Vector(key, elem))
-      case ChannelT(elem, ChannelModus.Recv | ChannelModus.Bi) => InternalTupleT(Vector(elem))
+      case ArrayT(_, elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
+      case PointerT(ArrayT(_, elem)) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
+      case SliceT(elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
+      case GhostSliceT(elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
+      case MapT(key, elem) => InternalSingleMulti(key, InternalTupleT(Vector(key, elem)))
+      case ChannelT(elem, ChannelModus.Recv | ChannelModus.Bi) => elem
       case t => violation(s"unexpected range type $t")
     }
 

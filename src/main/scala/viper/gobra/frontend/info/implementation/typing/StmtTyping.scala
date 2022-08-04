@@ -113,18 +113,6 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       val validRange = wellDefMisc(range)
       if (validRange.valid) multiAssignableTo.errors(Vector(miscType(range)), ass map exprType)(range)
       else validRange.out
-    /*case _@PAssForRange(range, ass, _, _) =>
-      val typs = ass.map(v => v match {
-        case b : PBlankIdentifier => getBlankIdType(b)
-        case e => exprType(e)
-      })
-      val typ = miscType(range).asInstanceOf[Type.InternalTupleT]
-      if (ass.length > 0 && ass.length <= typ.ts.length) {
-        if (typ.ts.take(ass.length).zip(typs).forall(assignableTo))
-          noMessages
-        else error(range, "Can not assign range types to identifiers")
-      } else error(range.exp, "Wrong number of identifiers for range") ++
-      ass.flatMap(a => assignable.errors(a)(a))*/
 
     case n@PGoStmt(exp) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
 

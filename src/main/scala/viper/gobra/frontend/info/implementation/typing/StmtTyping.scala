@@ -10,7 +10,6 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelModus, ChannelT, FunctionT, InterfaceT, InternalTupleT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.base.Type
 
 trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -105,14 +104,10 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PForStmt(_, cond, _, _, _) => isExpr(cond).out ++ comparableTypes.errors(exprType(cond), BooleanT)(n)
 
     case _@PShortForRange(range, shorts, _, _) =>
-      val validRange = wellDefMisc(range)
-      if (validRange.valid) multiAssignableTo.errors(Vector(miscType(range)), shorts map idType)(range)
-      else validRange.out
+      multiAssignableTo.errors(Vector(miscType(range)), shorts map idType)(range)
 
     case _@PAssForRange(range, ass, _, _) =>
-      val validRange = wellDefMisc(range)
-      if (validRange.valid) multiAssignableTo.errors(Vector(miscType(range)), ass map exprType)(range)
-      else validRange.out
+      multiAssignableTo.errors(Vector(miscType(range)), ass map exprType)(range)
 
     case n@PGoStmt(exp) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
 

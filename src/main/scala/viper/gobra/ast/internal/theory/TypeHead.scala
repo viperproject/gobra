@@ -24,6 +24,7 @@ object TypeHead {
   case object Float64HD extends TypeHead
   case object PointerHD extends TypeHead
   case class DefinedHD(name: String) extends TypeHead
+  case class FunctionHD(arity: Int) extends TypeHead
   /** 'fields' stores for each field the name and whether the field is ghost. */
   case class StructHD(fields: Vector[(String, Boolean)]) extends TypeHead
   case object ArrayHD extends TypeHead
@@ -63,6 +64,7 @@ object TypeHead {
     case _: Float64T => Float64HD
     case _: PointerT => PointerHD
     case t: DefinedT => DefinedHD(t.name)
+    case t: FunctionT => FunctionHD(t.args.size)
     case t: StructT => StructHD(t.fields.map(f => (f.name, f.ghost)))
     case t: InterfaceT => InterfaceHD(t.name)
     case t: DomainT => DomainHD(t.name)
@@ -91,6 +93,7 @@ object TypeHead {
     case _: Float64T => Vector.empty
     case t: PointerT => Vector(t.t)
     case _: DefinedT => Vector.empty
+    case FunctionT(args, res, _) => args ++ res
     case t: StructT => t.fields.map(_.typ)
     case _: InterfaceT => Vector.empty
     case _: DomainT => Vector.empty
@@ -163,6 +166,7 @@ object TypeHead {
     case Float64HD => 0
     case PointerHD => 1
     case _: DefinedHD => 0
+    case t: FunctionHD => t.arity
     case t: StructHD => t.fields.size
     case ArrayHD => 1
     case SliceHD => 1

@@ -85,6 +85,13 @@ object TypePatterns {
         underlyingType(arg)(ctx) == in.VoidT
     }
 
+    object Function {
+      def unapply(arg: in.Type): Option[in.FunctionT] = underlyingType(arg)(ctx) match {
+        case t: in.FunctionT => Some(t)
+        case _ => None
+      }
+    }
+
     object Perm {
       def unapply(arg: in.Type): Boolean =
         underlyingType(arg)(ctx).isInstanceOf[in.PermissionT]

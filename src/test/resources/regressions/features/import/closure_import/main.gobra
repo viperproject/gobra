@@ -1,0 +1,64 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I ./)
+import foo "foo"
+
+func test1() {
+    c := pure func f() (r int) {
+            return 2
+         }
+
+    proof c implements foo.p2{0} {
+        r = c() as f
+    }
+
+    r := c() as foo.p2{0}
+    assert r == 2
+}
+
+func test2() {
+    c := ensures r == x + 2
+         func f(x int) (r int) {
+           return x + 2
+         }
+
+    proof c implements foo.p2 {
+        r = c(x) as f
+    }
+
+    r := c(5) as foo.p2
+    assert r == 7
+}
+
+func test3() {
+    c := foo.S1{2}.getx 
+
+    proof foo.S1{2}.getx implements foo.ret2 {
+        return foo.S1{2}.getx()
+    }
+
+    assert c() as foo.ret2 == 2
+}
+
+func test4() {
+    var i foo.I1
+
+    //:: ExpectedOutput(method_object_nil_error)
+    c := i.getx
+}
+
+func test5() {
+    var i foo.I1
+    i = foo.S1{2}
+
+    c := i.getx
+
+    proof i.getx implements foo.ret2 {
+        return i.getx()
+    }
+
+    assert c() as foo.ret2 == 2
+}

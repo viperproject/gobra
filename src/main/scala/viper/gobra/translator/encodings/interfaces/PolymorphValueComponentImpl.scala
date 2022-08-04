@@ -14,6 +14,13 @@ import viper.gobra.translator.util.TypePatterns.Sh
 
 /** Polymorphic value that can fit all countable types. */
 class PolymorphValueComponentImpl(handle: PolymorphValueInterfaceHandle) extends PolymorphValueComponent {
+  def this(interfaces: InterfaceComponent, types: TypeComponent) = this(new PolymorphValueInterfaceHandle {
+      def typ(polyType: vpr.Type)(ctx: Context): vpr.Type = interfaces.typ(polyType, types.typ()(ctx))(ctx)
+      def create(polyVal: vpr.Exp, dynType: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = interfaces.create(polyVal, dynType)(pos, info, errT)(ctx)
+      def dynTypeOf(itf: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = interfaces.dynTypeOf(itf)(pos, info, errT)(ctx)
+      def polyValOf(itf: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = interfaces.polyValOf(itf)(pos, info, errT)(ctx)
+      def typeToExpr(typ: in.Type)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = types.typeToExpr(typ)(pos, info, errT)(ctx)
+    })
 
   private val imageType: vpr.Type = vpr.Ref
 

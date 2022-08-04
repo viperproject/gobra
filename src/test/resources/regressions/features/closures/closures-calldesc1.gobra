@@ -1,0 +1,74 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresCallDesc1
+
+// This example shows how it is possible for a higher-order function to express
+// that some calls happened (in any order, and there might be more calls)
+
+type Calls interface {
+    pred inv()
+
+    // This describes properties that must be true if a call happened
+    ghost
+    requires inv()
+    pure called(x int)bool
+    
+    // This describes the properties of the result
+    ghost pure res(x int, res int)bool
+}
+
+ghost
+requires x >= 0 && cs != nil && cs.inv()
+ensures cs.inv() && cs.called(x) && cs.res(x, res)
+ensures forall x int :: old(cs.called(x)) ==> cs.called(x)
+func spec(ghost cs Calls, x int) (res int)
+
+requires f implements spec{cs}
+requires cs != nil && cs.inv()
+ensures cs.inv() && exists a int, b int :: cs.res(2, a) && cs.res(3, b) && res == a + b
+ensures cs.called(2) && cs.called(3)
+func hof(ghost cs Calls, f func(int)int, choice bool)(res int) {
+    if choice {
+        res = (f(2) as spec{cs}) + (f(3) as spec{cs})
+    } else {
+        res = (f(3) as spec{cs}) +  (f(2) as spec{cs})
+    }
+    f(5) as spec{cs}
+}
+
+type Acc struct { accum *int }
+pred (self Acc) inv() { acc(self.accum) && *self.accum >= 0 }
+ghost
+requires self.inv()
+pure func (self Acc) called(x int)bool {
+    return unfolding self.inv() in (*self.accum >= x)
+}
+ghost
+pure func (self Acc) res(x int, y int)bool {
+    return y >= x
+}
+
+func main() {
+    accum@ := 0
+    cl :=   requires x >= 0
+            preserves acc(&accum) && accum >= 0
+            ensures accum == old(accum) + x && y == accum
+            func accumulate(x int)(y int) {
+                accum += x
+                return accum
+            }
+
+    proof cl implements spec{Acc{&accum}} {
+        unfold Acc{&accum}.inv()
+        res = cl(x) as accumulate
+        fold Acc{&accum}.inv()
+    }
+
+    fold Acc{&accum}.inv()
+    r := hof(Acc{&accum}, cl, true)
+    assert r >= 5
+
+    unfold Acc{&accum}.inv()
+    assert accum >= 3
+}

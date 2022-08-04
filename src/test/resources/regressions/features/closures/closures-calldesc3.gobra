@@ -1,0 +1,56 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresCallDesc3
+
+// This example shows how it is possible for a higher-order function to express
+// that a certain specification is required to hold only once
+
+type Once interface {
+    pred invBefore()
+    pred invAfter(n int)
+
+    ghost pure res(n int)int
+}
+
+requires o != nil && o.invBefore()
+ensures o.invAfter(n) && res == o.res(n)
+ensures res >= n
+func onceGT(ghost o Once, n int) (res int)
+
+requires f implements onceGT{o}
+requires o != nil && o.invBefore()
+ensures o.invAfter(42) && res == o.res(42) && res >= 42
+func hof(ghost o Once, f func(int)int)(res int) {
+    return f(42) as onceGT{o}
+}
+
+type OnceID struct { accum *int }
+pred (self OnceID) invBefore() { acc(self.accum) && *self.accum == 0 }
+pred (self OnceID) invAfter(n int) { acc(self.accum) && *self.accum == n }
+ghost pure func (self OnceID) res(n int)int {
+    return n
+}
+
+func main() {
+    accum@ := 0
+    cl :=   preserves acc(&accum)
+            ensures accum == old(accum) + x
+            ensures y == accum
+            func accumulate(x int)(y int) {
+                accum += x
+                return accum
+            }
+    proof cl implements onceGT{OnceID{&accum}} {
+        unfold OnceID{&accum}.invBefore()
+        res = cl(n) as accumulate
+        fold OnceID{&accum}.invAfter(n)
+    }
+
+    fold OnceID{&accum}.invBefore()
+    r := hof(OnceID{&accum}, cl)
+    assert r == 42
+
+    unfold OnceID{&accum}.invAfter(42)
+    assert accum == 42
+}

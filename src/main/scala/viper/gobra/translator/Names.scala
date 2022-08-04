@@ -72,6 +72,7 @@ object Names {
     case in.TupleT(ts, addr) => s"Tuple$$${ts.map(serializeType).mkString("")}$$${serializeAddressability(addr)}"
     case in.PredT(ts, addr) => s"Pred$$${ts.map(serializeType).mkString("")}$$${serializeAddressability(addr)}"
     case in.StructT(fields, addr) => s"Struct${serializeFields(fields)}${serializeAddressability(addr)}"
+    case in.FunctionT(args, res, addr) => s"Func$$${args.map(serializeType).mkString("")}$$${res.map(serializeType).mkString("")}$$${serializeAddressability(addr)}"
     case in.InterfaceT(name, addr) => s"Interface$name${serializeAddressability(addr)}"
     case in.ChannelT(elemT, addr) => s"Channel${serializeType(elemT)}${serializeAddressability(addr)}"
     case t => Violation.violation(s"cannot stringify type $t")
@@ -105,6 +106,18 @@ object Names {
   def polyValueDomain: String = "Poly"
   def polyValueBoxFunc: String = "box"
   def polyValueUnboxFunc: String = "unbox"
+
+  // closures
+  def closureDomain: String = "Closure"
+  def closureCaptVar(i: Int): String = s"captVar$i"
+  def closureCaptVarDomFunc(i: Int, typ: vpr.Type): String = s"${closureCaptVar(i)}${closureDomain}_${serializeType(typ)}"
+  def closureArg: String = "closure"
+  def closureNilFunc: String = "closureNil"
+  def closureGetter: String = "closureGet"
+  def closureCall: String = "closureCall"
+  def closureImplementsFunc: String = "closureImplements"
+  def closureImplementsParam(i: Int): String = s"param$i"
+  def closureProofIterator: String = "closureProofIterator"
 
   // interface
   def emptyInterface: String = "empty_interface"

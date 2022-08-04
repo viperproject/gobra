@@ -1063,8 +1063,49 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitFunctionLit(ctx: FunctionLitContext): PFunctionLit = {
     visitChildren(ctx) match {
-      case Vector(_, (params: Vector[PParameter] @unchecked, result : PResult), b : PBlock ) => PFunctionLit(params, result, b)
+      case Vector(spec: PFunctionSpec, (id: Option[PIdnDef@unchecked], args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked])) =>
+        PFunctionLit(id, PClosureDecl(args, result, spec, body))
     }
+  }
+
+  override def visitClosureDecl(ctx: GobraParser.ClosureDeclContext): (Option[PIdnDef], Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)]) = {
+    val id = if(ctx.IDENTIFIER() == null) None else Some(goIdnDef.get(ctx.IDENTIFIER()))
+    val sig = visitNode[Signature](ctx.signature())
+    // Translate the function body if the function is not abstract or trusted, specOnly isn't set or the function is pure
+    val body = if (has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted && (!specOnly || ctx.pure)) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
+    (id, sig._1, sig._2, body)
+  }
+
+  override def visitClosureSpecInstance(ctx: ClosureSpecInstanceContext): PClosureSpecInstance = visitChildren(ctx) match {
+    case name: TerminalNode => PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), Vector.empty)
+    case imported: PDot => PClosureSpecInstance(imported, Vector.empty)
+    case Vector(name: TerminalNode, "{", "}") => PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), Vector.empty)
+    case Vector(imported: PDot, "{", "}") => PClosureSpecInstance(imported, Vector.empty)
+    case Vector(name: TerminalNode, "{", params: Vector[PKeyedElement@unchecked], "}") => PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), params)
+    case Vector(imported: PDot, "{", params: Vector[PKeyedElement@unchecked], "}") => PClosureSpecInstance(imported, params)
+  }
+
+  override def visitClosureSpecParams(ctx: ClosureSpecParamsContext): Vector[PKeyedElement] = visitChildren(ctx) match {
+    case v: Vector[_] => v collect { case p: PKeyedElement => p }
+    case p: PKeyedElement => Vector(p)
+  }
+
+  override def visitClosureSpecParam(ctx: ClosureSpecParamContext): PKeyedElement = visitChildren(ctx) match {
+    case e: PExpression => PKeyedElement(None, PExpCompositeVal(e).at(e))
+    case Vector(name: TerminalNode, ":", e: PExpression) =>
+      PKeyedElement(Some(PIdentifierKey(idnUse.get(name)).at(name)), PExpCompositeVal(e).at(e))
+  }
+
+  override def visitClosureImplSpecExpr(ctx: ClosureImplSpecExprContext): PClosureImplements = {
+    visitChildren(ctx) match {
+      case Vector(closure: PExpression, "implements", spec: PClosureSpecInstance) =>
+        PClosureImplements(closure, spec)
+    }
+  }
+
+  override def visitClosureImplProofStmt(ctx: ClosureImplProofStmtContext): PClosureImplProof = visitChildren(ctx) match {
+    case Vector("proof", closure: PExpression, "implements", spec:PClosureSpecInstance, body: PBlock) =>
+      PClosureImplProof(PClosureImplements(closure, spec), body)
   }
 
   //region Primary Expressions
@@ -1095,7 +1136,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitInvokePrimaryExpr(ctx: InvokePrimaryExprContext): AnyRef = super.visitInvokePrimaryExpr(ctx) match {
-    case Vector(pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args)
+    case Vector(pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args, None)
+  }
+
+  override def visitInvokePrimaryExprWithSpec(ctx: InvokePrimaryExprWithSpecContext): AnyRef = super.visitInvokePrimaryExprWithSpec(ctx) match {
+    case Vector(pe: PExpression, InvokeArgs(args), "as", pcs: PClosureSpecInstance) => PInvoke(pe, args, Some(pcs))
   }
 
   override def visitTypeAssertionPrimaryExpr(ctx: TypeAssertionPrimaryExprContext): AnyRef = super.visitTypeAssertionPrimaryExpr(ctx) match {
@@ -1124,7 +1169,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     *     */
   override def visitConversion(ctx: ConversionContext): PInvoke= {
     visitChildren(ctx) match {
-      case Vector(typ : PType, "(", exp : PExpression, _*) => PInvoke(typ, Vector(exp)).at(ctx)
+      case Vector(typ : PType, "(", exp : PExpression, _*) => PInvoke(typ, Vector(exp), None).at(ctx)
     }
   }
 

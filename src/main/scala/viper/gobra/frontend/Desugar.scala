@@ -30,7 +30,7 @@ object Desugar {
 
   def desugar(pkg: PPackage, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
     val importsCollector = new PackageInitSpecCollector
-    // independently desugar each imported package. Only used members (i.e. members for which `isUsed` returns true will be desugared:
+    // independently desugar each imported package.
     val importedPrograms = info.context.getContexts map { tI => {
       val typeInfo: TypeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
@@ -386,7 +386,7 @@ object Desugar {
           Vector.empty
         case NoGhost(x: PConstDecl) => constDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
-        case NoGhost(x: PFunctionDecl) => registerFunction(x)
+        case NoGhost(x: PFunctionDecl) => registerFunction(x).toVector
         case x: PMPredicateDecl => Vector(registerMPredicate(x))
         case x: PFPredicateDecl => Vector(registerFPredicate(x))
         case x: PImplementationProof => registerImplementationProof(x); Vector.empty
@@ -462,7 +462,6 @@ object Desugar {
       }
     }
 
-    // TODO: use info here
     def globalVarD(v: st.GlobalVariable)(src: Meta): in.GlobalVar = {
       val typ = typeD(v.context.typ(v.id), Addressability.globalVariable)(src)
       val proxy = globalVarProxyD(v)
@@ -957,8 +956,8 @@ object Desugar {
 
           case _ =>
             val x = assignableVarD(ctx, info)(idn) match {
-              case Left(value) => value
-              case Right(_) => violation("Unexpected BLA") // TODO
+              case Left(v) => v
+              case Right(v) => violation(s"Expected an assignable variable, but got $v instead")
             }
             if (isDef) {
               val v = x.asInstanceOf[in.LocalVar]
@@ -1760,16 +1759,14 @@ object Desugar {
       val src: Meta = meta(expr, info)
 
       info.resolve(expr) match {
-        case Some(p: ap.LocalVariable) =>
-          assignableVarD(ctx, info)(p.id) match {
-            case Left(v) => unit(in.Assignee.Var(v))
-            case Right(v) => unit(in.Assignee.Pointer(v))
-          }
-        case Some(p: ap.GlobalVariable) =>
-          assignableVarD(ctx, info)(p.id) match {
-            case Left(v) => unit(in.Assignee.Var(v))
-            case Right(v) => unit(in.Assignee.Pointer(v))
-          }
+        case Some(p: ap.LocalVariable) => assignableVarD(ctx, info)(p.id) match {
+          case Left(v) => unit(in.Assignee.Var(v))
+          case Right(v) => unit(in.Assignee.Pointer(v))
+        }
+        case Some(p: ap.GlobalVariable) => assignableVarD(ctx, info)(p.id) match {
+          case Left(v) => unit(in.Assignee.Var(v))
+          case Right(v) => unit(in.Assignee.Pointer(v))
+        }
         case Some(p: ap.Deref) =>
           derefD(ctx, info)(p)(src) map in.Assignee.Pointer
         case Some(p: ap.FieldSelection) =>
@@ -2709,9 +2706,8 @@ object Desugar {
     }
 
     /**
-      * Generates the members that correspond to the global variables declared in `pkg`
-      * and registers info in `specCollector` about all import preconditions and
-      * all package postconditions in all files of `pkg`.
+      * Generates the members that correspond to the global variables declared in `pkg` and registers info in
+      * `specCollector` about all import preconditions and all package postconditions in all files of `pkg`.
       * @param pkg
       * @param specCollector
       * @param generateInitProof true if the proof obligations for the package's initialization code
@@ -2903,7 +2899,7 @@ object Desugar {
       method
     }
 
-    def registerFunction(decl: PFunctionDecl): Vector[in.FunctionMember] = {
+    def registerFunction(decl: PFunctionDecl): Option[in.FunctionMember] = {
       if (decl.id.name == Constants.INIT_FUNC_NAME) {
         /**
           *  In Go, functions named init are executed during a package initialization,
@@ -2911,12 +2907,12 @@ object Desugar {
           *  associated with init functions are generated in method [[registerPackage]].
           *  As such, these functions are ignored by [[registerFunction]].
           */
-        Vector()
+        None
       } else {
         val function = functionD(decl)
         val functionProxy = functionProxyD(decl, info)
         definedFunctions += functionProxy -> function
-        Vector(function)
+        Some(function)
       }
     }
 

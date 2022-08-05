@@ -34,10 +34,10 @@ if ! test -f "$ANTLR4_PATH"; then
 fi
 
 echo -e "${GREEN}Generating the lexer:${RESET}"
-java -jar "$ANTLR4_PATH" "$SCRIPT_DIR"/src/main/antlr4/GobraLexer.g4 -package viper.gobra.frontend || { echo "Error while generating the lexer."; exit 3; }
+java -jar "$ANTLR4_PATH" "$SCRIPT_DIR"/src/main/antlr4/GobraLexer.g4 -package viper.gobra.frontend || { echo -e "${RED}Error while generating the lexer.${RESET}"; exit 3; }
 
 echo -e "${GREEN}Generating the parser:${RESET}"
-java -jar "$ANTLR4_PATH" "$SCRIPT_DIR"/src/main/antlr4/GobraParser.g4 -package viper.gobra.frontend -visitor -no-listener || { echo "Error while generating the parser."; exit 3; }
+java -jar "$ANTLR4_PATH" "$SCRIPT_DIR"/src/main/antlr4/GobraParser.g4 -package viper.gobra.frontend -visitor -no-listener || { echo -e "${RED}Error while generating the parser.${RESET}"; exit 3; }
 
 echo -e "${GREEN}Moving the generated files:${RESET}"
 mv -v "$SCRIPT_DIR"/src/main/antlr4/*.java "$SCRIPT_DIR"/src/main/java/viper/gobra/frontend/

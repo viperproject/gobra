@@ -69,3 +69,12 @@ func foo2() {
 	for _ := range x {
 	}
 }
+
+func foo3() {
+	x := [0]int{}
+	for i, j := range x {
+	}
+	y := []int{}
+	for i, j := range x {
+	}
+}

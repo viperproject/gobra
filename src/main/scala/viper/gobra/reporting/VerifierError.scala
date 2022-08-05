@@ -266,6 +266,11 @@ case class ChannelMakePreconditionError(info: Source.Verifier.Info) extends Veri
   override def localMessage: String = s"The provided length to ${info.origin.tag.trim} might be negative"
 }
 
+case class RangeVariableMightNotExistError(info: Source.Verifier.Info)(varName: String, rangeExpr: String) extends VerificationError {
+  override def localId: String = "range_variable_might_not_exist"
+  override def localMessage: String = s"Range variable '$varName' might not exist if the length of expression '$rangeExpr' is 0"
+}
+
 case class MapMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "make_precondition_error"
   override def localMessage: String = s"The provided length to ${info.origin.tag.trim} might be negative"
@@ -390,6 +395,11 @@ case class DivisionByZeroReason(node: Option[Source.Verifier.Info]) extends Veri
 case class OverflowErrorReason(node: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "integer_overflow_error"
   override def message: String = s"Expression ${node.origin.tag.trim} might cause integer overflow."
+}
+
+case class RangeVariableMightNotExistErrorReason(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "assertion_error"
+  override def message: String = s"Assertion ${info.origin.tag.trim} might not hold"
 }
 
 case class InterfaceReceiverIsNilReason(node: Source.Verifier.Info) extends VerificationErrorReason {

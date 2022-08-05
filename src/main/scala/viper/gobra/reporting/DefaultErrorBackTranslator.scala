@@ -6,7 +6,7 @@
 
 package viper.gobra.reporting
 
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, OverflowCheckAnnotation, ReceiverNotNilCheckAnnotation}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, OverflowCheckAnnotation, ReceiverNotNilCheckAnnotation, RangeVariableMightNotExistAnnotation}
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
@@ -85,6 +85,7 @@ object DefaultErrorBackTranslator {
     val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {
       case AssertionFalseError(info / OverflowCheckAnnotation) => OverflowErrorReason(info)
       case AssertionFalseError(info / ReceiverNotNilCheckAnnotation) => InterfaceReceiverIsNilReason(info)
+      case AssertionFalseError(info / RangeVariableMightNotExistAnnotation(_, _)) => RangeVariableMightNotExistErrorReason(info)
       case x => x
     }
 
@@ -168,6 +169,8 @@ class DefaultErrorBackTranslator(
       case _ / AutoImplProofAnnotation(subT, superT) =>
         GeneratedImplementationProofError(subT, superT, x)
 
+      case _ / RangeVariableMightNotExistAnnotation(varName, rangeExpr) =>
+        x.reasons.foldLeft(RangeVariableMightNotExistError(x.info)(varName, rangeExpr): VerificationError){ case (err, reason) => err dueTo reason }
       case _ => x
     }
 

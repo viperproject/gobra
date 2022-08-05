@@ -77,4 +77,8 @@ func foo3() {
 	y := []int{}
 	for i, j := range x {
 	}
+	for i,j := range x {
+		continue
+		break
+	}
 }

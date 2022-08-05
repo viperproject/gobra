@@ -1256,10 +1256,10 @@ object Desugar {
             *     j = c[i]
             * }
             *
+            * invariant len(c) > 0 ==> 0 <= i0 && i0 <= len(c) // these invariants do not
+            * invariant len(c) > 0 ==> i == i0                 // require access to anything so they
+            * invariant len(c) > 0 ==> 0 <= i && i <= len(c)   // are added before the user invariants
             * <invariants were i is replaced with f(i, len(c) > 0) and j with f(j, len(c) > 0)>
-            * invariant len(c) > 0 ==> 0 <= i0 && i0 <= len(c)
-            * invariant len(c) > 0 ==> i == i0
-            * invariant len(c) > 0 ==> 0 <= i && i <= len(c)
             * invariant len(c) > 0 ==> (0 <= i && i < len(c) ==> j == c[i]) // [v]
             * for i < len(c) {
             *     <body>
@@ -1391,7 +1391,7 @@ object Desugar {
                 in.Block(
                   Vector(valueLeft.asInstanceOf[in.LocalVar]),
                   Vector(copyAss, indexAss, copyIndexAss, updateValue) ++ dInvPre ++ dTerPre ++ Vector(
-                    in.While(cond, dInv ++ Vector(copiedIndexBoundsInv, copiedIndexEqualsIndexInv, indexBoundsInv, indexValueEq), dTer, in.Block(Vector(continueLoopLabelProxy),
+                    in.While(cond, Vector(copiedIndexBoundsInv, copiedIndexEqualsIndexInv, indexBoundsInv) ++ dInv ++ Vector(indexValueEq), dTer, in.Block(Vector(continueLoopLabelProxy),
                       Vector(dBody, continueLoopLabel, incrCopiedIndex, incrIndex, updateValue) ++ dInvPre ++ dTerPre
                     )(src))(src), breakLoopLabel
                   )
@@ -1410,7 +1410,7 @@ object Desugar {
                 val (dInvPre, dInv) = prelude(sequence(spec.invariants map assertionD(invCtx, info))).res
                 in.Seqn(
                   Vector(copyAss, indexAss, copyIndexAss) ++ dInvPre ++ dTerPre ++ Vector(
-                    in.While(cond, dInv ++ Vector(copiedIndexBoundsInv, copiedIndexEqualsIndexInv, indexBoundsInv), dTer, in.Block(Vector(continueLoopLabelProxy),
+                    in.While(cond, Vector(copiedIndexBoundsInv, copiedIndexEqualsIndexInv, indexBoundsInv) ++ dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
                       Vector(dBody, continueLoopLabel, incrCopiedIndex, incrIndex) ++ dInvPre ++ dTerPre
                     )(src))(src), breakLoopLabel
                   )
@@ -1418,8 +1418,46 @@ object Desugar {
               }
             } yield wh))
 
+          /**
+            * This case handles for loops with a range clause of the form:
+            *
+            * <invariants>
+            * for expIndex, expValue = range x {
+            *     body
+            * }
+            *
+            * In the case where x is a slice or array the following code is produced:
+            *
+            * var i0 int = 0 // since 'expIndex' can change in the iteration we store the true index in i0
+            *
+            * c := x // save the value of the slice/array since changing it doesn't change the iteration
+            *
+            * if (len(c) > 0) {
+            *     expIndex = 0
+            * }
+            * 
+            * if (0 <= expIndex && expIndex < len(c)) { // [v]
+            *     expValue = c[expIndex]
+            * }
+            *
+            * <invariants were expIndex is replaced with f(i, len(c) > 0) and j with f(j, len(c) > 0)>
+            * invariant len(c) > 0 ==> 0 <= i0 && i0 <= len(c)               // these invariants might require access to something
+            * invariant len(c) > 0 ==> expIndex == i0                        // as expIndex can be an indexing operation for example
+            * invariant len(c) > 0 ==> 0 <= expIndex && expIndex <= len(c)   // so they are added after the user invariants
+            * invariant len(c) > 0 ==> (0 <= expIndex && expIndex < len(c) ==> expValue == c[expIndex]) // [v]
+            * for expIndex < len(c) {
+            *     <body>
+            *     i0 += 1
+            *     expIndex = i0
+            *     if (0 <= expIndex && expIndex < len(c)) { // [v]
+            *         expValue = c[i]
+            *     }
+            * }
+            *
+            * In the case where the value expression 'expValue' is missing all the code annotated with [v]
+            * is omitted
+            */
           case n@PAssForRange(range, ass, spec, body) =>
-            // similar logic as PShortForRange
             unit(block(for {
               exp <- goE(range.exp)
               typ = underlyingType(exp.typ) match {
@@ -1447,12 +1485,10 @@ object Desugar {
 
               cond = in.LessCmp(indexLeft.op, length)(rangeSrc)
 
-              // this invariant states that the index variable has the same value as the hidden index variable always
               copiedIndexEqualsIndexInv = in.Implication(
                 in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
                 in.ExprAssertion(in.EqCmp(indexLeft.op, copiedIndexVar)(rangeSrc))(rangeSrc))(rangeSrc)
 
-              // this invariant states that the hidden index stays within 0 and the length of the array/slice (both inclusive)
               copiedIndexBoundsInv = in.Implication(
                 in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
                 in.ExprAssertion(in.And(
@@ -1486,8 +1522,8 @@ object Desugar {
                   case _ => Vector.empty
                 }
                 val valueSrc = meta(ass(1), info)
-                val valueAss = singleAss(valueLeft, in.IndexedExp(copiedVar, in.IntLit(0)(valueSrc), typ)(valueSrc))(valueSrc)
-                val updateValue = in.If(in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc), valueAss, in.Seqn(Vector())(valueSrc))(valueSrc)
+                val valueAss = singleAss(valueLeft, in.IndexedExp(copiedVar, indexLeft.op, typ)(valueSrc))(valueSrc)
+                val updateValue = in.If(in.And(cond, in.AtLeastCmp(indexLeft.op, in.IntLit(0)(valueSrc))(valueSrc))(valueSrc), valueAss, in.Seqn(Vector())(valueSrc))(valueSrc)
                 
                 val indexValueEq = in.Implication(
                   in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
@@ -1507,7 +1543,7 @@ object Desugar {
                 )(src)
               } else {
                 in.Seqn(
-                  Vector(copyAss, indexAss) ++ dInvPre ++ dTerPre ++ Vector(
+                  Vector(copyAss, indexAss, copyIndexAss) ++ dInvPre ++ dTerPre ++ Vector(
                     in.While(cond, dInv ++ Vector(copiedIndexBoundsInv, copiedIndexEqualsIndexInv, indexBoundsInv), dTer, in.Block(Vector(continueLoopLabelProxy),
                       Vector(dBody, continueLoopLabel, incrCopiedIndex, incrIndex) ++ dInvPre ++ dTerPre
                     )(src))(src), breakLoopLabel
@@ -2957,7 +2993,7 @@ object Desugar {
       */
     private def conditionalId(valueVar: in.Expr, condVar: in.Expr, generalType: in.Type)(src: Meta): in.PureFunctionCall = {
       val typ = underlyingType(generalType)
-      val name = in.FunctionProxy("$" + s"conditionalId$typ")(Source.Parser.Internal)
+      val name = in.FunctionProxy("$" + s"conditionalId${Names.serializeType(typ)}")(Source.Parser.Internal)
       if (!hasConditionalIdForType(typ)) {
         hasConditionalIdForType += typ
         val value = in.Parameter.In("value", typ.withAddressability(Addressability.inParameter))(Source.Parser.Internal)

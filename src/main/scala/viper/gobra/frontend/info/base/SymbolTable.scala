@@ -95,17 +95,6 @@ object SymbolTable extends Environments[Entity] {
     def addressable: Boolean
   }
 
-  sealed trait GlobalVariable extends Variable {
-    def decl: PVarDecl
-    // index that the identifier of the var takes in the declaration
-    def idx: Int
-    def id: PDefLikeId
-    def expOpt: Option[PExpression]
-    def typOpt: Option[PType]
-    def ghost: Boolean
-    def context: ExternalTypeInfo
-  }
-
   sealed trait ActualVariable extends Variable with ActualDataEntity
 
   case class SingleLocalVariable(exp: Option[PExpression], opt: Option[PType], rep: PNode, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
@@ -115,32 +104,20 @@ object SymbolTable extends Environments[Entity] {
     override def rep: PNode = exp
   }
 
-  case class SingleGlobalVariable(override val decl: PVarDecl,
-                                  override val idx: Int,
-                                  override val expOpt: Option[PExpression],
-                                  override val typOpt: Option[PType],
-                                  override val ghost: Boolean,
-                                  override val context: ExternalTypeInfo
-                                 ) extends ActualVariable with GlobalVariable {
+  case class GlobalVariable(decl: PVarDecl,
+                            // index that the identifier of the var takes in the declaration
+                            idx: Int,
+                            expOpt: Option[PExpression],
+                            typOpt: Option[PType],
+                            ghost: Boolean,
+                            isSingleModeDecl: Boolean,
+                            context: ExternalTypeInfo
+                           ) extends ActualVariable {
     require(expOpt.isDefined || typOpt.isDefined)
     require(0 <= idx && idx < decl.left.length)
     override def rep: PNode = decl
     override def addressable: Boolean = true
-    override def id: PDefLikeId = decl.left(idx)
-  }
-
-  case class MultiGlobalVariable(override val decl: PVarDecl,
-                                 override val idx: Int,
-                                 override val expOpt: Option[PExpression],
-                                 override val typOpt: Option[PType],
-                                 override val ghost: Boolean,
-                                 override val context: ExternalTypeInfo
-                                ) extends ActualVariable with GlobalVariable {
-    require(expOpt.isDefined || typOpt.isDefined)
-    require(0 <= idx && idx < decl.left.length)
-    override def rep: PNode = decl
-    override def addressable: Boolean = true
-    override def id: PDefLikeId = decl.left(idx)
+    def id: PDefLikeId = decl.left(idx)
   }
 
   case class Wildcard(decl: PWildcard, context: ExternalTypeInfo) extends ActualRegular with ActualDataEntity {

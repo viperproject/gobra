@@ -47,9 +47,9 @@ trait NameResolution {
           case decl: PVarDecl if isGlobalVarDeclaration(decl) =>
             val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
             StrictAssignMode(decl.left.size, decl.right.size) match {
-              case AssignMode.Single => SingleGlobalVariable(decl, idx, Some(decl.right(idx)), decl.typ, isGhost, this)
-              case AssignMode.Multi  => MultiGlobalVariable(decl, idx, decl.right.headOption, decl.typ, isGhost, this)
-              case _ if decl.right.isEmpty => SingleGlobalVariable(decl, idx, None, decl.typ, isGhost, this)
+              case AssignMode.Single => GlobalVariable(decl, idx, Some(decl.right(idx)), decl.typ, isGhost, isSingleModeDecl = true, this)
+              case AssignMode.Multi  => GlobalVariable(decl, idx, decl.right.headOption, decl.typ, isGhost, isSingleModeDecl = false,  this)
+              case _ if decl.right.isEmpty => GlobalVariable(decl, idx, None, decl.typ, isGhost, isSingleModeDecl = true, this)
               case _ => UnknownEntity()
             }
           case decl: PVarDecl =>

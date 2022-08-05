@@ -1244,7 +1244,9 @@ object Desugar {
             *     body
             * }
             *
-            * In the case where x is a slice or array the following code is produced:
+            * In the case where x is a slice or array the following code is produced. Note
+            * that everything is in a new block so it can shadow variables with the same
+            * name declared outside. This is also the go behaviour.
             *
             * var i int = 0
             * var i0 int = 0 // since 'i' can change in the iteration we store the true index in i0
@@ -1273,7 +1275,8 @@ object Desugar {
             * In the case where the value variable 'j' is missing all the code annotated with [v]
             * is omitted
             *
-            * Function f is a function that requires its second argument to produce the first:
+            * Function f is the identity function regarding its first argument with a precondition
+            * stating that the second argument must be true.
             *
             * requires b
             * decreases _
@@ -1426,7 +1429,7 @@ object Desugar {
             *     body
             * }
             *
-            * In the case where x is a slice or array the following code is produced:
+            * In the case where x is a slice or array the following code is produced.
             *
             * var i0 int = 0 // since 'expIndex' can change in the iteration we store the true index in i0
             *

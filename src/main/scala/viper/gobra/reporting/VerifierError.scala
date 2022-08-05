@@ -397,11 +397,6 @@ case class OverflowErrorReason(node: Source.Verifier.Info) extends VerificationE
   override def message: String = s"Expression ${node.origin.tag.trim} might cause integer overflow."
 }
 
-case class RangeVariableMightNotExistErrorReason(info: Source.Verifier.Info) extends VerificationErrorReason {
-  override def id: String = "assertion_error"
-  override def message: String = s"Assertion ${info.origin.tag.trim} might not hold"
-}
-
 case class InterfaceReceiverIsNilReason(node: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "receiver_is_nil_error"
   override def message: String = s"The receiver might be nil"

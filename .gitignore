@@ -24,3 +24,10 @@ logger.log
 .metals/
 .vscode/
 project/
+
+# antlr4
+*.interp
+*.tokens
+
+# genparser script
+genparser.config

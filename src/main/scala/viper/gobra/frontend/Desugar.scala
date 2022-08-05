@@ -1238,25 +1238,25 @@ object Desugar {
 
           /**
             * This case handles for loops with a range clause of the form:
-            * 
+            *
             * <invariants>
             * for i, j := range x {
             *     body
             * }
-            * 
+            *
             * In the case where x is a slice or array the following code is produced:
-            * 
+            *
             * var i int = 0
             * var i0 int = 0 // since 'i' can change in the iteration we store the true index in i0
             * var j elem(x) // [v] the type of the elements of x 
-            * 
+            *
             * c := x // save the value of the slice/array since changing it doesn't change the iteration
             *
             * if (0 <= i && i < len(c)) { // [v]
             *     j = c[i]
             * }
-            * 
-            * <invariants>
+            *
+            * <invariants were i is replaced with f(i, len(c) > 0) and j with f(j, len(c) > 0)>
             * invariant len(c) > 0 ==> 0 <= i0 && i0 <= len(c)
             * invariant len(c) > 0 ==> i == i0
             * invariant len(c) > 0 ==> 0 <= i && i <= len(c)
@@ -1269,9 +1269,20 @@ object Desugar {
             *         j = c[i]
             *     }
             * }
-            * 
+            *
             * In the case where the value variable 'j' is missing all the code annotated with [v]
-            * is omitted 
+            * is omitted
+            *
+            * Function f is a function that requires its second argument to produce the first:
+            *
+            * requires b
+            * decreases _
+            * pure func f(x: <type>, b: bool) { x }
+            *
+            * It is needed because in the occation of empty slices or arrays, i and j should not exist.
+            * Replacing them with the call to this function will cause its precondition to fail for
+            * empty slices or arrays and thus produce the error which is then transformed to the
+            * desirable one.
             */
           case n@PShortForRange(range, shorts, spec, body) =>
             // is a block as it introduces new variables
@@ -1310,12 +1321,10 @@ object Desugar {
               length = in.Length(copiedVar)(rangeSrc)
               cond = in.LessCmp(indexLeft.op, length)(rangeSrc)
 
-              conditionalIndex = conditionalIdInt(indexLeft.op, in.LessCmp(in.IntLit(0)(rangeSrc), length)(rangeSrc))(rangeSrc)
-
               // this invariant states that the index variable has the same value as the hidden index variable always
               copiedIndexEqualsIndexInv = in.Implication(
                 in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
-                in.ExprAssertion(in.EqCmp(conditionalIndex, copiedIndexVar)(rangeSrc))(rangeSrc))(rangeSrc)
+                in.ExprAssertion(in.EqCmp(indexLeft.op, copiedIndexVar)(rangeSrc))(rangeSrc))(rangeSrc)
 
               // this invariant states that the hidden index stays within 0 and the length of the array/slice (both inclusive)
               copiedIndexBoundsInv = in.Implication(
@@ -1328,20 +1337,10 @@ object Desugar {
               indexBoundsInv = in.Implication(
                 in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
                 in.ExprAssertion(in.And(
-                  in.AtMostCmp(in.IntLit(0)(rangeSrc), conditionalIndex)(rangeSrc),
-                  in.AtMostCmp(conditionalIndex, length)(rangeSrc))(rangeSrc))(rangeSrc))(rangeSrc)
+                  in.AtMostCmp(in.IntLit(0)(rangeSrc), indexLeft.op)(rangeSrc),
+                  in.AtMostCmp(indexLeft.op, length)(rangeSrc))(rangeSrc))(rangeSrc))(rangeSrc)
 
-              // desugaring invariants and replacing all occurences of the
-              // index variable with the call to conditionalIdInt function
-              // with condition length > 0
-              invCtx = ctx.copyWithExpD{
-                case n@PNamedOperand(_@PIdnUse(name)) if name == shorts(0).name =>
-                  val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(n.id.name, range.exp.toString()))
-                  Some(unit(conditionalIdInt(indexLeft.op, in.LessCmp(in.IntLit(0)(invSrc), length)(invSrc))(invSrc)))
-                case _ => None
-              }
-              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(invCtx, info)))
-              (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(invCtx, info)))
+              (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
 
               dBody = blockD(ctx, info)(body)
 
@@ -1368,6 +1367,16 @@ object Desugar {
                 val valueAss = singleAss(valueVar, in.IndexedExp(copiedVar, indexLeft.op, typ)(valueSrc))(valueSrc)
                 val updateValue = in.If(in.And(cond, in.AtLeastCmp(indexLeft.op, in.IntLit(0)(valueSrc))(valueSrc))(valueSrc), valueAss, in.Seqn(Vector())(valueSrc))(valueSrc)
 
+                val invCtx = ctx.copyWithExpD{
+                  case n@PNamedOperand(_@PIdnUse(name)) if name == shorts(0).name =>
+                    val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(n.id.name, range.exp.toString()))
+                    Some(unit(conditionalId(indexLeft.op, in.LessCmp(in.IntLit(0)(invSrc), length)(invSrc), in.IntT(Addressability.exclusiveVariable))(invSrc)))
+                  case n@PNamedOperand(_@PIdnUse(name)) if name == shorts(1).name =>
+                    val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(n.id.name, range.exp.toString()))
+                    Some(unit(conditionalId(valueLeft, in.LessCmp(in.IntLit(0)(invSrc), length)(invSrc), elems)(invSrc)))
+                  case _ => None
+                }
+                val (dInvPre, dInv) = prelude(sequence(spec.invariants map assertionD(invCtx, info))).res
                 // we also need an invariant that states that
                 // for index i and value j and range expression x
                 // invariant len(c) > 0 ==> 0 <= i && i < len(x) ==> j == x[i]
@@ -1375,9 +1384,9 @@ object Desugar {
                   in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
                   in.Implication(
                     in.And(
-                      in.AtMostCmp(in.IntLit(0)(indexSrc), conditionalIndex)(indexSrc),
-                      in.LessCmp(conditionalIndex, length)(indexSrc))(indexSrc),
-                    in.ExprAssertion(in.EqCmp(in.IndexedExp(copiedVar, conditionalIndex, typ)(rangeExpSrc), valueLeft)(rangeExpSrc))(rangeExpSrc)
+                      in.AtMostCmp(in.IntLit(0)(indexSrc), indexLeft.op)(indexSrc),
+                      in.LessCmp(indexLeft.op, length)(indexSrc))(indexSrc),
+                    in.ExprAssertion(in.EqCmp(in.IndexedExp(copiedVar, indexLeft.op, typ)(rangeExpSrc), valueLeft)(rangeExpSrc))(rangeExpSrc)
                   )(rangeSrc))(rangeSrc)
                 in.Block(
                   Vector(valueLeft.asInstanceOf[in.LocalVar]),
@@ -1392,6 +1401,13 @@ object Desugar {
                 // the index in bounds invariant added
                 // the loop in this case looks like this:
                 // for i := range x { ...
+                val invCtx = ctx.copyWithExpD{
+                  case n@PNamedOperand(_@PIdnUse(name)) if name == shorts(0).name =>
+                    val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(n.id.name, range.exp.toString()))
+                    Some(unit(conditionalId(indexLeft.op, in.LessCmp(in.IntLit(0)(invSrc), length)(invSrc), in.IntT(Addressability.exclusiveVariable))(invSrc)))
+                  case _ => None
+                }
+                val (dInvPre, dInv) = prelude(sequence(spec.invariants map assertionD(invCtx, info))).res
                 in.Seqn(
                   Vector(copyAss, indexAss, copyIndexAss) ++ dInvPre ++ dTerPre ++ Vector(
                     in.While(cond, dInv ++ Vector(copiedIndexBoundsInv, copiedIndexEqualsIndexInv, indexBoundsInv), dTer, in.Block(Vector(continueLoopLabelProxy),
@@ -2915,15 +2931,38 @@ object Desugar {
       fPred
     }
 
-    private var hasConditionalIdInt : Boolean = false
+    /**
+      * Holds types for which conditionalId functions have been declared for.
+      * This way conditionalId functions do not get declared twice for the same
+      * type.
+      */
+    private var hasConditionalIdForType : Set[in.Type] = Set.empty
 
-    private def conditionalIdInt(valueVar: in.Expr, condVar: in.Expr)(src: Meta): in.PureFunctionCall = {
-      val name = in.FunctionProxy("$conditionalIdInt")(Source.Parser.Internal)
-      if (!hasConditionalIdInt) {
-        hasConditionalIdInt = true
-        val value = in.Parameter.In("value", in.IntT(Addressability.inParameter))(Source.Parser.Internal)
+    /**
+      * If it doesn't exist it generates a function:
+      *
+      * function $conditionalId<type>(value: <viper type>, cond: Bool): Int
+      *   requires cond
+      * {
+      *   value
+      * }
+      *
+      * where type is the underlying type of param generalType
+      *
+      * @param valueVar
+      * @param condVar
+      * @param generalType
+      * @param src
+      * @return a call to the $conditionalId<type> function with arguments valueVar and condVar
+      */
+    private def conditionalId(valueVar: in.Expr, condVar: in.Expr, generalType: in.Type)(src: Meta): in.PureFunctionCall = {
+      val typ = underlyingType(generalType)
+      val name = in.FunctionProxy("$" + s"conditionalId$typ")(Source.Parser.Internal)
+      if (!hasConditionalIdForType(typ)) {
+        hasConditionalIdForType += typ
+        val value = in.Parameter.In("value", typ.withAddressability(Addressability.inParameter))(Source.Parser.Internal)
         val cond = in.Parameter.In("cond", in.BoolT(Addressability.inParameter))(Source.Parser.Internal)
-        val res = in.Parameter.Out("res", in.IntT(Addressability.outParameter))(Source.Parser.Internal)
+        val res = in.Parameter.Out("res", typ.withAddressability(Addressability.outParameter))(Source.Parser.Internal)
         val args = Vector(value, cond)
         val results = Vector(res)
         val pres = Vector(in.ExprAssertion(cond)(Source.Parser.Internal))

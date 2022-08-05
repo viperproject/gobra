@@ -28,6 +28,8 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case g: PVarDecl if isGlobalVarDeclaration(g) =>
       // HACK: without this explicit check, Gobra does not find repeated declarations
       //       of global variables. This has to do with the changes introduced in PR #186.
+      //       We need this check nonetheless because the checks performed in the "true" branch
+      //       assume that the ids are well-defined.
       val idsOkMsgs = g.left.flatMap(l => wellDefID(l).out)
       if (idsOkMsgs.isEmpty) {
         val isGhost = isEnclosingGhost(g)

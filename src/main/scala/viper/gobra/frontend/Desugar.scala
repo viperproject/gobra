@@ -430,7 +430,7 @@ object Desugar {
         "Unexpected case reached")
       val src = meta(decl, info)
       val gvars = decl.left.map(info.regular) map {
-        case g: st.GlobalVariable => globalVarD(g, info)(src)
+        case g: st.GlobalVariable => globalVarD(g)(src)
         case w: st.Wildcard =>
           val typ = typeD(info.typ(w.decl), Addressability.globalVariable)(src)
           val scope = info.codeRoot(decl).asInstanceOf[PPackage]
@@ -463,7 +463,7 @@ object Desugar {
     }
 
     // TODO: use info here
-    def globalVarD(v: st.GlobalVariable, info: TypeInfo)(src: Meta): in.GlobalVar = {
+    def globalVarD(v: st.GlobalVariable)(src: Meta): in.GlobalVar = {
       val typ = typeD(v.context.typ(v.id), Addressability.globalVariable)(src)
       val proxy = globalVarProxyD(v)
       in.GlobalVar(proxy, typ)(src)
@@ -956,7 +956,10 @@ object Desugar {
           case _: PWildcard => freshDeclaredExclusiveVar(t.withAddressability(Addressability.Exclusive), idn, info)(src).map(in.Assignee.Var)
 
           case _ =>
-            val x = assignableVarD(ctx, info)(idn)
+            val x = assignableVarD(ctx, info)(idn) match {
+              case Left(value) => value
+              case Right(_) => violation("Unexpected BLA") // TODO
+            }
             if (isDef) {
               val v = x.asInstanceOf[in.LocalVar]
               for {
@@ -1758,9 +1761,15 @@ object Desugar {
 
       info.resolve(expr) match {
         case Some(p: ap.LocalVariable) =>
-          unit(in.Assignee.Var(assignableVarD(ctx, info)(p.id)))
+          assignableVarD(ctx, info)(p.id) match {
+            case Left(v) => unit(in.Assignee.Var(v))
+            case Right(v) => unit(in.Assignee.Pointer(v))
+          }
         case Some(p: ap.GlobalVariable) =>
-          unit(in.Assignee.Var(assignableVarD(ctx, info)(p.id)))
+          assignableVarD(ctx, info)(p.id) match {
+            case Left(v) => unit(in.Assignee.Var(v))
+            case Right(v) => unit(in.Assignee.Pointer(v))
+          }
         case Some(p: ap.Deref) =>
           derefD(ctx, info)(p)(src) map in.Assignee.Pointer
         case Some(p: ap.FieldSelection) =>
@@ -1787,7 +1796,7 @@ object Desugar {
             case r => Violation.violation(s"expected variable reference but got $r")
           }
         case Some(p: ap.GlobalVariable) =>
-          val globVar = globalVarD(p.symb, info)(src)
+          val globVar = globalVarD(p.symb)(src)
           unit(in.Addressable.GlobalVar(globVar))
         case Some(p: ap.Deref) =>
           derefD(ctx, info)(p)(src) map in.Addressable.Pointer
@@ -1841,7 +1850,7 @@ object Desugar {
           case n: PNamedOperand => info.resolve(n) match {
             case Some(p: ap.Constant) => unit(globalConstD(p.symb)(src))
             case Some(_: ap.LocalVariable) => unit(varD(ctx, info)(n.id))
-            case Some(p: ap.GlobalVariable) => unit(globalVarD(p.symb, info)(src))
+            case Some(p: ap.GlobalVariable) => unit(globalVarD(p.symb)(src))
             case Some(_: ap.NamedType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
@@ -1879,7 +1888,7 @@ object Desugar {
           case n: PDot => info.resolve(n) match {
             case Some(p: ap.FieldSelection) => fieldSelectionD(ctx, info)(p)(src)
             case Some(p: ap.Constant) => unit[in.Expr](globalConstD(p.symb)(src))
-            case Some(p: ap.GlobalVariable) => unit[in.Expr](globalVarD(p.symb, info)(src))
+            case Some(p: ap.GlobalVariable) => unit[in.Expr](globalVarD(p.symb)(src))
             case Some(_: ap.NamedType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
@@ -3057,16 +3066,16 @@ object Desugar {
       }
     }
 
-    def assignableVarD(ctx: FunctionContext, info: TypeInfo)(id: PIdnNode) : in.AssignableVar = {
+    def assignableVarD(ctx: FunctionContext, info: TypeInfo)(id: PIdnNode) : Either[in.AssignableVar, in.Deref] = {
       info.regular(id) match {
         case g: st.GlobalVariable =>
           val src: Meta = meta(id, info)
-          globalVarD(g, info)(src)
+          Left(globalVarD(g)(src))
         case _: st.Variable => ctx(id, info) match {
-          case Some(v: in.AssignableVar) => v
-          // case Some(d@in.Deref(_: in.Var, _)) => d // TODO: don't know how to address
+          case Some(v: in.AssignableVar) => Left(v)
+          case Some(d@in.Deref(_: in.Var, _)) => Right(d)
           case Some(_) => violation("expected an assignable variable or the dereference of a variable")
-          case None => localVarContextFreeD(id, info)
+          case None => Left(localVarContextFreeD(id, info))
         }
         case e => violation(s"Expected a variable, but got $e instead")
       }

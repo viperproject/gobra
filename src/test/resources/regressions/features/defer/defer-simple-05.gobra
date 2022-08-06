@@ -1,0 +1,66 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+requires acc(x)
+ensures acc(x) && *x == old(*x) * n
+func mult(x *int, n int) {
+    *x *= n
+}
+
+requires acc(x)
+ensures acc(x) && *x == 6
+func test1(x *int) {
+    c := requires acc(x)
+         ensures acc(x) && *x == old(*x) + n
+         func add(x *int, n int) {
+            *x += n
+         }
+    defer c(x,1) as add
+    *x = 5
+}
+
+requires acc(x)
+ensures acc(x) && *x == 10
+func test2(x *int) {
+    c := requires acc(x)
+         ensures acc(x) && *x == old(*x) * 2
+         func times2(x *int) {
+            *x *= 2
+         }
+    defer c(x) as mult{n: 2}
+
+    *x = 5
+
+    proof c implements mult{n: 2} {
+        c(x) as times2
+    }
+}
+
+requires acc(x)
+ensures acc(x) && *x == 10
+func test3(x *int) {
+    defer mult(x,2) as mult
+    *x = 5
+    return
+    *x = 6
+}
+
+type Mult struct { n int }
+requires acc(x)
+ensures acc(x) && *x == old(*x) * self.n
+func (self Mult) times(x *int) {
+    *x *= self.n
+}
+
+requires acc(x)
+ensures acc(x) && *x == 15
+func test4(x *int) {
+    defer Mult{3}.times(x) as mult{n: 3}
+    *x = 5
+    
+    proof Mult{3}.times implements mult{n: 3} {
+        Mult{3}.times(x)
+    }
+}

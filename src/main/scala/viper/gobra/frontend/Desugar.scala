@@ -2822,7 +2822,7 @@ object Desugar {
       * Generates the proof obligation for the init code in `p`. The proof obligations for the init of `p` are
       * encoded as a method that performs the following operations, in order:
       * - inhale all preconditions of the imports in the file
-      * - inhale access to all global variables declared in the file
+      * - initialize all global variables
       * - execute the operations on the LHS of the declarations by declaration order,
       *   as long as dependency order is respected.
       * - execute all inits in the current file in the order they appear
@@ -2855,9 +2855,9 @@ object Desugar {
             decls = Vector(),
             postprocessing = Vector(),
             seqn = in.MethodBodySeqn{
-              // inhale access to all global variables declared in the file (not all declarations in the package!)
-              val accDeclaredGlobs: Vector[in.Inhale] = sortedGlobVarDecls.flatMap(_.left.map(gVar =>
-                in.Inhale(in.Access(in.Accessible.Address(gVar), in.FullPerm(gVar.info))(gVar.info))(gVar.info)
+              // init all global variables declared in the file (not all declarations in the package!)
+              val initDeclaredGlobs: Vector[in.Initialization] = sortedGlobVarDecls.flatMap(_.left.map(gVar =>
+                in.Initialization(gVar)(gVar.info)
               ))
               // execute the declaration statements for variables in order of declaration, while satisfying the
               // dependency relation
@@ -2885,7 +2885,7 @@ object Desugar {
                 initBlocks.flatMap(b => b.body.toVector.map(_._2).map(blockD(FunctionContext.empty(), info)))
 
               // body of the generated method
-              accDeclaredGlobs ++ declarationsInOrder ++ initCode
+              initDeclaredGlobs ++ declarationsInOrder ++ initCode
             }(src)
           )(src)
         )

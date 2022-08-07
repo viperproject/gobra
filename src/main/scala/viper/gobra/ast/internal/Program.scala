@@ -958,6 +958,7 @@ object Ref {
     val pointerT = PointerT(ref.typ, Addressability.reference)
     ref match {
       case x: LocalVar     => Ref(Addressable.Var(x), pointerT)(info)
+      case x: GlobalVar    => Ref(Addressable.GlobalVar(x), pointerT)(info)
       case x: Deref        => Ref(Addressable.Pointer(x), pointerT)(info)
       case x: FieldRef     => Ref(Addressable.Field(x), pointerT)(info)
       case x: IndexedExp   => Ref(Addressable.Index(x), pointerT)(info)

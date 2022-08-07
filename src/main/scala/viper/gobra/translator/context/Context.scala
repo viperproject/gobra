@@ -61,7 +61,7 @@ trait Context {
 
   def variable(x: in.BodyVar): vpr.LocalVarDecl = typeEncoding.variable(this)(x)
 
-  def globalVar(x: in.Global): CodeWriter[vpr.Exp] = typeEncoding.globalVar(this)(x)
+  def globalVar(x: in.Global): vpr.Exp = typeEncoding.globalVar(this)(x)
 
   def member(x: in.Member): MemberWriter[Vector[vpr.Member]] = typeEncoding.member(this)(x)
 

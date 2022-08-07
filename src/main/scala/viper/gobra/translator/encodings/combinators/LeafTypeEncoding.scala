@@ -66,7 +66,7 @@ trait LeafTypeEncoding extends TypeEncoding {
     case (dflt: in.DfltVal) :: t / Shared if typ(ctx).isDefinedAt(t) =>
       unit(withSrc(vpr.NullLit(), dflt))
     case (v: in.GlobalVar) :: t / Shared if typ(ctx).isDefinedAt(t) =>
-      globalVar(ctx)(v)
+      unit(globalVar(ctx)(v))
     case (loc: in.Location) :: t / Shared if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
       for {

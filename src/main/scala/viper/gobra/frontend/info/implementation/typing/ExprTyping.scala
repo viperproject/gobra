@@ -288,8 +288,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PBitNegation(op) => isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST)(op)
 
     case n@PIndexedExp(base, index) =>
-      isExpr(base).out ++ isExpr(index).out ++
-        ((underlyingType(exprType(base)), underlyingType(exprType(index))) match {
+      isExpr(base).out ++ isExpr(index).out ++ {
+        val baseType = exprType(base)
+        val idxType  = exprType(index)
+        (underlyingType(baseType), underlyingType(idxType)) match {
           case (ArrayT(l, _), IntT(_)) =>
             val idxOpt = intConstantEval(index)
             error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
@@ -310,14 +312,33 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (StringT, IntT(_)) =>
             error(n, "Indexing a string is currently not supported")
 
-          case (MapT(key, _), indexT) =>
-            error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
+          case (MapT(key, _), underlyingIdxType) =>
+            // Assignability in Go is a property between a value and and a type. In Gobra, we model this as a relation
+            // between two types, which is less precise. Because of this limitation, and with the goal of handling
+            // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
+            // expressions that are not accepted by the compiler.
+            val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
+            if (assignableToIdxType.nonEmpty) {
+              error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
+            } else {
+              assignableToIdxType
+            }
 
-          case (MathMapT(key, _), indexT) =>
-            error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
+          case (MathMapT(key, _), underlyingIdxType) =>
+            // Assignability in Go is a property between a value and and a type. In Gobra, we model this as a relation
+            // between two types, which is less precise. Because of this limitation, and with the goal of handling
+            // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
+            // expressions that are not accepted by the compiler.
+            val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
+            if (assignableToIdxType.nonEmpty) {
+              error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
+            } else {
+              assignableToIdxType
+            }
 
           case (bt, it) => error(n, s"$it index is not a proper index of $bt")
-        })
+        }
+      }
 
 
     case n@PSliceExp(base, low, high, cap) => isExpr(base).out ++

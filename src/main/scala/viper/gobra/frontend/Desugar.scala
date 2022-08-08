@@ -1383,6 +1383,7 @@ object Desugar {
                 // we also need an invariant that states that
                 // for index i and value j and range expression x
                 // invariant len(c) > 0 ==> 0 <= i && i < len(x) ==> j == x[i]
+                val indexValueSrc = meta(range, info).createAnnotatedInfo(Source.NoPermissionToRangeExpressionAnnotation())
                 val indexValueEq = in.Implication(
                   in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
                   in.Implication(
@@ -1390,7 +1391,7 @@ object Desugar {
                       in.AtMostCmp(in.IntLit(0)(indexSrc), indexLeft.op)(indexSrc),
                       in.LessCmp(indexLeft.op, length)(indexSrc))(indexSrc),
                     in.ExprAssertion(in.EqCmp(in.IndexedExp(copiedVar, indexLeft.op, typ)(rangeExpSrc), valueLeft)(rangeExpSrc))(rangeExpSrc)
-                  )(rangeSrc))(rangeSrc)
+                  )(rangeSrc))(indexValueSrc)
                 in.Block(
                   Vector(valueLeft.asInstanceOf[in.LocalVar]),
                   Vector(copyAss, indexAss, copyIndexAss, updateValue) ++ dInvPre ++ dTerPre ++ Vector(

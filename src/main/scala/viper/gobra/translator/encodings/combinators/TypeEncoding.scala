@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.ast.internal.theory.Comparability
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
-import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, Source}
+import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, NoPermissionToRangeExpressionError, Source}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.library.Generator
 import viper.gobra.translator.context.Context
@@ -217,8 +217,12 @@ trait TypeEncoding extends Generator {
   final def invariant(ctx: Context): in.Assertion ==> (CodeWriter[Unit], vpr.Exp) = {
     def invErr(inv: vpr.Exp): ErrorTransformer = {
       case e@ vprerr.ContractNotWellformed(Source(info), reason, _) if e causedBy inv =>
-        LoopInvariantNotWellFormedError(info)
-          .dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
+        info.origin match {
+          case Source.AnnotatedOrigin(_, _:Source.NoPermissionToRangeExpressionAnnotation) =>
+            NoPermissionToRangeExpressionError(info).dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
+          case _ => LoopInvariantNotWellFormedError(info)
+              .dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
+        }
     }
 
     val ass = finalAssertion(ctx); {

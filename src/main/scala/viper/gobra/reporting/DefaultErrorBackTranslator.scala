@@ -171,6 +171,7 @@ class DefaultErrorBackTranslator(
 
       case _ / RangeVariableMightNotExistAnnotation(varName, rangeExpr) =>
         x.reasons.foldLeft(RangeVariableMightNotExistError(x.info)(varName, rangeExpr): VerificationError){ case (err, reason) => err dueTo reason }
+
       case _ => x
     }
 

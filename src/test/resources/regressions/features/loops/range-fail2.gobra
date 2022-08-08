@@ -5,7 +5,7 @@ package pkg
 
 func foo_arr() {
 	x := []uint{1, 2, 3, 4}
-	//:: ExpectedOutput(invariant_not_well_formed)
+	//:: ExpectedOutput(no_permission_to_range_expression)
 	for i, j := range x {
 	}
 }

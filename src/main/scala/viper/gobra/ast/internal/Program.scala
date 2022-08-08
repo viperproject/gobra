@@ -406,7 +406,7 @@ case class SafeTypeAssertion(resTarget: LocalVar, successTarget: LocalVar, expr:
 
 case class FunctionCall(targets: Vector[LocalVar], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt with Deferrable
 case class MethodCall(targets: Vector[LocalVar], recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt with Deferrable
-case class ClosureCall(targets: Vector[LocalVar], closure: Expr, args: Vector[Expr], spec: ClosureSpec)(val info: Source.Parser.Info) extends Stmt
+case class ClosureCall(targets: Vector[LocalVar], closure: Expr, args: Vector[Expr], spec: ClosureSpec)(val info: Source.Parser.Info) extends Stmt with Deferrable
 
 case class GoFunctionCall(func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 case class GoMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
@@ -1126,7 +1126,10 @@ case class ClosureImplements(closure: Expr, spec: ClosureSpec)(override val info
   override def typ: Type = BoolT(Addressability.rValue)
 }
 
-case class ClosureSpec(func: FunctionMemberOrLitProxy, params: Map[Int, Expr])(override val info: Source.Parser.Info) extends Node
+case class ClosureSpec(func: FunctionMemberOrLitProxy, params: Map[Int, Expr])(override val info: Source.Parser.Info) extends Node {
+  lazy val paramValues: Vector[Option[Expr]] =
+    if (params.isEmpty) Vector.empty else (1 to params.keySet.max).map(idx => params.get(idx)).toVector
+}
 
 case class SpecImplementationProof(closure: Expr, spec: ClosureSpec, body: Block, pres: Vector[Assertion], posts: Vector[Assertion])
                                   (override val info: Source.Parser.Info) extends Stmt

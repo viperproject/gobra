@@ -65,7 +65,7 @@ object Core {
 
   def deepCore(x: in.ClosureSpec): Core[in.ClosureSpec] = {
     for {
-      paramValues <- vector(x.paramValues.map(y => option(y.map((core)))))
+      paramValues <- vector(x.paramValues.map(y => option(y.map(core))))
       params = paramValues.zipWithIndex.collect{ case (Some(exp), idx) => idx+1 -> exp }.toMap
     } yield x.copy(params = params)(x.info)
   }

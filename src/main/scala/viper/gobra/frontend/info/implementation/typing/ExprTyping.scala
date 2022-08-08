@@ -654,19 +654,22 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case p => violation(s"expected conversion, function call, predicate call, or predicate expression instance, but got $p")
     }
 
-    case PIndexedExp(base, index) => (underlyingType(exprType(base)), underlyingType(exprType(index))) match {
-      case (ArrayT(_, elem), IntT(_)) => elem
-      case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
-      case (SequenceT(elem), IntT(_)) => elem
-      case (SliceT(elem), IntT(_)) => elem
-      case (GhostSliceT(elem), IntT(_)) => elem
-      case (VariadicT(elem), IntT(_)) => elem
-      case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
-        InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
-      case (MathMapT(key, elem), indexT) if assignableTo(indexT, key) =>
-        InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
-      case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
-    }
+    case PIndexedExp(base, index) =>
+      val baseType = exprType(base)
+      val idxType  = exprType(index)
+      (underlyingType(baseType), underlyingType(idxType)) match {
+        case (ArrayT(_, elem), IntT(_)) => elem
+        case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
+        case (SequenceT(elem), IntT(_)) => elem
+        case (SliceT(elem), IntT(_)) => elem
+        case (GhostSliceT(elem), IntT(_)) => elem
+        case (VariadicT(elem), IntT(_)) => elem
+        case (MapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+          InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+        case (MathMapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+          InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+        case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
+      }
 
     case PSliceExp(base, low, high, cap) =>
       val baseType = exprType(base)

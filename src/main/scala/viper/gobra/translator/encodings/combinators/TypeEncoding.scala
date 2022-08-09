@@ -44,27 +44,6 @@ trait TypeEncoding extends Generator {
   }
 
   /**
-    * Translates variables that have a global scope. Returns the encoded Viper expression.
-    * As the default encoding, returns a call to a function with the argument name and the translated type.
-    */
-  def globalVar(ctx: Context): in.Global ==> vpr.Exp = {
-    case v: in.GlobalConst if typ(ctx) isDefinedAt v.typ => ctx.fixpoint.get(v)(ctx): vpr.Exp
-    case v: in.GlobalVar =>
-      val (pos, info, errT) = v.vprMeta
-      val encodedVar = globalVarReference(ctx)(v)
-      vpr.FieldAccess(encodedVar, ctx.field.field(v.typ.withAddressability(Exclusive))(ctx))(pos, info, errT)
-  }
-
-  def globalVarReference(ctx: Context): in.GlobalVar ==> vpr.Exp = { case v =>
-    val (pos, info, errT) = v.vprMeta
-    val typ = ctx.typ(v.typ)
-    vpr.FuncApp(
-      funcname = v.name.uniqueName,
-      args = Seq.empty
-    )(pos, info, typ, errT)
-  }
-
-  /**
     * Encodes members.
     *
     * This function is called once for every member of the input program.
@@ -220,8 +199,8 @@ trait TypeEncoding extends Generator {
     * Furthermore, the default implements [T(e: T)] -> [e]
     */
   def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+    case v: in.GlobalConst if typ(ctx) isDefinedAt v.typ => unit(ctx.fixpoint.get(v)(ctx))
     case (v: in.BodyVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar)
-    case (v: in.Global) :: t / Exclusive if typ(ctx).isDefinedAt(t) => unit(globalVar(ctx)(v))
     case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) => ctx.expression(expr)
   }
 
@@ -279,7 +258,14 @@ trait TypeEncoding extends Generator {
     */
   def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
     case (v: in.BodyVar) :: t / Shared if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar: vpr.Exp)
-    case (v: in.GlobalVar) :: t / Shared if typ(ctx).isDefinedAt(t) => unit(globalVarReference(ctx)(v))
+    case (v: in.GlobalVar) :: t / Shared if typ(ctx).isDefinedAt(t) =>
+      val (pos, info, errT) = v.vprMeta
+      val typ = ctx.typ(v.typ)
+      val vprExpr = vpr.FuncApp(
+        funcname = v.name.uniqueName,
+        args = Seq.empty
+      )(pos, info, typ, errT)
+      unit(vprExpr)
   }
 
   /**

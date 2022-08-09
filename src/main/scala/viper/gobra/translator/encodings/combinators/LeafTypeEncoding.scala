@@ -65,8 +65,6 @@ trait LeafTypeEncoding extends TypeEncoding {
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)) {
     case (dflt: in.DfltVal) :: t / Shared if typ(ctx).isDefinedAt(t) =>
       unit(withSrc(vpr.NullLit(), dflt))
-    case (v: in.GlobalVar) :: t / Shared if typ(ctx).isDefinedAt(t) =>
-      unit(globalVar(ctx)(v))
     case (loc: in.Location) :: t / Shared if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
       for {

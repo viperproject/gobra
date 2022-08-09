@@ -35,7 +35,6 @@ class FinalTypeEncoding(te: TypeEncoding) extends TypeEncoding {
   /* A result is guaranteed */
   override def typ(ctx: Context): in.Type ==> vpr.Type = te.typ(ctx) orElse expectedMatch("typ")
   override def variable(ctx: Context): in.BodyVar ==> vpr.LocalVarDecl = te.variable(ctx) orElse expectedMatch("variable")
-  override def globalVar(ctx: Context): in.Global ==> vpr.Exp = te.globalVar(ctx) orElse expectedMatch("globalVar")
   override def method(ctx: Context): in.Member ==> MemberWriter[vpr.Method] = te.method(ctx) orElse expectedMatch("method")
   override def function(ctx: Context): in.Member ==> MemberWriter[vpr.Function] = te.function(ctx) orElse expectedMatch("function")
   override def predicate(ctx: Context): in.Member ==> MemberWriter[vpr.Predicate] = te.predicate(ctx) orElse expectedMatch("predicate")

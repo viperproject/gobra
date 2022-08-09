@@ -56,17 +56,17 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
     * This is not limiting, as an order can always be found such that the declaration order is compatible
     * with the dependency relation.
     * TODO: this is meant to be a temporary limitation that should be eventually
-    *      replaced by a check that declarations acyclical (there is already
+    *      replaced by a check that declarations are acyclic (there is already
     *      a check for acyclicity implemented in [[DependencyAnalysis]]).
     */
   private def globalDeclSatisfiesDepOrder(globalDeclsInPosOrder: Vector[PVarDecl]): Messages = {
-    var visitedGlobals = Vector.empty[Entity]
+    var visitedGlobals: Set[Entity] = Set.empty[Entity]
     globalDeclsInPosOrder.flatMap{ decl =>
       decl.left.zipWithIndex.flatMap{ case (id, idx) =>
         val visitedAllDeps: Boolean = regular(id) match {
           case g: st.GlobalVariable =>
             val result = samePkgDepsOfGlobalVar(g).forall(visitedGlobals.contains)
-            visitedGlobals :+= g
+            visitedGlobals = visitedGlobals + g
             result
           case _: st.Wildcard if decl.right.isEmpty => true
           case _: st.Wildcard =>

@@ -100,22 +100,16 @@ trait DependencyAnalysis extends BaseProperty { this: TypeInfoImpl =>
           // If it is a reference to a method declared in the current package, it is not in a ghost-context,
           // and it is not dynamically-bound, collect the method info if it has not been collected.
           resolve(n) match {
-            case Some(f: ap.ReceivedMethod) if !isEnclosingGhost(n) &&
-              underlyingType(typ(f.recv)).isInstanceOf[Type.InterfaceT] && f.symb.context == currentPackageContext =>
+            case Some(f: ap.ReceivedMethod) if !isEnclosingGhost(n) && underlyingType(typ(f.recv)).isInstanceOf[Type.InterfaceT] && f.symb.context == currentPackageContext =>
               foundError = Some(s"Calls to dynamically-bound non-ghost methods are not allowed in initialization code, but found $n.")
-            case Some(f: ap.ReceivedMethod) if !isEnclosingGhost(n) &&
-              // only follow definitions for methods defined in the same package
-              tryEnclosingPackage(n).contains(enclosingPkg) && f.symb.context == currentPackageContext =>
+            case Some(f: ap.ReceivedMethod) if !isEnclosingGhost(n) && tryEnclosingPackage(n).contains(enclosingPkg) && f.symb.context == currentPackageContext =>
               if (!visitedEntities.contains(f.symb)) {
                 visitedEntities :+= f.symb
                 stack.push(f.symb.rep)
               }
-            case Some(f: ap.MethodExpr) if !isEnclosingGhost(n) &&
-              underlyingType(symbType(f.typ)).isInstanceOf[Type.InterfaceT] && f.symb.context == currentPackageContext =>
+            case Some(f: ap.MethodExpr) if !isEnclosingGhost(n) && underlyingType(symbType(f.typ)).isInstanceOf[Type.InterfaceT] && f.symb.context == currentPackageContext =>
               foundError = Some(s"Calls to dynamically-bound non-ghost methods are not allowed in initialization code, but found $n.")
-            case Some(f: ap.MethodExpr) if !isEnclosingGhost(n) &&
-              // only follow definitions for methods defined in the same package
-              tryEnclosingPackage(n).contains(enclosingPkg) && f.symb.context == currentPackageContext =>
+            case Some(f: ap.MethodExpr) if !isEnclosingGhost(n) && tryEnclosingPackage(n).contains(enclosingPkg) && f.symb.context == currentPackageContext =>
               if (!visitedEntities.contains(f.symb)) {
                 visitedEntities :+= f.symb
                 stack.push(f.symb.rep)

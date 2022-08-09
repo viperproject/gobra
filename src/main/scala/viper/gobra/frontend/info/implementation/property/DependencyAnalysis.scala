@@ -59,6 +59,7 @@ trait DependencyAnalysis extends BaseProperty { this: TypeInfoImpl =>
     // Stores all dependencies of a node (including itself).
     var dependencies = Seq[st.GlobalVariable]()
     var foundError: Option[String] = None
+    val currentPackageContext = this
 
     // According to the Go language spec:
     //  Dependency analysis does not rely on the actual values of the variables, only on lexical
@@ -76,17 +77,18 @@ trait DependencyAnalysis extends BaseProperty { this: TypeInfoImpl =>
       val elem = stack.pop()
       reflexiveAllChildren(elem).foreach{
         case n: PNamedOperand =>
+          // If it is from another package (checked with _.symb.context == currentPackageContext), do not analyse.
           // If it is a function call, it is not a ghost call,
           // and it is not dynamically-bound, collect the method info if it has not been collected.
           // If it is a global variable, collect its dependencies if it has not been traversed yet.
           resolve(n) match {
-            case Some(g: ap.GlobalVariable) if !isEnclosingGhost(n) =>
+            case Some(g: ap.GlobalVariable) if !isEnclosingGhost(n) && g.symb.context == currentPackageContext =>
               if (!visitedEntities.contains(g.symb)) {
                 dependencies :+= g.symb
                 visitedEntities :+= g.symb
                 stack.push(g.symb.decl)
               }
-            case Some(f: ap.Function) if !isEnclosingGhost(n) =>
+            case Some(f: ap.Function) if !isEnclosingGhost(n) && f.symb.context == currentPackageContext =>
               if (!visitedEntities.contains(f.symb)) {
                 visitedEntities :+= f.symb
                 stack.push(f.symb.decl)
@@ -94,26 +96,26 @@ trait DependencyAnalysis extends BaseProperty { this: TypeInfoImpl =>
             case _ =>
           }
         case n: PDot =>
-          // If it is from another package, do not analyse.
+          // If it is from another package (checked with _.symb.context == currentPackageContext), do not analyse.
           // If it is a reference to a method declared in the current package, it is not in a ghost-context,
           // and it is not dynamically-bound, collect the method info if it has not been collected.
           resolve(n) match {
             case Some(f: ap.ReceivedMethod) if !isEnclosingGhost(n) &&
-              underlyingType(typ(f.recv)).isInstanceOf[Type.InterfaceT] =>
+              underlyingType(typ(f.recv)).isInstanceOf[Type.InterfaceT] && f.symb.context == currentPackageContext =>
               foundError = Some(s"Calls to dynamically-bound non-ghost methods are not allowed in initialization code, but found $n.")
             case Some(f: ap.ReceivedMethod) if !isEnclosingGhost(n) &&
               // only follow definitions for methods defined in the same package
-              tryEnclosingPackage(n).contains(enclosingPkg) =>
+              tryEnclosingPackage(n).contains(enclosingPkg) && f.symb.context == currentPackageContext =>
               if (!visitedEntities.contains(f.symb)) {
                 visitedEntities :+= f.symb
                 stack.push(f.symb.rep)
               }
             case Some(f: ap.MethodExpr) if !isEnclosingGhost(n) &&
-              underlyingType(symbType(f.typ)).isInstanceOf[Type.InterfaceT] =>
+              underlyingType(symbType(f.typ)).isInstanceOf[Type.InterfaceT] && f.symb.context == currentPackageContext =>
               foundError = Some(s"Calls to dynamically-bound non-ghost methods are not allowed in initialization code, but found $n.")
             case Some(f: ap.MethodExpr) if !isEnclosingGhost(n) &&
               // only follow definitions for methods defined in the same package
-              tryEnclosingPackage(n).contains(enclosingPkg) =>
+              tryEnclosingPackage(n).contains(enclosingPkg) && f.symb.context == currentPackageContext =>
               if (!visitedEntities.contains(f.symb)) {
                 visitedEntities :+= f.symb
                 stack.push(f.symb.rep)

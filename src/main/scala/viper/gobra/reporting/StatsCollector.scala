@@ -8,7 +8,7 @@ package viper.gobra.reporting
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.relation.NodeNotInTreeException
-import viper.gobra.ast.frontend.{PClosureDecl, PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor}
+import viper.gobra.ast.frontend.{PClosureDecl, PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PPackage, PParameter, PPredConstructor, PProgram}
 import viper.gobra.ast.internal.BuiltInMember
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.{Info, TypeInfo}
@@ -27,7 +27,7 @@ import java.io.File
 object GobraNodeType extends Enumeration {
   type GobraNodeType = Value
   val MethodDeclaration, FunctionDeclaration, MethodSignature, FunctionPredicateDeclaration, MethodPredicateDeclaration,
-  MethodImplementationProof, MethodPredicateSignature, PredicateConstructor = Value
+  MethodImplementationProof, MethodPredicateSignature, PredicateConstructor, Package, Program = Value
 }
 
 /**
@@ -349,6 +349,30 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
           isAbstractAndNotImported = false,
           isImported,
           isBuiltIn)
+      case _: PProgram =>
+        GobraMemberInfo(
+          pkgId = pkgId,
+          pkg = pkgName,
+          memberName = pkgId ++ "_program_init",
+          args = "",
+          nodeType = Program,
+          hasSpecification = true,
+          isTrusted = false,
+          isAbstractAndNotImported = false,
+          isImported = isImported,
+          isBuiltIn = isBuiltIn)
+      case _: PPackage =>
+        GobraMemberInfo(
+          pkgId = pkgId,
+          pkg = pkgName,
+          memberName = pkgId ++ "_package_init",
+          args = "",
+          nodeType = Package,
+          hasSpecification = false,
+          isTrusted = false,
+          isAbstractAndNotImported = false,
+          isImported = isImported,
+          isBuiltIn = isBuiltIn)
       // Consider the enclosing function, for closure declarations
       case p: PClosureDecl => getMemberInformation(nodeTypeInfo.enclosingFunction(p).get, typeInfo, viperMember)
       // Fallback to the node's code root if we can't match the node

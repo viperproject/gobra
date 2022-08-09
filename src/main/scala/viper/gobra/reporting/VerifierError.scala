@@ -9,6 +9,7 @@ package viper.gobra.reporting
 import viper.gobra.ast.frontend
 import viper.gobra.ast.frontend.{PReceive, PSendStmt}
 import viper.gobra.reporting.Source.Verifier
+import viper.gobra.util.Constants
 import viper.gobra.util.Violation.violation
 import viper.silver.ast.SourcePosition
 
@@ -254,6 +255,18 @@ case class ForLoopError(info: Source.Verifier.Info) extends VerificationError {
 case class OverflowError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "integer_overflow_error"
   override def localMessage: String = "Expression may cause integer overflow"
+}
+
+case class MainPreconditionNotEstablished(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "main_pre_error"
+  override def localMessage: String =
+    s"The precondition of the function ${Constants.MAIN_FUNC_NAME} might not be established by the initialization code"
+}
+
+case class ImportPreconditionNotEstablished(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "import_pre_error"
+  override def localMessage: String =
+    s"The import precondition might not be established by the initialization code of the imported package"
 }
 
 case class ArrayMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {

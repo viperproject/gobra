@@ -357,6 +357,7 @@ class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     private def stubProgram(ts : Vector[PType]) = PProgram(
       PPackageClause(PPkgDef("pkg")),
       Vector(),
+      Vector(),
       Vector(PMethodDecl(
         PIdnDef("foo"),
         PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("self")))),

@@ -106,9 +106,10 @@ trait GhostAssignability {
       case Left(base) => // x.f := e ~ (ghost(x) || ghost(e)) ==> ghost(f)
         error(left, "ghost error: ghost cannot be assigned to non-ghost field", isRightGhost && !ghostIdClassification(n.id)) ++
           error(left, "ghost error: cannot assign to non-ghost field of ghost reference", ghostExprResultClassification(base) && !ghostIdClassification(n.id))
-
+      case _ if resolve(n).exists(_.isInstanceOf[ap.GlobalVariable]) =>
+        error(left, "ghost error: ghost cannot be assigned to a global variable", isRightGhost)
       case _ => error(left, "ghost error: selections on types are not assignable")
-    }
+  }
 
     case PBlankIdentifier() => noMessages
   }

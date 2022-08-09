@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+var A = 1
+
+func init() {
+    // the initialization of variables declared in one file cannot access
+    // variables declared in another file of the same package
+    //:: ExpectedOutput(assignment_error:permission_error)
+    A = B
+}

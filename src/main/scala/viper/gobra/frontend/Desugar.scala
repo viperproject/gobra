@@ -932,6 +932,7 @@ object Desugar {
       blockV(dStatements)(meta(block, info))
     }
 
+
     def stmtD(ctx: FunctionContext, info: TypeInfo)(stmt: PStatement): Writer[in.Stmt] = {
 
       def goS(s: PStatement): Writer[in.Stmt] = stmtD(ctx, info)(s)
@@ -1282,6 +1283,329 @@ object Desugar {
           case n@PContinue(label) => unit(in.Continue(label.map(x => x.name), nm.fetchContinueLabel(n, info))(src))
 
           case n@PBreak(label) => unit(in.Break(label.map(x => x.name), nm.fetchBreakLabel(n, info))(src))
+
+          /**
+            * This case handles for loops with a range clause of the form:
+            *
+            * <invariants>
+            * for i, j := range x {
+            *     body
+            * }
+            *
+            * In the case where x is a slice or array the following code is produced. Note
+            * that everything is in a new block so it can shadow variables with the same
+            * name declared outside. This is also the go behaviour.
+            *
+            * var i int = 0
+            * var i0 int = 0 // since 'i' can change in the iteration we store the true index in i0
+            * var j elem(x) // [v] the type of the elements of x 
+            *
+            * c := x // save the value of the slice/array since changing it doesn't change the iteration
+            *
+            * if (0 <= i && i < len(c)) { // [v]
+            *     j = c[i]
+            * }
+            *
+            * invariant len(c) > 0 ==> 0 <= i0 && i0 <= len(c) // these invariants do not
+            * invariant len(c) > 0 ==> i == i0                 // require access to anything so they
+            * invariant len(c) > 0 ==> 0 <= i && i <= len(c)   // are added before the user invariants
+            * <invariants were i is replaced with f(i, len(c) > 0) and j with f(j, len(c) > 0)>
+            * invariant len(c) > 0 ==> (0 <= i && i < len(c) ==> j == c[i]) // [v]
+            * for i < len(c) {
+            *     <body>
+            *     i0 += 1
+            *     i = i0
+            *     if (0 <= i && i < len(c)) { // [v]
+            *         j = c[i]
+            *     }
+            * }
+            *
+            * In the case where the value variable 'j' is missing all the code annotated with [v]
+            * is omitted
+            *
+            * Function f is the identity function regarding its first argument with a precondition
+            * stating that the second argument must be true.
+            *
+            * requires b
+            * decreases _
+            * pure func f(x: <type>, b: bool) { x }
+            *
+            * It is needed because in the occation of empty slices or arrays, i and j should not exist.
+            * Replacing them with the call to this function will cause its precondition to fail for
+            * empty slices or arrays and thus produce the error which is then transformed to the
+            * desirable one.
+            */
+          case n@PShortForRange(range, shorts, spec, body) =>
+            // is a block as it introduces new variables
+            unit(block(for {
+              exp <- goE(range.exp)
+              (elems, typ) = underlyingType(exp.typ) match {
+                case slice : in.SliceT => (slice.elems, slice)
+                case array : in.ArrayT => (array.elems, array)
+                case _ : in.MapT => violation("Maps are not supported yet in range")
+                case _ : in.StringT => violation("Strings are not supported yet in range")
+                case t => violation(s"Range not applicable to type $t")
+              }
+
+              // index is the place where we store the indices of the range expression
+              rangeSrc = meta(range, info)
+              rangeExpSrc = meta(range.exp, info)
+              indexSrc = meta(shorts(0), info)
+
+              indexLeft <- leftOfAssignmentD(shorts(0), info)(in.IntT(Addressability.exclusiveVariable))
+              copiedIndexVar <- freshDeclaredExclusiveVar(in.IntT(Addressability.exclusiveVariable), n, info)(rangeExpSrc)
+              copyIndexAss = singleAss(in.Assignee.Var(copiedIndexVar), in.IntLit(0)(indexSrc))(rangeExpSrc)
+              incrCopiedIndex = singleAss(in.Assignee.Var(copiedIndexVar), in.Add(copiedIndexVar, in.IntLit(1)(indexSrc))(indexSrc))(indexSrc)
+
+              indexVar = in.Assignee.Var(indexLeft.op.asInstanceOf[in.AssignableVar])
+              incrIndex = singleAss(indexVar, copiedIndexVar)(indexSrc)
+              indexAss = singleAss(indexVar, in.IntLit(0)(rangeSrc))(indexSrc)
+
+              // in go the range expression is only computed once before the iteration begins
+              // we do that by storing it in copiedVar
+              // this also ensures that the elements iterated through do not change
+              // even if the range expression is modified in the loop body
+              copiedVar <- freshDeclaredExclusiveVar(exp.typ, n, info)(rangeExpSrc)
+              copyAss = singleAss(in.Assignee.Var(copiedVar), exp)(rangeExpSrc)
+
+              // get the length of the expression
+              length = in.Length(copiedVar)(rangeSrc)
+              cond = in.LessCmp(indexLeft.op, length)(rangeSrc)
+
+              // this invariant states that the index variable has the same value as the hidden index variable always
+              copiedIndexEqualsIndexInv = in.Implication(
+                in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                in.ExprAssertion(in.EqCmp(indexLeft.op, copiedIndexVar)(rangeSrc))(rangeSrc))(rangeSrc)
+
+              // this invariant states that the hidden index stays within 0 and the length of the array/slice (both inclusive)
+              copiedIndexBoundsInv = in.Implication(
+                in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                in.ExprAssertion(in.And(
+                  in.AtMostCmp(in.IntLit(0)(rangeSrc), copiedIndexVar)(rangeSrc),
+                  in.AtMostCmp(copiedIndexVar, length)(rangeSrc))(rangeSrc))(rangeSrc))(rangeSrc)
+
+              // this invariant states that the index is between 0 and the length of the array/slice (both inclusive)
+              indexBoundsInv = in.Implication(
+                in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                in.ExprAssertion(in.And(
+                  in.AtMostCmp(in.IntLit(0)(rangeSrc), indexLeft.op)(rangeSrc),
+                  in.AtMostCmp(indexLeft.op, length)(rangeSrc))(rangeSrc))(rangeSrc))(rangeSrc)
+
+              (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
+
+              dBody = blockD(ctx, info)(body)
+
+              continueLabelName = nm.continueLabel(n, info)
+              continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
+              continueLoopLabel = in.Label(continueLoopLabelProxy)(src)
+
+              breakLabelName = nm.breakLabel(n, info)
+              breakLoopLabelProxy = in.LabelProxy(breakLabelName)(src)
+              _ <- declare(breakLoopLabelProxy)
+              breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
+
+              wh = if (shorts.length == 2) {
+                // in this case we know that the loop looks like this:
+                // for i, j := range x { ...
+                // until now we have only created the variable i since it is not mandatory for j to exist
+                // if it does, we have to declare it and add the code that will update it in each iteration
+                // which looks like this:
+                // if (0 <= i && i < length(x)) { j = x[i] }
+                // note that this will happen after we have incremented i
+                val valueSrc = meta(shorts(1), info)
+                val valueLeft = assignableVarD(ctx, info)(shorts(1)) match {
+                  case Left(n) => n
+                  case Right(n) => n
+                }
+                val valueVar = in.Assignee.Var(valueLeft.asInstanceOf[in.AssignableVar])
+                val valueAss = singleAss(valueVar, in.IndexedExp(copiedVar, indexLeft.op, typ)(valueSrc))(valueSrc)
+                val updateValue = in.If(in.And(cond, in.AtLeastCmp(indexLeft.op, in.IntLit(0)(valueSrc))(valueSrc))(valueSrc), valueAss, in.Seqn(Vector())(valueSrc))(valueSrc)
+
+                val invCtx = ctx.copyWithExpD{
+                  case n@PNamedOperand(_@PIdnUse(name)) if name == shorts(0).name =>
+                    val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(range.exp.toString()))
+                    Some(unit(conditionalId(indexLeft.op, in.LessCmp(in.IntLit(0)(invSrc), length)(invSrc), in.IntT(Addressability.exclusiveVariable))(invSrc)))
+                  case n@PNamedOperand(_@PIdnUse(name)) if name == shorts(1).name =>
+                    val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(range.exp.toString()))
+                    Some(unit(conditionalId(valueLeft, in.LessCmp(in.IntLit(0)(invSrc), length)(invSrc), elems)(invSrc)))
+                  case _ => None
+                }
+                val (dInvPre, dInv) = prelude(sequence(spec.invariants map assertionD(invCtx, info))).res
+                // we also need an invariant that states that
+                // for index i and value j and range expression x
+                // invariant len(c) > 0 ==> 0 <= i && i < len(x) ==> j == x[i]
+                val indexValueSrc = meta(range, info).createAnnotatedInfo(Source.NoPermissionToRangeExpressionAnnotation())
+                val indexValueEq = in.Implication(
+                  in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                  in.Implication(
+                    in.And(
+                      in.AtMostCmp(in.IntLit(0)(indexSrc), indexLeft.op)(indexSrc),
+                      in.LessCmp(indexLeft.op, length)(indexSrc))(indexSrc),
+                    in.ExprAssertion(in.EqCmp(in.IndexedExp(copiedVar, indexLeft.op, typ)(rangeExpSrc), valueLeft)(rangeExpSrc))(rangeExpSrc)
+                  )(rangeSrc))(indexValueSrc)
+                in.Block(
+                  Vector(valueLeft.asInstanceOf[in.LocalVar]),
+                  Vector(copyAss, indexAss, copyIndexAss, updateValue) ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(cond, Vector(copiedIndexBoundsInv, copiedIndexEqualsIndexInv, indexBoundsInv) ++ dInv ++ Vector(indexValueEq), dTer, in.Block(Vector(continueLoopLabelProxy),
+                      Vector(dBody, continueLoopLabel, incrCopiedIndex, incrIndex, updateValue) ++ dInvPre ++ dTerPre
+                    )(src))(src), breakLoopLabel
+                  )
+                )(src)
+              } else {
+                // else we do not have a value variable and the while loop has only
+                // the index in bounds invariant added
+                // the loop in this case looks like this:
+                // for i := range x { ...
+                val invCtx = ctx.copyWithExpD{
+                  case n@PNamedOperand(_@PIdnUse(name)) if name == shorts(0).name =>
+                    val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(range.exp.toString()))
+                    Some(unit(conditionalId(indexLeft.op, in.LessCmp(in.IntLit(0)(invSrc), length)(invSrc), in.IntT(Addressability.exclusiveVariable))(invSrc)))
+                  case _ => None
+                }
+                val (dInvPre, dInv) = prelude(sequence(spec.invariants map assertionD(invCtx, info))).res
+                in.Seqn(
+                  Vector(copyAss, indexAss, copyIndexAss) ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(cond, Vector(copiedIndexBoundsInv, copiedIndexEqualsIndexInv, indexBoundsInv) ++ dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
+                      Vector(dBody, continueLoopLabel, incrCopiedIndex, incrIndex) ++ dInvPre ++ dTerPre
+                    )(src))(src), breakLoopLabel
+                  )
+                )(src)
+              }
+            } yield wh))
+
+          /**
+            * This case handles for loops with a range clause of the form:
+            *
+            * <invariants>
+            * for expIndex, expValue = range x {
+            *     body
+            * }
+            *
+            * In the case where x is a slice or array the following code is produced.
+            *
+            * var i0 int = 0 // since 'expIndex' can change in the iteration we store the true index in i0
+            *
+            * c := x // save the value of the slice/array since changing it doesn't change the iteration
+            *
+            * if (len(c) > 0) {
+            *     expIndex = 0
+            * }
+            * 
+            * if (0 <= expIndex && expIndex < len(c)) { // [v]
+            *     expValue = c[expIndex]
+            * }
+            *
+            * <invariants were expIndex is replaced with f(i, len(c) > 0) and j with f(j, len(c) > 0)>
+            * invariant len(c) > 0 ==> 0 <= i0 && i0 <= len(c)               // these invariants might require access to something
+            * invariant len(c) > 0 ==> expIndex == i0                        // as expIndex can be an indexing operation for example
+            * invariant len(c) > 0 ==> 0 <= expIndex && expIndex <= len(c)   // so they are added after the user invariants
+            * invariant len(c) > 0 ==> (0 <= expIndex && expIndex < len(c) ==> expValue == c[expIndex]) // [v]
+            * for expIndex < len(c) {
+            *     <body>
+            *     i0 += 1
+            *     expIndex = i0
+            *     if (0 <= expIndex && expIndex < len(c)) { // [v]
+            *         expValue = c[i]
+            *     }
+            * }
+            *
+            * In the case where the value expression 'expValue' is missing all the code annotated with [v]
+            * is omitted
+            */
+          case n@PAssForRange(range, ass, spec, body) =>
+            unit(block(for {
+              exp <- goE(range.exp)
+              typ = underlyingType(exp.typ) match {
+                case slice : in.SliceT => slice
+                case array : in.ArrayT => array
+                case _ : in.MapT => violation("Maps are not supported yet in range")
+                case _ : in.StringT => violation("Strings are not supported yet in range")
+                case t => violation(s"Range not applicable to type $t")
+              }
+              indexLeft <- goL(ass(0))
+              rangeSrc = meta(range, info)
+              indexSrc = meta(ass(0), info)
+              rangeExpSrc = meta(range.exp, info)
+
+              copiedVar <- freshDeclaredExclusiveVar(exp.typ, n, info)(rangeExpSrc)
+              copyAss = singleAss(in.Assignee.Var(copiedVar), exp)(rangeExpSrc)
+              length = in.Length(copiedVar)(rangeSrc)
+
+              copiedIndexVar <- freshDeclaredExclusiveVar(in.IntT(Addressability.exclusiveVariable), n, info)(rangeExpSrc)
+              copyIndexAss = singleAss(in.Assignee.Var(copiedIndexVar), in.IntLit(0)(indexSrc))(rangeExpSrc)
+              incrCopiedIndex = singleAss(in.Assignee.Var(copiedIndexVar), in.Add(copiedIndexVar, in.IntLit(1)(indexSrc))(indexSrc))(indexSrc)
+
+              indexAss = in.If(in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc), singleAss(indexLeft, in.IntLit(0)(rangeSrc))(indexSrc), in.Seqn(Vector())(indexSrc))(indexSrc)
+              incrIndex = singleAss(indexLeft, copiedIndexVar)(indexSrc)
+
+              cond = in.LessCmp(indexLeft.op, length)(rangeSrc)
+
+              copiedIndexEqualsIndexInv = in.Implication(
+                in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                in.ExprAssertion(in.EqCmp(indexLeft.op, copiedIndexVar)(rangeSrc))(rangeSrc))(rangeSrc)
+
+              copiedIndexBoundsInv = in.Implication(
+                in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                in.ExprAssertion(in.And(
+                  in.AtMostCmp(in.IntLit(0)(rangeSrc), copiedIndexVar)(rangeSrc),
+                  in.AtMostCmp(copiedIndexVar, length)(rangeSrc))(rangeSrc))(rangeSrc))(rangeSrc)
+
+              indexBoundsInv = in.Implication(
+                in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                in.ExprAssertion(in.And(
+                  in.AtMostCmp(in.IntLit(0)(rangeSrc), indexLeft.op)(rangeSrc),
+                  in.AtMostCmp(indexLeft.op, length)(rangeSrc))(rangeSrc))(rangeSrc))(rangeSrc)
+
+              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
+              (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
+
+              dBody = blockD(ctx, info)(body)
+
+              continueLabelName = nm.continueLabel(n, info)
+              continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
+              continueLoopLabel = in.Label(continueLoopLabelProxy)(src)
+
+              breakLabelName = nm.breakLabel(n, info)
+              breakLoopLabelProxy = in.LabelProxy(breakLabelName)(src)
+              _ <- declare(breakLoopLabelProxy)
+              breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
+
+              wh = if (ass.length == 2) {
+                val valueLeft = goL(ass(1)).res
+                val decls = ass(1) match {
+                  case _: PBlankIdentifier => Vector(valueLeft.asInstanceOf[in.Assignee.Var].op.asInstanceOf[in.LocalVar])
+                  case _ => Vector.empty
+                }
+                val valueSrc = meta(ass(1), info)
+                val valueAss = singleAss(valueLeft, in.IndexedExp(copiedVar, indexLeft.op, typ)(valueSrc))(valueSrc)
+                val updateValue = in.If(in.And(cond, in.AtLeastCmp(indexLeft.op, in.IntLit(0)(valueSrc))(valueSrc))(valueSrc), valueAss, in.Seqn(Vector())(valueSrc))(valueSrc)
+                
+                val indexValueEq = in.Implication(
+                  in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                  in.Implication(
+                    in.And(
+                      in.AtMostCmp(in.IntLit(0)(indexSrc), indexLeft.op)(indexSrc),
+                      in.LessCmp(indexLeft.op, length)(indexSrc))(indexSrc),
+                    in.ExprAssertion(in.EqCmp(in.IndexedExp(copiedVar, indexLeft.op, typ)(rangeExpSrc), valueLeft.op)(rangeExpSrc))(rangeExpSrc)
+                  )(rangeSrc))(rangeSrc)
+                in.Block(
+                  decls,
+                  Vector(copyAss, indexAss, copyIndexAss, updateValue) ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(cond, dInv ++ Vector(copiedIndexBoundsInv, copiedIndexEqualsIndexInv, indexBoundsInv, indexValueEq), dTer, in.Block(Vector(continueLoopLabelProxy),
+                      Vector(dBody, continueLoopLabel, incrCopiedIndex, incrIndex, updateValue) ++ dInvPre ++ dTerPre
+                    )(src))(src), breakLoopLabel
+                  )
+                )(src)
+              } else {
+                in.Seqn(
+                  Vector(copyAss, indexAss, copyIndexAss) ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(cond, dInv ++ Vector(copiedIndexBoundsInv, copiedIndexEqualsIndexInv, indexBoundsInv), dTer, in.Block(Vector(continueLoopLabelProxy),
+                      Vector(dBody, continueLoopLabel, incrCopiedIndex, incrIndex) ++ dInvPre ++ dTerPre
+                    )(src))(src), breakLoopLabel
+                  )
+                )(src)
+              }
+            } yield wh))
 
           case _ => ???
         }
@@ -2930,6 +3254,58 @@ object Desugar {
       fPred
     }
 
+    /**
+      * Holds types for which conditionalId functions have been declared for.
+      * This way conditionalId functions do not get declared twice for the same
+      * type.
+      */
+    private var hasConditionalIdForType : Set[in.Type] = Set.empty
+
+    /**
+      * If it doesn't exist it generates a function:
+      *
+      * function $conditionalId<type>(value: <viper type>, cond: Bool): Int
+      *   requires cond
+      * {
+      *   value
+      * }
+      *
+      * where type is the underlying type of param generalType
+      *
+      * @param valueVar
+      * @param condVar
+      * @param generalType
+      * @param src
+      * @return a call to the $conditionalId<type> function with arguments valueVar and condVar
+      */
+    private def conditionalId(valueVar: in.Expr, condVar: in.Expr, generalType: in.Type)(src: Meta): in.PureFunctionCall = {
+      val typ = underlyingType(generalType)
+      val name = in.FunctionProxy("$" + s"conditionalId${Names.serializeType(typ)}")(Source.Parser.Internal)
+      if (!hasConditionalIdForType(typ)) {
+        hasConditionalIdForType += typ
+        val value = in.Parameter.In("value", typ.withAddressability(Addressability.inParameter))(Source.Parser.Internal)
+        val cond = in.Parameter.In("cond", in.BoolT(Addressability.inParameter))(Source.Parser.Internal)
+        val res = in.Parameter.Out("res", typ.withAddressability(Addressability.outParameter))(Source.Parser.Internal)
+        val args = Vector(value, cond)
+        val results = Vector(res)
+        val pres = Vector(in.ExprAssertion(cond)(Source.Parser.Internal))
+        val posts = Vector[in.Assertion]()
+        val terminationMeasures = Vector(in.WildcardMeasure(None)(Source.Parser.Internal))
+        val body = Some(value)
+        AdditionalMembers.addMember(
+          in.PureFunction(
+            name,
+            args,
+            results,
+            pres,
+            posts,
+            terminationMeasures,
+            body)(Source.Parser.Internal)
+        )
+      }
+      in.PureFunctionCall(name, Vector(valueVar, condVar), in.IntT(Addressability.callResult))(src)
+    }
+
     /** Desugar the function literal and add it to the map. */
     private def registerFunctionLit(ctx: FunctionContext, info: TypeInfo)(lit: PFunctionLit): Writer[in.Expr] = {
       val fLit = if (lit.spec.isPure) pureFunctionLitD(ctx, info)(lit) else functionLitD(ctx)(lit)
@@ -3057,7 +3433,7 @@ object Desugar {
       ctx(id, info) match {
         case Some(v : in.Var) => v
         case Some(d@in.Deref(_: in.Var, _)) => d
-        case Some(_) => violation("expected a variable or the dereference of a pointer")
+        case Some(v) => violation(s"expected a variable or the dereference of a pointer but got $v")
         case None => localVarContextFreeD(id, info)
       }
     }
@@ -4031,10 +4407,10 @@ object Desugar {
     }
 
     /** returns the relativeId with the CONTINUE_LABEL_SUFFIX appended */
-    def continueLabel(loop: PForStmt, info: TypeInfo) : String = relativeId(loop, info) + CONTINUE_LABEL_SUFFIX
+    def continueLabel(loop: PGeneralForStmt, info: TypeInfo) : String = relativeId(loop, info) + CONTINUE_LABEL_SUFFIX
 
     /** returns the relativeId with the BREAK_LABEL_SUFFIX appended */
-    def breakLabel(loop: PForStmt, info: TypeInfo) : String = relativeId(loop, info) + BREAK_LABEL_SUFFIX
+    def breakLabel(loop: PGeneralForStmt, info: TypeInfo) : String = relativeId(loop, info) + BREAK_LABEL_SUFFIX
 
     /**
       * Finds the enclosing loop which the continue statement refers to and fetches its

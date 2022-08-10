@@ -87,9 +87,11 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   override def enclosingFunction(n: PNode): Option[PFunctionDecl] = tryEnclosingFunction(n)
 
-  override def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PForStmt] = enclosingLabeledLoop(label, n).toOption
+  override def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PGeneralForStmt] = enclosingLabeledLoop(label, n).toOption
 
-  override def enclosingLoopNode(n: PNode) : Option[PForStmt] = enclosingLoopUntilOutline(n).toOption
+  override def enclosingLoopNode(n: PNode) : Option[PGeneralForStmt] = enclosingLoopUntilOutline(n).toOption
+
+  override def enclosingInvariantNode(n: PExpression) : PExpression = enclosingInvariant(n)
 
   override def samePkgDepsOfGlobalVar(n: SymbolTable.GlobalVariable): Vector[SymbolTable.GlobalVariable] =
     samePackageDependenciesGlobals(n) match {

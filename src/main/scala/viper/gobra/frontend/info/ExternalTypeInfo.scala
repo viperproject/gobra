@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info
 
-import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PForStmt, PFunctionDecl, PIdnNode, PIdnUse, PKeyedElement, PLabelUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
+import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PGeneralForStmt, PFunctionDecl, PIdnNode, PIdnUse, PKeyedElement, PLabelUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMemberTag
 import viper.gobra.frontend.info.base.Type.{AbstractType, InterfaceT, StructT, Type}
@@ -105,10 +105,13 @@ trait ExternalTypeInfo {
   def enclosingFunction(n: PNode): Option[PFunctionDecl]
 
   /** if it exists, it returns the for loop node that contains 'n' with label 'label' */
-  def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PForStmt]
+  def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PGeneralForStmt]
 
   /** if it exists, it returns the for loop node that contains 'n' */
-  def enclosingLoopNode(n: PNode) : Option[PForStmt]
+  def enclosingLoopNode(n: PNode) : Option[PGeneralForStmt]
+
+  /** returns the enclosing invariant of 'n' */
+  def enclosingInvariantNode(n: PExpression) : PExpression
 
   /** returns all global variables declared in the same package as 'n' on which the declaration of 'n' depends */
   def samePkgDepsOfGlobalVar(n: SymbolTable.GlobalVariable): Vector[SymbolTable.GlobalVariable]

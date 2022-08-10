@@ -242,6 +242,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case e => violation(s"untypable: $e")
   }
 
+  
   /**
     * Gets the type of a blank identifier if it occurs in the `left` list
     */
@@ -262,6 +263,15 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
           UnknownType
       }
       case AssignMode.Error | AssignMode.Variadic => violation("ill formed assignment")
+    }
+  }
+
+  def getBlankAssigneeTypeRange(n: PNode, left: Vector[PNode], range: PRange): Type = {
+    require(n.isInstanceOf[PIdnNode] || n.isInstanceOf[PBlankIdentifier])
+    val pos = left indexWhere (n eq _)
+    exprType(range.exp) match {
+      case ChannelT(elem, ChannelModus.Recv | ChannelModus.Bi) => elem
+      case _ => miscType(range).asInstanceOf[InternalSingleMulti].mul.ts(pos)
     }
   }
 

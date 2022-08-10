@@ -67,6 +67,8 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PSeq
       |  _: PExpressionStmt
       |  _: POutline
+      | _: PShortForRange
+      | _: PAssForRange
     => noMessages
 
     case n@ (
@@ -74,8 +76,6 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PIfStmt
       |  _: PExprSwitchStmt
       |  _: PTypeSwitchStmt
-      |  _: PAssForRange
-      |  _: PShortForRange
       |  _: PGoStmt
       |  _: PSelectStmt
       |  _: PBreak

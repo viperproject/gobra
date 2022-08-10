@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo_arr() {
+	x := []uint{}
+	invariant acc(x)
+	//:: ExpectedOutput(range_variable_might_not_exist:assertion_error)
+	invariant	 i == 0
+	for i, j := range x {
+	}
+}

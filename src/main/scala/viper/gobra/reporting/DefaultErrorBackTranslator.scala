@@ -85,7 +85,7 @@ object DefaultErrorBackTranslator {
     val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {
       case AssertionFalseError(info / OverflowCheckAnnotation) => OverflowErrorReason(info)
       case AssertionFalseError(info / ReceiverNotNilCheckAnnotation) => InterfaceReceiverIsNilReason(info)
-      case AssertionFalseError(info / RangeVariableMightNotExistAnnotation(_, _)) => AssertionFalseError(info)
+      case AssertionFalseError(info / RangeVariableMightNotExistAnnotation(_)) => AssertionFalseError(info)
       case x => x
     }
 
@@ -169,8 +169,8 @@ class DefaultErrorBackTranslator(
       case _ / AutoImplProofAnnotation(subT, superT) =>
         GeneratedImplementationProofError(subT, superT, x)
 
-      case _ / RangeVariableMightNotExistAnnotation(varName, rangeExpr) =>
-        x.reasons.foldLeft(RangeVariableMightNotExistError(x.info)(varName, rangeExpr): VerificationError){ case (err, reason) => err dueTo reason }
+      case _ / RangeVariableMightNotExistAnnotation(rangeExpr) =>
+        x.reasons.foldLeft(RangeVariableMightNotExistError(x.info)(rangeExpr): VerificationError){ case (err, reason) => err dueTo reason }
 
       case _ => x
     }

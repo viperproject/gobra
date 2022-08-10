@@ -1372,10 +1372,10 @@ object Desugar {
 
                 val invCtx = ctx.copyWithExpD{
                   case n@PNamedOperand(_@PIdnUse(name)) if name == shorts(0).name =>
-                    val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(n.id.name, range.exp.toString()))
+                    val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(range.exp.toString()))
                     Some(unit(conditionalId(indexLeft.op, in.LessCmp(in.IntLit(0)(invSrc), length)(invSrc), in.IntT(Addressability.exclusiveVariable))(invSrc)))
                   case n@PNamedOperand(_@PIdnUse(name)) if name == shorts(1).name =>
-                    val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(n.id.name, range.exp.toString()))
+                    val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(range.exp.toString()))
                     Some(unit(conditionalId(valueLeft, in.LessCmp(in.IntLit(0)(invSrc), length)(invSrc), elems)(invSrc)))
                   case _ => None
                 }
@@ -1407,7 +1407,7 @@ object Desugar {
                 // for i := range x { ...
                 val invCtx = ctx.copyWithExpD{
                   case n@PNamedOperand(_@PIdnUse(name)) if name == shorts(0).name =>
-                    val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(n.id.name, range.exp.toString()))
+                    val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(range.exp.toString()))
                     Some(unit(conditionalId(indexLeft.op, in.LessCmp(in.IntLit(0)(invSrc), length)(invSrc), in.IntT(Addressability.exclusiveVariable))(invSrc)))
                   case _ => None
                 }

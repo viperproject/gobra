@@ -266,14 +266,14 @@ case class ChannelMakePreconditionError(info: Source.Verifier.Info) extends Veri
   override def localMessage: String = s"The provided length to ${info.origin.tag.trim} might be negative"
 }
 
-case class RangeVariableMightNotExistError(info: Source.Verifier.Info)(varName: String, rangeExpr: String) extends VerificationError {
+case class RangeVariableMightNotExistError(info: Source.Verifier.Info)(rangeExpr: String) extends VerificationError {
   override def localId: String = "range_variable_might_not_exist"
-  override def localMessage: String = s"Range variable '$varName' might not have been declared because the length of the expression '$rangeExpr' might be 0"
+  override def localMessage: String = s"Length of range expression '$rangeExpr' might be 0"
 }
 
 case class NoPermissionToRangeExpressionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "no_permission_to_range_expression"
-  override def localMessage: String = s"Generated invariant for the loop with range clause cannot hold. Missing permissions for range expression"
+  override def localMessage: String = s"Might not have read permissions to range expression"
 }
 
 case class MapMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {

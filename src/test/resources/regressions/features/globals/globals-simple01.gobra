@@ -1,0 +1,45 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+initEnsures acc(&A) && acc(&B) && acc(&C, 1/2)
+package pkg
+
+importRequires true
+import "fmt"
+
+import (
+	importRequires true
+	importRequires true
+	"bytes"
+	importRequires true
+	"sync"
+)
+
+var A int = 0
+var B, C = f()
+var _ = g()
+var D struct{}
+
+decreases
+func f() (int, bool)
+
+decreases
+func g() interface{}
+
+requires acc(&A, 1/2) && A == 1
+ensures  acc(&A, 1/2)
+func testRead() {
+	var v1 int = A
+	assert v1 == 1
+}
+
+requires acc(&C) && C
+func testWrite() {
+	C = false
+}
+
+// Variable hiding works correctly, as in Go
+func tesVarHiding() {
+	var A int = 0
+	assert A == 0
+}

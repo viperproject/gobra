@@ -26,19 +26,27 @@ object Nodes {
   def subnodes(n: Node): Seq[Node] = { // TODO: maybe can be solved generally
     val subnodesWithoutType: Seq[Node] = n match {
       case Program(_, members, _) => members
-      case Method(receiver, name, args, results, pres, posts, measures, body) => Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ measures ++ body
-      case PureMethod(receiver, name, args, results, pres, posts, measures, body) => Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ measures ++ body
-      case Function(name, args, results, pres, posts, measures, body) => Seq(name) ++ args ++ results ++ pres ++ posts ++ measures ++ body
-      case PureFunction(name, args, results, pres, posts, measures, body) => Seq(name) ++ args ++ results ++ pres ++ posts ++ measures ++ body
-      case FPredicate(name, args, body) => Seq(name) ++ args ++ body
-      case MPredicate(recv, name, args, body) => Seq(recv, name) ++ args ++ body
-      case MethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
-      case PureMethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
       case Field(_, _, _) => Seq.empty
       case ClosureSpec(_, params) => params.values.toSeq
-      case DomainDefinition(_, funcs, axioms) => funcs ++ axioms
       case DomainFunc(_, args, results) => args ++ Seq(results)
       case DomainAxiom(expr) => Seq(expr)
+      case m: Member => m match {
+        case Method(receiver, name, args, results, pres, posts, measures, body) => Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ measures ++ body
+        case PureMethod(receiver, name, args, results, pres, posts, measures, body) => Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ measures ++ body
+        case Function(name, args, results, pres, posts, measures, body) => Seq(name) ++ args ++ results ++ pres ++ posts ++ measures ++ body
+        case PureFunction(name, args, results, pres, posts, measures, body) => Seq(name) ++ args ++ results ++ pres ++ posts ++ measures ++ body
+        case FPredicate(name, args, body) => Seq(name) ++ args ++ body
+        case MPredicate(recv, name, args, body) => Seq(recv, name) ++ args ++ body
+        case GlobalVarDecl(lefts, declStmts) => lefts ++ declStmts
+        case MethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
+        case PureMethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
+        case DomainDefinition(_, funcs, axioms) => funcs ++ axioms
+        case BuiltInFPredicate(_, name, _) => Seq(name)
+        case BuiltInFunction(_, name, _) => Seq(name)
+        case BuiltInMPredicate(_, _, name, _) => Seq(name)
+        case BuiltInMethod(_, _, name, _) => Seq(name)
+        case GlobalConstDecl(left, lit) => Seq(left, lit)
+      }
       case s: Stmt => s match {
         case Break(_, _) => Seq.empty
         case Continue(_, _) => Seq.empty
@@ -201,6 +209,7 @@ object Nodes {
         case Parameter.In(_, _) => Seq.empty
         case Parameter.Out(_, _) => Seq.empty
         case LocalVar(_, _) => Seq.empty
+        case GlobalVar(_, _) => Seq.empty
         case GlobalConst.Val(_, _) => Seq.empty
         case _: BoundVar => Seq.empty
       }
@@ -211,9 +220,10 @@ object Nodes {
         case MethodProxy(_, _) => Seq.empty
         case FPredicateProxy(_) => Seq.empty
         case MPredicateProxy(_, _) => Seq.empty
+        case DomainFuncProxy(_, _) => Seq.empty
+        case LabelProxy(_) => Seq.empty
+        case GlobalVarProxy(_, _) => Seq.empty
         case FunctionLitProxy(_) => Seq.empty
-        case _: DomainFuncProxy => Seq.empty
-        case _: LabelProxy => Seq.empty
       }
     }
 //    n match {

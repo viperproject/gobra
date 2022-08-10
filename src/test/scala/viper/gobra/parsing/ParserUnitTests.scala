@@ -84,37 +84,37 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: multi import") {
     frontend.parseImportDecl("import (\"f\";\"g\")") should matchPattern {
-      case Vector(PImplicitQualifiedImport("f"), PImplicitQualifiedImport("g")) =>
+      case Vector(PImplicitQualifiedImport("f", Vector()), PImplicitQualifiedImport("g", Vector())) =>
     }
   }
 
   test("Parser: dot import") {
     frontend.parseImportDecl("import . \"lib/math\"") should matchPattern {
-      case Vector(PUnqualifiedImport("lib/math")) =>
+      case Vector(PUnqualifiedImport("lib/math", Vector())) =>
     }
   }
 
   test("Parser: underscore import") {
     frontend.parseImportDecl("import _ \"lib/math\"") should matchPattern {
-      case Vector(PExplicitQualifiedImport(PWildcard(), "lib/math")) =>
+      case Vector(PExplicitQualifiedImport(PWildcard(), "lib/math", Vector())) =>
     }
   }
 
   test("Parser: default import") {
     frontend.parseImportDecl("import \"lib/math\"") should matchPattern {
-      case Vector(PImplicitQualifiedImport("lib/math")) =>
+      case Vector(PImplicitQualifiedImport("lib/math", Vector())) =>
     }
   }
 
   test("Parser: qualified import") {
     frontend.parseImportDecl("import m \"lib/math\"") should matchPattern {
-      case Vector(PExplicitQualifiedImport(PIdnDef("m"), "lib/math")) =>
+      case Vector(PExplicitQualifiedImport(PIdnDef("m"), "lib/math", Vector())) =>
     }
   }
 
   test("Parser: import path with minus") {
     frontend.parseImportDecl("import m \"foo-bar/math\"") should matchPattern {
-      case Vector(PExplicitQualifiedImport(PIdnDef("m"), "foo-bar/math")) =>
+      case Vector(PExplicitQualifiedImport(PIdnDef("m"), "foo-bar/math", Vector())) =>
     }
   }
 

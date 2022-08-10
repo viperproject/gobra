@@ -44,17 +44,22 @@ trait NameResolution {
               }
               case _ => UnknownEntity()
             }
-
+          case decl: PVarDecl if isGlobalVarDeclaration(decl) =>
+            val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+            StrictAssignMode(decl.left.size, decl.right.size) match {
+              case AssignMode.Single => GlobalVariable(decl, idx, Some(decl.right(idx)), decl.typ, isGhost, isSingleModeDecl = true, this)
+              case AssignMode.Multi  => GlobalVariable(decl, idx, decl.right.headOption, decl.typ, isGhost, isSingleModeDecl = false,  this)
+              case _ if decl.right.isEmpty => GlobalVariable(decl, idx, None, decl.typ, isGhost, isSingleModeDecl = true, this)
+              case _ => UnknownEntity()
+            }
           case decl: PVarDecl =>
             val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
-
             StrictAssignMode(decl.left.size, decl.right.size) match {
               case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, decl.addressable(idx), this)
-              case AssignMode.Multi => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
+              case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
               case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, isGhost, decl.addressable(idx), this)
               case _ => UnknownEntity()
             }
-
           case decl: PTypeDef => NamedType(decl, isGhost, this)
           case decl: PTypeAlias => TypeAlias(decl, isGhost, this)
           case decl: PFunctionDecl => Function(decl, isGhost, this)
@@ -217,7 +222,7 @@ trait NameResolution {
 
       // imports do not belong to the root environment but are file/program specific (instead of package specific):
       case n: PProgram => n.imports flatMap {
-        case PExplicitQualifiedImport(id: PIdnDef, _) => Vector(id)
+        case PExplicitQualifiedImport(id: PIdnDef, _, _) => Vector(id)
         case _ => Vector.empty
       }
 
@@ -289,7 +294,6 @@ trait NameResolution {
 
   lazy val entity: PIdnNode => Entity =
     attr[PIdnNode, Entity] {
-
       case w@PWildcard() => Wildcard(w, this)
 
       case tree.parent.pair(id: PIdnUse, n: PDot) =>

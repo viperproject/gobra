@@ -130,6 +130,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: MethodSubtypeProof => showMethodSubtypeProof(n)
     case n: PureMethodSubtypeProof => showPureMethodSubtypeProof(n)
     case n: GlobalConstDecl => showGlobalConstDecl(n)
+    case n: GlobalVarDecl => showGlobalVarDecl(n)
     case n: BuiltInMember => showBuiltInMember(n)
   })
   
@@ -193,6 +194,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showGlobalConstDecl(globalConst: GlobalConstDecl): Doc = {
     "const" <+> showVarDecl(globalConst.left) <+> "=" <+> showLit(globalConst.right)
+  }
+
+  def showGlobalVarDecl(decl: GlobalVarDecl): Doc = {
+    "var" <+> showVarDeclList(decl.left) <+> block(showStmtList(decl.declStmts))
   }
 
   def showBuiltInMember(member: BuiltInMember): Doc = {
@@ -335,6 +340,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showProxy(x: Proxy): Doc = updatePositionStore(x) <> (x match {
     case FunctionProxy(name) => name
     case MethodProxy(name, _) => name
+    case GlobalVarProxy(name, _) => name
     case p: DomainFuncProxy => p.name
     case FPredicateProxy(name) => name
     case MPredicateProxy(name, _) => name
@@ -596,6 +602,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Parameter.Out(id, _)    => id
     case LocalVar(id, _) => id
     case GlobalConst.Val(id, _) => id
+    case GlobalVar(proxy, _) => proxy.name
   }
 
   def showVarDecl(v: Var): Doc = v match {
@@ -604,6 +611,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Parameter.Out(id, t)    => id <> ":" <+> showType(t)
     case LocalVar(id, t) => id <> ":" <+> showType(t)
     case GlobalConst.Val(id, t) => id <> ":" <+> showType(t)
+    case GlobalVar(proxy, t) => proxy.name <> ":" <+> showType(t)
   }
 
   // types

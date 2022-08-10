@@ -44,15 +44,6 @@ trait TypeEncoding extends Generator {
   }
 
   /**
-    * Translates variables that have a global scope. Returns the encoded Viper expression.
-    * As the default encoding, returns a call to a function with the argument name and the translated type.
-    */
-  def globalVar(ctx: Context): in.GlobalVar ==> CodeWriter[vpr.Exp] = {
-    case v: in.GlobalConst if typ(ctx) isDefinedAt v.typ =>
-      unit(ctx.fixpoint.get(v)(ctx): vpr.Exp)
-  }
-
-  /**
     * Encodes members.
     *
     * This function is called once for every member of the input program.
@@ -61,14 +52,16 @@ trait TypeEncoding extends Generator {
     * Viper members that are added through [[finalize]] must not be contained in the result.
     * Furthermore, Viper members that are the same for different internal members have to be handled by [[finalize]].
     *
-    * The default returns the result of [[method]], [[function]], [[predicate]]
+    * The default returns the result of [[method]], [[function]], [[predicate]], [[globalVarDeclaration]]
     * */
   def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
-    val m = finalMethod(ctx); val f = finalFunction(ctx); val p = finalPredicate(ctx);
+    val m = finalMethod(ctx); val f = finalFunction(ctx);
+    val p = finalPredicate(ctx); val g = finalGlobalVarDeclatarion(ctx);
     {
       case m(r) => r.map(Vector(_))
       case f(r) => r.map(Vector(_))
       case p(r) => r.map(Vector(_))
+      case g(r) => r
     }
   }
 
@@ -90,6 +83,11 @@ trait TypeEncoding extends Generator {
       case biMP(r) => ctx.predicate(r)
     }
   }
+
+  /**
+    * Encodes global variable declarations.
+    */
+  def globalVarDeclaration(@unused ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Function]] = PartialFunction.empty
 
   /**
     * Returns extensions to the precondition for an in-parameter.
@@ -201,8 +199,8 @@ trait TypeEncoding extends Generator {
     * Furthermore, the default implements [T(e: T)] -> [e]
     */
   def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+    case v: in.GlobalConst if typ(ctx) isDefinedAt v.typ => unit(ctx.fixpoint.get(v)(ctx))
     case (v: in.BodyVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar)
-    case (v: in.GlobalVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => globalVar(ctx)(v)
     case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) => ctx.expression(expr)
   }
 
@@ -264,6 +262,14 @@ trait TypeEncoding extends Generator {
     */
   def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
     case (v: in.BodyVar) :: t / Shared if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar: vpr.Exp)
+    case (v: in.GlobalVar) :: t / Shared if typ(ctx).isDefinedAt(t) =>
+      val (pos, info, errT) = v.vprMeta
+      val typ = ctx.typ(v.typ)
+      val vprExpr = vpr.FuncApp(
+        funcname = v.name.uniqueName,
+        args = Seq.empty
+      )(pos, info, typ, errT)
+      unit(vprExpr)
   }
 
   /**
@@ -338,6 +344,15 @@ trait TypeEncoding extends Generator {
   def extendPredicate(@unused ctx: Context): in.Member ==> Extension[MemberWriter[vpr.Predicate]] = PartialFunction.empty
   final def finalPredicate(ctx: Context): in.Member ==> MemberWriter[vpr.Predicate] = {
     val f = predicate(ctx); { case n@f(v) => extendPredicate(ctx).lift(n).fold(v)(_(v)) }
+  }
+
+  /** Adds to the encoding of [[globalVarDeclaration]]. The extension is applied to the result of the global variable
+    * declaration encoding.
+    */
+  def extendGlobalVarDeclaration(@unused ctx: Context): in.Member ==> Extension[MemberWriter[Vector[vpr.Function]]] =
+      PartialFunction.empty
+  final def finalGlobalVarDeclatarion(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Function]] = {
+    val f = globalVarDeclaration(ctx); { case n@f(v) => extendGlobalVarDeclaration(ctx).lift(n).fold(v)(_(v)) }
   }
 
   /** Adds to the encoding of [[expression]]. The extension is applied to the result of the final expression encoding. */

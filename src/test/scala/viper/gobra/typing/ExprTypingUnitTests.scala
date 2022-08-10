@@ -3365,6 +3365,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     def stubProgram(inArgs: Vector[(PParameter, Boolean)], body : PStatement) : PProgram = PProgram(
       PPackageClause(PPkgDef("pkg")),
       Vector(),
+      Vector(),
       Vector(PMethodDecl(
         PIdnDef("foo"),
         PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("self")))),

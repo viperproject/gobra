@@ -10,6 +10,7 @@ import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDe
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMemberTag
 import viper.gobra.frontend.info.base.Type.{AbstractType, InterfaceT, StructT, Type}
+import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
@@ -111,4 +112,7 @@ trait ExternalTypeInfo {
 
   /** returns the enclosing invariant of 'n' */
   def enclosingInvariantNode(n: PExpression) : PExpression
+
+  /** returns all global variables declared in the same package as 'n' on which the declaration of 'n' depends */
+  def samePkgDepsOfGlobalVar(n: SymbolTable.GlobalVariable): Vector[SymbolTable.GlobalVariable]
 }

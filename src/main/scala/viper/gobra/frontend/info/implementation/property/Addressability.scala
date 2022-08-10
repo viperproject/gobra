@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Constant, Variable, Wildcard}
+import viper.gobra.frontend.info.base.SymbolTable.{Constant, GlobalVariable, Variable, Wildcard}
 import viper.gobra.frontend.info.base.Type.{ArrayT, GhostSliceT, MapT, MathMapT, SequenceT, SliceT, VariadicT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -41,6 +41,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       bt.isInstanceOf[SliceT] || bt.isInstanceOf[GhostSliceT] || (bt.isInstanceOf[ArrayT] && goAddressable(b))
     case n: PDot => resolve(n) match {
       case Some(s: ap.FieldSelection) => goAddressable(s.base)
+      case Some(_: ap.GlobalVariable) => true
       case _ => false
     }
     case _ => false
@@ -72,6 +73,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
         case Some(_: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.ReceivedPredicate | _: ap.PredicateExpr ) => AddrMod.rValue
         case Some(_: ap.NamedType | _: ap.BuiltInType | _: ap.Function | _: ap.Predicate | _: ap.DomainFunction) => AddrMod.rValue
         case Some(_: ap.ImplicitlyReceivedInterfaceMethod | _: ap.ImplicitlyReceivedInterfacePredicate) => AddrMod.rValue
+        case Some(_: ap.GlobalVariable) => AddrMod.globalVariable
         case p => Violation.violation(s"Unexpected dot resolve, got $p")
       }
       case _: PLiteral => AddrMod.literal
@@ -122,6 +124,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
 
   private lazy val addressableVarAttr: PIdnNode => AddrMod =
     attr[PIdnNode, AddrMod] { n => regular(n) match {
+      case _: GlobalVariable => AddrMod.globalVariable
       case v: Variable => if (v.addressable) AddrMod.sharedVariable else AddrMod.exclusiveVariable
       case _: Constant => AddrMod.constant
       case _: Wildcard => AddrMod.defaultValue

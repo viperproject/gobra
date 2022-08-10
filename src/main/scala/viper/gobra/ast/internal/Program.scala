@@ -167,8 +167,13 @@ sealed trait FunctionMember extends FunctionLikeMember with FunctionLikeMemberOr
 
 sealed trait Location extends Expr
 
-
-sealed trait GlobalVarDecl extends Member
+case class GlobalVarDecl(left: Vector[GlobalVar],
+                         // statements involved in declaring the variables on [left]; should include an assignment
+                         // to every variable on the left
+                         declStmts: Vector[Stmt]
+                        )(val info: Source.Parser.Info) extends Member {
+  require(declStmts.nonEmpty)
+}
 
 case class GlobalConstDecl(left: GlobalConst, right: Lit)(val info: Source.Parser.Info) extends Member
 
@@ -953,6 +958,7 @@ object Ref {
     val pointerT = PointerT(ref.typ, Addressability.reference)
     ref match {
       case x: LocalVar     => Ref(Addressable.Var(x), pointerT)(info)
+      case x: GlobalVar    => Ref(Addressable.GlobalVar(x), pointerT)(info)
       case x: Deref        => Ref(Addressable.Pointer(x), pointerT)(info)
       case x: FieldRef     => Ref(Addressable.Field(x), pointerT)(info)
       case x: IndexedExp   => Ref(Addressable.Index(x), pointerT)(info)
@@ -968,8 +974,10 @@ sealed trait Addressable extends Node {
 }
 
 object Addressable {
+  import viper.gobra.ast.{internal => in}
 
   case class Var(op: LocalVar) extends Addressable
+  case class GlobalVar(op: in.GlobalVar) extends Addressable
   case class Pointer(op: Deref) extends Addressable
   case class Field(op: FieldRef) extends Addressable
   case class Index(op: IndexedExp) extends Addressable
@@ -1196,7 +1204,7 @@ sealed trait Var extends Expr with Location {
 /**
   * Any variable that has a global scope.
   * */
-sealed trait GlobalVar extends Var
+sealed trait Global extends Var
 
 /**
   * Any variable whose scope is the body of a method, function, or predicate.
@@ -1231,7 +1239,11 @@ case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends
 /** Variables that can be defined in the body of a method or function. */
 case class LocalVar(id: String, typ: Type)(val info: Source.Parser.Info) extends BodyVar with AssignableVar with BlockDeclaration
 
-sealed trait GlobalConst extends GlobalVar {
+case class GlobalVar(name: GlobalVarProxy, typ: Type)(val info: Source.Parser.Info) extends AssignableVar with Global {
+  override def id: String = name.name
+}
+
+sealed trait GlobalConst extends Global {
   def unapply(arg: GlobalConst): Some[(String, Type)] =
     Some((arg.id, arg.typ))
 }
@@ -1559,3 +1571,6 @@ case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends P
 case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends PredicateProxy with MemberProxy
 
 case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BlockDeclaration
+
+case class GlobalVarProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
+

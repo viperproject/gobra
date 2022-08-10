@@ -90,6 +90,9 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val isEnclosingDomain: PNode => Boolean =
     down(false){ case _: PDomainType => true }
 
+  def isGlobalVarDeclaration(n: PVarDecl): Boolean =
+    enclosingCodeRoot(n).isInstanceOf[PPackage]
+
   lazy val enclosingInterface: PNode => PInterfaceType =
     down((_: PNode) => violation("Node does not root in an interface definition")) { case x: PInterfaceType => x }
 

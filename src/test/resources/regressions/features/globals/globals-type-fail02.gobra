@@ -1,0 +1,37 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// Currently, Gobra expects global variables to be declared
+// one after the other, such that all dependencies of a global
+// are declared before it.
+// This restriction is temporary and, in the future, it should
+// be weakened to require only non-cyclic declarations.
+
+//:: ExpectedOutput(type_error)
+var A1 int = A2
+//:: ExpectedOutput(type_error)
+var A2 = A3
+//:: ExpectedOutput(type_error)
+var A3 = A1
+
+//:: ExpectedOutput(type_error)
+var AB, BA int = BA, AB
+
+// The following declaration is cyclical, and thus,
+// rulled out by Gobra
+//:: ExpectedOutput(type_error)
+var AF = af()
+//:: ExpectedOutput(type_error)
+var AG = ag()
+
+func af() int {
+	_ = AG
+	return 0
+}
+
+func ag() int {
+	_ = AF
+	return 0
+}

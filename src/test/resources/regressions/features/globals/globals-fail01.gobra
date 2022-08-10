@@ -1,0 +1,25 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+import "fmt"
+
+var A = 1
+// Code executed during initialization must terminate
+//:: ExpectedOutput(function_termination_error)
+var _, B = f()
+
+func f() (int, bool)
+
+func testRead() {
+	//:: ExpectedOutput(assignment_error:permission_error)
+	var v1 int = A
+	assert v1 == 1
+}
+
+requires acc(&B, 1/2) && B
+func testWrite() {
+	//:: ExpectedOutput(assignment_error:permission_error)
+	B = false
+}

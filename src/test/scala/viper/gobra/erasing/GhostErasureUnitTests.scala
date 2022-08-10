@@ -319,8 +319,10 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
   /* ** Stubs, mocks, and other test setup  */
 
   class TestFrontend {
+
     def stubProgram(inArgs: Vector[(PParameter, Boolean)], body : PStatement) : PProgram = PProgram(
       PPackageClause(PPkgDef("pkg")),
+      Vector(),
       Vector(),
       Vector(PFunctionDecl(
         PIdnDef("foo"),
@@ -361,7 +363,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
       val program = stubProgram(inArgs, stmt)
       val ghostLess = ghostLessProg(program)
       val block = ghostLess match {
-        case PProgram(_, _, Vector(PFunctionDecl(PIdnDef("foo"), _, _, _, Some((_, b))))) => b
+        case PProgram(_, _, _, Vector(PFunctionDecl(PIdnDef("foo"), _, _, _, Some((_, b))))) => b
         case p => fail(s"Parsing succeeded but with an unexpected program $p")
       }
       normalize(block.stmts) match {
@@ -414,7 +416,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     @scala.annotation.tailrec
     private def equal(actual: PMember, expected: PMember): Assertion = {
       (actual, expected) match {
-        case (a: PConstSpec, e: PConstSpec) => assert(a == e)
+        case (a: PConstDecl, e: PConstDecl) => assert(a == e)
         case (a: PVarDecl, e: PVarDecl) => assert(a == e)
         case (PFunctionDecl(aId, aArgs, aResult, aSpec, aBody), PFunctionDecl(eId, eArgs, eResult, eSpec, eBody)) =>
           assert(aId == eId)

@@ -479,7 +479,7 @@ object Desugar {
       case sc@st.SingleConstant(_, id, _, _, _, _) =>
         val src = meta(id, info)
         val gVar = globalConstD(sc)(src)
-        val lit: in.Lit = gVar.typ match {
+        val lit: in.Lit = underlyingType(gVar.typ) match {
           case in.BoolT(Addressability.Exclusive) =>
             val constValue = sc.context.boolConstantEvaluation(sc.exp)
             in.BoolLit(constValue.get)(src)

@@ -1005,7 +1005,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case t: PType => typeSymbType(t)
   }
 
-  private[typing] def wellDefIfConstExpr(expr: PExpression): Messages = typ(expr) match {
+  private[typing] def wellDefIfConstExpr(expr: PExpression): Messages = underlyingType(typ(expr)) match {
     case BooleanT =>
       error(expr, s"expected constant boolean expression, but got $expr instead", boolConstantEval(expr).isEmpty)
     case typ if underlyingType(typ).isInstanceOf[IntT] =>

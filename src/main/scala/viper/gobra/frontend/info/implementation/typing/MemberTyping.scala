@@ -49,7 +49,12 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
     lazy val canAssignInitExpr = error(
       spec,
       s"${spec.right} cannot be assigned to ${spec.left}",
-      !multiAssignableTo(spec.left.map(typ), spec.right.map(typ))
+      // Assignability in Go is a property between a value and and a type. In Gobra, we model this as a relation
+      // between two types, which is less precise. Because of this limitation, and with the goal of handling
+      // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
+      // expressions that are not accepted by the compiler.
+      !(multiAssignableTo(spec.left.map(typ), spec.right.map(typ)) ||
+        multiAssignableTo(spec.left.map(n => underlyingType(typ(n))), spec.right.map(typ)))
     )
     lazy val constExprMsgs = spec.right.flatMap(wellDefIfConstExpr)
     // helps producing less redundant error messages

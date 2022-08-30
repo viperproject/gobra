@@ -105,6 +105,16 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t =>  error(n, s"expected interface or type, but got an expression of type $t")
     }
 
+    case n: PGhostEquals =>
+      val lType = typ(n.left)
+      val rType = typ(n.right)
+      ghostComparableTypes.errors(lType, rType)(n)
+
+    case n: PGhostUnequals =>
+      val lType = typ(n.left)
+      val rType = typ(n.right)
+      ghostComparableTypes.errors(lType, rType)(n)
+
     case POptionNone(t) => isType(t).out
     case POptionSome(e) => isExpr(e).out
     case POptionGet(e) => isExpr(e).out ++ {
@@ -222,6 +232,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PTypeOf => SortT
     case _: PTypeExpr => SortT
     case _: PIsComparable => BooleanT
+    case _: PGhostEquals | _: PGhostUnequals => BooleanT
 
     case POptionNone(t) => OptionT(typeSymbType(t))
     case POptionSome(e) => OptionT(exprType(e))
@@ -400,6 +411,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PLength(op) => go(op)
       case PCapacity(op) => go(op)
+
+      case PGhostEquals(l, r) => go(l) && go(r)
+      case PGhostUnequals(l, r) => go(l) && go(r)
 
       case expr: PGhostCollectionExp => expr match {
         case n: PBinaryGhostExp => go(n.left) && go(n.right)

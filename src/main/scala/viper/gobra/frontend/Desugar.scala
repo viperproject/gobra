@@ -2263,6 +2263,24 @@ object Desugar {
               } yield in.UneqCmp(l, r)(src)
             }
 
+          case PGhostEquals(left, right) =>
+            if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
+              // TODO: inherits the same check as for PEquals and PUnequals. Could possibly be dropped or
+              //       refactored in the future
+              for { l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right) } yield in.GhostEqCmp(l, r)(src)
+            } else {
+              for { l <- exprD(ctx, info)(left); r <- exprD(ctx, info)(right) } yield in.GhostEqCmp(l, r)(src)
+            }
+
+          case PGhostUnequals(left, right) =>
+            if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
+              // TODO: inherits the same check as for PEquals and PUnequals. Could possibly be dropped or
+              //       refactored in the future
+              for { l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right) } yield in.GhostUneqCmp(l, r)(src)
+            } else {
+              for { l <- exprD(ctx, info)(left); r <- exprD(ctx, info)(right) } yield in.GhostUneqCmp(l, r)(src)
+            }
+
           case PLess(left, right) =>
             if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
               for {l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right)} yield in.PermLtCmp(l, r)(src)

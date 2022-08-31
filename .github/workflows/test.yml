@@ -30,9 +30,8 @@ jobs:
           submodules: 'recursive'
       - name: Check that silicon & carbon reference same silver commit
         run: |
-          ls ${GITHUB_WORKSPACE} && \
-          SILICON_SILVER_REF=$(git -C ${GITHUB_WORKSPACE}/viperproject/gobra/viperserver/silicon/silver rev-parse HEAD) && \
-          CARBON_SILVER_REF=$(git -C ${GITHUB_WORKSPACE}/viperproject/gobra/viperserver/carbon/silver rev-parse HEAD) && \
+          SILICON_SILVER_REF=$(git -C viperserver/silicon/silver rev-parse HEAD) && \
+          CARBON_SILVER_REF=$(git -C viperserver/carbon/silver rev-parse HEAD) && \
           if [ "$SILICON_SILVER_REF" != "$CARBON_SILVER_REF" ]; then echo "Silicon and Carbon reference different Silver commits ($SILICON_SILVER_REF and $CARBON_SILVER_REF)" && exit 1 ; fi
       - name: Create image tag
         run: |

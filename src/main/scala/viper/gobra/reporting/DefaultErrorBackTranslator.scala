@@ -67,8 +67,8 @@ object DefaultErrorBackTranslator {
       //      case vprrea.InvalidPermMultiplication(offendingNode) =>
       case vprrea.MagicWandChunkNotFound(CertainSource(info)) =>
         MagicWandChunkNotFound(info)
-      case vprrea.ReceiverNotInjective(CertainSource(info)) =>
-        ReceiverNotInjectiveReason(info)
+      case vprrea.QPAssertionNotInjective(CertainSource(info)) =>
+        QPAssertionNotInjective(info)
       case vprrea.LabelledStateNotReached(CertainSource(info)) =>
         LabelledStateNotReached(info)
       case termination.TerminationConditionFalse(CertainSource(info)) =>

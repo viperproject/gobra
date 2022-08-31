@@ -450,9 +450,9 @@ case class NegativePermissionReason(info: Source.Verifier.Info) extends Verifica
   override def message: String = s"Expression ${info.origin.tag.trim} might be negative."
 }
 
-case class ReceiverNotInjectiveReason(info: Source.Verifier.Info) extends VerificationErrorReason {
-  override def id: String = "receiver_not_injective"
-  override def message: String = s"Receiver ${info.origin.tag.trim} might not be injective."
+case class QPAssertionNotInjective(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "qp_assertion_not_injective"
+  override def message: String = s"Quantified resource ${info.origin.tag.trim} might not be injective."
 }
 
 case class GoCallPreconditionReason(node: Source.Verifier.Info) extends VerificationErrorReason {

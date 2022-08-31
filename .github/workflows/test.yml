@@ -26,7 +26,8 @@ jobs:
     steps:
       - name: Checkout Gobra
         uses: actions/checkout@v2
-        submodules: 'recursive'
+        with:
+          submodules: 'recursive'
 
       - name: Create image tag
         run: |

@@ -13,8 +13,8 @@ import viper.gobra.ast.internal.BuiltInMember
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.util.Violation
-import viper.gobra.util.ViperChopper.{Edges, Vertex}
 import viper.silver.ast.{Function, Member, Method, Predicate}
+import viper.silver.ast.utility.Chopper.{Edges, Vertex}
 import viper.silver.reporter.Time
 
 import scala.collection.concurrent.{Map, TrieMap}

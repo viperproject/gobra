@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// slices can be compared with ghost equality (===)
+requires s === t
+func foo(s []int, t []int) { 
+}
+
+type Comp interface{
+	m() int
+}
+
+// interfaces can also be compared with ghost equality (===)
+ghost
+requires c1 === c2
+func bar1(c1, c2 Comp) bool {
+	return c1 === c2
+}
+
+ghost
+requires c1 !== c2 // ghost disequality
+func bar2(c1, c2 Comp) bool {
+	return c1 !== c2
+}

@@ -6,7 +6,7 @@ package closuresTermination
 func test1() {
     var c@ func(int)int
     c = requires n >= 0
-        preserves acc(&c, 1/2) && c == factorial
+        preserves acc(&c, 1/2) && c === factorial
         decreases n
         func factorial(n int) int {
             if n == 0 {
@@ -21,7 +21,7 @@ func test2() {
     var c@ func(int, int)int
     c = requires m >= 0
         requires n >= 0
-        preserves acc(&c, 1/2) && c == ack
+        preserves acc(&c, 1/2) && c === ack
         ensures result >= 0
         decreases m, n
         func ack(m int, n int) (result int) {
@@ -51,7 +51,7 @@ func test3() {
 func test4() {
     var c@ func(int)int
     c = requires 1 <= n
-        preserves acc(&c, 1/2) && c == collatz
+        preserves acc(&c, 1/2) && c === collatz
         decreases _
         func collatz(n int)int {
             if n == 1 {

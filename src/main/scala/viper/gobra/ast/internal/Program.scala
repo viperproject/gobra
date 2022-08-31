@@ -1036,6 +1036,8 @@ object BinaryExpr {
 
 case class EqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)      extends BinaryExpr("==") with BoolOperation
 case class UneqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)    extends BinaryExpr("!=") with BoolOperation
+case class GhostEqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)   extends BinaryExpr("===") with BoolOperation
+case class GhostUneqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("!==") with BoolOperation
 case class LessCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)    extends BinaryExpr("<" ) with BoolOperation
 case class AtMostCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)  extends BinaryExpr("<=") with BoolOperation
 case class GreaterCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr(">" ) with BoolOperation

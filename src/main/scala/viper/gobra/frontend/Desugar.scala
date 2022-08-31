@@ -2239,6 +2239,11 @@ object Desugar {
 
           case PEquals(left, right) =>
             if (info.typOfExprOrType(left) == PermissionT || info.typOfExprOrType(right) == PermissionT) {
+              // When at least one of the operands has type 'perm', both operands are treated as permissions.
+              // This ensures that comparisons between a perm and a literal are handled consistently with the design of Go.
+              // E.g. the right-hand side of perm(1/2) == 1/2 is treated as a permission.
+              // TODO: maybe it would be preferable to not have this implicit cast for 'perm', and instead require
+              //       the user to always annotate literals of type 'perm' with a conversion.
               for {
                 l <- permissionD(ctx, info)(left.asInstanceOf[PExpression])
                 r <- permissionD(ctx, info)(right.asInstanceOf[PExpression])
@@ -2252,6 +2257,9 @@ object Desugar {
 
           case PUnequals(left, right) =>
             if (info.typOfExprOrType(left) == PermissionT || info.typOfExprOrType(right) == PermissionT) {
+              // When at least one of the operands has type 'perm', both operands are treated as permissions.
+              // This ensures that comparisons between a perm and a literal are handled consistently with the design of Go.
+              // E.g. the right-hand side of perm(1/2) == 1/2 is treated as a permission.
               for {
                 l <- permissionD(ctx, info)(left.asInstanceOf[PExpression])
                 r <- permissionD(ctx, info)(right.asInstanceOf[PExpression])
@@ -2265,8 +2273,9 @@ object Desugar {
 
           case PGhostEquals(left, right) =>
             if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
-              // TODO: inherits the same check as for PEquals and PUnequals. Could possibly be dropped or
-              //       refactored in the future
+              // When at least one of the operands has type 'perm', both operands are treated as permissions.
+              // This ensures that comparisons between a perm and a literal are handled consistently with the design of Go.
+              // E.g. the right-hand side of perm(1/2) == 1/2 is treated as a permission.
               for { l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right) } yield in.GhostEqCmp(l, r)(src)
             } else {
               for { l <- exprD(ctx, info)(left); r <- exprD(ctx, info)(right) } yield in.GhostEqCmp(l, r)(src)
@@ -2274,8 +2283,9 @@ object Desugar {
 
           case PGhostUnequals(left, right) =>
             if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
-              // TODO: inherits the same check as for PEquals and PUnequals. Could possibly be dropped or
-              //       refactored in the future
+              // When at least one of the operands has type 'perm', both operands are treated as permissions.
+              // This ensures that comparisons between a perm and a literal are handled consistently with the design of Go.
+              // E.g. the right-hand side of perm(1/2) == 1/2 is treated as a permission.
               for { l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right) } yield in.GhostUneqCmp(l, r)(src)
             } else {
               for { l <- exprD(ctx, info)(left); r <- exprD(ctx, info)(right) } yield in.GhostUneqCmp(l, r)(src)

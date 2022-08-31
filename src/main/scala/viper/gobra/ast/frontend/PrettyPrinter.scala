@@ -60,8 +60,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // program
 
   def showProgram(p: PProgram): Doc = p match {
-    case PProgram(packageClause, imports, declarations) =>
-      showPackageClause(packageClause) <> line <> line <>
+    case PProgram(packageClause, progPosts, imports, declarations) =>
+      vcat(progPosts.map("initEnsures" <+> showExpr(_))) <>
+        showPackageClause(packageClause) <> line <> line <>
         ssep(imports map showImport, line) <> line <>
         ssep(declarations map showMember, line <> line) <> line
   }
@@ -73,11 +74,18 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   // imports
 
-  def showImport(decl: PImport): Doc = decl match {
-    case PExplicitQualifiedImport(PWildcard(), pkg) => "import" <+> "_" <+> pkg
-    case PExplicitQualifiedImport(qualifier, pkg) => "import" <+> showId(qualifier) <+> pkg
-    case PImplicitQualifiedImport(pkg) => "import" <+> pkg
-    case PUnqualifiedImport(pkg) => "import" <+> "." <+> pkg
+  def showImport(decl: PImport): Doc = {
+    def showPres(pres: Vector[PExpression]): Doc = vcat(pres.map("importRequires" <> showExpr(_)))
+    decl match {
+      case PExplicitQualifiedImport(PWildcard(), pkg, pres) =>
+        showPres(pres) <> line <> "import" <+> "_" <+> pkg
+      case PExplicitQualifiedImport(qualifier, pkg, pres) =>
+        showPres(pres) <> line <> "import" <+> showId(qualifier) <+> pkg
+      case PImplicitQualifiedImport(pkg, pres) =>
+        showPres(pres) <> line <> "import" <+> pkg
+      case PUnqualifiedImport(pkg, pres) =>
+        showPres(pres) <> line <> "import" <+> "." <+> pkg
+    }
   }
 
   // members
@@ -235,10 +243,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case (None, _, None) => "for" <+> showExpr(cond) <+> showStmt(body)
         case _ => "for" <+> opt(pre)(showStmt) <> ";" <+> showExpr(cond) <> ";" <+> opt(post)(showStmt) <+> showStmt(body)
       })
-      case PAssForRange(range, ass, body) =>
-        "for" <+> showExprList(ass) <+> "=" <+> showRange(range) <+> block(showStmt(body))
-      case PShortForRange(range, shorts, body) =>
-        "for" <+> showIdList(shorts) <+> ":=" <+> showRange(range) <+> block(showStmt(body))
+      case PAssForRange(range, ass, spec, body) =>
+        showSpec(spec) <> "for" <+> showExprList(ass) <+> "=" <+> showRange(range) <+> block(showStmt(body))
+      case PShortForRange(range, shorts, spec, body) =>
+        showSpec(spec) <> "for" <+> showIdList(shorts) <+> ":=" <+> showRange(range) <+> block(showStmt(body))
       case PGoStmt(exp) => "go" <+> showExpr(exp)
       case PSelectStmt(send, rec, aRec, sRec, dflt) =>
         "select" <+> block(

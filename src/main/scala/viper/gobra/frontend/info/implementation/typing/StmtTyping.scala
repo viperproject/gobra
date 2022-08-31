@@ -81,8 +81,6 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       error(n, s"found more than one default case", dflt.size > 1) ++
         isExpr(exp).out ++ comparableType.errors(exprType(exp))(n)
 
-    case _: PExprSwitchDflt => noMessages
-
     case n@tree.parent.pair(PExprSwitchCase(left, _), sw: PExprSwitchStmt) =>
       left.flatMap(e => isExpr(e).out ++ comparableTypes.errors(exprType(e), exprType(sw.exp))(n))
 
@@ -103,14 +101,11 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PForStmt(_, cond, _, _, _) => isExpr(cond).out ++ comparableTypes.errors(exprType(cond), BooleanT)(n)
 
-    case n@PShortForRange(exp, lefts, _) =>
-      if (lefts.forall(pointsToData)) multiAssignableTo.errors(Vector(miscType(exp)), lefts map idType)(n)
-      else error(n, s"at least one assignee in $lefts points to a type")
+    case _@PShortForRange(range, shorts, _, _) =>
+      multiAssignableTo.errors(Vector(miscType(range)), shorts map idType)(range)
 
-
-    case n@PAssForRange(exp, lefts, _) =>
-      multiAssignableTo.errors(Vector(miscType(exp)), lefts map exprType)(n) ++
-        lefts.flatMap(t => addressable.errors(t)(t))
+    case _@PAssForRange(range, ass, _, _) =>
+      multiAssignableTo.errors(Vector(miscType(range)), ass map exprType)(range)
 
     case n@PGoStmt(exp) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
 

@@ -31,16 +31,15 @@ trait Enclosing { this: TypeInfoImpl =>
   })
 
 
-  lazy val enclosingLoopUntilOutline: PNode => Either[Option[PNode], PForStmt] = {
-    down[Either[Option[PNode], PForStmt]](Left(None)){
+  lazy val enclosingLoopUntilOutline: PNode => Either[Option[PNode], PGeneralForStmt] = {
+    down[Either[Option[PNode], PGeneralForStmt]](Left(None)){
       case x: POutline => Left(Some(x))
-      case x: PForStmt => Right(x)
+      case x: PGeneralForStmt => Right(x)
     }
   }
 
   // Returns the enclosing loop that has a specific label
-  // It also returns the invariants of that loop
-  def enclosingLabeledLoop(label: PLabelUse, node: PNode): Either[Option[PNode], PForStmt] = {
+  def enclosingLabeledLoop(label: PLabelUse, node: PNode): Either[Option[PNode], PGeneralForStmt] = {
     enclosingLoopUntilOutline(node) match {
       case Right(encLoop) => encLoop match {
         case tree.parent(l: PLabeledStmt) if l.label.name == label.name => Right(encLoop)
@@ -48,6 +47,13 @@ trait Enclosing { this: TypeInfoImpl =>
         case _ => Left(None)
       }
       case r => r
+    }
+  }
+
+  def enclosingInvariant(n: PExpression) : PExpression = {
+    n match {
+      case tree.parent(p) if enclosingExpr(p).isDefined => enclosingExpr(p).get
+      case _ => n
     }
   }
 
@@ -83,6 +89,9 @@ trait Enclosing { this: TypeInfoImpl =>
 
   lazy val isEnclosingDomain: PNode => Boolean =
     down(false){ case _: PDomainType => true }
+
+  def isGlobalVarDeclaration(n: PVarDecl): Boolean =
+    enclosingCodeRoot(n).isInstanceOf[PPackage]
 
   lazy val enclosingInterface: PNode => PInterfaceType =
     down((_: PNode) => violation("Node does not root in an interface definition")) { case x: PInterfaceType => x }

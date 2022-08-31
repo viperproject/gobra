@@ -128,12 +128,13 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   *   This transformation generates a fallbackFunction, an abstract function which receives the receiver and parameters
                   *   of the original method and has the same return type and spec. For the pure method
                   *     requires [PRE]
+                  *     ensures  [POST]
                   *     decreases [MEASURE]
                   *     pure func (r recv) M (x1 T1, ..., xN TN) (res TRes)
                   *
                   *   we generate the following fallback:
                   *     requires [PRE]
-                  *     ensures  [Post]
+                  *     ensures  [POST]
                   *     decreases _
                   *     pure func (r recv) M_fallback(x1 T1, ... xN TN) (res TRes)
                   *
@@ -144,7 +145,6 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   */
                 case m: in.PureMethod if m.terminationMeasures.nonEmpty && m.receiver.typ == t =>
                   Violation.violation(m.results.length == 1, "Expected one and only one out-parameter.")
-                  Violation.violation(m.posts.isEmpty, s"Expected no postcondition, but got ${m.posts}.")
                   // only performs transformation if method has termination measures
                   val src = m.getMeta
 

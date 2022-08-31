@@ -9,6 +9,7 @@ package viper.gobra.reporting
 import viper.gobra.ast.frontend
 import viper.gobra.ast.frontend.{PReceive, PSendStmt}
 import viper.gobra.reporting.Source.Verifier
+import viper.gobra.util.Constants
 import viper.gobra.util.Violation.violation
 import viper.silver.ast.SourcePosition
 
@@ -256,6 +257,18 @@ case class OverflowError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "Expression may cause integer overflow"
 }
 
+case class MainPreconditionNotEstablished(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "main_pre_error"
+  override def localMessage: String =
+    s"The precondition of the function ${Constants.MAIN_FUNC_NAME} might not be established by the initialization code"
+}
+
+case class ImportPreconditionNotEstablished(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "import_pre_error"
+  override def localMessage: String =
+    s"The import precondition might not be established by the initialization code of the imported package"
+}
+
 case class ArrayMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "make_precondition_error"
   override def localMessage: String = s"The provided length might not be smaller or equals to the provided capacity, or length and capacity might not be non-negative"
@@ -264,6 +277,16 @@ case class ArrayMakePreconditionError(info: Source.Verifier.Info) extends Verifi
 case class ChannelMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "make_precondition_error"
   override def localMessage: String = s"The provided length to ${info.origin.tag.trim} might be negative"
+}
+
+case class RangeVariableMightNotExistError(info: Source.Verifier.Info)(rangeExpr: String) extends VerificationError {
+  override def localId: String = "range_variable_might_not_exist"
+  override def localMessage: String = s"Length of range expression '$rangeExpr' might be 0"
+}
+
+case class NoPermissionToRangeExpressionError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "no_permission_to_range_expression"
+  override def localMessage: String = s"Might not have read permissions to range expression"
 }
 
 case class MapMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {

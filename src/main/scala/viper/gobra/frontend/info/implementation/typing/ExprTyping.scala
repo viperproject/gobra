@@ -8,11 +8,11 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
-import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
+import viper.gobra.frontend.info.base.SymbolTable.{GlobalVariable, SingleConstant}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
-import viper.gobra.util.Violation
+import viper.gobra.util.{Constants, Violation}
 
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -60,6 +60,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.PredicateExpr) => noMessages
         // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
         case Some(_: ap.Constant) => noMessages
+        case Some(_: ap.GlobalVariable) => noMessages
         case Some(_: ap.Function) => noMessages
         case Some(_: ap.Closure) => violation(s"the name of a function literal should not be accessible from a different package")
         case Some(_: ap.NamedType) => noMessages
@@ -123,6 +124,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.Constant) => p.symb match {
           case sc: SingleConstant => sc.context.typ(sc.idDef)
           case _ => ???
+        }
+        case Some(p: ap.GlobalVariable) => p.symb match {
+          case sv: GlobalVariable if sv.isSingleModeDecl =>
+            sv.typOpt.map(sv.context.symbType).getOrElse(sv.context.typ(sv.expOpt.get))
+          case mv: GlobalVariable =>
+            // in this case, mv must occur in a declaration in AssignMode.Multi
+            mv.expOpt.map(mv.context.typ) match {
+              case Some(t: InternalTupleT) => t.ts(mv.idx)
+              case t => violation(s"Expected a tuple, but got $t instead")
+            }
         }
         case Some(p: ap.Function) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
         case Some(_: ap.NamedType) => SortT
@@ -224,8 +235,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           convertibleTo.errors(exprType(p.arg), typ)(n) ++ isExpr(p.arg).out ++ argWithinBounds
 
 
-        case (Left(callee), Some(_: ap.FunctionCall)) => // arguments have to be assignable to function
-          exprType(callee) match {
+        case (Left(callee), Some(c: ap.FunctionCall)) =>
+          val isCallToInit =
+            error(n, s"${Constants.INIT_FUNC_NAME} function is not callable",
+              c.callee.isInstanceOf[ap.Function] && c.callee.id.name == Constants.INIT_FUNC_NAME)
+          // arguments have to be assignable to function
+          val wellTypedArgs = exprType(callee) match {
             case FunctionT(args, _) => // TODO: add special assignment
               if (n.spec.nonEmpty) wellDefCallWithSpec(n)
               else if (n.args.isEmpty && args.isEmpty) noMessages
@@ -233,6 +248,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n, s"type error: got $t but expected function type or AbstractType")
           }
+          isCallToInit ++ wellTypedArgs
 
         case (Left(_), Some(_: ap.ClosureCall)) => wellDefCallWithSpec(n)
 
@@ -272,8 +288,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PBitNegation(op) => isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST)(op)
 
     case n@PIndexedExp(base, index) =>
-      isExpr(base).out ++ isExpr(index).out ++
-        ((underlyingType(exprType(base)), exprType(index)) match {
+      isExpr(base).out ++ isExpr(index).out ++ {
+        val baseType = exprType(base)
+        val idxType  = exprType(index)
+        (underlyingType(baseType), underlyingType(idxType)) match {
           case (ArrayT(l, _), IntT(_)) =>
             val idxOpt = intConstantEval(index)
             error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
@@ -294,14 +312,33 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (StringT, IntT(_)) =>
             error(n, "Indexing a string is currently not supported")
 
-          case (MapT(key, _), indexT) =>
-            error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
+          case (MapT(key, _), underlyingIdxType) =>
+            // Assignability in Go is a property between a value and and a type. In Gobra, we model this as a relation
+            // between two types, which is less precise. Because of this limitation, and with the goal of handling
+            // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
+            // expressions that are not accepted by the compiler.
+            val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
+            if (assignableToIdxType.nonEmpty) {
+              error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
+            } else {
+              assignableToIdxType
+            }
 
-          case (MathMapT(key, _), indexT) =>
-            error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
+          case (MathMapT(key, _), underlyingIdxType) =>
+            // Assignability in Go is a property between a value and and a type. In Gobra, we model this as a relation
+            // between two types, which is less precise. Because of this limitation, and with the goal of handling
+            // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
+            // expressions that are not accepted by the compiler.
+            val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
+            if (assignableToIdxType.nonEmpty) {
+              error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
+            } else {
+              assignableToIdxType
+            }
 
           case (bt, it) => error(n, s"$it index is not a proper index of $bt")
-        })
+        }
+      }
 
 
     case n@PSliceExp(base, low, high, cap) => isExpr(base).out ++
@@ -500,7 +537,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case b@PBlankIdentifier() => b match {
       case tree.parent(p) => p match {
         case PAssignment(_, _) => noMessages
-        case PAssForRange(_, _, _) => noMessages
+        case PAssForRange(_, _, _,  _) => noMessages
         case PSelectAssRecv(_, _, _) => noMessages
         case x => error(b, s"blank identifier is not allowed in $x")
       }
@@ -617,19 +654,22 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case p => violation(s"expected conversion, function call, predicate call, or predicate expression instance, but got $p")
     }
 
-    case PIndexedExp(base, index) => (underlyingType(exprType(base)), exprType(index)) match {
-      case (ArrayT(_, elem), IntT(_)) => elem
-      case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
-      case (SequenceT(elem), IntT(_)) => elem
-      case (SliceT(elem), IntT(_)) => elem
-      case (GhostSliceT(elem), IntT(_)) => elem
-      case (VariadicT(elem), IntT(_)) => elem
-      case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
-        InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
-      case (MathMapT(key, elem), indexT) if assignableTo(indexT, key) =>
-        InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
-      case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
-    }
+    case PIndexedExp(base, index) =>
+      val baseType = exprType(base)
+      val idxType  = exprType(index)
+      (underlyingType(baseType), underlyingType(idxType)) match {
+        case (ArrayT(_, elem), IntT(_)) => elem
+        case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
+        case (SequenceT(elem), IntT(_)) => elem
+        case (SliceT(elem), IntT(_)) => elem
+        case (GhostSliceT(elem), IntT(_)) => elem
+        case (VariadicT(elem), IntT(_)) => elem
+        case (MapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+          InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+        case (MathMapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+          InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+        case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
+      }
 
     case PSliceExp(base, low, high, cap) =>
       val baseType = exprType(base)
@@ -923,7 +963,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   def getBlankIdType(b: PBlankIdentifier): Type = b match {
     case tree.parent(p) => p match {
       case PAssignment(right, left) => getBlankAssigneeType(b, left, right)
-      case PAssForRange(_, _, _) => ??? // TODO: implement when for range statements are supported
+      case PAssForRange(range, ass, _, _) => getBlankAssigneeTypeRange(b, ass, range)
       case PSelectAssRecv(_, _, _) => ??? // TODO: implement when select statements are supported
       case x => violation("blank identifier not supported in node " + x)
     }
@@ -965,7 +1005,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case t: PType => typeSymbType(t)
   }
 
-  private[typing] def wellDefIfConstExpr(expr: PExpression): Messages = typ(expr) match {
+  private[typing] def wellDefIfConstExpr(expr: PExpression): Messages = underlyingType(typ(expr)) match {
     case BooleanT =>
       error(expr, s"expected constant boolean expression, but got $expr instead", boolConstantEval(expr).isEmpty)
     case typ if underlyingType(typ).isInstanceOf[IntT] =>

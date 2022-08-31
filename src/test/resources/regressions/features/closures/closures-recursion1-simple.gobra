@@ -12,7 +12,7 @@ pure func fact(n int)int {
 func main() {
     var c@ func(int)int
     c = requires n >= 0
-        preserves acc(&c, 1/2) && c == factorial
+        preserves acc(&c, 1/2) && c === factorial
         ensures r == fact(n)
         decreases n
         func factorial(n int) (r int) {

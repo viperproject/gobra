@@ -45,11 +45,6 @@ ENV BOOGIE_EXE=/boogie/binaries-linux/Boogie
 # To fix boogie exception
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true
 
-# check that Silicon & Gobra reference same Silver commit:
-RUN SILICON_SILVER_REF=$(git -C silicon/silver rev-parse HEAD) && \
-    CARBON_SILVER_REF=$(git -C carbon/silver rev-parse HEAD) && \
-    if [ "$SILICON_SILVER_REF" != "$CARBON_SILVER_REF" ]; then echo "Silicon and Carbon reference different Silver commits ($SILICON_SILVER_REF and $CARBON_SILVER_REF)" && exit 1 ; fi
-
 # Setup Gobra
 WORKDIR /build/gobra/
 COPY build.sbt /build/gobra/
@@ -60,6 +55,11 @@ COPY src /build/gobra/src
 COPY viperserver /build/gobra/viperserver
 # TODO: delete
 # RUN ln -s ../silicon silicon && ln -s ../carbon carbon && ln -s ../viperserver viperserver
+
+# check that Silicon & Carbon reference same Silver commit:
+RUN SILICON_SILVER_REF=$(git -C /build/gobra/viperserver/silicon/silver rev-parse HEAD) && \
+    CARBON_SILVER_REF=$(git -C /build/gobra/viperserver/carbon/silver rev-parse HEAD) && \
+    if [ "$SILICON_SILVER_REF" != "$CARBON_SILVER_REF" ]; then echo "Silicon and Carbon reference different Silver commits ($SILICON_SILVER_REF and $CARBON_SILVER_REF)" && exit 1 ; fi
 
 RUN sbt assembly
 

@@ -56,11 +56,6 @@ COPY viperserver /build/gobra/viperserver
 # TODO: delete
 # RUN ln -s ../silicon silicon && ln -s ../carbon carbon && ln -s ../viperserver viperserver
 
-# check that Silicon & Carbon reference same Silver commit:
-RUN SILICON_SILVER_REF=$(git -C /build/gobra/viperserver/silicon/silver rev-parse HEAD) && \
-    CARBON_SILVER_REF=$(git -C /build/gobra/viperserver/carbon/silver rev-parse HEAD) && \
-    if [ "$SILICON_SILVER_REF" != "$CARBON_SILVER_REF" ]; then echo "Silicon and Carbon reference different Silver commits ($SILICON_SILVER_REF and $CARBON_SILVER_REF)" && exit 1 ; fi
-
 RUN sbt assembly
 
 

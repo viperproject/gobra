@@ -28,7 +28,11 @@ jobs:
         uses: actions/checkout@v2
         with:
           submodules: 'recursive'
-
+      - name: Check that silicon & carbon reference same silver commit
+        run: |
+          SILICON_SILVER_REF=$(git -C gobra/viperserver/silicon/silver rev-parse HEAD) && \
+          CARBON_SILVER_REF=$(git -C gobra/viperserver/carbon/silver rev-parse HEAD) && \
+          if [ "$SILICON_SILVER_REF" != "$CARBON_SILVER_REF" ]; then echo "Silicon and Carbon reference different Silver commits ($SILICON_SILVER_REF and $CARBON_SILVER_REF)" && exit 1 ; fi
       - name: Create image tag
         run: |
           IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME

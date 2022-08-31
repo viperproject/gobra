@@ -275,6 +275,8 @@ expression:
     | LESS_OR_EQUALS
     | GREATER
     | GREATER_OR_EQUALS
+    | GHOST_EQUALS
+    | GHOST_NOT_EQUALS
   ) expression #relExpr
   | expression IMPL closureSpecInstance #closureImplSpecExpr
   | expression LOGICAL_AND expression #andExpr

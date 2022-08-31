@@ -525,6 +525,10 @@ case class PEquals(left: PExpressionOrType, right: PExpressionOrType) extends PB
 
 case class PUnequals(left: PExpressionOrType, right: PExpressionOrType) extends PBinaryExp[PExpressionOrType, PExpressionOrType]
 
+case class PGhostEquals(left: PExpression, right: PExpression) extends PBinaryGhostExp
+
+case class PGhostUnequals(left: PExpression, right: PExpression) extends PBinaryGhostExp
+
 case class PAnd(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression]
 
 case class POr(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression]

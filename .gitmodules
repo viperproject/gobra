@@ -1,0 +1,3 @@
+[submodule "viperserver"]
+	path = viperserver
+	url = https://github.com/viperproject/viperserver

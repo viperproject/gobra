@@ -14,6 +14,7 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
 - Git
 
 ### Installation
+TODO: adapt instructions
 1. Create a folder for your Gobra development. We will refer to this folder as `gobraHome`.
 2. Clone Gobra and Viper dependencies
     - Change directory to `gobraHome`

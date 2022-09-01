@@ -7,21 +7,12 @@
 import scala.sys.process.Process
 import scala.util.Try
 
-// Import general settings from Silver, Silicon and Carbon
-
+// Import general settings from viperserver and, transitively, from carbon, silicon and silver.
 // we assume that carbon/silver and silicon/silver point to the same version of the silver repo
-
-// lazy val silver = project in file("viperserver/silicon/silver")
-// lazy val silicon = project in file("viperserver/silicon")
-// lazy val carbon = project in file("viperserver/carbon")
 lazy val server = project in file("viperserver")
-
 
 // Gobra specific project settings
 lazy val gobra = (project in file("."))
-  //.dependsOn(silver % "compile->compile;test->test")
-  //.dependsOn(silicon % "compile->compile;test->test")
-  //.dependsOn(carbon % "compile->compile;test->test")
   .dependsOn(server % "compile->compile;test->test")
   .settings(
     // General settings
@@ -32,8 +23,6 @@ lazy val gobra = (project in file("."))
     licenses := Seq("MPL-2.0 License" -> url("https://opensource.org/licenses/MPL-2.0")),
 
     // Compilation settings
-    // silicon / excludeFilter := "logback.xml", /* Ignore Silicon's Logback configuration */
-    // carbon / excludeFilter := "logback.xml", /* Ignore Carbon's Logback configuration */
     Compile / unmanagedResourceDirectories += baseDirectory.value / "conf",
 
     libraryDependencies +=

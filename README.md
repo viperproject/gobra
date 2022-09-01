@@ -14,59 +14,31 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
 - Git
 
 ### Installation
-TODO: adapt instructions
-1. Create a folder for your Gobra development. We will refer to this folder as `gobraHome`.
-2. Clone Gobra and Viper dependencies
-    - Change directory to `gobraHome`
-    - [silicon](https://github.com/viperproject/silicon) (please check the specific commit to fetch in file `viper-toolchain-versions.sh`)
-    - [carbon](https://github.com/viperproject/carbon) (please check the specific commit to fetch in file `viper-toolchain-versions.sh`)
-    - [viperserver](https://github.com/viperproject/viperserver) (please check the specific commit to fetch in file `viper-toolchain-versions.sh`)
-    - Gobra
-    > To switch to tag `X`, execute the command ```git checkout X``` inside the cloned repository.
-3. Get submodules and add symbolic links
-    - Change directory to `gobraHome/silicon` and fetch & update submodules:
-        - `git submodule init; git submodule update`
-    - Change directory to `gobraHome/carbon` and fetch & update submodules:
-        - `git submodule init; git submodule update`
-   - To create a symbolic link from A to B, you have to run
-      - `mklink /D A B` (Windows (as admin)) resp.
-      - `ln -s B A` (Linux & macOS) (use forward instead of backward slashes in the following)
-    - Change directory to `gobraHome/viperserver` and create the symbolic links:
-        - silicon -> ..\silicon
-        - carbon -> ..\carbon
-    - Change to `gobraHome/gobra` and create the links:
-        - silicon -> ..\silicon
-        - carbon -> ..\carbon
-        - viperserver -> ..\viperserver
-4. Install Z3 and Boogie. 
+1. Install Z3 and Boogie.
     Steps (iii) and (iv) are specific to Boogie and only necessary when using Carbon as verification backend. Gobra uses the Silicon verification backend by default.
-    1. Get a Z3 executable. A precompiled executable can be downloaded [here](https://github.com/Z3Prover/z3/releases). 
+    i. Get a Z3 executable. A precompiled executable can be downloaded [here](https://github.com/Z3Prover/z3/releases).
       We tested version 4.8.7 64-Bit.
-    2. Set the environment variable `Z3_EXE` to the path of your Z3 executable.
-    3. Get a Boogie executable. Instructions for compilation are given [here](https://github.com/boogie-org/boogie).
+    ii. Set the environment variable `Z3_EXE` to the path of your Z3 executable.
+    iii. Get a Boogie executable. Instructions for compilation are given [here](https://github.com/boogie-org/boogie).
         [Mono](https://www.mono-project.com/download/stable/) is required on Linux and macOS to run Boogie.
         Alternatively, extract a compiled version from the Viper release tools
         ([Windows](http://viper.ethz.ch/downloads/ViperToolsReleaseWin.zip), [Linux](http://viper.ethz.ch/downloads/ViperToolsReleaseLinux.zip), [macOS](http://viper.ethz.ch/downloads/ViperToolsReleaseMac.zip)).
-    4. Set the environment variable `BOOGIE_EXE` to the path of your Boogie executable.
+    iv. Set the environment variable `BOOGIE_EXE` to the path of your Boogie executable.
+2. Clone `gobra` (this repository) in your computer.
+3. Change directory to the `gobra` directory created in the previous step.
+4. Execute the following command to fetch `viperserver` and its transitive dependencies (`carbon`, `silicon` and `silver`).
+```sh
+git submodule update --init --recursive
+```
+5. Run `sbt compile` to compile Gobra.
 
-### Compilation
-1. Change directory to `gobraHome/gobra`
-2. Start an sbt shell by running `sbt`
-3. Compile gobra by running `compile` in the sbt shell
-    - **Important**: Do not compile silver, silicon, or carbon separately. 
-    If you have compiled them separately, then delete all target folders in these projects.
-4. Check your installation by executing all tests (`test` in the sbt shell)
-5. A file can be verified with `run -i path/to/file` in the sbt shell
-    - e.g. `run -i src/test/resources/regressions/examples/swap.gobra`
-6. All command line arguments can be shown by running `run --help` in the sbt shell
+The command `sbt assembly` can also be used to produce a fat jar file.
 
-### Assembly
-1. In an sbt shell, run `assembly`. The fat jar is then located in the target/scala folder.
-2. To verify a file, run `java -jar -Xss128m gobra.jar -i path/to/file`
-
+### Running the Tests
+In the `gobra` directory, run the command `sbt test`.
 
 ## Licensing
-Most Gobra sources are licensed under the Mozilla Public License Version 2.0. 
+Most Gobra sources are licensed under the Mozilla Public License Version 2.0.
 The [LICENSE](./LICENSE) lists the exceptions to this rule.
 Note that source files (whenever possible) should list their license in a short header.
 Continuous integration checks these file headers.

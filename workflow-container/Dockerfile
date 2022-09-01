@@ -51,10 +51,8 @@ COPY build.sbt /build/gobra/
 COPY project /build/gobra/project
 COPY conf /build/gobra/conf
 COPY src /build/gobra/src
-# Copies viperserver and, transitively, all of its dependencies (silver, silicon, carbon)
+# Copies viperserver and, transitively, all of its dependencies (carbon, silicon and silver)
 COPY viperserver /build/gobra/viperserver
-# TODO: delete
-# RUN ln -s ../silicon silicon && ln -s ../carbon carbon && ln -s ../viperserver viperserver
 
 RUN sbt assembly
 

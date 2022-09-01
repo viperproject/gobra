@@ -26,10 +26,7 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
     4. Set the environment variable `BOOGIE_EXE` to the path of your Boogie executable.
 2. Clone `gobra` (this repository) in your computer.
 3. Change directory to the `gobra` directory created in the previous step.
-4. Execute the following command to fetch `viperserver` and its transitive dependencies (`carbon`, `silicon` and `silver`).
-```sh
-git submodule update --init --recursive
-```
+4. Run `git submodule update --init --recursive` to fetch `viperserver` and its transitive dependencies (`carbon`, `silicon` and `silver`).
 5. Run `sbt compile` to compile Gobra.
 
 The command `sbt assembly` can also be used to produce a fat jar file.

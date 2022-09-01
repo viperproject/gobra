@@ -29,7 +29,20 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
 4. Run `git submodule update --init --recursive` to fetch `viperserver` and its transitive dependencies (`carbon`, `silicon` and `silver`).
 5. Run `sbt compile` to compile Gobra.
 
-The command `sbt assembly` can also be used to produce a fat jar file.
+The command `sbt assembly` can also be used to produce a fat jar file, which is located by default in `target/scala`.
+
+### Running Gobra
+Gobra can be run either from sbt or from a compiled jar:
+- running from sbt:
+    1. change directory to the `gobra` directory obtained from cloning this repository.
+    2. run `sbt`.
+    3. inside the sbt shell, run `run - i path/to/file` (e.g., `run -i src/test/resources/regressions/examples/swap.gobra`)
+- running from a compiled jar:
+    1. change directory to the `gobra` directory obtained from cloning this repository.
+    2. run `sbt assembly`,
+    3. to verify a file, run `java -jar -Xss128m path/to/gobra.jar -i path/to/file`.
+
+More information about the available options in Gobra can be found by running `run --help` in an sbt shell or `java -jar path/to/gobra.jar --help` if you assembled Gobra.
 
 ### Running the Tests
 In the `gobra` directory, run the command `sbt test`.

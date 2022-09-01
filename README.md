@@ -38,9 +38,7 @@ Gobra can be run either from sbt or from a compiled jar:
     2. run `sbt`.
     3. inside the sbt shell, run `run - i path/to/file` (e.g., `run -i src/test/resources/regressions/examples/swap.gobra`)
 - running from a compiled jar:
-    1. change directory to the `gobra` directory obtained from cloning this repository.
-    2. run `sbt assembly`,
-    3. to verify a file, run `java -jar -Xss128m path/to/gobra.jar -i path/to/file`.
+    1. run `java -jar -Xss128m path/to/gobra.jar -i path/to/file`.
 
 More information about the available options in Gobra can be found by running `run --help` in an sbt shell or `java -jar path/to/gobra.jar --help` if you assembled Gobra.
 

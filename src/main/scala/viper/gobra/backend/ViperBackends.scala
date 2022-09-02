@@ -99,9 +99,7 @@ object ViperBackends {
         options ++= Vector("--assumeInjectivityOnInhale")
       }
       if (config.parallelizeBranches) {
-        // TODO test this backedn
         options ++= Vector("--parallelizeBranches")
-        println("TEST: TODO - remove")
       }
       options ++= exePaths
       ViperServerConfig.ConfigWithSilicon(options.toList)

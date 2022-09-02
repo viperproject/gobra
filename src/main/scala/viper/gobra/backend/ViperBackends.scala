@@ -27,6 +27,9 @@ object ViperBackends {
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }
+      if (config.parallelizeBranches) {
+        options ++= Vector("--parallelizeBranches")
+      }
       options ++= exePaths
 
       new Silicon(options)
@@ -94,6 +97,11 @@ object ViperBackends {
       options ++= Vector("--enableMoreCompleteExhale")
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
+      }
+      if (config.parallelizeBranches) {
+        // TODO test this backedn
+        options ++= Vector("--parallelizeBranches")
+        println("TEST: TODO - remove")
       }
       options ++= exePaths
       ViperServerConfig.ConfigWithSilicon(options.toList)

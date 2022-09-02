@@ -56,8 +56,8 @@ class TerminationTransformer extends ViperTransformer {
   }
 
   private def executeTerminationPlugin(task: BackendVerifier.Task): BackendVerifier.Task = {
-    val plugin = new TerminationPlugin(null, null, null)
-    val predInstancePlugin = new PredicateInstancePlugin()
+    val plugin = new TerminationPlugin(null, null, null, null)
+    val predInstancePlugin = new PredicateInstancePlugin(null, null, null, null)
     val transformedProgram = plugin.beforeVerify(task.program)
     val programWithoutPredicateInstances = predInstancePlugin.beforeVerify(transformedProgram)
     task.copy(program = programWithoutPredicateInstances)

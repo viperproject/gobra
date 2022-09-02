@@ -219,12 +219,110 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.testProg(input, expected)
   }
 
+  test("Ghost Erasure: spec of a function literal should be erased") {
+    val input =
+      s"""
+         |package pkg
+         |func main() {
+         |  x@ := 0
+         |  c := preserves acc(&x)
+         |       func() int { return x }
+         |}
+         |""".stripMargin
+    val expected =
+      s"""
+         |package pkg
+         |func main() {
+         |  x := 0
+         |  c := func() int { return x }
+         |}
+         |""".stripMargin
+    frontend.testProg(input, expected)
+  }
+
+  test("Ghost Erasure: name of a function literal should be erased") {
+    val input =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func f() int { return 42 }
+         |}
+         |""".stripMargin
+    val expected =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func() int { return 42 }
+         |}
+         |""".stripMargin
+    frontend.testProg(input, expected)
+  }
+
+  test("Ghost Erasure: ghost arguments of a function literal should be erased") {
+    val input =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func f(ghost a int) int { return 42 }
+         |}
+         |""".stripMargin
+    val expected =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func() int { return 42 }
+         |}
+         |""".stripMargin
+    frontend.testProg(input, expected)
+  }
+
+  test("Ghost Erasure: spec should be erased from closure calls") {
+    val input =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func f() int { return 42 }
+         |  c() as f
+         |}
+         |""".stripMargin
+    val expected =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func() int { return 42 }
+         |  c()
+         |}
+         |""".stripMargin
+    frontend.testProg(input, expected)
+  }
+
+  test("Ghost Erasure: ghost arguments should be erased from closure calls") {
+    val input =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func f(x int, ghost y int, z bool) { }
+         |  c(42, 21, false) as f
+         |}
+         |""".stripMargin
+    val expected =
+      s"""
+         |package pkg
+         |func main() {
+         |  c := func(x int, z bool) { }
+         |  c(42, false)
+         |}
+         |""".stripMargin
+    frontend.testProg(input, expected)
+  }
 
   /* ** Stubs, mocks, and other test setup  */
 
   class TestFrontend {
+
     def stubProgram(inArgs: Vector[(PParameter, Boolean)], body : PStatement) : PProgram = PProgram(
       PPackageClause(PPkgDef("pkg")),
+      Vector(),
       Vector(),
       Vector(PFunctionDecl(
         PIdnDef("foo"),
@@ -265,7 +363,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
       val program = stubProgram(inArgs, stmt)
       val ghostLess = ghostLessProg(program)
       val block = ghostLess match {
-        case PProgram(_, _, Vector(PFunctionDecl(PIdnDef("foo"), _, _, _, Some((_, b))))) => b
+        case PProgram(_, _, _, Vector(PFunctionDecl(PIdnDef("foo"), _, _, _, Some((_, b))))) => b
         case p => fail(s"Parsing succeeded but with an unexpected program $p")
       }
       normalize(block.stmts) match {
@@ -318,7 +416,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     @scala.annotation.tailrec
     private def equal(actual: PMember, expected: PMember): Assertion = {
       (actual, expected) match {
-        case (a: PConstSpec, e: PConstSpec) => assert(a == e)
+        case (a: PConstDecl, e: PConstDecl) => assert(a == e)
         case (a: PVarDecl, e: PVarDecl) => assert(a == e)
         case (PFunctionDecl(aId, aArgs, aResult, aSpec, aBody), PFunctionDecl(eId, eArgs, eResult, eSpec, eBody)) =>
           assert(aId == eId)

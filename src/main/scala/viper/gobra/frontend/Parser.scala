@@ -231,7 +231,7 @@ object Parser {
           // the same happens for the newly created PExplicitQualifiedImport)
           idnDef = PIdnDef(qualifierName)
           _ = pkg.positions.positions.dupPos(n, idnDef)
-        } yield PExplicitQualifiedImport(idnDef, n.importPath)
+        } yield PExplicitQualifiedImport(idnDef, n.importPath, n.importPres)
         // record errors:
         qualifier.left.foreach(errorMsg => failedNodes = failedNodes ++ createError(n, errorMsg))
         qualifier.toOption
@@ -250,7 +250,7 @@ object Parser {
         // note that the resolveImports strategy could be embedded in e.g. a logfail strategy to report a
         // failed strategy application
         val updatedImports = rewrite(topdown(attempt(resolveImports)))(prog.imports)
-        val updatedProg = PProgram(prog.packageClause, updatedImports, prog.declarations)
+        val updatedProg = PProgram(prog.packageClause, prog.initPosts, updatedImports, prog.declarations)
         pkg.positions.positions.dupPos(prog, updatedProg)
       })
       // create a new package node with the updated programs
@@ -286,7 +286,7 @@ object Parser {
       addErrorListener(new InformativeErrorListener(errors, source))
     }
 
-    def parse_LL(rule : => Rule): ParserRuleContext = {
+    def parse_LL(rule : => Rule, overrideErrors : Boolean): ParserRuleContext = {
       // The second stage of the two stage parsing process, as described in
       // the official ANTLR Guide.
       // thrown by ReportFirstErrorStrategy
@@ -309,14 +309,20 @@ object Parser {
       // If we did not find any errors with LL-parsing, we know that the input is correct,
       // so errors from the weaker SLL parsing can be disregarded
       if (ll_errors.isEmpty) errors.clear()
+      // Replace the errors, in the case of `<IDENTIFIER> { }` ambiguities in switch/if-statements/closure-proofs
+      // This is to avoid reporting spurious errors caused by stack dependencies for the Gobra grammar
+      if (ll_errors.nonEmpty && overrideErrors) {
+        errors.clear()
+        errors.append(ll_errors.head)
+      }
       res
     }
 
     def parse(rule : => Rule): Either[Vector[ParserError], Node] = {
       val tree = try rule
       catch {
-        case _: AmbiguityException => parse_LL(rule) // Resolve `<IDENTIFIER> { }` ambiguities in switch/if-statements
-        case _: ParseCancellationException => parse_LL(rule) // For even faster parsing, replace with `new ParserRuleContext()`.
+        case _: AmbiguityException => parse_LL(rule, overrideErrors = true) // Resolve `<IDENTIFIER> { }` ambiguities in switch/if-statements/closure-proofs
+        case _: ParseCancellationException => parse_LL(rule, overrideErrors = false) // For even faster parsing, replace with `new ParserRuleContext()`.
         case e: Throwable => errors.append(ParserError(e.getMessage, Some(SourcePosition(source.toPath, 0, 0)))); new ParserRuleContext()
       }
       if(errors.isEmpty) {

@@ -1,0 +1,38 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func main() {
+	t1@ := T{1}
+	// fmt.Println(t1) // 1
+	assert t1.i == 1
+	t1.inc()
+	// fmt.Println(t1) // 2
+	assert t1.i == 2
+
+	t2 := T{1}
+	t2.g()
+	assert t2.i == 1
+}
+
+type T struct{
+	i int
+}
+
+preserves acc(t)
+ensures   t.i == old(t.i) + 1
+func (t *T) inc() {
+	t.i += 1
+}
+
+func f(t T) {
+	share t 
+	t.inc()
+}
+
+// This did not work before PR #483, despite Gobra not complaining about it.
+func (t T) g() {
+	share t
+	t.inc()
+}

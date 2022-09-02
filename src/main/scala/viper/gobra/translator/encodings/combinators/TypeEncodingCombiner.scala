@@ -38,7 +38,6 @@ abstract class TypeEncodingCombiner(encodings: Vector[TypeEncoding], defaults: V
 
   override def typ(ctx: Context): in.Type ==> vpr.Type = combiner(_.typ(ctx))
   override def variable(ctx: Context): in.BodyVar ==> vpr.LocalVarDecl = combiner(_.variable(ctx))
-  override def globalVar(ctx: Context): in.GlobalVar ==> CodeWriter[vpr.Exp] = combiner(_.globalVar(ctx))
   override def method(ctx: Context): in.Member ==> MemberWriter[vpr.Method] = combiner(_.method(ctx))
   override def function(ctx: Context): in.Member ==> MemberWriter[vpr.Function] = combiner(_.function(ctx))
   override def predicate(ctx: Context): in.Member ==> MemberWriter[vpr.Predicate] = combiner(_.predicate(ctx))

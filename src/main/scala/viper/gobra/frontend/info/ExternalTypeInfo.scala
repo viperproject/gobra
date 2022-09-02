@@ -6,14 +6,14 @@
 
 package viper.gobra.frontend.info
 
-import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PKeyedElement, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType, PLabelUse}
+import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PGeneralForStmt, PFunctionDecl, PIdnNode, PIdnUse, PKeyedElement, PLabelUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMemberTag
 import viper.gobra.frontend.info.base.Type.{AbstractType, InterfaceT, StructT, Type}
+import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
-import viper.gobra.ast.frontend.PForStmt
 
 trait ExternalTypeInfo {
 
@@ -92,15 +92,27 @@ trait ExternalTypeInfo {
   /** returns all subtype relation found in the current package */
   def localRequiredImplements: Set[(Type, InterfaceT)]
 
+  /** returns all subtype relation guaranteed in the current package */
+  def localGuaranteedImplements: Set[(Type, InterfaceT)]
+
   /** returns all implementation proofs found in the current package */
   def localImplementationProofs: Vector[(Type, InterfaceT, Vector[String], Vector[String])]
 
   /** returns the code root for a given node; can only be called on nodes that are enclosed in a code root */
   def codeRoot(n: PNode): PCodeRoot with PScope
 
+  /** if it exists, it returns the function that contains n */
+  def enclosingFunction(n: PNode): Option[PFunctionDecl]
+
   /** if it exists, it returns the for loop node that contains 'n' with label 'label' */
-  def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PForStmt]
+  def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PGeneralForStmt]
 
   /** if it exists, it returns the for loop node that contains 'n' */
-  def enclosingLoopNode(n: PNode) : Option[PForStmt]
+  def enclosingLoopNode(n: PNode) : Option[PGeneralForStmt]
+
+  /** returns the enclosing invariant of 'n' */
+  def enclosingInvariantNode(n: PExpression) : PExpression
+
+  /** returns all global variables declared in the same package as 'n' on which the declaration of 'n' depends */
+  def samePkgDepsOfGlobalVar(n: SymbolTable.GlobalVariable): Vector[SymbolTable.GlobalVariable]
 }

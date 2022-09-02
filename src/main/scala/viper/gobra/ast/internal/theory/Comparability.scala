@@ -41,6 +41,7 @@ object Comparability {
       compareKind(TypeHead.typeHead(reg(DefinedT(t.name, Addressability.Exclusive))))(reg)
 
     case _: TypeHead.StructHD => Kind.Recursive
+    case _: TypeHead.FunctionHD => Kind.NonComparable
     case TypeHead.ArrayHD => Kind.Recursive
     case TypeHead.SliceHD => Kind.NonComparable
     case TypeHead.MapHD => Kind.NonComparable

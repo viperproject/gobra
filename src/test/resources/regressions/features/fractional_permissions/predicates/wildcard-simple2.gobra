@@ -8,7 +8,7 @@ pred myPred(x *int) {
 }
 
 requires n >= 0
-func main(n int) {
+func run(n int) {
     val@ := 42
     x := &val;
     fold myPred(x)

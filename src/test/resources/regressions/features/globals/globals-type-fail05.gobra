@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+//:: ExpectedOutput(type_error)
+initEnsures old(1) == 1
+package pkg
+
+// ##(-I ./imports)
+
+//:: ExpectedOutput(type_error)
+importRequires old(1) == 1
+import _ "path"

@@ -10,4 +10,6 @@ object Constants {
 
   val ADDRESSABILITY_MODIFIER = "@"
   val SHARE_PARAMETER_KEYWORD = "share"
+  val INIT_FUNC_NAME = "init"
+  val MAIN_FUNC_NAME = "main"
 }

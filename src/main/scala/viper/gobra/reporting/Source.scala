@@ -27,6 +27,10 @@ object Source {
   sealed trait Annotation
   case object OverflowCheckAnnotation extends Annotation
   case object ReceiverNotNilCheckAnnotation extends Annotation
+  case object ImportPreNotEstablished extends Annotation
+  case object MainPreNotEstablished extends Annotation
+  case class NoPermissionToRangeExpressionAnnotation() extends Annotation
+  case class RangeVariableMightNotExistAnnotation(rangeExpr: String) extends Annotation
   case class AutoImplProofAnnotation(subT: String, superT: String) extends Annotation
 
   object Parser {

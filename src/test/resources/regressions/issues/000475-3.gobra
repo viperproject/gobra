@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type A struct {
+	F int
+}
+
+type B struct {
+	As []A
+}
+
+preserves acc(a)
+func (a *A) get_f() int {
+	return a.F
+}
+
+requires acc(b)
+requires acc(b.As)
+requires len(b.As) > 1
+func (b *B) sum() int {
+	first@ := b.As[0]
+	second@ := b.As[1]
+	return first.get_f() + second.get_f()
+}

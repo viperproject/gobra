@@ -32,5 +32,7 @@ trait GhostClassifier {
 
   def expectedArgGhostTyping(invk: PInvoke): GhostType
 
+  def expectedArgGhostTyping(spec: PClosureSpecInstance): GhostType
+
   def isExprPure(expr: PExpression): Boolean
 }

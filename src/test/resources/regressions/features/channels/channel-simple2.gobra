@@ -5,7 +5,7 @@ package pkg
 
 // channel direction can implicitly be converted from Bi to Send or Recv:
 requires c.SendChannel() && c.RecvChannel()
-func main(c chan int) {
+func run(c chan int) {
     doSend(c)
     doRecv(c)
 }

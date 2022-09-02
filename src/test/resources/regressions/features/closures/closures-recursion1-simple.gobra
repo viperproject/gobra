@@ -1,0 +1,35 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresRecursion1Simple
+
+ghost
+requires n >= 0
+pure func fact(n int)int {
+    return n == 0 ? 1 : n * fact(n-1)
+}
+
+func main() {
+    var c@ func(int)int
+    c = requires n >= 0
+        preserves acc(&c, 1/2) && c === factorial
+        ensures r == fact(n)
+        decreases n
+        func factorial(n int) (r int) {
+            if n == 0 {
+                return 1
+            } else {
+                return n * c(n-1) as factorial
+            }
+        }
+
+    assert fact(0) == 1
+    assert fact(1) == 1
+    assert fact(2) == 2
+    assert fact(3) == 6
+    assert fact(4) == 24
+    assert fact(5) == 120
+
+    r := c(5) as factorial
+    assert r == 120
+}

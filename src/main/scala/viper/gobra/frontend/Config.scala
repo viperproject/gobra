@@ -12,7 +12,7 @@ import ch.qos.logback.classic.Level
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import org.rogach.scallop.{ScallopConf, ScallopOption, singleArgConverter}
-import viper.gobra.backend.{ViperBackend, ViperBackends}
+import viper.gobra.backend.{ParallelizableBackend, ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
@@ -60,6 +60,7 @@ object ConfigDefaults {
   lazy val DefaultGobraDirectory: Path = Path.of(".gobra")
   lazy val DefaultTaskName: String = "gobra-task"
   lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
+  lazy val DefaultParallelizeBranches: Boolean = false
 }
 
 case class Config(
@@ -103,6 +104,9 @@ case class Config(
                    onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
                    // if enabled, Gobra assumes injectivity on inhale, as done by Viper versions before 2022.2.
                    assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
+                   // if enabled, and if the chosen backend is either SILICON or VSWITHSILICON,
+                   // branches will be verified in parallel
+                   parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
 ) {
 
   def merge(other: Config): Config = {
@@ -142,6 +146,7 @@ case class Config(
       checkConsistency = checkConsistency || other.checkConsistency,
       onlyFilesWithHeader = onlyFilesWithHeader || other.onlyFilesWithHeader,
       assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale,
+      parallelizeBranches = parallelizeBranches,
     )
   }
 
@@ -182,6 +187,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       cacheParser: Boolean = ConfigDefaults.DefaultCacheParser,
                       onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
                       assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
+                      parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -230,6 +236,7 @@ trait RawConfig {
     cacheParser = baseConfig.cacheParser,
     onlyFilesWithHeader = baseConfig.onlyFilesWithHeader,
     assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,
+    parallelizeBranches = baseConfig.parallelizeBranches,
   )
 }
 
@@ -557,6 +564,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val parallelizeBranches: ScallopOption[Boolean] = opt[Boolean](
+    name = "parallelizeBranches",
+    descr = "Performs parallel branch verification if the chosen backend is either SILICON or VSWITHSILICON",
+    default = Some(ConfigDefaults.DefaultParallelizeBranches),
+    noshort = true,
+  )
+
   /**
     * Exception handling
     */
@@ -577,6 +591,21 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   // Thus, we restrict their use:
   conflicts(input, List(projectRoot, inclPackages, exclPackages))
   conflicts(directory, List(inclPackages, exclPackages))
+
+  // `parallelizeBranches` requires a backend that supports branch parallelization
+  addValidation {
+    val parallelizeBranchesOn = parallelizeBranches.toOption.contains(true)
+    val unsupportedParallelBackend = backend.toOption match {
+      case Some(_: ParallelizableBackend) => false
+      case _ => true
+    }
+    if (parallelizeBranchesOn && unsupportedParallelBackend) {
+      Left("The selected backend does not support branch parallelization.")
+    } else {
+      Right(())
+    }
+  }
+
 
   /** File Validation */
   validateFilesExist(cutInput)
@@ -660,5 +689,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     cacheParser = false, // caching does not make sense when using the CLI. Thus, we simply set it to `false`
     onlyFilesWithHeader = onlyFilesWithHeader(),
     assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
+    parallelizeBranches = parallelizeBranches(),
   )
 }

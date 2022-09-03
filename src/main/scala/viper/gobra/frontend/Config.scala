@@ -12,7 +12,7 @@ import ch.qos.logback.classic.Level
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import org.rogach.scallop.{ScallopConf, ScallopOption, singleArgConverter}
-import viper.gobra.backend.{ViperBackend, ViperBackends}
+import viper.gobra.backend.{ParallelizableBackend, ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
@@ -591,6 +591,21 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   // Thus, we restrict their use:
   conflicts(input, List(projectRoot, inclPackages, exclPackages))
   conflicts(directory, List(inclPackages, exclPackages))
+
+  // `parallelizeBranches` requires a backend that supports branch parallelization
+  addValidation {
+    val parallelizeBranchesOn = parallelizeBranches.toOption.contains(true)
+    val unsupportedParallelBackend = backend.toOption match {
+      case Some(_: ParallelizableBackend) => false
+      case _ => true
+    }
+    if (parallelizeBranchesOn && unsupportedParallelBackend) {
+      Left("The selected backend does not support branch parallelization.")
+    } else {
+      Right(())
+    }
+  }
+
 
   /** File Validation */
   validateFilesExist(cutInput)

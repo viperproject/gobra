@@ -1330,21 +1330,19 @@ object Desugar {
             * decreases _
             * pure func f(x: <type>, b: bool) { x }
             *
-            * It is needed because in the occation of empty slices or arrays, i and j should not exist.
+            * It is needed because in the occasion of empty slices or arrays, i and j should not exist.
             * Replacing them with the call to this function will cause its precondition to fail for
             * empty slices or arrays and thus produce the error which is then transformed to the
             * desirable one.
             */
-          case n@PShortForRange(range, shorts, spec, body) =>
+          case n@PShortForRange(range, shorts, spec, body) if info.typ(range.exp).isInstanceOf[SliceT] || info.typ(range.exp).isInstanceOf[ArrayT] =>
             // is a block as it introduces new variables
             unit(block(for {
               exp <- goE(range.exp)
               (elems, typ) = underlyingType(exp.typ) match {
                 case slice : in.SliceT => (slice.elems, slice)
                 case array : in.ArrayT => (array.elems, array)
-                case _ : in.MapT => violation("Maps are not supported yet in range")
-                case _ : in.StringT => violation("Strings are not supported yet in range")
-                case t => violation(s"Range not applicable to type $t")
+                case t => violation(s"Got unexpected range type $t when handling arrays and slices.")
               }
 
               // index is the place where we store the indices of the range expression
@@ -1512,15 +1510,13 @@ object Desugar {
             * In the case where the value expression 'expValue' is missing all the code annotated with [v]
             * is omitted
             */
-          case n@PAssForRange(range, ass, spec, body) =>
+          case n@PAssForRange(range, ass, spec, body) if info.typ(range.exp).isInstanceOf[SliceT] || info.typ(range.exp).isInstanceOf[ArrayT] =>
             unit(block(for {
               exp <- goE(range.exp)
               typ = underlyingType(exp.typ) match {
                 case slice : in.SliceT => slice
                 case array : in.ArrayT => array
-                case _ : in.MapT => violation("Maps are not supported yet in range")
-                case _ : in.StringT => violation("Strings are not supported yet in range")
-                case t => violation(s"Range not applicable to type $t")
+                case t => violation(s"Got unexpected range type $t when handling arrays and slices.")
               }
               indexLeft <- goL(ass(0))
               rangeSrc = meta(range, info)
@@ -1605,6 +1601,444 @@ object Desugar {
                   )
                 )(src)
               }
+            } yield wh))
+
+          /**
+            * This case handles for loops with a range clause of the form:
+            *
+            * <invariant...>
+            * for visited, k, v:= range x, p {
+            *   <body>
+            * }
+            *
+            * The desugared program will look like this:
+            *
+            * var k : T1
+            * var v : T2
+            * if (|x| > 0) {
+            *   inhale k in domain(x)
+            *   v := x[k] // [v]
+            * }
+            * var visited : Set[T1] := Set()
+            * while (|visited| < |domain(x)|) // this loop condition represents the Go behaviour only if we don’t change the map inside the loop body
+            * invariant |visited| < |domain(x)| ==> k in domain(x) && !(k in visited)
+            * invariant |visited| < |domain(x)| ==> v == x[k] // [v]
+            * invariant 0 <= |visited| && |visited| <= |domain(x)|
+            * invariant 0/1 < p // this ensures the user doesn’t give zero permissions to be exhaled from the map
+            * invariant forall i : T1 :: i in visited ==> i in domain(x)
+            * <invariant... where k is replaced with f(k, |domain(x)| > 0) and v with f(v, |domain(x)| > 0)>
+            * {
+            *   exhale acc(x, p) // this ensures we can’t change the map in the loop body
+            *   <body>
+            *   inhale acc(x, p)
+            *   visited := visited union Set(k)
+            *   var key : T1
+            *   if (|visited| < |domain(x)|) {
+            *     inhale key in domain(x) && !(key in visited)
+            *     k := key
+            *     v := x[k] // [v]
+            *   }
+            * }
+            * assert (visited setminus domain(x)) == Set() // ensures that visited == domain(x) after iteration ends
+            *
+            * In the case where the value variable 'v' is missing all the code annotated with [v]
+            * is omitted
+            *
+            * Function f is the identity function regarding its first argument with a precondition
+            * stating that the second argument must be true.
+            *
+            * requires b
+            * decreases _
+            * pure func f(x: <type>, b: bool) { x }
+            *
+            * It is needed because in the occasion of empty maps, k and v should not exist.
+            * Replacing them with the call to this function will cause its precondition to fail for
+            * empty maps and thus produce the error which is then transformed to the
+            * desirable one.
+            */
+          case n@PShortForRange(range, shorts, spec, body) if info.typ(range.exp).isInstanceOf[MapT] =>
+            // is a block as it introduces new variables
+            unit(block(for {
+              exp <- goE(range.exp)
+              perm <- permissionD(ctx, info)(range.perm.get)
+
+              keyType = exp.typ.asInstanceOf[in.MapT].keys.withAddressability(Addressability.exclusiveVariable)
+              valType = exp.typ.asInstanceOf[in.MapT].values.withAddressability(Addressability.exclusiveVariable)
+              visType = in.SetT(keyType, Addressability.exclusiveVariable)
+
+              // keys is the place where we store the keys of the range expression
+              rangeSrc = meta(range, info)
+              rangeExpSrc = meta(range.exp, info)
+              keysSrc = meta(shorts(1), info)
+
+              copiedVar <- freshDeclaredExclusiveVar(exp.typ, n, info)(rangeExpSrc)
+              copyAss = singleAss(in.Assignee.Var(copiedVar), exp)(rangeExpSrc)
+
+              // get domain of map
+              domain = in.MapKeys(copiedVar, underlyingType(exp.typ))(rangeExpSrc)
+
+              // declare and initialize "visited" variable
+              visLeft <- leftOfAssignmentD(shorts(0), info)(keyType)
+
+              visVar = in.Assignee.Var(visLeft.op.asInstanceOf[in.AssignableVar])
+
+              visLength = in.Length(visLeft.op)(rangeSrc)
+
+              // used to exclude all code generated for a the value iterator if the corresponding variable is missing
+              valExists = (shorts.length == 3)
+              passStmt = in.Seqn(Vector())(rangeSrc)
+
+              // declare keys variable
+              keysLeft <- {
+                val x = assignableVarD(ctx, info)(shorts(1)) match {
+                  case Left(v) => v
+                  case Right(v) => violation(s"Expected an assignable variable, but got $v instead")
+                }
+                val v = x.asInstanceOf[in.LocalVar]
+                for {
+                  _ <- declare(v)
+                } yield in.Assignee(v)
+              }
+
+              keysVar = in.Assignee.Var(keysLeft.op.asInstanceOf[in.AssignableVar])
+
+              // declare values variable
+              valLeft <- if (valExists) {
+                val x = assignableVarD(ctx, info)(shorts(2)) match {
+                  case Left(v) => v
+                  case Right(v) => violation(s"Expected an assignable variable, but got $v instead")
+                }
+                val v = x.asInstanceOf[in.LocalVar]
+                for {
+                  _ <- declare(v)
+                } yield in.Assignee(v).op
+              } else {
+                freshDeclaredExclusiveVar(keyType, n, info)(rangeExpSrc)
+              }
+
+              valVar = in.Assignee.Var(valLeft.asInstanceOf[in.AssignableVar])
+
+              length = in.Length(copiedVar)(rangeSrc)
+
+              // if (|x| > 0) {
+              //   inhale k in domain(x)
+              //   v := x[k] // [v]
+              // }
+              initKeyVal = in.If(in.LessCmp(in.IntLit(0)(keysSrc), length)(keysSrc),
+                in.Seqn(Vector(
+                  in.Inhale(in.ExprAssertion(in.Contains(keysLeft.op, domain)(keysSrc))(keysSrc))(keysSrc),
+                  if (valExists) singleAss(valVar, in.IndexedExp(copiedVar, keysLeft.op, underlyingType(exp.typ))(rangeSrc))(rangeExpSrc) else passStmt
+                ))(rangeSrc),
+                in.Seqn(Vector())(keysSrc))(keysSrc)
+
+              // copy permission variable over
+              copiedPerm <- freshDeclaredExclusiveVar(in.PermissionT(Addressability.exclusiveVariable), n, info)(rangeExpSrc)
+              copyPermAss = singleAss(in.Assignee.Var(copiedPerm), perm)(rangeExpSrc)
+
+              // invariant |visited| < |domain(x)| ==> k in domain(x) && !(k in visited)
+              newKeyInv = in.Implication(
+                in.LessCmp(visLength, length)(rangeSrc),
+                in.ExprAssertion(in.And(
+                  in.Contains(keysLeft.op, domain)(rangeSrc),
+                  in.Negation(in.Contains(keysLeft.op, visLeft.op)(rangeSrc))(rangeSrc)
+                )(rangeSrc))(rangeSrc))(rangeSrc)
+
+              // invariant |visited| < |domain(x)| ==> v == x[k] // [v]
+              keyValEquivInv = in.Implication(
+                in.LessCmp(visLength, length)(rangeSrc),
+                in.ExprAssertion(
+                  in.EqCmp(valLeft, in.IndexedExp(copiedVar, keysLeft.op, underlyingType(exp.typ))(rangeSrc))(rangeSrc),
+                )(rangeSrc))(rangeSrc)
+
+              // invariant 0 <= |visited| && |visited| <= |domain(x)|
+              visitedBoundInv = in.ExprAssertion(in.And(
+                  in.AtMostCmp(in.IntLit(0)(rangeSrc), visLength)(rangeSrc),
+                  in.AtMostCmp(visLength, length)(rangeSrc)
+                )(rangeSrc))(rangeSrc)
+
+              // invariant 0 < p // this ensures the user doesn’t give zero permissions to be exhaled from the map
+              noZeroPermInv = in.ExprAssertion(in.LessCmp(in.PermLit(0, 1)(rangeSrc), copiedPerm)(rangeSrc))(rangeSrc)
+
+              // invariant forall i : T1 :: i in visited ==> i in domain(x)
+              boundVar = in.BoundVar("i", keyType)(rangeSrc)
+              visSubDomInv = in.SepForall(
+                Vector(boundVar),
+                Vector.empty,
+                in.Implication(
+                  in.Contains(boundVar, visLeft.op)(rangeSrc),
+                  in.ExprAssertion(in.Contains(boundVar, domain)(rangeSrc))(rangeSrc)
+                )(rangeSrc)
+              )(rangeSrc)
+
+              // <invariant... where k is replaced with f(k, |domain(x)| > 0) and v with f(v, |domain(x)| > 0)>
+              invCtx = ctx.copyWithExpD{
+                case n@PNamedOperand(_@PIdnUse(name)) if name == shorts(1).name =>
+                  val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(range.exp.toString()))
+                  Some(unit(conditionalId(keysLeft.op, in.LessCmp(in.IntLit(0)(invSrc), length)(invSrc), keyType)(invSrc)))
+                case n@PNamedOperand(_@PIdnUse(name)) if valExists && name == shorts(2).name =>
+                  val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(range.exp.toString()))
+                  Some(unit(conditionalId(valLeft, in.LessCmp(in.IntLit(0)(invSrc), length)(invSrc), valType)(invSrc)))
+                case _ => None
+              }
+              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(invCtx, info)))
+
+              // termination measures
+              (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
+
+              // transform error message if ehale of map permission fails
+              exhSrc = meta(range.exp, info).createAnnotatedInfo(Source.InsufficientPermissionToRangeExpressionAnnotation())
+
+              // exhale acc(x, p)
+              exhalePerm = in.Exhale(in.Access(in.Accessible.ExprAccess(copiedVar), copiedPerm)(exhSrc))(exhSrc)
+
+              // desugar body
+              dBody = blockD(ctx, info)(body)
+
+              // inhale acc(x, p)
+              inhalePerm = in.Inhale(in.Access(in.Accessible.ExprAccess(copiedVar), copiedPerm)(rangeSrc))(rangeSrc)
+
+              // var key : T1
+              helperKey <- freshDeclaredExclusiveVar(keyType, n, info)(rangeExpSrc)
+
+              // if (|visited| < |domain(x)|) {
+              //   inhale key in domain(x) && !(key in visited)
+              //   k := key
+              //   v := x[k] // [v]
+              // }
+              updateKeyVal = in.If(in.LessCmp(visLength, length)(keysSrc),
+                in.Seqn(Vector(
+                  in.Inhale(in.ExprAssertion(in.And(
+                    in.Contains(helperKey, domain)(rangeSrc),
+                    in.Negation(in.Contains(helperKey, visLeft.op)(rangeSrc))(rangeSrc)
+                  )(rangeSrc))(rangeSrc))(keysSrc),
+                  singleAss(keysVar, helperKey)(rangeExpSrc),
+                  if (valExists) singleAss(valVar, in.IndexedExp(copiedVar, keysLeft.op, underlyingType(exp.typ))(rangeSrc))(rangeExpSrc) else passStmt
+                ))(rangeSrc),
+                in.Seqn(Vector())(keysSrc))(keysSrc)
+
+              // handle break and continue labels
+              continueLabelName = nm.continueLabel(n, info)
+              continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
+              continueLoopLabel = in.Label(continueLoopLabelProxy)(src)
+
+              breakLabelName = nm.breakLabel(n, info)
+              breakLoopLabelProxy = in.LabelProxy(breakLabelName)(src)
+              _ <- declare(breakLoopLabelProxy)
+              breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
+
+              // post loop assertion
+              visitedEqDomain = in.Assert(in.ExprAssertion(in.EqCmp(
+                in.SetMinus(visLeft.op, domain)(rangeSrc),
+                in.SetLit(keyType, Vector.empty)(rangeSrc)
+              )(rangeSrc))(rangeSrc))(rangeSrc)
+
+              // loop condition
+              cond = in.LessCmp(visLength, length)(rangeSrc)
+
+              // collect added invariants
+              addedInvs = if (valExists) Vector(newKeyInv, keyValEquivInv, visitedBoundInv, noZeroPermInv, visSubDomInv) else Vector(newKeyInv, visitedBoundInv, noZeroPermInv, visSubDomInv)
+
+              wh = in.Seqn(
+                Vector(copyAss, copyPermAss, initKeyVal) ++ dInvPre ++ dTerPre ++ Vector(
+                  in.While(cond, dInv ++ addedInvs, dTer, in.Block(Vector(continueLoopLabelProxy),
+                    Vector(exhalePerm, dBody, continueLoopLabel, inhalePerm, updateKeyVal) ++ dInvPre ++ dTerPre
+                  )(src))(src), visitedEqDomain, breakLoopLabel
+                )
+              )(src)
+            } yield wh))
+
+          /**
+            * This case handles for loops with a range clause of the form:
+            *
+            * <invariant...>
+            * for visited, k, v = range x, p {
+            *   <body>
+            * }
+            *
+            * The desugared program will look like this:
+            *
+            * if (|x| > 0) {
+            *   inhale k in domain(x)
+            *   v := x[k] // [v]
+            * }
+            *
+            * while (|visited| < |domain(x)|) // this loop condition represents the Go behaviour only if we don’t change the map inside the loop body
+            * invariant |visited| < |domain(x)| ==> k in domain(x) && !(k in visited)
+            * invariant |visited| < |domain(x)| ==> v == x[k] // [v]
+            * invariant 0 <= |visited| && |visited| <= |domain(x)|
+            * invariant 0/1 < p // this ensures the user doesn’t give zero permissions to be exhaled from the map
+            * invariant forall i : T1 :: i in visited ==> i in domain(x)
+            * <invariant...>
+            * {
+            *   exhale acc(x, p) // this ensures we can’t change the map in the loop body
+            *   <body>
+            *   inhale acc(x, p)
+            *   visited := visited union Set(k)
+            *   var key : T1
+            *   if (|visited| < |domain(x)|) {
+            *     inhale key in domain(x) && !(key in visited)
+            *     k := key
+            *     v := x[k] // [v]
+            *   }
+            * }
+            * assert (visited setminus domain(x)) == Set() // ensures that visited == domain(x) after iteration ends
+            *
+            * In the case where the value variable 'v' is missing all the code annotated with [v]
+            * is omitted
+            */
+          case n@PAssForRange(range, ass, spec, body) if info.typ(range.exp).isInstanceOf[MapT] =>
+            // is a block as it introduces new variables
+            unit(block(for {
+              exp <- goE(range.exp)
+              perm <- permissionD(ctx, info)(range.perm.get)
+
+              keyType = exp.typ.asInstanceOf[in.MapT].keys.withAddressability(Addressability.exclusiveVariable)
+              valType = exp.typ.asInstanceOf[in.MapT].values.withAddressability(Addressability.exclusiveVariable)
+              visType = in.SetT(keyType, Addressability.exclusiveVariable)
+
+              // keys is the place where we store the keys of the range expression
+              rangeSrc = meta(range, info)
+              rangeExpSrc = meta(range.exp, info)
+              keysSrc = meta(ass(1), info)
+
+              copiedVar <- freshDeclaredExclusiveVar(exp.typ, n, info)(rangeExpSrc)
+              copyAss = singleAss(in.Assignee.Var(copiedVar), exp)(rangeExpSrc)
+
+              // get domain of map
+              domain = in.MapKeys(copiedVar, underlyingType(exp.typ))(rangeExpSrc)
+
+              // initialize "visited" expression
+              visLeft <- goL(ass(0))
+              visLength = in.Length(visLeft.op)(rangeSrc)
+
+              // used to exclude all code generated for a the value iterator if the corresponding variable is missing
+              valExists = (ass.length == 3)
+              passStmt = in.Seqn(Vector())(rangeSrc)
+
+              // declare keys variable
+              keysLeft <- goL(ass(1))
+
+              // declare values variable
+              valLeft <- if (valExists) goL(ass(2)) else goL(ass(1))
+
+              length = in.Length(copiedVar)(rangeSrc)
+
+              // if (|x| > 0) {
+              //   inhale k in domain(x)
+              //   v := x[k] // [v]
+              // }
+              initKeyVal = in.If(in.LessCmp(in.IntLit(0)(keysSrc), length)(keysSrc),
+                in.Seqn(Vector(
+                  in.Inhale(in.ExprAssertion(in.Contains(keysLeft.op, domain)(keysSrc))(keysSrc))(keysSrc),
+                  if (valExists) singleAss(valLeft, in.IndexedExp(copiedVar, keysLeft.op, underlyingType(exp.typ))(rangeSrc))(rangeExpSrc) else passStmt
+                ))(rangeSrc),
+                in.Seqn(Vector())(keysSrc))(keysSrc)
+
+              // copy permission variable over
+              copiedPerm <- freshDeclaredExclusiveVar(in.PermissionT(Addressability.exclusiveVariable), n, info)(rangeExpSrc)
+              copyPermAss = singleAss(in.Assignee.Var(copiedPerm), perm)(rangeExpSrc)
+
+              // invariant |visited| < |domain(x)| ==> k in domain(x) && !(k in visited)
+              newKeyInv = in.Implication(
+                in.LessCmp(visLength, length)(rangeSrc),
+                in.ExprAssertion(in.And(
+                  in.Contains(keysLeft.op, domain)(rangeSrc),
+                  in.Negation(in.Contains(keysLeft.op, visLeft.op)(rangeSrc))(rangeSrc)
+                )(rangeSrc))(rangeSrc))(rangeSrc)
+
+              // invariant |visited| < |domain(x)| ==> v == x[k] // [v]
+              keyValEquivInv = in.Implication(
+                in.LessCmp(visLength, length)(rangeSrc),
+                in.ExprAssertion(
+                  in.EqCmp(valLeft.op, in.IndexedExp(copiedVar, keysLeft.op, underlyingType(exp.typ))(rangeSrc))(rangeSrc),
+                )(rangeSrc))(rangeSrc)
+
+              // invariant 0 <= |visited| && |visited| <= |domain(x)|
+              visitedBoundInv = in.ExprAssertion(in.And(
+                  in.AtMostCmp(in.IntLit(0)(rangeSrc), visLength)(rangeSrc),
+                  in.AtMostCmp(visLength, length)(rangeSrc)
+                )(rangeSrc))(rangeSrc)
+
+              // invariant 0 < p // this ensures the user doesn’t give zero permissions to be exhaled from the map
+              noZeroPermInv = in.ExprAssertion(in.LessCmp(in.PermLit(0, 1)(rangeSrc), copiedPerm)(rangeSrc))(rangeSrc)
+
+              // invariant forall i : T1 :: i in visited ==> i in domain(x)
+              boundVar = in.BoundVar("i", keyType)(rangeSrc)
+              visSubDomInv = in.SepForall(
+                Vector(boundVar),
+                Vector.empty,
+                in.Implication(
+                  in.Contains(boundVar, visLeft.op)(rangeSrc),
+                  in.ExprAssertion(in.Contains(boundVar, domain)(rangeSrc))(rangeSrc)
+                )(rangeSrc)
+              )(rangeSrc)
+
+              // <invariant...>
+              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
+
+              // termination measures
+              (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
+
+              // transform error message if ehale of map permission fails
+              exhSrc = meta(range.exp, info).createAnnotatedInfo(Source.InsufficientPermissionToRangeExpressionAnnotation())
+
+              // exhale acc(x, p)
+              exhalePerm = in.Exhale(in.Access(in.Accessible.ExprAccess(copiedVar), copiedPerm)(exhSrc))(exhSrc)
+
+              // desugar body
+              dBody = blockD(ctx, info)(body)
+
+              // inhale acc(x, p)
+              inhalePerm = in.Inhale(in.Access(in.Accessible.ExprAccess(copiedVar), copiedPerm)(rangeSrc))(rangeSrc)
+
+              // var key : T1
+              helperKey <- freshDeclaredExclusiveVar(keyType, n, info)(rangeExpSrc)
+
+              // if (|visited| < |domain(x)|) {
+              //   inhale key in domain(x) && !(key in visited)
+              //   k := key
+              //   v := x[k] // [v]
+              // }
+              updateKeyVal = in.If(in.LessCmp(visLength, length)(keysSrc),
+                in.Seqn(Vector(
+                  in.Inhale(in.ExprAssertion(in.And(
+                    in.Contains(helperKey, domain)(rangeSrc),
+                    in.Negation(in.Contains(helperKey, visLeft.op)(rangeSrc))(rangeSrc)
+                  )(rangeSrc))(rangeSrc))(keysSrc),
+                  singleAss(keysLeft, helperKey)(rangeExpSrc),
+                  if (valExists) singleAss(valLeft, in.IndexedExp(copiedVar, keysLeft.op, underlyingType(exp.typ))(rangeSrc))(rangeExpSrc) else passStmt
+                ))(rangeSrc),
+                in.Seqn(Vector())(keysSrc))(keysSrc)
+
+              // handle break and continue labels
+              continueLabelName = nm.continueLabel(n, info)
+              continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
+              continueLoopLabel = in.Label(continueLoopLabelProxy)(src)
+
+              breakLabelName = nm.breakLabel(n, info)
+              breakLoopLabelProxy = in.LabelProxy(breakLabelName)(src)
+              _ <- declare(breakLoopLabelProxy)
+              breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
+
+              // post loop assertion
+              visitedEqDomain = in.Assert(in.ExprAssertion(in.EqCmp(
+                in.SetMinus(visLeft.op, domain)(rangeSrc),
+                in.SetLit(keyType, Vector.empty)(rangeSrc)
+              )(rangeSrc))(rangeSrc))(rangeSrc)
+
+              // loop condition
+              cond = in.LessCmp(visLength, length)(rangeSrc)
+
+              // collect added invariants
+              addedInvs = if (valExists) Vector(newKeyInv, keyValEquivInv, visitedBoundInv, noZeroPermInv, visSubDomInv) else Vector(newKeyInv, visitedBoundInv, noZeroPermInv, visSubDomInv)
+
+              wh = in.Seqn(
+                Vector(copyAss, copyPermAss, initKeyVal) ++ dInvPre ++ dTerPre ++ Vector(
+                  in.While(cond, dInv ++ addedInvs, dTer, in.Block(Vector(continueLoopLabelProxy),
+                    Vector(exhalePerm, dBody, continueLoopLabel, inhalePerm, updateKeyVal) ++ dInvPre ++ dTerPre
+                  )(src))(src), visitedEqDomain, breakLoopLabel
+                )
+              )(src)
             } yield wh))
 
           case _ => ???

@@ -24,9 +24,19 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualMisc(misc: PActualMisc): Messages = misc match {
 
-    case n@PRange(exp) => isExpr(exp).out ++ (underlyingType(exprType(exp)) match {
+    case n@PRange(exp, perm) => isExpr(exp).out ++ (underlyingType(exprType(exp)) match {
       case _: ArrayT | PointerT(_: ArrayT) | _: SliceT | _: GhostSliceT |
-           _: MapT | ChannelT(_, ChannelModus.Recv | ChannelModus.Bi) => noMessages
+          ChannelT(_, ChannelModus.Recv | ChannelModus.Bi) => perm match {
+            case Some(_) => message(n, s"type error: got permission expression to range with iterable type ${underlyingType(exprType(exp))}")
+            case _ => noMessages
+        }
+      case _: MapT => perm match {
+        case None => message(n, "type error: got range over a map without a permission expression")
+        case Some(p) => if (!assignableTo(typ(p), PermissionT))
+          message(n, s"type error: expected perm or integer division expression but got $p")
+        else
+          noMessages
+      }
       case t => message(n, s"type error: got $t but expected rangeable type")
     })
 
@@ -50,12 +60,12 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def actualMiscType(misc: PActualMisc): Type = misc match {
 
-    case PRange(exp) => underlyingType(exprType(exp)) match {
+    case PRange(exp, _) => underlyingType(exprType(exp)) match {
       case ArrayT(_, elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
       case PointerT(ArrayT(_, elem)) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
       case SliceT(elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
       case GhostSliceT(elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
-      case MapT(key, elem) => InternalSingleMulti(key, InternalTupleT(Vector(key, elem)))
+      case MapT(key, elem) => InternalSingleMulti(SetT(key), InternalTupleT(Vector(SetT(key), key, elem)))
       case ChannelT(elem, ChannelModus.Recv | ChannelModus.Bi) => elem
       case t => violation(s"unexpected range type $t")
     }

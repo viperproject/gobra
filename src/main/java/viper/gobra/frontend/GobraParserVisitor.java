@@ -805,6 +805,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitAssign_op(GobraParser.Assign_opContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#rangeClause}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitRangeClause(GobraParser.RangeClauseContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#packageClause}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -1044,12 +1050,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitForClause(GobraParser.ForClauseContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#rangeClause}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitRangeClause(GobraParser.RangeClauseContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#goStmt}.
 	 * @param ctx the parse tree

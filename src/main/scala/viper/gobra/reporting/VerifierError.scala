@@ -289,6 +289,11 @@ case class NoPermissionToRangeExpressionError(info: Source.Verifier.Info) extend
   override def localMessage: String = s"Might not have read permissions to range expression"
 }
 
+case class InsufficientPermissionToRangeExpressionError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "insufficient_permission_to_range_expression"
+  override def localMessage: String = s"Not enough permissions to exhale from range expression"
+}
+
 case class MapMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "make_precondition_error"
   override def localMessage: String = s"The provided length to ${info.origin.tag.trim} might be negative"

@@ -6,7 +6,7 @@
 
 package viper.gobra.reporting
 
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, MainPreNotEstablished, OverflowCheckAnnotation, ReceiverNotNilCheckAnnotation, RangeVariableMightNotExistAnnotation}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, MainPreNotEstablished, OverflowCheckAnnotation, ReceiverNotNilCheckAnnotation, RangeVariableMightNotExistAnnotation, InsufficientPermissionToRangeExpressionAnnotation}
 
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
@@ -172,6 +172,7 @@ class DefaultErrorBackTranslator(
 
       case _ / RangeVariableMightNotExistAnnotation(rangeExpr) =>
         x.reasons.foldLeft(RangeVariableMightNotExistError(x.info)(rangeExpr): VerificationError){ case (err, reason) => err dueTo reason }
+
       case _ / MainPreNotEstablished =>
         x.reasons.foldLeft(MainPreconditionNotEstablished(x.info): VerificationError){
           case (err, reason) => err dueTo reason
@@ -181,6 +182,9 @@ class DefaultErrorBackTranslator(
         x.reasons.foldLeft(ImportPreconditionNotEstablished(x.info): VerificationError){
           case (err, reason) => err dueTo reason
         }
+
+      case _ / InsufficientPermissionToRangeExpressionAnnotation() =>
+        x.reasons.foldLeft(InsufficientPermissionToRangeExpressionError(x.info): VerificationError){ case (err, reason) => err dueTo reason }
 
       case _ => x
     }

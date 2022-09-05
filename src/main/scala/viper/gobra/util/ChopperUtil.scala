@@ -12,6 +12,7 @@ import java.nio.file.Files
 import java.util.Properties
 import viper.silver.{ast => vpr}
 import viper.silver.ast.SourcePosition
+import viper.silver.ast.utility.Chopper
 import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.reporting.ChoppedViperMessage
 import viper.gobra.backend.BackendVerifier.Task
@@ -24,8 +25,8 @@ object ChopperUtil {
   def computeChoppedPrograms(task: Task, pkgInfo: PackageInfo)(config: Config): Vector[vpr.Program] = {
 
 
-    val programs = ViperChopper.chop(task.program)(
-      isolate = computeIsolateMap(config, pkgInfo),
+    val programs = Chopper.chop(task.program)(
+      selection = computeIsolateMap(config, pkgInfo),
       bound = Some(config.choppingUpperBound),
       penalty = getPenalty
     )
@@ -70,9 +71,9 @@ object ChopperUtil {
     * then a penalty object using this configuration is created and returned.
     * Otherwise, if no configuration is present, the default configuration is returned.
     * */
-  def getPenalty: ViperChopper.Penalty[ViperChopper.Vertex] = {
+  def getPenalty: Chopper.Penalty[Chopper.Vertex] = {
     import scala.io.Source
-    import viper.gobra.util.ViperChopper.Penalty
+    import viper.silver.ast.utility.Chopper.Penalty
 
     val file = new File(GobraChopperFileLocation)
     if (!file.exists()) {

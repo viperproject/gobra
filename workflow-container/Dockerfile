@@ -45,51 +45,14 @@ ENV BOOGIE_EXE=/boogie/binaries-linux/Boogie
 # To fix boogie exception
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true
 
-ARG SILICON_REF
-ARG CARBON_REF
-ARG VIPERSERVER_REF
-
-# Check build arguments:
-RUN if [ -z "$SILICON_REF" ]; then echo "SILICON_REF is required" && exit 1 ; fi
-RUN if [ -z "$CARBON_REF" ]; then echo "CARBON_REF is required" && exit 1 ; fi
-RUN if [ -z "$VIPERSERVER_REF" ]; then echo "VIPERSERVER_REF is required" && exit 1 ; fi
-
-# Setup Silicon
-RUN git clone https://github.com/viperproject/silicon.git ./silicon && \
-	cd silicon && \
-	git checkout $SILICON_REF && \
-	git submodule init && \
-    git submodule update && \
-	cd ..
-
-# Setup Carbon
-RUN git clone https://github.com/viperproject/carbon.git ./carbon && \
-	cd carbon && \
-	git checkout $CARBON_REF && \
-	git submodule init && \
-    git submodule update && \
-	cd ..
-
-# Setup ViperServer
-RUN git clone https://github.com/viperproject/viperserver.git ./viperserver && \
-    cd viperserver && \
-	git checkout $VIPERSERVER_REF && \
-	ln -s ../silicon silicon && \
-	ln -s ../carbon carbon && \
-	cd ..
-
-# check that Silicon & Gobra reference same Silver commit:
-RUN SILICON_SILVER_REF=$(git -C silicon/silver rev-parse HEAD) && \
-    CARBON_SILVER_REF=$(git -C carbon/silver rev-parse HEAD) && \
-    if [ "$SILICON_SILVER_REF" != "$CARBON_SILVER_REF" ]; then echo "Silicon and Carbon reference different Silver commits ($SILICON_SILVER_REF and $CARBON_SILVER_REF)" && exit 1 ; fi
-
 # Setup Gobra
 WORKDIR /build/gobra/
 COPY build.sbt /build/gobra/
 COPY project /build/gobra/project
 COPY conf /build/gobra/conf
 COPY src /build/gobra/src
-RUN ln -s ../silicon silicon && ln -s ../carbon carbon && ln -s ../viperserver viperserver
+# Copies viperserver and, transitively, all of its dependencies (carbon, silicon and silver)
+COPY viperserver /build/gobra/viperserver
 
 RUN sbt assembly
 

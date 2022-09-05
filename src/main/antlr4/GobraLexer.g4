@@ -83,3 +83,5 @@ OUTLINE     : 'outline';
 INIT_POST   : 'initEnsures';
 IMPORT_PRE  : 'importRequires';
 PROOF       : 'proof';
+GHOST_EQUALS     : '===';
+GHOST_NOT_EQUALS : '!==';

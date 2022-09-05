@@ -119,6 +119,8 @@ object GobraStrategy {
       case (_: BitNeg, Seq(op: Expr)) => BitNeg(op)(meta)
       case (_: EqCmp, Seq(l: Expr, r: Expr)) => EqCmp(l, r)(meta)
       case (_: UneqCmp, Seq(l: Expr, r: Expr)) => UneqCmp(l, r)(meta)
+      case (_: GhostEqCmp, Seq(l: Expr, r: Expr)) => GhostEqCmp(l, r)(meta)
+      case (_: GhostUneqCmp, Seq(l: Expr, r: Expr)) => GhostUneqCmp(l, r)(meta)
       case (_: LessCmp, Seq(l: Expr, r: Expr)) => LessCmp(l, r)(meta)
       case (_: AtMostCmp, Seq(l: Expr, r: Expr)) => AtMostCmp(l, r)(meta)
       case (_: GreaterCmp, Seq(l: Expr, r: Expr)) => GreaterCmp(l, r)(meta)

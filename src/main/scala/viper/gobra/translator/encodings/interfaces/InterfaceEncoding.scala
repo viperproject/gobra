@@ -834,8 +834,9 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val newRecv = boxInterface(vRecv, types.typeToExpr(impl)()(ctx))()(ctx)
     val changedFormals = vpr.utility.Expressions.instantiateVariables(exp, variablesOfExpression, newRecv +: vArgs, Set.empty)
     val changedFuncs = changedFormals.transform{
-      case call: vpr.FuncApp if nameMap.isDefinedAt(call.funcname) =>
-        val recv = vRecv // maybe check that receiver is the same as newRecv
+      // equality check is fine since it was substituted with exactly `newRecv` beforehand.
+      case call: vpr.FuncApp if nameMap.isDefinedAt(call.funcname) && call.args.head == newRecv =>
+        val recv = vRecv
         call.copy(funcname = nameMap(call.funcname), args = recv +: call.args.tail)(call.pos, call.info, call.typ, call.errT)
     }
 

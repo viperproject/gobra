@@ -1,0 +1,41 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type I interface {
+	pred Mem()
+
+	requires acc(Mem(), _)
+	pure Value() int
+
+	ensures i != nil
+	ensures i.Mem()
+	ensures i.Value() == 0 // <-- Error, pre-condition acc(Mem(), _) unsatsified
+	Zero() (i I)
+}
+
+type S struct {
+	value int
+}
+
+pred (s *S) Mem() {
+	acc(&s.value)
+}
+
+requires acc(s.Mem(), _)
+pure func (s *S) Value() int {
+	return unfolding acc(s.Mem(), _) in s.value
+}
+
+ensures i != nil
+ensures i.Mem()
+ensures i.Value() == 0
+func (s *S) Zero() (i I) {
+	n := &S{}
+	n.value = 0
+	fold n.Mem()
+	return n
+}
+
+(*S) implements I

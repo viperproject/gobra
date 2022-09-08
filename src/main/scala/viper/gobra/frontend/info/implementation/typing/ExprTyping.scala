@@ -281,7 +281,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case c => Violation.violation(s"This case should be unreachable, but got $c")
           }
 
-        case (l, r) => println(s"$n; $l; $r");???
         case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
       }
     }

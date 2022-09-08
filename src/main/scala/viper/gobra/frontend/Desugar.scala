@@ -3354,8 +3354,13 @@ object Desugar {
 
     def typeD(t: Type, addrMod: Addressability)(src: Source.Parser.Info): in.Type = t match {
       case Type.VoidType => in.VoidT
-      case t: DeclaredT => registerType(registerDefinedType(t, addrMod)(src))
-
+      case t: DeclaredT =>
+        val uT = underlyingType(t)
+        // TODO doc
+        uT match {
+          case _: FunctionT => typeD(underlyingType(t), addrMod)(src)
+          case _ => registerType(registerDefinedType(t, addrMod)(src))
+        }
       case Type.BooleanT => in.BoolT(addrMod)
       case Type.StringT => in.StringT(addrMod)
       case Type.IntT(x) => in.IntT(addrMod, x)

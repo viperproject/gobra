@@ -94,7 +94,7 @@ trait Implements { this: TypeInfoImpl =>
     failedProp(s"The type $t is not supported for interface", !isIdentityPreservingType(t))
   }
 
-  /** Returns whether values of type 't' satisfy that [x] == [y] in Viper implies x == y in Gobra. */
+  /** Returns whether values of type 't' satisfy that [x] == [y] in Viper implies x === y in Gobra. */
   private def isIdentityPreservingType(t: Type, encounteredTypes: Set[Type] = Set.empty): Boolean = {
     if (encounteredTypes contains t) {
       true
@@ -112,6 +112,7 @@ trait Implements { this: TypeInfoImpl =>
         case ut: Type.OptionT => go(ut.elem)
         case ut: GhostCollectionType => go(ut.elem)
         case _: Type.InterfaceT => true
+        case _: Type.FunctionT => true
         case _ => false
       }
     }

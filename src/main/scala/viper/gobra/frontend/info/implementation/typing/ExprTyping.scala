@@ -281,6 +281,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case c => Violation.violation(s"This case should be unreachable, but got $c")
           }
 
+        case (l, r) => println(s"$n; $l; $r");???
         case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
       }
     }
@@ -641,7 +642,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // a PInvoke on a predicate expression instance must fully apply the predicate arguments
         AssertionT
       case (Left(callee), Some(_: ap.FunctionCall | _: ap.PredicateCall | _: ap.ClosureCall)) =>
-        exprType(callee) match {
+        underlyingType(exprType(callee)) match {
           case FunctionT(_, res) => res
           case t: AbstractType =>
             val argTypes = n.args map exprType
@@ -843,7 +844,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case Some(ap.FunctionCall(_, args)) =>
               val index = args.indexWhere(_.eq(expr))
               violation(index >= 0, errorMessage)
-              typOfExprOrType(n.base) match {
+              underlyingType(typOfExprOrType(n.base)) match {
                 case FunctionT(fArgs, _) =>
                   if (index >= fArgs.length-1 && fArgs.lastOption.exists(_.isInstanceOf[VariadicT])) {
                     fArgs.lastOption.map(_.asInstanceOf[VariadicT].elem)
@@ -1020,7 +1021,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefCallWithSpec(n: PInvoke): Messages = {
     val base = n.base.asInstanceOf[PExpression]
     val closureMatchesSpec = wellDefIfClosureMatchesSpec(base, n.spec.get)
-    val assignableArgs = (exprType(base), miscType(n.spec.get)) match {
+    val assignableArgs = (underlyingType(exprType(base)), miscType(n.spec.get)) match {
       case (tC: FunctionT, _: FunctionT) => n.args.flatMap(isExpr(_).out) ++ (
         if (n.args.isEmpty && tC.args.isEmpty) noMessages
         else multiAssignableTo.errors(n.args map exprType, tC.args)(base))
@@ -1031,7 +1032,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def wellDefIfClosureMatchesSpec(closure: PExpression, spec: PClosureSpecInstance): Messages =
-    isExpr(closure).out ++ ((exprType(closure), miscType(spec)) match {
+    isExpr(closure).out ++ ((underlyingType(exprType(closure)), miscType(spec)) match {
       case (tC: FunctionT, tS: FunctionT) => error(spec, s"expected type $tC, got ${spec} of type $tS", cond = !identicalTypes(tC, tS))
       case (tC, _) => error(closure, s"expected function type, but got $tC")
     })

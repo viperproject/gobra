@@ -2535,6 +2535,11 @@ object Desugar {
                 conv: in.EffectfulConversion = in.EffectfulConversion(target, resT, dArg)(src)
                 _ <- write(conv)
               } yield target
+
+            case (to: InterfaceT, _) =>
+              //TODO: doc
+              val desugaredTo = typeD(to, info.addressability(expr))(src)
+              for { expr <- exprD(ctx, info)(arg) } yield in.ToInterface(expr, desugaredTo)(src)
             case _ =>
               val desugaredTyp = typeD(typType, info.addressability(expr))(src)
               for { expr <- exprD(ctx, info)(arg) } yield in.Conversion(desugaredTyp, expr)(src)
@@ -3350,6 +3355,7 @@ object Desugar {
     def typeD(t: Type, addrMod: Addressability)(src: Source.Parser.Info): in.Type = t match {
       case Type.VoidType => in.VoidT
       case t: DeclaredT => registerType(registerDefinedType(t, addrMod)(src))
+
       case Type.BooleanT => in.BoolT(addrMod)
       case Type.StringT => in.StringT(addrMod)
       case Type.IntT(x) => in.IntT(addrMod, x)

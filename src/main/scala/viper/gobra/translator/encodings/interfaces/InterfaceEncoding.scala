@@ -135,6 +135,16 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
   /** also checks that the compared interface is comparable. */
   override def goEqual(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = default(super.goEqual(ctx)) {
+    case (lhs :: ctx.Interface(_), rhs :: ctx.Interface(_), src) if rhs.isInstanceOf[in.NilLit] =>
+      // Optimization:
+      // The case where an interface value is compared to the nil literal is very common. In those cases,
+      // we can skip the proof obligations that ensure that at least one of the operands is comparable.
+      val (pos, info, errT) = src.vprMeta
+      for {
+        vLhs <- ctx.expression(lhs)
+        vRhs <- ctx.expression(rhs)
+        res = vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
+      } yield  res
     case (lhs :: ctx.Interface(_), rhs :: ctx.Interface(_), src) =>
       val (pos, info, errT) = src.vprMeta
       val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>

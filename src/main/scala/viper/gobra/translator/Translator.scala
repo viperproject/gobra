@@ -13,7 +13,7 @@ import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.reporting.GeneratedViperMessage
 import viper.gobra.translator.context.DfltTranslatorConfig
 import viper.gobra.translator.encodings.programs.ProgramsImpl
-import viper.gobra.translator.transformers.{AssumeTransformer, TerminationTransformer, ViperTransformer}
+import viper.gobra.translator.transformers.{AssumeTransformer, SimplifierTransformer, TerminationTransformer, ViperTransformer}
 import viper.gobra.util.Violation
 
 object Translator {
@@ -30,7 +30,8 @@ object Translator {
 
     val transformers: Seq[ViperTransformer] = Seq(
       new AssumeTransformer,
-      new TerminationTransformer
+      new TerminationTransformer,
+      new SimplifierTransformer,
     )
 
     val transformedTask = transformers.foldLeft(task) {

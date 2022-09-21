@@ -6,6 +6,7 @@
 package viper.gobra.translator.library.tuples
 
 import viper.gobra.translator.Names
+import viper.gobra.translator.library.Simplifier
 import viper.silver.{ast => vpr}
 
 import scala.collection.mutable
@@ -140,5 +141,19 @@ class TuplesImpl extends Tuples {
     (0 until arity) foreach (ix => getters.update((ix, arity), getFuncs(ix)))
 
     _generatedDomains ::= domain
+  }
+}
+
+object TuplesImpl {
+  object Simplifier extends Simplifier {
+    def simplify(node: vpr.Node): Option[vpr.Node] = {
+      val getter = """get(\d+)of(\d+)""".r
+      val tuple = """tuple(\d+)""".r
+
+      node match {
+        case vpr.DomainFuncApp(getter(idx, _), Seq(vpr.DomainFuncApp(tuple(_), args, _)), _) => Some(args(idx.toInt))
+        case _ => None
+      }
+    }
   }
 }

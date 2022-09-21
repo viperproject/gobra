@@ -59,25 +59,20 @@ object BackendVerifier {
         val num = programs.size
         var counter = 0 // verification progress counter
 
-        // TODO: check if this is safe for carbon too
-        // TODO: doc
+        // Starts verifying all chopped programs in parallel
         val partialVerificationResults = Future.traverse(programs.zipWithIndex) { case (program, idx) =>
           val programID = s"${config.taskName}_$idx"
           verifier.verify(programID, reporter, program)(executor).andThen { _ =>
-            // TODO: explain purpose
-            this.synchronized {
-              counter += 1
-              config.reporter report ChoppedProgressMessage(counter, num)
-            }
+            // this block ensures that progress messages are printed in order
+            this.synchronized { counter += 1; config.reporter report ChoppedProgressMessage(counter, num) }
           }
         }
 
-        partialVerificationResults map {
-          case partialRes => partialRes.foldLeft[VerificationResult](silver.verifier.Success) {
+        partialVerificationResults map { partialRes =>
+          partialRes.foldLeft[VerificationResult](silver.verifier.Success) {
             case (acc, silver.verifier.Success) => acc
             case (silver.verifier.Success, res) => res
-            case (acc: silver.verifier.Failure, res: silver.verifier.Failure) =>
-              silver.verifier.Failure(acc.errors ++ res.errors)
+            case (silver.verifier.Failure(l), silver.verifier.Failure(r)) => silver.verifier.Failure(l ++ r)
           }
         }
       }

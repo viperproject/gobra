@@ -14,15 +14,21 @@ import viper.silver.ast.utility.rewriter.Traverse
 class SimplifierTransformer extends ViperTransformer {
 
   def transform(task: Task): Task = {
-    val program = task.program
 
+    // Transformations are applied in the order of the list
     val simplifiers: Seq[Simplifier] = Seq(
       TuplesImpl.Simplifier,
     )
 
-    val transformedProgram = simplifiers.foldLeft(program){ case (p, f) =>
-      val partialF = (f.simplify _).unlift
-      p.transform(partialF, Traverse.BottomUp)
+    val transformedProgram = {
+      // Transformations are not applied on domains.
+      val (pos, info, errT) = task.program.meta
+      val preTransformation = task.program.copy(domains = Seq.empty)(pos, info, errT) // remove domains
+      val postTransformation = simplifiers.foldLeft(preTransformation) { case (p, f) =>
+        val partialF = (f.simplify _).unlift
+        p.transform(partialF, Traverse.BottomUp)
+      }
+      postTransformation.copy(domains = task.program.domains)(pos, info, errT) // add domains back
     }
 
     task.copy(program = transformedProgram)

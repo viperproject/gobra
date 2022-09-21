@@ -47,7 +47,7 @@ object BackendVerifier {
       case _ =>
     }
 
-    val verificationResults =  {
+    val verificationResults: Future[VerificationResult] =  {
       val verifier = config.backend.create(exePaths, config)
       val reporter = BacktranslatingReporter(config.reporter, task.backtrack, config)
 
@@ -57,23 +57,27 @@ object BackendVerifier {
 
         val programs = ChopperUtil.computeChoppedPrograms(task, pkgInfo)(config)
         val num = programs.size
+        var counter = 0 // verification progress counter
 
-        //// (Felix) Currently, Silicon cannot be invoked concurrently.
-        // val verificationResults = Future.traverse(programs.zipWithIndex) { case (program, idx) =>
-        //   val programID = s"_programID_${config.inputFiles.head.getFileName}_$idx"
-        //   verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
-        // }
+        // TODO: check if this is safe for carbon too
+        // TODO: doc
+        val partialVerificationResults = Future.traverse(programs.zipWithIndex) { case (program, idx) =>
+          val programID = s"${config.taskName}_$idx"
+          verifier.verify(programID, reporter, program)(executor).andThen { _ =>
+            // TODO: explain purpose
+            this.synchronized {
+              counter += 1
+              config.reporter report ChoppedProgressMessage(counter, num)
+            }
+          }
+        }
 
-        programs.zipWithIndex.foldLeft(Future.successful(silver.verifier.Success): Future[VerificationResult]) { case (res, (program, idx)) =>
-          for {
-            acc <- res
-            next <- verifier
-              .verify(config.taskName, reporter, program)(executor)
-              .andThen(_ => config.reporter report ChoppedProgressMessage(idx+1, num))
-          } yield (acc, next) match {
+        partialVerificationResults map {
+          case partialRes => partialRes.foldLeft[VerificationResult](silver.verifier.Success) {
             case (acc, silver.verifier.Success) => acc
             case (silver.verifier.Success, res) => res
-            case (l: silver.verifier.Failure, r: silver.verifier.Failure) => silver.verifier.Failure(l.errors ++ r.errors)
+            case (acc: silver.verifier.Failure, res: silver.verifier.Failure) =>
+              silver.verifier.Failure(acc.errors ++ res.errors)
           }
         }
       }

@@ -61,6 +61,7 @@ object ConfigDefaults {
   lazy val DefaultTaskName: String = "gobra-task"
   lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
   lazy val DefaultParallelizeBranches: Boolean = false
+  lazy val DefaultDisableMoreCompleteExhale: Boolean = false
 }
 
 case class Config(
@@ -107,6 +108,7 @@ case class Config(
                    // if enabled, and if the chosen backend is either SILICON or VSWITHSILICON,
                    // branches will be verified in parallel
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
+                   disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
 ) {
 
   def merge(other: Config): Config = {
@@ -147,6 +149,7 @@ case class Config(
       onlyFilesWithHeader = onlyFilesWithHeader || other.onlyFilesWithHeader,
       assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale,
       parallelizeBranches = parallelizeBranches,
+      disableMoreCompleteExhale = disableMoreCompleteExhale,
     )
   }
 
@@ -188,6 +191,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
                       assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
+                      disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -237,6 +241,7 @@ trait RawConfig {
     onlyFilesWithHeader = baseConfig.onlyFilesWithHeader,
     assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,
     parallelizeBranches = baseConfig.parallelizeBranches,
+    disableMoreCompleteExhale = baseConfig.disableMoreCompleteExhale,
   )
 }
 
@@ -571,6 +576,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  // TODO: check that this flag is only passed with silicon or VSWITHSILICON
+  val disableMoreCompleteExhale: ScallopOption[Boolean] = opt[Boolean](
+    name = "disableMoreCompleteExhale",
+    descr = "Do not pass the flag --enableMoreCompleteExhale to Viper",
+    default = Some(ConfigDefaults.DefaultParallelizeBranches),
+    noshort = true,
+  )
+
   /**
     * Exception handling
     */
@@ -690,5 +703,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     onlyFilesWithHeader = onlyFilesWithHeader(),
     assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
     parallelizeBranches = parallelizeBranches(),
+    disableMoreCompleteExhale = disableMoreCompleteExhale(),
   )
 }

@@ -25,7 +25,9 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
-      options ++= Vector("--enableMoreCompleteExhale")
+      if (!config.disableMoreCompleteExhale) {
+        options ++= Vector("--enableMoreCompleteExhale")
+      }
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }
@@ -96,7 +98,9 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
-      options ++= Vector("--enableMoreCompleteExhale")
+      if (!config.disableMoreCompleteExhale) {
+        options ++= Vector("--enableMoreCompleteExhale")
+      }
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }

@@ -12,7 +12,7 @@ import ch.qos.logback.classic.Level
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import org.rogach.scallop.{ScallopConf, ScallopOption, singleArgConverter}
-import viper.gobra.backend.{ParallelizableBackend, ViperBackend, ViperBackends}
+import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
@@ -576,10 +576,9 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
-  // TODO: check that this flag is only passed with silicon or VSWITHSILICON
   val disableMoreCompleteExhale: ScallopOption[Boolean] = opt[Boolean](
     name = "disableMoreCompleteExhale",
-    descr = "Do not pass the flag --enableMoreCompleteExhale to Viper",
+    descr = "Disables the flag --enableMoreCompleteExhale passed by default to Silicon",
     default = Some(ConfigDefaults.DefaultParallelizeBranches),
     noshort = true,
   )
@@ -605,15 +604,27 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   conflicts(input, List(projectRoot, inclPackages, exclPackages))
   conflicts(directory, List(inclPackages, exclPackages))
 
-  // `parallelizeBranches` requires a backend that supports branch parallelization
+  // must be lazy to guarantee that this value is computed only during the CLI options validation and not before.
+  lazy val isSiliconBasedBackend = backend.toOption match {
+    case Some(ViperBackends.SiliconBackend | _: ViperBackends.ViperServerWithSilicon) => true
+    case _ => false
+  }
+
+  // `parallelizeBranches` requires a backend that supports branch parallelization (i.e., a silicon-based backend)
   addValidation {
     val parallelizeBranchesOn = parallelizeBranches.toOption.contains(true)
-    val unsupportedParallelBackend = backend.toOption match {
-      case Some(_: ParallelizableBackend) => false
-      case _ => true
-    }
-    if (parallelizeBranchesOn && unsupportedParallelBackend) {
+    if (parallelizeBranchesOn && !isSiliconBasedBackend) {
       Left("The selected backend does not support branch parallelization.")
+    } else {
+      Right(())
+    }
+  }
+
+  // `disableMoreCompleteExhale` can only be enabled when using a silicon-based backend
+  addValidation {
+    val disableMoreCompleteExh = disableMoreCompleteExhale.toOption.contains(true)
+    if (disableMoreCompleteExh && !isSiliconBasedBackend) {
+      Left("The flag --disableMoreCompleteExhale can only be used with Silicon and ViperServer with Silicon")
     } else {
       Right(())
     }

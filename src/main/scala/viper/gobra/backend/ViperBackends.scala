@@ -15,11 +15,9 @@ trait ViperBackend {
   def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperVerifier
 }
 
-trait ParallelizableBackend extends ViperBackend
-
 object ViperBackends {
 
-  object SiliconBackend extends ViperBackend with ParallelizableBackend {
+  object SiliconBackend extends ViperBackend {
     def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): Silicon = {
 
       var options: Vector[String] = Vector.empty
@@ -93,7 +91,7 @@ object ViperBackends {
       server = None
   }
 
-  case class ViperServerWithSilicon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) with ParallelizableBackend {
+  case class ViperServerWithSilicon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) {
     override def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig = {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")

@@ -64,7 +64,7 @@ object BackendVerifier {
           val programID = s"${config.taskName}_$idx"
           verifier.verify(programID, reporter, program)(executor).andThen { _ =>
             // this block ensures that progress messages are printed in order
-            this.synchronized { counter += 1; config.reporter report ChoppedProgressMessage(counter, num) }
+            this.synchronized { counter += 1; config.reporter report ChoppedProgressMessage(counter, num, idx) }
           }
         }
 

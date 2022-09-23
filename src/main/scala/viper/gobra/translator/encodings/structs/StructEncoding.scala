@@ -133,13 +133,15 @@ class StructEncoding extends TypeEncoding {
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
     case (lhs :: ctx.Struct(lhsFs), rhs :: ctx.Struct(rhsFs), src) =>
       val (pos, info, errT) = src.vprMeta
-      for {
-        x <- bind(lhs)(ctx)
-        y <- bind(rhs)(ctx)
-        lhsFAccs = fieldAccesses(x, lhsFs)
-        rhsFAccs = fieldAccesses(y, rhsFs)
-        equalFields <- sequence((lhsFAccs zip rhsFAccs).map{ case (lhsFA, rhsFA) => ctx.equal(lhsFA, rhsFA)(src) })
-      } yield VU.bigAnd(equalFields)(pos, info, errT)
+      pure(
+        for {
+          x <- bind(lhs)(ctx)
+          y <- bind(rhs)(ctx)
+          lhsFAccs = fieldAccesses(x, lhsFs)
+          rhsFAccs = fieldAccesses(y, rhsFs)
+          equalFields <- sequence((lhsFAccs zip rhsFAccs).map{ case (lhsFA, rhsFA) => ctx.equal(lhsFA, rhsFA)(src) })
+        } yield VU.bigAnd(equalFields)(pos, info, errT)
+      )(ctx)
 
     case (lhs :: ctx.*(ctx.Struct(lhsFs)) / Exclusive, rhs :: ctx.*(ctx.Struct(_)), src) =>
       if (lhsFs.isEmpty) {
@@ -232,14 +234,16 @@ class StructEncoding extends TypeEncoding {
         // if executed, then for all fields f, isComb[exp.f] != Left(false)
         val (pos, info, errT) = exp.vprMeta
 
-        for {
-          x <- bind(exp)(ctx)
-          // fields that are not ghost and with dynamic comparability
-          fsAccs = fieldAccesses(x, fs.filter(f => ! f.ghost))
-          fsComp = fsAccs map ctx.isComparable
-          // Left(true) can be removed.
-          args <- sequence(fsComp collect { case Right(e) => e })
-        } yield VU.bigAnd(args)(pos, info, errT)
+        pure(
+          for {
+            x <- bind(exp)(ctx)
+            // fields that are not ghost and with dynamic comparability
+            fsAccs = fieldAccesses(x, fs.filter(f => ! f.ghost))
+            fsComp = fsAccs map ctx.isComparable
+            // Left(true) can be removed.
+            args <- sequence(fsComp collect { case Right(e) => e })
+          } yield VU.bigAnd(args)(pos, info, errT)
+        )(ctx)
       }
   }
 

@@ -367,7 +367,11 @@ object ViperWriter {
     def bind(lhs: vpr.LocalVar, rhs: vpr.Exp): Writer[Unit] =
       create(Vector(Binding(lhs, rhs)), ())
 
-    /* Can be used in expressions. */
+    /**
+      * Can be used in expressions.
+      * When using this method in the encoding of expressions,
+      * make sure to use [[pure]] to avoid that the generated let bindings leave the context.
+      * */
     def bind(r: vpr.Exp)(ctx: Context): CodeWriter[vpr.LocalVar] = {
       val z = vpr.LocalVar(ctx.freshNames.next(), r.typ)(r.pos, r.info, r.errT)
       for {
@@ -376,7 +380,11 @@ object ViperWriter {
       } yield z
     }
 
-    /* Can be used in expressions. */
+    /**
+      * Can be used in expressions.
+      * When using this method in the encoding of expressions,
+      * make sure to use [[pure]] to avoid that the generated let bindings leave the context.
+      **/
     def bind(e: in.Expr)(ctx: Context): CodeWriter[in.LocalVar] = {
       val src = e.info
       val z = in.LocalVar(ctx.freshNames.next(), e.typ)(src)

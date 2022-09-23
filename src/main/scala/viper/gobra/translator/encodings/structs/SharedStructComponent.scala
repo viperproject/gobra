@@ -37,8 +37,11 @@ trait SharedStructComponent extends Generator {
     loc match {
       case _ :: ctx.Struct(fs) / Shared =>
         val vti = cptParam(fs)(ctx)
-        val locFAs = fs.map(f => in.FieldRef(loc, f)(loc.info))
-        sequence(locFAs.map(fa => ctx.expression(fa))).map(ex.create(_, vti)(loc)(ctx))
+        for {
+          x <- bind(loc)(ctx)
+          locFAs = fs.map(f => in.FieldRef(x, f)(loc.info))
+          args <- sequence(locFAs.map(fa => ctx.expression(fa)))
+        } yield ex.create(args, vti)(loc)(ctx)
 
       case _ :: t => Violation.violation(s"expected struct, but got $t")
     }
@@ -56,8 +59,11 @@ trait SharedStructComponent extends Generator {
     loc match {
       case _ :: ctx.Struct(fs) / Shared =>
         val (pos, info, errT) = loc.vprMeta
-        val locFAs = fs.map(f => in.FieldRef(loc, f)(loc.info))
-        sequence(locFAs.map(fa => ctx.footprint(fa, perm))).map(VU.bigAnd(_)(pos, info, errT))
+        for {
+          x <- bind(loc)(ctx)
+          locFAs = fs.map(f => in.FieldRef(x, f)(loc.info))
+          parts <- sequence(locFAs.map(fa => ctx.footprint(fa, perm)))
+        } yield VU.bigAnd(parts)(pos, info, errT)
 
       case _ :: t => Violation.violation(s"expected struct, but got $t")
     }

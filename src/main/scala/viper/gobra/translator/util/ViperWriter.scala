@@ -8,6 +8,7 @@ package viper.gobra.translator.util
 
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, ReasonTransformer, RichErrorMessage}
 import viper.silver.{ast => vpr}
+import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.{DefaultErrorBackTranslator, Source, VerificationError}
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.{ViperUtil => vu}
@@ -367,6 +368,27 @@ object ViperWriter {
       create(Vector(Binding(lhs, rhs)), ())
 
     /* Can be used in expressions. */
+    def bind(r: vpr.Exp)(ctx: Context): CodeWriter[vpr.LocalVar] = {
+      val z = vpr.LocalVar(ctx.freshNames.next(), r.typ)(r.pos, r.info, r.errT)
+      for {
+        _ <- local(vu.toVarDecl(z))
+        _ <- bind(z, r)
+      } yield z
+    }
+
+    /* Can be used in expressions. */
+    def bind(e: in.Expr)(ctx: Context): CodeWriter[in.LocalVar] = {
+      val src = e.info
+      val z = in.LocalVar(ctx.freshNames.next(), e.typ)(src)
+      val vprZ = ctx.variable(z)
+      for {
+        rhs <- ctx.value(e)
+        _ <- local(vprZ)
+        _ <- bind(vprZ.localVar, rhs)
+      } yield z
+    }
+
+    /* Can be used in expressions. */
     def assert(cond: vpr.Exp, exp: vpr.Exp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError)(ctx: Context): Writer[vpr.Exp] = {
       // In the future, this might do something more sophisticated
       val (res, errT) = ctx.condition.assert(cond, exp, reasonT)
@@ -440,15 +462,6 @@ object ViperWriter {
     /* Collects data. */
     def collect(collectibles: Collectible*): Writer[Unit] =
       create(collectibles.toVector, ())
-
-    /* Can be used in expressions. */
-    def copyResult(r: vpr.Exp)(ctx: Context): CodeWriter[vpr.LocalVar] = {
-      val z = vpr.LocalVar(ctx.freshNames.next(), r.typ)(r.pos, r.info, r.errT)
-      for {
-        _ <- local(vu.toVarDecl(z))
-        _ <- bind(z, r)
-      } yield z
-    }
   }
 
   type CodeWriter[+R] = CodeLevel.Writer[R]

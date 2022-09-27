@@ -579,7 +579,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   val disableMoreCompleteExhale: ScallopOption[Boolean] = opt[Boolean](
     name = "disableMoreCompleteExhale",
     descr = "Disables the flag --enableMoreCompleteExhale passed by default to Silicon",
-    default = Some(ConfigDefaults.DefaultParallelizeBranches),
+    default = Some(ConfigDefaults.DefaultDisableMoreCompleteExhale),
     noshort = true,
   )
 

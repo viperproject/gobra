@@ -59,6 +59,8 @@ object Nodes {
         case While(cond, invs, measure, body) => Seq(cond) ++ invs ++ measure ++ Seq(body)
         case New(target, typ) => Seq(target, typ)
         case MakeSlice(target, _, lenArg, capArg) => Seq(target, lenArg) ++ capArg.toSeq
+        case NewSliceLit(target, _, elems) => Seq(target) ++ elems.values.toSeq
+        case NewMapLit(target, _, _, entries) => Seq(target) ++ entries.flatMap{ case (x, y) => Seq(x, y) }
         case MakeChannel(target, _, bufferSizeArg, _, _) => target +: bufferSizeArg.toSeq
         case MakeMap(target, _, initialSpaceArg) => target +: initialSpaceArg.toSeq
         case SafeMapLookup(resTarget, successTarget, mapLookup) => Vector(resTarget, successTarget, mapLookup)
@@ -198,8 +200,6 @@ object Nodes {
           case FunctionLit(_, args, captured, results, pres, posts, measures, body) => args ++ captured.flatMap(c => Vector(c._1, c._2)) ++ results ++ pres ++ posts ++ measures ++ body
           case PureFunctionLit(_, args, captured, results, pres, posts, measures, body) => args ++ captured.flatMap(c => Vector(c._1, c._2)) ++ results ++ pres ++ posts ++ measures ++ body
           case ArrayLit(_, _, elems) => elems.values.toSeq
-          case SliceLit(_, elems) => elems.values.toSeq
-          case MapLit(_, _, entries) => entries flatMap { case (x, y) => Seq(x, y) }
           case StructLit(_, args) => args
           case SequenceLit(_, _, args) => args.values.toSeq
           case SetLit(_, args) => args

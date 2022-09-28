@@ -2020,21 +2020,27 @@ object Desugar {
           res <- wRes
           variadicInTyp = typeD(variadicTyp, Addressability.sliceElement)(src)
           len = res.length
-          argList = res.lastOption.map(_.typ) match {
+          argList <- res.lastOption.map(_.typ) match {
             case Some(t) if underlyingType(t).isInstanceOf[in.SliceT] &&
               len == parameterCount && underlyingType(t).asInstanceOf[in.SliceT].elems == variadicInTyp =>
               // corresponds to the case where an unpacked slice is already passed as an argument
-              res
+              unit(res)
             case Some(in.TupleT(_, _)) if len == 1 && parameterCount == 1 =>
               // supports chaining function calls with variadic functions of one argument
               val argsMap = getArgsMap(res.last.asInstanceOf[in.Tuple].args, variadicInTyp)
-              Vector(in.SliceLit(variadicInTyp, argsMap)(src))
+              for {
+                target <- freshDeclaredExclusiveVar(in.SliceT(variadicInTyp, Addressability.Exclusive), args.last, info)(src)
+                _ <- write(in.NewSliceLit(target, variadicInTyp, argsMap)(src))
+              } yield Vector(target)
             case _ if len >= parameterCount =>
               val argsMap = getArgsMap(res.drop(parameterCount - 1), variadicInTyp)
-              res.take(parameterCount - 1) :+ in.SliceLit(variadicInTyp, argsMap)(src)
+              for {
+                target <- freshDeclaredExclusiveVar(in.SliceT(variadicInTyp, Addressability.Exclusive), args.last, info)(src)
+                _ <- write(in.NewSliceLit(target, variadicInTyp, argsMap)(src))
+              } yield res.take(parameterCount - 1) :+ target
             case _ if len == parameterCount - 1 =>
               // variadic argument not passed
-              res :+ in.NilLit(in.SliceT(variadicInTyp, Addressability.nil))(src)
+              unit(res :+ in.NilLit(in.SliceT(variadicInTyp, Addressability.nil))(src))
             case t => violation(s"this case should be unreachable, but got $t")
           }
         } yield argList
@@ -2637,7 +2643,7 @@ object Desugar {
       (param, localVar)
     }
 
-    def compositeLitD(ctx: FunctionContext, info: TypeInfo)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
+    def compositeLitD(ctx: FunctionContext, info: TypeInfo)(lit: PCompositeLit): Writer[in.Expr] = lit.typ match {
 
       case t: PImplicitSizeArrayType =>
         val arrayLen : BigInt = lit.lit.elems.length
@@ -2710,7 +2716,7 @@ object Desugar {
       e map { exp => implicitConversion(exp.typ, typ, exp) }
     }
 
-    def literalValD(ctx: FunctionContext, info: TypeInfo)(lit: PLiteralValue, t: in.Type): Writer[in.CompositeLit] = {
+    def literalValD(ctx: FunctionContext, info: TypeInfo)(lit: PLiteralValue, t: in.Type): Writer[in.Expr] = {
       violation(t.addressability.isExclusive, s"Literals always have exclusive types, but got $t")
 
       val src = meta(lit, info)
@@ -2762,10 +2768,13 @@ object Desugar {
           for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx, info)(e.exp, typ))) }
             yield in.ArrayLit(len, typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
 
-        case CompositeKind.Slice(in.SliceT(typ, addressability)) =>
+        case CompositeKind.Slice(t@ in.SliceT(typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx, info)(e.exp, typ.withAddressability(Addressability.Exclusive)))) }
-            yield in.SliceLit(typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
+          for {
+            elemsD <- sequence(lit.elems.map(e => compositeValD(ctx, info)(e.exp, typ.withAddressability(Addressability.Exclusive))))
+            target <- freshDeclaredExclusiveVar(t, lit, info)(src)
+            _ <- write(in.NewSliceLit(target, typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src))
+          } yield target
 
         case CompositeKind.Sequence(in.SequenceT(typ, _)) => for {
           elemsD <- sequence(lit.elems.map(e => compositeValD(ctx, info)(e.exp, typ)))
@@ -2781,9 +2790,11 @@ object Desugar {
           elemsD <- sequence(lit.elems.map(e => compositeValD(ctx, info)(e.exp, typ)))
         } yield in.MultisetLit(typ, elemsD)(src)
 
-        case CompositeKind.Map(in.MapT(keys, values, _)) => for {
+        case CompositeKind.Map(t@ in.MapT(keys, values, _)) => for {
           entriesD <- handleMapEntries(ctx, info)(lit, keys, values)
-        } yield in.MapLit(keys, values, entriesD)(src)
+          target <- freshDeclaredExclusiveVar(t, lit, info)(src)
+          _ <- write(in.NewMapLit(target, keys, values, entriesD)(src))
+        } yield target
 
         case CompositeKind.MathematicalMap(in.MathMapT(keys, values, _)) => for {
           entriesD <- handleMapEntries(ctx, info)(lit, keys, values)

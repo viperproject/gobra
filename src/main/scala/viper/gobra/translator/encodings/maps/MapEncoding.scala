@@ -60,9 +60,6 @@ class MapEncoding extends LeafTypeEncoding {
     * R[ dflt(map[K]V°) ] -> null
     * R[ len(e: map[K]V) ] -> [e] == null? 0 : | getCorrespondingMap([e]) |
     * R[ (e: map[K]V)[idx] ] -> [e] == null? [ dflt(V) ] : goMapLookup(e[idx])
-    * R[ map[K]V { idx1: v1 ... idxn: vn } ] ->
-    *   e s.t. getCorrespondingMap(e) == { [idx1]: [v1] ... [idxn]: [vn] } (also checks that the values of keys are all
-    *   distinct and throws an error if not)
     * R[ keySet(e: map[K]V) ] -> [e] == null? 0 : MapDomain(getCorrespondingMap(e))
     * R[ valueSet(e: map[K]V) ] -> [e] == null? 0 : MapRange(getCorrespondingMap(e))
     */
@@ -90,45 +87,6 @@ class MapEncoding extends LeafTypeEncoding {
         } yield res
 
       case l@in.IndexedExp(_ :: ctx.Map(_, _), _, _) => for { (res, _) <- goMapLookup(l)(ctx) } yield res
-
-      case (lit: in.MapLit) :: ctx.Map(keys, values) =>
-        val (pos, info, errT) = lit.vprMeta
-        val res = in.LocalVar(ctx.freshNames.next(), lit.typ.withAddressability(Exclusive))(lit.info)
-        val vRes = ctx.variable(res)
-
-        for {
-          mapletList <- sequence(lit.entries.toVector.map {
-            case (key, value) => for {
-              kVpr <- goE(key)
-              isCompKey <- checkKeyComparability(key)(ctx)
-              k <- assert(isCompKey, kVpr, comparabilityErrorT)(ctx) // key must be comparable
-              v <- goE(value)
-            } yield vpr.Maplet(k, v)(pos, info, errT)
-          })
-
-          underlyingMap <- if (mapletList.nonEmpty) {
-            // silver assumes that the argument of ExplicitMap is not empty
-            val keySeq = mapletList map (_.key)
-            // checks whether all keys are distinct
-            val checkAllDiffKeys = vpr.EqCmp(
-              vpr.AnySetCardinality(vpr.ExplicitSet(keySeq)(pos, info, errT))(pos, info, errT),
-              vpr.SeqLength(vpr.ExplicitSeq(keySeq)(pos, info, errT))(pos, info, errT)
-            )(pos, info, errT)
-            assert(checkAllDiffKeys, vpr.ExplicitMap(mapletList)(pos, info, errT), repeatedKeyErrorT)(ctx)
-          } else {
-            unit(vpr.EmptyMap(goT(keys), goT(values))(pos, info, errT))
-          }
-          _ <- local(vRes)
-          correspondingMap <- getCorrespondingMap(res, keys, values)(ctx)
-          // inhale acc(res.underlyingMapField)
-          _ <- write(
-            vpr.Inhale(
-              vpr.FieldAccessPredicate(
-                vpr.FieldAccess(vRes.localVar, underlyingMapField)(pos, info, errT),
-                vpr.FullPerm()(pos, info, errT))(pos, info, errT))(pos, info, errT))
-          // inhale getCorrespondingMap(res) == underlyingMap; recall that underlyingMap == ExplicitMap(mapletList)
-          _ <- write(vpr.Inhale(vpr.EqCmp(underlyingMap, correspondingMap)(pos, info, errT))(pos, info, errT))
-        } yield vRes.localVar
 
       case k@ in.MapKeys(mapExp :: ctx.Map(keys, values), _) =>
         for {
@@ -172,6 +130,10 @@ class MapEncoding extends LeafTypeEncoding {
     *     ok' := okCond
     *     [v] := res
     *     [ok] := ok'
+    *
+    *  R[ map[K]V { idx1: v1 ... idxn: vn } ] ->
+    *     e s.t. getCorrespondingMap(e) == { [idx1]: [v1] ... [idxn]: [vn] } (also checks that the values of keys are all
+    *     distinct and throws an error if not)
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
@@ -233,6 +195,46 @@ class MapEncoding extends LeafTypeEncoding {
             okAss <- ctx.assignment(in.Assignee.Var(successTarget), ok)(l)
           } yield okAss
       )
+
+      case lit: in.NewMapLit =>
+        val (pos, info, errT) = lit.vprMeta
+        val res = in.LocalVar(ctx.freshNames.next(), lit.typ.withAddressability(Exclusive))(lit.info)
+        val vRes = ctx.variable(res)
+
+        for {
+          mapletList <- sequence(lit.entries.toVector.map {
+            case (key, value) => for {
+              kVpr <- goE(key)
+              isCompKey <- checkKeyComparability(key)(ctx)
+              k <- assert(isCompKey, kVpr, comparabilityErrorT)(ctx) // key must be comparable
+              v <- goE(value)
+            } yield vpr.Maplet(k, v)(pos, info, errT)
+          })
+
+          underlyingMap <- if (mapletList.nonEmpty) {
+            // silver assumes that the argument of ExplicitMap is not empty
+            val keySeq = mapletList map (_.key)
+            // checks whether all keys are distinct
+            val checkAllDiffKeys = vpr.EqCmp(
+              vpr.AnySetCardinality(vpr.ExplicitSet(keySeq)(pos, info, errT))(pos, info, errT),
+              vpr.SeqLength(vpr.ExplicitSeq(keySeq)(pos, info, errT))(pos, info, errT)
+            )(pos, info, errT)
+            assert(checkAllDiffKeys, vpr.ExplicitMap(mapletList)(pos, info, errT), repeatedKeyErrorT)(ctx)
+          } else {
+            unit(vpr.EmptyMap(goT(lit.keys), goT(lit.values))(pos, info, errT))
+          }
+          _ <- local(vRes)
+          correspondingMap <- getCorrespondingMap(res, lit.keys, lit.values)(ctx)
+          // inhale acc(res.underlyingMapField)
+          _ <- write(
+            vpr.Inhale(
+              vpr.FieldAccessPredicate(
+                vpr.FieldAccess(vRes.localVar, underlyingMapField)(pos, info, errT),
+                vpr.FullPerm()(pos, info, errT))(pos, info, errT))(pos, info, errT))
+          // inhale getCorrespondingMap(res) == underlyingMap; recall that underlyingMap == ExplicitMap(mapletList)
+          _ <- write(vpr.Inhale(vpr.EqCmp(underlyingMap, correspondingMap)(pos, info, errT))(pos, info, errT))
+          ass <- ctx.assignment(in.Assignee.Var(lit.target), res)(lit)
+        } yield ass
     }
   }
 

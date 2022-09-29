@@ -17,7 +17,8 @@ class SimplifierTransformer extends ViperTransformer {
 
     // Transformations are applied in the order of the list
     val simplifiers: Seq[Simplifier] = Seq(
-      TuplesImpl.Simplifier,
+      TuplesImpl.InlineSimplifier,
+      TuplesImpl.GetterOverTupleSimplifier,
     )
 
     val transformedProgram = {

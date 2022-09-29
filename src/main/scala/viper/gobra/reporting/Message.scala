@@ -83,9 +83,9 @@ case class GobraEntityFailureMessage(taskName: String, verifier: String, entity:
     s"cached=$cached)"
 }
 
-case class ChoppedProgressMessage(idx: Int, of: Int) extends GobraMessage {
+case class ChoppedProgressMessage(status: Int, total: Int, taskIdx: Int) extends GobraMessage {
   override val name: String = "chopped_progress_message"
-  override def toString: String = s"$name(idx=$idx,of=$of)"
+  override def toString: String = s"$name(progress=$status/$total,taskId=$taskIdx)"
 }
 
 case class PreprocessedInputMessage(input: String, preprocessedContent: () => String) extends GobraMessage {

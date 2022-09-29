@@ -6,20 +6,21 @@
 
 package viper.gobra.ast.internal
 
-import viper.gobra.ast.internal.utility.{GobraStrategy, Nodes}
+import viper.gobra.ast.internal.utility.Nodes
 import viper.gobra.reporting.Source
 import viper.silver.ast.utility.Visitor
+import viper.silver.ast.utility.rewriter.Traverse.Traverse
+import viper.silver.ast.utility.rewriter.{StrategyBuilder, Traverse}
 import viper.silver.{ast => vpr}
 
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 trait Node extends Rewritable with Product {
 
   def info: Source.Parser.Info
 
-  def getMeta: Node.Meta = info
-
-  def undefinedMeta: Boolean = getMeta == Source.Parser.Unsourced
+  def undefinedInfo: Boolean = info == Source.Parser.Unsourced
 
   lazy val vprMeta: (vpr.Position, vpr.Info, vpr.ErrorTrafo) = info.vprMeta(this)
 
@@ -30,19 +31,6 @@ trait Node extends Rewritable with Product {
   lazy val formattedShort: String = pretty(Node.shortPrettyPrinter)
 
   override def toString: String = formatted
-
-  /**
-    * Duplicate children. Children list must be in the same order as in getChildren
-    *
-    * @see [[Rewritable.getChildren()]] to see why we use type AnyRef for children
-    * @param children New children for this node
-    * @return Duplicated node
-    */
-  override def duplicate(children: scala.Seq[AnyRef]): this.type =
-    GobraStrategy.gobraDuplicator(this, children, getMeta)
-
-  def duplicateMeta(newMeta: Node.Meta): this.type =
-    GobraStrategy.gobraDuplicator(this, getChildren, newMeta)
 
   // Visitor and Nodes utilities
 
@@ -57,8 +45,17 @@ trait Node extends Rewritable with Product {
     Visitor.reduceWithContext(this, Nodes.subnodes)(context, enter, combine)
   }
 
-  /** Applies the function `f` to the AST node, then visits all subnodes. */
+  /** Apply the given function to the AST node and all its subnodes. */
   def foreach[A](f: Node => A): Unit = Visitor.visit(this, Nodes.subnodes) { case a: Node => f(a) }
+
+  /** Builds a new collection with all the AST nodes and returns an iterator over it. */
+  def iterator: Iterator[Node] = {
+    val elements = mutable.Queue.empty[Node]
+    for (x <- this) {
+      elements.append(x)
+    }
+    elements.iterator
+  }
 
   /** @see [[Visitor.visit()]] */
   def visit[A](f: PartialFunction[Node, A]): Unit = {
@@ -115,6 +112,35 @@ trait Node extends Rewritable with Product {
     }
   }
 
+  def transform(pre: PartialFunction[Node, Node] = PartialFunction.empty,
+                recurse: Traverse = Traverse.Innermost)
+  : this.type = {
+
+    StrategyBuilder.Slim[Node](pre, recurse) execute[this.type] (this)
+  }
+
+  def transformForceCopy(pre: PartialFunction[Node, Node] = PartialFunction.empty,
+                         recurse: Traverse = Traverse.Innermost)
+  : this.type = {
+
+    StrategyBuilder.Slim[Node](pre, recurse).forceCopy() execute[this.type] (this)
+  }
+
+  def transformNodeAndContext[C](transformation: PartialFunction[(Node, C), (Node, C)],
+                                 initialContext: C,
+                                 recurse: Traverse = Traverse.Innermost)
+  : this.type = {
+
+    StrategyBuilder.RewriteNodeAndContext[Node, C](transformation, initialContext, recurse).execute[this.type](this)
+  }
+
+  def replace(original: Node, replacement: Node): this.type =
+    this.transform { case `original` => replacement }
+
+  def replace[N <: Node : ClassTag](replacements: Map[N, Node]): this.type =
+    if (replacements.isEmpty) this
+    else this.transform { case t: N if replacements.contains(t) => replacements(t) }
+
 }
 
 object Node {
@@ -122,16 +148,6 @@ object Node {
   val defaultPrettyPrinter = new DefaultPrettyPrinter()
   val shortPrettyPrinter = new ShortPrettyPrinter()
 
-  type Meta = Source.Parser.Info
-
-  implicit class RichNode[N <: Node](n: N) {
-
-    def deepclone: N = new utility.Rewriter().deepclone(n)
-
-    def withInfo(newInfo: Source.Parser.Info): N = GobraStrategy.gobraDuplicator(n, n.getChildren, newInfo)
-
-    def withMeta(newMeta: Meta): N = withInfo(newMeta)
-
-  }
+  type Info = Source.Parser.Info
 }
 

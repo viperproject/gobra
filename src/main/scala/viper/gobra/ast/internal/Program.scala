@@ -8,8 +8,6 @@ package viper.gobra.ast.internal
 
 /**
   * When adding a new node:
-  * - extend @see [[viper.gobra.ast.internal.utility.Nodes.subnodes]]
-  * - extend @see [[viper.gobra.ast.internal.utility.GobraStrategy.gobraDuplicator]]
   * - extend @see [[DefaultPrettyPrinter.show]]
   * - extend desugar
   * - extend translator
@@ -1178,16 +1176,16 @@ case class ArrayLit(length : BigInt, memberType : Type, elems : Map[BigInt, Expr
 }
 
 /** A slice literal of type '[]`memberType`' consisting of `elems`. */
-case class SliceLit(memberType : Type, elems : Map[BigInt, Expr])(val info : Source.Parser.Info) extends CompositeLit {
+case class NewSliceLit(target: LocalVar, memberType: Type, elems: Map[BigInt, Expr])(val info: Source.Parser.Info) extends Stmt {
   lazy val length: BigInt = if (elems.isEmpty) 0 else elems.maxBy(_._1)._1 + 1
   lazy val asArrayLit: ArrayLit = ArrayLit(length, memberType.withAddressability(Addressability.rValue), elems)(info)
-  override val typ: Type = SliceT(memberType, Addressability.literal)
+  val typ: Type = SliceT(memberType, Addressability.literal)
 }
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
 
-case class MapLit(keys : Type, values : Type, entries : Seq[(Expr, Expr)])(val info : Source.Parser.Info) extends CompositeLit {
-  override val typ : Type = MapT(keys, values, Addressability.literal)
+case class NewMapLit(target: LocalVar, keys: Type, values: Type, entries: Seq[(Expr, Expr)])(val info: Source.Parser.Info) extends Stmt {
+  val typ : Type = MapT(keys, values, Addressability.literal)
 }
 
 sealed trait Declaration extends Node

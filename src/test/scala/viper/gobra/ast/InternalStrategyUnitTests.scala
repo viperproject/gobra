@@ -10,10 +10,11 @@ package viper.gobra.ast
 import org.scalatest.Inside
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
-
 import viper.gobra.ast.internal._
 import viper.gobra.reporting.Source.Parser.Internal
 import viper.gobra.theory.Addressability
+
+import scala.collection.immutable.ListMap
 
 class InternalStrategyUnitTests extends AnyFunSuite with Matchers with Inside {
 
@@ -21,6 +22,15 @@ class InternalStrategyUnitTests extends AnyFunSuite with Matchers with Inside {
     val x = LocalVar("a", BoolT(Addressability.Exclusive))(Internal)
     val y = BoolLit(false)(Internal)
     val z = EqCmp(x, y)(Internal)
+    z.subnodes should matchPattern {
+      case Seq(`x`, `y`) =>
+    }
+  }
+
+  test("Subnodes of ArrayLit") {
+    val x = LocalVar("a", BoolT(Addressability.Exclusive))(Internal)
+    val y = BoolLit(false)(Internal)
+    val z = ArrayLit(2, BoolT(Addressability.Exclusive), ListMap(0 -> x, 1 -> y))(Internal)
     z.subnodes should matchPattern {
       case Seq(`x`, `y`) =>
     }

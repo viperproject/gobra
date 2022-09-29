@@ -184,7 +184,7 @@ class StringEncoding extends LeafTypeEncoding {
     * where s is a string id and l and r are the lower and upper bounds of the slice
     */
   private val strSliceName: String = "strSlice"
-  val strSlice: vpr.Function = {
+  lazy val strSlice: vpr.Function = {
     val argS = vpr.LocalVarDecl("s", stringType)()
     val argL = vpr.LocalVarDecl("l", vpr.Int)()
     val argH = vpr.LocalVarDecl("h", vpr.Int)()

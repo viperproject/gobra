@@ -71,7 +71,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
   }
 
-  def updatePositionStore(n: Node): Doc = n.getMeta.origin match {
+  def updatePositionStore(n: Node): Doc = n.info.origin match {
     case Some(origin) =>
       new Doc(
         (iw: IW) =>

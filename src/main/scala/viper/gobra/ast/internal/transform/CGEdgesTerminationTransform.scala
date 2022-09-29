@@ -60,7 +60,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   // example, when looking at an embedding of the method).
 
                   // only performs transformation if method has termination measures
-                  val src = m.getMeta
+                  val src = m.info
                   val assumeFalse = in.Assume(in.ExprAssertion(in.BoolLit(b = false)(src))(src))(src)
                   val optCallsToImpls = implementations.toVector.flatMap { subT: in.Type =>
                     table.lookup(subT, proxy.name).toVector.map {
@@ -146,7 +146,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                 case m: in.PureMethod if m.terminationMeasures.nonEmpty && m.receiver.typ == t =>
                   Violation.violation(m.results.length == 1, "Expected one and only one out-parameter.")
                   // only performs transformation if method has termination measures
-                  val src = m.getMeta
+                  val src = m.info
 
                   // the fallback function is called if no comparison succeeds
                   val fallbackProxy = Names.InterfaceMethod.copy(m.name, "fallback")
@@ -223,7 +223,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
     in.LocalVar(p.id, p.typ)(p.info)
   }
 
-  private def typeAsExpr(t: in.Type)(src: in.Node.Meta): in.Expr = {
+  private def typeAsExpr(t: in.Type)(src: in.Node.Info): in.Expr = {
     t match {
       case in.BoolT(_) => in.BoolTExpr()(src)
       case in.IntT(_, kind) => in.IntTExpr(kind)(src)

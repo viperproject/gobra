@@ -1298,7 +1298,7 @@ object Desugar {
             *
             * var i int = 0
             * var i0 int = 0 // since 'i' can change in the iteration we store the true index in i0
-            * var j elem(x) // [v] the type of the elements of x 
+            * var j elem(x) // [v] the type of the elements of x
             *
             * c := x // save the value of the slice/array since changing it doesn't change the iteration
             *
@@ -1490,7 +1490,7 @@ object Desugar {
             * if (len(c) > 0) {
             *     expIndex = 0
             * }
-            * 
+            *
             * if (0 <= expIndex && expIndex < len(c)) { // [v]
             *     expValue = c[expIndex]
             * }
@@ -1579,7 +1579,7 @@ object Desugar {
                 val valueSrc = meta(ass(1), info)
                 val valueAss = singleAss(valueLeft, in.IndexedExp(copiedVar, indexLeft.op, typ)(valueSrc))(valueSrc)
                 val updateValue = in.If(in.And(cond, in.AtLeastCmp(indexLeft.op, in.IntLit(0)(valueSrc))(valueSrc))(valueSrc), valueAss, in.Seqn(Vector())(valueSrc))(valueSrc)
-                
+
                 val indexValueEq = in.Implication(
                   in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
                   in.Implication(
@@ -2584,9 +2584,8 @@ object Desugar {
 
         case PArrayType(len, elem) =>
           for {
-            inLen <- exprD(ctx, info)(len)
             inElem <- go(elem)
-          } yield in.ArrayTExpr(inLen, inElem)(src)
+          } yield in.ArrayTExpr(info.evalInt(len), inElem)(src)
 
         case PSliceType(elem) =>
           for {

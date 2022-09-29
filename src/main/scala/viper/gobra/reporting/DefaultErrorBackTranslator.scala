@@ -85,7 +85,7 @@ object DefaultErrorBackTranslator {
 
     val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {
       case AssertionFalseError(info / OverflowCheckAnnotation) => OverflowErrorReason(info)
-      case AssertionFalseError(info / ReceiverNotNilCheckAnnotation) => InterfaceReceiverIsNilReason(info)
+      case AssertionFalseError(info / ReceiverNotNilCheckAnnotation) => ReceiverIsNilReason(info)
       case AssertionFalseError(info / RangeVariableMightNotExistAnnotation(_)) => AssertionFalseError(info)
       case x => x
     }

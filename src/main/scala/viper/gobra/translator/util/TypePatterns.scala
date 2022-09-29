@@ -6,6 +6,7 @@
 
 package viper.gobra.translator.util
 
+import viper.gobra.ast.internal.theory.TypeHead.isZeroSize
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
@@ -222,6 +223,18 @@ object TypePatterns {
       def unapply(arg: in.Type): Option[Vector[in.Type]] = underlyingType(arg)(ctx) match {
         case t : in.PredT => Some(t.args)
         case _ => None
+      }
+    }
+
+    object ZeroSize {
+      def unapply(arg: in.Type): Boolean =
+        isZeroSize(underlyingType(arg)(ctx))(ctx.table)
+    }
+
+    object NoZeroSize {
+      def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
+        case ctx.ZeroSize() => None
+        case t => Some(t)
       }
     }
   }

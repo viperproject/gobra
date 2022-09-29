@@ -30,7 +30,7 @@ class InternalStrategyUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Subnodes of ArrayLit") {
     val x = LocalVar("a", BoolT(Addressability.Exclusive))(Internal)
     val y = BoolLit(false)(Internal)
-    val z = ArrayLit(2, BoolT(Addressability.Exclusive), ListMap(0 -> x, 1 -> y))(Internal)
+    val z = ArrayLit(2, BoolT(Addressability.Exclusive), ListMap(BigInt(0) -> x, BigInt(1) -> y))(Internal)
     z.subnodes should matchPattern {
       case Seq(`x`, `y`) =>
     }

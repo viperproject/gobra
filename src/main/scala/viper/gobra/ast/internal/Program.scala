@@ -8,8 +8,6 @@ package viper.gobra.ast.internal
 
 /**
   * When adding a new node:
-  * - extend @see [[viper.gobra.ast.internal.utility.Nodes.subnodes]]
-  * - extend @see [[viper.gobra.ast.internal.utility.GobraStrategy.gobraDuplicator]]
   * - extend @see [[DefaultPrettyPrinter.show]]
   * - extend desugar
   * - extend translator

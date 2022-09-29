@@ -384,7 +384,7 @@ object Desugar {
           // rest of the initialization code in the containing file. The corresponding proof obligations are generated
           // in methods [registerPackage] and [registerMainPackage].
           Vector.empty
-        case NoGhost(x: PConstDecl) => constDeclD(x)
+        //case NoGhost(x: PConstDecl) => constDeclD(x) // TODO: can probably be removed
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
         case NoGhost(x: PFunctionDecl) => registerFunction(x).toVector
         case x: PMPredicateDecl => Vector(registerMPredicate(x))
@@ -472,36 +472,6 @@ object Desugar {
       val name = idName(v.id, v.context.getTypeInfo)
       in.GlobalVarProxy(v.id.name, name)(meta(v.decl, v.context.getTypeInfo))
     }
-
-    def constDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constSpecD)
-
-    def constSpecD(decl: PConstSpec): Vector[in.GlobalConstDecl] = decl.left.flatMap(l => info.regular(l) match {
-      case sc@st.SingleConstant(_, id, _, _, _, _) =>
-        val src = meta(id, info)
-        val gVar = globalConstD(sc)(src)
-        val lit: in.Lit = underlyingType(gVar.typ) match {
-          case in.BoolT(Addressability.Exclusive) =>
-            val constValue = sc.context.boolConstantEvaluation(sc.exp)
-            in.BoolLit(constValue.get)(src)
-          case in.StringT(Addressability.Exclusive) =>
-            val constValue = sc.context.stringConstantEvaluation(sc.exp)
-            in.StringLit(constValue.get)(src)
-          case x if underlyingType(x).isInstanceOf[in.IntT] && x.addressability == Addressability.Exclusive =>
-            val constValue = sc.context.intConstantEvaluation(sc.exp)
-            in.IntLit(constValue.get)(src)
-          case in.PermissionT(Addressability.Exclusive) =>
-            val constValue = sc.context.permConstantEvaluation(sc.exp)
-            in.PermLit(constValue.get._1, constValue.get._2)(src)
-          case _ => ???
-        }
-        Vector(in.GlobalConstDecl(gVar, lit)(src))
-      case st.Wildcard(_, _) =>
-        // Constants defined with the blank identifier can be safely ignored as they
-        // must be computable statically (and thus do not have side effects) and
-        // they can never be read
-        Vector()
-      case _ => ???
-    })
 
     // Note: Alternatively, we could return the set of type definitions directly.
     //       However, currently, this would require to have versions of [[typeD]].
@@ -3458,11 +3428,28 @@ object Desugar {
       }
     }
 
-    def globalConstD(c: st.Constant)(src: Meta): in.GlobalConst = {
+    def globalConstD(c: st.Constant)(src: Meta): in.Lit = {
       c match {
         case sc: st.SingleConstant =>
+          // TODO: try to optimize this to make sure that it is only evaluated once
           val typ = typeD(c.context.typ(sc.idDef), Addressability.constant)(src)
-          in.GlobalConst.Val(idName(sc.idDef, c.context.getTypeInfo), typ)(src)
+          typ match {
+            case in.BoolT(Addressability.constant) =>
+              val v = sc.context.boolConstantEvaluation(sc.exp).get
+              in.BoolLit(v)(src)
+            case in.IntT(Addressability.constant, _) =>
+              val v = sc.context.intConstantEvaluation(sc.exp).get
+              in.IntLit(v)(src)
+            case in.PermissionT(Addressability.constant) =>
+              val v = sc.context.permConstantEvaluation(sc.exp).get
+              in.PermLit(v._1, v._2)(src)
+            case in.StringT(Addressability.constant) =>
+              val v = sc.context.stringConstantEvaluation(sc.exp).get
+              in.StringLit(v)(src)
+            case _ => ??? // TODO: violation
+          }
+          // TODO: clean
+          // in.GlobalConst.Val(idName(sc.idDef, c.context.getTypeInfo), typ)(src)
         case _ => ???
       }
     }

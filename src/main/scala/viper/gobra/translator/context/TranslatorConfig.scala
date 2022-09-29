@@ -11,7 +11,6 @@ import viper.gobra.translator.library.arrays.Arrays
 import viper.gobra.translator.library.conditions.Conditions
 import viper.gobra.translator.library.equality.Equality
 import viper.gobra.translator.library.fields.Fields
-import viper.gobra.translator.library.fixpoints.Fixpoint
 import viper.gobra.translator.library.multiplicity.SeqMultiplicity
 import viper.gobra.translator.library.options.Options
 import viper.gobra.translator.library.slices.Slices
@@ -37,7 +36,6 @@ trait TranslatorConfig {
 
   def slice: Slices
 
-  def fixpoint: Fixpoint
 
   def tuple: Tuples
 

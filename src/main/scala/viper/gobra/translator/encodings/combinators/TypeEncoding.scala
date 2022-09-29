@@ -195,11 +195,10 @@ trait TypeEncoding extends Generator {
     * To avoid conflicts with other encodings, an encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
     * (2) shared expression of type T
-    * The default implements exclusive variables and constants with [[variable]] and [[globalVar]], respectively.
+    * The default implements exclusive variables with [[variable]] and [[globalVar]], respectively.
     * Furthermore, the default implements [T(e: T)] -> [e]
     */
   def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
-    case v: in.GlobalConst if typ(ctx) isDefinedAt v.typ => unit(ctx.fixpoint.get(v)(ctx))
     case (v: in.BodyVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar)
     case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) => ctx.expression(expr)
   }

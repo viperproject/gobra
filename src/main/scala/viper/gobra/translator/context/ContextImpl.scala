@@ -13,7 +13,6 @@ import viper.gobra.translator.library.arrays.Arrays
 import viper.gobra.translator.library.conditions.Conditions
 import viper.gobra.translator.library.equality.Equality
 import viper.gobra.translator.library.fields.Fields
-import viper.gobra.translator.library.fixpoints.Fixpoint
 import viper.gobra.translator.library.multiplicity.SeqMultiplicity
 import viper.gobra.translator.library.options.Options
 import viper.gobra.translator.library.slices.Slices
@@ -31,7 +30,6 @@ case class ContextImpl(
                         option: Options,
                         optionToSeq: OptionToSeq,
                         slice: Slices,
-                        fixpoint: Fixpoint,
                         tuple: Tuples,
                         equality: Equality,
                         condition: Conditions,
@@ -52,7 +50,6 @@ case class ContextImpl(
       conf.option,
       conf.optionToSeq,
       conf.slice,
-      conf.fixpoint,
       conf.tuple,
       conf.equality,
       conf.condition,
@@ -73,7 +70,6 @@ case class ContextImpl(
                    optionN: Options = option,
                    optionToSeqN: OptionToSeq = optionToSeq,
                    sliceN: Slices = slice,
-                   fixpointN: Fixpoint = fixpoint,
                    tupleN: Tuples = tuple,
                    equalityN: Equality = equality,
                    conditionN: Conditions = condition,
@@ -90,7 +86,6 @@ case class ContextImpl(
     optionN,
     optionToSeqN,
     sliceN,
-    fixpointN,
     tupleN,
     equalityN,
     conditionN,

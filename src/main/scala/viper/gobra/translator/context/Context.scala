@@ -14,7 +14,6 @@ import viper.gobra.translator.library.arrays.Arrays
 import viper.gobra.translator.library.conditions.Conditions
 import viper.gobra.translator.library.equality.Equality
 import viper.gobra.translator.library.fields.Fields
-import viper.gobra.translator.library.fixpoints.Fixpoint
 import viper.gobra.translator.library.multiplicity.SeqMultiplicity
 import viper.gobra.translator.library.options.Options
 import viper.gobra.translator.library.slices.Slices
@@ -41,8 +40,6 @@ trait Context {
   def optionToSeq: OptionToSeq
 
   def slice: Slices
-
-  def fixpoint: Fixpoint
 
   def tuple: Tuples
 
@@ -152,7 +149,6 @@ trait Context {
           optionN: Options = option,
           optionToSeqN: OptionToSeq = optionToSeq,
           sliceN: Slices = slice,
-          fixpointN: Fixpoint = fixpoint,
           tupleN: Tuples = tuple,
           equalityN: Equality = equality,
           conditionN: Conditions = condition,
@@ -173,7 +169,6 @@ trait Context {
     col.finalize(option)
     col.finalize(optionToSeq)
     col.finalize(slice)
-    col.finalize(fixpoint)
     col.finalize(tuple)
     col.finalize(equality)
     col.finalize(condition)

@@ -173,8 +173,6 @@ case class GlobalVarDecl(left: Vector[GlobalVar],
   require(declStmts.nonEmpty)
 }
 
-case class GlobalConstDecl(left: GlobalConst, right: Lit)(val info: Source.Parser.Info) extends Member
-
 case class Field(name: String, typ: Type, ghost: Boolean)(val info: Source.Parser.Info) extends Node
 
 case class Method(
@@ -1202,11 +1200,6 @@ sealed trait Var extends Expr with Location {
 }
 
 /**
-  * Any variable that has a global scope.
-  * */
-sealed trait Global extends Var
-
-/**
   * Any variable whose scope is the body of a method, function, or predicate.
   * Effectively, every variable that does not have a global scope.
   * */
@@ -1239,24 +1232,9 @@ case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends
 /** Variables that can be defined in the body of a method or function. */
 case class LocalVar(id: String, typ: Type)(val info: Source.Parser.Info) extends BodyVar with AssignableVar with BlockDeclaration
 
-case class GlobalVar(name: GlobalVarProxy, typ: Type)(val info: Source.Parser.Info) extends AssignableVar with Global {
+case class GlobalVar(name: GlobalVarProxy, typ: Type)(val info: Source.Parser.Info) extends AssignableVar {
   override def id: String = name.name
 }
-
-sealed trait GlobalConst extends Global {
-  def unapply(arg: GlobalConst): Some[(String, Type)] =
-    Some((arg.id, arg.typ))
-}
-
-object GlobalConst {
-  case class Val(id: String, typ: Type)(val info: Source.Parser.Info) extends GlobalConst {
-    require(typ.addressability == Addressability.constant)
-  }
-}
-
-
-
-
 
 
 sealed trait Typed {

@@ -129,7 +129,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: DomainDefinition => showDomainDefinition(n)
     case n: MethodSubtypeProof => showMethodSubtypeProof(n)
     case n: PureMethodSubtypeProof => showPureMethodSubtypeProof(n)
-    case n: GlobalConstDecl => showGlobalConstDecl(n)
     case n: GlobalVarDecl => showGlobalVarDecl(n)
     case n: BuiltInMember => showBuiltInMember(n)
   })
@@ -190,10 +189,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showMPredicate(predicate: MPredicate): Doc = predicate match {
     case MPredicate(recv, name, args, body) =>
       "pred" <+> parens(showVarDecl(recv)) <+> name.name <> parens(showFormalArgList(args)) <> opt(body)(b => block(showAss(b)))
-  }
-
-  def showGlobalConstDecl(globalConst: GlobalConstDecl): Doc = {
-    "const" <+> showVarDecl(globalConst.left) <+> "=" <+> showLit(globalConst.right)
   }
 
   def showGlobalVarDecl(decl: GlobalVarDecl): Doc = {
@@ -600,7 +595,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Parameter.In(id, _)    => id
     case Parameter.Out(id, _)    => id
     case LocalVar(id, _) => id
-    case GlobalConst.Val(id, _) => id
     case GlobalVar(proxy, _) => proxy.name
   }
 
@@ -609,7 +603,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Parameter.In(id, t)    => id <> ":" <+> showType(t)
     case Parameter.Out(id, t)    => id <> ":" <+> showType(t)
     case LocalVar(id, t) => id <> ":" <+> showType(t)
-    case GlobalConst.Val(id, t) => id <> ":" <+> showType(t)
     case GlobalVar(proxy, t) => proxy.name <> ":" <+> showType(t)
   }
 

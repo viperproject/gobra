@@ -27,7 +27,6 @@ import viper.gobra.translator.library.arrays.{Arrays, ArraysImpl}
 import viper.gobra.translator.library.conditions.{Conditions, ConditionsImpl}
 import viper.gobra.translator.library.equality.{Equality, EqualityImpl}
 import viper.gobra.translator.library.fields.{Fields, FieldsImpl}
-import viper.gobra.translator.library.fixpoints.{Fixpoint, FixpointImpl}
 import viper.gobra.translator.library.multiplicity.{SeqMultiplicity, SeqMultiplicityImpl}
 import viper.gobra.translator.library.options.{OptionImpl, Options}
 import viper.gobra.translator.library.slices.{Slices, SlicesImpl}
@@ -43,7 +42,6 @@ class DfltTranslatorConfig(
   val seqToSet : SeqToSet = new SeqToSetImpl,
   val seqMultiplicity : SeqMultiplicity = new SeqMultiplicityImpl,
   val option : Options = new OptionImpl,
-  val fixpoint: Fixpoint = new FixpointImpl,
   val tuple : Tuples = new TuplesImpl,
   val equality: Equality = new EqualityImpl,
   val condition: Conditions = new ConditionsImpl,
@@ -70,7 +68,7 @@ class DfltTranslatorConfig(
       new MapEncoding, new MathematicalMapEncoding, new FloatEncoding,
       new AssertionEncoding, new CallEncoding, new MemoryEncoding, new ControlEncoding,
       new TerminationEncoding, new BuiltInEncoding, new OutlineEncoding, new DeferEncoding,
-      new GlobalEncoding, new Comments,
+      new Comments,
     ), Vector(
       methodEncoding, pureMethodEncoding, predicateEncoding, globalVarEncoding
     ))

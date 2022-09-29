@@ -72,7 +72,6 @@ class PointerEncoding extends LeafTypeEncoding {
     * Ref[*e] -> [e]
     */
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
-    case (loc: in.Deref) :: _ / Shared =>
-      ctx.expression(loc.exp)
+    case (loc: in.Deref) :: _ / Shared => ctx.expression(loc.exp)
   }
 }

@@ -95,6 +95,8 @@ trait Context {
 
   def reference(x: in.Location): CodeWriter[vpr.Exp] = typeEncoding.reference(this)(x)
 
+  def safeReference(x: in.Location): CodeWriter[vpr.Exp] = typeEncoding.safeReference(this)(x)
+
   def value(x: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.value(this)(x)
 
   def footprint(x: in.Location, perm: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.addressFootprint(this)(x, perm)
@@ -134,7 +136,6 @@ trait Context {
   }
 
   // mapping
-
   def addVars(vars: vpr.LocalVarDecl*): Context
 
   // fresh variable counter
@@ -142,7 +143,7 @@ trait Context {
   def freshNames: Iterator[String] = internalFreshNames
 
   /** internal fresh name iterator that additionally provides a getter function for its counter value */
-  protected def internalFreshNames: FreshNameIterator
+  protected def internalFreshNames: Context.FreshNameIterator
 
   /** copy constructor */
   def :=(
@@ -161,7 +162,28 @@ trait Context {
           unknownValueN: UnknownValues = unknownValue,
           typeEncodingN: TypeEncoding = typeEncoding,
           defaultEncodingN: DefaultEncoding = defaultEncoding,
-          initialFreshCounterValueN: Int = internalFreshNames.getValue
+          initialFreshCounterValueN: Option[Int] = None,
+        ): Context = {
+    update(fieldN, arrayN, seqToSetN, seqToMultisetN, seqMultiplicityN, optionN, optionToSeqN, sliceN, fixpointN, tupleN, equalityN, conditionN, unknownValueN, typeEncodingN, defaultEncodingN, initialFreshCounterValueN)
+  }
+
+  protected def update(
+          fieldN: Fields,
+          arrayN: Arrays,
+          seqToSetN: SeqToSet,
+          seqToMultisetN: SeqToMultiset,
+          seqMultiplicityN: SeqMultiplicity,
+          optionN: Options,
+          optionToSeqN: OptionToSeq,
+          sliceN: Slices,
+          fixpointN: Fixpoint,
+          tupleN: Tuples,
+          equalityN: Equality,
+          conditionN: Conditions,
+          unknownValueN: UnknownValues,
+          typeEncodingN: TypeEncoding,
+          defaultEncodingN: DefaultEncoding,
+          initialFreshCounterValueN: Option[Int],
         ): Context
 
 
@@ -185,8 +207,10 @@ trait Context {
     col.finalize(typeEncoding)
   }
 
+}
+
+object Context {
   trait FreshNameIterator extends Iterator[String] {
     def getValue: Int
   }
-
 }

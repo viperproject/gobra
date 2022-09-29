@@ -403,6 +403,13 @@ object ViperWriter {
       errorT(errT).map(_ => res)
     }
 
+    /* Can be used in expressions. */
+    def assertWithDefaultReason(cond: vpr.Exp, exp: vpr.Exp, error: Source.Verifier.Info => VerificationError)(ctx: Context): Writer[vpr.Exp] = {
+      // In the future, this might do something more sophisticated
+      val (res, errT) = ctx.condition.assert(cond, exp, (info, reason) => error(info) dueTo DefaultErrorBackTranslator.defaultTranslate(reason))
+      errorT(errT).map(_ => res)
+    }
+
     /* Emits Viper statements. */
     def assert(cond: vpr.Exp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError): Writer[Unit] = {
       val res = vpr.Assert(cond)(cond.pos, cond.info, cond.errT)

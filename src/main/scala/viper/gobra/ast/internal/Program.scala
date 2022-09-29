@@ -8,8 +8,6 @@ package viper.gobra.ast.internal
 
 /**
   * When adding a new node:
-  * - extend @see [[viper.gobra.ast.internal.utility.Nodes.subnodes]]
-  * - extend @see [[viper.gobra.ast.internal.utility.GobraStrategy.gobraDuplicator]]
   * - extend @see [[DefaultPrettyPrinter.show]]
   * - extend desugar
   * - extend translator
@@ -606,7 +604,7 @@ case class Float32TExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class Float64TExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends TypeExpr
 case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
-case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class ArrayTExpr(length: BigInt, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class SliceTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class MapTExpr(keys: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class PermTExpr()(val info: Source.Parser.Info) extends TypeExpr
@@ -949,7 +947,18 @@ case class Deref(exp: Expr, underlyingTypeExpr: Type)(val info: Source.Parser.In
   override val typ: Type = underlyingTypeExpr.asInstanceOf[PointerT].t
 }
 
-case class Ref(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) extends Expr with Location
+/** Only used internally to separate the type encodings. Should not be created by the desugarer. */
+case class UncheckedRef(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) extends Expr {
+  def checked: Ref = Ref(ref, typ)(info)
+}
+
+object UncheckedRef {
+  def apply(exp: Expr)(info: Source.Parser.Info): UncheckedRef = Ref(exp)(info).unchecked
+}
+
+case class Ref(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) extends Expr {
+  def unchecked: UncheckedRef = UncheckedRef(ref, typ)(info)
+}
 
 object Ref {
   def apply(ref: Expr)(info: Source.Parser.Info): Ref = {

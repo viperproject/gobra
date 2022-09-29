@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.ast.internal.theory.Comparability
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
-import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, NoPermissionToRangeExpressionError, Source}
+import viper.gobra.reporting.{AssignmentError, DefaultErrorBackTranslator, DerefError, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, NoPermissionToRangeExpressionError, Source}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.library.Generator
 import viper.gobra.translator.context.Context
@@ -18,10 +18,11 @@ import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.silver.verifier.{errors => vprerr}
 import viper.silver.{ast => vpr}
 
-import scala.annotation.unused
+import scala.annotation.{tailrec, unused}
 
 trait TypeEncoding extends Generator {
 
+  import viper.gobra.translator.encodings.combinators.TypeEncoding._
   import viper.gobra.translator.util.TypePatterns._
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.ViperWriter.{MemberLevel => ml}
@@ -121,7 +122,7 @@ trait TypeEncoding extends Generator {
       for {
         footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
         eq1 <- ctx.equal(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info))(loc)
-        eq2 <- ctx.equal(in.Ref(loc)(loc.info), in.NilLit(in.PointerT(t, Exclusive))(loc.info))(loc)
+        eq2 <- ctx.equal(in.UncheckedRef(loc)(loc.info), in.NilLit(in.PointerT(t, Exclusive))(loc.info))(loc)
       } yield vpr.Inhale(vpr.And(footprint, vpr.And(eq1, vpr.Not(eq2)(pos, info, errT))(pos, info, errT))(pos, info, errT))(pos, info, errT)
   }
 
@@ -154,7 +155,7 @@ trait TypeEncoding extends Generator {
         for {
           footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
           eq <- ctx.equal(loc, rhs)(src)
-          _ <- write(vpr.Exhale(footprint)(pos, info, errT))
+          _ <- exhaleWithDefaultReason(footprint, AssignmentError)
           inhale = vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT)
         } yield inhale
       )
@@ -196,12 +197,19 @@ trait TypeEncoding extends Generator {
     * (1) exclusive operations on T, which includes literals and default values
     * (2) shared expression of type T
     * The default implements exclusive variables and constants with [[variable]] and [[globalVar]], respectively.
-    * Furthermore, the default implements [T(e: T)] -> [e]
+    * Furthermore, the default implements
+    * [T(e: T)] -> [e]
+    * [loc: T@ if sizeOf(T) == 0] -> assert [&loc != nil: *T°]; [dflt(T°)]
     */
   def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     case v: in.GlobalConst if typ(ctx) isDefinedAt v.typ => unit(ctx.fixpoint.get(v)(ctx))
     case (v: in.BodyVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar)
     case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) => ctx.expression(expr)
+    case (loc: in.Location) :: (t@ctx.ZeroSize()) / Shared if typ(ctx).isDefinedAt(t) =>
+      for {
+        dflt <- ctx.expression(in.DfltVal(t.withAddressability(Exclusive))(loc.info))
+        checked <- checkNotNil(loc, dflt)(ctx)
+      } yield checked
   }
 
   /**
@@ -273,6 +281,22 @@ trait TypeEncoding extends Generator {
   }
 
   /**
+    * Checks whether an L-value is safe, i.e. does not cause a runtime panic due to dereferencing nil.
+    * Instead of checking that a dereference is safe immediately, the encoding checks that usages of l-values are safe.
+    * Usages of L-values are: (1) taking a reference, (2) taking a slice, (3) converting to R-value
+    *
+    * SafeRef[loc: T@] => assert [&loc != nil: *T°]; Ref[loc]
+    */
+  final def safeReference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
+    val r = reference(ctx); { case loc@r(w) =>
+      for {
+        vprLoc <- w
+        checked <- checkNotNil(loc, vprLoc)(ctx)
+      } yield checked
+    }
+  }
+
+  /**
     * Encodes an expression such that substitution is possible.
     * For an expression `e` and a context `K`, the encoding of K[e] is semantically equal to K[x] with x := Value[e].
     *
@@ -292,8 +316,13 @@ trait TypeEncoding extends Generator {
     * Encodes the permissions for all addresses of a shared type,
     * i.e. all permissions involved in converting the shared location to an exclusive r-value.
     * An encoding for type T should be defined at all shared locations of type T.
+    *
+    * The default implements:
+    * Footprint[loc: T@ if sizeOf(T) == 0] -> [&loc != nil: *T°]
     */
-  def addressFootprint(@unused ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = PartialFunction.empty
+  def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = {
+    case (loc :: (t@ctx.ZeroSize()) / Shared, _) if typ(ctx).isDefinedAt(t) => checkNotNil(loc)(ctx)
+  }
 
   /**
     * Encodes whether a value is comparable or not.
@@ -394,7 +423,6 @@ trait TypeEncoding extends Generator {
     }
   }
 
-
   /**
     * Alternative version of `orElse` to simplify delegations to super implementations.
     *
@@ -418,4 +446,53 @@ trait TypeEncoding extends Generator {
   /** Adds simple (source) information to a node without source information. */
   protected def synthesized[T](node: (vpr.Position, vpr.Info, vpr.ErrorTrafo) => T)(comment: String): T =
     node(vpr.NoPosition, vpr.SimpleInfo(Seq(comment)), vpr.NoTrafos)
+}
+
+object TypeEncoding {
+
+  import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl}
+
+  /**
+    * Checks whether an L-value is safe, i.e. does not cause a runtime panic due to dereferencing nil.
+    *
+    * assert [&loc != nil: *T°]; res
+    *
+    */
+  final def checkNotNil(loc: in.Location, res: vpr.Exp)(ctx: Context): CodeWriter[vpr.Exp] = {
+    if (cannotBeNil(loc)) cl.unit(res)
+    else {
+      for {
+        cond <- checkNotNil(loc)(ctx)
+        checked <- cl.assertWithDefaultReason(cond, res, DerefError)(ctx)
+      } yield checked
+    }
+  }
+
+  /**
+    * Checks whether an L-value is safe, i.e. does not cause a runtime panic due to dereferencing nil.
+    *
+    * [&loc != nil: *T°]
+    *
+    */
+  final def checkNotNil(loc: in.Location)(ctx: Context): CodeWriter[vpr.Exp] = {
+
+    val annotatedInfo = loc.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(Source.ReceiverNotNilCheckAnnotation)
+    val (pos, info, errT) = loc.vprMeta
+
+    if (cannotBeNil(loc)) cl.unit(vpr.TrueLit()(pos, info, errT))
+    else {
+      ctx.expression(in.UneqCmp(
+        in.UncheckedRef(loc)(annotatedInfo),
+        in.NilLit(in.PointerT(loc.typ, Exclusive))(annotatedInfo)
+      )(annotatedInfo))
+    }
+  }
+
+  @tailrec
+  private def cannotBeNil(l: in.Expr): Boolean = l match {
+    case _: in.Var => true
+    case l: in.FieldRef => cannotBeNil(l.recv)
+    case l: in.IndexedExp => cannotBeNil(l.base)
+    case _ => false
+  }
 }

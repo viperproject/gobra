@@ -7,12 +7,11 @@
 package viper.gobra.translator.library.outlines
 
 import viper.gobra.translator.util.ViperUtil
-import viper.silver.ast.Member
 import viper.silver.{ast => vpr}
 
 class OutlinesImpl extends Outlines {
 
-  override def finalize(addMemberFn: Member => Unit): Unit = {
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     generatedMembers foreach addMemberFn
   }
   private var generatedMembers: List[vpr.Member] = List.empty
@@ -62,7 +61,7 @@ class OutlinesImpl extends Outlines {
                       )(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.Stmt = {
 
     val (arguments, results) = {
-      val bodyFree = body.undeclLocalVars.toSet
+      val bodyFree = undeclLocalVarsGobraCopy(body).toSet
       val preFree = pres
         .map(e => vpr.utility.Expressions.freeVariables(e).collect{ case x: vpr.LocalVar => x })
         .foldLeft(Set.empty[vpr.LocalVar]){ case (l,r) => l ++ r }
@@ -142,4 +141,54 @@ class OutlinesImpl extends Outlines {
     vpr.MethodCall(methodName = name, args = arguments, targets = results)(pos, info, errT)
   }
 
+  /**
+    * TODO: should be removed once the corresponding silver function is fixed.
+    *
+    * Returns a list of all undeclared local variables used in this statement.
+    * If the same local variable is used with different
+    * types, an exception is thrown.
+    */
+  private def undeclLocalVarsGobraCopy(s: vpr.Stmt): Seq[vpr.LocalVar] = {
+    def extractLocal(n: vpr.Node, decls: Seq[vpr.LocalVarDecl]) =
+      n match {
+        case l: vpr.LocalVar => decls.find(_.name == l.name) match {
+          case None => List(l)
+          case Some(d) if d.typ != l.typ =>
+            sys.error(s"Local variable ${l.name} is declared with type ${d.typ} but used with type ${l.typ}.")
+          case _ => Nil
+        }
+        case _ => Nil
+      }
+
+    def combineLists(s1: Seq[vpr.LocalVar], s2: Seq[vpr.LocalVar]) = {
+      for (l1 <- s1; l2 <- s2) {
+        if (l1.name == l2.name && l1.typ != l2.typ) {
+          sys.error(s"Local variable ${l1.name} is used with different types ${l1.typ} and ${l2.typ}.")
+        }
+      }
+      (s1 ++ s2).distinct
+    }
+
+    def addDecls(n: vpr.Node, decls: Seq[vpr.LocalVarDecl]) = n match {
+      case vpr.QuantifiedExp(variables, _) =>
+        // add quantified variables
+        decls ++ variables
+      case vpr.Seqn(_, scoped) =>
+        // add variables defined in scope
+        decls ++ scoped.collect { case variable: vpr.LocalVarDecl => variable }
+      case vpr.Let(variable, _, _) =>
+        // add defined variable
+        decls ++ Seq(variable)
+      case _ =>
+        decls
+    }
+
+    def combineResults(n: vpr.Node, decls: Seq[vpr.LocalVarDecl], locals: Seq[Seq[vpr.LocalVar]]) = {
+      locals.fold(extractLocal(n, decls))(combineLists)
+    }
+
+    s.reduceWithContext(Nil, addDecls, combineResults)
+  }
+
 }
+

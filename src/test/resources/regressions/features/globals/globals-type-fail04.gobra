@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// Redeclarations of global variables are not allowed
+//:: ExpectedOutput(type_error)
+var A int
+//:: ExpectedOutput(type_error)
+var A struct{}
+
+type T interface {
+    f() int
+}
+
+func newT() T
+
+// calls to dynamically-bound methods are not allowed
+// in global variable declarations, given that dependency
+// analysis cannot be performed.
+//:: ExpectedOutput(type_error)
+var B = newT().f()
+
+ghost
+//:: ExpectedOutput(type_error)
+func init() {}
+
+//:: ExpectedOutput(type_error)
+ghost var C int

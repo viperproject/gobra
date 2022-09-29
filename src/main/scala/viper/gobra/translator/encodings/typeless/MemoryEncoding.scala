@@ -20,7 +20,8 @@ class MemoryEncoding extends Encoding {
     case r: in.Ref => ctx.safeReference(r.ref.op)
     case x@ in.EqCmp(l, r) => ctx.goEqual(l, r)(x)
     case x@ in.UneqCmp(l, r) => ctx.goEqual(l, r)(x).map(v => withSrc(vpr.Not(v), x))
-
+    case x@ in.GhostEqCmp(l, r) => ctx.equal(l, r)(x)
+    case x@ in.GhostUneqCmp(l, r) => ctx.equal(l, r)(x).map(v => withSrc(vpr.Not(v), x))
     case n@ in.LessCmp(l, r) => for {vl <- ctx.expression(l); vr <- ctx.expression(r)}    yield withSrc(vpr.LtCmp(vl, vr), n)
     case n@ in.AtMostCmp(l, r) => for {vl <- ctx.expression(l); vr <- ctx.expression(r)}  yield withSrc(vpr.LeCmp(vl, vr), n)
     case n@ in.GreaterCmp(l, r) => for {vl <- ctx.expression(l); vr <- ctx.expression(r)} yield withSrc(vpr.GtCmp(vl, vr), n)

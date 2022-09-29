@@ -31,16 +31,15 @@ trait Enclosing { this: TypeInfoImpl =>
   })
 
 
-  lazy val enclosingLoopUntilOutline: PNode => Either[Option[PNode], PForStmt] = {
-    down[Either[Option[PNode], PForStmt]](Left(None)){
+  lazy val enclosingLoopUntilOutline: PNode => Either[Option[PNode], PGeneralForStmt] = {
+    down[Either[Option[PNode], PGeneralForStmt]](Left(None)){
       case x: POutline => Left(Some(x))
-      case x: PForStmt => Right(x)
+      case x: PGeneralForStmt => Right(x)
     }
   }
 
   // Returns the enclosing loop that has a specific label
-  // It also returns the invariants of that loop
-  def enclosingLabeledLoop(label: PLabelUse, node: PNode): Either[Option[PNode], PForStmt] = {
+  def enclosingLabeledLoop(label: PLabelUse, node: PNode): Either[Option[PNode], PGeneralForStmt] = {
     enclosingLoopUntilOutline(node) match {
       case Right(encLoop) => encLoop match {
         case tree.parent(l: PLabeledStmt) if l.label.name == label.name => Right(encLoop)
@@ -48,6 +47,13 @@ trait Enclosing { this: TypeInfoImpl =>
         case _ => Left(None)
       }
       case r => r
+    }
+  }
+
+  def enclosingInvariant(n: PExpression) : PExpression = {
+    n match {
+      case tree.parent(p) if enclosingExpr(p).isDefined => enclosingExpr(p).get
+      case _ => n
     }
   }
 
@@ -59,6 +65,15 @@ trait Enclosing { this: TypeInfoImpl =>
 
   lazy val enclosingCodeRootWithResult: PStatement => PCodeRootWithResult =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRootWithResult => m }
+
+  lazy val tryEnclosingCodeRootWithResult: PStatement => Option[PCodeRootWithResult] =
+    down[Option[PCodeRootWithResult]](None) { case m: PCodeRootWithResult => Some(m) }
+
+  lazy val tryEnclosingFunction: PNode => Option[PFunctionDecl] =
+    down[Option[PFunctionDecl]](None) { case m: PFunctionDecl => Some(m) }
+
+  lazy val tryEnclosingClosureImplementationProof: PNode => Option[PClosureImplProof] =
+    down[Option[PClosureImplProof]](None) { case m: PClosureImplProof => Some(m) }
 
   lazy val enclosingCodeRoot: PNode => PCodeRoot with PScope =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRoot with PScope => m }
@@ -75,8 +90,17 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val isEnclosingDomain: PNode => Boolean =
     down(false){ case _: PDomainType => true }
 
+  def isGlobalVarDeclaration(n: PVarDecl): Boolean =
+    enclosingCodeRoot(n).isInstanceOf[PPackage]
+
   lazy val enclosingInterface: PNode => PInterfaceType =
     down((_: PNode) => violation("Node does not root in an interface definition")) { case x: PInterfaceType => x }
+
+  lazy val tryEnclosingFunctionLit: PNode => Option[PFunctionLit] =
+    down[Option[PFunctionLit]](None) { case x: PFunctionLit => Some(x) }
+
+  lazy val enclosingExpr: PNode => Option[PExpression] =
+    down[Option[PExpression]](None) { case x: PExpression => Some(x) }
 
   lazy val enclosingStruct: PNode => Option[PStructType] =
     down[Option[PStructType]](None) { case x: PStructType => Some(x) }
@@ -239,5 +263,16 @@ trait Enclosing { this: TypeInfoImpl =>
     }
   }
 
+  override def capturedVariables(decl: PClosureDecl): Vector[PIdnNode] =
+    capturedVariablesAttr(tree.parent(decl).head.asInstanceOf[PFunctionLit])
+  private lazy val capturedVariablesAttr: PFunctionLit => Vector[PIdnNode] = {
+    def capturedVar(x: PIdnNode, lit: PFunctionLit): Boolean = entity(x) match {
+      case r: SymbolTable.Variable => !containedIn(enclosingScope(r.rep), lit)
+      case _ => false
+    }
 
+    attr[PFunctionLit, Vector[PIdnNode]] { lit =>
+      allChildren(lit.decl).collect{ case x: PIdnNode if capturedVar(x, lit) => x }.distinctBy(_.name)
+    }
+  }
 }

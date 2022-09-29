@@ -8,13 +8,13 @@ package viper.gobra.reporting
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.relation.NodeNotInTreeException
-import viper.gobra.ast.frontend.{PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor}
+import viper.gobra.ast.frontend.{PClosureDecl, PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PPackage, PParameter, PPredConstructor, PProgram}
 import viper.gobra.ast.internal.BuiltInMember
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.util.Violation
-import viper.gobra.util.ViperChopper.{Edges, Vertex}
 import viper.silver.ast.{Function, Member, Method, Predicate}
+import viper.silver.ast.utility.Chopper.{Edges, Vertex}
 import viper.silver.reporter.Time
 
 import scala.collection.concurrent.{Map, TrieMap}
@@ -27,7 +27,7 @@ import java.io.File
 object GobraNodeType extends Enumeration {
   type GobraNodeType = Value
   val MethodDeclaration, FunctionDeclaration, MethodSignature, FunctionPredicateDeclaration, MethodPredicateDeclaration,
-  MethodImplementationProof, MethodPredicateSignature, PredicateConstructor = Value
+  MethodImplementationProof, MethodPredicateSignature, PredicateConstructor, Package, Program = Value
 }
 
 /**
@@ -349,6 +349,32 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
           isAbstractAndNotImported = false,
           isImported,
           isBuiltIn)
+      case _: PProgram =>
+        GobraMemberInfo(
+          pkgId = pkgId,
+          pkg = pkgName,
+          memberName = pkgId ++ "_program_init",
+          args = "",
+          nodeType = Program,
+          hasSpecification = true,
+          isTrusted = false,
+          isAbstractAndNotImported = false,
+          isImported = isImported,
+          isBuiltIn = isBuiltIn)
+      case _: PPackage =>
+        GobraMemberInfo(
+          pkgId = pkgId,
+          pkg = pkgName,
+          memberName = pkgId ++ "_package_init",
+          args = "",
+          nodeType = Package,
+          hasSpecification = false,
+          isTrusted = false,
+          isAbstractAndNotImported = false,
+          isImported = isImported,
+          isBuiltIn = isBuiltIn)
+      // Consider the enclosing function, for closure declarations
+      case p: PClosureDecl => getMemberInformation(nodeTypeInfo.enclosingFunction(p).get, typeInfo, viperMember)
       // Fallback to the node's code root if we can't match the node
       case p: PNode => getMemberInformation(nodeTypeInfo.codeRoot(p), typeInfo, viperMember)
     }
@@ -430,12 +456,15 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   private def timeoutError(gobraEntry: GobraMemberEntry) = TimeoutError(s"The verification of member ${gobraEntry.info.id} did not terminate")
 
   /**
-   * Writes all statistics that have been collected with this instance of the StatsCollector to a file
+   * Writes all statistics that have been collected with this instance of the StatsCollector to a file.
+   * Returns true iff the file was written.
    */
-  def writeJsonReportToFile(file: File): Unit = {
-    if((file.exists() && file.canWrite) || file.getParentFile.canWrite) {
+  def writeJsonReportToFile(file: File): Boolean = {
+    val canWrite = (file.exists() && file.canWrite) || file.getParentFile.canWrite
+    if (canWrite) {
       FileUtils.writeStringToFile(file, getJsonReport, UTF_8)
     }
+    canWrite
   }
 
   def getJsonReport: String = {
@@ -448,7 +477,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   /**
    * Returns a set of warnings for all members in a package
    */
-  def getWarnings(pkgId: String, config: Config): Set[Warning] =
+  def getMessagesAboutDependencies(pkgId: String, config: Config): Set[Warning] =
     memberMap.values
       .filter(gobraMember => gobraMember.info.pkgId == pkgId)
       .flatMap(gobraMember => {
@@ -456,12 +485,12 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         gobraMember.dependencies().flatMap({
           // Trusted implies abstracted, so we match trusted first
           case GobraMemberEntry(info, _) if info.isTrusted =>
-            Some("Warning: Member " + name + " depends on trusted member " + info.pkg + "." + info.memberName + info.args + "\n")
+            Some("Member " + name + " depends on trusted member " + info.pkg + "." + info.memberName + info.args + "\n")
           case GobraMemberEntry(info, _) if info.isAbstractAndNotImported =>
-            Some("Warning: Member " + name + " depends on abstract member " + info.pkg + "." + info.memberName + info.args + "\n")
+            Some("Member " + name + " depends on abstract member " + info.pkg + "." + info.memberName + info.args + "\n")
           // Only generate warnings about non-verified packages, when we actually have any info about which packages are verified
           case GobraMemberEntry(info, _) if config.packageInfoInputMap.nonEmpty && !config.packageInfoInputMap.keys.exists(_.id == info.pkgId) =>
-            Some("Warning: Depending on imported package that is not verified: " + info.pkgId)
+            Some("Depending on imported package that is not verified: " + info.pkgId)
           case _ => None
         })
       }).toSet

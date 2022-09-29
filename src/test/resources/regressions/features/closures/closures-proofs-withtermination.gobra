@@ -1,0 +1,77 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package proofsWithTermination
+
+// Check that spec implementation proofs do not interfere with the termination checks of the enclosing method
+
+func generic(a int)int
+
+decreases
+ensures res >= 0
+func pos(int)(res int) {
+    return 10
+}
+
+decreases
+func test1() {
+    proof pos implements generic {
+        return pos(a)
+    }
+
+    assert pos implements generic
+}
+
+pure func pureGeneric(a int)int
+
+decreases
+pure func purePos(int)int {
+    return 10
+}
+
+decreases
+func test2() {
+    proof purePos implements pureGeneric {
+        return purePos(a)
+    }
+
+    assert purePos implements pureGeneric
+}
+
+decreases
+func test3() {
+    c := decreases
+         pure func ret5(int)int {
+            return 5
+         }
+
+    proof c implements generic {
+        return c(a) as ret5
+    }
+    assert c implements ret5
+
+    proof c implements pureGeneric {
+        return c(a) as ret5
+    }
+    assert c implements pureGeneric
+}
+
+
+type I interface {
+    pure res(int)int
+}
+
+type S struct {}
+pure func (self S) res(int)int {
+    return 10
+}
+
+decreases
+func test4() {
+    proof S{}.res implements generic {
+        return S{}.res(a)
+    }
+    
+    var i I = S{}
+    assert i.res implements generic
+}

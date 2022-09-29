@@ -73,7 +73,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     * R[ (e: [n]T@)[e1:e2:e3] ] -> fullSliceFromArray(SafeRef[e], [e1], [e2], [e3])
     * R[ (e: []T@)[e1:e2] ] -> sliceFromSlice([e], [e1], [e2])
     * R[ (e: []T@)[e1:e2:e3] ] -> fullSliceFromSlice([e], [e1], [e2], [e3])
-    * R[ sliceLit(E) ] -> R[ arrayLit(E)[0:|E|] ]
+    *
     */
   override def expression(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
@@ -116,21 +116,6 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         case None => withSrc(sliceFromSlice(baseT, lowT, highT)(ctx), exp)
         case Some(maxT) => withSrc(fullSliceFromSlice(baseT, lowT, highT, maxT)(ctx), exp)
       }
-
-      case (lit : in.SliceLit) :: ctx.Slice(_) =>
-        val litA = lit.asArrayLit
-        val tmp = in.LocalVar(ctx.freshNames.next(), litA.typ.withAddressability(Addressability.pointerBase))(lit.info)
-        val tmpT = ctx.variable(tmp)
-        val underlyingTyp = underlyingType(lit.typ)(ctx)
-        for {
-          initT <- ctx.initialization(tmp)
-          assignT <- ctx.assignment(in.Assignee.Var(tmp), litA)(lit)
-          sliceT <- ctx.expression(in.Slice(tmp, in.IntLit(0)(lit.info), in.IntLit(litA.length)(lit.info), None, underlyingTyp)(lit.info))
-          _ <- local(tmpT)
-          _ <- write(initT)
-          _ <- write(assignT)
-        } yield sliceT
-
     }
   }
 
@@ -145,6 +130,8 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     *    inhales forall i: int :: {loc(a, i)} 0 <= i && i < [cap] ==> Footprint[ a[i] ]
     *    inhales forall i: int :: {loc(a, i)} 0 <= i && i < [len] ==> [ a[i] == dfltVal(T) ]
     *    r := a
+    *
+    *  R[ sliceLit(E) ] -> R[ arrayLit(E)[0:|E|] ]
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     default(super.statement(ctx)) {
@@ -204,6 +191,23 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             ass <- ctx.assignment(in.Assignee.Var(target), slice)(makeStmt)
           } yield ass
         )
+
+      case lit: in.NewSliceLit =>
+        val litA = lit.asArrayLit
+        val tmp = in.LocalVar(ctx.freshNames.next(), litA.typ.withAddressability(Addressability.pointerBase))(lit.info)
+        val tmpT = ctx.variable(tmp)
+        val underlyingTyp = underlyingType(lit.typ)(ctx)
+        for {
+          initT <- ctx.initialization(tmp)
+          assignT <- ctx.assignment(in.Assignee.Var(tmp), litA)(lit)
+          _ <- local(tmpT)
+          _ <- write(initT)
+          _ <- write(assignT)
+          ass <- ctx.assignment(
+            in.Assignee.Var(lit.target),
+            in.Slice(tmp, in.IntLit(0)(lit.info), in.IntLit(litA.length)(lit.info), None, underlyingTyp)(lit.info)
+          )(lit)
+        } yield ass
     }
   }
 

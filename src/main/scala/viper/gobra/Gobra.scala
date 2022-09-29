@@ -14,7 +14,7 @@ import com.typesafe.scalalogging.StrictLogging
 import org.slf4j.LoggerFactory
 import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
-import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, OverflowChecksTransform}
+import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, InternalTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, PackageInfo, Parser, ScallopGobraConfig}
@@ -67,7 +67,10 @@ trait GoVerifier extends StrictLogging {
       override def run(): Unit = {
         val statsFile = config.gobraDirectory.resolve("stats.json").toFile
         logger.info("Writing report to " + statsFile.getPath)
-        statsCollector.writeJsonReportToFile(statsFile)
+        val wroteFile = statsCollector.writeJsonReportToFile(statsFile)
+        if (!wroteFile) {
+          logger.error(s"Could not write to the file $statsFile. Check whether the permissions to the file allow writing to it.")
+        }
 
         // Report timeouts that were not previously reported
         statsCollector.getTimeoutErrorsForNonFinishedTasks.foreach(err => logger.error(err.formattedMessage))
@@ -82,9 +85,9 @@ trait GoVerifier extends StrictLogging {
           // report that verification of this package has finished in order that `statsCollector` can free space by getting rid of this package's typeInfo
           statsCollector.report(VerificationTaskFinishedMessage(pkgId))
 
-          val warnings = statsCollector.getWarnings(pkgId, config)
+          val warnings = statsCollector.getMessagesAboutDependencies(pkgId, config)
           warningCount += warnings.size
-          warnings.foreach(w => logger.warn(w))
+          warnings.foreach(w => logger.debug(w))
 
           result match {
             case VerifierResult.Success => logger.info(s"$name found no errors")
@@ -108,14 +111,14 @@ trait GoVerifier extends StrictLogging {
 
     // Print statistics for caching
     if(config.cacheFile.isDefined) {
-      logger.info(s"Number of cacheable Viper member(s): ${statsCollector.getNumberOfCacheableViperMembers}")
-      logger.info(s"Number of cached Viper member(s): ${statsCollector.getNumberOfCachedViperMembers}")
+      logger.debug(s"Number of cacheable Viper member(s): ${statsCollector.getNumberOfCacheableViperMembers}")
+      logger.debug(s"Number of cached Viper member(s): ${statsCollector.getNumberOfCachedViperMembers}")
     }
 
     // Print general statistics
-    logger.info(s"Gobra has found ${statsCollector.getNumberOfVerifiableMembers} methods and functions" )
-    logger.info(s"${statsCollector.getNumberOfSpecifiedMembers} have specification")
-    logger.info(s"${statsCollector.getNumberOfSpecifiedMembersWithAssumptions} are assumed to be satisfied")
+    logger.debug(s"Gobra has found ${statsCollector.getNumberOfVerifiableMembers} methods and functions" )
+    logger.debug(s"${statsCollector.getNumberOfSpecifiedMembers} have specification")
+    logger.debug(s"${statsCollector.getNumberOfSpecifiedMembersWithAssumptions} are assumed to be satisfied")
 
     // Print warnings
     if(warningCount > 0) {
@@ -263,15 +266,13 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * be easily extended to perform more transformations
     */
   private def performInternalTransformations(program: Program, config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], Program] = {
-    val transformed = CGEdgesTerminationTransform.transform(program)
-
+    var transformations: Vector[InternalTransform] = Vector(CGEdgesTerminationTransform)
     if (config.checkOverflows) {
-      val result = OverflowChecksTransform.transform(transformed)
-      config.reporter report AppliedInternalTransformsMessage(config.packageInfoInputMap(pkgInfo).map(_.name), () => result)
-      Right(result)
-    } else {
-      Right(transformed)
+      transformations :+= OverflowChecksTransform
     }
+    val result = transformations.foldLeft(program)((prog, transf) => transf.transform(prog))
+    config.reporter.report(AppliedInternalTransformsMessage(config.packageInfoInputMap(pkgInfo).map(_.name), () => result))
+    Right(result)
   }
 
   private def performViperEncoding(program: Program, config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], BackendVerifier.Task] = {

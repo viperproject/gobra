@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+
+type foo interface {
+	bar
+	f()
+}
+
+type bar interface {
+	pure g()
+}
+
+type test int
+
+func (x test) f()
+
+func (x test) g()
+
+//:: ExpectedOutput(type_error)
+test implements foo

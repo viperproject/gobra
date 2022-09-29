@@ -14,6 +14,8 @@ object TranslationHelpers {
   val binOp: Map[String, (PExpression, PExpression) => PExpression] = Map(
     VOCABULARY.getLiteralName(GobraParser.EQUALS) -> PEquals,
     VOCABULARY.getLiteralName(GobraParser.NOT_EQUALS) -> PUnequals,
+    VOCABULARY.getLiteralName(GobraParser.GHOST_EQUALS) -> PGhostEquals,
+    VOCABULARY.getLiteralName(GobraParser.GHOST_NOT_EQUALS) -> PGhostUnequals,
     VOCABULARY.getLiteralName(GobraParser.LESS) -> PLess,
     VOCABULARY.getLiteralName(GobraParser.LESS_OR_EQUALS) -> PAtMost,
     VOCABULARY.getLiteralName(GobraParser.GREATER) -> PGreater,

@@ -31,23 +31,10 @@ class InterfaceEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.ViperWriter.{MemberLevel => ml}
   import viper.gobra.translator.util.TypePatterns._
 
-  private val interfaces: InterfaceComponent = new InterfaceComponent {
-    def typ(polyType: vpr.Type, dynTypeType: vpr.Type)(ctx: Context): vpr.Type = ctx.tuple.typ(Vector(polyType, dynTypeType))
-    def create(polyVal: vpr.Exp, dynType: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = ctx.tuple.create(Vector(polyVal, dynType))(pos, info, errT)
-    def dynTypeOf(itf: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = ctx.tuple.get(itf, 1, 2)(pos, info, errT)
-    def polyValOf(itf: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = ctx.tuple.get(itf, 0, 2)(pos, info, errT)
-  }
+  private val interfaces: InterfaceComponent = new InterfaceComponentImpl
   private val types: TypeComponent = new TypeComponentImpl
-  private val poly: PolymorphValueComponent = {
-    val handle = new PolymorphValueInterfaceHandle {
-      def typ(polyType: vpr.Type)(ctx: Context): vpr.Type = interfaces.typ(polyType, types.typ()(ctx))(ctx)
-      def create(polyVal: vpr.Exp, dynType: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = interfaces.create(polyVal, dynType)(pos, info, errT)(ctx)
-      def dynTypeOf(itf: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = interfaces.dynTypeOf(itf)(pos, info, errT)(ctx)
-      def polyValOf(itf: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = interfaces.polyValOf(itf)(pos, info, errT)(ctx)
-      def typeToExpr(typ: in.Type)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = types.typeToExpr(typ)(pos, info, errT)(ctx)
-    }
-    new PolymorphValueComponentImpl(handle)
-  }
+  private val poly: PolymorphValueComponent = new PolymorphValueComponentImpl(interfaces, types)
+  private val utils: InterfaceUtils = new InterfaceUtils(interfaces, types, poly)
 
 
   private var genMembers: List[vpr.Member] = List.empty
@@ -111,7 +98,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       for {
         m <- ctx.defaultEncoding.method(p)(ctx)
         recv = m.formalArgs.head.localVar // receiver is always the first parameter
-        mWithNotNilCheck = m.copy(pres = receiverNotNil(recv)(pos, info, errT)(ctx) +: m.pres)(pos, info, errT)
+        mWithNotNilCheck = m.copy(pres = utils.receiverNotNil(recv)(pos, info, errT)(ctx) +: m.pres)(pos, info, errT)
       } yield mWithNotNilCheck
 
     case p: in.MethodSubtypeProof =>
@@ -148,6 +135,16 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
   /** also checks that the compared interface is comparable. */
   override def goEqual(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = default(super.goEqual(ctx)) {
+    case (lhs :: ctx.Interface(_), rhs :: ctx.Interface(_), src) if lhs.isInstanceOf[in.NilLit] || rhs.isInstanceOf[in.NilLit] =>
+      // Optimization:
+      // The case where an interface value is compared to the nil literal is very common. In those cases,
+      // we can skip the proof obligations that ensure that at least one of the operands is comparable.
+      val (pos, info, errT) = src.vprMeta
+      for {
+        vLhs <- ctx.expression(lhs)
+        vRhs <- ctx.expression(rhs)
+        res = vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
+      } yield  res
     case (lhs :: ctx.Interface(_), rhs :: ctx.Interface(_), src) =>
       val (pos, info, errT) = src.vprMeta
       val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>
@@ -161,12 +158,6 @@ class InterfaceEncoding extends LeafTypeEncoding {
         )(pos, info, errT)
         res <- assert(cond, vpr.EqCmp(vLhs, vRhs)(pos, info, errT), errorT)(ctx)
       } yield  res
-  }
-
-  /** Returns [x != nil: Interface{}] */
-  private def receiverNotNil(recv: vpr.Exp)(pos: vpr.Position, info: Source.Verifier.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
-    // In Go, checking that an interface receiver is not nil never panics.
-    vpr.Not(vpr.EqCmp(recv, nilInterface()(pos, info, errT)(ctx))(pos, info, errT))(pos, info.createAnnotatedInfo(Source.ReceiverNotNilCheckAnnotation), errT)
   }
 
   /**
@@ -192,7 +183,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       case n@ (  (_: in.DfltVal) :: ctx.Interface(_) / Exclusive
                | (_: in.NilLit) :: ctx.Interface(_)  ) =>
         val (pos, info, errT) = n.vprMeta
-        unit(nilInterface()(pos, info, errT)(ctx)): CodeWriter[vpr.Exp]
+        unit(utils.nilInterface()(pos, info, errT)(ctx)): CodeWriter[vpr.Exp]
 
       case in.ToInterface(exp :: ctx.Interface(_), _) =>
         goE(exp)
@@ -254,13 +245,6 @@ class InterfaceEncoding extends LeafTypeEncoding {
       case n: in.TypeExpr =>
         for { es <- sequence(TypeHead.children(n) map goE) } yield withSrc(types.typeApp(TypeHead.typeHead(n), es), n, ctx)
     }
-  }
-
-  /** Returns nil interface */
-  private def nilInterface()(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
-    val value = poly.box(vpr.NullLit()(pos, info, errT))(pos, info, errT)(ctx)
-    val typ = types.typeApp(TypeHead.NilHD)(pos, info, errT)(ctx)
-    interfaces.create(value, typ)(pos, info, errT)(ctx)
   }
 
   /**
@@ -627,8 +611,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
       implicit val tuple3Ordering: Ordering[(in.MPredicateProxy, in.InterfaceT, SortedSet[in.Type])] = Ordering.by(_._1)
 
       val itfNodes = for {
-        (itf, impls) <- ctx.table.interfaceImplementations.toSet
-        itfProxy <- ctx.table.members(itf).collect{ case m: in.MPredicateProxy => m }
+        (itf, impls) <- ctx.table.getImplementations.toSet
+        itfProxy <- ctx.table.lookupMembers(itf).collect{ case m: in.MPredicateProxy => m }
       } yield (itfProxy, itf, impls)
 
       val edges = for {
@@ -702,8 +686,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val pProxy = Names.InterfaceMethod.origin(p.name)
 
     val itfT = p.receiver.typ.asInstanceOf[in.InterfaceT]
-    val impls = ctx.table.implementations(itfT).toVector
-    val cases = impls.map(impl => (impl, ctx.table.lookup(impl, pProxy.name).get))
+    val impls = ctx.table.lookupNonInterfaceImplementations(itfT).toVector
+    val cases = impls.flatMap(impl => ctx.table.lookup(impl, pProxy.name).map(impl -> _))
 
     val recvDecl = vpr.LocalVarDecl(Names.implicitThis, vprInterfaceType(ctx))(pos, info, errT)
     val recv = recvDecl.localVar
@@ -737,7 +721,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         name = p.name.uniqueName,
         formalArgs = recvDecl +: argDecls,
         typ = resultType,
-        pres = receiverNotNil(recv)(pos, info, errT)(ctx) +: (vPres ++ measures),
+        pres = utils.receiverNotNil(recv)(pos, info, errT)(ctx) +: (vPres ++ measures),
         posts = (cases map { case (impl, implProxy) => clause(impl, implProxy) }) ++ posts,
         body = body
       )(pos, info, errT)
@@ -853,15 +837,16 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val vArgs = vArgDecls map (_.localVar)
 
 
-    val itfFuncs = ctx.table.members(itfT).collect{ case x: in.MethodProxy if ctx.lookup(x).isInstanceOf[in.PureMethod] => x }
+    val itfFuncs = ctx.table.lookupMembers(itfT).collect{ case x: in.MethodProxy if ctx.lookup(x).isInstanceOf[in.PureMethod] => x }
     val matchingFuncs = itfFuncs.map(f => (f, ctx.table.lookup(impl, f.name).get))
     val nameMap = matchingFuncs.map{ case (itfProxy, implProxy) => (itfProxy.uniqueName, proofName(recv.typ, implProxy, itfProxy)) }.toMap
 
     val newRecv = boxInterface(vRecv, types.typeToExpr(impl)()(ctx))()(ctx)
     val changedFormals = vpr.utility.Expressions.instantiateVariables(exp, variablesOfExpression, newRecv +: vArgs, Set.empty)
     val changedFuncs = changedFormals.transform{
-      case call: vpr.FuncApp if nameMap.isDefinedAt(call.funcname) =>
-        val recv = vRecv // maybe check that receiver is the same as newRecv
+      // equality check is fine since it was substituted with exactly `newRecv` beforehand.
+      case call: vpr.FuncApp if nameMap.isDefinedAt(call.funcname) && call.args.head == newRecv =>
+        val recv = vRecv
         call.copy(funcname = nameMap(call.funcname), args = recv +: call.args.tail)(call.pos, call.info, call.typ, call.errT)
     }
 

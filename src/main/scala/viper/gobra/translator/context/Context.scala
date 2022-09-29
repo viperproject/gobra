@@ -61,8 +61,6 @@ trait Context {
 
   def variable(x: in.BodyVar): vpr.LocalVarDecl = typeEncoding.variable(this)(x)
 
-  def globalVar(x: in.GlobalVar): CodeWriter[vpr.Exp] = typeEncoding.globalVar(this)(x)
-
   def member(x: in.Member): MemberWriter[Vector[vpr.Member]] = typeEncoding.member(this)(x)
 
   def method(x: in.Member): MemberWriter[vpr.Method] = typeEncoding.finalMethod(this)(x)
@@ -70,6 +68,8 @@ trait Context {
   def function(x: in.Member): MemberWriter[vpr.Function] = typeEncoding.finalFunction(this)(x)
 
   def predicate(x: in.Member): MemberWriter[vpr.Predicate] = typeEncoding.finalPredicate(this)(x)
+
+  def globalVarDeclaration(x: in.Member): MemberWriter[Vector[vpr.Function]] = typeEncoding.finalGlobalVarDeclatarion(this)(x)
 
   def varPrecondition(x: in.Parameter.In): Option[MemberWriter[vpr.Exp]] = typeEncoding.varPrecondition(this).lift(x)
 

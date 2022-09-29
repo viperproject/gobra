@@ -72,7 +72,27 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       })
     })
 
+    case GlobalVariable(_, _, expOpt, typOpt, _, isSingleModeDecl, _) if isSingleModeDecl => unsafeMessage(! {
+      typOpt.exists(wellDefAndType.valid) ||
+        expOpt.exists(e => wellDefAndExpr.valid(e) && Single.unapply(exprType(e)).nonEmpty)
+    })
+
+    case GlobalVariable(_, idx, expOpt, _, _, _, _) =>
+      // in this case, mv must occur in a declaration in AssignMode.Multi
+      unsafeMessage(! {
+        expOpt.forall{ exp => wellDefAndExpr.valid(exp) &&
+          (exprType(exp) match {
+            case Assign(InternalTupleT(ts)) if idx < ts.size => true
+            case _ => false
+          })
+        }
+      })
+
     case Function(PFunctionDecl(_, args, r, _, _), _, _) => unsafeMessage(! {
+      args.forall(wellDefMisc.valid) && miscType.valid(r)
+    })
+
+    case Closure(PFunctionLit(_, PClosureDecl(args, r, _, _)), _, _) => unsafeMessage(! {
       args.forall(wellDefMisc.valid) && miscType.valid(r)
     })
 
@@ -163,7 +183,23 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"expected tuple but got $t")
     }
 
+    case GlobalVariable(_, _, expOpt, typOpt, _, isSingleModeDecl, context) if isSingleModeDecl => typOpt.map(context.symbType)
+      .getOrElse(context.typ(expOpt.get) match {
+        case Single(t) => t
+        case t => violation(s"expected single Type but got $t")
+      })
+
+    case GlobalVariable(_, idx, expOpt, typOpt, _, _, context) => typOpt.map(context.symbType)
+      // in this case, mv must occur in a declaration in AssignMode.Multi
+      .getOrElse(context.typ(expOpt.get) match {
+        case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
+        case t => violation(s"expected tuple but got $t")
+      })
+
     case Function(PFunctionDecl(_, args, r, _, _), _, context) =>
+      FunctionT(args map context.typ, context.typ(r))
+
+    case Closure(PFunctionLit(_, PClosureDecl(args, r, _, _)), _, context) =>
       FunctionT(args map context.typ, context.typ(r))
 
       // case is relevant only for typing within an interface definition.
@@ -206,6 +242,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case e => violation(s"untypable: $e")
   }
 
+  
   /**
     * Gets the type of a blank identifier if it occurs in the `left` list
     */
@@ -219,11 +256,22 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     StrictAssignMode(left.length, right.length) match {
       case AssignMode.Single => exprType(right(pos))
       case AssignMode.Multi => exprType(right.head) match {
-        case t: InternalTupleT => t.ts(pos)
-        case t: InternalSingleMulti => t.mul.ts(pos)
-        case _ => violation("return type of multi-assignment should be an InternalTupleT")
+        case t: InternalTupleT => t.ts.lift(pos).getOrElse(UnknownType)
+        case t: InternalSingleMulti => t.mul.ts.lift(pos).getOrElse(UnknownType)
+        case _ =>
+          // If the expression type in Multi mode is not a tuple, the term cannot be typed
+          UnknownType
       }
       case AssignMode.Error | AssignMode.Variadic => violation("ill formed assignment")
+    }
+  }
+
+  def getBlankAssigneeTypeRange(n: PNode, left: Vector[PNode], range: PRange): Type = {
+    require(n.isInstanceOf[PIdnNode] || n.isInstanceOf[PBlankIdentifier])
+    val pos = left indexWhere (n eq _)
+    exprType(range.exp) match {
+      case ChannelT(elem, ChannelModus.Recv | ChannelModus.Bi) => elem
+      case _ => miscType(range).asInstanceOf[InternalSingleMulti].mul.ts(pos)
     }
   }
 

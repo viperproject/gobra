@@ -46,6 +46,7 @@ class TypeComponentImpl extends TypeComponent {
     case MSetHD => "mset"
     case MathMapHD => "dict"
     case OptionHD => "option"
+    case f: FunctionHD => s"func${f.arity}"
     case t: TupleHD => s"tuple${t.arity}"
     case t: PredHD => s"pred${t.arity}"
 

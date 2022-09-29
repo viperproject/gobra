@@ -1,0 +1,67 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresTermination
+
+func test1() {
+    var c@ func(int)int
+    c = requires n >= 0
+        preserves acc(&c, 1/2) && c === factorial
+        decreases n
+        func factorial(n int) int {
+            if n == 0 {
+                return 1
+            } else {
+                return n * c(n-1) as factorial
+            }
+        }
+}
+
+func test2() {
+    var c@ func(int, int)int
+    c = requires m >= 0
+        requires n >= 0
+        preserves acc(&c, 1/2) && c === ack
+        ensures result >= 0
+        decreases m, n
+        func ack(m int, n int) (result int) {
+            if m == 0 {
+                return n + 1
+            } else {
+                if n == 0 {
+                    c(m-1, 1) as ack
+                } else {
+                    c(m-1, c(m, n-1) as ack) as ack
+                }
+            }
+        }
+}
+
+func test3() {
+    f :=    decreases
+            func facade(i int)int {
+                c@ :=   decreases
+                        func compute(i int, j int)int {
+                            return i + j
+                        }
+                return c(i, 0) as compute
+            }
+}
+
+func test4() {
+    var c@ func(int)int
+    c = requires 1 <= n
+        preserves acc(&c, 1/2) && c === collatz
+        decreases _
+        func collatz(n int)int {
+            if n == 1 {
+                return n
+            } else {
+                if n%2 == 0 {
+                    return c(n/2) as collatz
+                } else {
+                    return c(3*n + 1) as collatz
+                }
+            }
+        }
+}

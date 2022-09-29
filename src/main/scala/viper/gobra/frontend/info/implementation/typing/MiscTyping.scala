@@ -24,7 +24,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualMisc(misc: PActualMisc): Messages = misc match {
 
-    case n@PRange(exp) => isExpr(exp).out ++ (exprType(exp) match {
+    case n@PRange(exp) => isExpr(exp).out ++ (underlyingType(exprType(exp)) match {
       case _: ArrayT | PointerT(_: ArrayT) | _: SliceT | _: GhostSliceT |
            _: MapT | ChannelT(_, ChannelModus.Recv | ChannelModus.Bi) => noMessages
       case t => message(n, s"type error: got $t but expected rangeable type")
@@ -37,10 +37,10 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PEmbeddedName => isType(n.typ).out
     case n: PEmbeddedPointer => isType(n.typ).out
 
-    case f: PFieldDecl => isType(f.typ).out ++ isNotPointerTypeP.errors(f.typ)(f)
-
     case n: PExpCompositeVal => isExpr(n.exp).out
     case _: PLiteralValue | _: PKeyedElement | _: PCompositeVal => noMessages // these are checked at the level of the composite literal
+
+    case _: PClosureDecl => noMessages // checks are done at the PFunctionLit level
   }
 
   lazy val miscType: Typing[PMisc] = createTyping {
@@ -50,11 +50,11 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def actualMiscType(misc: PActualMisc): Type = misc match {
 
-    case PRange(exp) => exprType(exp) match {
-      case ArrayT(_, elem) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
-      case PointerT(ArrayT(_, elem)) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
-      case SliceT(elem) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
-      case GhostSliceT(elem) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
+    case PRange(exp) => underlyingType(exprType(exp)) match {
+      case ArrayT(_, elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
+      case PointerT(ArrayT(_, elem)) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
+      case SliceT(elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
+      case GhostSliceT(elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
       case MapT(key, elem) => InternalSingleMulti(key, InternalTupleT(Vector(key, elem)))
       case ChannelT(elem, ChannelModus.Recv | ChannelModus.Bi) => elem
       case t => violation(s"unexpected range type $t")
@@ -65,10 +65,10 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case PResult(outs) =>
       if (outs.size == 1) miscType(outs.head) else InternalTupleT(outs.map(miscType))
 
+    case PClosureDecl(args, res, _, _)  => FunctionT(args.map(typ), miscType(res))
+
     case PEmbeddedName(t) => typeSymbType(t)
     case PEmbeddedPointer(t) => PointerT(typeSymbType(t))
-
-    case f: PFieldDecl => typeSymbType(f.typ)
 
     case l: PLiteralValue => expectedMiscType(l)
     case l: PKeyedElement => miscType(l.exp)

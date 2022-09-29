@@ -8,7 +8,7 @@ package viper.gobra.frontend
 
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.antlr.v4.runtime.{DefaultErrorStrategy, FailedPredicateException, InputMismatchException, Parser, RecognitionException, Token}
-import viper.gobra.frontend.GobraParser.{BlockContext, ExprSwitchStmtContext}
+import viper.gobra.frontend.GobraParser.{BlockContext, ClosureImplProofStmtContext, ExprSwitchStmtContext}
 
 /**
   * An ANTLR Error strategy that does not try to recover from errors, but instead reports the first error encountered.
@@ -26,7 +26,7 @@ class ReportFirstErrorStrategy extends DefaultErrorStrategy {
   }
 
   /**
-    * Distinguish between real syntax errors and stack dependencies for the Go grammar.
+    * Distinguish between real syntax errors and stack dependencies for the Gobra grammar.
     * @see [[BailErrorStrategy]]'s implementation of recover()
     * @param recognizer
     * @param e
@@ -39,8 +39,7 @@ class ReportFirstErrorStrategy extends DefaultErrorStrategy {
     // Cast a wide net to catch every case, but still allow faster parsing if the error can't be an ambiguity.
     // Thee rest of recover and recoverInline is the same as in the superclass.
     context match {
-      case _ : BlockContext => throw new AmbiguityException
-      case _ : ExprSwitchStmtContext => throw new AmbiguityException
+      case _ : BlockContext | _ : ExprSwitchStmtContext | _ : ClosureImplProofStmtContext => throw new AmbiguityException
       case _ =>
     }
     while (context != null) {
@@ -51,7 +50,7 @@ class ReportFirstErrorStrategy extends DefaultErrorStrategy {
   }
 
   /**
-    * Distinguish between real syntax errors and stack dependencies for the Go grammar.
+    * Distinguish between real syntax errors and stack dependencies for the Gobra grammar.
     * @see [[BailErrorStrategy]]'s implementation of recoverInline()
     * @param recognizer
     */
@@ -63,8 +62,7 @@ class ReportFirstErrorStrategy extends DefaultErrorStrategy {
     // This performs the same analysis as the recover function above.
     var context = recognizer.getContext
     context match {
-      case _ : BlockContext => throw new AmbiguityException
-      case _ : ExprSwitchStmtContext => throw new AmbiguityException
+      case _ : BlockContext | _ : ExprSwitchStmtContext | _ : ClosureImplProofStmtContext => throw new AmbiguityException
       case _ =>
     }
     while ( context != null) {

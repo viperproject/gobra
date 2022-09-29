@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Constant, DomainFunction, Embbed, Field, Function, Label, Method, Predicate, Variable, WandLhsLabel}
+import viper.gobra.frontend.info.base.SymbolTable.{BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Closure, Constant, DomainFunction, Embbed, Field, Function, Label, Method, Predicate, Variable, WandLhsLabel}
 import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type
@@ -73,6 +73,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // check whether the right operand is either Boolean or an assertion
         assignableToSpec(n.right)
 
+    case n: PClosureImplements => isPureExpr(n.closure) ++ wellDefIfClosureMatchesSpec(n.closure, n.spec)
+
     case n: PAccess =>
       val permWellDef = error(n.perm, s"expected perm or integer division expression, but got ${n.perm}",
         !assignableTo(typ(n.perm), PermissionT))
@@ -103,6 +105,16 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t =>  error(n, s"expected interface or type, but got an expression of type $t")
     }
 
+    case n: PGhostEquals =>
+      val lType = typ(n.left)
+      val rType = typ(n.right)
+      ghostComparableTypes.errors(lType, rType)(n)
+
+    case n: PGhostUnequals =>
+      val lType = typ(n.left)
+      val rType = typ(n.right)
+      ghostComparableTypes.errors(lType, rType)(n)
+
     case POptionNone(t) => isType(t).out
     case POptionSome(e) => isExpr(e).out
     case POptionGet(e) => isExpr(e).out ++ {
@@ -113,7 +125,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case expr : PGhostCollectionExp => expr match {
       case PIn(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
         underlyingType(exprType(right)) match {
-          case t : GhostCollectionType => comparableTypes.errors(exprType(left), t.elem)(expr)
+          case t : GhostCollectionType => ghostComparableTypes.errors(exprType(left), t.elem)(expr)
           case t => error(right, s"expected a ghost collection, but got $t")
         }
       }
@@ -215,9 +227,12 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PAccess | _: PPredicateAccess | _: PMagicWand => AssertionT
 
+    case _: PClosureImplements => BooleanT
+
     case _: PTypeOf => SortT
     case _: PTypeExpr => SortT
     case _: PIsComparable => BooleanT
+    case _: PGhostEquals | _: PGhostUnequals => BooleanT
 
     case POptionNone(t) => OptionT(typeSymbType(t))
     case POptionSome(e) => OptionT(exprType(e))
@@ -320,6 +335,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case _: PMagicWand => !strong
 
+      case _: PClosureImplements => true
+
       case _: PBoolLit | _: PIntLit | _: PNilLit | _: PStringLit | _: PFloatLit => true
 
       case _: PIota => true
@@ -335,7 +352,22 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
               false
             case _ => go(p.arg)
           }
-        case (Left(callee), Some(p: ap.FunctionCall)) => go(callee) && p.args.forall(go)
+        case (Left(callee), Some(p@ap.FunctionCall(f, _))) => go(callee) && p.args.forall(go) && (f match {
+          case ap.Function(_, symb) => symb.isPure
+          case ap.Closure(_, symb) => symb.isPure
+          case ap.DomainFunction(_, _) => true
+          case ap.ReceivedMethod(_, _, _, symb) => symb.isPure
+          case ap.ImplicitlyReceivedInterfaceMethod(_, symb) => symb.isPure
+          case ap.MethodExpr(_, _, _, symb) => symb.isPure
+          case ap.BuiltInReceivedMethod(_, _, _, symb) => symb.isPure
+          case ap.BuiltInMethodExpr(_, _, _, symb) => symb.isPure
+          case ap.BuiltInFunction(_, symb) => symb.isPure
+        })
+        case (Left(callee), Some(_: ap.ClosureCall)) => resolve(n.spec.get.func) match {
+          case Some(ap.Function(_, f)) => f.isPure && go(callee) && n.args.forall(a => go(a))
+          case Some(ap.Closure(_, c)) => c.isPure && go(callee) && n.args.forall(a => go(a))
+          case _ => false
+        }
         case (Left(_), Some(_: ap.PredicateCall)) => !strong
         case (Left(_), Some(_: ap.PredExprInstance)) => !strong
         case _ => false
@@ -380,6 +412,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PLength(op) => go(op)
       case PCapacity(op) => go(op)
 
+      case PGhostEquals(l, r) => go(l) && go(r)
+      case PGhostUnequals(l, r) => go(l) && go(r)
+
       case expr: PGhostCollectionExp => expr match {
         case n: PBinaryGhostExp => go(n.left) && go(n.right)
         case PSequenceConversion(op) => go(op)
@@ -415,8 +450,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case _: PMake | _: PNew => false
 
-      // Might change as some point
-      case _: PFunctionLit => false
+      case _: PFunctionLit => true
 
       // Others
       case PReceive(_) => false
@@ -438,9 +472,12 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _: Variable => true
       case _: Field => true
       case _: Embbed => true
-      case m: Function => m.isPure
+      // functions and method constants are always pure
+      // the pureness of function or method invocations are checked separately
+      case _: Function => true
+      case _: Method => true
+      case _: Closure => true
       case m: BuiltInFunction => m.isPure
-      case m: Method => m.isPure
       case m: BuiltInMethod => m.isPure
       case _: Predicate | _: BuiltInFPredicate | _: BuiltInMPredicate => !strong
       case _: DomainFunction => true
@@ -485,7 +522,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     expr match {
       case PDot(base, _) => goEorT(base)
-      case PInvoke(base, args) => {
+      case PInvoke(base, args, None) => {
         val res1 = goEorT(base)
         val res2 = combineTriggerResults(args.map(validTriggerPattern))
         combineTriggerResults(res1, res2)

@@ -156,7 +156,6 @@ trait TypeEncoding extends Generator {
           footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
           eq <- ctx.equal(loc, rhs)(src)
           _ <- exhaleWithDefaultReason(footprint, AssignmentError)
-          _ <- write(vpr.Exhale(footprint)(pos, info, errT))
           inhale = vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT)
         } yield inhale
       )

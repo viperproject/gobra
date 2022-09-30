@@ -249,14 +249,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
   /**
     * Encodes assertions.
-    *
-    * Constraints:
-    * - in.Access with in.PredicateAccess has to encode to vpr.PredicateAccessPredicate.
-    *
-    *
     */
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     def wrap(predicateAccess: vpr.PredicateAccess, perm: vpr.Exp): vpr.Exp = {
       val (pos, info, errT) = predicateAccess.meta
@@ -266,29 +260,25 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
 
     default(super.assertion(ctx)) {
-      case n@in.Access(in.Accessible.Predicate(in.MPredicateAccess(recv, p, args)), perm) if hasFamily(p)(ctx) =>
+
+      case in.Access(in.Accessible.Predicate(pacc@ in.MPredicateAccess(_:: ctx.Interface(_), _, _)), perm) =>
         for {
-          instance <- mpredicateInstance(recv, p, args)(n)(ctx)
-          perm <- goE(perm)
+          instance <- ctx.predicateAccess(pacc)
+          perm <- ctx.expression(perm)
         } yield wrap(instance, perm)
 
-      case n@in.Access(in.Accessible.Predicate(in.MPredicateAccess(recv:: ctx.Interface(_), p, args)), perm) =>
+      case in.Access(in.Accessible.Predicate(pacc: in.FPredicateAccess), perm) if hasFamily(pacc.pred)(ctx) =>
         for {
-          recv <- goE(recv)
-          args <- sequence(args map goE)
-          instance = withSrc(vpr.PredicateAccess(recv +: args, p.uniqueName), n)
-          perm <- goE(perm)
-        } yield wrap(instance, perm)
-
-      case n@ in.Access(in.Accessible.Predicate(in.FPredicateAccess(p, args)), perm) if hasFamily(p)(ctx) =>
-        for {
-          instance <- fpredicateInstance(p, args)(n)(ctx)
-          perm <- goE(perm)
+          instance <- ctx.predicateAccess(pacc)
+          perm <- ctx.expression(perm)
         } yield wrap(instance, perm)
     }
   }
 
-
+  override def predicateAccess(ctx: Context): in.PredicateAccess ==> CodeWriter[vpr.PredicateAccess] = {
+    case n@ in.MPredicateAccess(recv, p, args) if hasFamily(p)(ctx) => mpredicateInstance(recv ,p, args)(n)(ctx)
+    case n@ in.FPredicateAccess(p, args) if hasFamily(p)(ctx) => fpredicateInstance(p, args)(n)(ctx)
+  }
 
   /**
     * Encodes whether a value is comparable or not.

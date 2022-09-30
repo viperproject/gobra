@@ -50,6 +50,7 @@ abstract class TypeEncodingCombiner(encodings: Vector[TypeEncoding], defaults: V
   override def goEqual(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = combiner(_.goEqual(ctx))
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = combiner(_.expression(ctx))
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = combiner(_.assertion(ctx))
+  override def predicateAccess(ctx: Context): in.PredicateAccess ==> CodeWriter[vpr.PredicateAccess] = combiner(_.predicateAccess(ctx))
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = combiner(_.reference(ctx))
   override def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = combiner(_.addressFootprint(ctx))
   override def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[Exp]] = combiner(_.isComparable(ctx))

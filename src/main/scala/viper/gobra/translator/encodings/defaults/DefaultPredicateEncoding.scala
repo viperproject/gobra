@@ -83,44 +83,37 @@ class DefaultPredicateEncoding extends Encoding {
   /**
     * Encodes assertions.
     *
-    * Constraints:
-    * - in.Access with in.PredicateAccess has to encode to vpr.PredicateAccessPredicate.
-    *
     * [acc(  p(as), perm] -> p(Argument[as], Permission[perm])
     * [acc(e.p(as), perm] -> p(Argument[e], Argument[as], Permission[perm])
     */
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
-    case acc@ in.Access(in.Accessible.Predicate(op: in.FPredicateAccess), perm) =>
-      val (pos, info, errT) = acc.vprMeta
+    case acc@ in.Access(in.Accessible.Predicate(op: in.PredicateAccess), perm) => ctx.predicateAccessPredicate(op, perm)(acc)
+  }
+
+  override def predicateAccess(ctx: Context): in.PredicateAccess ==> CodeWriter[vpr.PredicateAccess] = {
+    case op: in.FPredicateAccess =>
       for {
         vArgs <- cl.sequence(op.args map ctx.expression)
-        pacc = vpr.PredicateAccess(vArgs, op.pred.name)(pos, info, errT)
-        vPerm <- ctx.expression(perm)
-      } yield vpr.PredicateAccessPredicate(pacc, vPerm)(pos, info, errT)
+      } yield withSrc(vpr.PredicateAccess(vArgs, op.pred.name), op)
 
-    case acc@ in.Access(in.Accessible.Predicate(op: in.MPredicateAccess), perm) =>
-      val (pos, info, errT) = acc.vprMeta
+    case op: in.MPredicateAccess =>
       for {
         vRecv <- ctx.expression(op.recv)
         vArgs <- cl.sequence(op.args map ctx.expression)
-        pacc = vpr.PredicateAccess(vRecv +: vArgs, op.pred.uniqueName)(pos, info, errT)
-        vPerm <- ctx.expression(perm)
-      } yield vpr.PredicateAccessPredicate(pacc, vPerm)(pos, info, errT)
+      } yield withSrc(vpr.PredicateAccess(vRecv +: vArgs, op.pred.uniqueName), op)
   }
 
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     case fold: in.Fold =>
       val (pos, info, errT) = fold.vprMeta
       for {
-        a <- ctx.assertion(fold.acc)
-        pap = a.asInstanceOf[vpr.PredicateAccessPredicate]
+        pap <- ctx.predicateAccessPredicate(fold.op, fold.acc.p)(fold.acc)
       } yield vpr.Fold(pap)(pos, info, errT)
 
     case unfold: in.Unfold =>
       val (pos, info, errT) = unfold.vprMeta
       for {
-        a <- ctx.assertion(unfold.acc)
-        pap = a.asInstanceOf[vpr.PredicateAccessPredicate]
+        pap <- ctx.predicateAccessPredicate(unfold.op, unfold.acc.p)(unfold.acc)
       } yield vpr.Unfold(pap)(pos, info, errT)
   }
 
@@ -128,9 +121,9 @@ class DefaultPredicateEncoding extends Encoding {
     case unfold: in.Unfolding =>
       val (pos, info, errT) = unfold.vprMeta
       for {
-        a <- ctx.assertion(unfold.acc)
+        pap <- ctx.predicateAccessPredicate(unfold.op, unfold.acc.p)(unfold.acc)
         e <- cl.pure(ctx.expression(unfold.in))(ctx)
-      } yield vpr.Unfolding(a.asInstanceOf[vpr.PredicateAccessPredicate], e)(pos, info, errT)
+      } yield vpr.Unfolding(pap, e)(pos, info, errT)
   }
 
 }

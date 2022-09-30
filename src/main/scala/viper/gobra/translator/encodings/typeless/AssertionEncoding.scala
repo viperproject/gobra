@@ -104,12 +104,7 @@ class AssertionEncoding extends Encoding {
   }
 
   def triggerExpr(expr: in.TriggerExpr)(ctx: Context): CodeWriter[vpr.Exp] = expr match {
-    // use predicate access encoding but then take just the predicate access, i.e. remove `acc` and the permission amount:
-    case in.Accessible.Predicate(op) =>
-      for {
-        v <- ctx.assertion(in.Access(in.Accessible.Predicate(op), in.FullPerm(op.info))(op.info))
-        pap = v.asInstanceOf[vpr.PredicateAccessPredicate]
-      } yield pap.loc
+    case in.Accessible.Predicate(op) => ctx.predicateAccess(op)
     case e: in.Expr => ctx.expression(e)
   }
 

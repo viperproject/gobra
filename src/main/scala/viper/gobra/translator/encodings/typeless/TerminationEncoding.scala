@@ -42,8 +42,7 @@ class TerminationEncoding extends Encoding {
   def predicateInstance(x: in.PredicateAccess)(ctx: Context): CodeWriter[predicateinstance.PredicateInstance] = {
     val (pos, info, errT) = x.vprMeta
     for {
-      v <- ctx.assertion(in.Access(in.Accessible.Predicate(x), in.FullPerm(x.info))(x.info))
-      pap = v.asInstanceOf[vpr.PredicateAccessPredicate]
-    } yield predicateinstance.PredicateInstance(pap.loc.args, pap.loc.predicateName)(pos, info, errT)
+      pacc <- ctx.predicateAccess(x)
+    } yield predicateinstance.PredicateInstance(pacc.args, pacc.predicateName)(pos, info, errT)
   }
 }

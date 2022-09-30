@@ -10,6 +10,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.gobra.translator.context.{CollectorImpl, Context, ContextImpl, TranslatorConfig}
+import viper.gobra.translator.transformers.{AssumeTransformer, TerminationTransformer, ViperTransformer}
 import viper.gobra.translator.util.ViperWriter.MemberWriter
 import viper.silver.{ast => vpr}
 
@@ -29,17 +30,14 @@ class ProgramsImpl extends Programs {
       ctx.member(member).map(m => (m, ctx))
     }
 
+    val col = new CollectorImpl
+
     val progW = for {
       membersWithCtxs <- sequence(program.members map goM)
       (memberss, ctxs) = membersWithCtxs.unzip
       members = memberss.flatten
 
-      col = {
-        val c = new CollectorImpl()
-        ctxs.foreach(ctx => ctx.finalize(c))
-        c
-      }
-
+      _ = ctxs.foreach(ctx => ctx.finalize(col))
 
       domains = members collect { case x: vpr.Domain => x }
       fields = members collect { case x: vpr.Field => x }
@@ -63,9 +61,20 @@ class ProgramsImpl extends Programs {
 
     val backTrackInfo = BackTrackInfo(error.errorT, error.reasonT)
 
-    BackendVerifier.Task(
+    val task = BackendVerifier.Task(
       program = prog,
       backtrack = backTrackInfo
     )
+
+    val transformers: Seq[ViperTransformer] = col.transformers ++ Seq(
+      new AssumeTransformer,
+      new TerminationTransformer,
+    )
+
+    val transformedTask = transformers.foldLeft(task) {
+      case (t, transformer) => transformer.transform(t)
+    }
+
+    transformedTask
   }
 }

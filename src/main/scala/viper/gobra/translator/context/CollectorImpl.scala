@@ -7,6 +7,7 @@
 package viper.gobra.translator.context
 
 import viper.gobra.translator.library.Generator
+import viper.gobra.translator.transformers.ViperTransformer
 import viper.silver.{ast => vpr}
 
 class CollectorImpl extends Collector {
@@ -17,12 +18,14 @@ class CollectorImpl extends Collector {
   protected var _functions: List[vpr.Function] = List.empty
   protected var _methods: List[vpr.Method]  = List.empty
   protected var _extensions: List[vpr.ExtensionMember] = List.empty
+  protected var _transformers: List[ViperTransformer] = List.empty
 
   /** invokes finalize on the generator */
   override def finalize(generator: Generator): Unit = {
     if(!_visitedGenerators.contains(generator)) {
       _visitedGenerators += generator
       generator.finalize(addMember)
+      generator.collectTransformers(transformer => _transformers ::= transformer)
     }
   }
 
@@ -41,4 +44,6 @@ class CollectorImpl extends Collector {
   override def functions: Seq[vpr.Function] = _functions
   override def methods: Seq[vpr.Method] = _methods
   override def extensions: Seq[vpr.ExtensionMember] = _extensions
+
+  override def transformers: Seq[ViperTransformer] = _transformers.reverse
 }

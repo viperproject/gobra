@@ -6,7 +6,7 @@
 
 package viper.gobra.translator.library
 
-import viper.gobra.translator.context.Context
+import viper.gobra.translator.transformers.ViperTransformer
 import viper.silver.{ast => vpr}
 
 import scala.annotation.unused
@@ -18,10 +18,5 @@ trait Generator {
     */
   def finalize(@unused addMemberFn: vpr.Member => Unit): Unit = {}
 
-  def chain[R](fs: Vector[Context => (R, Context)])(ctx: Context): (Vector[R], Context) = {
-    fs.foldLeft((Vector.empty[R], ctx)) { case ((rs, c), rf) =>
-      val (r, nc) = rf(c)
-      (r +: rs, nc)
-    }
-  }
+  def collectTransformers(@unused addTransformer: ViperTransformer => Unit): Unit = {}
 }

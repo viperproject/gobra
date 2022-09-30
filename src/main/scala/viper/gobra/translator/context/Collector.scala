@@ -7,6 +7,7 @@
 package viper.gobra.translator.context
 
 import viper.gobra.translator.library.Generator
+import viper.gobra.translator.transformers.ViperTransformer
 import viper.silver.{ast => vpr}
 
 trait Collector {
@@ -25,4 +26,6 @@ trait Collector {
   def methods: Seq[vpr.Method]
 
   def extensions: Seq[vpr.ExtensionMember]
+
+  def transformers: Seq[ViperTransformer]
 }

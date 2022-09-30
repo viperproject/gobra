@@ -94,11 +94,11 @@ class InterfaceEncoding extends LeafTypeEncoding {
   override def method(ctx: Context): in.Member ==> MemberWriter[vpr.Method] = {
     case p: in.Method if p.receiver.typ.isInstanceOf[in.InterfaceT] =>
       // adds the precondition that the receiver is not equal to the nil interface
-      val (pos, info: Source.Verifier.Info, errT) = p.vprMeta
+      val (pos, info, errT) = p.vprMeta
       for {
         m <- ctx.defaultEncoding.method(p)(ctx)
         recv = m.formalArgs.head.localVar // receiver is always the first parameter
-        mWithNotNilCheck = m.copy(pres = utils.receiverNotNil(recv)(pos, info, errT)(ctx) +: m.pres)(pos, info, errT)
+        mWithNotNilCheck = m.copy(pres = utils.receiverNotNil(recv)(ctx) +: m.pres)(pos, info, errT)
       } yield mWithNotNilCheck
 
     case p: in.MethodSubtypeProof =>
@@ -264,14 +264,18 @@ class InterfaceEncoding extends LeafTypeEncoding {
         for {
           instance <- mpredicateInstance(recv, p, args)(n)(ctx)
           perm <- goE(perm)
-        } yield vpr.PredicateAccessPredicate(instance, perm)(pos, info, errT): vpr.Exp
+          predAccessPredicate = vpr.PredicateAccessPredicate(instance, perm)(pos, info, errT)
+          notNil = utils.receiverNotNil(instance.args.head)(ctx)
+        } yield vpr.And(predAccessPredicate, notNil)(pos, info, errT)
 
       case n@ in.Access(in.Accessible.Predicate(in.FPredicateAccess(p, args)), perm) if hasFamily(p)(ctx) =>
         val (pos, info, errT) = n.vprMeta
         for {
           instance <- fpredicateInstance(p, args)(n)(ctx)
           perm <- goE(perm)
-        } yield vpr.PredicateAccessPredicate(instance, perm)(pos, info, errT): vpr.Exp
+          predAccessPredicate = vpr.PredicateAccessPredicate(instance, perm)(pos, info, errT)
+          notNil = utils.receiverNotNil(instance.args.head)(ctx)
+        } yield vpr.And(predAccessPredicate, notNil)(pos, info, errT)
     }
   }
 
@@ -681,7 +685,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
   private def function(p: in.PureMethod)(ctx: Context): MemberWriter[vpr.Function] = {
     Violation.violation(p.results.size == 1, s"expected a single result, but got ${p.results}")
 
-    val (pos, info: Source.Verifier.Info, errT) = p.vprMeta
+    val (pos, info, errT) = p.vprMeta
 
     val pProxy = Names.InterfaceMethod.origin(p.name)
 
@@ -721,7 +725,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         name = p.name.uniqueName,
         formalArgs = recvDecl +: argDecls,
         typ = resultType,
-        pres = utils.receiverNotNil(recv)(pos, info, errT)(ctx) +: (vPres ++ measures),
+        pres = utils.receiverNotNil(recv)(ctx) +: (vPres ++ measures),
         posts = (cases map { case (impl, implProxy) => clause(impl, implProxy) }) ++ posts,
         body = body
       )(pos, info, errT)

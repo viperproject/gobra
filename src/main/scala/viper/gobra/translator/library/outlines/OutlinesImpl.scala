@@ -7,12 +7,11 @@
 package viper.gobra.translator.library.outlines
 
 import viper.gobra.translator.util.ViperUtil
-import viper.silver.ast.Member
 import viper.silver.{ast => vpr}
 
 class OutlinesImpl extends Outlines {
 
-  override def finalize(addMemberFn: Member => Unit): Unit = {
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     generatedMembers foreach addMemberFn
   }
   private var generatedMembers: List[vpr.Member] = List.empty
@@ -62,7 +61,7 @@ class OutlinesImpl extends Outlines {
                       )(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.Stmt = {
 
     val (arguments, results) = {
-      val bodyFree = body.undeclLocalVars.toSet
+      val bodyFree = ViperUtil.undeclLocalVarsGobraCopy(body).toSet
       val preFree = pres
         .map(e => vpr.utility.Expressions.freeVariables(e).collect{ case x: vpr.LocalVar => x })
         .foldLeft(Set.empty[vpr.LocalVar]){ case (l,r) => l ++ r }

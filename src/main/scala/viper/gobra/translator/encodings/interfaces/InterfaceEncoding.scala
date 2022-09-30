@@ -258,24 +258,33 @@ class InterfaceEncoding extends LeafTypeEncoding {
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
+    def wrap(predicateAccess: vpr.PredicateAccess, perm: vpr.Exp): vpr.Exp = {
+      val (pos, info, errT) = predicateAccess.meta
+      val predicateAccessPredicate = vpr.PredicateAccessPredicate(predicateAccess, perm)(pos, info, errT)
+      val notNil = utils.receiverNotNil(predicateAccess.args.head)(ctx)
+      vpr.And(predicateAccessPredicate, notNil)(pos, info, errT)
+    }
+
     default(super.assertion(ctx)) {
-      case n@ in.Access(in.Accessible.Predicate(in.MPredicateAccess(recv, p, args)), perm) if hasFamily(p)(ctx) =>
-        val (pos, info, errT) = n.vprMeta
+      case n@in.Access(in.Accessible.Predicate(in.MPredicateAccess(recv, p, args)), perm) if hasFamily(p)(ctx) =>
         for {
           instance <- mpredicateInstance(recv, p, args)(n)(ctx)
           perm <- goE(perm)
-          predAccessPredicate = vpr.PredicateAccessPredicate(instance, perm)(pos, info, errT)
-          notNil = utils.receiverNotNil(instance.args.head)(ctx)
-        } yield vpr.And(predAccessPredicate, notNil)(pos, info, errT)
+        } yield wrap(instance, perm)
+
+      case n@in.Access(in.Accessible.Predicate(in.MPredicateAccess(recv:: ctx.Interface(_), p, args)), perm) =>
+        for {
+          recv <- goE(recv)
+          args <- sequence(args map goE)
+          instance = withSrc(vpr.PredicateAccess(recv +: args, p.uniqueName), n)
+          perm <- goE(perm)
+        } yield wrap(instance, perm)
 
       case n@ in.Access(in.Accessible.Predicate(in.FPredicateAccess(p, args)), perm) if hasFamily(p)(ctx) =>
-        val (pos, info, errT) = n.vprMeta
         for {
           instance <- fpredicateInstance(p, args)(n)(ctx)
           perm <- goE(perm)
-          predAccessPredicate = vpr.PredicateAccessPredicate(instance, perm)(pos, info, errT)
-          notNil = utils.receiverNotNil(instance.args.head)(ctx)
-        } yield vpr.And(predAccessPredicate, notNil)(pos, info, errT)
+        } yield wrap(instance, perm)
     }
   }
 

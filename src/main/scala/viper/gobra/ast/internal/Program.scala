@@ -1063,6 +1063,11 @@ case class ShiftRight(left: Expr, right: Expr)(val info: Source.Parser.Info) ext
 }
 case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation
 
+/*
+ * Convert 'expr' to non-interface type 'newType'. If 'newType' is
+ * an interface type, then 'ToInterface' should be used instead.
+ */
+ // TODO: maybe unify with ToInterface at some point
 case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = newType
 }

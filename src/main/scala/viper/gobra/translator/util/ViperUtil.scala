@@ -48,7 +48,7 @@ object ViperUtil {
   }
 
   /**
-    * TODO: should be removed once the corresponding silver function is fixed.
+    * TODO: should be removed once the corresponding silver function is fixed, see /silver/issues/610.
     *
     * Returns a list of all undeclared local variables used in this statement.
     * If the same local variable is used with different

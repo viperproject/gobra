@@ -76,7 +76,10 @@ class StructEncoding extends TypeEncoding {
     */
   override def initialization(ctx: Context): in.Location ==> CodeWriter[vpr.Stmt] = {
     case l :: ctx.Struct(fs) =>
-      seqns(fieldAccesses(l, fs).map(x => ctx.initialization(x)))
+      for {
+        x <- bind(l)(ctx)
+        res <- seqns(fieldAccesses(x, fs).map(x => ctx.initialization(x)))
+      } yield res
   }
 
   /**
@@ -102,9 +105,13 @@ class StructEncoding extends TypeEncoding {
       ctx.assignment(in.Assignee(fa.recv), in.StructUpdate(fa.recv, fa.field, rhs)(src.info))(src)
 
     case (in.Assignee(lhs :: ctx.Struct(lhsFs) / Shared), rhs :: ctx.Struct(rhsFs), src) =>
-      val lhsFAs = fieldAccesses(lhs, lhsFs).map(in.Assignee.Field)
-      val rhsFAs = fieldAccesses(rhs, rhsFs)
-      seqns((lhsFAs zip rhsFAs).map{ case (lhsFA, rhsFA) => ctx.assignment(lhsFA, rhsFA)(src) })
+      for {
+        x <- bind(lhs)(ctx)
+        y <- bind(rhs)(ctx)
+        lhsFAs = fieldAccesses(x, lhsFs).map(in.Assignee.Field)
+        rhsFAs = fieldAccesses(y, rhsFs)
+        res <- seqns((lhsFAs zip rhsFAs).map { case (lhsFA, rhsFA) => ctx.assignment(lhsFA, rhsFA)(src) })
+      } yield res
   }
 
   /**
@@ -125,11 +132,16 @@ class StructEncoding extends TypeEncoding {
     */
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
     case (lhs :: ctx.Struct(lhsFs), rhs :: ctx.Struct(rhsFs), src) =>
-      val lhsFAccs = fieldAccesses(lhs, lhsFs)
-      val rhsFAccs = fieldAccesses(rhs, rhsFs)
-      val equalFields = sequence((lhsFAccs zip rhsFAccs).map{ case (lhsFA, rhsFA) => ctx.equal(lhsFA, rhsFA)(src) })
       val (pos, info, errT) = src.vprMeta
-      equalFields.map(VU.bigAnd(_)(pos, info, errT))
+      pure(
+        for {
+          x <- bind(lhs)(ctx)
+          y <- bind(rhs)(ctx)
+          lhsFAccs = fieldAccesses(x, lhsFs)
+          rhsFAccs = fieldAccesses(y, rhsFs)
+          equalFields <- sequence((lhsFAccs zip rhsFAccs).map { case (lhsFA, rhsFA) => ctx.equal(lhsFA, rhsFA)(src) })
+        } yield VU.bigAnd(equalFields)(pos, info, errT)
+      )(ctx)
 
     case (lhs :: ctx.*(ctx.Struct(lhsFs)) / Exclusive, rhs :: ctx.*(ctx.Struct(_)), src) =>
       if (lhsFs.isEmpty) {
@@ -221,13 +233,16 @@ class StructEncoding extends TypeEncoding {
       super.isComparable(ctx)(exp).map{ _ =>
         // if executed, then for all fields f, isComb[exp.f] != Left(false)
         val (pos, info, errT) = exp.vprMeta
-        // fields that are not ghost and with dynamic comparability
-        val fsAccs = fieldAccesses(exp, fs.filter(f => !f.ghost))
-        val fsComp = fsAccs map ctx.isComparable
-        // Left(true) can be removed.
-        for {
-          args <- sequence(fsComp collect { case Right(e) => e })
-        } yield VU.bigAnd(args)(pos, info, errT)
+        pure(
+          for {
+            x <- bind(exp)(ctx)
+            // fields that are not ghost and with dynamic comparability
+            fsAccs = fieldAccesses(x, fs.filter(f => !f.ghost))
+            fsComp = fsAccs map ctx.isComparable
+            // Left(true) can be removed.
+            args <- sequence(fsComp collect { case Right(e) => e })
+          } yield VU.bigAnd(args)(pos, info, errT)
+        )(ctx)
       }
   }
 

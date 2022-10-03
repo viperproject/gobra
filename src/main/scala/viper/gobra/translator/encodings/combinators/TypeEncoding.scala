@@ -273,6 +273,22 @@ trait TypeEncoding extends Generator {
   }
 
   /**
+    * Encodes an expression such that substitution is possible.
+    * For an expression `e` and a context `K`, the encoding of K[e] is semantically equal to K[x] with x := Value[e].
+    *
+    * Value[ e: T° ] = [e]
+    * Value[ loc: T@ ] = R[loc]
+    *
+    * */
+  final def value(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+    val liftedResult: in.Expr => Option[CodeWriter[vpr.Exp]] = {
+      case (l: in.Location) :: _ / Shared => reference(ctx).lift(l)
+      case e => finalExpression(ctx).lift(e)
+    }
+    liftedResult.unlift
+  }
+
+  /**
     * Encodes the permissions for all addresses of a shared type,
     * i.e. all permissions involved in converting the shared location to an exclusive r-value.
     * An encoding for type T should be defined at all shared locations of type T.

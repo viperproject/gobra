@@ -95,6 +95,8 @@ trait Context {
 
   def reference(x: in.Location): CodeWriter[vpr.Exp] = typeEncoding.reference(this)(x)
 
+  def value(x: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.value(this)(x)
+
   def footprint(x: in.Location, perm: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.addressFootprint(this)(x, perm)
 
   def isComparable(x: in.Expr): Either[Boolean, CodeWriter[vpr.Exp]] = typeEncoding.isComparable(this)(x)

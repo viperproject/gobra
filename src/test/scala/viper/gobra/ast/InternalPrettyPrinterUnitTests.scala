@@ -1211,21 +1211,6 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     }
   }
 
-  test("Printer: should show a simple slice literal as expected") {
-    val expr = SliceLit(
-      intT,
-      Map(
-        BigInt(0) -> IntLit(8)(Internal),
-        BigInt(1) -> IntLit(3)(Internal),
-        BigInt(2) -> IntLit(2)(Internal)
-      )
-    )(Internal)
-
-    frontend.show(expr) should matchPattern {
-      case "[]int { 0:8, 1:3, 2:2 }" =>
-    }
-  }
-
 
   /* * Stubs, mocks, and other test setup  */
 

@@ -71,7 +71,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
   }
 
-  def updatePositionStore(n: Node): Doc = n.getMeta.origin match {
+  def updatePositionStore(n: Node): Doc = n.info.origin match {
     case Some(origin) =>
       new Doc(
         (iw: IW) =>
@@ -275,6 +275,15 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       block(showStmt(body))
 
     case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))
+
+    case NewSliceLit(target, typ, elems) =>
+      val typP = showType(typ)
+      val exprsP = braces(space <> showIndexedExprMap(elems) <> (if (elems.nonEmpty) space else emptyDoc))
+      showVar(target) <+> "=" <+> "new" <> parens(brackets(emptyDoc) <> typP <+> exprsP)
+
+    case lit@NewMapLit(target, _, _, entries) =>
+      val entriesDoc = showList(entries) { case (x, y) => showExpr(x) <> ":" <+> showExpr(y) }
+      showVar(target) <+> "=" <+> "new" <> (showType(lit.typ) <+> braces(space <> entriesDoc <> (if (entries.nonEmpty) space else emptyDoc)))
 
     case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
       parens(showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
@@ -571,16 +580,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       lenP <> typP <+> exprsP
     }
 
-    case SliceLit(typ, elems) => {
-      val typP = showType(typ)
-      val exprsP = braces(space <> showIndexedExprMap(elems) <> (if (elems.nonEmpty) space else emptyDoc))
-      brackets(emptyDoc) <> typP <+> exprsP
-    }
-
-    case lit@MapLit(_, _, entries) =>
-      val entriesDoc = showList(entries){ case (x,y) => showExpr(x) <> ":" <+> showExpr(y) }
-      showType(lit.typ) <+> braces(space <> entriesDoc <> (if (entries.nonEmpty) space else emptyDoc))
-
     case SequenceLit(_, typ, elems) => {
       val exprsP = braces(space <> showIndexedExprMap(elems) <> (if (elems.nonEmpty) space else emptyDoc))
       "seq" <> brackets(showType(typ)) <+> exprsP
@@ -710,6 +709,15 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       opt(measure)("decreases" <> showTerminationMeasure(_) <> line)
 
     case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))
+
+    case NewSliceLit(target, typ, elems) =>
+      val typP = showType(typ)
+      val exprsP = braces(space <> showIndexedExprMap(elems) <> (if (elems.nonEmpty) space else emptyDoc))
+      showVar(target) <+> "=" <+> "new" <> parens(brackets(emptyDoc) <> typP <+> exprsP)
+
+    case lit@NewMapLit(target, _, _, entries) =>
+      val entriesDoc = showList(entries) { case (x, y) => showExpr(x) <> ":" <+> showExpr(y) }
+      showVar(target) <+> "=" <+> "new" <> (showType(lit.typ) <+> braces(space <> entriesDoc <> (if (entries.nonEmpty) space else emptyDoc)))
 
     case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
       parens(showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))

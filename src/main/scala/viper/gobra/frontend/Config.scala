@@ -60,6 +60,8 @@ object ConfigDefaults {
   lazy val DefaultGobraDirectory: Path = Path.of(".gobra")
   lazy val DefaultTaskName: String = "gobra-task"
   lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
+  lazy val DefaultParallelizeBranches: Boolean = false
+  lazy val DefaultDisableMoreCompleteExhale: Boolean = false
 }
 
 case class Config(
@@ -103,6 +105,10 @@ case class Config(
                    onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
                    // if enabled, Gobra assumes injectivity on inhale, as done by Viper versions before 2022.2.
                    assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
+                   // if enabled, and if the chosen backend is either SILICON or VSWITHSILICON,
+                   // branches will be verified in parallel
+                   parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
+                   disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
 ) {
 
   def merge(other: Config): Config = {
@@ -142,6 +148,8 @@ case class Config(
       checkConsistency = checkConsistency || other.checkConsistency,
       onlyFilesWithHeader = onlyFilesWithHeader || other.onlyFilesWithHeader,
       assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale,
+      parallelizeBranches = parallelizeBranches,
+      disableMoreCompleteExhale = disableMoreCompleteExhale,
     )
   }
 
@@ -182,6 +190,8 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       cacheParser: Boolean = ConfigDefaults.DefaultCacheParser,
                       onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
                       assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
+                      parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
+                      disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -230,6 +240,8 @@ trait RawConfig {
     cacheParser = baseConfig.cacheParser,
     onlyFilesWithHeader = baseConfig.onlyFilesWithHeader,
     assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,
+    parallelizeBranches = baseConfig.parallelizeBranches,
+    disableMoreCompleteExhale = baseConfig.disableMoreCompleteExhale,
   )
 }
 
@@ -557,6 +569,20 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val parallelizeBranches: ScallopOption[Boolean] = opt[Boolean](
+    name = "parallelizeBranches",
+    descr = "Performs parallel branch verification if the chosen backend is either SILICON or VSWITHSILICON",
+    default = Some(ConfigDefaults.DefaultParallelizeBranches),
+    noshort = true,
+  )
+
+  val disableMoreCompleteExhale: ScallopOption[Boolean] = opt[Boolean](
+    name = "disableMoreCompleteExhale",
+    descr = "Disables the flag --enableMoreCompleteExhale passed by default to Silicon",
+    default = Some(ConfigDefaults.DefaultDisableMoreCompleteExhale),
+    noshort = true,
+  )
+
   /**
     * Exception handling
     */
@@ -577,6 +603,33 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   // Thus, we restrict their use:
   conflicts(input, List(projectRoot, inclPackages, exclPackages))
   conflicts(directory, List(inclPackages, exclPackages))
+
+  // must be lazy to guarantee that this value is computed only during the CLI options validation and not before.
+  lazy val isSiliconBasedBackend = backend.toOption match {
+    case Some(ViperBackends.SiliconBackend | _: ViperBackends.ViperServerWithSilicon) => true
+    case _ => false
+  }
+
+  // `parallelizeBranches` requires a backend that supports branch parallelization (i.e., a silicon-based backend)
+  addValidation {
+    val parallelizeBranchesOn = parallelizeBranches.toOption.contains(true)
+    if (parallelizeBranchesOn && !isSiliconBasedBackend) {
+      Left("The selected backend does not support branch parallelization.")
+    } else {
+      Right(())
+    }
+  }
+
+  // `disableMoreCompleteExhale` can only be enabled when using a silicon-based backend
+  addValidation {
+    val disableMoreCompleteExh = disableMoreCompleteExhale.toOption.contains(true)
+    if (disableMoreCompleteExh && !isSiliconBasedBackend) {
+      Left("The flag --disableMoreCompleteExhale can only be used with Silicon and ViperServer with Silicon")
+    } else {
+      Right(())
+    }
+  }
+
 
   /** File Validation */
   validateFilesExist(cutInput)
@@ -660,5 +713,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     cacheParser = false, // caching does not make sense when using the CLI. Thus, we simply set it to `false`
     onlyFilesWithHeader = onlyFilesWithHeader(),
     assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
+    parallelizeBranches = parallelizeBranches(),
+    disableMoreCompleteExhale = disableMoreCompleteExhale(),
   )
 }

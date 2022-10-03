@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type Element struct {
+	Next *Element
+	Value any
+}
+
+func client1() {
+	e := &Element{Value: interface{}(1)}
+}
+
+func client2() {
+	e := &Element{Value: 1}
+}

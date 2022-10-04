@@ -2541,6 +2541,11 @@ object Desugar {
                 conv: in.EffectfulConversion = in.EffectfulConversion(target, resT, dArg)(src)
                 _ <- write(conv)
               } yield target
+            case (t: InterfaceT, _) =>
+              for {
+                exp <- exprD(ctx, info)(arg)
+                tD  =  typeD(t, exp.typ.addressability)(src)
+              } yield in.ToInterface(exp, tD)(exp.info)
             case _ =>
               val desugaredTyp = typeD(typType, info.addressability(expr))(src)
               for { expr <- exprD(ctx, info)(arg) } yield in.Conversion(desugaredTyp, expr)(src)
@@ -2728,10 +2733,13 @@ object Desugar {
 
           if (lit.elems.exists(_.key.isEmpty)) {
             // all elements are not keyed
-            val wArgs = fields.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) => exp match {
-              case PExpCompositeVal(ev) => exprD(ctx, info)(ev)
-              case PLitCompositeVal(lv) => literalValD(ctx, info)(lv, f.typ)
-            }}
+            val wArgs = fields.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) =>
+              val wv = exp match {
+                case PExpCompositeVal(ev) => exprD(ctx, info)(ev)
+                case PLitCompositeVal(lv) => literalValD(ctx, info)(lv, f.typ)
+              }
+              wv.map{ v => implicitConversion(v.typ, f.typ, v) }
+            }
 
             for {
               args <- sequence(wArgs)
@@ -2744,10 +2752,11 @@ object Desugar {
             val vMap = lit.elems.map {
               case PKeyedElement(Some(PIdentifierKey(key)), exp) =>
                 val f = fMap(key.name)
-                exp match {
-                  case PExpCompositeVal(ev) => f -> exprD(ctx, info)(ev)
-                  case PLitCompositeVal(lv) => f -> literalValD(ctx, info)(lv, f.typ)
+                val wv = exp match {
+                  case PExpCompositeVal(ev) => exprD(ctx, info)(ev)
+                  case PLitCompositeVal(lv) => literalValD(ctx, info)(lv, f.typ)
                 }
+                f -> wv.map{ v => implicitConversion(v.typ, f.typ, v) }
 
               case _ => Violation.violation("expected identifier as a key")
             }.toMap

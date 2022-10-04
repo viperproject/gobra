@@ -3063,7 +3063,13 @@ object Desugar {
       // As for imported methods, imported packages are not checked to satisfy their specification. In particular,
       // Gobra does not check that the package postconditions are established by the initialization code. Instead,
       // this is assumed. We only generate the proof obligations for the initialization code in the main package.
-      registerPackage(mainPkg, specCollector, generateInitProof = true)(config)
+      registerPackage(mainPkg, specCollector, generateInitProof = !config.disableGlobalVars)(config)
+
+      if (config.disableGlobalVars) {
+        // early return to not add any proof obligations because we have made sure that
+        // there aren't any global variables and/or init postcondition or import preconditions
+        return
+      }
 
       // check that the postconditions of every package are enough to satisfy all of their imports' preconditions
       val src = meta(mainPkg, info)
@@ -3121,8 +3127,9 @@ object Desugar {
         info.context.getTypeInfo(RegularImport(imp.importPath))(config) match {
           case Some(Right(tI)) =>
             val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
+            Violation.violation(!config.disableGlobalVars || desugaredPre.isEmpty, "Import preconditions require support for global variables")
             specCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
-          case e => Violation.violation(s"Unexpected value found $e while importing ${imp.importPath}")
+          case e => Violation.violation(config.disableGlobalVars, s"Unexpected value found $e while importing ${imp.importPath}")
         }
       }
 

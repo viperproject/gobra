@@ -21,6 +21,5 @@ type X struct{}
 func (x X) m() int
 
 func client3() {
-	var t T = T(X{})
-	t.m()
+	T(X{}).m()
 }

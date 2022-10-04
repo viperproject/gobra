@@ -47,6 +47,7 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
     Logger(LoggerFactory.getLogger(getClass.getName))
 
   override def report(msg: GobraMessage): Unit = msg match {
+    case PreprocessedInputMessage(input, content) if unparse => write(input, "gobrafied", content())
     case ParsedInputMessage(input, program) if unparse => write(input, "unparsed", program().formatted)
     case TypeCheckSuccessMessage(inputs, _, _, _, erasedGhostCode, goifiedGhostCode) =>
       if (eraseGhost) write(inputs, "ghostLess", erasedGhostCode())

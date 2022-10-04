@@ -15,3 +15,12 @@ func client1() {
 func client2() {
 	e := &Element{Value: 1}
 }
+
+type T interface { m() int }
+type X struct{}
+func (x X) m() int
+
+func client3() {
+	var t T = T(X{})
+	t.m()
+}

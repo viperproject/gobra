@@ -1,0 +1,58 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// this is the same file as `globals-simple01.gobra` but additionally provides the `--disableGlobalVars` flag to Gobra.
+// ##(--disableGlobalVars)
+
+//:: ExpectedOutput(type_error)
+initEnsures acc(&A) && acc(&B) && acc(&C, 1/2)
+package pkg
+
+//:: ExpectedOutput(type_error)
+importRequires true
+import "fmt"
+
+import (
+    //:: ExpectedOutput(type_error)
+	importRequires true
+	//:: ExpectedOutput(type_error)
+	importRequires true
+	"bytes"
+	//:: ExpectedOutput(type_error)
+	importRequires true
+	"sync"
+)
+
+
+//:: ExpectedOutput(type_error)
+var A int = 0
+//:: ExpectedOutput(type_error)
+var B, C = f()
+//:: ExpectedOutput(type_error)
+var _ = g()
+//:: ExpectedOutput(type_error)
+var D struct{}
+
+decreases
+func f() (int, bool)
+
+decreases
+func g() interface{}
+
+requires acc(&A, 1/2) && A == 1
+ensures  acc(&A, 1/2)
+func testRead() {
+	var v1 int = A
+	assert v1 == 1
+}
+
+requires acc(&C) && C
+func testWrite() {
+	C = false
+}
+
+// Variable hiding works correctly, as in Go
+func tesVarHiding() {
+	var A int = 0
+	assert A == 0
+}

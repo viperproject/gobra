@@ -62,6 +62,7 @@ object ConfigDefaults {
   lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
   lazy val DefaultParallelizeBranches: Boolean = false
   lazy val DefaultDisableMoreCompleteExhale: Boolean = false
+  lazy val DefaultDisableGlobalVars: Boolean = false
 }
 
 case class Config(
@@ -109,6 +110,7 @@ case class Config(
                    // branches will be verified in parallel
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                    disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
+                   disableGlobalVars: Boolean = ConfigDefaults.DefaultDisableGlobalVars,
 ) {
 
   def merge(other: Config): Config = {
@@ -150,6 +152,7 @@ case class Config(
       assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale,
       parallelizeBranches = parallelizeBranches,
       disableMoreCompleteExhale = disableMoreCompleteExhale,
+      disableGlobalVars = disableGlobalVars || other.disableGlobalVars,
     )
   }
 
@@ -192,6 +195,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                       disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
+                      disableGlobalVars: Boolean = ConfigDefaults.DefaultDisableGlobalVars,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -242,6 +246,7 @@ trait RawConfig {
     assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,
     parallelizeBranches = baseConfig.parallelizeBranches,
     disableMoreCompleteExhale = baseConfig.disableMoreCompleteExhale,
+    disableGlobalVars = baseConfig.disableGlobalVars,
   )
 }
 
@@ -583,6 +588,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val disableGlobalVars: ScallopOption[Boolean] = opt[Boolean](
+    name = "disableGlobalVars",
+    descr = "Disables the support for global variables and thus does not require that the sources of all transitively included packages can be located by Gobra.",
+    default = Some(ConfigDefaults.DefaultDisableGlobalVars),
+    noshort = true,
+  )
+
   /**
     * Exception handling
     */
@@ -715,5 +727,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
     parallelizeBranches = parallelizeBranches(),
     disableMoreCompleteExhale = disableMoreCompleteExhale(),
+    disableGlobalVars = disableGlobalVars(),
   )
 }

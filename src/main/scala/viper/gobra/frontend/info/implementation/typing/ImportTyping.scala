@@ -14,13 +14,17 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 trait ImportTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefImport: WellDefinedness[PImport] = createWellDef { imp =>
-    forceNonLazyImport(imp.importPath, imp)
-    imp match {
+    (if (config.disableGlobalVars) {
+      imp.importPres.flatMap(importPre => message(importPre, s"Support for global variables has been disabled but an import precondition has been found"))
+    } else {
+      forceNonLazyImport(imp.importPath, imp)
+      noMessages
+    }) ++ (imp match {
       case _: PExplicitQualifiedImport => noMessages
       case _: PUnqualifiedImport => noMessages
       // this case should never occur as these nodes should get converted in the parse postprocessing step
       case n: PImplicitQualifiedImport => message(n, s"Explicit qualifier could not be derived")
-    }
+    })
   }
 
   // This method forces a package to be processed non-lazily - every import can cause side effects,

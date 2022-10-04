@@ -23,9 +23,6 @@ object ConstantPropagation extends InternalTransform {
       table = p.table,
     )(p.info)
 
-    println(p.table.getMPredicates.forall(x => noConstDecls.contains(x)))
-    println(p.table.getFPredicates.forall(x => noConstDecls.contains(x)))
-    p.table
     progNoConsts transform {
       case c: in.GlobalConst =>
         val litOpt = constDecls collectFirst { case in.GlobalConstDecl(l, r) if l == c => r.withInfo(c.info) }

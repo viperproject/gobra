@@ -50,10 +50,10 @@ jobs:
           body: |
             * Updates ViperServer from `${{ env.PREV_VIPERSERVER_REF }}` to `${{ env.CUR_VIPERSERVER_REF }}`.
 
-      - name: Enable auto-merge of PR
-        uses: peter-evans/create-or-update-comment@v2
-        if: env.PREV_VIPERSERVER_REF != env.CUR_VIPERSERVER_REF
-        with:
-          token: ${{ secrets.VIPER_ADMIN_TOKEN }}
-          issue-number: ${{ steps.pr.outputs.pull-request-number }}
-          body: bors merge
+      # - name: Enable auto-merge of PR
+      #   uses: peter-evans/create-or-update-comment@v2
+      #   if: env.PREV_VIPERSERVER_REF != env.CUR_VIPERSERVER_REF
+      #   with:
+      #     token: ${{ secrets.VIPER_ADMIN_TOKEN }}
+      #     issue-number: ${{ steps.pr.outputs.pull-request-number }}
+      #     body: bors merge

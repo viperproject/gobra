@@ -21,6 +21,7 @@ import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
 import scala.concurrent.duration.Duration
+import scala.util.matching.Regex
 
 object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
@@ -62,6 +63,7 @@ object ConfigDefaults {
   lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
   lazy val DefaultParallelizeBranches: Boolean = false
   lazy val DefaultDisableMoreCompleteExhale: Boolean = false
+  lazy val DefaultEnableLazyImports: Boolean = false
 }
 
 case class Config(
@@ -109,6 +111,7 @@ case class Config(
                    // branches will be verified in parallel
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                    disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
+                   enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
 ) {
 
   def merge(other: Config): Config = {
@@ -150,6 +153,7 @@ case class Config(
       assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale,
       parallelizeBranches = parallelizeBranches,
       disableMoreCompleteExhale = disableMoreCompleteExhale,
+      enableLazyImports = enableLazyImports || other.enableLazyImports,
     )
   }
 
@@ -163,10 +167,13 @@ case class Config(
 
 object Config {
   // the header signals that a file should be considered when running on "header-only" mode
-  val header = """\/\/\s*\+gobra""".r
+  val header: Regex = """\/\/\s*\+gobra""".r
   val prettyPrintedHeader = "// +gobra"
   require(header.matches(prettyPrintedHeader))
   def sourceHasHeader(s: Source): Boolean = header.findFirstIn(s.content).nonEmpty
+
+  val enableLazyImportOptionName = "enableLazyImport"
+  val enableLazyImportOptionPrettyPrinted = s"--$enableLazyImportOptionName"
 }
 
 // have a look at `Config` to see an inline description of some of these parameters
@@ -192,6 +199,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                       disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
+                      enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -242,6 +250,7 @@ trait RawConfig {
     assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,
     parallelizeBranches = baseConfig.parallelizeBranches,
     disableMoreCompleteExhale = baseConfig.disableMoreCompleteExhale,
+    enableLazyImports = baseConfig.enableLazyImports,
   )
 }
 
@@ -583,6 +592,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val enableLazyImports: ScallopOption[Boolean] = opt[Boolean](
+    name = Config.enableLazyImportOptionName,
+    descr = s"Enforces that ${GoVerifier.name} parses depending packages only when necessary. Note that this disables certain language features such as global variables.",
+    default = Some(ConfigDefaults.DefaultEnableLazyImports),
+    noshort = true,
+  )
+
   /**
     * Exception handling
     */
@@ -715,5 +731,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
     parallelizeBranches = parallelizeBranches(),
     disableMoreCompleteExhale = disableMoreCompleteExhale(),
+    enableLazyImports = enableLazyImports(),
   )
 }

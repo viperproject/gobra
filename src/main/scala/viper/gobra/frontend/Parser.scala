@@ -44,6 +44,10 @@ object Parser {
   def parse(input: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val sources = input
       .map(Gobrafier.gobrafy)
+      .map(s => {
+        config.reporter report PreprocessedInputMessage(s.name, () => s.content)
+        s
+      })
     for {
       parseAst <- parseSources(sources, pkgInfo, specOnly)(config)
       postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)

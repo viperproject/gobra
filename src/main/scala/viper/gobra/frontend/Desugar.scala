@@ -3063,11 +3063,15 @@ object Desugar {
       // As for imported methods, imported packages are not checked to satisfy their specification. In particular,
       // Gobra does not check that the package postconditions are established by the initialization code. Instead,
       // this is assumed. We only generate the proof obligations for the initialization code in the main package.
-      registerPackage(mainPkg, specCollector, generateInitProof = !config.disableGlobalVars)(config)
+      // Note that `config.enableLazyImports` disables init blocks, global variables, import preconditions, and init
+      // postconditions in the type checker, which means that we do not have to generate an init proof.
+      registerPackage(mainPkg, specCollector, generateInitProof = !config.enableLazyImports)(config)
 
-      if (config.disableGlobalVars) {
-        // early return to not add any proof obligations because we have made sure that
-        // there aren't any global variables and/or init postcondition or import preconditions
+      if (config.enableLazyImports) {
+        // early return to not add any proof obligations because we have made sure in the type checker that
+        // there aren't any global variables, init blocks, init postconditions, and import preconditions (in the
+        // packages that have been parsed). Note that packages that have been skipped because of the laziness might
+        // still contain such features.
         return
       }
 
@@ -3127,9 +3131,9 @@ object Desugar {
         info.context.getTypeInfo(RegularImport(imp.importPath))(config) match {
           case Some(Right(tI)) =>
             val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
-            Violation.violation(!config.disableGlobalVars || desugaredPre.isEmpty, "Import preconditions require support for global variables")
+            Violation.violation(!config.enableLazyImports || desugaredPre.isEmpty, s"Import precondition found despite running with ${Config.enableLazyImportOptionPrettyPrinted}")
             specCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
-          case e => Violation.violation(config.disableGlobalVars, s"Unexpected value found $e while importing ${imp.importPath}")
+          case e => Violation.violation(config.enableLazyImports, s"Unexpected value found $e while importing ${imp.importPath} - type information is assumed to be available for all packages when Gobra is executed with lazy imports disabled")
         }
       }
 

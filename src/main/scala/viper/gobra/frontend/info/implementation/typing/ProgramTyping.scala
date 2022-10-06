@@ -8,7 +8,9 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Entity
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message}
+import viper.gobra.GoVerifier
 import viper.gobra.ast.frontend.{PExpression, POld, PPackage, PProgram, PVarDecl}
+import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
@@ -18,8 +20,8 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefProgram: WellDefinedness[PProgram] = createWellDef {
     case PProgram(_, posts, imports, members) =>
-      if (config.disableGlobalVars) {
-        posts.flatMap(post => message(post, s"Support for global variables has been disabled but an init postcondition has been found"))
+      if (config.enableLazyImports) {
+        posts.flatMap(post => message(post, s"Init postconditions are not allowed when executing ${GoVerifier.name} with ${Config.enableLazyImportOptionPrettyPrinted}"))
       } else {
         // Obtains global variable declarations sorted by the order in which they appear in the file
         val sortedByPosDecls: Vector[PVarDecl] = {

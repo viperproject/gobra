@@ -266,9 +266,9 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * be easily extended to perform more transformations
     */
   private def performInternalTransformations(program: Program, config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], Program] = {
-    // having constant propagation before overflow checking will not lead to duplication of errors if
-    // overflow checks are enabled, given that all overflows in constant declarations can be found by the
-    // well-formedness checks
+    // constant propagation does not cause duplication of verification errors caused
+    // by overflow checks (if enabled) because all overflows in constant declarations 
+    // can be found by the well-formedness checks.
     var transformations: Vector[InternalTransform] = Vector(CGEdgesTerminationTransform, ConstantPropagation)
     if (config.checkOverflows) {
       transformations :+= OverflowChecksTransform

@@ -14,8 +14,8 @@ import scala.util.matching.Regex
 
 object Gobrafier {
 
-  private def multilineComment(str: String): String = s"/\\*@\\s*$str\\s*@\\*/"
-  private def singlelineComment(str: String): String = s"//@\\s*$str\\s*"
+  private def multilineComment(str: String): String = s"/\\*\\s?@\\s*$str\\s*@\\s?\\*/"
+  private def singlelineComment(str: String): String = s"//\\s?@\\s*$str\\s*"
 
   /**
     * Keywords used in Goified files.
@@ -67,7 +67,7 @@ object Gobrafier {
     * Remove the remaining goifying comments in the file.
     */
   private def removeGoifyingComments(fileContent: String): String =
-    fileContent.replaceAll(s"//@\\s*", "").replaceAll(s"/\\*@$non_newline*", "").replaceAll(s"(?m)$non_newline*@\\*/", "")
+    fileContent.replaceAll(s"//\\s?@\\s*", "").replaceAll(s"/\\*\\s?@$non_newline*", "").replaceAll(s"(?m)$non_newline*@\\s?\\*/", "")
 
 
 
@@ -198,7 +198,7 @@ object Gobrafier {
       actualRhs +
       (if (actualRhs == null || actualRhs == "" || ghostRhs == "" || ghostRhs == null) "" else ", ") +
       (if (ghostRhs == "" || ghostRhs == null) "" else ghostRhs) +
-      (if (comment == "" || comment == null) "" else "//@ " + comment)
+      (if (comment == "" || comment == null) "" else "//\\s?@ " + comment)
     })
 
     /**

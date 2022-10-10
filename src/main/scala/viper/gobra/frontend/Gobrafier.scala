@@ -198,7 +198,7 @@ object Gobrafier {
       actualRhs +
       (if (actualRhs == null || actualRhs == "" || ghostRhs == "" || ghostRhs == null) "" else ", ") +
       (if (ghostRhs == "" || ghostRhs == null) "" else ghostRhs) +
-      (if (comment == "" || comment == null) "" else "//\\s?@ " + comment)
+      (if (comment == "" || comment == null) "" else "// @ " + comment)
     })
 
     /**

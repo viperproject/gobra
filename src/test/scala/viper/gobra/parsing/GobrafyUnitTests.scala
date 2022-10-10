@@ -588,7 +588,7 @@ class GobrafyUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.gobrafy(input, expected)
   }
 
-  test("unfolding predicate instance") {
+  test("unfolding predicate instance (post Go 1.19)") {
     val input =
       """
         |v := /* @ unfolding: list(n) @ */ n.val

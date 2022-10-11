@@ -1,0 +1,34 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// all functions & methods in this package violate their termination annotations and thus fail to verify.
+// however, importing and calling these functions & methods in different packages is supposed to be fine because
+// we simply trust the annotations
+
+package foo
+
+type Foo struct{}
+
+decreases
+pure func pure_foo_function() bool {
+    //:: ExpectedOutput(function_termination_error)
+    return pure_foo_function()
+}
+
+decreases
+pure func (foo Foo) pure_foo_method() bool {
+    //:: ExpectedOutput(function_termination_error)
+    return foo.pure_foo_method()
+}
+
+decreases
+func foo_function() bool {
+    //:: ExpectedOutput(function_termination_error)
+    return foo_function()
+}
+
+decreases
+func (foo Foo) foo_method() bool {
+    //:: ExpectedOutput(function_termination_error)
+    return foo.foo_method()
+}

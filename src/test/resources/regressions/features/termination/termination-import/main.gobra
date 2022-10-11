@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// checks whether termination of imported members is assumed instead of re-checked
+
+package termination
+
+// ##(-I ./)
+import f "foo"
+
+decreases
+func test() {
+    foo := f.Foo{}
+    f.pure_foo_function()
+    foo.pure_foo_method()
+    f.foo_function()
+    foo.foo_method()
+}

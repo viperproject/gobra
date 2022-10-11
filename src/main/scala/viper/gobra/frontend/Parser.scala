@@ -50,7 +50,14 @@ object Parser {
       })
     for {
       parseAst <- parseSources(sources, pkgInfo, specOnly)(config)
-      postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
+      postprocessors = Seq(
+        new ImportPostprocessor(parseAst.positions.positions),
+        new TerminationMeasurePostprocessor(parseAst.positions.positions, specOnly),
+      )
+      postprocessedAst <- postprocessors.foldLeft[Either[Vector[VerifierError], PPackage]](Right(parseAst)) {
+        case (Right(ast), postprocessor) => postprocessor.postprocess(ast)(config)
+        case (e, _) => e
+      }
     } yield postprocessedAst
   }
 
@@ -214,8 +221,11 @@ object Parser {
   }
 
 
+  trait Postprocessor extends PositionedRewriter {
+    def postprocess(pkg: PPackage)(config: Config): Either[Vector[VerifierError], PPackage]
+  }
 
-  private class ImportPostprocessor(override val positions: Positions) extends PositionedRewriter {
+  private class ImportPostprocessor(override val positions: Positions) extends Postprocessor {
     /**
       * Replaces all PQualifiedWoQualifierImport by PQualifiedImport nodes
       */
@@ -266,7 +276,62 @@ object Parser {
     }
   }
 
+  private class TerminationMeasurePostprocessor(override val positions: Positions, specOnly: Boolean) extends Postprocessor {
+    /**
+      * if `specOnly` is set to true, this postprocessor replaces all tuple termination measures specified for functions
+      * or methods by wildcard termination measures while maintaining their condition (if any). Note that termination
+      * measures specified for interface methods remain untouched.
+      *
+      * // when parsing imported packages (`specOnly` will be true), we trust the annotations of imported members
+      // therefore, e.g. bodies of (non-pure) functions & methods will be ignored. However, the body of pure
+      // functions & methods is retained. To avoid that Viper will generate proof obligations for checking termination
+      // of pure functions & methods, we simply translate tuple termination measures into wildcard measures (for a given
+      // condition). Therefore, no proof obligations will be created for checking termination of imported members.
+      // This is technically not necessary for imported (non-pure) functions & methods because they are abstract
+      // anyway but for pure functions & methods the following transformation ensures that no proof obligations will
+      // be created by Viper:
+      */
+    def postprocess(pkg: PPackage)(config: Config): Either[Vector[VerifierError], PPackage] = {
+      if (specOnly) replaceTerminationMeasures(pkg) else Right(pkg)
+    }
 
+    private def replaceTerminationMeasures(pkg: PPackage): Either[Vector[VerifierError], PPackage] = {
+      def replace(spec: PFunctionSpec): PFunctionSpec = {
+        val replacedMeasures = spec.terminationMeasures.map {
+          case n@PTupleTerminationMeasure(_, cond) =>
+            val newMeasure = PWildcardMeasure(cond)
+            // copy positional information as the strategy only makes sure that positional information is correctly set
+            // for the resulting function or method declaration
+            pkg.positions.positions.dupPos(n, newMeasure)
+            newMeasure
+          case t => t
+        }
+        PFunctionSpec(spec.pres, spec.preserves, spec.posts, replacedMeasures, spec.isPure, spec.isTrusted)
+      }
+
+      val replaceTerminationMeasuresForFunctionsAndMethods: Strategy =
+        strategyWithName[Any]("replaceTerminationMeasuresForFunctionsAndMethods", {
+          // apply transformation only to the specification of function or method declaration (in particular, do not
+          // apply the transformation to method signatures in interface declarations)
+          case n: PFunctionDecl => Some(PFunctionDecl(n.id, n.args, n.result, replace(n.spec), n.body))
+          case n: PMethodDecl => Some(PMethodDecl(n.id, n.receiver, n.args, n.result, replace(n.spec), n.body))
+          case n: PMember => Some(n)
+        })
+
+      // apply strategy only to import nodes in each program
+      val updatedProgs = pkg.programs.map(prog => {
+        // apply the replaceTerminationMeasuresForFunctionsAndMethods to declarations until the strategy has succeeded
+        // (i.e. has reached PMember nodes) and stop then
+        val updatedDecls = rewrite(alltd(replaceTerminationMeasuresForFunctionsAndMethods))(prog.declarations)
+        val updatedProg = PProgram(prog.packageClause, prog.initPosts, prog.imports, updatedDecls)
+        pkg.positions.positions.dupPos(prog, updatedProg)
+      })
+      // create a new package node with the updated programs
+      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info)
+      pkg.positions.positions.dupPos(pkg, updatedPkg)
+      Right(updatedPkg)
+    }
+  }
 
   private class SyntaxAnalyzer[Rule <: ParserRuleContext, Node <: AnyRef](tokens: CommonTokenStream, source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean = false) extends GobraParser(tokens){
 

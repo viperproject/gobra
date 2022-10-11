@@ -1858,24 +1858,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitTerminationMeasure(ctx: TerminationMeasureContext): PTerminationMeasure = {
-    // when parsing imported packages (`specOnly` will be true), we trust the annotations of imported members
-    // therefore, e.g. bodies of non-pure functions & methods will be ignored. However, the body of pure
-    // functions & methods is retained. To avoid that Viper will generate proof obligations for checking termination
-    // of imported pure functions & methods, we simply translate tuple termination measures into wildcard measures (for
-    // a given condition). Therefore, no proof obligations will be created for checking termination of imported members.
-    // This is technically not necessary for imported non-pure functions & methods because they are abstract
-    // anyway but we apply the same transformation for simplicity as we do not have to perform a case distinction on
-    // whether the termination measure is part of a pure or non-pure member.
     val cond = visitNodeOrNone[PExpression](ctx.expression())
     visitExpressionList(ctx.expressionList()) match {
       case Vector(PBlankIdentifier()) => PWildcardMeasure(cond).at(ctx)
-      case exprs if exprs.nonEmpty => if (specOnly) PWildcardMeasure(cond).at(ctx) else PTupleTerminationMeasure(exprs, cond).at(ctx)
-      case Vector() =>
-        val parentCtx = ctx.parent match {
-          case s : SpecStatementContext => s.DEC()
-          case l : LoopSpecContext => l.DEC()
-        }
-        if (specOnly) PWildcardMeasure(cond).at(parentCtx) else PTupleTerminationMeasure(Vector.empty, cond).at(parentCtx)
+      case exprs if exprs.nonEmpty => PTupleTerminationMeasure(exprs, cond).at(ctx)
+      case Vector() => PTupleTerminationMeasure(Vector.empty, cond).at(ctx.parent match {
+        case s : SpecStatementContext => s.DEC()
+        case l : LoopSpecContext => l.DEC()
+      })
       case _ => unexpected(ctx)
     }
   }

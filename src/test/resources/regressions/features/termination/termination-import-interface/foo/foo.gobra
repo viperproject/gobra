@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package foo
+
+type Foo interface {
+    decreases
+    pure PureFn() bool
+
+    decreases
+    Fn() bool
+}
+
+type FooImpl struct{}
+
+//:: ExpectedOutput(generated_implementation_proof:pure_function_termination_error)
+pure func (foo FooImpl) PureFn() bool {
+    return true
+}
+
+//:: ExpectedOutput(generated_implementation_proof:function_termination_error)
+func (foo FooImpl) Fn() bool {
+    return true
+}
+
+func triggerSubtype() Foo {
+    return FooImpl{}
+}

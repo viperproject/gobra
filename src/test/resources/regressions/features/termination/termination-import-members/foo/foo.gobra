@@ -11,13 +11,13 @@ type Foo struct{}
 
 decreases
 pure func pure_foo_function() bool {
-    //:: ExpectedOutput(function_termination_error)
+    //:: ExpectedOutput(pure_function_termination_error)
     return pure_foo_function()
 }
 
 decreases
 pure func (foo Foo) pure_foo_method() bool {
-    //:: ExpectedOutput(function_termination_error)
+    //:: ExpectedOutput(pure_function_termination_error)
     return foo.pure_foo_method()
 }
 

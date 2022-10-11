@@ -275,6 +275,12 @@ object BuiltInMemberTag {
     override def isPure: Boolean = false
   }
 
+  case object ContainsMethodTag extends BuiltInMethodTag with GhostBuiltInMember {
+    override def identifier: String = "Contains"
+    override def name: String = "ContainsMethodTag"
+    override def isPure: Boolean = true
+  }
+
 
   /** Built-in MPredicate Tags */
 
@@ -356,6 +362,7 @@ object BuiltInMemberTag {
     InitChannelMethodTag,
     CreateDebtChannelMethodTag,
     RedeemChannelMethodTag,
+    ContainsMethodTag,
     // mpredicates
     IsChannelMPredTag,
     SendChannelMPredTag,

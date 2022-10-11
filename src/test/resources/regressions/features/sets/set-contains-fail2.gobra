@@ -4,7 +4,7 @@
 package pkg
 
 func foo(v int, ghost s seq[int]) {
-  // fails: mixing ghost and non-ghost code
+  // fails: a sequence cannot be contained in an int
   //:: ExpectedOutput(type_error)
-  u := s in t
+  u := v.Contains(s)
 }

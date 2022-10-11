@@ -124,6 +124,15 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         val predArgType = PredT(Vector())
         FunctionT(Vector(predArgType), VoidType)
       })
+
+      case ContainsMethodTag => AbstractType(
+        {
+          case (_, Vector(_: GhostCollectionType)) => noMessages
+          case (n, ts) => error(n, s"type error: contains is a method on ghost collections but receiver is ${ts.mkString(", ")}")
+        },
+        {
+          case Vector(c: GhostCollectionType) => FunctionT(Vector(c.elem), BooleanT)
+        })
     }
 
     case t: BuiltInMPredicateTag => t match {

@@ -1945,12 +1945,22 @@ object Desugar {
             }
 
             if (isPure) {
-              for {
-                (recv, args) <- dRecvWithArgs
-                convertedArgs = convertArgs(args)
-                mproxy = getMethodProxy(base, recv, convertedArgs)
-                spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Right(pureMethodCall(recv, mproxy, convertedArgs, spec, resT))
+              base match {
+                case bm: ap.BuiltInMethodKind if bm.symb.tag == BuiltInMemberTag.ContainsMethodTag =>
+                  // convert a call to the built-in `Contains` method into a `Contains` expression in the intermediate representation:
+                  for {
+                    (recv, args) <- dRecvWithArgs
+                    convertedArgs = convertArgs(args)
+                    _ = violation(convertedArgs.length == 1, s"contains takes only a single argument, but got ${convertedArgs.length}")
+                  } yield Right(in.Contains(convertedArgs.head, recv)(src))
+                case _ =>
+                  for {
+                    (recv, args) <- dRecvWithArgs
+                    convertedArgs = convertArgs(args)
+                    mproxy = getMethodProxy(base, recv, convertedArgs)
+                    spec = p.maybeSpec.map(closureSpecD(ctx, info))
+                  } yield Right(pureMethodCall(recv, mproxy, convertedArgs, spec, resT))
+              }
             } else {
               for {
                 (recv, args) <- dRecvWithArgs

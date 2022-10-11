@@ -352,6 +352,9 @@ class BuiltInEncoding extends Encoding {
         )
         in.Method(recvParam, x.name, Vector(predicateParam), Vector(), pres, posts, Vector(), None)(src)
 
+      // `ContainsMethodTag` does not get handled here because the desugarer turns calls to this built-in member into
+      // `Contains` expressions in the intermediate representation.
+
       case (tag, recv) => violation(s"no method generation defined for tag $tag and receiver $recv")
     }
   }

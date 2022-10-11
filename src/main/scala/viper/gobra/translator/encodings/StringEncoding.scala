@@ -129,7 +129,7 @@ class StringEncoding extends LeafTypeEncoding {
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     if (isUsed) {
       addMemberFn(genDomain())
-      addMemberFn(strSlice)
+      if (strSliceIsUsed) { addMemberFn(strSlice) }
       byteSliceToStrFuncGenerator.finalize(addMemberFn)
     }
   }
@@ -184,7 +184,9 @@ class StringEncoding extends LeafTypeEncoding {
     * where s is a string id and l and r are the lower and upper bounds of the slice
     */
   private val strSliceName: String = "strSlice"
-  val strSlice: vpr.Function = {
+  private var strSliceIsUsed = false
+  lazy val strSlice: vpr.Function = {
+    strSliceIsUsed = true
     val argS = vpr.LocalVarDecl("s", stringType)()
     val argL = vpr.LocalVarDecl("l", vpr.Int)()
     val argH = vpr.LocalVarDecl("h", vpr.Int)()

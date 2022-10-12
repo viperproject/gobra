@@ -15,6 +15,8 @@ import viper.gobra.translator.context.DfltTranslatorConfig
 import viper.gobra.translator.encodings.programs.ProgramsImpl
 import viper.gobra.translator.transformers.{AssumeTransformer, TerminationTransformer, ViperTransformer}
 import viper.gobra.util.Violation
+import viper.silver.ast.pretty.FastPrettyPrinter
+import viper.silver.{ast => vpr}
 
 object Translator {
 
@@ -22,6 +24,8 @@ object Translator {
     val translationConfig = new DfltTranslatorConfig()
     val programTranslator = new ProgramsImpl()
     val task = programTranslator.translate(program)(translationConfig)
+    // we report the un-transformed program as this is much more readable
+    config.reporter report GeneratedViperMessage(config.taskName, config.packageInfoInputMap(pkgInfo).map(_.name), () => sortAst(task.program), () => task.backtrack)
 
     if (config.checkConsistency) {
       val errors = task.program.checkTransitively
@@ -33,12 +37,37 @@ object Translator {
       new TerminationTransformer
     )
 
-    val transformedTask = transformers.foldLeft(task) {
+    transformers.foldLeft(task) {
       case (t, transformer) => transformer.transform(t)
     }
-
-    config.reporter report GeneratedViperMessage(config.taskName, config.packageInfoInputMap(pkgInfo).map(_.name), () => transformedTask.program, () => transformedTask.backtrack)
-    transformedTask
   }
 
+  def sortAst(program: vpr.Program): vpr.Program = {
+    implicit def domainOrdering: Ordering[vpr.Domain] = Ordering.by(_.name)
+    implicit def domainFnOrdering: Ordering[vpr.DomainFunc] = Ordering.by(_.name)
+    implicit def domainAxOrdering: Ordering[vpr.DomainAxiom] = Ordering.by(FastPrettyPrinter.pretty(_))
+    implicit def fieldOrdering: Ordering[vpr.Field] = Ordering.by(_.name)
+    implicit def functionOrdering: Ordering[vpr.Function] = Ordering.by(_.name)
+    implicit def predicateOrdering: Ordering[vpr.Predicate] = Ordering.by(_.name)
+    implicit def methodOrdering: Ordering[vpr.Method] = Ordering.by(_.name)
+    implicit def extensionOrdering: Ordering[vpr.ExtensionMember] = Ordering.by(_.name)
+
+    def sortDomain(domain: vpr.Domain): vpr.Domain = {
+      vpr.Domain(
+        domain.name,
+        domain.functions.sorted,
+        domain.axioms.sorted,
+        domain.typVars
+      )(domain.pos, domain.info, domain.errT)
+    }
+
+    vpr.Program(
+      program.domains.map(sortDomain).sorted,
+      program.fields.sorted,
+      program.functions.sorted,
+      program.predicates.sorted,
+      program.methods.sorted,
+      program.extensions.sorted,
+    )(program.pos, program.info, program.errT)
+  }
 }

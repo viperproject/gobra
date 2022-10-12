@@ -18,7 +18,6 @@ import org.antlr.v4.runtime.{CharStreams, CommonTokenStream, DefaultErrorStrateg
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, SourceFileContext, SpecMemberContext, StmtOnlyContext, TypeOnlyContext}
-import viper.gobra.util.Violation.violation
 import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable.ListBuffer

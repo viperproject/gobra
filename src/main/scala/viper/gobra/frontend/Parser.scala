@@ -18,6 +18,7 @@ import org.antlr.v4.runtime.{CharStreams, CommonTokenStream, DefaultErrorStrateg
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, SourceFileContext, SpecMemberContext, StmtOnlyContext, TypeOnlyContext}
+import viper.gobra.util.Violation.violation
 import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable.ListBuffer
@@ -223,6 +224,13 @@ object Parser {
 
 
   trait Postprocessor extends PositionedRewriter {
+    /** this PositionedAstNode contains a subset of the utility functions found in ParseTreeTranslator.PositionedAstNode */
+    implicit class PositionedAstNode[N <: AnyRef](node: N) {
+      def at(other: PNode): N = {
+        positions.dupPos(other, node)
+      }
+    }
+
     def postprocess(pkg: PPackage)(config: Config): Either[Vector[VerifierError], PPackage]
   }
 
@@ -244,8 +252,7 @@ object Parser {
           qualifierName <- PackageResolver.getQualifier(n)(config)
           // create a new PIdnDef node and set its positions according to the old node (PositionedRewriter ensures that
           // the same happens for the newly created PExplicitQualifiedImport)
-          idnDef = PIdnDef(qualifierName)
-          _ = pkg.positions.positions.dupPos(n, idnDef)
+          idnDef = PIdnDef(qualifierName).at(n)
         } yield PExplicitQualifiedImport(idnDef, n.importPath, n.importPres)
         // record errors:
         qualifier.left.foreach(errorMsg => failedNodes = failedNodes ++ createError(n, errorMsg))
@@ -265,12 +272,10 @@ object Parser {
         // note that the resolveImports strategy could be embedded in e.g. a logfail strategy to report a
         // failed strategy application
         val updatedImports = rewrite(topdown(attempt(resolveImports)))(prog.imports)
-        val updatedProg = PProgram(prog.packageClause, prog.initPosts, updatedImports, prog.declarations)
-        pkg.positions.positions.dupPos(prog, updatedProg)
+        PProgram(prog.packageClause, prog.initPosts, updatedImports, prog.declarations).at(prog)
       })
       // create a new package node with the updated programs
-      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info)
-      pkg.positions.positions.dupPos(pkg, updatedPkg)
+      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg)
       // check whether an error has occurred
       if (failedNodes.isEmpty) Right(updatedPkg)
       else Left(failedNodes)
@@ -321,11 +326,8 @@ object Parser {
       def getNamedOutParam(param: PParameter): Option[PNamedParameter] = param match {
         case p: PNamedParameter => Some(p)
         case p @ PUnnamedParameter(t) =>
-          val idnDef = PIdnDef("res$") // '$' is appended to make it an invalid identifier and thus avoid the situation that an input parameter has already the same name
-          pkg.positions.positions.dupPos(p, idnDef)
-          val namedParam = PNamedParameter(idnDef, t)
-          pkg.positions.positions.dupPos(p, namedParam)
-          Some(namedParam)
+          val idnDef = PIdnDef("res$").at(p) // '$' is appended to make it an invalid identifier and thus avoid the situation that an input parameter has already the same name
+          Some(PNamedParameter(idnDef, t).at(p))
         case PExplicitGhostParameter(actual) => getNamedOutParam(actual)
       }
 
@@ -351,25 +353,19 @@ object Parser {
         for {
           body <- getBodyExpr(body)
           outParam <- getOutParam(result)
-          modifiedResult = PResult(Vector(outParam))
-          _ = pkg.positions.positions.dupPos(result, modifiedResult)
-          outIdnUse = PIdnUse(outParam.id.name)
-          _ = pkg.positions.positions.dupPos(body, outIdnUse)
-          outOperand = PNamedOperand(outIdnUse)
-          _ = pkg.positions.positions.dupPos(body, outOperand)
-          additionalPostcondition = PEquals(outOperand, body)
-          _ = pkg.positions.positions.dupPos(body, additionalPostcondition)
+          modifiedResult = PResult(Vector(outParam)).at(result)
+          outIdnUse = PIdnUse(outParam.id.name).at(body)
+          outOperand = PNamedOperand(outIdnUse).at(body)
+          // we use ghost equals here to ensure that no additional checks are being added depending on the expression's type
+          // (e.g. that the returned interface is comparable)
+          additionalPostcondition = PGhostEquals(outOperand, body).at(body)
           // turning the body into a postcondition is not enough because Viper checks termination also for postconditions
           // therefore, we turn termination measure tuples into wildcards to assume termination instead of checking it
           modifiedTerminationMeasures = spec.terminationMeasures.map {
-            case n@PTupleTerminationMeasure(_, cond) =>
-              val newMeasure = PWildcardMeasure(cond)
-              pkg.positions.positions.dupPos(n, newMeasure)
-              newMeasure
+            case n@PTupleTerminationMeasure(_, cond) => PWildcardMeasure(cond).at(n)
             case t => t
           }
-          modifiedSpec = PFunctionSpec(spec.pres, spec.preserves, spec.posts :+ additionalPostcondition, modifiedTerminationMeasures, spec.isPure, spec.isTrusted)
-          _ = pkg.positions.positions.dupPos(spec, modifiedSpec)
+          modifiedSpec = PFunctionSpec(spec.pres, spec.preserves, additionalPostcondition +: spec.posts, modifiedTerminationMeasures, spec.isPure, spec.isTrusted).at(spec)
         } yield (modifiedResult, modifiedSpec)
       }
 
@@ -380,15 +376,11 @@ object Parser {
           case n: PFunctionDecl if n.spec.isPure =>
             for {
               (modifiedResult, modifiedSpec) <- turnBodyIntoPostcondition(n.result, n.spec, n.body)
-              modifiedDecl = PFunctionDecl(n.id, n.args, modifiedResult, modifiedSpec, None)
-              _ = pkg.positions.positions.dupPos(n, modifiedDecl)
-            } yield modifiedDecl
+            } yield PFunctionDecl(n.id, n.args, modifiedResult, modifiedSpec, None).at(n)
           case n: PMethodDecl if n.spec.isPure =>
             for {
               (modifiedResult, modifiedSpec) <- turnBodyIntoPostcondition(n.result, n.spec, n.body)
-              modifiedDecl = PMethodDecl(n.id, n.receiver, n.args, modifiedResult, modifiedSpec, None)
-              _ = pkg.positions.positions.dupPos(n, modifiedDecl)
-            } yield modifiedDecl
+            } yield PMethodDecl(n.id, n.receiver, n.args, modifiedResult, modifiedSpec, None).at(n)
           case n: PMember => Some(n)
         })
 
@@ -396,12 +388,10 @@ object Parser {
         // apply the replaceTerminationMeasuresForFunctionsAndMethods to declarations until the strategy has succeeded
         // (i.e. has reached PMember nodes) and stop then
         val updatedDecls = rewrite(alltd(replaceTerminationMeasuresForFunctionsAndMethods))(prog.declarations)
-        val updatedProg = PProgram(prog.packageClause, prog.initPosts, prog.imports, updatedDecls)
-        pkg.positions.positions.dupPos(prog, updatedProg)
+        PProgram(prog.packageClause, prog.initPosts, prog.imports, updatedDecls).at(prog)
       })
       // create a new package node with the updated programs
-      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info)
-      pkg.positions.positions.dupPos(pkg, updatedPkg)
+      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg)
       // check whether an error has occurred
       if (failedNodes.isEmpty) Right(updatedPkg)
       else Left(failedNodes)

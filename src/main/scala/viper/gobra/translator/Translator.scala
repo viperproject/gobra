@@ -24,8 +24,6 @@ object Translator {
     val translationConfig = new DfltTranslatorConfig()
     val programTranslator = new ProgramsImpl()
     val task = programTranslator.translate(program)(translationConfig)
-    // we report the un-transformed program as this is much more readable
-    config.reporter report GeneratedViperMessage(config.taskName, config.packageInfoInputMap(pkgInfo).map(_.name), () => sortAst(task.program), () => task.backtrack)
 
     if (config.checkConsistency) {
       val errors = task.program.checkTransitively
@@ -37,9 +35,12 @@ object Translator {
       new TerminationTransformer
     )
 
-    transformers.foldLeft(task) {
+    val transformedTask = transformers.foldLeft(task) {
       case (t, transformer) => transformer.transform(t)
     }
+
+    config.reporter report GeneratedViperMessage(config.taskName, config.packageInfoInputMap(pkgInfo).map(_.name), () => sortAst(transformedTask.program), () => transformedTask.backtrack)
+    transformedTask
   }
 
   def sortAst(program: vpr.Program): vpr.Program = {

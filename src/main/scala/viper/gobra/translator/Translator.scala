@@ -15,6 +15,8 @@ import viper.gobra.translator.context.DfltTranslatorConfig
 import viper.gobra.translator.encodings.programs.ProgramsImpl
 import viper.gobra.translator.transformers.{AssumeTransformer, TerminationTransformer, ViperTransformer}
 import viper.gobra.util.Violation
+import viper.silver.ast.pretty.FastPrettyPrinter
+import viper.silver.{ast => vpr}
 
 object Translator {
 
@@ -37,8 +39,34 @@ object Translator {
       case (t, transformer) => transformer.transform(t)
     }
 
-    config.reporter report GeneratedViperMessage(config.taskName, config.packageInfoInputMap(pkgInfo).map(_.name), () => transformedTask.program, () => transformedTask.backtrack)
+    config.reporter report GeneratedViperMessage(config.taskName, config.packageInfoInputMap(pkgInfo).map(_.name), () => sortAst(transformedTask.program), () => transformedTask.backtrack)
     transformedTask
   }
 
+  /**
+    * sorts AST members alphabetically to ease the comparison of (similar) Viper ASTs
+    */
+  def sortAst(program: vpr.Program): vpr.Program = {
+    lazy val memberOrdering: Ordering[vpr.Member] = Ordering.by(_.name)
+    implicit lazy val domainFnOrdering: Ordering[vpr.DomainFunc] = Ordering.by(_.name)
+    implicit lazy val domainAxOrdering: Ordering[vpr.DomainAxiom] = Ordering.by(FastPrettyPrinter.pretty(_))
+
+    def sortDomain(domain: vpr.Domain): vpr.Domain = {
+      vpr.Domain(
+        domain.name,
+        domain.functions.sorted,
+        domain.axioms.sorted,
+        domain.typVars
+      )(domain.pos, domain.info, domain.errT)
+    }
+
+    vpr.Program(
+      program.domains.map(sortDomain).sorted(memberOrdering),
+      program.fields.sorted(memberOrdering),
+      program.functions.sorted(memberOrdering),
+      program.predicates.sorted(memberOrdering),
+      program.methods.sorted(memberOrdering),
+      program.extensions.sorted(memberOrdering),
+    )(program.pos, program.info, program.errT)
+  }
 }

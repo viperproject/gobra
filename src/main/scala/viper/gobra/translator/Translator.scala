@@ -43,15 +43,13 @@ object Translator {
     transformedTask
   }
 
+  /**
+    * sorts AST members alphabetically to ease the comparison of (similar) Viper ASTs
+    */
   def sortAst(program: vpr.Program): vpr.Program = {
-    implicit def domainOrdering: Ordering[vpr.Domain] = Ordering.by(_.name)
-    implicit def domainFnOrdering: Ordering[vpr.DomainFunc] = Ordering.by(_.name)
-    implicit def domainAxOrdering: Ordering[vpr.DomainAxiom] = Ordering.by(FastPrettyPrinter.pretty(_))
-    implicit def fieldOrdering: Ordering[vpr.Field] = Ordering.by(_.name)
-    implicit def functionOrdering: Ordering[vpr.Function] = Ordering.by(_.name)
-    implicit def predicateOrdering: Ordering[vpr.Predicate] = Ordering.by(_.name)
-    implicit def methodOrdering: Ordering[vpr.Method] = Ordering.by(_.name)
-    implicit def extensionOrdering: Ordering[vpr.ExtensionMember] = Ordering.by(_.name)
+    lazy val memberOrdering: Ordering[vpr.Member] = Ordering.by(_.name)
+    implicit lazy val domainFnOrdering: Ordering[vpr.DomainFunc] = Ordering.by(_.name)
+    implicit lazy val domainAxOrdering: Ordering[vpr.DomainAxiom] = Ordering.by(FastPrettyPrinter.pretty(_))
 
     def sortDomain(domain: vpr.Domain): vpr.Domain = {
       vpr.Domain(
@@ -63,12 +61,12 @@ object Translator {
     }
 
     vpr.Program(
-      program.domains.map(sortDomain).sorted,
-      program.fields.sorted,
-      program.functions.sorted,
-      program.predicates.sorted,
-      program.methods.sorted,
-      program.extensions.sorted,
+      program.domains.map(sortDomain).sorted(memberOrdering),
+      program.fields.sorted(memberOrdering),
+      program.functions.sorted(memberOrdering),
+      program.predicates.sorted(memberOrdering),
+      program.methods.sorted(memberOrdering),
+      program.extensions.sorted(memberOrdering),
     )(program.pos, program.info, program.errT)
   }
 }

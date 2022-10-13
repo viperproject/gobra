@@ -1032,8 +1032,14 @@ object Desugar {
             ))
 
           case PExpressionStmt(e) =>
-            val w = goE(e)
-            create(stmts = w.stmts, decls = w.decls, res = in.Seqn(Vector.empty)(src))
+            // assign the expression's value to a temporary variable because the expression can result in proof obligations
+            // (e.g. checking the precondition for a pure function call)
+            val tempVar = freshExclusiveVar(typeD(info.typ(e), Addressability.exclusiveVariable)(src), stmt, info)(src)
+            for {
+              _ <- declare(tempVar)
+              dE <- goE(e)
+              _ <- write(singleAss(in.Assignee.Var(tempVar), dE)(src))
+            } yield in.Seqn(Vector.empty)(src)
 
           case PAssignment(right, left) =>
             if (left.size == right.size) {

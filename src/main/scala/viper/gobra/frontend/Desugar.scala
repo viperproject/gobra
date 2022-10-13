@@ -1032,14 +1032,36 @@ object Desugar {
             ))
 
           case PExpressionStmt(e) =>
-            // assign the expression's value to a temporary variable because the expression can result in proof obligations
-            // (e.g. checking the precondition for a pure function call)
-            val tempVar = freshExclusiveVar(typeD(info.typ(e), Addressability.exclusiveVariable)(src), stmt, info)(src)
-            for {
-              _ <- declare(tempVar)
-              dE <- goE(e)
-              _ <- write(singleAss(in.Assignee.Var(tempVar), dE)(src))
-            } yield in.Seqn(Vector.empty)(src)
+            def justLocalVars(e: in.Expr): Boolean = e match {
+              case _: in.LocalVar => true
+              case in.Tuple(args) if args.forall(justLocalVars) => true
+              case _ => false
+            }
+
+            val w = goE(e)
+            // note that `w.res` might contain expressions that cause proof obligations
+            // thus, we can not simply drop them and go forward just with the writer's declarations & statements
+            if (justLocalVars(w.res)) {
+              // this is an optimization because it does not make sense to add additional temporary local variables
+              // just to assign them the local variables in `w.res`:
+              create(stmts = w.stmts, decls = w.decls, res = in.Seqn(Vector.empty)(src))
+            } else {
+              // create temporary local variables to assign them the expression in `w.res`
+              val targetTypes = info.typ(e) match {
+                case InternalTupleT(ts) => ts
+                case t => Vector(t)
+              }
+              val targets = targetTypes.map(typ => freshExclusiveVar(typeD(typ, Addressability.exclusiveVariable)(src), stmt, info)(src))
+              for {
+                _ <- declare(targets: _*)
+                dE <- w
+                _ <- targets match {
+                  case Vector() => unit(()) // NOP
+                  case Vector(target) => write(singleAss(in.Assignee.Var(target), dE)(src))
+                  case _ => write(multiassD(targets.map(in.Assignee.Var(_)), dE, stmt)(src))
+                }
+              } yield in.Seqn(Vector.empty)(src)
+            }
 
           case PAssignment(right, left) =>
             if (left.size == right.size) {

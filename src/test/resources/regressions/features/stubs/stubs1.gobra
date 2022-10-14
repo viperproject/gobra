@@ -7,6 +7,7 @@ import "net"
 
 func ipLen(ip net.IP) int
 
+requires conn != nil
 requires conn.Mem()
 func closePacketConn(conn net.PacketConn) error {
     return conn.Close()
@@ -19,6 +20,7 @@ func addrErrorTimeout(ae * net.AddrError) bool {
     return ae.Timeout()
 }
 
+requires ae != nil
 requires ae.Mem()
 func addrErrorTimeoutInterface(ae net.Error) bool {
     return ae.Timeout()

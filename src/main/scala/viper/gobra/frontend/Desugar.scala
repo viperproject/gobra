@@ -8,17 +8,19 @@ package viper.gobra.frontend
 
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
+import viper.gobra.frontend.PackageResolver.RegularImport
+import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
-import viper.gobra.reporting.Source.AutoImplProofAnnotation
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, MainPreNotEstablished}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
-import viper.gobra.util.{DesugarWriter, TypeBounds, Violation}
+import viper.gobra.util.{Constants, DesugarWriter, TypeBounds, Violation}
 
 import scala.annotation.{tailrec, unused}
 import scala.collection.{Iterable, SortedSet}
@@ -27,15 +29,20 @@ import scala.reflect.ClassTag
 object Desugar {
 
   def desugar(pkg: PPackage, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
-    // independently desugar each imported package. Only used members (i.e. members for which `isUsed` returns true will be desugared:
+    val importsCollector = new PackageInitSpecCollector
+    // independently desugar each imported package.
     val importedPrograms = info.context.getContexts map { tI => {
       val typeInfo: TypeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
       val d = new Desugarer(importedPackage.positions, typeInfo)
+      // registers a package to generate proof obligations for its init code
+      d.registerPackage(importedPackage, importsCollector)(config)
       (d, d.packageD(importedPackage))
     }}
     // desugar the main package, i.e. the package on which verification is performed:
     val mainDesugarer = new Desugarer(pkg.positions, info)
+    // registers main package to generate proof obligations for its init code
+    mainDesugarer.registerMainPackage(pkg, importsCollector)(config)
     // combine all desugared results into one Viper program:
     val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
     config.reporter report DesugaredMessage(config.packageInfoInputMap(pkg.info).map(_.name), () => internalProgram)
@@ -100,7 +107,8 @@ object Desugar {
       combinedMethods ++ builtInMethods,
       combineTableField(_.definedFunctions) ++ builtInFunctions,
       combinedMPredicates ++ builtInMPredicates,
-      combineTableField(_.definedFPredicates) ++ builtInFPredicates      ,
+      combineTableField(_.definedFPredicates) ++ builtInFPredicates,
+      combineTableField(_.definedFuncLiterals),
       combinedMemberProxies,
       combinedImplementations,
       combineImpProofPredAliases
@@ -164,21 +172,12 @@ object Desugar {
 
     private val nm = new NameManager
 
-    type Identity = Meta
+    type Identity = (Meta, TypeInfo)
 
-    private def abstraction(id: PIdnNode): Identity = {
+    private def abstraction(id: PIdnNode, info: TypeInfo): Identity = {
       val entity = info.regular(id)
-      meta(entity.rep)
+      (meta(entity.rep, entity.context.getTypeInfo), entity.context.getTypeInfo)
     }
-
-    // TODO: make thread safe
-    private var proxies: Map[Meta, in.Proxy] = Map.empty
-
-    def getProxy(id: PIdnNode): Option[in.Proxy] =
-      proxies.get(abstraction(id))
-
-    def addProxy(from: PIdnNode, to: in.Proxy): Unit =
-      proxies += abstraction(from) -> to
 
     def functionProxyD(decl: PFunctionDecl, context: TypeInfo): in.FunctionProxy = {
       val name = idName(decl.id, context)
@@ -243,6 +242,38 @@ object Desugar {
       in.MPredicateProxy(id.name, name)(meta(id, context))
     }
 
+    def functionLitProxyD(lit: PFunctionLit, context: TypeInfo): in.FunctionLitProxy = {
+      // If the literal is nameless, generate a unique name
+      val name = if (lit.id.isEmpty) nm.anonFuncLit(context.enclosingFunction(lit).get, context) else idName(lit.id.get, context)
+      val info = if (lit.id.isEmpty) meta(lit, context) else meta(lit.id.get, context)
+      in.FunctionLitProxy(name)(info)
+    }
+
+    def functionLitProxyD(id: PIdnUse, context: TypeInfo): in.FunctionLitProxy = {
+      val name = idName(id, context)
+      in.FunctionLitProxy(name)(meta(id, context))
+    }
+
+    def closureSpecD(ctx: FunctionContext, info: TypeInfo)(s: PClosureSpecInstance): in.ClosureSpec = {
+      val (funcTypeInfo, fArgs, proxy) = info.resolve(s.func) match {
+        case Some(ap.Function(id, symb)) => (symb.context.getTypeInfo, symb.decl.args, functionProxy(id, info))
+        case Some(ap.Closure(id, symb)) => (symb.context.getTypeInfo, symb.lit.args, functionLitProxyD(id, info))
+        case _ => violation("expected function or function literal")
+      }
+      val paramsWithIdx = if (s.paramKeys.isEmpty) s.paramExprs.zipWithIndex.map {
+        case (exp, idx) => idx+1 -> exprD(ctx, info)(exp).res
+      } else {
+        val argsToIdx = fArgs.zipWithIndex.collect {
+          case (PNamedParameter(a, _), idx) => a.name -> (idx+1)
+          case (PExplicitGhostParameter(PNamedParameter(a, _)), idx) => a.name -> (idx+1)
+        }.toMap
+        (s.paramKeys zip s.paramExprs) map { case (k, exp) => argsToIdx(k) -> exprD(ctx, info)(exp).res }
+      }
+      val params = paramsWithIdx.map {
+        case (i, exp) => i -> implicitConversion(exp.typ, typeD(funcTypeInfo.typ(fArgs(i-1)), Addressability.inParameter)(exp.info), exp)
+      }.toMap
+      in.ClosureSpec(proxy, params)(meta(s, info))
+    }
 
     // proxies to built-in members
     def methodProxy(tag: BuiltInMethodTag, recv: in.Type, args: Vector[in.Type])(src: Meta): in.MethodProxy = {
@@ -312,17 +343,21 @@ object Desugar {
 
     class FunctionContext(
                            val ret: Vector[in.Expr] => Meta => in.Stmt,
-                           private var substitutions: Map[Identity, in.Var] = Map.empty
+                           private var substitutions: Map[Identity, in.Expr] = Map.empty,
+                           val expD: PExpression => Option[Writer[in.Expr]] = _ => None,
                          ) {
+      def apply(id: PIdnNode, info: TypeInfo): Option[in.Expr] =
+        substitutions.get(abstraction(id, info))
 
-      def apply(id: PIdnNode): Option[in.Var] =
-        substitutions.get(abstraction(id))
 
+      def addSubst(from: PIdnNode, to: in.Expr, info: TypeInfo): Unit =
+        substitutions += abstraction(from, info) -> to
 
-      def addSubst(from: PIdnNode, to: in.Var): Unit =
-        substitutions += abstraction(from) -> to
+      def copy: FunctionContext = new FunctionContext(ret, substitutions, expD)
 
-      def copy: FunctionContext = new FunctionContext(ret, substitutions)
+      def copyWith(ret: Vector[in.Expr] => Meta => in.Stmt): FunctionContext = new FunctionContext(ret, substitutions)
+
+      def copyWithExpD(expD: PExpression => Option[Writer[in.Expr]]) = new FunctionContext(ret, substitutions, expD)
 //
 //      private var proxies: Map[Identity, in.Proxy] = Map.empty
 //
@@ -333,6 +368,10 @@ object Desugar {
 //        proxies += abstraction(from) -> to
     }
 
+    object FunctionContext {
+      def empty() = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(Source.Parser.Unsourced))
+    }
+
     /**
       * Desugars a package with an optional `shouldDesugar` function indicating whether a particular member should be
       * desugared or skipped
@@ -340,10 +379,14 @@ object Desugar {
     def packageD(p: PPackage, shouldDesugar: PMember => Boolean = _ => true): in.Program = {
       val consideredDecls = p.declarations.collect { case m@NoGhost(x: PMember) if shouldDesugar(x) => m }
       val dMembers = consideredDecls.flatMap{
-        case NoGhost(x: PVarDecl) => varDeclGD(x)
+        case NoGhost(_: PVarDecl) =>
+          // Global Variable Declarations are not handled here. Instead, they are handled together with the
+          // rest of the initialization code in the containing file. The corresponding proof obligations are generated
+          // in methods [registerPackage] and [registerMainPackage].
+          Vector.empty
         case NoGhost(x: PConstDecl) => constDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
-        case NoGhost(x: PFunctionDecl) => Vector(registerFunction(x))
+        case NoGhost(x: PFunctionDecl) => registerFunction(x).toVector
         case x: PMPredicateDecl => Vector(registerMPredicate(x))
         case x: PFPredicateDecl => Vector(registerFPredicate(x))
         case x: PImplementationProof => registerImplementationProof(x); Vector.empty
@@ -367,21 +410,76 @@ object Desugar {
         definedFunctions,
         definedMPredicates,
         definedFPredicates,
+        definedFuncLiterals,
         computeMemberProxies(dMembers ++ additionalMembers, interfaceImplementations, definedTypes),
         interfaceImplementations,
         implementationProofPredicateAliases
       )
 
-      in.Program(types.toVector, dMembers ++ additionalMembers, table)(meta(p))
+      in.Program(types.toVector, dMembers ++ additionalMembers, table)(meta(p, info))
     }
 
-    def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
+    def globalVarDeclD(decl: PVarDecl): in.GlobalVarDecl = {
+      violation(
+        // single-assign
+        decl.left.length == decl.right.length ||
+          // all variables are declared with the default value of their types
+          decl.right.isEmpty ||
+          // multi-assign
+          decl.right.length == 1,
+        "Unexpected case reached")
+      val src = meta(decl, info)
+      val gvars = decl.left.map(info.regular) map {
+        case g: st.GlobalVariable => globalVarD(g)(src)
+        case w: st.Wildcard =>
+          val typ = typeD(info.typ(w.decl), Addressability.globalVariable)(src)
+          val scope = info.codeRoot(decl).asInstanceOf[PPackage]
+          freshGlobalVar(typ, scope, w.context)(src)
+        case e => Violation.violation(s"Expected a global variable or wildcard, but instead got $e")
+      }
+      val exps = decl.right.map(exprD(FunctionContext.empty(), info))
+      if (decl.right.isEmpty) {
+        // assign to all variables its default value:
+        val assignsToDefault =
+          gvars.map{ v => singleAss(in.Assignee.Var(v), in.DfltVal(v.typ.withAddressability(Addressability.Exclusive))(src))(src) }
+        in.GlobalVarDecl(gvars, assignsToDefault)(src)
+      } else if (decl.right.length == 1 && decl.right.length != decl.left.length) {
+        // multi-assign mode:
+        val assigns = block(exps.head.map {
+          // the desugared expression should have the same arity as the number of variables on the lhs of the assignment
+          case t: in.Tuple if t.args.length == gvars.length =>
+            in.Block(
+              decls = Vector(),
+              stmts = gvars.zip(t.args).map{ case (l, r) => singleAss(in.Assignee.Var(l), r)(src) }
+            )(src)
+          case c => violation(s"Expected this case to be unreachable, but found $c instead.")
+        })
+        in.GlobalVarDecl(gvars, Vector(assigns))(src)
+      } else {
+        // single-assign mode:
+        val assigns = gvars.zip(exps).map{ case (l, wr) => block(for { r <- wr } yield singleAss(in.Assignee.Var(l), r)(src)) }
+        in.GlobalVarDecl(gvars, assigns)(src)
+      }
+    }
 
-    def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.flatMap(l => info.regular(l) match {
+    def globalVarD(v: st.GlobalVariable)(src: Meta): in.GlobalVar = {
+      val typ = typeD(v.context.typ(v.id), Addressability.globalVariable)(src)
+      val proxy = globalVarProxyD(v)
+      in.GlobalVar(proxy, typ)(src)
+    }
+
+    def globalVarProxyD(v: st.GlobalVariable): in.GlobalVarProxy = {
+      val name = idName(v.id, v.context.getTypeInfo)
+      in.GlobalVarProxy(v.id.name, name)(meta(v.decl, v.context.getTypeInfo))
+    }
+
+    def constDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constSpecD)
+
+    def constSpecD(decl: PConstSpec): Vector[in.GlobalConstDecl] = decl.left.flatMap(l => info.regular(l) match {
       case sc@st.SingleConstant(_, id, _, _, _, _) =>
-        val src = meta(id)
+        val src = meta(id, info)
         val gVar = globalConstD(sc)(src)
-        val lit: in.Lit = gVar.typ match {
+        val lit: in.Lit = underlyingType(gVar.typ) match {
           case in.BoolT(Addressability.Exclusive) =>
             val constValue = sc.context.boolConstantEvaluation(sc.exp)
             in.BoolLit(constValue.get)(src)
@@ -391,15 +489,17 @@ object Desugar {
           case x if underlyingType(x).isInstanceOf[in.IntT] && x.addressability == Addressability.Exclusive =>
             val constValue = sc.context.intConstantEvaluation(sc.exp)
             in.IntLit(constValue.get)(src)
+          case in.PermissionT(Addressability.Exclusive) =>
+            val constValue = sc.context.permConstantEvaluation(sc.exp)
+            in.PermLit(constValue.get._1, constValue.get._2)(src)
           case _ => ???
         }
         Vector(in.GlobalConstDecl(gVar, lit)(src))
-
-      // Constants defined with the blank identifier can be safely ignored as they
-      // must be computable statically (and thus do not have side effects) and
-      // they can never be read
-      case st.Wildcard(_, _) => Vector()
-
+      case st.Wildcard(_, _) =>
+        // Constants defined with the blank identifier can be safely ignored as they
+        // must be computable statically (and thus do not have side effects) and
+        // they can never be read
+        Vector()
       case _ => ???
     })
 
@@ -407,39 +507,56 @@ object Desugar {
     //       However, currently, this would require to have versions of [[typeD]].
     /** desugars a defined type for each addressability modifier to register them with [[definedTypes]] */
     def desugarAllTypeDefVariants(decl: PTypeDef): Unit = {
-      typeD(DeclaredT(decl, info), Addressability.Shared)(meta(decl))
-      typeD(DeclaredT(decl, info), Addressability.Exclusive)(meta(decl))
+      typeD(DeclaredT(decl, info), Addressability.Shared)(meta(decl, info))
+      typeD(DeclaredT(decl, info), Addressability.Exclusive)(meta(decl, info))
     }
 
     def functionD(decl: PFunctionDecl): in.FunctionMember =
       if (decl.spec.isPure) pureFunctionD(decl) else {
 
       val name = functionProxyD(decl, info)
-      val fsrc = meta(decl)
+      val fsrc = meta(decl, info)
+      val functionInfo = functionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)))
 
-      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
+      in.Function(name, functionInfo.args, functionInfo.results, functionInfo.pres, functionInfo.posts,
+        functionInfo.terminationMeasures, functionInfo.body)(fsrc)
+    }
+
+    private case class FunctionInfo(args: Vector[in.Parameter.In],
+                                    captured: Vector[(in.Expr, in.Parameter.In)],
+                                    results: Vector[in.Parameter.Out],
+                                    pres: Vector[in.Assertion],
+                                    posts: Vector[in.Assertion],
+                                    terminationMeasures: Vector[in.TerminationMeasure],
+                                    body: Option[in.MethodBody])
+
+    private def functionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext): FunctionInfo = {
+      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p, i, info) }
       val (args, argSubs) = argsWithSubs.unzip
 
-      val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
+      val captured = decl match {
+        case d: PClosureDecl => info.capturedVariables(d)
+        case _ => Vector.empty
+      }
+      val capturedWithSubs = captured map capturedVarD
+      val (capturedPar, capturedSubs) = capturedWithSubs.unzip
+
+      val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p, i, info) }
+      val returnsMergedWithSubs = returnsWithSubs.map{ case (p,s) => s.getOrElse(p) }
       val (returns, returnSubs) = returnsWithSubs.unzip
 
       def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
         if (rets.isEmpty) {
-          in.Seqn(
-            returnsWithSubs.flatMap{
-              case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(src))
-              case _ => None
-            } :+ in.Return()(src)
-          )(src)
+          in.Return()(src)
         } else if (rets.size == returns.size) {
           in.Seqn(
-            returns.zip(rets).map{
+            returnsMergedWithSubs.zip(rets).map{
               case (p, v) => singleAss(in.Assignee.Var(p), v)(src)
             } :+ in.Return()(src)
           )(src)
         } else if (rets.size == 1) { // multi assignment
           in.Seqn(Vector(
-            multiassD(returns.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
+            multiassD(returnsMergedWithSubs.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
             in.Return()(src)
           ))(src)
         } else {
@@ -448,30 +565,43 @@ object Desugar {
       }
 
       // create context for spec translation
-      val specCtx = new FunctionContext(assignReturns)
+      val specCtx = outerCtx.copyWith(assignReturns)
 
       // extent context
       (decl.args zip argsWithSubs).foreach {
         // substitution has to be added since otherwise the parameter is translated as a addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p, info)
         case _ =>
       }
 
+      // replace captured variables in function literals
+      (captured zip capturedWithSubs).foreach {
+        // we use a newly-generated pointer parameter p to replace captured variable v (v -> *p)
+        // p is treated as a normal argument, information about the original variable is kept in the function literal object
+        case (v, (p, _)) => val src = meta(v, info)
+          specCtx.addSubst(v, in.Deref(p, underlyingType(p.typ))(src), info)
+      }
+
       (decl.result.outs zip returnsWithSubs).foreach {
-        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p, info)
         case _ =>
       }
 
       // translate pre- and postconditions and termination measures
-      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx)
-      val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx)
-      val terminationMeasures = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx)).res
+      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx, info)
+      val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx, info)
+      val terminationMeasures = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx, info)).res
 
       // p1' := p1; ... ; pn' := pn
       val argInits = argsWithSubs.flatMap{
         case (p, Some(q)) => Some(singleAss(in.Assignee.Var(q), p)(p.info))
         case _ => None
+      }
+
+      // c1' := c1; ...; cn' := cn
+      val capturedInits = capturedWithSubs.map{
+        case (p, q) => singleAss(in.Assignee.Var(q), p)(p.info)
       }
 
       // r1 := r1'; .... rn := rn'
@@ -482,107 +612,140 @@ object Desugar {
         } // :+ in.Return()(fsrc)
 
       // create context for body translation
-      val ctx = new FunctionContext(assignReturns)
+      val ctx =  outerCtx.copyWith(assignReturns)
 
       // extent context
       (decl.args zip argsWithSubs).foreach{
-        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q, info)
         case _ =>
       }
 
+      (captured zip capturedSubs).foreach {
+        case (v, p) => val src = meta(v, info)
+          ctx.addSubst(v, in.Deref(p, underlyingType(p.typ))(src), info)
+      }
+
       (decl.result.outs zip returnsWithSubs).foreach{
-        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q, info)
         case (NoGhost(_: PUnnamedParameter), (_, Some(_))) => violation("cannot have an alias for an unnamed parameter")
         case _ =>
       }
 
+      val capturedWithAliases = (captured.map { v => in.Ref(localVarD(outerCtx, info)(v))(meta(v, info)) } zip capturedPar)
+
       val bodyOpt = decl.body.map{ case (_, s) =>
-        val vars = argSubs.flatten ++ returnSubs.flatten
+        val vars = argSubs.flatten ++ capturedSubs ++ returnSubs.flatten
         val varsInit = vars map (v => in.Initialization(v)(v.info))
-        val body = varsInit ++ argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
-        in.Block(vars, body)(meta(s))
+        val body = varsInit ++ argInits ++ capturedInits ++ Vector(blockD(ctx, info)(s))
+        in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
-      in.Function(name, args, returns, pres, posts, terminationMeasures, bodyOpt)(fsrc)
+      FunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasures, bodyOpt)
     }
 
     def pureFunctionD(decl: PFunctionDecl): in.PureFunction = {
+      val name = functionProxyD(decl, info)
+      val fsrc = meta(decl, info)
+      val funcInfo = pureFunctionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)), info)
+
+      in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(fsrc)
+    }
+
+    private case class PureFunctionInfo(args: Vector[in.Parameter.In],
+                                        captured: Vector[(in.Expr, in.Parameter.In)],
+                                        results: Vector[in.Parameter.Out],
+                                        pres: Vector[in.Assertion],
+                                        posts: Vector[in.Assertion],
+                                        terminationMeasures: Vector[in.TerminationMeasure],
+                                        body: Option[in.Expr])
+
+
+    private def pureFunctionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext, info: TypeInfo): PureFunctionInfo = {
       require(decl.spec.isPure)
 
-      val name = functionProxyD(decl, info)
-      val fsrc = meta(decl)
-
-      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
+      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p, i, info) }
       val (args, _) = argsWithSubs.unzip
 
-      val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
+      val captured = decl match {
+        case d: PClosureDecl => info.capturedVariables(d)
+        case _ => Vector.empty
+      }
+      val capturedWithSubs = captured map capturedVarD
+      val (capturedPar, _) = capturedWithSubs.unzip
+
+      val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p, i, info) }
       val (returns, _) = returnsWithSubs.unzip
 
       // create context for body translation
-      val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
+      val dummyRet: Vector[in.Expr] => Meta => in.Stmt = _ => _ => in.Seqn(Vector.empty)(fsrc)
+      val ctx = outerCtx.copyWith(dummyRet)
 
       // extent context
       (decl.args zip argsWithSubs).foreach {
         // substitution has to be added since otherwise the parameter is translated as a addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p, info)
         case _ =>
       }
 
+      (captured zip capturedWithSubs).foreach {
+        case (v, (p, _)) => val src = meta(v, info)
+          ctx.addSubst(v, in.Deref(p, underlyingType(p.typ))(src), info)
+      }
+
       (decl.result.outs zip returnsWithSubs).foreach {
-        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p, info)
         case _ =>
       }
 
       // translate pre- and postconditions and termination measures
-      val pres = decl.spec.pres map preconditionD(ctx)
-      val posts = decl.spec.posts map postconditionD(ctx)
-      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx)).res
+      val pres = decl.spec.pres map preconditionD(ctx, info)
+      val posts = decl.spec.posts map postconditionD(ctx, info)
+      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
+
+      val capturedWithAliases = (captured.map { v => in.Ref(localVarD(outerCtx, info)(v))(meta(v, info)) } zip capturedPar)
 
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
           val res = b.nonEmptyStmts match {
-            case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
+            case Vector(PReturn(Vector(ret))) => pureExprD(ctx, info)(ret)
             case b => Violation.violation(s"unexpected pure function body: $b")
           }
           implicitConversion(res.typ, returns.head.typ, res)
       }
 
-      in.PureFunction(name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
+      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, bodyOpt)
     }
+
 
     def methodD(decl: PMethodDecl): in.MethodMember =
       if (decl.spec.isPure) pureMethodD(decl) else {
 
       val name = methodProxyD(decl, info)
-      val fsrc = meta(decl)
+      val fsrc = meta(decl, info)
 
-      val recvWithSubs = receiverD(decl.receiver)
+      val recvWithSubs = receiverD(decl.receiver, info)
       val (recv, recvSub) = recvWithSubs
 
-      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
+      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p, i, info) }
       val (args, argSubs) = argsWithSubs.unzip
 
-      val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
+      val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p, i, info) }
+      val returnsMergedWithSubs = returnsWithSubs.map{ case (p,s) => s.getOrElse(p) }
       val (returns, returnSubs) = returnsWithSubs.unzip
 
       def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
         if (rets.isEmpty) {
-          in.Seqn(
-            returnsWithSubs.flatMap{
-              case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(src))
-              case _ => None
-            } :+ in.Return()(src)
-          )(src)
+          in.Return()(src)
         } else if (rets.size == returns.size) {
           in.Seqn(
-            returns.zip(rets).map{
+            returnsMergedWithSubs.zip(rets).map{
               case (p, v) => singleAss(in.Assignee.Var(p), v)(src)
             } :+ in.Return()(src)
           )(src)
         } else if (rets.size == 1) { // multi assignment
           in.Seqn(Vector(
-            multiassD(returns.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
+            multiassD(returnsMergedWithSubs.map(v => in.Assignee.Var(v)), rets.head, decl)(src),
             in.Return()(src)
           ))(src)
         } else {
@@ -598,24 +761,24 @@ object Desugar {
       (decl.args zip argsWithSubs).foreach{
         // substitution has to be added since otherwise the parameter is translated as an addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p, info)
         case _ =>
       }
 
       (decl.receiver, recvWithSubs) match {
-        case (NoGhost(PNamedReceiver(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
+        case (NoGhost(PNamedReceiver(id, _, _)), (p, _)) => specCtx.addSubst(id, p, info)
         case _ =>
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
-        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p, info)
         case _ =>
       }
 
       // translate pre- and postconditions and termination measures
-      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx)
-      val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx)
-      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx)).res
+      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx, info)
+      val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx, info)
+      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx, info)).res
 
       // s' := s
       val recvInits = (recvWithSubs match {
@@ -641,17 +804,17 @@ object Desugar {
 
       // extent context
       (decl.receiver, recvWithSubs) match {
-        case (PNamedReceiver(id, _, _), (_, Some(q))) => ctx.addSubst(id, q)
+        case (PNamedReceiver(id, _, _), (_, Some(q))) => ctx.addSubst(id, q, info)
         case _ =>
       }
 
       (decl.args zip argsWithSubs).foreach{
-        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q, info)
         case _ =>
       }
 
       (decl.result.outs zip returnsWithSubs).foreach{
-        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q, info)
         case (NoGhost(_: PUnnamedParameter), (_, Some(_))) => violation("cannot have an alias for an unnamed parameter")
         case _ =>
       }
@@ -660,8 +823,8 @@ object Desugar {
       val bodyOpt = decl.body.map{ case (_, s) =>
         val vars = recvSub.toVector ++ argSubs.flatten ++ returnSubs.flatten
         val varsInit = vars map (v => in.Initialization(v)(v.info))
-        val body = varsInit ++ recvInits ++ argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
-        in.Block(vars, body)(meta(s))
+        val body = varsInit ++ recvInits ++ argInits ++ Vector(blockD(ctx, info)(s))
+        in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
       in.Method(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
@@ -671,15 +834,15 @@ object Desugar {
       require(decl.spec.isPure)
 
       val name = methodProxyD(decl, info)
-      val fsrc = meta(decl)
+      val fsrc = meta(decl, info)
 
-      val recvWithSubs = receiverD(decl.receiver)
+      val recvWithSubs = receiverD(decl.receiver, info)
       val (recv, _) = recvWithSubs
 
-      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
+      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p, i, info) }
       val (args, _) = argsWithSubs.unzip
 
-      val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
+      val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p, i, info) }
       val (returns, _) = returnsWithSubs.unzip
 
       // create context for body translation
@@ -689,29 +852,29 @@ object Desugar {
       (decl.args zip argsWithSubs).foreach{
         // substitution has to be added since otherwise the parameter is translated as an addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p, info)
         case _ =>
       }
 
       (decl.receiver, recvWithSubs) match {
-        case (NoGhost(PNamedReceiver(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case (NoGhost(PNamedReceiver(id, _, _)), (p, _)) => ctx.addSubst(id, p, info)
         case _ =>
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
-        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p, info)
         case _ =>
       }
 
       // translate pre- and postconditions
-      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(ctx)
-      val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(ctx)
-      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx)).res
+      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(ctx, info)
+      val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(ctx, info)
+      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
 
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
           val res = b.nonEmptyStmts match {
-            case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
+            case Vector(PReturn(Vector(ret))) => pureExprD(ctx, info)(ret)
             case s => Violation.violation(s"unexpected pure function body: $s")
           }
           implicitConversion(res.typ, returns.head.typ, res)
@@ -722,16 +885,16 @@ object Desugar {
 
     def fpredicateD(decl: PFPredicateDecl): in.FPredicate = {
       val name = fpredicateProxyD(decl, info)
-      val fsrc = meta(decl)
+      val fsrc = meta(decl, info)
 
-      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
+      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p, i, info) }
       val (args, _) = argsWithSubs.unzip
 
       // create context for body translation
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
 
       val bodyOpt = decl.body.map{ s =>
-        specificationD(ctx)(s)
+        specificationD(ctx, info)(s)
       }
 
       in.FPredicate(name, args, bodyOpt)(fsrc)
@@ -739,19 +902,19 @@ object Desugar {
 
     def mpredicateD(decl: PMPredicateDecl): in.MPredicate = {
       val name = mpredicateProxyD(decl, info)
-      val fsrc = meta(decl)
+      val fsrc = meta(decl, info)
 
-      val recvWithSubs = receiverD(decl.receiver)
+      val recvWithSubs = receiverD(decl.receiver, info)
       val (recv, _) = recvWithSubs
 
-      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
+      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p, i, info) }
       val (args, _) = argsWithSubs.unzip
 
       // create context for body translation
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
 
       val bodyOpt = decl.body.map{ s =>
-        specificationD(ctx)(s)
+        specificationD(ctx, info)(s)
       }
 
       in.MPredicate(recv, name, args, bodyOpt)(fsrc)
@@ -762,26 +925,27 @@ object Desugar {
     // Statements
 
     def maybeStmtD(ctx: FunctionContext)(stmt: Option[PStatement])(src: Source.Parser.Info): Writer[in.Stmt] =
-      stmt.map(stmtD(ctx)).getOrElse(unit(in.Seqn(Vector.empty)(src)))
+      stmt.map(stmtD(ctx, info)).getOrElse(unit(in.Seqn(Vector.empty)(src)))
 
-    def blockD(ctx: FunctionContext)(block: PBlock): in.Stmt = {
-      val dStatements = sequence(block.nonEmptyStmts map (s => seqn(stmtD(ctx)(s))))
-      blockV(dStatements)(meta(block))
+    def blockD(ctx: FunctionContext, info: TypeInfo)(block: PBlock): in.Stmt = {
+      val dStatements = sequence(block.nonEmptyStmts map (s => seqn(stmtD(ctx, info)(s))))
+      blockV(dStatements)(meta(block, info))
     }
 
-    def stmtD(ctx: FunctionContext)(stmt: PStatement): Writer[in.Stmt] = {
 
-      def goS(s: PStatement): Writer[in.Stmt] = stmtD(ctx)(s)
-      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
+    def stmtD(ctx: FunctionContext, info: TypeInfo)(stmt: PStatement): Writer[in.Stmt] = {
+
+      def goS(s: PStatement): Writer[in.Stmt] = stmtD(ctx, info)(s)
+      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx, info)(e)
       def goL(a: PAssignee): Writer[in.Assignee] = assigneeD(ctx)(a)
 
-      val src: Meta = meta(stmt)
+      val src: Meta = meta(stmt, info)
 
       /**
         * Desugars the left side of an assignment, short variable declaration, and normal variable declaration.
         * If the left side is an identifier definition, a variable declaration and initialization is written, as well.
         */
-      def leftOfAssignmentD(idn: PIdnNode)(t: in.Type): Writer[in.AssignableVar] = {
+      def leftOfAssignmentD(idn: PIdnNode, info: TypeInfo)(t: in.Type): Writer[in.Assignee] = {
         val isDef = idn match {
           case _: PIdnDef => true
           case unk: PIdnUnk if info.isDef(unk) => true
@@ -789,36 +953,39 @@ object Desugar {
         }
 
         idn match {
-          case _: PWildcard =>
-            freshDeclaredExclusiveVar(t.withAddressability(Addressability.Exclusive), idn, info)(src)
+          case _: PWildcard => freshDeclaredExclusiveVar(t.withAddressability(Addressability.Exclusive), idn, info)(src).map(in.Assignee.Var)
 
           case _ =>
-            val x = assignableVarD(ctx)(idn)
+            val x = assignableVarD(ctx, info)(idn) match {
+              case Left(v) => v
+              case Right(v) => violation(s"Expected an assignable variable, but got $v instead")
+            }
             if (isDef) {
               val v = x.asInstanceOf[in.LocalVar]
               for {
                 _ <- declare(v)
                 _ <- write(in.Initialization(v)(src))
-              } yield v
-            } else unit(x)
+              } yield in.Assignee(v)
+            } else unit(in.Assignee(x))
         }
       }
 
-      stmt match {
+      val result = stmt match {
         case NoGhost(noGhost) => noGhost match {
           case _: PEmptyStmt => unit(in.Seqn(Vector.empty)(src))
 
           case s: PSeq => for {ss <- sequence(s.nonEmptyStmts map goS)} yield in.Seqn(ss)(src)
 
-          case b: PBlock => unit(blockD(ctx)(b))
+          case b: PBlock => unit(blockD(ctx, info)(b))
 
-          case l: PLabeledStmt =>
+          case l: PLabeledStmt => {
             val proxy = labelProxy(l.label)
             for {
               _ <- declare(proxy)
               _ <- write(in.Label(proxy)(src))
               s <- goS(l.stmt)
             } yield s
+          }
 
           case PIfStmt(ifs, els) =>
             val elsStmt = maybeStmtD(ctx)(els)(src)
@@ -827,29 +994,38 @@ object Desugar {
                 case (PIfClause(pre, cond, body), c) =>
                   for {
                     dPre <- maybeStmtD(ctx)(pre)(src)
-                    dCond <- exprD(ctx)(cond)
-                    dBody = blockD(ctx)(body)
+                    dCond <- exprD(ctx, info)(cond)
+                    dBody = blockD(ctx, info)(body)
                     els <- seqn(c)
                   } yield in.Seqn(Vector(dPre, in.If(dCond, dBody, els)(src)))(src)
               }
             ))
 
-          case PForStmt(pre, cond, post, spec, body) =>
+          case n@PForStmt(pre, cond, post, spec, body) =>
             unit(block( // is a block because 'pre' might define new variables
               for {
                 dPre <- maybeStmtD(ctx)(pre)(src)
-                (dCondPre, dCond) <- prelude(exprD(ctx)(cond))
-                (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
-                (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
+                (dCondPre, dCond) <- prelude(exprD(ctx, info)(cond))
+                (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
+                (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
 
-                dBody = blockD(ctx)(body)
+                continueLabelName = nm.continueLabel(n, info)
+                continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
+                continueLoopLabel = in.Label(continueLoopLabelProxy)(src)
+
+                breakLabelName = nm.breakLabel(n, info)
+                breakLoopLabelProxy = in.LabelProxy(breakLabelName)(src)
+                _ <- declare(breakLoopLabelProxy)
+                breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
+
+                dBody = blockD(ctx, info)(body)
                 dPost <- maybeStmtD(ctx)(post)(src)
 
                 wh = in.Seqn(
                   Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
-                    in.While(dCond, dInv, dTer, in.Seqn(
-                      Vector(dBody, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
-                    )(src))(src)
+                    in.While(dCond, dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
+                      Vector(dBody, continueLoopLabel, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
+                    )(src))(src), breakLoopLabel
                   )
                 )(src)
               } yield wh
@@ -906,8 +1082,7 @@ object Desugar {
               seqn(sequence((left zip right).map{ case (l, r) =>
                 for {
                   re <- goE(r)
-                  dL <- leftOfAssignmentD(l)(re.typ)
-                  le = in.Assignee.Var(dL)
+                  le <- leftOfAssignmentD(l, info)(re.typ)
                 } yield singleAss(le, re)(src)
               }).map(in.Seqn(_)(src)))
             } else if (right.size == 1) {
@@ -915,8 +1090,8 @@ object Desugar {
                 re  <- goE(right.head)
                 les <- sequence(left.map{ l =>
                   for {
-                    dL <- leftOfAssignmentD(l)(typeD(info.typ(l), Addressability.exclusiveVariable)(src))
-                  } yield in.Assignee.Var(dL)
+                    dL <- leftOfAssignmentD(l, info)(typeD(info.typ(l), Addressability.exclusiveVariable)(src))
+                  } yield dL
                 })
               } yield multiassD(les, re, stmt)(src))
             } else { violation("invalid assignment") }
@@ -928,8 +1103,8 @@ object Desugar {
                 for {
                   re <- goE(r)
                   typ = typOpt.map(x => typeD(info.symbType(x), Addressability.exclusiveVariable)(src)).getOrElse(re.typ)
-                  dL <- leftOfAssignmentD(l)(typ)
-                  le <- unit(in.Assignee.Var(dL))
+                  dL <- leftOfAssignmentD(l, info)(typ)
+                  le <- unit(dL)
                 } yield singleAss(le, re)(src)
               }).map(in.Seqn(_)(src)))
             } else if (right.size == 1) {
@@ -937,18 +1112,18 @@ object Desugar {
                 re  <- goE(right.head)
                 les <- sequence(left.map{l =>
                   for {
-                    dL <- leftOfAssignmentD(l)(re.typ)
-                  } yield in.Assignee.Var(dL)
+                    dL <- leftOfAssignmentD(l, info)(re.typ)
+                  } yield dL
                 })
               } yield multiassD(les, re, stmt)(src))
             } else if (right.isEmpty && typOpt.nonEmpty) {
               val typ = typeD(info.symbType(typOpt.get), Addressability.exclusiveVariable)(src)
               val lelems = sequence(left.map{ l =>
                 for {
-                  dL <- leftOfAssignmentD(l)(typ)
-                } yield in.Assignee.Var(dL)
+                  dL <- leftOfAssignmentD(l, info)(typ)
+                } yield dL
               })
-              val relems = left.map{ l => in.DfltVal(typeD(info.symbType(typOpt.get), Addressability.defaultValue)(meta(l)))(meta(l)) }
+              val relems = left.map{ l => in.DfltVal(typeD(info.symbType(typOpt.get), Addressability.defaultValue)(meta(l, info)))(meta(l, info)) }
               seqn(lelems.map{ lelemsV =>
                 in.Seqn((lelemsV zip relems).map{
                   case (l, r) => singleAss(l, r)(src)
@@ -964,7 +1139,7 @@ object Desugar {
           case PExprSwitchStmt(pre, exp, cases, dflt) =>
             for {
               dPre <- maybeStmtD(ctx)(pre)(src)
-              dExp <- exprD(ctx)(exp)
+              dExp <- exprD(ctx, info)(exp)
               exprVar <- freshDeclaredExclusiveVar(dExp.typ.withAddressability(Addressability.exclusiveVariable), stmt, info)(dExp.info)
               exprAss = singleAss(in.Assignee.Var(exprVar), dExp)(dExp.info)
               _ <- write(exprAss)
@@ -973,7 +1148,7 @@ object Desugar {
               dfltStmt <- if (dflt.size > 1) {
                 violation("switch statement has more than one default clause")
               } else if (dflt.size == 1) {
-                stmtD(ctx)(dflt(0))
+                stmtD(ctx, info)(dflt(0))
               } else {
                 unit(in.Seqn(Vector.empty)(src))
               }
@@ -989,42 +1164,47 @@ object Desugar {
           case PGoStmt(exp) =>
             def unexpectedExprError(exp: PExpression) = violation(s"unexpected expression $exp in go statement")
 
-            // nParams is the number of parameters in the function/method definition, and
-            // args is the actual list of arguments
-            def getArgs(nParams: Int, args: Vector[PExpression]): Writer[Vector[in.Expr]] = {
-              sequence(args map exprD(ctx)).map {
-                // go function chaining feature
-                case Vector(in.Tuple(targs)) if nParams > 1 => targs
-                case dargs => dargs
-              }
-            }
-
             exp match {
-              case inv: PInvoke => info.resolve(inv) match {
-                // TODO: the whole thing should just be desugared as a call. The code below has multiple bugs.
-                case Some(p: ap.FunctionCall) => p.callee match {
-                  case ap.Function(_, st.Function(decl, _, context)) =>
-                    val func = functionProxyD(decl, context.getTypeInfo)
-                    for { args <- getArgs(decl.args.length, p.args) } yield in.GoFunctionCall(func, args)(src)
-
-                  case ap.ReceivedMethod(recv, _, _, st.MethodImpl(decl, _, context)) =>
-                    val meth = methodProxyD(decl, context.getTypeInfo)
-                    for {
-                      args <- getArgs(decl.args.length, p.args)
-                      recvIn <- goE(recv)
-                    } yield in.GoMethodCall(recvIn, meth, args)(src)
-
-                  case ap.MethodExpr(_, _, _, st.MethodImpl(decl, _, context)) =>
-                    val meth = methodProxyD(decl, context.getTypeInfo)
-                    for {
-                      args <- getArgs(decl.args.length, p.args.tail)
-                      recv <- goE(p.args.head)
-                    } yield in.GoMethodCall(recv, meth, args)(src)
-
+              case inv: PInvoke =>
+                info.resolve(inv) match {
+                  case Some(p: ap.FunctionCall) =>
+                    // No closure calls for now
+                    functionCallDAux(ctx, info)(p, inv)(src) map {
+                      case Left((_, call: in.FunctionCall)) =>
+                        in.GoFunctionCall(call.func, call.args)(src)
+                      case Left((_, call: in.MethodCall)) =>
+                        in.GoMethodCall(call.recv, call.meth, call.args)(src)
+                      case Right(call: in.PureFunctionCall) =>
+                        in.GoFunctionCall(call.func, call.args)(src)
+                      case Right(call: in.PureMethodCall) =>
+                        in.GoMethodCall(call.recv, call.meth, call.args)(src)
+                      case _ => unexpectedExprError(exp)
+                    }
                   case _ => unexpectedExprError(exp)
                 }
-                case _ => unexpectedExprError(exp)
-              }
+              case _ => unexpectedExprError(exp)
+            }
+
+          case PDeferStmt(exp) =>
+            def unexpectedExprError(exp: PNode) = violation(s"unexpected expression $exp in defer statement")
+
+            exp match {
+              case inv: PInvoke =>
+                info.resolve(inv) match {
+                  case Some(p: ap.FunctionLikeCall) =>
+                    functionLikeCallDAux(ctx, info)(p, inv)(src) map {
+                      case Left((_, call: in.Deferrable)) => in.Defer(call)(src)
+                      case _ => unexpectedExprError(exp)
+                    }
+                  case _ => unexpectedExprError(exp)
+                }
+
+              case exp: PStatement =>
+                stmtD(ctx, info)(exp) map {
+                  case d: in.Deferrable => in.Defer(d)(src)
+                  case _ => unexpectedExprError(exp)
+                }
+
               case _ => unexpectedExprError(exp)
             }
 
@@ -1040,7 +1220,7 @@ object Desugar {
           case PTypeSwitchStmt(pre, exp, binder, cases, dflt) =>
             for {
               dPre <- maybeStmtD(ctx)(pre)(src)
-              dExp <- exprD(ctx)(exp)
+              dExp <- exprD(ctx, info)(exp)
               exprVar <- freshDeclaredExclusiveVar(dExp.typ.withAddressability(Addressability.exclusiveVariable), stmt, info)(dExp.info)
               exprAss = singleAss(in.Assignee.Var(exprVar), dExp)(dExp.info)
               _ <- write(exprAss)
@@ -1049,7 +1229,7 @@ object Desugar {
               dfltStmt <- if (dflt.size > 1) {
                 violation("switch statement has more than one default clause")
               } else if (dflt.size == 1) {
-                stmtD(ctx)(dflt(0))
+                stmtD(ctx, info)(dflt(0))
               } else {
                 unit(in.Seqn(Vector.empty)(src))
               }
@@ -1062,34 +1242,400 @@ object Desugar {
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
 
+          case n: POutline =>
+            val name = s"${rootName(n, info)}$$${nm.relativeId(n, info)}"
+            val pres = (n.spec.pres ++ n.spec.preserves) map preconditionD(ctx, info)
+            val posts = (n.spec.preserves ++ n.spec.posts) map postconditionD(ctx, info)
+            val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
+
+            if (!n.spec.isTrusted) {
+              for {
+                body <- seqn(stmtD(ctx, info)(n.body))
+              } yield in.Outline(name, pres, posts, terminationMeasures, body, trusted = false)(src)
+            } else {
+              val declared = info.freeDeclared(n).map(localVarContextFreeD(_, info))
+              // The dummy body preserves the reads and writes of the real body that target free variables.
+              // This is done to avoid desugaring the actual body which may fail for trusted code.
+              //
+              // var arguments' := arguments
+              // modified := dflt
+              //  where
+              //    arguments is the set of free variables in the body
+              //    modified  is the set of free variables in the body that are modified
+              val dummyBody = {
+                val arguments = info.freeVariables(n).map(localVarContextFreeD(_, info))
+                val modified = info.freeModified(n).map(localVarContextFreeD(_, info)).filter(_.typ.addressability.isExclusive)
+                val argumentsCopy = arguments map (v => v.copy(id = s"${v.id}$$copy")(src))
+                in.Block(
+                  argumentsCopy,
+                  (argumentsCopy zip arguments).map { case (l, r) => in.SingleAss(in.Assignee.Var(l), r)(src) } ++
+                    modified.map(l => in.SingleAss(in.Assignee.Var(l), in.DfltVal(l.typ)(src))(src))
+                )(src)
+              }
+
+              for {
+                // since the body of an outline is not a separate scope, we have to preserve variable declarations.
+                _ <- declare(declared:_*)
+              } yield in.Outline(name, pres, posts, terminationMeasures, dummyBody, trusted = true)(src)
+            }
+
+
+          case n@PContinue(label) => unit(in.Continue(label.map(x => x.name), nm.fetchContinueLabel(n, info))(src))
+
+          case n@PBreak(label) => unit(in.Break(label.map(x => x.name), nm.fetchBreakLabel(n, info))(src))
+
+          /**
+            * This case handles for loops with a range clause of the form:
+            *
+            * <invariants>
+            * for i, j := range x {
+            *     body
+            * }
+            *
+            * In the case where x is a slice or array the following code is produced. Note
+            * that everything is in a new block so it can shadow variables with the same
+            * name declared outside. This is also the go behaviour.
+            *
+            * var i int = 0
+            * var i0 int = 0 // since 'i' can change in the iteration we store the true index in i0
+            * var j elem(x) // [v] the type of the elements of x 
+            *
+            * c := x // save the value of the slice/array since changing it doesn't change the iteration
+            *
+            * if (0 <= i && i < len(c)) { // [v]
+            *     j = c[i]
+            * }
+            *
+            * invariant len(c) > 0 ==> 0 <= i0 && i0 <= len(c) // these invariants do not
+            * invariant len(c) > 0 ==> i == i0                 // require access to anything so they
+            * invariant len(c) > 0 ==> 0 <= i && i <= len(c)   // are added before the user invariants
+            * <invariants were i is replaced with f(i, len(c) > 0) and j with f(j, len(c) > 0)>
+            * invariant len(c) > 0 ==> (0 <= i && i < len(c) ==> j == c[i]) // [v]
+            * for i < len(c) {
+            *     <body>
+            *     i0 += 1
+            *     i = i0
+            *     if (0 <= i && i < len(c)) { // [v]
+            *         j = c[i]
+            *     }
+            * }
+            *
+            * In the case where the value variable 'j' is missing all the code annotated with [v]
+            * is omitted
+            *
+            * Function f is the identity function regarding its first argument with a precondition
+            * stating that the second argument must be true.
+            *
+            * requires b
+            * decreases _
+            * pure func f(x: <type>, b: bool) { x }
+            *
+            * It is needed because in the occation of empty slices or arrays, i and j should not exist.
+            * Replacing them with the call to this function will cause its precondition to fail for
+            * empty slices or arrays and thus produce the error which is then transformed to the
+            * desirable one.
+            */
+          case n@PShortForRange(range, shorts, spec, body) =>
+            // is a block as it introduces new variables
+            unit(block(for {
+              exp <- goE(range.exp)
+              (elems, typ) = underlyingType(exp.typ) match {
+                case slice : in.SliceT => (slice.elems, slice)
+                case array : in.ArrayT => (array.elems, array)
+                case _ : in.MapT => violation("Maps are not supported yet in range")
+                case _ : in.StringT => violation("Strings are not supported yet in range")
+                case t => violation(s"Range not applicable to type $t")
+              }
+
+              // index is the place where we store the indices of the range expression
+              rangeSrc = meta(range, info)
+              rangeExpSrc = meta(range.exp, info)
+              indexSrc = meta(shorts(0), info)
+
+              indexLeft <- leftOfAssignmentD(shorts(0), info)(in.IntT(Addressability.exclusiveVariable))
+              copiedIndexVar <- freshDeclaredExclusiveVar(in.IntT(Addressability.exclusiveVariable), n, info)(rangeExpSrc)
+              copyIndexAss = singleAss(in.Assignee.Var(copiedIndexVar), in.IntLit(0)(indexSrc))(rangeExpSrc)
+              incrCopiedIndex = singleAss(in.Assignee.Var(copiedIndexVar), in.Add(copiedIndexVar, in.IntLit(1)(indexSrc))(indexSrc))(indexSrc)
+
+              indexVar = in.Assignee.Var(indexLeft.op.asInstanceOf[in.AssignableVar])
+              incrIndex = singleAss(indexVar, copiedIndexVar)(indexSrc)
+              indexAss = singleAss(indexVar, in.IntLit(0)(rangeSrc))(indexSrc)
+
+              // in go the range expression is only computed once before the iteration begins
+              // we do that by storing it in copiedVar
+              // this also ensures that the elements iterated through do not change
+              // even if the range expression is modified in the loop body
+              copiedVar <- freshDeclaredExclusiveVar(exp.typ, n, info)(rangeExpSrc)
+              copyAss = singleAss(in.Assignee.Var(copiedVar), exp)(rangeExpSrc)
+
+              // get the length of the expression
+              length = in.Length(copiedVar)(rangeSrc)
+              cond = in.LessCmp(indexLeft.op, length)(rangeSrc)
+
+              // this invariant states that the index variable has the same value as the hidden index variable always
+              copiedIndexEqualsIndexInv = in.Implication(
+                in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                in.ExprAssertion(in.EqCmp(indexLeft.op, copiedIndexVar)(rangeSrc))(rangeSrc))(rangeSrc)
+
+              // this invariant states that the hidden index stays within 0 and the length of the array/slice (both inclusive)
+              copiedIndexBoundsInv = in.Implication(
+                in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                in.ExprAssertion(in.And(
+                  in.AtMostCmp(in.IntLit(0)(rangeSrc), copiedIndexVar)(rangeSrc),
+                  in.AtMostCmp(copiedIndexVar, length)(rangeSrc))(rangeSrc))(rangeSrc))(rangeSrc)
+
+              // this invariant states that the index is between 0 and the length of the array/slice (both inclusive)
+              indexBoundsInv = in.Implication(
+                in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                in.ExprAssertion(in.And(
+                  in.AtMostCmp(in.IntLit(0)(rangeSrc), indexLeft.op)(rangeSrc),
+                  in.AtMostCmp(indexLeft.op, length)(rangeSrc))(rangeSrc))(rangeSrc))(rangeSrc)
+
+              (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
+
+              dBody = blockD(ctx, info)(body)
+
+              continueLabelName = nm.continueLabel(n, info)
+              continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
+              continueLoopLabel = in.Label(continueLoopLabelProxy)(src)
+
+              breakLabelName = nm.breakLabel(n, info)
+              breakLoopLabelProxy = in.LabelProxy(breakLabelName)(src)
+              _ <- declare(breakLoopLabelProxy)
+              breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
+
+              wh = if (shorts.length == 2) {
+                // in this case we know that the loop looks like this:
+                // for i, j := range x { ...
+                // until now we have only created the variable i since it is not mandatory for j to exist
+                // if it does, we have to declare it and add the code that will update it in each iteration
+                // which looks like this:
+                // if (0 <= i && i < length(x)) { j = x[i] }
+                // note that this will happen after we have incremented i
+                val valueSrc = meta(shorts(1), info)
+                val valueLeft = assignableVarD(ctx, info)(shorts(1)) match {
+                  case Left(n) => n
+                  case Right(n) => n
+                }
+                val valueVar = in.Assignee.Var(valueLeft.asInstanceOf[in.AssignableVar])
+                val valueAss = singleAss(valueVar, in.IndexedExp(copiedVar, indexLeft.op, typ)(valueSrc))(valueSrc)
+                val updateValue = in.If(in.And(cond, in.AtLeastCmp(indexLeft.op, in.IntLit(0)(valueSrc))(valueSrc))(valueSrc), valueAss, in.Seqn(Vector())(valueSrc))(valueSrc)
+
+                val invCtx = ctx.copyWithExpD{
+                  case n@PNamedOperand(_@PIdnUse(name)) if name == shorts(0).name =>
+                    val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(range.exp.toString()))
+                    Some(unit(conditionalId(indexLeft.op, in.LessCmp(in.IntLit(0)(invSrc), length)(invSrc), in.IntT(Addressability.exclusiveVariable))(invSrc)))
+                  case n@PNamedOperand(_@PIdnUse(name)) if name == shorts(1).name =>
+                    val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(range.exp.toString()))
+                    Some(unit(conditionalId(valueLeft, in.LessCmp(in.IntLit(0)(invSrc), length)(invSrc), elems)(invSrc)))
+                  case _ => None
+                }
+                val (dInvPre, dInv) = prelude(sequence(spec.invariants map assertionD(invCtx, info))).res
+                // we also need an invariant that states that
+                // for index i and value j and range expression x
+                // invariant len(c) > 0 ==> 0 <= i && i < len(x) ==> j == x[i]
+                val indexValueSrc = meta(range, info).createAnnotatedInfo(Source.NoPermissionToRangeExpressionAnnotation())
+                val indexValueEq = in.Implication(
+                  in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                  in.Implication(
+                    in.And(
+                      in.AtMostCmp(in.IntLit(0)(indexSrc), indexLeft.op)(indexSrc),
+                      in.LessCmp(indexLeft.op, length)(indexSrc))(indexSrc),
+                    in.ExprAssertion(in.EqCmp(in.IndexedExp(copiedVar, indexLeft.op, typ)(rangeExpSrc), valueLeft)(rangeExpSrc))(rangeExpSrc)
+                  )(rangeSrc))(indexValueSrc)
+                in.Block(
+                  Vector(valueLeft.asInstanceOf[in.LocalVar]),
+                  Vector(copyAss, indexAss, copyIndexAss, updateValue) ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(cond, Vector(copiedIndexBoundsInv, copiedIndexEqualsIndexInv, indexBoundsInv) ++ dInv ++ Vector(indexValueEq), dTer, in.Block(Vector(continueLoopLabelProxy),
+                      Vector(dBody, continueLoopLabel, incrCopiedIndex, incrIndex, updateValue) ++ dInvPre ++ dTerPre
+                    )(src))(src), breakLoopLabel
+                  )
+                )(src)
+              } else {
+                // else we do not have a value variable and the while loop has only
+                // the index in bounds invariant added
+                // the loop in this case looks like this:
+                // for i := range x { ...
+                val invCtx = ctx.copyWithExpD{
+                  case n@PNamedOperand(_@PIdnUse(name)) if name == shorts(0).name =>
+                    val invSrc = meta(info.enclosingInvariantNode(n), info).createAnnotatedInfo(Source.RangeVariableMightNotExistAnnotation(range.exp.toString()))
+                    Some(unit(conditionalId(indexLeft.op, in.LessCmp(in.IntLit(0)(invSrc), length)(invSrc), in.IntT(Addressability.exclusiveVariable))(invSrc)))
+                  case _ => None
+                }
+                val (dInvPre, dInv) = prelude(sequence(spec.invariants map assertionD(invCtx, info))).res
+                in.Seqn(
+                  Vector(copyAss, indexAss, copyIndexAss) ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(cond, Vector(copiedIndexBoundsInv, copiedIndexEqualsIndexInv, indexBoundsInv) ++ dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
+                      Vector(dBody, continueLoopLabel, incrCopiedIndex, incrIndex) ++ dInvPre ++ dTerPre
+                    )(src))(src), breakLoopLabel
+                  )
+                )(src)
+              }
+            } yield wh))
+
+          /**
+            * This case handles for loops with a range clause of the form:
+            *
+            * <invariants>
+            * for expIndex, expValue = range x {
+            *     body
+            * }
+            *
+            * In the case where x is a slice or array the following code is produced.
+            *
+            * var i0 int = 0 // since 'expIndex' can change in the iteration we store the true index in i0
+            *
+            * c := x // save the value of the slice/array since changing it doesn't change the iteration
+            *
+            * if (len(c) > 0) {
+            *     expIndex = 0
+            * }
+            * 
+            * if (0 <= expIndex && expIndex < len(c)) { // [v]
+            *     expValue = c[expIndex]
+            * }
+            *
+            * <invariants were expIndex is replaced with f(i, len(c) > 0) and j with f(j, len(c) > 0)>
+            * invariant len(c) > 0 ==> 0 <= i0 && i0 <= len(c)               // these invariants might require access to something
+            * invariant len(c) > 0 ==> expIndex == i0                        // as expIndex can be an indexing operation for example
+            * invariant len(c) > 0 ==> 0 <= expIndex && expIndex <= len(c)   // so they are added after the user invariants
+            * invariant len(c) > 0 ==> (0 <= expIndex && expIndex < len(c) ==> expValue == c[expIndex]) // [v]
+            * for expIndex < len(c) {
+            *     <body>
+            *     i0 += 1
+            *     expIndex = i0
+            *     if (0 <= expIndex && expIndex < len(c)) { // [v]
+            *         expValue = c[i]
+            *     }
+            * }
+            *
+            * In the case where the value expression 'expValue' is missing all the code annotated with [v]
+            * is omitted
+            */
+          case n@PAssForRange(range, ass, spec, body) =>
+            unit(block(for {
+              exp <- goE(range.exp)
+              typ = underlyingType(exp.typ) match {
+                case slice : in.SliceT => slice
+                case array : in.ArrayT => array
+                case _ : in.MapT => violation("Maps are not supported yet in range")
+                case _ : in.StringT => violation("Strings are not supported yet in range")
+                case t => violation(s"Range not applicable to type $t")
+              }
+              indexLeft <- goL(ass(0))
+              rangeSrc = meta(range, info)
+              indexSrc = meta(ass(0), info)
+              rangeExpSrc = meta(range.exp, info)
+
+              copiedVar <- freshDeclaredExclusiveVar(exp.typ, n, info)(rangeExpSrc)
+              copyAss = singleAss(in.Assignee.Var(copiedVar), exp)(rangeExpSrc)
+              length = in.Length(copiedVar)(rangeSrc)
+
+              copiedIndexVar <- freshDeclaredExclusiveVar(in.IntT(Addressability.exclusiveVariable), n, info)(rangeExpSrc)
+              copyIndexAss = singleAss(in.Assignee.Var(copiedIndexVar), in.IntLit(0)(indexSrc))(rangeExpSrc)
+              incrCopiedIndex = singleAss(in.Assignee.Var(copiedIndexVar), in.Add(copiedIndexVar, in.IntLit(1)(indexSrc))(indexSrc))(indexSrc)
+
+              indexAss = in.If(in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc), singleAss(indexLeft, in.IntLit(0)(rangeSrc))(indexSrc), in.Seqn(Vector())(indexSrc))(indexSrc)
+              incrIndex = singleAss(indexLeft, copiedIndexVar)(indexSrc)
+
+              cond = in.LessCmp(indexLeft.op, length)(rangeSrc)
+
+              copiedIndexEqualsIndexInv = in.Implication(
+                in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                in.ExprAssertion(in.EqCmp(indexLeft.op, copiedIndexVar)(rangeSrc))(rangeSrc))(rangeSrc)
+
+              copiedIndexBoundsInv = in.Implication(
+                in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                in.ExprAssertion(in.And(
+                  in.AtMostCmp(in.IntLit(0)(rangeSrc), copiedIndexVar)(rangeSrc),
+                  in.AtMostCmp(copiedIndexVar, length)(rangeSrc))(rangeSrc))(rangeSrc))(rangeSrc)
+
+              indexBoundsInv = in.Implication(
+                in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                in.ExprAssertion(in.And(
+                  in.AtMostCmp(in.IntLit(0)(rangeSrc), indexLeft.op)(rangeSrc),
+                  in.AtMostCmp(indexLeft.op, length)(rangeSrc))(rangeSrc))(rangeSrc))(rangeSrc)
+
+              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
+              (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
+
+              dBody = blockD(ctx, info)(body)
+
+              continueLabelName = nm.continueLabel(n, info)
+              continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
+              continueLoopLabel = in.Label(continueLoopLabelProxy)(src)
+
+              breakLabelName = nm.breakLabel(n, info)
+              breakLoopLabelProxy = in.LabelProxy(breakLabelName)(src)
+              _ <- declare(breakLoopLabelProxy)
+              breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
+
+              wh = if (ass.length == 2) {
+                val valueLeft = goL(ass(1)).res
+                val decls = ass(1) match {
+                  case _: PBlankIdentifier => Vector(valueLeft.asInstanceOf[in.Assignee.Var].op.asInstanceOf[in.LocalVar])
+                  case _ => Vector.empty
+                }
+                val valueSrc = meta(ass(1), info)
+                val valueAss = singleAss(valueLeft, in.IndexedExp(copiedVar, indexLeft.op, typ)(valueSrc))(valueSrc)
+                val updateValue = in.If(in.And(cond, in.AtLeastCmp(indexLeft.op, in.IntLit(0)(valueSrc))(valueSrc))(valueSrc), valueAss, in.Seqn(Vector())(valueSrc))(valueSrc)
+                
+                val indexValueEq = in.Implication(
+                  in.LessCmp(in.IntLit(0)(indexSrc), length)(indexSrc),
+                  in.Implication(
+                    in.And(
+                      in.AtMostCmp(in.IntLit(0)(indexSrc), indexLeft.op)(indexSrc),
+                      in.LessCmp(indexLeft.op, length)(indexSrc))(indexSrc),
+                    in.ExprAssertion(in.EqCmp(in.IndexedExp(copiedVar, indexLeft.op, typ)(rangeExpSrc), valueLeft.op)(rangeExpSrc))(rangeExpSrc)
+                  )(rangeSrc))(rangeSrc)
+                in.Block(
+                  decls,
+                  Vector(copyAss, indexAss, copyIndexAss, updateValue) ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(cond, dInv ++ Vector(copiedIndexBoundsInv, copiedIndexEqualsIndexInv, indexBoundsInv, indexValueEq), dTer, in.Block(Vector(continueLoopLabelProxy),
+                      Vector(dBody, continueLoopLabel, incrCopiedIndex, incrIndex, updateValue) ++ dInvPre ++ dTerPre
+                    )(src))(src), breakLoopLabel
+                  )
+                )(src)
+              } else {
+                in.Seqn(
+                  Vector(copyAss, indexAss, copyIndexAss) ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(cond, dInv ++ Vector(copiedIndexBoundsInv, copiedIndexEqualsIndexInv, indexBoundsInv), dTer, in.Block(Vector(continueLoopLabelProxy),
+                      Vector(dBody, continueLoopLabel, incrCopiedIndex, incrIndex) ++ dInvPre ++ dTerPre
+                    )(src))(src), breakLoopLabel
+                  )
+                )(src)
+              }
+            } yield wh))
+
           case _ => ???
         }
       }
+      seqn(result)
     }
 
-    def switchCaseD(switchCase: PExprSwitchCase, scrutinee: in.LocalVar)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] = {
+    def switchCaseD(switchCase: PExprSwitchCase, scrutinee: in.AssignableVar)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] = {
       val left = switchCase.left
       val body = switchCase.body
       for {
-        acceptExprs <- sequence(left.map(clause => exprD(ctx)(clause)))
-        acceptCond = acceptExprs.foldRight(in.BoolLit(b = false)(meta(switchCase)): in.Expr){
+        acceptExprs <- sequence(left.map(clause => exprD(ctx, info)(clause)))
+        acceptCond = acceptExprs.foldRight(in.BoolLit(b = false)(meta(switchCase, info)): in.Expr){
           (expr, tail) => in.Or(in.EqCmp(scrutinee, expr)(expr.info), tail)(expr.info)
         }
-        stmt <- stmtD(ctx)(body)
+        stmt <- stmtD(ctx, info)(body)
       } yield (acceptCond, stmt)
     }
 
-    def typeSwitchCaseD(switchCase: PTypeSwitchCase, scrutinee: in.LocalVar, bind: Option[PIdnDef])(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] = {
+    def typeSwitchCaseD(switchCase: PTypeSwitchCase, scrutinee: in.AssignableVar, bind: Option[PIdnDef])(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] = {
       val left = switchCase.left
       val body = switchCase.body
-      val metaCase = meta(switchCase)
+      val metaCase = meta(switchCase, info)
       for {
         acceptExprs <- sequence(left.map {
           case t: PType => underlyingType(info.symbType(t)) match {
             case _: Type.InterfaceT => violation(s"Interface Types are not supported in case clauses yet, but got $t")
-            case _ => for { e <- exprAndTypeAsExpr(ctx)(t) } yield in.EqCmp(in.TypeOf(scrutinee)(meta(t)), e)(metaCase)
+            case _ => for { e <- exprAndTypeAsExpr(ctx, info)(t) } yield in.EqCmp(in.TypeOf(scrutinee)(meta(t, info)), e)(metaCase)
           }
-          case n: PNilLit => for { e <- exprAndTypeAsExpr(ctx)(n) } yield in.EqCmp(scrutinee, e)(metaCase)
+          case n: PNilLit => for { e <- exprAndTypeAsExpr(ctx, info)(n) } yield in.EqCmp(scrutinee, e)(metaCase)
           case n => violation(s"Expected either a type or nil, but got $n instead")
         })
         acceptCond = acceptExprs.foldRight(in.BoolLit(b = false)(metaCase): in.Expr) {
@@ -1105,13 +1651,13 @@ object Desugar {
             case l if l.length > 1 => scrutinee.typ
             case c => violation(s"This case should be unreachable, but got $c")
           }
-          name = idName(bId)
+          name = idName(bId, info)
         } yield in.LocalVar(name, typ)(Source.Parser.Internal)
 
         context = (bind, assign) match {
           case (Some(id), Some(v)) =>
             val newCtx = ctx.copy
-            newCtx.addSubst(id, v)
+            newCtx.addSubst(id, v, info)
             newCtx
           case (None, None) => ctx
           case c => violation(s"This case should be unreachable, but got $c")
@@ -1119,8 +1665,8 @@ object Desugar {
 
         init = assign.map(v => in.SingleAss(in.Assignee.Var(v), in.TypeAssertion(scrutinee, v.typ)(v.info))(v.info)).toVector
 
-        stmt = blockD(context)(body) match {
-          case in.Block(decls, stmts) => in.Block(assign.toVector ++ decls, init ++ stmts)(meta(body))
+        stmt = blockD(context, info)(body) match {
+          case in.Block(decls, stmts) => in.Block(assign.toVector ++ decls, init ++ stmts)(meta(body, info))
           case c => violation(s"Expected Block as result from blockD, but got $c")
         }
       } yield (acceptCond, stmt)
@@ -1179,19 +1725,37 @@ object Desugar {
 
     // Expressions
 
-    def derefD(ctx: FunctionContext)(p: ap.Deref)(src: Meta): Writer[in.Deref] = {
-      exprD(ctx)(p.base) map (in.Deref(_)(src))
+    def derefD(ctx: FunctionContext, info: TypeInfo)(p: ap.Deref)(src: Meta): Writer[in.Deref] = {
+      exprD(ctx, info)(p.base).map(e => in.Deref(e, underlyingType(e.typ))(src))
     }
 
-    def fieldSelectionD(ctx: FunctionContext)(p: ap.FieldSelection)(src: Meta): Writer[in.FieldRef] = {
+    def fieldSelectionD(ctx: FunctionContext, info: TypeInfo)(p: ap.FieldSelection)(src: Meta): Writer[in.FieldRef] = {
       for {
-        r <- exprD(ctx)(p.base)
+        r <- exprD(ctx, info)(p.base)
         base = applyMemberPathD(r, p.path)(src)
         f = structMemberD(p.symb, Addressability.fieldLookup(base.typ.addressability))(src)
       } yield in.FieldRef(base, f)(src)
     }
 
-    def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall, expr: PInvoke)(src: Meta): Writer[in.Expr] = {
+    def functionLikeCallD(ctx: FunctionContext, info: TypeInfo)(p: ap.FunctionLikeCall, expr: PInvoke)(src: Meta): Writer[in.Expr] = {
+      functionLikeCallDAux(ctx, info)(p, expr)(src) flatMap {
+        case Right(exp) => unit(exp)
+        case Left((targets, callStmt)) =>
+          val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
+          for {
+            _ <- declare(targets: _*)
+            _ <- write(callStmt)
+          } yield res
+      }
+    }
+
+    def functionLikeCallDAux(ctx: FunctionContext, info: TypeInfo)(p: ap.FunctionLikeCall, expr: PInvoke)(src: Meta): Writer[Either[(Vector[in.LocalVar], in.Stmt), in.Expr]] = p match {
+      case p: ap.FunctionCall => functionCallDAux(ctx, info)(p, expr)(src)
+      case _: ap.ClosureCall => closureCallDAux(ctx, info)(expr)(src)
+    }
+
+    /** Returns either a tuple with targets and call statement or, if the call is pure, the call expression directly. */
+    def functionCallDAux(ctx: FunctionContext, info: TypeInfo)(p: ap.FunctionCall, expr: PInvoke)(src: Meta): Writer[Either[(Vector[in.LocalVar], in.Stmt), in.Expr]] = {
       def getBuiltInFuncType(f: ap.BuiltInFunctionKind): FunctionT = {
         val abstractType = info.typ(f.symb.tag)
         val argsForTyping = f match {
@@ -1212,11 +1776,47 @@ object Desugar {
         case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
 
+      def functionCall(targets: Vector[in.LocalVar], func: ap.FunctionKind, args: Vector[in.Expr], spec: Option[in.ClosureSpec]): in.Stmt = spec match {
+        case Some(spec) =>
+          val funcObject = in.FunctionObject(getFunctionProxy(func, args), typeD(info.typ(func.id), Addressability.rValue)(src))(src)
+          in.ClosureCall(targets, funcObject, args, spec)(src)
+        case _ => in.FunctionCall(targets, getFunctionProxy(func, args), args)(src)
+      }
+
+      def pureFunctionCall(func: ap.FunctionKind, args: Vector[in.Expr], spec: Option[in.ClosureSpec], resT: in.Type): in.Expr = spec match {
+        case Some(spec) =>
+          val funcObject = in.FunctionObject(getFunctionProxy(func, args), typeD(info.typ(func.id), Addressability.rValue)(src))(src)
+          in.PureClosureCall(funcObject, args, spec, resT)(src)
+        case _ => in.PureFunctionCall(getFunctionProxy(func, args), args, resT)(src)
+      }
+
       def getMethodProxy(f: ap.FunctionKind, recv: in.Expr, args: Vector[in.Expr]): in.MethodProxy = f match {
         case ap.ReceivedMethod(_, id, _, _) => methodProxy(id, info)
         case ap.MethodExpr(_, id, _, _) => methodProxy(id, info)
         case bm: ap.BuiltInMethodKind => methodProxy(bm.symb.tag, recv.typ, args.map(_.typ))(src)
         case c => Violation.violation(s"This case should be unreachable, but got $c")
+      }
+
+      def methodCall(targets: Vector[in.LocalVar], recv: in.Expr, meth: in.MethodProxy, args: Vector[in.Expr], resT: in.Type, spec: Option[in.ClosureSpec]): in.Stmt = spec match {
+        case Some(spec) =>
+          val resType = resT match {
+            case in.TupleT(ts, _) => ts
+            case _ => Vector(resT)
+          }
+          val methObject = in.MethodObject(recv, meth, in.FunctionT(args.map(_.typ), resType, Addressability.rValue))(src)
+          in.ClosureCall(targets, methObject, args, spec)(src)
+        case _ => in.MethodCall(targets, recv, meth, args)(src)
+      }
+
+      def pureMethodCall(recv: in.Expr, meth: in.MethodProxy, args: Vector[in.Expr], spec: Option[in.ClosureSpec], resT: in.Type): in.Expr = spec match {
+        case Some(spec) =>
+          val resType = resT match {
+            case in.TupleT(ts, _) => ts
+            case _ => Vector(resT)
+          }
+          val methObject = in.MethodObject(recv, meth, in.FunctionT(args.map(_.typ), resType, Addressability.rValue))(src)
+          in.PureClosureCall(methObject, args, spec, resT)(src)
+        case _ => in.PureMethodCall(recv, meth, args, resT)(src)
       }
 
       def convertArgs(args: Vector[in.Expr]): Vector[in.Expr] = {
@@ -1242,51 +1842,7 @@ object Desugar {
           }
         }
 
-        val parameterCount: Int = params.length
-
-        // is of the form Some(x) if the type of the last param is variadic and the type of its elements is x
-        val variadicTypeOption: Option[Type] = params.lastOption match {
-          case Some(VariadicT(elem)) => Some(elem)
-          case _ => None
-        }
-
-        val wRes: Writer[Vector[in.Expr]] = sequence(p.args map exprD(ctx)).map {
-          // go function chaining feature
-          case Vector(in.Tuple(targs)) if parameterCount > 1 => targs
-          case dargs => dargs
-        }
-
-        lazy val getArgsMap = (args: Vector[in.Expr], typ: in.Type) =>
-          args.zipWithIndex.map {
-            case (arg, index) => BigInt(index) -> implicitConversion(arg.typ, typ, arg)
-          }.toMap
-
-        variadicTypeOption match {
-          case Some(variadicTyp) => for {
-            res <- wRes
-            variadicInTyp = typeD(variadicTyp, Addressability.sliceElement)(src)
-            len = res.length
-            argList = res.lastOption.map(_.typ) match {
-              case Some(t) if underlyingType(t).isInstanceOf[in.SliceT] &&
-                len == parameterCount && underlyingType(t).asInstanceOf[in.SliceT].elems == variadicInTyp =>
-                  // corresponds to the case where an unpacked slice is already passed as an argument
-                  res
-              case Some(in.TupleT(_, _)) if len == 1 && parameterCount == 1 =>
-                // supports chaining function calls with variadic functions of one argument
-                val argsMap = getArgsMap(res.last.asInstanceOf[in.Tuple].args, variadicInTyp)
-                Vector(in.SliceLit(variadicInTyp, argsMap)(src))
-              case _ if len >= parameterCount =>
-                val argsMap = getArgsMap(res.drop(parameterCount-1), variadicInTyp)
-                res.take(parameterCount-1) :+ in.SliceLit(variadicInTyp, argsMap)(src)
-              case _ if len == parameterCount - 1 =>
-                // variadic argument not passed
-                res :+ in.NilLit(in.SliceT(variadicInTyp, Addressability.nil))(src)
-              case t => violation(s"this case should be unreachable, but got $t")
-            }
-          } yield argList
-
-          case None => wRes
-        }
+        functionCallArgsD(p.args, params)(ctx, info, src)
       }
 
       // encode results
@@ -1308,11 +1864,11 @@ object Desugar {
           case c => Violation.violation(s"This case should be unreachable, but got $c")
         }
       }
-      val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
 
       val isPure = p.callee match {
         case base: ap.Symbolic => base.symb match {
           case f: st.Function => f.isPure
+          case c: st.Closure => c.isPure
           case m: st.Method => m.isPure
           case _: st.DomainFunction => true
           case f: st.BuiltInFunction => f.isPure
@@ -1328,16 +1884,15 @@ object Desugar {
               for {
                 args <- dArgs
                 convertedArgs = convertArgs(args)
-                fproxy = getFunctionProxy(base, convertedArgs)
-              } yield in.PureFunctionCall(fproxy, convertedArgs, resT)(src)
+                spec = p.maybeSpec.map(closureSpecD(ctx, info))
+              } yield Right(pureFunctionCall(base, convertedArgs, spec, resT))
             } else {
               for {
                 args <- dArgs
-                _ <- declare(targets: _*)
                 convertedArgs = convertArgs(args)
                 fproxy = getFunctionProxy(base, convertedArgs)
-                _ <- write(in.FunctionCall(targets, fproxy, convertedArgs)(src))
-              } yield res
+                spec = p.maybeSpec.map(closureSpecD(ctx, info))
+              } yield Left((targets, functionCall(targets, base, convertedArgs, spec)))
             }
 
           case iim: ap.ImplicitlyReceivedInterfaceMethod =>
@@ -1349,16 +1904,16 @@ object Desugar {
                 convertedArgs = convertArgs(args)
                 proxy = methodProxy(iim.id, iim.symb.context.getTypeInfo)
                 recvType = typeD(iim.symb.itfType, Addressability.receiver)(src)
-              } yield in.PureMethodCall(implicitThisD(recvType)(src), proxy, convertedArgs, resT)(src)
+                spec = p.maybeSpec.map(closureSpecD(ctx, info))
+              } yield Right(pureMethodCall(implicitThisD(recvType)(src), proxy, args, spec, resT))
             } else {
               for {
                 args <- dArgs
-                _ <- declare(targets: _*)
                 convertedArgs = convertArgs(args)
                 proxy = methodProxy(iim.id, iim.symb.context.getTypeInfo)
                 recvType = typeD(iim.symb.itfType, Addressability.receiver)(src)
-                _ <- write(in.MethodCall(targets, implicitThisD(recvType)(src), proxy, convertedArgs)(src))
-              } yield res
+                spec = p.maybeSpec.map(closureSpecD(ctx, info))
+              } yield Left((targets, methodCall(targets, implicitThisD(recvType)(src), proxy, convertedArgs, resT, spec)))
             }
 
           case df: ap.DomainFunction =>
@@ -1366,13 +1921,13 @@ object Desugar {
               args <- dArgs
               convertedArgs = convertArgs(args)
               proxy = domainFunctionProxy(df.symb)
-            } yield in.DomainFunctionCall(proxy, convertedArgs, resT)(src)
+            } yield Right(in.DomainFunctionCall(proxy, convertedArgs, resT)(src))
 
           case _: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.BuiltInReceivedMethod | _: ap.BuiltInMethodExpr => {
             val dRecvWithArgs = base match {
               case base: ap.ReceivedMethod =>
                 for {
-                  r <- exprD(ctx)(base.recv)
+                  r <- exprD(ctx, info)(base.recv)
                   args <- dArgs
                 } yield (applyMemberPathD(r, base.path)(src), args)
               case base: ap.MethodExpr =>
@@ -1380,7 +1935,7 @@ object Desugar {
                 dArgs map (args => (applyMemberPathD(args.head, base.path)(src), args.tail))
               case base: ap.BuiltInReceivedMethod =>
                 for {
-                  r <- exprD(ctx)(base.recv)
+                  r <- exprD(ctx, info)(base.recv)
                   args <- dArgs
                 } yield (applyMemberPathD(r, base.path)(src), args)
               case base: ap.BuiltInMethodExpr =>
@@ -1394,19 +1949,103 @@ object Desugar {
                 (recv, args) <- dRecvWithArgs
                 convertedArgs = convertArgs(args)
                 mproxy = getMethodProxy(base, recv, convertedArgs)
-              } yield in.PureMethodCall(recv, mproxy, convertedArgs, resT)(src)
+                spec = p.maybeSpec.map(closureSpecD(ctx, info))
+              } yield Right(pureMethodCall(recv, mproxy, convertedArgs, spec, resT))
             } else {
               for {
                 (recv, args) <- dRecvWithArgs
-                _ <- declare(targets: _*)
                 convertedArgs = convertArgs(args)
                 mproxy = getMethodProxy(base, recv, convertedArgs)
-                _ <- write(in.MethodCall(targets, recv, mproxy, convertedArgs)(src))
-              } yield res
+                spec = p.maybeSpec.map(closureSpecD(ctx, info))
+              } yield Left((targets, methodCall(targets, recv, mproxy, convertedArgs, resT, spec)))
             }
           }
           case sym => Violation.violation(s"expected symbol with arguments and result or a built-in entity, but got $sym")
         }
+      }
+    }
+
+    /** Returns either a tuple with targets and call statement or, if the call is pure, the call expression directly.
+      * This method encodes closure calls, i.e. calls of the type c(_) as _, where c is a closure expression (and not a function/method proxy). */
+    def closureCallDAux(ctx: FunctionContext, info: TypeInfo)(expr: PInvoke)(src: Meta): Writer[Either[(Vector[in.LocalVar], in.Stmt), in.Expr]] = {
+      val (func, isPure) = info.resolve(expr.spec.get.func) match {
+        case Some(ap.Function(_, f)) => (f, f.isPure)
+        case Some(ap.Closure(_, c)) => (c, c.isPure)
+        case _ => violation("expected function or function literal")
+      }
+
+      val spec = closureSpecD(ctx, info)(expr.spec.get)
+      val params = func.args.zipWithIndex.collect { case (p, idx) if !spec.params.contains(idx + 1) => func.context.typ(p) }
+
+      if (isPure) for {
+        dArgs <- functionCallArgsD(expr.args, params)(ctx, info, src)
+        args = arguments(dArgs zip params)
+        closure <- exprD(ctx, info)(expr.base.asInstanceOf[PExpression])
+        resT = typeD(func.context.typ(func.result), Addressability.callResult)(src)
+      } yield Right(in.PureClosureCall(closure, arguments(args zip params), spec, resT)(src))
+      else for {
+        dArgs <- functionCallArgsD(expr.args, params)(ctx, info, src)
+        args = arguments(dArgs zip params)
+        closure <- exprD(ctx, info)(expr.base.asInstanceOf[PExpression])
+        targets = func.result.outs map (o => freshExclusiveVar(typeD(func.context.symbType(o.typ), Addressability.exclusiveVariable)(src), expr, info)(src))
+      } yield Left((targets, in.ClosureCall(targets, closure, arguments(args zip params), spec)(src)))
+    }
+
+
+    /** Desugars the arguments to a function call or a call with spec.
+      * @param args The expressions passed as arguments
+      * @param params The types of the arguments of the callee (or the spec) */
+    private def functionCallArgsD(args: Vector[PExpression], params: Vector[Type])(ctx: FunctionContext, info: TypeInfo, src: Meta): Writer[Vector[in.Expr]] = {
+      val parameterCount: Int = params.length
+
+      // is of the form Some(x) if the type of the last param is variadic and the type of its elements is x
+      val variadicTypeOption: Option[Type] = params.lastOption match {
+        case Some(VariadicT(elem)) => Some(elem)
+        case _ => None
+      }
+
+      val wRes: Writer[Vector[in.Expr]] = sequence(args map exprD(ctx, info)).map {
+        // go function chaining feature
+        case Vector(in.Tuple(targs)) if parameterCount > 1 => targs
+        case dargs => dargs
+      }
+
+      lazy val getArgsMap = (args: Vector[in.Expr], typ: in.Type) =>
+        args.zipWithIndex.map {
+          case (arg, index) => BigInt(index) -> implicitConversion(arg.typ, typ, arg)
+        }.toMap
+
+      variadicTypeOption match {
+        case Some(variadicTyp) => for {
+          res <- wRes
+          variadicInTyp = typeD(variadicTyp, Addressability.sliceElement)(src)
+          len = res.length
+          argList <- res.lastOption.map(_.typ) match {
+            case Some(t) if underlyingType(t).isInstanceOf[in.SliceT] &&
+              len == parameterCount && underlyingType(t).asInstanceOf[in.SliceT].elems == variadicInTyp =>
+              // corresponds to the case where an unpacked slice is already passed as an argument
+              unit(res)
+            case Some(in.TupleT(_, _)) if len == 1 && parameterCount == 1 =>
+              // supports chaining function calls with variadic functions of one argument
+              val argsMap = getArgsMap(res.last.asInstanceOf[in.Tuple].args, variadicInTyp)
+              for {
+                target <- freshDeclaredExclusiveVar(in.SliceT(variadicInTyp, Addressability.Exclusive), args.last, info)(src)
+                _ <- write(in.NewSliceLit(target, variadicInTyp, argsMap)(src))
+              } yield Vector(target)
+            case _ if len >= parameterCount =>
+              val argsMap = getArgsMap(res.drop(parameterCount - 1), variadicInTyp)
+              for {
+                target <- freshDeclaredExclusiveVar(in.SliceT(variadicInTyp, Addressability.Exclusive), args.last, info)(src)
+                _ <- write(in.NewSliceLit(target, variadicInTyp, argsMap)(src))
+              } yield res.take(parameterCount - 1) :+ target
+            case _ if len == parameterCount - 1 =>
+              // variadic argument not passed
+              unit(res :+ in.NilLit(in.SliceT(variadicInTyp, Addressability.nil))(src))
+            case t => violation(s"this case should be unreachable, but got $t")
+          }
+        } yield argList
+
+        case None => wRes
       }
     }
 
@@ -1447,92 +2086,116 @@ object Desugar {
     }
 
     def assigneeD(ctx: FunctionContext)(expr: PExpression): Writer[in.Assignee] = {
-      val src: Meta = meta(expr)
+      val src: Meta = meta(expr, info)
 
       info.resolve(expr) match {
-        case Some(p: ap.LocalVariable) =>
-          unit(in.Assignee.Var(assignableVarD(ctx)(p.id)))
+        case Some(p: ap.LocalVariable) => assignableVarD(ctx, info)(p.id) match {
+          case Left(v) => unit(in.Assignee.Var(v))
+          case Right(v) => unit(in.Assignee.Pointer(v))
+        }
+        case Some(p: ap.GlobalVariable) => assignableVarD(ctx, info)(p.id) match {
+          case Left(v) => unit(in.Assignee.Var(v))
+          case Right(v) => unit(in.Assignee.Pointer(v))
+        }
         case Some(p: ap.Deref) =>
-          derefD(ctx)(p)(src) map in.Assignee.Pointer
+          derefD(ctx, info)(p)(src) map in.Assignee.Pointer
         case Some(p: ap.FieldSelection) =>
-          fieldSelectionD(ctx)(p)(src) map in.Assignee.Field
+          fieldSelectionD(ctx, info)(p)(src) map in.Assignee.Field
         case Some(p : ap.IndexedExp) =>
-          indexedExprD(p.base, p.index)(ctx)(src) map in.Assignee.Index
+          indexedExprD(p.base, p.index)(ctx, info)(src) map in.Assignee.Index
         case Some(ap.BlankIdentifier(decl)) =>
           for {
-            dExpr <- exprD(ctx)(decl)
+            dExpr <- exprD(ctx, info)(decl)
             v <- freshDeclaredExclusiveVar(dExpr.typ, expr, info)(src)
           } yield in.Assignee.Var(v)
         case p => Violation.violation(s"unexpected ast pattern $p")
       }
     }
 
-    def addressableD(ctx: FunctionContext)(expr: PExpression): Writer[in.Addressable] = {
-      val src: Meta = meta(expr)
+    def addressableD(ctx: FunctionContext, info: TypeInfo)(expr: PExpression): Writer[in.Addressable] = {
+      val src: Meta = meta(expr, info)
 
       info.resolve(expr) match {
         case Some(p: ap.LocalVariable) =>
-          varD(ctx)(p.id) match {
+          varD(ctx, info)(p.id) match {
             case r: in.LocalVar => unit(in.Addressable.Var(r))
+            case r: in.Deref => unit(in.Addressable.Pointer(r))
             case r => Violation.violation(s"expected variable reference but got $r")
           }
+        case Some(p: ap.GlobalVariable) =>
+          val globVar = globalVarD(p.symb)(src)
+          unit(in.Addressable.GlobalVar(globVar))
         case Some(p: ap.Deref) =>
-          derefD(ctx)(p)(src) map in.Addressable.Pointer
+          derefD(ctx, info)(p)(src) map in.Addressable.Pointer
         case Some(p: ap.FieldSelection) =>
-          fieldSelectionD(ctx)(p)(src) map in.Addressable.Field
+          fieldSelectionD(ctx, info)(p)(src) map in.Addressable.Field
         case Some(p: ap.IndexedExp) =>
-          indexedExprD(p)(ctx)(src) map in.Addressable.Index
+          indexedExprD(p)(ctx, info)(src) map in.Addressable.Index
 
         case p => Violation.violation(s"unexpected ast pattern $p ")
       }
     }
 
 
-    private def indexedExprD(base : PExpression, index : PExpression)(ctx : FunctionContext)(src : Meta) : Writer[in.IndexedExp] = {
+    private def indexedExprD(base : PExpression, index : PExpression)(ctx : FunctionContext, info : TypeInfo)(src : Meta) : Writer[in.IndexedExp] = {
       for {
-        dbase <- exprD(ctx)(base)
-        dindex <- exprD(ctx)(index)
+        dbase <- exprD(ctx, info)(base)
+        dindex <- exprD(ctx, info)(index)
         baseUnderlyingType = underlyingType(dbase.typ)
       } yield in.IndexedExp(dbase, dindex, baseUnderlyingType)(src)
     }
 
-    def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext) : Writer[in.IndexedExp] =
-      indexedExprD(expr.base, expr.index)(ctx)(meta(expr))
-    def indexedExprD(expr : ap.IndexedExp)(ctx : FunctionContext)(src : Meta) : Writer[in.IndexedExp] =
-      indexedExprD(expr.base, expr.index)(ctx)(src)
+    def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext, info : TypeInfo) : Writer[in.IndexedExp] =
+      indexedExprD(expr.base, expr.index)(ctx, info)(meta(expr, info))
+    def indexedExprD(expr : ap.IndexedExp)(ctx : FunctionContext, info : TypeInfo)(src : Meta) : Writer[in.IndexedExp] =
+      indexedExprD(expr.base, expr.index)(ctx, info)(src)
 
-    def exprD(ctx: FunctionContext)(expr: PExpression): Writer[in.Expr] = {
+    def exprD(ctx: FunctionContext, info: TypeInfo)(expr: PExpression): Writer[in.Expr] = {
 
-      def go(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
-      def goTExpr(e: PExpressionOrType): Writer[in.Expr] = exprAndTypeAsExpr(ctx)(e)
+      def go(e: PExpression): Writer[in.Expr] = exprD(ctx, info)(e)
+      def goTExpr(e: PExpressionOrType): Writer[in.Expr] = exprAndTypeAsExpr(ctx, info)(e)
 
-      val src: Meta = meta(expr)
+      val src: Meta = meta(expr, info)
 
       // if expr is a permission and its case is defined in maybePermissionD,
       // then desugaring expr should yield the value returned by that method
       if(info.typ(expr) == PermissionT) {
-        val maybePerm = maybePermissionD(ctx)(expr)
+        val maybePerm = maybePermissionD(ctx, info)(expr)
         if (maybePerm.isDefined) {
           return maybePerm.head
         }
+      }
+
+      // if expD is defined by the context, use that to desugar the expression
+      ctx.expD(expr) match {
+        case Some(res) => return res
+        case None =>
       }
 
       expr match {
         case NoGhost(noGhost) => noGhost match {
           case n: PNamedOperand => info.resolve(n) match {
             case Some(p: ap.Constant) => unit(globalConstD(p.symb)(src))
-            case Some(_: ap.LocalVariable) => unit(varD(ctx)(n.id))
+            case Some(_: ap.LocalVariable) => unit(varD(ctx, info)(n.id))
+            case Some(p: ap.GlobalVariable) => unit(globalVarD(p.symb)(src))
             case Some(_: ap.NamedType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
             case Some(_: ap.BuiltInType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
+            case Some(f: ap.Function) =>
+              val name = idName(f.id, info)
+              unit(in.FunctionObject(in.FunctionProxy(name)(src), typeD(info.typ(f.id), Addressability.rValue)(src))(src))
+            case Some(c: ap.Closure) =>
+              val name = idName(c.id, info)
+              unit(in.ClosureObject(in.FunctionLitProxy(name)(src), typeD(info.typ(c.id), Addressability.rValue)(src))(src))
+
             case p => Violation.violation(s"encountered unexpected pattern: $p")
           }
 
           case n: PDeref => info.resolve(n) match {
-            case Some(p: ap.Deref) => derefD(ctx)(p)(src)
+            case Some(p: ap.Deref) => derefD(ctx, info)(p)(src)
             case Some(p: ap.PointerType) => for { inElem <- goTExpr(p.base) } yield in.PointerTExpr(inElem)(src)
             case p => Violation.violation(s"encountered unexpected pattern: $p")
           }
@@ -1541,28 +2204,36 @@ object Desugar {
             // The reference of a literal is desugared to a new call
             case c: PCompositeLit =>
               for {
-                c <- compositeLitD(ctx)(c)
+                c <- compositeLitD(ctx, info)(c)
                 v <- freshDeclaredExclusiveVar(in.PointerT(c.typ.withAddressability(Addressability.Shared), Addressability.reference), expr, info)(src)
                 _ <- write(in.New(v, c)(src))
               } yield v
 
-            case _ => addressableD(ctx)(exp) map (a => in.Ref(a, in.PointerT(a.op.typ, Addressability.reference))(src))
+            case _ => addressableD(ctx, info)(exp) map (a => in.Ref(a, in.PointerT(a.op.typ, Addressability.reference))(src))
           }
 
           case n: PDot => info.resolve(n) match {
-            case Some(p: ap.FieldSelection) => fieldSelectionD(ctx)(p)(src)
+            case Some(p: ap.FieldSelection) => fieldSelectionD(ctx, info)(p)(src)
             case Some(p: ap.Constant) => unit[in.Expr](globalConstD(p.symb)(src))
+            case Some(p: ap.GlobalVariable) => unit[in.Expr](globalVarD(p.symb)(src))
             case Some(_: ap.NamedType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
             case Some(_: ap.BuiltInType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
-            case Some(p) => Violation.violation(s"only field selections, global constants, and types can be desugared to an expression, but got $p")
+            case Some(f: ap.Function) =>
+              val name = idName(f.id, info)
+              unit(in.FunctionObject(in.FunctionProxy(name)(src), typeD(info.typ(f.id), Addressability.rValue)(src))(src))
+            case Some(m: ap.ReceivedMethod) =>
+              for {
+                r <- exprD(ctx, info)(m.recv)
+              } yield in.MethodObject(applyMemberPathD(r, m.path)(src), methodProxy(m.id, info), typeD(info.typ(n), Addressability.rValue)(src))(src)
+            case Some(p) => Violation.violation(s"only field selections, global constants, types and methods can be desugared to an expression, but got $p")
             case _ => Violation.violation(s"could not resolve $n")
           }
 
-          case n: PInvoke => invokeD(ctx)(n)
+          case n: PInvoke => invokeD(ctx, info)(n)
 
           case n: PTypeAssertion =>
             for {
@@ -1574,54 +2245,82 @@ object Desugar {
 
           case PEquals(left, right) =>
             if (info.typOfExprOrType(left) == PermissionT || info.typOfExprOrType(right) == PermissionT) {
+              // When at least one of the operands has type 'perm', both operands are treated as permissions.
+              // This ensures that comparisons between a perm and a literal are handled consistently with the design of Go.
+              // E.g. the right-hand side of perm(1/2) == 1/2 is treated as a permission.
+              // TODO: maybe it would be preferable to not have this implicit cast for 'perm', and instead require
+              //       the user to always annotate literals of type 'perm' with a conversion.
               for {
-                l <- permissionD(ctx)(left.asInstanceOf[PExpression])
-                r <- permissionD(ctx)(right.asInstanceOf[PExpression])
+                l <- permissionD(ctx, info)(left.asInstanceOf[PExpression])
+                r <- permissionD(ctx, info)(right.asInstanceOf[PExpression])
               } yield in.EqCmp(l, r)(src)
             } else {
               for {
-                l <- exprAndTypeAsExpr(ctx)(left)
-                r <- exprAndTypeAsExpr(ctx)(right)
+                l <- exprAndTypeAsExpr(ctx, info)(left)
+                r <- exprAndTypeAsExpr(ctx, info)(right)
               } yield in.EqCmp(l, r)(src)
             }
 
           case PUnequals(left, right) =>
             if (info.typOfExprOrType(left) == PermissionT || info.typOfExprOrType(right) == PermissionT) {
+              // When at least one of the operands has type 'perm', both operands are treated as permissions.
+              // This ensures that comparisons between a perm and a literal are handled consistently with the design of Go.
+              // E.g. the right-hand side of perm(1/2) == 1/2 is treated as a permission.
               for {
-                l <- permissionD(ctx)(left.asInstanceOf[PExpression])
-                r <- permissionD(ctx)(right.asInstanceOf[PExpression])
+                l <- permissionD(ctx, info)(left.asInstanceOf[PExpression])
+                r <- permissionD(ctx, info)(right.asInstanceOf[PExpression])
               } yield in.UneqCmp(l, r)(src)
             } else {
               for {
-                l <- exprAndTypeAsExpr(ctx)(left)
-                r <- exprAndTypeAsExpr(ctx)(right)
+                l <- exprAndTypeAsExpr(ctx, info)(left)
+                r <- exprAndTypeAsExpr(ctx, info)(right)
               } yield in.UneqCmp(l, r)(src)
+            }
+
+          case PGhostEquals(left, right) =>
+            if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
+              // When at least one of the operands has type 'perm', both operands are treated as permissions.
+              // This ensures that comparisons between a perm and a literal are handled consistently with the design of Go.
+              // E.g. the right-hand side of perm(1/2) == 1/2 is treated as a permission.
+              for { l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right) } yield in.GhostEqCmp(l, r)(src)
+            } else {
+              for { l <- exprD(ctx, info)(left); r <- exprD(ctx, info)(right) } yield in.GhostEqCmp(l, r)(src)
+            }
+
+          case PGhostUnequals(left, right) =>
+            if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
+              // When at least one of the operands has type 'perm', both operands are treated as permissions.
+              // This ensures that comparisons between a perm and a literal are handled consistently with the design of Go.
+              // E.g. the right-hand side of perm(1/2) == 1/2 is treated as a permission.
+              for { l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right) } yield in.GhostUneqCmp(l, r)(src)
+            } else {
+              for { l <- exprD(ctx, info)(left); r <- exprD(ctx, info)(right) } yield in.GhostUneqCmp(l, r)(src)
             }
 
           case PLess(left, right) =>
             if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
-              for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermLtCmp(l, r)(src)
+              for {l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right)} yield in.PermLtCmp(l, r)(src)
             } else {
               for {l <- go(left); r <- go(right)} yield in.LessCmp(l, r)(src)
             }
 
           case PAtMost(left, right) =>
             if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
-              for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermLeCmp(l, r)(src)
+              for {l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right)} yield in.PermLeCmp(l, r)(src)
             } else {
               for {l <- go(left); r <- go(right)} yield in.AtMostCmp(l, r)(src)
             }
 
           case PGreater(left, right) =>
             if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
-              for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermGtCmp(l, r)(src)
+              for {l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right)} yield in.PermGtCmp(l, r)(src)
             } else {
               for {l <- go(left); r <- go(right)} yield in.GreaterCmp(l, r)(src)
             }
 
           case PAtLeast(left, right) =>
             if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
-              for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermGeCmp(l, r)(src)
+              for {l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right)} yield in.PermGeCmp(l, r)(src)
             } else {
               for {l <- go(left); r <- go(right)} yield in.AtLeastCmp(l, r)(src)
             }
@@ -1643,14 +2342,14 @@ object Desugar {
           case PShiftRight(left, right) => for {l <- go(left); r <- go(right)} yield in.ShiftRight(l, r)(src)
           case PBitNegation(exp) => for {e <- go(exp)} yield in.BitNeg(e)(src)
 
-          case l: PLiteral => litD(ctx)(l)
+          case l: PLiteral => litD(ctx, info)(l)
 
           case PUnfolding(acc, op) =>
-            val dAcc = specificationD(ctx)(acc).asInstanceOf[in.Access]
-            val dOp = pureExprD(ctx)(op)
+            val dAcc = specificationD(ctx, info)(acc).asInstanceOf[in.Access]
+            val dOp = pureExprD(ctx, info)(op)
             unit(in.Unfolding(dAcc, dOp)(src))
 
-          case n : PIndexedExp => indexedExprD(n)(ctx)
+          case n : PIndexedExp => indexedExprD(n)(ctx, info)
 
           case PSliceExp(base, low, high, cap) => for {
             dbase <- go(base)
@@ -1703,7 +2402,7 @@ object Desugar {
             }
           }
 
-          case g: PGhostExpression => ghostExprD(ctx)(g)
+          case g: PGhostExpression => ghostExprD(ctx, info)(g)
 
           case b: PBlankIdentifier =>
             val typ = typeD(info.typ(b), Addressability.exclusiveVariable)(src)
@@ -1755,7 +2454,7 @@ object Desugar {
           case PPredConstructor(base, args) =>
             def handleBase(base: PPredConstructorBase, w: (in.PredT, Vector[Option[in.Expr]]) => Writer[in.Expr]) = {
               for {
-                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
+                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx, info)(_))) })
                 idT = info.typ(base) match {
                   case FunctionT(fnArgs, AssertionT) => in.PredT(fnArgs.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
                   case _: AbstractType =>
@@ -1796,7 +2495,7 @@ object Desugar {
                 case Some(_: ap.ReceivedPredicate) =>
                   handleBase(b, { case (baseT: in.PredT, dArgs: Vector[Option[in.Expr]]) =>
                     for {
-                      dRecv <- exprAndTypeAsExpr(ctx)(b.recv)
+                      dRecv <- exprAndTypeAsExpr(ctx, info)(b.recv)
                       proxy = getMPredProxy(dRecv.typ, baseT.args)
                       idT = in.PredT(dRecv.typ +: baseT.args, Addressability.rValue)
                     } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
@@ -1810,7 +2509,7 @@ object Desugar {
                 case Some(_: ap.PredicateExpr) =>
                   handleBase(b, { case (baseT: in.PredT, dArgs: Vector[Option[in.Expr]]) =>
                     for {
-                      dRecv <- exprAndTypeAsExpr(ctx)(b.recv)
+                      dRecv <- exprAndTypeAsExpr(ctx, info)(b.recv)
                       proxy = getMPredProxy(dRecv.typ, baseT.args.tail) // args must include at least the receiver
                       idT = in.PredT(baseT.args, Addressability.rValue)
                     } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
@@ -1819,16 +2518,16 @@ object Desugar {
               }
           }
 
-          case PUnpackSlice(slice) => exprD(ctx)(slice)
+          case PUnpackSlice(slice) => exprD(ctx, info)(slice)
           case e => Violation.violation(s"desugarer: $e is not supported")
         }
       }
     }
 
-    def invokeD(ctx: FunctionContext)(expr: PInvoke): Writer[in.Expr] = {
-      val src: Meta = meta(expr)
+    def invokeD(ctx: FunctionContext, info: TypeInfo)(expr: PInvoke): Writer[in.Expr] = {
+      val src: Meta = meta(expr, info)
       info.resolve(expr) match {
-        case Some(p: ap.FunctionCall) => functionCallD(ctx)(p, expr)(src)
+        case Some(p: ap.FunctionLikeCall) => functionLikeCallD(ctx, info)(p, expr)(src)
         case Some(ap.Conversion(typ, arg)) =>
           val typType = info.symbType(typ)
           val argType = info.typ(arg)
@@ -1838,13 +2537,18 @@ object Desugar {
               val resT = typeD(SliceT(IntT(TypeBounds.Byte)), Addressability.Exclusive)(src)
               for {
                 target <- freshDeclaredExclusiveVar(resT, expr, info)(src)
-                dArg <- exprD(ctx)(arg)
+                dArg <- exprD(ctx, info)(arg)
                 conv: in.EffectfulConversion = in.EffectfulConversion(target, resT, dArg)(src)
                 _ <- write(conv)
               } yield target
+            case (t: InterfaceT, _) =>
+              for {
+                exp <- exprD(ctx, info)(arg)
+                tD  =  typeD(t, exp.typ.addressability)(src)
+              } yield in.ToInterface(exp, tD)(exp.info)
             case _ =>
               val desugaredTyp = typeD(typType, info.addressability(expr))(src)
-              for { expr <- exprD(ctx)(arg) } yield in.Conversion(desugaredTyp, expr)(src)
+              for { expr <- exprD(ctx, info)(arg) } yield in.Conversion(desugaredTyp, expr)(src)
           }
 
         case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($expr) to an expression")
@@ -1855,24 +2559,25 @@ object Desugar {
     def applyMemberPathD(base: in.Expr, path: Vector[MemberPath])(pinfo: Source.Parser.Info): in.Expr = {
       path.foldLeft(base){ case (e, p) => p match {
         case MemberPath.Underlying => e
-        case MemberPath.Deref => in.Deref(e)(pinfo)
+        case MemberPath.Deref => in.Deref(e, underlyingType(e.typ))(pinfo)
         case MemberPath.Ref => in.Ref(e)(pinfo)
         case MemberPath.Next(g) =>
           in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(e.typ.addressability), g.context)(pinfo))(pinfo)
+        case _: MemberPath.EmbeddedInterface => e
       }}
     }
 
-    def exprAndTypeAsExpr(ctx: FunctionContext)(expr: PExpressionOrType): Writer[in.Expr] = {
+    def exprAndTypeAsExpr(ctx: FunctionContext, info: TypeInfo)(expr: PExpressionOrType): Writer[in.Expr] = {
 
-      def go(x: PExpressionOrType): Writer[in.Expr] = exprAndTypeAsExpr(ctx)(x)
+      def go(x: PExpressionOrType): Writer[in.Expr] = exprAndTypeAsExpr(ctx, info)(x)
 
-      val src: Meta = meta(expr)
+      val src: Meta = meta(expr, info)
 
       expr match {
 
         case PTypeExpr(t) => go(t)
 
-        case e: PExpression => exprD(ctx)(e)
+        case e: PExpression => exprD(ctx, info)(e)
 
         case PBoolType() => unit(in.BoolTExpr()(src))
 
@@ -1884,7 +2589,7 @@ object Desugar {
 
         case PArrayType(len, elem) =>
           for {
-            inLen <- exprD(ctx)(len)
+            inLen <- exprD(ctx, info)(len)
             inElem <- go(elem)
           } yield in.ArrayTExpr(inLen, inElem)(src)
 
@@ -1904,9 +2609,9 @@ object Desugar {
     }
 
 
-    def litD(ctx: FunctionContext)(lit: PLiteral): Writer[in.Expr] = {
+    def litD(ctx: FunctionContext, info: TypeInfo)(lit: PLiteral): Writer[in.Expr] = {
 
-      val src: Meta = meta(lit)
+      val src: Meta = meta(lit, info)
       def single[E <: in.Expr](gen: Meta => E): Writer[in.Expr] = unit[in.Expr](gen(src))
 
       lit match {
@@ -1914,21 +2619,45 @@ object Desugar {
         case PBoolLit(b) => single(in.BoolLit(b))
         case PStringLit(s) => single(in.StringLit(s))
         case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.PointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
-        case c: PCompositeLit => compositeLitD(ctx)(c)
+        case f: PFunctionLit => registerFunctionLit(ctx, info)(f)
+        case c: PCompositeLit => compositeLitD(ctx, info)(c)
         case _ => ???
       }
     }
 
-    def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
+    def functionLitD(ctx: FunctionContext)(lit: PFunctionLit): in.FunctionLit = {
+      val funcInfo = functionMemberOrLitD(lit.decl, meta(lit, info), ctx)
+      val src = meta(lit, info)
+      val name = functionLitProxyD(lit, info)
+      in.FunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(src)
+    }
+
+    def pureFunctionLitD(ctx: FunctionContext, info: TypeInfo)(lit: PFunctionLit): in.PureFunctionLit = {
+      val funcInfo = pureFunctionMemberOrLitD(lit.decl, meta(lit, info), ctx, info)
+      val name = functionLitProxyD(lit, info)
+      in.PureFunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit, info))
+    }
+
+    def capturedVarD(v: PIdnNode): (in.Parameter.In, in.LocalVar) = {
+      // Given a captured variable v, generate an in-parameter and a local variable for the function literal
+      // Both will have type Pointer(typeOf(v))
+      val src: Meta = meta(v, info)
+      val refAlias = nm.refAlias(idName(v, info), info.scope(v), info)
+      val param = in.Parameter.In(refAlias, typeD(PointerT(info.typ(v)), Addressability.inParameter)(src))(src)
+      val localVar = in.LocalVar(nm.alias(refAlias, info.scope(v), info), param.typ)(src)
+      (param, localVar)
+    }
+
+    def compositeLitD(ctx: FunctionContext, info: TypeInfo)(lit: PCompositeLit): Writer[in.Expr] = lit.typ match {
 
       case t: PImplicitSizeArrayType =>
         val arrayLen : BigInt = lit.lit.elems.length
-        val arrayTyp = typeD(info.symbType(t.elem), Addressability.arrayElement(Addressability.literal))(meta(lit))
-        literalValD(ctx)(lit.lit, in.ArrayT(arrayLen, arrayTyp, Addressability.literal))
+        val arrayTyp = typeD(info.symbType(t.elem), Addressability.arrayElement(Addressability.literal))(meta(lit, info))
+        literalValD(ctx, info)(lit.lit, in.ArrayT(arrayLen, arrayTyp, Addressability.literal))
 
       case t: PType =>
-        val it = typeD(info.symbType(t), Addressability.literal)(meta(lit))
-        literalValD(ctx)(lit.lit, it)
+        val it = typeD(info.symbType(t), Addressability.literal)(meta(lit, info))
+        literalValD(ctx, info)(lit.lit, it)
 
       case _ => ???
     }
@@ -1982,16 +2711,20 @@ object Desugar {
       case _ => None
     }
 
-    def compositeValD(ctx : FunctionContext)(expr : PCompositeVal, typ : in.Type) : Writer[in.Expr] = {
+    def compositeValD(ctx : FunctionContext, info: TypeInfo)(expr : PCompositeVal, typ : in.Type) : Writer[in.Expr] = {
+      violation(typ.addressability.isExclusive, s"Literals always have exclusive types, but got $typ")
+
       val e = expr match {
-        case PExpCompositeVal(e) => exprD(ctx)(e)
-        case PLitCompositeVal(lit) => literalValD(ctx)(lit, typ)
+        case PExpCompositeVal(e) => exprD(ctx, info)(e)
+        case PLitCompositeVal(lit) => literalValD(ctx, info)(lit, typ)
       }
       e map { exp => implicitConversion(exp.typ, typ, exp) }
     }
 
-    def literalValD(ctx: FunctionContext)(lit: PLiteralValue, t: in.Type): Writer[in.CompositeLit] = {
-      val src = meta(lit)
+    def literalValD(ctx: FunctionContext, info: TypeInfo)(lit: PLiteralValue, t: in.Type): Writer[in.Expr] = {
+      violation(t.addressability.isExclusive, s"Literals always have exclusive types, but got $t")
+
+      val src = meta(lit, info)
 
       compositeTypeD(t) match {
 
@@ -2000,10 +2733,13 @@ object Desugar {
 
           if (lit.elems.exists(_.key.isEmpty)) {
             // all elements are not keyed
-            val wArgs = fields.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) => exp match {
-              case PExpCompositeVal(ev) => exprD(ctx)(ev)
-              case PLitCompositeVal(lv) => literalValD(ctx)(lv, f.typ)
-            }}
+            val wArgs = fields.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) =>
+              val wv = exp match {
+                case PExpCompositeVal(ev) => exprD(ctx, info)(ev)
+                case PLitCompositeVal(lv) => literalValD(ctx, info)(lv, f.typ)
+              }
+              wv.map{ v => implicitConversion(v.typ, f.typ, v) }
+            }
 
             for {
               args <- sequence(wArgs)
@@ -2016,10 +2752,11 @@ object Desugar {
             val vMap = lit.elems.map {
               case PKeyedElement(Some(PIdentifierKey(key)), exp) =>
                 val f = fMap(key.name)
-                exp match {
-                  case PExpCompositeVal(ev) => f -> exprD(ctx)(ev)
-                  case PLitCompositeVal(lv) => f -> literalValD(ctx)(lv, f.typ)
+                val wv = exp match {
+                  case PExpCompositeVal(ev) => exprD(ctx, info)(ev)
+                  case PLitCompositeVal(lv) => literalValD(ctx, info)(lv, f.typ)
                 }
+                f -> wv.map{ v => implicitConversion(v.typ, f.typ, v) }
 
               case _ => Violation.violation("expected identifier as a key")
             }.toMap
@@ -2037,51 +2774,59 @@ object Desugar {
 
         case CompositeKind.Array(in.ArrayT(len, typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ))) }
+          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx, info)(e.exp, typ))) }
             yield in.ArrayLit(len, typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
 
-        case CompositeKind.Slice(in.SliceT(typ, addressability)) =>
+        case CompositeKind.Slice(t@ in.SliceT(typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ))) }
-            yield in.SliceLit(typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
+          for {
+            elemsD <- sequence(lit.elems.map(e => compositeValD(ctx, info)(e.exp, typ.withAddressability(Addressability.Exclusive))))
+            target <- freshDeclaredExclusiveVar(t, lit, info)(src)
+            _ <- write(in.NewSliceLit(target, typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src))
+          } yield target
 
         case CompositeKind.Sequence(in.SequenceT(typ, _)) => for {
-          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
+          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx, info)(e.exp, typ)))
           elemsMap = info.keyElementIndices(lit.elems).zip(elemsD).toMap
           lengthD = if (elemsMap.isEmpty) BigInt(0) else elemsMap.maxBy(_._1)._1 + 1
         } yield in.SequenceLit(lengthD, typ, elemsMap)(src)
 
         case CompositeKind.Set(in.SetT(typ, _)) => for {
-          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
+          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx, info)(e.exp, typ)))
         } yield in.SetLit(typ, elemsD)(src)
 
         case CompositeKind.Multiset(in.MultisetT(typ, _)) => for {
-          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
+          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx, info)(e.exp, typ)))
         } yield in.MultisetLit(typ, elemsD)(src)
 
-        case CompositeKind.Map(in.MapT(keys, values, _)) => for {
-          entriesD <- handleMapEntries(ctx)(lit, keys, values)
-        } yield in.MapLit(keys, values, entriesD)(src)
+        case CompositeKind.Map(t@ in.MapT(keys, values, _)) => for {
+          entriesD <- handleMapEntries(ctx, info)(lit, keys, values)
+          target <- freshDeclaredExclusiveVar(t, lit, info)(src)
+          _ <- write(in.NewMapLit(target, keys, values, entriesD)(src))
+        } yield target
 
         case CompositeKind.MathematicalMap(in.MathMapT(keys, values, _)) => for {
-          entriesD <- handleMapEntries(ctx)(lit, keys, values)
+          entriesD <- handleMapEntries(ctx, info)(lit, keys, values)
         } yield in.MathMapLit(keys, values, entriesD)(src)
       }
     }
 
-    private def handleMapEntries(ctx: FunctionContext)(lit: PLiteralValue, keys: in.Type, values: in.Type): Writer[Seq[(in.Expr, in.Expr)]] = {
+    private def handleMapEntries(ctx: FunctionContext, info: TypeInfo)(lit: PLiteralValue, keys: in.Type, values: in.Type): Writer[Seq[(in.Expr, in.Expr)]] = {
+      violation(keys.addressability.isExclusive, s"Map literal keys always have exclusive types, but got $keys")
+      violation(values.addressability.isExclusive, s"Map literal values always have exclusive types, but got $values")
+
       sequence(
         lit.elems map {
           case PKeyedElement(Some(key), value) => for {
             entryKey <- key match {
-              case v: PCompositeVal => compositeValD(ctx)(v, keys)
+              case v: PCompositeVal => compositeValD(ctx, info)(v, keys)
               case k: PIdentifierKey => info.regular(k.id) match {
-                case _: st.Variable => unit(varD(ctx)(k.id))
-                case c: st.Constant => unit(globalConstD(c)(meta(k)))
+                case _: st.Variable => unit(varD(ctx, info)(k.id))
+                case c: st.Constant => unit(globalConstD(c)(meta(k, info)))
                 case _ => violation(s"unexpected key $key")
               }
             }
-            entryVal <- compositeValD(ctx)(value, values)
+            entryVal <- compositeValD(ctx, info)(value, values)
           } yield (entryKey, entryVal)
 
           case _ => violation("unexpected pattern, missing key in map literal")
@@ -2104,22 +2849,35 @@ object Desugar {
     var definedMethods: Map[in.MethodProxy, in.MethodMember] = Map.empty
     var definedMPredicates: Map[in.MPredicateProxy, in.MPredicate] = Map.empty
     var definedFPredicates: Map[in.FPredicateProxy, in.FPredicate] = Map.empty
+    var definedFuncLiterals: Map[in.FunctionLitProxy, in.FunctionLitLike] = Map.empty
 
     def registerDefinedType(t: Type.DeclaredT, addrMod: Addressability)(src: Meta): in.DefinedT = {
       // this type was declared in the current package
       val name = nm.typ(t.decl.left.name, t.context)
 
-      if (!definedTypesSet.contains(name, addrMod)) {
-        definedTypesSet += ((name, addrMod))
-        val newEntry = typeD(t.context.symbType(t.decl.right), Addressability.underlying(addrMod))(src)
-        definedTypes += (name, addrMod) -> newEntry
+      def register(addrMod: Addressability): Unit = {
+        if (!definedTypesSet.contains(name, addrMod)) {
+          definedTypesSet += ((name, addrMod))
+          val newEntry = typeD(t.context.symbType(t.decl.right), Addressability.underlying(addrMod))(src)
+          definedTypes += (name, addrMod) -> newEntry
+        }
       }
+
+      val invAddrMod = addrMod match {
+        case Addressability.Exclusive => Addressability.Shared
+        case Addressability.Shared => Addressability.Exclusive
+      }
+
+      register(addrMod)
+
+      // [[underlyingType(in.Type)]] assumes that the RHS of a type declaration is in `definedTypes`
+      // if the corresponding type declaration was translated. This is necessary to avoid cycles in the translation.
+      register(invAddrMod)
 
       in.DefinedT(name, addrMod)
     }
 
     def registerInterface(t: Type.InterfaceT, dT: in.InterfaceT): Unit = {
-      Violation.violation(t.decl.embedded.isEmpty, "embeddings in interfaces are currently not supported")
 
       if (!registeredInterfaces.contains(dT.name) && info == t.context.getTypeInfo) {
         registeredInterfaces += dT.name
@@ -2127,7 +2885,7 @@ object Desugar {
         val itfT = dT.withAddressability(Addressability.Exclusive)
         val xInfo = t.context.getTypeInfo
 
-        t.decl.predSpec foreach { p =>
+        t.decl.predSpecs foreach { p =>
           val src = meta(p, xInfo)
           val proxy = mpredicateProxyD(p, xInfo)
           val recv = implicitThisD(itfT)(src)
@@ -2149,9 +2907,9 @@ object Desugar {
           val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i,xInfo) }
           val (returns, _) = returnsWithSubs.unzip
           val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
-          val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx)
-          val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx)
-          val terminationMeasures = sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx)).res
+          val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx, info)
+          val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx, info)
+          val terminationMeasures = sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx, info)).res
 
           val mem = if (m.spec.isPure) {
             in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
@@ -2164,7 +2922,6 @@ object Desugar {
       }
     }
     var registeredInterfaces: Set[String] = Set.empty
-
 
 
     object AdditionalMembers {
@@ -2209,7 +2966,7 @@ object Desugar {
           val axioms = t.decl.axioms.map{ ax =>
             val src = meta(ax, xInfo)
             val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
-            in.DomainAxiom(pureExprD(specCtx)(ax.exp))(src)
+            in.DomainAxiom(pureExprD(specCtx, info)(ax.exp))(src)
           }
 
           AdditionalMembers.addMember(
@@ -2222,7 +2979,7 @@ object Desugar {
 
     def registerImplementationProof(decl: PImplementationProof): Unit = {
 
-      val src = meta(decl)
+      val src = meta(decl, info)
       val subT = info.symbType(decl.subT)
       val dSubT = typeD(subT, Addressability.Exclusive)(src)
       val superT = info.symbType(decl.superT)
@@ -2243,12 +3000,12 @@ object Desugar {
         val superSymb = info.getMember(superT, mp.id.name).get._1.asInstanceOf[st.MethodSpec]
         val superProxy = methodProxyFromSymb(superSymb)
 
-        val src = meta(mp)
-        val recvWithSubs = inParameterD(mp.receiver, 0)
+        val src = meta(mp, info)
+        val recvWithSubs = inParameterD(mp.receiver, 0, info)
         val (recv, _) = recvWithSubs
-        val argsWithSubs = mp.args.zipWithIndex map { case (p, i) => inParameterD(p, i) }
+        val argsWithSubs = mp.args.zipWithIndex map { case (p, i) => inParameterD(p, i, info) }
         val (args, _) = argsWithSubs.unzip
-        val returnsWithSubs = mp.result.outs.zipWithIndex map { case (p, i) => outParameterD(p, i) }
+        val returnsWithSubs = mp.result.outs.zipWithIndex map { case (p, i) => outParameterD(p, i, info) }
         val (returns, _) = returnsWithSubs.unzip
 
         val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
@@ -2256,13 +3013,13 @@ object Desugar {
           val bodyOpt = mp.body.map {
             case (_, b: PBlock) =>
               b.nonEmptyStmts match {
-                case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
+                case Vector(PReturn(Vector(ret))) => pureExprD(ctx, info)(ret)
                 case s => Violation.violation(s"unexpected pure function body: $s")
               }
           }
           in.PureMethodSubtypeProof(subProxy, dSuperT, superProxy, recv, args, returns, bodyOpt)(src)
         } else {
-          val bodyOpt = mp.body.map { case (_, s) => blockD(ctx)(s).asInstanceOf[in.Block] }
+          val bodyOpt = mp.body.map { case (_, s) => blockD(ctx, info)(s).asInstanceOf[in.Block] }
           in.MethodSubtypeProof(subProxy, dSuperT, superProxy, recv, args, returns, bodyOpt)(src)
         }
 
@@ -2278,8 +3035,8 @@ object Desugar {
         )
       }
     }
-    def missingImplProofs: Vector[in.Member] = {
 
+    def missingImplProofs: Vector[in.Member] = {
       info.missingImplProofs.map{ case (implT, itfT, implSymb, itfSymb) =>
         val subProxy = methodProxyFromSymb(implSymb)
         val superT = interfaceType(typeD(itfT, Addressability.Exclusive)(Source.Parser.Unsourced)).get
@@ -2295,6 +3052,228 @@ object Desugar {
     }
     var implementationProofPredicateAliases: Map[(in.Type, in.InterfaceT, String), in.FPredicateProxy] = Map.empty
 
+    /**
+      * Generates proof obligations for the initialization of the package under verification.
+      * @param mainPkg package under verification
+      * @param specCollector info about the init specifications of imported packages. All imported packages should
+      *                      have been registered in `specCollector` before calling this method
+      * @param config
+      */
+    def registerMainPackage(mainPkg: PPackage, specCollector: PackageInitSpecCollector)(config: Config): Unit = {
+      // As for imported methods, imported packages are not checked to satisfy their specification. In particular,
+      // Gobra does not check that the package postconditions are established by the initialization code. Instead,
+      // this is assumed. We only generate the proof obligations for the initialization code in the main package.
+      // Note that `config.enableLazyImports` disables init blocks, global variables, import preconditions, and init
+      // postconditions in the type checker, which means that we do not have to generate an init proof.
+      registerPackage(mainPkg, specCollector, generateInitProof = !config.enableLazyImports)(config)
+
+      if (config.enableLazyImports) {
+        // early return to not add any proof obligations because we have made sure in the type checker that
+        // there aren't any global variables, init blocks, init postconditions, and import preconditions (in the
+        // packages that have been parsed). Note that packages that have been skipped because of the laziness might
+        // still contain such features.
+        return
+      }
+
+      // check that the postconditions of every package are enough to satisfy all of their imports' preconditions
+      val src = meta(mainPkg, info)
+      specCollector.registeredPackages().foreach{ pkg =>
+        val checkPkgImports = checkPkgImportObligations(pkg, specCollector)(src)
+        AdditionalMembers.addMember(checkPkgImports)
+      }
+
+      // proof obligations for function main
+      val mainFuncObligations = generateMainFuncObligations(mainPkg, specCollector)
+      mainFuncObligations.foreach(AdditionalMembers.addMember)
+    }
+
+    /**
+      * Generates the members that correspond to the global variables declared in `pkg` and registers info in
+      * `specCollector` about all import preconditions and all package postconditions in all files of `pkg`.
+      * @param pkg
+      * @param specCollector
+      * @param generateInitProof true if the proof obligations for the package's initialization code
+      *                          should be generated
+      * @param config
+      */
+    def registerPackage(pkg: PPackage, specCollector: PackageInitSpecCollector, generateInitProof: Boolean = false)
+                       (config: Config): Unit = {
+      // Desugar all declarations of globals in `pkg` to generate the members that correspond to the global variables.
+      // Each entry in `pGlobalDecls` contains the declarations of a file in `pkg` sorted by the order in which they
+      // appear in the program.
+      val pGlobalDecls: Vector[Vector[PVarDecl]] = pkg.programs.map{ p =>
+        val unsortedDecls = p.declarations.collect{ case d: PVarDecl => d }
+        // TODO: this is currently fine, given that we currently require global variable declarations to come after
+        //       the declarations of all of the dependencies of the declared variables. This should be changed when
+        //       we lift this restriction.
+        unsortedDecls.sortBy{ decl =>
+          pom.positions.getStart(decl) match {
+            case Some(pos) => (pos.line, pos.column)
+            case None => violation(s"Could not find the position information of node $decl.")
+          }
+        }
+      }
+      // sorted desugared declarations
+      val globalDecls: Vector[Vector[in.GlobalVarDecl]] = pGlobalDecls.map(_.map(globalVarDeclD))
+      // register all global variable declarations
+      globalDecls.flatten.foreach(AdditionalMembers.addMember)
+
+      if (generateInitProof) {
+        // Check that the initialization code satisfies the contract of every file in the package.
+        val fileInitTranslations: Vector[in.Function] = pkg.programs.zip(globalDecls).map {
+          case (p, sortedDecls) => checkProgramInitContract(p)(sortedDecls)
+        }
+        fileInitTranslations.foreach(AdditionalMembers.addMember)
+      }
+
+      // Collect and register all import-preconditions
+      pkg.imports.foreach{ imp =>
+        info.context.getTypeInfo(RegularImport(imp.importPath))(config) match {
+          case Some(Right(tI)) =>
+            val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
+            Violation.violation(!config.enableLazyImports || desugaredPre.isEmpty, s"Import precondition found despite running with ${Config.enableLazyImportOptionPrettyPrinted}")
+            specCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
+          case e => Violation.violation(config.enableLazyImports, s"Unexpected value found $e while importing ${imp.importPath} - type information is assumed to be available for all packages when Gobra is executed with lazy imports disabled")
+        }
+      }
+
+      // Collect and register all postconditions of all PPrograms (i.e., files) in pkg
+      val pkgPost = pkg.programs.flatMap(_.initPosts).map(specificationD(FunctionContext.empty(), info))
+      specCollector.addPackagePosts(pkg, pkgPost)
+    }
+
+    /**
+      * Checks that the postconditions of package `pkg` imply the conjunction of all imports' preconditions (that import
+      * package `pkg`)
+      * @param pkg
+      * @param specCollector
+      * @param src
+      * @return
+      */
+    def checkPkgImportObligations(pkg: PPackage, specCollector: PackageInitSpecCollector)
+                                 (src: Source.Parser.Single): in.Function = {
+      val funcProxy = in.FunctionProxy(nm.packageImports(pkg, info))(src)
+      in.Function(
+        name = funcProxy,
+        args = Vector.empty,
+        results = Vector.empty,
+        pres = specCollector.postsOfPackage(pkg),
+        posts = specCollector.presImportsOfPackage(pkg).map{ a =>
+          a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(ImportPreNotEstablished))
+        },
+        terminationMeasures = Vector.empty,
+        body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
+      )(src)
+    }
+
+    /**
+      * Generate proof obligations for the main function, if it exists in `mainPkg`.
+      * To that end, we just check that the init post-conditions of the current package imply the main function's
+      * precondition. A more complete approach would be to iterate through all packages,
+      * following the order of the dependencies, and exhale its import-preconditions and then inhale its
+      * package postconditions, until we reach the main package. Afterward, we could exhale main's precondition.
+      * @param mainPkg package under verification
+      * @param specCollector info about the init specifications of imported packages. All imported packages should
+      *                      have been registered in `specCollector` before calling this method
+      * @return
+      */
+    def generateMainFuncObligations(mainPkg: PPackage, specCollector: PackageInitSpecCollector): Option[in.Function] = {
+      val mainFuncOpt = mainPkg.declarations.collectFirst{
+        case f: PFunctionDecl if f.id.name == Constants.MAIN_FUNC_NAME => f
+      }
+      mainFuncOpt.map{ mainFunc =>
+        val src = meta(mainFunc, info)
+        val mainPkgPosts = specCollector.postsOfPackage(mainPkg)
+        val mainFuncPre  = mainFunc.spec.pres ++ mainFunc.spec.preserves
+        val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty(), info)).map{ a =>
+          a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(MainPreNotEstablished))
+        }
+        val funcProxy = in.FunctionProxy(nm.mainFuncProofObligation(info))(src)
+        in.Function(
+          name = funcProxy,
+          args = Vector.empty,
+          results = Vector.empty,
+          pres = mainPkgPosts,
+          posts = mainFuncPreD,
+          terminationMeasures = Vector.empty,
+          body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
+        )(src)
+      }
+    }
+
+    /**
+      * Generates the proof obligation for the init code in `p`. The proof obligations for the init of `p` are
+      * encoded as a method that performs the following operations, in order:
+      * - inhale all preconditions of the imports in the file
+      * - initialize all global variables
+      * - execute the operations on the LHS of the declarations by declaration order,
+      *   as long as dependency order is respected.
+      * - execute all inits in the current file in the order they appear
+      * - exhale all post-conditions of the file
+      * Notice that these operations enforce non-interference between two different files in the same program. Thus,
+      * it is ok to check the initialization of a package by separately checking the initialization of each of
+      * its programs.
+      * @param p
+      * @return
+      */
+    def checkProgramInitContract(p: PProgram)(sortedGlobVarDecls: Vector[in.GlobalVarDecl]): in.Function = {
+      // all errors found during init are reported in the package clause of the file
+      val src = meta(p.packageClause, info)
+      val funcProxy = in.FunctionProxy(nm.programInit(p, info))(src)
+      val progPres: Vector[in.Assertion] = p.imports.flatMap(_.importPres).map(specificationD(FunctionContext.empty(), info)(_))
+      val progPosts: Vector[in.Assertion] = p.initPosts.map(specificationD(FunctionContext.empty(), info)(_))
+
+      in.Function(
+        name = funcProxy,
+        args = Vector(),
+        results = Vector(),
+        // inhales all preconditions in the imports of the current file
+        pres = progPres,
+        // exhales all package postconditions in the current file
+        posts = progPosts,
+        // in our verification approach, the initialization code must be proven to terminate
+        terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)),
+        body = Some(
+          in.MethodBody(
+            decls = Vector(),
+            postprocessing = Vector(),
+            seqn = in.MethodBodySeqn{
+              // init all global variables declared in the file (not all declarations in the package!)
+              val initDeclaredGlobs: Vector[in.Initialization] = sortedGlobVarDecls.flatMap(_.left.map(gVar =>
+                in.Initialization(gVar)(gVar.info)
+              ))
+              // execute the declaration statements for variables in order of declaration, while satisfying the
+              // dependency relation
+              /**
+                * TODO: Correctly order the variable declarations once the restriction to provide declarations in order
+                *       is lifted
+                * Currently, we do not perform any reordering because Gobra requires global variables to be declared
+                * in the correct order. When lifting this restriction, care must be taken when dealing with cases like:
+                *   var C = A
+                *   var A, B = 1, 2
+                * In this case, we must "split" variable declarations and reorder the declaration operations such that
+                * the obtained code performs the operations in the following order:
+                *   var A = 1
+                *   var C = A
+                *   var B = 2
+                */
+              val declarationsInOrder: Vector[in.Stmt] = sortedGlobVarDecls.flatMap{ _.declStmts }
+              // execute all inits in the order they occur
+              // TODO: at the moment, there exists at most one init, but this should change in the future
+              val initBlocks = p.declarations.collect{
+                case x: PFunctionDecl if x.id.name == Constants.INIT_FUNC_NAME => x
+              }
+              violation(initBlocks.length <= 1, "at most one init block is supported right now")
+              val initCode: Vector[in.Stmt] =
+                initBlocks.flatMap(b => b.body.toVector.map(_._2).map(blockD(FunctionContext.empty(), info)))
+
+              // body of the generated method
+              initDeclaredGlobs ++ declarationsInOrder ++ initCode
+            }(src)
+          )(src)
+        )
+      )(src)
+    }
 
     def registerMethod(decl: PMethodDecl): in.MethodMember = {
       val method = methodD(decl)
@@ -2303,11 +3282,21 @@ object Desugar {
       method
     }
 
-    def registerFunction(decl: PFunctionDecl): in.FunctionMember = {
-      val function = functionD(decl)
-      val functionProxy = functionProxyD(decl, info)
-      definedFunctions += functionProxy -> function
-      function
+    def registerFunction(decl: PFunctionDecl): Option[in.FunctionMember] = {
+      if (decl.id.name == Constants.INIT_FUNC_NAME) {
+        /**
+          *  In Go, functions named init are executed during a package initialization,
+          *  and can never be called by any other function. In Gobra, the proof obligations
+          *  associated with init functions are generated in method [[registerPackage]].
+          *  As such, these functions are ignored by [[registerFunction]].
+          */
+        None
+      } else {
+        val function = functionD(decl)
+        val functionProxy = functionProxyD(decl, info)
+        definedFunctions += functionProxy -> function
+        Some(function)
+      }
     }
 
     def registerMPredicate(decl: PMPredicateDecl): in.MPredicate = {
@@ -2322,6 +3311,65 @@ object Desugar {
       val fPred = fpredicateD(decl)
       definedFPredicates += fPredProxy -> fPred
       fPred
+    }
+
+    /**
+      * Holds types for which conditionalId functions have been declared for.
+      * This way conditionalId functions do not get declared twice for the same
+      * type.
+      */
+    private var hasConditionalIdForType : Set[in.Type] = Set.empty
+
+    /**
+      * If it doesn't exist it generates a function:
+      *
+      * function $conditionalId<type>(value: <viper type>, cond: Bool): Int
+      *   requires cond
+      * {
+      *   value
+      * }
+      *
+      * where type is the underlying type of param generalType
+      *
+      * @param valueVar
+      * @param condVar
+      * @param generalType
+      * @param src
+      * @return a call to the $conditionalId<type> function with arguments valueVar and condVar
+      */
+    private def conditionalId(valueVar: in.Expr, condVar: in.Expr, generalType: in.Type)(src: Meta): in.PureFunctionCall = {
+      val typ = underlyingType(generalType)
+      val name = in.FunctionProxy("$" + s"conditionalId${Names.serializeType(typ)}")(Source.Parser.Internal)
+      if (!hasConditionalIdForType(typ)) {
+        hasConditionalIdForType += typ
+        val value = in.Parameter.In("value", typ.withAddressability(Addressability.inParameter))(Source.Parser.Internal)
+        val cond = in.Parameter.In("cond", in.BoolT(Addressability.inParameter))(Source.Parser.Internal)
+        val res = in.Parameter.Out("res", typ.withAddressability(Addressability.outParameter))(Source.Parser.Internal)
+        val args = Vector(value, cond)
+        val results = Vector(res)
+        val pres = Vector(in.ExprAssertion(cond)(Source.Parser.Internal))
+        val posts = Vector[in.Assertion]()
+        val terminationMeasures = Vector(in.WildcardMeasure(None)(Source.Parser.Internal))
+        val body = Some(value)
+        AdditionalMembers.addMember(
+          in.PureFunction(
+            name,
+            args,
+            results,
+            pres,
+            posts,
+            terminationMeasures,
+            body)(Source.Parser.Internal)
+        )
+      }
+      in.PureFunctionCall(name, Vector(valueVar, condVar), in.IntT(Addressability.callResult))(src)
+    }
+
+    /** Desugar the function literal and add it to the map. */
+    private def registerFunctionLit(ctx: FunctionContext, info: TypeInfo)(lit: PFunctionLit): Writer[in.Expr] = {
+      val fLit = if (lit.spec.isPure) pureFunctionLitD(ctx, info)(lit) else functionLitD(ctx)(lit)
+      definedFuncLiterals += fLit.name -> fLit
+      unit(fLit)
     }
 
     def embeddedTypeD(t: PEmbeddedType, addrMod: Addressability)(src: Meta): in.Type = t match {
@@ -2362,7 +3410,12 @@ object Desugar {
 
       case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
 
-      case Type.FunctionT(_, _) => ???
+      case Type.FunctionT(args, result) =>
+        val res = result match {
+          case InternalTupleT(r) => r
+          case r: Type => Vector(r)
+        }
+        in.FunctionT(args.map(typeD(_, Addressability.rValue)(src)), res.map(typeD(_, Addressability.rValue)(src)), addrMod)
 
       case t: Type.InterfaceT =>
         val interfaceName = nm.interface(t)
@@ -2392,7 +3445,7 @@ object Desugar {
 
     // Identifier
 
-    def idName(id: PIdnNode, context: TypeInfo = info): String = context.regular(id) match {
+    def idName(id: PIdnNode, context: TypeInfo): String = context.regular(id) match {
       case f: st.Function => nm.function(id.name, f.context)
       case m: st.MethodImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
       case m: st.MethodSpec => nm.spec(id.name, m.itfType, m.context)
@@ -2400,11 +3453,29 @@ object Desugar {
       case m: st.MPredicateImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
       case m: st.MPredicateSpec => nm.spec(id.name, m.itfType, m.context)
       case f: st.DomainFunction => nm.function(id.name, f.context)
-      case v: st.Variable => nm.variable(id.name, context.scope(id), v.context)
+      case v: st.Variable => v match {
+        case _: st.GlobalVariable => nm.global(id.name, v.context)
+        case _ => nm.variable(id.name, context.scope(id), v.context)
+      }
+      case c: st.Closure => nm.funcLit(id.name, context.enclosingFunction(id).get, c.context)
       case sc: st.SingleConstant => nm.global(id.name, sc.context)
       case st.Embbed(_, _, _) | st.Field(_, _, _) => violation(s"expected that fields and embedded field are desugared by using embeddedDeclD resp. fieldDeclD but idName was called with $id")
       case n: st.NamedType => nm.typ(id.name, n.context)
       case _ => ???
+    }
+
+    /** Returns a name for the code root that `n` is contained in. */
+    def rootName(n: PNode, context: TypeInfo): String = {
+      info.codeRoot(n) match {
+        case decl: PMethodDecl     => idName(decl.id, context)
+        case decl: PFunctionDecl   => idName(decl.id, context)
+        case decl: PMPredicateDecl => idName(decl.id, context)
+        case decl: PFPredicateDecl => idName(decl.id, context)
+        case decl: PMethodSig      => idName(decl.id, context)
+        case decl: PMPredicateSig  => idName(decl.id, context)
+        case decl: PDomainFunction => idName(decl.id, context)
+        case _ => ??? // axiom and method-implementation-proof
+      }
     }
 
     def globalConstD(c: st.Constant)(src: Meta): in.GlobalConst = {
@@ -2416,23 +3487,28 @@ object Desugar {
       }
     }
 
-    def varD(ctx: FunctionContext)(id: PIdnNode): in.Var = {
+    def varD(ctx: FunctionContext, info: TypeInfo)(id: PIdnNode): in.Expr = {
       require(info.regular(id).isInstanceOf[st.Variable])
-
-      ctx(id) match {
+      ctx(id, info) match {
         case Some(v : in.Var) => v
-        case Some(_) => violation("expected a variable")
-        case None => localVarContextFreeD(id)
+        case Some(d@in.Deref(_: in.Var, _)) => d
+        case Some(v) => violation(s"expected a variable or the dereference of a pointer but got $v")
+        case None => localVarContextFreeD(id, info)
       }
     }
 
-    def assignableVarD(ctx: FunctionContext)(id: PIdnNode) : in.AssignableVar = {
-      require(info.regular(id).isInstanceOf[st.Variable])
-
-      ctx(id) match {
-        case Some(v: in.AssignableVar) => v
-        case Some(_) => violation("expected an assignable variable")
-        case None => localVarContextFreeD(id)
+    def assignableVarD(ctx: FunctionContext, info: TypeInfo)(id: PIdnNode) : Either[in.AssignableVar, in.Deref] = {
+      info.regular(id) match {
+        case g: st.GlobalVariable =>
+          val src: Meta = meta(id, info)
+          Left(globalVarD(g)(src))
+        case _: st.Variable => ctx(id, info) match {
+          case Some(v: in.AssignableVar) => Left(v)
+          case Some(d@in.Deref(_: in.Var, _)) => Right(d)
+          case Some(_) => violation("expected an assignable variable or the dereference of a variable")
+          case None => Left(localVarContextFreeD(id, info))
+        }
+        case e => violation(s"Expected a variable, but got $e instead")
       }
     }
 
@@ -2441,23 +3517,36 @@ object Desugar {
       in.LocalVar(nm.fresh(scope, ctx), typ)(info)
     }
 
+    def freshGlobalVar(typ: in.Type, scope: PPackage, ctx: ExternalTypeInfo)(info: Source.Parser.Info): in.GlobalVar = {
+      require(typ.addressability == Addressability.globalVariable)
+      val name = nm.fresh(scope, ctx)
+      val uniqName = nm.global(name, ctx)
+      val proxy = in.GlobalVarProxy(name, uniqName)(meta(scope, ctx.getTypeInfo))
+      in.GlobalVar(proxy, typ)(info)
+    }
+
     def freshDeclaredExclusiveVar(typ: in.Type, scope: PNode, ctx: ExternalTypeInfo)(info: Source.Parser.Info): Writer[in.LocalVar] = {
       require(typ.addressability == Addressability.exclusiveVariable)
       val res = in.LocalVar(nm.fresh(scope, ctx), typ)(info)
-      declare(res).map(_ => res)
+      declaredExclusiveVar(res)
     }
 
-    def localVarD(ctx: FunctionContext)(id: PIdnNode): in.LocalVar = {
+    def declaredExclusiveVar(v: in.LocalVar): Writer[in.LocalVar] = {
+      declare(v).map(_ => v)
+    }
+
+    def localVarD(ctx: FunctionContext, info: TypeInfo)(id: PIdnNode): in.Expr = {
       require(info.regular(id).isInstanceOf[st.Variable]) // TODO: add local check
 
-      ctx(id) match {
+      ctx(id, info) match {
         case Some(v: in.LocalVar) => v
-        case None => localVarContextFreeD(id)
+        case Some(d@in.Deref(v, _)) if v.isInstanceOf[in.LocalVar] => d
+        case None => localVarContextFreeD(id, info)
         case _ => violation("expected local variable")
       }
     }
 
-    def localVarContextFreeD(id: PIdnNode, context: TypeInfo = info): in.LocalVar = {
+    def localVarContextFreeD(id: PIdnNode, context: TypeInfo): in.LocalVar = {
       require(context.regular(id).isInstanceOf[st.Variable]) // TODO: add local check
 
       val src: Meta = meta(id, context)
@@ -2466,12 +3555,8 @@ object Desugar {
       in.LocalVar(idName(id, context), typ)(src)
     }
 
-    def parameterAsLocalValVar(p: in.Parameter): in.LocalVar = {
-      in.LocalVar(p.id, p.typ)(p.info)
-    }
-
     def labelProxy(l: PLabelNode): in.LabelProxy = {
-      val src = meta(l)
+      val src = meta(l, info)
       in.LabelProxy(nm.label(l.name))(src)
     }
 
@@ -2479,7 +3564,7 @@ object Desugar {
 
     /** desugars parameter.
       * The second return argument contains an addressable copy, if necessary */
-    def inParameterD(p: PParameter, idx: Int, context: TypeInfo = info): (in.Parameter.In, Option[in.LocalVar]) = {
+    def inParameterD(p: PParameter, idx: Int, context: TypeInfo): (in.Parameter.In, Option[in.LocalVar]) = {
       val src: Meta = meta(p, context)
       p match {
         case NoGhost(noGhost: PActualParameter) =>
@@ -2500,7 +3585,7 @@ object Desugar {
 
     /** desugars parameter.
       * The second return argument contains an addressable copy, if necessary */
-    def outParameterD(p: PParameter, idx: Int, context: TypeInfo = info): (in.Parameter.Out, Option[in.LocalVar]) = {
+    def outParameterD(p: PParameter, idx: Int, context: TypeInfo): (in.Parameter.Out, Option[in.LocalVar]) = {
       val src: Meta = meta(p, context)
       p match {
         case NoGhost(noGhost: PActualParameter) =>
@@ -2519,7 +3604,7 @@ object Desugar {
       }
     }
 
-    def receiverD(p: PReceiver, context: TypeInfo = info): (in.Parameter.In, Option[in.LocalVar]) = {
+    def receiverD(p: PReceiver, context: TypeInfo): (in.Parameter.In, Option[in.LocalVar]) = {
       val src: Meta = meta(p, context)
       p match {
         case PNamedReceiver(id, typ, _) =>
@@ -2578,9 +3663,9 @@ object Desugar {
 
     def ghostStmtD(ctx: FunctionContext)(stmt: PGhostStatement): Writer[in.Stmt] = {
 
-      def goA(ass: PExpression): Writer[in.Assertion] = assertionD(ctx)(ass)
+      def goA(ass: PExpression): Writer[in.Assertion] = assertionD(ctx, info)(ass)
 
-      val src: Meta = meta(stmt)
+      val src: Meta = meta(stmt, info)
 
       stmt match {
         case PAssert(exp) => for {e <- goA(exp)} yield in.Assert(e)(src)
@@ -2613,7 +3698,7 @@ object Desugar {
         case PPackageWand(wand, blockOpt) =>
           for {
             w <- goA(wand)
-            b <- option(blockOpt map stmtD(ctx))
+            b <- option(blockOpt map stmtD(ctx, info))
           } yield w match {
             case w: in.MagicWand => in.PackageWand(w, b)(src)
             case e => Violation.violation(s"Expected a magic wand, but got $e")
@@ -2625,24 +3710,148 @@ object Desugar {
             case w: in.MagicWand => in.ApplyWand(w)(src)
             case e => Violation.violation(s"Expected a magic wand, but got $e")
           }
-        case PExplicitGhostStatement(actual) => stmtD(ctx)(actual)
+        case p: PClosureImplProof => closureImplProofD(ctx)(p)
+        case PExplicitGhostStatement(actual) => stmtD(ctx, info)(actual)
         case _ => ???
       }
     }
 
+    /**
+      * Desugar a specification entailment proof (proof c implements spec{params} { BODY }), as follows:
+      * - Declare a fresh variable for all the arguments and results of spec.
+      * - If c is a closure variable, assign it to a new fresh variable and replace it within the body.
+      * - If c has the shape `recv.methodName`, assign recv to a new fresh variable and replace it within the body.
+      * - Assign the parameters to the fresh variable corresponding to the related argument.
+      * - Replace all argument and result names inside the body with the newly-generated variables.
+      * - Replace all argument names inside the pre- and postcondition of spec. These modified pre- and
+      *     postconditions are part of the internal node [[in.SpecImplementationProof]]
+      * - Replace any `return` statements with an assignment.
+      */
+    private def closureImplProofD(ctx: FunctionContext)(proof: PClosureImplProof): Writer[in.Stmt] = {
+      val (func, funcTypeInfo) = info.resolve(proof.impl.spec.func) match {
+        case Some(ap.Function(_, f)) => (f, f.context.getTypeInfo)
+        case Some(ap.Closure(_, c)) => (c, c.context.getTypeInfo)
+        case _ => violation("expected function member or literal")
+      }
+
+      // Generate a new local variable for an argument or result of the spec function.
+      def localVarFromParam(p: PParameter): in.LocalVar = {
+        val src = meta(p, funcTypeInfo)
+        val typ = typeD(funcTypeInfo.typ(p), Addressability.inParameter)(src)
+        in.LocalVar(nm.fresh(proof, info), typ)(src)
+      }
+
+      val argSubs = func.args map localVarFromParam
+      val retSubs = func.result.outs map localVarFromParam
+
+      // We replace a return statement inside the proof with the equivalent assignment to the result variables.
+      @tailrec
+      def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt =
+        if (rets.isEmpty) in.Seqn(Vector.empty)(src)
+        else if (rets.size == retSubs.size) in.Seqn(retSubs.zip(rets).map{ case (p, v) => singleAss(in.Assignee.Var(p), v)(src) })(src)
+        else if (rets.size == 1) rets.head match {
+          case in.Tuple(args) => assignReturns(args)(src)
+          case _ => multiassD(retSubs.map(v => in.Assignee.Var(v)), rets.head, proof.block)(src)
+        }
+        else violation(s"found ${rets.size} returns but expected 0, 1, or ${retSubs.size}")
+
+      // Depending on the shape of c in `proof c implements ...`, get:
+      // - the receiver, if c corresponds to a received method
+      // - the closure expression, if c is the name of a closure variable
+      // - nothing, if c is a function name
+      val recvOrClosure: Option[PExpression] = info.resolve(proof.impl.closure) match {
+        case Some(ap.ReceivedMethod(recv, _, _, _)) => Some(recv)
+        case Some(ap.BuiltInReceivedMethod(recv, _, _, _)) => Some(recv)
+        case Some(_: ap.Function) => None
+        case _ if !proof.impl.closure.isInstanceOf[PNamedOperand] => None
+        case _ => Some(proof.impl.closure)
+      }
+
+      // Create a local variable, as an alias of c (or recv, if c has the form recv.methodName)
+      val recvOrClosureAlias = recvOrClosure map { exp =>
+        val src = meta(exp, info)
+        val typ = typeD(info.typ(exp), Addressability.inParameter)(src)
+        in.LocalVar(nm.fresh(proof, info), typ)(src)
+      }
+
+      // If the expression matches [[recvOrClosure]], replace it with [[recvOrClosureAlias]]
+      def replaceRecvOrClosure(exp: PExpression): Option[Writer[in.Expr]] =
+        if (recvOrClosure.contains(exp)) recvOrClosureAlias.map(unit)
+        else None
+
+      val newCtx = ctx.copyWith(assignReturns).copyWithExpD(replaceRecvOrClosure)
+      // We need to substitute the argument and result names with the corresponding fresh variables.
+      ((argSubs zip func.args) ++ (retSubs zip func.result.outs)) foreach {
+        case (s, PNamedParameter(id, _)) => newCtx.addSubst(id, s, funcTypeInfo)
+        case (s, PExplicitGhostParameter(PNamedParameter(id, _))) => newCtx.addSubst(id, s, funcTypeInfo)
+        case _ =>
+      }
+
+      val src = meta(proof, info)
+
+      val spec = closureSpecD(newCtx, info)(proof.impl.spec)
+
+      // Declare all the aliases
+      val declarations = argSubs ++ retSubs ++ recvOrClosureAlias.toVector
+      // Assign the parameter values to the corresponding argument aliases
+      val assignments =
+        recvOrClosure.map(exp => singleAss(in.Assignee(recvOrClosureAlias.get), exprD(ctx, info)(exp).res)(meta(exp, info))).toVector ++
+          argSubs.zipWithIndex.collect {
+            case (v, idx) if spec.params.contains(idx+1) =>
+              val exp = spec.params(idx+1)
+              singleAss(in.Assignee(v), exp)(src)
+          }
+
+      val fSpec = func match {
+        case f: st.Function => f.decl.spec
+        case c: st.Closure => c.lit.spec
+        case _ => violation("function or closure expected")
+      }
+
+      // Desugar the precondition of spec, replacing the argument and results with their aliases
+      val pres = (fSpec.pres ++ fSpec.preserves) map preconditionD(newCtx, funcTypeInfo)
+
+      // For the postcondition, we need to replace all old() expressions with labeled old expressions,
+      // and add a label at the beginning of the proof body
+      var postsCtx = newCtx.copy
+      val oldLabelProxy = in.LabelProxy(nm.label(nm.fresh(proof, info)))(src)
+      val oldLabel = in.Label(oldLabelProxy)(src)
+      def replaceOldLabel(old: POld): Writer[in.Expr] = for {
+        operand <- exprD(postsCtx, funcTypeInfo)(old.operand)
+      } yield in.LabeledOld(oldLabelProxy, operand)(src)
+      postsCtx = postsCtx.copyWithExpD({
+        case old: POld =>
+          Some(replaceOldLabel(old))
+        case exp =>
+          replaceRecvOrClosure(exp)
+      })
+      val posts = (fSpec.preserves ++ fSpec.posts) map postconditionD(postsCtx, funcTypeInfo)
+
+      // Desugar the proof as a block containing all the aliases declarations and assignments, and
+      // the corresponding internal proof node.
+      for {
+        proof <- for {
+          closure <- exprD(newCtx, info)(proof.impl.closure)
+          spec = closureSpecD(newCtx, info)(proof.impl.spec)
+          body <- stmtD(newCtx, info)(proof.block)
+          block = in.Block(Vector.empty, Vector(oldLabel, body))(meta(proof.block, info))
+        } yield in.SpecImplementationProof(closure, spec, block, pres, posts)(src)
+      } yield in.Block(declarations ++ Vector(oldLabelProxy), assignments ++ Vector(proof))(src)
+    }
+
     // Ghost Expression
+    def ghostExprD(ctx: FunctionContext, info: TypeInfo)(expr: PGhostExpression): Writer[in.Expr] = {
 
-    def ghostExprD(ctx: FunctionContext)(expr: PGhostExpression): Writer[in.Expr] = {
+      def go(e: PExpression): Writer[in.Expr] = exprD(ctx, info)(e)
 
-      def go(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
-
-      val src: Meta = meta(expr)
+      val src: Meta = meta(expr, info)
 
       val typ = typeD(info.typ(expr), info.addressability(expr))(src)
 
       expr match {
         case POld(op) => for {o <- go(op)} yield in.Old(o, typ)(src)
         case PLabeledOld(l, op) => for {o <- go(op)} yield in.LabeledOld(labelProxy(l), o)(src)
+        case PBefore(op) => for {o <- go(op)} yield in.LabeledOld(in.LabelProxy("before")(src), o)(src)
         case PConditional(cond, thn, els) =>  for {
           wcond <- go(cond)
           wthn <- go(thn)
@@ -2650,11 +3859,11 @@ object Desugar {
         } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
         case PForall(vars, triggers, body) =>
-          for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(exprD) }
+          for { (newVars, newTriggers, newBody) <- quantifierD(ctx, info)(vars, triggers, body)(ctx => exprD(ctx, info)) }
             yield in.PureForall(newVars, newTriggers, newBody)(src)
 
         case PExists(vars, triggers, body) =>
-          for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(exprD) }
+          for { (newVars, newTriggers, newBody) <- quantifierD(ctx, info)(vars, triggers, body)(ctx => exprD(ctx, info)) }
             yield in.Exists(newVars, newTriggers, newBody)(src)
 
         case PImplication(left, right) => for {
@@ -2665,8 +3874,8 @@ object Desugar {
 
         case PTypeOf(exp) => for { wExp <- go(exp) } yield in.TypeOf(wExp)(src)
         case PIsComparable(exp) => underlyingType(info.typOfExprOrType(exp)) match {
-          case _: Type.InterfaceT => for { wExp <- exprAndTypeAsExpr(ctx)(exp) } yield in.IsComparableInterface(wExp)(src)
-          case Type.SortT => for { wExp <- exprAndTypeAsExpr(ctx)(exp) } yield in.IsComparableType(wExp)(src)
+          case _: Type.InterfaceT => for { wExp <- exprAndTypeAsExpr(ctx, info)(exp) } yield in.IsComparableInterface(wExp)(src)
+          case Type.SortT => for { wExp <- exprAndTypeAsExpr(ctx, info)(exp) } yield in.IsComparableType(wExp)(src)
           case t => Violation.violation(s"Expected interface or sort type, but got $t")
         }
 
@@ -2773,6 +3982,10 @@ object Desugar {
           t = underlyingType(e.typ)
         } yield in.MapValues(e, t)(src)
 
+        case PClosureImplements(closure, spec) => for {
+          c <- exprD(ctx, info)(closure)
+        } yield in.ClosureImplements(c, closureSpecD(ctx, info)(spec))(src)
+
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }
     }
@@ -2781,6 +3994,7 @@ object Desugar {
       * Desugars a quantifier-like structure: a sequence `vars` of variable declarations,
       * together with a sequence `triggers` of triggers and a quantifier `body`.
       * @param ctx A function context consisting of variable substitutions.
+      * @param info External type info, useful if the expression being desugared is from an imported package.
       * @param vars The sequence of variable (declarations) bound by the quantifier.
       * @param triggers The sequence of triggers for the quantifier.
       * @param body The quantifier body.
@@ -2788,7 +4002,7 @@ object Desugar {
       * @tparam T The type of the desugared quantifier body (e.g., expression, or assertion).
       * @return The desugared versions of `vars`, `triggers` and `body`.
       */
-    def quantifierD[T](ctx: FunctionContext)
+    def quantifierD[T](ctx: FunctionContext, info: TypeInfo)
                       (vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression)
                       (go : FunctionContext => PExpression => Writer[T])
         : Writer[(Vector[in.BoundVar], Vector[in.Trigger], T)] = {
@@ -2796,19 +4010,19 @@ object Desugar {
 
       // substitution has to be added since otherwise all bound variables are translated to addressable variables
       val bodyCtx = ctx.copy
-      (vars zip newVars).foreach { case (a, b) => bodyCtx.addSubst(a.id, b) }
+      (vars zip newVars).foreach { case (a, b) => bodyCtx.addSubst(a.id, b, info) }
 
       for {
-        newTriggers <- sequence(triggers map triggerD(bodyCtx))
+        newTriggers <- sequence(triggers map triggerD(bodyCtx, info))
         newBody <- go(bodyCtx)(body)
       } yield (newVars, newTriggers, newBody)
     }
 
     def boundVariableD(x: PBoundVariable) : in.BoundVar =
-      in.BoundVar(idName(x.id), typeD(info.symbType(x.typ), Addressability.boundVariable)(meta(x)))(meta(x))
+      in.BoundVar(idName(x.id, info), typeD(info.symbType(x.typ), Addressability.boundVariable)(meta(x, info)))(meta(x, info))
 
-    def pureExprD(ctx: FunctionContext)(expr: PExpression): in.Expr = {
-      val dExp = exprD(ctx)(expr)
+    def pureExprD(ctx: FunctionContext, info: TypeInfo)(expr: PExpression): in.Expr = {
+      val dExp = exprD(ctx, info)(expr)
       Violation.violation(dExp.stmts.isEmpty && dExp.decls.isEmpty, s"expected pure expression, but got $expr")
       dExp.res
     }
@@ -2816,49 +4030,49 @@ object Desugar {
 
     // Assertion
 
-    def specificationD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
-      val condition = assertionD(ctx)(ass)
+    def specificationD(ctx: FunctionContext, info: TypeInfo)(ass: PExpression): in.Assertion = {
+      val condition = assertionD(ctx, info)(ass)
       Violation.violation(condition.stmts.isEmpty && condition.decls.isEmpty, s"$ass is not an assertion")
       condition.res
     }
 
-    def preconditionD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
-      specificationD(ctx)(ass)
+    def preconditionD(ctx: FunctionContext, info: TypeInfo)(ass: PExpression): in.Assertion = {
+      specificationD(ctx, info)(ass)
     }
 
-    def postconditionD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
-      specificationD(ctx)(ass)
+    def postconditionD(ctx: FunctionContext, info: TypeInfo)(ass: PExpression): in.Assertion = {
+      specificationD(ctx, info)(ass)
     }
 
-    def terminationMeasureD(ctx: FunctionContext)(measure: PTerminationMeasure): Writer[in.TerminationMeasure] = {
-      val src: Meta = meta(measure)
+    def terminationMeasureD(ctx: FunctionContext, info: TypeInfo)(measure: PTerminationMeasure): Writer[in.TerminationMeasure] = {
+      val src: Meta = meta(measure, info)
 
       def goE(expr: PExpression): Writer[in.Node] = expr match {
         case p: PInvoke => info.resolve(p) match {
-          case Some(x: ap.PredicateCall) => predicateCallAccD(ctx)(x)(src)
-          case Some(_: ap.FunctionCall) => exprD(ctx)(p)
+          case Some(x: ap.PredicateCall) => predicateCallAccD(ctx, info)(x)(src)
+          case Some(_: ap.FunctionCall) => exprD(ctx, info)(p)
           case _ => violation(s"Unexpected expression $expr")
         }
-        case _ => exprD(ctx)(expr)
+        case _ => exprD(ctx, info)(expr)
       }
 
       measure match {
         case PWildcardMeasure(cond) =>
-          for { c <- option(cond map exprD(ctx)) } yield in.WildcardMeasure(c)(src)
+          for { c <- option(cond map exprD(ctx, info)) } yield in.WildcardMeasure(c)(src)
         case PTupleTerminationMeasure(tuple, cond) =>
           for {
             t <- sequence(tuple map goE)
-            c <- option(cond map exprD(ctx))
+            c <- option(cond map exprD(ctx, info))
           } yield in.TupleTerminationMeasure(t, c)(src)
       }
     }
 
-    def assertionD(ctx: FunctionContext)(n: PExpression): Writer[in.Assertion] = {
+    def assertionD(ctx: FunctionContext, info: TypeInfo)(n: PExpression): Writer[in.Assertion] = {
 
-      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
-      def goA(a: PExpression): Writer[in.Assertion] = assertionD(ctx)(a)
+      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx, info)(e)
+      def goA(a: PExpression): Writer[in.Assertion] = assertionD(ctx, info)(a)
 
-      val src: Meta = meta(n)
+      val src: Meta = meta(n, info)
 
       n match {
         case n: PImplication => for {l <- goE(n.left); r <- goA(n.right)} yield in.Implication(l, r)(src)
@@ -2874,8 +4088,8 @@ object Desugar {
 
         case n: PAnd => for {l <- goA(n.left); r <- goA(n.right)} yield in.SepAnd(l, r)(src)
 
-        case n: PAccess => for {e <- accessibleD(ctx)(n.exp); p <- permissionD(ctx)(n.perm)} yield in.Access(e, p)(src)
-        case n: PPredicateAccess => predicateCallD(ctx)(n.pred, n.perm)
+        case n: PAccess => for {e <- accessibleD(ctx, info)(n.exp); p <- permissionD(ctx, info)(n.perm)} yield in.Access(e, p)(src)
+        case n: PPredicateAccess => predicateCallD(ctx, info)(n.pred, n.perm)
 
         case n: PInvoke =>
           // a predicate invocation corresponds to a predicate access with full permissions
@@ -2883,45 +4097,45 @@ object Desugar {
           // is retrievable in predicateCallD
           val perm = PFullPerm()
           pom.positions.dupPos(n, perm)
-          predicateCallD(ctx)(n, perm)
+          predicateCallD(ctx, info)(n, perm)
 
         case PForall(vars, triggers, body) =>
-          for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(assertionD) }
+          for { (newVars, newTriggers, newBody) <- quantifierD(ctx, info)(vars, triggers, body)(ctx => assertionD(ctx, info)) }
             yield newBody match {
               case in.ExprAssertion(exprBody) =>
                 in.ExprAssertion(in.PureForall(newVars, newTriggers, exprBody)(src))(src)
               case _ => in.SepForall(newVars, newTriggers, newBody)(src)
             }
 
-        case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
+        case _ => exprD(ctx, info)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
       }
     }
 
-    def predicateCallD(ctx: FunctionContext)(n: PInvoke, perm: PExpression): Writer[in.Assertion] = {
+    def predicateCallD(ctx: FunctionContext, info: TypeInfo)(n: PInvoke, perm: PExpression): Writer[in.Assertion] = {
 
-      val src: Meta = meta(n)
+      val src: Meta = meta(n, info)
 
       info.resolve(n) match {
         case Some(p: ap.PredicateCall) =>
           for {
-            predAcc <- predicateCallAccD(ctx)(p)(src)
-            p <- permissionD(ctx)(perm)
+            predAcc <- predicateCallAccD(ctx, info)(p)(src)
+            p <- permissionD(ctx, info)(perm)
           } yield in.Access(in.Accessible.Predicate(predAcc), p)(src)
 
         case Some(b: ap.PredExprInstance) =>
           for {
-            base <- exprD(ctx)(n.base.asInstanceOf[PExpression])
-            args <- sequence(n.args.map(exprD(ctx)(_)))
+            base <- exprD(ctx, info)(n.base.asInstanceOf[PExpression])
+            args <- sequence(n.args.map(exprD(ctx, info)(_)))
             implicitlyConvertedArgs = arguments(b.typ, args)
             predExprInstance = in.PredExprInstance(base, implicitlyConvertedArgs)(src)
-            p <- permissionD(ctx)(perm)
+            p <- permissionD(ctx, info)(perm)
           } yield in.Access(in.Accessible.PredExpr(predExprInstance), p)(src)
 
-        case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
+        case _ => exprD(ctx, info)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
       }
     }
 
-    def predicateCallAccD(ctx: FunctionContext)(p: ap.PredicateCall)(src: Meta): Writer[in.PredicateAccess] = {
+    def predicateCallAccD(ctx: FunctionContext, info: TypeInfo)(p: ap.PredicateCall)(src: Meta): Writer[in.PredicateAccess] = {
 
       def getBuiltInPredType(pk: ap.BuiltInPredicateKind): FunctionT = {
         val abstractType = info.typ(pk.symb.tag)
@@ -2951,7 +4165,7 @@ object Desugar {
       }
 
       /** not-yet implicitly converted args */
-      val dArgs = p.args map pureExprD(ctx)
+      val dArgs = p.args map pureExprD(ctx, info)
 
       p.predicate match {
         case b: ap.Predicate =>
@@ -2959,7 +4173,7 @@ object Desugar {
           unit(in.FPredicateAccess(fproxy, convertArgs(dArgs))(src))
 
         case b: ap.ReceivedPredicate =>
-          val dRecv = pureExprD(ctx)(b.recv)
+          val dRecv = pureExprD(ctx, info)(b.recv)
           val dRecvWithPath = applyMemberPathD(dRecv, b.path)(src)
           val proxy = mpredicateProxyD(b.id, info)
           unit(in.MPredicateAccess(dRecvWithPath, proxy, convertArgs(dArgs))(src))
@@ -2981,7 +4195,7 @@ object Desugar {
           unit(in.FPredicateAccess(fproxy, convertArgs(dArgs))(src))
 
         case b: ap.BuiltInReceivedPredicate =>
-          val dRecv = pureExprD(ctx)(b.recv)
+          val dRecv = pureExprD(ctx, info)(b.recv)
           val dRecvWithPath = applyMemberPathD(dRecv, b.path)(src)
           val convertedArgs = convertArgs(dArgs)
           val proxy = mpredicateProxy(b.symb.tag, dRecvWithPath.typ, convertedArgs.map(_.typ))(src)
@@ -3000,15 +4214,15 @@ object Desugar {
     def implicitThisD(p: in.Type)(src: Source.Parser.Info): in.Parameter.In =
       in.Parameter.In(nm.implicitThis, p.withAddressability(Addressability.receiver))(src)
 
-    def accessibleD(ctx: FunctionContext)(acc: PExpression): Writer[in.Accessible] = {
+    def accessibleD(ctx: FunctionContext, info: TypeInfo)(acc: PExpression): Writer[in.Accessible] = {
 
-      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
+      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx, info)(e)
 
-      val src: Meta = meta(acc)
+      val src: Meta = meta(acc, info)
 
       info.resolve(acc) match {
         case Some(p: ap.PredicateCall) =>
-          predicateCallAccD(ctx)(p)(src) map (x => in.Accessible.Predicate(x))
+          predicateCallAccD(ctx, info)(p)(src) map (x => in.Accessible.Predicate(x))
 
         case Some(p: ap.PredExprInstance) =>
           for {
@@ -3024,9 +4238,12 @@ object Desugar {
               // [[in.Accessible.Address]] represents '&'.
               // If there is no outermost '&', then adds '&*'.
               acc match {
-                case PReference(op) => addressableD(ctx)(op) map (x => in.Accessible.Address(x.op))
+                case PReference(op) => addressableD(ctx, info)(op) map (x => in.Accessible.Address(x.op))
                 case _ =>
-                  goE(acc) map (x => in.Accessible.Address(in.Deref(x, typeD(ut.elem, Addressability.dereference)(src))(src)))
+                  goE(acc).map{ x =>
+                    val underlyingT = typeD(ut, Addressability.reference)(src)
+                    in.Accessible.Address(in.Deref(x, underlyingT)(src))
+                  }
               }
 
             case Single(_: Type.SliceT) =>
@@ -3041,20 +4258,20 @@ object Desugar {
 
     }
 
-    def permissionD(ctx: FunctionContext)(exp: PExpression): Writer[in.Expr] = {
-      maybePermissionD(ctx)(exp) getOrElse exprD(ctx)(exp)
+    def permissionD(ctx: FunctionContext, info: TypeInfo)(exp: PExpression): Writer[in.Expr] = {
+      maybePermissionD(ctx, info)(exp) getOrElse exprD(ctx, info)(exp)
     }
 
-    def maybePermissionD(ctx: FunctionContext)(exp: PExpression): Option[Writer[in.Expr]] = {
-      val src: Meta = meta(exp)
-      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
+    def maybePermissionD(ctx: FunctionContext, info: TypeInfo)(exp: PExpression): Option[Writer[in.Expr]] = {
+      val src: Meta = meta(exp, info)
+      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx, info)(e)
 
       exp match {
         case n: PInvoke => info.resolve(n) match {
           case Some(_: ap.Conversion) =>
             Some(for {
               // the well-definedness checker ensures that there is exactly one argument
-              arg <- permissionD(ctx)(n.args.head)
+              arg <- permissionD(ctx, info)(n.args.head)
             } yield in.Conversion(in.PermissionT(Addressability.conversionResult), arg)(src))
           case _ => None
         }
@@ -3062,30 +4279,30 @@ object Desugar {
         case PNoPerm() => Some(unit(in.NoPerm(src)))
         case PWildcardPerm() => Some(unit(in.WildcardPerm(src)))
         case PDiv(l, r) => (info.typ(l), info.typ(r)) match {
-          case (PermissionT, IntT(_)) => Some(for { vl <- permissionD(ctx)(l); vr <- goE(r) } yield in.PermDiv(vl, vr)(src))
+          case (PermissionT, IntT(_)) => Some(for { vl <- permissionD(ctx, info)(l); vr <- goE(r) } yield in.PermDiv(vl, vr)(src))
           case (IntT(_), IntT(_)) => Some(for { vl <- goE(l); vr <- goE(r) } yield in.FractionalPerm(vl, vr)(src))
           case err => violation(s"This case should be unreachable, but got $err")
         }
-        case PNegation(exp) => Some(for {e <- permissionD(ctx)(exp)} yield in.PermMinus(e)(src))
-        case PAdd(l, r) => Some(for { vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r) } yield in.PermAdd(vl, vr)(src))
-        case PSub(l, r) => Some(for { vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r) } yield in.PermSub(vl, vr)(src))
-        case PMul(l, r) => Some(for {vl <- goE(l); vr <- permissionD(ctx)(r)} yield in.PermMul(vl, vr)(src))
+        case PNegation(exp) => Some(for {e <- permissionD(ctx, info)(exp)} yield in.PermMinus(e)(src))
+        case PAdd(l, r) => Some(for { vl <- permissionD(ctx, info)(l); vr <- permissionD(ctx, info)(r) } yield in.PermAdd(vl, vr)(src))
+        case PSub(l, r) => Some(for { vl <- permissionD(ctx, info)(l); vr <- permissionD(ctx, info)(r) } yield in.PermSub(vl, vr)(src))
+        case PMul(l, r) => Some(for {vl <- goE(l); vr <- permissionD(ctx, info)(r)} yield in.PermMul(vl, vr)(src))
         case x if info.typ(x).isInstanceOf[IntT] => Some(for { e <- goE(x) } yield in.FractionalPerm(e, in.IntLit(BigInt(1))(src))(src))
         case _ => None
       }
     }
 
-    def triggerD(ctx: FunctionContext)(trigger: PTrigger) : Writer[in.Trigger] = {
-      val src: Meta = meta(trigger)
-      for { exprs <- sequence(trigger.exps map triggerExprD(ctx)) } yield in.Trigger(exprs)(src)
+    def triggerD(ctx: FunctionContext, info: TypeInfo)(trigger: PTrigger) : Writer[in.Trigger] = {
+      val src: Meta = meta(trigger, info)
+      for { exprs <- sequence(trigger.exps map triggerExprD(ctx, info)) } yield in.Trigger(exprs)(src)
     }
 
-    def triggerExprD(ctx: FunctionContext)(triggerExp: PExpression): Writer[in.TriggerExpr] = info.resolve(triggerExp) match {
-      case Some(p: ap.PredicateCall) => for { pa <- predicateCallAccD(ctx)(p)(meta(triggerExp)) } yield in.Accessible.Predicate(pa)
-      case _ => exprD(ctx)(triggerExp)
+    def triggerExprD(ctx: FunctionContext, info: TypeInfo)(triggerExp: PExpression): Writer[in.TriggerExpr] = info.resolve(triggerExp) match {
+      case Some(p: ap.PredicateCall) => for { pa <- predicateCallAccD(ctx, info)(p)(meta(triggerExp, info)) } yield in.Accessible.Predicate(pa)
+      case _ => exprD(ctx, info)(triggerExp)
     }
 
-    private def meta(n: PNode, context: TypeInfo = info): Source.Parser.Single = {
+    private def meta(n: PNode, context: TypeInfo): Source.Parser.Single = {
       val pom = context.getTypeInfo.tree.originalRoot.positions
       val start = pom.positions.getStart(n).get
       val finish = pom.positions.getFinish(n).get
@@ -3118,15 +4335,21 @@ object Desugar {
     private val VARIABLE_PREFIX = "V"
     private val FIELD_PREFIX = "A"
     private val COPY_PREFIX = "C"
+    private val REFERENCE_PREFIX = "R"
     private val FUNCTION_PREFIX = "F"
     private val METHODSPEC_PREFIX = "S"
     private val METHOD_PREFIX = "M"
     private val TYPE_PREFIX = "T"
+    private val PROGRAM_INIT_CODE_PREFIX = "$INIT"
+    private val PACKAGE_IMPORT_OBLIGATIONS_PREFIX = "$IMPORTS"
+    private val MAIN_FUNC_OBLIGATIONS_PREFIX = "$CHECKMAIN"
     private val INTERFACE_PREFIX = "Y"
     private val DOMAIN_PREFIX = "D"
     private val LABEL_PREFIX = "L"
     private val GLOBAL_PREFIX = "G"
     private val BUILTIN_PREFIX = "B"
+    private val CONTINUE_LABEL_SUFFIX = "$Continue"
+    private val BREAK_LABEL_SUFFIX = "$Break"
 
     /** the counter to generate fresh names depending on the current code root for which a fresh name should be generated */
     private var nonceCounter: Map[PCodeRoot, Int] = Map.empty
@@ -3136,6 +4359,13 @@ object Desugar {
       * are consistently named across verification runs (i.e. independent of modifications to other function)
       */
     private var scopeCounter: Map[PCodeRoot, Int] = Map.empty
+
+    /**
+      * 'scopeMap' should return a unique identifier only within a package,
+      * and thus may not be unique in the resulting Viper encoding.
+      * This should be fine as long as the resulting name is only used in a non-global scope.
+      * Currently, it is used for variables, in and out parameters, and receivers.
+      */
     private var scopeMap: Map[PScope, Int] = Map.empty
 
     private def maybeRegister(s: PScope, ctx: ExternalTypeInfo): Unit = {
@@ -3154,24 +4384,46 @@ object Desugar {
       maybeRegister(s, context)
 
       // n has occur first in order that function inverse properly works
-      s"${n}_${context.pkgInfo.viperId}_$postfix${scopeMap(s)}" // deterministic
+      s"${n}_$postfix${scopeMap(s)}" // deterministic
     }
 
-    private def nameWithoutScope(postfix: String)(n: String, context: ExternalTypeInfo): String = {
+    private def nameWithEnclosingFunction(postfix: String)(n: String, enclosing: PFunctionDecl, context: ExternalTypeInfo): String = {
+      maybeRegister(enclosing, context)
+      s"${n}_${enclosing.id.name}_${context.pkgInfo.viperId}_$postfix${scopeMap(enclosing)}" // deterministic
+    }
+
+    private def topLevelName(postfix: String)(n: String, context: ExternalTypeInfo): String = {
       // n has occur first in order that function inverse properly works
       s"${n}_${context.pkgInfo.viperId}_$postfix" // deterministic
     }
 
+    def programInit(p: PProgram, context: ExternalTypeInfo): String = {
+      val pom = context.getTypeInfo.tree.originalRoot.positions
+      val progName: String = pom.positions.getStart(p) match {
+        case Some(v) => Names.hash(v.source.toPath.toString)
+        case None => Violation.violation(s"could not find the start position of $p")
+      }
+      topLevelName(progName)(PROGRAM_INIT_CODE_PREFIX, context)
+    }
+    def packageImports(p: PPackage, context: ExternalTypeInfo): String = {
+      // a package id might contain invalid symbols
+      val hashedId = Names.hash(p.info.id)
+      topLevelName(hashedId)(PACKAGE_IMPORT_OBLIGATIONS_PREFIX, context)
+    }
+    def mainFuncProofObligation(context: ExternalTypeInfo): String =
+      topLevelName(MAIN_FUNC_OBLIGATIONS_PREFIX)(Constants.MAIN_FUNC_NAME, context)
     def variable(n: String, s: PScope, context: ExternalTypeInfo): String = name(VARIABLE_PREFIX)(n, s, context)
-    def global  (n: String, context: ExternalTypeInfo): String = nameWithoutScope(GLOBAL_PREFIX)(n, context)
-    def typ     (n: String, context: ExternalTypeInfo): String = nameWithoutScope(TYPE_PREFIX)(n, context)
+    def funcLit(n: String, enclosing: PFunctionDecl, context: ExternalTypeInfo): String = nameWithEnclosingFunction(FUNCTION_PREFIX)(n, enclosing, context)
+    def anonFuncLit(enclosing: PFunctionDecl, context: ExternalTypeInfo): String = nameWithEnclosingFunction(FUNCTION_PREFIX)("func", enclosing, context) ++ s"_${fresh(enclosing, context)}"
+    def global  (n: String, context: ExternalTypeInfo): String = topLevelName(GLOBAL_PREFIX)(n, context)
+    def typ     (n: String, context: ExternalTypeInfo): String = topLevelName(TYPE_PREFIX)(n, context)
     def field   (n: String, @unused s: StructT): String = s"$n$FIELD_PREFIX" // Field names must preserve their equality from the Go level
-    def function(n: String, context: ExternalTypeInfo): String = nameWithoutScope(FUNCTION_PREFIX)(n, context)
+    def function(n: String, context: ExternalTypeInfo): String = topLevelName(FUNCTION_PREFIX)(n, context)
     def spec    (n: String, t: Type.InterfaceT, context: ExternalTypeInfo): String =
-      nameWithoutScope(s"$METHODSPEC_PREFIX${interface(t)}")(n, context)
+      topLevelName(s"$METHODSPEC_PREFIX${interface(t)}")(n, context)
     def method  (n: String, t: PMethodRecvType, context: ExternalTypeInfo): String = t match {
-      case PMethodReceiveName(typ)    => nameWithoutScope(s"$METHOD_PREFIX${typ.name}")(n, context)
-      case PMethodReceivePointer(typ) => nameWithoutScope(s"P$METHOD_PREFIX${typ.name}")(n, context)
+      case PMethodReceiveName(typ)    => topLevelName(s"$METHOD_PREFIX${typ.name}")(n, context)
+      case PMethodReceivePointer(typ) => topLevelName(s"P$METHOD_PREFIX${typ.name}")(n, context)
     }
     private def stringifyType(typ: in.Type): String = Names.serializeType(typ)
     def builtInMember(tag: BuiltInMemberTag, dependantTypes: Vector[in.Type]): String = {
@@ -3183,6 +4435,8 @@ object Desugar {
 
     def alias(n: String, scope: PNode, ctx: ExternalTypeInfo): String = s"${n}_$COPY_PREFIX${fresh(scope, ctx)}"
 
+    def refAlias(n: String, scope: PNode, ctx: ExternalTypeInfo): String = s"${n}_$REFERENCE_PREFIX${fresh(scope, ctx)}"
+
     /** returns a fresh string that is guaranteed to be unique in the root scope of `scope` (i.e. in the enclosing code root or domain in which `scope` occurs) */
     def fresh(scope: PNode, ctx: ExternalTypeInfo): String = {
       val codeRoot = ctx.codeRoot(scope)
@@ -3191,6 +4445,60 @@ object Desugar {
       val f = FRESH_PREFIX + value
       nonceCounter += (codeRoot -> (value + 1))
       f
+    }
+
+    /**
+      * Returns an id for a node with respect to its code root.
+      * The id is of the form 'L$<a>$<b>' where a is the difference of the lines
+      * of the node with the code root and b is the difference of the columns
+      * of the node with the code root.
+      * If a differce is negative, the '-' character is replaced with '_'.
+      *
+      * @param node the node we are interested in
+      * @param info type info to get position information
+      * @return     string
+      */
+    def relativeId(node: PNode, info: TypeInfo) : String = {
+      val pom = info.getTypeInfo.tree.originalRoot.positions
+      val lpos = pom.positions.getStart(node).get
+      val rpos = pom.positions.getStart(info.codeRoot(node)).get
+      ("L$" + (lpos.line - rpos.line) + "$" + (lpos.column - rpos.column)).replace("-", "_")
+    }
+
+    /** returns the relativeId with the CONTINUE_LABEL_SUFFIX appended */
+    def continueLabel(loop: PGeneralForStmt, info: TypeInfo) : String = relativeId(loop, info) + CONTINUE_LABEL_SUFFIX
+
+    /** returns the relativeId with the BREAK_LABEL_SUFFIX appended */
+    def breakLabel(loop: PGeneralForStmt, info: TypeInfo) : String = relativeId(loop, info) + BREAK_LABEL_SUFFIX
+
+    /**
+      * Finds the enclosing loop which the continue statement refers to and fetches its
+      * continue label.
+      */
+    def fetchContinueLabel(n: PContinue, info: TypeInfo) : String = {
+      n.label match {
+        case None =>
+          val Some(loop) = info.enclosingLoopNode(n)
+          continueLabel(loop, info)
+        case Some(label) =>
+          val Some(loop) = info.enclosingLabeledLoopNode(label, n)
+          continueLabel(loop, info)
+      }
+    }
+
+    /**
+      * Finds the enclosing loop which the break statement refers to and fetches its
+      * break label.
+      */
+    def fetchBreakLabel(n: PBreak, info: TypeInfo) : String = {
+      n.label match {
+        case None =>
+          val Some(loop) = info.enclosingLoopNode(n)
+          breakLabel(loop, info)
+        case Some(label) =>
+          val Some(loop) = info.enclosingLabeledLoopNode(label, n)
+          breakLabel(loop, info)
+      }
     }
 
     def inParam(idx: Int, s: PScope, context: ExternalTypeInfo): String = name(IN_PARAMETER_PREFIX)("P" + idx, s, context)
@@ -3202,35 +4510,71 @@ object Desugar {
         Names.emptyInterface
       } else {
         val pom = s.context.getTypeInfo.tree.originalRoot.positions
-        val start = pom.positions.getStart(s.decl).get
-        val finish = pom.positions.getFinish(s.decl).get
-        val pos = pom.translate(start, finish)
-        // replace characters that could be misinterpreted:
-        val interfaceName = pos.toString
-          .replace(".", "$")
-          .replace("@", "")
-          .replace("-", "_")
-        s"$INTERFACE_PREFIX$$$interfaceName"
+        val hash = srcTextName(pom, s.decl.embedded, s.decl.methSpecs, s.decl.predSpecs)
+        s"$INTERFACE_PREFIX$$${topLevelName("")(hash, s.context)}"
       }
     }
 
     def domain(s: DomainT): String = {
       val pom = s.context.getTypeInfo.tree.originalRoot.positions
-      val start = pom.positions.getStart(s.decl).get
-      val finish = pom.positions.getFinish(s.decl).get
-      val pos = pom.translate(start, finish)
-      // replace characters that could be misinterpreted:
-      val domainName = pos.toString
-        .replace(".", "$")
-        .replace("@", "")
-        .replace("-", "_")
-      s"$DOMAIN_PREFIX$$$domainName"
+      val hash = srcTextName(pom, s.decl.funcs, s.decl.axioms)
+      s"$DOMAIN_PREFIX$$${topLevelName("")(hash, s.context)}"
     }
 
     def label(n: String): String = n match {
       case "#lhs" => "lhs"
       case _ => s"${n}_$LABEL_PREFIX"
     }
+
+    /**
+      * Maps nodes to a hash based on the source text of the nodes (not the source position!).
+      * The source texts belonging to the same Vector[N] argument are sorted before they are hashed.
+      * */
+    private def srcTextName[N <: PNode](pom: PositionManager, nodes: Vector[N]*): String = {
+
+      def trimmedSrcText(n: N): String = {
+        val start = pom.positions.getStart(n).get
+        val finish = pom.positions.getFinish(n).get
+        val srcText = pom.positions.substring(start, finish).get
+        srcText.filterNot(_.isWhitespace)
+      }
+
+      val sortedStrings = nodes.map(_.map(trimmedSrcText).sorted)
+      Names.hash(sortedStrings.flatten.mkString("|"))
+    }
+  }
+
+  /**
+    * Capabilities to store specification relevant to package initialization across
+    * multiple desugarers. In particular, it provides functionality to store and retrieve
+    * preconditions for all imports of a package and the postconditions of all programs of
+    * a package.
+    */
+  private class PackageInitSpecCollector {
+    // pairs of package X and the preconditions on an import of X (one entry in the list per import of X)
+    private var importPreconditions: Vector[(PPackage, Vector[in.Assertion])] = Vector.empty
+    // pairs of a package X and the postconditions of a program of X (one entry in the list per program of X)
+    private var packagePostconditions: Vector[(PPackage, Vector[in.Assertion])] = Vector.empty
+
+    def addImportPres(pkg: PPackage, desugaredImportPre: Vector[in.Assertion]): Unit = {
+      importPreconditions :+= (pkg, desugaredImportPre)
+    }
+
+    def presImportsOfPackage(pkg: PPackage): Vector[in.Assertion] = {
+      importPreconditions.filter(_._1.info.id == pkg.info.id).flatMap(_._2)
+    }
+
+    def addPackagePosts(pkg: PPackage, desugaredPosts: Vector[in.Assertion]): Unit = {
+      packagePostconditions :+= (pkg, desugaredPosts)
+    }
+
+    def postsOfPackage(pkg: PPackage): Vector[in.Assertion] = {
+      packagePostconditions.filter(_._1.info.id == pkg.info.id).flatMap(_._2)
+    }
+
+    def registeredPackages(): Vector[PPackage] = {
+      // the domain of package posts should have all registered packages
+      packagePostconditions.map(_._1).distinct
+    }
   }
 }
-

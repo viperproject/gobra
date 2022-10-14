@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import org.bitbucket.inkytonik.kiama.relation.Relation
 import org.bitbucket.inkytonik.kiama.util.Entity
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, error}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.PackageResolver.{AbstractImport, BuiltInImport, RegularImport}
 import viper.gobra.frontend.info.base.BuiltInMemberTag
@@ -19,6 +19,7 @@ import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.reporting.{NotFoundError, VerifierError}
+import viper.gobra.util.Violation
 
 import scala.annotation.tailrec
 
@@ -100,17 +101,17 @@ trait MemberResolution { this: TypeInfoImpl =>
   lazy val interfaceMethodSet: InterfaceT => AdvancedMemberSet[TypeMember] =
     attr[InterfaceT, AdvancedMemberSet[TypeMember]] {
       case InterfaceT(PInterfaceType(es, methSpecs, predSpecs), ctxt) =>
-        AdvancedMemberSet.init[TypeMember](methSpecs.map(m => ctxt.createMethodSpec(m))) union
-          AdvancedMemberSet.init[TypeMember](predSpecs.map(m => ctxt.createMPredSpec(m))) union
-          AdvancedMemberSet.union {
-            es.map(e => interfaceMethodSet(
-              entity(e.typ.id) match {
-                  // TODO: might break if there is a cycle, might break for imported interfaces
-                case NamedType(PTypeDef(t: PInterfaceType, _), _, _) => InterfaceT(t, ctxt)
-                case _ => ???
-              }
-            ))
-          }
+        val topLevel = AdvancedMemberSet.init[TypeMember](methSpecs.map(m => ctxt.createMethodSpec(m))) union
+          AdvancedMemberSet.init[TypeMember](predSpecs.map(m => ctxt.createMPredSpec(m)))
+        AdvancedMemberSet.union {
+          topLevel +: es.map(e => interfaceMethodSet(
+            entity(e.typ.id) match {
+              // TODO: might break for imported interfaces
+              case NamedType(PTypeDef(t: PInterfaceType, _), _, _) => InterfaceT(t, ctxt)
+              case _ => ???
+            }
+          ).promoteItf(e.typ.name))
+        }
     }
 
 
@@ -197,14 +198,14 @@ trait MemberResolution { this: TypeInfoImpl =>
   def tryFieldLookup(t: Type, id: PIdnUse): Option[(StructMember, Vector[MemberPath])] =
     structMemberSet(t).lookupWithPath(id.name)
 
-  def tryMethodLikeLookup(e: PExpression, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])] = {
+  def tryMethodLikeLookup(e: PExpression, id: PIdnUse):
+    (Option[(TypeMember, Vector[MemberPath])], Option[(TypeMember, Vector[MemberPath])]) = {
     // check whether e is well-defined:
     if (wellDefExpr(e).valid) {
       val typ = exprType(e)
       val context = getMethodReceiverContext(typ)
-      if (effAddressable(e)) context.tryAddressableMethodLikeLookup(typ, id)
-      else context.tryNonAddressableMethodLikeLookup(typ, id)
-    } else None
+      (context.tryAddressableMethodLikeLookup(typ, id), context.tryNonAddressableMethodLikeLookup(typ, id))
+    } else (None, None)
   }
 
   def tryMethodLikeLookup(e: Type, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])] = {
@@ -224,44 +225,6 @@ trait MemberResolution { this: TypeInfoImpl =>
   def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = tryMethodLikeLookup(typeSymbType(e), id)
 
   def tryPackageLookup(importTarget: AbstractImport, id: PIdnUse, errNode: PNode): Option[(Entity, Vector[MemberPath])] = {
-    def parseAndTypeCheck(importTarget: AbstractImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
-      val pkgSources = PackageResolver.resolveSources(importTarget, config.moduleName, config.includeDirs).getOrElse(Vector())
-      val res = for {
-        nonEmptyPkgSources <- if (pkgSources.isEmpty)
-          Left(Vector(NotFoundError(s"No source files for package '$importTarget' found")))
-          else Right(pkgSources)
-        parsedProgram <- Parser.parse(nonEmptyPkgSources, Source.getPackageInfo(nonEmptyPkgSources.head, config.projectRoot), specOnly = true)(config)
-        // TODO maybe don't check whole file but only members that are actually used/imported
-        // By parsing only declarations and their specification, there shouldn't be much left to type check anyways
-        // Info.check would probably need some restructuring to type check only certain members
-        info <- Info.check(parsedProgram, nonEmptyPkgSources, context)(config)
-      } yield info
-      res.fold(
-        errs => context.addErrenousPackage(importTarget, errs),
-        info => context.addPackage(importTarget, info)
-      )
-      res
-    }
-
-    def getTypeChecker(importTarget: AbstractImport, errNode: PNode): Either[Messages, ExternalTypeInfo] = {
-      def createImportError(errs: Vector[VerifierError]): Messages = {
-        // create an error message located at the import statement to indicate errors in the imported package
-        // we distinguish between parse and type errors, cyclic imports, and packages whose source files could not be found
-        val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
-        // alternativeErr is a function to compute the message only when needed
-        val alternativeErr = () => context.getImportCycle(importTarget) match {
-          case Some(cycle) => message(errNode, s"Package '$importTarget' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
-          case _ => message(errNode, s"Package '$importTarget' contains errors: $errs")
-        }
-        notFoundErr.map(e => message(errNode, e.message))
-          .getOrElse(alternativeErr())
-      }
-
-      // check if package was already parsed, otherwise do parsing and type checking:
-      val cachedInfo = context.getTypeInfo(importTarget)
-      cachedInfo.getOrElse(parseAndTypeCheck(importTarget)).left.map(createImportError)
-    }
-
     val foreignPkgResult = for {
       typeChecker <- getTypeChecker(importTarget, errNode)
       entity = typeChecker.externalRegular(id)
@@ -272,14 +235,72 @@ trait MemberResolution { this: TypeInfoImpl =>
     )
   }
 
+  private def parseAndTypeCheck(importTarget: AbstractImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
+    val pkgSources = PackageResolver.resolveSources(importTarget)(config)
+      .getOrElse(Vector())
+      .map(_.source)
+    val res = for {
+      nonEmptyPkgSources <- if (pkgSources.isEmpty)
+        Left(Vector(NotFoundError(s"No source files for package '$importTarget' found")))
+      else Right(pkgSources)
+      parsedProgram <- Parser.parse(nonEmptyPkgSources, Source.getPackageInfo(nonEmptyPkgSources.head, config.projectRoot), specOnly = true)(config)
+      // TODO maybe don't check whole file but only members that are actually used/imported
+      // By parsing only declarations and their specification, there shouldn't be much left to type check anyways
+      // Info.check would probably need some restructuring to type check only certain members
+      info <- Info.check(parsedProgram, nonEmptyPkgSources, context)(config)
+    } yield info
+    res.fold(
+      errs => context.addErrenousPackage(importTarget, errs)(config),
+      info => context.addPackage(importTarget, info)(config)
+    )
+    res
+  }
+
+  def getTypeChecker(importTarget: AbstractImport, errNode: PNode): Either[Messages, ExternalTypeInfo] = {
+    def createImportError(errs: Vector[VerifierError]): Messages = {
+      // create an error message located at the import statement to indicate errors in the imported package
+      // we distinguish between parse and type errors, cyclic imports, and packages whose source files could not be found
+      val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
+      // alternativeErr is a function to compute the message only when needed
+      val alternativeErr = () => context.getImportCycle(importTarget) match {
+        case Some(cycle) => message(errNode, s"Package '$importTarget' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
+        case _ => message(errNode, s"Package '$importTarget' contains errors: $errs")
+      }
+      notFoundErr.map(e => message(errNode, e.message))
+        .getOrElse(alternativeErr())
+    }
+
+    // check if package was already parsed, otherwise do parsing and type checking:
+    val cachedInfo = context.getTypeInfo(importTarget)(config)
+    cachedInfo.getOrElse(parseAndTypeCheck(importTarget)).left.map(createImportError)
+  }
 
   def tryDotLookup(b: PExpressionOrType, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
     exprOrType(b) match {
       case Left(expr) =>
-        val methodLikeAttempt = tryMethodLikeLookup(expr, id)
-        if (methodLikeAttempt.isDefined) methodLikeAttempt
-        else tryFieldLookup(exprType(expr), id)
+        val (addr, nonAddr) = tryMethodLikeLookup(expr, id)
+        lazy val isGoEffAddressable = goEffAddressable(expr)
+        lazy val isEffAddressable = effAddressable(expr)
 
+        if (addr.isEmpty && nonAddr.isEmpty) {
+          // could not find the corresponding member
+          tryFieldLookup(exprType(expr), id)
+        } else if (isEffAddressable && addr.nonEmpty) {
+          addr
+        } else if (!isEffAddressable && nonAddr.nonEmpty) {
+          nonAddr
+        } else if (isGoEffAddressable && addr.nonEmpty && nonAddr.isEmpty) {
+          val errEntity = ErrorMsgEntity(error(id, s"$id requires a shared receiver ('share' or '@' annotations might be missing)."))
+          Some((errEntity, Vector()))
+        } else if (!isEffAddressable && addr.nonEmpty) {
+          val errEntity = ErrorMsgEntity(error(id, s"$id requires the receiver to be effectively addressable, but got $expr instead"))
+          Some((errEntity, Vector()))
+        } else if (isEffAddressable && addr.isEmpty && nonAddr.nonEmpty) {
+          val errEntity = ErrorMsgEntity(error(id, s"$id expects a non-effectively addressable receiver, but got $expr instead"))
+          Some((errEntity, Vector()))
+        } else {
+          Violation.violation(s"unexpected case reached: $expr")
+        }
       case Right(typ) =>
         val methodLikeAttempt = tryMethodLikeLookup(typ, id)
         if (methodLikeAttempt.isDefined) methodLikeAttempt
@@ -291,14 +312,32 @@ trait MemberResolution { this: TypeInfoImpl =>
   }
 
   lazy val tryUnqualifiedPackageLookup: PIdnUse => Entity =
-    attr[PIdnUse, Entity] {
-      id =>
-        // Go is weird in the sense that it let's you redeclare built-in identifiers such as "error" but won't complain
-        // about the redeclaration. If the redeclaration happens in the same package, the redeclaration is
-        // used (instead of the built-in one). If the redeclaration happens in an imported package Go's behavior is not
-        // fully clear since "error" is not exported. However, we give higher precedence to the built-in one in Gobra
-        // to approximate Go's behavior.
-        tryUnqualifiedBuiltInPackageLookup(id).getOrElse(tryUnqualifiedRegularPackageLookup(id))
+    attr[PIdnUse, Entity] { id =>
+      // Determines if the given PPackage is the `builtin` package provided by Gobra
+      val isBuiltinPackage: PPackage => Boolean = {
+        // TODO: as it stands, no user-provided package can be named `builtin`,
+        //       otherwise Gobra might behave unexpectedly. This could be avoided
+        //       by adding the conjunct 'p.info.isBuiltIn' to the check below, but
+        //       this flag seems to only be properly set when the Gobra std library
+        //       is read from a `FromFileSource`.
+        p => p.packageClause.id.name == "builtin"
+      }
+      tryEnclosingPackage(id) match {
+        case Some(p) if isBuiltinPackage(p) =>
+          // The `builtin` package is imported implicitly by every package. If the importing package is `builtin`,
+          // then the call to this method should not cause a call to `tryUnqualifiedBuiltInPackageLookup`, otherwise
+          // Gobra complains about a cyclic import relation consisting of the cycle "[BuiltInImport]", as observed in
+          // the first commit of https://github.com/viperproject/gobra/pull/457 .
+          UnknownEntity()
+        case Some(_) =>
+          // Go is weird in the sense that it let's you redeclare built-in identifiers such as "error" but won't complain
+          // about the redeclaration. If the redeclaration happens in the same package, the redeclaration is
+          // used (instead of the built-in one). If the redeclaration happens in an imported package Go's behavior is not
+          // fully clear since "error" is not exported. However, we give higher precedence to the built-in one in Gobra
+          // to approximate Go's behavior.
+          tryUnqualifiedBuiltInPackageLookup(id).getOrElse(tryUnqualifiedRegularPackageLookup(id))
+        case None => Violation.violation(s"Expected node $id to have a parent of type PPackage, but none found.")
+      }
     }
 
   def tryUnqualifiedBuiltInPackageLookup(id: PIdnUse): Option[Entity] =

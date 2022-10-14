@@ -15,6 +15,7 @@ import viper.gobra.util.Violation
 import viper.silver.ast.utility.rewriter.{SimpleContext, Strategy, StrategyBuilder, Traverse}
 import viper.silver.ast.utility.rewriter.Traverse.Traverse
 
+import scala.annotation.tailrec
 import scala.reflect.ClassTag
 
 object Source {
@@ -25,6 +26,11 @@ object Source {
 
   sealed trait Annotation
   case object OverflowCheckAnnotation extends Annotation
+  case object ReceiverNotNilCheckAnnotation extends Annotation
+  case object ImportPreNotEstablished extends Annotation
+  case object MainPreNotEstablished extends Annotation
+  case class NoPermissionToRangeExpressionAnnotation() extends Annotation
+  case class RangeVariableMightNotExistAnnotation(rangeExpr: String) extends Annotation
   case class AutoImplProofAnnotation(subT: String, superT: String) extends Annotation
 
   object Parser {
@@ -71,6 +77,8 @@ object Source {
         case _: T => origin.tag.trim + postfix
         case _ => ""
       }
+
+      def createAnnotatedInfo(annotation: Annotation): Info = copy(origin = AnnotatedOrigin(origin, annotation))
     }
 
     val noInfo: Info = Info(
@@ -134,6 +142,7 @@ object Source {
     case _ => searchInfo(node.subnodes)
   }
 
+  @tailrec
   private def searchInfo(nodes : Seq[vpr.Node]) : Option[Verifier.Info] = nodes match {
     case Seq() => None
     case nodes => searchInfo(nodes.head) match {
@@ -141,7 +150,6 @@ object Source {
       case None => searchInfo(nodes.tail)
     }
   }
-
 
   implicit class RichViperNode[N <: vpr.Node](node: N) {
 

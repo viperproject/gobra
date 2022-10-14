@@ -8,7 +8,7 @@ type cell struct{
 }
 
 requires n >= 0
-func main(n int) {
+func run(n int) {
     x := &cell{42};
     assert x.val == 42
 

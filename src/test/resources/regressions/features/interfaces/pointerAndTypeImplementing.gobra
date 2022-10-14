@@ -1,0 +1,35 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type foo interface {
+	pred mem()
+
+	requires mem()
+	bar() int
+}
+
+type t uint64
+
+preserves x.mem()
+func (x t) bar() int {
+	return 1
+}
+
+pred (x t) mem() { true }
+
+pred mem2(x *t) { acc(x) }
+
+t implements foo
+
+(*t) implements foo {
+	pred mem := mem2
+
+	(x *t) bar() (res int) {
+		unfold mem2(x)
+		fold (*x).mem()
+		res = x.bar()
+		fold mem2(x)
+	}
+}

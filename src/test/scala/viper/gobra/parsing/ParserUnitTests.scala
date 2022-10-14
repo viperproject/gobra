@@ -24,13 +24,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: Invoke") {
     frontend.parseExpOrFail("Contains(v)") should matchPattern {
-      case PInvoke(PNamedOperand(PIdnUse("Contains")), Vector(PNamedOperand(PIdnUse("v")))) =>
+      case PInvoke(PNamedOperand(PIdnUse("Contains")), Vector(PNamedOperand(PIdnUse("v"))), None) =>
     }
   }
 
   test("Parser: DotInvoke") {
     frontend.parseExpOrFail("self.Contains(v)") should matchPattern {
-      case PInvoke(PDot(PNamedOperand(PIdnUse("self")), PIdnUse("Contains")), Vector(PNamedOperand(PIdnUse("v")))) =>
+      case PInvoke(PDot(PNamedOperand(PIdnUse("self")), PIdnUse("Contains")), Vector(PNamedOperand(PIdnUse("v"))), None) =>
     }
   }
 
@@ -42,13 +42,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: DoubleDotInvoke1") {
     frontend.parseExpOrFail("(self.Left).Contains(v)") should matchPattern {
-      case PInvoke(PDot(PDot(PNamedOperand(PIdnUse("self")), PIdnUse("Left")), PIdnUse("Contains")), Vector(PNamedOperand(PIdnUse("v")))) =>
+      case PInvoke(PDot(PDot(PNamedOperand(PIdnUse("self")), PIdnUse("Left")), PIdnUse("Contains")), Vector(PNamedOperand(PIdnUse("v"))), None) =>
     }
   }
 
   test("Parser: DoubleDotInvoke2") {
     frontend.parseExpOrFail("self.Left.Contains(v)") should matchPattern {
-      case PInvoke(PDot(PDot(PNamedOperand(PIdnUse("self")), PIdnUse("Left")), PIdnUse("Contains")), Vector(PNamedOperand(PIdnUse("v")))) =>
+      case PInvoke(PDot(PDot(PNamedOperand(PIdnUse("self")), PIdnUse("Left")), PIdnUse("Contains")), Vector(PNamedOperand(PIdnUse("v"))), None) =>
     }
   }
 
@@ -84,37 +84,37 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: multi import") {
     frontend.parseImportDecl("import (\"f\";\"g\")") should matchPattern {
-      case Vector(PImplicitQualifiedImport("f"), PImplicitQualifiedImport("g")) =>
+      case Vector(PImplicitQualifiedImport("f", Vector()), PImplicitQualifiedImport("g", Vector())) =>
     }
   }
 
   test("Parser: dot import") {
     frontend.parseImportDecl("import . \"lib/math\"") should matchPattern {
-      case Vector(PUnqualifiedImport("lib/math")) =>
+      case Vector(PUnqualifiedImport("lib/math", Vector())) =>
     }
   }
 
   test("Parser: underscore import") {
     frontend.parseImportDecl("import _ \"lib/math\"") should matchPattern {
-      case Vector(PExplicitQualifiedImport(PWildcard(), "lib/math")) =>
+      case Vector(PExplicitQualifiedImport(PWildcard(), "lib/math", Vector())) =>
     }
   }
 
   test("Parser: default import") {
     frontend.parseImportDecl("import \"lib/math\"") should matchPattern {
-      case Vector(PImplicitQualifiedImport("lib/math")) =>
+      case Vector(PImplicitQualifiedImport("lib/math", Vector())) =>
     }
   }
 
   test("Parser: qualified import") {
     frontend.parseImportDecl("import m \"lib/math\"") should matchPattern {
-      case Vector(PExplicitQualifiedImport(PIdnDef("m"), "lib/math")) =>
+      case Vector(PExplicitQualifiedImport(PIdnDef("m"), "lib/math", Vector())) =>
     }
   }
 
   test("Parser: import path with minus") {
     frontend.parseImportDecl("import m \"foo-bar/math\"") should matchPattern {
-      case Vector(PExplicitQualifiedImport(PIdnDef("m"), "foo-bar/math")) =>
+      case Vector(PExplicitQualifiedImport(PIdnDef("m"), "foo-bar/math", Vector())) =>
     }
   }
 
@@ -145,13 +145,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: fold mpredicate call") {
     frontend.parseStmtOrFail("fold (*(b.Rectangle)).RectMem(&r)") should matchPattern {
-      case PFold(PPredicateAccess(PInvoke(PDot(PDeref(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("Rectangle"))), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r"))))), PFullPerm())) =>
+      case PFold(PPredicateAccess(PInvoke(PDot(PDeref(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("Rectangle"))), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r")))), None), PFullPerm())) =>
     }
   }
 
   test("Parser: fold fpredicate call") {
     frontend.parseStmtOrFail("fold b.RectMem(&r)") should matchPattern {
-      case PFold(PPredicateAccess(PInvoke(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r"))))), PFullPerm())) =>
+      case PFold(PPredicateAccess(PInvoke(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r")))), None), PFullPerm())) =>
     }
   }
 
@@ -2516,12 +2516,20 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: should be able to parse an explicit short var decl") {
     frontend.parseStmtOrFail("ghost res := test(s)") should matchPattern {
       case PExplicitGhostStatement(PShortVarDecl(
-        Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector(PNamedOperand(PIdnUse("s"))))),
+        Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector(PNamedOperand(PIdnUse("s"))), None)),
         Vector(PIdnUnk("res")),
         Vector(false))) =>
     }
   }
 
+  test("Parser: should be able to parse an explicit short var decl with ghost in the declaration") {
+    frontend.parseStmtOrFail("ghost ghostRes := test(s)") should matchPattern {
+      case PExplicitGhostStatement(PShortVarDecl(
+      Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector(PNamedOperand(PIdnUse("s"))), None)),
+      Vector(PIdnUnk("ghostRes")),
+      Vector(false))) =>
+    }
+  }
 
   /* ** Parser tests related to channels */
   test("Parser: should parse channel send statement") {
@@ -2611,7 +2619,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     // 0xf8 == 248
     val parseRes = frontend.parseExp("string(248)")
     inside (parseRes) {
-      case Right(PInvoke(PNamedOperand(PIdnUse("string")), Vector(PIntLit(value, Decimal)))) => value should be (0xf8)
+      case Right(PInvoke(PNamedOperand(PIdnUse("string")), Vector(PIntLit(value, Decimal)), None)) => value should be (0xf8)
     }
   }
 
@@ -2666,7 +2674,19 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse type conversions") {
     frontend.parseExpOrFail("uint8(1)") should matchPattern {
-      case PInvoke(PNamedOperand(PIdnUse("uint8")), Vector(x)) if x == PIntLit(1) =>
+      case PInvoke(PNamedOperand(PIdnUse("uint8")), Vector(x), None) if x == PIntLit(1) =>
+    }
+  }
+
+  test("Parser: should be able to parse a labeled continue") {
+    frontend.parseStmtOrFail("continue l") should matchPattern {
+      case PContinue(Some(s)) if s.name == "l" =>
+    }
+  }
+
+  test("Parser: should be able to parse a labeled continue statement") {
+    frontend.parseFunctionDecl("func main() {continue l}") should matchPattern {
+      case PFunctionDecl(_, _, _, _, Some((_, PBlock(Vector(PContinue(Some(p))))))) if p.name == "l" =>
     }
   }
 }

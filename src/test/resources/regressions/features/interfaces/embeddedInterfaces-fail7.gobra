@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+
+type foo interface {
+	bar
+	f()
+	//:: ExpectedOutput(type_error)
+	g()
+	//:: ExpectedOutput(type_error)
+	pure
+	h() int
+}
+
+type bar interface {
+	g()
+
+	pure
+	h() int
+}

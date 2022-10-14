@@ -32,7 +32,7 @@ object PackageResolver {
   val fileUriScheme = "file"
   val jarUriScheme = "jar"
 
-  trait AbstractImport
+  sealed trait AbstractImport
   /** represents an implicit unqualified import that should resolve to the built-in package */
   case object BuiltInImport extends AbstractImport
   /** relative import path that should be resolved; an empty importPath results in looking for files in the current directory */
@@ -40,18 +40,44 @@ object PackageResolver {
     override def toString: String = importPath
   }
 
+  sealed trait AbstractPackage
+  /** represents an error */
+  case object NoPackage extends AbstractPackage
+  /** represents all built-in packages together */
+  case object BuiltInPackage extends AbstractPackage
+  /** represents a regular package */
+  case class RegularPackage(id: String) extends AbstractPackage
+
+  object AbstractPackage {
+    def apply(imp: AbstractImport)(config: Config): AbstractPackage = {
+      imp match {
+        case BuiltInImport => BuiltInPackage
+        case imp: RegularImport =>
+          getLookupPath(imp)(config) match {
+            case Left(_) => NoPackage
+            case Right(inputResource) =>
+              try {
+                RegularPackage(Source.uniquePath(inputResource.path, config.projectRoot).toString)
+              } catch { case _: Throwable => NoPackage }
+          }
+      }
+    }
+  }
+
+  /** represents some resolved source together with the knowledge of whether it was obtained from a builtin resource or not */
+  case class ResolveSourcesResult(source: Source, isBuiltin: Boolean)
+
   /**
     * Resolves a package name (i.e. import path) to specific input sources
     * @param importTarget
-    * @param moduleName name of the module under verification
-    * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
+    * @param config
     * @return list of sources belonging to the package (right) or an error message (left) if no directory could be found
     *         or the directory contains input files having different package clauses
     */
-  def resolveSources(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[Source]] = {
+  def resolveSources(importTarget: AbstractImport)(config: Config): Either[String, Vector[ResolveSourcesResult]] = {
     for {
-      resources <- resolve(importTarget, moduleName, includeDirs)
-      sources = resources.map(_.asSource())
+      resources <- resolve(importTarget)(config)
+      sources = resources.map(r => ResolveSourcesResult(r.asSource(), r.builtin))
       // we do no longer need the resources, so we close them:
       _ = resources.foreach(_.close())
     } yield sources
@@ -60,24 +86,15 @@ object PackageResolver {
   /**
     * Resolves a package name (i.e. import path) to specific input files
     * @param importTarget
-    * @param moduleName name of the module under verification
-    * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
+    * @param config
     * @return list of files belonging to the package (right) or an error message (left) if no directory could be found
     *         or the directory contains input files having different package clauses
     */
-  private def resolve(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[InputResource]] = {
-    val sourceFiles = for {
-      // pkgDir stores the path to the directory that should contain source files belonging to the desired package
-      pkgDir <- getLookupPath(importTarget, moduleName, includeDirs)
-      sourceFiles = getSourceFiles(pkgDir)
-    } yield sourceFiles
-
-    sourceFiles.foreach(checkPackageClauses(_, importTarget))
-
+  private def resolve(importTarget: AbstractImport)(config: Config): Either[String, Vector[InputResource]] = {
     for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
-      pkgDir <- getLookupPath(importTarget, moduleName, includeDirs)
-      sourceFiles = getSourceFiles(pkgDir)
+      pkgDir <- getLookupPath(importTarget)(config)
+      sourceFiles = getSourceFiles(pkgDir, onlyFilesWithHeader = config.onlyFilesWithHeader)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
       // in case of error, iterate over all resources and close them
@@ -94,17 +111,18 @@ object PackageResolver {
     * The returned package name can be used as qualifier for the implicitly qualified import.
     *
     * @param n implicitely qualified import for which a qualifier should be resolved
-    * @param moduleName name of the module under verification
-    * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
+    * @param config
     * @return qualifier with which members of the imported package can be accessed (right) or an error message (left)
     *         if no directory could be found or the directory contains input files having different package clauses
     */
-  def getQualifier(n: PImplicitQualifiedImport, moduleName: String, includeDirs: Vector[Path]): Either[String, String] = {
+  def getQualifier(n: PImplicitQualifiedImport)(config: Config): Either[String, String] = {
     val importTarget = RegularImport(n.importPath)
     for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
-      pkgDir <- getLookupPath(importTarget, moduleName, includeDirs)
-      sourceFiles = getSourceFiles(pkgDir)
+      pkgDir <- getLookupPath(importTarget)(config)
+      // note that we ignore the "onlyFilesWithHeader" option provided in `config`, because we still want to consider
+      // all source files when resolving the right qualifier for a package:
+      sourceFiles = getSourceFiles(pkgDir, onlyFilesWithHeader = false)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
       pkgName <- checkPackageClauses(sourceFiles, importTarget)
@@ -158,7 +176,9 @@ object PackageResolver {
   /**
     * Resolves import target using includeDirs to a directory which exists and from which source files should be retrieved
     */
-  private def getLookupPath(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, InputResource] = {
+  private def getLookupPath(importTarget: AbstractImport)(config: Config): Either[String, InputResource] = {
+    val moduleName = config.moduleName
+    val includeDirs = config.includeDirs
     val moduleNameWithTrailingSlash = if (moduleName.nonEmpty && !moduleName.endsWith("/")) s"$moduleName/" else moduleName
     importTarget match {
       case BuiltInImport => getBuiltInResource.toRight(s"Loading builtin package has failed")
@@ -180,17 +200,63 @@ object PackageResolver {
   }
 
   /**
-    * Returns all source files with file extension 'gobraExtension' or 'goExtension in the input resource
+    * Determines if a file is to be imported when the package implemented in the same directory is imported.
+    * All test files (ending in "_test.go") are skipped, as well as all files whose path contains the `testdata` directory.
+    * One difference between our implementation in Gobra and what the Go compiler does is that Gobra does not complain
+    * if the package clause in a test file mentions a package other than the one implemented in the same directory or that package
+    * suffixed with "_test".
+    * TODO: add this check
+    * More information about this can be found in https://tip.golang.org/cmd/go/#hdr-Test_packages.
     */
-  private def getSourceFiles(input: InputResource): Vector[InputResource] = {
-    val dirContent = input.listContent()
-    val res = dirContent
-      .filter(resource => Files.isRegularFile(resource.path))
-      // only consider files with the particular extension
-      .filter(resource =>
-        FilenameUtils.getExtension(resource.path.toString) == gobraExtension ||
-          FilenameUtils.getExtension(resource.path.toString) == goExtension)
-    (dirContent :+ input).foreach({
+  private def shouldIgnoreResource(r: InputResource): Boolean = {
+    val path = r.path.toString
+    // files inside a directory named "testdata" should be ignored
+    val testDataDir = """.*/testdata(?:$|/.*)""".r
+    // test files in Go have their name terminating in "_test.go"
+    val testFilesEnding = """.*_test.go$""".r
+    testFilesEnding.matches(path) || testDataDir.matches(path)
+  }
+
+  /**
+    * Decides whether an input resource should be considered by Gobra when considering only files with headers.
+    */
+  private def isResourceWithHeader(resource: InputResource): Boolean = {
+    resource match {
+      case i: InputResource if i.builtin =>
+        // standard library methods defined in stubs are always considered by Gobra
+        true
+      case _ => Config.sourceHasHeader(resource.asSource())
+    }
+  }
+
+  /**
+    * Returns the source files with file extension 'gobraExtension' or 'goExtension' in the input resource which
+    * are not test files and are not in a directory with name 'testdata'.
+    * Input can also be a file in which case the same file is returned if it passes all tests
+    */
+  def getSourceFiles(input: InputResource, recursive: Boolean = false, onlyFilesWithHeader: Boolean = false): Vector[InputResource] = {
+    // get content of directory if it's a directory, otherwise just return the file itself
+    val dirContentOrInput = if (Files.isDirectory(input.path)) { input.listContent() } else { Vector(input) }
+    val res = dirContentOrInput
+      .flatMap { resource =>
+        if (recursive && Files.isDirectory(resource.path)) {
+          getSourceFiles(resource, recursive = recursive, onlyFilesWithHeader = onlyFilesWithHeader)
+        } else if (Files.isRegularFile(resource.path)) {
+          // ignore files that are not Go or Gobra sources, have a filename or are placed in a directory that should be
+          // ignored according to the Go spec or that do not have a header we require them to have:
+          lazy val validExtension = FilenameUtils.getExtension(resource.path.toString) == gobraExtension ||
+            FilenameUtils.getExtension(resource.path.toString) == goExtension
+          lazy val shouldBeConsidered = !shouldIgnoreResource(resource)
+          // note that the following condition has to be lazily evaluated to avoid reading the file's content and applying
+          // a regex. The first part in particular can fail when the file does not contain text!
+          lazy val headerIsMissing = onlyFilesWithHeader && !isResourceWithHeader(resource)
+          if (validExtension && shouldBeConsidered && !headerIsMissing) Vector(resource) else Vector()
+        } else {
+          Vector()
+        }
+      }
+    // close all resource that are no longer needed:
+    (dirContentOrInput.toSet + input).foreach({
       case resource if !res.contains(resource) => resource.close()
       case _ =>
     })
@@ -201,7 +267,7 @@ object PackageResolver {
     * Looks up the package clauses for all files and checks whether they match.
     * Returns right with the package name used in the package clause if they do, otherwise returns left with an error message
     */
-  def checkPackageClauses(files: Vector[InputResource], importTarget: AbstractImport): Either[String, String] = {
+  private def checkPackageClauses(files: Vector[InputResource], importTarget: AbstractImport): Either[String, String] = {
     // importPath is only used to create an error message that is similar to the error message of the official Go compiler
     def getPackageClauses(files: Vector[InputResource]): Either[String, Vector[(InputResource, String)]] = {
       val pkgClauses = files.map(f => {

@@ -23,7 +23,15 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
-      options ++= Vector("--enableMoreCompleteExhale")
+      if (!config.disableMoreCompleteExhale) {
+        options ++= Vector("--enableMoreCompleteExhale")
+      }
+      if (config.assumeInjectivityOnInhale) {
+        options ++= Vector("--assumeInjectivityOnInhale")
+      }
+      if (config.parallelizeBranches) {
+        options ++= Vector("--parallelizeBranches")
+      }
       options ++= exePaths
 
       new Silicon(options)
@@ -34,6 +42,9 @@ object ViperBackends {
     def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): Carbon = {
       var options: Vector[String] = Vector.empty
       // options ++= Vector("--logLevel", "ERROR")
+      if (config.assumeInjectivityOnInhale) {
+        options ++= Vector("--assumeInjectivityOnInhale")
+      }
       options ++= exePaths
 
       new Carbon(options)
@@ -65,7 +76,7 @@ object ViperBackends {
       server.getOrElse({
         var serverConfig = List("--logLevel", config.logLevel.levelStr)
         if(config.cacheFile.isDefined) {
-          serverConfig = serverConfig.appendedAll(List("--cacheFile", config.cacheFile.get))
+          serverConfig = serverConfig.appendedAll(List("--cacheFile", config.cacheFile.get.toString))
         }
 
         val createdServer = new ViperCoreServer(new ViperConfig(serverConfig))(executionContext)
@@ -85,7 +96,15 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
-      options ++= Vector("--enableMoreCompleteExhale")
+      if (!config.disableMoreCompleteExhale) {
+        options ++= Vector("--enableMoreCompleteExhale")
+      }
+      if (config.assumeInjectivityOnInhale) {
+        options ++= Vector("--assumeInjectivityOnInhale")
+      }
+      if (config.parallelizeBranches) {
+        options ++= Vector("--parallelizeBranches")
+      }
       options ++= exePaths
       ViperServerConfig.ConfigWithSilicon(options.toList)
     }
@@ -95,6 +114,9 @@ object ViperBackends {
     override def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig = {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
+      if (config.assumeInjectivityOnInhale) {
+        options ++= Vector("--assumeInjectivityOnInhale")
+      }
       options ++= exePaths
       ViperServerConfig.ConfigWithCarbon(options.toList)
     }

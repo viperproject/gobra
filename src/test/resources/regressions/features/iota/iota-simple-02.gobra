@@ -1,0 +1,39 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Example inspired by file
+// https://github.com/scionproto/scion/blob/master/pkg/addr/host.go
+
+package addr
+
+type HostAddrType uint8
+
+const (
+	HostTypeNone HostAddrType = iota
+	HostTypeIPv4
+	HostTypeIPv6
+	HostTypeSVC
+)
+
+func (t HostAddrType) String() string {
+	switch t {
+	case HostTypeNone:
+		return "None"
+	case HostTypeIPv4:
+		return "IPv4"
+	case HostTypeIPv6:
+		return "IPv6"
+	case HostTypeSVC:
+		return "SVC"
+	}
+	return ""
+}
+
+func test() {
+	_ := HostTypeIPv4.String()
+	assert HostTypeNone == HostAddrType(0)
+	assert HostTypeIPv4 == HostAddrType(1)
+	assert HostTypeIPv6 == HostAddrType(2)
+	assert HostTypeSVC  == HostAddrType(3)
+
+}

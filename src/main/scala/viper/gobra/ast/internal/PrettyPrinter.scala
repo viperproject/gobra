@@ -71,7 +71,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
   }
 
-  def updatePositionStore(n: Node): Doc = n.getMeta.origin match {
+  def updatePositionStore(n: Node): Doc = n.info.origin match {
     case Some(origin) =>
       new Doc(
         (iw: IW) =>
@@ -90,6 +90,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: Program => showProgram(n)
     case n: Member => showMember(n)
     case n: Field => showField(n)
+    case s: ClosureSpec => showClosureSpec(s)
     case n: DomainFunc => showDomainFunc(n)
     case n: DomainAxiom => showDomainAxiom(n)
     case n: Stmt => showStmt(n)
@@ -129,6 +130,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: MethodSubtypeProof => showMethodSubtypeProof(n)
     case n: PureMethodSubtypeProof => showPureMethodSubtypeProof(n)
     case n: GlobalConstDecl => showGlobalConstDecl(n)
+    case n: GlobalVarDecl => showGlobalVarDecl(n)
     case n: BuiltInMember => showBuiltInMember(n)
   })
   
@@ -194,6 +196,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     "const" <+> showVarDecl(globalConst.left) <+> "=" <+> showLit(globalConst.right)
   }
 
+  def showGlobalVarDecl(decl: GlobalVarDecl): Doc = {
+    "var" <+> showVarDeclList(decl.left) <+> block(showStmtList(decl.declStmts))
+  }
+
   def showBuiltInMember(member: BuiltInMember): Doc = {
     // return arguments, contracts, and potential bodies are not known to the internal representation
     def makeRecv(receiverT: Type): Parameter.In = Parameter.In("recv", receiverT)(member.info)
@@ -215,6 +221,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showField(field: Field): Doc = updatePositionStore(field) <> (field match {
     case Field(name, typ, _) => "field" <> name <> ":" <+> showType(typ)
   })
+
+  def showClosureSpec(spec: ClosureSpec): Doc =
+    showProxy(spec.func) <> braces(ssep(spec.params.map(p => p._1.toString <> colon <> showExpr(p._2)).toSeq, comma <> space))
 
   def showDomainDefinition(n: DomainDefinition): Doc = updatePositionStore(n) <> (
     n.name <+> block(ssep(n.funcs map showDomainFunc, line) <> ssep(n.axioms map showDomainAxiom, line))
@@ -240,12 +249,22 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showTerminationMeasures(list: Vector[TerminationMeasure]): Doc =
     hcat(list  map ("decreases " <> showTerminationMeasure(_) <> line))
 
+  def showCaptured(captured: Vector[(Expr, Parameter.In)]): Doc =
+    angles(showList(captured) {
+      case (e, p) => showVar(p) <+> ":=" <+> showExpr(e)
+    })
+
   def showFormalArgList[T <: Parameter](list: Vector[T]): Doc =
     showVarDeclList(list)
 
   // statements
 
   def showStmt(s: Stmt): Doc = updatePositionStore(s) <> (s match {
+    case s: MethodBody =>
+      "decl" <+> showBlockDeclList(s.decls) <> line <>
+        showStmtList(s.seqn.stmts) <> line <>
+        showStmtList(s.postprocessing)
+    case s: MethodBodySeqn => showStmtList(s.stmts)
     case Block(decls, stmts) => "decl" <+> showBlockDeclList(decls) <> line <> showStmtList(stmts)
     case Seqn(stmts) => ssep(stmts map showStmt, line)
     case Label(label) => showProxy(label)
@@ -256,6 +275,15 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       block(showStmt(body))
 
     case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))
+
+    case NewSliceLit(target, typ, elems) =>
+      val typP = showType(typ)
+      val exprsP = braces(space <> showIndexedExprMap(elems) <> (if (elems.nonEmpty) space else emptyDoc))
+      showVar(target) <+> "=" <+> "new" <> parens(brackets(emptyDoc) <> typP <+> exprsP)
+
+    case lit@NewMapLit(target, _, _, entries) =>
+      val entriesDoc = showList(entries) { case (x, y) => showExpr(x) <> ":" <+> showExpr(y) }
+      showVar(target) <+> "=" <+> "new" <> (showType(lit.typ) <+> braces(space <> entriesDoc <> (if (entries.nonEmpty) space else emptyDoc)))
 
     case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
       parens(showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
@@ -276,17 +304,24 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
 
     case FunctionCall(targets, func, args) =>
-      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
-        func.name <> parens(showExprList(args))
+      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <> func.name <> parens(showExprList(args))
 
     case MethodCall(targets, recv, meth, args) =>
+      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <> showExpr(recv) <> meth.name <> parens(showExprList(args))
+
+    case ClosureCall(targets, closure, args, spec) =>
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
-        showExpr(recv) <> meth.name <> parens(showExprList(args))
+        showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
+
+    case SpecImplementationProof(closure, spec, body, _, _) =>
+      "proof" <+> showExpr(closure) <+> "implements" <+> show(spec) <+> block(showStmt(body))
 
     case GoFunctionCall(func, args) => "go" <+> func.name <> parens(showExprList(args))
 
     case GoMethodCall(recv, meth, args) =>
       "go" <+> showExpr(recv) <> "." <>  meth.name <> parens(showExprList(args))
+
+    case s: Defer => "defer" <+> showStmt(s.stmt)
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
@@ -304,14 +339,21 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(mapLookup)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
+    case Outline(_, pres, posts, measures, body, trusted) =>
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+          "outline" <> (if (trusted) emptyDoc else parens(nest(line <> showStmt(body)) <> line))
+    case Continue(l, _) => "continue" <+> opt(l)(text)
+    case Break(l, _) => "break" <+> opt(l)(text)
   })
 
   def showProxy(x: Proxy): Doc = updatePositionStore(x) <> (x match {
     case FunctionProxy(name) => name
     case MethodProxy(name, _) => name
+    case GlobalVarProxy(name, _) => name
     case p: DomainFuncProxy => p.name
     case FPredicateProxy(name) => name
     case MPredicateProxy(name, _) => name
+    case FunctionLitProxy(name) => name
     case l: LabelProxy => l.name
   })
 
@@ -366,6 +408,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Access(e, p) => "acc" <> parens(showAcc(e) <> "," <+> showExpr(p))
     case SepForall(vars, triggers, body) =>
       "forall" <+> showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showAss(body)
+    case t: TerminationMeasure => showTerminationMeasure(t)
   })
 
   def showAcc(acc: Accessible): Doc = updatePositionStore(acc) <> (acc match {
@@ -377,7 +420,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showPredicateAcc(access: PredicateAccess): Doc = access match {
     case FPredicateAccess(pred, args) => pred.name <> parens(showExprList(args))
-    case MPredicateAccess(recv, pred, args) => showExpr(recv) <> pred.name <> parens(showExprList(args))
+    case MPredicateAccess(recv, pred, args) => showExpr(recv) <> dot <> pred.name <> parens(showExprList(args))
     case MemoryPredicateAccess(arg) => "memory" <> parens(showExpr(arg))
   }
 
@@ -412,14 +455,20 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case c: CurrentPerm => "perm" <> parens(showAcc(c.acc))
     case PermMinus(exp) => "-" <> showExpr(exp)
 
-    case PureFunctionCall(func, args, _) =>
-      func.name <> parens(showExprList(args))
+    case PureFunctionCall(func, args, _) => func.name <> parens(showExprList(args))
 
-    case PureMethodCall(recv, meth, args, _) =>
-      showExpr(recv) <> meth.name <> parens(showExprList(args))
+    case PureMethodCall(recv, meth, args, _) => showExpr(recv) <> dot <> meth.name <> parens(showExprList(args))
+
+    case PureClosureCall(closure, args, spec, _) => showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
 
     case DomainFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))
+
+    case ClosureObject(func, _) => func.name
+    case FunctionObject(func, _) => func.name
+    case MethodObject(recv, meth, _) => showExpr(recv) <> dot <> meth.name
+
+    case ClosureImplements(closure, spec) => showExpr(closure) <+> "implements" <+> showClosureSpec(spec)
 
     case IndexedExp(base, index, _) => showExpr(base) <> brackets(showExpr(index))
     case ArrayUpdate(base, left, right) => showExpr(base) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
@@ -511,8 +560,18 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       }
       prefix + lit.toString(base.base)
     case StringLit(s) => "\"" <> s <> "\""
+    case PermLit(a, b) => "perm" <> parens(a.toString() <> "/" <> b.toString())
     case BoolLit(b) => if (b) "true" else "false"
     case NilLit(t) => parens("nil" <> ":" <> showType(t))
+
+    case FunctionLit(name, args, captured, results, pres, posts, measures, body) =>
+      "func" <+> showProxy(name) <> showCaptured(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+        opt(body)(b => block(showStmt(b)))
+
+    case PureFunctionLit(name, args, captured, results, pres, posts, measures, body) =>
+      "pure func" <+> showProxy(name)  <> showCaptured(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
 
     case ArrayLit(len, typ, elems) => {
       val lenP = brackets(len.toString)
@@ -520,16 +579,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       val exprsP = braces(space <> showIndexedExprMap(elems) <> (if (elems.nonEmpty) space else emptyDoc))
       lenP <> typP <+> exprsP
     }
-
-    case SliceLit(typ, elems) => {
-      val typP = showType(typ)
-      val exprsP = braces(space <> showIndexedExprMap(elems) <> (if (elems.nonEmpty) space else emptyDoc))
-      brackets(emptyDoc) <> typP <+> exprsP
-    }
-
-    case lit@MapLit(_, _, entries) =>
-      val entriesDoc = showList(entries){ case (x,y) => showExpr(x) <> ":" <+> showExpr(y) }
-      showType(lit.typ) <+> braces(space <> entriesDoc <> (if (entries.nonEmpty) space else emptyDoc))
 
     case SequenceLit(_, typ, elems) => {
       val exprsP = braces(space <> showIndexedExprMap(elems) <> (if (elems.nonEmpty) space else emptyDoc))
@@ -552,6 +601,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Parameter.Out(id, _)    => id
     case LocalVar(id, _) => id
     case GlobalConst.Val(id, _) => id
+    case GlobalVar(proxy, _) => proxy.name
   }
 
   def showVarDecl(v: Var): Doc = v match {
@@ -560,6 +610,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Parameter.Out(id, t)    => id <> ":" <+> showType(t)
     case LocalVar(id, t) => id <> ":" <+> showType(t)
     case GlobalConst.Val(id, t) => id <> ":" <+> showType(t)
+    case GlobalVar(proxy, t) => proxy.name <> ":" <+> showType(t)
   }
 
   // types
@@ -571,13 +622,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Float32T(_) => "float32"
     case Float64T(_) => "float64"
     case VoidT => "void"
+    case FunctionT(args, res, _) => "func" <>  parens(showTypeList(args)) <> parens(showTypeList(res))
     case PermissionT(_) => "perm"
     case DefinedT(name, _) => name
     case PointerT(t, _) => "*" <> showType(t)
     case TupleT(ts, _) => parens(showTypeList(ts))
     case PredT(args, _) => "pred" <> parens(showTypeList(args))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
-    case _: InterfaceT => "interface" <> parens("...")
+    case i: InterfaceT => "interface" <> parens("name is " <> i.name)
     case _: DomainT => "domain" <> parens("...")
     case ChannelT(elem, _) => "chan" <+> showType(elem)
     case SortT => "sort"
@@ -646,6 +698,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   // statements
 
   override def showStmt(s: Stmt): Doc = s match {
+    case s: MethodBody => "decl" <+> showBlockDeclList(s.decls)
+    case _: MethodBodySeqn => emptyDoc
     case Block(decls, _) => "decl" <+> showBlockDeclList(decls)
     case Seqn(_) => emptyDoc
     case Label(label) => showProxy(label)
@@ -655,6 +709,15 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       opt(measure)("decreases" <> showTerminationMeasure(_) <> line)
 
     case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))
+
+    case NewSliceLit(target, typ, elems) =>
+      val typP = showType(typ)
+      val exprsP = braces(space <> showIndexedExprMap(elems) <> (if (elems.nonEmpty) space else emptyDoc))
+      showVar(target) <+> "=" <+> "new" <> parens(brackets(emptyDoc) <> typP <+> exprsP)
+
+    case lit@NewMapLit(target, _, _, entries) =>
+      val entriesDoc = showList(entries) { case (x, y) => showExpr(x) <> ":" <+> showExpr(y) }
+      showVar(target) <+> "=" <+> "new" <> (showType(lit.typ) <+> braces(space <> entriesDoc <> (if (entries.nonEmpty) space else emptyDoc)))
 
     case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
       parens(showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
@@ -677,19 +740,18 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Initialization(left) => "init" <+> showVar(left)
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
 
-    case FunctionCall(targets, func, args) =>
-      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
-        func.name <> parens(showExprList(args))
+    case _: FunctionCall | _: MethodCall | _: ClosureCall => super.showStmt(s)
 
-    case MethodCall(targets, recv, meth, args) =>
-      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
-        showExpr(recv) <> meth.name <> parens(showExprList(args))
+    case SpecImplementationProof(closure, spec, _, _, _) =>
+      "proof" <+> showExpr(closure) <+> "implements" <+> show(spec)
 
     case GoFunctionCall(func, args) =>
       "go" <+> func.name <> parens(showExprList(args))
 
     case GoMethodCall(recv, meth, args) =>
       "go" <+> showExpr(recv) <> "." <> meth.name <> parens(showExprList(args))
+
+    case s: Defer => "defer" <+> showStmt(s.stmt)
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
@@ -705,5 +767,10 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> "<-" <+> showExpr(channel)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
+    case Continue(l, _) => "continue" <+> opt(l)(text)
+    case Break(l, _) => "break" <+> opt(l)(text)
+    case Outline(_, pres, posts, measures, _, _) =>
+      spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+        "outline"
   }
 }

@@ -235,6 +235,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     typ.name match {
       case "perm" => PPermissionType().at(typ)
       case "int" => PIntType().at(typ)
+      case "int8" => PInt8Type().at(typ)
       case "int16" => PInt16Type().at(typ)
       case "int32" => PInt32Type().at(typ)
       case "int64" => PInt64Type().at(typ)
@@ -377,7 +378,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitResult(ctx: GobraParser.ResultContext): PResult = {
     super.visitResult(ctx) match {
-      case res: Vector[Vector[PParameter]] => PResult(res.flatten).at(ctx)
+      case res: Vector[Vector[PParameter]@unchecked] => PResult(res.flatten).at(ctx)
       case typ: PType => PResult(Vector(PUnnamedParameter(typ).at(typ))).at(ctx)
     }
   }
@@ -409,7 +410,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitInterfaceType(ctx: GobraParser.InterfaceTypeContext): PInterfaceType = {
     val methodDecls = visitListNode[PMethodSig](ctx.methodSpec())
     val embedded = visitListNode[PTypeName](ctx.typeName()).map {
-      case tn: PUnqualifiedTypeName => PInterfaceName(tn)
+      case tn: PUnqualifiedTypeName => PInterfaceName(tn).at(ctx)
       case _: PDot => fail(ctx, "Imported types are not yet supported as embedded fields.")
       case _ => fail(ctx, s"Interface embeds predeclared type.")
     }
@@ -589,10 +590,34 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitConstDecl(ctx: GobraParser.ConstDeclContext): Vector[PConstDecl] = {
-    visitListNode[PConstDecl](ctx.constSpec()) match {
-      // Make sure the first expression list is not empty
-      case Vector(PConstDecl(_, Vector(), _), _*) => fail(ctx)
-      case decls => decls
+    visitListNode[PConstSpec](ctx.constSpec()) match {
+      case specs =>
+        val expandedDecls = specs.zipWithIndex.map { case (spec, idx) =>
+          // In constant declarations, whenever a type AND the init expression of a constant are not provided, the Go
+          // compiler chooses the type and init expression of the previous constant which has either an initialization
+          // expression or type. If an init expression cannot be found for a constant, Gobra reports an error during
+          // type-checking, regardless of whether a type has been specified for it or not. This behavior mimics what
+          // the Go compiler does.
+          if (spec.right.isEmpty && spec.typ.isEmpty) {
+            // When the type and init expression of a constant are not specified, we search for the latest constant C
+            // (in declaration order) which has either a type or init expression. Then, we update the parsed node
+            // of type PConstSpec node to contain a copy of both the type and the init expression of C. Doing so here
+            // makes it easier to evaluate constant expressions that contain `iota`, as it allows us to infer from
+            // context the intended value of `iota`. If we don't do this, the best we could do when evaluating an
+            // expression containing `iota` would be to pass the intended value of `iota` as a param to the constant
+            // evaluator, which requires significant refactoring of the type checker.
+            val lastValidSpec = specs.take(idx).findLast(d => d.right.nonEmpty || d.typ.nonEmpty)
+            val rhs = lastValidSpec match {
+              case Some(s) => s.right.map(_.copy)
+              case None => Vector()
+            }
+            val typ = lastValidSpec.flatMap(_.typ.map(_.copy))
+            PConstSpec(typ = typ, left = spec.left, right = rhs).at(spec)
+          } else {
+            spec
+          }
+        }
+        Vector(PConstDecl(expandedDecls))
     }
   }
 
@@ -602,13 +627,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitConstSpec(ctx: GobraParser.ConstSpecContext): PConstDecl = {
+  override def visitConstSpec(ctx: GobraParser.ConstSpecContext): PConstSpec = {
     val typ = if (ctx.type_() != null) Some(visitNode[PType](ctx.type_())) else None
 
     val idnDefLikeList(left) = visitIdentifierList(ctx.identifierList())
     val right = visitExpressionList(ctx.expressionList())
 
-    PConstDecl(typ, right, left).at(ctx)
+    PConstSpec(typ, right, left).at(ctx)
   }
 
 
@@ -722,9 +747,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitSpecMember(ctx: SpecMemberContext): AnyRef = super.visitSpecMember(ctx) match {
-    case Vector(spec : PFunctionSpec, (id: PIdnDef, args: Vector[PParameter], result: PResult, body: Option[(PBodyParameterInfo, PBlock)]))
+    case Vector(spec : PFunctionSpec, (id: PIdnDef, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
       => PFunctionDecl(id, args, result, spec, body)
-    case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter], result: PResult, body: Option[(PBodyParameterInfo, PBlock)]))
+    case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
       => PMethodDecl(id, receiver, args, result, spec, body)
   }
 
@@ -929,7 +954,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitOperandName(ctx: GobraParser.OperandNameContext): PExpression = {
     visitChildren(ctx) match {
       case idnUseLike(id) => id match {
-        case id@PIdnUse(_) => PNamedOperand(id).at(id)
+        case id@PIdnUse(name) => name match {
+          case "iota" => PIota().at(id)
+          case _ => PNamedOperand(id).at(id)
+        }
         case PWildcard() => PBlankIdentifier().at(ctx)
         case _ => unexpected(ctx)
       }
@@ -1035,8 +1063,49 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitFunctionLit(ctx: FunctionLitContext): PFunctionLit = {
     visitChildren(ctx) match {
-      case Vector(_, (params: Vector[PParameter] @unchecked, result : PResult), b : PBlock ) => PFunctionLit(params, result, b)
+      case Vector(spec: PFunctionSpec, (id: Option[PIdnDef@unchecked], args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked])) =>
+        PFunctionLit(id, PClosureDecl(args, result, spec, body))
     }
+  }
+
+  override def visitClosureDecl(ctx: GobraParser.ClosureDeclContext): (Option[PIdnDef], Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)]) = {
+    val id = if(ctx.IDENTIFIER() == null) None else Some(goIdnDef.get(ctx.IDENTIFIER()))
+    val sig = visitNode[Signature](ctx.signature())
+    // Translate the function body if the function is not abstract or trusted, specOnly isn't set or the function is pure
+    val body = if (has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted && (!specOnly || ctx.pure)) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
+    (id, sig._1, sig._2, body)
+  }
+
+  override def visitClosureSpecInstance(ctx: ClosureSpecInstanceContext): PClosureSpecInstance = visitChildren(ctx) match {
+    case name: TerminalNode => PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), Vector.empty)
+    case imported: PDot => PClosureSpecInstance(imported, Vector.empty)
+    case Vector(name: TerminalNode, "{", "}") => PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), Vector.empty)
+    case Vector(imported: PDot, "{", "}") => PClosureSpecInstance(imported, Vector.empty)
+    case Vector(name: TerminalNode, "{", params: Vector[PKeyedElement@unchecked], "}") => PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), params)
+    case Vector(imported: PDot, "{", params: Vector[PKeyedElement@unchecked], "}") => PClosureSpecInstance(imported, params)
+  }
+
+  override def visitClosureSpecParams(ctx: ClosureSpecParamsContext): Vector[PKeyedElement] = visitChildren(ctx) match {
+    case v: Vector[_] => v collect { case p: PKeyedElement => p }
+    case p: PKeyedElement => Vector(p)
+  }
+
+  override def visitClosureSpecParam(ctx: ClosureSpecParamContext): PKeyedElement = visitChildren(ctx) match {
+    case e: PExpression => PKeyedElement(None, PExpCompositeVal(e).at(e))
+    case Vector(name: TerminalNode, ":", e: PExpression) =>
+      PKeyedElement(Some(PIdentifierKey(idnUse.get(name)).at(name)), PExpCompositeVal(e).at(e))
+  }
+
+  override def visitClosureImplSpecExpr(ctx: ClosureImplSpecExprContext): PClosureImplements = {
+    visitChildren(ctx) match {
+      case Vector(closure: PExpression, "implements", spec: PClosureSpecInstance) =>
+        PClosureImplements(closure, spec)
+    }
+  }
+
+  override def visitClosureImplProofStmt(ctx: ClosureImplProofStmtContext): PClosureImplProof = visitChildren(ctx) match {
+    case Vector("proof", closure: PExpression, "implements", spec:PClosureSpecInstance, body: PBlock) =>
+      PClosureImplProof(PClosureImplements(closure, spec), body)
   }
 
   //region Primary Expressions
@@ -1067,7 +1136,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitInvokePrimaryExpr(ctx: InvokePrimaryExprContext): AnyRef = super.visitInvokePrimaryExpr(ctx) match {
-    case Vector(pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args)
+    case Vector(pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args, None)
+  }
+
+  override def visitInvokePrimaryExprWithSpec(ctx: InvokePrimaryExprWithSpecContext): AnyRef = super.visitInvokePrimaryExprWithSpec(ctx) match {
+    case Vector(pe: PExpression, InvokeArgs(args), "as", pcs: PClosureSpecInstance) => PInvoke(pe, args, Some(pcs))
   }
 
   override def visitTypeAssertionPrimaryExpr(ctx: TypeAssertionPrimaryExprContext): AnyRef = super.visitTypeAssertionPrimaryExpr(ctx) match {
@@ -1096,7 +1169,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     *     */
   override def visitConversion(ctx: ConversionContext): PInvoke= {
     visitChildren(ctx) match {
-      case Vector(typ : PType, "(", exp : PExpression, _*) => PInvoke(typ, Vector(exp)).at(ctx)
+      case Vector(typ : PType, "(", exp : PExpression, _*) => PInvoke(typ, Vector(exp), None).at(ctx)
     }
   }
 
@@ -1243,7 +1316,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitQuantification(ctx: QuantificationContext): AnyRef = super.visitQuantification(ctx) match {
     case Vector(quantifier: String,
-      vars : Vector[PBoundVariable], ":", ":", triggers : Vector[PTrigger], body : PExpression) =>
+      vars : Vector[PBoundVariable@unchecked], ":", ":", triggers : Vector[PTrigger@unchecked], body : PExpression) =>
       (quantifier match {
         case "forall" => PForall
         case "exists" => PExists
@@ -1325,6 +1398,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       // old ( <expr> )
       POld(expr).at(ctx)
     }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitBefore(ctx: BeforeContext): PGhostExpression = super.visitBefore(ctx) match {
+    case Vector("before", "(", exp : PExpression, ")") => PBefore(exp)
   }
 
 
@@ -1745,14 +1828,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         // :=
         // identifiers should include the blank identifier, but this is currently not supported by PShortForRange
         val goIdnUnkList(idList) = visitIdentifierList(ctx.rangeClause().identifierList())
-        PShortForRange(range, idList, block).at(specCtx)
+        PShortForRange(range, idList, spec, block).at(specCtx)
       } else {
         // =
         val assignees = visitAssigneeList(ctx.rangeClause().expressionList()) match {
           case v : Vector[PAssignee] => v
           case _ => fail(ctx)
         }
-        PAssForRange(range, assignees, block).at(specCtx)
+        PAssForRange(range, assignees, spec, block).at(specCtx)
       }
     } else {
       // for { }
@@ -1914,9 +1997,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
-  override def visitDeferStmt(ctx: DeferStmtContext): PDeferStmt = {
-    val expr : PExpression = visitNode[PExpression](ctx.expression())
-    PDeferStmt(expr).at(ctx)
+  override def visitDeferStmt(ctx: DeferStmtContext): PDeferStmt = super.visitDeferStmt(ctx) match {
+    case Vector("defer", expr: PExpression) => PDeferStmt(expr)
+    case Vector("defer", "fold", predAcc : PPredicateAccess)   => PDeferStmt(PFold(predAcc).at(ctx))
+    case Vector("defer", "unfold", predAcc : PPredicateAccess) => PDeferStmt(PUnfold(predAcc).at(ctx))
   }
   //endregion
 
@@ -1950,6 +2034,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       case "inhale" => PInhale(expr)
       case "exhale" => PExhale(expr)
     }
+  }
+
+  override def visitStatementWithSpec(ctx: StatementWithSpecContext): PStatement = super.visitStatementWithSpec(ctx) match {
+    case Vector(spec: PFunctionSpec, body: PStatement) => POutline(body, spec)
+  }
+
+  override def visitOutlineStatement(ctx: OutlineStatementContext): PSeq = super.visitOutlineStatement(ctx) match {
+    case Vector(_, _, stmts: Vector[PStatement@unchecked], _) => PSeq(stmts)
   }
 
 
@@ -1998,15 +2090,30 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @return the visitor result
     */
   override def visitSourceFile(ctx: GobraParser.SourceFileContext): PProgram = {
-    val packageClause : PPackageClause = visitNode(ctx.packageClause())
+    val packageClause: PPackageClause = visitNode(ctx.packageClause())
+    val initPosts: Vector[PExpression] = visitListNode[PExpression](ctx.initPost())
     val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
 
     // Don't parse functions/methods if the identifier is blank
     val members = visitListNode[PMember](ctx.specMember())
     val ghostMembers = ctx.ghostMember().asScala.flatMap(visitNode[Vector[PGhostMember]])
     val decls = ctx.declaration().asScala.toVector.flatMap(visitDeclaration(_).asInstanceOf[Vector[PDeclaration]])
-    PProgram(packageClause, importDecls, members ++ decls ++ ghostMembers).at(ctx)
+    PProgram(packageClause, initPosts, importDecls, members ++ decls ++ ghostMembers).at(ctx)
   }
+
+  /**
+    * Visists an init postcondition
+    * @param ctx the parse tree
+    * @return the positioned PPackageclause
+    */
+  override def visitInitPost(ctx: InitPostContext): PExpression = visitNode[PExpression](ctx.expression())
+
+  /**
+    * Visists an import precondition
+    * @param ctx the parse tree
+    * @return the positioned PPackageclause
+    */
+  override def visitImportPre(ctx: ImportPreContext): PExpression = visitNode[PExpression](ctx.expression())
 
   /**
     * Visists a package clause
@@ -2024,7 +2131,56 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @return the visitor result
     */
   override def visitImportDecl(ctx: GobraParser.ImportDeclContext): Vector[PImport] = {
-    visitListNode[PImport](ctx.importSpec())
+    val importsVector: Vector[PImport] = visitListNode[PImport](ctx.importSpec())
+    val importPres: Vector[PExpression] = visitListNode[PExpression](ctx.importPre())
+
+    if (importsVector.length != 1 && importPres.nonEmpty) {
+      /* The following is rejected:
+       *   importRequires P
+       *   import (
+       *      "pkg1"
+       *      "pkg2"
+       *   )
+       */
+      fail(ctx, "An import declaration can have import preconditions only when it lists a single package")
+    } else if (importsVector.length == 1 && importPres.nonEmpty && importsVector.exists(_.importPres.nonEmpty)) {
+      /* The following is rejected:
+       *   importRequires P
+       *   import (
+       *       importRequires Q
+       *       "pkg1"
+       *   )
+       */
+      fail(ctx, "An import declaration can have import preconditions only when the single package that is listed does not have import preconditions")
+    } else if (importsVector.length == 1 && importPres.nonEmpty) {
+      /* if there is only a single importSpec and the importDecl has specification,
+       * then update the specification of the importSpec with the one from the importDecl.
+       * In other words, the following
+       *   importRequires P
+       *   import (
+       *       "pkg1"
+       *   )
+       * is transformed into
+       *   import (
+       *       importRequires P
+       *       pkg1"
+       *   )
+       * This makes it easier to find the import precondition of a PImport later on (in particular, we do not need to find
+       * the parent of the PImport to find its import preconditions)
+       */
+      importsVector.map {
+        case i@PUnqualifiedImport(importPath, Vector()) =>
+          PUnqualifiedImport(importPath, importPres).at(i)
+        case i@PExplicitQualifiedImport(qualifier, importPath, Vector()) =>
+          PExplicitQualifiedImport(qualifier, importPath, importPres).at(i)
+        case i@PImplicitQualifiedImport(importPath, Vector()) =>
+          PImplicitQualifiedImport(importPath, importPres).at(i)
+        case i =>
+          violation(s"Found unexpected import clause $i")
+      }
+    } else {
+      importsVector
+    }
   }
 
   /**
@@ -2033,14 +2189,15 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitImportSpec(ctx: GobraParser.ImportSpecContext): PImport = {
     // Get the actual path
     val path = visitString_(ctx.importPath().string_()).lit
+    val importPres: Vector[PExpression] = visitListNode(ctx.importPre())
     if(ctx.DOT() != null){
       // . "<path>"
-      PUnqualifiedImport(path).at(ctx)
+      PUnqualifiedImport(path, importPres).at(ctx)
     } else if (ctx.IDENTIFIER() != null) {
       // (<identifier> | _) "<path>"
-      PExplicitQualifiedImport(idnDefLike.get(ctx.IDENTIFIER()), path).at(ctx)
+      PExplicitQualifiedImport(idnDefLike.get(ctx.IDENTIFIER()), path, importPres).at(ctx)
     } else {
-      PImplicitQualifiedImport(path).at(ctx)
+      PImplicitQualifiedImport(path, importPres).at(ctx)
     }
   }
 

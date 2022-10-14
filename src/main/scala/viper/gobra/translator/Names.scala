@@ -17,6 +17,32 @@ object Names {
 
   def returnLabel: String = "returnLabel"
 
+  /**
+    * Hashes the argument. The result is a valid Viper name if prepended with a valid starting character.
+    * For instance, the first character of the result may be a digit.
+    */
+  def hash(s: String): String = {
+    scala.util.hashing.MurmurHash3.stringHash(s).toHexString
+  }
+
+  object InterfaceMethod {
+    /**
+      * To copy an interface method, the copied method must use a method proxy returned from this function.
+      * @param ext must not contain '$'
+      * */
+    def copy(proxy: in.MethodProxy, ext: String): in.MethodProxy =
+      in.MethodProxy(proxy.name, s"${proxy.uniqueName}$$itfcopy$$$ext")(proxy.info)
+
+    /** Returns the original proxy for a copy or not copied proxy. */
+    def origin(proxy: in.MethodProxy): in.MethodProxy = {
+      val splits = proxy.uniqueName.split('$')
+      if (splits.length > 2 && splits(splits.length-2) == "itfcopy") {
+        val originUniqueName = splits.take(splits.length-2).mkString("$")
+        in.MethodProxy(proxy.name, originUniqueName)(proxy.info)
+      } else proxy // no match
+    }
+  }
+
   /* sanitizes type name to a valid Viper name */
   def serializeType(t: vpr.Type): String = {
     t.toString()
@@ -46,6 +72,7 @@ object Names {
     case in.TupleT(ts, addr) => s"Tuple$$${ts.map(serializeType).mkString("")}$$${serializeAddressability(addr)}"
     case in.PredT(ts, addr) => s"Pred$$${ts.map(serializeType).mkString("")}$$${serializeAddressability(addr)}"
     case in.StructT(fields, addr) => s"Struct${serializeFields(fields)}${serializeAddressability(addr)}"
+    case in.FunctionT(args, res, addr) => s"Func$$${args.map(serializeType).mkString("")}$$${res.map(serializeType).mkString("")}$$${serializeAddressability(addr)}"
     case in.InterfaceT(name, addr) => s"Interface$name${serializeAddressability(addr)}"
     case in.ChannelT(elemT, addr) => s"Channel${serializeType(elemT)}${serializeAddressability(addr)}"
     case t => Violation.violation(s"cannot stringify type $t")
@@ -79,6 +106,18 @@ object Names {
   def polyValueDomain: String = "Poly"
   def polyValueBoxFunc: String = "box"
   def polyValueUnboxFunc: String = "unbox"
+
+  // closures
+  def closureDomain: String = "Closure"
+  def closureCaptVar(i: Int): String = s"captVar$i"
+  def closureCaptVarDomFunc(i: Int, typ: vpr.Type): String = s"${closureCaptVar(i)}${closureDomain}_${serializeType(typ)}"
+  def closureArg: String = "closure"
+  def closureNilFunc: String = "closureNil"
+  def closureGetter: String = "closureGet"
+  def closureCall: String = "closureCall"
+  def closureImplementsFunc: String = "closureImplements"
+  def closureImplementsParam(i: Int): String = s"param$i"
+  def closureProofIterator: String = "closureProofIterator"
 
   // interface
   def emptyInterface: String = "empty_interface"

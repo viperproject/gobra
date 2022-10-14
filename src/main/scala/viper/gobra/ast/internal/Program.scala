@@ -8,8 +8,6 @@ package viper.gobra.ast.internal
 
 /**
   * When adding a new node:
-  * - extend @see [[viper.gobra.ast.internal.utility.Nodes.subnodes]]
-  * - extend @see [[viper.gobra.ast.internal.utility.GobraStrategy.gobraDuplicator]]
   * - extend @see [[DefaultPrettyPrinter.show]]
   * - extend desugar
   * - extend translator
@@ -33,49 +31,101 @@ case class Program(
 }
 
 class LookupTable(
-                 definedTypes: Map[(String, Addressability), Type],
-                 definedMethods: Map[MethodProxy, MethodLikeMember],
-                 definedFunctions: Map[FunctionProxy, FunctionLikeMember],
-                 definedMPredicates: Map[MPredicateProxy, MPredicateLikeMember],
-                 definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember],
-                 /**
+                   private[internal] val definedTypes: Map[(String, Addressability), Type] = Map.empty,
+                   private[internal] val definedMethods: Map[MethodProxy, MethodLikeMember] = Map.empty,
+                   private[internal] val definedFunctions: Map[FunctionProxy, FunctionLikeMember] = Map.empty,
+                   private[internal] val definedMPredicates: Map[MPredicateProxy, MPredicateLikeMember] = Map.empty,
+                   private[internal] val definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember] = Map.empty,
+                   private[internal] val definedFuncLiterals: Map[FunctionLitProxy, FunctionLitLike] = Map.empty,
+
+                   /**
                    * only has to be defined on types that implement an interface // might change depending on how embedding support changes
                    * SortedSet is used to achieve a consistent ordering of members across runs of Gobra
                    */
-                 val memberProxies: Map[Type, SortedSet[MemberProxy]],
-                 /**
+                   private[internal] val directMemberProxies: Map[Type, SortedSet[MemberProxy]] = Map.empty,
+                   /**
                    * empty interface does not have to be included
                    * SortedSet is used to achieve a consistent ordering of members across runs of Gobra
                    */
-                 val interfaceImplementations: Map[InterfaceT, SortedSet[Type]],
-                 implementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy]
+                   private[internal] val directInterfaceImplementations: Map[InterfaceT, SortedSet[Type]] = Map.empty,
+                   private[internal] val implementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy] = Map.empty,
                  ) {
   def lookup(t: DefinedT): Type = definedTypes(t.name, t.addressability)
   def lookup(m: MethodProxy): MethodLikeMember = definedMethods(m)
   def lookup(f: FunctionProxy): FunctionLikeMember = definedFunctions(f)
   def lookup(m: MPredicateProxy): MPredicateLikeMember = definedMPredicates(m)
   def lookup(f: FPredicateProxy): FPredicateLikeMember = definedFPredicates(f)
+  def lookup(l: FunctionLitProxy): FunctionLitLike = definedFuncLiterals(l)
 
   def getMethods: Iterable[MethodLikeMember] = definedMethods.values
   def getFunctions: Iterable[FunctionLikeMember] = definedFunctions.values
   def getMPredicates: Iterable[MPredicateLikeMember] = definedMPredicates.values
   def getFPredicates: Iterable[FPredicateLikeMember] = definedFPredicates.values
 
-  def getDefinedTypes: Map[(String, Addressability), Type] = definedTypes
-  def getDefinedMethods: Map[MethodProxy, MethodLikeMember] = definedMethods
-  def getDefinedFunctions: Map[FunctionProxy, FunctionLikeMember] = definedFunctions
-  def getDefinedMPredicates: Map[MPredicateProxy, MPredicateLikeMember] = definedMPredicates
-  def getDefinedFPredicates: Map[FPredicateProxy, FPredicateLikeMember] = definedFPredicates
-  def getImplementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy] = implementationProofPredicateAliases
-
-  def implementations(t: InterfaceT): SortedSet[Type] = interfaceImplementations.getOrElse(t.withAddressability(Addressability.Exclusive), SortedSet.empty)
-  def members(t: Type): SortedSet[MemberProxy] = memberProxies.getOrElse(t.withAddressability(Addressability.Exclusive), SortedSet.empty)
-  def lookup(t: Type, name: String): Option[MemberProxy] = members(t).find(_.name == name)
+  def lookupImplementations(t: InterfaceT): SortedSet[Type] = getImplementations.getOrElse(t.withAddressability(Addressability.Exclusive), SortedSet.empty)
+  def lookupNonInterfaceImplementations(t: InterfaceT): SortedSet[Type] = lookupImplementations(t).filterNot(_.isInstanceOf[InterfaceT])
+  def lookupMembers(t: Type): SortedSet[MemberProxy] = getMembers.getOrElse(t.withAddressability(Addressability.Exclusive), SortedSet.empty)
+  def lookup(t: Type, name: String): Option[MemberProxy] = lookupMembers(t).find(_.name == name)
 
   def lookupImplementationPredicate(impl: Type, itf: InterfaceT, name: String): Option[PredicateProxy] = {
     lookup(impl, name).collect{ case m: MPredicateProxy => m }.orElse{
       implementationProofPredicateAliases.get(impl, itf, name)
     }
+  }
+
+  def getImplementations: Map[InterfaceT, SortedSet[Type]] = transitiveInterfaceImplementations
+  def getMembers: Map[Type, SortedSet[MemberProxy]] = transitiveMemberProxies
+
+  def merge(other: LookupTable): LookupTable = new LookupTable(
+    definedTypes ++ other.definedTypes,
+    definedMethods ++ other.definedMethods,
+    definedFunctions ++ other.definedFunctions,
+    definedMPredicates ++ other.definedMPredicates,
+    definedFPredicates ++ other.definedFPredicates,
+    definedFuncLiterals ++ other.definedFuncLiterals,
+    directMemberProxies ++ other.directMemberProxies,
+    directInterfaceImplementations ++ other.directInterfaceImplementations,
+    implementationProofPredicateAliases ++ other.implementationProofPredicateAliases,
+  )
+
+  private lazy val (transitiveInterfaceImplementations, transitiveMemberProxies) = {
+    var res = directInterfaceImplementations
+    var resMemberProxies = directMemberProxies
+
+    for ((_, values) <- res; t <- values) t match {
+      case t: InterfaceT if !res.contains(t) => res += (t -> SortedSet.empty)
+      case _ =>
+    }
+
+    var change = false
+    var temp = res
+
+    def mergeProxies(l: Option[SortedSet[MemberProxy]], r: Option[SortedSet[MemberProxy]]): SortedSet[MemberProxy] = {
+      (l.getOrElse(SortedSet.empty[MemberProxy]) ++ r.getOrElse(SortedSet.empty[MemberProxy])).foldLeft((SortedSet.empty[MemberProxy], SortedSet.empty[String])){
+        case ((res, set), x) if set.contains(x.name) =>
+          // method redeclarations are currently rejected
+          Violation.violation(x.isInstanceOf[PredicateProxy], s"Found re-declaration or override of $x, which is currently not supported")
+          (res, set) // always take first in sorted set
+        case ((res, set), x) => (res ++ SortedSet(x), set ++ SortedSet(x.name))
+      }._1
+    }
+    val mapsTo = temp.compose[Type]{ case t: InterfaceT => t }
+    def trans(key: InterfaceT, t: Type): SortedSet[Type] = t match {
+      case mapsTo(set) =>
+        change = true
+        res += (key -> (res(key) ++ set))
+        resMemberProxies += (t -> mergeProxies(resMemberProxies.get(t), resMemberProxies.get(key)))
+        set
+
+      case _ => SortedSet.empty
+    }
+
+    do {
+      change = false
+      temp = temp.map{ case (key, values) => (key, values.flatMap(trans(key, _))) }
+    } while (change)
+
+    (res, resMemberProxies)
   }
 }
 
@@ -103,8 +153,7 @@ sealed trait FunctionLikeMember extends Member {
   def name: FunctionProxy
 }
 
-sealed trait FunctionMember extends FunctionLikeMember {
-  def name: FunctionProxy
+sealed trait FunctionLikeMemberOrLit extends Node {
   def args: Vector[Parameter.In]
   def results: Vector[Parameter.Out]
   def pres: Vector[Assertion]
@@ -112,10 +161,17 @@ sealed trait FunctionMember extends FunctionLikeMember {
   def terminationMeasures: Vector[TerminationMeasure]
 }
 
+sealed trait FunctionMember extends FunctionLikeMember with FunctionLikeMemberOrLit
+
 sealed trait Location extends Expr
 
-
-sealed trait GlobalVarDecl extends Member
+case class GlobalVarDecl(left: Vector[GlobalVar],
+                         // statements involved in declaring the variables on [left]; should include an assignment
+                         // to every variable on the left
+                         declStmts: Vector[Stmt]
+                        )(val info: Source.Parser.Info) extends Member {
+  require(declStmts.nonEmpty)
+}
 
 case class GlobalConstDecl(left: GlobalConst, right: Lit)(val info: Source.Parser.Info) extends Member
 
@@ -129,7 +185,7 @@ case class Method(
                  override val pres: Vector[Assertion],
                  override val posts: Vector[Assertion],
                  override val terminationMeasures: Vector[TerminationMeasure],
-                 body: Option[Block]
+                 body: Option[MethodBody]
                  )(val info: Source.Parser.Info) extends Member with MethodMember
 
 case class PureMethod(
@@ -185,7 +241,7 @@ case class Function(
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
                      override val terminationMeasures: Vector[TerminationMeasure],
-                     body: Option[Block]
+                     body: Option[MethodBody]
                    )(val info: Source.Parser.Info) extends Member with FunctionMember
 
 case class PureFunction(
@@ -208,20 +264,24 @@ case class BuiltInFunction(
   require(argsT.forall(_.addressability == Addressability.Exclusive))
 }
 
+sealed trait PredicateMember extends Member {
+  def name: PredicateProxy
+}
+
 sealed trait FPredicateLikeMember extends Member {
   def name: FPredicateProxy
 }
 
 case class FPredicate(
-                     override val name: FPredicateProxy,
-                     args: Vector[Parameter.In],
-                     body: Option[Assertion]
-                     )(val info: Source.Parser.Info) extends FPredicateLikeMember
+                       override val name: FPredicateProxy,
+                       args: Vector[Parameter.In],
+                       body: Option[Assertion]
+                     )(val info: Source.Parser.Info) extends FPredicateLikeMember with PredicateMember
 
 case class BuiltInFPredicate(
-                            override val tag: BuiltInFPredicateTag,
-                            override val name: FPredicateProxy,
-                            override val argsT: Vector[Type]
+                              override val tag: BuiltInFPredicateTag,
+                              override val name: FPredicateProxy,
+                              override val argsT: Vector[Type]
                             )(val info: Source.Parser.Info) extends BuiltInMember with FPredicateLikeMember {
   require(argsT.forall(_.addressability == Addressability.Exclusive))
 }
@@ -235,7 +295,7 @@ case class MPredicate(
                      override val name: MPredicateProxy,
                      args: Vector[Parameter.In],
                      body: Option[Assertion]
-                     )(val info: Source.Parser.Info) extends MPredicateLikeMember
+                     )(val info: Source.Parser.Info) extends MPredicateLikeMember with PredicateMember
 
 case class BuiltInMPredicate(
                             receiverT: Type,
@@ -255,17 +315,46 @@ case class DomainFunc(
                        results: Parameter.Out
                      )(val info: Source.Parser.Info) extends Node
 
-
 sealed trait Stmt extends Node
+
+/** This node serves as a target of encoding extensions. See [[viper.gobra.translator.encodings.combinators.TypeEncoding.Extension]]*/
+case class MethodBody(
+                       decls: Vector[BlockDeclaration],
+                       seqn: MethodBodySeqn,
+                       postprocessing: Vector[Stmt] = Vector.empty,
+                     )(val info: Source.Parser.Info) extends Stmt
+
+/**
+  * This node serves as a target of encoding extensions. See [[viper.gobra.translator.encodings.combinators.TypeEncoding.Extension]]
+  * Return statements jump exactly to the end of the encoding of this statement.
+  * */
+case class MethodBodySeqn(stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Stmt
 
 case class Block(
                   decls: Vector[BlockDeclaration],
                   stmts: Vector[Stmt]
-                )(val info: Source.Parser.Info) extends Stmt
+                )(val info: Source.Parser.Info) extends Stmt {
+  def toMethodBody: MethodBody = MethodBody(decls, MethodBodySeqn(stmts)(info))(info)
+}
 
 case class Seqn(stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Stmt
 
 case class Label(id: LabelProxy)(val info: Source.Parser.Info) extends Stmt
+
+/**
+  * 'label' corresponds to the loop label we want to continue. In case it is a normal
+  * continue node, it is None.
+  * The continue node will be replaced by a goto statement to 'escLabel' which has
+  * been placed properly while desugaring for loops.
+  */
+case class Continue(label: Option[String], escLabel: String)(val info: Source.Parser.Info) extends Stmt
+
+/**
+  * 'label' corresponds to the loop label we want to break out of. In case it is a normal
+  * break node, it is 'None'.
+  * The break node will be replaced by a goto statement to 'escLabel'.
+  */
+case class Break(label: Option[String], escLabel: String)(val info: Source.Parser.Info) extends Stmt
 
 case class If(cond: Expr, thn: Stmt, els: Stmt)(val info: Source.Parser.Info) extends Stmt
 
@@ -317,10 +406,16 @@ case class New(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) exten
   * */
 case class SafeTypeAssertion(resTarget: LocalVar, successTarget: LocalVar, expr: Expr, typ: Type)(val info: Source.Parser.Info) extends Stmt
 
-case class FunctionCall(targets: Vector[LocalVar], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
-case class MethodCall(targets: Vector[LocalVar], recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
+
+case class FunctionCall(targets: Vector[LocalVar], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt with Deferrable
+case class MethodCall(targets: Vector[LocalVar], recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt with Deferrable
+case class ClosureCall(targets: Vector[LocalVar], closure: Expr, args: Vector[Expr], spec: ClosureSpec)(val info: Source.Parser.Info) extends Stmt with Deferrable
+
 case class GoFunctionCall(func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 case class GoMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
+
+sealed trait Deferrable extends Stmt
+case class Defer(stmt: Deferrable)(val info: Source.Parser.Info) extends Stmt
 
 case class Return()(val info: Source.Parser.Info) extends Stmt
 
@@ -329,14 +424,14 @@ case class Assume(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Inhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Exhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 
-case class Fold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
+case class Fold(acc: Access)(val info: Source.Parser.Info) extends Stmt with Deferrable {
   require(acc.e.isInstanceOf[Accessible.Predicate])
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
 }
 
 
 
-case class Unfold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
+case class Unfold(acc: Access)(val info: Source.Parser.Info) extends Stmt with Deferrable {
   require(acc.e.isInstanceOf[Accessible.Predicate])
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
 }
@@ -344,6 +439,15 @@ case class Unfold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
 case class PackageWand(wand: MagicWand, block: Option[Stmt])(val info: Source.Parser.Info) extends Stmt
 
 case class ApplyWand(wand: MagicWand)(val info: Source.Parser.Info) extends Stmt
+
+case class Outline(
+                    name: String,
+                    pres: Vector[Assertion],
+                    posts: Vector[Assertion],
+                    terminationMeasures: Vector[TerminationMeasure],
+                    body: Stmt,
+                    trusted: Boolean,
+                  )(val info: Source.Parser.Info) extends Stmt
 
 case class Send(channel: Expr, expr: Expr, sendChannel: MPredicateProxy, sendGivenPerm: MethodProxy, sendGotPerm: MethodProxy)(val info: Source.Parser.Info) extends Stmt
 
@@ -373,7 +477,7 @@ case class Access(e: Accessible, p: Expr)(val info: Source.Parser.Info) extends 
   require(p.typ.isInstanceOf[PermissionT], s"expected an expression of permission type but got $p.typ")
 }
 
-sealed trait TerminationMeasure extends Node
+sealed trait TerminationMeasure extends Assertion
 case class WildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure
 case class TupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure {
   require(tuple.forall(x => x.isInstanceOf[Expr] || x.isInstanceOf[PredicateAccess]), s"Unexpected tuple $tuple")
@@ -442,7 +546,7 @@ case class Exists(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)
 }
 
 sealed trait Permission extends Expr {
-  override val typ: Type = PermissionT(Addressability.rValue)
+  override def typ: Type = PermissionT(Addressability.rValue)
 }
 
 case class FullPerm(info: Source.Parser.Info) extends Permission
@@ -521,8 +625,8 @@ case class PredicateConstructor(proxy: PredicateProxy, proxyT: PredT, args: Vect
 
 case class PredExprInstance(base: Expr, args: Vector[Expr])(val info: Source.Parser.Info) extends Node
 
-case class PredExprFold(base: PredicateConstructor, args: Vector[Expr], p: Expr)(val info: Source.Parser.Info) extends Stmt
-case class PredExprUnfold(base: PredicateConstructor, args: Vector[Expr], p: Expr)(val info: Source.Parser.Info) extends Stmt
+case class PredExprFold(base: PredicateConstructor, args: Vector[Expr], p: Expr)(val info: Source.Parser.Info) extends Stmt with Deferrable
+case class PredExprUnfold(base: PredicateConstructor, args: Vector[Expr], p: Expr)(val info: Source.Parser.Info) extends Stmt with Deferrable
 
 
 /* ** Option type expressions */
@@ -835,18 +939,12 @@ case class MapValues(exp : Expr, expUnderlyingType: Type)(val info : Source.Pars
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
+case class PureClosureCall(closure: Expr, args: Vector[Expr], spec: ClosureSpec, typ: Type)(val info: Source.Parser.Info) extends Expr
 case class DomainFunctionCall(func: DomainFuncProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 
-case class Deref(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr with Location {
-  require(exp.typ.isInstanceOf[PointerT])
-}
-
-object Deref {
-  def apply(exp: Expr)(info: Source.Parser.Info): Deref = {
-    require(exp.typ.isInstanceOf[PointerT])
-    Deref(exp, exp.typ.asInstanceOf[PointerT].t)(info)
-  }
-
+case class Deref(exp: Expr, underlyingTypeExpr: Type)(val info: Source.Parser.Info) extends Expr with Location {
+  require(underlyingTypeExpr.isInstanceOf[PointerT])
+  override val typ: Type = underlyingTypeExpr.asInstanceOf[PointerT].t
 }
 
 case class Ref(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) extends Expr with Location
@@ -858,6 +956,7 @@ object Ref {
     val pointerT = PointerT(ref.typ, Addressability.reference)
     ref match {
       case x: LocalVar     => Ref(Addressable.Var(x), pointerT)(info)
+      case x: GlobalVar    => Ref(Addressable.GlobalVar(x), pointerT)(info)
       case x: Deref        => Ref(Addressable.Pointer(x), pointerT)(info)
       case x: FieldRef     => Ref(Addressable.Field(x), pointerT)(info)
       case x: IndexedExp   => Ref(Addressable.Index(x), pointerT)(info)
@@ -873,8 +972,10 @@ sealed trait Addressable extends Node {
 }
 
 object Addressable {
+  import viper.gobra.ast.{internal => in}
 
   case class Var(op: LocalVar) extends Addressable
+  case class GlobalVar(op: in.GlobalVar) extends Addressable
   case class Pointer(op: Deref) extends Addressable
   case class Field(op: FieldRef) extends Addressable
   case class Index(op: IndexedExp) extends Addressable
@@ -933,6 +1034,8 @@ object BinaryExpr {
 
 case class EqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)      extends BinaryExpr("==") with BoolOperation
 case class UneqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)    extends BinaryExpr("!=") with BoolOperation
+case class GhostEqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)   extends BinaryExpr("===") with BoolOperation
+case class GhostUneqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("!==") with BoolOperation
 case class LessCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)    extends BinaryExpr("<" ) with BoolOperation
 case class AtMostCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)  extends BinaryExpr("<=") with BoolOperation
 case class GreaterCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr(">" ) with BoolOperation
@@ -960,6 +1063,11 @@ case class ShiftRight(left: Expr, right: Expr)(val info: Source.Parser.Info) ext
 }
 case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation
 
+/*
+ * Convert 'expr' to non-interface type 'newType'. If 'newType' is
+ * an interface type, then 'ToInterface' should be used instead.
+ */
+ // TODO: maybe unify with ToInterface at some point
 case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = newType
 }
@@ -979,6 +1087,11 @@ case class IntLit(v: BigInt, kind: IntegerKind = UnboundedInteger, base: NumBase
   override def typ: Type = IntT(Addressability.literal, kind)
 }
 
+case class PermLit(dividend: BigInt, divisor: BigInt)(val info: Source.Parser.Info) extends Lit with Permission {
+  require(divisor != 0)
+  override def typ: Type = PermissionT(Addressability.literal)
+}
+
 case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = BoolT(Addressability.literal)
 }
@@ -988,6 +1101,58 @@ case class StringLit(s: String)(val info: Source.Parser.Info) extends Lit {
 }
 
 case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
+
+/* ** Closures */
+sealed trait FunctionLitLike extends Lit with FunctionLikeMemberOrLit  {
+  def name: FunctionLitProxy
+  def captured: Vector[(Expr, Parameter.In)]
+}
+
+case class FunctionLit(
+                     override val name: FunctionLitProxy,
+                     override val args: Vector[Parameter.In],
+                     override val captured: Vector[(Expr, Parameter.In)],
+                     override val results: Vector[Parameter.Out],
+                     override val pres: Vector[Assertion],
+                     override val posts: Vector[Assertion],
+                     override val terminationMeasures: Vector[TerminationMeasure],
+                     body: Option[MethodBody]
+                   )(val info: Source.Parser.Info) extends FunctionLitLike {
+  override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
+}
+
+case class PureFunctionLit(
+                         override val name: FunctionLitProxy,
+                         override val args: Vector[Parameter.In],
+                         override val captured: Vector[(Expr, Parameter.In)],
+                         override val results: Vector[Parameter.Out],
+                         override val pres: Vector[Assertion],
+                         override val posts: Vector[Assertion],
+                         override val terminationMeasures: Vector[TerminationMeasure],
+                         body: Option[Expr]
+                       )(val info: Source.Parser.Info) extends FunctionLitLike {
+  override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
+  require(results.size <= 1)
+}
+
+case class ClosureImplements(closure: Expr, spec: ClosureSpec)(override val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = BoolT(Addressability.rValue)
+}
+
+case class ClosureSpec(func: FunctionMemberOrLitProxy, params: Map[Int, Expr])(override val info: Source.Parser.Info) extends Node {
+  lazy val paramValues: Vector[Option[Expr]] =
+    if (params.isEmpty) Vector.empty else (1 to params.keySet.max).map(idx => params.get(idx)).toVector
+}
+
+case class SpecImplementationProof(closure: Expr, spec: ClosureSpec, body: Block, pres: Vector[Assertion], posts: Vector[Assertion])
+                                  (override val info: Source.Parser.Info) extends Stmt
+
+case class ClosureObject(func: FunctionLitProxy, override val typ: Type)(override val info: Source.Parser.Info) extends Expr
+
+case class FunctionObject(func: FunctionProxy, override val typ: Type)(override val info: Source.Parser.Info) extends Expr
+
+case class MethodObject(recv: Expr, meth: MethodProxy, override val typ: Type)(override val info: Source.Parser.Info) extends Expr
+
 
 /**
   * Represents (full) slice expressions "`base`[`low`:`high`:`max`]".
@@ -1016,16 +1181,16 @@ case class ArrayLit(length : BigInt, memberType : Type, elems : Map[BigInt, Expr
 }
 
 /** A slice literal of type '[]`memberType`' consisting of `elems`. */
-case class SliceLit(memberType : Type, elems : Map[BigInt, Expr])(val info : Source.Parser.Info) extends CompositeLit {
+case class NewSliceLit(target: LocalVar, memberType: Type, elems: Map[BigInt, Expr])(val info: Source.Parser.Info) extends Stmt {
   lazy val length: BigInt = if (elems.isEmpty) 0 else elems.maxBy(_._1)._1 + 1
   lazy val asArrayLit: ArrayLit = ArrayLit(length, memberType.withAddressability(Addressability.rValue), elems)(info)
-  override val typ: Type = SliceT(memberType, Addressability.literal)
+  val typ: Type = SliceT(memberType, Addressability.literal)
 }
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
 
-case class MapLit(keys : Type, values : Type, entries : Seq[(Expr, Expr)])(val info : Source.Parser.Info) extends CompositeLit {
-  override val typ : Type = MapT(keys, values, Addressability.literal)
+case class NewMapLit(target: LocalVar, keys: Type, values: Type, entries: Seq[(Expr, Expr)])(val info: Source.Parser.Info) extends Stmt {
+  val typ : Type = MapT(keys, values, Addressability.literal)
 }
 
 sealed trait Declaration extends Node
@@ -1044,7 +1209,7 @@ sealed trait Var extends Expr with Location {
 /**
   * Any variable that has a global scope.
   * */
-sealed trait GlobalVar extends Var
+sealed trait Global extends Var
 
 /**
   * Any variable whose scope is the body of a method, function, or predicate.
@@ -1079,7 +1244,11 @@ case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends
 /** Variables that can be defined in the body of a method or function. */
 case class LocalVar(id: String, typ: Type)(val info: Source.Parser.Info) extends BodyVar with AssignableVar with BlockDeclaration
 
-sealed trait GlobalConst extends GlobalVar {
+case class GlobalVar(name: GlobalVarProxy, typ: Type)(val info: Source.Parser.Info) extends AssignableVar with Global {
+  override def id: String = name.name
+}
+
+sealed trait GlobalConst extends Global {
   def unapply(arg: GlobalConst): Some[(String, Type)] =
     Some((arg.id, arg.typ))
 }
@@ -1147,6 +1316,17 @@ case object VoidT extends PrettyType("void") {
   override val addressability: Addressability = Addressability.unit
   override def equalsWithoutMod(t: Type): Boolean = t == VoidT
   override def withAddressability(newAddressability: Addressability): VoidT.type = VoidT
+}
+
+case class FunctionT(args: Vector[Type], res: Vector[Type], addressability: Addressability) extends PrettyType(f"func${args.mkString("(", ", ", ")")}${res.mkString("(", ", ", ")")}") {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case FunctionT(otherArgs, otherRes, _) => otherArgs.length == args.length &&
+      (otherArgs zip args).forall{ t => t._1.equalsWithoutMod(t._2)} &&
+      (otherRes zip res).forall{ t => t._1.equalsWithoutMod(t._2)}
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): FunctionT = FunctionT(args, res, newAddressability)
 }
 
 case class PermissionT(addressability: Addressability) extends PrettyType("perm") {
@@ -1381,9 +1561,15 @@ sealed trait MemberProxy extends Proxy {
 }
 sealed trait CallProxy extends Proxy
 
-case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Proxy with CallProxy
+sealed trait FunctionMemberOrLitProxy extends Proxy {
+  def name: String
+}
+
+case class FunctionProxy(override val name: String)(val info: Source.Parser.Info) extends FunctionMemberOrLitProxy with CallProxy
 case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends MemberProxy with CallProxy
 case class DomainFuncProxy(name: String, domainName: String)(val info: Source.Parser.Info) extends Proxy
+
+case class FunctionLitProxy(override val name: String)(val info: Source.Parser.Info) extends FunctionMemberOrLitProxy
 
 sealed trait PredicateProxy extends Proxy
 case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends PredicateProxy
@@ -1391,4 +1577,5 @@ case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Pa
 
 case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BlockDeclaration
 
+case class GlobalVarProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
 

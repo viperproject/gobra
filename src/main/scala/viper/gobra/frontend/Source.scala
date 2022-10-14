@@ -8,12 +8,14 @@ package viper.gobra.frontend
 
 import java.io.Reader
 import java.nio.file.{Files, Path, Paths}
+
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Source, StringSource}
 import viper.gobra.util.Violation
 import viper.silver.ast.SourcePosition
-
-import java.security.MessageDigest
 import java.util.Objects
+
+import viper.gobra.translator.Names
+
 import scala.io.BufferedSource
 
 /**
@@ -26,15 +28,11 @@ import scala.io.BufferedSource
  * @param isBuiltIn a flag indicating, if the package comes from within Gobra
  */
 class PackageInfo(val id: String, val name: String, val isBuiltIn: Boolean) {
+
   /**
    * Unique id of the package to use in Viper member names.
-   *
-   * We use a Hex representation of the real package it to make sure that only allowed characters are used inside the id,
-   * while also keeping the uniqueness of the package id.
    */
-  lazy val viperId: String = MessageDigest.getInstance("SHA-1")
-    .digest(id.getBytes("UTF-8"))
-    .map("%02x".format(_)).mkString
+  lazy val viperId: String = Names.hash(id)
 
   override def equals(obj: Any): Boolean = obj match {
     case other: PackageInfo => other.id == this.id
@@ -55,18 +53,6 @@ object Source {
    */
   def getPackageInfo(src: Source, projectRoot: Path): PackageInfo = {
 
-    /**
-     * Changes the given path to be relative to the projectRoot.
-     * If the path isn't a child of the projectRoot it is returned unchanged instead
-     */
-    def relativizePath(path: Path): Path = {
-      try{
-        projectRoot.relativize(path)
-      } catch {
-        case _: IllegalArgumentException => path
-      }
-    }
-
     val isBuiltIn: Boolean = src match {
       case FromFileSource(_, _, builtin) => builtin
       case _ => false
@@ -79,7 +65,7 @@ object Source {
      * A unique identifier for packages
      */
     val packageId: String = {
-      val prefix = relativizePath(TransformableSource(src).toPath.getParent).toString
+      val prefix = uniquePath(TransformableSource(src).toPath.getParent, projectRoot).toString
       if(prefix.nonEmpty) {
         // The - is enough to unambiguously separate the prefix from the package name, since it can't occur in the package name
         // per Go's spec (https://go.dev/ref/spec#Package_clause)
@@ -90,6 +76,19 @@ object Source {
       }
     }
     new PackageInfo(packageId, packageName, isBuiltIn)
+  }
+
+  /**
+    * Returns the given path such that it is relative to the projectRoot.
+    * If the path isn't a child of the projectRoot it is returned unchanged instead.
+    * We do not use the canonical path because we want a unique path that is computer independent.
+    */
+  def uniquePath(path: Path, projectRoot: Path): Path = {
+    try{
+      projectRoot.relativize(path)
+    } catch {
+      case _: IllegalArgumentException => path
+    }
   }
 
   implicit class TransformableSource[S <: Source](source: S) {

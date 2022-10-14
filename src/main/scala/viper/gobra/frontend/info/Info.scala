@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.relation.Tree
 import org.bitbucket.inkytonik.kiama.util.Source
 import viper.gobra.ast.frontend.{PNode, PPackage}
 import viper.gobra.frontend.Config
-import viper.gobra.frontend.PackageResolver.AbstractImport
+import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.{GhostLessPrinter, GoifyingPrinter}
 import viper.gobra.reporting.{CyclicImportError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
@@ -21,36 +21,45 @@ object Info {
 
   type GoTree = Tree[PNode, PPackage]
 
+  /**
+    * All TypeInfo instances share a single context instance.
+    * Therefore, package management is centralized.
+    */
   class Context {
     /** stores the results of all imported packages that have been parsed and type checked so far */
-    private var contextMap: Map[AbstractImport, Either[Vector[VerifierError], ExternalTypeInfo]] = ListMap[AbstractImport, Either[Vector[VerifierError], ExternalTypeInfo]]()
+    private var contextMap: Map[AbstractPackage, Either[Vector[VerifierError], ExternalTypeInfo]] = ListMap[AbstractPackage, Either[Vector[VerifierError], ExternalTypeInfo]]()
     /** keeps track of the package dependencies that are currently resolved. This information is used to detect cycles */
     private var pendingPackages: Vector[AbstractImport] = Vector()
     /** stores all cycles that have been discovered so far */
     private var knownImportCycles: Set[Vector[AbstractImport]] = Set()
 
-    def addPackage(importTarget: AbstractImport, typeInfo: ExternalTypeInfo): Unit = {
+    def addPackage(importTarget: AbstractImport, typeInfo: ExternalTypeInfo)(config: Config): Unit = {
+      val packageTarget = AbstractPackage(importTarget)(config)
       pendingPackages = pendingPackages.filterNot(_ == importTarget)
-      contextMap = contextMap + (importTarget -> Right(typeInfo))
+      contextMap = contextMap + (packageTarget -> Right(typeInfo))
     }
 
-    def addErrenousPackage(importTarget: AbstractImport, errors: Vector[VerifierError]): Unit = {
+    def addErrenousPackage(importTarget: AbstractImport, errors: Vector[VerifierError])(config: Config): Unit = {
+      val packageTarget = AbstractPackage(importTarget)(config)
       pendingPackages = pendingPackages.filterNot(_ == importTarget)
-      contextMap = contextMap + (importTarget -> Left(errors))
+      contextMap = contextMap + (packageTarget -> Left(errors))
     }
 
-    def getTypeInfo(importTarget: AbstractImport): Option[Either[Vector[VerifierError], ExternalTypeInfo]] = contextMap.get(importTarget) match {
-      case s@Some(_) => s
-      case _ => {
-        // there is no entry yet and package resolution might need to resolve multiple depending packages
-        // keep track of these packages in pendingPackages until either type information or an error is added to contextMap
-        if (pendingPackages.contains(importTarget)) {
-          // package cycle detected
-          knownImportCycles += pendingPackages
-          Some(Left(Vector(CyclicImportError(s"Cyclic package import detected starting with package '$importTarget'"))))
-        } else {
-          pendingPackages = pendingPackages :+ importTarget
-          None
+    def getTypeInfo(importTarget: AbstractImport)(config: Config): Option[Either[Vector[VerifierError], ExternalTypeInfo]] = {
+      val packageTarget = AbstractPackage(importTarget)(config)
+      contextMap.get(packageTarget) match {
+        case s@Some(_) => s
+        case _ => {
+          // there is no entry yet and package resolution might need to resolve multiple depending packages
+          // keep track of these packages in pendingPackages until either type information or an error is added to contextMap
+          if (pendingPackages.contains(importTarget)) {
+            // package cycle detected
+            knownImportCycles += pendingPackages
+            Some(Left(Vector(CyclicImportError(s"Cyclic package import detected starting with package '$packageTarget'"))))
+          } else {
+            pendingPackages = pendingPackages :+ importTarget
+            None
+          }
         }
       }
     }

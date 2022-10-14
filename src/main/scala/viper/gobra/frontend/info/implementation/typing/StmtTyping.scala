@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelModus, ChannelT, InterfaceT}
+import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelModus, ChannelT, FunctionT, InterfaceT, InternalTupleT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
@@ -22,9 +22,11 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualStmt(stmt: PActualStatement): Messages = stmt match {
 
-    case n@PConstDecl(typ, right, left) =>
-      right.flatMap(isExpr(_).out) ++
-        declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
+    case PConstDecl(decls) => decls flatMap {
+      case n@PConstSpec(typ, right, left) =>
+        right.flatMap(isExpr(_).out) ++
+          declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
+    }
 
     case n@PVarDecl(typ, right, left, _) =>
       right.flatMap(isExpr(_).out) ++
@@ -33,6 +35,8 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PTypeDecl => isType(n.right).out ++ (n.right match {
       case s: PStructType =>
         error(n, s"invalid recursive type ${n.left.name}", cyclicStructDef(s, Some(n.left)))
+      case s: PInterfaceType =>
+        error(n, s"invalid recursive type ${n.left.name}", cyclicInterfaceDef(s, Some(n.left)))
       case _ => noMessages
     })
 
@@ -77,8 +81,6 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       error(n, s"found more than one default case", dflt.size > 1) ++
         isExpr(exp).out ++ comparableType.errors(exprType(exp))(n)
 
-    case _: PExprSwitchDflt => noMessages
-
     case n@tree.parent.pair(PExprSwitchCase(left, _), sw: PExprSwitchStmt) =>
       left.flatMap(e => isExpr(e).out ++ comparableTypes.errors(exprType(e), exprType(sw.exp))(n))
 
@@ -99,14 +101,11 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PForStmt(_, cond, _, _, _) => isExpr(cond).out ++ comparableTypes.errors(exprType(cond), BooleanT)(n)
 
-    case n@PShortForRange(exp, lefts, _) =>
-      if (lefts.forall(pointsToData)) multiAssignableTo.errors(Vector(miscType(exp)), lefts map idType)(n)
-      else error(n, s"at least one assignee in $lefts points to a type")
+    case _@PShortForRange(range, shorts, _, _) =>
+      multiAssignableTo.errors(Vector(miscType(range)), shorts map idType)(range)
 
-
-    case n@PAssForRange(exp, lefts, _) =>
-      multiAssignableTo.errors(Vector(miscType(exp)), lefts map exprType)(n) ++
-        lefts.flatMap(t => addressable.errors(t)(t))
+    case _@PAssForRange(range, ass, _, _) =>
+      multiAssignableTo.errors(Vector(miscType(range)), ass map exprType)(range)
 
     case n@PGoStmt(exp) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
 
@@ -124,22 +123,84 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PReturn(exps) =>
       exps.flatMap(isExpr(_).out) ++ {
         if (exps.nonEmpty) {
-          val res = enclosingCodeRootWithResult(n).result
-          if (res.outs forall wellDefMisc.valid)
-            multiAssignableTo.errors(exps map exprType, res.outs map miscType)(n)
-          else error(n, s"return cannot be checked because the enclosing signature is incorrect")
+          val closureImplProof = tryEnclosingClosureImplementationProof(n)
+          if (closureImplProof.isEmpty) {
+            val res = tryEnclosingCodeRootWithResult(n)
+            if (res.isEmpty) return error(n, s"Statement does not root in a CodeRoot")
+            if (!(res.get.result.outs forall wellDefMisc.valid)) return error(n, s"return cannot be checked because the enclosing signature is incorrect")
+          }
+          multiAssignableTo.errors(exps map exprType, returnParamsAndTypes(n).map(_._1))(n)
         } else noMessages // a return without arguments is always well-defined
       }
 
-    case n@PDeferStmt(exp) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
+    case n@PDeferStmt(exp: PExpression) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
+    case PDeferStmt(_: PUnfold | _: PFold) => noMessages
 
     case _: PBlock => noMessages
     case _: PSeq => noMessages
+
+    case n: POutline =>
+      val invalidNodes: Vector[Messages] = allChildren(n) collect {
+        case n@ (_: POld | _: PLabeledOld) => error(n, "outline statements must not contain old expressions, use a before expression instead.")
+        case n: PDeferStmt => error(n, "Currently, outline statements are not allowed to contain defer statements.")
+        case n: PReturn => error(n, "outline statements must not contain return statements.")
+      }
+      error(n, s"pure outline statements are not supported.", n.spec.isPure) ++ invalidNodes.flatten
+
     case _: PEmptyStmt => noMessages
     case _: PGoto => ???
-    case _: PContinue => ???
-    case _: PBreak => ???
+
+    case n@PBreak(l) =>
+      l match {
+        case None =>
+          enclosingLoopUntilOutline(n) match {
+            case Left(Some(_: POutline)) => error(n, "break must be inside of a loop without an outline statement in between.")
+            case Left(_) => error(n, s"break must be inside a loop.")
+            case Right(_) => noMessages
+          }
+        case Some(label) =>
+          val maybeLoop = enclosingLabeledLoop(label, n)
+          maybeLoop match {
+            case Left(Some(_: POutline)) => error(n, "break label must point to an outer labeled loop without an outline statement in between.")
+            case Left(_) => error(n, s"break label must point to an outer labeled loop.")
+            case Right(_) => noMessages
+          }
+      }
+
+    case n@PContinue(l) =>
+      l match {
+        case None =>
+          enclosingLoopUntilOutline(n) match {
+            case Left(Some(_: POutline)) => error(n, "continue must be inside of a loop without an outline statement in between.")
+            case Left(_) => error(n, s"continue must be inside a loop.")
+            case Right(_) => noMessages
+          }
+        case Some(label) =>
+          val maybeLoop = enclosingLabeledLoop(label, n)
+          maybeLoop match {
+            case Left(Some(_: POutline)) => error(n, "continue label must point to an outer labeled loop without an outline statement in between.")
+            case Left(_) => error(n, s"continue label must point to an outer labeled loop.")
+            case Right(_) => noMessages
+          }
+      }
 
     case s => violation(s"$s was not handled")
+  }
+
+  private [typing] def returnParamsAndTypes(n: PReturn): Vector[(Type, PParameter)] = {
+    val closureImplProof = tryEnclosingClosureImplementationProof(n)
+    if (closureImplProof.nonEmpty) {
+      (resolve(closureImplProof.get.impl.spec.func) match {
+        case Some(AstPattern.Function(id, f)) => (idType(id).asInstanceOf[FunctionT].result, f.result.outs)
+        case Some(AstPattern.Closure(id, c)) => (idType(id).asInstanceOf[FunctionT].result, c.result.outs)
+        case _ => violation("this case should be unreachable")
+      }) match {
+        case (InternalTupleT(types), ps) => types zip ps
+        case (t, ps) => Vector(t) zip ps
+      }
+    } else {
+      val res = tryEnclosingCodeRootWithResult(n)
+      res.get.result.outs map miscType zip res.get.result.outs
+    }
   }
 }

@@ -12,9 +12,10 @@ import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
-import viper.gobra.translator.encodings.{EmbeddingParameter, TypeEncoding}
 import viper.gobra.translator.encodings.arrays.ArrayEncoding.ComponentParameter
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.encodings.combinators.TypeEncoding
+import viper.gobra.translator.context.Context
+import viper.gobra.translator.library.embeddings.EmbeddingParameter
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
@@ -91,7 +92,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
     case (in.Assignee(in.IndexedExp(base :: ctx.Array(_, _), idx, _) :: _ / Exclusive), rhs, src) =>
-      ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.ArrayUpdate(base, idx, rhs)(src.info), src)
+      ctx.assignment(in.Assignee(base), in.ArrayUpdate(base, idx, rhs)(src.info))(src)
   }
 
   /**
@@ -120,8 +121,8 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         (y, yTrigger) <- copyArray(rhs)(ctx)
         typLhs = underlyingType(lhs.typ)(ctx)
         typRhs = underlyingType(rhs.typ)(ctx)
-        body = (idx: in.BoundVar) => ctx.typeEncoding.equal(ctx)(in.IndexedExp(x, idx, typLhs)(src.info), in.IndexedExp(y, idx, typRhs)(src.info), src)
-        lhsLength <- expr(ctx)(in.Length(lhs)(lhs.info))
+        body = (idx: in.BoundVar) => ctx.equal(in.IndexedExp(x, idx, typLhs)(src.info), in.IndexedExp(y, idx, typRhs)(src.info))(src)
+        lhsLength <- ctx.expression(in.Length(lhs)(lhs.info))
         res <- boundedQuant(lhsLength, idx => xTrigger(idx) ++ yTrigger(idx), body)(src)(ctx)
       } yield res
 
@@ -131,9 +132,9 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         if (lhs == rhs) unit(vpr.TrueLit()(pos, info ,errT))
         else {
           for {
-            vLhs <- ctx.expr.translate(lhs)(ctx)
-            vRhs <- ctx.expr.translate(rhs)(ctx)
-            vNil <- ctx.expr.translate(in.NilLit(rhs.typ)(src.info))(ctx)
+            vLhs <- ctx.expression(lhs)
+            vRhs <- ctx.expression(rhs)
+            vNil <- ctx.expression(in.NilLit(rhs.typ)(src.info))
             eq1 = vpr.EqCmp(vRhs, vNil)(pos, info, errT)
             eq2 = vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
             vUnk = ctx.unknownValue.unkownValue(vpr.Bool)(pos, info ,errT)
@@ -141,8 +142,8 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         }
       } else {
         for {
-          vLhs <- ctx.expr.translate(lhs)(ctx)
-          vRhs <- ctx.expr.translate(rhs)(ctx)
+          vLhs <- ctx.expression(lhs)
+          vRhs <- ctx.expression(rhs)
         } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
       }
   }
@@ -168,18 +169,18 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * R[ x # (e: [n]T) ] -> [x] # ex_array_toSeq([e])
     * R[ loc: ([n]T)@ ] -> arrayConversion(L[loc])
     */
-  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expr(ctx)){
+  override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
     case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx, _)) :: _ / Exclusive =>
       for {
-        vBase <- ctx.expr.translate(base)(ctx)
-        vIdx <- ctx.expr.translate(idx)(ctx)
+        vBase <- ctx.expression(base)
+        vIdx <- ctx.expression(idx)
       } yield ex.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
 
     case (upd: in.ArrayUpdate) :: ctx.Array(len, t) =>
       for {
-        vBase <- ctx.expr.translate(upd.base)(ctx)
-        vIdx <- ctx.expr.translate(upd.left)(ctx)
-        vVal <- ctx.expr.translate(upd.right)(ctx)
+        vBase <- ctx.expression(upd.base)
+        vIdx <- ctx.expression(upd.left)
+        vVal <- ctx.expression(upd.right)
       } yield ex.update(vBase, vIdx, vVal, cptParam(len, t)(ctx))(upd)(ctx)
 
     case (e: in.DfltVal) :: ctx.Array(len, t) / Exclusive =>
@@ -190,44 +191,44 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       unit(sh.nil(cptParam(len, t)(ctx))(e)(ctx))
 
     case (lit: in.ArrayLit) :: ctx.Array(len, t) => for {
-      vLit <- ctx.expr.translate(in.SequenceLit(len, t, lit.elems)(lit.info))(ctx)
+      vLit <- ctx.expression(in.SequenceLit(len, t, lit.elems)(lit.info))
     } yield ex.fromSeq(vLit, cptParam(len, t)(ctx))(lit)(ctx)
 
     case n@ in.Length(e :: ctx.Array(len, t) / m) =>
       m match {
-        case Exclusive => ctx.expr.translate(e)(ctx).map(ex.length(_, cptParam(len, t)(ctx))(n)(ctx))
-        case Shared => ctx.typeEncoding.reference(ctx)(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
+        case Exclusive => ctx.expression(e).map(ex.length(_, cptParam(len, t)(ctx))(n)(ctx))
+        case Shared => ctx.reference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
       }
 
     case n@ in.SequenceConversion(e :: ctx.Array(len, t) / Exclusive) =>
-      ctx.expr.translate(e)(ctx).map(vE => ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))
+      ctx.expression(e).map(vE => ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))
 
     case n@ in.SetConversion(e :: ctx.Array(len, t)) =>
       val (pos, info, errT) = n.vprMeta
-      ctx.expr.translate(e)(ctx).map(vE => ctx.seqToSet.create(ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT))
+      ctx.expression(e).map(vE => ctx.seqToSet.create(ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT))
 
     case n@ in.MultisetConversion(e :: ctx.Array(len, t)) =>
       val (pos, info, errT) = n.vprMeta
-      ctx.expr.translate(e)(ctx).map(vE => ctx.seqToMultiset.create(ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT))
+      ctx.expression(e).map(vE => ctx.seqToMultiset.create(ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT))
 
     case n@ in.Contains(x, e :: ctx.Array(len, t)) =>
       val (pos, info, errT) = n.vprMeta
       for {
-        vX <- ctx.expr.translate(x)(ctx)
-        vE <- ctx.expr.translate(e)(ctx)
+        vX <- ctx.expression(x)
+        vE <- ctx.expression(e)
       } yield vpr.SeqContains(vX, ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT)
 
     case n@ in.Multiplicity(x, e :: ctx.Array(len, t)) =>
       val (pos, info, errT) = n.vprMeta
       for {
-        vX <- ctx.expr.translate(x)(ctx)
-        vE <- ctx.expr.translate(e)(ctx)
+        vX <- ctx.expression(x)
+        vE <- ctx.expression(e)
       } yield ctx.seqMultiplicity.create(vX, ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT)
 
     case (loc: in.Location) :: ctx.Array(len, t) / Shared =>
       val (pos, info, errT) = loc.vprMeta
       for {
-        arg <- ctx.typeEncoding.reference(ctx)(loc)
+        arg <- ctx.reference(loc)
       } yield conversionFunc(Vector(arg), cptParam(len, t)(ctx))(pos, info, errT)(ctx)
   }
 
@@ -242,8 +243,8 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
     case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx, _)) :: _ / Shared =>
       for {
-        vBase <- ctx.typeEncoding.reference(ctx)(base.asInstanceOf[in.Location])
-        vIdx <- ctx.expr.translate(idx)(ctx)
+        vBase <- ctx.reference(base.asInstanceOf[in.Location])
+        vIdx <- ctx.expression(idx)
       } yield sh.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
   }
 
@@ -265,12 +266,12 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val (pos, info, errT) = loc.vprMeta
       val typ = underlyingType(loc.typ)(ctx)
       for {
-        locRef <- ctx.typeEncoding.reference(ctx)(loc)
+        locRef <- ctx.reference(loc)
         nonNil = vpr.Not(vpr.EqCmp(locRef, sh.nil(cptParam(len, t)(ctx))(loc)(ctx))(pos, info, errT))(pos, info, errT)
         trigger = (idx: vpr.LocalVar) =>
           Seq(vpr.Trigger(Seq(sh.get(locRef, idx, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
-        body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(loc, idx, typ)(loc.info), perm)
-        length <- expr(ctx)(in.Length(loc)(loc.info))
+        body = (idx: in.BoundVar) => ctx.footprint(in.IndexedExp(loc, idx, typ)(loc.info), perm)
+        length <- ctx.expression(in.Length(loc)(loc.info))
         arrayPerm <- boundedQuant(length, trigger, body)(loc)(ctx).map(forall =>
           // to eliminate nested quantified permissions, which are not supported by the silver ast.
           VU.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
@@ -290,12 +291,12 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         val (pos, info, errT) = exp.vprMeta
         // if this is executed, then type parameter must have dynamic comparability
         val idx = in.BoundVar("idx", in.IntT(Exclusive))(exp.info)
-        val vIdxDecl = ctx.typeEncoding.variable(ctx)(idx)
+        val vIdxDecl = ctx.variable(idx)
         val baseTyp = underlyingType(exp.typ)(ctx)
         for {
-          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(in.IndexedExp(exp, idx, baseTyp)(exp.info))
+          rhs <- pure(ctx.isComparable(in.IndexedExp(exp, idx, baseTyp)(exp.info))
             .getOrElse(Violation.violation("An incomparable array entails an incomparable element type.")))(ctx)
-          length <- expr(ctx)(in.Length(exp)(exp.info))
+          length <- ctx.expression(in.Length(exp)(exp.info))
           res = vpr.Forall(
             variables = Seq(vIdxDecl),
             triggers = Seq(vpr.Trigger(Seq(rhs))(pos, info, errT)),
@@ -308,7 +309,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
   /**
     * Generates:
     * function arrayConversion(x: [([n]T)@]): ([n]T)°
-    *   requires Footprint[x]
+    *   requires acc(Footprint[x], _)
     *   ensures  [x == result]
     * */
   private val conversionFunc: FunctionGenerator[ComponentParameter] = new FunctionGenerator[ComponentParameter]{
@@ -328,7 +329,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         name = s"${Names.arrayConversionFunc}_${t.serialize}",
         formalArgs = Vector(variable(ctx)(x)),
         typ = vResultType,
-        pres = Vector(pure(addressFootprint(ctx)(x, in.FullPerm(Source.Parser.Internal)))(ctx).res),
+        pres = Vector(pure(addressFootprint(ctx)(x, in.WildcardPerm(Source.Parser.Internal)))(ctx).res),
         posts = Vector(post),
         body = None
       )()
@@ -351,14 +352,14 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val resDummy = in.LocalVar("res", resType)(src.info)
       // variable name does not matter because it is the only variable occurring in the current scope
       val idx = in.BoundVar("idx", in.IntT(Exclusive))(src.info)
-      val vIdx = ctx.typeEncoding.variable(ctx)(idx)
+      val vIdx = ctx.variable(idx)
       val resAccess = in.IndexedExp(resDummy, idx, resType)(src.info)
-      val lenEq = pure(ctx.typeEncoding.equal(ctx)(in.Length(resDummy)(src.info), in.IntLit(resType.length)(src.info), src))(ctx).res
+      val lenEq = pure(ctx.equal(in.Length(resDummy)(src.info), in.IntLit(resType.length)(src.info))(src))(ctx).res
         .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
-      val idxEq = pure(ctx.typeEncoding.equal(ctx)(resAccess, in.DfltVal(resType.elems)(src.info), src))(ctx).res
+      val idxEq = pure(ctx.equal(resAccess, in.DfltVal(resType.elems)(src.info))(src))(ctx).res
         .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
       val trigger = ex.get(vpr.Result(vResType)(), vIdx.localVar, t)(src)(ctx)
-      val resLen = pure(expr(ctx)(in.Length(resDummy)(src.info)))(ctx).res
+      val resLen = pure(ctx.expression(in.Length(resDummy)(src.info)))(ctx).res
         .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
       val arrayEq = vpr.Forall(
         Seq(vIdx),
@@ -402,7 +403,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     val (pos, info, errT) = src.vprMeta
 
     val idx = in.BoundVar(ctx.freshNames.next(), in.IntT(Exclusive))(src.info)
-    val vIdx = ctx.typeEncoding.variable(ctx)(idx)
+    val vIdx = ctx.variable(idx)
 
     for {
       vBody <- pure(body(idx))(ctx)
@@ -423,7 +424,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       case _ :: ctx.Array(len, t) / Exclusive =>
         val (pos, info, errT) = e.vprMeta
         for {
-          vS <- ctx.expr.translate(e)(ctx)
+          vS <- ctx.expression(e)
           x = in.LocalVar(ctx.freshNames.next(), e.typ)(e.info)
           vX = variable(ctx)(x)
           _ <- local(vX)
@@ -434,7 +435,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       case (loc: in.Location) :: ctx.Array(len, t) / Shared =>
         val (pos, info, errT) = e.vprMeta
         for {
-          vS <- ctx.typeEncoding.reference(ctx)(loc)
+          vS <- ctx.reference(loc)
           x = in.LocalVar(ctx.freshNames.next(), e.typ)(e.info)
           vX = variable(ctx)(x)
           _ <- local(vX)

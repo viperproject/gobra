@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.frontend.info.base.SymbolTable.{Function, Regular, SingleLocalVariable}
+import viper.gobra.frontend.info.base.SymbolTable.{Closure, Function, Regular, SingleLocalVariable}
 import viper.gobra.util.Violation.violation
 
 trait GhostWellDef { this: TypeInfoImpl =>
@@ -48,6 +48,8 @@ trait GhostWellDef { this: TypeInfoImpl =>
   }
 
   private def stmtGhostSeparation(stmt: PStatement): Messages = stmt match {
+    case p: PClosureImplProof => provenSpecMatchesInGhostnessWithCall(p)
+
     case _: PGhostStatement => noMessages
     case s if enclosingGhostContext(s) => noMessages
 
@@ -64,6 +66,9 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PBlock
       |  _: PSeq
       |  _: PExpressionStmt
+      |  _: POutline
+      | _: PShortForRange
+      | _: PAssForRange
     => noMessages
 
     case n@ (
@@ -71,8 +76,6 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PIfStmt
       |  _: PExprSwitchStmt
       |  _: PTypeSwitchStmt
-      |  _: PAssForRange
-      |  _: PShortForRange
       |  _: PGoStmt
       |  _: PSelectStmt
       |  _: PBreak
@@ -87,9 +90,8 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
 
     case n@ PReturn(right) =>
-      val res = enclosingCodeRootWithResult(n).result
-      if (right.nonEmpty) {
-        ghostAssignableToParam(right: _*)(res.outs: _*)
+      if (right.nonEmpty && tryEnclosingClosureImplementationProof(n).isEmpty) {
+        ghostAssignableToParam(right: _*)(returnParamsAndTypes(n).map(_._2): _*)
       } else noMessages
   }
 
@@ -117,6 +119,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
        | _: PLiteral
        | _: PReference
        | _: PBlankIdentifier
+       | _: PIota
        | _: PPredConstructor
        | _: PUnpackSlice
     => noMessages
@@ -128,6 +131,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(_: ap.Conversion)) =>  error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
       case (Left(_), Some(call: ap.FunctionCall)) => ghostAssignableToCallExpr(call)
+      case (Left(_), Some(call: ap.ClosureCall)) => ghostAssignableToClosureCall(call)
       case (Left(_), Some(_: ap.PredicateCall)) => noMessages
       case (Left(_), Some(_: ap.PredExprInstance)) => noMessages
       case _ => violation("expected conversion, function call, or predicate call")
@@ -163,6 +167,10 @@ trait GhostWellDef { this: TypeInfoImpl =>
         })
 
         case Function(PFunctionDecl(_, args, r, _, _), _, _) => unsafeMessage(! {
+          args.forall(wellGhostSeparated.valid) && wellGhostSeparated.valid(r)
+        })
+
+        case Closure(PFunctionLit(_, PClosureDecl(args, r, _, _)), _, _) => unsafeMessage(! {
           args.forall(wellGhostSeparated.valid) && wellGhostSeparated.valid(r)
         })
 

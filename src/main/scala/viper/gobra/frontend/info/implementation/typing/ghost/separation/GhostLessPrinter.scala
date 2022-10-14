@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.Violation
 
 class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter {
@@ -68,6 +68,10 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
       val aRight = right.zip(gt.toTuple).filter(!_._2).map(_._1)
       super.showStmt(PReturn(aRight))
 
+    case n: PProofAnnotation => n match {
+      case n: POutline => showStmt(n.body)
+    }
+
     case s if classifier.isStmtGhost(s) => ghostToken
     case _ => super.showStmt(stmt)
   }
@@ -104,7 +108,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
       res._1 +: remainder
     }
 
-    StrictAssignModi(left.size, right.size) match {
+    StrictAssignMode(left.size, right.size) match {
       case AssignMode.Single =>
         // we have to distinguish for each pair of elements from left and right whether they remain the original
         // operation (i.e. by calling `copy`) or whether the left-hand side is dropped. In the latter case, the
@@ -160,13 +164,21 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
       case _ =>
         val gt = classifier.expectedArgGhostTyping(n)
         val aArgs = n.args.zip(gt.toTuple).filter(!_._2).map(_._1)
-        super.showExpr(n.copy(args = aArgs))
+        super.showExpr(n.copy(args = aArgs, spec = None))
     }
 
-    case e: PActualExprProofAnnotation => e match {
+    case PFunctionLit(_, PClosureDecl(args, result, _, body)) => super.showMisc(PClosureDecl(
+      filterParamList(args),
+      filterResult(result),
+      PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+      body.map( b => (PBodyParameterInfo(Vector.empty), b._2) )
+    ))
+
+    case e: PProofAnnotation => e match {
       case PUnfolding(_, op) => showExpr(op)
     }
     case e if classifier.isExprGhost(e) => ghostToken
+
     case e => super.showExpr(e)
   }
 

@@ -6,14 +6,21 @@
 
 package viper.gobra.translator.encodings.interfaces
 
-import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
+import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.TypePatterns.Sh
 
 /** Polymorphic value that can fit all countable types. */
 class PolymorphValueComponentImpl(handle: PolymorphValueInterfaceHandle) extends PolymorphValueComponent {
+  def this(interfaces: InterfaceComponent, types: TypeComponent) = this(new PolymorphValueInterfaceHandle {
+      def typ(polyType: vpr.Type)(ctx: Context): vpr.Type = interfaces.typ(polyType, types.typ()(ctx))(ctx)
+      def create(polyVal: vpr.Exp, dynType: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = interfaces.create(polyVal, dynType)(pos, info, errT)(ctx)
+      def dynTypeOf(itf: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = interfaces.dynTypeOf(itf)(pos, info, errT)(ctx)
+      def polyValOf(itf: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = interfaces.polyValOf(itf)(pos, info, errT)(ctx)
+      def typeToExpr(typ: in.Type)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = types.typeToExpr(typ)(pos, info, errT)(ctx)
+    })
 
   private val imageType: vpr.Type = vpr.Ref
 
@@ -62,7 +69,7 @@ class PolymorphValueComponentImpl(handle: PolymorphValueInterfaceHandle) extends
 
   /** Extracts an expression from the polymorphic value. */
   override def unbox(arg: vpr.Exp, typ: in.Type)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
-    val vprType = ctx.typeEncoding.typ(ctx)(typ)
+    val vprType = ctx.typ(typ)
     if (vprType == imageType) {
       arg
     } else {
@@ -95,7 +102,7 @@ class PolymorphValueComponentImpl(handle: PolymorphValueInterfaceHandle) extends
     if (!genAxiomSet.contains(t)) {
       genAxiomSet += t
 
-      val vprT = ctx.typeEncoding.typ(ctx)(t)
+      val vprT = ctx.typ(t)
       val typeVarMap = Map(typeVar -> vprT)
 
       def boxApp(arg: vpr.Exp): vpr.DomainFuncApp = vpr.DomainFuncApp(

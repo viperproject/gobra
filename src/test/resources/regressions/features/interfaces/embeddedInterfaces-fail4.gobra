@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type foo interface {
+	bar
+	
+	f()
+}
+
+type bar interface {
+	ensures res == 5
+	pure g() (res int)
+}
+
+type test int
+
+func (x test) f()
+
+ensures res == 5
+pure func (x test) g() (res int)
+
+test implements foo
+
+func main() {
+	var x bar = test(0)
+	//:: ExpectedOutput(type_error)
+	var y foo = x
+}

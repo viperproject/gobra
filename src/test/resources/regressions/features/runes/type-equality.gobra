@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func typeSynonymsAreEqual() {
+	assert type[int32] == type[rune]
+	assert type[uint8] == type[byte]
+}

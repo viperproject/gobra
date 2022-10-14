@@ -6,13 +6,13 @@
 
 package viper.gobra.translator.transformers
 import java.nio.file.Path
-
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.util.Violation
 import viper.silicon.Silicon
 import viper.silver.{ast => vpr}
 import viper.silver.frontend.{DefaultStates, ViperAstProvider}
-import viper.silver.plugin.standard.termination.TerminationPlugin
+import viper.silver.plugin.standard.predicateinstance.PredicateInstance.PredicateInstanceDomainName
+import viper.silver.plugin.standard.termination.{DecreasesTuple, TerminationPlugin}
 import viper.silver.reporter.{NoopReporter, Reporter}
 import viper.silver.plugin.standard.predicateinstance.PredicateInstancePlugin
 
@@ -26,9 +26,33 @@ class TerminationTransformer extends ViperTransformer {
     // constructs a separate Viper program (as a string) that should be parsed
     // after parsing this separate Viper program, the resulting AST is combined with `task`
 
+    val allImport = "decreases/all.vpr"
+    def type2Import(typ: vpr.Type): String = typ match {
+      case vpr.Bool => "decreases/bool.vpr"
+      case vpr.Int => "decreases/int.vpr"
+      case vpr.MultisetType(_) => "decreases/multiset.vpr"
+      case vpr.Perm => "decreases/rational.vpr"
+      case vpr.Ref => "decreases/ref.vpr"
+      case vpr.SeqType(_) => "decreases/seq.vpr"
+      case vpr.SetType(_) => "decreases/set.vpr"
+      case vpr.DomainType(name, _) if name == PredicateInstanceDomainName => "decreases/predicate_instance.vpr"
+      case _ => allImport // fallback
+    }
+
+    // find the types of all expressions used as decreases measues
+    val measureTypes = task.program.deepCollect {
+      case DecreasesTuple(tupleExpressions, _) => tupleExpressions.map(_.typ)
+    }.flatten.distinct
+    // map these types to the respective files that should be imported
+    val imports = measureTypes
+      .map(type2Import)
+      .distinct
+    // if `allImport` is in the list of files that should be imported, we can ignore all others and instead only import
+    // `allImport`
+    val importsAll = imports.contains(allImport)
     /** list of Viper standard imports that should be parsed */
-    val imports = Seq("decreases/all.vpr")
-    val progWithImports = imports.map(p => s"import <${p}>").mkString("\n")
+    val filteredImports = if (importsAll) Seq(allImport) else imports
+    val progWithImports = filteredImports.map(p => s"import <${p}>").mkString("\n")
     val vprProgram = parseVpr(progWithImports)
     combine(task, vprProgram)
   }
@@ -56,8 +80,8 @@ class TerminationTransformer extends ViperTransformer {
   }
 
   private def executeTerminationPlugin(task: BackendVerifier.Task): BackendVerifier.Task = {
-    val plugin = new TerminationPlugin(null, null, null)
-    val predInstancePlugin = new PredicateInstancePlugin()
+    val plugin = new TerminationPlugin(null, null, null, null)
+    val predInstancePlugin = new PredicateInstancePlugin(null, null, null, null)
     val transformedProgram = plugin.beforeVerify(task.program)
     val programWithoutPredicateInstances = predInstancePlugin.beforeVerify(transformedProgram)
     task.copy(program = programWithoutPredicateInstances)

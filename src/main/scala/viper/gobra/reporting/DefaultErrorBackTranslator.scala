@@ -6,7 +6,8 @@
 
 package viper.gobra.reporting
 
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, OverflowCheckAnnotation}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, MainPreNotEstablished, OverflowCheckAnnotation, ReceiverNotNilCheckAnnotation, RangeVariableMightNotExistAnnotation}
+
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
@@ -66,8 +67,8 @@ object DefaultErrorBackTranslator {
       //      case vprrea.InvalidPermMultiplication(offendingNode) =>
       case vprrea.MagicWandChunkNotFound(CertainSource(info)) =>
         MagicWandChunkNotFound(info)
-      case vprrea.ReceiverNotInjective(CertainSource(info)) =>
-        ReceiverNotInjectiveReason(info)
+      case vprrea.QPAssertionNotInjective(CertainSource(info)) =>
+        QPAssertionNotInjective(info)
       case vprrea.LabelledStateNotReached(CertainSource(info)) =>
         LabelledStateNotReached(info)
       case termination.TerminationConditionFalse(CertainSource(info)) =>
@@ -84,6 +85,8 @@ object DefaultErrorBackTranslator {
 
     val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {
       case AssertionFalseError(info / OverflowCheckAnnotation) => OverflowErrorReason(info)
+      case AssertionFalseError(info / ReceiverNotNilCheckAnnotation) => InterfaceReceiverIsNilReason(info)
+      case AssertionFalseError(info / RangeVariableMightNotExistAnnotation(_)) => AssertionFalseError(info)
       case x => x
     }
 
@@ -166,6 +169,18 @@ class DefaultErrorBackTranslator(
 
       case _ / AutoImplProofAnnotation(subT, superT) =>
         GeneratedImplementationProofError(subT, superT, x)
+
+      case _ / RangeVariableMightNotExistAnnotation(rangeExpr) =>
+        x.reasons.foldLeft(RangeVariableMightNotExistError(x.info)(rangeExpr): VerificationError){ case (err, reason) => err dueTo reason }
+      case _ / MainPreNotEstablished =>
+        x.reasons.foldLeft(MainPreconditionNotEstablished(x.info): VerificationError){
+          case (err, reason) => err dueTo reason
+        }
+
+      case _ / ImportPreNotEstablished =>
+        x.reasons.foldLeft(ImportPreconditionNotEstablished(x.info): VerificationError){
+          case (err, reason) => err dueTo reason
+        }
 
       case _ => x
     }

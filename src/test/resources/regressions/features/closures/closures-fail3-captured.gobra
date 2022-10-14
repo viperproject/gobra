@@ -1,0 +1,46 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresFail3Captured
+
+func test1() {
+    x@ := 0
+
+    cl :=
+        func(n int)int {
+            //:: ExpectedOutput(assignment_error:permission_error)
+            return n + x
+        }
+}
+
+func test2() {
+    x@ := 0
+
+    cl :=
+        //:: ExpectedOutput(pure_function_not_well_defined:permission_error)
+        pure func(n int)int {
+            return n + x
+        }
+}
+
+func test3() {
+    x@ := 0
+
+    cl :=
+        //:: ExpectedOutput(contract_not_well_formed:permission_error)   
+        requires x == 0
+        func(n int)int {
+            return n
+        }
+}
+
+func test4() {
+    x@ := 0
+
+    cl :=
+        //:: ExpectedOutput(contract_not_well_formed:permission_error)   
+        requires x == 0
+        pure func(n int)int {
+            return n
+        }
+}

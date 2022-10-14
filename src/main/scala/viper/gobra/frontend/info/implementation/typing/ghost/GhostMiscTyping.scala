@@ -17,11 +17,16 @@ import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.util.Violation
 import viper.gobra.util.Violation.violation
 
-import scala.annotation.tailrec
-
 trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostMisc(misc: PGhostMisc) = misc match {
+    case c@PClosureSpecInstance(id, _) => resolve(id) match {
+      case Some(ap.Function(_, f)) => wellDefClosureSpecInstanceParams(c, f.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
+      case Some(ap.Closure(_, l)) => if (c.params.isEmpty || capturedVariables(l.lit.decl).isEmpty)
+        wellDefClosureSpecInstanceParams(c, l.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
+        else error(c, s"function literal ${l.lit.id.get} captures variables, so it cannot be used to derive a parametrized spec instance")
+      case _ => error(id, s"identifier $id does not identify a user-defined function or function literal")
+    }
     case PBoundVariable(_, _) => noMessages
     case PTrigger(exprs) => exprs.flatMap(isWeaklyPureExpr)
     case PExplicitGhostParameter(_) => noMessages
@@ -114,116 +119,17 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
                     failedProp("Receiver and arguments must be named so that they can be used in a call")
                   } else {
                     val expectedReceiver = expectedReceiverOpt.getOrElse(violation(""))
-                    val expectedInvoke = PInvoke(PDot(expectedReceiver, n.id), expectedArgs)
+                    val expectedInvoke = PInvoke(PDot(expectedReceiver, n.id), expectedArgs, None)
 
                     if (n.isPure) {
                       block.nonEmptyStmts match {
                         case Vector(PReturn(Vector(ret))) =>
-                          @tailrec
-                          def validExpression(expr: PExpression): PropertyResult = expr match {
-                            case invk: PInvoke =>
-                              failedProp(s"The call must be $expectedInvoke", invk != expectedInvoke)
-                            case f: PUnfolding => validExpression(f.op)
-                            case _ => failedProp(s"only unfolding expressions and the call $expectedInvoke is allowed")
-                          }
-
-                          validExpression(ret)
+                          pureImplementationProofHasRightShape(ret, _ == expectedInvoke, expectedInvoke.toString)
 
                         case _ => successProp // already checked before
                       }
                     } else {
-                      // the body can only contain fold, unfold, and the call
-
-                      val expectedResults = n.result.outs flatMap {
-                        case p: PNamedParameter => Some(PNamedOperand(PIdnUse(p.id.name)))
-                        case PExplicitGhostParameter(p: PNamedParameter) => Some(PNamedOperand(PIdnUse(p.id.name)))
-                        case _ => None
-                      }
-                      val expectedCall = {
-                        if (n.result.outs.isEmpty) expectedInvoke
-                        else if (n.result.outs.size != expectedResults.size) PReturn(Vector(expectedInvoke))
-                        else PAssignment(Vector(expectedInvoke), expectedResults)
-                      }
-                      val expectedReturnWithCall = PReturn(Vector(expectedInvoke))
-                      val expectedReturnSet = {
-                        val emptyReturn = PReturn(Vector.empty)
-
-                        if (n.result.outs.isEmpty) Set(emptyReturn)
-                        else if (n.result.outs.size != expectedResults.size) Set(emptyReturn, expectedReturnWithCall)
-                        else Set(emptyReturn, expectedReturnWithCall, PReturn(expectedResults))
-                      }
-
-                      lazy val lastStatement: PStatement = {
-                        @tailrec
-                        def aux(stmt: PStatement): PStatement = stmt match {
-                          case seq: PSeq => aux(seq.nonEmptyStmts.last)
-                          case block: PBlock => aux(block.nonEmptyStmts.last)
-                          case s => s
-                        }
-
-                        aux(block)
-                      }
-
-                      var numOfImplemetationCalls = 0
-
-                      def validStatements(stmts: Vector[PStatement]): PropertyResult =
-                        PropertyResult.bigAnd(stmts.map {
-                          case _: PUnfold | _: PFold | _: PAssert | _: PEmptyStmt => successProp
-                          case _: PAssume | _: PInhale | _: PExhale => failedProp("Assume, inhale, and exhale are forbidden in implementation proofs")
-
-                          case b: PBlock => validStatements(b.nonEmptyStmts)
-                          case seq: PSeq => validStatements(seq.nonEmptyStmts)
-
-                          case ass: PAssignment =>
-                            // Right now, we only allow assignments that are used for the one call
-                            expectedCall match {
-                              case expectedCall: PAssignment =>
-                                if (ass != expectedCall) {
-                                  failedProp(s"The only allowed assignment is $expectedCall")
-                                } else {
-                                  numOfImplemetationCalls += 1
-                                  successProp
-                                }
-
-                              case _ =>
-                                val reason =
-                                  if (n.result.outs.isEmpty) "Here, the method has no out-parameters."
-                                  else "Here, not all out-parameters have a name, so they cannot be assigned to."
-                                failedProp("An assignment must assign to all out-parameters. " + reason)
-                            }
-
-                          case PExpressionStmt(invk: PInvoke) =>
-                            // An invoke must be the call to the implementation
-                            // As a consequence, an invoke alone can only occur if there are no result parameters
-                            if (invk == expectedInvoke) {
-                              if (n.result.outs.nonEmpty) failedProp(s"The call '$invk' is missing the out-parameters")
-                              else {
-                                numOfImplemetationCalls += 1
-                                successProp
-                              }
-                            } else failedProp(s"The only allowed call is $expectedInvoke")
-
-                          case ret: PReturn =>
-                            // there has to be at most one return at the end of the block
-                            if (lastStatement != ret) {
-                              failedProp("A return must be the last statement")
-                            } else if (expectedReturnSet.contains(ret)) {
-                              if (ret == expectedReturnWithCall) numOfImplemetationCalls += 1
-                              successProp
-                            } else failedProp(s"A return must be one of $expectedReturnSet")
-
-                          case _ => failedProp("Only fold, unfold, assert, and one call to the implementation are allowed")
-                        })
-
-                      val validStatementsResult = validStatements(block.nonEmptyStmts).distinct
-                      val noTooManyCalls = {
-                        if (numOfImplemetationCalls != 1) {
-                          failedProp(s"There must be exactly one call to the implementation " +
-                            s"(with results and arguments in the right order '$expectedCall')")
-                        } else successProp
-                      }
-
-                      validStatementsResult and noTooManyCalls
+                      implementationProofBodyHasRightShape(block, _ == expectedInvoke, expectedInvoke.toString, n.result)
                     }
                   }
               }
@@ -238,6 +144,22 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def ghostMiscType(misc: PGhostMisc): Type = misc match {
+    case spec@PClosureSpecInstance(func, params) =>
+      val fType = exprOrTypeType(func).asInstanceOf[FunctionT]
+      if (spec.paramKeys.isEmpty) fType.copy(args = fType.args.drop(params.size))
+      else {
+        val f = resolve(func) match {
+          case Some(ap.Function(_, f)) => f
+          case Some(ap.Closure(_, c)) => c
+          case _ => Violation.violation(s"expected a function or closure, but got $func")
+        }
+        val paramSet = spec.paramKeys.toSet
+        fType.copy(args = (f.args zip fType.args).filter{
+          case (PNamedParameter(id, _), _) if paramSet.contains(id.name) => false
+          case (PExplicitGhostParameter(PNamedParameter(id, _)), _) if paramSet.contains(id.name) => false
+          case _ => true
+        }.map(_._2))
+      }
     case PBoundVariable(_, typ) => typeSymbType(typ)
     case PTrigger(_) => BooleanT
     case PExplicitGhostParameter(param) => miscType(param)
@@ -282,6 +204,28 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p))
   }
 
+  private def wellDefClosureSpecInstanceParams(c: PClosureSpecInstance, fArgs: Vector[(PParameter, Type)]): Messages = c match {
+    case PClosureSpecInstance(fName, ps) if ps.size > fArgs.size =>
+      error(c, s"spec instance $c has too many parameters (more than the arguments of function $fName)")
+    case spec: PClosureSpecInstance if spec.paramKeys.isEmpty =>
+      (spec.paramExprs zip fArgs) flatMap { case (exp, a) => assignableTo.errors((exprType(exp), a._2))(exp) }
+    case spec@PClosureSpecInstance(fName, ps) if spec.paramKeys.size == ps.size =>
+      val argsTypeMap = fArgs.collect {
+        case (PNamedParameter(id, _), t) => id.name -> t
+        case (PExplicitGhostParameter(PNamedParameter(id, _)), t) => id.name -> t
+      }.toMap
+      val wellDefIfNoDuplicateParams = (spec.paramKeys foldLeft (Set[String](), noMessages)) {
+        case ((seen, msg), k) => (seen + k, msg ++ (if (seen.contains(k)) error(k, s"duplicate parameter key $k") else noMessages))
+      }._2
+      val wellDefIfCanAssignParams = (spec.paramKeys zip spec.paramExprs zip ps) flatMap {
+        case ((k, exp), p) => argsTypeMap.get(k) match {
+          case Some(t: Type) => assignableTo.errors((exprType(exp), t))(exp)
+          case _ => error(p.key.get, s"could not find argument $k in the function $fName")
+      }}
+      wellDefIfNoDuplicateParams ++ wellDefIfCanAssignParams ++ c.paramExprs.flatMap(exp => isPureExpr(exp))
+    case _ => error(c, "mixture of 'field:expression' and 'expression' elements in closure spec instance")
+  }
+
   private def isConditional(measure: PTerminationMeasure): Boolean = measure match {
     case PTupleTerminationMeasure(_, cond) => cond.nonEmpty
     case PWildcardMeasure(cond) => cond.nonEmpty
@@ -301,8 +245,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   private def illegalPreconditionNode(n: PNode): Messages = {
     n match {
       case n@ (_: POld | _: PLabeledOld) => message(n, s"old not permitted in precondition")
+      case n@ (_: PBefore) => message(n, s"old not permitted in precondition")
       case _ => noMessages
     }
   }
-
 }

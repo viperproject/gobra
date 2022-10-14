@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Constant, Variable, Wildcard}
+import viper.gobra.frontend.info.base.SymbolTable.{Constant, GlobalVariable, Variable, Wildcard}
 import viper.gobra.frontend.info.base.Type.{ArrayT, GhostSliceT, MapT, MathMapT, SequenceT, SliceT, VariadicT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -41,6 +41,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       bt.isInstanceOf[SliceT] || bt.isInstanceOf[GhostSliceT] || (bt.isInstanceOf[ArrayT] && goAddressable(b))
     case n: PDot => resolve(n) match {
       case Some(s: ap.FieldSelection) => goAddressable(s.base)
+      case Some(_: ap.GlobalVariable) => true
       case _ => false
     }
     case _ => false
@@ -72,12 +73,15 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
         case Some(_: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.ReceivedPredicate | _: ap.PredicateExpr ) => AddrMod.rValue
         case Some(_: ap.NamedType | _: ap.BuiltInType | _: ap.Function | _: ap.Predicate | _: ap.DomainFunction) => AddrMod.rValue
         case Some(_: ap.ImplicitlyReceivedInterfaceMethod | _: ap.ImplicitlyReceivedInterfacePredicate) => AddrMod.rValue
+        case Some(_: ap.GlobalVariable) => AddrMod.globalVariable
         case p => Violation.violation(s"Unexpected dot resolve, got $p")
       }
       case _: PLiteral => AddrMod.literal
+      case _: PIota => AddrMod.iota
       case n: PInvoke => resolve(n) match {
         case Some(_: ap.Conversion) => AddrMod.conversionResult
         case Some(_: ap.FunctionCall) => AddrMod.callResult
+        case Some(_: ap.ClosureCall) => AddrMod.callResult
         case Some(_: ap.PredicateCall) => AddrMod.rValue
         case p => Violation.violation(s"Unexpected invoke resolve, got $p")
       }
@@ -89,12 +93,15 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: PNegation => AddrMod.rValue
       case _: PBitNegation => AddrMod.rValue
       case _: PBinaryExp[_,_] => AddrMod.rValue
+      case _: PGhostEquals => AddrMod.rValue
+      case _: PGhostUnequals => AddrMod.rValue
       case _: PPermission => AddrMod.rValue
       case _: PPredConstructor => AddrMod.rValue
       case n: PUnfolding => AddrMod.unfolding(addressability(n.op))
-      case _: POld | _: PLabeledOld => AddrMod.old
+      case _: POld | _: PLabeledOld | _: PBefore => AddrMod.old
       case _: PConditional | _: PImplication | _: PForall | _: PExists => AddrMod.rValue
       case _: PAccess | _: PPredicateAccess | _: PMagicWand => AddrMod.rValue
+      case _: PClosureImplements => AddrMod.rValue
       case _: PTypeOf | _: PIsComparable => AddrMod.rValue
       case _: PIn | _: PMultiplicity | _: PSequenceAppend |
            _: PGhostCollectionExp | _: PRangeSequence | _: PUnion | _: PIntersection |
@@ -108,6 +115,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
     path.foldLeft(base){
       case (b, MemberPath.Underlying) => b
       case (b, _: MemberPath.Next) => AddrMod.fieldLookup(b)
+      case (b, _: MemberPath.EmbeddedInterface) => b
       case (_, MemberPath.Deref) => AddrMod.dereference
       case (_, MemberPath.Ref) => AddrMod.reference
     }
@@ -118,6 +126,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
 
   private lazy val addressableVarAttr: PIdnNode => AddrMod =
     attr[PIdnNode, AddrMod] { n => regular(n) match {
+      case _: GlobalVariable => AddrMod.globalVariable
       case v: Variable => if (v.addressable) AddrMod.sharedVariable else AddrMod.exclusiveVariable
       case _: Constant => AddrMod.constant
       case _: Wildcard => AddrMod.defaultValue
@@ -131,9 +140,22 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
         enclosingCodeRoot(n) match {
           case c: PMethodDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
           case c: PFunctionDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
+          case c: PClosureDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
           case _ => false
         }
       case _: PUnnamedParameter => false
       case PExplicitGhostParameter(p) => canParameterBeUsedAsShared(p)
+    }
+
+  /** a receiver can be used as shared if it is included in the shared clause of the enclosing function or method */
+  lazy val canReceiverBeUsedAsShared: PReceiver => Boolean =
+    attr[PReceiver, Boolean] {
+      case n: PNamedReceiver =>
+        enclosingCodeRoot(n) match {
+          case c: PMethodDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
+          case c: PFunctionDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
+          case _ => false
+        }
+      case _: PUnnamedReceiver => false
     }
 }

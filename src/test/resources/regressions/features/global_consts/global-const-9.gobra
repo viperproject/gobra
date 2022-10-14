@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+//:: ExpectedOutput(type_error)
+const p perm = perm(1/0)
+
+const (
+	//:: ExpectedOutput(type_error)
+	i0 = perm(1 / iota)
+	i1
+	i2
+	i3
+)

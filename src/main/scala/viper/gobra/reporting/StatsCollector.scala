@@ -8,13 +8,13 @@ package viper.gobra.reporting
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.relation.NodeNotInTreeException
-import viper.gobra.ast.frontend.{PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PParameter, PPredConstructor}
+import viper.gobra.ast.frontend.{PClosureDecl, PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PPackage, PParameter, PPredConstructor, PProgram}
 import viper.gobra.ast.internal.BuiltInMember
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.util.Violation
-import viper.gobra.util.ViperChopper.{Edges, Vertex}
 import viper.silver.ast.{Function, Member, Method, Predicate}
+import viper.silver.ast.utility.Chopper.{Edges, Vertex}
 import viper.silver.reporter.Time
 
 import scala.collection.concurrent.{Map, TrieMap}
@@ -27,7 +27,7 @@ import java.io.File
 object GobraNodeType extends Enumeration {
   type GobraNodeType = Value
   val MethodDeclaration, FunctionDeclaration, MethodSignature, FunctionPredicateDeclaration, MethodPredicateDeclaration,
-  MethodImplementationProof, MethodPredicateSignature, PredicateConstructor = Value
+  MethodImplementationProof, MethodPredicateSignature, PredicateConstructor, Package, Program = Value
 }
 
 /**
@@ -213,7 +213,9 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
               existingViperEntry.cached || viperMember.cached,
               existingViperEntry.fromImport,
               existingViperEntry.hasBody || viperMember.hasBody,
-              existingViperEntry.verified || viperMember.verified
+              // Only consider verification results for viper members with a body, since otherwise if a result for an abstract
+              // version of a member occurs, we would mark the method as verified even though the version with the body was not.
+              existingViperEntry.verified || (!viperMember.fromImport && viperMember.verified && viperMember.hasBody)
             ))
           case None => existing.viperMembers.put(viperMember.id, viperMember)
         }
@@ -347,6 +349,32 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
           isAbstractAndNotImported = false,
           isImported,
           isBuiltIn)
+      case _: PProgram =>
+        GobraMemberInfo(
+          pkgId = pkgId,
+          pkg = pkgName,
+          memberName = pkgId ++ "_program_init",
+          args = "",
+          nodeType = Program,
+          hasSpecification = true,
+          isTrusted = false,
+          isAbstractAndNotImported = false,
+          isImported = isImported,
+          isBuiltIn = isBuiltIn)
+      case _: PPackage =>
+        GobraMemberInfo(
+          pkgId = pkgId,
+          pkg = pkgName,
+          memberName = pkgId ++ "_package_init",
+          args = "",
+          nodeType = Package,
+          hasSpecification = false,
+          isTrusted = false,
+          isAbstractAndNotImported = false,
+          isImported = isImported,
+          isBuiltIn = isBuiltIn)
+      // Consider the enclosing function, for closure declarations
+      case p: PClosureDecl => getMemberInformation(nodeTypeInfo.enclosingFunction(p).get, typeInfo, viperMember)
       // Fallback to the node's code root if we can't match the node
       case p: PNode => getMemberInformation(nodeTypeInfo.codeRoot(p), typeInfo, viperMember)
     }
@@ -396,34 +424,47 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   /**
    * Returns the number of non-imported Gobra members that have a specification and were verified
    */
-  def getNumberOfVerifiedMembers: Int =
-    getNonImportedVerifiedMembers
-      .count(_.info.hasSpecification)
+  def getNumberOfSpecifiedMembers: Int = getNonImportedVerifiedMembers.count(_.info.hasSpecification)
 
   /**
    * Returns the number of non-imported Gobra members that have a specification, were verified and are trusted or abstract
    */
-  def getNumberOfVerifiedMembersWithAssumptions: Int =
+  def getNumberOfSpecifiedMembersWithAssumptions: Int =
     getNonImportedVerifiedMembers
       .filter(entry => entry.info.isAbstractAndNotImported || entry.info.isTrusted)
       .count(_.info.hasSpecification)
 
   /**
-   * Returns a list of non-imported Gobra members, for which at least one viper member that didn't come from an import
-   * was not verified
+   * Returns a list of non-imported, non-abstract Gobra members, for which at least one viper member's verification did
+   * not terminate. Contains errors for all tasks for which a VerificationTaskFinishedMessage was not reported.
    */
-  def getTimedOutMembers: List[String] =
+  def getTimeoutErrorsForNonFinishedTasks: List[TimeoutError] =
     memberMap.values
-      .filter(_.viperMembers.values.exists(viperMember => !viperMember.fromImport && !viperMember.verified))
-      .map(_.info.id).toList
+      // check if there exists a stored typeInfo for the task, to see whether a VerificationTaskFinishedMessage was reported or not
+      .filter(_.viperMembers.values.exists(viperMember => typeInfos.contains(viperMember.taskName) && !viperMember.fromImport && !viperMember.verified && viperMember.hasBody))
+      .map(timeoutError).toList
 
   /**
-   * Writes all statistics that have been collected with this instance of the StatsCollector to a file
+   * Returns a list of non-imported, non-abstract Gobra members, for which at least one viper member's verification did
+   * not terminate for a specified task
    */
-  def writeJsonReportToFile(file: File): Unit = {
-    if((file.exists() && file.canWrite) || file.getParentFile.canWrite) {
+  def getTimeoutErrors(taskName: String): List[TimeoutError] =
+    memberMap.values
+      .filter(_.viperMembers.values.exists(viperMember => viperMember.taskName == taskName && !viperMember.fromImport && !viperMember.verified && viperMember.hasBody))
+      .map(timeoutError).toList
+
+  private def timeoutError(gobraEntry: GobraMemberEntry) = TimeoutError(s"The verification of member ${gobraEntry.info.id} did not terminate")
+
+  /**
+   * Writes all statistics that have been collected with this instance of the StatsCollector to a file.
+   * Returns true iff the file was written.
+   */
+  def writeJsonReportToFile(file: File): Boolean = {
+    val canWrite = (file.exists() && file.canWrite) || file.getParentFile.canWrite
+    if (canWrite) {
       FileUtils.writeStringToFile(file, getJsonReport, UTF_8)
     }
+    canWrite
   }
 
   def getJsonReport: String = {
@@ -436,7 +477,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
   /**
    * Returns a set of warnings for all members in a package
    */
-  def getWarnings(pkgId: String, config: Config): Set[Warning] =
+  def getMessagesAboutDependencies(pkgId: String, config: Config): Set[Warning] =
     memberMap.values
       .filter(gobraMember => gobraMember.info.pkgId == pkgId)
       .flatMap(gobraMember => {
@@ -444,12 +485,12 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         gobraMember.dependencies().flatMap({
           // Trusted implies abstracted, so we match trusted first
           case GobraMemberEntry(info, _) if info.isTrusted =>
-            Some("Warning: Member " + name + " depends on trusted member " + info.pkg + "." + info.memberName + info.args + "\n")
+            Some("Member " + name + " depends on trusted member " + info.pkg + "." + info.memberName + info.args + "\n")
           case GobraMemberEntry(info, _) if info.isAbstractAndNotImported =>
-            Some("Warning: Member " + name + " depends on abstract member " + info.pkg + "." + info.memberName + info.args + "\n")
+            Some("Member " + name + " depends on abstract member " + info.pkg + "." + info.memberName + info.args + "\n")
           // Only generate warnings about non-verified packages, when we actually have any info about which packages are verified
           case GobraMemberEntry(info, _) if config.packageInfoInputMap.nonEmpty && !config.packageInfoInputMap.keys.exists(_.id == info.pkgId) =>
-            Some("Warning: Depending on imported package that is not verified: " + info.pkgId)
+            Some("Depending on imported package that is not verified: " + info.pkgId)
           case _ => None
         })
       }).toSet

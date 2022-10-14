@@ -6,17 +6,13 @@ target/
 tmp/
 sync/
 
-carbon
-silver
-silicon
-viperserver
 logger.log
+.DS_Store
 
 *.go.*
 *.gobra.*
-/src/main/java/viper/gobra/frontend/GobraLexer.tokens
-/src/main/java/viper/gobra/frontend/GobraParser.interp
-/src/main/java/viper/gobra/frontend/GobraParser.tokens
+*.tokens
+*.interp
 /gen/
 /.gobra/
 
@@ -24,3 +20,10 @@ logger.log
 .metals/
 .vscode/
 project/
+
+# antlr4
+*.interp
+*.tokens
+
+# genparser script
+genparser.config

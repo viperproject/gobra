@@ -9,7 +9,7 @@ package viper.gobra.translator.util
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.context.Context
 
 import scala.annotation.tailrec
 
@@ -83,6 +83,13 @@ object TypePatterns {
     object Void {
       def unapply(arg: in.Type): Boolean =
         underlyingType(arg)(ctx) == in.VoidT
+    }
+
+    object Function {
+      def unapply(arg: in.Type): Option[in.FunctionT] = underlyingType(arg)(ctx) match {
+        case t: in.FunctionT => Some(t)
+        case _ => None
+      }
     }
 
     object Perm {

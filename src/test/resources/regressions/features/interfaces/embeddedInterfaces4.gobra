@@ -1,0 +1,45 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type A interface {
+	pure f() int
+}
+
+type B interface {
+	A
+	pure g() int
+}
+
+type X struct {
+	x int
+}
+
+pure func (self *X) f() int {
+	return 0
+}
+
+type Y struct {
+	y int
+}
+
+pure func (self *Y) f() int {
+	return 1
+}
+
+pure func (self *Y) g() int {
+	return 2
+}
+
+(*X) implements A
+
+(*Y) implements B
+
+func test() {
+	y := &Y{4}
+	var b B = y
+	assert y.f() == 1
+	assert b.g() == 2
+	assert b.f() == 1
+}

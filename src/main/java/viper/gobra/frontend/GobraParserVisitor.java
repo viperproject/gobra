@@ -1,4 +1,4 @@
-// Generated from /home/nico/Documents/repositories/projects/eth/BA/gobraHome/gobra/src/main/antlr4/GobraParser.g4 by ANTLR 4.9.2
+// Generated from /Users/joao/Code/gobraHome/gobra/src/main/antlr4/GobraParser.g4 by ANTLR 4.9.2
 package viper.gobra.frontend;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -41,6 +41,42 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitMaybeAddressableIdentifier(GobraParser.MaybeAddressableIdentifierContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#sourceFile}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSourceFile(GobraParser.SourceFileContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#initPost}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitInitPost(GobraParser.InitPostContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#importPre}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitImportPre(GobraParser.ImportPreContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#importSpec}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitImportSpec(GobraParser.ImportSpecContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#importDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitImportDecl(GobraParser.ImportDeclContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#ghostMember}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitGhostMember(GobraParser.GhostMemberContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code explicitGhostStatement}
 	 * labeled alternative in {@link GobraParser#ghostStatement}.
 	 * @param ctx the parse tree
@@ -61,6 +97,24 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitProofStatement(GobraParser.ProofStatementContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#auxiliaryStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAuxiliaryStatement(GobraParser.AuxiliaryStatementContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#statementWithSpec}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitStatementWithSpec(GobraParser.StatementWithSpecContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#outlineStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitOutlineStatement(GobraParser.OutlineStatementContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#ghostPrimaryExpr}.
 	 * @param ctx the parse tree
@@ -151,6 +205,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitLabelUse(GobraParser.LabelUseContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#before}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBefore(GobraParser.BeforeContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#isComparable}.
 	 * @param ctx the parse tree
@@ -248,6 +308,30 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitBlockWithBodyParameterInfo(GobraParser.BlockWithBodyParameterInfoContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#closureSpecInstance}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitClosureSpecInstance(GobraParser.ClosureSpecInstanceContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#closureSpecParams}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitClosureSpecParams(GobraParser.ClosureSpecParamsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#closureSpecParam}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitClosureSpecParam(GobraParser.ClosureSpecParamContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#closureImplProofStmt}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitClosureImplProofStmt(GobraParser.ClosureImplProofStmtContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#implementationProof}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -307,18 +391,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitMethodDecl(GobraParser.MethodDeclContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#sourceFile}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitSourceFile(GobraParser.SourceFileContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#ghostMember}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitGhostMember(GobraParser.GhostMemberContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#explicitGhostMember}.
 	 * @param ctx the parse tree
@@ -385,6 +457,13 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitParameterType(GobraParser.ParameterTypeContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code closureImplSpecExpr}
+	 * labeled alternative in {@link GobraParser#expression}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitClosureImplSpecExpr(GobraParser.ClosureImplSpecExprContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code primaryExpr_}
 	 * labeled alternative in {@link GobraParser#expression}.
@@ -507,6 +586,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitLoopSpec(GobraParser.LoopSpecContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#deferStmt}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitDeferStmt(GobraParser.DeferStmtContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#basicLit}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -533,6 +618,13 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitGhostPrimaryExpr_(GobraParser.GhostPrimaryExpr_Context ctx);
+	/**
+	 * Visit a parse tree produced by the {@code invokePrimaryExprWithSpec}
+	 * labeled alternative in {@link GobraParser#primaryExpr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitInvokePrimaryExprWithSpec(GobraParser.InvokePrimaryExprWithSpecContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code indexPrimaryExpr}
 	 * labeled alternative in {@link GobraParser#primaryExpr}.
@@ -610,6 +702,18 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitSlicePrimaryExpr(GobraParser.SlicePrimaryExprContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#functionLit}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFunctionLit(GobraParser.FunctionLitContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#closureDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitClosureDecl(GobraParser.ClosureDeclContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#predConstructArgs}.
 	 * @param ctx the parse tree
@@ -706,18 +810,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitPackageClause(GobraParser.PackageClauseContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#importDecl}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitImportDecl(GobraParser.ImportDeclContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#importSpec}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitImportSpec(GobraParser.ImportSpecContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#importPath}.
 	 * @param ctx the parse tree
@@ -856,12 +948,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitFallthroughStmt(GobraParser.FallthroughStmtContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#deferStmt}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitDeferStmt(GobraParser.DeferStmtContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#ifStmt}.
 	 * @param ctx the parse tree
@@ -1144,12 +1230,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitEmbeddedField(GobraParser.EmbeddedFieldContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#functionLit}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitFunctionLit(GobraParser.FunctionLitContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#index}.
 	 * @param ctx the parse tree

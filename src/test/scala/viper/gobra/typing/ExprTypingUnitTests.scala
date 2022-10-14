@@ -3335,7 +3335,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("TypeChecker: should be able to detect when the result of a constant binary operation cannot be evaluated because its operands are not mergeable") {
     val expr = PAdd(
-      PInvoke(PUInt8Type(), Vector(PIntLit(1))),
+      PInvoke(PUInt8Type(), Vector(PIntLit(1)), None),
       PSub(PIntLit(BigInt(0)), PIntLit(BigInt(1)))
     )
 
@@ -3364,6 +3364,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   class TestFrontend {
     def stubProgram(inArgs: Vector[(PParameter, Boolean)], body : PStatement) : PProgram = PProgram(
       PPackageClause(PPkgDef("pkg")),
+      Vector(),
       Vector(),
       Vector(PMethodDecl(
         PIdnDef("foo"),

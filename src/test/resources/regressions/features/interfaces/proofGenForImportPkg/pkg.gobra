@@ -16,7 +16,7 @@ package proofGenForImportPkg
 // but also in imported and used packages.
 
 type ImplPkgState struct {
-    itf SomeInterface
+    Itf SomeInterface
 }
 
 type SomeInterface interface {
@@ -39,9 +39,9 @@ pure func (impl *SomeImplementation) SomeProperty(val int) bool {
     return val == 42
 }
 
-requires acc(s)
-ensures  acc(s)
-ensures  s.itf.SomeProperty(res)
+requires acc(s) && s.Itf != nil
+ensures  acc(s) && s.Itf != nil
+ensures  s.Itf.SomeProperty(res)
 func (s *ImplPkgState) LibraryFn() (res int) {
-    return s.itf.GetValue()
+    return s.Itf.GetValue()
 }

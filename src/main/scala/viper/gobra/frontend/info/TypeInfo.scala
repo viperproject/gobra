@@ -37,4 +37,10 @@ trait TypeInfo extends ExternalTypeInfo {
 
   def interfaceImplementations: Map[InterfaceT, Set[Type]]
   def missingImplProofs: Vector[(Type, InterfaceT, MethodImpl, MethodSpec)]
+
+  def freeVariables(n: PNode): Vector[PIdnNode]
+  def freeModified(n: PNode): Vector[PIdnNode]
+  def freeDeclared(n: PNode): Vector[PIdnNode]
+
+  def capturedVariables(decl: PClosureDecl): Vector[PIdnNode]
 }

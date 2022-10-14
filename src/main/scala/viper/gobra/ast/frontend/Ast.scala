@@ -45,7 +45,7 @@ case class PPackage(
                      programs: Vector[PProgram],
                      positions: PositionManager,
                      info: PackageInfo
-                   ) extends PNode with PUnorderedScope {
+                   ) extends PNode with PUnorderedScope with PCodeRoot {
   // TODO: remove duplicate package imports:
   lazy val imports: Vector[PImport] = programs.flatMap(_.imports)
   lazy val declarations: Vector[PMember] = programs.flatMap(_.declarations)
@@ -53,6 +53,9 @@ case class PPackage(
 
 case class PProgram(
                      packageClause: PPackageClause,
+                     // init postconditions describe the state and resources right
+                     // after this program is initialized
+                     initPosts: Vector[PExpression],
                      imports: Vector[PImport],
                      declarations: Vector[PMember]
                    ) extends PNode with PUnorderedScope // imports are in program scopes
@@ -87,27 +90,29 @@ case class PPackageClause(id: PPkgDef) extends PNode
 
 sealed trait PImport extends PNode {
   def importPath: String
+  // Import preconditions specify in which state the importing package expects the imported package to be.
+  // When the assertions contain resources, import preconditions describe which resources are transferred from
+  // the imported package to the importing package.
+  def importPres: Vector[PExpression]
 }
 
 sealed trait PQualifiedImport extends PImport
 
-case class PExplicitQualifiedImport(qualifier: PDefLikeId, importPath: String) extends PQualifiedImport
+case class PExplicitQualifiedImport(qualifier: PDefLikeId, importPath: String, importPres: Vector[PExpression]) extends PQualifiedImport
 
 /** will be converted to an PExplicitQualifiedImport in the parse postprocessing step */
-case class PImplicitQualifiedImport(importPath: String) extends PQualifiedImport with Rewritable {
+case class PImplicitQualifiedImport(importPath: String, importPres: Vector[PExpression]) extends PQualifiedImport with Rewritable {
   override def arity: Int = 1
-
   override def deconstruct: immutable.Seq[Any] = immutable.Seq(importPath)
 
   override def reconstruct(components: immutable.Seq[Any]): Any =
     components match {
-      case immutable.Seq(path: String) => PImplicitQualifiedImport(path)
+      case immutable.Seq(path: String) => PImplicitQualifiedImport(path, importPres)
       case _ => new IllegalArgumentException
     }
 }
 
-case class PUnqualifiedImport(importPath: String) extends PImport
-
+case class PUnqualifiedImport(importPath: String, importPres: Vector[PExpression]) extends PImport
 
 sealed trait PGhostifiable extends PNode
 
@@ -123,6 +128,10 @@ sealed trait PWithBody extends PNode {
 sealed trait PActualMember extends PMember
 
 sealed trait PGhostifiableMember extends PActualMember with PGhostifiable
+
+sealed trait PProofAnnotation extends PNode {
+  def nonGhostChildren: Vector[PNode]
+}
 
 /**
   * node declaring an identifier that is placed in a scope that depends on something.
@@ -140,9 +149,18 @@ sealed trait PCodeRootWithResult extends PCodeRoot {
   def result: PResult
 }
 
-case class PConstDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
+case class PConstDecl(specs: Vector[PConstSpec]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
+
+case class PConstSpec(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId]) extends PNode
 
 case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId], addressable: Vector[Boolean]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
+
+sealed trait PFunctionOrClosureDecl extends PScope {
+  def args: Vector[PParameter]
+  def result: PResult
+  def spec: PFunctionSpec
+  def body: Option[(PBodyParameterInfo, PBlock)]
+}
 
 case class PFunctionDecl(
                           id: PIdnDef,
@@ -150,7 +168,7 @@ case class PFunctionDecl(
                           result: PResult,
                           spec: PFunctionSpec,
                           body: Option[(PBodyParameterInfo, PBlock)]
-                        ) extends PActualMember with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
+                        ) extends PFunctionOrClosureDecl with PActualMember with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
 case class PMethodDecl(
                         id: PIdnDef,
@@ -245,13 +263,18 @@ case class PTypeSwitchDflt(body: PBlock) extends PTypeSwitchClause
 
 case class PTypeSwitchCase(left: Vector[PExpressionOrType], body: PBlock) extends PTypeSwitchClause
 
-case class PForStmt(pre: Option[PSimpleStmt], cond: PExpression, post: Option[PSimpleStmt], spec: PLoopSpec, body: PBlock) extends PActualStatement with PScope with PGhostifiableStatement
+sealed trait PGeneralForStmt extends PActualStatement
 
-case class PAssForRange(range: PRange, ass: Vector[PAssignee], body: PBlock) extends PActualStatement with PScope with PGhostifiableStatement
+case class PForStmt(pre: Option[PSimpleStmt], cond: PExpression, post: Option[PSimpleStmt], spec: PLoopSpec, body: PBlock) extends PGeneralForStmt with PScope with PGhostifiableStatement
 
-case class PShortForRange(range: PRange, shorts: Vector[PIdnUnk], body: PBlock) extends PActualStatement with PScope with PGhostifiableStatement
+case class PAssForRange(range: PRange, ass: Vector[PAssignee], spec: PLoopSpec, body: PBlock) extends PGeneralForStmt with PScope with PGhostifiableStatement
+
+case class PShortForRange(range: PRange, shorts: Vector[PIdnUnk], spec: PLoopSpec, body: PBlock) extends PGeneralForStmt with PScope with PGhostifiableStatement
 
 case class PGoStmt(exp: PExpression) extends PActualStatement
+
+sealed trait PDeferrable extends PNode
+case class PDeferStmt(exp: PDeferrable) extends PActualStatement with PGhostifiableStatement
 
 case class PSelectStmt(send: Vector[PSelectSend], rec: Vector[PSelectRecv], aRec: Vector[PSelectAssRecv], sRec: Vector[PSelectShortRecv], dflt: Vector[PSelectDflt]) extends PActualStatement with PScope
 
@@ -275,8 +298,6 @@ case class PContinue(label: Option[PLabelUse]) extends PActualStatement
 
 case class PGoto(label: PLabelUse) extends PActualStatement
 
-case class PDeferStmt(exp: PExpression) extends PActualStatement
-
 // case class PFallThrough() extends PStatement
 
 
@@ -298,6 +319,10 @@ case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhosti
   }
 }
 
+case class POutline(body: PStatement, spec: PFunctionSpec) extends PActualStatement with PProofAnnotation {
+  override def nonGhostChildren: Vector[PNode] = Vector(body)
+}
+
 /**
   * Expressions
   */
@@ -306,7 +331,7 @@ case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhosti
 sealed trait PExpressionOrType extends PNode
 sealed trait PExpressionAndType extends PNode with PExpression with PType
 
-sealed trait PExpression extends PNode with PExpressionOrType
+sealed trait PExpression extends PNode with PExpressionOrType with PDeferrable
 
 sealed trait PActualExpression extends PExpression
 
@@ -324,6 +349,8 @@ sealed trait PUnaryExp extends PActualExpression {
 case class PBlankIdentifier() extends PAssignee
 
 case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PUnqualifiedTypeName with PNameOrDot
+
+case class PIota() extends PActualExpression
 
 sealed trait PLiteral extends PActualExpression
 
@@ -403,9 +430,32 @@ case class PExpCompositeVal(exp: PExpression) extends PCompositeVal // exp is ne
 
 case class PLitCompositeVal(lit: PLiteralValue) extends PCompositeVal
 
-case class PFunctionLit(args: Vector[PParameter], result: PResult, body: PBlock) extends PLiteral with PCodeRootWithResult with PScope
+case class PFunctionLit(id: Option[PIdnDef], decl: PClosureDecl) extends PLiteral {
+  val args: Vector[PParameter] = decl.args
+  val result: PResult = decl.result
+  val spec: PFunctionSpec = decl.spec
+  val body: Option[(PBodyParameterInfo, PBlock)] = decl.body
+}
 
-case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends PActualExpression
+case class PClosureDecl(args: Vector[PParameter],
+                  result: PResult,
+                  spec: PFunctionSpec,
+                  body: Option[(PBodyParameterInfo, PBlock)]) extends PFunctionOrClosureDecl with PCodeRootWithResult with PActualMisc
+
+case class PClosureSpecInstance(func: PNameOrDot, params: Vector[PKeyedElement]) extends PGhostMisc {
+  require(params.forall(p => p.exp.isInstanceOf[PExpCompositeVal]))
+  require(params.forall(p => p.key.isEmpty || p.key.get.isInstanceOf[PIdentifierKey]))
+  val paramKeys: Vector[String] = params.collect{ case PKeyedElement(Some(PIdentifierKey(id)), _) => id.name }
+  val paramExprs: Vector[PExpression] = params.collect{ case PKeyedElement(_, PExpCompositeVal(exp)) => exp }
+}
+
+case class PClosureImplements(closure: PExpression, spec: PClosureSpecInstance) extends PGhostExpression
+
+case class PClosureImplProof(impl: PClosureImplements, block: PBlock) extends PGhostStatement with PScope
+
+case class PInvoke(base: PExpressionOrType, args: Vector[PExpression], spec: Option[PClosureSpecInstance]) extends PActualExpression {
+  require(base.isInstanceOf[PExpression] || spec.isEmpty) // `base` is a type for conversions only, for which `spec` is empty
+}
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
@@ -475,6 +525,10 @@ case class PEquals(left: PExpressionOrType, right: PExpressionOrType) extends PB
 
 case class PUnequals(left: PExpressionOrType, right: PExpressionOrType) extends PBinaryExp[PExpressionOrType, PExpressionOrType]
 
+case class PGhostEquals(left: PExpression, right: PExpression) extends PBinaryGhostExp
+
+case class PGhostUnequals(left: PExpression, right: PExpression) extends PBinaryGhostExp
+
 case class PAnd(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression]
 
 case class POr(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression]
@@ -509,13 +563,8 @@ case class PShiftLeft(left: PExpression, right: PExpression) extends PBinaryExp[
 
 case class PShiftRight(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
-
-sealed trait PActualExprProofAnnotation extends PActualExpression {
-  def nonGhostChildren: Vector[PExpression]
-}
-
-case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualExprProofAnnotation {
-  override def nonGhostChildren: Vector[PExpression] = Vector(op)
+case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualExpression with PProofAnnotation {
+  override def nonGhostChildren: Vector[PNode] = Vector(op)
 }
 
 /**
@@ -682,7 +731,7 @@ case class PPredType(args: Vector[PType]) extends PTypeLit
 case class PInterfaceType(
                            embedded: Vector[PInterfaceName],
                            methSpecs: Vector[PMethodSig],
-                           predSpec: Vector[PMPredicateSig]
+                           predSpecs: Vector[PMPredicateSig]
                          ) extends PTypeLit with PUnorderedScope
 
 sealed trait PInterfaceClause extends PNode
@@ -892,9 +941,9 @@ case class PExhale(exp: PExpression) extends PGhostStatement
 
 case class PInhale(exp: PExpression) extends PGhostStatement
 
-case class PFold(exp: PPredicateAccess) extends PGhostStatement
+case class PFold(exp: PPredicateAccess) extends PGhostStatement with PDeferrable
 
-case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
+case class PUnfold(exp: PPredicateAccess) extends PGhostStatement with PDeferrable
 
 case class PPackageWand(wand: PMagicWand, proofScript: Option[PBlock]) extends PGhostStatement
 
@@ -923,6 +972,8 @@ case class PWildcardPerm() extends PPermission
 case class POld(operand: PExpression) extends PGhostExpression
 
 case class PLabeledOld(label: PLabelUse, operand: PExpression) extends PGhostExpression
+
+case class PBefore(operand: PExpression) extends PGhostExpression
 
 case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) extends PGhostExpression
 

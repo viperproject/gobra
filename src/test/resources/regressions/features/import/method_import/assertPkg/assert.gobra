@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assertPkg // note that assert is a reserved keyword
+
+const On = true
+
+preserves condition
+func Must(condition bool)

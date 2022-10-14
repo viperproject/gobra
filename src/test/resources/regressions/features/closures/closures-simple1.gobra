@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresSimple1
+
+func main() {
+	x@ := 0
+	c := preserves acc(&x)
+		 ensures x == old(x) + n && m == x
+		 func f(n int) (m int) {
+            x += n;
+		    return x
+         }
+
+    r := c(10) as f
+    assert x == 10 && r == 10
+
+	r = c(5) as f
+	assert x == 15 && r == 15
+}

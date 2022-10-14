@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.Regular
-import viper.gobra.frontend.info.base.Type
+import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.base.Type.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -30,14 +30,56 @@ trait Enclosing { this: TypeInfoImpl =>
     case _ => id
   })
 
+
+  lazy val enclosingLoopUntilOutline: PNode => Either[Option[PNode], PGeneralForStmt] = {
+    down[Either[Option[PNode], PGeneralForStmt]](Left(None)){
+      case x: POutline => Left(Some(x))
+      case x: PGeneralForStmt => Right(x)
+    }
+  }
+
+  // Returns the enclosing loop that has a specific label
+  def enclosingLabeledLoop(label: PLabelUse, node: PNode): Either[Option[PNode], PGeneralForStmt] = {
+    enclosingLoopUntilOutline(node) match {
+      case Right(encLoop) => encLoop match {
+        case tree.parent(l: PLabeledStmt) if l.label.name == label.name => Right(encLoop)
+        case tree.parent(p) => enclosingLabeledLoop(label, p)
+        case _ => Left(None)
+      }
+      case r => r
+    }
+  }
+
+  def enclosingInvariant(n: PExpression) : PExpression = {
+    n match {
+      case tree.parent(p) if enclosingExpr(p).isDefined => enclosingExpr(p).get
+      case _ => n
+    }
+  }
+
+  lazy val tryEnclosingPackage: PNode => Option[PPackage] =
+    down[Option[PPackage]](None) { case x: PPackage => Some(x) }
+
   lazy val tryEnclosingUnorderedScope: PNode => Option[PUnorderedScope] =
     down[Option[PUnorderedScope]](None) { case x: PUnorderedScope => Some(x) }
 
   lazy val enclosingCodeRootWithResult: PStatement => PCodeRootWithResult =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRootWithResult => m }
 
+  lazy val tryEnclosingCodeRootWithResult: PStatement => Option[PCodeRootWithResult] =
+    down[Option[PCodeRootWithResult]](None) { case m: PCodeRootWithResult => Some(m) }
+
+  lazy val tryEnclosingFunction: PNode => Option[PFunctionDecl] =
+    down[Option[PFunctionDecl]](None) { case m: PFunctionDecl => Some(m) }
+
+  lazy val tryEnclosingClosureImplementationProof: PNode => Option[PClosureImplProof] =
+    down[Option[PClosureImplProof]](None) { case m: PClosureImplProof => Some(m) }
+
   lazy val enclosingCodeRoot: PNode => PCodeRoot with PScope =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRoot with PScope => m }
+
+  lazy val tryEnclosingOutline: PNode => Option[POutline] =
+    down[Option[POutline]](None) { case x: POutline => Some(x) }
 
   lazy val isEnclosingExplicitGhost: PNode => Boolean =
     down(false){ case _: PGhostifier[_] => true }
@@ -48,11 +90,26 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val isEnclosingDomain: PNode => Boolean =
     down(false){ case _: PDomainType => true }
 
+  def isGlobalVarDeclaration(n: PVarDecl): Boolean =
+    enclosingCodeRoot(n).isInstanceOf[PPackage]
+
   lazy val enclosingInterface: PNode => PInterfaceType =
     down((_: PNode) => violation("Node does not root in an interface definition")) { case x: PInterfaceType => x }
 
+  lazy val tryEnclosingFunctionLit: PNode => Option[PFunctionLit] =
+    down[Option[PFunctionLit]](None) { case x: PFunctionLit => Some(x) }
+
+  lazy val enclosingExpr: PNode => Option[PExpression] =
+    down[Option[PExpression]](None) { case x: PExpression => Some(x) }
+
   lazy val enclosingStruct: PNode => Option[PStructType] =
     down[Option[PStructType]](None) { case x: PStructType => Some(x) }
+
+  lazy val enclosingPConstBlock: PNode => Option[PConstDecl] =
+    down[Option[PConstDecl]](None) { case x: PConstDecl => Some(x) }
+
+  lazy val enclosingPConstDecl: PNode => Option[PConstSpec] =
+    down[Option[PConstSpec]](None) { case x: PConstSpec => Some(x) }
 
   def typeSwitchConstraints(id: PIdnNode): Vector[PExpressionOrType] =
     typeSwitchConstraintsLookup(id)(id)
@@ -85,7 +142,7 @@ trait Enclosing { this: TypeInfoImpl =>
     def aux(n: PNode): Option[Type] = {
       n match {
         case tree.parent(p) => p match {
-          case PConstDecl(t, _, _) => t.map(symbType)
+          case PConstSpec(t, _, _) => t.map(symbType)
           case PVarDecl(t, _, _, _) => t.map(symbType)
           case _: PExpressionStmt => None
           case PSendStmt(channel, `n`) => Some(typ(channel).asInstanceOf[Type.ChannelT].elem)
@@ -132,6 +189,8 @@ trait Enclosing { this: TypeInfoImpl =>
             // no function spec, no invariants, no predicate body
             // no assert, assume, exhale, inhale
           case p: POld => aux(p)
+          case p: PLabeledOld => aux(p)
+          case p: PBefore => aux(p)
           case p: PConditional => val t = typ(p); if (t == Type.NilType) None else Some(t)
             // no implication, access
             // no forall or exists body
@@ -154,5 +213,66 @@ trait Enclosing { this: TypeInfoImpl =>
     }
 
     aux(nil)
+  }
+
+  override def freeVariables(n: PNode): Vector[PIdnNode] = freeVariablesAttr(n)
+  private lazy val freeVariablesAttr: PNode => Vector[PIdnNode] = {
+    def free(x: PIdnNode, scope: PNode): Boolean = entity(x) match {
+      case r: SymbolTable.SingleLocalVariable => !containedIn(enclosingScope(r.rep), scope)
+      case r: SymbolTable.MultiLocalVariable  => !containedIn(enclosingScope(r.rep), scope)
+      case _: SymbolTable.InParameter         => true
+      case _: SymbolTable.ReceiverParameter   => true
+      case _: SymbolTable.OutParameter        => true
+      case _ => false
+    }
+
+    attr[PNode, Vector[PIdnNode]] { node =>
+      allChildren(node).collect{ case x: PIdnNode if free(x, node) => x }.distinctBy(_.name)
+    }
+  }
+
+  override def freeDeclared(n: PNode): Vector[PIdnNode] = freeDeclaredAttr(n)
+  private lazy val freeDeclaredAttr: PNode => Vector[PIdnNode] = {
+    attr[PNode, Vector[PIdnNode]] { node =>
+      val allDeclared = allChildren(node).collect[Vector[PIdnNode]] {
+        case decl: PVarDecl => decl.left.collect{ case id: PIdnDef => id }
+        case decl: PShortVarDecl => decl.left.collect { case id: PIdnUnk if isDef(id) => id }
+      }.flatten.distinctBy(_.name)
+
+      freeVariables(node).filter(l => allDeclared.exists(r => l.name == r.name))
+    }
+  }
+
+  override def freeModified(n: PNode): Vector[PIdnNode] = freeModifiedAttr(n)
+  private lazy val freeModifiedAttr: PNode => Vector[PIdnNode] = {
+    def modified(ass: PAssignee): Option[PIdnNode] = {
+      ass match {
+        case PNamedOperand(id) => Some(id)
+        case PDot(_, id) => Some(id)
+        case _ => None
+      }
+    }
+
+    attr[PNode, Vector[PIdnNode]] { node =>
+      val allModified = (allChildren(node).collect[Vector[PIdnNode]] {
+        case ass: PAssignment => ass.left.flatMap(modified)
+        case ass: PAssignmentWithOp => modified(ass.left).toVector
+        case ass: PShortVarDecl => ass.left.collect { case id: PIdnUnk if !isDef(id) => id }
+      }.flatten ++ freeDeclared(node)).distinctBy(_.name) // free declarations also count as modifications
+      freeVariables(node).filter(l => allModified.exists(r => l.name == r.name))
+    }
+  }
+
+  override def capturedVariables(decl: PClosureDecl): Vector[PIdnNode] =
+    capturedVariablesAttr(tree.parent(decl).head.asInstanceOf[PFunctionLit])
+  private lazy val capturedVariablesAttr: PFunctionLit => Vector[PIdnNode] = {
+    def capturedVar(x: PIdnNode, lit: PFunctionLit): Boolean = entity(x) match {
+      case r: SymbolTable.Variable => !containedIn(enclosingScope(r.rep), lit)
+      case _ => false
+    }
+
+    attr[PFunctionLit, Vector[PIdnNode]] { lit =>
+      allChildren(lit.decl).collect{ case x: PIdnNode if capturedVar(x, lit) => x }.distinctBy(_.name)
+    }
   }
 }

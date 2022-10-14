@@ -22,7 +22,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
   lazy val multiAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
     case (right, left) =>
-      StrictAssignModi(left.size, right.size) match {
+      StrictAssignMode(left.size, right.size) match {
         case AssignMode.Single =>
           right match {
             // To support Go's function chaining when a tuple with the results of a function call are passed to the
@@ -50,7 +50,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
   lazy val variadicAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
     case (right, left) =>
-      StrictAssignModi(left.size, right.size) match {
+      StrictAssignMode(left.size, right.size) match {
         case AssignMode.Variadic => left.lastOption match {
           case Some(VariadicT(elem)) =>
             val dummyFill = UnknownType
@@ -123,9 +123,10 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   lazy val compatibleWithAssOp: Property[(Type, PAssOp)] = createFlatProperty[(Type, PAssOp)] {
     case (t, op) => s"type error: got $t, but expected type compatible with $op"
   } {
-    case (Single(IntT(_)), PAddOp() | PSubOp() | PMulOp() | PDivOp() | PModOp() | PBitAndOp() | PBitOrOp() |
-                           PBitXorOp() | PBitClearOp() | PShiftLeftOp() | PShiftRightOp()) => true
-    case (Single(StringT), PAddOp()) => true
+    case (Single(t), PAddOp() | PSubOp() | PMulOp() | PDivOp() |
+                     PModOp() | PBitAndOp() | PBitOrOp() | PBitXorOp() |
+                     PBitClearOp() | PShiftLeftOp() | PShiftRightOp()) if underlyingType(t).isInstanceOf[IntT] => true
+    case (Single(t), PAddOp()) if underlyingType(t) == StringT => true
     case _ => false
   }
 

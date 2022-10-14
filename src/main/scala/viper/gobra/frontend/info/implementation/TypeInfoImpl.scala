@@ -27,6 +27,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   with AmbiguityResolution
   with Enclosing
 
+  with ProgramTyping
   with ImportTyping
   with MemberTyping
   with BuiltInMemberTyping
@@ -47,6 +48,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   with Convertibility
   with Comparability
+  with DependencyAnalysis
   with Assignability
   with Addressability
   with TypeIdentity
@@ -82,6 +84,20 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   override def scope(n: PIdnNode): PScope = enclosingIdScope(n)
 
   override def codeRoot(n: PNode): PCodeRoot with PScope = enclosingCodeRoot(n)
+
+  override def enclosingFunction(n: PNode): Option[PFunctionDecl] = tryEnclosingFunction(n)
+
+  override def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PGeneralForStmt] = enclosingLabeledLoop(label, n).toOption
+
+  override def enclosingLoopNode(n: PNode) : Option[PGeneralForStmt] = enclosingLoopUntilOutline(n).toOption
+
+  override def enclosingInvariantNode(n: PExpression) : PExpression = enclosingInvariant(n)
+
+  override def samePkgDepsOfGlobalVar(n: SymbolTable.GlobalVariable): Vector[SymbolTable.GlobalVariable] =
+    samePackageDependenciesGlobals(n) match {
+      case Right(deps) => deps
+      case Left(errs) => violation(s"found errors while computing dependencies of $n: $errs")
+    }
 
   override def regular(n: PIdnNode): SymbolTable.Regular = entity(n) match {
     case r: Regular => r
@@ -125,7 +141,11 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   override def intConstantEvaluation(expr: PExpression): Option[BigInt] = intConstantEval(expr)
 
+  override def permConstantEvaluation(expr: PExpression): Option[(BigInt, BigInt)] = permConstantEval(expr)
+
   override def stringConstantEvaluation(expr: PExpression): Option[String] = stringConstantEval(expr)
 
   override def getTypeInfo: TypeInfo = this
+
+  override def isPureExpression(expr: PExpression): Boolean = isPureExpr(expr).isEmpty
 }

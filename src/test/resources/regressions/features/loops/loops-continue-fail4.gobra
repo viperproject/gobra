@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo() {
+	var i int = 0
+	var j int = 0
+	invariant 0 <= i && i <= 10
+	invariant i < 5 ==> i == j
+	invariant i == 5 ==> j == 5
+	invariant i > 5 ==> i == j + 1
+	for ;i < 10 ; i++ {
+		if (i == 5) {
+			continue
+		}
+		j++
+	}
+	//:: ExpectedOutput(assert_error)
+	assert false
+}

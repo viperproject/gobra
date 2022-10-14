@@ -12,7 +12,7 @@ import java.nio.file.Path
 import org.scalatest.{ConfigMap, DoNotDiscover}
 import viper.gobra.frontend.{Config, PackageResolver, ScallopGobraConfig}
 import viper.gobra.reporting.{NoopReporter, VerifierError, VerifierResult}
-import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext, Violation}
 import viper.silver.ast.{NoPosition, Position}
 import viper.silver.frontend.Frontend
 import viper.silver.testing.StatisticalTestSuite
@@ -71,7 +71,9 @@ trait GobraFrontendForTesting extends Frontend {
     // exception occurs (e.g. a validation failure)
     throwError.value = true
     // Simulate pick of package, Gobra normally does
-    new ScallopGobraConfig(args.toSeq).config.copy(reporter = NoopReporter, z3Exe = z3Exe)
+    val config = new ScallopGobraConfig(args.toSeq).config
+    Violation.violation(config.isRight, "creating the config has failed")
+    config.toOption.get.copy(reporter = NoopReporter, z3Exe = z3Exe)
   }
 
   def gobraResult: VerifierResult

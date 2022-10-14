@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue272
+
+// ##(-I ./000272/)
+import b "pkg"
+
+func foo2() {
+    r := &b.Rectangle{Width: 2, Height: 5}
+    go r.Area()
+}

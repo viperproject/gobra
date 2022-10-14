@@ -6,6 +6,7 @@
 
 package viper.gobra.ast.internal.transform
 import viper.gobra.ast.{internal => in}
+import viper.gobra.translator.Names
 import viper.gobra.util.Violation
 
 /**
@@ -22,13 +23,17 @@ object CGEdgesTerminationTransform extends InternalTransform {
     case in.Program(_, _, table) =>
       var methodsToRemove: Set[in.Member] = Set.empty
       var methodsToAdd: Set[in.Member] = Set.empty
-      var functionsToAdd: Set[in.PureFunction] = Set.empty
       var definedMethodsDelta: Map[in.MethodProxy, in.MethodLikeMember] = Map.empty
-      var definedFunctionsDelta: Map[in.FunctionProxy, in.FunctionLikeMember] = Map.empty
 
-      table.memberProxies.foreach {
+      def isEmbeddedMethod(subTProxy: in.MethodProxy, superTProxy: in.MethodProxy): Boolean = {
+        // The proxies for embedded methods defined in interface type superT are the same
+        // as the method proxies for the corresponding method in an embedding interface type subT
+        subTProxy == superTProxy
+      }
+
+      table.getMembers.foreach {
         case (t: in.InterfaceT, proxies) =>
-          val implementations = table.interfaceImplementations(t)
+          val implementations = table.lookupImplementations(t)
           proxies.foreach {
             case proxy: in.MethodProxy =>
               table.lookup(proxy) match {
@@ -38,41 +43,75 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   *   {
                   *     assume false
                   *     if typeOf(recv) == impl1 {
-                  *       call implementation method from impl1 on recv
+                  *       call implementation method from impl1 on recv.(impl1)
                   *     }
                   *     if typeOf(recv) == impl2 {
-                  *       call implementation method from impl2 on recv
+                  *       call implementation method from impl2 on recv.(impl2)
                   *     }
                   *     ...
                   *     if typeOf(recv) == implN {
-                  *       call implementation method from implN on recv
+                  *       call implementation method from implN on recv.(implN)
                   *     }
                   *   }
                   */
-                case m: in.Method if m.terminationMeasures.nonEmpty =>
+                case m: in.Method if m.terminationMeasures.nonEmpty && m.receiver.typ == t =>
+                  // The restriction `m.receiver.typ` ensures that the member with the addtional call-graph edges
+                  // is only generated once, when looking at the original definition of the method (and not, for
+                  // example, when looking at an embedding of the method).
+
                   // only performs transformation if method has termination measures
-                  val src = m.getMeta
+                  val src = m.info
                   val assumeFalse = in.Assume(in.ExprAssertion(in.BoolLit(b = false)(src))(src))(src)
+                  val optCallsToImpls = implementations.toVector.flatMap { subT: in.Type =>
+                    table.lookup(subT, proxy.name).toVector.map {
+
+                      case implProxy: in.MethodProxy if !subT.isInstanceOf[in.InterfaceT] =>
+                        // looking at a concrete implementation of the method
+                        in.If(
+                          in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(subT)(src))(src),
+                          in.Seqn(Vector(
+                            in.MethodCall(
+                              m.results map parameterAsLocalValVar,
+                              in.TypeAssertion(m.receiver, subT)(src),
+                              implProxy, m.args
+                            )(src),
+                            in.Return()(src)
+                          ))(src),
+                          in.Seqn(Vector())(src)
+                        )(src)
+
+                      case implProxy: in.MethodProxy if subT.isInstanceOf[in.InterfaceT]
+                        && isEmbeddedMethod(implProxy, proxy) =>
+                        // If the subtype (subT) is an interface type and the method is defined in subT
+                        // via an interface embedding, then the contract of the method is the same and
+                        // there is no need to generate extra proof obligations.
+                        // The soundness of this argument critically relies on the fact that if a type T implements
+                        // an interface B and B has interface A embedded, then T must implement A too.
+                        in.Seqn(Vector())(src)
+
+                      case _: in.MethodProxy if subT.isInstanceOf[in.InterfaceT] =>
+                        Violation.violation(s"Type $subT contains a re-definition of method ${proxy.name}. This is still not supported.")
+
+                      case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
+
+                    }
+                  }
                   val newBody = {
                     in.Block(
                       decls = Vector.empty,
-                      stmts = assumeFalse +: implementations.toVector.flatMap { t: in.Type =>
-                        table.lookup(t, proxy.name).map {
-                          case implProxy: in.MethodProxy =>
-                            in.If(
-                              in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(t)(src))(src),
-                              in.Seqn(Vector(in.MethodCall(m.results map parameterAsLocalValVar, in.Parameter.In(m.receiver.id, t)(src), implProxy, m.args)(src), in.Return()(src)))(src),
-                              in.Seqn(Vector())(src)
-                            )(src)
-                          case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
-                        }
-                      }
+                      stmts = assumeFalse +: optCallsToImpls
                     )(src)
                   }
-                  val newMember = in.Method(m.receiver, m.name, m.args, m.results, m.pres, m.posts, m.terminationMeasures, Some(newBody))(src)
+                  val newMember = in.Method(m.receiver, m.name, m.args, m.results, m.pres, m.posts, m.terminationMeasures, Some(newBody.toMethodBody))(src)
                   methodsToRemove += m
                   methodsToAdd += newMember
                   definedMethodsDelta += proxy -> newMember
+
+                case m: in.Method if m.terminationMeasures.nonEmpty && m.receiver.typ != t =>
+                  val recvT = m.receiver.typ.asInstanceOf[in.InterfaceT]
+                  // Sanity check: no method is ignored by this case analysis
+                  Violation.violation(table.lookupImplementations(recvT).contains(t),
+                    s"Method ${m.name} found for type $t even though its receiver is not $t or one of its supertypes.")
 
                 /**
                   * Transforms the abstract pure methods from interface declarations into non-abstract pure methods containing calls
@@ -89,12 +128,13 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   *   This transformation generates a fallbackFunction, an abstract function which receives the receiver and parameters
                   *   of the original method and has the same return type and spec. For the pure method
                   *     requires [PRE]
+                  *     ensures  [POST]
                   *     decreases [MEASURE]
                   *     pure func (r recv) M (x1 T1, ..., xN TN) (res TRes)
                   *
                   *   we generate the following fallback:
                   *     requires [PRE]
-                  *     ensures res == r.N(x1, ..., xN)
+                  *     ensures  [POST]
                   *     decreases _
                   *     pure func (r recv) M_fallback(x1 T1, ... xN TN) (res TRes)
                   *
@@ -103,46 +143,65 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   *   that are not easily reproducible via a transformation at the level of the internal code.
                   *
                   */
-                case m: in.PureMethod if m.terminationMeasures.nonEmpty =>
+                case m: in.PureMethod if m.terminationMeasures.nonEmpty && m.receiver.typ == t =>
                   Violation.violation(m.results.length == 1, "Expected one and only one out-parameter.")
-                  Violation.violation(m.posts.isEmpty, s"Expected no postcondition, but got ${m.posts}.")
                   // only performs transformation if method has termination measures
-                  val src = m.getMeta
+                  val src = m.info
 
                   // the fallback function is called if no comparison succeeds
-                  val returnType = m.results.head.typ
-                  val fallbackName = s"${m.name}$$fallback"
-                  val fallbackProxy = in.FunctionProxy(fallbackName)(src)
-                  val fallbackPosts = Vector(
-                    in.ExprAssertion(
-                      in.EqCmp(m.results.head, in.PureMethodCall(m.receiver, proxy, m.args, returnType)(src))(src)
-                    )(src)
-                  )
+                  val fallbackProxy = Names.InterfaceMethod.copy(m.name, "fallback")
                   val fallbackTermMeasures = Vector(in.WildcardMeasure(None)(src))
-                  val fallbackFunction = in.PureFunction(fallbackProxy, m.receiver +: m.args, m.results, m.pres, fallbackPosts, fallbackTermMeasures, None)(src)
-                  val fallbackProxyCall = in.PureFunctionCall(fallbackProxy, m.receiver +: m.args, returnType)(src)
-                  val bodyFalseBranch = implementations.toVector.foldLeft[in.Expr](fallbackProxyCall) {
-                    case (accum: in.Expr, impl: in.Type) =>
-                      table.lookup(impl, proxy.name) match {
-                        case Some(implProxy: in.MethodProxy) =>
-                          in.Conditional(
-                            in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(impl)(src))(src),
-                            in.PureMethodCall(in.TypeAssertion(m.receiver, impl)(src), implProxy, m.args, returnType)(src),
-                            accum,
-                            returnType
-                          )(src)
-                        case None => accum
-                        case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
-                      }
+                  val fallbackFunction = m.copy(name = fallbackProxy, terminationMeasures = fallbackTermMeasures, body = None)(src)
+
+                  // new body to check termination
+                  val terminationCheckBody = {
+                    val returnType = m.results.head.typ
+                    val fallbackProxyCall = in.PureMethodCall(m.receiver, fallbackProxy, m.args, returnType)(src)
+                    val implProxies: Vector[(in.Type, in.MemberProxy)] = implementations.toVector.flatMap{ impl =>
+                      table.lookup(impl, proxy.name).map(implProxy => (impl, implProxy))
+                    }
+                    val bodyFalseBranch = implProxies.foldLeft[in.Expr](fallbackProxyCall) {
+                      case (accum: in.Expr, (subT: in.Type, implMemberProxy: in.MemberProxy)) =>
+                        implMemberProxy match {
+                          case implProxy: in.MethodProxy if !subT.isInstanceOf[in.InterfaceT] =>
+                            in.Conditional(
+                              in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(subT)(src))(src),
+                              in.PureMethodCall(in.TypeAssertion(m.receiver, subT)(src), implProxy, m.args, returnType)(src),
+                              accum,
+                              returnType
+                            )(src)
+
+                          case implProxy: in.MethodProxy if subT.isInstanceOf[in.InterfaceT]
+                            && isEmbeddedMethod(implProxy, proxy) =>
+                            // If the subtype (subT) is an interface type and the method is defined in subT
+                            // via an interface embedding, then the contract of the method is the same and
+                            // there is no need to generate extra proof obligations.
+                            // The soundness of this argument critically relies on the fact that if a type T implements
+                            // and interface B and B has interface A embedded, then T must implement A too.
+                            accum
+
+                          case _: in.MethodProxy if subT.isInstanceOf[in.InterfaceT] =>
+                            Violation.violation(s"Type $subT contains a re-definition of method ${proxy.name}. This is still not supported.")
+
+                          case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
+                        }
+                    }
+                    in.Conditional(in.BoolLit(b = true)(src), fallbackProxyCall, bodyFalseBranch, returnType)(src)
                   }
-                  val newBody = in.Conditional(in.BoolLit(b = true)(src), fallbackProxyCall, bodyFalseBranch, returnType)(src)
-                  val newMember = in.PureMethod(m.receiver, m.name, m.args, m.results, m.pres, m.posts, m.terminationMeasures, Some(newBody))(src)
+                  val transformedM = m.copy(terminationMeasures = m.terminationMeasures, body = Some(terminationCheckBody))(src)
 
                   methodsToRemove += m
-                  methodsToAdd += newMember
-                  functionsToAdd += fallbackFunction
-                  definedFunctionsDelta += fallbackProxy -> fallbackFunction
-                  definedMethodsDelta += proxy -> newMember
+                  methodsToAdd += transformedM
+                  methodsToAdd += fallbackFunction
+                  definedMethodsDelta += fallbackProxy -> fallbackFunction
+                  definedMethodsDelta += proxy -> transformedM
+
+
+                case m: in.PureMethod if m.terminationMeasures.nonEmpty && m.receiver.typ != t =>
+                 val recvT = m.receiver.typ.asInstanceOf[in.InterfaceT]
+                  // Sanity check: no method is ignored by this case analysis
+                  Violation.violation(table.lookupImplementations(recvT).contains(t),
+                    s"Pure method ${m.name} found for type $t even though its receiver is not $t or one of its supertypes.")
 
                 case _ =>
               }
@@ -155,17 +214,8 @@ object CGEdgesTerminationTransform extends InternalTransform {
 
       in.Program(
         types = p.types,
-        members = p.members.diff(methodsToRemove.toSeq).appendedAll(methodsToAdd ++ functionsToAdd),
-        table = new in.LookupTable(
-          definedTypes = table.getDefinedTypes,
-          definedMethods = table.getDefinedMethods ++ definedMethodsDelta,
-          definedFunctions = table.getDefinedFunctions ++ definedFunctionsDelta,
-          definedMPredicates = table.getDefinedMPredicates,
-          definedFPredicates = table.getDefinedFPredicates,
-          memberProxies = table.memberProxies,
-          interfaceImplementations = table.interfaceImplementations,
-          implementationProofPredicateAliases = table.getImplementationProofPredicateAliases
-        )
+        members = p.members.diff(methodsToRemove.toSeq).appendedAll(methodsToAdd),
+        table = p.table.merge(new in.LookupTable(definedMethods = definedMethodsDelta)),
       )(p.info)
   }
 
@@ -173,7 +223,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
     in.LocalVar(p.id, p.typ)(p.info)
   }
 
-  private def typeAsExpr(t: in.Type)(src: in.Node.Meta): in.Expr = {
+  private def typeAsExpr(t: in.Type)(src: in.Node.Info): in.Expr = {
     t match {
       case in.BoolT(_) => in.BoolTExpr()(src)
       case in.IntT(_, kind) => in.IntTExpr(kind)(src)

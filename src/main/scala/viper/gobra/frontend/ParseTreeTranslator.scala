@@ -1823,7 +1823,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     } else if (has(ctx.rangeClause())) {
       // for <assignees (:= | =)>? range <expr>
       val expr = visitNode[PExpression](ctx.rangeClause().expression()).at(ctx.rangeClause())
-      val enumerated = idnUnk.get(ctx.rangeClause().IDENTIFIER()).at(ctx.rangeClause.IDENTIFIER())
+      val enumerated = if (ctx.rangeClause().IDENTIFIER().getSymbol().getText() != "_")
+        idnUnk.get(ctx.rangeClause().IDENTIFIER()).at(ctx.rangeClause.IDENTIFIER())
+      else
+        PWildcard().at(ctx.rangeClause().IDENTIFIER())
       val range = PRange(expr, enumerated).at(ctx.rangeClause())
       if (has(ctx.rangeClause().DECLARE_ASSIGN())) {
         // :=

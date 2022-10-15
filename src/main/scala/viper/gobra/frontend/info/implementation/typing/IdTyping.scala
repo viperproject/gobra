@@ -277,18 +277,11 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
   def getBlankAssigneeTypeRange(n: PNode, left: Vector[PNode], range: PRange): Type = {
     require(n.isInstanceOf[PIdnNode] || n.isInstanceOf[PBlankIdentifier])
     val pos = left indexWhere (n eq _)
-    if (pos >= 0) {
-      underlyingType(exprType(range.exp)) match {
-        case ChannelT(elem, ChannelModus.Recv | ChannelModus.Bi) => elem
-        case _ => miscType(range).asInstanceOf[InternalSingleMulti].mul.ts(pos)
-      }
-    } else if (n eq range.enumerated) {
-      underlyingType(exprType(range.exp)) match {
-        case _: SliceT | _: ArrayT => IntT(config.typeBounds.Int)
-        case MapT(key, _) => SetT(key)
-        case t => violation(s"type $t is not supported for range")
-      }
-    } else violation("did not find expression corresponding to " + n)
+    violation(pos >= 0, "did not find expression corresponding to " + n)
+    underlyingType(exprType(range.exp)) match {
+      case ChannelT(elem, ChannelModus.Recv | ChannelModus.Bi) => elem
+      case _ => miscType(range).asInstanceOf[InternalSingleMulti].mul.ts(pos)
+    }
   }
 
   def getWildcardType(w: PWildcard): Type = {
@@ -298,6 +291,13 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
         case PVarDecl(typ, right, left, _) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
         case PConstSpec(typ, right, left) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
         case PShortForRange(range, shorts, _, _, _) => getBlankAssigneeTypeRange(w, shorts, range)
+        case PRange(exp, enumerated) => if (w eq enumerated)
+          underlyingType(exprType(exp)) match {
+            case _: SliceT | _: ArrayT => IntT(config.typeBounds.Int)
+            case MapT(key, _) => SetT(key)
+            case t => violation(s"type $t is not supported for range")
+          }
+          else violation("did not find expression corresponding to " + w)
         case _ => ???
       }
       case _ => ???

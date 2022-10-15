@@ -797,7 +797,7 @@ sealed trait PMisc extends PNode
 
 sealed trait PActualMisc extends PMisc
 
-case class PRange(exp: PExpression, enumerated: PIdnUnk) extends PActualMisc
+case class PRange(exp: PExpression, enumerated: PUnkLikeId) extends PActualMisc
 
 sealed trait PParameter extends PMisc {
   def typ: PType

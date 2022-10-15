@@ -12,9 +12,9 @@ func foo(x []uint) (max uint) {
 	max = x[0]
 	invariant acc(x)
 	invariant 0 <= i && i <= len(x)
-	invariant forall k int :: 0 <= k && k < i ==> max >= x[k]
-	decreases len(x) - i
-	for i, j := range x {
+	invariant forall k int :: 0 <= k && k < i0 ==> max >= x[k]
+	decreases len(x) - i0
+	for i, j := range x with i0 {
 		if j > max {
 			max = j
 		}
@@ -25,8 +25,8 @@ func foo_arr() {
 	x := [4]uint{1, 2, 3, 4}
 	max := x[0]
 	invariant 0 <= i && i <= len(x)
-	invariant forall k int :: 0 <= k && k < i ==> max >= x[k]
-	for i, j := range x {
+	invariant forall k int :: 0 <= k && k < i0 ==> max >= x[k]
+	for i, j := range x with i0 {
 		if j > max {
 			max = j
 		}
@@ -45,10 +45,9 @@ func bar2() {
 	x := []int{1, 2, 3, 4, 5}
 	sum := 0
 	invariant acc(x)
-	invariant 0 <= i && i <= len(x)
-	invariant sum == i * (i - 1) / 2
-	decreases len(x) - i
-	for i := range x {
+	invariant sum == i0 * (i0 - 1) / 2
+	decreases len(x) - i0
+	for i := range x with i0 {
 		sum += i
 	}
 	assert sum == len(x) * (len(x) - 1) / 2
@@ -57,27 +56,27 @@ func bar2() {
 func foo2() {
 	x := []int{1, 2, 3, 4, 5}
 	invariant acc(x)
-	for _, j := range x {
+	for _, j := range x with i0 {
 	}
 	invariant acc(x)
-	for i, _ := range x {
+	for i, _ := range x with i0 {
 	}
 	invariant acc(x)
-	for _, _ := range x {
+	for _, _ := range x with i0 {
 	}
 	invariant acc(x)
-	for _ := range x {
+	for _ := range x with i0 {
 	}
 }
 
 func foo3() {
 	x := [0]int{}
-	for i, j := range x {
+	for i, j := range x with i0 {
 	}
 	y := []int{}
-	for i, j := range x {
+	for i, j := range x with i0 {
 	}
-	for i,j := range x {
+	for i,j := range x with i0 {
 		continue
 		break
 	}

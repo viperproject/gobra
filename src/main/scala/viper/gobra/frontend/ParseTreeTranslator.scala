@@ -1822,17 +1822,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       PForStmt(pre, cond, post, spec, block).at(specCtx)
     } else if (has(ctx.rangeClause())) {
       // for <assignees (:= | =)>? range <expr>
-      val expr = visitNode[PExpression](ctx.rangeClause().expression(0))
-      val perm = visitChildren(ctx.rangeClause()) match {
-        case Vector(_, _, "range", _, ",", _ : PExpression) => Some(visitNode[PExpression](ctx.rangeClause.expression(1)))
-        case _ => None
-      }
-      val range = PRange(expr, perm).at(ctx.rangeClause())
+      val expr = visitNode[PExpression](ctx.rangeClause().expression()).at(ctx.rangeClause())
+      val enumerated = idnUnk.get(ctx.rangeClause().IDENTIFIER()).at(ctx.rangeClause.IDENTIFIER())
+      val range = PRange(expr, enumerated).at(ctx.rangeClause())
       if (has(ctx.rangeClause().DECLARE_ASSIGN())) {
         // :=
-        // identifiers should include the blank identifier, but this is currently not supported by PShortForRange
-        val goIdnUnkList(idList) = visitIdentifierList(ctx.rangeClause().identifierList())
-        PShortForRange(range, idList, spec, block).at(specCtx)
+        val (idnUnkLikeList(vars), addressable) = visitMaybeAddressableIdentifierList(ctx.rangeClause().maybeAddressableIdentifierList())
+        PShortForRange(range, vars, addressable, spec, block).at(specCtx)
       } else {
         // =
         val assignees = visitAssigneeList(ctx.rangeClause().expressionList()) match {

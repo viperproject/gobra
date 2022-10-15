@@ -439,5 +439,5 @@ assign_op: ass_op=(
 
 rangeClause: (
 		expressionList ASSIGN
-		| identifierList DECLARE_ASSIGN
-	)? RANGE expression (COMMA expression)?;
+		| maybeAddressableIdentifierList DECLARE_ASSIGN
+	)? RANGE expression WITH IDENTIFIER?;

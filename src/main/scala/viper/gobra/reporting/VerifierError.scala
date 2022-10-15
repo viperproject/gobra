@@ -286,7 +286,7 @@ case class RangeVariableMightNotExistError(info: Source.Verifier.Info)(rangeExpr
 
 case class NoPermissionToRangeExpressionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "no_permission_to_range_expression"
-  override def localMessage: String = s"Might not have read permissions to range expression"
+  override def localMessage: String = s"Might not have read permission to range expression"
 }
 
 case class InsufficientPermissionToRangeExpressionError(info: Source.Verifier.Info) extends VerificationError {

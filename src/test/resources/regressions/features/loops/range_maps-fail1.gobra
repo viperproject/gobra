@@ -3,9 +3,11 @@
 
 package pkg
 
-func foo_arr() {
-	x := 0
+func foo() {
+	x := map[uint]int{1:1, 2:3}
+	var i int
+	var j int
 	//:: ExpectedOutput(type_error)
-	for i, j := range x with i0 {
+	for i, j = range x with i0 {
 	}
 }

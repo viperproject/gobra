@@ -8,6 +8,6 @@ func foo_arr() {
 	var i int
 	var j int
 	//:: ExpectedOutput(type_error)
-	for i, j = range x {
+	for i, j = range x with i0 {
 	}
 }

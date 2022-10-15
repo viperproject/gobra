@@ -9,6 +9,6 @@ func foo_arr() {
 	var j uint
 	var k int
 	//:: ExpectedOutput(type_error)
-	for i, j, k = range x {
+	for i, j, k = range x with i0 {
 	}
 }

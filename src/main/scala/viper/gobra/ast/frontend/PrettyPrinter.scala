@@ -245,8 +245,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       })
       case PAssForRange(range, ass, spec, body) =>
         showSpec(spec) <> "for" <+> showExprList(ass) <+> "=" <+> showRange(range) <+> block(showStmt(body))
-      case PShortForRange(range, shorts, spec, body) =>
-        showSpec(spec) <> "for" <+> showIdList(shorts) <+> ":=" <+> showRange(range) <+> block(showStmt(body))
+      case PShortForRange(range, shorts, addressable, spec, body) =>
+        showSpec(spec) <> "for" <+> showList(shorts zip addressable){ case (l, a) => showAddressable(a, l) } <+> ":=" <+> showRange(range) <+> block(showStmt(body))
       case PGoStmt(exp) => "go" <+> showExpr(exp)
       case PSelectStmt(send, rec, aRec, sRec, dflt) =>
         "select" <+> block(
@@ -324,7 +324,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       "case" <+> showIdList(shorts) <+> "=" <+> showExpr(recv) <> ":" <> showNestedStmtList(body.stmts)
   }
 
-  def showRange(n: PRange): Doc = "range" <+> showExpr(n.exp) <> opt(n.perm)(_ => ", ") <> opt(n.perm)(showExpr)
+  def showRange(n: PRange): Doc = "range" <+> showExpr(n.exp) <+> "with" <+> showId(n.enumerated)
 
   // expressions
 

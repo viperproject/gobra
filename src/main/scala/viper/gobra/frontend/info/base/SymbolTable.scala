@@ -142,6 +142,10 @@ object SymbolTable extends Environments[Entity] {
     override def rep: PNode = exp
   }
 
+  case class RangeEnumerateVariable(exp: PRange, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+    override def rep: PNode = exp
+  }
+
   sealed trait TypeEntity extends Regular
 
   sealed trait ActualTypeEntity extends TypeEntity with ActualRegular {

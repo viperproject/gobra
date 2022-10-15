@@ -115,7 +115,7 @@ trait NameResolution {
 
           case decl: PShortForRange =>
             val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
-            RangeVariable(idx, decl.range, isGhost, addressable = false, this) // TODO: check if range variables are addressable in Go
+            RangeVariable(idx, decl.range, isGhost, addressable = decl.addressable(idx), this)
 
           case decl: PSelectShortRecv =>
             val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
@@ -126,6 +126,8 @@ trait NameResolution {
               case AssignMode.Multi => MultiLocalVariable(idx, decl.recv, isGhost, addressable = false, this)
               case _ => UnknownEntity()
             }
+          case decl: PRange =>
+            RangeEnumerateVariable(decl, isGhost, addressable = false, this)
 
           case _ => violation("unexpected parent of unknown id")
         }

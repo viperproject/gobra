@@ -56,16 +56,16 @@ func bar2() {
 func foo2() {
 	x := []int{1, 2, 3, 4, 5}
 	invariant acc(x)
-	for _, j := range x with i0 {
+	for _, j := range x {
 	}
 	invariant acc(x)
 	for i, _ := range x with i0 {
 	}
 	invariant acc(x)
-	for _, _ := range x with i0 {
+	for _, _ := range x {
 	}
 	invariant acc(x)
-	for _ := range x with i0 {
+	for _ := range x with _ {
 	}
 }
 
@@ -76,7 +76,7 @@ func foo3() {
 	y := []int{}
 	for i, j := range x with i0 {
 	}
-	for i,j := range x with i0 {
+	for i, j := range x {
 		continue
 		break
 	}

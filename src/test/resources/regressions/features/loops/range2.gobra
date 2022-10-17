@@ -35,10 +35,10 @@ func foo2() {
 	for j, _ = range x with i0 {
 	}
 	invariant acc(x)
-	for _ = range x with i0 {
+	for _ = range x with _ {
 	}
 	invariant acc(x)
-	for _, i = range x with i0 {
+	for _, i = range x {
 	}
 	invariant acc(x)
 	for j = range x with i0 {

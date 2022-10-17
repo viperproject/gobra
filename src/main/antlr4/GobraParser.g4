@@ -440,4 +440,4 @@ assign_op: ass_op=(
 rangeClause: (
 		expressionList ASSIGN
 		| maybeAddressableIdentifierList DECLARE_ASSIGN
-	)? RANGE expression WITH IDENTIFIER?;
+	)? RANGE expression (WITH IDENTIFIER?)?;

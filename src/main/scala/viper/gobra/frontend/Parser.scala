@@ -22,7 +22,6 @@ import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable.ListBuffer
 import java.security.MessageDigest
-import scala.annotation.tailrec
 
 object Parser {
 
@@ -286,100 +285,32 @@ object Parser {
       * if `specOnly` is set to true, this postprocessor replaces all tuple termination measures specified for pure functions
       * or pure methods by wildcard termination measures while maintaining their condition (if any). Note that termination
       * measures specified for interface methods remain untouched.
-      * Furthermore, pure functions and pure methods are made abstract by turning their bodies into an additional
-      * postcondition.
       *
-      * These steps ensure that imported pure functions and pure methods do not result in proof obligations as their
-      * postconditions and termination (in case a decreases measure has been provided) is simply assumed.
+      * These steps ensure that termination of imported pure functions and pure methods is not checked again (in case
+      * a decreases measure has been provided) and instead gets simply assumed.
+      *
+      * Note that we do not transform the body of pure functions and pure methods (e.g. by turning the body into a
+      * postcondition) because this would result in a matching loop for recursive functions.
       */
     def postprocess(pkg: PPackage)(config: Config): Either[Vector[VerifierError], PPackage] = {
       if (specOnly) replaceTerminationMeasures(pkg) else Right(pkg)
     }
 
     private def replaceTerminationMeasures(pkg: PPackage): Either[Vector[VerifierError], PPackage] = {
-      def createError(n: PNode, errorMsg: String): Vector[VerifierError] =
-        pkg.positions.translate(message(n, errorMsg), ParserError)
-
-      // unfortunately Kiama does not seem to offer a way to report errors while applying the strategy
-      // hence, we keep ourselves track of errors
-      var failedNodes: Vector[VerifierError] = Vector()
-
-      /**
-        * checks whether the body is either empty or consists of a single return statement and returns the corresponding expression
-        */
-      def getBodyExpr(body: Option[(PBodyParameterInfo, PBlock)]): Option[PExpression] = body match {
-        case Some((_, block)) =>
-          block.nonEmptyStmts match {
-            case Vector(PReturn(Vector(expr))) => Some(expr)
-            case _ =>
-              failedNodes = failedNodes ++ createError(block, s"the imported pure function's or method's body is expected to contain only a return statement")
-              None
-          }
-        case None => None
-      }
-
-      /**
-        * returns the name parameter if `param` is a named parameter or creates a new named parameter with the same type
-        */
-      @tailrec
-      def getNamedOutParam(param: PParameter): Option[PNamedParameter] = param match {
-        case p: PNamedParameter => Some(p)
-        case p @ PUnnamedParameter(t) =>
-          val idnDef = PIdnDef("res$").at(p) // '$' is appended to make it an invalid identifier and thus avoid the situation that an input parameter has already the same name
-          Some(PNamedParameter(idnDef, t).at(p))
-        case PExplicitGhostParameter(actual) => getNamedOutParam(actual)
-      }
-
-      /**
-        * checks that there is exactly a single parameter and turns into into a named parameter in case it isn't yet a
-        * named parameter
-        */
-      def getOutParam(result: PResult): Option[PNamedParameter] = result.outs match {
-        case Vector(out) => getNamedOutParam(out)
-        case _ =>
-          failedNodes = failedNodes ++ createError(result, s"the imported pure function or method does not have exactly one result argument")
-          None
-      }
-
-      /**
-        * performs the following operations:
-        * - makes the out parameter a named parameter if it's not the case yet
-        * - adds a postcondition stating that the named out parameter is equal to the body (the body can thus be dropped)
-        * - turns the decreases measures into wildcards while retaining the conditions under which they have been specified
-        * returns the modified result and spec
-        */
-      def turnBodyIntoPostcondition(result: PResult, spec: PFunctionSpec, body: Option[(PBodyParameterInfo, PBlock)]): Option[(PResult, PFunctionSpec)] = {
-        for {
-          body <- getBodyExpr(body)
-          outParam <- getOutParam(result)
-          modifiedResult = PResult(Vector(outParam)).at(result)
-          outIdnUse = PIdnUse(outParam.id.name).at(body)
-          outOperand = PNamedOperand(outIdnUse).at(body)
-          // we use ghost equals here to ensure that no additional checks are being added depending on the expression's type
-          // (e.g. that the returned interface is comparable)
-          additionalPostcondition = PGhostEquals(outOperand, body).at(body)
-          // turning the body into a postcondition is not enough because Viper checks termination also for postconditions
-          // therefore, we turn termination measure tuples into wildcards to assume termination instead of checking it
-          modifiedTerminationMeasures = spec.terminationMeasures.map {
-            case n@PTupleTerminationMeasure(_, cond) => PWildcardMeasure(cond).at(n)
-            case t => t
-          }
-          modifiedSpec = PFunctionSpec(spec.pres, spec.preserves, additionalPostcondition +: spec.posts, modifiedTerminationMeasures, spec.isPure, spec.isTrusted).at(spec)
-        } yield (modifiedResult, modifiedSpec)
+      def replace(spec: PFunctionSpec): PFunctionSpec = {
+        val replacedMeasures = spec.terminationMeasures.map {
+          case n@PTupleTerminationMeasure(_, cond) => PWildcardMeasure(cond).at(n)
+          case t => t
+        }
+        PFunctionSpec(spec.pres, spec.preserves, spec.posts, replacedMeasures, spec.isPure, spec.isTrusted)
       }
 
       val replaceTerminationMeasuresForFunctionsAndMethods: Strategy =
         strategyWithName[Any]("replaceTerminationMeasuresForFunctionsAndMethods", {
           // apply transformation only to the specification of function or method declaration (in particular, do not
           // apply the transformation to method signatures in interface declarations)
-          case n: PFunctionDecl if n.spec.isPure =>
-            for {
-              (modifiedResult, modifiedSpec) <- turnBodyIntoPostcondition(n.result, n.spec, n.body)
-            } yield PFunctionDecl(n.id, n.args, modifiedResult, modifiedSpec, None).at(n)
-          case n: PMethodDecl if n.spec.isPure =>
-            for {
-              (modifiedResult, modifiedSpec) <- turnBodyIntoPostcondition(n.result, n.spec, n.body)
-            } yield PMethodDecl(n.id, n.receiver, n.args, modifiedResult, modifiedSpec, None).at(n)
+          case n: PFunctionDecl => Some(PFunctionDecl(n.id, n.args, n.result, replace(n.spec), n.body))
+          case n: PMethodDecl => Some(PMethodDecl(n.id, n.receiver, n.args, n.result, replace(n.spec), n.body))
           case n: PMember => Some(n)
         })
 
@@ -390,10 +321,7 @@ object Parser {
         PProgram(prog.packageClause, prog.initPosts, prog.imports, updatedDecls).at(prog)
       })
       // create a new package node with the updated programs
-      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg)
-      // check whether an error has occurred
-      if (failedNodes.isEmpty) Right(updatedPkg)
-      else Left(failedNodes)
+      Right(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg))
     }
   }
 

@@ -1300,6 +1300,8 @@ object Desugar {
             * This case handles for loops with a range clause of the form:
             *
             * <invariants>
+            * // i0 here is an int variable starting from 0 and used at the
+            * // encoded loop condition
             * for i, j := range x with i0 {
             *     body
             * }
@@ -1567,6 +1569,50 @@ object Desugar {
               )(src)
             } yield ifstmt))
 
+          /**
+            * This case handles for loops with a range clause of a map expression of the form:
+            *
+            * <invariants>
+            * // visited here is a set containing the already visited keys in the map
+            * for k, v := range x with visited {
+            *     body
+            * }
+            *
+            * The following code is produced. Note
+            * that everything is in a new block so it can shadow variables with the same
+            * name declared outside. This is also the go behaviour.
+            *
+            * if (|x| == 0) {
+            *     var k : T1
+            *     var v : T2 // [v]
+            *     var visited : Set[T1]
+            *     assert <invariant...>
+            * }
+            * else {
+            *     var k : T1
+            *     var v : T2 // [v]
+            *     inhale k in domain(x)
+            *     v := x[k] // [v]
+            *     var visited : Set[T1] := Set()
+            *     assert 0 / 1 < per // check if permission provided by user is valid
+            *     while (|visited| < |domain(x)|)
+            *     invariant |visited| < |domain(x)| ==> k in domain(x) && v == x[k] // [v]
+            *     invariant |visited| <= |domain(x)|
+            *     invariant visited subset domain(x)
+            *     <invariant...>
+            *     {
+            *         var key : T1
+            *         inhale key in domain(x) && !(key in visited)
+            *         k := key
+            *         v := x[k] // [v]
+            *         exhale acc(x, 1/100000)
+            *         <body>
+            *         inhale acc(x, 1/100000)
+            *         visited := visited union Set(k)
+            * 
+            * In the case where the value variable 'v' is missing all the code annotated with [v]
+            * is omitted
+            */
           case n@PShortForRange(range, shorts, _, spec, body) if underlyingType(info.typ(range.exp)).isInstanceOf[MapT] =>
             // is a block as it introduces new variables
             unit(block(for {

@@ -172,6 +172,8 @@ object Desugar {
 
     private val nm = new NameManager
 
+    private val MapExhalePermDenom = 1000000
+
     type Identity = (Meta, TypeInfo)
 
     private def abstraction(id: PIdnNode, info: TypeInfo): Identity = {
@@ -1310,20 +1312,22 @@ object Desugar {
             * that everything is in a new block so it can shadow variables with the same
             * name declared outside. This is also the go behaviour.
             *
-            * if (len(x) == 0) {
+            * c := x // save the value of the slice/array since changing it doesn't change the iteration
+            * length := len(x)
+            * 
+            * if (length == 0) {
             *   havoc i
             *   assume i0 == i
             *   havoc j // [v]
             *   assert <invariant...>
             * } else {
-            *   c := x // save the value of the slice/array since changing it doesn't change the iteration
             *   var i int = 0
             *   var i0 int = 0 // since 'i' can change in the iteration we store the true index in i0
             *   var j T = c[0] // [v]
             *   invariant 0 <= i0 && i0 <= len(c)
             *   invariant i0 < len(c) ==> i0 == i && j == c[i0] // [v] just the j == c[i0] part
             *   <invariant...>
-            *   for i0 < len(c) {
+            *   for i0 < length {
             *     <body>
             *     i0 += 1
             *     if i0 < len(c) { i = i0 ; j = c[i] /* [v] */ }
@@ -1351,6 +1355,7 @@ object Desugar {
               jSrc = if (hasValue) meta(shorts(1), info) else src
 
               c <- freshDeclaredExclusiveVar(exp.typ.withAddressability(Addressability.exclusiveVariable), n, info)(rangeExpSrc)
+              length <- freshDeclaredExclusiveVar(in.IntT(Addressability.exclusiveVariable), n, info)(rangeExpSrc)
 
               i = leftOfAssignmentNoInit(shorts(0), info)(in.IntT(Addressability.exclusiveVariable))
               _ <- declare(i)
@@ -1390,54 +1395,57 @@ object Desugar {
               _ <- declare(breakLoopLabelProxy)
               breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
 
-              ifstmt = in.If(
-                in.EqCmp(in.Length(exp)(src), in.IntLit(0)(src))(src),
-                in.Seqn(Vector(
-                  // assume i == i0
-                  in.Assume(in.ExprAssertion(in.EqCmp(i, i0)(src))(src))(src)
-                ) ++
-                  // assert <invariant ...>
-                  (spec.invariants zip dInv).map[in.Stmt]((x: (PExpression, in.Assertion)) => in.Assert(x._2)(meta(x._1, info).createAnnotatedInfo(Source.LoopInvariantNotEstablishedAnnotation))))(src),
-                in.Seqn(Vector(
-                  // c := x
-                  singleAss(in.Assignee.Var(c), exp)(rangeExpSrc),
-                  // i = 0
-                  in.Initialization(i)(src),
-                  singleAss(in.Assignee.Var(i), in.IntLit(0)(src))(iSrc),
-                  // i0 = 0
-                  in.Initialization(i0)(src),
-                  singleAss(in.Assignee.Var(i0), in.IntLit(0)(src))(src)) ++
-                  // j = c[0]
-                  (if (hasValue)
-                    Vector(in.Initialization(j)(src), singleAss(in.Assignee.Var(j), in.IndexedExp(c, in.IntLit(0)(src), typ)(src))(jSrc))
-                  else Vector()) ++
-                  dInvPre ++ dTerPre ++ Vector(
-                    in.While(
-                      in.LessCmp(i0, in.Length(c)(src))(src),
-                      addedInvariantsBefore ++ dInv ++ addedInvariantsAfter,
-                      dTer,
-                      in.Block(Vector(continueLoopLabelProxy),
-                        Vector(
-                          dBody,
-                          continueLoopLabel,
-                          //i0 += 1
-                          singleAss(in.Assignee.Var(i0), in.Add(i0, in.IntLit(1)(src))(src))(src),
-                          // if i0 < len(c) { i = i0; j = c[i] }
-                          in.If(
-                            in.LessCmp(i0, in.Length(c)(src))(src),
-                            in.Seqn(Vector(singleAss(in.Assignee.Var(i), i0)(src)) ++
-                            (if (hasValue) Vector(singleAss(in.Assignee.Var(j), in.IndexedExp(c, i, typ)(src))(src)) else Vector()))(src),
-                            in.Seqn(Vector())(src))(src)
-                        ) ++
-                          dInvPre ++
-                          dTerPre
-                    )(src))(src), breakLoopLabel
-                  )
-                )(src)
-              )(src)
-            } yield ifstmt))
+              enc = in.Seqn(Vector(
+                // c := x
+                singleAss(in.Assignee.Var(c), exp)(rangeExpSrc),
+                // length := len(c) to save for later since it can change
+                singleAss(in.Assignee.Var(length), in.Length(c)(src))(src),
+                in.If(
+                  in.EqCmp(length, in.IntLit(0)(src))(src),
+                  in.Seqn(Vector(
+                    // assume i == i0
+                    in.Assume(in.ExprAssertion(in.EqCmp(i, i0)(src))(src))(src)
+                  ) ++
+                    // assert <invariant ...>
+                    (spec.invariants zip dInv).map[in.Stmt]((x: (PExpression, in.Assertion)) => in.Assert(x._2)(meta(x._1, info).createAnnotatedInfo(Source.LoopInvariantNotEstablishedAnnotation))))(src),
+                  in.Seqn(Vector(
+                    // i = 0
+                    in.Initialization(i)(src),
+                    singleAss(in.Assignee.Var(i), in.IntLit(0)(src))(iSrc),
+                    // i0 = 0
+                    in.Initialization(i0)(src),
+                    singleAss(in.Assignee.Var(i0), in.IntLit(0)(src))(src)) ++
+                    // j = c[0]
+                    (if (hasValue)
+                      Vector(in.Initialization(j)(src), singleAss(in.Assignee.Var(j), in.IndexedExp(c, in.IntLit(0)(src), typ)(src))(jSrc))
+                    else Vector()) ++
+                    dInvPre ++ dTerPre ++ Vector(
+                      in.While(
+                        in.LessCmp(i0, length)(src),
+                        addedInvariantsBefore ++ dInv ++ addedInvariantsAfter,
+                        dTer,
+                        in.Block(Vector(continueLoopLabelProxy),
+                          Vector(
+                            dBody,
+                            continueLoopLabel,
+                            //i0 += 1
+                            singleAss(in.Assignee.Var(i0), in.Add(i0, in.IntLit(1)(src))(src))(src),
+                            // if i0 < len(c) { i = i0; j = c[i] }
+                            in.If(
+                              in.LessCmp(i0, length)(src),
+                              in.Seqn(Vector(singleAss(in.Assignee.Var(i), i0)(src)) ++
+                                (if (hasValue) Vector(singleAss(in.Assignee.Var(j), in.IndexedExp(c, i, typ)(src))(src)) else Vector()))(src),
+                              in.Seqn(Vector())(src))(src)
+                          ) ++
+                            dInvPre ++
+                            dTerPre
+                        )(src))(src), breakLoopLabel
+                    )
+                  )(src)
+                )(src)))(src)
+            } yield enc))
 
-            /**
+          /**
             * This case handles for loops with a range clause of the form:
             *
             * <invariants>
@@ -1449,20 +1457,22 @@ object Desugar {
             * that everything is in a new block so it can shadow variables with the same
             * name declared outside. This is also the go behaviour.
             *
-            * if (len(x) == 0) {
+            * c := x // save the value of the slice/array since changing it doesn't change the iteration
+            * length := len(c)
+            * 
+            * if (length == 0) {
             *   havoc i
             *   assume i0 == i
             *   havoc j // [v]
             *   assert <invariant...>
             * } else {
-            *   c := x // save the value of the slice/array since changing it doesn't change the iteration
             *   var i int = 0
             *   var i0 int = 0 // since 'i' can change in the iteration we store the true index in i0
             *   var j T = c[0] // [v]
             *   invariant 0 <= i0 && i0 <= len(c)
             *   invariant i0 < len(c) ==> i0 == i && j == c[i0] // [v] just the j == c[i0] part
             *   <invariant...>
-            *   for i0 < len(c) {
+            *   for i0 < length {
             *     <body>
             *     i0 += 1
             *     if i0 < len(c) { i = i0 ; j = c[i] /* [v] */ }
@@ -1487,6 +1497,7 @@ object Desugar {
               hasValue = ass.length > 1 && !(ass(1).isInstanceOf[PBlankIdentifier])
 
               c <- freshDeclaredExclusiveVar(exp.typ.withAddressability(Addressability.exclusiveVariable), n, info)(rangeExpSrc)
+              length <- freshDeclaredExclusiveVar(in.IntT(Addressability.exclusiveVariable), n, info)(rangeExpSrc)
 
               i <- goL(ass(0))
               j <- if (hasValue) goL(ass(1)) else unit(in.Assignee.Var(c))
@@ -1527,47 +1538,52 @@ object Desugar {
               _ <- declare(breakLoopLabelProxy)
               breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
 
-              ifstmt = in.If(
-                in.EqCmp(in.Length(exp)(src), in.IntLit(0)(src))(src),
-                in.Seqn(
-                  // assert <invariant ...>
-                  (spec.invariants zip dInv).map[in.Stmt]((x: (PExpression, in.Assertion)) => in.Assert(x._2)(meta(x._1, info).createAnnotatedInfo(Source.LoopInvariantNotEstablishedAnnotation))))(src),
-                in.Seqn(Vector(
-                  // c := x
-                  singleAss(in.Assignee.Var(c), exp)(rangeExpSrc),
-                  // i = 0
-                  singleAss(i, in.IntLit(0)(src))(src),
-                  // i0 = 0
-                  singleAss(in.Assignee.Var(i0), in.IntLit(0)(src))(src)) ++
-                  // j = c[0]
-                  (if (hasValue)
-                    Vector(singleAss(j, in.IndexedExp(c, in.IntLit(0)(src), typ)(src))(src))
-                  else Vector()) ++
-                  dInvPre ++ dTerPre ++ Vector(
-                    in.While(
-                      in.LessCmp(i0, in.Length(c)(src))(src),
-                      addedInvariantsBefore ++ dInv ++ addedInvariantsAfter,
-                      dTer,
-                      in.Block(Vector(continueLoopLabelProxy),
-                        Vector(
-                          dBody,
-                          continueLoopLabel,
-                          //i0 += 1
-                          singleAss(in.Assignee.Var(i0), in.Add(i0, in.IntLit(1)(src))(src))(src),
-                          // if i0 < len(c) { i = i0; j = c[i] }
-                          in.If(
-                            in.LessCmp(i0, in.Length(c)(src))(src),
-                            in.Seqn(Vector(singleAss(i, i0)(src)) ++
-                            (if (hasValue) Vector(singleAss(j, in.IndexedExp(c, i.op, typ)(src))(src)) else Vector()))(src),
-                            in.Seqn(Vector())(src))(src)
-                        ) ++
-                          dInvPre ++
-                          dTerPre
-                    )(src))(src), breakLoopLabel
-                  )
-                )(src)
-              )(src)
-            } yield ifstmt))
+              enc = in.Seqn(Vector(
+                // c := x
+                singleAss(in.Assignee.Var(c), exp)(rangeExpSrc),
+                // length := len(c) to save for later since it can change
+                singleAss(in.Assignee.Var(length), in.Length(c)(src))(src),
+                in.If(
+                  in.EqCmp(length, in.IntLit(0)(src))(src),
+                  in.Seqn(
+                    // assert <invariant ...>
+                    (spec.invariants zip dInv).map[in.Stmt]((x: (PExpression, in.Assertion)) => in.Assert(x._2)(meta(x._1, info).createAnnotatedInfo(Source.LoopInvariantNotEstablishedAnnotation))))(src),
+                  in.Seqn(Vector(
+                    // c := x
+                    singleAss(in.Assignee.Var(c), exp)(rangeExpSrc),
+                    // i = 0
+                    singleAss(i, in.IntLit(0)(src))(src),
+                    // i0 = 0
+                    singleAss(in.Assignee.Var(i0), in.IntLit(0)(src))(src)) ++
+                    // j = c[0]
+                    (if (hasValue)
+                      Vector(singleAss(j, in.IndexedExp(c, in.IntLit(0)(src), typ)(src))(src))
+                    else Vector()) ++
+                    dInvPre ++ dTerPre ++ Vector(
+                      in.While(
+                        in.LessCmp(i0, length)(src),
+                        addedInvariantsBefore ++ dInv ++ addedInvariantsAfter,
+                        dTer,
+                        in.Block(Vector(continueLoopLabelProxy),
+                          Vector(
+                            dBody,
+                            continueLoopLabel,
+                            //i0 += 1
+                            singleAss(in.Assignee.Var(i0), in.Add(i0, in.IntLit(1)(src))(src))(src),
+                            // if i0 < len(c) { i = i0; j = c[i] }
+                            in.If(
+                              in.LessCmp(i0, length)(src),
+                              in.Seqn(Vector(singleAss(i, i0)(src)) ++
+                                (if (hasValue) Vector(singleAss(j, in.IndexedExp(c, i.op, typ)(src))(src)) else Vector()))(src),
+                              in.Seqn(Vector())(src))(src)
+                          ) ++
+                            dInvPre ++
+                            dTerPre
+                        )(src))(src), breakLoopLabel
+                    )
+                  )(src)
+                )(src)))(src)
+            } yield enc))
 
           /**
             * This case handles for loops with a range clause of a map expression of the form:
@@ -1581,8 +1597,10 @@ object Desugar {
             * The following code is produced. Note
             * that everything is in a new block so it can shadow variables with the same
             * name declared outside. This is also the go behaviour.
+            * 
+            * c := x
             *
-            * if (|x| == 0) {
+            * if (|c| == 0) {
             *     var k : T1
             *     var v : T2 // [v]
             *     var visited : Set[T1]
@@ -1591,18 +1609,18 @@ object Desugar {
             * else {
             *     var k : T1
             *     var v : T2 // [v]
-            *     inhale k in domain(x)
-            *     v := x[k] // [v]
+            *     inhale k in domain(c)
+            *     v := c[k] // [v]
             *     var visited : Set[T1] := Set()
             *     assert 0 / 1 < per // check if permission provided by user is valid
-            *     while (|visited| < |domain(x)|)
-            *     invariant |visited| < |domain(x)| ==> k in domain(x) && v == x[k] // [v]
-            *     invariant |visited| <= |domain(x)|
-            *     invariant visited subset domain(x)
+            *     while (|visited| < |domain(c)|)
+            *     invariant |visited| < |domain(c)| ==> k in domain(x) && v == c[k] // [v]
+            *     invariant |visited| <= |domain(c)|
+            *     invariant visited subset domain(c)
             *     <invariant...>
             *     {
             *         var key : T1
-            *         inhale key in domain(x) && !(key in visited)
+            *         inhale key in domain(c) && !(key in visited)
             *         k := key
             *         v := x[k] // [v]
             *         exhale acc(x, 1/100000)
@@ -1618,23 +1636,25 @@ object Desugar {
             unit(block(for {
               exp <- goE(range.exp)
 
+              c <- freshDeclaredExclusiveVar(exp.typ.withAddressability(Addressability.exclusiveVariable), n, info)(src)
+
               keyType = exp.typ.asInstanceOf[in.MapT].keys.withAddressability(Addressability.exclusiveVariable)
               valType = exp.typ.asInstanceOf[in.MapT].values.withAddressability(Addressability.exclusiveVariable)
               visType = in.SetT(keyType, Addressability.exclusiveVariable)
 
-              domain = in.MapKeys(exp, underlyingType(exp.typ))(src)
+              domain = in.MapKeys(c, underlyingType(exp.typ))(src)
 
               visited <- leftOfAssignmentD(range.enumerated, info)(in.SetT(keyType, Addressability.exclusiveVariable))
 
               perm <- freshDeclaredExclusiveVar(in.PermissionT(Addressability.exclusiveVariable), n, info)(src)
 
-              initPerm = singleAss(in.Assignee.Var(perm), in.PermLit(1, 1000000)(src))(src)
+              initPerm = singleAss(in.Assignee.Var(perm), in.PermLit(1, MapExhalePermDenom)(src))(src)
 
               exhSrc = meta(range.exp, info).createAnnotatedInfo(Source.InsufficientPermissionToRangeExpressionAnnotation())
 
               // exhale acc(x, p)
-              exhalePerm = in.Exhale(in.Access(in.Accessible.ExprAccess(exp), perm)(exhSrc))(exhSrc)
-              inhalePerm = in.Inhale(in.Access(in.Accessible.ExprAccess(exp), perm)(exhSrc))(src)
+              exhalePerm = in.Exhale(in.Access(in.Accessible.ExprAccess(c), perm)(exhSrc))(exhSrc)
+              inhalePerm = in.Inhale(in.Access(in.Accessible.ExprAccess(c), perm)(exhSrc))(src)
 
               hasValue = shorts.length > 1 && !(shorts(1).isInstanceOf[PWildcard])
 
@@ -1642,7 +1662,7 @@ object Desugar {
               (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
               indexValueSrc = meta(range.exp, info).createAnnotatedInfo(Source.NoPermissionToRangeExpressionAnnotation())
               addedInvariants = Vector(
-                in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(exp)(src))(src))(src),
+                in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
                 in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
 
               dBody = blockD(ctx, info)(body)
@@ -1669,27 +1689,29 @@ object Desugar {
                 in.Inhale(in.ExprAssertion(in.And(
                   in.Contains(k, domain)(src),
                   in.Negation(in.Contains(k, visited.op)(src))(src))(src))(src))(src)
-              ) ++ (if (hasValue) Vector(in.Inhale(in.ExprAssertion(in.EqCmp(v, in.IndexedExp(exp, k, underlyingType(exp.typ))(src))(src))(src))(src)) else Vector()))(src)
+              ) ++ (if (hasValue) Vector(in.Initialization(v)(src), singleAss(in.Assignee.Var(v), in.IndexedExp(c, k, underlyingType(exp.typ))(src))(src)) else Vector()))(src)
 
               updateVisited = singleAss(visited, in.Union(visited.op, in.SetLit(keyType, Vector(k))(src))(src))(src)
 
-              ifstmt = in.If(
-                in.EqCmp(in.Length(exp)(src), in.IntLit(0)(src))(src),
-                in.Seqn(
-                  // assert <invariant ...>
-                  (spec.invariants zip dInv).map[in.Stmt]((x: (PExpression, in.Assertion)) => in.Assert(x._2)(meta(x._1, info).createAnnotatedInfo(Source.LoopInvariantNotEstablishedAnnotation))))(src),
-                in.Seqn(
-                  dInvPre ++ dTerPre ++ Vector(
-                    initPerm,
-                    in.While(
-                      in.LessCmp(in.Length(visited.op)(src), in.Length(exp)(src))(src),
-                      dInv ++ addedInvariants, dTer, in.Block(Vector(continueLoopLabelProxy, k) ++ (if (hasValue) Vector(v) else Vector()),
-                    Vector(exhalePerm, updateKeyVal, dBody, continueLoopLabel, inhalePerm, updateVisited) ++ dInvPre ++ dTerPre
-                  )(src))(src), visitedEqDomain, breakLoopLabel
-                ))(src)
-              )(src)
+              enc = in.Seqn(Vector(
+                singleAss(in.Assignee.Var(c), exp)(src),
+                in.If(
+                  in.EqCmp(in.Length(c)(src), in.IntLit(0)(src))(src),
+                  in.Seqn(
+                    // assert <invariant ...>
+                    (spec.invariants zip dInv).map[in.Stmt]((x: (PExpression, in.Assertion)) => in.Assert(x._2)(meta(x._1, info).createAnnotatedInfo(Source.LoopInvariantNotEstablishedAnnotation))))(src),
+                  in.Seqn(
+                    dInvPre ++ dTerPre ++ Vector(
+                      initPerm,
+                      in.While(
+                        in.LessCmp(in.Length(visited.op)(src), in.Length(c)(src))(src),
+                        dInv ++ addedInvariants, dTer, in.Block(Vector(continueLoopLabelProxy, k) ++ (if (hasValue) Vector(v) else Vector()),
+                          Vector(exhalePerm, updateKeyVal, dBody, continueLoopLabel, inhalePerm, updateVisited) ++ dInvPre ++ dTerPre
+                        )(src))(src), visitedEqDomain, breakLoopLabel
+                    ))(src)
+                )(src)))(src)
 
-            } yield ifstmt))
+            } yield enc))
 
           case n@PAssForRange(range, ass, spec, body) if underlyingType(info.typ(range.exp)).isInstanceOf[SliceT] || underlyingType(info.typ(range.exp)).isInstanceOf[MapT] =>
             unit(block(for {
@@ -1699,19 +1721,21 @@ object Desugar {
               valType = exp.typ.asInstanceOf[in.MapT].values.withAddressability(Addressability.exclusiveVariable)
               visType = in.SetT(keyType, Addressability.exclusiveVariable)
 
-              domain = in.MapKeys(exp, underlyingType(exp.typ))(src)
+              c <- freshDeclaredExclusiveVar(exp.typ.withAddressability(Addressability.exclusiveVariable), n, info)(src)
+
+              domain = in.MapKeys(c, underlyingType(exp.typ))(src)
 
               visited <- leftOfAssignmentD(range.enumerated, info)(in.SetT(keyType, Addressability.exclusiveVariable))
 
               perm <- freshDeclaredExclusiveVar(in.PermissionT(Addressability.exclusiveVariable), n, info)(src)
 
-              initPerm = singleAss(in.Assignee.Var(perm), in.PermLit(1, 1000000)(src))(src)
+              initPerm = singleAss(in.Assignee.Var(perm), in.PermLit(1, MapExhalePermDenom)(src))(src)
 
               exhSrc = meta(range.exp, info).createAnnotatedInfo(Source.InsufficientPermissionToRangeExpressionAnnotation())
 
               // exhale acc(x, p)
-              exhalePerm = in.Exhale(in.Access(in.Accessible.ExprAccess(exp), perm)(exhSrc))(exhSrc)
-              inhalePerm = in.Inhale(in.Access(in.Accessible.ExprAccess(exp), perm)(exhSrc))(src)
+              exhalePerm = in.Exhale(in.Access(in.Accessible.ExprAccess(c), perm)(exhSrc))(exhSrc)
+              inhalePerm = in.Inhale(in.Access(in.Accessible.ExprAccess(c), perm)(exhSrc))(src)
 
               hasValue = ass.length > 1 && !(ass(1).isInstanceOf[PBlankIdentifier])
 
@@ -1719,7 +1743,7 @@ object Desugar {
               (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
               indexValueSrc = meta(range.exp, info).createAnnotatedInfo(Source.NoPermissionToRangeExpressionAnnotation())
               addedInvariants = Vector(
-                in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(exp)(src))(src))(src),
+                in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
                 in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
 
               dBody = blockD(ctx, info)(body)
@@ -1739,34 +1763,37 @@ object Desugar {
                 in.SetLit(keyType, Vector.empty)(src)
               )(src))(src))(src)
 
+              tempk = in.LocalVar(nm.fresh(n, info), keyType)(src)
               k <- goL(ass(0))
               v <- if (hasValue) goL(ass(1)) else unit(in.Assignee.Var(perm))
 
               updateKeyVal = in.Seqn(Vector(
                 in.Inhale(in.ExprAssertion(in.And(
-                  in.Contains(k.op, domain)(src),
-                  in.Negation(in.Contains(k.op, visited.op)(src))(src))(src))(src))(src)
-              ) ++ (if (hasValue) Vector(in.Inhale(in.ExprAssertion(in.EqCmp(v.op, in.IndexedExp(exp, k.op, underlyingType(exp.typ))(src))(src))(src))(src)) else Vector()))(src)
+                  in.Contains(tempk, domain)(src),
+                  in.Negation(in.Contains(tempk, visited.op)(src))(src))(src))(src))(src),
+                singleAss(k, tempk)(src)
+              ) ++ (if (hasValue) Vector(singleAss(v, in.IndexedExp(c, k.op, underlyingType(exp.typ))(src))(src)) else Vector()))(src)
 
               updateVisited = singleAss(visited, in.Union(visited.op, in.SetLit(keyType, Vector(k.op))(src))(src))(src)
 
-              ifstmt = in.If(
-                in.EqCmp(in.Length(exp)(src), in.IntLit(0)(src))(src),
-                in.Seqn(
-                  // assert <invariant ...>
-                  (spec.invariants zip dInv).map[in.Stmt]((x: (PExpression, in.Assertion)) => in.Assert(x._2)(meta(x._1, info).createAnnotatedInfo(Source.LoopInvariantNotEstablishedAnnotation))))(src),
-                in.Seqn(
-                  dInvPre ++ dTerPre ++ Vector(
-                    initPerm,
-                    in.While(
-                      in.LessCmp(in.Length(visited.op)(src), in.Length(exp)(src))(src),
-                      dInv ++ addedInvariants, dTer, in.Block(Vector(continueLoopLabelProxy),
-                    Vector(exhalePerm, updateKeyVal, dBody, continueLoopLabel, inhalePerm, updateVisited) ++ dInvPre ++ dTerPre
-                  )(src))(src), visitedEqDomain, breakLoopLabel
-                ))(src)
-              )(src)
-
-            } yield ifstmt))
+              enc = in.Seqn(Vector(
+                singleAss(in.Assignee.Var(c), exp)(src),
+                in.If(
+                  in.EqCmp(in.Length(c)(src), in.IntLit(0)(src))(src),
+                  in.Seqn(
+                    // assert <invariant ...>
+                    (spec.invariants zip dInv).map[in.Stmt]((x: (PExpression, in.Assertion)) => in.Assert(x._2)(meta(x._1, info).createAnnotatedInfo(Source.LoopInvariantNotEstablishedAnnotation))))(src),
+                  in.Seqn(
+                    dInvPre ++ dTerPre ++ Vector(
+                      initPerm,
+                      in.While(
+                        in.LessCmp(in.Length(visited.op)(src), in.Length(c)(src))(src),
+                        dInv ++ addedInvariants, dTer, in.Block(Vector(continueLoopLabelProxy, tempk),
+                          Vector(exhalePerm, updateKeyVal, dBody, continueLoopLabel, inhalePerm, updateVisited) ++ dInvPre ++ dTerPre
+                        )(src))(src), visitedEqDomain, breakLoopLabel
+                    ))(src)
+                )(src)))(src)
+            } yield enc))
 
           case _ => ???
         }

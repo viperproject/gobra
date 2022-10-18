@@ -233,7 +233,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"expected tuple but got $t")
     }
 
-    case RangeEnumerateVariable(range, _, _, context) => underlyingType(context.typ(range.exp)) match {
+    case RangeEnumerateVariable(range, _, context) => underlyingType(context.typ(range.exp)) match {
       case _: SliceT | _: ArrayT => IntT(config.typeBounds.Int)
       case MapT(key, _) => SetT(key)
       case _ => violation("unexpected range expression type")

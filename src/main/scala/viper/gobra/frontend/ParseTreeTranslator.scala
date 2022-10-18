@@ -1825,12 +1825,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       val expr = visitNode[PExpression](ctx.rangeClause().expression()).at(ctx.rangeClause())
       // enumerated will be used no matter what, so we just make it a wildcard if it is not
       // present in the range clause
-      val enumerated = if (ctx.rangeClause().WITH() != null) {
-        if (ctx.rangeClause().IDENTIFIER().getSymbol().getText() != "_")
-          idnUnk.get(ctx.rangeClause().IDENTIFIER()).at(ctx.rangeClause.IDENTIFIER())
-        else
-          PWildcard().at(ctx.rangeClause().IDENTIFIER())
-      } else PWildcard().at(ctx.rangeClause())
+      val enumerated = visitChildren(ctx.rangeClause()) match {
+        case Vector(_, _, "range", _, "with", i) if i.toString() == "_" => PWildcard().at(ctx.rangeClause().IDENTIFIER())
+        case Vector(_, _, "range", _) => PWildcard().at(ctx.rangeClause())
+        case _ => idnUnk.get(ctx.rangeClause().IDENTIFIER()).at(ctx.rangeClause.IDENTIFIER())
+      }
       val range = PRange(expr, enumerated).at(ctx.rangeClause())
       if (has(ctx.rangeClause().DECLARE_ASSIGN())) {
         // :=

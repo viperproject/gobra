@@ -127,7 +127,7 @@ trait NameResolution {
               case _ => UnknownEntity()
             }
           case decl: PRange =>
-            RangeEnumerateVariable(decl, isGhost, addressable = false, this)
+            RangeEnumerateVariable(decl, isGhost, this)
 
           case _ => violation("unexpected parent of unknown id")
         }

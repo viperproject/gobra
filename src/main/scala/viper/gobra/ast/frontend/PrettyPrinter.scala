@@ -324,7 +324,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       "case" <+> showIdList(shorts) <+> "=" <+> showExpr(recv) <> ":" <> showNestedStmtList(body.stmts)
   }
 
-  def showRange(n: PRange): Doc = "range" <+> showExpr(n.exp) <+> "with" <+> showId(n.enumerated)
+  def showRange(n: PRange): Doc = n.enumerated match {
+    case _: PWildcard => "range" <+> showExpr(n.exp)
+    case _ => "range" <+> showExpr(n.exp) <+> "with" <+> showId(n.enumerated)
+  }
 
   // expressions
 

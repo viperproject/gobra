@@ -291,7 +291,7 @@ case class NoPermissionToRangeExpressionError(info: Source.Verifier.Info) extend
 
 case class InsufficientPermissionToRangeExpressionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "insufficient_permission_to_range_expression"
-  override def localMessage: String = s"Not enough permissions to exhale from range expression"
+  override def localMessage: String = s"Range expression should be immutable inside the loop body"
 }
 
 case class MapMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {

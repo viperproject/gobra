@@ -7,11 +7,12 @@
 package viper.gobra.translator.transformers
 
 import viper.gobra.backend.BackendVerifier.Task
+import viper.silver.verifier.AbstractError
 
 /**
   * Trait for a Viper-to-Viper transformation. The Viper AST in the task as well as the associated backtracking
   * information can be transformed by classes implementing this trait.
   */
 trait ViperTransformer {
-  def transform(task: Task): Task
+  def transform(task: Task): Either[Seq[AbstractError], Task]
 }

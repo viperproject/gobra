@@ -37,6 +37,7 @@ object Translator {
 
     val transformedTask = transformers.foldLeft(task) {
       case (t, transformer) => transformer.transform(t)
+        .fold(errs => Violation.violation(s"Applying transformer ${transformer.getClass.getSimpleName} resulted in errors: ${errs.toString}"), identity)
     }
 
     config.reporter report GeneratedViperMessage(config.taskName, config.packageInfoInputMap(pkgInfo).map(_.name), () => sortAst(transformedTask.program), () => transformedTask.backtrack)

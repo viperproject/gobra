@@ -233,11 +233,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"expected tuple but got $t")
     }
 
-    case RangeEnumerateVariable(range, _, context) => underlyingType(context.typ(range.exp)) match {
-      case _: SliceT | _: ArrayT => IntT(config.typeBounds.Int)
-      case MapT(key, _) => SetT(key)
-      case _ => violation("unexpected range expression type")
-    }
+    case RangeEnumerateVariable(range, _, context) => rangeEnumeratorType(underlyingType(context.typ(range.exp)))
 
     case Field(PFieldDecl(_, typ), _, context) => context.symbType(typ)
 
@@ -291,16 +287,17 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
         case PVarDecl(typ, right, left, _) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
         case PConstSpec(typ, right, left) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
         case PShortForRange(range, shorts, _, _, _) => getBlankAssigneeTypeRange(w, shorts, range)
-        case PRange(exp, enumerated) => if (w eq enumerated)
-          underlyingType(exprType(exp)) match {
-            case _: SliceT | _: ArrayT => IntT(config.typeBounds.Int)
-            case MapT(key, _) => SetT(key)
-            case t => violation(s"type $t is not supported for range")
-          }
+        case PRange(exp, enumerated) => if (w eq enumerated) rangeEnumeratorType(underlyingType(exprType(exp)))
           else violation("did not find expression corresponding to " + w)
         case _ => ???
       }
       case _ => ???
     }
+  }
+
+  def rangeEnumeratorType(typ: Type) : Type = typ match {
+    case _: SliceT | _: ArrayT => IntT(config.typeBounds.Int)
+    case MapT(key, _) => SetT(key)
+    case t => violation(s"type $t is not supported for range")
   }
 }

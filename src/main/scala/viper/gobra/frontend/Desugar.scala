@@ -1320,8 +1320,10 @@ object Desugar {
 
         c <- freshDeclaredExclusiveVar(exp.typ.withAddressability(Addressability.exclusiveVariable), n, info)(src)
 
-        keyType = exp.typ.asInstanceOf[in.MapT].keys.withAddressability(Addressability.exclusiveVariable)
-        valType = exp.typ.asInstanceOf[in.MapT].values.withAddressability(Addressability.exclusiveVariable)
+        (keyType, valType) = underlyingType(exp.typ) match {
+          case in.MapT(k, v, _) => (k.withAddressability(Addressability.exclusiveVariable), v.withAddressability(Addressability.exclusiveVariable))
+          case _ => violation("unexpected type of range expression")
+        }
         visType = in.SetT(keyType, Addressability.exclusiveVariable)
 
         domain = in.MapKeys(c, underlyingType(exp.typ))(src)
@@ -1398,8 +1400,10 @@ object Desugar {
       def desugarMapAssRange(n: PAssForRange, range: PRange, ass: Vector[PAssignee], spec: PLoopSpec, body: PBlock)(src: Source.Parser.Info): Writer[in.Stmt] = unit(block(for {
         exp <- goE(range.exp)
 
-        keyType = exp.typ.asInstanceOf[in.MapT].keys.withAddressability(Addressability.exclusiveVariable)
-        valType = exp.typ.asInstanceOf[in.MapT].values.withAddressability(Addressability.exclusiveVariable)
+        (keyType, valType) = underlyingType(exp.typ) match {
+          case in.MapT(k, v, _) => (k.withAddressability(Addressability.exclusiveVariable), v.withAddressability(Addressability.exclusiveVariable))
+          case _ => violation("unexpected type of range expression")
+        }
         visType = in.SetT(keyType, Addressability.exclusiveVariable)
 
         c <- freshDeclaredExclusiveVar(exp.typ.withAddressability(Addressability.exclusiveVariable), n, info)(src)

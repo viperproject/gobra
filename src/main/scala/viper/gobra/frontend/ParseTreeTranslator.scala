@@ -1827,7 +1827,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       // present in the range clause
       val enumerated = visitChildren(ctx.rangeClause()) match {
         case Vector(_, _, "range", _, "with", i) if i.toString() == "_" => PWildcard().at(ctx.rangeClause().IDENTIFIER())
-        case Vector(_, _, "range", _) => PWildcard().at(ctx.rangeClause())
+        case Vector("range", _, "with", i) if i.toString() == "_" => PWildcard().at(ctx.rangeClause().IDENTIFIER())
+        case Vector(_, _, "range", _) | Vector("range", _) => PWildcard().at(ctx.rangeClause())
         case _ => idnUnk.get(ctx.rangeClause().IDENTIFIER()).at(ctx.rangeClause.IDENTIFIER())
       }
       val range = PRange(expr, enumerated).at(ctx.rangeClause())
@@ -1838,7 +1839,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       } else {
         // =
         val assignees = visitAssigneeList(ctx.rangeClause().expressionList()) match {
-          case v : Vector[PAssignee] => v
+          case v : Vector[PAssignee] => if (v.length > 0 ) v else Vector(PBlankIdentifier().at(ctx.rangeClause()))
           case _ => fail(ctx)
         }
         PAssForRange(range, assignees, spec, block).at(specCtx)

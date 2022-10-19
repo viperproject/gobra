@@ -85,3 +85,4 @@ IMPORT_PRE  : 'importRequires';
 PROOF       : 'proof';
 GHOST_EQUALS     : '===';
 GHOST_NOT_EQUALS : '!==';
+WITH        : 'with';

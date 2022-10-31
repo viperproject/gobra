@@ -88,7 +88,7 @@ class StringEncoding extends LeafTypeEncoding {
     * [ target = []byte(str) ] ->
     *   [
     *     var s []byte
-    *     inhale forall i Int :: 0 <= i && i < len(s) ==> acc(&s[i])
+    *     inhale forall i Int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
     *     target = s
     *   ]
     */
@@ -108,7 +108,7 @@ class StringEncoding extends LeafTypeEncoding {
         val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(conv.info)
         val post = in.SepForall(
           vars = Vector(qtfVar),
-          triggers = Vector(in.Trigger(Vector(in.IndexedExp(slice, qtfVar, sliceT)(conv.info)))(conv.info)),
+          triggers = Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(slice, qtfVar, sliceT)(conv.info))(conv.info)))(conv.info)),
           body = in.Implication(
             in.And(in.AtMostCmp(in.IntLit(BigInt(0))(conv.info), qtfVar)(conv.info), in.LessCmp(qtfVar, in.Length(slice)(conv.info))(conv.info))(conv.info),
             in.Access(in.Accessible.Address(in.IndexedExp(slice, qtfVar, sliceT)(conv.info)), in.FullPerm(conv.info))(conv.info)
@@ -269,7 +269,7 @@ class StringEncoding extends LeafTypeEncoding {
   }
 
   /** Generates the function
-    *   requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
+    *   requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i], _)
     *   decreases _
     *   pure func byteSliceToStrFunc(s []byte) string
     */
@@ -281,9 +281,10 @@ class StringEncoding extends LeafTypeEncoding {
       val param = in.Parameter.In("s", paramT)(info)
       val res = in.Parameter.Out("res", in.StringT(Addressability.outParameter))(info)
       val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(info)
+      val trigger = in.Trigger(Vector(in.Ref(in.IndexedExp(param, qtfVar, paramT)(info))(info)))(info)
       val pre = in.SepForall(
         vars = Vector(qtfVar),
-        triggers = Vector(in.Trigger(Vector(in.IndexedExp(param, qtfVar, paramT)(info)))(info)),
+        triggers = Vector(trigger),
         body = in.Implication(
           in.And(in.AtMostCmp(in.IntLit(BigInt(0))(info), qtfVar)(info), in.LessCmp(qtfVar, in.Length(param)(info))(info))(info),
           in.Access(in.Accessible.Address(in.IndexedExp(param, qtfVar, paramT)(info)), in.WildcardPerm(info))(info)

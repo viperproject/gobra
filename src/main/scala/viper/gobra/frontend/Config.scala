@@ -43,6 +43,7 @@ object ConfigDefaults {
   lazy val DefaultLogLevel: Level = LoggerDefaults.DefaultLevel
   lazy val DefaultCacheFile: Option[File] = None
   lazy val DefaultParseOnly: Boolean = false
+  lazy val DefaultStopAfterEncoding: Boolean = false
   lazy val DefaultCheckOverflows: Boolean = false
   lazy val DefaultCheckConsistency: Boolean = false
   lazy val DefaultShouldChop: Boolean = false
@@ -191,6 +192,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       logLevel: Level = ConfigDefaults.DefaultLogLevel,
                       cacheFile: Option[Path] = ConfigDefaults.DefaultCacheFile.map(_.toPath),
                       shouldParseOnly: Boolean = ConfigDefaults.DefaultParseOnly,
+                      stopAfterEncoding: Boolean = ConfigDefaults.DefaultStopAfterEncoding,
                       checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
                       checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
                       int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
@@ -205,7 +207,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
   def shouldTypeCheck: Boolean = !shouldParseOnly
   def shouldDesugar: Boolean = shouldTypeCheck
   def shouldViperEncode: Boolean = shouldDesugar
-  def shouldVerify: Boolean = shouldViperEncode
+  def shouldVerify: Boolean = shouldViperEncode && !stopAfterEncoding
   def shouldChop: Boolean = choppingUpperBound > 1 || isolated.exists(_.nonEmpty)
   lazy val isolated: Option[Vector[SourcePosition]] = {
     val positions = isolate.flatMap{ case (path, idxs) => idxs.map(idx => SourcePosition(path, idx, 0)) }

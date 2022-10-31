@@ -281,9 +281,10 @@ class StringEncoding extends LeafTypeEncoding {
       val param = in.Parameter.In("s", paramT)(info)
       val res = in.Parameter.Out("res", in.StringT(Addressability.outParameter))(info)
       val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(info)
+      val trigger = in.Trigger(Vector(in.Ref(in.IndexedExp(param, qtfVar, paramT)(info))(info)))(info)
       val pre = in.SepForall(
         vars = Vector(qtfVar),
-        triggers = Vector(in.Trigger(Vector(in.IndexedExp(param, qtfVar, paramT)(info)))(info)),
+        triggers = Vector(trigger),
         body = in.Implication(
           in.And(in.AtMostCmp(in.IntLit(BigInt(0))(info), qtfVar)(info), in.LessCmp(qtfVar, in.Length(param)(info))(info))(info),
           in.Access(in.Accessible.Address(in.IndexedExp(param, qtfVar, paramT)(info)), in.WildcardPerm(info))(info)

@@ -17,3 +17,13 @@ func test2() {
 	//:: ExpectedOutput(type_error)
 	assert acc(&A)
 }
+
+func test3() {
+	//:: ExpectedOutput(type_error)
+	assert acc(&B[0])
+}
+
+func test4() {
+	//:: ExpectedOutput(type_error)
+	B[0] = 1
+}

@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+var A int = 0
+var B [3]int
+
+func test1() {
+	// A cannot be assigned to, it is exclusive.
+	//:: ExpectedOutput(type_error)
+	A = 1
+}
+
+func test2() {
+	// Cannot take the address of an exclusive global variable.
+	//:: ExpectedOutput(type_error)
+	assert acc(&A)
+}

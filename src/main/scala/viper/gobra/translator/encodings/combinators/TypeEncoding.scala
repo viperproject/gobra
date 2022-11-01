@@ -201,6 +201,15 @@ trait TypeEncoding extends Generator {
   def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     case v: in.GlobalConst if typ(ctx) isDefinedAt v.typ => unit(ctx.fixpoint.get(v)(ctx))
     case (v: in.BodyVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar)
+    case (v: in.GlobalVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) =>
+      println(s"entrered $v")
+      val (pos, info, errT) = v.vprMeta
+      val typ = ctx.typ(v.typ)
+      val vprExpr = vpr.FuncApp(
+        funcname = v.name.uniqueName,
+        args = Seq.empty
+      )(pos, info, typ, errT)
+      unit(vprExpr)
     case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) => ctx.expression(expr)
   }
 
@@ -284,6 +293,7 @@ trait TypeEncoding extends Generator {
     val liftedResult: in.Expr => Option[CodeWriter[vpr.Exp]] = {
       case (l: in.Location) :: _ / Shared => reference(ctx).lift(l)
       case e => finalExpression(ctx).lift(e)
+
     }
     liftedResult.unlift
   }

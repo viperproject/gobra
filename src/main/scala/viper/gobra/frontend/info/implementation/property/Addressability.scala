@@ -73,7 +73,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
         case Some(_: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.ReceivedPredicate | _: ap.PredicateExpr ) => AddrMod.rValue
         case Some(_: ap.NamedType | _: ap.BuiltInType | _: ap.Function | _: ap.Predicate | _: ap.DomainFunction) => AddrMod.rValue
         case Some(_: ap.ImplicitlyReceivedInterfaceMethod | _: ap.ImplicitlyReceivedInterfacePredicate) => AddrMod.rValue
-        case Some(_: ap.GlobalVariable) => AddrMod.globalVariable
+        case Some(g: ap.GlobalVariable) => if (g.symb.addressable) AddrMod.Shared else AddrMod.Exclusive
         case p => Violation.violation(s"Unexpected dot resolve, got $p")
       }
       case _: PLiteral => AddrMod.literal
@@ -126,7 +126,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
 
   private lazy val addressableVarAttr: PIdnNode => AddrMod =
     attr[PIdnNode, AddrMod] { n => regular(n) match {
-      case _: GlobalVariable => AddrMod.globalVariable
+      case g: GlobalVariable => if (g.addressable) AddrMod.sharedVariable else AddrMod.exclusiveVariable
       case v: Variable => if (v.addressable) AddrMod.sharedVariable else AddrMod.exclusiveVariable
       case _: Constant => AddrMod.constant
       case _: Wildcard => AddrMod.defaultValue

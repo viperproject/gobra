@@ -34,7 +34,8 @@ class DefaultGlobalVarEncoding extends Encoding {
     unit(
       decl.left map { l =>
         val (pos, info, errTrafo) = l.vprMeta
-        Violation.violation(l.typ.addressability == Addressability.Shared, "Expected type with Shared addressability")
+        // TODO: drop this
+        // Violation.violation(l.typ.addressability == Addressability.Shared, "Expected type with Shared addressability")
         val typ = ctx.typ(l.typ)
         vpr.Function(
           name = l.name.uniqueName,

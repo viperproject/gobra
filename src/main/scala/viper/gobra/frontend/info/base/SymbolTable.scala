@@ -110,13 +110,13 @@ object SymbolTable extends Environments[Entity] {
                             expOpt: Option[PExpression],
                             typOpt: Option[PType],
                             ghost: Boolean,
+                            override val addressable: Boolean,
                             isSingleModeDecl: Boolean,
                             context: ExternalTypeInfo
                            ) extends ActualVariable {
     require(expOpt.isDefined || typOpt.isDefined)
     require(0 <= idx && idx < decl.left.length)
     override def rep: PNode = decl
-    override def addressable: Boolean = true
     def id: PDefLikeId = decl.left(idx)
   }
 

@@ -3484,8 +3484,8 @@ object Desugar {
             seqn = in.MethodBodySeqn{
               // init all global variables declared in the file (not all declarations in the package!)
               val initDeclaredGlobs: Vector[in.Initialization] = sortedGlobVarDecls.flatMap(_.left).filter {
-                // TODO(possible optimization) do not generate initialization code for variables with RHS
-                // do not initialize Exclusive variables to avoid unsoundnesses with the assumptions
+                // do not initialize Exclusive variables to avoid unsoundnesses with the assumptions.
+                // TODO(another optimization) do not generate initialization code for variables with RHS.
                 _.typ.addressability.isShared
               }.map{ gVar =>
                 in.Initialization(gVar)(gVar.info)

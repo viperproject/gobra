@@ -448,7 +448,7 @@ object Desugar {
             case v if v.typ.addressability.isShared =>
               singleAss(in.Assignee.Var(v), in.DfltVal(v.typ.withAddressability(Addressability.Exclusive))(src))(src)
             case v =>
-              in.Assume(in.ExprAssertion(in.EqCmp(v, in.DfltVal(v.typ)(src))(src))(src))(src)
+              in.Assume(in.ExprAssertion(in.GhostEqCmp(v, in.DfltVal(v.typ)(src))(src))(src))(src)
           }
         in.GlobalVarDecl(gvars, assignsToDefault)(src)
       } else if (decl.right.length == 1 && decl.right.length != decl.left.length) {
@@ -460,7 +460,7 @@ object Desugar {
               decls = Vector(),
               stmts = gvars.zip(t.args).map{
                 case (l, r) if l.typ.addressability.isShared => singleAss(in.Assignee.Var(l), r)(src)
-                case (l, r) => in.Assume(in.ExprAssertion(in.EqCmp(l,r)(src))(src))(src)
+                case (l, r) => in.Assume(in.ExprAssertion(in.GhostEqCmp(l,r)(src))(src))(src)
               }
             )(src)
           case c => violation(s"Expected this case to be unreachable, but found $c instead.")
@@ -472,7 +472,7 @@ object Desugar {
           case (l, wr) if l.typ.addressability.isShared =>
             block(for { r <- wr } yield singleAss(in.Assignee.Var(l), r)(src))
           case (l, wr) =>
-            block(for { r <- wr } yield in.Assume(in.ExprAssertion(in.EqCmp(l,r)(src))(src))(src))
+            block(for { r <- wr } yield in.Assume(in.ExprAssertion(in.GhostEqCmp(l,r)(src))(src))(src))
         }
         in.GlobalVarDecl(gvars, assigns)(src)
       }

@@ -435,9 +435,9 @@ object Desugar {
         case g: st.GlobalVariable => globalVarD(g)(src)
         case w: st.Wildcard =>
           // wildcards are considered exclusive as they cannot be referenced anywhere else
-          val typ = typeD(info.typ(w.decl), Addressability.exclusiveVariable)(src)
+          val typ = typeD(info.typ(w.decl), Addressability.wildcard)(src)
           val scope = info.codeRoot(decl).asInstanceOf[PPackage]
-          freshGlobalVar(typ, scope, w.context)(src) // TODO: new addressability for wildcards
+          freshGlobalVar(typ, scope, w.context)(src)
         case e => Violation.violation(s"Expected a global variable or wildcard, but instead got $e")
       }
       val exps = decl.right.map(exprD(FunctionContext.empty(), info))
@@ -445,8 +445,10 @@ object Desugar {
         // assign to all variables its default value:
         val assignsToDefault =
           gvars.map{
-            case v if v.typ.addressability.isShared => singleAss(in.Assignee.Var(v), in.DfltVal(v.typ.withAddressability(Addressability.Exclusive))(src))(src)
-            case v => in.Assume(in.ExprAssertion(in.EqCmp(v, in.DfltVal(v.typ.withAddressability(Addressability.Exclusive))(src))(src))(src))(src) // TODO: dflt val may be impure, maybe introduce assignment first
+            case v if v.typ.addressability.isShared =>
+              singleAss(in.Assignee.Var(v), in.DfltVal(v.typ.withAddressability(Addressability.Exclusive))(src))(src)
+            case v =>
+              in.Assume(in.ExprAssertion(in.EqCmp(v, in.DfltVal(v.typ)(src))(src))(src))(src)
           }
         in.GlobalVarDecl(gvars, assignsToDefault)(src)
       } else if (decl.right.length == 1 && decl.right.length != decl.left.length) {
@@ -458,7 +460,7 @@ object Desugar {
               decls = Vector(),
               stmts = gvars.zip(t.args).map{
                 case (l, r) if l.typ.addressability.isShared => singleAss(in.Assignee.Var(l), r)(src)
-                case (l, r) => in.Assume(in.ExprAssertion(in.EqCmp(l,r)(src))(src))(src) // TODO: may be impure, maybe introduce assignment first
+                case (l, r) => in.Assume(in.ExprAssertion(in.EqCmp(l,r)(src))(src))(src)
               }
             )(src)
           case c => violation(s"Expected this case to be unreachable, but found $c instead.")
@@ -467,8 +469,10 @@ object Desugar {
       } else {
         // single-assign mode:
         val assigns = gvars.zip(exps).map{
-          case (l, wr) if l.typ.addressability.isShared => block(for { r <- wr } yield singleAss(in.Assignee.Var(l), r)(src))
-          case (l, wr) => block(for { r <- wr } yield in.Assume(in.ExprAssertion(in.EqCmp(l,r)(src))(src))(src)) // TODO: may be impure, maybe introduce assignment first
+          case (l, wr) if l.typ.addressability.isShared =>
+            block(for { r <- wr } yield singleAss(in.Assignee.Var(l), r)(src))
+          case (l, wr) =>
+            block(for { r <- wr } yield in.Assume(in.ExprAssertion(in.EqCmp(l,r)(src))(src))(src))
         }
         in.GlobalVarDecl(gvars, assigns)(src)
       }
@@ -3480,7 +3484,7 @@ object Desugar {
             seqn = in.MethodBodySeqn{
               // init all global variables declared in the file (not all declarations in the package!)
               val initDeclaredGlobs: Vector[in.Initialization] = sortedGlobVarDecls.flatMap(_.left).filter {
-                // TODO: optimization - do not generate initialization code for variables with RHS
+                // TODO(possible optimization) do not generate initialization code for variables with RHS
                 // do not initialize Exclusive variables to avoid unsoundnesses with the assumptions
                 _.typ.addressability.isShared
               }.map{ gVar =>
@@ -3710,8 +3714,6 @@ object Desugar {
     }
 
     def freshGlobalVar(typ: in.Type, scope: PPackage, ctx: ExternalTypeInfo)(info: Source.Parser.Info): in.GlobalVar = {
-      // TODO: drop
-      // require(typ.addressability == Addressability.globalVariable)
       val name = nm.fresh(scope, ctx)
       val uniqName = nm.global(name, ctx)
       val proxy = in.GlobalVarProxy(name, uniqName)(meta(scope, ctx.getTypeInfo))

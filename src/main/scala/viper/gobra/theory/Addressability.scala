@@ -93,6 +93,7 @@ object Addressability {
 
   val boundVariable: Addressability = rValue
   val constant: Addressability = rValue
+  val wildcard: Addressability = rValue
 
   val dereference: Addressability = pointerBase
   def fieldLookup(receiver: Addressability): Addressability = field(receiver)

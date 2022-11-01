@@ -195,14 +195,13 @@ trait TypeEncoding extends Generator {
     * To avoid conflicts with other encodings, an encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
     * (2) shared expression of type T
-    * The default implements exclusive variables and constants with [[variable]] and [[globalVar]], respectively.
-    * Furthermore, the default implements [T(e: T)] -> [e]
+    * The default implements exclusive local variables and constants with [[variable]] and [[Fixpoint::get]], respectively.
+    * Furthermore, the default implements global exclusive variables and conversions as [T(e: T)] -> [e].
     */
   def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     case v: in.GlobalConst if typ(ctx) isDefinedAt v.typ => unit(ctx.fixpoint.get(v)(ctx))
     case (v: in.BodyVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar)
     case (v: in.GlobalVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) =>
-      println(s"entrered $v")
       val (pos, info, errT) = v.vprMeta
       val typ = ctx.typ(v.typ)
       val vprExpr = vpr.FuncApp(
@@ -293,7 +292,6 @@ trait TypeEncoding extends Generator {
     val liftedResult: in.Expr => Option[CodeWriter[vpr.Exp]] = {
       case (l: in.Location) :: _ / Shared => reference(ctx).lift(l)
       case e => finalExpression(ctx).lift(e)
-
     }
     liftedResult.unlift
   }

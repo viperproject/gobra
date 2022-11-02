@@ -7,6 +7,7 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend._
+import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.BoundedIntegerKind
@@ -108,7 +109,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
   lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {
     case PIndexedExp(b, _) => underlyingType(exprType(b)) match {
-      case _: ArrayT => assignable(b)
+      case _: ArrayT => assignable(b) && isMutableArray(b)
       case _: SliceT | _: GhostSliceT => assignable(b)
       case _: VariadicT => assignable(b)
       case _: MapT => assignable(b)
@@ -300,6 +301,13 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (Some(PExpCompositeVal(exp)), i) => intConstantEval(exp).getOrElse(BigInt(i))
       case (Some(PIdentifierKey(id)), i) => intConstantEval(PNamedOperand(id)).getOrElse(BigInt(i))
       case (_, i) => BigInt(i)
+    }
+  }
+
+  private def isMutableArray: Property[PExpression] = createBinaryProperty("mutable") { e =>
+    resolve(e) match {
+      case Some(g: ap.GlobalVariable) => g.symb.addressable
+      case _ => true
     }
   }
 }

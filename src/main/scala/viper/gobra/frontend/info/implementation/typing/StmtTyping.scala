@@ -8,7 +8,6 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelModus, ChannelT, FunctionT, InterfaceT, InternalTupleT, Type, ArrayT, SliceT, MapT, SetT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -51,16 +50,16 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         })
 
     case n@PAssignment(rights, lefts) =>
-      rights.flatMap(isExpr(_).out) ++ lefts.flatMap(isExpr(_).out) ++ lefts.flatMap(isNotExclusiveGlobal) ++
+      rights.flatMap(isExpr(_).out) ++ lefts.flatMap(isExpr(_).out) ++
         lefts.flatMap(a => assignable.errors(a)(a)) ++ multiAssignableTo.errors(rights map exprType, lefts map exprType)(n)
 
     case n@PAssignmentWithOp(right, op@(_: PShiftLeftOp | _: PShiftRightOp), left) =>
-      isExpr(right).out ++ isExpr(left).out ++ isNotExclusiveGlobal(left) ++
+      isExpr(right).out ++ isExpr(left).out ++
         assignable.errors(left)(n) ++ compatibleWithAssOp.errors(exprType(left), op)(n) ++
         assignableTo.errors(exprType(right), UNTYPED_INT_CONST)(n)
 
     case n@PAssignmentWithOp(right, op, left) =>
-      isExpr(right).out ++ isExpr(left).out ++ isNotExclusiveGlobal(left) ++
+      isExpr(right).out ++ isExpr(left).out ++
         assignable.errors(left)(n) ++ compatibleWithAssOp.errors(exprType(left), op)(n) ++
         assignableTo.errors(exprType(right), exprType(left))(n)
 
@@ -215,10 +214,4 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       res.get.result.outs map miscType zip res.get.result.outs
     }
   }
-
-  private def isNotExclusiveGlobal(a: PAssignee): Messages =
-    resolve(a) match {
-      case Some(v: ap.GlobalVariable) => error(a, s"cannot assign to exclusive global variable ${v.id}", !v.symb.addressable)
-      case _ => noMessages
-    }
 }

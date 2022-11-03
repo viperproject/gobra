@@ -108,8 +108,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   }
 
   lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {
+    case e if !isMutable(e) => false
     case PIndexedExp(b, _) => underlyingType(exprType(b)) match {
-      case _: ArrayT => assignable(b) && isMutableArray(b)
+      case _: ArrayT => assignable(b)
       case _: SliceT | _: GhostSliceT => assignable(b)
       case _: VariadicT => assignable(b)
       case _: MapT => assignable(b)
@@ -304,9 +305,11 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     }
   }
 
-  private def isMutableArray: Property[PExpression] = createBinaryProperty("mutable") { e =>
+  private def isMutable: Property[PExpression] = createBinaryProperty("mutable") { e =>
     resolve(e) match {
       case Some(g: ap.GlobalVariable) => g.symb.addressable
+      case Some(i: ap.IndexedExp) => isMutable(i.base)
+      case Some(f: ap.FieldSelection) => isMutable(f.base)
       case _ => true
     }
   }

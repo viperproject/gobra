@@ -8,3 +8,25 @@ package pkg
 var B, C, _ = f()
 
 func f() (int, bool)
+
+type T struct {
+	f int
+}
+
+var x *T = &T{}
+
+// This is currently more restrictive than it needs to be but we
+// expect to support this in the future.
+func test1() {
+	// Rejected because x is not mutable, even though it does not need to be
+	// in this case.
+	//:: ExpectedOutput(type_error)
+	x.f = 2
+}
+
+var y T = T{}
+
+func test2() {
+	//:: ExpectedOutput(type_error)
+	assert y.f == 2
+}

@@ -25,13 +25,13 @@ import (
 
 
 //:: ExpectedOutput(type_error)
-var A int = 0
+var A@ int = 0
 //:: ExpectedOutput(type_error)
-var B, C = f()
+var B@, C@ = f()
 //:: ExpectedOutput(type_error)
 var _ = g()
 //:: ExpectedOutput(type_error)
-var D struct{}
+var D@ struct{}
 
 decreases
 func f() (int, bool)

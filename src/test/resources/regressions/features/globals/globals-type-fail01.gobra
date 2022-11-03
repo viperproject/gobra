@@ -28,5 +28,5 @@ var y T = T{}
 
 func test2() {
 	//:: ExpectedOutput(type_error)
-	assert y.f == 2
+	y.f = 2
 }

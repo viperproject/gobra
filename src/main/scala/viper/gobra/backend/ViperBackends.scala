@@ -23,6 +23,7 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
+      options ++= Vector("--disableFunctionUnfoldTrigger")
       if (!config.disableMoreCompleteExhale) {
         options ++= Vector("--enableMoreCompleteExhale")
       }

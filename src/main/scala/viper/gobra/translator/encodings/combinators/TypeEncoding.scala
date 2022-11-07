@@ -126,6 +126,30 @@ trait TypeEncoding extends Generator {
   }
 
   /**
+    * TODO: describe better
+    * Returns initialization code for a declared location with the scope of a body.
+    * The initialization code has to guarantee that:
+    * (1) the declared variable has its default value afterwards
+    * (2) all permissions for the declared variables are owned afterwards
+    *
+    * The default implements:
+    * Initialize[loc: T°] -> assume [loc == dflt(T)]
+    * Initialize[loc: T@] -> inhale Footprint[loc]; assume [loc == dflt(T°)] && [&loc != nil(*T)]
+    */
+  def allocate(ctx: Context): in.Location ==> CodeWriter[vpr.Stmt] = {
+    case loc :: t / Exclusive if typ(ctx).isDefinedAt(t) =>
+      val (pos, info, errT) = loc.vprMeta
+      unit(vpr.Seqn(Seq(), Seq())(pos, info, errT))
+
+    case loc :: t / Shared if typ(ctx).isDefinedAt(t) =>
+      val (pos, info, errT) = loc.vprMeta
+      for {
+        footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
+        eq <- ctx.equal(in.Ref(loc)(loc.info), in.NilLit(in.PointerT(t, Exclusive))(loc.info))(loc)
+      } yield vpr.Inhale(vpr.And(footprint, vpr.Not(eq)(pos, info, errT))(pos, info, errT))(pos, info, errT)
+  }
+
+  /**
     * Encodes an assignment.
     * The first and second argument is the left-hand side and right-hand side, respectively.
     *

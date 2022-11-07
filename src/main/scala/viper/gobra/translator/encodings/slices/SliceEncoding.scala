@@ -193,23 +193,56 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         )
 
       case lit: in.NewSliceLit =>
+        val (pos, info, errT) = lit.vprMeta
         val litA = lit.asArrayLit
         val tmp = in.LocalVar(ctx.freshNames.next(), litA.typ.withAddressability(Addressability.pointerBase))(lit.info)
+        //println(s"tmp: $tmp")
         val tmpT = ctx.variable(tmp)
+        //println(s"tmpT: $tmpT")
         val underlyingTyp = underlyingType(lit.typ)(ctx)
+        //println(s"underlyingTyp: $underlyingTyp")
         for {
-          initT <- ctx.initialization(tmp)
-          assignT <- ctx.assignment(in.Assignee.Var(tmp), litA)(lit)
-          _ <- local(tmpT)
+          initT <- ctx.allocation(tmp)
           _ <- write(initT)
+          _ <- local(tmpT)
+          eq <- ctx.equal(tmp, litA)(lit)
+          inhale = vpr.Inhale(eq)(pos, info, errT)
+          _ <- write(inhale)
+          ass <- ctx.assignment(
+            in.Assignee.Var(lit.target),
+            in.Slice(tmp, in.IntLit(0)(lit.info), in.IntLit(litA.length)(lit.info), None, underlyingTyp)(lit.info)
+          )(lit)
+        } yield ass
+      }
+        /*
+        for {
+          // initT <- ctx.initialization(tmp)
+          // _ = println(s"initT: $initT")
+          assignT <- ctx.assignment(in.Assignee.Var(tmp), litA)(lit)
+          // _ = println(s"assignT: $assignT")
+          _ <- local(tmpT)
+          // _ <- write(initT)
           _ <- write(assignT)
           ass <- ctx.assignment(
             in.Assignee.Var(lit.target),
             in.Slice(tmp, in.IntLit(0)(lit.info), in.IntLit(litA.length)(lit.info), None, underlyingTyp)(lit.info)
           )(lit)
         } yield ass
+
+         */
+
+        /*
+        val (pos, info, errT) = src.vprMeta
+        seqn(
+        for {
+          footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
+          eq <- ctx.equal(loc, rhs)(src)
+          _ <- write(vpr.Exhale(footprint)(pos, info, errT))
+          inhale = vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT)
+        } yield inhale
+        )
+         */
     }
-  }
 
   /**
     * Obtains permission to all cells of a slice

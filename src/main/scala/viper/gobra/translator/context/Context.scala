@@ -77,6 +77,8 @@ trait Context {
 
   def initialization(x: in.Location): CodeWriter[vpr.Stmt] = typeEncoding.initialization(this)(x)
 
+  def allocation(x: in.Location): CodeWriter[vpr.Stmt] = typeEncoding.allocate(this)(x)
+
   def assignment(x: in.Assignee, rhs: in.Expr)(src: in.Node): CodeWriter[vpr.Stmt] = typeEncoding.assignment(this)(x, rhs, src)
 
   def equal(lhs: in.Expr, rhs: in.Expr)(src: in.Node): CodeWriter[vpr.Exp] = typeEncoding.equal(this)(lhs, rhs, src)

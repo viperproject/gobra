@@ -126,15 +126,12 @@ trait TypeEncoding extends Generator {
   }
 
   /**
-    * TODO: describe better
-    * Returns initialization code for a declared location with the scope of a body.
-    * The initialization code has to guarantee that:
-    * (1) the declared variable has its default value afterwards
-    * (2) all permissions for the declared variables are owned afterwards
+    * Returns the allocation code for a declared location with the scope of a body.
+    * The initialization code has to guarantee that all permissions for the declared variables are owned afterwards
     *
     * The default implements:
-    * Initialize[loc: T°] -> assume [loc == dflt(T)]
-    * Initialize[loc: T@] -> inhale Footprint[loc]; assume [loc == dflt(T°)] && [&loc != nil(*T)]
+    * Allocate[loc: T°] -> EmptyStmt
+    * Allocate[loc: T@] -> inhale Footprint[loc]; assume [&loc != nil(*T)]
     */
   def allocate(ctx: Context): in.Location ==> CodeWriter[vpr.Stmt] = {
     case loc :: t / Exclusive if typ(ctx).isDefinedAt(t) =>

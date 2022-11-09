@@ -24,6 +24,24 @@ class FieldsImpl extends Fields {
       }
     )
 
-  override def field(t: in.Type)(ctx: Context): vpr.Field =
-    _fieldGenerator(Names.serializeType(t), ctx.typ(t))
+  override def field(t: in.Type)(ctx: Context): vpr.Field = {
+    def normalizeType(t: in.Type): in.Type = {
+      val ut = ctx.underlyingType(t)
+      ut match {
+        case in.PointerT(t, addr) => in.PointerT(normalizeType(t), addr)
+        case in.ArrayT(l, t, addr) => in.ArrayT(l, normalizeType(t), addr)
+        case in.SliceT(t, addr) => in.SliceT(normalizeType(t), addr)
+        case in.MapT(k, v, addr) => in.MapT(normalizeType(k), normalizeType(v), addr)
+        case in.ChannelT(t, addr) => in.ChannelT(normalizeType(t), addr)
+        case in.SetT(t, addr) => in.SetT(normalizeType(t), addr)
+        case in.MultisetT(t, addr) => in.MultisetT(normalizeType(t), addr)
+        case in.SequenceT(t, addr) => in.SequenceT(normalizeType(t), addr)
+        case in.MathMapT(k, v, addr) => in.MathMapT(normalizeType(k), normalizeType(v), addr)
+        case in.OptionT(t, addr) => in.OptionT(normalizeType(t), addr)
+        case t => t
+      }
+    }
+    val n = normalizeType(t)
+    _fieldGenerator(Names.serializeType(n), ctx.typ(n))
+  }
 }

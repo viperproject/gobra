@@ -245,10 +245,9 @@ class MapEncoding extends LeafTypeEncoding {
   /**
     * Encodes an assignment.
     * [ mapExp[idx] = newVal ] ->
-    *     var res: Ref
     *     var m: Map[ [k], [v] ]
     *     m = [mapExp].underlyingMapField
-    *     [mapExp].underlyingMapField == m[ [idx] = [newVal] ]
+    *     [mapExp].underlyingMapField := m[ [idx] = [newVal] ]
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = {
 

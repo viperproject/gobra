@@ -214,6 +214,11 @@ object Desugar {
       }
     }
 
+    def adtClauseProxy(adtName: String, clause: PAdtClause, context: TypeInfo): in.AdtClauseProxy = {
+      val name = idName(clause.id, context)
+      in.AdtClauseProxy(name, adtName)(meta(clause, context))
+    }
+
     def methodProxy(id: PIdnUse, context: TypeInfo): in.MethodProxy = {
       val name = idName(id, context)
       in.MethodProxy(id.name, name)(meta(id, context))
@@ -1981,6 +1986,29 @@ object Desugar {
       } yield in.FieldRef(base, f)(src)
     }
 
+    def adtSelectionD(ctx: FunctionContext, info: TypeInfo)(p: ap.AdtField)(src: Meta): Writer[in.Expr] = {
+      for {
+        base <- exprD(ctx, info)(p.base)
+      } yield p.symb match {
+        case st.AdtDestructor(decl, adtDecl, context) =>
+          val adtT: AdtT = context.symbType(adtDecl).asInstanceOf[AdtT]
+          in.AdtDestructor(base, in.Field(
+            nm.adtField(decl.id.name, adtT),
+            typeD(context.symbType(decl.typ), Addressability.mathDataStructureElement)(src),
+            ghost = true
+          )(src))(src)
+
+        case st.AdtDiscriminator(decl, adtDecl, context) =>
+          val adtT: AdtT = context.symbType(adtDecl).asInstanceOf[AdtT]
+          in.AdtDiscriminator(
+            base,
+            adtClauseProxy(nm.adt(adtT), decl, context.getTypeInfo)
+          )(src)
+
+        case _ => violation("Expected AdtDiscriminator or AdtDestructor")
+      }
+    }
+
     def functionLikeCallD(ctx: FunctionContext, info: TypeInfo)(p: ap.FunctionLikeCall, expr: PInvoke)(src: Meta): Writer[in.Expr] = {
       functionLikeCallDAux(ctx, info)(p, expr)(src) flatMap {
         case Right(exp) => unit(exp)
@@ -2458,6 +2486,7 @@ object Desugar {
 
           case n: PDot => info.resolve(n) match {
             case Some(p: ap.FieldSelection) => fieldSelectionD(ctx, info)(p)(src)
+            case Some(p: ap.AdtField) => adtSelectionD(ctx, info)(p)(src)
             case Some(p: ap.Constant) => unit[in.Expr](globalConstD(p.symb)(src))
             case Some(p: ap.GlobalVariable) => unit[in.Expr](globalVarD(p.symb)(src))
             case Some(_: ap.NamedType) =>
@@ -2922,6 +2951,7 @@ object Desugar {
       case class Map(t : in.MapT) extends CompositeKind
       case class MathematicalMap(t : in.MathMapT) extends CompositeKind
       case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
+      case class Adt(t: in.AdtClauseT) extends CompositeKind
     }
 
     def compositeTypeD(t : in.Type) : CompositeKind = underlyingType(t) match {
@@ -2933,6 +2963,7 @@ object Desugar {
       case t: in.MultisetT => CompositeKind.Multiset(t)
       case t: in.MapT => CompositeKind.Map(t)
       case t: in.MathMapT => CompositeKind.MathematicalMap(t)
+      case t: in.AdtClauseT => CompositeKind.Adt(t)
       case _ => Violation.violation(s"expected composite type but got $t")
     }
 
@@ -2972,7 +3003,7 @@ object Desugar {
 
       compositeTypeD(t) match {
 
-        case CompositeKind.Struct(it, ist) => {
+        case CompositeKind.Struct(it, ist) =>
           val fields = ist.fields
 
           if (lit.elems.exists(_.key.isEmpty)) {
@@ -3014,7 +3045,45 @@ object Desugar {
               args <- sequence(wArgs)
             } yield in.StructLit(it, args)(src)
           }
-        }
+
+        case CompositeKind.Adt(t) =>
+          val fields = t.fields
+          val proxy = in.AdtClauseProxy(t.name, t.adtT.name)(src)
+
+          if (lit.elems.exists(_.key.isEmpty)) {
+            //All elements are unkeyed
+
+            val wArgs = fields.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) => exp match {
+              case PExpCompositeVal(ev) => exprD(ctx, info)(ev)
+              case PLitCompositeVal(lv) => literalValD(ctx, info)(lv, f.typ)
+            }}
+
+            for {
+              args <- sequence(wArgs)
+            } yield in.AdtConstructorLit(t.adtT, proxy, args)(src)
+          } else {
+            val fMap = fields.map({ f => nm.inverse(f.name) -> f }).toMap
+
+            val vMap = lit.elems.map {
+              case PKeyedElement(Some(PIdentifierKey(key)), exp) =>
+                val f = fMap(key.name)
+                exp match {
+                  case PExpCompositeVal(ev) => f -> exprD(ctx, info)(ev)
+                  case PLitCompositeVal(lv) => f -> literalValD(ctx, info)(lv, f.typ)
+                }
+
+              case _ => Violation.violation("expected identifier as a key")
+            }.toMap
+
+            val wArgs = fields.map {
+              case f if vMap.isDefinedAt(f) => vMap(f)
+              case f => unit(in.DfltVal(f.typ)(src))
+            }
+
+            for {
+              args <- sequence(wArgs)
+            } yield in.AdtConstructorLit(t.adtT, proxy, args)(src)
+          }
 
         case CompositeKind.Array(in.ArrayT(len, typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
@@ -3568,6 +3637,47 @@ object Desugar {
       unit(fLit)
     }
 
+    var registeredAdts: Set[String] = Set.empty
+
+    def fieldDeclAdtD(decl: PFieldDecl, context: ExternalTypeInfo, adt: AdtT)(src: Meta): in.Field = {
+      val fieldName = nm.adtField(decl.id.name, adt)
+      val typ = typeD(context.symbType(decl.typ), Addressability.mathDataStructureElement)(src)
+      in.Field(fieldName, typ, true)(src)
+    }
+
+    def registerAdt(t: Type.AdtT, aT: in.AdtT): Unit = {
+      if (!registeredAdts.contains(aT.name) && info == t.context.getTypeInfo) {
+        registeredAdts += aT.name
+
+        AdditionalMembers.addFinalizingComputation { () =>
+          val xInfo = t.context.getTypeInfo
+
+          val clauses = t.decl.clauses.map { c =>
+            val src = meta(c, xInfo)
+            val proxy = adtClauseProxy(aT.name, c, xInfo)
+            val fields = c.args.flatMap(_.fields).map(f => fieldDeclAdtD(f, t.context, t)(src))
+
+            in.AdtClause(proxy, fields)(src)
+          }
+
+          AdditionalMembers.addMember(
+            in.AdtDefinition(aT.name, clauses)(meta(t.decl, xInfo))
+          )
+        }
+      }
+    }
+
+    def getAdtClauseTagMap(t: Type.AdtT): Map[String, BigInt] = {
+      t.decl.clauses
+        .map(c => idName(c.id, t.context.getTypeInfo))
+        .sortBy(s => s)
+        .zipWithIndex
+        .map {
+          case (s, i) => s -> BigInt(i)
+        }
+        .toMap
+    }
+
     def embeddedTypeD(t: PEmbeddedType, addrMod: Addressability)(src: Meta): in.Type = t match {
       case PEmbeddedName(typ) => typeD(info.symbType(typ), addrMod)(src)
       case PEmbeddedPointer(typ) =>
@@ -3603,6 +3713,21 @@ object Desugar {
       case t: Type.StructT =>
         val inFields: Vector[in.Field] = structD(t, addrMod)(src)
         registerType(in.StructT(inFields, addrMod))
+
+      case t: Type.AdtT =>
+        val adtName = nm.adt(t)
+        val res = registerType(in.AdtT(adtName, addrMod, getAdtClauseTagMap(t)))
+        registerAdt(t, res)
+        res
+
+      case t: Type.AdtClauseT =>
+        val tAdt = Type.AdtT(t.adtT, t.context)
+        val adt: in.AdtT = in.AdtT(nm.adt(tAdt), addrMod, getAdtClauseTagMap(tAdt))
+        val fields: Vector[in.Field] = (t.clauses map { case (key: String, typ: Type) =>
+          in.Field(nm.adtField(key, tAdt), typeD(typ, Addressability.mathDataStructureElement)(src), true)(src)
+        }).toVector
+
+        in.AdtClauseT(idName(t.decl.id, t.context.getTypeInfo), adt, fields, addrMod)
 
       case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
 
@@ -3657,6 +3782,7 @@ object Desugar {
       case sc: st.SingleConstant => nm.global(id.name, sc.context)
       case st.Embbed(_, _, _) | st.Field(_, _, _) => violation(s"expected that fields and embedded field are desugared by using embeddedDeclD resp. fieldDeclD but idName was called with $id")
       case n: st.NamedType => nm.typ(id.name, n.context)
+      case a: st.AdtClause => nm.function(id.name, a.context)
       case _ => ???
     }
 
@@ -3907,7 +4033,53 @@ object Desugar {
           }
         case p: PClosureImplProof => closureImplProofD(ctx)(p)
         case PExplicitGhostStatement(actual) => stmtD(ctx, info)(actual)
+
+        case PMatchStatement(exp, clauses, strict) => {
+          def goC(clause: PMatchStmtCase): Writer[in.PatternMatchCaseStmt] = {
+
+            val body = block(
+              for {
+                s <- sequence(clause.stmt map { s => seqn(stmtD(ctx, info)(s)) })
+              } yield in.Seqn(s)(src)
+            )
+
+            for {
+              eM <- matchPatternD(ctx, info)(clause.pattern)
+            } yield in.PatternMatchCaseStmt(eM, body)(src)
+
+          }
+
+          for {
+            e <- exprD(ctx, info)(exp)
+            c <- sequence(clauses map goC)
+          } yield in.PatternMatchStmt(e, c, strict)(src)
+        }
+
         case _ => ???
+      }
+    }
+
+    def matchPatternD(ctx: FunctionContext, info: TypeInfo)(expr: PMatchPattern): Writer[in.MatchPattern] = {
+
+      def goM(m: PMatchPattern) = matchPatternD(ctx, info)(m)
+
+      val src = meta(expr, info)
+
+      expr match {
+        case PMatchValue(lit) => for {
+          e <- exprD(ctx, info)(lit)
+        } yield in.MatchValue(e)(src)
+
+        case PMatchBindVar(idn) =>
+          unit(in.MatchBindVar(idName(idn, info.getTypeInfo), typeD(info.typ(idn), Addressability.Exclusive)(src))(src))
+
+        case PMatchAdt(clause, fields) =>
+          val clauseType = typeD(info.symbType(clause), Addressability.Exclusive)(src)
+          for {
+            fieldsD <- sequence(fields map goM)
+          } yield in.MatchAdt(clauseType.asInstanceOf[in.AdtClauseT], fieldsD)(src)
+
+        case PMatchWildcard() => unit(in.MatchWildcard()(src))
       }
     }
 
@@ -4166,6 +4338,26 @@ object Desugar {
         case POptionGet(op) => for {
           dop <- go(op)
         } yield in.OptionGet(dop)(src)
+
+        case m@PMatchExp(exp, _) =>
+          val defaultD: Writer[Option[in.Expr]] = if (m.hasDefault) {
+            for {
+              e <- exprD(ctx, info)(m.defaultClauses.head.exp)
+            } yield Some(e)
+          } else {
+            unit(None)
+          }
+
+          def caseD(c: PMatchExpCase): Writer[in.PatternMatchCaseExp] = for {
+            p <- matchPatternD(ctx, info)(c.pattern)
+            e <- exprD(ctx, info)(c.exp)
+          } yield in.PatternMatchCaseExp(p, e)(src)
+
+          for {
+            e <- exprD(ctx, info)(exp)
+            cs <- sequence(m.caseClauses map caseD)
+            de <- defaultD
+          } yield in.PatternMatchExp(e, typ, cs, de)(src)
 
         case PMapKeys(exp) => for {
           e <- go(exp)
@@ -4540,6 +4732,8 @@ object Desugar {
     private val MAIN_FUNC_OBLIGATIONS_PREFIX = "$CHECKMAIN"
     private val INTERFACE_PREFIX = "Y"
     private val DOMAIN_PREFIX = "D"
+    private val ADT_PREFIX = "ADT"
+    private val ADT_CLAUSE_PREFIX = "P"
     private val LABEL_PREFIX = "L"
     private val GLOBAL_PREFIX = "G"
     private val BUILTIN_PREFIX = "B"
@@ -4715,6 +4909,17 @@ object Desugar {
       val hash = srcTextName(pom, s.decl.funcs, s.decl.axioms)
       s"$DOMAIN_PREFIX$$${topLevelName("")(hash, s.context)}"
     }
+
+    def adt(a: AdtT): String = {
+      val pom = a.context.getTypeInfo.tree.originalRoot.positions
+      val start = pom.positions.getStart(a.decl).get
+      val finish = pom.positions.getFinish(a.decl).get
+      val pos = pom.translate(start, finish)
+      val adtName = pos.toString.replace(".", "$")
+      s"$ADT_PREFIX$$$adtName"
+    }
+
+    def adtField(n: String, s: AdtT): String = s"$ADT_CLAUSE_PREFIX$$${topLevelName("")(adt(s), s.context)}"
 
     def label(n: String): String = n match {
       case "#lhs" => "lhs"

@@ -1576,6 +1576,7 @@ case class AdtT(name: String, addressability: Addressability, clauseToTag: Map[S
     AdtT(name, newAddressability, clauseToTag)
 }
 
+// TODO: maybe remove this type as it is not necessary anymore
 case class AdtClauseT(name: String, adtT: AdtT, fields: Vector[Field], addressability: Addressability) extends Type {
   /** Returns whether 'this' is equals to 't' without considering the addressability modifier of the types. */
   override def equalsWithoutMod(t: Type): Boolean = t match {

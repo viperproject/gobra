@@ -100,6 +100,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (MultisetT(l), MultisetT(r)) => assignableTo.result(l,r)
       case (OptionT(l), OptionT(r)) => assignableTo.result(l, r)
       case (IntT(_), PermissionT) => successProp
+      case (c: AdtClauseT, t: AdtT) if c.context == t.context && c.adtT == t.decl => successProp
 
         // conservative choice
       case _ => errorProp()
@@ -179,6 +180,31 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
             )
           } else {
             failedProp("number of arguments does not match structure")
+          }
+
+        case a: AdtClauseT => // analogous to struct
+          if (elems.isEmpty) {
+            successProp
+          } else if (elems.exists(_.key.nonEmpty)) {
+            val tmap: Map[String, Type] = a.clauses
+
+            failedProp("for adt literals either all or none elements must be keyed",
+              !elems.forall(_.key.nonEmpty)) and
+              propForall(elems, createProperty[PKeyedElement] { e =>
+                e.key.map {
+                  case PIdentifierKey(id) if tmap.contains(id.name) =>
+                    compositeValAssignableTo.result(e.exp, tmap(id.name))
+
+                  case v => failedProp(s"got $v but expected field name")
+                }.getOrElse(successProp)
+              })
+          } else if (elems.size == a.clauses.size) {
+            propForall(
+              elems.map(_.exp).zip(a.clauses.values),
+              compositeValAssignableTo
+            )
+          } else {
+            failedProp("number of arguments does not match adt constructor")
           }
 
         case ArrayT(len, t) =>

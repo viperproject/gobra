@@ -315,6 +315,9 @@ case class DomainFunc(
                        results: Parameter.Out
                      )(val info: Source.Parser.Info) extends Node
 
+case class AdtDefinition(name: String, clauses: Vector[AdtClause])(val info: Source.Parser.Info) extends Member
+case class AdtClause(name: AdtClauseProxy, args: Vector[Field])(val info: Source.Parser.Info) extends Node
+
 sealed trait Stmt extends Node
 
 /** This node serves as a target of encoding extensions. See [[viper.gobra.translator.encodings.combinators.TypeEncoding.Extension]]*/
@@ -464,6 +467,23 @@ case class SafeReceive(resTarget: LocalVar, successTarget: LocalVar, channel: Ex
   */
 case class SafeMapLookup(resTarget: LocalVar, successTarget: LocalVar, mapLookup: IndexedExp)(val info: Source.Parser.Info) extends Stmt
 
+case class PatternMatchExp(exp: Expr, typ: Type, cases: Vector[PatternMatchCaseExp], default: Option[Expr])(val info: Source.Parser.Info) extends Expr
+
+case class PatternMatchCaseExp(mExp: MatchPattern, exp: Expr)(val info: Source.Parser.Info) extends Node
+
+case class PatternMatchStmt(exp: Expr, cases: Vector[PatternMatchCaseStmt], strict: Boolean)(val info: Source.Parser.Info) extends Stmt
+
+case class PatternMatchCaseStmt(mExp: MatchPattern, body: Stmt)(val info: Source.Parser.Info) extends Node
+
+sealed trait MatchPattern extends Node
+
+case class MatchValue(exp: Expr)(val info: Source.Parser.Info) extends MatchPattern
+
+case class MatchBindVar(name: String, typ: Type)(val info: Source.Parser.Info) extends MatchPattern
+
+case class MatchAdt(clause: AdtClauseT, expr: Vector[MatchPattern])(val info: Source.Parser.Info) extends MatchPattern
+
+case class MatchWildcard()(val info: Source.Parser.Info) extends MatchPattern
 
 sealed trait Assertion extends Node
 
@@ -991,6 +1011,14 @@ case class StructUpdate(base: Expr, field: Field, newVal: Expr)(val info: Source
   override val typ: Type = base.typ
 }
 
+case class AdtDestructor(base: Expr, field: Field)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = field.typ
+}
+
+case class AdtDiscriminator(base: Expr, clause: AdtClauseProxy)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = BoolT(Addressability.literal)
+}
+
 sealed trait BoolOperation extends Expr {
   override val typ: Type = BoolT(Addressability.rValue)
 }
@@ -1192,6 +1220,8 @@ case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info
 case class NewMapLit(target: LocalVar, keys: Type, values: Type, entries: Seq[(Expr, Expr)])(val info: Source.Parser.Info) extends Stmt {
   val typ : Type = MapT(keys, values, Addressability.literal)
 }
+
+case class AdtConstructorLit(typ: Type, clause: AdtClauseProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
 
 sealed trait Declaration extends Node
 
@@ -1535,6 +1565,28 @@ case class DomainT(name: String, addressability: Addressability) extends PrettyT
     DomainT(name, newAddressability)
 }
 
+// TODO: check why `clauseToTag` is necessary
+case class AdtT(name: String, addressability: Addressability, clauseToTag: Map[String, BigInt]) extends Type with TopType {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case o: AdtT => name == o.name
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): Type =
+    AdtT(name, newAddressability, clauseToTag)
+}
+
+case class AdtClauseT(name: String, adtT: AdtT, fields: Vector[Field], addressability: Addressability) extends Type {
+  /** Returns whether 'this' is equals to 't' without considering the addressability modifier of the types. */
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case o: AdtClauseT => name == o.name && adtT == o.adtT
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): Type =
+    AdtClauseT(name, adtT, fields, newAddressability)
+}
+
 case class ChannelT(elem: Type, addressability: Addressability) extends PrettyType(s"chan $elem") {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case o: ChannelT => elem == o.elem
@@ -1568,6 +1620,8 @@ sealed trait FunctionMemberOrLitProxy extends Proxy {
 case class FunctionProxy(override val name: String)(val info: Source.Parser.Info) extends FunctionMemberOrLitProxy with CallProxy
 case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends MemberProxy with CallProxy
 case class DomainFuncProxy(name: String, domainName: String)(val info: Source.Parser.Info) extends Proxy
+
+case class AdtClauseProxy(name: String, adtName: String)(val info: Source.Parser.Info) extends Proxy
 
 case class FunctionLitProxy(override val name: String)(val info: Source.Parser.Info) extends FunctionMemberOrLitProxy
 

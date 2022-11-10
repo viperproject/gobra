@@ -43,6 +43,8 @@ object TypeHead {
   case object MathMapHD extends TypeHead
   case object OptionHD extends TypeHead
   case class TupleHD(arity: Int) extends TypeHead
+  case class AdtHD(name: String) extends TypeHead
+  case class AdtClauseHD(name: String) extends TypeHead
   case class PredHD(arity: Int) extends TypeHead
 
   val emptyInterfaceHD: InterfaceHD = InterfaceHD(Names.emptyInterface)
@@ -81,6 +83,8 @@ object TypeHead {
     case _: MathMapT => MathMapHD
     case _: OptionT => OptionHD
     case t: TupleT => TupleHD(t.ts.size)
+    case t: AdtT => AdtHD(t.name)
+    case t: AdtClauseT => AdtClauseHD(t.name)
     case t: PredT => PredHD(t.args.size)
   }
 
@@ -110,6 +114,8 @@ object TypeHead {
     case t: MathMapT => Vector(t.keys, t.values)
     case t: OptionT => Vector(t.t)
     case t: TupleT => t.ts
+    case _: AdtT => Vector.empty
+    case _: AdtClauseT => Vector.empty
     case t: PredT => t.args
   }
 
@@ -184,6 +190,8 @@ object TypeHead {
     case MathMapHD => 2
     case OptionHD => 1
     case t: TupleHD => t.arity
+    case _: AdtHD => 0
+    case _: AdtClauseHD => 0
     case t: PredHD => t.arity
   }
 

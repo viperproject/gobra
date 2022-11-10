@@ -161,6 +161,20 @@ object TypePatterns {
       }
     }
 
+    object Adt {
+      def unapply(arg: in.Type): Option[in.AdtT] = underlyingType(arg)(ctx) match {
+        case t: in.AdtT => Some(t)
+        case _ => None
+      }
+    }
+
+    object AdtClause {
+      def unapply(arg: in.Type): Option[in.AdtClauseT] = underlyingType(arg)(ctx) match {
+        case t: in.AdtClauseT => Some(t)
+        case _ => None
+      }
+    }
+
     object Pointer {
       def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
         case t : in.PointerT => Some(t.t)

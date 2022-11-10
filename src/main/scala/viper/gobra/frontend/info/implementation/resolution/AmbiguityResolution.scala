@@ -83,9 +83,11 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case (Left(base), Some((s: st.StructMember, path))) => Some(ap.FieldSelection(base, n.id, path, s))
         case (Left(base), Some((s: st.Method, path))) => Some(ap.ReceivedMethod(base, n.id, path, s))
         case (Left(base), Some((s: st.MPredicate, path))) => Some(ap.ReceivedPredicate(base, n.id, path, s))
+        case (Left(base), Some((s: st.AdtMember, _))) => Some(ap.AdtField(base, n.id, s))
 
         case (Right(base), Some((s: st.Method, path))) => Some(ap.MethodExpr(base, n.id, path, s))
         case (Right(base), Some((s: st.MPredicate, path))) => Some(ap.PredicateExpr(base, n.id, path, s))
+        case (Right(base), Some((s: st.AdtClause, _))) => Some(ap.QualifiedAdtType(base, s))
 
         // imported members
         case (Right(_), Some((s: st.ActualTypeEntity, _))) => Some(ap.NamedType(n.id, s))

@@ -999,6 +999,17 @@ object Desugar {
         }
       }
 
+      def singleAllocateAndInitToExpr(idn: PIdnNode, initExpr: PExpression, info: TypeInfo) : Writer[in.Stmt] = {
+        for {
+          e <- goE(initExpr)
+          eTyp = e.typ
+          l = leftOfAssignmentNoInit(idn, info)(eTyp)
+          _ <- declare(l)
+          _ <- write(in.Allocation(l)(src))
+          eq = in.ExprAssertion(in.EqCmp(l, e)(src))(src)
+        } yield in.Inhale(eq)(src)
+      }
+
       /**
         * This case handles for loops with a range clause of the form:
         *
@@ -1632,11 +1643,8 @@ object Desugar {
 
           case PShortVarDecl(right, left, _) =>
             if (left.size == right.size) {
-              seqn(sequence((left zip right).map{ case (l, r) =>
-                for {
-                  re <- goE(r)
-                  le <- leftOfAssignmentD(l, info)(re.typ)
-                } yield singleAss(le, re)(src)
+              seqn(sequence((left zip right).map{
+                case (l, r) => singleAllocateAndInitToExpr(l, r, info)
               }).map(in.Seqn(_)(src)))
             } else if (right.size == 1) {
               seqn(for {
@@ -1652,13 +1660,8 @@ object Desugar {
           case PVarDecl(typOpt, right, left, _) =>
 
             if (left.size == right.size) {
-              seqn(sequence((left zip right).map{ case (l, r) =>
-                for {
-                  re <- goE(r)
-                  typ = typOpt.map(x => typeD(info.symbType(x), Addressability.exclusiveVariable)(src)).getOrElse(re.typ)
-                  dL <- leftOfAssignmentD(l, info)(typ)
-                  le <- unit(dL)
-                } yield singleAss(le, re)(src)
+              seqn(sequence((left zip right).map{
+                case (l, r) => singleAllocateAndInitToExpr(l, r, info)
               }).map(in.Seqn(_)(src)))
             } else if (right.size == 1) {
               seqn(for {
@@ -1671,11 +1674,7 @@ object Desugar {
               } yield multiassD(les, re, stmt)(src))
             } else if (right.isEmpty && typOpt.nonEmpty) {
               val typ = typeD(info.symbType(typOpt.get), Addressability.exclusiveVariable)(src)
-              val lelems = sequence(left.map{ l =>
-                for {
-                  dL <- leftOfAssignmentD(l, info)(typ)
-                } yield dL
-              })
+              val lelems = sequence(left.map{leftOfAssignmentD(_, info)(typ)})
               val relems = left.map{ l => in.DfltVal(typeD(info.symbType(typOpt.get), Addressability.defaultValue)(meta(l, info)))(meta(l, info)) }
               seqn(lelems.map{ lelemsV =>
                 in.Seqn((lelemsV zip relems).map{

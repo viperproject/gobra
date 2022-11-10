@@ -32,6 +32,7 @@ class MemoryEncoding extends Encoding {
   }
 
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
+    case in.Allocation(left) => ctx.allocation(left)
     case in.Initialization(left) => ctx.initialization(left)
     case ass: in.SingleAss => ctx.assignment(ass.left, ass.right)(ass)
   }

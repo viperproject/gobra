@@ -55,7 +55,7 @@ class MapEncoding extends LeafTypeEncoding {
     case ctx.Map(_, _) / Shared => vpr.Ref
   }
 
-  private lazy val mapType: vpr.Type = vpr.Ref
+  private val mapType: vpr.Type = vpr.Ref
 
   /**
     * TODO: simplify descritpion
@@ -296,22 +296,6 @@ class MapEncoding extends LeafTypeEncoding {
     underlyingMapFieldGenerator.finalize(addMemberFn)
   }
 
-  private val keyParam = vpr.TypeVar("K")
-  private val valueParam = vpr.TypeVar("V")
-
-  /**
-    * Field of the corresponding map id
-    */
-  private val underlyingMapFieldPrefix: String = "underlyingMapField"
-  private def underlyingMapField(ctx: Context)(k: in.Type, v: in.Type): vpr.Field = {
-    val kN = Names.serializeType(k)
-    val vN = Names.serializeType(v)
-    val vprK = ctx.typ(k)
-    val vprV = ctx.typ(v)
-    val name = s"$underlyingMapFieldPrefix$$$kN$$$vN"
-    underlyingMapFieldGenerator(name, vprK, vprV)
-  }
-
   /**
     * TODO: re-explain
     * Builds the expression `getMap([exp].underlyingMapField)`
@@ -359,13 +343,56 @@ class MapEncoding extends LeafTypeEncoding {
     }
   }
 
-  // TODO: generate fields instead of reusing
+  /**
+    * TODO: redoc
+    * Field of the corresponding map id
+    */
+  private val underlyingMapFieldPrefix: String = "underlyingMapField"
+  private def underlyingMapField(ctx: Context)(k: in.Type, v: in.Type): vpr.Field = {
+    val kN = Names.serializeType(k)
+    val vN = Names.serializeType(v)
+    val vprK = ctx.typ(k)
+    val vprV = ctx.typ(v)
+    val name = s"$underlyingMapFieldPrefix$$$kN$$$vN"
+    underlyingMapFieldGenerator(name, vprK, vprV)
+  }
+
   private val underlyingMapFieldGenerator: PrimitiveGenerator.PrimitiveGenerator[(String, vpr.Type, vpr.Type), vpr.Field] =
     PrimitiveGenerator.simpleGenerator{
       case (name: String, k: vpr.Type, v: vpr.Type) =>
         val f = vpr.Field(name = name, typ = vpr.MapType(k, v))(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
         (f, Vector(f))
     }
+
+  /*
+  private def lenFunc(ctx: Context)(k: in.Type, v: in.Type): vpr.Function = {
+    // TODO: abstract name generation in a function
+    val kN = Names.serializeType(k)
+    val vN = Names.serializeType(v)
+    val vprK = ctx.typ(k)
+    val vprV = ctx.typ(v)
+    val name = s"mapLen$$$kN$$$vN"
+    lenFunctionGenerator(name, vprK, vprV)
+  }
+
+  private val lenFunctionGenerator: PrimitiveGenerator.PrimitiveGenerator[(String, vpr.Type, vpr.Type), vpr.Function] =
+    PrimitiveGenerator.simpleGenerator{
+      case (name: String, k: vpr.Type, v: vpr.Type) =>
+        val paramDecl = vpr.LocalVarDecl(name = "m", typ = mapType)()
+        val f = vpr.Function(
+          name = name,
+          formalArgs = Seq(paramDecl),
+          typ = vpr.Int,
+          pres = Seq(vpr.Implies(vpr.NeCmp(paramDecl.localVar, vpr.NullLit()())(), vpr.AccessPredicate(getCorrespondingMap(paramDecl.localVar)(ctx)))()),
+          posts: Seq[Exp],
+          body: Option[Exp]
+        )()
+        val f = vpr.Field(name = name, typ = vpr.MapType(k, v))(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+        (f, Vector(f))
+    }
+    
+   */
+
 }
 
 object MapEncoding {

@@ -24,13 +24,6 @@ import viper.silver.verifier.reasons.AssertionFalse
 import viper.silver.verifier.{ErrorReason, errors => err}
 import viper.silver.{ast => vpr}
 
-// TODO:
-// - use one ref instead of id
-// - use different field names when the maps are different
-// - use function generator for lookup functions (create this too, for better triggers); maybe create more functions
-//   to allow for better triggers in general
-// - delete GobraMap domain
-
 /**
   * Encoding for Go maps. Unlike slices, maps are not thread-safe;
   * thus, all concurrent accesses to maps must be synchronized. In particular,
@@ -50,7 +43,7 @@ class MapEncoding extends LeafTypeEncoding {
     * Translates a type into a Viper type.
     * Both Exclusive and Shared maps are encoded as vpr.Ref because nil is an admissible value for maps
     */
-  override def typ(ctx : Context) : in.Type ==> vpr.Type = {
+  override def typ(ctx: Context): in.Type ==> vpr.Type = {
     case ctx.Map(_, _) / Exclusive => mapType
     case ctx.Map(_, _) / Shared => vpr.Ref
   }
@@ -58,7 +51,6 @@ class MapEncoding extends LeafTypeEncoding {
   private val mapType: vpr.Type = vpr.Ref
 
   /**
-    * TODO: simplify descritpion
     * Encodes expressions as values that do not occupy some identifiable location in memory.
     * R[ nil(map[K]V°) ] -> null
     * R[ dflt(map[K]V°) ] -> null
@@ -67,8 +59,9 @@ class MapEncoding extends LeafTypeEncoding {
     * R[ keySet(e: map[K]V) ] -> [e] == null? 0 : MapDomain(getCorrespondingMap(e))
     * R[ valueSet(e: map[K]V) ] -> [e] == null? 0 : MapRange(getCorrespondingMap(e))
     */
-  override def expression(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
+  override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
+
     def goT(t: in.Type): vpr.Type = ctx.typ(t)
 
     default(super.expression(ctx)) {
@@ -76,7 +69,7 @@ class MapEncoding extends LeafTypeEncoding {
 
       case (exp: in.NilLit) :: ctx.Map(_, _) / Exclusive => unit(withSrc(vpr.NullLit(), exp))
 
-      case l@ in.Length(exp :: ctx.Map(keys, values)) =>
+      case l@in.Length(exp :: ctx.Map(keys, values)) =>
         val (pos, info, errT) = l.vprMeta
         // Encodes
         // [ len(m) ] -> [ m ] == null? 0 : | getCorrespondingMap([m]) |
@@ -90,9 +83,9 @@ class MapEncoding extends LeafTypeEncoding {
           )(pos, info, errT)
         } yield res
 
-      case l@in.IndexedExp(_ :: ctx.Map(_, _), _, _) => for { (res, _) <- goMapLookup(l)(ctx) } yield res
+      case l@in.IndexedExp(_ :: ctx.Map(_, _), _, _) => for {(res, _) <- goMapLookup(l)(ctx)} yield res
 
-      case k@ in.MapKeys(mapExp :: ctx.Map(keys, values), _) =>
+      case k@in.MapKeys(mapExp :: ctx.Map(keys, values), _) =>
         for {
           vprMap <- goE(mapExp)
           correspondingMap <- getCorrespondingMap(mapExp, keys, values)(ctx)
@@ -104,7 +97,7 @@ class MapEncoding extends LeafTypeEncoding {
           ), k)
         } yield res
 
-      case v@ in.MapValues(mapExp:: ctx.Map(keys, values), _) =>
+      case v@in.MapValues(mapExp :: ctx.Map(keys, values), _) =>
         for {
           vprMap <- goE(mapExp)
           correspondingMap <- getCorrespondingMap(mapExp, keys, values)(ctx)
@@ -175,7 +168,7 @@ class MapEncoding extends LeafTypeEncoding {
           } yield ass
         )
 
-      case l@ in.SafeMapLookup(resTarget, successTarget, indexedExp@ in.IndexedExp(_, _, _)) =>
+      case l@in.SafeMapLookup(resTarget, successTarget, indexedExp@in.IndexedExp(_, _, _)) =>
         val (pos, info, errT) = l.vprMeta
         val res = in.LocalVar(ctx.freshNames.next(), indexedExp.typ.withAddressability(Addressability.Exclusive))(l.info)
         val vprRes = ctx.variable(res)
@@ -198,7 +191,7 @@ class MapEncoding extends LeafTypeEncoding {
 
             okAss <- ctx.assignment(in.Assignee.Var(successTarget), ok)(l)
           } yield okAss
-      )
+        )
 
       case lit: in.NewMapLit =>
         val (pos, info, errT) = lit.vprMeta
@@ -254,13 +247,12 @@ class MapEncoding extends LeafTypeEncoding {
     * [ mapExp[idx] = newVal ] ->
     *     var res: Ref
     *     var m: Map[ [k], [v] ]
-    *     m = getCorrespondingMap(mapExp)
-    *     inhale getMap(res) == m[ [idx] = [newVal] ]
-    *     m.underlyingField = res
+    *     m = [mapExp].underlyingMapField
+    *     [mapExp].underlyingMapField == m[ [idx] = [newVal] ]
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = {
 
-    default(super.assignment(ctx)){
+    default(super.assignment(ctx)) {
       case (in.Assignee(in.IndexedExp(m :: ctx.Map(keys, values), idx, _)), rhs, src) =>
         val (pos, info, errT) = src.vprMeta
         seqn(
@@ -283,7 +275,7 @@ class MapEncoding extends LeafTypeEncoding {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     default(super.assertion(ctx)) {
-      case n@ in.Access(in.Accessible.ExprAccess(exp :: ctx.Map(keys, values)), perm) =>
+      case n@in.Access(in.Accessible.ExprAccess(exp :: ctx.Map(keys, values)), perm) =>
         val (pos, info, errT) = n.vprMeta
         for {
           vE <- goE(exp)
@@ -297,10 +289,8 @@ class MapEncoding extends LeafTypeEncoding {
   }
 
   /**
-    * TODO: re-explain
-    * Builds the expression `getMap([exp].underlyingMapField)`
+    * Builds the expression `[exp].underlyingMapField`
     */
-    // TODO: remove
   private def getCorrespondingMap(exp: in.Expr, keys: in.Type, values: in.Type)(ctx: Context): CodeWriter[vpr.FieldAccess] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
@@ -343,56 +333,29 @@ class MapEncoding extends LeafTypeEncoding {
     }
   }
 
+  private def internalMemberName(prefix: String, k: in.Type, v: in.Type): String = {
+    val kN = Names.serializeType(k)
+    val vN = Names.serializeType(v)
+    s"$prefix$$$kN$$$vN"
+  }
+
   /**
-    * TODO: redoc
-    * Field of the corresponding map id
+    * Field of the corresponding map type
     */
   private val underlyingMapFieldPrefix: String = "underlyingMapField"
   private def underlyingMapField(ctx: Context)(k: in.Type, v: in.Type): vpr.Field = {
-    val kN = Names.serializeType(k)
-    val vN = Names.serializeType(v)
+    val name = internalMemberName(underlyingMapFieldPrefix, k, v)
     val vprK = ctx.typ(k)
     val vprV = ctx.typ(v)
-    val name = s"$underlyingMapFieldPrefix$$$kN$$$vN"
     underlyingMapFieldGenerator(name, vprK, vprV)
   }
 
   private val underlyingMapFieldGenerator: PrimitiveGenerator.PrimitiveGenerator[(String, vpr.Type, vpr.Type), vpr.Field] =
-    PrimitiveGenerator.simpleGenerator{
+    PrimitiveGenerator.simpleGenerator {
       case (name: String, k: vpr.Type, v: vpr.Type) =>
-        val f = vpr.Field(name = name, typ = vpr.MapType(k, v))(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+        val f = vpr.Field(name = name, typ = vpr.MapType(k, v))()
         (f, Vector(f))
     }
-
-  /*
-  private def lenFunc(ctx: Context)(k: in.Type, v: in.Type): vpr.Function = {
-    // TODO: abstract name generation in a function
-    val kN = Names.serializeType(k)
-    val vN = Names.serializeType(v)
-    val vprK = ctx.typ(k)
-    val vprV = ctx.typ(v)
-    val name = s"mapLen$$$kN$$$vN"
-    lenFunctionGenerator(name, vprK, vprV)
-  }
-
-  private val lenFunctionGenerator: PrimitiveGenerator.PrimitiveGenerator[(String, vpr.Type, vpr.Type), vpr.Function] =
-    PrimitiveGenerator.simpleGenerator{
-      case (name: String, k: vpr.Type, v: vpr.Type) =>
-        val paramDecl = vpr.LocalVarDecl(name = "m", typ = mapType)()
-        val f = vpr.Function(
-          name = name,
-          formalArgs = Seq(paramDecl),
-          typ = vpr.Int,
-          pres = Seq(vpr.Implies(vpr.NeCmp(paramDecl.localVar, vpr.NullLit()())(), vpr.AccessPredicate(getCorrespondingMap(paramDecl.localVar)(ctx)))()),
-          posts: Seq[Exp],
-          body: Option[Exp]
-        )()
-        val f = vpr.Field(name = name, typ = vpr.MapType(k, v))(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
-        (f, Vector(f))
-    }
-    
-   */
-
 }
 
 object MapEncoding {

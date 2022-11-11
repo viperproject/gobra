@@ -268,7 +268,7 @@ class AdtEncoding extends LeafTypeEncoding {
     BigInt(sorted.indexOf(clause))
   }
 
-  private def constructorCall(clause: in.AdtClause, args: Seq[vpr.Exp])(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos): vpr.DomainFuncApp = {
+  private def constructorCall(clause: in.AdtClause, args: Seq[vpr.Exp])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.DomainFuncApp = {
     val adtName = clause.name.adtName
     vpr.DomainFuncApp(
       Names.constructorAdtName(adtName, clause.name.name),

@@ -1232,7 +1232,7 @@ case class POptionType(elem : PType) extends PGhostLiteralType
 /** The type of ADT types */
 case class PAdtType(clauses: Vector[PAdtClause]) extends PGhostLiteralType with PUnorderedScope
 
-case class PAdtClause(id: PIdnDef, args: Vector[PFieldDecls]) extends PGhostMisc with PUnorderedScope
+case class PAdtClause(id: PIdnDef, args: Vector[PFieldDecls]) extends PGhostMisc with PUnorderedScope with PDependentDef
 
 case class PGhostSliceType(elem: PType) extends PGhostLiteralType
 

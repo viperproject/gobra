@@ -4919,7 +4919,7 @@ object Desugar {
       s"$ADT_PREFIX$$$adtName"
     }
 
-    def adtField(n: String, s: AdtT): String = s"$ADT_CLAUSE_PREFIX$$${topLevelName("")(adt(s), s.context)}"
+    def adtField(n: String, s: AdtT): String = topLevelName(s"$ADT_CLAUSE_PREFIX$$${adt(s)}")(n, s.context)
 
     def label(n: String): String = n match {
       case "#lhs" => "lhs"

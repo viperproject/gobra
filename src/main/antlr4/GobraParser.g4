@@ -132,11 +132,15 @@ seqUpdClause: expression ASSIGN expression;
 
 // Ghost Type Literals
 
-ghostTypeLit: sqType | ghostSliceType | domainType;
+ghostTypeLit: sqType | ghostSliceType | domainType | adtType;
 
 domainType: DOM L_CURLY (domainClause eos)* R_CURLY;
 
 domainClause: FUNC IDENTIFIER signature | AXIOM L_CURLY expression eos R_CURLY;
+
+adtType: ADT L_CURLY (adtClause eos)* R_CURLY;
+
+adtClause: IDENTIFIER L_CURLY (fieldDecl eos)* R_CURLY;
 
 ghostSliceType: GHOST L_BRACKET R_BRACKET elementType;
 

@@ -521,6 +521,22 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
+  override def visitAdtType(ctx: AdtTypeContext): PAdtType = {
+    val clauses = ctx.adtClause().asScala.toVector.map(visitAdtClause)
+    PAdtType(clauses).at(ctx)
+  }
+
+  override def visitAdtClause(ctx: AdtClauseContext): PAdtClause = {
+    val id = idnDef.unapply(ctx.IDENTIFIER())
+    val fieldClauses = ctx.fieldDecl().asScala.toVector.map(visitFieldDecl)
+    val args = fieldClauses.collect{ case x: PFieldDecls => x }
+
+    // embedded fields and ghost struct clauses are not supported.
+    if (id.isEmpty || args.size != fieldClauses.size) fail(ctx)
+
+    PAdtClause(id.get, args).at(ctx)
+  }
+
   /**
     * {@inheritDoc  }
     *

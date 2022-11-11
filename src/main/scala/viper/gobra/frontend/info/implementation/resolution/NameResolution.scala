@@ -248,7 +248,8 @@ trait NameResolution {
   private def packageLevelDefinitions(m: PMember): Vector[PIdnDef] = {
     /* Returns identifier definitions with a package scope occurring in a type. */
     def leakingIdentifier(t: PType): Vector[PIdnDef] = t match {
-      case t: PDomainType => t.funcs.map(_.id)
+      case t: PDomainType => t.funcs.map(_.id) // domain functions
+      case t: PAdtType => t.clauses.map(_.id) // adt constructors
       case _ => Vector.empty
     }
 

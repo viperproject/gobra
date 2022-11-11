@@ -154,7 +154,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.NamedType) => DeclaredT(p.symb.decl, p.symb.context)
 
         // ADT clause is special since it is a type with a name that is not a named type
-        case Some(p: ap.QualifiedAdtType) =>
+        case Some(p: ap.AdtClause) =>
           val types = p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ)).toMap
           AdtClauseT(types, p.symb.decl, p.symb.adtDecl, p.symb.context)
 

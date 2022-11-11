@@ -110,13 +110,6 @@ trait MemberResolution { this: TypeInfoImpl =>
       case _ => AdvancedMemberSet.empty
     }
 
-  val adtConstructorSet: Type => Set[AdtClause] =
-    attr[Type, Set[AdtClause]] {
-      case DeclaredT(decl, context) => adtConstructorSet(context.symbType(decl.right))
-      case t: AdtT => t.decl.clauses.map(c => AdtClause(c, t.decl, this)).toSet
-      case _ => Set.empty
-    }
-
   // Methods
 
   private lazy val receiverMethodSetMap: Map[Type, AdvancedMemberSet[TypeMember]] = {
@@ -269,9 +262,6 @@ trait MemberResolution { this: TypeInfoImpl =>
   def tryAdtMemberLookup(t: Type, id: PIdnUse): Option[(AdtMember, Vector[MemberPath])] =
     adtMemberSet(t).lookupWithPath(id.name)
 
-  def tryAdtConstructorLookup(t: Type, id: PIdnUse): Option[AdtClause] =
-    adtConstructorSet(t).find(_.getName == id.name)
-
   /** Resolves `e`.`id`.
     * @return _1: Methods accessible if e is addressable.
     *         _2: Methods accessible if e is not addressable.
@@ -334,10 +324,7 @@ trait MemberResolution { this: TypeInfoImpl =>
       case Right(typ) => // base is a type
         typeSymbType(typ) match {
           case pkg: ImportT => tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl)
-          case t =>
-            tryMethodLikeLookup(t, id)
-              // Constructors are not part of membersets because they are not promoted
-              .orElse(tryAdtConstructorLookup(t, id).map((_, Vector.empty)))
+          case t => tryMethodLikeLookup(t, id)
         }
     }
   }

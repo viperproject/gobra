@@ -67,7 +67,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.BuiltInType) => noMessages
         case Some(_: ap.Predicate) => noMessages
         case Some(_: ap.DomainFunction) => noMessages
-        case Some(_: ap.QualifiedAdtType) => noMessages
+        case Some(_: ap.AdtClause) => noMessages
         case Some(_: ap.AdtField) => noMessages
 
         // TODO: fully supporting packages results in further options: global variable
@@ -144,7 +144,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
         case Some(p: ap.DomainFunction) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
 
-        case Some(p: ap.QualifiedAdtType) =>
+        case Some(p: ap.AdtClause) =>
           val fields = p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ)).toMap
           AdtClauseT(fields, p.symb.decl, p.symb.adtDecl, this)
         case Some(p: ap.AdtField) =>

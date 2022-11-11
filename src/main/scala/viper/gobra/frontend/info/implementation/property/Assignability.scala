@@ -93,14 +93,12 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
         // for ghost types
       case (BooleanT, AssertionT) => successProp
-      case (SortT, SortT) => successProp
-      case (PermissionT, PermissionT) => successProp
       case (SequenceT(l), SequenceT(r)) => assignableTo.result(l,r) // implies that Sequences are covariant
       case (SetT(l), SetT(r)) => assignableTo.result(l,r)
       case (MultisetT(l), MultisetT(r)) => assignableTo.result(l,r)
       case (OptionT(l), OptionT(r)) => assignableTo.result(l, r)
       case (IntT(_), PermissionT) => successProp
-      case (c: AdtClauseT, t: AdtT) if c.context == t.context && c.adtT == t.decl => successProp
+      case (c: AdtClauseT, UnderlyingType(t: AdtT)) if c.context == t.context && c.adtT == t.decl => successProp
 
         // conservative choice
       case _ => errorProp()

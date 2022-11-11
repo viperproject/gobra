@@ -4733,7 +4733,6 @@ object Desugar {
     private val INTERFACE_PREFIX = "Y"
     private val DOMAIN_PREFIX = "D"
     private val ADT_PREFIX = "ADT"
-    private val ADT_CLAUSE_PREFIX = "P"
     private val LABEL_PREFIX = "L"
     private val GLOBAL_PREFIX = "G"
     private val BUILTIN_PREFIX = "B"
@@ -4912,14 +4911,11 @@ object Desugar {
 
     def adt(a: AdtT): String = {
       val pom = a.context.getTypeInfo.tree.originalRoot.positions
-      val start = pom.positions.getStart(a.decl).get
-      val finish = pom.positions.getFinish(a.decl).get
-      val pos = pom.translate(start, finish)
-      val adtName = pos.toString.replace(".", "$")
-      s"$ADT_PREFIX$$$adtName"
+      val hash = srcTextName(pom, a.decl.clauses)
+      s"$ADT_PREFIX$$${topLevelName("")(hash, a.context)}"
     }
 
-    def adtField(n: String, s: AdtT): String = topLevelName(s"$ADT_CLAUSE_PREFIX$$${adt(s)}")(n, s.context)
+    def adtField(n: String, s: AdtT): String = s"${adt(s)}$$$n"
 
     def label(n: String): String = n match {
       case "#lhs" => "lhs"

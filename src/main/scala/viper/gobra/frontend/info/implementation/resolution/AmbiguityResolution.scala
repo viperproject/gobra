@@ -87,7 +87,6 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
 
         case (Right(base), Some((s: st.Method, path))) => Some(ap.MethodExpr(base, n.id, path, s))
         case (Right(base), Some((s: st.MPredicate, path))) => Some(ap.PredicateExpr(base, n.id, path, s))
-        case (Right(base), Some((s: st.AdtClause, _))) => Some(ap.QualifiedAdtType(base, s))
 
         // imported members
         case (Right(_), Some((s: st.ActualTypeEntity, _))) => Some(ap.NamedType(n.id, s))
@@ -96,6 +95,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case (Right(_), Some((s: st.Function, _))) => Some(ap.Function(n.id, s))
         case (Right(_), Some((s: st.FPredicate, _))) => Some(ap.Predicate(n.id, s))
         case (Right(_), Some((s: st.DomainFunction, _))) => Some(ap.DomainFunction(n.id, s))
+        case (Right(_), Some((s: st.AdtClause, _))) => Some(ap.AdtClause(n.id, s))
 
         // built-in members
         case (Left(base), Some((s: st.BuiltInMethod, path))) => Some(ap.BuiltInReceivedMethod(base, n.id, path, s))

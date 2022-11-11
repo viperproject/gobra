@@ -999,6 +999,18 @@ object Desugar {
         }
       }
 
+      def leftOfAssignmentNoInit(idn: PIdnNode, info: TypeInfo)(t: in.Type): in.LocalVar = {
+        idn match {
+          case _: PWildcard => in.LocalVar(nm.fresh(idn, info), t)(meta(idn, info))
+
+          case _ =>
+            assignableVarD(ctx, info)(idn) match {
+              case Left(v) => v.asInstanceOf[in.LocalVar]
+              case Right(v) => violation(s"Expected an assignable variable, but got $v instead")
+            }
+        }
+      }
+
       def singleAllocateAndInitToExpr(idn: PIdnNode, initExpr: PExpression, info: TypeInfo) : Writer[in.Stmt] = {
         for {
           e <- goE(initExpr)
@@ -1643,8 +1655,11 @@ object Desugar {
 
           case PShortVarDecl(right, left, _) =>
             if (left.size == right.size) {
-              seqn(sequence((left zip right).map{
-                case (l, r) => singleAllocateAndInitToExpr(l, r, info)
+              seqn(sequence((left zip right).map{ case (l, r) =>
+                for {
+                  re <- goE(r)
+                  le = leftOfAssignmentNoInit(l, info)(re.typ)
+                } yield singleAss(le, re)(src)
               }).map(in.Seqn(_)(src)))
             } else if (right.size == 1) {
               seqn(for {
@@ -1660,8 +1675,13 @@ object Desugar {
           case PVarDecl(typOpt, right, left, _) =>
 
             if (left.size == right.size) {
-              seqn(sequence((left zip right).map{
-                case (l, r) => singleAllocateAndInitToExpr(l, r, info)
+              seqn(sequence((left zip right).map{ case (l, r) =>
+                for {
+                  re <- goE(r)
+                  typ = typOpt.map(x => typeD(info.symbType(x), Addressability.exclusiveVariable)(src)).getOrElse(re.typ)
+                  dL <- leftOfAssignmentD(l, info)(typ)
+                  le <- unit(dL)
+                } yield singleAss(le, re)(src)
               }).map(in.Seqn(_)(src)))
             } else if (right.size == 1) {
               seqn(for {

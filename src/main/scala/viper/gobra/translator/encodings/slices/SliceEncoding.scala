@@ -193,23 +193,25 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         )
 
       case lit: in.NewSliceLit =>
+        val (pos, info, errT) = lit.vprMeta
         val litA = lit.asArrayLit
         val tmp = in.LocalVar(ctx.freshNames.next(), litA.typ.withAddressability(Addressability.pointerBase))(lit.info)
         val tmpT = ctx.variable(tmp)
         val underlyingTyp = underlyingType(lit.typ)(ctx)
         for {
-          initT <- ctx.initialization(tmp)
-          assignT <- ctx.assignment(in.Assignee.Var(tmp), litA)(lit)
           _ <- local(tmpT)
+          initT <- ctx.allocation(tmp)
           _ <- write(initT)
-          _ <- write(assignT)
+          eq <- ctx.equal(tmp, litA)(lit)
+          inhale = vpr.Inhale(eq)(pos, info, errT)
+          _ <- write(inhale)
           ass <- ctx.assignment(
             in.Assignee.Var(lit.target),
             in.Slice(tmp, in.IntLit(0)(lit.info), in.IntLit(litA.length)(lit.info), None, underlyingTyp)(lit.info)
           )(lit)
         } yield ass
+      }
     }
-  }
 
   /**
     * Obtains permission to all cells of a slice

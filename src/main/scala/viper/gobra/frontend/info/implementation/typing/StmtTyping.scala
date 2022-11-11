@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelModus, ChannelT, FunctionT, InterfaceT, InternalTupleT, Type}
+import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelModus, ChannelT, FunctionT, InterfaceT, InternalTupleT, Type, ArrayT, SliceT, MapT, SetT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
@@ -101,11 +101,22 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PForStmt(_, cond, _, _, _) => isExpr(cond).out ++ comparableTypes.errors(exprType(cond), BooleanT)(n)
 
-    case _@PShortForRange(range, shorts, _, _) =>
-      multiAssignableTo.errors(Vector(miscType(range)), shorts map idType)(range)
+    case PShortForRange(range, shorts, _, _, _) =>
+      underlyingType(exprType(range.exp)) match {
+        case _ : ArrayT | _ : SliceT =>
+          multiAssignableTo.errors(Vector(miscType(range)), shorts map idType)(range) ++
+          assignableTo.errors(miscType(range), idType(range.enumerated))(range)
+        case MapT(key, _) => multiAssignableTo.errors(Vector(miscType(range)), shorts map idType)(range) ++
+          assignableTo.errors((SetT(key), idType(range.enumerated)))(range)
+        case t => error(range, s"range not supported for type $t")
+      }
 
-    case _@PAssForRange(range, ass, _, _) =>
-      multiAssignableTo.errors(Vector(miscType(range)), ass map exprType)(range)
+    case PAssForRange(range, ass, _, _) =>
+      underlyingType(exprType(range.exp)) match {
+        case _ : ArrayT | _ : SliceT | _ : MapT =>
+          multiAssignableTo.errors(Vector(miscType(range)), ass map exprType)(range)
+        case t => error(range, s"range not supported for type $t")
+      }
 
     case n@PGoStmt(exp) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
 

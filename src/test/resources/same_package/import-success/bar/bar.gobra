@@ -4,6 +4,6 @@
 initEnsures acc(&A) && acc(&B) && acc(&C)
 package bar
 
-var A int = 1
-var B int = 2
-var C int = 3
+var A@ int = 1
+var B@ int = 2
+var C@ int = 3

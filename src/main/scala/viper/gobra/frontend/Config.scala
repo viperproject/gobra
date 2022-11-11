@@ -21,6 +21,7 @@ import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
 import scala.concurrent.duration.Duration
+import scala.util.matching.Regex
 
 object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
@@ -42,6 +43,7 @@ object ConfigDefaults {
   lazy val DefaultLogLevel: Level = LoggerDefaults.DefaultLevel
   lazy val DefaultCacheFile: Option[File] = None
   lazy val DefaultParseOnly: Boolean = false
+  lazy val DefaultStopAfterEncoding: Boolean = false
   lazy val DefaultCheckOverflows: Boolean = false
   lazy val DefaultCheckConsistency: Boolean = false
   lazy val DefaultShouldChop: Boolean = false
@@ -62,6 +64,7 @@ object ConfigDefaults {
   lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
   lazy val DefaultParallelizeBranches: Boolean = false
   lazy val DefaultDisableMoreCompleteExhale: Boolean = false
+  lazy val DefaultEnableLazyImports: Boolean = false
 }
 
 case class Config(
@@ -109,6 +112,7 @@ case class Config(
                    // branches will be verified in parallel
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                    disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
+                   enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
 ) {
 
   def merge(other: Config): Config = {
@@ -150,6 +154,7 @@ case class Config(
       assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale,
       parallelizeBranches = parallelizeBranches,
       disableMoreCompleteExhale = disableMoreCompleteExhale,
+      enableLazyImports = enableLazyImports || other.enableLazyImports,
     )
   }
 
@@ -163,10 +168,13 @@ case class Config(
 
 object Config {
   // the header signals that a file should be considered when running on "header-only" mode
-  val header = """\/\/\s*\+gobra""".r
+  val header: Regex = """\/\/\s*\+gobra""".r
   val prettyPrintedHeader = "// +gobra"
   require(header.matches(prettyPrintedHeader))
   def sourceHasHeader(s: Source): Boolean = header.findFirstIn(s.content).nonEmpty
+
+  val enableLazyImportOptionName = "enableLazyImport"
+  val enableLazyImportOptionPrettyPrinted = s"--$enableLazyImportOptionName"
 }
 
 // have a look at `Config` to see an inline description of some of these parameters
@@ -184,6 +192,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       logLevel: Level = ConfigDefaults.DefaultLogLevel,
                       cacheFile: Option[Path] = ConfigDefaults.DefaultCacheFile.map(_.toPath),
                       shouldParseOnly: Boolean = ConfigDefaults.DefaultParseOnly,
+                      stopAfterEncoding: Boolean = ConfigDefaults.DefaultStopAfterEncoding,
                       checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
                       checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
                       int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
@@ -192,12 +201,13 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                       disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
+                      enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
   def shouldDesugar: Boolean = shouldTypeCheck
   def shouldViperEncode: Boolean = shouldDesugar
-  def shouldVerify: Boolean = shouldViperEncode
+  def shouldVerify: Boolean = shouldViperEncode && !stopAfterEncoding
   def shouldChop: Boolean = choppingUpperBound > 1 || isolated.exists(_.nonEmpty)
   lazy val isolated: Option[Vector[SourcePosition]] = {
     val positions = isolate.flatMap{ case (path, idxs) => idxs.map(idx => SourcePosition(path, idx, 0)) }
@@ -242,6 +252,7 @@ trait RawConfig {
     assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,
     parallelizeBranches = baseConfig.parallelizeBranches,
     disableMoreCompleteExhale = baseConfig.disableMoreCompleteExhale,
+    enableLazyImports = baseConfig.enableLazyImports,
   )
 }
 
@@ -583,6 +594,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val enableLazyImports: ScallopOption[Boolean] = opt[Boolean](
+    name = Config.enableLazyImportOptionName,
+    descr = s"Enforces that ${GoVerifier.name} parses depending packages only when necessary. Note that this disables certain language features such as global variables.",
+    default = Some(ConfigDefaults.DefaultEnableLazyImports),
+    noshort = true,
+  )
+
   /**
     * Exception handling
     */
@@ -715,5 +733,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
     parallelizeBranches = parallelizeBranches(),
     disableMoreCompleteExhale = disableMoreCompleteExhale(),
+    enableLazyImports = enableLazyImports(),
   )
 }

@@ -434,3 +434,10 @@ assign_op: ass_op=(
     | AMPERSAND
     | BIT_CLEAR
   )? ASSIGN;
+
+// Add permission argument to range
+
+rangeClause: (
+		expressionList ASSIGN
+		| maybeAddressableIdentifierList DECLARE_ASSIGN
+	)? RANGE expression (WITH IDENTIFIER?)?;

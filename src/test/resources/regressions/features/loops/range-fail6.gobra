@@ -6,6 +6,6 @@ package pkg
 func foo_arr() {
 	x := 0
 	//:: ExpectedOutput(type_error)
-	for i, j := range x {
+	for i, j := range x with i0 {
 	}
 }

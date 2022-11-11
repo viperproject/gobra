@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo() {
+	x := []int{1,2,3}
+	invariant acc(&info)
+	invariant acc(x)
+	for _, info@ := range x with i {
+		bar(&info)
+	}
+}
+
+func foo1() {
+	x := []int{1,2,3}
+	info@ := 0
+	invariant acc(&info)
+	invariant acc(x)
+	for _, info = range x with i {
+		bar(&info)
+	}
+}
+
+requires acc(i)
+ensures acc(i)
+func bar(i *int) {
+	*i = 3
+}

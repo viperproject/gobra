@@ -7,6 +7,6 @@ func foo() {
 	x := [0]int{}
 	//:: ExpectedOutput(invariant_establishment_error)
 	invariant false
-	for i, j := range x {
+	for i, j := range x with i0 {
 	}
 }

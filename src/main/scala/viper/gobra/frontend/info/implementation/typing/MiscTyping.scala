@@ -24,9 +24,9 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualMisc(misc: PActualMisc): Messages = misc match {
 
-    case n@PRange(exp) => isExpr(exp).out ++ (underlyingType(exprType(exp)) match {
-      case _: ArrayT | PointerT(_: ArrayT) | _: SliceT | _: GhostSliceT |
-           _: MapT | ChannelT(_, ChannelModus.Recv | ChannelModus.Bi) => noMessages
+    case n@PRange(exp, _) => isExpr(exp).out ++ (underlyingType(exprType(exp)) match {
+      case _: ArrayT | PointerT(_: ArrayT) | _: SliceT | _: GhostSliceT | _: MapT |
+          ChannelT(_, ChannelModus.Recv | ChannelModus.Bi) => noMessages
       case t => message(n, s"type error: got $t but expected rangeable type")
     })
 
@@ -50,7 +50,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def actualMiscType(misc: PActualMisc): Type = misc match {
 
-    case PRange(exp) => underlyingType(exprType(exp)) match {
+    case PRange(exp, _) => underlyingType(exprType(exp)) match {
       case ArrayT(_, elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
       case PointerT(ArrayT(_, elem)) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
       case SliceT(elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))

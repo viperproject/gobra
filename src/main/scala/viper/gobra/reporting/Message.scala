@@ -166,7 +166,7 @@ case class GeneratedViperMessage(taskName: String, inputs: Vector[String], vprAs
   override val name: String = s"generated_viper_message"
 
   override def toString: String = s"generated_viper_message(" +
-    s"taskName=$taskName"
+    s"taskName=$taskName" +
     s"files=$inputs, " +
     s"vprFormated=$vprAstFormatted)"
 

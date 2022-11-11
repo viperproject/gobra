@@ -72,12 +72,12 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       })
     })
 
-    case GlobalVariable(_, _, expOpt, typOpt, _, isSingleModeDecl, _) if isSingleModeDecl => unsafeMessage(! {
+    case GlobalVariable(_, _, expOpt, typOpt, _, _, isSingleModeDecl, _) if isSingleModeDecl => unsafeMessage(! {
       typOpt.exists(wellDefAndType.valid) ||
         expOpt.exists(e => wellDefAndExpr.valid(e) && Single.unapply(exprType(e)).nonEmpty)
     })
 
-    case GlobalVariable(_, idx, expOpt, _, _, _, _) =>
+    case GlobalVariable(_, idx, expOpt, _, _, _, _, _) =>
       // in this case, mv must occur in a declaration in AssignMode.Multi
       unsafeMessage(! {
         expOpt.forall{ exp => wellDefAndExpr.valid(exp) &&
@@ -127,6 +127,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
         case _ => false
       }
     })
+
+    case _:RangeEnumerateVariable => LocalMessages(noMessages)
 
     case Field(PFieldDecl(_, typ), _, _) => unsafeMessage(! {
       wellDefAndType.valid(typ)
@@ -183,13 +185,13 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"expected tuple but got $t")
     }
 
-    case GlobalVariable(_, _, expOpt, typOpt, _, isSingleModeDecl, context) if isSingleModeDecl => typOpt.map(context.symbType)
+    case GlobalVariable(_, _, expOpt, typOpt, _, _, isSingleModeDecl, context) if isSingleModeDecl => typOpt.map(context.symbType)
       .getOrElse(context.typ(expOpt.get) match {
         case Single(t) => t
         case t => violation(s"expected single Type but got $t")
       })
 
-    case GlobalVariable(_, idx, expOpt, typOpt, _, _, context) => typOpt.map(context.symbType)
+    case GlobalVariable(_, idx, expOpt, typOpt, _, _, _, context) => typOpt.map(context.symbType)
       // in this case, mv must occur in a declaration in AssignMode.Multi
       .getOrElse(context.typ(expOpt.get) match {
         case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
@@ -231,6 +233,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"expected tuple but got $t")
     }
 
+    case RangeEnumerateVariable(range, _, context) => rangeEnumeratorType(underlyingType(context.typ(range.exp)))
+
     case Field(PFieldDecl(_, typ), _, context) => context.symbType(typ)
 
     case Embbed(PEmbeddedDecl(typ, _), _, context) => context.typ(typ)
@@ -269,7 +273,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
   def getBlankAssigneeTypeRange(n: PNode, left: Vector[PNode], range: PRange): Type = {
     require(n.isInstanceOf[PIdnNode] || n.isInstanceOf[PBlankIdentifier])
     val pos = left indexWhere (n eq _)
-    exprType(range.exp) match {
+    violation(pos >= 0, "did not find expression corresponding to " + n)
+    underlyingType(exprType(range.exp)) match {
       case ChannelT(elem, ChannelModus.Recv | ChannelModus.Bi) => elem
       case _ => miscType(range).asInstanceOf[InternalSingleMulti].mul.ts(pos)
     }
@@ -281,9 +286,18 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
         case PShortVarDecl(right, left, _) => getBlankAssigneeType(w, left, right)
         case PVarDecl(typ, right, left, _) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
         case PConstSpec(typ, right, left) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
+        case PShortForRange(range, shorts, _, _, _) => getBlankAssigneeTypeRange(w, shorts, range)
+        case PRange(exp, enumerated) => if (w eq enumerated) rangeEnumeratorType(underlyingType(exprType(exp)))
+          else violation("did not find expression corresponding to " + w)
         case _ => ???
       }
       case _ => ???
     }
+  }
+
+  def rangeEnumeratorType(typ: Type) : Type = typ match {
+    case _: SliceT | _: ArrayT => IntT(config.typeBounds.Int)
+    case MapT(key, _) => SetT(key)
+    case t => violation(s"type $t is not supported for range")
   }
 }

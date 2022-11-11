@@ -362,6 +362,8 @@ case class While(cond: Expr, invs: Vector[Assertion], terminationMeasure: Option
 
 case class Initialization(left: AssignableVar)(val info: Source.Parser.Info) extends Stmt
 
+case class Allocation(left: AssignableVar)(val info: Source.Parser.Info) extends Stmt
+
 sealed trait Assignment extends Stmt
 
 case class SingleAss(left: Assignee, right: Expr)(val info: Source.Parser.Info) extends Assignment

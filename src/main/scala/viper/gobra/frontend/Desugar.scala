@@ -958,11 +958,21 @@ object Desugar {
 
       val src: Meta = meta(stmt, info)
 
+      trait InitMode
+
+      object InitMode {
+        // TODO(suggestion): we could remove `leftOfAssignmentNoInit` altogether by introducing the following mode
+        // case object SkipAllocAndInit extends InitMode
+        case object OnlyAlloc extends InitMode
+        case object AllocAndInit extends InitMode
+      }
+
       /**
         * Desugars the left side of an assignment, short variable declaration, and normal variable declaration.
-        * If the left side is an identifier definition, a variable declaration and initialization is written, as well.
+        * If the left side is an identifier definition, a variable declaration and allocation/initialization are also
+        * written, depending on the value of `initMode`.
         */
-      def leftOfAssignmentD(idn: PIdnNode, info: TypeInfo)(t: in.Type): Writer[in.Assignee] = {
+      def leftOfAssignmentD(idn: PIdnNode, info: TypeInfo, initMode: InitMode)(t: in.Type): Writer[in.Assignee] = {
         val isDef = idn match {
           case _: PIdnDef => true
           case unk: PIdnUnk if info.isDef(unk) => true
@@ -981,7 +991,11 @@ object Desugar {
               val v = x.asInstanceOf[in.LocalVar]
               for {
                 _ <- declare(v)
-                _ <- write(in.Initialization(v)(src))
+                allocOrInit = initMode match {
+                  case InitMode.OnlyAlloc => in.Allocation(v)(src)
+                  case InitMode.AllocAndInit => in.Initialization(v)(src)
+                }
+                _ <- write(allocOrInit)
               } yield in.Assignee(v)
             } else unit(in.Assignee(x))
         }
@@ -1343,7 +1357,7 @@ object Desugar {
 
         domain = in.MapKeys(c, underlyingType(exp.typ))(src)
 
-        visited <- leftOfAssignmentD(range.enumerated, info)(in.SetT(keyType, Addressability.exclusiveVariable))
+        visited <- leftOfAssignmentD(range.enumerated, info, InitMode.AllocAndInit)(in.SetT(keyType, Addressability.exclusiveVariable))
 
         perm <- freshDeclaredExclusiveVar(in.PermissionT(Addressability.exclusiveVariable), n, info)(src)
 
@@ -1425,7 +1439,7 @@ object Desugar {
 
         domain = in.MapKeys(c, underlyingType(exp.typ))(src)
 
-        visited <- leftOfAssignmentD(range.enumerated, info)(in.SetT(keyType, Addressability.exclusiveVariable))
+        visited <- leftOfAssignmentD(range.enumerated, info, InitMode.AllocAndInit)(in.SetT(keyType, Addressability.exclusiveVariable))
 
         perm <- freshDeclaredExclusiveVar(in.PermissionT(Addressability.exclusiveVariable), n, info)(src)
 
@@ -1635,18 +1649,16 @@ object Desugar {
               seqn(sequence((left zip right).map{ case (l, r) =>
                 for {
                   re <- goE(r)
-                  le <- leftOfAssignmentD(l, info)(re.typ)
-                } yield singleAss(le, re)(src)
+                  le <- leftOfAssignmentD(l, info, InitMode.OnlyAlloc)(re.typ)
+                } yield singleAss(le, re, isInitExpr = true)(src)
               }).map(in.Seqn(_)(src)))
             } else if (right.size == 1) {
               seqn(for {
                 re  <- goE(right.head)
                 les <- sequence(left.map{ l =>
-                  for {
-                    dL <- leftOfAssignmentD(l, info)(typeD(info.typ(l), Addressability.exclusiveVariable)(src))
-                  } yield dL
+                  leftOfAssignmentD(l, info, InitMode.OnlyAlloc)(typeD(info.typ(l), Addressability.exclusiveVariable)(src))
                 })
-              } yield multiassD(les, re, stmt)(src))
+              } yield multiassD(les, re, stmt, true)(src))
             } else { violation("invalid assignment") }
 
           case PVarDecl(typOpt, right, left, _) =>
@@ -1656,30 +1668,26 @@ object Desugar {
                 for {
                   re <- goE(r)
                   typ = typOpt.map(x => typeD(info.symbType(x), Addressability.exclusiveVariable)(src)).getOrElse(re.typ)
-                  dL <- leftOfAssignmentD(l, info)(typ)
+                  dL <- leftOfAssignmentD(l, info, InitMode.OnlyAlloc)(typ)
                   le <- unit(dL)
-                } yield singleAss(le, re)(src)
+                } yield singleAss(le, re, isInitExpr = true)(src)
               }).map(in.Seqn(_)(src)))
             } else if (right.size == 1) {
               seqn(for {
                 re  <- goE(right.head)
                 les <- sequence(left.map{l =>
-                  for {
-                    dL <- leftOfAssignmentD(l, info)(re.typ)
-                  } yield dL
+                  leftOfAssignmentD(l, info, InitMode.OnlyAlloc)(re.typ)
                 })
-              } yield multiassD(les, re, stmt)(src))
+              } yield multiassD(les, re, stmt, isInitExpr = true)(src))
             } else if (right.isEmpty && typOpt.nonEmpty) {
               val typ = typeD(info.symbType(typOpt.get), Addressability.exclusiveVariable)(src)
               val lelems = sequence(left.map{ l =>
-                for {
-                  dL <- leftOfAssignmentD(l, info)(typ)
-                } yield dL
+                leftOfAssignmentD(l, info, InitMode.AllocAndInit)(typ)
               })
               val relems = left.map{ l => in.DfltVal(typeD(info.symbType(typOpt.get), Addressability.defaultValue)(meta(l, info)))(meta(l, info)) }
               seqn(lelems.map{ lelemsV =>
                 in.Seqn((lelemsV zip relems).map{
-                  case (l, r) => singleAss(l, r)(src)
+                  case (l, r) => singleAss(l, r, isInitExpr = true)(src)
                 })(src)
               })
             } else { violation("invalid declaration") }
@@ -1916,11 +1924,11 @@ object Desugar {
       } yield (acceptCond, stmt)
     }
 
-    def multiassD(lefts: Vector[in.Assignee], right: in.Expr, astCtx: PNode)(src: Source.Parser.Info): in.Stmt = {
+    def multiassD(lefts: Vector[in.Assignee], right: in.Expr, astCtx: PNode, isInitExpr: Boolean = false)(src: Source.Parser.Info): in.Stmt = {
 
       right match {
         case in.Tuple(args) if args.size == lefts.size =>
-          in.Seqn(lefts.zip(args) map { case (l, r) => singleAss(l, r)(src)})(src)
+          in.Seqn(lefts.zip(args) map { case (l, r) => singleAss(l, r, isInitExpr)(src)})(src)
 
         case n: in.TypeAssertion if lefts.size == 2 =>
           val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable), astCtx, info)(src)
@@ -1929,8 +1937,8 @@ object Desugar {
             Vector(resTarget, successTarget),
             Vector( // declare for the fresh variables is not necessary because they are put into a block
               in.SafeTypeAssertion(resTarget, successTarget, n.exp, n.arg)(n.info),
-              singleAss(lefts(0), resTarget)(src),
-              singleAss(lefts(1), successTarget)(src)
+              singleAss(lefts(0), resTarget, isInitExpr)(src),
+              singleAss(lefts(1), successTarget, isInitExpr)(src)
             )
           )(src)
 
@@ -1945,8 +1953,8 @@ object Desugar {
             Vector(resTarget, successTarget),
             Vector( // declare for the fresh variables is not necessary because they are put into a block
               in.SafeReceive(resTarget, successTarget, n.channel, recvChannelProxy, recvGivenPermProxy, recvGotPermProxy, closedProxy)(n.info),
-              singleAss(lefts(0), resTarget)(src),
-              singleAss(lefts(1), successTarget)(src)
+              singleAss(lefts(0), resTarget, isInitExpr)(src),
+              singleAss(lefts(1), successTarget, isInitExpr)(src)
             )
           )(src)
 
@@ -1957,8 +1965,8 @@ object Desugar {
             Vector(resTarget, successTarget),
             Vector(
               in.SafeMapLookup(resTarget, successTarget, l)(l.info),
-              singleAss(lefts(0), resTarget)(src),
-              singleAss(lefts(1), successTarget)(src)
+              singleAss(lefts(0), resTarget, isInitExpr)(src),
+              singleAss(lefts(1), successTarget, isInitExpr)(src)
             )
           )(src)
 
@@ -2305,8 +2313,13 @@ object Desugar {
       }
     }
 
-    def singleAss(left: in.Assignee, right: in.Expr)(info: Source.Parser.Info): in.SingleAss = {
-      in.SingleAss(left, implicitConversion(right.typ, left.op.typ, right))(info)
+    def singleAss(left: in.Assignee, right: in.Expr, isInitExpr: Boolean = false)(info: Source.Parser.Info): in.Stmt = {
+      if (isInitExpr) {
+        val eq = in.ExprAssertion(in.EqCmp(left.op, implicitConversion(right.typ, left.op.typ, right))(info))(info)
+        in.Inhale(eq)(info)
+      } else {
+        in.SingleAss(left, implicitConversion(right.typ, left.op.typ, right))(info)
+      }
     }
 
     def arguments(symb: st.WithArguments, args: Vector[in.Expr]): Vector[in.Expr] = {

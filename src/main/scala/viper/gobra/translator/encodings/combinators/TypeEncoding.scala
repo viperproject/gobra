@@ -110,19 +110,22 @@ trait TypeEncoding extends Generator {
     * Initialize[loc: T@] -> inhale Footprint[loc]; assume [loc == dflt(T°)] && [&loc != nil(*T)]
     */
   def initialization(ctx: Context): in.Location ==> CodeWriter[vpr.Stmt] = {
+        // TODO: maybe drop one, both branches are equal
     case loc :: t / Exclusive if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
       for {
+        alloc <- ctx.allocation(loc)
+        _ <- write(alloc)
         eq <- ctx.equal(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info))(loc)
       } yield vpr.Inhale(eq)(pos, info, errT): vpr.Stmt
 
     case loc :: t / Shared if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
       for {
-        footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
-        eq1 <- ctx.equal(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info))(loc)
-        eq2 <- ctx.equal(in.Ref(loc)(loc.info), in.NilLit(in.PointerT(t, Exclusive))(loc.info))(loc)
-      } yield vpr.Inhale(vpr.And(footprint, vpr.And(eq1, vpr.Not(eq2)(pos, info, errT))(pos, info, errT))(pos, info, errT))(pos, info, errT)
+        alloc <- ctx.allocation(loc)
+        _ <- write(alloc)
+        eq <- ctx.equal(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info))(loc)
+      } yield vpr.Inhale(eq)(pos, info, errT)
   }
 
   /**

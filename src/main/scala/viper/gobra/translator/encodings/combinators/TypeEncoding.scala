@@ -110,22 +110,13 @@ trait TypeEncoding extends Generator {
     * Initialize[loc: T@] -> inhale Footprint[loc]; assume [loc == dflt(T°)] && [&loc != nil(*T)]
     */
   def initialization(ctx: Context): in.Location ==> CodeWriter[vpr.Stmt] = {
-        // TODO: maybe drop one, both branches are equal
-    case loc :: t / Exclusive if typ(ctx).isDefinedAt(t) =>
+    case loc :: t if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
       for {
         alloc <- ctx.allocation(loc)
         _ <- write(alloc)
         eq <- ctx.equal(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info))(loc)
       } yield vpr.Inhale(eq)(pos, info, errT): vpr.Stmt
-
-    case loc :: t / Shared if typ(ctx).isDefinedAt(t) =>
-      val (pos, info, errT) = loc.vprMeta
-      for {
-        alloc <- ctx.allocation(loc)
-        _ <- write(alloc)
-        eq <- ctx.equal(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info))(loc)
-      } yield vpr.Inhale(eq)(pos, info, errT)
   }
 
   /**

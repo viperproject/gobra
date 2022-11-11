@@ -1658,7 +1658,7 @@ object Desugar {
                 les <- sequence(left.map{ l =>
                   leftOfAssignmentD(l, info, InitMode.OnlyAlloc)(typeD(info.typ(l), Addressability.exclusiveVariable)(src))
                 })
-              } yield multiassD(les, re, stmt, true)(src))
+              } yield multiassD(les, re, stmt, isInitExpr = true)(src))
             } else { violation("invalid assignment") }
 
           case PVarDecl(typOpt, right, left, _) =>
@@ -1675,9 +1675,7 @@ object Desugar {
             } else if (right.size == 1) {
               seqn(for {
                 re  <- goE(right.head)
-                les <- sequence(left.map{l =>
-                  leftOfAssignmentD(l, info, InitMode.OnlyAlloc)(re.typ)
-                })
+                les <- sequence(left.map{leftOfAssignmentD(_, info, InitMode.OnlyAlloc)(re.typ)})
               } yield multiassD(les, re, stmt, isInitExpr = true)(src))
             } else if (right.isEmpty && typOpt.nonEmpty) {
               val typ = typeD(info.symbType(typOpt.get), Addressability.exclusiveVariable)(src)
@@ -2315,6 +2313,9 @@ object Desugar {
 
     def singleAss(left: in.Assignee, right: in.Expr, isInitExpr: Boolean = false)(info: Source.Parser.Info): in.Stmt = {
       if (isInitExpr) {
+        // Optimization: if we know that right is the expr passed to the declaration of left, then there is no need to
+        // assign to left (which implies exhaling and inhaling the footprint). Instead, we can just assume directly the
+        // equality between left and right.
         val eq = in.ExprAssertion(in.EqCmp(left.op, implicitConversion(right.typ, left.op.typ, right))(info))(info)
         in.Inhale(eq)(info)
       } else {

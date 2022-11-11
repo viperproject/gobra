@@ -967,18 +967,20 @@ object Desugar {
         case object AllocAndInit extends InitMode
       }
 
+      def isDef(idn: PIdnNode, info: TypeInfo): Boolean = {
+        idn match {
+          case _: PIdnDef => true
+          case unk: PIdnUnk if info.isDef(unk) => true
+          case _ => false
+        }
+      }
+
       /**
         * Desugars the left side of an assignment, short variable declaration, and normal variable declaration.
         * If the left side is an identifier definition, a variable declaration and allocation/initialization are also
         * written, depending on the value of `initMode`.
         */
       def leftOfAssignmentD(idn: PIdnNode, info: TypeInfo, initMode: InitMode)(t: in.Type): Writer[in.Assignee] = {
-        val isDef = idn match {
-          case _: PIdnDef => true
-          case unk: PIdnUnk if info.isDef(unk) => true
-          case _ => false
-        }
-
         idn match {
           case _: PWildcard => freshDeclaredExclusiveVar(t.withAddressability(Addressability.Exclusive), idn, info)(src).map(in.Assignee.Var)
 
@@ -987,7 +989,7 @@ object Desugar {
               case Left(v) => v
               case Right(v) => violation(s"Expected an assignable variable, but got $v instead")
             }
-            if (isDef) {
+            if (isDef(idn, info)) {
               val v = x.asInstanceOf[in.LocalVar]
               for {
                 _ <- declare(v)
@@ -1650,7 +1652,7 @@ object Desugar {
                 for {
                   re <- goE(r)
                   le <- leftOfAssignmentD(l, info, InitMode.OnlyAlloc)(re.typ)
-                } yield singleAss(le, re, isInitExpr = true)(src)
+                } yield singleAss(le, re, isInitExpr = isDef(l, info))(src)
               }).map(in.Seqn(_)(src)))
             } else if (right.size == 1) {
               seqn(for {
@@ -1658,7 +1660,7 @@ object Desugar {
                 les <- sequence(left.map{ l =>
                   leftOfAssignmentD(l, info, InitMode.OnlyAlloc)(typeD(info.typ(l), Addressability.exclusiveVariable)(src))
                 })
-              } yield multiassD(les, re, stmt, isInitExpr = true)(src))
+              } yield multiassD(les, re, stmt, isInitExpr = left.forall(l => isDef(l, info)))(src))
             } else { violation("invalid assignment") }
 
           case PVarDecl(typOpt, right, left, _) =>
@@ -1670,24 +1672,17 @@ object Desugar {
                   typ = typOpt.map(x => typeD(info.symbType(x), Addressability.exclusiveVariable)(src)).getOrElse(re.typ)
                   dL <- leftOfAssignmentD(l, info, InitMode.OnlyAlloc)(typ)
                   le <- unit(dL)
-                } yield singleAss(le, re, isInitExpr = true)(src)
+                } yield singleAss(le, re, isInitExpr = isDef(l, info))(src)
               }).map(in.Seqn(_)(src)))
             } else if (right.size == 1) {
               seqn(for {
                 re  <- goE(right.head)
                 les <- sequence(left.map{leftOfAssignmentD(_, info, InitMode.OnlyAlloc)(re.typ)})
-              } yield multiassD(les, re, stmt, isInitExpr = true)(src))
+              } yield multiassD(les, re, stmt, isInitExpr = left.forall(l => isDef(l, info)))(src))
             } else if (right.isEmpty && typOpt.nonEmpty) {
               val typ = typeD(info.symbType(typOpt.get), Addressability.exclusiveVariable)(src)
-              val lelems = sequence(left.map{ l =>
-                leftOfAssignmentD(l, info, InitMode.AllocAndInit)(typ)
-              })
-              val relems = left.map{ l => in.DfltVal(typeD(info.symbType(typOpt.get), Addressability.defaultValue)(meta(l, info)))(meta(l, info)) }
-              seqn(lelems.map{ lelemsV =>
-                in.Seqn((lelemsV zip relems).map{
-                  case (l, r) => singleAss(l, r, isInitExpr = true)(src)
-                })(src)
-              })
+              val lelems = sequence(left.map{ leftOfAssignmentD(_, info, InitMode.AllocAndInit)(typ) })
+              for {_ <- lelems} yield in.Seqn(Vector())(src)
             } else { violation("invalid declaration") }
 
           case PReturn(exps) =>
@@ -2316,7 +2311,7 @@ object Desugar {
         // Optimization: if we know that right is the expr passed to the declaration of left, then there is no need to
         // assign to left (which implies exhaling and inhaling the footprint). Instead, we can just assume directly the
         // equality between left and right.
-        val eq = in.ExprAssertion(in.EqCmp(left.op, implicitConversion(right.typ, left.op.typ, right))(info))(info)
+        val eq = in.ExprAssertion(in.GhostEqCmp(left.op, implicitConversion(right.typ, left.op.typ, right))(info))(info)
         in.Inhale(eq)(info)
       } else {
         in.SingleAss(left, implicitConversion(right.typ, left.op.typ, right))(info)

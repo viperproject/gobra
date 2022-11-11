@@ -6,7 +6,7 @@
 
 package viper.gobra.reporting
 
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, InhaleInsteadOfAssignment, InsufficientPermissionToRangeExpressionAnnotation, LoopInvariantNotEstablishedAnnotation, MainPreNotEstablished, OverflowCheckAnnotation, ReceiverNotNilCheckAnnotation}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, InhaleInsteadOfAssignmentAnnotation, InsufficientPermissionToRangeExpressionAnnotation, LoopInvariantNotEstablishedAnnotation, MainPreNotEstablished, OverflowCheckAnnotation, ReceiverNotNilCheckAnnotation}
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
@@ -184,7 +184,7 @@ class DefaultErrorBackTranslator(
       case _ / LoopInvariantNotEstablishedAnnotation =>
         x.reasons.foldLeft(LoopInvariantEstablishmentError(x.info): VerificationError) { case (err, reason) => err dueTo reason }
 
-      case _ / InhaleInsteadOfAssignment =>
+      case _ / InhaleInsteadOfAssignmentAnnotation =>
         x.reasons.foldLeft(AssignmentError(x.info): VerificationError){
           case (err, reason) => err dueTo reason
         }

@@ -8,7 +8,7 @@ package viper.gobra.ast.internal.transform
 
 import viper.gobra.ast.internal._
 import viper.gobra.reporting.Source
-import viper.gobra.reporting.Source.OverflowCheckAnnotation
+import viper.gobra.reporting.Source.{AnnotatedOrigin, InhaleInsteadOfAssignmentAnnotation, OverflowCheckAnnotation}
 import viper.gobra.reporting.Source.Parser.Single
 import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
@@ -134,8 +134,18 @@ object OverflowChecksTransform extends InternalTransform {
     case m@SafeMapLookup(_, _, IndexedExp(base, idx, _)) =>
       Seqn(genOverflowChecksExprs(Vector(base, idx)) :+ m)(m.info)
 
+    case i@Inhale(a) =>
+      i.info.origin match {
+        case Some(o: AnnotatedOrigin) if o.annotation == InhaleInsteadOfAssignmentAnnotation =>
+          a match {
+            case ExprAssertion(e) => Seqn(genOverflowChecksExprs(Vector(e)) :+ i)(i.info)
+            case a => violation(s"unexpected assertion $a.")
+          }
+        case _ => i
+      }
+
     // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added
-    case x@(_: Inhale | _: Exhale | _: Assert | _: Assume
+    case x@(_: Exhale | _: Assert | _: Assume
             | _: Return | _: Fold | _: Unfold | _: PredExprFold | _: PredExprUnfold | _: Outline
             | _: SafeTypeAssertion | _: SafeReceive | _: Label | _: Initialization | _: Allocation) => x
 

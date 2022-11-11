@@ -15,7 +15,7 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, InhaleInsteadOfAssignment, MainPreNotEstablished}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, InhaleInsteadOfAssignmentAnnotation, MainPreNotEstablished}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
@@ -2309,7 +2309,7 @@ object Desugar {
     def singleAss(left: in.Assignee, right: in.Expr, isInitExpr: Boolean = false)(info: Source.Parser.Info): in.Stmt = {
       if (isInitExpr) {
         val newInfo = info match {
-          case s: Source.Parser.Single => s.createAnnotatedInfo(InhaleInsteadOfAssignment)
+          case s: Source.Parser.Single => s.createAnnotatedInfo(InhaleInsteadOfAssignmentAnnotation)
           case i => violation(s"l.op.info ($i) is expected to be a Single")
         }
         // Optimization: if we know that right is the expr passed to the declaration of left, then there is no need to

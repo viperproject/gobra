@@ -1565,20 +1565,17 @@ case class DomainT(name: String, addressability: Addressability) extends PrettyT
     DomainT(name, newAddressability)
 }
 
-// TODO: check why `clauseToTag` is necessary
-case class AdtT(name: String, addressability: Addressability, clauseToTag: Map[String, BigInt]) extends Type with TopType {
+case class AdtT(name: String, addressability: Addressability) extends PrettyType(s"adt{ name is $name }") with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case o: AdtT => name == o.name
     case _ => false
   }
 
   override def withAddressability(newAddressability: Addressability): Type =
-    AdtT(name, newAddressability, clauseToTag)
+    AdtT(name, newAddressability)
 }
 
-// TODO: maybe remove this type as it is not necessary anymore
-case class AdtClauseT(name: String, adtT: AdtT, fields: Vector[Field], addressability: Addressability) extends Type {
-  /** Returns whether 'this' is equals to 't' without considering the addressability modifier of the types. */
+case class AdtClauseT(name: String, adtT: AdtT, fields: Vector[Field], addressability: Addressability) extends PrettyType(fields.mkString(s"$name{", ", ", "}")) {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case o: AdtClauseT => name == o.name && adtT == o.adtT
     case _ => false

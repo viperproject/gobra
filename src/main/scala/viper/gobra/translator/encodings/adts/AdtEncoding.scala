@@ -15,6 +15,7 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
+import viper.gobra.util.Violation.violation
 import viper.silver.{ast => vpr}
 
 class AdtEncoding extends LeafTypeEncoding {
@@ -23,6 +24,7 @@ class AdtEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.ViperWriter.{MemberLevel => ml}
   import viper.silver.verifier.{errors => err}
+  import viper.gobra.translator.util.{ViperUtil => vu}
 
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
     case ctx.Adt(adt) / m =>
@@ -39,179 +41,229 @@ class AdtEncoding extends LeafTypeEncoding {
 
   private def adtType(adtName: String): vpr.DomainType = vpr.DomainType(adtName, Map.empty)(Seq.empty)
 
+  /**
+    * [type X adt{ clause1{F11, ...}; ...; clauseN{FN1, ...} }] ->
+    *
+    * domain X {
+    *
+    *   // constructors
+    *   X_clause1(Type(F11), ...): X
+    *   ...
+    *
+    *   // destructors
+    *   X_F11(X): Type(F11)
+    *   ...
+    *
+    *   // default
+    *   X_default(): X
+    *
+    *   // tags
+    *   X_tag(X): Int
+    *   unique X_clause1_tag(): Int
+    *   ...
+    *
+    *   axiom {
+    *     forall f11: F11, ... :: { X_clause1(f11, ...) }
+    *       X_tag(X_clause1(f11, ...)) == X_clause1_tag() && X_F11(X_clause1(f11, ...)) )) == f11 && ...
+    *     ...
+    *   }
+    *
+    *   axiom {
+    *     forall t: X :: {X_clause1_f11(t)}...{X_clause1_f1N(t)}
+    *       X_tag(t) == X_clause1_tag() ==> t == X_clause1(X_clause1_f11(t), ...)
+    *     ...
+    *   }
+    *
+    *   axiom {
+    *     forall t: X :: {X_tag(t)} t == X_clause1(X_clause1_f11(t), ...) || t == ...
+    *   }
+    *
+    * }
+    */
   override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
     case adt: in.AdtDefinition =>
-      val adtName = adt.name
       val (aPos, aInfo, aErrT) = adt.vprMeta
+      val adtName = adt.name // X
+      val adtT = adtType(adtName)
 
-      def localVarTDecl = vpr.LocalVarDecl("t", adtType(adtName))(_, _, _)
+      def adtDecl(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.LocalVarDecl =
+        vpr.LocalVarDecl("t", adtT)(pos, info, errT)
 
-      def localVarT = vpr.LocalVar("t", adtType(adtName))(_, _, _)
+      def fieldDecls(clause: in.AdtClause): Vector[vpr.LocalVarDecl] = {
+        val (cPos, cInfo, cErrT) = clause.vprMeta
+        clause.args map { field => vpr.LocalVarDecl(field.name, ctx.typ(field.typ))(cPos, cInfo, cErrT) }
+      }
 
-      def tagF = getTag(adt.clauses)(_)
+      // constructors
+      val constructors = adt.clauses map { clause =>
+        val (cPos, cInfo, cErrT) = clause.vprMeta
+        vpr.DomainFunc(
+          Names.constructorAdtName(adtName, clause.name.name),
+          fieldDecls(clause),
+          adtT,
+        )(cPos, cInfo, adtName, cErrT)
+      }
 
-      def destructorsClause(clause: in.AdtClause): Vector[vpr.DomainFunc] =
-        clause.args.map(a => {
-          val (argPos, argInfo, argErrT) = a.vprMeta
+      // destructors
+      val destructors = adt.clauses flatMap { clause =>
+        clause.args.map { field =>
+          val (fieldPos, fieldInfo, fieldErrT) = field.vprMeta
           vpr.DomainFunc(
-            Names.destructorAdtName(adtName, a.name),
-            Seq(localVarTDecl(argPos, argInfo, argErrT)),
-            ctx.typ(a.typ)
-          )(argPos, argInfo, adtName, argErrT)
-        })
-
-
-      def clauseArgsAsLocalVarExp(c: in.AdtClause): Vector[vpr.LocalVar] = {
-        val (cPos, cInfo, cErrT) = c.vprMeta
-        c.args map { a =>
-          val typ = ctx.typ(a.typ)
-          val name = a.name
-          vpr.LocalVar(name, typ)(cPos, cInfo, cErrT)
+            Names.destructorAdtName(adtName, field.name),
+            Seq(adtDecl(fieldPos, fieldInfo, fieldErrT)),
+            ctx.typ(field.typ)
+          )(fieldPos, fieldInfo, adtName, fieldErrT)
         }
       }
 
-      def tagApp(arg: vpr.Exp) = {
-        vpr.DomainFuncApp(
-          Names.tagAdtFunction(adtName),
-          Seq(arg),
-          Map.empty
-        )(_, _, vpr.Int, adtName, _)
-      }
-
-      def deconstructorCall(field: String, arg: vpr.Exp, retTyp: vpr.Type) = {
-        vpr.DomainFuncApp(
-          Names.destructorAdtName(adtName, field),
-          Seq(arg),
-          Map.empty
-        )(_, _, retTyp, adtName, _)
-      }
-
-      val clauses = adt.clauses map { c =>
-        val (cPos, cInfo, cErrT) = c.vprMeta
-        val args = clauseArgsAsLocalVarDecl(c)(ctx)
-        vpr.DomainFunc(Names.constructorAdtName(adtName, c.name.name), args, adtType(adtName))(cPos, cInfo, adtName, cErrT)
-      }
-
+      // default
       val defaultFunc = vpr.DomainFunc(
         Names.dfltAdtValue(adtName),
         Seq.empty,
-        adtType(adtName)
+        adtT,
       )(aPos, aInfo, adtName, aErrT)
 
+      // tag
       val tagFunc = vpr.DomainFunc(
         Names.tagAdtFunction(adtName),
-        Seq(localVarTDecl(aPos, aInfo, aErrT)),
+        Seq(adtDecl(aPos, aInfo, aErrT)),
         vpr.Int
       )(aPos, aInfo, adtName, aErrT)
 
-      val destructors: Vector[vpr.DomainFunc] = adt.clauses.flatMap(destructorsClause)
+      val clauseTags = adt.clauses map { clause =>
+        val (cPos, cInfo, cErrT) = clause.vprMeta
+        vpr.DomainFunc(
+          Names.adtClauseTagFunction(adtName, clause.name.name),
+          Seq.empty,
+          vpr.Int,
+          unique = true,
+        )(cPos, cInfo, adtName, cErrT)
+      }
 
-      val tagAxioms: Vector[vpr.AnonymousDomainAxiom] = adt.clauses.map(c => {
-        val (cPos, cInfo, cErrT) = c.vprMeta
-        val args: Seq[vpr.Exp] = clauseArgsAsLocalVarExp(c)
-        val triggerVars: Seq[vpr.LocalVarDecl] = clauseArgsAsLocalVarDecl(c)(ctx)
-        val construct = constructorCall(c, args)(cPos, cInfo, cErrT)
+
+      // axioms
+
+      // forall fi1: Fi1, ... :: { X_clausei(fi1, ...) }
+      //   X_tag(X_clausei(fi1, ...)) == X_clausei_tag() && X_Fi1(X_clausei(fi1, ...)) )) == fi1 && ...
+      val constructorAxioms: Vector[vpr.AnonymousDomainAxiom] = adt.clauses.map(clause => {
+        val (cPos, cInfo, cErrT) = clause.vprMeta
+        val clauseFieldDecls = fieldDecls(clause)
+        val args = clauseFieldDecls.map(_.localVar)
+        val clauseName = clause.name.name
+
+        val construct = constructor(clauseName, adtName, args)(cPos, cInfo, cErrT)
         val trigger = vpr.Trigger(Seq(construct))(cPos, cInfo, cErrT)
-        val lhs: vpr.Exp = tagApp(construct)(cPos, cInfo, cErrT)
-        val clauseTag = vpr.IntLit(tagF(c))(cPos, cInfo, cErrT)
-
-        val destructors = c.args.map(a =>
-          deconstructorCall(a.name, construct, ctx.typ(a.typ))(cPos, cInfo, cErrT)
+        val discriminatorOverConstructor = discriminator(clauseName, adtName, construct)(cPos, cInfo, cErrT)
+        val destructorsOverConstructor = clause.args.map( field =>
+          destructor(field.name, adtName, construct, ctx.typ(field.typ))(cPos, cInfo, cErrT)
         )
 
-        if (c.args.nonEmpty) {
-          val destructOverConstruct: vpr.Exp = (destructors.zip(args).map {
-            case (d, a) => vpr.EqCmp(
-              d, a
-            )(cPos, cInfo, cErrT): vpr.Exp
-          }: Seq[vpr.Exp]).reduceLeft {
-            (l: vpr.Exp, r: vpr.Exp) => vpr.And(l, r)(cPos, cInfo, cErrT): vpr.Exp
+        if (clause.args.nonEmpty) {
+          val destructorEqArg = (destructorsOverConstructor zip args) map {
+            case (destructApp, arg) => vpr.EqCmp(destructApp, arg)(cPos, cInfo, cErrT)
           }
 
-          vpr.AnonymousDomainAxiom(vpr.Forall(triggerVars, Seq(trigger), vpr.And(
-            vpr.EqCmp(lhs, clauseTag)(cPos, cInfo, cErrT),
-            destructOverConstruct
-          )(cPos, cInfo, cErrT)
-          )(cPos, cInfo, cErrT))(cPos, cInfo, adtName, cErrT)
+          vpr.AnonymousDomainAxiom(
+            vpr.Forall(
+              clauseFieldDecls,
+              Seq(trigger),
+              vu.bigAnd(discriminatorOverConstructor +: destructorEqArg)(cPos, cInfo, cErrT)
+            )(cPos, cInfo, cErrT)
+          )(cPos, cInfo, adtName, cErrT)
         } else {
-          vpr.AnonymousDomainAxiom(vpr.EqCmp(lhs, clauseTag)(cPos, cInfo, cErrT))(cPos, cInfo, adtName, cErrT)
+          vpr.AnonymousDomainAxiom(discriminatorOverConstructor)(cPos, cInfo, adtName, cErrT)
         }
       })
 
-      val destructorAxioms: Vector[vpr.AnonymousDomainAxiom] = adt.clauses.filter(c => c.args.nonEmpty).map(c => {
-        val (cPos, cInfo, cErrT) = c.vprMeta
-        val variable = localVarTDecl(cPos, cInfo, cErrT)
-        val localVar = localVarT(cPos, cInfo, cErrT)
-
-        val destructors = c.args.map(a =>
-          deconstructorCall(a.name, localVar, ctx.typ(a.typ))(cPos, cInfo, cErrT)
+      // forall t: X :: {X_clausei_fi1(t)}...{X_clausei_fiN(t)}
+      //    X_tag(t) == X_clausei_tag() ==> t == X_clausei(X_clausei_fi1(t), ...)
+      val destructorAxioms: Vector[vpr.AnonymousDomainAxiom] = adt.clauses.filter(c => c.args.nonEmpty).map(clause => {
+        val (cPos, cInfo, cErrT) = clause.vprMeta
+        val clauseName = clause.name.name
+        val variableDecl = adtDecl(cPos, cInfo, cErrT)
+        val variable = variableDecl.localVar
+        val destructorsOverVar = clause.args.map(field =>
+          destructor(field.name, adtName, variable, ctx.typ(field.typ))(cPos, cInfo, cErrT)
         )
 
-        val trigger = destructors.map(d => vpr.Trigger(Seq(d))(cPos, cInfo, cErrT))
-        val clauseTag = vpr.IntLit(tagF(c))(cPos, cInfo, cErrT)
-        val triggerTagApp = tagApp(localVar)(cPos, cInfo, cErrT)
-        val implicationLhs = vpr.EqCmp(triggerTagApp, clauseTag)(aPos, aInfo, aErrT)
-        val implicationRhs = vpr.EqCmp(
-          localVar,
-          constructorCall(c, destructors)(cPos, cInfo, cErrT)
-        )(cPos, cInfo, cErrT)
-
-        val implication = vpr.Implies(implicationLhs, implicationRhs)(cPos, cInfo, cErrT)
-
-        vpr.AnonymousDomainAxiom(vpr.Forall(Seq(variable), trigger, implication)(cPos, cInfo, cErrT))(cPos,
-          cInfo, adtName, cErrT)
+        vpr.AnonymousDomainAxiom(
+          vpr.Forall(
+            Seq(variableDecl),
+            destructorsOverVar.map(d => vpr.Trigger(Seq(d))(cPos, cInfo, cErrT)),
+            vpr.Implies(
+              discriminator(clauseName, adtName, variable)(cPos, cInfo, cErrT),
+              vpr.EqCmp(
+                variable,
+                constructor(clauseName, adtName, destructorsOverVar)(cPos, cInfo, cErrT)
+              )(cPos, cInfo, cErrT),
+            )(cPos, cInfo, cErrT),
+          )(cPos, cInfo, cErrT)
+        )(cPos, cInfo, adtName, cErrT)
       })
 
+      // forall t: X :: {X_tag(t)} t == X_clause1(X_clause1_f11(t), ...) || t == ...
       val exclusiveAxiom = {
-        val variableDecl = localVarTDecl(aPos, aInfo, aErrT)
-        val variable = localVarT(aPos, aInfo, aErrT)
-        val triggerExpression = tagApp(variable)(aPos, aInfo, aErrT)
+        val variableDecl = adtDecl(aPos, aInfo, aErrT)
+        val variable = variableDecl.localVar
+
+        val triggerExpression = tag(adtName, variable)(aPos, aInfo, aErrT)
         val trigger = vpr.Trigger(Seq(triggerExpression))(aPos, aInfo, aErrT)
 
-        def destructors(clause: in.AdtClause) = clause.args map (a => {
-          val (argPos, argInfo, argErrT) = a.vprMeta
-          deconstructorCall(a.name, variable, ctx.typ(a.typ))(argPos, argInfo, argErrT)
-        })
-
-        val equalities = adt.clauses.map(c => {
-          val (cPos, cInfo, cErrT) = c.vprMeta
-          constructorCall(c, destructors(c))(cPos, cInfo, cErrT)
-        })
-          .map(c => {
-            vpr.EqCmp(variable, c)(c.pos, c.info, c.errT)
-          })
-          .foldLeft(vpr.FalseLit()(aPos, aInfo, aErrT): vpr.Exp)({ (acc, next) => vpr.Or(acc, next)(aPos, aInfo, aErrT): vpr.Exp })
+        val equalities = adt.clauses.map{clause =>
+          val (cPos, cInfo, cErrT) = clause.vprMeta
+          val clauseName = clause.name.name
+          vpr.EqCmp(
+            variable,
+            constructor(
+              clauseName,
+              adtName,
+              clause.args map { field =>
+                val (argPos, argInfo, argErrT) = field.vprMeta
+                destructor(field.name, adtName, variable, ctx.typ(field.typ))(argPos, argInfo, argErrT)
+              }
+            )(cPos, cInfo, cErrT)
+          )(cPos, cInfo, cErrT)
+        }
 
         vpr.AnonymousDomainAxiom(
-          vpr.Forall(Seq(variableDecl), Seq(trigger), equalities)(aPos, aInfo, aErrT)
+          vpr.Forall(Seq(variableDecl), Seq(trigger), vu.bigOr(equalities)(aPos, aInfo, aErrT))(aPos, aInfo, aErrT)
         )(aPos, aInfo, adtName, aErrT)
       }
-
-      val axioms = (tagAxioms ++ destructorAxioms) :+ exclusiveAxiom
-      val funcs = (clauses ++ destructors) :+ defaultFunc :+ tagFunc
-
-      ml.unit(Vector(vpr.Domain(adtName, functions = funcs, axioms = axioms)(pos = aPos, info = aInfo, errT = aErrT)))
+      ml.unit(Vector(vpr.Domain(
+        adtName,
+        functions = (defaultFunc +: tagFunc +: clauseTags) ++ constructors ++ destructors,
+        axioms = (exclusiveAxiom +: constructorAxioms) ++ destructorAxioms
+      )(pos = aPos, info = aInfo, errT = aErrT)))
   }
 
+  /**
+    * [ dflt(adt{N}) ] -> N_default()
+    * [ C{args}: adt{N} ] -> N_C([args])
+    * [ (e: adt{N}).isC ] -> N_tag([e]) == N_C_tag()
+    * [ (e: adt{N}).f ] -> N_f([e])
+    */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def defaultVal(e: in.DfltVal, a: in.AdtT) = {
-      val (pos, info, errT) = e.vprMeta
-      unit(
-        vpr.DomainFuncApp(
-          funcname = Names.dfltAdtValue(a.name),
-          Seq.empty,
-          Map.empty
-        )(pos, info, adtType(a.name), a.name, errT): vpr.Exp
-      )
-    }
-
     default(super.expression(ctx)) {
-      case (e: in.DfltVal) :: ctx.Adt(a) / Exclusive => defaultVal(e, a)
-      case (e: in.DfltVal) :: ctx.AdtClause(a) / Exclusive => defaultVal(e, a.adtT)
-      case ac: in.AdtConstructorLit => adtConstructor(ac, ctx)
-      case ad: in.AdtDiscriminator => adtDiscriminator(ad, ctx)
-      case ad: in.AdtDestructor => adtDestructor(ad, ctx)
+      case (e: in.DfltVal) :: ctx.Adt(a) / Exclusive => unit(withSrc(defaultVal(a.name), e))
+      case (e: in.DfltVal) :: ctx.AdtClause(a) / Exclusive => unit(withSrc(defaultVal(a.adtT.name), e))
+
+      case ac: in.AdtConstructorLit =>
+        for {
+          args <- sequence(ac.args map ctx.expression)
+        } yield withSrc(constructor(ac.clause.name, ac.clause.adtName, args), ac)
+
+      case ad: in.AdtDiscriminator =>
+        for {
+          value <- ctx.expression(ad.base)
+        } yield withSrc(discriminator(ad.clause.name, ad.clause.adtName, value), ad)
+
+      case ad: in.AdtDestructor =>
+        val adtType = underlyingAdtType(ad.base.typ)(ctx)
+        for {
+          value <- ctx.expression(ad.base)
+        } yield withSrc(destructor(ad.field.name, adtType.name, value, ctx.typ(ad.field.typ)), ad)
+
       case p: in.PatternMatchExp => translatePatternMatchExp(ctx)(p)
       // case c@in.Contains(_, _ :: ctx.Adt(_)) => translateContains(c)(ctx)
     }
@@ -223,68 +275,7 @@ class AdtEncoding extends LeafTypeEncoding {
     }
   }
 
-  private def adtConstructor(ac: in.AdtConstructorLit, ctx: Context): Writer[vpr.Exp] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
-
-    val (pos, info, errT) = ac.vprMeta
-    for {
-      args <- sequence(ac.args map goE)
-    } yield vpr.DomainFuncApp(
-      funcname = Names.constructorAdtName(ac.clause.adtName, ac.clause.name),
-      args,
-      Map.empty
-    )(pos, info, adtType(ac.clause.adtName), ac.clause.adtName, errT)
-  }
-
-  private def adtDiscriminator(ac: in.AdtDiscriminator, ctx: Context): Writer[vpr.Exp] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
-
-    val adtType = underlyingType(ac.base.typ)(ctx).asInstanceOf[in.AdtT]
-    val (pos, info, errT) = ac.vprMeta
-    for {
-      value <- goE(ac.base)
-    } yield vpr.EqCmp(vpr.DomainFuncApp(
-      Names.tagAdtFunction(adtType.name),
-      Seq(value), Map.empty)(pos, info, vpr.Int, adtType.name, errT),
-      vpr.IntLit(adtType.clauseToTag(ac.clause.name))(pos, info, errT)
-    )(pos, info, errT)
-  }
-
-  private def adtDestructor(ac: in.AdtDestructor, ctx: Context): Writer[vpr.Exp] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
-
-    val adtType = underlyingType(ac.base.typ)(ctx).asInstanceOf[in.AdtT]
-    val (pos, info, errT) = ac.vprMeta
-    for {
-      value <- goE(ac.base)
-    } yield vpr.DomainFuncApp(
-      Names.destructorAdtName(adtType.name, ac.field.name),
-      Seq(value), Map.empty)(pos, info, ctx.typ(ac.field.typ), adtType.name, errT)
-  }
-
-
-  private def getTag(clauses: Vector[in.AdtClause])(clause: in.AdtClause): BigInt = {
-    val sorted = clauses.sortBy(_.name.name)
-    BigInt(sorted.indexOf(clause))
-  }
-
-  private def constructorCall(clause: in.AdtClause, args: Seq[vpr.Exp])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.DomainFuncApp = {
-    val adtName = clause.name.adtName
-    vpr.DomainFuncApp(
-      Names.constructorAdtName(adtName, clause.name.name),
-      args,
-      Map.empty
-    )(pos, info, adtType(adtName), adtName, errT)
-  }
-
-  private def clauseArgsAsLocalVarDecl(c: in.AdtClause)(ctx: Context): Vector[vpr.LocalVarDecl] = {
-    val (cPos, cInfo, cErrT) = c.vprMeta
-    c.args map { a =>
-      val typ = ctx.typ(a.typ)
-      val name = a.name
-      vpr.LocalVarDecl(name, typ)(cPos, cInfo, cErrT)
-    }
-  }
+  // pattern matching
 
   def declareIn(ctx: Context)(e: in.Expr, p: in.MatchPattern, z: vpr.Exp): CodeWriter[vpr.Exp] = {
     val (pos, info, errT) = p.vprMeta
@@ -371,7 +362,7 @@ class AdtEncoding extends LeafTypeEncoding {
       case in.MatchBindVar(_, _) | in.MatchWildcard() => unit(vpr.TrueLit()(pos,info,errT))
       case in.MatchAdt(clause, exp) =>
         val tagFunction = Names.tagAdtFunction(clause.adtT.name)
-        val tag = vpr.IntLit(clause.adtT.clauseToTag(clause.name))(mPos, mInfo, mErr)
+        val tag = vpr.IntLit(???)(mPos, mInfo, mErr)
         val inDeconstructors = clause.fields.map(f => in.AdtDestructor(expr, f)(pattern.info))
         for {
           e1 <- goE(expr)
@@ -466,4 +457,69 @@ class AdtEncoding extends LeafTypeEncoding {
     }
   }
 
+
+  // constructor, destructor, discriminator, tag, default
+
+  /** adtName_clauseName(args) */
+  private def constructor(clauseName: String, adtName: String, args: Vector[vpr.Exp])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.Exp = {
+    vpr.DomainFuncApp(
+      funcname = Names.constructorAdtName(adtName, clauseName),
+      args,
+      Map.empty
+    )(pos, info, adtType(adtName), adtName, errT)
+  }
+
+  /** adtName_fieldName(arg) */
+  private def destructor(fieldName: String, adtName: String, arg: vpr.Exp, fieldType: vpr.Type)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.Exp = {
+    vpr.DomainFuncApp(
+      funcname = Names.destructorAdtName(adtName, fieldName),
+      Seq(arg),
+      Map.empty,
+    )(pos, info, fieldType, adtName, errT)
+  }
+
+  /** adtName_tag(arg) == adtName_clauseName_tag() */
+  private def discriminator(clauseName: String, adtName: String, arg: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.Exp = {
+    vpr.EqCmp(
+      tag(adtName, arg)(pos, info, errT),
+      clauseTag(clauseName, adtName)(pos, info, errT),
+    )(pos, info, errT)
+  }
+
+  /** adtName_tag(arg) */
+  private def tag(adtName: String, arg: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.Exp = {
+    vpr.DomainFuncApp(
+      funcname = Names.tagAdtFunction(adtName),
+      Seq(arg),
+      Map.empty,
+    )(pos, info, vpr.Int, adtName, errT)
+  }
+
+  /** adtName_clauseName_tag() */
+  private def clauseTag(clauseName: String, adtName: String)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.Exp = {
+    vpr.DomainFuncApp(
+      funcname = Names.adtClauseTagFunction(adtName, clauseName),
+      Seq.empty,
+      Map.empty
+    )(pos, info, vpr.Int, adtName, errT)
+  }
+
+  /** adtName_default() */
+  def defaultVal(adtName: String)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.Exp = {
+    vpr.DomainFuncApp(
+      funcname = Names.dfltAdtValue(adtName),
+      Seq.empty,
+      Map.empty
+    )(pos, info, adtType(adtName), adtName, errT)
+  }
+
+  // auxiliary functions
+
+  private def underlyingAdtType(t: in.Type)(ctx: Context): in.AdtT = {
+    underlyingType(t)(ctx) match {
+      case t: in.AdtT => t
+      case t: in.AdtClauseT => t.adtT
+      case t => violation(s"expected adt type, but got $t")
+    }
+  }
 }

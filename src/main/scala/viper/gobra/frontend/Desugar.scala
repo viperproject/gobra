@@ -3716,17 +3716,16 @@ object Desugar {
 
       case t: Type.AdtT =>
         val adtName = nm.adt(t)
-        val res = registerType(in.AdtT(adtName, addrMod, getAdtClauseTagMap(t)))
+        val res = registerType(in.AdtT(adtName, addrMod))
         registerAdt(t, res)
         res
 
       case t: Type.AdtClauseT =>
         val tAdt = Type.AdtT(t.adtT, t.context)
-        val adt: in.AdtT = in.AdtT(nm.adt(tAdt), addrMod, getAdtClauseTagMap(tAdt))
+        val adt: in.AdtT = in.AdtT(nm.adt(tAdt), addrMod)
         val fields: Vector[in.Field] = (t.clauses map { case (key: String, typ: Type) =>
           in.Field(nm.adtField(key, tAdt), typeD(typ, Addressability.mathDataStructureElement)(src), true)(src)
         }).toVector
-
         in.AdtClauseT(idName(t.decl.id, t.context.getTypeInfo), adt, fields, addrMod)
 
       case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
@@ -4915,7 +4914,8 @@ object Desugar {
       s"$ADT_PREFIX$$${topLevelName("")(hash, a.context)}"
     }
 
-    def adtField(n: String, s: AdtT): String = s"${adt(s)}$$$n"
+    /** can be inversed with [[inverse]] */
+    def adtField(n: String, @unused s: AdtT): String = s"$n$FIELD_PREFIX"
 
     def label(n: String): String = n match {
       case "#lhs" => "lhs"

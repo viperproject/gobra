@@ -646,37 +646,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // types
 
   def showType(typ : Type) : Doc = typ match {
-    case BoolT(_) => "bool"
-    case IntT(_, kind) => kind.name
-    case StringT(_) => "string"
-    case Float32T(_) => "float32"
-    case Float64T(_) => "float64"
-    case VoidT => "void"
-    case FunctionT(args, res, _) => "func" <>  parens(showTypeList(args)) <> parens(showTypeList(res))
-    case PermissionT(_) => "perm"
-    case DefinedT(name, _) => name
-    case PointerT(t, _) => "*" <> showType(t)
-    case TupleT(ts, _) => parens(showTypeList(ts))
-    case PredT(args, _) => "pred" <> parens(showTypeList(args))
-    case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
-    case i: InterfaceT => "interface" <> parens("name is " <> i.name)
-    case _: DomainT => "domain" <> parens("...")
-    case ChannelT(elem, _) => "chan" <+> showType(elem)
-    case SortT => "sort"
-    case array : ArrayT => brackets(array.length.toString) <> showType(array.elems)
-    case SequenceT(elem, _) => "seq" <> brackets(showType(elem))
-    case SetT(elem, _) => "set" <> brackets(showType(elem))
-    case MultisetT(elem, _) => "mset" <> brackets(showType(elem))
     case MathMapT(keys, values, _)  => "dict" <> brackets(showType(keys)) <> showType(values)
-    case OptionT(elem, _) => "option" <> brackets(showType(elem))
-    case AdtT(name, _, _) => "adt" <> parens(name)
-    case AdtClauseT(name, adtT, _, _) => showType(adtT) <+> "::" <+> name
-    case SliceT(elem, _) => "[]" <> showType(elem)
     case MapT(keys, values, _) => "map" <> brackets(showType(keys)) <> showType(values)
+    case t: PrettyType => t.toString
   }
-
-  private def showTypeList[T <: Type](list: Vector[T]): Doc =
-    showList(list)(showType)
 
   def showList[T](list: Seq[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
 

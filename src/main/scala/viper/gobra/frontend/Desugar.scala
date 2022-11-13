@@ -246,7 +246,7 @@ object Desugar {
 
     def functionLitProxyD(lit: PFunctionLit, context: TypeInfo): in.FunctionLitProxy = {
       // If the literal is nameless, generate a unique name
-      val name = if (lit.id.isEmpty) nm.anonFuncLit(context.enclosingFunction(lit).get, context) else idName(lit.id.get, context)
+      val name = if (lit.id.isEmpty) nm.anonFuncLit(context.enclosingFunctionOrMethod(lit).get, context) else idName(lit.id.get, context)
       val info = if (lit.id.isEmpty) meta(lit, context) else meta(lit.id.get, context)
       in.FunctionLitProxy(name)(info)
     }
@@ -3653,7 +3653,7 @@ object Desugar {
         case _: st.GlobalVariable => nm.global(id.name, v.context)
         case _ => nm.variable(id.name, context.scope(id), v.context)
       }
-      case c: st.Closure => nm.funcLit(id.name, context.enclosingFunction(id).get, c.context)
+      case c: st.Closure => nm.funcLit(id.name, context.enclosingFunctionOrMethod(id).get, c.context)
       case sc: st.SingleConstant => nm.global(id.name, sc.context)
       case st.Embbed(_, _, _) | st.Field(_, _, _) => violation(s"expected that fields and embedded field are desugared by using embeddedDeclD resp. fieldDeclD but idName was called with $id")
       case n: st.NamedType => nm.typ(id.name, n.context)
@@ -4582,7 +4582,7 @@ object Desugar {
       s"${n}_$postfix${scopeMap(s)}" // deterministic
     }
 
-    private def nameWithEnclosingFunction(postfix: String)(n: String, enclosing: PFunctionDecl, context: ExternalTypeInfo): String = {
+    private def nameWithEnclosingFunction(postfix: String)(n: String, enclosing: PFunctionOrMethodDecl, context: ExternalTypeInfo): String = {
       maybeRegister(enclosing, context)
       s"${n}_${enclosing.id.name}_${context.pkgInfo.viperId}_$postfix${scopeMap(enclosing)}" // deterministic
     }
@@ -4608,8 +4608,8 @@ object Desugar {
     def mainFuncProofObligation(context: ExternalTypeInfo): String =
       topLevelName(MAIN_FUNC_OBLIGATIONS_PREFIX)(Constants.MAIN_FUNC_NAME, context)
     def variable(n: String, s: PScope, context: ExternalTypeInfo): String = name(VARIABLE_PREFIX)(n, s, context)
-    def funcLit(n: String, enclosing: PFunctionDecl, context: ExternalTypeInfo): String = nameWithEnclosingFunction(FUNCTION_PREFIX)(n, enclosing, context)
-    def anonFuncLit(enclosing: PFunctionDecl, context: ExternalTypeInfo): String = nameWithEnclosingFunction(FUNCTION_PREFIX)("func", enclosing, context) ++ s"_${fresh(enclosing, context)}"
+    def funcLit(n: String, enclosing: PFunctionOrMethodDecl, context: ExternalTypeInfo): String = nameWithEnclosingFunction(FUNCTION_PREFIX)(n, enclosing, context)
+    def anonFuncLit(enclosing: PFunctionOrMethodDecl, context: ExternalTypeInfo): String = nameWithEnclosingFunction(FUNCTION_PREFIX)("func", enclosing, context) ++ s"_${fresh(enclosing, context)}"
     def global  (n: String, context: ExternalTypeInfo): String = topLevelName(GLOBAL_PREFIX)(n, context)
     def typ     (n: String, context: ExternalTypeInfo): String = topLevelName(TYPE_PREFIX)(n, context)
     def field   (n: String, @unused s: StructT): String = s"$n$FIELD_PREFIX" // Field names must preserve their equality from the Go level

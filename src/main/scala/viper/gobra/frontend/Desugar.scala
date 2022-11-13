@@ -2785,13 +2785,11 @@ object Desugar {
                 conv: in.EffectfulConversion = in.EffectfulConversion(target, resT, dArg)(src)
                 _ <- write(conv)
               } yield target
-              
             case (t: InterfaceT, _) =>
               for {
                 exp <- exprD(ctx, info)(arg)
                 tD  =  typeD(t, exp.typ.addressability)(src)
               } yield in.ToInterface(exp, tD)(exp.info)
-
             case _ =>
               val desugaredTyp = typeD(typType, info.addressability(expr))(src)
               for { expr <- exprD(ctx, info)(arg) } yield in.Conversion(desugaredTyp, expr)(src)

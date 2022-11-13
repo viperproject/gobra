@@ -8,8 +8,7 @@ package viper.gobra.translator.encodings.adts
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
-import viper.gobra.reporting.{MatchError, Source}
+import viper.gobra.reporting.MatchError
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
@@ -23,7 +22,6 @@ class AdtEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.TypePatterns._
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.ViperWriter.{MemberLevel => ml}
-  import viper.silver.verifier.{errors => err}
   import viper.gobra.translator.util.{ViperUtil => vu}
 
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
@@ -264,196 +262,198 @@ class AdtEncoding extends LeafTypeEncoding {
           value <- ctx.expression(ad.base)
         } yield withSrc(destructor(ad.field.name, adtType.name, value, ctx.typ(ad.field.typ)), ad)
 
-      case p: in.PatternMatchExp => translatePatternMatchExp(ctx)(p)
-      // case c@in.Contains(_, _ :: ctx.Adt(_)) => translateContains(c)(ctx)
+      case p: in.PatternMatchExp => translatePatternMatchExp(p)(ctx)
     }
   }
 
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     default(super.statement(ctx)) {
-      case p: in.PatternMatchStmt => translatePatternMatch(ctx)(p)
+      case p: in.PatternMatchStmt => translatePatternMatch(p)(ctx)
     }
   }
 
   // pattern matching
 
-  def declareIn(ctx: Context)(e: in.Expr, p: in.MatchPattern, z: vpr.Exp): CodeWriter[vpr.Exp] = {
-    val (pos, info, errT) = p.vprMeta
+  /**
+    * [e match { case p1: s1; ... }] ->
+    *   var b: Bool = false
+    *
+    *   if Check(p1,e && !b) {
+    *     b := true
+    *     Assign(p1,e)
+    *     [s1]
+    *   }
+    *
+    *   ...
+    *
+    *   // if strict is true
+    *   assert b
+    *
+    */
+  def translatePatternMatch(s: in.PatternMatchStmt)(ctx: Context): CodeWriter[vpr.Stmt] = {
+    val (sPos, sInfo, sErrT) = s.vprMeta
 
-    p match {
-      case in.MatchValue(_) | in.MatchWildcard() => unit(z)
-      case in.MatchBindVar(name, typ) =>
-        for {
-          eV <- ctx.expression(e)
-        } yield vpr.Let(
-          vpr.LocalVarDecl(name, ctx.typ(typ))(pos, info, errT),
-          eV,
-          z
-        )(pos, info, errT)
-      case in.MatchAdt(clause, expr) =>
-        val inDeconstructors = clause.fields.map(f => in.AdtDestructor(e, f)(e.info))
-        val zipWithPattern = inDeconstructors.zip(expr)
-        zipWithPattern.foldRight(unit(z))((des, acc) => for {
-          v <- acc
-          d <- declareIn(ctx)(des._1, des._2, v)
-        } yield d)
+    // var b: Bool
+    val checkExVarDecl = vpr.LocalVarDecl(ctx.freshNames.next(), vpr.Bool)(sPos, sInfo, sErrT)
+    val checkExVar = checkExVarDecl.localVar
+
+    // b := false
+    val initialExVar = unit(vpr.LocalVarAssign(checkExVar, vpr.FalseLit()(sPos, sInfo, sErrT))(sPos, sInfo, sErrT))
+
+    // b := true
+    def setExVar(p: vpr.Position, i: vpr.Info, e: vpr.ErrorTrafo): Writer[vpr.LocalVarAssign] =
+      unit(vpr.LocalVarAssign(checkExVar, vpr.TrueLit()(p, i, e))(p, i, e))
+
+    def translateCase(c: in.PatternMatchCaseStmt): CodeWriter[vpr.Stmt] = {
+      val (cPos, cInfo, cErrT) = c.vprMeta
+      for {
+        check <- translateMatchPatternCheck(s.exp, c.mExp)(ctx)
+        setExVarV <- setExVar(cPos, cInfo, cErrT)
+        ass <- translateMatchPatternDeclarations(s.exp, c.mExp)(ctx)
+        body <- seqn(ctx.statement(c.body))
+      } yield vpr.If(
+        vpr.And(check, vpr.Not(checkExVar)(cPos, cInfo, cErrT))(cPos, cInfo, cErrT), // Check(pi, e) && !b
+        vpr.Seqn(Seq(setExVarV, ass, body), Seq.empty)(cPos, cInfo, cErrT),  // b := true; Assign(pi, e); [si]
+        vpr.Seqn(Seq(), Seq())(cPos, cInfo, cErrT) // empty else
+      )(cPos, cInfo, cErrT)
     }
+
+    for {
+      init <- initialExVar
+      cs <- sequence(s.cases map translateCase)
+      _ <- if (s.strict) {
+        assert(vpr.EqCmp(checkExVar, vpr.TrueLit()(sPos, sInfo, sErrT))(sPos, sInfo, sErrT), (info, _) => MatchError(info))
+      } else unit(())
+    } yield vpr.Seqn(init +: cs, Seq(checkExVarDecl))(sPos, sInfo, sErrT)
   }
 
-  def translatePatternMatchExp(ctx: Context)(e: in.PatternMatchExp): CodeWriter[vpr.Exp] = {
+  /**
+    * [e match { case1 p1: e1; ...; caseN pN: eN }] ->
+    *   asserting Check(p1, e) || ... || Check(pN, e) in Match(case1 p1: e1; ...; caseN pN: eN; default: dflt(T), e)
+    * [e match { case1 p1: e1; ...; caseN pN: eN; default: e_ }] ->
+    *   Match(case1 p1: e1; ...; caseN pN: eN; default: e_, e)
+    *
+    * Match(default: e_, e) -> e_
+    * Match(case1 p1: e1; ...; caseN pN: eN; default: e_, e) ->
+    *   Check(p1, e) ? AssignIn(p1, e, [e1]) : Match(case p2: e2; ...; caseN pN: eN; default: e_, e)
+    *
+    */
+  def translatePatternMatchExp(e: in.PatternMatchExp)(ctx: Context): CodeWriter[vpr.Exp] = {
 
     def translateCases(cases: Vector[in.PatternMatchCaseExp], dflt: in.Expr): CodeWriter[vpr.Exp] = {
-
       val (ePos, eInfo, eErrT) = if (cases.isEmpty) dflt.vprMeta else cases.head.vprMeta
-
-      if (cases.isEmpty) {
-        ctx.expression(dflt)
-      } else {
-        val c = cases.head
-        for {
-          check <- translateMatchPatternCheck(ctx)(e.exp, c.mExp)
-          body <- ctx.expression(c.exp)
-          decl <- declareIn(ctx)(e.exp, c.mExp, body)
-          el <- translateCases(cases.tail, dflt)
-        } yield vpr.CondExp(check, decl, el)(ePos, eInfo, eErrT)
+      cases match {
+        case c +: cs =>
+          for {
+            check <- translateMatchPatternCheck(e.exp, c.mExp)(ctx)
+            body <- ctx.expression(c.exp)
+            decl <- declareIn(e.exp, c.mExp, body)(ctx)
+            el <- translateCases(cs, dflt)
+          } yield vpr.CondExp(check, decl, el)(ePos, eInfo, eErrT)
+        case _ => ctx.expression(dflt)
       }
     }
 
     if (e.default.isDefined) {
       translateCases(e.cases, e.default.get)
     } else {
-
       val (pos, info, errT) = e.vprMeta
 
-      val allChecks = e.cases
-        .map(c => translateMatchPatternCheck(ctx)(e.exp, c.mExp))
-        .foldLeft(unit(vpr.FalseLit()() : vpr.Exp))((acc, next) =>
-          for {
-            a <- acc
-            n <- next
-          } yield vpr.Or(a,n)(pos, info, errT))
-
+      val checkExpressionMatchesOnePattern =
+        sequence(e.cases.map(c => translateMatchPatternCheck(e.exp, c.mExp)(ctx))).map(vu.bigOr(_)(pos, info, errT))
 
       for {
-        dummy <- ctx.expression(in.DfltVal(e.typ)(e.info))
-        cond <- translateCases(e.cases, in.DfltVal(e.typ)(e.info))
-        checks <- allChecks
-        (checkFunc, errCheck) = ctx.condition.assert(checks, (info, _) => MatchError(info))
-        _ <- errorT(errCheck)
-      } yield vpr.CondExp(checkFunc, cond, dummy)(pos, info, errT)
+        matching <- translateCases(e.cases, in.DfltVal(e.typ)(e.info))
+        checks <- checkExpressionMatchesOnePattern
+        checkedMatching <- assert(checks, matching, (info, _) => MatchError(info))(ctx)
+      } yield checkedMatching
     }
-
-
   }
 
-  def translateMatchPatternCheck(ctx: Context)(expr: in.Expr, pattern: in.MatchPattern): CodeWriter[vpr.Exp] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
+  /**
+    * Encodes the check whether `expr` matches pattern
+    *
+    * Check(_, e) -> true
+    * Check(x, e) -> true
+    * Check(`v`, e) -> [v] == [e]
+    * Check(C{f1: p1, ...}, e) -> [e.isC] && Check(p1, e.f1) && ...
+    *
+    */
+  def translateMatchPatternCheck(expr: in.Expr, pattern: in.MatchPattern)(ctx: Context): CodeWriter[vpr.Exp] = {
     val (pos, info, errT) = pattern.vprMeta
 
-    def matchSimpleExp(exp: in.Expr): Writer[vpr.Exp] = for {
-      e1 <- goE(exp)
-      e2 <- goE(expr)
-    } yield vpr.EqCmp(e1, e2)(pos, info, errT)
-
-    val (mPos, mInfo, mErr) = pattern.vprMeta
-
     pattern match {
-      case in.MatchValue(exp) => matchSimpleExp(exp)
-      case in.MatchBindVar(_, _) | in.MatchWildcard() => unit(vpr.TrueLit()(pos,info,errT))
-      case in.MatchAdt(clause, exp) =>
-        val tagFunction = Names.tagAdtFunction(clause.adtT.name)
-        val tag = vpr.IntLit(???)(mPos, mInfo, mErr)
-        val inDeconstructors = clause.fields.map(f => in.AdtDestructor(expr, f)(pattern.info))
+      case _: in.MatchBindVar | _: in.MatchWildcard =>
+        unit(vpr.TrueLit()(pos,info,errT))
+
+      case in.MatchValue(exp) =>
         for {
-          e1 <- goE(expr)
-          tF = vpr.DomainFuncApp(tagFunction, Vector(e1), Map.empty)(mPos, mInfo, vpr.Int, clause.adtT.name, mErr)
-          checkTag = vpr.EqCmp(tF, tag)(mPos)
-          rec <- sequence(inDeconstructors.zip(exp) map {case (e, p) => translateMatchPatternCheck(ctx)(e,p)})
-        } yield rec.foldLeft(checkTag:vpr.Exp)({case (acc, next) => vpr.And(acc, next)(mPos, mInfo, mErr)})
+          e1 <- ctx.expression(exp)
+          e2 <- ctx.expression(expr)
+        } yield vpr.EqCmp(e1, e2)(pos, info, errT)
+
+      case in.MatchAdt(clause, patternArgs) =>
+        val destructorOverExp = clause.fields.map(f => in.AdtDestructor(expr, f)(expr.info))
+        for {
+          eV <- ctx.expression(expr)
+          discr = discriminator(clause.name, clause.adtT.name, eV)(pos, info, errT)
+          rec <- sequence((destructorOverExp zip patternArgs) map { case (e, p) => translateMatchPatternCheck(e,p)(ctx)} )
+        } yield vu.bigAnd(discr +: rec)(pos, info, errT)
     }
   }
 
-  def translateMatchPatternDeclarations(ctx: Context)(expr: in.Expr, pattern: in.MatchPattern): Option[CodeWriter[vpr.Seqn]] = {
+  /**
+    * Assign(_, e) -> nop
+    * Assign(`v`, e) -> nop
+    * Assign(x, e) -> var x = [e]
+    * Assign(C{f1: p1, ...}, e) -> Assign(p1, e.f1); Assign(p2, e.f2); ...
+    *
+    */
+  def translateMatchPatternDeclarations(expr: in.Expr, pattern: in.MatchPattern)(ctx: Context): CodeWriter[vpr.Seqn] = {
     val (mPos, mInfo, mErrT) = pattern.vprMeta
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
+
     pattern match {
+      case _ : in.MatchValue | _: in.MatchWildcard => unit(vu.nop(mPos, mInfo, mErrT))
+
       case in.MatchBindVar(name, typ) =>
         val t = ctx.typ(typ)
-
-        val writer = for {
-          e <- goE(expr)
+        for {
+          e <- ctx.expression(expr)
           v = vpr.LocalVarDecl(name, t)(mPos, mInfo, mErrT)
           a = vpr.LocalVarAssign(vpr.LocalVar(name, t)(mPos, mInfo, mErrT), e)(mPos, mInfo, mErrT)
         } yield vpr.Seqn(Seq(a), Seq(v))(mPos, mInfo, mErrT)
 
-        Some(writer)
 
       case in.MatchAdt(clause, exprs) =>
-        val inDeconstructors = clause.fields.map(f => in.AdtDestructor(expr, f)(pattern.info))
-        val recAss: Vector[CodeWriter[vpr.Seqn]] =
-          inDeconstructors.zip(exprs) map {case (e, p) => translateMatchPatternDeclarations(ctx)(e,p)} collect {case Some(s) => s}
-        val assignments: Vector[vpr.Seqn] = recAss map {a => a.res}
-        val reduced = assignments.foldLeft(vpr.Seqn(Seq(), Seq())(mPos, mInfo, mErrT))(
-          {case (l, r) => vpr.Seqn(l.ss ++ r .ss, l.scopedDecls ++ r.scopedDecls)(mPos, mInfo, mErrT)}
-        )
-        Some(unit(reduced))
-
-      case _ : in.MatchValue | _: in.MatchWildcard => None
+        val destructorOverExp = clause.fields.map(f => in.AdtDestructor(expr, f)(pattern.info))
+        val recAss = (destructorOverExp zip exprs) map { case (e, p) => translateMatchPatternDeclarations(e,p)(ctx) }
+        sequence(recAss).map(vpr.Seqn(_, Seq.empty)(mPos, mInfo, mErrT))
     }
   }
 
-  def translatePatternMatch(ctx: Context)(s: in.PatternMatchStmt): CodeWriter[vpr.Stmt] = {
-    val expr = s.exp
-    val cases = s.cases
+  /**
+    * AssignIn(_, e, z) -> z
+    * AssignIn(`v`, e, z) -> z
+    * AssignIn(x, e, z) -> let x == ([e]) in z
+    * AssignIn(C{f1: p1, ...}, e, z) -> AssignIn(p1, e.f1, AssignIn(p2, e.f2, ...z))
+    *
+    */
+  def declareIn(e: in.Expr, p: in.MatchPattern, z: vpr.Exp)(ctx: Context): CodeWriter[vpr.Exp] = {
+    val (pos, info, errT) = p.vprMeta
 
-    val (sPos, sInfo, sErrT) = s.vprMeta
+    p match {
+      case _: in.MatchValue | _: in.MatchWildcard => unit(z)
+      case in.MatchBindVar(name, typ) =>
+        for {
+          eV <- ctx.expression(e)
+        } yield vpr.Let(vpr.LocalVarDecl(name, ctx.typ(typ))(pos, info, errT), eV, z)(pos, info, errT)
 
-    val checkExVarDecl = vpr.LocalVarDecl(ctx.freshNames.next(), vpr.Bool)(sPos, sInfo, sErrT)
-    val checkExVar = checkExVarDecl.localVar
-    val initialExVar = unit(vpr.LocalVarAssign(checkExVar, vpr.FalseLit()(sPos, sInfo, sErrT))(sPos, sInfo, sErrT))
-    def exErr(ass: vpr.Stmt): ErrorTransformer = {
-      case e@err.AssertFailed(Source(info), _, _) if e causedBy ass => MatchError(info)
-    }
-
-    val assertWithError = for {
-      a <- unit(vpr.Assert(vpr.EqCmp(checkExVar, vpr.TrueLit()(sPos, sInfo, sErrT))(sPos, sInfo, sErrT))(sPos, sInfo, sErrT))
-      _ <- errorT(exErr(a))
-    } yield a
-
-    def setExVar(p: vpr.Position, i: vpr.Info, e: vpr.ErrorTrafo) =
-      unit(vpr.LocalVarAssign(checkExVar, vpr.TrueLit()(p,i,e))(p,i,e))
-
-    def translateCase(c: in.PatternMatchCaseStmt): CodeWriter[vpr.Stmt] = {
-      val (cPos, cInfo, cErrT) = c.vprMeta
-
-      val assignments = translateMatchPatternDeclarations(ctx)(expr, c.mExp)
-
-      val (ass: Seq[vpr.Stmt], decls: Seq[vpr.Declaration]) =
-        if (assignments.isDefined) {
-          val w = assignments.get.res
-          (w.ss, w.scopedDecls)
-        } else {
-          (Seq(), Seq())
-        }
-      for {
-        check <- translateMatchPatternCheck(ctx)(expr, c.mExp)
-        exVar <- setExVar(cPos, cInfo, cErrT)
-        body  <- seqn(ctx.statement(c.body))
-      } yield vpr.If(vpr.And(check, vpr.Not(checkExVar)(cPos, cInfo, cErrT))(cPos, cInfo, cErrT),
-        vpr.Seqn(exVar +: (ass :+ body), decls)(cPos, cInfo, cErrT), vpr.Seqn(Seq(), Seq())(cPos, cInfo, cErrT))(cPos, cInfo, cErrT)
-    }
-
-    if (s.strict) {
-      for {
-        init <- initialExVar
-        cs <- sequence(cases map translateCase)
-        a <- assertWithError
-      } yield vpr.Seqn(init +: cs :+ a, Seq(checkExVarDecl))(sPos, sInfo, sErrT)
-    } else {
-      for {
-        init <- initialExVar
-        cs <- sequence(cases map translateCase)
-      } yield vpr.Seqn(init +: cs, Seq(checkExVarDecl))(sPos, sInfo, sErrT)
+      case in.MatchAdt(clause, expr) =>
+        val destructorOverExp = clause.fields.map(f => in.AdtDestructor(e, f)(e.info))
+        (destructorOverExp zip expr).foldRight(unit(z))((des, acc) => for {
+          v <- acc
+          d <- declareIn(des._1, des._2, v)(ctx)
+        } yield d)
     }
   }
 

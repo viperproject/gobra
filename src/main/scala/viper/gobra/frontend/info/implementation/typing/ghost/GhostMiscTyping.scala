@@ -135,8 +135,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
               }
             }
 
-           (matchingSignature and matchingPure and receiverHasMethod and rightShape)
-             .asReason(n, "invalid method of an implementation proof")
+            (matchingSignature and matchingPure and receiverHasMethod and rightShape)
+              .asReason(n, "invalid method of an implementation proof")
 
           case e => Violation.violation(s"expected a method signature of an interface, but got $e")
         }

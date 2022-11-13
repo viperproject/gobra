@@ -31,24 +31,24 @@ case class Program(
 }
 
 class LookupTable(
-                   private val definedTypes: Map[(String, Addressability), Type] = Map.empty,
-                   private val definedMethods: Map[MethodProxy, MethodLikeMember] = Map.empty,
-                   private val definedFunctions: Map[FunctionProxy, FunctionLikeMember] = Map.empty,
-                   private val definedMPredicates: Map[MPredicateProxy, MPredicateLikeMember] = Map.empty,
-                   private val definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember] = Map.empty,
-                   private val definedFuncLiterals: Map[FunctionLitProxy, FunctionLitLike] = Map.empty,
+                   private[internal] val definedTypes: Map[(String, Addressability), Type] = Map.empty,
+                   private[internal] val definedMethods: Map[MethodProxy, MethodLikeMember] = Map.empty,
+                   private[internal] val definedFunctions: Map[FunctionProxy, FunctionLikeMember] = Map.empty,
+                   private[internal] val definedMPredicates: Map[MPredicateProxy, MPredicateLikeMember] = Map.empty,
+                   private[internal] val definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember] = Map.empty,
+                   private[internal] val definedFuncLiterals: Map[FunctionLitProxy, FunctionLitLike] = Map.empty,
 
                    /**
                    * only has to be defined on types that implement an interface // might change depending on how embedding support changes
                    * SortedSet is used to achieve a consistent ordering of members across runs of Gobra
                    */
-                   private val directMemberProxies: Map[Type, SortedSet[MemberProxy]] = Map.empty,
+                   private[internal] val directMemberProxies: Map[Type, SortedSet[MemberProxy]] = Map.empty,
                    /**
                    * empty interface does not have to be included
                    * SortedSet is used to achieve a consistent ordering of members across runs of Gobra
                    */
-                   private val directInterfaceImplementations: Map[InterfaceT, SortedSet[Type]] = Map.empty,
-                   private val implementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy] = Map.empty,
+                   private[internal] val directInterfaceImplementations: Map[InterfaceT, SortedSet[Type]] = Map.empty,
+                   private[internal] val implementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy] = Map.empty,
                  ) {
   def lookup(t: DefinedT): Type = definedTypes(t.name, t.addressability)
   def lookup(m: MethodProxy): MethodLikeMember = definedMethods(m)
@@ -1063,6 +1063,11 @@ case class ShiftRight(left: Expr, right: Expr)(val info: Source.Parser.Info) ext
 }
 case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation
 
+/*
+ * Convert 'expr' to non-interface type 'newType'. If 'newType' is
+ * an interface type, then 'ToInterface' should be used instead.
+ */
+ // TODO: maybe unify with ToInterface at some point
 case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = newType
 }

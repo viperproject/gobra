@@ -1,8 +1,8 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-//@ initEnsures PackageMem()
-//@ initEnsures forall t Type :: 0 <= t && t < MaxType ==> !Registered(t)
+// @ initEnsures PackageMem()
+// @ initEnsures forall t Type :: 0 <= t && t < MaxType ==> !Registered(t)
 package path
 
 /*@
@@ -12,8 +12,8 @@ ghost const MaxType = 256
 var (
 	// the original code uses an array of length 256,
 	// but arrays of custom types are not yet supported
-	registeredPaths []Metadata
-	strictDecoding  bool = true
+	registeredPaths/*@@@*/ []Metadata
+	strictDecoding/*@@@*/ bool = true
 )
 
 type Type uint8
@@ -59,14 +59,14 @@ func init() {
 
 // RegisterPath registers a new path type globally.
 // The type passed in must be unique, or a runtime panic will occur.
-//@ requires 0 <= pathMeta.Typ && pathMeta.Typ < MaxType
-//@ requires PackageMem()
-//@ requires !Registered(pathMeta.Typ)
-//@ ensures  PackageMem()
-//@ ensures  forall t Type :: 0 <= t && t < MaxType ==>
-//@ 	t != pathMeta.Typ ==> old(Registered(t)) == Registered(t)
-//@ ensures  Registered(pathMeta.Typ)
-//@ decreases
+// @ requires 0 <= pathMeta.Typ && pathMeta.Typ < MaxType
+// @ requires PackageMem()
+// @ requires !Registered(pathMeta.Typ)
+// @ ensures  PackageMem()
+// @ ensures  forall t Type :: 0 <= t && t < MaxType ==>
+// @ 	t != pathMeta.Typ ==> old(Registered(t)) == Registered(t)
+// @ ensures  Registered(pathMeta.Typ)
+// @ decreases
 func RegisterPath(pathMeta Metadata) {
 	//@ unfold PackageMem()
 	pm := registeredPaths[pathMeta.Typ]

@@ -7,10 +7,11 @@
 package viper.gobra.translator.transformers
 import viper.gobra.backend.BackendVerifier
 import viper.silver.ast.utility.ImpureAssumeRewriter
+import viper.silver.verifier.AbstractError
 import viper.silver.{ast => vpr}
 
 class AssumeTransformer extends ViperTransformer {
-  override def transform(task: BackendVerifier.Task): BackendVerifier.Task = {
+  override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
     val progWithoutAssumes = {
       val uncleanProg = ImpureAssumeRewriter.rewriteAssumes(task.program)
       // FIXME: required due to inconvenient silver assume rewriter
@@ -21,6 +22,6 @@ class AssumeTransformer extends ViperTransformer {
       uncleanProg.copy(domains = cleanedDomains)(uncleanProg.pos, uncleanProg.info, uncleanProg.errT)
     }
 
-    task.copy(program = progWithoutAssumes)
+    Right(task.copy(program = progWithoutAssumes))
   }
 }

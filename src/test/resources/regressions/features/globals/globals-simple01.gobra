@@ -15,10 +15,10 @@ import (
 	"sync"
 )
 
-var A int = 0
-var B, C = f()
+var A@ int = 0
+var B@, C@ = f()
 var _ = g()
-var D struct{}
+var D@ struct{}
 
 decreases
 func f() (int, bool)

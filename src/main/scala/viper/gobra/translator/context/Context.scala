@@ -77,6 +77,8 @@ trait Context {
 
   def initialization(x: in.Location): CodeWriter[vpr.Stmt] = typeEncoding.initialization(this)(x)
 
+  def allocation(x: in.Location): CodeWriter[vpr.Stmt] = typeEncoding.allocate(this)(x)
+
   def assignment(x: in.Assignee, rhs: in.Expr)(src: in.Node): CodeWriter[vpr.Stmt] = typeEncoding.assignment(this)(x, rhs, src)
 
   def equal(lhs: in.Expr, rhs: in.Expr)(src: in.Node): CodeWriter[vpr.Exp] = typeEncoding.equal(this)(lhs, rhs, src)
@@ -94,6 +96,8 @@ trait Context {
   def postcondition(x: in.Assertion): MemberWriter[vpr.Exp] = typeEncoding.postcondition(this)(x)
 
   def reference(x: in.Location): CodeWriter[vpr.Exp] = typeEncoding.reference(this)(x)
+
+  def value(x: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.value(this)(x)
 
   def footprint(x: in.Location, perm: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.addressFootprint(this)(x, perm)
 

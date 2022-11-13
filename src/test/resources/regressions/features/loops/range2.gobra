@@ -15,10 +15,9 @@ func foo() {
 	// this invariant is also automatically generated but
 	// only after the next one which causes the next one to fail
 	// in such a case, the user must provide it himself
-	invariant 0 <= z[1] && z[1] <= len(x)
-	invariant forall k int :: 0 <= k && k < z[1] ==> max >= x[k]
-	decreases len(x) - z[1]
-	for z[1], y[2] = range x {
+	invariant forall k int :: 0 <= k && k < i0 ==> max >= x[k]
+	decreases len(x) - i0
+	for z[1], y[2] = range x with i0 {
 		if y[2] > max {
 			max = y[2]
 		}
@@ -32,20 +31,20 @@ func foo2() {
 	var i uint
 	var j int
 	invariant acc(x)
-	decreases len(x) - j
-	for j, _ = range x {
+	decreases len(x) - i0
+	for j, _ = range x with i0 {
 	}
 	invariant acc(x)
-	for _ = range x {
+	for _ = range x with _ {
 	}
 	invariant acc(x)
 	for _, i = range x {
 	}
 	invariant acc(x)
-	for j = range x {
+	for j = range x with i0 {
 	}
 	invariant acc(x)
-	for _ = range x {
+	for _ = range x with i0 {
 		continue
 		break
 	}

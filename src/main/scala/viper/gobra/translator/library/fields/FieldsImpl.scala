@@ -16,13 +16,14 @@ class FieldsImpl extends Fields {
 
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = _fieldGenerator.finalize(addMemberFn)
 
-  private val _fieldGenerator: PrimitiveGenerator.PrimitiveGenerator[vpr.Type, vpr.Field] =
+  private val _fieldGenerator: PrimitiveGenerator.PrimitiveGenerator[(String, vpr.Type), vpr.Field] =
     PrimitiveGenerator.simpleGenerator(
-      (t: vpr.Type) => {
-        val f = vpr.Field(name = Names.pointerField(t), typ = t)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+      (st: (String, vpr.Type)) => {
+        val f = vpr.Field(name = st._1, typ = st._2)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
         (f, Vector(f))
       }
     )
 
-  override def field(t: in.Type)(ctx: Context): vpr.Field = _fieldGenerator(ctx.typ(t))
+  override def field(t: in.Type)(ctx: Context): vpr.Field =
+    _fieldGenerator(Names.serializeType(t), ctx.typ(t))
 }

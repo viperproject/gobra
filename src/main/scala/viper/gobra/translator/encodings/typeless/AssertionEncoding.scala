@@ -67,7 +67,7 @@ class AssertionEncoding extends Encoding {
       val (pos, info, errT) = n.vprMeta
       for {
         newTriggers <- sequence(triggers map (trigger(_)(ctx)))
-        newBody <- ctx.assertion(body)
+        newBody <- pure(ctx.assertion(body))(ctx)
         newForall = vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT)
         desugaredForall = vpr.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(newForall)
         triggeredForall = desugaredForall.map(_.autoTrigger)

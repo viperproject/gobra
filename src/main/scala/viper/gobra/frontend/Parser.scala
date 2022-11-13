@@ -44,9 +44,20 @@ object Parser {
   def parse(input: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val sources = input
       .map(Gobrafier.gobrafy)
+      .map(s => {
+        config.reporter report PreprocessedInputMessage(s.name, () => s.content)
+        s
+      })
     for {
       parseAst <- parseSources(sources, pkgInfo, specOnly)(config)
-      postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
+      postprocessors = Seq(
+        new ImportPostprocessor(parseAst.positions.positions),
+        new TerminationMeasurePostprocessor(parseAst.positions.positions, specOnly),
+      )
+      postprocessedAst <- postprocessors.foldLeft[Either[Vector[VerifierError], PPackage]](Right(parseAst)) {
+        case (Right(ast), postprocessor) => postprocessor.postprocess(ast)(config)
+        case (e, _) => e
+      }
     } yield postprocessedAst
   }
 
@@ -210,8 +221,18 @@ object Parser {
   }
 
 
+  trait Postprocessor extends PositionedRewriter {
+    /** this PositionedAstNode contains a subset of the utility functions found in ParseTreeTranslator.PositionedAstNode */
+    implicit class PositionedAstNode[N <: AnyRef](node: N) {
+      def at(other: PNode): N = {
+        positions.dupPos(other, node)
+      }
+    }
 
-  private class ImportPostprocessor(override val positions: Positions) extends PositionedRewriter {
+    def postprocess(pkg: PPackage)(config: Config): Either[Vector[VerifierError], PPackage]
+  }
+
+  private class ImportPostprocessor(override val positions: Positions) extends Postprocessor {
     /**
       * Replaces all PQualifiedWoQualifierImport by PQualifiedImport nodes
       */
@@ -229,8 +250,7 @@ object Parser {
           qualifierName <- PackageResolver.getQualifier(n)(config)
           // create a new PIdnDef node and set its positions according to the old node (PositionedRewriter ensures that
           // the same happens for the newly created PExplicitQualifiedImport)
-          idnDef = PIdnDef(qualifierName)
-          _ = pkg.positions.positions.dupPos(n, idnDef)
+          idnDef = PIdnDef(qualifierName).at(n)
         } yield PExplicitQualifiedImport(idnDef, n.importPath, n.importPres)
         // record errors:
         qualifier.left.foreach(errorMsg => failedNodes = failedNodes ++ createError(n, errorMsg))
@@ -250,19 +270,60 @@ object Parser {
         // note that the resolveImports strategy could be embedded in e.g. a logfail strategy to report a
         // failed strategy application
         val updatedImports = rewrite(topdown(attempt(resolveImports)))(prog.imports)
-        val updatedProg = PProgram(prog.packageClause, prog.initPosts, updatedImports, prog.declarations)
-        pkg.positions.positions.dupPos(prog, updatedProg)
+        PProgram(prog.packageClause, prog.initPosts, updatedImports, prog.declarations).at(prog)
       })
       // create a new package node with the updated programs
-      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info)
-      pkg.positions.positions.dupPos(pkg, updatedPkg)
+      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg)
       // check whether an error has occurred
       if (failedNodes.isEmpty) Right(updatedPkg)
       else Left(failedNodes)
     }
   }
 
+  private class TerminationMeasurePostprocessor(override val positions: Positions, specOnly: Boolean) extends Postprocessor {
+    /**
+      * if `specOnly` is set to true, this postprocessor replaces all tuple termination measures specified for pure functions
+      * or pure methods by wildcard termination measures while maintaining their condition (if any). Note that termination
+      * measures specified for interface methods remain untouched.
+      *
+      * These steps ensure that termination of imported pure functions and pure methods is not checked again (in case
+      * a decreases measure has been provided) and instead gets simply assumed.
+      *
+      * Note that we do not transform the body of pure functions and pure methods (e.g. by turning the body into a
+      * postcondition) because this would result in a matching loop for recursive functions.
+      */
+    def postprocess(pkg: PPackage)(config: Config): Either[Vector[VerifierError], PPackage] = {
+      if (specOnly) replaceTerminationMeasures(pkg) else Right(pkg)
+    }
 
+    private def replaceTerminationMeasures(pkg: PPackage): Either[Vector[VerifierError], PPackage] = {
+      def replace(spec: PFunctionSpec): PFunctionSpec = {
+        val replacedMeasures = spec.terminationMeasures.map {
+          case n@PTupleTerminationMeasure(_, cond) => PWildcardMeasure(cond).at(n)
+          case t => t
+        }
+        PFunctionSpec(spec.pres, spec.preserves, spec.posts, replacedMeasures, spec.isPure, spec.isTrusted)
+      }
+
+      val replaceTerminationMeasuresForFunctionsAndMethods: Strategy =
+        strategyWithName[Any]("replaceTerminationMeasuresForFunctionsAndMethods", {
+          // apply transformation only to the specification of function or method declaration (in particular, do not
+          // apply the transformation to method signatures in interface declarations)
+          case n: PFunctionDecl => Some(PFunctionDecl(n.id, n.args, n.result, replace(n.spec), n.body))
+          case n: PMethodDecl => Some(PMethodDecl(n.id, n.receiver, n.args, n.result, replace(n.spec), n.body))
+          case n: PMember => Some(n)
+        })
+
+      val updatedProgs = pkg.programs.map(prog => {
+        // apply the replaceTerminationMeasuresForFunctionsAndMethods to declarations until the strategy has succeeded
+        // (i.e. has reached PMember nodes) and stop then
+        val updatedDecls = rewrite(alltd(replaceTerminationMeasuresForFunctionsAndMethods))(prog.declarations)
+        PProgram(prog.packageClause, prog.initPosts, prog.imports, updatedDecls).at(prog)
+      })
+      // create a new package node with the updated programs
+      Right(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg))
+    }
+  }
 
   private class SyntaxAnalyzer[Rule <: ParserRuleContext, Node <: AnyRef](tokens: CommonTokenStream, source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean = false) extends GobraParser(tokens){
 

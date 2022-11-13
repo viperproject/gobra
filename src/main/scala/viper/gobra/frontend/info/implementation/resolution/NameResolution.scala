@@ -47,9 +47,9 @@ trait NameResolution {
           case decl: PVarDecl if isGlobalVarDeclaration(decl) =>
             val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
             StrictAssignMode(decl.left.size, decl.right.size) match {
-              case AssignMode.Single => GlobalVariable(decl, idx, Some(decl.right(idx)), decl.typ, isGhost, isSingleModeDecl = true, this)
-              case AssignMode.Multi  => GlobalVariable(decl, idx, decl.right.headOption, decl.typ, isGhost, isSingleModeDecl = false,  this)
-              case _ if decl.right.isEmpty => GlobalVariable(decl, idx, None, decl.typ, isGhost, isSingleModeDecl = true, this)
+              case AssignMode.Single => GlobalVariable(decl, idx, Some(decl.right(idx)), decl.typ, isGhost, decl.addressable(idx), isSingleModeDecl = true,  this)
+              case AssignMode.Multi  => GlobalVariable(decl, idx, decl.right.headOption, decl.typ, isGhost, decl.addressable(idx), isSingleModeDecl = false, this)
+              case _ if decl.right.isEmpty => GlobalVariable(decl, idx, None, decl.typ, isGhost, decl.addressable(idx), isSingleModeDecl = true, this)
               case _ => UnknownEntity()
             }
           case decl: PVarDecl =>
@@ -115,7 +115,7 @@ trait NameResolution {
 
           case decl: PShortForRange =>
             val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
-            RangeVariable(idx, decl.range, isGhost, addressable = false, this) // TODO: check if range variables are addressable in Go
+            RangeVariable(idx, decl.range, isGhost, addressable = decl.addressable(idx), this)
 
           case decl: PSelectShortRecv =>
             val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
@@ -126,6 +126,8 @@ trait NameResolution {
               case AssignMode.Multi => MultiLocalVariable(idx, decl.recv, isGhost, addressable = false, this)
               case _ => UnknownEntity()
             }
+          case decl: PRange =>
+            RangeEnumerateVariable(decl, isGhost, this)
 
           case _ => violation("unexpected parent of unknown id")
         }

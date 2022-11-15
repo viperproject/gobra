@@ -172,7 +172,7 @@ object Desugar {
 
     private val nm = new NameManager
 
-    private val MapExhalePermDenom = 1000000
+    private val MapExhalePermDenom = 200000000
 
     type Identity = (Meta, TypeInfo)
 

@@ -98,6 +98,13 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitProofStatement(GobraParser.ProofStatementContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code matchStmt_}
+	 * labeled alternative in {@link GobraParser#ghostStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMatchStmt_(GobraParser.MatchStmt_Context ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#auxiliaryStatement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -236,6 +243,18 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitRange(GobraParser.RangeContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#matchExpr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMatchExpr(GobraParser.MatchExprContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#matchExprClause}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMatchExprClause(GobraParser.MatchExprClauseContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#seqUpdExp}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -313,6 +332,51 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitAssertion(GobraParser.AssertionContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#matchStmt}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMatchStmt(GobraParser.MatchStmtContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#matchStmtClause}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMatchStmtClause(GobraParser.MatchStmtClauseContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#matchCase}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMatchCase(GobraParser.MatchCaseContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code matchPatternBind}
+	 * labeled alternative in {@link GobraParser#matchPattern}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMatchPatternBind(GobraParser.MatchPatternBindContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code matchPatternComposite}
+	 * labeled alternative in {@link GobraParser#matchPattern}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMatchPatternComposite(GobraParser.MatchPatternCompositeContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code matchPatternValue}
+	 * labeled alternative in {@link GobraParser#matchPattern}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMatchPatternValue(GobraParser.MatchPatternValueContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#matchPatternList}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMatchPatternList(GobraParser.MatchPatternListContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#blockWithBodyParameterInfo}.
 	 * @param ctx the parse tree

@@ -957,7 +957,6 @@ case class PMatchExp(exp: PExpression, clauses: Vector[PMatchExpClause]) extends
   val caseClauses: Vector[PMatchExpCase] = clauses collect {case c: PMatchExpCase => c}
   val defaultClauses: Vector[PMatchExpDefault] = clauses collect {case c: PMatchExpDefault => c}
   val hasDefault: Boolean = defaultClauses.length == 1
-  val hasNoDefault: Boolean = defaultClauses.isEmpty
 }
 
 sealed trait PMatchExpClause extends PGhostMisc with PScope {

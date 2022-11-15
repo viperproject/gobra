@@ -298,7 +298,7 @@ class AdtEncoding extends LeafTypeEncoding {
     val checkExVar = checkExVarDecl.localVar
 
     // b := false
-    val initialExVar = unit(vpr.LocalVarAssign(checkExVar, vpr.FalseLit()(sPos, sInfo, sErrT))(sPos, sInfo, sErrT))
+    val initialExVar = vpr.LocalVarAssign(checkExVar, vpr.FalseLit()(sPos, sInfo, sErrT))(sPos, sInfo, sErrT)
 
     // b := true
     def setExVar(p: vpr.Position, i: vpr.Info, e: vpr.ErrorTrafo): Writer[vpr.LocalVarAssign] =
@@ -319,12 +319,12 @@ class AdtEncoding extends LeafTypeEncoding {
     }
 
     for {
-      init <- initialExVar
+      _ <- local(checkExVarDecl)
+      _ <- write(initialExVar)
       cs <- sequence(s.cases map translateCase)
-      _ <- if (s.strict) {
-        assert(vpr.EqCmp(checkExVar, vpr.TrueLit()(sPos, sInfo, sErrT))(sPos, sInfo, sErrT), (info, _) => MatchError(info))
-      } else unit(())
-    } yield vpr.Seqn(init +: cs, Seq(checkExVarDecl))(sPos, sInfo, sErrT)
+      _ <- write(cs: _*)
+      _ <- if (s.strict) assert(checkExVar, (info, _) => MatchError(info)) else unit(())
+    } yield vu.nop(sPos, sInfo, sErrT)
   }
 
   /**

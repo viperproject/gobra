@@ -15,6 +15,6 @@ type T interface {
 }
 
 func test2(t T) {
-	//:: ExpectedOutput(precondition_error)
+	//:: ExpectedOutput(receive_error:permission_error)
 	<-t.getC()
 }

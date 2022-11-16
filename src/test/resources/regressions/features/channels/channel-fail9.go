@@ -3,18 +3,19 @@
 
 package pkg
 
-func c() <-chan struct{}
+// @ ensures res.RecvChannel() && res.RecvGivenPerm()()
+func c() (res <-chan struct{})
 
 func test1() {
-	//:: ExpectedOutput(precondition_error)
 	<-c()
 }
 
 type T interface {
-	getC() <-chan struct{}
+	// @ ensures res.RecvChannel() && res.RecvGivenPerm()()
+	getC() (res <-chan struct{})
 }
 
+// @ requires t != nil
 func test2(t T) {
-	//:: ExpectedOutput(receive_error:permission_error)
 	<-t.getC()
 }

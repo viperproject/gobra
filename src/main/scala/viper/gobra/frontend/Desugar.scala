@@ -552,7 +552,7 @@ object Desugar {
       val (args, argSubs) = argsWithSubs.unzip
 
       val captured = decl match {
-        case d: PClosureDecl => info.capturedVariables(d)
+        case d: PClosureDecl => info.capturedLocalVariables(d)
         case _ => Vector.empty
       }
       val capturedWithSubs = captured map capturedVarD
@@ -684,7 +684,7 @@ object Desugar {
       val (args, _) = argsWithSubs.unzip
 
       val captured = decl match {
-        case d: PClosureDecl => info.capturedVariables(d)
+        case d: PClosureDecl => info.capturedLocalVariables(d)
         case _ => Vector.empty
       }
       val capturedWithSubs = captured map capturedVarD

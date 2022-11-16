@@ -266,10 +266,11 @@ trait Enclosing { this: TypeInfoImpl =>
     }
   }
 
-  override def capturedVariables(decl: PClosureDecl): Vector[PIdnNode] =
+  override def capturedLocalVariables(decl: PClosureDecl): Vector[PIdnNode] =
     capturedVariablesAttr(tree.parent(decl).head.asInstanceOf[PFunctionLit])
   private lazy val capturedVariablesAttr: PFunctionLit => Vector[PIdnNode] = {
     def capturedVar(x: PIdnNode, lit: PFunctionLit): Boolean = entity(x) match {
+      case _: SymbolTable.GlobalVariable => false
       case r: SymbolTable.Variable => !containedIn(enclosingScope(r.rep), lit)
       case _ => false
     }

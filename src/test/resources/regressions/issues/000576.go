@@ -6,7 +6,9 @@ package main
 var x /*@@@*/ int = 1
 
 func test() {
-	f := func /*@ g @*/ () int {
-		return x
-	}
+	f :=
+		// @ requires acc(&x, _)
+		func /*@ g @*/ () int {
+			return x
+		}
 }

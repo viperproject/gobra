@@ -1574,6 +1574,10 @@ object Desugar {
               // create temporary local variables to assign them the expression in `w.res`
               val targetTypes = info.typ(e) match {
                 case InternalTupleT(ts) => ts
+                case InternalSingleMulti(s, _) =>
+                  // when an expression that can yield a single or multiple return values depending on the context
+                  // is executed as a stmt, we consider only the single return value
+                  Vector(s)
                 case t => Vector(t)
               }
               val targets = targetTypes.map(typ => freshExclusiveVar(typeD(typ, Addressability.exclusiveVariable)(src), stmt, info)(src))

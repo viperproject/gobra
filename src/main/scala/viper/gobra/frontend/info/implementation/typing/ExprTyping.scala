@@ -218,7 +218,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       literalAssignableTo.errors(lit, simplifiedT)(n)
 
     case f: PFunctionLit =>
-      capturedVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
+      capturedLocalVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
         wellDefVariadicArgs(f.args) ++
         f.id.fold(noMessages)(id => wellDefID(id).out)
 

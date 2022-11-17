@@ -374,7 +374,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
           isImported = isImported,
           isBuiltIn = isBuiltIn)
       // Consider the enclosing function, for closure declarations
-      case p: PClosureDecl => getMemberInformation(nodeTypeInfo.enclosingFunction(p).get, typeInfo, viperMember)
+      case p: PClosureDecl => getMemberInformation(nodeTypeInfo.enclosingFunctionOrMethod(p).get, typeInfo, viperMember)
       // Fallback to the node's code root if we can't match the node
       case p: PNode => getMemberInformation(nodeTypeInfo.codeRoot(p), typeInfo, viperMember)
     }

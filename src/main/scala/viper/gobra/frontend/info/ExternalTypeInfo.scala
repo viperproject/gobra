@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info
 
-import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PGeneralForStmt, PFunctionDecl, PIdnNode, PIdnUse, PKeyedElement, PLabelUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
+import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PFunctionDecl, PFunctionOrMethodDecl, PGeneralForStmt, PIdnNode, PIdnUse, PKeyedElement, PLabelUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMemberTag
 import viper.gobra.frontend.info.base.Type.{AbstractType, InterfaceT, StructT, Type}
@@ -103,6 +103,9 @@ trait ExternalTypeInfo {
 
   /** if it exists, it returns the function that contains n */
   def enclosingFunction(n: PNode): Option[PFunctionDecl]
+
+  /** if it exists, it returns the function or method that contains n */
+  def enclosingFunctionOrMethod(n: PNode): Option[PFunctionOrMethodDecl]
 
   /** if it exists, it returns the for loop node that contains 'n' with label 'label' */
   def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PGeneralForStmt]

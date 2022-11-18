@@ -135,8 +135,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   // They generate a unique PIdnNode whose name starts with "_" to not overlap any other identifiers
   private val goIdnDef = PIdnNodeEx(PIdnDef, term => Some(uniqueWildcard(PIdnDef, term).at(term)))
   private val goIdnDefList = PIdnNodeListEx(goIdnDef)
-  private val goIdnUnk = PIdnNodeEx(PIdnUnk, term => Some(uniqueWildcard(PIdnUnk, term).at(term)))
-  private val goIdnUnkList = PIdnNodeListEx(goIdnUnk)
 
   def uniqueWildcard[N](constructor : String => N, term : TerminalNode) : N = constructor("_"+term.getSymbol.getTokenIndex)
   //endregion

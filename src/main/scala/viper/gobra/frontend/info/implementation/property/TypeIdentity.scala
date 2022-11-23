@@ -54,6 +54,8 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
 
       case (PointerT(l), PointerT(r)) => identicalTypes(l, r)
 
+      case (SortT, SortT) => true
+
       case (FunctionT(larg, lr), FunctionT(rarg, rr)) =>
         larg.size == rarg.size && larg.zip(rarg).forall {
           case (l, r) => identicalTypes(l, r)

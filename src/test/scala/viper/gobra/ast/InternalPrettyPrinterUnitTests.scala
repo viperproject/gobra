@@ -150,28 +150,28 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   test("Printer: should correctly show an integer sequence type") {
     val t = sequenceT(intT)
     frontend.show(t) should matchPattern {
-      case "seq[int°]" =>
+      case "seq[int°]°" =>
     }
   }
 
   test("Printer: should correctly show a nested sequence type") {
     val t = sequenceT(sequenceT(sequenceT(boolT)))
     frontend.show(t) should matchPattern {
-      case "seq[seq[seq[bool°]°]°]" =>
+      case "seq[seq[seq[bool°]°]°]°" =>
     }
   }
 
   test("Printer: should correctly show an integer set type") {
     val t = setT(intT)
     frontend.show(t) should matchPattern {
-      case "set[int°]" =>
+      case "set[int°]°" =>
     }
   }
 
   test("Printer: should correctly show a nested set type") {
     val t = setT(setT(setT(boolT)))
     frontend.show(t) should matchPattern {
-      case "set[set[set[bool°]°]°]" =>
+      case "set[set[set[bool°]°]°]°" =>
     }
   }
 
@@ -522,14 +522,14 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   test("Printer: should correctly show a simple integer multiset type") {
     val typ = multisetT(intT)
     frontend.show(typ) should matchPattern {
-      case "mset[int°]" =>
+      case "mset[int°]°" =>
     }
   }
 
   test("Printer: should correctly show a nested multiset type") {
     val typ = multisetT(multisetT(boolT))
     frontend.show(typ) should matchPattern {
-      case "mset[mset[bool°]°]" =>
+      case "mset[mset[bool°]°]°" =>
     }
   }
 
@@ -1046,7 +1046,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "[1]seq[int°]° { 0:seq[int] { } }" =>
+      case "[1]seq[int°]° { 0:seq[int°] { } }" =>
     }
   }
 
@@ -1126,7 +1126,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val exp = OptionNone(sequenceT(intT))(Internal)
 
     frontend.show(exp) should matchPattern {
-      case "none[seq[int°]°]°" =>
+      case "none[seq[int°]°]" =>
     }
   }
 

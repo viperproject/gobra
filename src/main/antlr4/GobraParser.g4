@@ -128,7 +128,7 @@ access: ACCESS L_PAREN expression (COMMA expression)? R_PAREN;
 
 range: kind=(SEQ | SET | MSET) L_BRACKET expression DOT_DOT expression R_BRACKET;
 
-matchExpr: MATCH expression L_CURLY matchExprClause* R_CURLY;
+matchExpr: MATCH expression L_CURLY (matchExprClause eos)* R_CURLY;
 matchExprClause: matchCase COLON expression;
 
 // Added directly to primaryExpr

@@ -1,0 +1,50 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+type tree adt{
+  leaf{ value int }
+  node{ left, right tree }
+}
+
+func test1() {
+  ghost var x tree
+  ghost y := leaf{value: 3}
+  assert y == leaf{3}
+  assert y.value == 3
+  assert y.isleaf
+}
+
+func test2(x tree) {
+  var y int
+  match x {
+    case node{leaf{5}, _}: y = 4
+    case _: y = 3
+  }
+
+  assert y >= 3
+}
+
+func test3() {
+    x := node{leaf{3},node{leaf{4}, leaf{5}}}
+    ghost var q int
+    match x {
+      case node{_, node{leaf{?z}, _}}: q = z
+    }
+    assert q == 4
+}
+
+func test4() {
+    x := node{leaf{3},node{leaf{4}, leaf{5}}}
+    assert 4 == match x { case node{_, node{leaf{?z}, _}}: z }
+
+    assert 4 == match x {
+          case node{_, node{leaf{?z}, _}}: z
+        }
+
+    assert 4 == match x {
+          case node{_, node{leaf{?z}, _}}: z
+          case _: 600
+        }
+}

@@ -56,7 +56,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         case t: AdtClauseT =>
           val fieldTypes = fields map typ
           val clauseFieldTypes = t.decl.args.flatMap(f => f.fields).map(f => symbType(f.typ))
-          fieldTypes.zip(clauseFieldTypes).flatMap(a => assignableTo.errors(a)(m))
+          error(m, s"Expected ${clauseFieldTypes.size} patterns, but got ${fieldTypes.size}", clauseFieldTypes.size != fieldTypes.size) ++
+            fieldTypes.zip(clauseFieldTypes).flatMap(a => assignableTo.errors(a)(m))
         case _ => violation("Pattern matching only works on ADT Literals")
       }
       case PMatchValue(lit) => isPureExpr(lit)
@@ -287,30 +288,23 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     w match {
       case tree.parent(p) => p match {
         case PMatchAdt(c, fields) =>
-          val index = fields indexWhere { w eq _ }
+          val index = fields indexWhere {
+            w eq _
+          }
           val adtClauseT = underlyingType(typeSymbType(c)).asInstanceOf[AdtClauseT]
-          val field = adtClauseT.decl.args.flatMap(f => f.fields)(index)
-          typeSymbType(field.typ)
+          val flatFields = adtClauseT.decl.args.flatMap(f => f.fields)
+          if (index < flatFields.size) {
+            val field = flatFields(index)
+            typeSymbType(field.typ)
+          } else UnknownType // Error is found when PMatchADT is checked higher up the ADT
 
-        case p: PMatchExpCase => p match {
-          case tree.parent(pa) => pa match {
-            case PMatchExp(e, _) => exprType(e)
-            case _ => ???
-          }
-          case _ => ???
-        }
+        case tree.parent.pair(_: PMatchExpCase, m: PMatchExp) => exprType(m.exp)
+        case tree.parent.pair(_: PMatchStmtCase, m: PMatchStatement) => exprType(m.exp)
 
-        case p: PMatchStmtCase => p match {
-          case tree.parent(pa) => pa match {
-            case PMatchStatement(e, _, _) => exprType(e)
-            case _ => ???
-          }
-          case _ => ???
-        }
-        case _ => ???
+        case _ => Violation.violation("Found wildcard with unexpected root in wildcardMatchType")
       }
 
-      case _ => ???
+      case _ => Violation.violation(s"Did not find root for wildcard in wildcardMatchType")
     }
   }
 }

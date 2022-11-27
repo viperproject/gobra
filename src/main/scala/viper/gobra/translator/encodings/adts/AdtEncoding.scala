@@ -405,11 +405,11 @@ class AdtEncoding extends LeafTypeEncoding {
   /**
     * Assign(_, e) -> nop
     * Assign(`v`, e) -> nop
-    * Assign(x, e) -> var x = [e]
+    * Assign(x, e) -> var x; x = [e]
     * Assign(C{f1: p1, ...}, e) -> Assign(p1, e.f1); Assign(p2, e.f2); ...
     *
     */
-  def translateMatchPatternDeclarations(expr: in.Expr, pattern: in.MatchPattern)(ctx: Context): CodeWriter[vpr.Seqn] = {
+  def translateMatchPatternDeclarations(expr: in.Expr, pattern: in.MatchPattern)(ctx: Context): CodeWriter[vpr.Stmt] = {
     val (mPos, mInfo, mErrT) = pattern.vprMeta
 
     pattern match {
@@ -420,8 +420,9 @@ class AdtEncoding extends LeafTypeEncoding {
         for {
           e <- ctx.expression(expr)
           v = vpr.LocalVarDecl(name, t)(mPos, mInfo, mErrT)
+          _ <- local(v) // definition of locals is propagated to body of match case
           a = vpr.LocalVarAssign(vpr.LocalVar(name, t)(mPos, mInfo, mErrT), e)(mPos, mInfo, mErrT)
-        } yield vpr.Seqn(Seq(a), Seq(v))(mPos, mInfo, mErrT)
+        } yield a
 
 
       case in.MatchAdt(clause, exprs) =>

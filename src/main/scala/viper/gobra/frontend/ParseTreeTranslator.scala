@@ -565,7 +565,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   override def visitMatchCase(ctx: MatchCaseContext): PMatchPattern = {
     visitChildren(ctx) match {
-      case Vector("default") => PMatchWildcard().at(ctx)
+      case "default" => PMatchWildcard().at(ctx)
       case Vector("case", p: PMatchPattern) => p
     }
   }

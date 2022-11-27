@@ -48,3 +48,13 @@ func test4() {
           case _: 600
         }
 }
+
+requires n == 1
+func test5(n int) {
+  v := match n {
+    case 1: leaf{}
+    default: node{}
+  }
+
+  assert v == leaf{}
+}

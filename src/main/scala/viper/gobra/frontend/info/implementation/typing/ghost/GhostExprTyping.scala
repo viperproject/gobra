@@ -123,8 +123,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case m@PMatchExp(exp, clauses) =>
-      val types: Vector[Type] = clauses map { c => exprType(c.exp) }
-      val sameTypeE = error(exp, s"All clauses has to be of the same type but got $types", !types.foldLeft(true)({ case (acc, next) => acc && assignableTo(next, types.head) }))
+      val sameTypeE = allMergeableTypes.errors(clauses map { c => exprType(c.exp) })(exp)
       val patternE = m.caseClauses.flatMap(c => c.pattern match {
         case PMatchAdt(clause, _) => assignableTo.errors(symbType(clause), exprType(exp))(c)
         case _ => comparableTypes.errors((miscType(c.pattern), exprType(exp)))(c)
@@ -254,7 +253,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"expected an option type, but got $t")
     }
 
-    case m: PMatchExp => if (m.clauses.isEmpty) exprType(m.defaultClauses.head.exp) else exprType(m.caseClauses.head.exp)
+    case m: PMatchExp =>
+      if (m.clauses.isEmpty) exprType(m.defaultClauses.head.exp)
+      else typeMergeAll(m.clauses map { c => exprType(c.exp) }).get
 
     case expr : PGhostCollectionExp => expr match {
       // The result of integer ghost expressions is unbounded (UntypedConst)

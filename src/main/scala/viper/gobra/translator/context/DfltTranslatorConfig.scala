@@ -9,6 +9,7 @@ package viper.gobra.translator.context
 import viper.gobra.ast.internal.GlobalVarDecl
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.encodings._
+import viper.gobra.translator.encodings.adts.AdtEncoding
 import viper.gobra.translator.encodings.arrays.ArrayEncoding
 import viper.gobra.translator.encodings.channels.ChannelEncoding
 import viper.gobra.translator.encodings.closures.ClosureEncoding
@@ -65,7 +66,7 @@ class DfltTranslatorConfig(
     new SafeTypeEncodingCombiner(Vector(
       new BoolEncoding, new IntEncoding, new PermissionEncoding,
       new PointerEncoding, new StructEncoding, arrayEncoding, new ClosureEncoding, new InterfaceEncoding,
-      new SequenceEncoding, new SetEncoding, new OptionEncoding, new DomainEncoding,
+      new SequenceEncoding, new SetEncoding, new OptionEncoding, new DomainEncoding, new AdtEncoding,
       new SliceEncoding(arrayEncoding), new PredEncoding, new ChannelEncoding, new StringEncoding,
       new MapEncoding, new MathematicalMapEncoding, new FloatEncoding,
       new AssertionEncoding, new CallEncoding, new MemoryEncoding, new ControlEncoding,

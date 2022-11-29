@@ -166,6 +166,13 @@ object Names {
   // domain
   def dfltDomainValue(domainName: String): String = s"dflt$domainName"
 
+  // adt
+  def dfltAdtValue(adtName: String): String = s"${adtName}_dflt"
+  def tagAdtFunction(adtName: String): String = s"${adtName}_tag"
+  def destructorAdtName(adtName: String, argumentName: String) = s"${adtName}_$argumentName"
+  def constructorAdtName(adtName: String, clause: String) = s"${adtName}_$clause"
+  def adtClauseTagFunction(adtName: String, clause: String): String = s"${adtName}_${clause}_tag"
+
   // unknown values
   def unknownValuesDomain: String = "UnknownValueDomain"
   def unknownValueFunc: String = "unknownValue"

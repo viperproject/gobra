@@ -44,6 +44,74 @@ trait MemberResolution { this: TypeInfoImpl =>
   override def createMPredSpec(spec: PMPredicateSig): MPredicateSpec =
     defEntity(spec.id).asInstanceOf[MPredicateSpec]
 
+  // Struct Fields
+
+  private val fieldSuffix: Type => AdvancedMemberSet[StructMember] = {
+
+    def go(pastDeref: Boolean): Type => AdvancedMemberSet[StructMember] = attr[Type, AdvancedMemberSet[StructMember]] {
+
+      case DeclaredT(decl, context) => go(pastDeref)(context.symbType(decl.right)).surface
+      case PointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
+
+      case s: StructT =>
+        val (es, fs) = (s.decl.embedded, s.decl.fields)
+        AdvancedMemberSet.init[StructMember](fs map s.context.createField) union AdvancedMemberSet.init(es map s.context.createEmbbed)
+
+      case _ => AdvancedMemberSet.empty
+    }
+
+    go(pastDeref = false)
+  }
+
+  val structMemberSet: Type => AdvancedMemberSet[StructMember] =
+    attr[Type, AdvancedMemberSet[StructMember]] {
+      case Single(t) => fieldSuffix(t) union pastPromotions(fieldSuffix)(t)
+      case _ => AdvancedMemberSet.empty
+    }
+
+  // ADT
+
+  /** Destructors and discriminator induced by adt clause */
+  private def adtClauseMemberSet(decl: PAdtClause, adtDecl: PAdtType, ctx: ExternalTypeInfo): AdvancedMemberSet[AdtMember] = {
+    val fields = decl.args.flatMap(_.fields).map(f => AdtDestructor(f, adtDecl, ctx))
+    val discriminator = AdtDiscriminator(decl, adtDecl, ctx)
+    AdvancedMemberSet.init[AdtMember](discriminator +: fields)
+  }
+
+  /**
+    * Destructors and discriminators induced by adt clauses of adt types.
+    * The implementation is the same as [[fieldSuffix]], except the case for ADTs.
+    **/
+  private val adtSuffix: Type => AdvancedMemberSet[AdtMember] = {
+
+    def go(pastDeref: Boolean): Type => AdvancedMemberSet[AdtMember] = attr[Type, AdvancedMemberSet[AdtMember]] {
+
+      case DeclaredT(decl, context) => go(pastDeref)(context.symbType(decl.right)).surface
+      case PointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
+
+      case t: AdtT =>
+        val clauseMemberSets = t.decl.clauses.map(adtClauseMemberSet(_, t.decl, t.context))
+        AdvancedMemberSet.union(clauseMemberSets)
+
+      case t: AdtClauseT =>
+        val fields = t.decl.args.flatMap(_.fields).map(f => AdtDestructor(f, t.adtT, t.context))
+        val discriminator = AdtDiscriminator(t.decl, t.adtT, t.context)
+        AdvancedMemberSet.init[AdtMember](discriminator +: fields)
+
+      case _ => AdvancedMemberSet.empty
+    }
+
+    go(pastDeref = false)
+  }
+
+  val adtMemberSet: Type => AdvancedMemberSet[AdtMember] =
+    attr[Type, AdvancedMemberSet[AdtMember]] {
+      case Single(t) => adtSuffix(t) union pastPromotions(adtSuffix)(t)
+      case _ => AdvancedMemberSet.empty
+    }
+
+  // Methods
+
   private lazy val receiverMethodSetMap: Map[Type, AdvancedMemberSet[TypeMember]] = {
     tree.root.declarations
       .collect {
@@ -71,6 +139,8 @@ trait MemberResolution { this: TypeInfoImpl =>
     receiverMethodSetMap.getOrElse(recv, AdvancedMemberSet.empty) union
       builtInReceiverMethodSet(recv)
 
+  // Predicates
+
   private lazy val receiverPredicateSetMap: Map[Type, AdvancedMemberSet[TypeMember]] = {
     tree.root.declarations
       .collect { case m: PMPredicateDecl => createMPredImpl(m) }
@@ -95,8 +165,12 @@ trait MemberResolution { this: TypeInfoImpl =>
     receiverPredicateSetMap.getOrElse(recv, AdvancedMemberSet.empty) union
       builtInReceiverPredicateSet(recv)
 
+  // Methods + Predicates
+
   lazy val receiverSet: Type => AdvancedMemberSet[TypeMember] =
     attr[Type, AdvancedMemberSet[TypeMember]] (t => receiverMethodSet(t) union receiverPredicateSet(t))
+
+  // Interfaces
 
   lazy val interfaceMethodSet: InterfaceT => AdvancedMemberSet[TypeMember] =
     attr[InterfaceT, AdvancedMemberSet[TypeMember]] {
@@ -114,6 +188,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         }
     }
 
+  // Promotion
 
   private def pastPromotions[M <: TypeMember](cont: Type => AdvancedMemberSet[M]): Type => AdvancedMemberSet[M] = {
 
@@ -136,33 +211,12 @@ trait MemberResolution { this: TypeInfoImpl =>
     go(pastDeref = false)
   }
 
-  private val fieldSuffix: Type => AdvancedMemberSet[StructMember] = {
-
-    def go(pastDeref: Boolean): Type => AdvancedMemberSet[StructMember] = attr[Type, AdvancedMemberSet[StructMember]] {
-
-      case DeclaredT(decl, context) => go(pastDeref)(context.symbType(decl.right)).surface
-      case PointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
-
-      case s: StructT =>
-        val (es, fs) = (s.decl.embedded, s.decl.fields)
-        AdvancedMemberSet.init[StructMember](fs map s.context.createField) union AdvancedMemberSet.init(es map s.context.createEmbbed)
-
-      case _ => AdvancedMemberSet.empty
-    }
-
-    go(pastDeref = false)
-  }
-
-  val structMemberSet: Type => AdvancedMemberSet[StructMember] =
-    attr[Type, AdvancedMemberSet[StructMember]] {
-      case Single(t) => fieldSuffix(t) union pastPromotions(fieldSuffix)(t)
-      case _ => AdvancedMemberSet.empty
-    }
+  // Methodsets
 
   private val pastPromotionsMethodSuffix: Type => AdvancedMemberSet[TypeMember] =
     attr[Type, AdvancedMemberSet[TypeMember]] {
       case t: InterfaceT => interfaceMethodSet(t)
-      case pt@ PointerT(t) => receiverSet(pt) union receiverSet(t).ref
+      case pt@PointerT(t) => receiverSet(pt) union receiverSet(t).ref
       case t => receiverSet(t) union receiverSet(PointerT(t)).deref
     }
 
@@ -186,18 +240,32 @@ trait MemberResolution { this: TypeInfoImpl =>
       case _ => AdvancedMemberSet.empty
     }
 
+  /**
+    * Returns the memberset of type `t` within the specific context.
+    * The purpose of this method is that typecheckers of other packages access it to compute [[memberSet]].
+    **/
   override def localMemberSet(t: Type): AdvancedMemberSet[TypeMember] = {
     nonAddressableMethodSet(t)
   }
 
+  /** Returns the memberset of type `t`. */
   override def memberSet(t: Type): AdvancedMemberSet[TypeMember] = {
     val context = getMethodReceiverContext(t)
     context.localMemberSet(t)
   }
 
+  // Lookups
+
   def tryFieldLookup(t: Type, id: PIdnUse): Option[(StructMember, Vector[MemberPath])] =
     structMemberSet(t).lookupWithPath(id.name)
 
+  def tryAdtMemberLookup(t: Type, id: PIdnUse): Option[(AdtMember, Vector[MemberPath])] =
+    adtMemberSet(t).lookupWithPath(id.name)
+
+  /** Resolves `e`.`id`.
+    * @return _1: Methods accessible if e is addressable.
+    *         _2: Methods accessible if e is not addressable.
+    **/
   def tryMethodLikeLookup(e: PExpression, id: PIdnUse):
     (Option[(TypeMember, Vector[MemberPath])], Option[(TypeMember, Vector[MemberPath])]) = {
     // check whether e is well-defined:
@@ -213,6 +281,8 @@ trait MemberResolution { this: TypeInfoImpl =>
     context.tryNonAddressableMethodLikeLookup(e, id)
   }
 
+  def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = tryMethodLikeLookup(typeSymbType(e), id)
+
   @tailrec
   private def getMethodReceiverContext(t: Type): ExternalTypeInfo = {
     Single.unapply(t) match {
@@ -222,69 +292,19 @@ trait MemberResolution { this: TypeInfoImpl =>
     }
   }
 
-  def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = tryMethodLikeLookup(typeSymbType(e), id)
-
-  def tryPackageLookup(importTarget: AbstractImport, id: PIdnUse, errNode: PNode): Option[(Entity, Vector[MemberPath])] = {
-    val foreignPkgResult = for {
-      typeChecker <- getTypeChecker(importTarget, errNode)
-      entity = typeChecker.externalRegular(id)
-    } yield entity
-    foreignPkgResult.fold(
-      msgs => Some((ErrorMsgEntity(msgs), Vector())),
-      m => m.flatMap(m => Some((m, Vector())))
-    )
-  }
-
-  private def parseAndTypeCheck(importTarget: AbstractImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
-    val pkgSources = PackageResolver.resolveSources(importTarget)(config)
-      .getOrElse(Vector())
-      .map(_.source)
-    val res = for {
-      nonEmptyPkgSources <- if (pkgSources.isEmpty)
-        Left(Vector(NotFoundError(s"No source files for package '$importTarget' found")))
-      else Right(pkgSources)
-      parsedProgram <- Parser.parse(nonEmptyPkgSources, Source.getPackageInfo(nonEmptyPkgSources.head, config.projectRoot), specOnly = true)(config)
-      // TODO maybe don't check whole file but only members that are actually used/imported
-      // By parsing only declarations and their specification, there shouldn't be much left to type check anyways
-      // Info.check would probably need some restructuring to type check only certain members
-      info <- Info.check(parsedProgram, nonEmptyPkgSources, context)(config)
-    } yield info
-    res.fold(
-      errs => context.addErrenousPackage(importTarget, errs)(config),
-      info => context.addPackage(importTarget, info)(config)
-    )
-    res
-  }
-
-  def getTypeChecker(importTarget: AbstractImport, errNode: PNode): Either[Messages, ExternalTypeInfo] = {
-    def createImportError(errs: Vector[VerifierError]): Messages = {
-      // create an error message located at the import statement to indicate errors in the imported package
-      // we distinguish between parse and type errors, cyclic imports, and packages whose source files could not be found
-      val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
-      // alternativeErr is a function to compute the message only when needed
-      val alternativeErr = () => context.getImportCycle(importTarget) match {
-        case Some(cycle) => message(errNode, s"Package '$importTarget' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
-        case _ => message(errNode, s"Package '$importTarget' contains errors: $errs")
-      }
-      notFoundErr.map(e => message(errNode, e.message))
-        .getOrElse(alternativeErr())
-    }
-
-    // check if package was already parsed, otherwise do parsing and type checking:
-    val cachedInfo = context.getTypeInfo(importTarget)(config)
-    cachedInfo.getOrElse(parseAndTypeCheck(importTarget)).left.map(createImportError)
-  }
-
+  /** resolve `b`.`id` */
   def tryDotLookup(b: PExpressionOrType, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
     exprOrType(b) match {
-      case Left(expr) =>
+      case Left(expr) => // base is an expression
         val (addr, nonAddr) = tryMethodLikeLookup(expr, id)
         lazy val isGoEffAddressable = goEffAddressable(expr)
         lazy val isEffAddressable = effAddressable(expr)
 
         if (addr.isEmpty && nonAddr.isEmpty) {
           // could not find the corresponding member
-          tryFieldLookup(exprType(expr), id)
+          val rcvTyp = exprType(expr)
+          tryFieldLookup(rcvTyp, id) // try to resolve id as struct field
+            .orElse(tryAdtMemberLookup(rcvTyp, id))  // try to resolve id as adt field or discriminator
         } else if (isEffAddressable && addr.nonEmpty) {
           addr
         } else if (!isEffAddressable && nonAddr.nonEmpty) {
@@ -301,12 +321,10 @@ trait MemberResolution { this: TypeInfoImpl =>
         } else {
           Violation.violation(s"unexpected case reached: $expr")
         }
-      case Right(typ) =>
-        val methodLikeAttempt = tryMethodLikeLookup(typ, id)
-        if (methodLikeAttempt.isDefined) methodLikeAttempt
-        else typeSymbType(typ) match {
+      case Right(typ) => // base is a type
+        typeSymbType(typ) match {
           case pkg: ImportT => tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl)
-          case _ => None
+          case t => tryMethodLikeLookup(t, id)
         }
     }
   }
@@ -344,6 +362,18 @@ trait MemberResolution { this: TypeInfoImpl =>
     tryPackageLookup(BuiltInImport, id, id).map(_._1)
 
   def tryUnqualifiedRegularPackageLookup(id: PIdnUse): Entity = {
+
+    def transitiveClosure[T](t: T, onestep: T => Vector[T]): Relation[T, T] = {
+      // fromOneStep creates a new relation in which all links from t to the root are contained in
+      val links = Relation.fromOneStep(t, onestep)
+      // create a new relation that consists of the image of links but only has t as its domain:
+      val relation = new Relation[T, T]
+      for (pair <- links.pairs) {
+        relation.put(t, pair._2)
+      }
+      relation
+    }
+
     val transitiveParent = transitiveClosure(id, tree.parent(_))
     val entities = for {
       // get enclosing PProgram for this PIdnUse node
@@ -360,20 +390,57 @@ trait MemberResolution { this: TypeInfoImpl =>
     }
   }
 
-  def transitiveClosure[T](t : T, onestep : T => Vector[T]): Relation[T, T] = {
-    // fromOneStep creates a new relation in which all links from t to the root are contained in
-    val links = Relation.fromOneStep(t, onestep)
-    // create a new relation that consists of the image of links but only has t as its domain:
-    val relation = new Relation[T, T]
-    for (pair <- links.pairs) {
-      relation.put(t, pair._2)
-    }
-    relation
+
+  /** lookup `id` in package `importTarget`. `errNode` is used as offending node. */
+  def tryPackageLookup(importTarget: AbstractImport, id: PIdnUse, errNode: PNode): Option[(Entity, Vector[MemberPath])] = {
+    val foreignPkgResult = for {
+      typeChecker <- getTypeChecker(importTarget, errNode)
+      entity = typeChecker.externalRegular(id)
+    } yield entity
+    foreignPkgResult.fold(
+      msgs => Some((ErrorMsgEntity(msgs), Vector())),
+      m => m.flatMap(m => Some((m, Vector())))
+    )
   }
 
+  // TODO: move this method to another file
+  def getTypeChecker(importTarget: AbstractImport, errNode: PNode): Either[Messages, ExternalTypeInfo] = {
+    def parseAndTypeCheck(importTarget: AbstractImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
+      val pkgSources = PackageResolver.resolveSources(importTarget)(config)
+        .getOrElse(Vector())
+        .map(_.source)
+      val res = for {
+        nonEmptyPkgSources <- if (pkgSources.isEmpty)
+          Left(Vector(NotFoundError(s"No source files for package '$importTarget' found")))
+        else Right(pkgSources)
+        parsedProgram <- Parser.parse(nonEmptyPkgSources, Source.getPackageInfo(nonEmptyPkgSources.head, config.projectRoot), specOnly = true)(config)
+        // TODO maybe don't check whole file but only members that are actually used/imported
+        // By parsing only declarations and their specification, there shouldn't be much left to type check anyways
+        // Info.check would probably need some restructuring to type check only certain members
+        info <- Info.check(parsedProgram, nonEmptyPkgSources, context)(config)
+      } yield info
+      res.fold(
+        errs => context.addErrenousPackage(importTarget, errs)(config),
+        info => context.addPackage(importTarget, info)(config)
+      )
+      res
+    }
 
-  def findField(t: Type, id: PIdnUse): Option[StructMember] =
-    structMemberSet(t).lookup(id.name)
+    def createImportError(errs: Vector[VerifierError]): Messages = {
+      // create an error message located at the import statement to indicate errors in the imported package
+      // we distinguish between parse and type errors, cyclic imports, and packages whose source files could not be found
+      val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
+      // alternativeErr is a function to compute the message only when needed
+      val alternativeErr = () => context.getImportCycle(importTarget) match {
+        case Some(cycle) => message(errNode, s"Package '$importTarget' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
+        case _ => message(errNode, s"Package '$importTarget' contains errors: $errs")
+      }
+      notFoundErr.map(e => message(errNode, e.message))
+        .getOrElse(alternativeErr())
+    }
 
-
+    // check if package was already parsed, otherwise do parsing and type checking:
+    val cachedInfo = context.getTypeInfo(importTarget)(config)
+    cachedInfo.getOrElse(parseAndTypeCheck(importTarget)).left.map(createImportError)
+  }
 }

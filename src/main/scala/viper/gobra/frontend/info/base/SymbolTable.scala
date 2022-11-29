@@ -255,6 +255,35 @@ object SymbolTable extends Environments[Entity] {
     override val result: PResult = decl.result
   }
 
+  case class MatchVariable(decl: PMatchBindVar, p: PNode, context: ExternalTypeInfo) extends GhostVariable {
+    override def rep: PNode = decl
+
+    override def addressable: Boolean = false
+  }
+
+  case class AdtClause(decl: PAdtClause, adtDecl: PAdtType, context: ExternalTypeInfo) extends GhostRegular {
+    override def rep: PNode = decl
+
+    def getName: String = decl.id.name
+
+    val fields: Vector[PFieldDecl] = decl.args.flatMap(f => f.fields)
+  }
+
+  sealed trait AdtMember extends GhostTypeMember {
+    def getName: String
+  }
+
+  case class AdtDestructor(decl: PFieldDecl, adtType: PAdtType, context: ExternalTypeInfo) extends AdtMember {
+    override def rep: PNode = decl
+
+    override def getName: String = decl.id.name
+  }
+
+  case class AdtDiscriminator(decl: PAdtClause, adtType: PAdtType, context: ExternalTypeInfo) extends AdtMember {
+    override def rep: PNode = decl
+
+    override def getName: String = s"is${decl.id.name}"
+  }
 
   /**
     * entities for built-in members

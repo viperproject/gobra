@@ -132,6 +132,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: GlobalConstDecl => showGlobalConstDecl(n)
     case n: GlobalVarDecl => showGlobalVarDecl(n)
     case n: BuiltInMember => showBuiltInMember(n)
+    case n: AdtDefinition => showAdtDefinition(n)
   })
   
   def showTerminationMeasure(measure: TerminationMeasure): Doc = {
@@ -237,6 +238,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case DomainAxiom(expr) =>  "axiom" <+> block(showExpr(expr))
   })
 
+  def showAdtDefinition(n: AdtDefinition): Doc = updatePositionStore(n) <> (
+    n.name <+> block(ssep(n.clauses map showAdtClause, line))
+    )
+
+  def showAdtClause(clause: AdtClause): Doc = updatePositionStore(clause) <> (clause match {
+    case AdtClause(name, args) => name.name <+> block(ssep(args map showField, line))
+  })
+
   def showTypeDecl(t: DefinedT): Doc =
     "type" <+> t.name <+> "..." <> line
 
@@ -332,6 +341,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Unfold(acc) => "unfold" <+> showAss(acc)
     case PackageWand(wand, block) => "package" <+> showAss(wand) <+> opt(block)(showStmt)
     case ApplyWand(wand) => "apply" <+> showAss(wand)
+    case PatternMatchStmt(exp, cases, _) => "match" <+>
+      showExpr(exp) <+> block(ssep(cases map showPatternMatchCaseStmt, line))
     case Send(channel, msg, _, _, _) => showExpr(channel) <+> "<-" <+> showExpr(msg)
     case SafeReceive(resTarget, successTarget, channel, _, _, _, _) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> "<-" <+> showExpr(channel)
@@ -354,6 +365,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case FPredicateProxy(name) => name
     case MPredicateProxy(name, _) => name
     case FunctionLitProxy(name) => name
+    case AdtClauseProxy(name, _) => name
     case l: LabelProxy => l.name
   })
 
@@ -397,6 +409,17 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Assignee.Field(f) => showExpr(f)
     case Assignee.Index(e) => showExpr(e)
   })
+
+  def showPatternMatchCaseStmt(c: PatternMatchCaseStmt): Doc = "case" <+> showMatchPattern(c.mExp) <> ":" <+> nest(showStmt(c.body))
+
+  def showPatternMatchCaseExp(c: PatternMatchCaseExp): Doc = "case" <+> showMatchPattern(c.mExp) <> ":" <+> showExpr(c.exp)
+
+  def showMatchPattern(expr: MatchPattern): Doc = expr match {
+    case MatchBindVar(name, _) => name
+    case MatchAdt(clause, expr) => clause.name <+> "{" <> ssep(expr map showMatchPattern, ",") <> "}"
+    case MatchValue(exp) => "`" <> showExpr(exp) <> "`"
+    case MatchWildcard() => "_"
+  }
 
   // assertions
   def showAss(a: Assertion): Doc = updatePositionStore(a) <> (a match {
@@ -491,6 +514,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case OptionNone(t) => "none" <> brackets(showType(t))
     case OptionSome(exp) => "some" <> parens(showExpr(exp))
     case OptionGet(exp) => "get" <> parens(showExpr(exp))
+
+    case AdtDiscriminator(base, clause) => showExpr(base) <> "." <> showProxy(clause)
+    case AdtDestructor(base, field) => showExpr(base) <> "." <> showField(field)
+    case PatternMatchExp(exp, _, cases, default) => "match" <+> showExpr(exp) <+>
+      block(ssep(cases map showPatternMatchCaseExp, line) <> (if (default.isDefined) line <> "default:" <+> showExpr(default.get) else ""))
 
     case Slice(exp, low, high, max, _) => {
       val maxD = max.map(e => ":" <> showExpr(e)).getOrElse(emptyDoc)
@@ -591,6 +619,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case lit@MathMapLit(_, _, entries) =>
       val entriesDoc = showList(entries){ case (x,y) => showExpr(x) <> ":" <+> showExpr(y) }
       showType(lit.typ) <+> braces(space <> entriesDoc <> (if (entries.nonEmpty) space else emptyDoc))
+
+    case AdtConstructorLit(typ, _, args) => showType(typ) <> braces(showExprList(args))
   }
 
   // variables
@@ -616,35 +646,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // types
 
   def showType(typ : Type) : Doc = typ match {
-    case BoolT(_) => "bool"
-    case IntT(_, kind) => kind.name
-    case StringT(_) => "string"
-    case Float32T(_) => "float32"
-    case Float64T(_) => "float64"
-    case VoidT => "void"
-    case FunctionT(args, res, _) => "func" <>  parens(showTypeList(args)) <> parens(showTypeList(res))
-    case PermissionT(_) => "perm"
-    case DefinedT(name, _) => name
-    case PointerT(t, _) => "*" <> showType(t)
-    case TupleT(ts, _) => parens(showTypeList(ts))
-    case PredT(args, _) => "pred" <> parens(showTypeList(args))
-    case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
-    case i: InterfaceT => "interface" <> parens("name is " <> i.name)
-    case _: DomainT => "domain" <> parens("...")
-    case ChannelT(elem, _) => "chan" <+> showType(elem)
-    case SortT => "sort"
-    case array : ArrayT => brackets(array.length.toString) <> showType(array.elems)
-    case SequenceT(elem, _) => "seq" <> brackets(showType(elem))
-    case SetT(elem, _) => "set" <> brackets(showType(elem))
-    case MultisetT(elem, _) => "mset" <> brackets(showType(elem))
-    case MathMapT(keys, values, _)  => "dict" <> brackets(showType(keys)) <> showType(values)
-    case OptionT(elem, _) => "option" <> brackets(showType(elem))
-    case SliceT(elem, _) => "[]" <> showType(elem)
-    case MapT(keys, values, _) => "map" <> brackets(showType(keys)) <> showType(values)
+    case t: PrettyType => t.toString
   }
-
-  private def showTypeList[T <: Type](list: Vector[T]): Doc =
-    showList(list)(showType)
 
   def showList[T](list: Seq[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
 
@@ -762,6 +765,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Unfold(acc) => "unfold" <+> showAss(acc)
     case PackageWand(wand, _) => "package" <+> showAss(wand)
     case ApplyWand(wand) => "apply" <+> showAss(wand)
+    case PatternMatchStmt(exp, cases, strict) => (if (strict) "!" else "") <> "match" <+>
+      showExpr(exp) <+> block(ssep(cases map showPatternMatchCaseStmt, line))
     case Send(channel, msg, _, _, _) => showExpr(channel) <+> "<-" <+> showExpr(msg)
     case SafeReceive(resTarget, successTarget, channel, _, _, _, _) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> "<-" <+> showExpr(channel)

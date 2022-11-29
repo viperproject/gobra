@@ -276,6 +276,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PFold(exp) => "fold" <+> showExpr(exp)
       case PPackageWand(wand, blockOpt) => "package" <+> showExpr(wand) <+> opt(blockOpt)(showStmt)
       case PApplyWand(wand) => "apply" <+> showExpr(wand)
+      case PMatchStatement(exp, clauses, _) => "match" <+>
+        showExpr(exp) <+> block(ssep(clauses map showMatchClauseStatement, line))
       case PClosureImplProof(impl, PBlock(stmts)) => "proof" <+> showExpr(impl) <> block(showStmtList(stmts))
     }
   }
@@ -327,6 +329,20 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showRange(n: PRange): Doc = n.enumerated match {
     case _: PWildcard => "range" <+> showExpr(n.exp)
     case _ => "range" <+> showExpr(n.exp) <+> "with" <+> showId(n.enumerated)
+  }
+
+  def showMatchClauseStatement(n: PMatchStmtCase): Doc = "case" <+> showMatchPattern(n.pattern) <> ":" <+> nest(line <> ssep(n.stmt map showStmt, line))
+
+  def showMatchPattern(exp: PMatchPattern): Doc = exp match {
+    case PMatchWildcard() => "_"
+    case PMatchBindVar(idn) => showId(idn)
+    case PMatchAdt(clause, fields) => showType(clause) <> "{" <> ssep(fields map showMatchPattern, ", ") <> "}"
+    case PMatchValue(lit) => "`" <> showExpr(lit) <> "`"
+  }
+
+  def showMatchExpClause(c: PMatchExpClause): Doc = c match {
+    case PMatchExpDefault(_) => "default:"
+    case PMatchExpCase(pattern, _) => "case" <+> showMatchPattern(pattern) <> ":"
   }
 
   // expressions
@@ -503,6 +519,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case POptionSome(e) => "some" <> parens(showExpr(e))
       case POptionGet(e) => "get" <> parens(showExpr(e))
 
+      case PMatchExp(exp, clauses) => "match" <+> showExpr(exp) <+> block(
+        ssep(clauses map { c => showMatchExpClause(c) <+> showExpr(c.exp) }, line))
+
       case expr : PGhostCollectionExp => expr match {
         case PIn(left, right) => showSubExpr(expr, left) <+> "in" <+> showSubExpr(expr, right)
         case PMultiplicity(left, right) => showSubExpr(expr, left) <+> "#" <+> showSubExpr(expr, right)
@@ -620,6 +639,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       "domain" <+> block(
         ssep((funcs ++ axioms) map showMisc, line)
       )
+    case PAdtType(clauses) => "adt" <> block(ssep(clauses map showMisc, line))
   }
 
   def showStructClause(c: PStructClause): Doc = c match {
@@ -683,6 +703,16 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           opt(mip.body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
       case ipa: PImplementationProofPredicateAlias =>
         "pred" <+> showId(ipa.left) <+> ":=" <+> showExprOrType(ipa.right)
+      case PAdtClause(id, args) =>
+        showId(id) <+> block(
+          ssep(args map (decl => {
+            val fields = decl.fields
+            showIdList(fields map (_.id)) <+> showType(fields.head.typ)
+          }), line))
+      case clause: PMatchStmtCase => showMatchClauseStatement(clause)
+      case expr: PMatchPattern => showMatchPattern(expr)
+      case c: PMatchExpDefault => showMatchExpClause(c)
+      case c: PMatchExpCase => showMatchExpClause(c)
     }
   }
 

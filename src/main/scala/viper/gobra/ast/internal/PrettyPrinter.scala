@@ -646,8 +646,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // types
 
   def showType(typ : Type) : Doc = typ match {
-    case MathMapT(keys, values, _)  => "dict" <> brackets(showType(keys)) <> showType(values)
-    case MapT(keys, values, _) => "map" <> brackets(showType(keys)) <> showType(values)
     case t: PrettyType => t.toString
   }
 

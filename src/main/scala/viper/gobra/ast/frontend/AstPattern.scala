@@ -33,7 +33,7 @@ object AstPattern {
   case class GlobalVariable(id: PIdnUse, symb: st.GlobalVariable) extends Expr with Symbolic
   case class Deref(base: PExpression) extends Expr
   case class FieldSelection(base: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.StructMember) extends Expr with Symbolic
-  case class AdtField(base: PExpression, id: PIdnUse, symb: st.AdtMember) extends Expr with Symbolic // TODO: maybe rename
+  case class AdtField(base: PExpression, id: PIdnUse, symb: st.AdtMember) extends Expr with Symbolic
   case class Conversion(typ: PType, arg: PExpression) extends Expr
 
   sealed trait FunctionLikeCall extends Expr {

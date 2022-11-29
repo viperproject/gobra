@@ -254,7 +254,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case m: PMatchExp =>
-      if (m.clauses.isEmpty) exprType(m.defaultClauses.head.exp)
+      if (m.clauses.isEmpty) violation(s"expected that match exp always has a clause, but found none: $m.")
       else typeMergeAll(m.clauses map { c => exprType(c.exp) }).get
 
     case expr : PGhostCollectionExp => expr match {

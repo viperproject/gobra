@@ -3723,7 +3723,7 @@ object Desugar {
       case t: Type.AdtClauseT =>
         val tAdt = Type.AdtT(t.adtT, t.context)
         val adt: in.AdtT = in.AdtT(nm.adt(tAdt), addrMod)
-        val fields: Vector[in.Field] = (t.clauses map { case (key: String, typ: Type) =>
+        val fields: Vector[in.Field] = (t.fields map { case (key: String, typ: Type) =>
           in.Field(nm.adtField(key, tAdt), typeD(typ, Addressability.mathDataStructureElement)(src), true)(src)
         }).toVector
         in.AdtClauseT(idName(t.decl.id, t.context.getTypeInfo), adt, fields, addrMod)

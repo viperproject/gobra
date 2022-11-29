@@ -1406,7 +1406,7 @@ case class SliceT(elems : Type, addressability: Addressability) extends PrettyTy
 /**
   * The (composite) type of maps from type `keys` to type `values`.
   */
-case class MapT(keys: Type, values: Type, addressability: Addressability) extends Type {
+case class MapT(keys: Type, values: Type, addressability: Addressability) extends PrettyType(s"map[$keys]$values") {
   def hasGhostField(k: Type): Boolean = k match {
     case StructT(fields, _) => fields exists (_.ghost)
     case _ => false
@@ -1465,7 +1465,7 @@ case class MultisetT(t : Type, addressability: Addressability) extends PrettyTyp
 /**
   * The type of mathematical maps from `keys` to `values`
   */
-case class MathMapT(keys: Type, values: Type, addressability: Addressability) extends Type {
+case class MathMapT(keys: Type, values: Type, addressability: Addressability) extends PrettyType(s"dict[$keys]$values") {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case MathMapT(otherKeys, otherValues, _) => keys.equalsWithoutMod(otherKeys) && values.equalsWithoutMod(otherValues)
     case _ => false

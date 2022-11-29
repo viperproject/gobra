@@ -58,8 +58,7 @@ object Type {
 
   case class AdtT(decl: PAdtType, context: ExternalTypeInfo) extends Type
 
-  // TODO: rename `clauses` to `fields`
-  case class AdtClauseT(clauses: Map[String, Type], decl: PAdtClause, adtT: PAdtType, context: ExternalTypeInfo) extends Type
+  case class AdtClauseT(fields: Map[String, Type], decl: PAdtClause, adtT: PAdtType, context: ExternalTypeInfo) extends Type
 
   case class MapT(key: Type, elem: Type) extends PrettyType(s"map[$key]$elem")
 

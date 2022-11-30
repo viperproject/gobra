@@ -379,7 +379,7 @@ class BuiltInEncoding extends Encoding {
 
     def accessSlice(sliceExpr: in.Expr, perm: in.Expr): in.Assertion =
       quantify(
-        trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(sliceExpr, i, sliceExpr.typ)(src)))(src)) },
+        trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(sliceExpr, i, sliceExpr.typ)(src))(src)))(src)) },
         range = { i => inRange(i, in.IntLit(0)(src), in.Length(sliceExpr)(src)) },
         body = { i => in.Access(in.Accessible.Address(in.IndexedExp(sliceExpr, i, sliceExpr.typ)(src)), perm)(src) }
       )
@@ -436,13 +436,13 @@ class BuiltInEncoding extends Encoding {
       case (AppendFunctionTag, Vector(_: in.PermissionT, dst, _)) =>
         /**
           * requires p > 0
-          * requires forall i int :: { dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i])
-          * requires forall i int :: { src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
+          * requires forall i int :: { &dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i])
+          * requires forall i int :: { &src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
           * ensures len(res) == len(dst) + len(src)
-          * ensures forall i int :: { res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
-          * ensures forall i int :: { src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
-          * ensures forall i int :: { res[i] } 0 <= i && i < len(dst) ==> res[i] == old(dst[i])
-          * ensures forall i int :: { res[i] } len(dst) <= i && i < len(res) ==> res[i] == src[i - len(dst)]
+          * ensures forall i int :: { &res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
+          * ensures forall i int :: { &src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
+          * ensures forall i int :: { &res[i] } 0 <= i && i < len(dst) ==> res[i] == old(dst[i])
+          * ensures forall i int :: { &res[i] } len(dst) <= i && i < len(res) ==> res[i] == src[i - len(dst)]
           */
         val elemType = ctx.underlyingType(dst) match {
           case t: in.SliceT => t.elems.withAddressability(Addressability.sliceLookup)
@@ -477,7 +477,7 @@ class BuiltInEncoding extends Encoding {
         val postRes = accessSlice(resultParam, in.FullPerm(src))
         val postVariadic = accessSlice(variadicParam, pParam)
         val postCmpSlice = quantify(
-          trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(resultParam, i, sliceType)(src)))(src)) },
+          trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(resultParam, i, sliceType)(src))(src)))(src)) },
           range = { inRange(_, in.IntLit(0)(src), in.Length(sliceParam)(src)) },
           body = {
             i => in.ExprAssertion(
@@ -486,7 +486,7 @@ class BuiltInEncoding extends Encoding {
           }
         )
         val postCmpVariadic = quantify(
-          trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(resultParam, i, sliceType)(src)))(src)) },
+          trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(resultParam, i, sliceType)(src))(src)))(src)) },
           range = { inRange(_,  in.Length(sliceParam)(src), in.Length(resultParam)(src)) },
           body = { i =>
             in.ExprAssertion(

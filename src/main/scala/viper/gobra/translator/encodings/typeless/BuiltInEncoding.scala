@@ -497,7 +497,6 @@ class BuiltInEncoding extends Encoding {
             )(src)
           }
         )
-
         val posts: Vector[in.Assertion] = Vector(postLen, postRes, postVariadic, postCmpSlice, postCmpVariadic)
 
         in.Function(x.name, args, results, pres, posts, Vector(in.WildcardMeasure(None)(src)), None)(src)

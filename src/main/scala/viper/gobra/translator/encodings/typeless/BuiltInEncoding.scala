@@ -441,8 +441,8 @@ class BuiltInEncoding extends Encoding {
           * ensures len(res) == len(dst) + len(src)
           * ensures forall i int :: { &res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
           * ensures forall i int :: { &src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
-          * ensures forall i int :: { &res[i] } 0 <= i && i < len(dst) ==> res[i] == old(dst[i])
-          * ensures forall i int :: { &res[i] } len(dst) <= i && i < len(res) ==> res[i] == src[i - len(dst)]
+          * ensures forall i int :: { &res[i] } 0 <= i && i < len(dst) ==> res[i] === old(dst[i])
+          * ensures forall i int :: { &res[i] } len(dst) <= i && i < len(res) ==> res[i] === src[i - len(dst)]
           */
         val elemType = ctx.underlyingType(dst) match {
           case t: in.SliceT => t.elems.withAddressability(Addressability.sliceLookup)
@@ -481,7 +481,10 @@ class BuiltInEncoding extends Encoding {
           range = { inRange(_, in.IntLit(0)(src), in.Length(sliceParam)(src)) },
           body = {
             i => in.ExprAssertion(
-              in.EqCmp(in.IndexedExp(resultParam, i, sliceType)(src), in.Old(in.IndexedExp(sliceParam, i, sliceType)(src), elemType)(src))(src)
+              in.GhostEqCmp(
+                in.IndexedExp(resultParam, i, sliceType)(src),
+                in.Old(in.IndexedExp(sliceParam, i, sliceType)(src), elemType)(src)
+              )(src)
             )(src)
           }
         )
@@ -490,7 +493,7 @@ class BuiltInEncoding extends Encoding {
           range = { inRange(_,  in.Length(sliceParam)(src), in.Length(resultParam)(src)) },
           body = { i =>
             in.ExprAssertion(
-              in.EqCmp(
+              in.GhostEqCmp(
                 in.IndexedExp(resultParam, i, sliceType)(src),
                 in.IndexedExp(variadicParam, in.Sub(i, in.Length(sliceParam)(src))(src), sliceType)(src),
               )(src)
@@ -510,8 +513,8 @@ class BuiltInEncoding extends Encoding {
           * ensures len(src) < len(dst) ==> res == len(src)
           * ensures forall i int :: { &dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i], write)
           * ensures forall i int :: { &src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
-          * ensures forall i int :: { &dst[i] } (0 <= i && i < len(src) && i < len(dst)) ==> dst[i] == old(src[i])
-          * ensures forall i int :: { &dst[i] } (len(src) <= i && i < len(dst)) ==> dst[i] == old(dst[i])
+          * ensures forall i int :: { &dst[i] } (0 <= i && i < len(src) && i < len(dst)) ==> dst[i] === old(src[i])
+          * ensures forall i int :: { &dst[i] } (len(src) <= i && i < len(dst)) ==> dst[i] === old(dst[i])
           * func copy(dst, src []int, ghost p perm) (res int)
           */
 
@@ -581,7 +584,7 @@ class BuiltInEncoding extends Encoding {
           },
           body = { i =>
             in.ExprAssertion(
-              in.EqCmp(
+              in.GhostEqCmp(
                 in.IndexedExp(dstParam, i, dstUnderlyingType)(src),
                 in.Old(in.IndexedExp(srcParam, i, srcUnderlyingType)(src), srcUnderlyingType.elems)(src)
               )(src)
@@ -593,7 +596,7 @@ class BuiltInEncoding extends Encoding {
           range = { i => inRange(i, in.Length(srcParam)(src), in.Length(dstParam)(src)) },
           body = { i =>
             in.ExprAssertion(
-              in.EqCmp(
+              in.GhostEqCmp(
                 in.IndexedExp(dstParam, i, dstUnderlyingType)(src),
                 in.Old(in.IndexedExp(dstParam, i, dstUnderlyingType)(src), dstUnderlyingType.elems)(src)
               )(src)

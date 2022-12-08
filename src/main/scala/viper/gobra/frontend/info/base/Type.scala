@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
-import viper.gobra.ast.frontend.{PDomainType, PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
+import viper.gobra.ast.frontend.{PAdtClause, PAdtType, PDomainType, PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.util.TypeBounds
 
@@ -55,6 +55,10 @@ object Type {
   case class OptionT(elem : Type) extends PrettyType(s"option[$elem]")
 
   case class DomainT(decl: PDomainType, context: ExternalTypeInfo) extends PrettyType("domain{...}") with ContextualType
+
+  case class AdtT(decl: PAdtType, context: ExternalTypeInfo) extends Type
+
+  case class AdtClauseT(fields: Map[String, Type], decl: PAdtClause, adtT: PAdtType, context: ExternalTypeInfo) extends Type
 
   case class MapT(key: Type, elem: Type) extends PrettyType(s"map[$key]$elem")
 

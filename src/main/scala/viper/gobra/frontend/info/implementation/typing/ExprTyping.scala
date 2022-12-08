@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
-import viper.gobra.frontend.info.base.SymbolTable.{GlobalVariable, SingleConstant}
+import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminator, GlobalVariable, SingleConstant}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
@@ -67,6 +67,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.BuiltInType) => noMessages
         case Some(_: ap.Predicate) => noMessages
         case Some(_: ap.DomainFunction) => noMessages
+        case Some(_: ap.AdtClause) => noMessages
+        case Some(_: ap.AdtField) => noMessages
+
         // TODO: fully supporting packages results in further options: global variable
         // built-in members
         case Some(p: ap.BuiltInReceivedMethod) => memberType(p.symb) match {
@@ -86,7 +89,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t => error(n, s"expected an AbstractType for built-in mpredicate but got $t")
         }
 
-        case _ => error(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression, an imported member or a built-in member, but got $n")
+        case _ => error(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression, adt constructor or discriminator or destructor, an imported member or a built-in member, but got $n")
       }
   }
 
@@ -140,6 +143,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.BuiltInType) => SortT
         case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
         case Some(p: ap.DomainFunction) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
+
+        case Some(p: ap.AdtClause) =>
+          val fields = p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ)).toMap
+          AdtClauseT(fields, p.symb.decl, p.symb.adtDecl, this)
+        case Some(p: ap.AdtField) =>
+          p.symb match {
+            case AdtDestructor(decl, _, context) => context.symbType(decl.typ)
+            case AdtDiscriminator(_, _, _) => BooleanT
+          }
 
         // TODO: fully supporting packages results in further options: global variable
 

@@ -315,6 +315,9 @@ case class DomainFunc(
                        results: Parameter.Out
                      )(val info: Source.Parser.Info) extends Node
 
+case class AdtDefinition(name: String, clauses: Vector[AdtClause])(val info: Source.Parser.Info) extends Member
+case class AdtClause(name: AdtClauseProxy, args: Vector[Field])(val info: Source.Parser.Info) extends Node
+
 sealed trait Stmt extends Node
 
 /** This node serves as a target of encoding extensions. See [[viper.gobra.translator.encodings.combinators.TypeEncoding.Extension]]*/
@@ -464,6 +467,23 @@ case class SafeReceive(resTarget: LocalVar, successTarget: LocalVar, channel: Ex
   */
 case class SafeMapLookup(resTarget: LocalVar, successTarget: LocalVar, mapLookup: IndexedExp)(val info: Source.Parser.Info) extends Stmt
 
+case class PatternMatchExp(exp: Expr, typ: Type, cases: Vector[PatternMatchCaseExp], default: Option[Expr])(val info: Source.Parser.Info) extends Expr
+
+case class PatternMatchCaseExp(mExp: MatchPattern, exp: Expr)(val info: Source.Parser.Info) extends Node
+
+case class PatternMatchStmt(exp: Expr, cases: Vector[PatternMatchCaseStmt], strict: Boolean)(val info: Source.Parser.Info) extends Stmt
+
+case class PatternMatchCaseStmt(mExp: MatchPattern, body: Stmt)(val info: Source.Parser.Info) extends Node
+
+sealed trait MatchPattern extends Node
+
+case class MatchValue(exp: Expr)(val info: Source.Parser.Info) extends MatchPattern
+
+case class MatchBindVar(name: String, typ: Type)(val info: Source.Parser.Info) extends MatchPattern
+
+case class MatchAdt(clause: AdtClauseT, expr: Vector[MatchPattern])(val info: Source.Parser.Info) extends MatchPattern
+
+case class MatchWildcard()(val info: Source.Parser.Info) extends MatchPattern
 
 sealed trait Assertion extends Node
 
@@ -991,6 +1011,14 @@ case class StructUpdate(base: Expr, field: Field, newVal: Expr)(val info: Source
   override val typ: Type = base.typ
 }
 
+case class AdtDestructor(base: Expr, field: Field)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = field.typ
+}
+
+case class AdtDiscriminator(base: Expr, clause: AdtClauseProxy)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = BoolT(Addressability.literal)
+}
+
 sealed trait BoolOperation extends Expr {
   override val typ: Type = BoolT(Addressability.rValue)
 }
@@ -1193,6 +1221,8 @@ case class NewMapLit(target: LocalVar, keys: Type, values: Type, entries: Seq[(E
   val typ : Type = MapT(keys, values, Addressability.literal)
 }
 
+case class AdtConstructorLit(typ: Type, clause: AdtClauseProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
+
 sealed trait Declaration extends Node
 
 /** Everything that is defined with the scope of a code block. */
@@ -1376,7 +1406,7 @@ case class SliceT(elems : Type, addressability: Addressability) extends PrettyTy
 /**
   * The (composite) type of maps from type `keys` to type `values`.
   */
-case class MapT(keys: Type, values: Type, addressability: Addressability) extends Type {
+case class MapT(keys: Type, values: Type, addressability: Addressability) extends PrettyType(s"map[$keys]$values") {
   def hasGhostField(k: Type): Boolean = k match {
     case StructT(fields, _) => fields exists (_.ghost)
     case _ => false
@@ -1435,7 +1465,7 @@ case class MultisetT(t : Type, addressability: Addressability) extends PrettyTyp
 /**
   * The type of mathematical maps from `keys` to `values`
   */
-case class MathMapT(keys: Type, values: Type, addressability: Addressability) extends Type {
+case class MathMapT(keys: Type, values: Type, addressability: Addressability) extends PrettyType(s"dict[$keys]$values") {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case MathMapT(otherKeys, otherValues, _) => keys.equalsWithoutMod(otherKeys) && values.equalsWithoutMod(otherValues)
     case _ => false
@@ -1535,6 +1565,26 @@ case class DomainT(name: String, addressability: Addressability) extends PrettyT
     DomainT(name, newAddressability)
 }
 
+case class AdtT(name: String, addressability: Addressability) extends PrettyType(s"adt{ name is $name }") with TopType {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case o: AdtT => name == o.name
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): Type =
+    AdtT(name, newAddressability)
+}
+
+case class AdtClauseT(name: String, adtT: AdtT, fields: Vector[Field], addressability: Addressability) extends PrettyType(fields.mkString(s"$name{", ", ", "}")) {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case o: AdtClauseT => name == o.name && adtT == o.adtT
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): Type =
+    AdtClauseT(name, adtT, fields, newAddressability)
+}
+
 case class ChannelT(elem: Type, addressability: Addressability) extends PrettyType(s"chan $elem") {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case o: ChannelT => elem == o.elem
@@ -1568,6 +1618,8 @@ sealed trait FunctionMemberOrLitProxy extends Proxy {
 case class FunctionProxy(override val name: String)(val info: Source.Parser.Info) extends FunctionMemberOrLitProxy with CallProxy
 case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends MemberProxy with CallProxy
 case class DomainFuncProxy(name: String, domainName: String)(val info: Source.Parser.Info) extends Proxy
+
+case class AdtClauseProxy(name: String, adtName: String)(val info: Source.Parser.Info) extends Proxy
 
 case class FunctionLitProxy(override val name: String)(val info: Source.Parser.Info) extends FunctionMemberOrLitProxy
 

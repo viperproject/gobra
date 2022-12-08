@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Closure, Constant, DomainFunction, Embbed, Field, Function, Label, Method, Predicate, Variable, WandLhsLabel}
+import viper.gobra.frontend.info.base.SymbolTable.{AdtMember, BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Closure, Constant, DomainFunction, Embbed, Field, Function, Label, Method, Predicate, Variable, WandLhsLabel}
 import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type
@@ -122,10 +122,22 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       error(e, s"expected an option type, but got $t", !t.isInstanceOf[OptionT])
     }
 
+    case m@PMatchExp(exp, clauses) =>
+      val sameTypeE = allMergeableTypes.errors(clauses map { c => exprType(c.exp) })(exp)
+      val patternE = m.caseClauses.flatMap(c => c.pattern match {
+        case PMatchAdt(clause, _) => assignableTo.errors(symbType(clause), exprType(exp))(c)
+        case _ => comparableTypes.errors((miscType(c.pattern), exprType(exp)))(c)
+      })
+      val pureExpE = error(exp, "Expression has to be pure", !isPure(exp)(strong = false))
+      val pureClauses = clauses flatMap { c => error(c.exp, "Expressions of cases have to be pure", !isPure(c.exp)(strong = false)) }
+      val moreThanOneDfltE = error(m, "Match Expression can only have one default case", m.defaultClauses.length > 1)
+      sameTypeE ++ patternE ++ error(clauses, "Cases cannot be empty", clauses.isEmpty) ++ pureExpE ++ moreThanOneDfltE ++ pureClauses
+
     case expr : PGhostCollectionExp => expr match {
       case PIn(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
         underlyingType(exprType(right)) match {
           case t : GhostCollectionType => ghostComparableTypes.errors(exprType(left), t.elem)(expr)
+          case _ : AdtT => noMessages
           case t => error(right, s"expected a ghost collection, but got $t")
         }
       }
@@ -137,7 +149,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
 
-      case PGhostCollectionUpdate(seq, clauses) => isExpr(seq).out ++ (exprType(seq) match {
+      case PGhostCollectionUpdate(seq, clauses) => isExpr(seq).out ++ (underlyingType(exprType(seq)) match {
         case SequenceT(t) => clauses.flatMap(wellDefSeqUpdClause(t, _))
         case MathMapT(k, v) => clauses.flatMap(wellDefMapUpdClause(k, v, _))
         case t => error(seq, s"expected a sequence or mathematical map, but got $t")
@@ -240,6 +252,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case OptionT(t) => t
       case t => violation(s"expected an option type, but got $t")
     }
+
+    case m: PMatchExp =>
+      if (m.clauses.isEmpty) violation(s"expected that match exp always has a clause, but found none: $m.")
+      else typeMergeAll(m.clauses map { c => exprType(c.exp) }).get
 
     case expr : PGhostCollectionExp => expr match {
       // The result of integer ghost expressions is unbounded (UntypedConst)
@@ -443,6 +459,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case POptionSome(e) => go(e)
       case POptionGet(e) => go(e)
 
+      case PMatchExp(e, clauses) => go(e) && clauses.forall(c => go(c.exp))
+
       case PSliceExp(base, low, high, cap) =>
         go(base) && Seq(low, high, cap).flatten.forall(go)
 
@@ -481,6 +499,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case m: BuiltInMethod => m.isPure
       case _: Predicate | _: BuiltInFPredicate | _: BuiltInMPredicate => !strong
       case _: DomainFunction => true
+      case _: AdtMember => true
       case _ => false
     }
   }

@@ -66,6 +66,8 @@ SOME        : 'some'-> mode(NLSEMI);
 GET         : 'get'-> mode(NLSEMI);
 DOM         : 'domain'-> mode(NLSEMI);
 AXIOM       : 'axiom'-> mode(NLSEMI);
+ADT         : 'adt' -> mode(NLSEMI);
+MATCH       : 'match' -> mode(NLSEMI);
 NONE        : 'none' -> mode(NLSEMI);
 PRED        : 'pred';
 TYPE_OF      : 'typeOf'-> mode(NLSEMI);

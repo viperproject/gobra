@@ -83,6 +83,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case (Left(base), Some((s: st.StructMember, path))) => Some(ap.FieldSelection(base, n.id, path, s))
         case (Left(base), Some((s: st.Method, path))) => Some(ap.ReceivedMethod(base, n.id, path, s))
         case (Left(base), Some((s: st.MPredicate, path))) => Some(ap.ReceivedPredicate(base, n.id, path, s))
+        case (Left(base), Some((s: st.AdtMember, _))) => Some(ap.AdtField(base, n.id, s))
 
         case (Right(base), Some((s: st.Method, path))) => Some(ap.MethodExpr(base, n.id, path, s))
         case (Right(base), Some((s: st.MPredicate, path))) => Some(ap.PredicateExpr(base, n.id, path, s))
@@ -94,6 +95,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case (Right(_), Some((s: st.Function, _))) => Some(ap.Function(n.id, s))
         case (Right(_), Some((s: st.FPredicate, _))) => Some(ap.Predicate(n.id, s))
         case (Right(_), Some((s: st.DomainFunction, _))) => Some(ap.DomainFunction(n.id, s))
+        case (Right(_), Some((s: st.AdtClause, _))) => Some(ap.AdtClause(n.id, s))
 
         // built-in members
         case (Left(base), Some((s: st.BuiltInMethod, path))) => Some(ap.BuiltInReceivedMethod(base, n.id, path, s))

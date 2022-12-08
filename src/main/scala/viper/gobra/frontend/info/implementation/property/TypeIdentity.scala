@@ -38,6 +38,8 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
       case (MathMapT(k1, v1), MathMapT(k2, v2)) => identicalTypes(k1, k2) && identicalTypes(v1, v2)
       case (OptionT(l), OptionT(r)) => identicalTypes(l, r)
       case (l: DomainT, r: DomainT) => l == r
+      case (l: AdtT, r: AdtT) => l == r
+      case (l: AdtClauseT, r: AdtClauseT) => l == r
 
       case (StructT(clausesL, _, contextL), StructT(clausesR, _, contextR)) =>
         contextL == contextR && clausesL.size == clausesR.size && clausesL.zip(clausesR).forall {
@@ -52,6 +54,8 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
 
       case (PointerT(l), PointerT(r)) => identicalTypes(l, r)
 
+      case (SortT, SortT) => true
+
       case (FunctionT(larg, lr), FunctionT(rarg, rr)) =>
         larg.size == rarg.size && larg.zip(rarg).forall {
           case (l, r) => identicalTypes(l, r)
@@ -65,6 +69,8 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
       case (ChannelT(le, lm), ChannelT(re, rm)) => identicalTypes(le, re) && lm == rm
 
       case (VoidType, VoidType) => true
+
+
 
       case _ => false
     }

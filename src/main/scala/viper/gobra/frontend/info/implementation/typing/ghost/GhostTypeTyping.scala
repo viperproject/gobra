@@ -23,6 +23,7 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case n: PGhostSliceType => isType(n.elem).out
 
     case _: PDomainType => noMessages
+    case _: PAdtType => noMessages
   }
 
   private[typing] def ghostTypeSymbType(typ : PGhostType) : Type = typ match {
@@ -33,5 +34,6 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case POptionType(elem) => OptionT(typeSymbType(elem))
     case PGhostSliceType(elem) => GhostSliceT(typeSymbType(elem))
     case t: PDomainType => DomainT(t, this)
+    case a: PAdtType => AdtT(a, this)
   }
 }

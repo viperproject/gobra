@@ -54,7 +54,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val expr = SequenceLit(0, intT, Map())(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "seq[int] { }" =>
+      case "seq[int°] { }" =>
     }
   }
 
@@ -62,7 +62,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val expr = SequenceLit(0, sequenceT(sequenceT(boolT)), Map())(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "seq[seq[seq[bool]]] { }" =>
+      case "seq[seq[seq[bool°]°]°] { }" =>
     }
   }
 
@@ -88,7 +88,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "seq[int] { 0:2, 1:4, 2:8 }" =>
+      case "seq[int°] { 0:2, 1:4, 2:8 }" =>
     }
   }
 
@@ -99,7 +99,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "seq[int] { 0:42 }" =>
+      case "seq[int°] { 0:42 }" =>
     }
   }
 
@@ -107,7 +107,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val expr = SequenceLit(0, boolT, Map())(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "seq[bool] { }" =>
+      case "seq[bool°] { }" =>
     }
   }
 
@@ -150,49 +150,49 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   test("Printer: should correctly show an integer sequence type") {
     val t = sequenceT(intT)
     frontend.show(t) should matchPattern {
-      case "seq[int]" =>
+      case "seq[int°]°" =>
     }
   }
 
   test("Printer: should correctly show a nested sequence type") {
     val t = sequenceT(sequenceT(sequenceT(boolT)))
     frontend.show(t) should matchPattern {
-      case "seq[seq[seq[bool]]]" =>
+      case "seq[seq[seq[bool°]°]°]°" =>
     }
   }
 
   test("Printer: should correctly show an integer set type") {
     val t = setT(intT)
     frontend.show(t) should matchPattern {
-      case "set[int]" =>
+      case "set[int°]°" =>
     }
   }
 
   test("Printer: should correctly show a nested set type") {
     val t = setT(setT(setT(boolT)))
     frontend.show(t) should matchPattern {
-      case "set[set[set[bool]]]" =>
+      case "set[set[set[bool°]°]°]°" =>
     }
   }
 
   test("Printer: should correctly show an empty integer set") {
     val expr = SetLit(intT, Vector())(Internal)
     frontend.show(expr) should matchPattern {
-      case "set[int] { }" =>
+      case "set[int°] { }" =>
     }
   }
 
   test("Printer: should correctly show an empty nested set") {
     val expr = SetLit(setT(boolT), Vector())(Internal)
     frontend.show(expr) should matchPattern {
-      case "set[set[bool]] { }" =>
+      case "set[set[bool°]°] { }" =>
     }
   }
 
   test("Printer: should correctly show a singleton integer set literal") {
     val expr = SetLit(intT, Vector(IntLit(42)(Internal)))(Internal)
     frontend.show(expr) should matchPattern {
-      case "set[int] { 42 }" =>
+      case "set[int°] { 42 }" =>
     }
   }
 
@@ -204,7 +204,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     ))(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "set[bool] { false, true, true }" =>
+      case "set[bool°] { false, true, true }" =>
     }
   }
 
@@ -259,7 +259,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "set[bool] { s } union set[bool] { t, u }" =>
+      case "set[bool°] { s } union set[bool°] { t, u }" =>
     }
   }
 
@@ -314,7 +314,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "set[bool] { s } intersection set[bool] { t, u }" =>
+      case "set[bool°] { s } intersection set[bool°] { t, u }" =>
     }
   }
 
@@ -369,7 +369,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "set[bool] { s } setminus set[bool] { t, u }" =>
+      case "set[bool°] { s } setminus set[bool°] { t, u }" =>
     }
   }
 
@@ -405,7 +405,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "set[int] { 42 } subset set[bool] { }" =>
+      case "set[int°] { 42 } subset set[bool°] { }" =>
     }
   }
 
@@ -469,7 +469,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "set[bool] { true, false } in set[set[set[int]]] { }" =>
+      case "set[bool°] { true, false } in set[set[set[int°]°]°] { }" =>
     }
   }
 
@@ -505,7 +505,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "len(set[int] { 1, 42 })" =>
+      case "len(set[int°] { 1, 42 })" =>
     }
   }
 
@@ -515,35 +515,35 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "len(set[seq[int]] { })" =>
+      case "len(set[seq[int°]°] { })" =>
     }
   }
 
   test("Printer: should correctly show a simple integer multiset type") {
     val typ = multisetT(intT)
     frontend.show(typ) should matchPattern {
-      case "mset[int]" =>
+      case "mset[int°]°" =>
     }
   }
 
   test("Printer: should correctly show a nested multiset type") {
     val typ = multisetT(multisetT(boolT))
     frontend.show(typ) should matchPattern {
-      case "mset[mset[bool]]" =>
+      case "mset[mset[bool°]°]°" =>
     }
   }
 
   test("Printer: should correctly show an empty multiset integer literal") {
     val expr = MultisetLit(intT, Vector())(Internal)
     frontend.show(expr) should matchPattern {
-      case "mset[int] { }" =>
+      case "mset[int°] { }" =>
     }
   }
 
   test("Printer: should correctly show an empty multiset literal of a nested type") {
     val expr = MultisetLit(multisetT(multisetT(boolT)), Vector())(Internal)
     frontend.show(expr) should matchPattern {
-      case "mset[mset[mset[bool]]] { }" =>
+      case "mset[mset[mset[bool°]°]°] { }" =>
     }
   }
 
@@ -553,7 +553,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     ))(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "mset[int] { 42 }" =>
+      case "mset[int°] { 42 }" =>
     }
   }
 
@@ -565,7 +565,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     ))(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "mset[mset[bool]] { mset[bool] { false } }" =>
+      case "mset[mset[bool°]°] { mset[bool°] { false } }" =>
     }
   }
 
@@ -577,7 +577,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     ))(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "mset[int] { 1, 2, 3 }" =>
+      case "mset[int°] { 1, 2, 3 }" =>
     }
   }
 
@@ -588,7 +588,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "mset[int] { 1, 2 } union mset[int] { 3 }" =>
+      case "mset[int°] { 1, 2 } union mset[int°] { 3 }" =>
     }
   }
 
@@ -599,7 +599,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "mset[int] { 1, 2 } intersection mset[int] { 3 }" =>
+      case "mset[int°] { 1, 2 } intersection mset[int°] { 3 }" =>
     }
   }
 
@@ -610,7 +610,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "mset[int] { 1, 2 } subset mset[int] { 3 }" =>
+      case "mset[int°] { 1, 2 } subset mset[int°] { 3 }" =>
     }
   }
 
@@ -628,7 +628,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "len(mset[mset[int]] { mset[int] { 1 }, mset[int] { 2, 3 } })" =>
+      case "len(mset[mset[int°]°] { mset[int°] { 1 }, mset[int°] { 2, 3 } })" =>
     }
   }
 
@@ -643,7 +643,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "2 in mset[int] { 1, 2, 3 }" =>
+      case "2 in mset[int°] { 1, 2, 3 }" =>
     }
   }
 
@@ -659,7 +659,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "mset[int] { 1 } in mset[int] { 2, 3 }" =>
+      case "mset[int°] { 1 } in mset[int°] { 2, 3 }" =>
     }
   }
 
@@ -732,7 +732,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "40 + 2 # seq[int] { 0:1, 1:2, 2:3 }" =>
+      case "40 + 2 # seq[int°] { 0:1, 1:2, 2:3 }" =>
     }
   }
 
@@ -800,7 +800,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val t = exclusiveArrayT(42, intT)
 
     frontend.show(t) should matchPattern {
-      case "[42]int" =>
+      case "[42]int°°" =>
     }
   }
 
@@ -808,7 +808,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val t = exclusiveArrayT(1, exclusiveArrayT(2, exclusiveArrayT(3, boolT)))
 
     frontend.show(t) should matchPattern {
-      case "[1][2][3]bool" =>
+      case "[1][2][3]bool°°°°" =>
     }
   }
 
@@ -816,7 +816,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val t = exclusiveArrayT(12, sequenceT(intT))
 
     frontend.show(t) should matchPattern {
-      case "[12]seq[int]" =>
+      case "[12]seq[int°]°°" =>
     }
   }
 
@@ -824,7 +824,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val t = sequenceT(exclusiveArrayT(42, boolT))
 
     frontend.show(t) should matchPattern {
-      case "seq[[42]bool]" =>
+      case "seq[[42]bool°°]°" =>
     }
   }
 
@@ -889,7 +889,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "len(seq[bool] { 0:false } ++ xs)" =>
+      case "len(seq[bool°] { 0:false } ++ xs)" =>
     }
   }
 
@@ -899,7 +899,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "len(len(seq[int] { }))" =>
+      case "len(len(seq[int°] { }))" =>
     }
   }
 
@@ -1001,7 +1001,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     ))(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "[3]int { 0:12, 1:24, 2:48 }" =>
+      case "[3]int° { 0:12, 1:24, 2:48 }" =>
     }
   }
 
@@ -1009,7 +1009,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val expr = ArrayLit(0, boolT, Map())(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "[0]bool { }" =>
+      case "[0]bool° { }" =>
     }
   }
 
@@ -1022,7 +1022,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     ))(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "[1][2]int { 0:[2]int { 0:24, 1:42 } }" =>
+      case "[1][2]int°° { 0:[2]int° { 0:24, 1:42 } }" =>
     }
   }
 
@@ -1034,7 +1034,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "[0][24][48]bool { }" =>
+      case "[0][24][48]bool°°° { }" =>
     }
   }
 
@@ -1046,7 +1046,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "[1]seq[int] { 0:seq[int] { } }" =>
+      case "[1]seq[int°]° { 0:seq[int°] { } }" =>
     }
   }
 
@@ -1054,7 +1054,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val typ = sharedArrayT(12, IntT(Addressability.Shared, TypeBounds.DefaultInt))
 
     frontend.show(typ) should matchPattern {
-      case "[12]int" =>
+      case "[12]int@@" =>
     }
   }
 
@@ -1062,7 +1062,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val typ = sharedArrayT(12, sharedArrayT(24, BoolT(Addressability.Shared)))
 
     frontend.show(typ) should matchPattern {
-      case "[12][24]bool" =>
+      case "[12][24]bool@@@" =>
     }
   }
 
@@ -1076,7 +1076,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "seq(seq[int] { 0:1, 1:2, 2:4 })" =>
+      case "seq(seq[int°] { 0:1, 1:2, 2:4 })" =>
     }
   }
 
@@ -1089,7 +1089,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "seq([2]bool { 0:false, 1:true })" =>
+      case "seq([2]bool° { 0:false, 1:true })" =>
     }
   }
 
@@ -1109,7 +1109,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val typ = OptionT(OptionT(BoolT(a), a), a)
 
     frontend.show(typ) should matchPattern {
-      case "option[option[bool]]" =>
+      case "option[option[bool°]°]°" =>
     }
   }
 
@@ -1118,7 +1118,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val typ = OptionT(OptionT(BoolT(a), a), a)
 
     frontend.show(typ) should matchPattern {
-      case "option[option[bool]]" =>
+      case "option[option[bool@]@]@" =>
     }
   }
 
@@ -1126,7 +1126,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val exp = OptionNone(sequenceT(intT))(Internal)
 
     frontend.show(exp) should matchPattern {
-      case "none[seq[int]]" =>
+      case "none[seq[int°]°]" =>
     }
   }
 
@@ -1151,7 +1151,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val t = SliceT(intT, a)
 
     frontend.show(t) should matchPattern {
-      case "[]int" =>
+      case "[]int°°" =>
     }
   }
 
@@ -1160,7 +1160,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val t = SliceT(SetT(SequenceT(boolT, a), a), a)
 
     frontend.show(t) should matchPattern {
-      case "[]set[seq[bool]]" =>
+      case "[]set[seq[bool°]°]°°" =>
     }
   }
 
@@ -1169,7 +1169,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val t = SliceT(SliceT(SliceT(SliceT(intT, a), a), a), a)
 
     frontend.show(t) should matchPattern {
-      case "[][][][]int" =>
+      case "[][][][]int°°°°°" =>
     }
   }
 

@@ -519,6 +519,82 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
+  override def visitAdtType(ctx: AdtTypeContext): PAdtType = {
+    val clauses = ctx.adtClause().asScala.toVector.map(visitAdtClause)
+    PAdtType(clauses).at(ctx)
+  }
+
+  override def visitAdtClause(ctx: AdtClauseContext): PAdtClause = {
+    val id = idnDef.unapply(ctx.IDENTIFIER())
+    val fieldClauses = ctx.fieldDecl().asScala.toVector.map(visitFieldDecl)
+    val args = fieldClauses.collect{ case x: PFieldDecls => x }
+
+    // embedded fields and ghost struct clauses are not supported.
+    if (id.isEmpty || args.size != fieldClauses.size) fail(ctx)
+
+    PAdtClause(id.get, args).at(ctx)
+  }
+
+  override def visitMatchStmt(ctx: MatchStmtContext): PMatchStatement = {
+    val expr = visitNode[PExpression](ctx.expression())
+    val cases = ctx.matchStmtClause().asScala.toVector.map(visitNode[PMatchStmtCase](_))
+    PMatchStatement(expr, cases).at(ctx)
+  }
+  override def visitMatchStmtClause(ctx: MatchStmtClauseContext): PMatchStmtCase = {
+    val p = visitNode[PMatchPattern](ctx.matchCase())
+    val s = visitNodeOrElse[Vector[PStatement]](ctx.statementList(), Vector.empty)
+    PMatchStmtCase(p, s).at(ctx)
+  }
+
+  override def visitMatchExpr(ctx: MatchExprContext): PMatchExp = {
+    val expr = visitNode[PExpression](ctx.expression())
+    val cases = ctx.matchExprClause().asScala.toVector.map(visitNode[PMatchExpClause](_))
+    PMatchExp(expr, cases).at(ctx)
+  }
+  override def visitMatchExprClause(ctx: MatchExprClauseContext): PMatchExpClause = {
+    val p = visitNode[PMatchPattern](ctx.matchCase())
+    val e = visitNode[PExpression](ctx.expression())
+
+    p match {
+      case _: PMatchWildcard => PMatchExpDefault(e).at(ctx)
+      case _ => PMatchExpCase(p, e).at(ctx)
+    }
+  }
+
+  override def visitMatchCase(ctx: MatchCaseContext): PMatchPattern = {
+    visitChildren(ctx) match {
+      case "default" => PMatchWildcard().at(ctx)
+      case Vector("case", p: PMatchPattern) => p
+    }
+  }
+
+  override def visitMatchPatternBind(ctx: MatchPatternBindContext): PMatchPattern = {
+    visitChildren(ctx) match {
+      case Vector("?", idnDef(id)) => PMatchBindVar(id).at(ctx)
+    }
+  }
+
+  override def visitMatchPatternComposite(ctx: MatchPatternCompositeContext): PMatchPattern = {
+    val t = visitNode[PType](ctx.literalType())
+    val args =
+      if (!has(ctx.matchPatternList())) Vector.empty
+      else visitNode[Vector[PMatchPattern]](ctx.matchPatternList())
+
+    PMatchAdt(t, args).at(ctx)
+  }
+
+  override def visitMatchPatternValue(ctx: MatchPatternValueContext): PMatchPattern = {
+    visitNode[PExpression](ctx.expression()) match {
+      case _: PBlankIdentifier => PMatchWildcard().at(ctx)
+      case expr: PExpression => PMatchValue(expr).at(ctx)
+    }
+  }
+
+  override def visitMatchPatternList(ctx: MatchPatternListContext): Vector[PMatchPattern] = {
+    if (!has(ctx)) Vector.empty
+    else (for (expr <- ctx.matchPattern().asScala.toVector) yield visitNode[PMatchPattern](expr)).at(ctx)
+  }
+
   /**
     * {@inheritDoc  }
     *
@@ -2273,10 +2349,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   /** Helper Function for optional Nodes
     *
     * @param ctx a context that might be null (signified with ? in the grammar)
-    * @tparam P The PNode type
+    * @tparam P The expected return type
     * @return a positioned Option of a positioned PNode
     */
-  def visitNodeOrNone[P <: PNode](ctx : ParserRuleContext) : Option[P] = {
+  def visitNodeOrNone[P](ctx : ParserRuleContext) : Option[P] = {
     if (ctx != null) {
       Some(visitNode(ctx)).pos()
     } else None
@@ -2285,10 +2361,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   /** Helper Function for Nodes with a default
     *
     * @param ctx a context that might be null (signified with ? in the grammar)
-    * @tparam P The PNode type
+    * @tparam P The expected return type
     * @return a positioned Option of a positioned PNode
     */
-  def visitNodeOrElse[P <: PNode](ctx : ParserRuleContext, default : P) : P = {
+  def visitNodeOrElse[P](ctx : ParserRuleContext, default : P) : P = {
     visitNodeOrNone[P](ctx) match {
       case Some(value) => value
       case None => default

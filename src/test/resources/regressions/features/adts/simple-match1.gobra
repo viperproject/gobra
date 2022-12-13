@@ -1,0 +1,135 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package adts
+
+type tree adt {
+    Node {
+        val int
+        left, right tree
+    }
+    Leaf{}
+}
+
+type list adt {
+    Cons {
+        head int
+        tail list
+    }
+    Nil {}
+}
+
+ghost
+ensures a > b ==> a == res
+ensures a <= b ==> b == res
+pure func max (a, b int) (res int)
+
+ghost
+pure func depth(t tree) (res int) {
+    return match t {
+        case Node{_, ?l, ?r}: 1 + max(depth(l), depth(r))
+        case Leaf{}: 0
+    }
+}
+
+ghost
+pure func count(t tree) (res int) {
+    return match t {
+        case Node{_, ?l, ?r}: 1 + count(l) + count(r)
+        case Leaf{}: 0
+    }
+}
+
+
+ghost
+ensures count(t) >= 0 && depth(t) >= 0
+ensures count(t) >= depth(t)
+func proof1(t tree) {
+    match t {
+        case Node{_, ?l, ?r}: proof1(l)
+                              proof1(r)
+        case Leaf{}:
+    }
+}
+
+
+ghost
+pure func concat(l1, l2 list) list {
+    return match l1 {
+        case Nil{}: l2
+        case Cons{?h, ?t}: Cons{h, concat(t, l2)}
+    }
+}
+
+pred allNatrual(xs list) {
+    (xs.isCons ==> (xs.head >= 0 && allNatrual(xs.tail))) &&
+    (xs.isNil ==> true)
+}
+
+ghost
+requires n >= 0
+pure func rep(n, v int) list {
+    return match n {
+        case 0: Nil{}
+        default: Cons{v, rep(n-1, v)}
+    }
+}
+
+
+ghost
+requires allNatrual(xs)
+pure func dec(xs list) list {
+    return match xs {
+        case Nil{}: Nil{}
+        case Cons{_, Nil{}}: Nil{}
+        case Cons{?n, Cons{?v, ?t}}: (
+            unfolding allNatrual(xs) in (
+            unfolding allNatrual(xs.tail) in (
+                 concat(rep(xs.head, v), dec(xs.tail.tail)))))
+    }
+}
+
+ghost
+pure func srclen(xs list) int {
+    return match xs {
+        case Nil{}: 0
+        case Cons{_, Nil{}}: 0
+        case Cons{?n, Cons{?v, ?t}}: n + srclen(t)
+    }
+}
+
+ghost
+pure func length(xs list) int {
+    return match xs {
+        case Nil{}: 0
+        case Cons{_, ?t}: 1 + length(t)
+    }
+}
+
+ghost
+ensures forall xs, ys list :: {length(concat(xs, ys))} length(concat(xs, ys)) == length(xs) + length(ys)
+func lemma1()
+
+ghost
+ensures forall x, y int :: {length(rep(x,y))} x >= 0 ==> length(rep(x, y)) == x
+func lemma2()
+
+ghost
+requires allNatrual(xs)
+ensures allNatrual(xs)
+ensures length(dec(xs)) == srclen(xs)
+func proof2 (xs list) {
+    match xs {
+        case Nil{}:
+        case Cons{_, Nil{}}:
+        case Cons{?n, Cons{?v, ?t}}:
+            unfold allNatrual(xs);
+            unfold allNatrual(xs.tail);
+            lemma1();
+            lemma2();
+            proof2(t);
+            fold allNatrual(xs.tail);
+            fold allNatrual(xs);
+    }
+}
+

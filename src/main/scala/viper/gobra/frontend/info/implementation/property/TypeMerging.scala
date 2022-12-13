@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.frontend.info.base.Type.{ArrayT, ChannelT, GhostSliceT, IntT, InternalSingleMulti, InternalTupleT, MapT, MultisetT, PermissionT, PointerT, SequenceT, SetT, Single, SliceT, Type}
+import viper.gobra.frontend.info.base.Type.{AdtClauseT, AdtT, ArrayT, ChannelT, GhostSliceT, IntT, InternalSingleMulti, InternalTupleT, MapT, MultisetT, PermissionT, PointerT, SequenceT, SetT, Single, SliceT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
@@ -45,16 +45,35 @@ trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
               multi <- typeMerge(multi1, multi2)
             } yield InternalSingleMulti(sin, multi.asInstanceOf[InternalTupleT])
 
+            case (l: AdtClauseT, r: AdtClauseT)
+              if l.context == r.context && l.adtT == r.adtT => Some(AdtT(l.adtT, l.context))
+            case (c: AdtClauseT, u@UnderlyingType(a: AdtT)) if c.context == a.context && c.adtT == a.decl => Some(u)
+            case (u@UnderlyingType(a: AdtT), c: AdtClauseT) if c.context == a.context && c.adtT == a.decl => Some(u)
+
             case _ => None
           }
         }
       case _ => None
     }
 
+  def typeMergeAll(ts: Vector[Type]): Option[Type] = {
+    if (ts.isEmpty) None
+    else ts.tail.foldLeft[Option[Type]](Some(ts.head)){
+      case (None, _) => None
+      case (Some(t1), t2) => typeMerge(t1, t2)
+    }
+  }
+
   lazy val mergeableTypes: Property[(Type, Type)] = createFlatProperty[(Type, Type)] {
     case (left, right) => s"$left is not mergeable with $right"
   } {
     case (left, right) => typeMerge(left, right).isDefined
+  }
+
+  lazy val allMergeableTypes: Property[Vector[Type]] = createFlatProperty[Vector[Type]] {
+    xs => s"${xs.mkString(",")} are not mergeable"
+  } {
+    xs => typeMergeAll(xs).isDefined
   }
 
 }

@@ -246,21 +246,52 @@ class AdtEncoding extends LeafTypeEncoding {
         // Note that this is brittle, and changes to the declaration of these functions will be detected
         // as runtime errors.
 
+        // l and r must both be instances of the ADT being defined
+        def applyDecreasing(l: vpr.Exp, r: vpr.Exp): vpr.DomainFuncApp = {
+          vpr.DomainFuncApp(
+            funcname = decreasingFuncName,
+            args = Seq(l,r),
+            typVarMap = Map(wellFoundedDomainTypeVar -> adtT)
+          )(aPos, aInfo, vpr.Bool, wellFoundedDomainName, aErrT)
+        }
+
+        // e must be an instance of the ADT being defined
+        def applyBounded(e: vpr.Exp): vpr.DomainFuncApp = {
+          vpr.DomainFuncApp(
+            funcname = boundedFuncName,
+            args = Seq(e),
+            typVarMap = Map(wellFoundedDomainTypeVar -> adtT)
+          )(aPos, aInfo, vpr.Bool, wellFoundedDomainName, aErrT)
+        }
+
         // Every ADT instance has a finite instantiation:
         // forall t: X :: { bounded(t) } bounded(t)
         val allADTInstancesAreBounded = {
           val variableDecl = adtDecl(aPos, aInfo, aErrT)
           val variable = variableDecl.localVar
-          val boundedApp = vpr.DomainFuncApp(
-            funcname = boundedFuncName,
-            args = Seq(variable),
-            typVarMap = Map(wellFoundedDomainTypeVar -> adtT)
-          )(aPos, aInfo, vpr.Bool, wellFoundedDomainName, aErrT)
+          val boundedApp = applyBounded(variable)
           val trigger = vpr.Trigger(Seq(boundedApp))(aPos, aInfo, aErrT)
           val body = vpr.Forall(
             variables = Seq(variableDecl),
             triggers = Seq(trigger),
             exp = boundedApp
+          )(aPos, aInfo, aErrT)
+          vpr.AnonymousDomainAxiom(body)(aPos, aInfo, adtName, aErrT)
+        }
+
+        // forall x, y, z: X :: { decreasing(x,y), decreasing(y,z) } decreasing(x,z)
+        val decreasingTransitive = {
+          val varX = vpr.LocalVarDecl("X", adtT)(aPos, aInfo, aErrT)
+          val varY = vpr.LocalVarDecl("Y", adtT)(aPos, aInfo, aErrT)
+          val varZ = vpr.LocalVarDecl("Z", adtT)(aPos, aInfo, aErrT)
+          val decrApp1 = applyDecreasing(varX.localVar, varY.localVar)
+          val decrApp2 = applyDecreasing(varY.localVar, varZ.localVar)
+          val decrApp3 =  applyDecreasing(varX.localVar, varZ.localVar)
+          val trigger = vpr.Trigger(Seq(decrApp1, decrApp2))(aPos, aInfo, aErrT)
+          val body = vpr.Forall(
+            variables = Seq(varX, varY, varZ),
+            triggers = Seq(trigger),
+            exp = vpr.Implies(vpr.And(decrApp1, decrApp2)(aPos, aInfo, aErrT), decrApp3)(aPos, aInfo, aErrT)
           )(aPos, aInfo, aErrT)
           vpr.AnonymousDomainAxiom(body)(aPos, aInfo, adtName, aErrT)
         }
@@ -282,11 +313,7 @@ class AdtEncoding extends LeafTypeEncoding {
                   args = qtfiedConsArgs.map(_.localVar),
                   typVarMap = Map()
                 )(aPos, aInfo, cons.typ, adtName, aErrT)
-                val decreasingApp = vpr.DomainFuncApp(
-                  funcname = decreasingFuncName,
-                  args = Seq(arg.localVar, constructedElem),
-                  typVarMap = Map(wellFoundedDomainTypeVar -> adtT)
-                )(aPos, aInfo, vpr.Bool, wellFoundedDomainName, aErrT)
+                val decreasingApp = applyDecreasing(arg.localVar, constructedElem)
                 val trigger = vpr.Trigger(Seq(decreasingApp))(aPos, aInfo, aErrT)
                 val body = vpr.Forall(
                   variables = qtfiedConsArgs,
@@ -296,7 +323,7 @@ class AdtEncoding extends LeafTypeEncoding {
                 vpr.AnonymousDomainAxiom(body)(aPos, aInfo, adtName, aErrT)
           }
         }
-        allADTInstancesAreBounded +: decreasingAxioms
+        allADTInstancesAreBounded +: decreasingTransitive +: decreasingAxioms
       }
 
       ml.unit(Vector(vpr.Domain(

@@ -267,7 +267,7 @@ class AdtEncoding extends LeafTypeEncoding {
 
         // For every non-nullary constructor C of arity n and for every index i of a parameter of C with the ADT type,
         // we generate:
-        // forall p1: T1, pi: X, pn: Tn :: { decreasing(pi, C(p1, ..., pn)) } decreasing(pi, C(p1, ..., pn))
+        // forall p1: T1, ..., pi: X, ..., pn: Tn :: { decreasing(pi, C(p1, ..., pn)) } decreasing(pi, C(p1, ..., pn))
         val decreasingAxioms = constructors zip adt.clauses flatMap {
           // clause is required here to get a Seq[LocalVarDecl] for the `variables` param of `vpr.Forall` list. From an
           // element in constructors, we can get only get a Seq[AnyLocalVarDecl]. An alternative would be to re-compute

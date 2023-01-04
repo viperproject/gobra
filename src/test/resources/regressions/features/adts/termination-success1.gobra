@@ -1,0 +1,39 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type tree adt{
+	leaf{ value int }
+	node{ left, right tree }
+}
+
+ghost
+pure
+decreases t
+func leafCount(t tree) int {
+	return match t {
+		case leaf{_}: 1
+		case node{?l, ?r}: leafCount(l) + leafCount(r)
+	}
+}
+
+type list adt {
+	Empty{}
+
+	Cons{
+		head any
+		tail list
+	}
+}
+
+ghost
+decreases l
+func length(l list) int {
+	match l {
+		case Empty{}:
+			return 0
+		case Cons{_, ?t}:
+			return 1 + length(t)
+	}
+}

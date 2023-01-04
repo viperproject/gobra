@@ -227,10 +227,81 @@ class AdtEncoding extends LeafTypeEncoding {
           vpr.Forall(Seq(variableDecl), Seq(trigger), vu.bigOr(equalities)(aPos, aInfo, aErrT))(aPos, aInfo, aErrT)
         )(aPos, aInfo, adtName, aErrT)
       }
+
+      // The well-founded orders for ADTs are axiomatized WITHOUT resorting to a "rank" function as defined in
+      // Paul Dahlke's thesis - section 5.3.2 (https://ethz.ch/content/dam/ethz/special-interest/infk/chair-program-method/pm/documents/Education/Theses/Paul_Dahlke_BA_Report.pdf)
+      // This makes the implementation simpler. Nonetheless, we can use rank functions in the future if we find a
+      // good reason to have them.
+      val terminationMeasureAxioms: Vector[vpr.AnonymousDomainAxiom] = {
+        // As described in the section "Custom Well-Founded Orders" of the Viper tutorial
+        // (http://viper.ethz.ch/tutorial/#term_custom_orders), in order to define a custom termination measure for
+        // a domain type, we need to axiomatize the domain functions "bounded" and "decreasing" (defined in the
+        // file https://github.com/viperproject/silver/blob/master/src/main/resources/import/decreases/declaration.vpr)
+        // for that type. Unfortunately, there are no hooks to those domain functions provided by silver, and we refer
+        // to those methods using the following constants:
+        val wellFoundedDomainName = "WellFoundedOrder"
+        val wellFoundedDomainTypeVar = vpr.TypeVar("T")
+        val boundedFuncName = "bounded"
+        val decreasingFuncName = "decreasing"
+        // Note that this is brittle, and changes to the declaration of these functions will be detected
+        // as runtime errors.
+
+        // Every ADT instance has a finite instantiation:
+        // forall t: X :: { bounded(t) } bounded(t)
+        val allADTInstancesAreBounded = {
+          val variableDecl = adtDecl(aPos, aInfo, aErrT)
+          val variable = variableDecl.localVar
+          val boundedApp = vpr.DomainFuncApp(
+            funcname = boundedFuncName,
+            args = Seq(variable),
+            typVarMap = Map(wellFoundedDomainTypeVar -> adtT)
+          )(aPos, aInfo, vpr.Bool, wellFoundedDomainName, aErrT)
+          val trigger = vpr.Trigger(Seq(boundedApp))(aPos, aInfo, aErrT)
+          val body = vpr.Forall(
+            variables = Seq(variableDecl),
+            triggers = Seq(trigger),
+            exp = boundedApp
+          )(aPos, aInfo, aErrT)
+          vpr.AnonymousDomainAxiom(body)(aPos, aInfo, adtName, aErrT)
+        }
+
+        // For every non-nullary constructor C of arity n and for every index i of a parameter of C with the ADT type,
+        // we generate:
+        // forall p1: T1, pi: X, pn: Tn :: { decreasing(pi, C(p1, ..., pn)) } decreasing(pi, C(p1, ..., pn))
+        val decreasingAxioms = constructors zip adt.clauses flatMap {
+          // clause is required here to get a Seq[LocalVarDecl] for the `variables` param of `vpr.Forall` list. From an
+          // element in constructors, we can get only get a Seq[AnyLocalVarDecl]. An alternative would be to re-compute
+          // a list of variables for the qtfier.
+          case (cons, clause) =>
+            val qtfiedConsArgs = fieldDecls(clause)
+            qtfiedConsArgs collect {
+              case arg if arg.typ == adtT =>
+                val constructedElem = vpr.DomainFuncApp(
+                  funcname = cons.name,
+                  args = qtfiedConsArgs.map(_.localVar),
+                  typVarMap = Map()
+                )(aPos, aInfo, cons.typ, adtName, aErrT)
+                val decreasingApp = vpr.DomainFuncApp(
+                  funcname = decreasingFuncName,
+                  args = Seq(arg.localVar, constructedElem),
+                  typVarMap = Map(wellFoundedDomainTypeVar -> adtT)
+                )(aPos, aInfo, vpr.Bool, wellFoundedDomainName, aErrT)
+                val trigger = vpr.Trigger(Seq(decreasingApp))(aPos, aInfo, aErrT)
+                val body = vpr.Forall(
+                  variables = qtfiedConsArgs,
+                  triggers = Seq(trigger),
+                  exp = decreasingApp
+                )(aPos, aInfo, aErrT)
+                vpr.AnonymousDomainAxiom(body)(aPos, aInfo, adtName, aErrT)
+          }
+        }
+        allADTInstancesAreBounded +: decreasingAxioms
+      }
+
       ml.unit(Vector(vpr.Domain(
         adtName,
         functions = (defaultFunc +: tagFunc +: clauseTags) ++ constructors ++ destructors,
-        axioms = (exclusiveAxiom +: constructorAxioms) ++ destructorAxioms
+        axioms = (exclusiveAxiom +: constructorAxioms) ++ destructorAxioms ++ terminationMeasureAxioms
       )(pos = aPos, info = aInfo, errT = aErrT)))
   }
 

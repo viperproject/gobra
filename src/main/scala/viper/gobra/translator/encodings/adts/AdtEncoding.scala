@@ -286,7 +286,7 @@ class AdtEncoding extends LeafTypeEncoding {
           val varZ = vpr.LocalVarDecl("Z", adtT)(aPos, aInfo, aErrT)
           val decrApp1 = applyDecreasing(varX.localVar, varY.localVar)
           val decrApp2 = applyDecreasing(varY.localVar, varZ.localVar)
-          val decrApp3 =  applyDecreasing(varX.localVar, varZ.localVar)
+          val decrApp3 = applyDecreasing(varX.localVar, varZ.localVar)
           val trigger = vpr.Trigger(Seq(decrApp1, decrApp2))(aPos, aInfo, aErrT)
           val body = vpr.Forall(
             variables = Seq(varX, varY, varZ),

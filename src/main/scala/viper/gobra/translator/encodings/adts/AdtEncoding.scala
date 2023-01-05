@@ -232,8 +232,8 @@ class AdtEncoding extends LeafTypeEncoding {
       // https://ethz.ch/content/dam/ethz/special-interest/infk/chair-program-method/pm/documents/Education/Theses/Paul_Dahlke_BA_Report.pdf
       val rankFunc = adtRankFunc(adtName)(aPos, aInfo, aErrT)
       val rankAxioms = {
-        // the following axiom is useful for Gobra to easily infer that there is a lower bound to the values produced
-        // by rank:
+        // the following axiom is useful for Gobra to easily infer that there is a lower bound
+        // on the values produced by rank:
         // forall x X :: { rank(x) } 1 <= rank(x)
         val rankIsBounded = {
           val variableDecl = vpr.LocalVarDecl("x", adtT)(aPos, aInfo, aErrT)

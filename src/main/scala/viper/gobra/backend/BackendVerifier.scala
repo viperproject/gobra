@@ -9,7 +9,7 @@ package viper.gobra.backend
 import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon}
 import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
-import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, ChoppedProgressMessage}
+import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, StreamingReporter, ChoppedProgressMessage}
 import viper.gobra.util.{ChopperUtil, GobraExecutionContext}
 import viper.silver
 import viper.silver.verifier.VerificationResult
@@ -49,7 +49,7 @@ object BackendVerifier {
 
     val verificationResults: Future[VerificationResult] =  {
       val verifier = config.backend.create(exePaths, config)
-      val reporter = BacktranslatingReporter(config.reporter, task.backtrack, config)
+      val reporter = BacktranslatingReporter(StreamingReporter(config.reporter), task.backtrack, config)
 
       if (!config.shouldChop) {
         verifier.verify(config.taskName, reporter, task.program)(executor)

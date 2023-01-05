@@ -258,19 +258,26 @@ class AdtEncoding extends LeafTypeEncoding {
             typVarMap = Map()
           )(aPos, aInfo, adtT, adtName, aErrT)
           val rankOfConst = applyRankFunc(adtName, constApp)(aPos, aInfo, aErrT)
-          val trigger = vpr.Trigger(Seq(rankOfConst))(aPos, aInfo, aErrT)
-          val rankOfArgsOfAdtType = clause.args zip variables collect {
-            case (inVar, vprVar) if underlyingType(inVar.typ)(ctx).isInstanceOf[in.AdtT] =>
-              applyRankFunc(adt.name, vprVar.localVar)(aPos, aInfo, aErrT)
-          }
-          val body = vpr.EqCmp(
-            rankOfConst,
-            rankOfArgsOfAdtType.foldLeft[vpr.Exp](vpr.IntLit(BigInt(1))(aPos, aInfo, aErrT)) {
-              case (l, r) => vpr.Add(l, r)(aPos, aInfo, aErrT)
+          val axiomExp = if (variables.isEmpty) {
+            // this case distinction is required to avoid quantifiers with 0 quantified
+            // variables when the constructor is nullary, which breaks consistency checks
+            vpr.EqCmp(rankOfConst, vpr.IntLit(1)(aPos, aInfo, aErrT))(aPos, aInfo, aErrT)
+          } else {
+            val trigger = vpr.Trigger(Seq(rankOfConst))(aPos, aInfo, aErrT)
+            val rankOfArgsOfAdtType = clause.args.map(arg => underlyingType(arg.typ)(ctx)) zip variables collect {
+              case (inVarT: in.AdtT, vprVar) =>
+                // selects the appropriate rank function according to the ADT type
+                applyRankFunc(inVarT.name, vprVar.localVar)(aPos, aInfo, aErrT)
             }
-          )(aPos, aInfo, aErrT)
-          val qtfier = vpr.Forall(variables = variables, triggers = Seq(trigger), exp = body)(aPos, aInfo, aErrT)
-          vpr.AnonymousDomainAxiom(qtfier)(aPos, aInfo, adtName, aErrT)
+            val body = vpr.EqCmp(
+              rankOfConst,
+              rankOfArgsOfAdtType.foldLeft[vpr.Exp](vpr.IntLit(BigInt(1))(aPos, aInfo, aErrT)) {
+                case (l, r) => vpr.Add(l, r)(aPos, aInfo, aErrT)
+              }
+            )(aPos, aInfo, aErrT)
+            vpr.Forall(variables = variables, triggers = Seq(trigger), exp = body)(aPos, aInfo, aErrT)
+          }
+          vpr.AnonymousDomainAxiom(axiomExp)(aPos, aInfo, adtName, aErrT)
         }
         rankIsBounded +: defsRankPerClause
       }

@@ -163,10 +163,24 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
 
   /**
     * {{{
-    * axiom slice_deconstructor_over_constructor {
-    *   forall arr, off, len, cap :: { smake(arr,off,len,cap) }
-    *     0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==>
-    *       sarray(smake(arr,off,len,cap)) == arr && ...
+    * axiom slice_deconstructor_over_constructor_array {
+    *   forall arr, off, len, cap :: { sarray(smake(arr,off,len,cap)) }
+    *     0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> sarray(smake(arr,off,len,cap)) == arr
+    * }
+    *
+    * axiom slice_deconstructor_over_constructor_offset {
+    *   forall arr, off, len, cap :: { soffset(arr,off,len,cap) }
+    *     0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> soffset(smake(arr,off,len,cap)) == off
+    * }
+    *
+    * axiom slice_deconstructor_over_constructor_len {
+    *   forall arr, off, len, cap :: { slen(arr,off,len,cap) }
+    *     0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> slen(smake(arr,off,len,cap)) == len
+    * }
+    *
+    * axiom slice_deconstructor_over_constructor_cap {
+    *   forall arr, off, len, cap :: { slen(arr,off,len,cap) }
+    *     0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> scap(smake(arr,off,len,cap)) == cap
     * }
     * }}}
     */
@@ -299,10 +313,24 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
     *       soffset(s) + scap(s) <= alen(sarray(s))
     *   }
     *
-    *   axiom slice_deconstructor_over_constructor {
-    *     forall arr, off, len, cap :: { smake(arr,off,len,cap) }
-    *       0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==>
-    *         sarray(smake(arr,off,len,cap)) == arr && ...
+    *   axiom slice_deconstructor_over_constructor_array {
+    *     forall arr, off, len, cap :: { sarray(smake(arr,off,len,cap)) }
+    *       0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> sarray(smake(arr,off,len,cap)) == arr
+    *   }
+    *
+    *   axiom slice_deconstructor_over_constructor_offset {
+    *     forall arr, off, len, cap :: { soffset(arr,off,len,cap) }
+    *       0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> soffset(smake(arr,off,len,cap)) == off
+    *   }
+    *
+    *   axiom slice_deconstructor_over_constructor_len {
+    *     forall arr, off, len, cap :: { slen(arr,off,len,cap) }
+    *       0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> slen(smake(arr,off,len,cap)) == len
+    *   }
+    *
+    *   axiom slice_deconstructor_over_constructor_cap {
+    *     forall arr, off, len, cap :: { slen(arr,off,len,cap) }
+    *       0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> scap(smake(arr,off,len,cap)) == cap
     *   }
     *
     *   axiom slice_constructor_over_deconstructor {

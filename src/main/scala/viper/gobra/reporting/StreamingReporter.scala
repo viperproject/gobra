@@ -15,9 +15,11 @@ case class StreamingReporter(reporter: GobraReporter) extends GobraReporter with
     msg match {
       case m:GobraEntityFailureMessage => m.result match {
         case VerifierResult.Failure(errors) => errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
-        case _ => ;
+        case _ => // ignore
       }
-      case _ => ;
+      case m:ParserErrorMessage => m.result.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
+      case m:TypeCheckFailureMessage => m.result.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
+      case _ => // ignore
     }
     reporter.report(msg)
   }

@@ -25,7 +25,7 @@ jobs:
       FAILURE_LEVEL: "error"
     steps:
       - name: Checkout Gobra
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           submodules: 'recursive'
       - name: Check that silicon & carbon reference same silver commit
@@ -49,11 +49,11 @@ jobs:
 
       # used to enable Docker caching (see https://github.com/docker/build-push-action)
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2
 
       - name: Build image up to including stage 'build'
         # note that the action's name is misleading: this step does NOT push
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           context: .
           load: true # make the built image available in docker (locally)
@@ -161,13 +161,13 @@ jobs:
 
       - name: Upload RAM usage
         if: ${{ always() }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: pidstat.txt
           path: sync/pidstat.txt
 
       - name: Build entire image
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           context: .
           load: true # make the built image available in docker (locally)
@@ -203,7 +203,7 @@ jobs:
 
       - name: Login to Github Packages
         if: env.SHOULD_DEPLOY == 'true'
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -211,7 +211,7 @@ jobs:
 
       - name: Push entire image
         if: env.SHOULD_DEPLOY == 'true'
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           context: .
           file: workflow-container/Dockerfile

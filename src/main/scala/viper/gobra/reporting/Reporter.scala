@@ -7,14 +7,13 @@
 package viper.gobra.reporting
 
 import java.nio.charset.StandardCharsets.UTF_8
-import java.nio.file.Paths
-
+import java.nio.file.{Path, Paths}
 import ch.qos.logback.classic.Level
 import com.typesafe.scalalogging.Logger
 import org.apache.commons.io.FileUtils
 import org.slf4j.LoggerFactory
 import viper.gobra.frontend.LoggerDefaults
-import viper.gobra.util.{OutputUtil, Violation}
+import viper.gobra.util.OutputUtil
 
 trait GobraReporter {
   val name: String
@@ -36,6 +35,7 @@ case class StdIOReporter(name: String = "stdout_reporter", level: Level = Logger
 }
 
 case class FileWriterReporter(name: String = "filewriter_reporter",
+                              gobraDir: Path,
                               unparse: Boolean = false,
                               eraseGhost: Boolean = false,
                               goify: Boolean = false,
@@ -62,14 +62,21 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
     case _ => // ignore
   }
 
+  // TODO: doc
+  private val builtinSourcesNames = Seq("/builtin/builtin.gobra")
+  private val defaultTargetName = "project"
+  private val defaultTargetPath = Paths.get(gobraDir.toAbsolutePath.toString, defaultTargetName)
+  private val defaultTarget = defaultTargetPath.toString
+
   private def write(inputs: Vector[String], fileExt: String, content: String): Unit = {
+    // TODO: adapt comment
     // this message belongs to multiple inputs. We simply pick the first one for the resulting file's name
-    Violation.violation(inputs.nonEmpty, s"expected at least one file path for which the following message was reported: '$content''")
-    write(inputs.head, fileExt, content)
+    write(defaultTarget, fileExt, content)
   }
 
   private def write(input: String, fileExt: String, content: String): Unit = {
-    val outputFile = OutputUtil.postfixFile(Paths.get(input), fileExt)
+    val basePath = if (builtinSourcesNames.contains(input)) defaultTargetPath else Paths.get(input)
+    val outputFile = OutputUtil.postfixFile(basePath, fileExt)
     try {
       FileUtils.writeStringToFile(outputFile.toFile, content, UTF_8)
     } catch {

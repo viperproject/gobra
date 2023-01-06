@@ -13,6 +13,9 @@ case class StreamingReporter(reporter: GobraReporter) extends GobraReporter with
 
   def report(msg: GobraMessage): Unit = {
     msg match {
+      // TODO: just emit this at log level debug
+      //case m:GobraEntitySuccessMessage if debug =>
+      //  ??? //logger.debug(s"Member ${m.toString}")
       case m:GobraEntityFailureMessage => m.result match {
         case VerifierResult.Failure(errors) => errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
         case _ => // ignore

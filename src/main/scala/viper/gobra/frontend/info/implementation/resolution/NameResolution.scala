@@ -167,9 +167,7 @@ trait NameResolution {
   private def defenvin(in: PNode => Environment): PNode ==> Environment = {
     case n: PPackage => addUnorderedDefToEnv(rootenv(initialEnv(n): _*))(n)
     case scope: PUnorderedScope => addUnorderedDefToEnv(enter(in(scope)))(scope)
-    case scope: PScope if !scopeSpecialCaseWithNoNewScope(scope) =>
-      logger.debug(scope.toString)
-      enter(in(scope))
+    case scope: PScope if !scopeSpecialCaseWithNoNewScope(scope) => enter(in(scope))
   }
 
   private def scopeSpecialCaseWithNoNewScope(s: PScope): Boolean = s match {

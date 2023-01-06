@@ -711,7 +711,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     includeDirs = includeDirs,
     reporter = StreamingReporter(
       FileWriterReporter(
-        gobraDir = gobraDirectory(),
         unparse = unparse(),
         eraseGhost = eraseGhost(),
         goify = goify(),

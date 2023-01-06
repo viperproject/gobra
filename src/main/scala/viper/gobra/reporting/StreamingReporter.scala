@@ -7,15 +7,19 @@
 package viper.gobra.reporting
 
 import com.typesafe.scalalogging.StrictLogging
+import viper.gobra.ast.frontend.PMember
 
 case class StreamingReporter(reporter: GobraReporter) extends GobraReporter with StrictLogging {
   override val name: String = reporter.name
 
   def report(msg: GobraMessage): Unit = {
     msg match {
-      // TODO: just emit this at log level debug
-      //case m:GobraEntitySuccessMessage if debug =>
-      //  ??? //logger.debug(s"Member ${m.toString}")
+      case m:GobraEntitySuccessMessage =>
+        val s = m.concerning.pnode match {
+          case m: PMember => m.formattedShort
+          case _ => ???
+        }
+        logger.debug(s"Member ${s}")
       case m:GobraEntityFailureMessage => m.result match {
         case VerifierResult.Failure(errors) => errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
         case _ => // ignore

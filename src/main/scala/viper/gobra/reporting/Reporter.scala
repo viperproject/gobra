@@ -7,13 +7,13 @@
 package viper.gobra.reporting
 
 import java.nio.charset.StandardCharsets.UTF_8
-import java.nio.file.{Path, Paths}
+import java.nio.file.Paths
 import ch.qos.logback.classic.Level
 import com.typesafe.scalalogging.Logger
 import org.apache.commons.io.FileUtils
 import org.slf4j.LoggerFactory
 import viper.gobra.frontend.LoggerDefaults
-import viper.gobra.util.OutputUtil
+import viper.gobra.util.{OutputUtil, Violation}
 
 trait GobraReporter {
   val name: String
@@ -35,7 +35,6 @@ case class StdIOReporter(name: String = "stdout_reporter", level: Level = Logger
 }
 
 case class FileWriterReporter(name: String = "filewriter_reporter",
-                              gobraDir: Path,
                               unparse: Boolean = false,
                               eraseGhost: Boolean = false,
                               goify: Boolean = false,
@@ -47,36 +46,39 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
     Logger(LoggerFactory.getLogger(getClass.getName))
 
   override def report(msg: GobraMessage): Unit = msg match {
-    case PreprocessedInputMessage(input, content) if unparse => write(input, "gobrafied", content())
-    case ParsedInputMessage(input, program) if unparse => write(input, "unparsed", program().formatted)
-    case TypeCheckSuccessMessage(inputs, _, _, _, erasedGhostCode, goifiedGhostCode) =>
+    case PreprocessedInputMessage(WithoutBuiltinSources(input), content) if unparse => write(input, "gobrafied", content())
+    case ParsedInputMessage(WithoutBuiltinSources(input), program) if unparse => write(input, "unparsed", program().formatted)
+    case TypeCheckSuccessMessage(WithoutBuiltinSources(inputs), _, _, _, erasedGhostCode, goifiedGhostCode) =>
       if (eraseGhost) write(inputs, "ghostLess", erasedGhostCode())
       if (goify) write(inputs, "go", goifiedGhostCode())
-    case TypeCheckDebugMessage(inputs, _, debugTypeInfo) if debug => write(inputs, "debugType", debugTypeInfo())
-    case DesugaredMessage(inputs, internal) if printInternal => write(inputs, "internal", internal().formatted)
-    case AppliedInternalTransformsMessage(inputs, internal) if printInternal => write(inputs, "internal", internal().formatted)
-    case m@GeneratedViperMessage(_, inputs, _, _) if printVpr => write(inputs, "vpr", m.vprAstFormatted)
+    case TypeCheckDebugMessage(WithoutBuiltinSources(inputs), _, debugTypeInfo) if debug => write(inputs, "debugType", debugTypeInfo())
+    case DesugaredMessage(WithoutBuiltinSources(inputs), internal) if printInternal => write(inputs, "internal", internal().formatted)
+    case AppliedInternalTransformsMessage(WithoutBuiltinSources(inputs), internal) if printInternal => write(inputs, "internal", internal().formatted)
+    case m@GeneratedViperMessage(_, WithoutBuiltinSources(inputs), _, _) if printVpr => write(inputs, "vpr", m.vprAstFormatted)
     case m: ChoppedViperMessage if printVpr => write(m.inputs, s"chopped${m.idx}.vpr", m.vprAstFormatted)
     case m: ChoppedProgressMessage => logger.info(m.toString)
     case CopyrightReport(text) => println(text)
     case _ => // ignore
   }
 
-  // TODO: doc
-  private val builtinSourcesNames = Seq("/builtin/builtin.gobra")
-  private val defaultTargetName = "project"
-  private val defaultTargetPath = Paths.get(gobraDir.toAbsolutePath.toString, defaultTargetName)
-  private val defaultTarget = defaultTargetPath.toString
+  private object WithoutBuiltinSources {
+    // TODO: doc
+    val builtinSourcesNames = Seq("/builtin/builtin.gobra")
+    def unapply(s: String): Option[String] = if (builtinSourcesNames contains s) None else Some(s)
+    def unapply(s: Vector[String]): Option[Vector[String]] = {
+      val diff = s filterNot builtinSourcesNames.contains
+      if (diff.isEmpty) None else Some(diff)
+    }
+  }
 
   private def write(inputs: Vector[String], fileExt: String, content: String): Unit = {
-    // TODO: adapt comment
+    Violation.violation(inputs.nonEmpty, s"expected at least one file path for which the following message was reported: '$content''")
     // this message belongs to multiple inputs. We simply pick the first one for the resulting file's name
-    write(defaultTarget, fileExt, content)
+    write(inputs.head, fileExt, content)
   }
 
   private def write(input: String, fileExt: String, content: String): Unit = {
-    val basePath = if (builtinSourcesNames.contains(input)) defaultTargetPath else Paths.get(input)
-    val outputFile = OutputUtil.postfixFile(basePath, fileExt)
+    val outputFile = OutputUtil.postfixFile(Paths.get(input), fileExt)
     try {
       FileUtils.writeStringToFile(outputFile.toFile, content, UTF_8)
     } catch {

@@ -93,7 +93,6 @@ trait GoVerifier extends StrictLogging {
             case VerifierResult.Success => logger.info(s"$name found no errors")
             case VerifierResult.Failure(errors) =>
               logger.error(s"$name has found ${errors.length} error(s) in package $pkgId")
-              errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
               allVerifierErrors = allVerifierErrors ++ errors
           }
         })(executor)

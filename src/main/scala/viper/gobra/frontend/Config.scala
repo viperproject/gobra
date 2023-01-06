@@ -16,7 +16,7 @@ import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
-import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
+import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter, StreamingReporter}
 import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
@@ -709,13 +709,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     gobraDirectory = gobraDirectory(),
     moduleName = module(),
     includeDirs = includeDirs,
-    reporter = FileWriterReporter(
-      unparse = unparse(),
-      eraseGhost = eraseGhost(),
-      goify = goify(),
-      debug = debug(),
-      printInternal = printInternal(),
-      printVpr = printVpr()),
+    reporter = StreamingReporter(
+      FileWriterReporter(
+        unparse = unparse(),
+        eraseGhost = eraseGhost(),
+        goify = goify(),
+        debug = debug(),
+        printInternal = printInternal(),
+        printVpr = printVpr())),
     backend = backend(),
     isolate = isolate,
     choppingUpperBound = chopUpperBound(),

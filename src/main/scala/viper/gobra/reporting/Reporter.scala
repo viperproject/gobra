@@ -62,7 +62,9 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
   }
 
   private object WithoutBuiltinSources {
-    // TODO: doc
+    // the reporter generates files with different extensions in the same place as the original file.
+    // unfortunately, for the builtin resources, we do not generate a suitable path for the output files (these
+    // paths in particular are typically for a path for which a regular use does not have permissions).
     val builtinSourcesNames = Seq("/builtin/builtin.gobra")
     def unapply(s: String): Option[String] = if (builtinSourcesNames contains s) None else Some(s)
     def unapply(s: Vector[String]): Option[Vector[String]] = {
@@ -72,8 +74,8 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
   }
 
   private def write(inputs: Vector[String], fileExt: String, content: String): Unit = {
-    Violation.violation(inputs.nonEmpty, s"expected at least one file path for which the following message was reported: '$content''")
     // this message belongs to multiple inputs. We simply pick the first one for the resulting file's name
+    Violation.violation(inputs.nonEmpty, s"expected at least one file path for which the following message was reported: '$content''")
     write(inputs.head, fileExt, content)
   }
 

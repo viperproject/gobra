@@ -60,6 +60,9 @@ class AdtEncoding extends LeafTypeEncoding {
     *   unique X_clause1_tag(): Int
     *   ...
     *
+    *   // rank function
+    *   rank(): Int
+    *
     *   axiom {
     *     forall f11: F11, ... :: { X_clause1(f11, ...) }
     *       X_tag(X_clause1(f11, ...)) == X_clause1_tag() && X_F11(X_clause1(f11, ...)) )) == f11 && ...
@@ -75,6 +78,16 @@ class AdtEncoding extends LeafTypeEncoding {
     *   axiom {
     *     forall t: X :: {X_tag(t)} t == X_clause1(X_clause1_f11(t), ...) || t == ...
     *   }
+    *
+    *   axiom {
+    *     forall t X :: {rank(t)} 0 <= rank(t)
+    *   }
+    *
+    *   // for every parameter pi of a constructor C with arity n, if pi has an ADT type:
+    *   axiom {
+    *     forall p1, ..., pn ==> rank(pi) < rank(C(p1, ..., pi, ..., pn))
+    *   }
+    *   ...
     *
     * }
     */
@@ -228,13 +241,13 @@ class AdtEncoding extends LeafTypeEncoding {
         )(aPos, aInfo, adtName, aErrT)
       }
 
-      // rank function for ADTs, as defined in Paul Dahlke's thesis - section 5.3.2 of
+      // rank function for ADTs, as axiomatized in Paul Dahlke's thesis - section 5.3.2 of
       // https://ethz.ch/content/dam/ethz/special-interest/infk/chair-program-method/pm/documents/Education/Theses/Paul_Dahlke_BA_Report.pdf
       val rankFunc = adtRankFunc(adtName)(aPos, aInfo, aErrT)
       val rankAxioms = {
         // the following axiom is useful for Gobra to easily infer that there is a lower bound
         // on the values produced by rank:
-        // forall x X :: { rank(x) } 1 <= rank(x)
+        // forall x X :: {rank(x)} 0 <= rank(x)
         val rankIsBounded = {
           val variableDecl = vpr.LocalVarDecl("x", adtT)(aPos, aInfo, aErrT)
           val rankApp = applyRankFunc(adtName, variableDecl.localVar)(aPos, aInfo, aErrT)
@@ -242,42 +255,30 @@ class AdtEncoding extends LeafTypeEncoding {
           val body = vpr.Forall(
             variables = Seq(variableDecl),
             triggers = Seq(trigger),
-            exp = vpr.LeCmp(vpr.IntLit(1)(aPos, aInfo, aErrT), rankApp)(aPos, aInfo, aErrT)
+            exp = vpr.LeCmp(vpr.IntLit(0)(aPos, aInfo, aErrT), rankApp)(aPos, aInfo, aErrT)
           )(aPos, aInfo, aErrT)
           vpr.AnonymousDomainAxiom(body)(aPos, aInfo, adtName, aErrT)
         }
 
-        // for every constructor C of arity n, we axiomatize rank as follows:
-        // forall p1, ..., pn :: { rank(C(p1, ..., pn)) } rank(C(p1, ..., pn)) == 1 + rank(p1) + ... + rank(pn)
-        // Notice that rank(pi) is 0 if the param at index i is not of an ADT type, for every valid index i.
-        val defsRankPerClause = adt.clauses zip constructors map { case (clause, cons) =>
+        // for every parameter pi of a constructor C with arity n, if pi has an ADT type:
+        //   forall p1, ..., pn ==> rank(pi) < rank(C(p1, ..., pi, ..., pn))
+        val defsRankPerClause = adt.clauses zip constructors flatMap { case (clause, cons) =>
           val variables = fieldDecls(clause)
           val constApp = vpr.DomainFuncApp(
             funcname = cons.name,
             args = variables map (_.localVar),
             typVarMap = Map()
           )(aPos, aInfo, adtT, adtName, aErrT)
-          val rankOfConst = applyRankFunc(adtName, constApp)(aPos, aInfo, aErrT)
-          val axiomExp = if (variables.isEmpty) {
-            // this case distinction is required to avoid quantifiers with 0 quantified
-            // variables when the constructor is nullary, which breaks consistency checks
-            vpr.EqCmp(rankOfConst, vpr.IntLit(1)(aPos, aInfo, aErrT))(aPos, aInfo, aErrT)
-          } else {
-            val trigger = vpr.Trigger(Seq(rankOfConst))(aPos, aInfo, aErrT)
-            val rankOfArgsOfAdtType = clause.args.map(arg => underlyingType(arg.typ)(ctx)) zip variables collect {
-              case (inVarT: in.AdtT, vprVar) =>
-                // selects the appropriate rank function according to the ADT type
-                applyRankFunc(inVarT.name, vprVar.localVar)(aPos, aInfo, aErrT)
-            }
-            val body = vpr.EqCmp(
-              rankOfConst,
-              rankOfArgsOfAdtType.foldLeft[vpr.Exp](vpr.IntLit(BigInt(1))(aPos, aInfo, aErrT)) {
-                case (l, r) => vpr.Add(l, r)(aPos, aInfo, aErrT)
-              }
-            )(aPos, aInfo, aErrT)
-            vpr.Forall(variables = variables, triggers = Seq(trigger), exp = body)(aPos, aInfo, aErrT)
+          val rankOfConst = applyRankFunc(adtName, constApp)(aPos, aInfo, aErrT) // rank(C(p1, ..., pn))
+          val trigger = vpr.Trigger(Seq(rankOfConst))(aPos, aInfo, aErrT)
+          clause.args.map(arg => underlyingType(arg.typ)(ctx)) zip variables collect {
+            case (inVarT: in.AdtT, vprVar) =>
+              // selects the appropriate rank function according to the ADT type
+              val rankOfParam = applyRankFunc(inVarT.name, vprVar.localVar)(aPos, aInfo, aErrT) // rank(pi)
+              val body = vpr.LtCmp(rankOfParam, rankOfConst)(aPos, aInfo, aErrT)
+              val axExp = vpr.Forall(variables = variables, triggers = Seq(trigger), exp = body)(aPos, aInfo, aErrT)
+              vpr.AnonymousDomainAxiom(axExp)(aPos, aInfo, adtName, aErrT)
           }
-          vpr.AnonymousDomainAxiom(axiomExp)(aPos, aInfo, adtName, aErrT)
         }
         rankIsBounded +: defsRankPerClause
       }

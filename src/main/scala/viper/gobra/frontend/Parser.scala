@@ -42,12 +42,8 @@ object Parser {
     */
 
   def parse(input: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
-    val sources = input
-      .map(Gobrafier.gobrafy)
-      .map(s => {
-        config.reporter report PreprocessedInputMessage(s.name, () => s.content)
-        s
-      })
+    val sources = input.map(Gobrafier.gobrafy)
+    sources.foreach { s => config.reporter report PreprocessedInputMessage(s.name, () => s.content) }
     for {
       parseAst <- parseSources(sources, pkgInfo, specOnly)(config)
       postprocessors = Seq(

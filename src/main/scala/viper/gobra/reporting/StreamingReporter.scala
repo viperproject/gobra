@@ -17,8 +17,6 @@ case class StreamingReporter(reporter: GobraReporter) extends GobraReporter with
         case VerifierResult.Failure(Right(errors)) => errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
         case _ => // ignore
       }
-      case m:ParserErrorMessage => m.result.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
-      case m:TypeCheckFailureMessage => m.result.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
       case _ => // ignore
     }
     reporter.report(msg)

@@ -169,17 +169,17 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
     * }
     *
     * axiom slice_deconstructor_over_constructor_offset {
-    *   forall arr, off, len, cap :: { soffset(arr,off,len,cap) }
+    *   forall arr, off, len, cap :: { soffset(smake(arr,off,len,cap)) }
     *     0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> soffset(smake(arr,off,len,cap)) == off
     * }
     *
     * axiom slice_deconstructor_over_constructor_len {
-    *   forall arr, off, len, cap :: { slen(arr,off,len,cap) }
+    *   forall arr, off, len, cap :: { slen(smake(arr,off,len,cap)) }
     *     0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> slen(smake(arr,off,len,cap)) == len
     * }
     *
     * axiom slice_deconstructor_over_constructor_cap {
-    *   forall arr, off, len, cap :: { slen(arr,off,len,cap) }
+    *   forall arr, off, len, cap :: { slen(smake(arr,off,len,cap)) }
     *     0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> scap(smake(arr,off,len,cap)) == cap
     * }
     * }}}
@@ -319,17 +319,17 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
     *   }
     *
     *   axiom slice_deconstructor_over_constructor_offset {
-    *     forall arr, off, len, cap :: { soffset(arr,off,len,cap) }
+    *     forall arr, off, len, cap :: { soffset(smake(arr,off,len,cap)) }
     *       0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> soffset(smake(arr,off,len,cap)) == off
     *   }
     *
     *   axiom slice_deconstructor_over_constructor_len {
-    *     forall arr, off, len, cap :: { slen(arr,off,len,cap) }
+    *     forall arr, off, len, cap :: { slen(smake(arr,off,len,cap)) }
     *       0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> slen(smake(arr,off,len,cap)) == len
     *   }
     *
     *   axiom slice_deconstructor_over_constructor_cap {
-    *     forall arr, off, len, cap :: { slen(arr,off,len,cap) }
+    *     forall arr, off, len, cap :: { slen(smake(arr,off,len,cap)) }
     *       0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> scap(smake(arr,off,len,cap)) == cap
     *   }
     *

@@ -86,7 +86,8 @@ trait GobraFrontendForTesting extends Frontend {
     // transform Gobra errors back to vpr.AbstractError such that the benchmarking framework automatically handles them
     gobraResult match {
       case VerifierResult.Success => vpr.Success
-      case VerifierResult.Failure(errors) => vpr.Failure(errors.map(GobraTestError))
+      case VerifierResult.Failure(Left(errors)) => vpr.Failure(errors.map(GobraTestError))
+      case VerifierResult.Failure(Right(errors)) => vpr.Failure(errors.map(GobraTestError))
     }
   }
 

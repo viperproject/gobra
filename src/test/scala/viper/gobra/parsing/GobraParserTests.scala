@@ -65,7 +65,8 @@ class GobraParserTests extends AbstractGobraTests with BeforeAndAfterAll {
 
         result match {
           case Success => Vector.empty
-          case Failure(errors) => errors map GobraTestOuput
+          case Failure(Right(errors)) => errors map GobraTestOuput
+          case Failure(Left(errors)) => errors map GobraTestOuput
         }
       }
     }

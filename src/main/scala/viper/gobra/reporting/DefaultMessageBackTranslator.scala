@@ -14,6 +14,11 @@ import viper.silver.verifier.VerificationResult
 
 class DefaultMessageBackTranslator(backTrackInfo: BackTrackInfo, config: Config) extends MessageBackTranslator {
   override def translate(msg: Message): GobraMessage = {
+    msg match {
+      case m@EntityFailureMessage(verifier, Source(info), time, result, cached) => println("HERE")
+      case m@EntityFailureMessage(verifier, _, time, result, cached) => println("THERE")
+      case _ =>
+    }
     defaultTranslate.lift.apply(msg).getOrElse(RawMessage(msg))
   }
 

@@ -89,10 +89,7 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
     val result = Await.result(gobraInstance.verify(pkgInfo, config)(executor), Duration.Inf)
 
     val nonVerificationErrors = result match {
-      case r: VerifierResult.Failure => r.errors match {
-        case Left(errs) => errs.filter(!_.isInstanceOf[VerificationError])
-        case Right(errs) => errs.filter(!_.isInstanceOf[VerificationError])
-      }
+      case r: VerifierResult.Failure => r.errors.filter(!_.isInstanceOf[VerificationError])
       case _ => Vector()
     }
 

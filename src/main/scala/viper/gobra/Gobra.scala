@@ -91,15 +91,10 @@ trait GoVerifier extends StrictLogging {
 
           result match {
             case VerifierResult.Success => logger.info(s"$name found no errors")
-            case VerifierResult.Failure(errors) => errors match {
-              case Left(errs) =>
-                errs.foreach(err => logger.error(s"\t${err.formattedMessage}"))
-                logger.error(s"$name has found ${errs.length} error(s) in package $pkgId")
-                allVerifierErrors = allVerifierErrors ++ errs
-              case Right(errs) =>
-                logger.error(s"$name has found ${errs.length} error(s) in package $pkgId")
-                allVerifierErrors = allVerifierErrors ++ errs
-            }
+            case VerifierResult.Failure(errors) =>
+              if (!result.isInstanceOf[BackendGenerated]) errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
+              logger.error(s"$name has found ${errors.length} error(s) in package $pkgId")
+              allVerifierErrors = allVerifierErrors ++ errors
           }
         })(executor)
       try {
@@ -137,7 +132,7 @@ trait GoVerifier extends StrictLogging {
     }
 
     val allErrors = allVerifierErrors ++ allTimeoutErrors
-    if (allErrors.isEmpty) VerifierResult.Success else VerifierResult.Failure(Right(allErrors))
+    if (allErrors.isEmpty) VerifierResult.Success else VerifierResult.Failure(allErrors)
   }
 
   protected[this] def verify(pkgInfo: PackageInfo, config: Config)(executor: GobraExecutionContext): Future[VerifierResult]
@@ -167,7 +162,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
     task.flatMap{
       case Left(Vector()) => Future(VerifierResult.Success)
-      case Left(errors)   => Future(VerifierResult.Failure(Left(errors)))
+      case Left(errors)   => Future(VerifierResult.Failure(errors))
       case Right((job, finalConfig)) => verifyAst(finalConfig, pkgInfo, job.program,  job.backtrack)(executor)
     }
   }

@@ -13,7 +13,7 @@ sealed trait VerifierResult
 object VerifierResult {
 
   case object Success extends VerifierResult
-  case class Failure(errors: Either[Vector[VerifierError], Vector[VerifierError]]) extends VerifierResult
+  case class Failure(errors: Vector[VerifierError]) extends VerifierResult
 }
 
-
+trait BackendGenerated extends VerifierResult.Failure

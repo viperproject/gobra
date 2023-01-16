@@ -169,7 +169,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
 
     override def gobraResult: VerifierResult = lastStep.res match {
       case Some(Left(Vector())) => VerifierResult.Success
-      case Some(Left(errors))   => VerifierResult.Failure(Left(errors))
+      case Some(Left(errors))   => VerifierResult.Failure(errors)
       case Some(Right(result))  => result
     }
   }

@@ -14,10 +14,15 @@ case class StreamingReporter(reporter: GobraReporter) extends GobraReporter with
   def report(msg: GobraMessage): Unit = {
     msg match {
       case m:GobraEntityFailureMessage => m.result match {
-        case VerifierResult.Failure(Right(errors)) => errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
+        case v@VerifierResult.Failure(errors) if v.isInstanceOf[BackendGenerated] => errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
         case _ => // ignore
       }
-      case _ => // ignore
+      case _s => _s match {
+        case RawMessage(msg) =>
+          //println("")
+          //println(msg)
+        case _ => //ignore
+      } // ignore
     }
     reporter.report(msg)
   }

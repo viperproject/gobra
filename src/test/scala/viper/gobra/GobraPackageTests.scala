@@ -84,8 +84,7 @@ class GobraPackageTests extends GobraTests {
 
         equalConfigs(parsedConfig.get, config) ++ (result match {
           case Success => Vector.empty
-          case Failure(Left(errors)) => errors map GobraTestOuput
-          case Failure(Right(errors)) => errors map GobraTestOuput
+          case Failure(errors) => errors map GobraTestOuput
         })
       }
     }

@@ -173,5 +173,4 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       case Some(Right(result))  => result
     }
   }
-
 }

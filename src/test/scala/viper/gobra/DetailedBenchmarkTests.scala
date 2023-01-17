@@ -174,3 +174,4 @@ class DetailedBenchmarkTests extends BenchmarkTests {
     }
   }
 }
+

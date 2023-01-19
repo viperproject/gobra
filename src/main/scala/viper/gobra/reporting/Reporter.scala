@@ -40,7 +40,8 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
                               goify: Boolean = false,
                               debug: Boolean = false,
                               printInternal: Boolean = false,
-                              printVpr: Boolean = false) extends GobraReporter {
+                              printVpr: Boolean = false,
+                              streamErrs: Boolean = true) extends GobraReporter {
 
   lazy val logger: Logger =
     Logger(LoggerFactory.getLogger(getClass.getName))
@@ -58,6 +59,13 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
     case m: ChoppedViperMessage if printVpr => write(m.inputs, s"chopped${m.idx}.vpr", m.vprAstFormatted)
     case m: ChoppedProgressMessage => logger.info(m.toString)
     case CopyrightReport(text) => println(text)
+    // Stream errors here
+    case m:GobraEntityFailureMessage if streamErrs => m.result match {
+      case VerifierResult.Failure(errors) => errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
+      case _ => // ignore
+    }
+    case m:ParserErrorMessage if streamErrs => m.result.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
+    case m:TypeCheckFailureMessage if streamErrs => m.result.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
     case _ => // ignore
   }
 

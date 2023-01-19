@@ -16,7 +16,7 @@ import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
-import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter, StreamingReporter}
+import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
@@ -66,6 +66,7 @@ object ConfigDefaults {
   lazy val DefaultDisableMoreCompleteExhale: Boolean = false
   lazy val DefaultEnableLazyImports: Boolean = false
   lazy val DefaultNoVerify: Boolean = false
+  lazy val DefaultNoStreamErrors: Boolean = false
 }
 
 case class Config(
@@ -115,6 +116,7 @@ case class Config(
                    disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
+                   noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors
 ) {
 
   def merge(other: Config): Config = {
@@ -158,6 +160,7 @@ case class Config(
       disableMoreCompleteExhale = disableMoreCompleteExhale,
       enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
+      noStreamErrors = noStreamErrors || other.noStreamErrors
     )
   }
 
@@ -206,6 +209,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
+                      noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -258,6 +262,7 @@ trait RawConfig {
     disableMoreCompleteExhale = baseConfig.disableMoreCompleteExhale,
     enableLazyImports = baseConfig.enableLazyImports,
     noVerify = baseConfig.noVerify,
+    noStreamErrors = baseConfig.noStreamErrors,
   )
 }
 
@@ -613,6 +618,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val noStreamErrors: ScallopOption[Boolean] = opt[Boolean](
+    name = "noStreamErrors",
+    descr = "Do not stream errors produced by Gobra but instead print them all organized by package in the end.",
+    default = Some(ConfigDefaults.DefaultNoStreamErrors),
+    noshort = true,
+  )
+
   /**
     * Exception handling
     */
@@ -721,14 +733,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     gobraDirectory = gobraDirectory(),
     moduleName = module(),
     includeDirs = includeDirs,
-    reporter = StreamingReporter(
-      FileWriterReporter(
+    reporter = FileWriterReporter(
         unparse = unparse(),
         eraseGhost = eraseGhost(),
         goify = goify(),
         debug = debug(),
         printInternal = printInternal(),
-        printVpr = printVpr())),
+        printVpr = printVpr(),
+        streamErrs = !noStreamErrors()),
     backend = backend(),
     isolate = isolate,
     choppingUpperBound = chopUpperBound(),
@@ -748,5 +760,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     disableMoreCompleteExhale = disableMoreCompleteExhale(),
     enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),
+    noStreamErrors = noStreamErrors(),
   )
 }

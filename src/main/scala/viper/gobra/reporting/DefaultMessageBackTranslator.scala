@@ -15,13 +15,15 @@ import com.typesafe.scalalogging.StrictLogging
 
 class DefaultMessageBackTranslator(backTrackInfo: BackTrackInfo, config: Config) extends MessageBackTranslator with StrictLogging {
   override def translate(msg: Message): GobraMessage = {
-    // TODO: Remove match when issue https://github.com/viperproject/gobra/issues/556 is fixed
-    msg match {
-      case _@EntityFailureMessage(_, Source(_), _, _, _) => // ignore
-      case _@EntityFailureMessage(_, _, _, result, _) =>
-        // Stream faulty message
-        translate(result).asInstanceOf[VerifierResult.Failure].errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
-      case _ =>
+    // TODO: Remove this "if" when issue https://github.com/viperproject/gobra/issues/556 is fixed
+    if (!config.noStreamErrors) {
+      msg match {
+        case _@EntityFailureMessage(_, Source(_), _, _, _) => // ignore
+        case _@EntityFailureMessage(_, _, _, result, _) =>
+          // Stream faulty message
+          translate(result).asInstanceOf[VerifierResult.Failure].errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
+        case _ =>
+      }
     }
     defaultTranslate.lift.apply(msg).getOrElse(RawMessage(msg))
   }

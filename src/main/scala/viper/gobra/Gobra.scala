@@ -25,6 +25,8 @@ import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silicon.BuildInfo
 import viper.silver.{ast => vpr}
 
+import java.time.format.DateTimeFormatter
+import java.time.LocalTime
 import scala.concurrent.{Await, Future, TimeoutException}
 
 object GoVerifier {
@@ -77,9 +79,10 @@ trait GoVerifier extends StrictLogging {
       }
     })
 
+    val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
     config.packageInfoInputMap.keys.foreach(pkgInfo => {
       val pkgId = pkgInfo.id
-      logger.info(s"Verifying Package $pkgId")
+      logger.info(s"Verifying package $pkgId [${LocalTime.now().format(timeFormatter)}]")
       val future = verify(pkgInfo, config.copy(reporter = statsCollector, taskName = pkgId))(executor)
         .map(result => {
           // report that verification of this package has finished in order that `statsCollector` can free space by getting rid of this package's typeInfo

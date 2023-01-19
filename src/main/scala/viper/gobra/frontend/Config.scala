@@ -65,6 +65,7 @@ object ConfigDefaults {
   lazy val DefaultParallelizeBranches: Boolean = false
   lazy val DefaultDisableMoreCompleteExhale: Boolean = false
   lazy val DefaultEnableLazyImports: Boolean = false
+  lazy val DefaultNoVerify: Boolean = false
 }
 
 case class Config(
@@ -113,6 +114,7 @@ case class Config(
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                    disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
+                   noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
 ) {
 
   def merge(other: Config): Config = {
@@ -155,6 +157,7 @@ case class Config(
       parallelizeBranches = parallelizeBranches,
       disableMoreCompleteExhale = disableMoreCompleteExhale,
       enableLazyImports = enableLazyImports || other.enableLazyImports,
+      noVerify = noVerify || other.noVerify,
     )
   }
 
@@ -202,6 +205,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                       disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
+                      noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -253,6 +257,7 @@ trait RawConfig {
     parallelizeBranches = baseConfig.parallelizeBranches,
     disableMoreCompleteExhale = baseConfig.disableMoreCompleteExhale,
     enableLazyImports = baseConfig.enableLazyImports,
+    noVerify = baseConfig.noVerify,
   )
 }
 
@@ -601,6 +606,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val noVerify: ScallopOption[Boolean] = opt[Boolean](
+    name = "noVerify",
+    descr = s"Skip the verification step performed after encoding the Gobra program into Viper.",
+    default = Some(ConfigDefaults.DefaultNoVerify),
+    noshort = true,
+  )
+
   /**
     * Exception handling
     */
@@ -735,5 +747,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parallelizeBranches = parallelizeBranches(),
     disableMoreCompleteExhale = disableMoreCompleteExhale(),
     enableLazyImports = enableLazyImports(),
+    noVerify = noVerify(),
   )
 }

@@ -31,7 +31,7 @@ object BackTranslator {
     case BackendVerifier.Success => VerifierResult.Success
     case BackendVerifier.Failure(errors, backtrack) =>
       val errorTranslator = new DefaultErrorBackTranslator(backtrack)
-      new VerifierResult.Failure(errors map errorTranslator.translate) with BackendGenerated
+      VerifierResult.Failure(errors map errorTranslator.translate)
   }
 
   implicit class RichErrorMessage(error: silver.verifier.ErrorMessage) {

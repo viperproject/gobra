@@ -95,8 +95,10 @@ trait GoVerifier extends StrictLogging {
           result match {
             case VerifierResult.Success => logger.info(s"$name found no errors")
             case VerifierResult.Failure(errors) =>
-              if (!result.isInstanceOf[BackendGenerated]) errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
               logger.error(s"$name has found ${errors.length} error(s) in package $pkgId")
+              if (config.noStreamErrors) {
+                errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
+              }
               allVerifierErrors = allVerifierErrors ++ errors
           }
         })(executor)

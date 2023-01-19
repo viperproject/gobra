@@ -233,9 +233,12 @@ object Parser {
       * Replaces all PQualifiedWoQualifierImport by PQualifiedImport nodes
       */
     def postprocess(pkg: PPackage)(config: Config): Either[Vector[VerifierError], PPackage] = {
-      def createError(n: PImplicitQualifiedImport, errorMsg: String): Vector[VerifierError] =
-        pkg.positions.translate(message(n,
+      def createError(n: PImplicitQualifiedImport, errorMsg: String): Vector[VerifierError] = {
+        val err = pkg.positions.translate(message(n,
           s"Explicit qualifier could not be derived (reason: '$errorMsg')"), ParserError)
+        config.reporter report ParserErrorMessage(err.head.position.get.file, err)
+        err
+      }
 
       // unfortunately Kiama does not seem to offer a way to report errors while applying the strategy
       // hence, we keep ourselves track of errors

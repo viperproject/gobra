@@ -165,7 +165,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     task.flatMap{
       case Left(Vector()) => Future(VerifierResult.Success)
       case Left(errors)   => Future(VerifierResult.Failure(errors))
-      case Right((job, finalConfig)) => verifyAst(finalConfig, pkgInfo, job.program,  job.backtrack)(executor)
+      case Right((job, finalConfig)) => performVerification(finalConfig, pkgInfo, job.program,  job.backtrack)(executor)
     }
   }
 
@@ -260,6 +260,14 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       Right(Desugar.desugar(parsedPackage, typeInfo)(config))
     } else {
       Left(Vector())
+    }
+  }
+
+  private def performVerification(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {
+    if (config.noVerify) {
+      Future(VerifierResult.Success)(executor)
+    } else {
+      verifyAst(config, pkgInfo, ast, backtrack)(executor)
     }
   }
 

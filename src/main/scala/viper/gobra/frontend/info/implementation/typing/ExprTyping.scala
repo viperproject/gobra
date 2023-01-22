@@ -12,7 +12,7 @@ import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminat
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
-import viper.gobra.util.{Constants, Violation}
+import viper.gobra.util.{Constants, TypeBounds, Violation}
 
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -1054,4 +1054,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT | _: AdtT => UNTYPED_INT_CONST
       case t => violation(s"unexpected argument ${expr.exp} of type $t passed to len")
     }
+
+  def isEffectfulConversion(c: ap.Conversion): Boolean = {
+    val fromType = underlyingType(exprType(c.arg))
+    val toType = underlyingType(typeSymbType(c.typ))
+    (fromType, toType) match {
+      case (StringT, SliceT(IntT(TypeBounds.Byte))) => true
+      case _ => false
+    }
+  }
 }

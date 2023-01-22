@@ -360,14 +360,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       // Might change at some point
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(p: ap.Conversion)) =>
-          val dstTyp = symbType(p.typ)
-          val exprTyp = typ(p.arg)
-          (underlyingType(dstTyp), underlyingType(exprTyp)) match {
-            case (SliceT(IntT(TypeBounds.Byte)), StringT) =>
-              // this is an effectful conversion which produces permissions to the resulting slice
-              false
-            case _ => go(p.arg)
-          }
+          !isEffectfulConversion(p) && go(p.arg)
         case (Left(callee), Some(p@ap.FunctionCall(f, _))) => go(callee) && p.args.forall(go) && (f match {
           case ap.Function(_, symb) => symb.isPure
           case ap.Closure(_, symb) => symb.isPure

@@ -1055,7 +1055,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"unexpected argument ${expr.exp} of type $t passed to len")
     }
 
-  def isEffectfulConversion(c: ap.Conversion): Boolean = {
+  override def isEffectfulConversion(c: ap.Conversion): Boolean = {
     val fromType = underlyingType(exprType(c.arg))
     val toType = underlyingType(typeSymbType(c.typ))
     (fromType, toType) match {

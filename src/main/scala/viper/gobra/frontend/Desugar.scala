@@ -20,7 +20,7 @@ import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
-import viper.gobra.util.{Constants, DesugarWriter, TypeBounds, Violation}
+import viper.gobra.util.{Constants, DesugarWriter, Violation}
 
 import scala.annotation.{tailrec, unused}
 import scala.collection.{Iterable, SortedSet}
@@ -2805,20 +2805,18 @@ object Desugar {
       val src: Meta = meta(expr, info)
       info.resolve(expr) match {
         case Some(p: ap.FunctionLikeCall) => functionLikeCallD(ctx, info)(p, expr)(src)
-        case Some(ap.Conversion(typ, arg)) =>
+        case Some(c@ap.Conversion(typ, arg)) =>
           val typType = info.symbType(typ)
-          val argType = info.typ(arg)
-
-          (underlyingType(typType), underlyingType(argType)) match {
-            case (SliceT(IntT(TypeBounds.Byte)), StringT) =>
-              val resT = typeD(SliceT(IntT(TypeBounds.Byte)), Addressability.Exclusive)(src)
+          underlyingType(typType) match {
+            case l if info.isEffectfulConversion(c) =>
+              val resT = typeD(l, Addressability.Exclusive)(src)
               for {
                 target <- freshDeclaredExclusiveVar(resT, expr, info)(src)
                 dArg <- exprD(ctx, info)(arg)
                 conv: in.EffectfulConversion = in.EffectfulConversion(target, resT, dArg)(src)
                 _ <- write(conv)
               } yield target
-            case (t: InterfaceT, _) =>
+            case t: InterfaceT =>
               for {
                 exp <- exprD(ctx, info)(arg)
                 tD  =  typeD(t, exp.typ.addressability)(src)

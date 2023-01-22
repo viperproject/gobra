@@ -3,6 +3,8 @@
 
 package main
 
+// Rejected, as this conversion is side-effectful, as thus
+// it is not a pure expression.
 //:: ExpectedOutput(type_error)
 ensures res === []byte(s)
 func to64(s string) (res []byte)

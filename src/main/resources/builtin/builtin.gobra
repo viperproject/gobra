@@ -13,7 +13,7 @@ type any = interface{}
 type error interface {
 	pred ErrorMem()
 
-	preserves ErrorMem()
+	requires acc(ErrorMem(), _)
 	decreases
 	Error() string
 }

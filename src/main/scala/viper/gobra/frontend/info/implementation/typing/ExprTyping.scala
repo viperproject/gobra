@@ -1055,6 +1055,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"unexpected argument ${expr.exp} of type $t passed to len")
     }
 
+  /**
+    * True iff a conversion may produce side-effects, such as allocating a slice.
+    * May need to be extended when we introduce support for generics and when we allow
+    * a cast from a `[]T` to a `*[n]T` (described in https://go.dev/ref/spec#Conversions).
+    */
   override def isEffectfulConversion(c: ap.Conversion): Boolean = {
     val fromType = underlyingType(exprType(c.arg))
     val toType = underlyingType(typeSymbType(c.typ))

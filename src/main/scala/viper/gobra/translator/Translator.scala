@@ -25,11 +25,6 @@ object Translator {
     val programTranslator = new ProgramsImpl()
     val task = programTranslator.translate(program)(translationConfig)
 
-    if (config.checkConsistency) {
-      val errors = task.program.checkTransitively
-      if (errors.nonEmpty) Violation.violation(errors.toString)
-    }
-
     val transformers: Seq[ViperTransformer] = Seq(
       new AssumeTransformer,
       new TerminationTransformer
@@ -38,6 +33,11 @@ object Translator {
     val transformedTask = transformers.foldLeft(task) {
       case (t, transformer) => transformer.transform(t)
         .fold(errs => Violation.violation(s"Applying transformer ${transformer.getClass.getSimpleName} resulted in errors: ${errs.toString}"), identity)
+    }
+
+    if (config.checkConsistency) {
+      val errors = transformedTask.program.checkTransitively
+      if (errors.nonEmpty) Violation.violation(errors.toString)
     }
 
     config.reporter report GeneratedViperMessage(config.taskName, config.packageInfoInputMap(pkgInfo).map(_.name), () => sortAst(transformedTask.program), () => transformedTask.backtrack)

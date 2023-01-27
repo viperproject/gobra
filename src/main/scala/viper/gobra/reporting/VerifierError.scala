@@ -279,6 +279,11 @@ case class ChannelMakePreconditionError(info: Source.Verifier.Info) extends Veri
   override def localMessage: String = s"The provided length to ${info.origin.tag.trim} might be negative"
 }
 
+case class MatchError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "match_error"
+  override def localMessage: String = s"The patterns might not match the expression"
+}
+
 case class RangeVariableMightNotExistError(info: Source.Verifier.Info)(rangeExpr: String) extends VerificationError {
   override def localId: String = "range_variable_might_not_exist"
   override def localMessage: String = s"Length of range expression '$rangeExpr' might be 0"

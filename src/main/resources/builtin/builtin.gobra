@@ -13,6 +13,17 @@ type any = interface{}
 type error interface {
 	pred ErrorMem()
 
+	ghost
+	requires acc(ErrorMem(), _)
+	decreases
+	pure IsDuplicableMem() bool
+
+	ghost
+	preserves ErrorMem()
+	ensures   IsDuplicableMem() ==> ErrorMem() 
+	decreases
+	Duplicate()
+
 	preserves ErrorMem()
 	decreases
 	Error() string

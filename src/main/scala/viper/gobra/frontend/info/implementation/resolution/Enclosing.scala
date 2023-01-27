@@ -72,6 +72,9 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val tryEnclosingFunction: PNode => Option[PFunctionDecl] =
     down[Option[PFunctionDecl]](None) { case m: PFunctionDecl => Some(m) }
 
+  lazy val tryEnclosingFunctionOrMethod: PNode => Option[PFunctionOrMethodDecl] =
+    down[Option[PFunctionOrMethodDecl]](None) { case f: PFunctionOrMethodDecl => Some(f) }
+
   lazy val tryEnclosingClosureImplementationProof: PNode => Option[PClosureImplProof] =
     down[Option[PClosureImplProof]](None) { case m: PClosureImplProof => Some(m) }
 
@@ -263,10 +266,11 @@ trait Enclosing { this: TypeInfoImpl =>
     }
   }
 
-  override def capturedVariables(decl: PClosureDecl): Vector[PIdnNode] =
+  override def capturedLocalVariables(decl: PClosureDecl): Vector[PIdnNode] =
     capturedVariablesAttr(tree.parent(decl).head.asInstanceOf[PFunctionLit])
   private lazy val capturedVariablesAttr: PFunctionLit => Vector[PIdnNode] = {
     def capturedVar(x: PIdnNode, lit: PFunctionLit): Boolean = entity(x) match {
+      case _: SymbolTable.GlobalVariable => false
       case r: SymbolTable.Variable => !containedIn(enclosingScope(r.rep), lit)
       case _ => false
     }

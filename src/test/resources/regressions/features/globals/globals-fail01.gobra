@@ -5,10 +5,10 @@ package pkg
 
 import "fmt"
 
-var A = 1
+var A@ = 1
 // Code executed during initialization must terminate
 //:: ExpectedOutput(function_termination_error)
-var _, B = f()
+var _, B@ = f()
 
 func f() (int, bool)
 

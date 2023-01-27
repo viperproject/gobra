@@ -162,13 +162,17 @@ sealed trait PFunctionOrClosureDecl extends PScope {
   def body: Option[(PBodyParameterInfo, PBlock)]
 }
 
+sealed trait PFunctionOrMethodDecl extends PNode with PScope {
+  def id: PIdnDef
+}
+
 case class PFunctionDecl(
                           id: PIdnDef,
                           args: Vector[PParameter],
                           result: PResult,
                           spec: PFunctionSpec,
                           body: Option[(PBodyParameterInfo, PBlock)]
-                        ) extends PFunctionOrClosureDecl with PActualMember with PCodeRootWithResult with PWithBody with PGhostifiableMember
+                        ) extends PFunctionOrClosureDecl with PActualMember with PCodeRootWithResult with PWithBody with PGhostifiableMember with PFunctionOrMethodDecl
 
 case class PMethodDecl(
                         id: PIdnDef,
@@ -177,7 +181,7 @@ case class PMethodDecl(
                         result: PResult,
                         spec: PFunctionSpec,
                         body: Option[(PBodyParameterInfo, PBlock)]
-                      ) extends PActualMember with PDependentDef with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
+                      ) extends PActualMember with PDependentDef with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember with PFunctionOrMethodDecl
 
 sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration {
 
@@ -949,6 +953,34 @@ case class PPackageWand(wand: PMagicWand, proofScript: Option[PBlock]) extends P
 
 case class PApplyWand(wand: PMagicWand) extends PGhostStatement
 
+case class PMatchStatement(exp: PExpression, clauses: Vector[PMatchStmtCase], strict: Boolean = true) extends PGhostStatement
+
+case class PMatchStmtCase(pattern: PMatchPattern, stmt: Vector[PStatement], default: Boolean = false) extends PGhostMisc with PScope
+
+case class PMatchExp(exp: PExpression, clauses: Vector[PMatchExpClause]) extends PGhostExpression {
+  val caseClauses: Vector[PMatchExpCase] = clauses collect {case c: PMatchExpCase => c}
+  val defaultClauses: Vector[PMatchExpDefault] = clauses collect {case c: PMatchExpDefault => c}
+  val hasDefault: Boolean = defaultClauses.length == 1
+}
+
+sealed trait PMatchExpClause extends PGhostMisc with PScope {
+  def exp: PExpression
+}
+
+case class PMatchExpCase(pattern: PMatchPattern, exp: PExpression) extends PMatchExpClause
+
+case class PMatchExpDefault(exp: PExpression) extends PMatchExpClause
+
+sealed trait PMatchPattern extends PGhostMisc
+
+case class PMatchValue(lit: PExpression) extends PMatchPattern
+
+case class PMatchBindVar(idn: PIdnDef) extends PMatchPattern
+
+case class PMatchAdt(clause: PType, fields: Vector[PMatchPattern]) extends PMatchPattern
+
+case class PMatchWildcard() extends PMatchPattern
+
 /**
   * Ghost Expressions and Assertions
   */
@@ -1199,6 +1231,11 @@ case class PMathematicalMapType(keys: PType, values: PType) extends PGhostLitera
 
 /** The type of option types. */
 case class POptionType(elem : PType) extends PGhostLiteralType
+
+/** The type of ADT types */
+case class PAdtType(clauses: Vector[PAdtClause]) extends PGhostLiteralType with PUnorderedScope
+
+case class PAdtClause(id: PIdnDef, args: Vector[PFieldDecls]) extends PGhostMisc with PUnorderedScope
 
 case class PGhostSliceType(elem: PType) extends PGhostLiteralType
 

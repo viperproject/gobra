@@ -7,6 +7,7 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend._
+import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.BoundedIntegerKind
@@ -92,13 +93,12 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
         // for ghost types
       case (BooleanT, AssertionT) => successProp
-      case (SortT, SortT) => successProp
-      case (PermissionT, PermissionT) => successProp
       case (SequenceT(l), SequenceT(r)) => assignableTo.result(l,r) // implies that Sequences are covariant
       case (SetT(l), SetT(r)) => assignableTo.result(l,r)
       case (MultisetT(l), MultisetT(r)) => assignableTo.result(l,r)
       case (OptionT(l), OptionT(r)) => assignableTo.result(l, r)
       case (IntT(_), PermissionT) => successProp
+      case (c: AdtClauseT, UnderlyingType(t: AdtT)) if c.context == t.context && c.adtT == t.decl => successProp
 
         // conservative choice
       case _ => errorProp()
@@ -107,6 +107,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   }
 
   lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {
+    case e if !isMutable(e) => false
     case PIndexedExp(b, _) => underlyingType(exprType(b)) match {
       case _: ArrayT => assignable(b)
       case _: SliceT | _: GhostSliceT => assignable(b)
@@ -177,6 +178,31 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
             )
           } else {
             failedProp("number of arguments does not match structure")
+          }
+
+        case a: AdtClauseT => // analogous to struct
+          if (elems.isEmpty) {
+            successProp
+          } else if (elems.exists(_.key.nonEmpty)) {
+            val tmap: Map[String, Type] = a.fields
+
+            failedProp("for adt literals either all or none elements must be keyed",
+              !elems.forall(_.key.nonEmpty)) and
+              propForall(elems, createProperty[PKeyedElement] { e =>
+                e.key.map {
+                  case PIdentifierKey(id) if tmap.contains(id.name) =>
+                    compositeValAssignableTo.result(e.exp, tmap(id.name))
+
+                  case v => failedProp(s"got $v but expected field name")
+                }.getOrElse(successProp)
+              })
+          } else if (elems.size == a.fields.size) {
+            propForall(
+              elems.map(_.exp).zip(a.fields.values),
+              compositeValAssignableTo
+            )
+          } else {
+            failedProp("number of arguments does not match adt constructor")
           }
 
         case ArrayT(len, t) =>
@@ -300,6 +326,15 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (Some(PExpCompositeVal(exp)), i) => intConstantEval(exp).getOrElse(BigInt(i))
       case (Some(PIdentifierKey(id)), i) => intConstantEval(PNamedOperand(id)).getOrElse(BigInt(i))
       case (_, i) => BigInt(i)
+    }
+  }
+
+  private def isMutable: Property[PExpression] = createBinaryProperty("mutable") { e =>
+    resolve(e) match {
+      case Some(g: ap.GlobalVariable) => g.symb.addressable
+      case Some(i: ap.IndexedExp) => isMutable(i.base)
+      case Some(f: ap.FieldSelection) => isMutable(f.base)
+      case _ => true
     }
   }
 }

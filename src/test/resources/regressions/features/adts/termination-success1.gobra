@@ -1,0 +1,56 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type tree adt{
+	leaf{ value int }
+	node{ left, right tree }
+}
+
+ghost
+pure
+decreases len(t)
+func leafCount(t tree) int {
+	return match t {
+		case leaf{_}: 1
+		case node{?l, ?r}: leafCount(l) + leafCount(r)
+	}
+}
+
+type list adt {
+	Empty{}
+
+	Cons{
+		head any
+		tail list
+	}
+}
+
+ghost
+decreases len(l)
+func length(l list) int {
+	match l {
+		case Empty{}:
+			return 0
+		case Cons{_, ?t}:
+			return 1 + length(t)
+	}
+}
+
+ghost
+requires l === r || l.tail.tail === r
+decreases len(l)
+func testSubSubList(l, r list) {
+	if (l === r) {
+		return
+	} else {
+		assert l.tail.tail === r
+		assert l !== r
+		assume l.isCons // Gobra cannot infer this - adt axiomatization still a bit weak?
+		assume l.tail.isCons // Gobra cannot infer this - adt axiomatization still a bit weak?
+		assert len(l.tail) < len(l)
+		assert len(l.tail.tail) < len(l)
+		testSubSubList(l.tail.tail, r)
+	}
+}

@@ -126,6 +126,27 @@ trait TypeEncoding extends Generator {
   }
 
   /**
+    * Returns the allocation code for a declared location with the scope of a body.
+    * The initialization code has to guarantee that all permissions for the declared variables are owned afterwards
+    *
+    * The default implements:
+    * Allocate[loc: T°] -> EmptyStmt
+    * Allocate[loc: T@] -> inhale Footprint[loc]; assume [&loc != nil(*T)]
+    */
+  def allocate(ctx: Context): in.Location ==> CodeWriter[vpr.Stmt] = {
+    case loc :: t / Exclusive if typ(ctx).isDefinedAt(t) =>
+      val (pos, info, errT) = loc.vprMeta
+      unit(vpr.Seqn(Seq(), Seq())(pos, info, errT))
+
+    case loc :: t / Shared if typ(ctx).isDefinedAt(t) =>
+      val (pos, info, errT) = loc.vprMeta
+      for {
+        footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
+        eq <- ctx.equal(in.Ref(loc)(loc.info), in.NilLit(in.PointerT(t, Exclusive))(loc.info))(loc)
+      } yield vpr.Inhale(vpr.And(footprint, vpr.Not(eq)(pos, info, errT))(pos, info, errT))(pos, info, errT)
+  }
+
+  /**
     * Encodes an assignment.
     * The first and second argument is the left-hand side and right-hand side, respectively.
     *
@@ -195,12 +216,20 @@ trait TypeEncoding extends Generator {
     * To avoid conflicts with other encodings, an encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
     * (2) shared expression of type T
-    * The default implements exclusive variables and constants with [[variable]] and [[globalVar]], respectively.
-    * Furthermore, the default implements [T(e: T)] -> [e]
+    * The default implements exclusive local variables and constants with [[variable]] and [[Fixpoint::get]], respectively.
+    * Furthermore, the default implements global exclusive variables and conversions as [T(e: T)] -> [e].
     */
   def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     case v: in.GlobalConst if typ(ctx) isDefinedAt v.typ => unit(ctx.fixpoint.get(v)(ctx))
     case (v: in.BodyVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar)
+    case (v: in.GlobalVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) =>
+      val (pos, info, errT) = v.vprMeta
+      val typ = ctx.typ(v.typ)
+      val vprExpr = vpr.FuncApp(
+        funcname = v.name.uniqueName,
+        args = Seq.empty
+      )(pos, info, typ, errT)
+      unit(vprExpr)
     case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) => ctx.expression(expr)
   }
 

@@ -70,10 +70,10 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case n: PDot => resolve(n) match {
         case Some(s: ap.FieldSelection) => AddrMod.fieldLookup(addressabilityMemberPath(addressability(s.base), s.path))
         case Some(_: ap.Constant) => AddrMod.constant
-        case Some(_: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.ReceivedPredicate | _: ap.PredicateExpr ) => AddrMod.rValue
+        case Some(_: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.ReceivedPredicate | _: ap.PredicateExpr | _: ap.AdtField) => AddrMod.rValue
         case Some(_: ap.NamedType | _: ap.BuiltInType | _: ap.Function | _: ap.Predicate | _: ap.DomainFunction) => AddrMod.rValue
         case Some(_: ap.ImplicitlyReceivedInterfaceMethod | _: ap.ImplicitlyReceivedInterfacePredicate) => AddrMod.rValue
-        case Some(_: ap.GlobalVariable) => AddrMod.globalVariable
+        case Some(g: ap.GlobalVariable) => if (g.symb.addressable) AddrMod.Shared else AddrMod.Exclusive
         case p => Violation.violation(s"Unexpected dot resolve, got $p")
       }
       case _: PLiteral => AddrMod.literal
@@ -107,6 +107,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
            _: PGhostCollectionExp | _: PRangeSequence | _: PUnion | _: PIntersection |
            _: PSetMinus | _: PSubset | _: PMapKeys | _: PMapValues => AddrMod.rValue
       case _: POptionNone | _: POptionSome | _: POptionGet => AddrMod.rValue
+      case _: PMatchExp => AddrMod.rValue
       case _: PMake | _: PNew => AddrMod.make
       case _: PUnpackSlice => AddrMod.rValue
     }
@@ -126,7 +127,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
 
   private lazy val addressableVarAttr: PIdnNode => AddrMod =
     attr[PIdnNode, AddrMod] { n => regular(n) match {
-      case _: GlobalVariable => AddrMod.globalVariable
+      case g: GlobalVariable => if (g.addressable) AddrMod.sharedVariable else AddrMod.exclusiveVariable
       case v: Variable => if (v.addressable) AddrMod.sharedVariable else AddrMod.exclusiveVariable
       case _: Constant => AddrMod.constant
       case _: Wildcard => AddrMod.defaultValue

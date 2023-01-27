@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, n
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec, MethodSpec}
-import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, FunctionT, PredT, Type, UnknownType}
+import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, BooleanT, FunctionT, PredT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -22,7 +22,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefGhostMisc(misc: PGhostMisc) = misc match {
     case c@PClosureSpecInstance(id, _) => resolve(id) match {
       case Some(ap.Function(_, f)) => wellDefClosureSpecInstanceParams(c, f.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
-      case Some(ap.Closure(_, l)) => if (c.params.isEmpty || capturedVariables(l.lit.decl).isEmpty)
+      case Some(ap.Closure(_, l)) => if (c.params.isEmpty || capturedLocalVariables(l.lit.decl).isEmpty)
         wellDefClosureSpecInstanceParams(c, l.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
         else error(c, s"function literal ${l.lit.id.get} captures variables, so it cannot be used to derive a parametrized spec instance")
       case _ => error(id, s"identifier $id does not identify a user-defined function or function literal")
@@ -48,6 +48,25 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case f: PDomainFunction =>
       error(f, s"Uninterpreted functions must have exactly one return argument", f.result.outs.size != 1) ++
         nonVariadicArguments(f.args)
+
+    case _: PAdtClause => noMessages
+
+    case m: PMatchPattern => m match {
+      case PMatchAdt(clause, fields) => symbType(clause) match {
+        case t: AdtClauseT =>
+          val fieldTypes = fields map typ
+          val clauseFieldTypes = t.decl.args.flatMap(f => f.fields).map(f => symbType(f.typ))
+          error(m, s"Expected ${clauseFieldTypes.size} patterns, but got ${fieldTypes.size}", clauseFieldTypes.size != fieldTypes.size) ++
+            fieldTypes.zip(clauseFieldTypes).flatMap(a => assignableTo.errors(a)(m))
+        case _ => violation("Pattern matching only works on ADT Literals")
+      }
+      case PMatchValue(lit) => isPureExpr(lit)
+      case _ => noMessages
+    }
+
+    case _: PMatchStmtCase => noMessages
+    case _: PMatchExpCase => noMessages
+    case _: PMatchExpDefault => noMessages
 
     case n: PImplementationProofPredicateAlias =>
       n match {
@@ -168,6 +187,18 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case PFPredBase(id) => idType(id)
     }
     case _: PDomainAxiom | _: PDomainFunction => UnknownType
+
+    case _: PAdtClause => UnknownType
+    case exp: PMatchPattern => exp match {
+      case PMatchBindVar(idn) => idType(idn)
+      case PMatchAdt(clause, _) => symbType(clause)
+      case PMatchValue(lit) => typ(lit)
+      case w: PMatchWildcard => wildcardMatchType(w)
+    }
+    case _: PMatchStmtCase => UnknownType
+    case _: PMatchExpCase => UnknownType
+    case _: PMatchExpDefault => UnknownType
+
     case _: PMethodImplementationProof => UnknownType
     case _: PImplementationProofPredicateAlias => UnknownType
   }
@@ -176,6 +207,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case MPredicateImpl(decl, ctx) => FunctionT(decl.args map ctx.typ, AssertionT)
     case MPredicateSpec(decl, _, ctx) => FunctionT(decl.args map ctx.typ, AssertionT)
     case _: SymbolTable.GhostStructMember => ???
+    case SymbolTable.AdtDestructor(decl, _, ctx) => ctx.symbType(decl.typ)
+    case _: SymbolTable.AdtDiscriminator => BooleanT
     case BuiltInMPredicate(tag, _, _) => typ(tag)
   }
 
@@ -247,6 +280,31 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case n@ (_: POld | _: PLabeledOld) => message(n, s"old not permitted in precondition")
       case n@ (_: PBefore) => message(n, s"old not permitted in precondition")
       case _ => noMessages
+    }
+  }
+
+  /** Returns the type matched by the wildcard `w`. */
+  private def wildcardMatchType(w: PMatchWildcard): Type = {
+    w match {
+      case tree.parent(p) => p match {
+        case PMatchAdt(c, fields) =>
+          val index = fields indexWhere {
+            w eq _
+          }
+          val adtClauseT = underlyingType(typeSymbType(c)).asInstanceOf[AdtClauseT]
+          val flatFields = adtClauseT.decl.args.flatMap(f => f.fields)
+          if (index < flatFields.size) {
+            val field = flatFields(index)
+            typeSymbType(field.typ)
+          } else UnknownType // Error is found when PMatchADT is checked higher up the ADT
+
+        case tree.parent.pair(_: PMatchExpCase, m: PMatchExp) => exprType(m.exp)
+        case tree.parent.pair(_: PMatchStmtCase, m: PMatchStatement) => exprType(m.exp)
+
+        case _ => Violation.violation("Found wildcard with unexpected root in wildcardMatchType")
+      }
+
+      case _ => Violation.violation(s"Did not find root for wildcard in wildcardMatchType")
     }
   }
 }

@@ -58,6 +58,7 @@ ghostStatement:
   GHOST statement  #explicitGhostStatement
   | fold_stmt=(FOLD | UNFOLD) predicateAccess #foldStatement
   | kind=(ASSUME | ASSERT | INHALE | EXHALE) expression #proofStatement
+  | matchStmt #matchStmt_
   ;
 
 // Auxiliary statements
@@ -81,7 +82,9 @@ ghostPrimaryExpr: range
   | before
   | sConversion
   | optionNone | optionSome | optionGet
-  | permission;
+  | permission
+  | matchExpr
+  ;
 
 permission: WRITEPERM | NOPERM;
 
@@ -125,6 +128,9 @@ access: ACCESS L_PAREN expression (COMMA expression)? R_PAREN;
 
 range: kind=(SEQ | SET | MSET) L_BRACKET expression DOT_DOT expression R_BRACKET;
 
+matchExpr: MATCH expression L_CURLY (matchExprClause eos)* R_CURLY;
+matchExprClause: matchCase COLON expression;
+
 // Added directly to primaryExpr
 seqUpdExp: L_BRACKET (seqUpdClause (COMMA seqUpdClause)*) R_BRACKET;
 
@@ -132,11 +138,15 @@ seqUpdClause: expression ASSIGN expression;
 
 // Ghost Type Literals
 
-ghostTypeLit: sqType | ghostSliceType | domainType;
+ghostTypeLit: sqType | ghostSliceType | domainType | adtType;
 
 domainType: DOM L_CURLY (domainClause eos)* R_CURLY;
 
 domainClause: FUNC IDENTIFIER signature | AXIOM L_CURLY expression eos R_CURLY;
+
+adtType: ADT L_CURLY (adtClause eos)* R_CURLY;
+
+adtClause: IDENTIFIER L_CURLY (fieldDecl eos)* R_CURLY;
 
 ghostSliceType: GHOST L_BRACKET R_BRACKET elementType;
 
@@ -160,6 +170,18 @@ terminationMeasure: expressionList? (IF expression)?;
 assertion:
   | expression
   ;
+
+matchStmt: MATCH expression L_CURLY matchStmtClause* R_CURLY;
+matchStmtClause: matchCase COLON statementList?;
+
+matchCase: CASE matchPattern | DEFAULT;
+matchPattern
+  : QMARK IDENTIFIER #matchPatternBind
+  | literalType L_CURLY (matchPatternList COMMA?)? R_CURLY #matchPatternComposite
+  | expression #matchPatternValue
+  ;
+
+matchPatternList: matchPattern (COMMA matchPattern)*;
 
 blockWithBodyParameterInfo: L_CURLY (SHARE identifierList eos)? statementList? R_CURLY;
 

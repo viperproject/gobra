@@ -15,6 +15,10 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait UnderlyingType { this: TypeInfoImpl =>
 
+  object UnderlyingType {
+    def unapply(t: Type): Option[Type] = Some(underlyingType(t))
+  }
+
   lazy val underlyingType: Type => Type =
     attr[Type, Type] {
       case Single(DeclaredT(t: PTypeDecl, context: ExternalTypeInfo)) => underlyingType(context.symbType(t.right))

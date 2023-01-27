@@ -8,11 +8,11 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
-import viper.gobra.frontend.info.base.SymbolTable.{GlobalVariable, SingleConstant}
+import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminator, GlobalVariable, SingleConstant}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
-import viper.gobra.util.{Constants, Violation}
+import viper.gobra.util.{Constants, TypeBounds, Violation}
 
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -67,6 +67,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.BuiltInType) => noMessages
         case Some(_: ap.Predicate) => noMessages
         case Some(_: ap.DomainFunction) => noMessages
+        case Some(_: ap.AdtClause) => noMessages
+        case Some(_: ap.AdtField) => noMessages
+
         // TODO: fully supporting packages results in further options: global variable
         // built-in members
         case Some(p: ap.BuiltInReceivedMethod) => memberType(p.symb) match {
@@ -86,7 +89,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t => error(n, s"expected an AbstractType for built-in mpredicate but got $t")
         }
 
-        case _ => error(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression, an imported member or a built-in member, but got $n")
+        case _ => error(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression, adt constructor or discriminator or destructor, an imported member or a built-in member, but got $n")
       }
   }
 
@@ -140,6 +143,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.BuiltInType) => SortT
         case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
         case Some(p: ap.DomainFunction) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
+
+        case Some(p: ap.AdtClause) =>
+          val fields = p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ)).toMap
+          AdtClauseT(fields, p.symb.decl, p.symb.adtDecl, this)
+        case Some(p: ap.AdtField) =>
+          p.symb match {
+            case AdtDestructor(decl, _, context) => context.symbType(decl.typ)
+            case AdtDiscriminator(_, _, _) => BooleanT
+          }
 
         // TODO: fully supporting packages results in further options: global variable
 
@@ -218,7 +230,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       literalAssignableTo.errors(lit, simplifiedT)(n)
 
     case f: PFunctionLit =>
-      capturedVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
+      capturedLocalVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
         wellDefVariadicArgs(f.args) ++
         f.id.fold(noMessages)(id => wellDefID(id).out)
 
@@ -490,7 +502,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PLength(op) => isExpr(op).out ++ {
       underlyingType(exprType(op)) match {
         case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT | _: MathMapT => noMessages
-        case _: SequenceT | _: SetT | _: MultisetT => isPureExpr(op)
+        case _: SequenceT | _: SetT | _: MultisetT | _: AdtT => isPureExpr(op)
         case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
       }
     }
@@ -1039,7 +1051,21 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def typeOfPLength(expr: PLength): Type =
     underlyingType(exprType(expr.exp)) match {
       case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT => INT_TYPE
-      case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT => UNTYPED_INT_CONST
+      case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT | _: AdtT => UNTYPED_INT_CONST
       case t => violation(s"unexpected argument ${expr.exp} of type $t passed to len")
     }
+
+  /**
+    * True iff a conversion may produce side-effects, such as allocating a slice.
+    * May need to be extended when we introduce support for generics and when we allow
+    * a cast from a `[]T` to a `*[n]T` (described in https://go.dev/ref/spec#Conversions).
+    */
+  override def isEffectfulConversion(c: ap.Conversion): Boolean = {
+    val fromType = underlyingType(exprType(c.arg))
+    val toType = underlyingType(typeSymbType(c.typ))
+    (fromType, toType) match {
+      case (StringT, SliceT(IntT(TypeBounds.Byte))) => true
+      case _ => false
+    }
+  }
 }

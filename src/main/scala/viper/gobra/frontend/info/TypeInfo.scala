@@ -26,6 +26,7 @@ trait TypeInfo extends ExternalTypeInfo {
   def regular(n: PIdnNode): Regular
 
   def isDef(n: PIdnUnk): Boolean
+  def isEffectfulConversion(c: AstPattern.Conversion): Boolean
 
   def resolve(n: PExpressionOrType): Option[AstPattern.Pattern]
   def exprOrType(n: PExpressionOrType): Either[PExpression, PType]
@@ -42,5 +43,5 @@ trait TypeInfo extends ExternalTypeInfo {
   def freeModified(n: PNode): Vector[PIdnNode]
   def freeDeclared(n: PNode): Vector[PIdnNode]
 
-  def capturedVariables(decl: PClosureDecl): Vector[PIdnNode]
+  def capturedLocalVariables(decl: PClosureDecl): Vector[PIdnNode]
 }

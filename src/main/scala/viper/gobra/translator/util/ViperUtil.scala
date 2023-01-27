@@ -30,8 +30,17 @@ object ViperUtil {
     it.headOption match {
       case Some(hd) =>
         val tl = it.tail
-        tl.foldLeft[Exp](hd){ case (accum, elem) => And(accum, elem)(pos, info, errT) }
+        tl.foldLeft[Exp](hd) { case (accum, elem) => And(accum, elem)(pos, info, errT) }
       case None => TrueLit()(pos, info, errT)
+    }
+  }
+
+  def bigOr(it: Iterable[Exp])(pos: Position, info: Info, errT: ErrorTrafo): Exp = {
+    it.headOption match {
+      case Some(hd) =>
+        val tl = it.tail
+        tl.foldLeft[Exp](hd) { case (accum, elem) => Or(accum, elem)(pos, info, errT) }
+      case None => FalseLit()(pos, info, errT)
     }
   }
 

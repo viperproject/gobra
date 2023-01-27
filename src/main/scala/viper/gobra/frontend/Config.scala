@@ -65,6 +65,8 @@ object ConfigDefaults {
   lazy val DefaultParallelizeBranches: Boolean = false
   lazy val DefaultDisableMoreCompleteExhale: Boolean = false
   lazy val DefaultEnableLazyImports: Boolean = false
+  lazy val DefaultNoVerify: Boolean = false
+  lazy val DefaultNoStreamErrors: Boolean = false
 }
 
 case class Config(
@@ -113,6 +115,8 @@ case class Config(
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                    disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
+                   noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
+                   noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors
 ) {
 
   def merge(other: Config): Config = {
@@ -155,6 +159,8 @@ case class Config(
       parallelizeBranches = parallelizeBranches,
       disableMoreCompleteExhale = disableMoreCompleteExhale,
       enableLazyImports = enableLazyImports || other.enableLazyImports,
+      noVerify = noVerify || other.noVerify,
+      noStreamErrors = noStreamErrors || other.noStreamErrors
     )
   }
 
@@ -202,6 +208,8 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                       disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
+                      noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
+                      noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -253,6 +261,8 @@ trait RawConfig {
     parallelizeBranches = baseConfig.parallelizeBranches,
     disableMoreCompleteExhale = baseConfig.disableMoreCompleteExhale,
     enableLazyImports = baseConfig.enableLazyImports,
+    noVerify = baseConfig.noVerify,
+    noStreamErrors = baseConfig.noStreamErrors,
   )
 }
 
@@ -601,6 +611,20 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val noVerify: ScallopOption[Boolean] = opt[Boolean](
+    name = "noVerify",
+    descr = s"Skip the verification step performed after encoding the Gobra program into Viper.",
+    default = Some(ConfigDefaults.DefaultNoVerify),
+    noshort = true,
+  )
+
+  val noStreamErrors: ScallopOption[Boolean] = opt[Boolean](
+    name = "noStreamErrors",
+    descr = "Do not stream errors produced by Gobra but instead print them all organized by package in the end.",
+    default = Some(ConfigDefaults.DefaultNoStreamErrors),
+    noshort = true,
+  )
+
   /**
     * Exception handling
     */
@@ -710,12 +734,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     moduleName = module(),
     includeDirs = includeDirs,
     reporter = FileWriterReporter(
-      unparse = unparse(),
-      eraseGhost = eraseGhost(),
-      goify = goify(),
-      debug = debug(),
-      printInternal = printInternal(),
-      printVpr = printVpr()),
+        unparse = unparse(),
+        eraseGhost = eraseGhost(),
+        goify = goify(),
+        debug = debug(),
+        printInternal = printInternal(),
+        printVpr = printVpr(),
+        streamErrs = !noStreamErrors()),
     backend = backend(),
     isolate = isolate,
     choppingUpperBound = chopUpperBound(),
@@ -734,5 +759,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parallelizeBranches = parallelizeBranches(),
     disableMoreCompleteExhale = disableMoreCompleteExhale(),
     enableLazyImports = enableLazyImports(),
+    noVerify = noVerify(),
+    noStreamErrors = noStreamErrors(),
   )
 }

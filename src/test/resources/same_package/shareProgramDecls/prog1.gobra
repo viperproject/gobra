@@ -3,7 +3,7 @@
 
 package main
 
-var A = 1
+var A@ = 1
 
 func init() {
     // the initialization of variables declared in one file cannot access

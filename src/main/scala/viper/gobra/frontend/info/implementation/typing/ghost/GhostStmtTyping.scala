@@ -28,6 +28,10 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PPackageWand(wand, optBlock) => assignableToSpec(wand) ++
       error(n, "ghost error: expected ghostifiable statement", !optBlock.forall(_.isInstanceOf[PGhostifiableStatement]))
     case PApplyWand(wand) => assignableToSpec(wand)
+    case PMatchStatement(exp, clauses, _) => clauses.flatMap(c => c.pattern match {
+      case PMatchAdt(clause, _) => assignableTo.errors(symbType(clause), exprType(exp))(c)
+      case _ => comparableTypes.errors((miscType(c.pattern), exprType(exp)))(c)
+    }) ++ isPureExpr(exp)
     case p: PClosureImplProof => wellDefClosureImplProof(p)
   }
 

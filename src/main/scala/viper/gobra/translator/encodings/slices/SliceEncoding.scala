@@ -147,64 +147,6 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
           t = ctx.variable(target)
         } yield makeMethodGenerator(Vector(len, cap), Vector(t.localVar), typeParam)(pos, info, errT)(ctx)
 
-        /*
-        val sliceT = in.SliceT(typeParam.withAddressability(Shared), Addressability.Exclusive)
-        val slice = in.LocalVar(ctx.freshNames.next(), sliceT)(makeStmt.info)
-        val vprSlice = ctx.variable(slice)
-        seqn(
-          for {
-            // var a [ []T ]
-            _ <- local(vprSlice)
-
-            capArg = optCapArg.getOrElse(lenArg)
-            vprLength <- ctx.expression(lenArg)
-            vprCapacity <- ctx.expression(capArg)
-
-            // Perform additional runtime checks of conditions that must be true when make is invoked, otherwise the program panics (according to the go spec)
-            // asserts 0 <= [len] && 0 <= [cap] && [len] <= [cap]
-            runtimeChecks = vu.bigAnd(Vector(
-              vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), vprLength)(pos, info, errT), // 0 <= len
-              vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), vprCapacity)(pos, info, errT), // 0 <= cap
-              vpr.LeCmp(vprLength, vprCapacity)(pos, info, errT) // len <= cap
-            ))(pos, info, errT)
-
-            exhale = vpr.Exhale(runtimeChecks)(pos, info, errT)
-            _ <- write(exhale)
-            _ <- errorT {
-              case e@err.ExhaleFailed(Source(info), _, _) if e causedBy exhale => ArrayMakePreconditionError(info)
-            }
-
-            // inhale forall i: int :: {loc(a, i)} 0 <= i && i < [cap] ==> Footprint[ a[i] ]
-            footprintAssertion <- getCellPerms(ctx)(slice, in.FullPerm(slice.info), SliceBound.Cap)
-            _ <- write(vpr.Inhale(footprintAssertion)(pos, info, errT))
-
-            lenExpr = in.Length(slice)(makeStmt.info)
-            capExpr = in.Capacity(slice)(makeStmt.info)
-
-            // inhale cap(a) == [cap]
-            eqCap <- ctx.equal(capExpr, capArg)(makeStmt)
-            _ <- write(vpr.Inhale(eqCap)(pos, info, errT))
-
-            // inhale len(a) == [len]
-            eqLen <- ctx.equal(lenExpr, lenArg)(makeStmt)
-            _ <- write(vpr.Inhale(eqLen)(pos, info, errT))
-
-            // inhale forall i: int :: {loc(a, i)} 0 <= i && i < [len] ==> [ a[i] == dfltVal(T) ]
-            eqValueAssertion <- boundedQuant(
-              bound = vprLength,
-              trigger = (idx: vpr.LocalVar) =>
-                Seq(vpr.Trigger(Seq(ctx.slice.loc(vprSlice.localVar, idx)(pos, info, errT)))(pos, info, errT)),
-              body = (x: in.BoundVar) =>
-                ctx.equal(in.IndexedExp(slice, x, sliceT)(makeStmt.info), in.DfltVal(typeParam.withAddressability(Exclusive))(makeStmt.info))(makeStmt)
-            )(makeStmt)(ctx)
-            _ <- write(vpr.Inhale(eqValueAssertion)(pos, info, errT))
-
-            ass <- ctx.assignment(in.Assignee.Var(target), slice)(makeStmt)
-          } yield ass
-        )
-
-         */
-
       case lit: in.NewSliceLit =>
         val (pos, info, errT) = lit.vprMeta
         val litA = lit.asArrayLit

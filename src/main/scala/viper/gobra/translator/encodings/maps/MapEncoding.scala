@@ -63,8 +63,6 @@ class MapEncoding extends LeafTypeEncoding {
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
-    def goT(t: in.Type): vpr.Type = ctx.typ(t)
-
     default(super.expression(ctx)) {
       case (exp: in.DfltVal) :: ctx.Map(_, _) / Exclusive => unit(withSrc(vpr.NullLit(), exp))
 
@@ -72,13 +70,16 @@ class MapEncoding extends LeafTypeEncoding {
 
       case l@in.Length(exp :: ctx.Map(keys, values)) =>
         val (pos, info, errT) = l.vprMeta
-        // Encodes
-        // [ len(m) ] -> [ m ] == null? 0 : | getCorrespondingMap([m]) |
         for {
           e <- goE(exp)
         } yield mapCardinalityGenerator(Vector(e), (keys, values))(pos, info, errT)(ctx)
 
-      case l@in.IndexedExp(_ :: ctx.Map(_, _), _, _) => for {(res, _) <- goMapLookup(l)(ctx)} yield res
+      case l@in.IndexedExp(m :: ctx.Map(keys, values), k, _) =>
+        val (pos, info, errT) = l.vprMeta
+        for {
+          base <- goE(m)
+          key <-  goE(k)
+        } yield mapLookupGenerator(Vector(base, key), (keys, values))(pos, info, errT)(ctx)
 
       case k@in.MapKeys(mapExp :: ctx.Map(keys, values), _) =>
         val (pos, info, errT) = k.vprMeta
@@ -272,6 +273,7 @@ class MapEncoding extends LeafTypeEncoding {
     mapKeySetGenerator.finalize(addMemberFn)
     mapValueSetGenerator.finalize(addMemberFn)
     mapCardinalityGenerator.finalize(addMemberFn)
+    mapLookupGenerator.finalize(addMemberFn)
   }
 
   /**
@@ -435,6 +437,65 @@ class MapEncoding extends LeafTypeEncoding {
         ),
         posts = Seq(
           vpr.EqCmp(vpr.Result(resultT)(), vpr.AnySetCardinality(mapKeySetGenerator(Vector(paramDecl.localVar), (x._1, x._2))()(ctx))())()
+        ),
+        body = None
+      )()
+    }
+  }
+
+  /*
+          for {
+          vIdx <- goE(idx)
+          isComp <- MapEncoding.checkKeyComparability(idx)(ctx)
+          vDflt <- goE(in.DfltVal(values)(l.info))
+          mapVpr <- goE(exp)
+          correspondingMap <- getCorrespondingMap(exp, keys, values)(ctx)
+          containsExp = withSrc(vpr.CondExp(
+            withSrc(vpr.EqCmp(mapVpr, withSrc(vpr.NullLit(), l)), l),
+            withSrc(vpr.FalseLit(), l),
+            goMapContains(correspondingMap, vIdx)(l)),
+            l)
+          lookupRes = withSrc(vpr.CondExp(containsExp, withSrc(vpr.MapLookup(correspondingMap, vIdx), l), vDflt), l)
+          lookupResCheckComp <- assert(isComp, lookupRes, comparabilityErrorT)(ctx)
+        } yield (lookupResCheckComp, containsExp)
+   */
+
+  private val mapLookupGenerator: FunctionGenerator[(in.Type, in.Type)] = new FunctionGenerator[(in.Type, in.Type)] {
+    override def genFunction(x: (in.Type, in.Type))(ctx: Context): vpr.Function = {
+      val field = underlyingMapField(ctx)(x._1, x._2)
+      val kN = Names.serializeType(x._1)
+      val vN = Names.serializeType(x._2)
+      val vprKeyT = ctx.typ(x._1)
+      val vprValueT = ctx.typ(x._2)
+      val mapParamDecl = vpr.LocalVarDecl("x", mapType)()
+      val keyParamDecl = vpr.LocalVarDecl("k", vprKeyT)()
+      val dfltVal = in.DfltVal(x._2)(Source.Parser.Internal)
+      val vprDfltVal = ctx.expression(dfltVal).res // TODO: assert writer is empty
+      vpr.Function(
+        name = s"mapLookup$kN$$$vN",
+        formalArgs = Seq(mapParamDecl, keyParamDecl),
+        typ = vprValueT,
+        pres = Seq(
+          //vpr.Implies(
+          //  vpr.NeCmp(paramDecl.localVar, vpr.NullLit()())(),
+          //  vpr.FieldAccessPredicate(vpr.FieldAccess(paramDecl.localVar, field)(), vpr.WildcardPerm()())()
+          //)(),
+          vpr.Implies(
+            vpr.NeCmp(mapParamDecl.localVar, vpr.NullLit()())(),
+            vpr.FieldAccessPredicate(vpr.FieldAccess(mapParamDecl.localVar, field)(), vpr.WildcardPerm()())()
+          )(),
+          synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
+        ),
+        posts = Seq(
+          //vpr.EqCmp(vpr.Result(resultT)(), vpr.AnySetCardinality(mapKeySetGenerator(Vector(paramDecl.localVar), (x._1, x._2))()(ctx))())()
+          vpr.Implies(
+            vpr.AnySetContains(keyParamDecl.localVar, mapKeySetGenerator(Vector(mapParamDecl.localVar), (x._1, x._2))()(ctx))(),
+            vpr.EqCmp(vpr.Result(vprValueT)(), vpr.MapLookup(vpr.FieldAccess(mapParamDecl.localVar, field)(), keyParamDecl.localVar)())()
+          )(),
+          vpr.Implies(
+            vpr.Not(vpr.AnySetContains(keyParamDecl.localVar, mapKeySetGenerator(Vector(mapParamDecl.localVar), (x._1, x._2))()(ctx))())(),
+            vpr.EqCmp(vpr.Result(vprValueT)(), vprDfltVal)()
+          )()
         ),
         body = None
       )()

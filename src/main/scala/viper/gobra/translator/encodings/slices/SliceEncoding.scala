@@ -16,7 +16,7 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.arrays.SharedArrayEmbedding
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
-import viper.gobra.translator.util.FunctionGenerator
+import viper.gobra.translator.util.{FunctionGenerator, MethodGenerator}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.silver.verifier.{errors => err}
@@ -36,6 +36,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     sliceFromArrayGenerator.finalize(addMemberFn)
     sliceFromSliceGenerator.finalize(addMemberFn)
     nilSliceGenerator.finalize(addMemberFn)
+    makeMethodGenerator.finalize(addMemberFn)
   }
 
   /**
@@ -137,6 +138,16 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     default(super.statement(ctx)) {
       case makeStmt@in.MakeSlice(target, in.SliceT(typeParam, _), lenArg, optCapArg) =>
         val (pos, info, errT) = makeStmt.vprMeta
+        for {
+          len <- ctx.expression(lenArg)
+          cap <- optCapArg match {
+            case Some(c) => ctx.expression(c)
+            case None => unit(len)
+          }
+          t = ctx.variable(target)
+        } yield makeMethodGenerator(Vector(len, cap), Vector(t.localVar), typeParam)(pos, info, errT)(ctx)
+
+        /*
         val sliceT = in.SliceT(typeParam.withAddressability(Shared), Addressability.Exclusive)
         val slice = in.LocalVar(ctx.freshNames.next(), sliceT)(makeStmt.info)
         val vprSlice = ctx.variable(slice)
@@ -191,6 +202,8 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             ass <- ctx.assignment(in.Assignee.Var(target), slice)(makeStmt)
           } yield ass
         )
+
+         */
 
       case lit: in.NewSliceLit =>
         val (pos, info, errT) = lit.vprMeta
@@ -661,6 +674,60 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         Seq(pre1),
         Seq(post1, post2, post3, post4),
         if (generateFunctionBodies) Some(body) else None
+      )()
+    }
+  }
+
+  private val makeMethodGenerator: MethodGenerator[in.Type] = new MethodGenerator[in.Type] {
+    override def genMethod(t: in.Type)(ctx: Context): vpr.Method = {
+      val tName = Names.serializeType(t)
+      val lenDecl = vpr.LocalVarDecl("len", vpr.Int)()
+      val capDecl = vpr.LocalVarDecl("cap", vpr.Int)()
+      val sliceT = ctx.typ(in.SliceT(t, Addressability.make))
+      val result = vpr.LocalVarDecl("res", sliceT)()
+      val qtfVar = vpr.LocalVarDecl("i", vpr.Int)()
+
+      val dfltValWriter = ctx.expression(in.DfltVal(t.withAddressability(Addressability.Exclusive))(Source.Parser.Internal))
+      val dfltVal = dfltValWriter.res
+      require(dfltValWriter.sum.data.isEmpty && dfltValWriter.sum.remainder.isEmpty)
+
+      val post1 = vpr.EqCmp(ctx.slice.len(result.localVar)(), lenDecl.localVar)()
+      val post2 = vpr.EqCmp(ctx.slice.len(result.localVar)(), lenDecl.localVar)()
+      val post3 = vpr.Forall(
+        variables = Seq(qtfVar),
+        triggers  = Seq(vpr.Trigger(Seq(ctx.slice.loc(result.localVar, qtfVar.localVar)()))()),
+        exp = vpr.Implies(
+          vpr.And(vpr.LeCmp(vpr.IntLit(0)(), qtfVar.localVar)(), vpr.LtCmp(qtfVar.localVar, capDecl.localVar)())(),
+          vpr.FieldAccessPredicate(
+            vpr.FieldAccess(
+              ctx.slice.loc(result.localVar, qtfVar.localVar)(),
+              ctx.field.field(t.withAddressability(Exclusive))(ctx)
+            )(),
+            vpr.FullPerm()())())())()
+      val post4 = vpr.Forall(
+        variables = Seq(qtfVar),
+        triggers  = Seq(vpr.Trigger(Seq(ctx.slice.loc(result.localVar, qtfVar.localVar)()))()),
+        exp = vpr.Implies(
+          vpr.And(vpr.LeCmp(vpr.IntLit(0)(), qtfVar.localVar)(), vpr.LtCmp(qtfVar.localVar, lenDecl.localVar)())(),
+          vpr.EqCmp(
+            vpr.FieldAccess(
+              ctx.slice.loc(result.localVar, qtfVar.localVar)(),
+              ctx.field.field(t.withAddressability(Exclusive))(ctx)
+            )(),
+            dfltVal
+          )())())()
+      vpr.Method(
+        name = s"makeMethod$tName",
+        formalArgs = Seq(lenDecl, capDecl),
+        formalReturns = Seq(result),
+        pres = Seq(
+          vpr.LeCmp(vpr.IntLit(0)(), lenDecl.localVar)(), // 0 <= len
+          vpr.LeCmp(vpr.IntLit(0)(), capDecl.localVar)(), // 0 <= cap
+          vpr.LeCmp(lenDecl.localVar, capDecl.localVar)(), // len <= cap
+          synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
+        ),
+        posts = Seq(post1, post2, post3, post4),
+        body = None,
       )()
     }
   }

@@ -269,11 +269,6 @@ case class ImportPreconditionNotEstablished(info: Source.Verifier.Info) extends 
     s"The import precondition might not be established by the initialization code of the imported package"
 }
 
-case class ArrayMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
-  override def localId: String = "make_precondition_error"
-  override def localMessage: String = s"The provided length might not be smaller or equals to the provided capacity, or length and capacity might not be non-negative"
-}
-
 case class ChannelMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "make_precondition_error"
   override def localMessage: String = s"The provided length to ${info.origin.tag.trim} might be negative"
@@ -503,6 +498,11 @@ case class LabelledStateNotReached(info: Source.Verifier.Info) extends Verificat
 case class SpecNotImplementedByClosure(info: Verifier.Info, closure: String, spec: String) extends VerificationErrorReason {
   override def id = "spec_not_implemented"
   override def message: String = s"$closure might not implement $spec."
+}
+
+case class SliceMakePreconditionFailed(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "make_precondition_error"
+  override def message: String = s"The provided length might not be smaller or equal to the provided capacity, or length and capacity might be negative"
 }
 
 sealed trait VerificationErrorClarification {

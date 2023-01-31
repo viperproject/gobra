@@ -9,7 +9,7 @@ package viper.gobra.translator.encodings.slices
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.BackTranslator.RichErrorMessage
-import viper.gobra.reporting.{ArrayMakePreconditionError, Source}
+import viper.gobra.reporting.{PreconditionError, SliceMakePreconditionFailed, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
@@ -145,7 +145,12 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             case None => unit(len)
           }
           t = ctx.variable(target)
-        } yield makeMethodGenerator(Vector(len, cap), Vector(t.localVar), typeParam)(pos, info, errT)(ctx)
+          makeCall = makeMethodGenerator(Vector(len, cap), Vector(t.localVar), typeParam)(pos, info, errT)(ctx)
+          _ <- errorT {
+            case e@err.PreconditionInCallFalse(Source(info), _, _) if e causedBy makeCall =>
+              PreconditionError(info) dueTo SliceMakePreconditionFailed(info)
+          }
+        } yield makeCall
 
       case lit: in.NewSliceLit =>
         val (pos, info, errT) = lit.vprMeta

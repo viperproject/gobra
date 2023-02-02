@@ -415,9 +415,9 @@ case class RepeatedMapKeyReason(info: Source.Verifier.Info) extends Verification
 // João, 06/03/2021: unlike the other subtypes of VerificationErrorReason, DivisionByZeroReason has an Optional argument.
 // This has to do with the fact that, in our tests, there are cases where a division by zero occurs but we cannot retrieve
 // a corresponding Source.Verifier.Info. E.g. src/test/resources/regressions/features/fractional_permissions/fields/fail3.gobra
-case class DivisionByZeroReason(node: Option[Source.Verifier.Info]) extends VerificationErrorReason {
+case class DivisionByZeroReason(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "division_by_zero"
-  override def message: String = s"Divisor ${node.map(_.origin.tag.trim).getOrElse("expression")} might be zero."
+  override def message: String = s"Divisor ${info.origin.tag.trim} might be zero."
 }
 
 case class OverflowErrorReason(node: Source.Verifier.Info) extends VerificationErrorReason {

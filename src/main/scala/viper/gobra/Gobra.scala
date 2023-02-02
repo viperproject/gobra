@@ -319,6 +319,46 @@ class GobraFrontend {
 
 object GobraRunner extends GobraFrontend with StrictLogging {
   def main(args: Array[String]): Unit = {
+//    {
+//      // import viper.silver.{ast => vpr}
+//      import viper.silicon.Silicon
+//      import viper.silver.reporter.NoopReporter
+//      import viper.silver.verifier.{Failure, Success}
+//      import viper.silver.verifier.{AbstractVerificationError, errors => vprerr, reasons => vprrea}
+//
+//      val v = vpr.LocalVarDecl("x", vpr.Int)()
+//      val b = vpr.EqCmp(vpr.Div(v.localVar, vpr.IntLit(0)())(), vpr.IntLit(42)())()
+//      val p = vpr.Program(
+//        Seq.empty,
+//        Seq.empty,
+//        Seq.empty,
+//        Seq.empty,
+//        Seq(vpr.Method(
+//          "foo",
+//          Seq(v),
+//          Seq.empty,
+//          Seq.empty,
+//          Seq.empty,
+//          Some(vpr.Seqn(Seq(vpr.If(b, vpr.Seqn(Seq.empty, Seq.empty)(), vpr.Seqn(Seq.empty, Seq.empty)())()), Seq.empty)())
+//        )()),
+//        Seq.empty,
+//      )()
+//
+//      val silicon = Silicon.fromPartialCommandLineArguments(Seq.empty, NoopReporter)
+//      silicon.start()
+//      val res = silicon.verify(p)
+//      silicon.stop()
+//
+//      res match {
+//        case Failure(Seq(vprerr.IfFailed(offendingNode, _, _))) =>
+//          print("1: "); println(offendingNode == b) // false
+//          print("2: "); println(offendingNode == vpr.Not(vpr.EqCmp(vpr.Div(v.localVar, vpr.IntLit(0)())(), vpr.IntLit(42)())())()) // true
+//          println(offendingNode)
+//      }
+//    }
+//    ???
+
+
     val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
     val verifier = createVerifier()
     var exitCode = 0

@@ -41,14 +41,14 @@ object DefaultErrorBackTranslator {
         InsufficientPermissionError(info)
       case vprrea.AssertionFalse(CertainSource(info)) =>
         AssertionFalseError(info)
-      case vprrea.AssertionFalse(CertainSynthesized(info)) =>
-        SynthesizedAssertionFalseReason(info)
+//      case vprrea.AssertionFalse(CertainSynthesized(info)) =>
+//        SynthesizedAssertionFalseReason(info)
       case vprrea.SeqIndexExceedsLength(CertainSource(node), CertainSource(index)) =>
         SeqIndexExceedsLengthError(node, index)
       case vprrea.SeqIndexNegative(CertainSource(node), CertainSource(index)) =>
         SeqIndexNegativeError(node, index)
-      case vprrea.DivisionByZero(info) =>
-        DivisionByZeroReason(CertainSource.unapply(info))
+      case vprrea.DivisionByZero(CertainSource(info)) =>
+        DivisionByZeroReason(info)
       case vprrea.MapKeyNotContained(CertainSource(node), CertainSource(index)) =>
         MapKeyNotContained(node, index)
       //      case vprrea.DummyReason =>

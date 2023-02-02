@@ -150,8 +150,8 @@ class DefaultErrorBackTranslator(
       // Nevertheless, this should eventually be solved on the Viper level I think.
       case vprerr.IfFailed(Source(info), reason, _) =>
         IfError(info) dueTo translate(reason)
-      case vprerr.IfFailed(Not(Source(info)), reason, _) =>
-        IfError(info) dueTo translate(reason)
+//      case vprerr.IfFailed(Not(Source(info)), reason, _) =>
+//        IfError(info) dueTo translate(reason)
       case vprerr.IfFailed(CertainSource(info), reason, _) =>
         IfError(info) dueTo translate(reason)
        case termination.FunctionTerminationError(Source(info) , reason, _) =>

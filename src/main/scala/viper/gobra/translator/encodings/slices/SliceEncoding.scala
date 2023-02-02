@@ -635,11 +635,10 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val qtfVar = vpr.LocalVarDecl("i", vpr.Int)()
 
       val dfltValWriter = ctx.expression(in.DfltVal(t.withAddressability(Addressability.Exclusive))(Source.Parser.Internal))
-      val dfltVal = dfltValWriter.res
-      require(dfltValWriter.sum.data.isEmpty && dfltValWriter.sum.remainder.isEmpty)
+      val dfltVal = pure(dfltValWriter)(ctx).res
 
       val post1 = vpr.EqCmp(ctx.slice.len(result.localVar)(), lenDecl.localVar)()
-      val post2 = vpr.EqCmp(ctx.slice.len(result.localVar)(), lenDecl.localVar)()
+      val post2 = vpr.EqCmp(ctx.slice.cap(result.localVar)(), capDecl.localVar)()
       val post3 = vpr.Forall(
         variables = Seq(qtfVar),
         triggers  = Seq(vpr.Trigger(Seq(ctx.slice.loc(result.localVar, qtfVar.localVar)()))()),

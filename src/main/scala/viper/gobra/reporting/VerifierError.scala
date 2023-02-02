@@ -294,11 +294,6 @@ case class InsufficientPermissionToRangeExpressionError(info: Source.Verifier.In
   override def localMessage: String = s"Range expression should be immutable inside the loop body"
 }
 
-case class MapMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
-  override def localId: String = "make_precondition_error"
-  override def localMessage: String = s"The provided length to ${info.origin.tag.trim} might be negative"
-}
-
 case class ShiftPreconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "shift_precondition_error"
   override def localMessage: String = s"The shift count in ${info.origin.tag.trim} might be negative"
@@ -503,6 +498,11 @@ case class SpecNotImplementedByClosure(info: Verifier.Info, closure: String, spe
 case class SliceMakePreconditionFailed(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "make_precondition_error"
   override def message: String = s"The provided length might not be smaller or equal to the provided capacity, or length or capacity might be negative"
+}
+
+case class MapMakePreconditionFailed(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "make_precondition_error"
+  override def message: String = s"The provided length to ${info.origin.tag.trim} might be negative"
 }
 
 sealed trait VerificationErrorClarification {

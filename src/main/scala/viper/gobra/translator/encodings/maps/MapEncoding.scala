@@ -16,7 +16,7 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.encodings.maps.MapEncoding.{checkKeyComparability, comparabilityErrorT, repeatedKeyErrorT}
 import viper.gobra.translator.context.Context
-import viper.gobra.translator.util.{FunctionGenerator, PrimitiveGenerator}
+import viper.gobra.translator.util.{FunctionGenerator, MethodGenerator, PrimitiveGenerator}
 import viper.gobra.translator.util.ViperWriter.CodeLevel._
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
@@ -125,33 +125,20 @@ class MapEncoding extends LeafTypeEncoding {
       case makeStmt@in.MakeMap(target, t@in.MapT(keys, values, _), makeArg) =>
         val (pos, info, errT) = makeStmt.vprMeta
 
-        // Runtime check asserting 0 <= [n]
-        val runtimeCheck = makeArg.toVector map { n =>
-          for {
-            nVpr <- goE(n)
-            runtimeCheckExp = vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), nVpr)(pos, info, errT)
-          } yield vpr.Exhale(runtimeCheckExp)(pos, info, errT)
+        // Get optional param to make
+        val nwriter = makeArg match {
+          case Some(e) => goE(e)
+          case None => unit(vpr.IntLit(0)(pos, info, errT))
         }
-
-        seqn(
-          for {
-            checks <- sequence(runtimeCheck)
-            _ <- write(checks: _*)
-            _ <- if (checks.nonEmpty) errorT {
-              case e@err.ExhaleFailed(Source(info), _, _) if e.causedBy(checks(0)) =>
-                MapMakePreconditionError(info)
-            } else unit(())
-
-            mapVar = in.LocalVar(ctx.freshNames.next(), t.withAddressability(Exclusive))(makeStmt.info)
-            mapVarVpr = ctx.variable(mapVar)
-            _ <- local(mapVarVpr)
-
-            correspondingMap <- getCorrespondingMap(mapVar, keys, values)(ctx)
-            _ <- write(vpr.NewStmt(mapVarVpr.localVar, Seq(underlyingMapField(ctx)(keys, values)))(pos, info, errT))
-            _ <- write(vpr.Inhale(vpr.EqCmp(correspondingMap, vpr.EmptyMap(goT(keys), goT(values))(pos, info, errT))(pos, info, errT))(pos, info, errT))
-            ass <- ctx.assignment(in.Assignee.Var(target), mapVar)(makeStmt)
-          } yield ass
-        )
+        val t = ctx.variable(target)
+        for {
+          n <- nwriter
+          makeCall = makeMethodGenerator(Vector(n), Vector(t.localVar), (keys, values))(pos, info, errT)(ctx)
+          _ <- errorT {
+            case e@err.PreconditionInCallFalse(Source(info), _, _) if e causedBy makeCall =>
+              PreconditionError(info) dueTo MapMakePreconditionFailed(info)
+          }
+        } yield makeCall
 
       case l@in.SafeMapLookup(resTarget, successTarget, indexedExp@in.IndexedExp(_, _, _)) =>
         val (pos, info, errT) = l.vprMeta
@@ -274,6 +261,7 @@ class MapEncoding extends LeafTypeEncoding {
     mapValueSetGenerator.finalize(addMemberFn)
     mapCardinalityGenerator.finalize(addMemberFn)
     mapLookupGenerator.finalize(addMemberFn)
+    makeMethodGenerator.finalize(addMemberFn)
   }
 
   /**
@@ -349,13 +337,10 @@ class MapEncoding extends LeafTypeEncoding {
     override def genFunction(x: (in.Type, in.Type))(ctx: Context): vpr.Function = {
       val paramDecl = vpr.LocalVarDecl("x", mapType)()
       val field = underlyingMapField(ctx)(x._1, x._2)
-      val kN = Names.serializeType(x._1)
-      val vN = Names.serializeType(x._2)
       val vprKeyT = ctx.typ(x._1)
-      val vprValueT = ctx.typ(x._2)
       val resultT = vpr.SetType(vprKeyT)
       vpr.Function(
-        name = s"mapKeySet$kN$$$vN",
+        name = internalMemberName("mapKeySet", x._1, x._2),
         formalArgs = Seq(paramDecl),
         typ = resultT,
         pres = Seq(
@@ -384,13 +369,10 @@ class MapEncoding extends LeafTypeEncoding {
     override def genFunction(x: (in.Type, in.Type))(ctx: Context): vpr.Function = {
       val paramDecl = vpr.LocalVarDecl("x", mapType)()
       val field = underlyingMapField(ctx)(x._1, x._2)
-      val kN = Names.serializeType(x._1)
-      val vN = Names.serializeType(x._2)
-      val vprKeyT = ctx.typ(x._1)
       val vprValueT = ctx.typ(x._2)
       val resultT = vpr.SetType(vprValueT)
       vpr.Function(
-        name = s"mapValueSet$kN$$$vN",
+        name = internalMemberName("mapValueSet", x._1, x._2),
         formalArgs = Seq(paramDecl),
         typ = resultT,
         pres = Seq(
@@ -419,13 +401,9 @@ class MapEncoding extends LeafTypeEncoding {
     override def genFunction(x: (in.Type, in.Type))(ctx: Context): vpr.Function = {
       val paramDecl = vpr.LocalVarDecl("x", mapType)()
       val field = underlyingMapField(ctx)(x._1, x._2)
-      val kN = Names.serializeType(x._1)
-      val vN = Names.serializeType(x._2)
-      val vprKeyT = ctx.typ(x._1)
-      val vprValueT = ctx.typ(x._2)
       val resultT = vpr.Int
       vpr.Function(
-        name = s"mapCardinality$kN$$$vN",
+        name = internalMemberName("mapCardinality", x._1, x._2),
         formalArgs = Seq(paramDecl),
         typ = resultT,
         pres = Seq(
@@ -463,16 +441,14 @@ class MapEncoding extends LeafTypeEncoding {
   private val mapLookupGenerator: FunctionGenerator[(in.Type, in.Type)] = new FunctionGenerator[(in.Type, in.Type)] {
     override def genFunction(x: (in.Type, in.Type))(ctx: Context): vpr.Function = {
       val field = underlyingMapField(ctx)(x._1, x._2)
-      val kN = Names.serializeType(x._1)
-      val vN = Names.serializeType(x._2)
       val vprKeyT = ctx.typ(x._1)
       val vprValueT = ctx.typ(x._2)
       val mapParamDecl = vpr.LocalVarDecl("x", mapType)()
       val keyParamDecl = vpr.LocalVarDecl("k", vprKeyT)()
       val dfltVal = in.DfltVal(x._2)(Source.Parser.Internal)
-      val vprDfltVal = ctx.expression(dfltVal).res // TODO: assert writer is empty
+      val vprDfltVal = pure(ctx.expression(dfltVal))(ctx).res
       vpr.Function(
-        name = s"mapLookup$kN$$$vN",
+        name = internalMemberName("mapLookup", x._1, x._2),
         formalArgs = Seq(mapParamDecl, keyParamDecl),
         typ = vprValueT,
         pres = Seq(
@@ -498,6 +474,44 @@ class MapEncoding extends LeafTypeEncoding {
           )()
         ),
         body = None
+      )()
+    }
+  }
+
+  private val makeMethodGenerator: MethodGenerator[(in.Type, in.Type)] = new MethodGenerator[(in.Type, in.Type)] {
+    /**
+      * Generates viper method for making maps with keys of type K and values of type V:
+      *
+      * method makeMapMethodKV(n: Int) returns (res: Ref)
+      *   requires 0 <= n
+      *   ensures  acc(res.underlyingMapField)
+      *   ensures  res.underlyingMapField == EmptyMap[K,V]
+      *   decreases _
+      */
+    override def genMethod(types: (in.Type, in.Type))(ctx: Context): vpr.Method = {
+      val paramDecl = vpr.LocalVarDecl("n", vpr.Int)()
+      val keyT = types._1
+      val valT = types._2
+      val vprKeyT = ctx.typ(keyT)
+      val vprValT = ctx.typ(valT)
+      val resultT = ctx.typ(in.MapT(keyT, valT, Addressability.outParameter))
+      val result = vpr.LocalVarDecl("res", resultT)()
+      val underlyingField = underlyingMapField(ctx)(keyT, valT)
+      val post1 = vpr.FieldAccessPredicate(vpr.FieldAccess(result.localVar, underlyingField)(), vpr.FullPerm()())()
+      val post2 = vpr.EqCmp(
+        vpr.FieldAccess(result.localVar, underlyingField)(),
+        vpr.EmptyMap(vprKeyT, vprValT)()
+      )()
+      vpr.Method(
+        name = internalMemberName("makeMapMethod", keyT, valT),
+        formalArgs = Seq(paramDecl),
+        formalReturns = Seq(result),
+        pres = Seq(
+          vpr.LeCmp(vpr.IntLit(0)(), paramDecl.localVar)(), // 0 <= n
+          synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
+        ),
+        posts = Seq(post1, post2),
+        body = None,
       )()
     }
   }

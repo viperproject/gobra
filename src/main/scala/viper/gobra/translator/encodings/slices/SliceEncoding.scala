@@ -626,6 +626,18 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
   }
 
   private val makeMethodGenerator: MethodGenerator[in.Type] = new MethodGenerator[in.Type] {
+    /**
+      * Generates viper method for making slices with elements of type T:
+      *
+      * method makeSliceMethodT(len: Int, cap: Int) returns (res: Slice[Ref])
+      *   requires 0 <= len
+      *   requires 0 <= cap
+      *   requires len <= cap
+      *   ensures slen(res) == len
+      *   ensures scap(res) == cap
+      *   ensures forall i: Int :: { [ &res[i] ] } 0 <= i && i < cap ==> acc([ &res[i] ], write)
+      *   ensures forall i: Int :: { [ &res[i] ] } 0 <= i && i < len ==> [ res[i] ] == [ dflt(T) ]
+      */
     override def genMethod(t: in.Type)(ctx: Context): vpr.Method = {
       val tName = Names.serializeType(t)
       val lenDecl = vpr.LocalVarDecl("len", vpr.Int)()
@@ -663,7 +675,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             dfltVal
           )())())()
       vpr.Method(
-        name = s"makeMethod$tName",
+        name = s"makeSliceMethod$tName",
         formalArgs = Seq(lenDecl, capDecl),
         formalReturns = Seq(result),
         pres = Seq(

@@ -637,6 +637,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       *   ensures scap(res) == cap
       *   ensures forall i: Int :: { [ &res[i] ] } 0 <= i && i < cap ==> acc([ &res[i] ], write)
       *   ensures forall i: Int :: { [ &res[i] ] } 0 <= i && i < len ==> [ res[i] ] == [ dflt(T) ]
+      *   decreases _
       */
     override def genMethod(t: in.Type)(ctx: Context): vpr.Method = {
       val tName = Names.serializeType(t)

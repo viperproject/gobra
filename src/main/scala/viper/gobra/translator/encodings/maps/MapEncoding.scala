@@ -97,13 +97,6 @@ class MapEncoding extends LeafTypeEncoding {
   }
 
   /**
-    * Encodes the allocation of a new map
-    *  [r := make(map[T1]T2, n)] ->
-    *    asserts 0 <= [n]
-    *    var a Ref := new(underlyingMapField)
-    *    inhales len(m) == 0, where m is the underlying map of a
-    *    [r] := a
-    *
     *  [v, ok := exp[idx] ->
     *     var res [T1]
     *     var ok' Bool

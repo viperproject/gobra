@@ -5,14 +5,14 @@ package main
 
 // Throws an error because length might be negative
 func Err1(length int) (ret []int) {
-	//:: ExpectedOutput(make_precondition_error)
+	//:: ExpectedOutput(precondition_error:make_precondition_error)
 	ret := make([]int, length)
 }
 
 // Throws an error because length is not guaranteed to be less than capacity
 requires length > 0 && capacity > 0
 func Err2(length int, capacity int) (ret []int) {
-	//:: ExpectedOutput(make_precondition_error)
+	//:: ExpectedOutput(precondition_error:make_precondition_error)
 	ret := make([]int, length, capacity)
 }
 

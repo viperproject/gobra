@@ -9,14 +9,14 @@ package viper.gobra.translator.encodings.slices
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.BackTranslator.RichErrorMessage
-import viper.gobra.reporting.{ArrayMakePreconditionError, Source}
+import viper.gobra.reporting.{PreconditionError, SliceMakePreconditionFailed, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.arrays.SharedArrayEmbedding
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
-import viper.gobra.translator.util.FunctionGenerator
+import viper.gobra.translator.util.{FunctionGenerator, MethodGenerator}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.silver.verifier.{errors => err}
@@ -36,6 +36,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     sliceFromArrayGenerator.finalize(addMemberFn)
     sliceFromSliceGenerator.finalize(addMemberFn)
     nilSliceGenerator.finalize(addMemberFn)
+    makeMethodGenerator.finalize(addMemberFn)
   }
 
   /**
@@ -137,60 +138,19 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     default(super.statement(ctx)) {
       case makeStmt@in.MakeSlice(target, in.SliceT(typeParam, _), lenArg, optCapArg) =>
         val (pos, info, errT) = makeStmt.vprMeta
-        val sliceT = in.SliceT(typeParam.withAddressability(Shared), Addressability.Exclusive)
-        val slice = in.LocalVar(ctx.freshNames.next(), sliceT)(makeStmt.info)
-        val vprSlice = ctx.variable(slice)
-        seqn(
-          for {
-            // var a [ []T ]
-            _ <- local(vprSlice)
-
-            capArg = optCapArg.getOrElse(lenArg)
-            vprLength <- ctx.expression(lenArg)
-            vprCapacity <- ctx.expression(capArg)
-
-            // Perform additional runtime checks of conditions that must be true when make is invoked, otherwise the program panics (according to the go spec)
-            // asserts 0 <= [len] && 0 <= [cap] && [len] <= [cap]
-            runtimeChecks = vu.bigAnd(Vector(
-              vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), vprLength)(pos, info, errT), // 0 <= len
-              vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), vprCapacity)(pos, info, errT), // 0 <= cap
-              vpr.LeCmp(vprLength, vprCapacity)(pos, info, errT) // len <= cap
-            ))(pos, info, errT)
-
-            exhale = vpr.Exhale(runtimeChecks)(pos, info, errT)
-            _ <- write(exhale)
-            _ <- errorT {
-              case e@err.ExhaleFailed(Source(info), _, _) if e causedBy exhale => ArrayMakePreconditionError(info)
-            }
-
-            // inhale forall i: int :: {loc(a, i)} 0 <= i && i < [cap] ==> Footprint[ a[i] ]
-            footprintAssertion <- getCellPerms(ctx)(slice, in.FullPerm(slice.info), SliceBound.Cap)
-            _ <- write(vpr.Inhale(footprintAssertion)(pos, info, errT))
-
-            lenExpr = in.Length(slice)(makeStmt.info)
-            capExpr = in.Capacity(slice)(makeStmt.info)
-
-            // inhale cap(a) == [cap]
-            eqCap <- ctx.equal(capExpr, capArg)(makeStmt)
-            _ <- write(vpr.Inhale(eqCap)(pos, info, errT))
-
-            // inhale len(a) == [len]
-            eqLen <- ctx.equal(lenExpr, lenArg)(makeStmt)
-            _ <- write(vpr.Inhale(eqLen)(pos, info, errT))
-
-            // inhale forall i: int :: {loc(a, i)} 0 <= i && i < [len] ==> [ a[i] == dfltVal(T) ]
-            eqValueAssertion <- boundedQuant(
-              bound = vprLength,
-              trigger = (idx: vpr.LocalVar) =>
-                Seq(vpr.Trigger(Seq(ctx.slice.loc(vprSlice.localVar, idx)(pos, info, errT)))(pos, info, errT)),
-              body = (x: in.BoundVar) =>
-                ctx.equal(in.IndexedExp(slice, x, sliceT)(makeStmt.info), in.DfltVal(typeParam.withAddressability(Exclusive))(makeStmt.info))(makeStmt)
-            )(makeStmt)(ctx)
-            _ <- write(vpr.Inhale(eqValueAssertion)(pos, info, errT))
-
-            ass <- ctx.assignment(in.Assignee.Var(target), slice)(makeStmt)
-          } yield ass
-        )
+        for {
+          len <- ctx.expression(lenArg)
+          cap <- optCapArg match {
+            case Some(c) => ctx.expression(c)
+            case None => unit(len)
+          }
+          t = ctx.variable(target)
+          makeCall = makeMethodGenerator(Vector(len, cap), Vector(t.localVar), typeParam)(pos, info, errT)(ctx)
+          _ <- errorT {
+            case e@err.PreconditionInCallFalse(Source(info), _, _) if e causedBy makeCall =>
+              PreconditionError(info) dueTo SliceMakePreconditionFailed(info)
+          }
+        } yield makeCall
 
       case lit: in.NewSliceLit =>
         val (pos, info, errT) = lit.vprMeta
@@ -661,6 +621,72 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         Seq(pre1),
         Seq(post1, post2, post3, post4),
         if (generateFunctionBodies) Some(body) else None
+      )()
+    }
+  }
+
+  private val makeMethodGenerator: MethodGenerator[in.Type] = new MethodGenerator[in.Type] {
+    /**
+      * Generates viper method for making slices with elements of type T:
+      *
+      * method makeSliceMethodT(len: Int, cap: Int) returns (res: Slice[Ref])
+      *   requires 0 <= len
+      *   requires 0 <= cap
+      *   requires len <= cap
+      *   ensures slen(res) == len
+      *   ensures scap(res) == cap
+      *   ensures forall i: Int :: { [ &res[i] ] } 0 <= i && i < cap ==> acc([ &res[i] ], write)
+      *   ensures forall i: Int :: { [ &res[i] ] } 0 <= i && i < len ==> [ res[i] ] == [ dflt(T) ]
+      *   decreases _
+      */
+    override def genMethod(t: in.Type)(ctx: Context): vpr.Method = {
+      val tName = Names.serializeType(t)
+      val lenDecl = vpr.LocalVarDecl("len", vpr.Int)()
+      val capDecl = vpr.LocalVarDecl("cap", vpr.Int)()
+      val sliceT = ctx.typ(in.SliceT(t, Addressability.make))
+      val result = vpr.LocalVarDecl("res", sliceT)()
+      val qtfVar = vpr.LocalVarDecl("i", vpr.Int)()
+
+      val dfltValWriter = ctx.expression(in.DfltVal(t.withAddressability(Addressability.Exclusive))(Source.Parser.Internal))
+      val dfltVal = pure(dfltValWriter)(ctx).res
+
+      val post1 = vpr.EqCmp(ctx.slice.len(result.localVar)(), lenDecl.localVar)()
+      val post2 = vpr.EqCmp(ctx.slice.cap(result.localVar)(), capDecl.localVar)()
+      val post3 = vpr.Forall(
+        variables = Seq(qtfVar),
+        triggers  = Seq(vpr.Trigger(Seq(ctx.slice.loc(result.localVar, qtfVar.localVar)()))()),
+        exp = vpr.Implies(
+          vpr.And(vpr.LeCmp(vpr.IntLit(0)(), qtfVar.localVar)(), vpr.LtCmp(qtfVar.localVar, capDecl.localVar)())(),
+          vpr.FieldAccessPredicate(
+            vpr.FieldAccess(
+              ctx.slice.loc(result.localVar, qtfVar.localVar)(),
+              ctx.field.field(t.withAddressability(Exclusive))(ctx)
+            )(),
+            vpr.FullPerm()())())())()
+      val post4 = vpr.Forall(
+        variables = Seq(qtfVar),
+        triggers  = Seq(vpr.Trigger(Seq(ctx.slice.loc(result.localVar, qtfVar.localVar)()))()),
+        exp = vpr.Implies(
+          vpr.And(vpr.LeCmp(vpr.IntLit(0)(), qtfVar.localVar)(), vpr.LtCmp(qtfVar.localVar, lenDecl.localVar)())(),
+          vpr.EqCmp(
+            vpr.FieldAccess(
+              ctx.slice.loc(result.localVar, qtfVar.localVar)(),
+              ctx.field.field(t.withAddressability(Exclusive))(ctx)
+            )(),
+            dfltVal
+          )())())()
+      vpr.Method(
+        name = s"makeSliceMethod$tName",
+        formalArgs = Seq(lenDecl, capDecl),
+        formalReturns = Seq(result),
+        pres = Seq(
+          vpr.LeCmp(vpr.IntLit(0)(), lenDecl.localVar)(), // 0 <= len
+          vpr.LeCmp(vpr.IntLit(0)(), capDecl.localVar)(), // 0 <= cap
+          vpr.LeCmp(lenDecl.localVar, capDecl.localVar)(), // len <= cap
+          synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
+        ),
+        posts = Seq(post1, post2, post3, post4),
+        body = None,
       )()
     }
   }

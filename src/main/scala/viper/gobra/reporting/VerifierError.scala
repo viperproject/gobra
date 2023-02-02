@@ -501,8 +501,8 @@ case class SpecNotImplementedByClosure(info: Verifier.Info, closure: String, spe
 }
 
 case class SliceMakePreconditionFailed(info: Source.Verifier.Info) extends VerificationErrorReason {
-  override def id: String = "make_precondition_false"
-  override def message: String = s"The provided length might not be smaller or equal to the provided capacity, or length and capacity might be negative"
+  override def id: String = "make_precondition_error"
+  override def message: String = s"The provided length might not be smaller or equal to the provided capacity, or length or capacity might be negative"
 }
 
 sealed trait VerificationErrorClarification {

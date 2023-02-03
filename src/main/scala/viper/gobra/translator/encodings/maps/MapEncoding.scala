@@ -327,6 +327,15 @@ class MapEncoding extends LeafTypeEncoding {
     }
 
   private val mapKeySetGenerator: FunctionGenerator[(in.Type, in.Type)] = new FunctionGenerator[(in.Type, in.Type)] {
+    /**
+      * Generates viper function for computing the set of keys of a map with type parameters K and V
+      *
+      * function mapKeySetKV(m: [ Map[K,V] ]) returns (res: Ref)
+      *   requires m != nil ==> acc(res.underlyingMapField, _)
+      *   ensures  m == nil ==> res == set[K]{}
+      *   ensures  m != nil ==> res == domain(res.underlyingMapField)
+      *   decreases _
+      */
     override def genFunction(x: (in.Type, in.Type))(ctx: Context): vpr.Function = {
       val paramDecl = vpr.LocalVarDecl("x", mapType)()
       val field = underlyingMapField(ctx)(x._1, x._2)
@@ -359,6 +368,15 @@ class MapEncoding extends LeafTypeEncoding {
   }
 
   private val mapValueSetGenerator: FunctionGenerator[(in.Type, in.Type)] = new FunctionGenerator[(in.Type, in.Type)] {
+    /**
+      * Generates viper function for computing the set of values of a map with type parameters K and V
+      *
+      * function mapValueSetKV(m: [ Map[K,V] ]) returns (res: Ref)
+      *   requires m != nil ==> acc(res.underlyingMapField, _)
+      *   ensures  m == nil ==> res == set[V]{}
+      *   ensures  m != nil ==> res == range(res.underlyingMapField)
+      *   decreases _
+      */
     override def genFunction(x: (in.Type, in.Type))(ctx: Context): vpr.Function = {
       val paramDecl = vpr.LocalVarDecl("x", mapType)()
       val field = underlyingMapField(ctx)(x._1, x._2)
@@ -391,6 +409,14 @@ class MapEncoding extends LeafTypeEncoding {
   }
 
   private val mapCardinalityGenerator: FunctionGenerator[(in.Type, in.Type)] = new FunctionGenerator[(in.Type, in.Type)] {
+    /**
+      * Generates viper function for computing the cardinality of a map with type parameters K and V
+      *
+      * function mapCardinalityKV(m: [ Map[K,V] ]) returns (res: Int)
+      *   requires m != nil ==> acc(res.underlyingMapField, _)
+      *   ensures  res == |mapKeySetKV(res.underlyingMapField)|
+      *   decreases _
+      */
     override def genFunction(x: (in.Type, in.Type))(ctx: Context): vpr.Function = {
       val paramDecl = vpr.LocalVarDecl("x", mapType)()
       val field = underlyingMapField(ctx)(x._1, x._2)
@@ -445,10 +471,6 @@ class MapEncoding extends LeafTypeEncoding {
         formalArgs = Seq(mapParamDecl, keyParamDecl),
         typ = vprValueT,
         pres = Seq(
-          //vpr.Implies(
-          //  vpr.NeCmp(paramDecl.localVar, vpr.NullLit()())(),
-          //  vpr.FieldAccessPredicate(vpr.FieldAccess(paramDecl.localVar, field)(), vpr.WildcardPerm()())()
-          //)(),
           vpr.Implies(
             vpr.NeCmp(mapParamDecl.localVar, vpr.NullLit()())(),
             vpr.FieldAccessPredicate(vpr.FieldAccess(mapParamDecl.localVar, field)(), vpr.WildcardPerm()())()

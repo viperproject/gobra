@@ -10,7 +10,6 @@ import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, Cer
 
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
-import viper.silver.ast.Not
 import viper.silver.verifier.{AbstractVerificationError, errors => vprerr, reasons => vprrea}
 import viper.silver.plugin.standard.termination
 
@@ -47,8 +46,8 @@ object DefaultErrorBackTranslator {
         SeqIndexExceedsLengthError(node, index)
       case vprrea.SeqIndexNegative(CertainSource(node), CertainSource(index)) =>
         SeqIndexNegativeError(node, index)
-      case vprrea.DivisionByZero(info) =>
-        DivisionByZeroReason(CertainSource.unapply(info))
+      case vprrea.DivisionByZero(CertainSource(info)) =>
+        DivisionByZeroReason(info)
       case vprrea.MapKeyNotContained(CertainSource(node), CertainSource(index)) =>
         MapKeyNotContained(node, index)
       //      case vprrea.DummyReason =>
@@ -139,20 +138,7 @@ class DefaultErrorBackTranslator(
         PackageFailedError(info) dueTo translate(reason)
       case vprerr.ApplyFailed(CertainSource(info), reason, _) =>
         ApplyFailed(info) dueTo translate(reason)
-
-      // Wytse (2020-05-22):
-      // It appears that Viper sometimes negates conditions
-      // during the translation of if-statements.
-      // However, these generated negated conditions
-      // don't appear to preserve any source information,
-      // meaning that the above case for `IfFailed` doesn't catch all errors...
-      // This extra case provides a workaround for this issue.
-      // Nevertheless, this should eventually be solved on the Viper level I think.
       case vprerr.IfFailed(Source(info), reason, _) =>
-        IfError(info) dueTo translate(reason)
-      case vprerr.IfFailed(Not(Source(info)), reason, _) =>
-        IfError(info) dueTo translate(reason)
-      case vprerr.IfFailed(CertainSource(info), reason, _) =>
         IfError(info) dueTo translate(reason)
        case termination.FunctionTerminationError(Source(info) , reason, _) =>
          FunctionTerminationError(info) dueTo translate(reason)

@@ -147,6 +147,7 @@ sealed trait MethodMember extends MethodLikeMember {
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
   def terminationMeasures: Vector[TerminationMeasure]
+  //def privateSpec: Option[PrivateSpec]
 }
 
 sealed trait FunctionLikeMember extends Member {
@@ -159,6 +160,7 @@ sealed trait FunctionLikeMemberOrLit extends Node {
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
   def terminationMeasures: Vector[TerminationMeasure]
+  //def privateSpec: Option[PrivateSpec]
 }
 
 sealed trait FunctionMember extends FunctionLikeMember with FunctionLikeMemberOrLit
@@ -185,6 +187,7 @@ case class Method(
                  override val pres: Vector[Assertion],
                  override val posts: Vector[Assertion],
                  override val terminationMeasures: Vector[TerminationMeasure],
+                 //override val privateSpec: Option[PrivateSpec],
                  body: Option[MethodBody]
                  )(val info: Source.Parser.Info) extends Member with MethodMember
 
@@ -196,6 +199,7 @@ case class PureMethod(
                        override val pres: Vector[Assertion],
                        override val posts: Vector[Assertion],
                        override val terminationMeasures: Vector[TerminationMeasure],
+                       //override val privateSpec: Option[PrivateSpec],
                        body: Option[Expr]
                      )(val info: Source.Parser.Info) extends Member with MethodMember {
   require(results.size <= 1)
@@ -241,6 +245,7 @@ case class Function(
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
                      override val terminationMeasures: Vector[TerminationMeasure],
+                     //override val privateSpec: Option[PrivateSpec],
                      body: Option[MethodBody]
                    )(val info: Source.Parser.Info) extends Member with FunctionMember
 
@@ -251,6 +256,7 @@ case class PureFunction(
                          override val pres: Vector[Assertion],
                          override val posts: Vector[Assertion],
                          override val terminationMeasures: Vector[TerminationMeasure],
+                         //override val privateSpec: Option[PrivateSpec],
                          body: Option[Expr]
                        )(val info: Source.Parser.Info) extends Member with FunctionMember {
   require(results.size <= 1)
@@ -448,6 +454,7 @@ case class Outline(
                     pres: Vector[Assertion],
                     posts: Vector[Assertion],
                     terminationMeasures: Vector[TerminationMeasure],
+                    //privateSpec: Option[PrivateSpec],
                     body: Stmt,
                     trusted: Boolean,
                   )(val info: Source.Parser.Info) extends Stmt
@@ -495,6 +502,10 @@ case class Implication(left: Expr, right: Assertion)(val info: Source.Parser.Inf
 
 case class Access(e: Accessible, p: Expr)(val info: Source.Parser.Info) extends Assertion {
   require(p.typ.isInstanceOf[PermissionT], s"expected an expression of permission type but got $p.typ")
+}
+
+case class Private(exp: Expr)(val info: Source.Parser.Info) extends Assertion with Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
 }
 
 sealed trait TerminationMeasure extends Assertion
@@ -1144,6 +1155,7 @@ case class FunctionLit(
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
                      override val terminationMeasures: Vector[TerminationMeasure],
+                     //override val privateSpec: Option[PrivateSpec],
                      body: Option[MethodBody]
                    )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
@@ -1157,6 +1169,7 @@ case class PureFunctionLit(
                          override val pres: Vector[Assertion],
                          override val posts: Vector[Assertion],
                          override val terminationMeasures: Vector[TerminationMeasure],
+                         //override val privateSpec: Option[PrivateSpec],
                          body: Option[Expr]
                        )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
@@ -1181,6 +1194,20 @@ case class FunctionObject(func: FunctionProxy, override val typ: Type)(override 
 
 case class MethodObject(recv: Expr, meth: MethodProxy, override val typ: Type)(override val info: Source.Parser.Info) extends Expr
 
+/*case class PrivateSpec(
+                      pres: Vector[Assertion],
+                      posts: Vector[Assertion],
+                      terminationMeasures: Vector[TerminationMeasure],
+                      proof: PrivateEntailmentProof
+                      )(override val info: Source.Parser.Info) extends Assertion */
+
+/*case class PrivateEntailmentProof(
+                                   name: FunctionProxy, //needed?
+                                   body: Block, 
+                                   privatePres: Vector[Assertion], 
+                                   privatePosts: Vector[Assertion],
+                                   pres: Vector[Assertion],
+                                   posts: Vector[Assertion])*/
 
 /**
   * Represents (full) slice expressions "`base`[`low`:`high`:`max`]".

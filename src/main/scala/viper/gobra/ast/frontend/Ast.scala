@@ -457,6 +457,8 @@ case class PClosureImplements(closure: PExpression, spec: PClosureSpecInstance) 
 
 case class PClosureImplProof(impl: PClosureImplements, block: PBlock) extends PGhostStatement with PScope
 
+case class PPrivateEntailmentProof(id: PIdnDef, block: PBlock) extends PGhostStatement with PScope
+
 case class PInvoke(base: PExpressionOrType, args: Vector[PExpression], spec: Option[PClosureSpecInstance]) extends PActualExpression {
   require(base.isInstanceOf[PExpression] || spec.isEmpty) // `base` is a type for conversions only, for which `spec` is empty
 }
@@ -867,6 +869,7 @@ case class PFunctionSpec(
                       preserves: Vector[PExpression],
                       posts: Vector[PExpression],
                       terminationMeasures: Vector[PTerminationMeasure],
+                      privateSpec: Option[PPrivateSpec],
                       isPure: Boolean = false,
                       isTrusted: Boolean = false
                       ) extends PSpecification
@@ -886,6 +889,14 @@ case class PLoopSpec(
                     terminationMeasure: Option[PTerminationMeasure],
                     ) extends PSpecification
 
+//TODO
+case class PPrivateSpec(
+                       pres: Vector[PExpression],
+                       preserves: Vector[PExpression],
+                       posts: Vector[PExpression],
+                       terminationMeasures: Vector[PTerminationMeasure],
+                       proof: PPrivateEntailmentProof
+                       ) extends PSpecification
 
 /**
   * Ghost Member
@@ -1016,6 +1027,8 @@ case class PAccess(exp: PExpression, perm: PExpression) extends PGhostExpression
 
 /** Specialised version of PAccess that only handles predicate accesses. E.g, used for foldings.  */
 case class PPredicateAccess(pred: PInvoke, perm: PExpression) extends PGhostExpression
+
+case class PPrivate(exp: PExpression) extends PGhostExpression
 
 case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
 

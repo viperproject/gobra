@@ -21,7 +21,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
           rec,
           filterParamList(args),
           filterResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, None),
           body.map( b => (PBodyParameterInfo(Vector.empty), b._2) )
         )
       )
@@ -32,7 +32,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
           id,
           filterParamList(args),
           filterResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, None),
           body.map( b => (PBodyParameterInfo(Vector.empty), b._2) )
         )
       )
@@ -170,7 +170,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
     case PFunctionLit(_, PClosureDecl(args, result, _, body)) => super.showMisc(PClosureDecl(
       filterParamList(args),
       filterResult(result),
-      PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+      PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, None),
       body.map( b => (PBodyParameterInfo(Vector.empty), b._2) )
     ))
 

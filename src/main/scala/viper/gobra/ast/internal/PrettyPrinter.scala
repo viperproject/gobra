@@ -429,6 +429,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Implication(left, right) => showExpr(left) <+> "==>" <+> showAss(right)
     case Access(e, FullPerm(_)) => "acc" <> parens(showAcc(e))
     case Access(e, p) => "acc" <> parens(showAcc(e) <> "," <+> showExpr(p))
+    case Private(e) => "pvt" <> parens(showExpr(e))
     case SepForall(vars, triggers, body) =>
       "forall" <+> showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showAss(body)
     case t: TerminationMeasure => showTerminationMeasure(t)
@@ -526,6 +527,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
 
     case TypeAssertion(exp, arg) => showExpr(exp) <> "." <> parens(showType(arg))
+    case Private(exp) => "pvt" <> parens(showExpr(exp))
     case TypeOf(exp) => "typeOf" <> parens(showExpr(exp))
     case ToInterface(exp, _) => "toInterface" <> parens(showExpr(exp))
     case IsBehaviouralSubtype(left, right) => showExpr(left) <+> "<:" <+> showExpr(right)

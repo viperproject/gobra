@@ -237,6 +237,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitAccess(GobraParser.AccessContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#pvt}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPvt(GobraParser.PvtContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#range}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -332,6 +338,18 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitAssertion(GobraParser.AssertionContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#privateSpec}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPrivateSpec(GobraParser.PrivateSpecContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#privateEntailmentProof}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPrivateEntailmentProof(GobraParser.PrivateEntailmentProofContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#matchStmt}.
 	 * @param ctx the parse tree

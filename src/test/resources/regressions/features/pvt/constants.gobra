@@ -1,0 +1,34 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func main() {
+    assert !pvt(0)
+    assert !pvt(1)
+    assert !pvt(42)
+    
+    assert !pvt(false)
+    assert !pvt(true)
+
+    assert !pvt("")
+    assert !pvt("hello world")
+
+    assert !pvt([]int{})
+    assert !pvt([]string{})
+    assert !pvt(nil)
+
+    i := []int{}
+    s := []string{}
+
+    assert !pvt(i)
+    assert !pvt(s)
+
+    //assert !pvt(2.4)
+    //assert !pvt(3.14159265359)
+    
+    assert !pvt(2*6)
+    assert !pvt(7/8)
+    assert !pvt(5/0)
+
+}

@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pure func F() int { return 0 }
+
+pure func Fa(a int) int { return a }
+
+type S struct {}
+
+requires acc(st)
+pure func FS(st *S) int { return 0 }
+
+type s struct {}
+
+requires acc(st)
+pure func Fs(st *s) int { return 0 }
+
+requires acc(s1) && acc(s2)
+pure func FSs(s1 *S, s2 *s) int { return 0 }
+
+func main() {
+    assert !pvt(F) 
+    assert !pvt(Fa)
+    assert !pvt(FS)
+    assert pvt(Fs)
+    assert pvt(FSs)
+    assert pvt(f)
+}

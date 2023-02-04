@@ -422,15 +422,52 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     *
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
-    */
+    */ //TODO
   override def visitMethodSpec(ctx: GobraParser.MethodSpecContext): PMethodSig = {
     val ghost = has(ctx.GHOST())
-    val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty).at(ctx)
+    //val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty,Vector.empty).at(ctx)
+    val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty,Vector.empty,None).at(ctx)
     // The name of each explicitly specified method must be unique and not blank.
     val id = idnDef.get(ctx.IDENTIFIER())
     val args = visitNode[Vector[Vector[PParameter]]](ctx.parameters())
     val result = visitNodeOrElse[PResult](ctx.result(), PResult(Vector.empty))
     PMethodSig(id, args.flatten, result, spec, isGhost = ghost).at(ctx)
+  }
+
+  override def visitPrivateSpec(ctx: GobraParser.PrivateSpecContext): PPrivateSpec = {
+    val groups = ctx.specStatement().asScala.view.groupBy(_.kind.getType)
+
+    val pres = groups.getOrElse(GobraParser.PRE, Seq.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
+    val preserves = groups.getOrElse(GobraParser.PRESERVES, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
+    val posts = groups.getOrElse(GobraParser.POST, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
+    val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).toVector.map(s => visitTerminationMeasure(s.terminationMeasure()))
+    val proof = visitPrivateEntailmentProof(ctx.privateEntailmentProof())
+    
+    PPrivateSpec(pres, preserves, posts, terms, proof).at(ctx)
+  } 
+
+  override def visitPrivateEntailmentProof(ctx: PrivateEntailmentProofContext): PPrivateEntailmentProof = {
+    val funcId = ctx.parent match {
+      case pvt: PrivateSpecContext => pvt.parent match {
+        case spec: SpecificationContext => spec.parent match {
+          //case stmt: StatementWithSpecContext => unexpected(stmt)
+          //case f: FunctionLitContext => unexpected(f)
+          case specm: SpecMemberContext => visitSpecMember(specm) match {
+            case PFunctionDecl(id, _, _, _, _) => id
+            case PMethodDecl(id, _, _, _, _, _) => id
+          }
+          case m: MethodSpecContext => visitMethodSpec(m) match {
+            case PMethodSig(id, _, _, _, _) => id
+          }
+          case c: ParserRuleContext => unexpected(c)
+        }
+        case c: ParserRuleContext => unexpected(c)
+      }
+      case c: ParserRuleContext => unexpected(c)
+    }
+    val body = visitBlock(ctx.block())
+
+    PPrivateEntailmentProof(funcId, body).at(ctx)
   }
 
   /**
@@ -864,8 +901,15 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val preserves = groups.getOrElse(GobraParser.PRESERVES, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
     val posts = groups.getOrElse(GobraParser.POST, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
     val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).toVector.map(s => visitTerminationMeasure(s.terminationMeasure()))
-
-    PFunctionSpec(pres, preserves, posts, terms, isPure = ctx.pure, isTrusted = ctx.trusted)
+    // val privateSpecs = groups.getOrElse(GobraParser.PRIVATE, Vector.empty).toVector.map(s => visitPrivateSpec(s.privateSpec()))
+    //val privateSpec = if (privateSpecs.isEmpty) { None } else { Some(privateSpecs.head) } 
+      //else if (privateSpecs.length == 1) { Some(privateSpecs.head) }
+      //else { fail(ctx, s"Expected one private clause: $ctx.") }
+    //val privateSpec = None
+    //val something = groups.foreach { case (key, values) => println("key " + key + " - " + values.mkString("-")) }
+    val privateSpec = if (has(ctx.privateSpec())) Some(visitPrivateSpec(ctx.privateSpec())) else None
+    //PFunctionSpec(pres, preserves, posts, terms, isPure = ctx.pure, isTrusted = ctx.trusted)
+    PFunctionSpec(pres, preserves, posts, terms, privateSpec, isPure = ctx.pure, isTrusted = ctx.trusted)
   }
 
   /**
@@ -2130,6 +2174,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case invoke : PInvoke => PPredicateAccess(invoke, PFullPerm().at(invoke))
     case PAccess(invoke: PInvoke, perm) => PPredicateAccess(invoke, perm)
     case _ => fail(ctx, "Expected invocation")
+  }
+
+  override def visitPvt(ctx: PvtContext): PPrivate = super.visitPvt(ctx) match {
+    case Vector("pvt", "(", expr: PExpression, ")") => PPrivate(expr)
   }
 
   /**

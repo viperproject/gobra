@@ -58,6 +58,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   with Implements
   with UnderlyingType
   with TypeMerging
+  with Visibility
 
   with Errors
   with StrictLogging
@@ -150,4 +151,6 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   override def getTypeInfo: TypeInfo = this
 
   override def isPureExpression(expr: PExpression): Boolean = isPureExpr(expr).isEmpty
+
+  override def isPvt(expr: PExpression): Boolean = isPrivate(expr)
 }

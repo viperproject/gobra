@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type Pair struct {
+  Left, Right, p int
+}
+
+requires acc(x)
+ensures  acc(x) && x.Left == 2
+private {
+  requires acc(x)
+  ensures  acc(x) && x.Left == 2 && x.p == 3
+  proof {
+      // proof statements
+  }
+}
+func Foo(x *Pair) {
+ // body
+}

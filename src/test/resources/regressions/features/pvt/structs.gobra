@@ -1,0 +1,56 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type S struct { X int }
+
+//st is argument of function, X uppercase (public)
+requires !pvt(st) 
+requires !pvt(st.X) 
+requires !pvt(&st.X) 
+func FS(st *S) {
+	assert !pvt(st) 
+	assert !pvt(st.X) 
+	assert !pvt(&st.X) 
+}
+
+type s struct { X int }
+
+//st is argument of function, X uppercase (public)
+requires !pvt(st) 
+requires !pvt(st.X)
+requires !pvt(&st.X) 
+func Fs(st *s) {
+	assert !pvt(st)
+	assert !pvt(st.X)
+	assert !pvt(&st.X)
+}
+
+type SP struct { x *s; y *S  }
+
+//st is argument of function (public)
+//x in st.x is field of st (lowercase => private)
+//y in st.y is field of st (lowercase => private)
+requires pvt(acc(st) && st.x.X == st.y.X)
+requires !pvt(st) && pvt(st.x) && pvt(st.y)
+func FSPvt(st *SP) {
+    assert !pvt(st) 
+	assert pvt(st.x) 
+	assert pvt(&st.x) 
+	assert pvt(st.x.X)
+	assert pvt(st.y)
+	assert pvt(&st.y)
+	assert pvt(st.y.X)
+}
+
+type S1 struct { x *s }
+type S2 struct { X *S1 }
+type S3 struct { X *S2 }
+type S4 struct { X *S3 }
+type S5 struct { X *S4 }
+type S6 struct { X *S5 }
+
+func F6(st *S6) {
+	assert pvt(st.X.X.X.X.X.x)
+}

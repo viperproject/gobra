@@ -302,7 +302,7 @@ object Parser {
           case n@PTupleTerminationMeasure(_, cond) => PWildcardMeasure(cond).at(n)
           case t => t
         }
-        PFunctionSpec(spec.pres, spec.preserves, spec.posts, replacedMeasures, spec.isPure, spec.isTrusted)
+        PFunctionSpec(spec.pres, spec.preserves, spec.posts, replacedMeasures, spec.privateSpec, spec.isPure, spec.isTrusted)
       }
 
       val replaceTerminationMeasuresForFunctionsAndMethods: Strategy =

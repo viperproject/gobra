@@ -213,11 +213,15 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _, _) =>
+    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, privateSpec, _, _) =>
       pres.flatMap(assignableToSpec) ++ preserves.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
       preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
       pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
       terminationMeasures.flatMap(wellDefTerminationMeasure) ++
+      privateSpec.toVector.flatMap(wellDefPrivateSpec) ++
+      // specifications outside the private clause cannot be private, 
+      // private members are only allowed in privateSpec
+      error(n, "Private members must all be in the private clause.", pres.exists(isPvt) || preserves.exists(isPvt) || posts.exists(isPvt)) ++
       // if has conditional clause, all clauses must be conditional
       // can only have one non-conditional clause
       error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
@@ -227,6 +231,18 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@ PLoopSpec(invariants, terminationMeasure) =>
       invariants.flatMap(assignableToSpec) ++ terminationMeasure.toVector.flatMap(wellDefTerminationMeasure) ++
         error(n, "Termination measures of loops cannot be conditional.", terminationMeasure.exists(isConditional))
+  
+    case n@ PPrivateSpec(_, _, _, _, _) =>
+      wellDefPrivateSpec(n)
+  }
+
+  private def wellDefPrivateSpec(spec: PPrivateSpec): Messages = spec match {
+    case PPrivateSpec(pres, preserves, posts, terminationMeasures, proof) => 
+      pres.flatMap(assignableToSpec) ++ preserves.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
+      preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
+      pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
+      terminationMeasures.flatMap(wellDefTerminationMeasure) ++
+      wellDefGhostStmt(proof)
   }
 
   private def wellDefTerminationMeasure(measure: PTerminationMeasure): Messages = measure match {

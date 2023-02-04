@@ -88,7 +88,8 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
         n.spec.pres.isEmpty &&
         n.spec.preserves.isEmpty &&
         n.spec.posts.isEmpty &&
-        n.spec.terminationMeasures.isEmpty
+        n.spec.terminationMeasures.isEmpty &&
+        n.spec.privateSpec.isEmpty
       error(n, errorMsgEmptySpec, !hasEmptySpec) ++
         error(n, errorMsgNoInOut, !noInputsAndOutputs) ++
         error(n, errorMsgGhost, isGhost)

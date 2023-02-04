@@ -3612,7 +3612,7 @@ object Desugar {
           *  As such, these functions are ignored by [[registerFunction]].
           */
         None
-      } else {
+      } else { 
         val function = functionD(decl)
         val functionProxy = functionProxyD(decl, info)
         definedFunctions += functionProxy -> function
@@ -4218,6 +4218,8 @@ object Desugar {
 
       val typ = typeD(info.typ(expr), info.addressability(expr))(src)
 
+      def single[E <: in.Expr](gen: Meta => E): Writer[in.Expr] = unit[in.Expr](gen(src))
+
       expr match {
         case POld(op) => for {o <- go(op)} yield in.Old(o, typ)(src)
         case PLabeledOld(l, op) => for {o <- go(op)} yield in.LabeledOld(labelProxy(l), o)(src)
@@ -4241,6 +4243,9 @@ object Desugar {
           wthn <- go(right)
           wels = in.BoolLit(b = true)(src)
         } yield in.Conditional(wcond, wthn, wels, typ)(src)
+        
+        //desugar the expression into a BoolLit (boolean) for the translator
+        case PPrivate(exp) => single(in.BoolLit(info.isPvt(exp))) 
 
         case PTypeOf(exp) => for { wExp <- go(exp) } yield in.TypeOf(wExp)(src)
         case PIsComparable(exp) => underlyingType(info.typOfExprOrType(exp)) match {
@@ -4480,6 +4485,8 @@ object Desugar {
 
         case n: PAccess => for {e <- accessibleD(ctx, info)(n.exp); p <- permissionD(ctx, info)(n.perm)} yield in.Access(e, p)(src)
         case n: PPredicateAccess => predicateCallD(ctx, info)(n.pred, n.perm)
+
+        //case n: PPrivate => stmtD(in.Assert(go(n.exp))(src))
 
         case n: PInvoke =>
           // a predicate invocation corresponds to a predicate access with full permissions

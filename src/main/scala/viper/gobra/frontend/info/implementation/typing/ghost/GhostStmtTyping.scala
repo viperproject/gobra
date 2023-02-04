@@ -33,6 +33,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => comparableTypes.errors((miscType(c.pattern), exprType(exp)))(c)
     }) ++ isPureExpr(exp)
     case p: PClosureImplProof => wellDefClosureImplProof(p)
+    case p: PPrivateEntailmentProof => wellDefPrivateEntailmentProof(p)
   }
 
   private[typing] def wellDefFoldable(acc: PPredicateAccess): Messages = {
@@ -58,6 +59,49 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case _ => error(acc, s"unexpected predicate access")
     }
+  }
+
+  private def wellDefPrivateEntailmentProof(p: PPrivateEntailmentProof): Messages = {
+    val PPrivateEntailmentProof(id: PIdnDef, b: PBlock) = p
+
+    val func = regular(id) match {
+      case f: st.Function => f 
+      case _ => Violation.violation(s"expected a function, but got ${id}")
+    }
+
+    val isPure = func.isPure
+
+    val specArgs = func.args
+
+    lazy val expectedCallArgs = specArgs.flatMap(nameFromParam).map(a => PNamedOperand(PIdnUse(a)))
+
+    def isExpectedCall(i: PInvoke): Boolean = i.base == id && i.args == expectedCallArgs
+
+    lazy val expectedCallString: String = s"$id(${specArgs.flatMap(nameFromParam).mkString(",")}) [as _]"
+
+    def pureWellDefIfIsSinglePureReturnExpr: Messages = if (isPure) isPureBlock(b) else noMessages
+
+    def wellDefIfRightShape: Messages =
+      if (isPure) noMessages
+      else implementationProofBodyHasRightShape(b, isExpectedCall, expectedCallString, func.result)
+        .asReason(b, "invalid body of an implementation proof")
+
+    def wellDefIfTerminationMeasuresConsistent: Messages = {
+      val specMeasures = func.decl.spec.terminationMeasures
+
+      lazy val callMeasures = if (func.decl.spec.privateSpec.isEmpty) { Vector.empty } else {
+        func.decl.spec.privateSpec.getOrElse(null).terminationMeasures
+      }
+
+      // If the spec has termination measures, then the call inside the proof
+      // must be done with a spec that also has termination measures
+      if (specMeasures.isEmpty) noMessages
+      else error(p, s"public specification of function ${p.id} has termination measures, so also " +
+        s"private specification of function ${p.id}" + s"(used inside the proof) must", callMeasures.isEmpty)
+    }
+
+    Seq(pureWellDefIfIsSinglePureReturnExpr, wellDefIfRightShape, wellDefIfTerminationMeasuresConsistent)
+      .iterator.find(_.nonEmpty).getOrElse(noMessages)
   }
 
   lazy val closureImplProofCallAttr: PClosureImplProof => PInvoke =

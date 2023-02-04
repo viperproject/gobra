@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+var g int
+
+requires pvt(g) //g private
+func Fg() {
+    assert pvt(g) 
+}
+
+var G int
+
+requires !pvt(G) //G public
+func FG() {
+    assert !pvt(G)
+}
+

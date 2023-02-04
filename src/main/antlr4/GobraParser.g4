@@ -84,6 +84,7 @@ ghostPrimaryExpr: range
   | optionNone | optionSome | optionGet
   | permission
   | matchExpr
+  | pvt
   ;
 
 permission: WRITEPERM | NOPERM;
@@ -126,6 +127,8 @@ typeOf: TYPE_OF L_PAREN expression R_PAREN;
 
 access: ACCESS L_PAREN expression (COMMA expression)? R_PAREN;
 
+pvt: PVT L_PAREN expression R_PAREN;
+
 range: kind=(SEQ | SET | MSET) L_BRACKET expression DOT_DOT expression R_BRACKET;
 
 matchExpr: MATCH expression L_CURLY (matchExprClause eos)* R_CURLY;
@@ -164,12 +167,19 @@ specStatement
   | kind=PRESERVES assertion
   | kind=POST assertion
   | kind=DEC terminationMeasure
+  | kind=PRIVATE privateSpec
   ;
+
 terminationMeasure: expressionList? (IF expression)?;
 
 assertion:
   | expression
   ;
+
+// Private specification
+privateSpec: L_CURLY ((specStatement eos)*? privateEntailmentProof)? R_CURLY;
+
+privateEntailmentProof: PROOF block eos;
 
 matchStmt: MATCH expression L_CURLY matchStmtClause* R_CURLY;
 matchStmtClause: matchCase COLON statementList?;
@@ -235,6 +245,8 @@ fpredicateDecl: PRED IDENTIFIER parameters predicateBody?;
 predicateBody: L_CURLY expression eos R_CURLY;
 
 mpredicateDecl: PRED receiver IDENTIFIER parameters predicateBody?;
+
+//constructDecl: CONSTRUCT IDENTIFIER L_CURLY fold_stmt=(FOLD | UNFOLD) predicateAccess R_CURLY;
 
 // Addressability
 

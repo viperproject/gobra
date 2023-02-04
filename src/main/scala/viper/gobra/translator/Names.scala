@@ -133,7 +133,9 @@ object Names {
 
   // struct
   def sharedStructDomain: String = "ShStruct"
+  def sharedPartialStructDomain: String = "PshStruct"
   def sharedStructDfltFunc: String = "shStructDefault"
+  def partialSharedStructDfltFunc: String = "pshStructDefault"
 
   // types
   def typesDomain: String = "Types"
@@ -142,6 +144,7 @@ object Names {
 
   // tuples
   def tupleDomain: String = "Tuple"
+  def partialTupleDomain: String = "PartialTuple"
 
   // array
   def sharedArrayDomain: String = "ShArray"

@@ -159,7 +159,7 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 // Specifications
 
 specification returns[boolean trusted = false, boolean pure = false;]:
-  ((specStatement | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? // Non-greedily match PURE to avoid missing eos errors.
+  ((specStatement | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? (PRIVATE privateSpec)? // Non-greedily match PURE to avoid missing eos errors.
   ;
 
 specStatement
@@ -167,7 +167,6 @@ specStatement
   | kind=PRESERVES assertion
   | kind=POST assertion
   | kind=DEC terminationMeasure
-  | kind=PRIVATE privateSpec
   ;
 
 terminationMeasure: expressionList? (IF expression)?;
@@ -177,9 +176,9 @@ assertion:
   ;
 
 // Private specification
-privateSpec: L_CURLY ((specStatement eos)*? privateEntailmentProof)? R_CURLY;
+privateSpec: L_CURLY ((specStatement eos)*? privateEntailmentProof?)? R_CURLY eos;
 
-privateEntailmentProof: PROOF block eos;
+privateEntailmentProof: PROOF closureSpecInstance block eos;
 
 matchStmt: MATCH expression L_CURLY matchStmtClause* R_CURLY;
 matchStmtClause: matchCase COLON statementList?;
@@ -246,7 +245,9 @@ predicateBody: L_CURLY expression eos R_CURLY;
 
 mpredicateDecl: PRED receiver IDENTIFIER parameters predicateBody?;
 
-//constructDecl: CONSTRUCT IDENTIFIER L_CURLY fold_stmt=(FOLD | UNFOLD) predicateAccess R_CURLY;
+// constructMember: specification constructDecl;
+
+// constructDecl: CONSTRUCT IDENTIFIER L_CURLY fold_stmt=(FOLD | UNFOLD) predicateAccess R_CURLY;
 
 // Addressability
 

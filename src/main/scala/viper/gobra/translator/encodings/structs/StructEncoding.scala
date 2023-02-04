@@ -42,23 +42,40 @@ class StructEncoding extends TypeEncoding {
     override def create(args: Vector[vpr.Exp], vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = withSrc(ctx.tuple.create(args), src)
   }
 
+  private val pex: ExclusiveStructComponent = new ExclusiveStructComponent{
+    override def typ(vti: ComponentParameter)(ctx: Context): vpr.Type = ctx.partialTuple.typ(vti.map(_._1))
+    override def get(base: vpr.Exp, idx: Int, vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = withSrc(ctx.partialTuple.get(base, idx, vti.size), src)
+    override def create(args: Vector[vpr.Exp], vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = withSrc(ctx.partialTuple.create(args), src)
+  }
+
   private val sh: SharedStructComponent = new SharedStructComponentImpl
+  private val psh: SharedStructComponent = new SharedPartialStructComponentImpl
 
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     ex.finalize(addMemberFn)
+    pex.finalize(addMemberFn)
     sh.finalize(addMemberFn)
+    psh.finalize(addMemberFn)
     shDfltFunc.finalize(addMemberFn)
+    pshDfltFunc.finalize(addMemberFn)
   }
 
   /**
     * Translates a type into a Viper type.
     */
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
-    case ctx.Struct(fs) / m =>
+    case ctx.CompleteStruct(fs) / m =>
       val vti = cptParam(fs)(ctx)
       m match {
         case Exclusive => ex.typ(vti)(ctx)
         case Shared    => sh.typ(vti)(ctx)
+      }
+
+    case ctx.PartialStruct(fs) / m =>
+      val vti = cptParam(fs.filter(!_.notImported))(ctx)
+      m match {
+        case Exclusive => pex.typ(vti)(ctx)
+        case Shared    => psh.typ(vti)(ctx)
       }
   }
 
@@ -75,11 +92,17 @@ class StructEncoding extends TypeEncoding {
     * Initialize[l: Struct{F}] -> FOREACH f in F: Initialize[l.f]
     */
   override def initialization(ctx: Context): in.Location ==> CodeWriter[vpr.Stmt] = {
-    case l :: ctx.Struct(fs) =>
+    case l :: ctx.CompleteStruct(fs) =>
       for {
         x <- bind(l)(ctx)
         res <- seqns(fieldAccesses(x, fs).map(x => ctx.initialization(x)))
       } yield res
+
+    case l :: ctx.PartialStruct(fs) =>
+      for {
+        x <- bind(l)(ctx)
+        res <- seqns(fieldAccesses(x, fs.filter(!_.notImported)).map(x => ctx.initialization(x)))
+      } yield res 
   }
 
   /**
@@ -104,12 +127,21 @@ class StructEncoding extends TypeEncoding {
     case (in.Assignee((fa: in.FieldRef) :: _ / Exclusive), rhs, src) =>
       ctx.assignment(in.Assignee(fa.recv), in.StructUpdate(fa.recv, fa.field, rhs)(src.info))(src)
 
-    case (in.Assignee(lhs :: ctx.Struct(lhsFs) / Shared), rhs :: ctx.Struct(rhsFs), src) =>
+    case (in.Assignee(lhs :: ctx.CompleteStruct(lhsFs) / Shared), rhs :: ctx.CompleteStruct(rhsFs), src) =>
       for {
         x <- bind(lhs)(ctx)
         y <- bind(rhs)(ctx)
         lhsFAs = fieldAccesses(x, lhsFs).map(in.Assignee.Field)
         rhsFAs = fieldAccesses(y, rhsFs)
+        res <- seqns((lhsFAs zip rhsFAs).map { case (lhsFA, rhsFA) => ctx.assignment(lhsFA, rhsFA)(src) })
+      } yield res
+
+    case (in.Assignee(lhs :: ctx.PartialStruct(lhsFs) / Shared), rhs :: ctx.PartialStruct(rhsFs), src) =>
+      for {
+        x <- bind(lhs)(ctx)
+        y <- bind(rhs)(ctx)
+        lhsFAs = fieldAccesses(x, lhsFs.filter(!_.notImported)).map(in.Assignee.Field)
+        rhsFAs = fieldAccesses(y, rhsFs.filter(!_.notImported))
         res <- seqns((lhsFAs zip rhsFAs).map { case (lhsFA, rhsFA) => ctx.assignment(lhsFA, rhsFA)(src) })
       } yield res
   }
@@ -131,7 +163,7 @@ class StructEncoding extends TypeEncoding {
     * [(lhs: *Struct{F}°) == rhs: *Struct{_}] -> [lhs] == [rhs]
     */
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
-    case (lhs :: ctx.Struct(lhsFs), rhs :: ctx.Struct(rhsFs), src) =>
+    case (lhs :: ctx.CompleteStruct(lhsFs), rhs :: ctx.CompleteStruct(rhsFs), src) =>
       val (pos, info, errT) = src.vprMeta
       pure(
         for {
@@ -143,7 +175,7 @@ class StructEncoding extends TypeEncoding {
         } yield VU.bigAnd(equalFields)(pos, info, errT)
       )(ctx)
 
-    case (lhs :: ctx.*(ctx.Struct(lhsFs)) / Exclusive, rhs :: ctx.*(ctx.Struct(_)), src) =>
+    case (lhs :: ctx.*(ctx.CompleteStruct(lhsFs)) / Exclusive, rhs :: ctx.*(ctx.CompleteStruct(_)), src) =>
       if (lhsFs.isEmpty) {
         unit(withSrc(if (lhs == rhs) vpr.TrueLit() else ctx.unknownValue.unkownValue(vpr.Bool), src))
       } else {
@@ -152,6 +184,28 @@ class StructEncoding extends TypeEncoding {
           vRhs <- ctx.expression(rhs)
         } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
       }
+
+    case (lhs :: ctx.PartialStruct(lhsFs), rhs :: ctx.PartialStruct(rhsFs), src) =>
+      val (pos, info, errT) = src.vprMeta
+      pure(
+        for {
+          x <- bind(lhs)(ctx)
+          y <- bind(rhs)(ctx)
+          lhsFAccs = fieldAccesses(x, lhsFs.filter(!_.notImported))
+          rhsFAccs = fieldAccesses(y, rhsFs.filter(!_.notImported))
+          equalFields <- sequence((lhsFAccs zip rhsFAccs).map { case (lhsFA, rhsFA) => ctx.equal(lhsFA, rhsFA)(src) })
+        } yield VU.bigAnd(equalFields)(pos, info, errT)
+      )(ctx)
+
+    case (lhs :: ctx.*(ctx.PartialStruct(lhsFs)) / _, rhs :: ctx.*(ctx.PartialStruct(_)), src) =>
+      if (lhsFs.filter(!_.notImported).isEmpty) {
+        unit(withSrc(if (lhs == rhs) vpr.TrueLit() else ctx.unknownValue.unkownValue(vpr.Bool), src))
+      } else {
+        for {
+          vLhs <- ctx.expression(lhs)
+          vRhs <- ctx.expression(rhs)
+        } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
+      } 
   }
 
   /**
@@ -169,33 +223,61 @@ class StructEncoding extends TypeEncoding {
     * R[ loc: Struct{F}@ ] -> convert_to_exclusive( Ref[loc] )
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
-    case (loc@ in.FieldRef(recv :: ctx.Struct(fs), field)) :: _ / Exclusive =>
+    case (loc@in.FieldRef(recv :: ctx.CompleteStruct(fs), field)) :: _ / Exclusive =>
       for {
         vBase <- ctx.expression(recv)
         idx = indexOfField(fs, field)
       } yield ex.get(vBase, idx, cptParam(fs)(ctx))(loc)(ctx)
 
-    case (upd: in.StructUpdate) :: ctx.Struct(fs) =>
+    case (loc@in.FieldRef(recv :: ctx.PartialStruct(fs), field)) :: _ / Exclusive =>
+      for {
+        vBase <- ctx.expression(recv)
+        idx = indexOfField(fs.filter(!_.notImported), field)
+      } yield pex.get(vBase, idx, cptParam(fs.filter(!_.notImported))(ctx))(loc)(ctx)
+
+    case (upd: in.StructUpdate) :: ctx.CompleteStruct(fs) =>
       for {
         vBase <- ctx.expression(upd.base)
         idx = indexOfField(fs, upd.field)
         vVal <- ctx.expression(upd.newVal)
       } yield ex.update(vBase, idx, vVal, cptParam(fs)(ctx))(upd)(ctx)
 
-    case (e: in.DfltVal) :: ctx.Struct(fs) / Exclusive =>
+    case (upd: in.StructUpdate) :: ctx.PartialStruct(fs) =>
+      for {
+        vBase <- ctx.expression(upd.base)
+        idx = indexOfField(fs.filter(!_.notImported), upd.field)
+        vVal <- ctx.expression(upd.newVal)
+      } yield pex.update(vBase, idx, vVal, cptParam(fs.filter(!_.notImported))(ctx))(upd)(ctx)
+
+    case (e: in.DfltVal) :: ctx.CompleteStruct(fs) / Exclusive =>
       val fieldDefaults = fs.map(f => in.DfltVal(f.typ)(e.info))
       sequence(fieldDefaults.map(ctx.expression)).map(ex.create(_, cptParam(fs)(ctx))(e)(ctx))
 
-    case (e: in.DfltVal) :: ctx.Struct(fs) / Shared =>
+    case (e: in.DfltVal) :: ctx.PartialStruct(fs) / Exclusive =>
+      val fieldDefaults = fs.map(f => in.DfltVal(f.typ)(e.info)).zip(fs.map(_.notImported)).collect { case (e, false) => e }
+      sequence(fieldDefaults.map(ctx.expression)).map(pex.create(_, cptParam(fs.filter(!_.notImported))(ctx))(e)(ctx)) 
+
+    case (e: in.DfltVal) :: ctx.CompleteStruct(fs) / Shared =>
       val (pos, info, errT) = e.vprMeta
       unit(shDfltFunc(Vector.empty, fs)(pos, info, errT)(ctx))
 
-    case (lit: in.StructLit) :: ctx.Struct(fs) =>
+    case (e: in.DfltVal) :: ctx.PartialStruct(fs) / Shared =>
+      val (pos, info, errT) = e.vprMeta
+      unit(pshDfltFunc(Vector.empty, fs.filter(!_.notImported))(pos, info, errT)(ctx)) 
+
+    case (lit: in.StructLit) :: ctx.CompleteStruct(fs) =>
       val fieldExprs = lit.args.map(arg => ctx.expression(arg))
       sequence(fieldExprs).map(ex.create(_, cptParam(fs)(ctx))(lit)(ctx))
 
-    case (loc: in.Location) :: ctx.Struct(_) / Shared =>
+    case (lit: in.StructLit) :: ctx.PartialStruct(fs) =>
+      val fieldExprs = lit.args.map(arg => ctx.expression(arg)).zip(fs.map(_.notImported)).collect { case (e, false) => e }
+      sequence(fieldExprs).map(pex.create(_, cptParam(fs.filter(!_.notImported))(ctx))(lit)(ctx)) 
+
+    case (loc: in.Location) :: ctx.CompleteStruct(_) / Shared =>
       sh.convertToExclusive(loc)(ctx, ex)
+    
+    case (loc: in.Location) :: ctx.PartialStruct(_) / Shared =>
+      psh.convertToExclusive(loc)(ctx, pex) 
   }
 
   /**
@@ -207,11 +289,17 @@ class StructEncoding extends TypeEncoding {
     * Ref[ (e: Struct{F}@).f ] -> sh_struct_get(Ref[e], f, F)
     */
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
-    case (loc@ in.FieldRef(recv :: ctx.Struct(fs), field)) :: _ / Shared =>
+    case (loc@ in.FieldRef(recv :: ctx.CompleteStruct(fs), field)) :: _ / Shared =>
       for {
         vBase <- ctx.reference(recv.asInstanceOf[in.Location])
         idx = indexOfField(fs, field)
       } yield sh.get(vBase, idx, cptParam(fs)(ctx))(loc)(ctx)
+
+    case (loc@ in.FieldRef(recv :: ctx.PartialStruct(fs), field)) :: _ / Shared =>
+      for {
+        vBase <- ctx.reference(recv.asInstanceOf[in.Location])
+        idx = indexOfField(fs, field)
+      } yield psh.get(vBase, idx, cptParam(fs)(ctx))(loc)(ctx)
   }
 
   /**
@@ -220,7 +308,8 @@ class StructEncoding extends TypeEncoding {
     * An encoding for type T should be defined at all shared locations of type T.
     */
   override def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = {
-    case (loc :: ctx.Struct(_) / Shared, perm) => sh.addressFootprint(loc, perm)(ctx)
+    case (loc :: ctx.CompleteStruct(_) / Shared, perm) => sh.addressFootprint(loc, perm)(ctx)
+    case (loc :: ctx.PartialStruct(_) / Shared, perm) => psh.addressFootprint(loc, perm)(ctx)
   }
 
   /**
@@ -229,7 +318,7 @@ class StructEncoding extends TypeEncoding {
     * isComp[ e: Struct{F} ] -> AND f in F: isComp[e.f]
     */
   override def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
-    case exp :: ctx.Struct(fs) =>
+    case exp :: ctx.CompleteStruct(fs) =>
       super.isComparable(ctx)(exp).map{ _ =>
         // if executed, then for all fields f, isComb[exp.f] != Left(false)
         val (pos, info, errT) = exp.vprMeta
@@ -237,13 +326,29 @@ class StructEncoding extends TypeEncoding {
           for {
             x <- bind(exp)(ctx)
             // fields that are not ghost and with dynamic comparability
-            fsAccs = fieldAccesses(x, fs.filter(f => !f.ghost))
+            fsAccs = fieldAccesses(x, fs)
             fsComp = fsAccs map ctx.isComparable
             // Left(true) can be removed.
             args <- sequence(fsComp collect { case Right(e) => e })
           } yield VU.bigAnd(args)(pos, info, errT)
         )(ctx)
       }
+
+    case exp :: ctx.PartialStruct(fs) =>
+      super.isComparable(ctx)(exp).map{ _ =>
+        // if executed, then for all fields f, isComb[exp.f] != Left(false)
+        val (pos, info, errT) = exp.vprMeta
+        pure(
+          for {
+            x <- bind(exp)(ctx)
+            // fields that are not ghost and with dynamic comparability
+            fsAccs = fieldAccesses(x, fs.filter(f => !f.ghost && !f.notImported))
+            fsComp = fsAccs map ctx.isComparable
+            // Left(true) can be removed.
+            args <- sequence(fsComp collect { case Right(e) => e })
+          } yield VU.bigAnd(args)(pos, info, errT)
+        )(ctx)
+      } 
   }
 
   /** Returns 'base'.f for every f in 'fields'. */
@@ -279,6 +384,32 @@ class StructEncoding extends TypeEncoding {
 
       vpr.Function(
         name = s"${Names.sharedStructDfltFunc}_${Names.serializeFields(fs)}",
+        formalArgs = Seq.empty,
+        typ = vResType,
+        pres = Seq(pre),
+        posts = Seq(post),
+        body = None
+      )()
+    }
+  }
+
+  private val pshDfltFunc: FunctionGenerator[Vector[in.Field]] = new FunctionGenerator[Vector[in.Field]] {
+    override def genFunction(fs: Vector[in.Field])(ctx: Context): vpr.Function = {
+      //added field so that the encoder can recognize that it is a partial struct in.Field(_, _, _, true)
+      val resType = in.StructT(fs :+ in.Field(null, null, false, true)(null), Shared) 
+      val vResType = typ(ctx)(resType)
+      val src = in.DfltVal(resType)(Source.Parser.Internal)
+      // variable name does not matter because it is turned into a vpr.Result
+      val resDummy = in.LocalVar("res", resType)(src.info)
+      val resFAccs = fs.map(f => in.Ref(in.FieldRef(resDummy, f)(src.info))(src.info))
+      val fieldEq = resFAccs map (f => ctx.equal(f, in.DfltVal(f.typ)(src.info))(src))
+      // termination measure
+      val pre = synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
+      val post = pure(sequence(fieldEq).map(VU.bigAnd(_)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)))(ctx).res
+          .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
+
+      vpr.Function(
+        name = s"${Names.partialSharedStructDfltFunc}_${Names.serializeFields(fs)}",
         formalArgs = Seq.empty,
         typ = vResType,
         pres = Seq(pre),

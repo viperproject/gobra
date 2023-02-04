@@ -221,7 +221,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       privateSpec.toVector.flatMap(wellDefPrivateSpec) ++
       // specifications outside the private clause cannot be private, 
       // private members are only allowed in privateSpec
-      error(n, "Private members must all be in the private clause.", pres.exists(isPvt) || preserves.exists(isPvt) || posts.exists(isPvt)) ++
+      error(n, "Private members must all be defined in the private clause.", pres.exists(isPrivate) || preserves.exists(isPrivate) || posts.exists(isPrivate)) ++
       // if has conditional clause, all clauses must be conditional
       // can only have one non-conditional clause
       error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
@@ -232,8 +232,19 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       invariants.flatMap(assignableToSpec) ++ terminationMeasure.toVector.flatMap(wellDefTerminationMeasure) ++
         error(n, "Termination measures of loops cannot be conditional.", terminationMeasure.exists(isConditional))
   
-    case n@ PPrivateSpec(_, _, _, _, _) =>
-      wellDefPrivateSpec(n)
+    case n@ PPrivateSpec(pres, preserves, posts, _, proof) =>
+      val funcSpec = tree.parent(n).head
+      val func = tree.parent(funcSpec).head
+      val isFuncPvt = func match {
+        case PFunctionDecl(id, _, _, _, _) => isPrivateRegular(id)
+        case PMethodDecl(id, _, _, _, _, _) => isPrivateRegular(id)
+        case _ => Violation.violation(s"expected a function or method, but got ${func}")
+      }
+      wellDefPrivateSpec(n) ++ 
+      // a public function with private specifications needs to have a private entailment proof
+      // otherwise the public specification of the function is not sound
+      error(n, s"Public function ${func} has private specifications and needs to have a proof statement.", 
+              proof.isEmpty && !isFuncPvt && (!pres.isEmpty || !preserves.isEmpty || !posts.isEmpty))
   }
 
   private def wellDefPrivateSpec(spec: PPrivateSpec): Messages = spec match {
@@ -242,7 +253,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
       pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
       terminationMeasures.flatMap(wellDefTerminationMeasure) ++
-      wellDefGhostStmt(proof)
+      proof.toVector.flatMap(wellDefGhostStmt)
   }
 
   private def wellDefTerminationMeasure(measure: PTerminationMeasure): Messages = measure match {

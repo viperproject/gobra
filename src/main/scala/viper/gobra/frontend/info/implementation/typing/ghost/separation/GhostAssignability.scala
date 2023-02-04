@@ -10,6 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignMode}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType.ghost
@@ -243,4 +244,36 @@ trait GhostAssignability {
     }
   }
 
+  private[separation] def provenPrivateSpecMatchesInGhostnessWithCall(p: PPrivateEntailmentProof): Messages = {
+    def paramTyping(params: Vector[PParameter], context: ExternalTypeInfo): GhostType =
+      GhostType.ghostTuple(params.map(p => context.isParamGhost(p)))
+
+    val spec = p.spec
+
+    val (funcId, fArgs, fRes, context) = resolve(spec.func) match {
+      case Some(ap.Function(id, f)) => (id, f.args, f.result.outs, f.context)
+      case _ => Violation.violation(s"expected a function, but got ${spec.func}")
+    }
+
+    val argTyping = paramTyping(fArgs, context)
+    val resTyping = paramTyping(fRes, context)
+    val specTyping = (argTyping, resTyping)
+
+    p.block.stmts.map({
+      case PExpressionStmt(c: PInvoke) => 
+        // If the callee is ghost, we don't care about the ghostness of the arguments.
+        if (isExprGhost(c.base.asInstanceOf[PExpression])) noMessages
+        else resolve(c) match {
+          case Some(call: ap.FunctionCall) => error(c,
+            s"the ghostness of arguments and results of ${funcId} and ${c.base} does not match",
+            specTyping != (calleeArgGhostTyping(call), calleeReturnGhostTyping(call)))
+          case Some(call: ap.ClosureCall) => error(c,
+            s"the ghostness of arguments and results of ${funcId} and ${c.spec} does not match",
+            specTyping != closureSpecArgsAndResGhostTyping(call.spec)
+          )
+          case _ => Violation.violation("expected function call")
+        }
+      case _ => noMessages
+    }).iterator.find(_.nonEmpty).getOrElse(noMessages) 
+  } 
 }

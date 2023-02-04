@@ -34,13 +34,13 @@ object Desugar {
     val importedPrograms = info.context.getContexts map { tI => {
       val typeInfo: TypeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
-      val d = new Desugarer(importedPackage.positions, typeInfo)
+      val d = new Desugarer(importedPackage.positions, typeInfo, imported=true)
       // registers a package to generate proof obligations for its init code
       d.registerPackage(importedPackage, importsCollector)(config)
       (d, d.packageD(importedPackage))
     }}
     // desugar the main package, i.e. the package on which verification is performed:
-    val mainDesugarer = new Desugarer(pkg.positions, info)
+    val mainDesugarer = new Desugarer(pkg.positions, info, imported=false)
     // registers main package to generate proof obligations for its init code
     mainDesugarer.registerMainPackage(pkg, importsCollector)(config)
     // combine all desugared results into one Viper program:
@@ -155,7 +155,7 @@ object Desugar {
     }
   }
 
-  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo) {
+  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo, imported: Boolean) {
 
     // TODO: clean initialization
 
@@ -406,7 +406,6 @@ object Desugar {
       }
 
       val additionalMembers = AdditionalMembers.finalizedMembers ++ missingImplProofs
-
       // built-in members are not (yet) added to the program's members or the lookup table
       // instead, they remain only accessible via this desugarer's getter function.
       // The `combine` function will treat all built-in members across packages (i.e. desugarers) and update the
@@ -541,7 +540,7 @@ object Desugar {
       val functionInfo = functionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)))
 
       in.Function(name, functionInfo.args, functionInfo.results, functionInfo.pres, functionInfo.posts,
-        functionInfo.terminationMeasures, functionInfo.body)(fsrc)
+        functionInfo.terminationMeasures, functionInfo.privateSpec, functionInfo.body)(fsrc)
     }
 
     private case class FunctionInfo(args: Vector[in.Parameter.In],
@@ -550,6 +549,7 @@ object Desugar {
                                     pres: Vector[in.Assertion],
                                     posts: Vector[in.Assertion],
                                     terminationMeasures: Vector[in.TerminationMeasure],
+                                    privateSpec: Option[in.PrivateSpec],
                                     body: Option[in.MethodBody])
 
     private def functionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext): FunctionInfo = {
@@ -615,6 +615,9 @@ object Desugar {
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx, info)
       val terminationMeasures = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx, info)).res
 
+      // translate private specification, we do not import the privateSpec into other packages
+      val privateSpec = if (imported) None else privateSpecD(specCtx)(decl.spec.privateSpec) 
+
       // p1' := p1; ... ; pn' := pn
       val argInits = argsWithSubs.flatMap{
         case (p, Some(q)) => Some(singleAss(in.Assignee.Var(q), p)(p.info))
@@ -662,7 +665,7 @@ object Desugar {
         in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
-      FunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasures, bodyOpt)
+      FunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasures, privateSpec, bodyOpt)
     }
 
     def pureFunctionD(decl: PFunctionDecl): in.PureFunction = {
@@ -670,7 +673,8 @@ object Desugar {
       val fsrc = meta(decl, info)
       val funcInfo = pureFunctionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)), info)
 
-      in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(fsrc)
+      in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, 
+                      funcInfo.privateSpec, funcInfo.body)(fsrc)
     }
 
     private case class PureFunctionInfo(args: Vector[in.Parameter.In],
@@ -679,6 +683,7 @@ object Desugar {
                                         pres: Vector[in.Assertion],
                                         posts: Vector[in.Assertion],
                                         terminationMeasures: Vector[in.TerminationMeasure],
+                                        privateSpec: Option[in.PrivateSpec],
                                         body: Option[in.Expr])
 
 
@@ -725,6 +730,9 @@ object Desugar {
       val posts = decl.spec.posts map postconditionD(ctx, info)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
 
+      // private specification
+      val privateSpec = if (imported) None else privateSpecD(ctx)(decl.spec.privateSpec) 
+
       val capturedWithAliases = (captured.map { v => in.Ref(localVarD(outerCtx, info)(v))(meta(v, info)) } zip capturedPar)
 
       val bodyOpt = decl.body.map {
@@ -736,7 +744,7 @@ object Desugar {
           implicitConversion(res.typ, returns.head.typ, res)
       }
 
-      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, bodyOpt)
+      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, privateSpec, bodyOpt)
     }
 
 
@@ -802,6 +810,9 @@ object Desugar {
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx, info)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx, info)).res
 
+      // private specification
+      val privateSpec = if (imported) None else privateSpecD(specCtx)(decl.spec.privateSpec) 
+
       // s' := s
       val recvInits = (recvWithSubs match {
         case (p, Some(q)) => Some(singleAss(in.Assignee.Var(q), p)(p.info))
@@ -849,7 +860,7 @@ object Desugar {
         in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
-      in.Method(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
+      in.Method(recv, name, args, returns, pres, posts, terminationMeasure, privateSpec, bodyOpt)(fsrc)
     }
 
     def pureMethodD(decl: PMethodDecl): in.PureMethod = {
@@ -892,6 +903,9 @@ object Desugar {
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(ctx, info)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(ctx, info)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
+      
+      // private specification
+      val privateSpec = if (imported) None else privateSpecD(ctx)(decl.spec.privateSpec) 
 
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
@@ -902,7 +916,7 @@ object Desugar {
           implicitConversion(res.typ, returns.head.typ, res)
       }
 
-      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
+      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, privateSpec, bodyOpt)(fsrc)
     }
 
     def fpredicateD(decl: PFPredicateDecl): in.FPredicate = {
@@ -1996,10 +2010,12 @@ object Desugar {
       } yield p.symb match {
         case st.AdtDestructor(decl, adtDecl, context) =>
           val adtT: AdtT = context.symbType(adtDecl).asInstanceOf[AdtT]
+          val name = nm.adtField(decl.id.name, adtT)
           in.AdtDestructor(base, in.Field(
-            nm.adtField(decl.id.name, adtT),
+            name,
             typeD(context.symbType(decl.typ), Addressability.mathDataStructureElement)(src),
-            ghost = true
+            ghost = true,
+            notImported = imported && name.charAt(0).isLower
           )(src))(src)
 
         case st.AdtDiscriminator(decl, adtDecl, context) =>
@@ -3227,11 +3243,11 @@ object Desugar {
           val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx, info)
           val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx, info)
           val terminationMeasures = sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx, info)).res
-
+          val privateSpec = privateSpecD(specCtx)(m.spec.privateSpec)
           val mem = if (m.spec.isPure) {
-            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
+            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, privateSpec, None)(src)
           } else {
-            in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
+            in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, privateSpec, None)(src)
           }
           definedMethods += (proxy -> mem)
           AdditionalMembers.addMember(mem)
@@ -3479,6 +3495,7 @@ object Desugar {
           a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(ImportPreNotEstablished))
         },
         terminationMeasures = Vector.empty,
+        privateSpec = None,
         body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
       )(src)
     }
@@ -3513,6 +3530,7 @@ object Desugar {
           pres = mainPkgPosts,
           posts = mainFuncPreD,
           terminationMeasures = Vector.empty,
+          privateSpec = None,
           body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
         )(src)
       }
@@ -3550,6 +3568,7 @@ object Desugar {
         posts = progPosts,
         // in our verification approach, the initialization code must be proven to terminate
         terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)),
+        privateSpec = None,
         body = Some(
           in.MethodBody(
             decls = Vector(),
@@ -3646,7 +3665,7 @@ object Desugar {
     def fieldDeclAdtD(decl: PFieldDecl, context: ExternalTypeInfo, adt: AdtT)(src: Meta): in.Field = {
       val fieldName = nm.adtField(decl.id.name, adt)
       val typ = typeD(context.symbType(decl.typ), Addressability.mathDataStructureElement)(src)
-      in.Field(fieldName, typ, true)(src)
+      in.Field(fieldName, typ, true, imported && fieldName.charAt(0).isLower)(src)
     }
 
     def registerAdt(t: Type.AdtT, aT: in.AdtT): Unit = {
@@ -3728,7 +3747,8 @@ object Desugar {
         val tAdt = Type.AdtT(t.adtT, t.context)
         val adt: in.AdtT = in.AdtT(nm.adt(tAdt), addrMod)
         val fields: Vector[in.Field] = (t.fields map { case (key: String, typ: Type) =>
-          in.Field(nm.adtField(key, tAdt), typeD(typ, Addressability.mathDataStructureElement)(src), true)(src)
+          val name = nm.adtField(key, tAdt)
+          in.Field(name, typeD(typ, Addressability.mathDataStructureElement)(src), true, imported && name.charAt(0).isLower)(src)
         }).toVector
         in.AdtClauseT(idName(t.decl.id, t.context.getTypeInfo), adt, fields, addrMod)
 
@@ -3961,7 +3981,7 @@ object Desugar {
     def embeddedDeclD(embedded: (String, Type), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(embedded._1, struct)
       val td = typeD(embedded._2, fieldAddrMod)(src)
-      in.Field(idname, td, ghost = false)(src) // TODO: fix ghost attribute
+      in.Field(idname, td, ghost = false, imported && idname.charAt(0).isLower)(src) // TODO: fix ghost attribute
     }
 
     def embeddedDeclD(decl: PEmbeddedDecl, addrMod: Addressability, context: ExternalTypeInfo)(src: Meta): in.Field = {
@@ -3973,7 +3993,7 @@ object Desugar {
     def fieldDeclD(field: (String, Type), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(field._1, struct)
       val td = typeD(field._2, fieldAddrMod)(src)
-      in.Field(idname, td, ghost = false)(src) // TODO: fix ghost attribute
+      in.Field(idname, td, ghost = false, imported && idname.charAt(0).isLower)(src) // TODO: fix ghost attribute
     }
 
     def fieldDeclD(decl: PFieldDecl, addrMod: Addressability, context: ExternalTypeInfo)(src: Meta): in.Field = {
@@ -4085,6 +4105,130 @@ object Desugar {
         case PMatchWildcard() => unit(in.MatchWildcard()(src))
       }
     }
+
+    def privateEntailmentProofD(ctx: FunctionContext)(proof: PPrivateEntailmentProof): Writer[in.Stmt] = {
+      val proofSpec = proof.spec
+
+      val (f, fTypeInfo, fSpec) = info.resolve(proofSpec.func) match {
+        case Some(ap.Function(_, f)) => (f, f.context.getTypeInfo, f.decl.spec)
+        case _ => Violation.violation(s"expected a function, but got ${proofSpec.func}")
+      }
+
+      // Generate a new local variable for an argument or result of the spec function.
+      def localVarFromParam(p: PParameter): in.LocalVar = {
+        val src = meta(p, fTypeInfo)
+        val typ = typeD(fTypeInfo.typ(p), Addressability.inParameter)(src)
+        in.LocalVar(nm.fresh(proof, info), typ)(src)
+      }
+
+      val argSubs = f.args map localVarFromParam
+      val retSubs = f.result.outs map localVarFromParam
+
+      // We replace a return statement inside the proof with the equivalent assignment to the result variables.
+      @tailrec
+      def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt =
+        if (rets.isEmpty) in.Seqn(Vector.empty)(src)
+        else if (rets.size == retSubs.size) in.Seqn(retSubs.zip(rets).map{ case (p, v) => singleAss(in.Assignee.Var(p), v)(src) })(src)
+        else if (rets.size == 1) rets.head match {
+          case in.Tuple(args) => assignReturns(args)(src)
+          case _ => multiassD(retSubs.map(v => in.Assignee.Var(v)), rets.head, proof.block)(src)
+        }
+        else violation(s"found ${rets.size} returns but expected 0, 1, or ${retSubs.size}")
+
+      // Depending on the shape of c in `proof c implements ...`, get:
+      // - the receiver, if c corresponds to a received method
+      // - the closure expression, if c is the name of a closure variable
+      // - nothing, if c is a function name
+      val recvOrClosure: Option[PExpression] = info.resolve(proofSpec.func) match {
+        case Some(ap.ReceivedMethod(recv, _, _, _)) => Some(recv)
+        case Some(ap.BuiltInReceivedMethod(recv, _, _, _)) => Some(recv)
+        case Some(_: ap.Function) => None
+        case _ if !proofSpec.func.isInstanceOf[PNamedOperand] => None
+        case _ => Some(proofSpec.func)
+      }
+
+      // Create a local variable, as an alias of c (or recv, if c has the form recv.methodName)
+      val recvOrClosureAlias = recvOrClosure map { exp =>
+        val src = meta(exp, info)
+        val typ = typeD(info.typ(exp), Addressability.inParameter)(src)
+        in.LocalVar(nm.fresh(proof, info), typ)(src)
+      }
+
+      // If the expression matches [[recvOrClosure]], replace it with [[recvOrClosureAlias]]
+      def replaceRecvOrClosure(exp: PExpression): Option[Writer[in.Expr]] =
+        if (recvOrClosure.contains(exp)) recvOrClosureAlias.map(unit)
+        else None
+
+      val newCtx = ctx.copyWith(assignReturns).copyWithExpD(replaceRecvOrClosure)
+      // We need to substitute the argument and result names with the corresponding fresh variables.
+      ((argSubs zip f.args) ++ (retSubs zip f.result.outs)) foreach {
+        case (s, PNamedParameter(id, _)) => newCtx.addSubst(id, s, fTypeInfo)
+        case (s, PExplicitGhostParameter(PNamedParameter(id, _))) => newCtx.addSubst(id, s, fTypeInfo)
+        case _ =>
+      }
+
+      val src = meta(proof, info)
+
+      val spec = closureSpecD(newCtx, info)(proofSpec)
+
+      // Declare all the aliases
+      val declarations = argSubs ++ retSubs ++ recvOrClosureAlias.toVector
+      // Assign the parameter values to the corresponding argument aliases
+      val assignments =
+        recvOrClosure.map(exp => singleAss(in.Assignee(recvOrClosureAlias.get), exprD(ctx, info)(exp).res)(meta(exp, info))).toVector ++
+          argSubs.zipWithIndex.collect {
+            case (v, idx) if spec.params.contains(idx+1) =>
+              val exp = spec.params(idx+1)
+              singleAss(in.Assignee(v), exp)(src)
+          }
+
+      // Desugar the precondition of spec, replacing the argument and results with their aliases
+      val pres = (fSpec.pres ++ fSpec.preserves) map preconditionD(newCtx, fTypeInfo)
+
+      // For the postcondition, we need to replace all old() expressions with labeled old expressions,
+      // and add a label at the beginning of the proof body
+      var postsCtx = newCtx.copy
+      val oldLabelProxy = in.LabelProxy(nm.label(nm.fresh(proof, info)))(src)
+      val oldLabel = in.Label(oldLabelProxy)(src)
+      def replaceOldLabel(old: POld): Writer[in.Expr] = for {
+        operand <- exprD(postsCtx, fTypeInfo)(old.operand)
+      } yield in.LabeledOld(oldLabelProxy, operand)(src)
+      postsCtx = postsCtx.copyWithExpD({
+        case old: POld =>
+          Some(replaceOldLabel(old))
+        case exp =>
+          replaceRecvOrClosure(exp)
+      })
+      val posts = (fSpec.preserves ++ fSpec.posts) map postconditionD(postsCtx, fTypeInfo)
+
+      // Desugar the proof as a block containing all the aliases declarations and assignments, and
+      // the corresponding internal proof node.
+      /* val closure = exprD(ctx, info)(proofSpec.func).res
+      val body = stmtD(ctx, info)(proof.block).res
+      val block = in.Block(Vector.empty, Vector(oldLabel, body))(meta(proof.block, info))
+      val privateProof = in.SpecImplementationProof(closure, spec, block, pres, posts)(src)
+      println(s"closure: ${closure}")
+      println(s"body: ${body}")
+      println(s"privateProof: ${privateProof}")
+      println(s"entireProof: ${in.Block(Vector(oldLabelProxy),  Vector(privateProof))(src)}")
+      for {
+        proof <- for {
+          closure <- exprD(newCtx, info)(proofSpec.func)
+          spec = closureSpecD(newCtx, info)(proofSpec)
+          body <- stmtD(newCtx, info)(proof.block)
+          block = in.Block(Vector.empty, Vector(oldLabel, body))(meta(proof.block, info))
+        } yield in.SpecImplementationProof(closure, spec, block, pres, posts)(src)
+      } yield in.Block(declarations ++ Vector(oldLabelProxy), assignments ++ Vector(proof))(src) */
+
+      stmtD(ctx, info)(proof.block)
+
+      /* val closure = exprD(newCtx, info)(proofSpec.func).res
+      val body = stmtD(newCtx, info)(proof.block).res
+      val block = in.Block(Vector.empty, Vector(oldLabel, body))(meta(proof.block, info))
+      val privateProof = in.SpecImplementationProof(closure, spec, block, privatePres, privatePosts)(src)
+
+      in.Block(declarations ++ Vector(oldLabelProxy), assignments ++ Vector(privateProof))(src) */
+    } 
 
     /**
       * Desugar a specification entailment proof (proof c implements spec{params} { BODY }), as follows:
@@ -4425,6 +4569,17 @@ object Desugar {
 
     // Assertion
 
+    private def privateSpecD(ctx: FunctionContext)(pSpec: Option[PPrivateSpec]): Option[in.PrivateSpec]= {
+      for {
+        spec <- pSpec
+        src = meta(spec, info)
+        pres = (spec.pres ++ spec.preserves) map preconditionD(ctx, info)
+        posts = (spec.preserves ++ spec.posts) map postconditionD(ctx, info)
+        terminationMeasures = sequence(spec.terminationMeasures map terminationMeasureD(ctx, info)).res
+        proof = for { p <- spec.proof } yield block(privateEntailmentProofD(ctx)(p))
+      } yield in.PrivateSpec(pres, posts, terminationMeasures, proof)(src)
+    }
+
     def specificationD(ctx: FunctionContext, info: TypeInfo)(ass: PExpression): in.Assertion = {
       val condition = assertionD(ctx, info)(ass)
       Violation.violation(condition.stmts.isEmpty && condition.decls.isEmpty, s"$ass is not an assertion")
@@ -4485,8 +4640,6 @@ object Desugar {
 
         case n: PAccess => for {e <- accessibleD(ctx, info)(n.exp); p <- permissionD(ctx, info)(n.perm)} yield in.Access(e, p)(src)
         case n: PPredicateAccess => predicateCallD(ctx, info)(n.pred, n.perm)
-
-        //case n: PPrivate => stmtD(in.Assert(go(n.exp))(src))
 
         case n: PInvoke =>
           // a predicate invocation corresponds to a predicate access with full permissions

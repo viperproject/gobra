@@ -41,6 +41,8 @@ trait TranslatorConfig {
 
   def tuple: Tuples
 
+  def partialTuple: Tuples
+
   def equality: Equality
 
   def condition: Conditions

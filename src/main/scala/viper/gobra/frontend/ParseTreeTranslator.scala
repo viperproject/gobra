@@ -422,10 +422,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     *
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
-    */ //TODO
+    */
   override def visitMethodSpec(ctx: GobraParser.MethodSpecContext): PMethodSig = {
     val ghost = has(ctx.GHOST())
-    //val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty,Vector.empty).at(ctx)
     val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty,Vector.empty,None).at(ctx)
     // The name of each explicitly specified method must be unique and not blank.
     val id = idnDef.get(ctx.IDENTIFIER())
@@ -441,33 +440,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val preserves = groups.getOrElse(GobraParser.PRESERVES, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
     val posts = groups.getOrElse(GobraParser.POST, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
     val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).toVector.map(s => visitTerminationMeasure(s.terminationMeasure()))
-    val proof = visitPrivateEntailmentProof(ctx.privateEntailmentProof())
+    val proof = visitNodeOrNone[PPrivateEntailmentProof](ctx.privateEntailmentProof())
     
     PPrivateSpec(pres, preserves, posts, terms, proof).at(ctx)
   } 
 
   override def visitPrivateEntailmentProof(ctx: PrivateEntailmentProofContext): PPrivateEntailmentProof = {
-    val funcId = ctx.parent match {
-      case pvt: PrivateSpecContext => pvt.parent match {
-        case spec: SpecificationContext => spec.parent match {
-          //case stmt: StatementWithSpecContext => unexpected(stmt)
-          //case f: FunctionLitContext => unexpected(f)
-          case specm: SpecMemberContext => visitSpecMember(specm) match {
-            case PFunctionDecl(id, _, _, _, _) => id
-            case PMethodDecl(id, _, _, _, _, _) => id
-          }
-          case m: MethodSpecContext => visitMethodSpec(m) match {
-            case PMethodSig(id, _, _, _, _) => id
-          }
-          case c: ParserRuleContext => unexpected(c)
-        }
-        case c: ParserRuleContext => unexpected(c)
-      }
-      case c: ParserRuleContext => unexpected(c)
-    }
-    val body = visitBlock(ctx.block())
+    val body = visitNode[PBlock](ctx.block())
+    val spec = visitNode[PClosureSpecInstance](ctx.closureSpecInstance())
 
-    PPrivateEntailmentProof(funcId, body).at(ctx)
+    PPrivateEntailmentProof(spec, body).at(ctx)
   }
 
   /**
@@ -901,14 +883,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val preserves = groups.getOrElse(GobraParser.PRESERVES, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
     val posts = groups.getOrElse(GobraParser.POST, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
     val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).toVector.map(s => visitTerminationMeasure(s.terminationMeasure()))
-    // val privateSpecs = groups.getOrElse(GobraParser.PRIVATE, Vector.empty).toVector.map(s => visitPrivateSpec(s.privateSpec()))
-    //val privateSpec = if (privateSpecs.isEmpty) { None } else { Some(privateSpecs.head) } 
-      //else if (privateSpecs.length == 1) { Some(privateSpecs.head) }
-      //else { fail(ctx, s"Expected one private clause: $ctx.") }
-    //val privateSpec = None
-    //val something = groups.foreach { case (key, values) => println("key " + key + " - " + values.mkString("-")) }
-    val privateSpec = if (has(ctx.privateSpec())) Some(visitPrivateSpec(ctx.privateSpec())) else None
-    //PFunctionSpec(pres, preserves, posts, terms, isPure = ctx.pure, isTrusted = ctx.trusted)
+    val privateSpec = visitNodeOrNone[PPrivateSpec](ctx.privateSpec())
+  
     PFunctionSpec(pres, preserves, posts, terms, privateSpec, isPure = ctx.pure, isTrusted = ctx.trusted)
   }
 

@@ -62,46 +62,55 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private def wellDefPrivateEntailmentProof(p: PPrivateEntailmentProof): Messages = {
-    val PPrivateEntailmentProof(id: PIdnDef, b: PBlock) = p
+    val b = p.block
+    val privateSpec = tree.parent(p).head
+    val funcSpec = tree.parent(privateSpec).head
+    val func = tree.parent(funcSpec).head
 
-    val func = regular(id) match {
-      case f: st.Function => f 
-      case _ => Violation.violation(s"expected a function, but got ${id}")
+    val funcId = func match {
+      case PFunctionDecl(id, _, _, _, _) => id
+      case PMethodDecl(id, _, _, _, _, _) => id
+      case _ => Violation.violation(s"expected a function or method, but got ${func}")
     }
 
-    val isPure = func.isPure
+    val f = regular(funcId) match {
+      case f: st.Function => f 
+      case _ => Violation.violation(s"expected a function, but got ${funcId}")
+    }
 
-    val specArgs = func.args
+    val isPure = f.isPure
+    val specArgs = f.args
 
     lazy val expectedCallArgs = specArgs.flatMap(nameFromParam).map(a => PNamedOperand(PIdnUse(a)))
 
-    def isExpectedCall(i: PInvoke): Boolean = i.base == id && i.args == expectedCallArgs
+    def isExpectedCall(i: PInvoke): Boolean = i.base.toString == funcId.name && i.args == expectedCallArgs
 
-    lazy val expectedCallString: String = s"$id(${specArgs.flatMap(nameFromParam).mkString(",")}) [as _]"
+    lazy val expectedCallString: String = s"$funcId(${specArgs.flatMap(nameFromParam).mkString(",")})"
 
     def pureWellDefIfIsSinglePureReturnExpr: Messages = if (isPure) isPureBlock(b) else noMessages
 
-    def wellDefIfRightShape: Messages =
+    def wellDefIfRightShape: Messages = {
       if (isPure) noMessages
-      else implementationProofBodyHasRightShape(b, isExpectedCall, expectedCallString, func.result)
+      else implementationProofBodyHasRightShape(b, isExpectedCall, expectedCallString, f.result)
         .asReason(b, "invalid body of an implementation proof")
+    }
 
     def wellDefIfTerminationMeasuresConsistent: Messages = {
-      val specMeasures = func.decl.spec.terminationMeasures
+      val specMeasures = f.decl.spec.terminationMeasures
 
-      lazy val callMeasures = if (func.decl.spec.privateSpec.isEmpty) { Vector.empty } else {
-        func.decl.spec.privateSpec.getOrElse(null).terminationMeasures
+      lazy val callMeasures = if (f.decl.spec.privateSpec.isEmpty) { Vector.empty } else {
+        f.decl.spec.privateSpec.getOrElse(null).terminationMeasures
       }
 
       // If the spec has termination measures, then the call inside the proof
       // must be done with a spec that also has termination measures
       if (specMeasures.isEmpty) noMessages
-      else error(p, s"public specification of function ${p.id} has termination measures, so also " +
-        s"private specification of function ${p.id}" + s"(used inside the proof) must", callMeasures.isEmpty)
+      else error(p, s"public specification of function ${funcId} has termination measures, so also " +
+        s"private specification of function ${funcId}" + s"(used inside the proof) must", callMeasures.isEmpty)
     }
 
     Seq(pureWellDefIfIsSinglePureReturnExpr, wellDefIfRightShape, wellDefIfTerminationMeasuresConsistent)
-      .iterator.find(_.nonEmpty).getOrElse(noMessages)
+      .iterator.find(_.nonEmpty).getOrElse(noMessages) 
   }
 
   lazy val closureImplProofCallAttr: PClosureImplProof => PInvoke =

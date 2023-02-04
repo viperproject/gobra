@@ -70,6 +70,7 @@ class PositionManager(val positions: Positions) extends Messaging(positions) {
     messages.sorted map { m =>
       errorFactory(
         formatMessage(m),
+        if (positions.getStart(m.value).isEmpty) None else 
         Some(translate(positions.getStart(m.value).get, positions.getFinish(m.value).get))
       )
     }
@@ -456,8 +457,6 @@ case class PClosureSpecInstance(func: PNameOrDot, params: Vector[PKeyedElement])
 case class PClosureImplements(closure: PExpression, spec: PClosureSpecInstance) extends PGhostExpression
 
 case class PClosureImplProof(impl: PClosureImplements, block: PBlock) extends PGhostStatement with PScope
-
-case class PPrivateEntailmentProof(id: PIdnDef, block: PBlock) extends PGhostStatement with PScope
 
 case class PInvoke(base: PExpressionOrType, args: Vector[PExpression], spec: Option[PClosureSpecInstance]) extends PActualExpression {
   require(base.isInstanceOf[PExpression] || spec.isEmpty) // `base` is a type for conversions only, for which `spec` is empty
@@ -889,13 +888,13 @@ case class PLoopSpec(
                     terminationMeasure: Option[PTerminationMeasure],
                     ) extends PSpecification
 
-//TODO
+
 case class PPrivateSpec(
                        pres: Vector[PExpression],
                        preserves: Vector[PExpression],
                        posts: Vector[PExpression],
                        terminationMeasures: Vector[PTerminationMeasure],
-                       proof: PPrivateEntailmentProof
+                       proof: Option[PPrivateEntailmentProof]
                        ) extends PSpecification
 
 /**
@@ -937,6 +936,8 @@ case class PMethodImplementationProof(
                                      ) extends PGhostMisc with PScope with PCodeRootWithResult with PWithBody
 
 case class PImplementationProofPredicateAlias(left: PIdnUse, right: PNameOrDot) extends PGhostMisc
+
+case class PPrivateEntailmentProof(spec: PClosureSpecInstance, block: PBlock) extends PGhostStatement with PScope
 
 sealed trait PNameOrDot extends PExpression
 

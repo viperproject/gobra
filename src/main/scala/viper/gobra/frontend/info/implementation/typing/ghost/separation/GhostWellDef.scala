@@ -49,6 +49,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
   private def stmtGhostSeparation(stmt: PStatement): Messages = stmt match {
     case p: PClosureImplProof => provenSpecMatchesInGhostnessWithCall(p)
+    case p: PPrivateEntailmentProof => provenPrivateSpecMatchesInGhostnessWithCall(p)
 
     case _: PGhostStatement => noMessages
     case s if enclosingGhostContext(s) => noMessages

@@ -148,27 +148,31 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showFunction(f: Function): Doc = f match {
-    case Function(name, args, results, pres, posts, measures, body) =>
+    case Function(name, args, results, pres, posts, measures, privateSpec, body) =>
       "func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block(showStmt(b)))
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <>
+        showPrivateSpec(privateSpec)) <> opt(body)(b => block(showStmt(b))) 
   }
 
   def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, body) =>
+    case PureFunction(name, args, results, pres, posts, measures, privateSpec, body) =>
       "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b))) <>
+        showPrivateSpec(privateSpec)
   }
 
   def showMethod(m: Method): Doc = m match {
-    case Method(receiver, name, args, results, pres, posts, measures, body) =>
+    case Method(receiver, name, args, results, pres, posts, measures, privateSpec, body) =>
       "func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block(showStmt(b)))
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block(showStmt(b))) <>
+        showPrivateSpec(privateSpec)
   }
 
   def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, body) =>
+    case PureMethod(receiver, name, args, results, pres, posts, measures, privateSpec, body) =>
       "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b))) <>
+        showPrivateSpec(privateSpec)
   }
 
   def showMethodSubtypeProof(m: MethodSubtypeProof): Doc = m match {
@@ -220,7 +224,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showField(field: Field): Doc = updatePositionStore(field) <> (field match {
-    case Field(name, typ, _) => "field" <> name <> ":" <+> showType(typ)
+    case Field(name, typ, _, _) => "field" <> name <> ":" <+> showType(typ)
   })
 
   def showClosureSpec(spec: ClosureSpec): Doc =
@@ -257,6 +261,17 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showTerminationMeasures(list: Vector[TerminationMeasure]): Doc =
     hcat(list  map ("decreases " <> showTerminationMeasure(_) <> line))
+
+  def showPrivateSpec(pSpec: Option[PrivateSpec]): Doc = {
+    "private" <+> (for {
+      s <- pSpec
+      pres = s.pres
+      posts = s.posts
+      terminationMeasures = s.terminationMeasures
+      proof = s.proof
+    } yield block(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(terminationMeasures) <>
+                 opt(proof)(showStmt))).getOrElse(emptyDoc) <> line
+  }
 
   def showCaptured(captured: Vector[(Expr, Parameter.In)]): Doc =
     angles(showList(captured) {
@@ -351,7 +366,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case Outline(_, pres, posts, measures, body, trusted) =>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> 
           "outline" <> (if (trusted) emptyDoc else parens(nest(line <> showStmt(body)) <> line))
     case Continue(l, _) => "continue" <+> opt(l)(text)
     case Break(l, _) => "break" <+> opt(l)(text)
@@ -667,27 +682,31 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
 
   override def showFunction(f: Function): Doc = f match {
-    case Function(name, args, results, pres, posts, measures, _) =>
+    case Function(name, args, results, pres, posts, measures, privateSpec, _) =>
       "func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+        showPrivateSpec(privateSpec)
   }
 
   override def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, _) =>
+    case PureFunction(name, args, results, pres, posts, measures, privateSpec, _) =>
       "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+        showPrivateSpec(privateSpec)
   }
 
   override def showMethod(m: Method): Doc = m match {
-    case Method(receiver, name, args, results, pres, posts, measures, _) =>
+    case Method(receiver, name, args, results, pres, posts, measures, privateSpec, _) =>
       "func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+        showPrivateSpec(privateSpec)
   }
 
   override def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, _) =>
+    case PureMethod(receiver, name, args, results, pres, posts, measures, privateSpec, _) =>
       "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+        showPrivateSpec(privateSpec)
   }
 
   override def showFPredicate(predicate: FPredicate): Doc = predicate match {
@@ -777,7 +796,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Continue(l, _) => "continue" <+> opt(l)(text)
     case Break(l, _) => "break" <+> opt(l)(text)
     case Outline(_, pres, posts, measures, _, _) =>
-      spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
-        "outline"
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+          "outline"
   }
 }

@@ -44,5 +44,5 @@ trait TypeInfo extends ExternalTypeInfo {
 
   def capturedLocalVariables(decl: PClosureDecl): Vector[PIdnNode]
 
-  def isPvt(expr: PExpression): Boolean
+  def isPvt(n: PExpression): Boolean
 }

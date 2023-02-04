@@ -6,46 +6,25 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.frontend.info.base.Type._
-import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.ast.frontend.{PNode}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.{SymbolTable => symb}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.util.TypeBounds
 import viper.gobra.util.Violation
 
 trait Visibility extends BaseProperty { this: TypeInfoImpl =>
 
   def isPrivate(expr: PExpression): Boolean = isPrivateExpression(expr)
 
-  /* def isPrivate(p: PNode): Boolean = p match {
-    case id: PIdnNode => isPrivateRegular(id)
-    //case r: PReceiver => isPrivate(r.typ.typ.id)
-    case typ: PType => isPrivateType(typ) //type private?
-    //case stmt: PStatement => isPrivateStatement(stmt)
-    case expr: PExpression => isPrivateExpression(expr) 
-    case etyp: PExpressionOrType => etyp match {
-      case e: PExpression => isPrivateExpression(e)
-      case t: PType => isPrivateType(t)
-      case t => Violation.violation(s"Unexpected ExpressionOrType in isPrivate, got $t")
-    }
-    //case spec: PSpecification => isPrivateSpecification(spec) //???
-    case mem: PMember => isPrivateMember(mem) //for predicates and pure functions
-    //case field: PFieldDecl => //checks if a field is private
-    case t => Violation.violation(s"Unexpected Node in isPrivate, got $t")
-  } */
-
   private def isPrivateExpType(etyp: PExpressionOrType): Boolean = etyp match {
     case expr: PExpression => isPrivateExpression(expr)
     case typ: PType => isPrivateType(typ)
-    case t => Violation.violation(s"Unexpected Expression or Typ in isPrivateExpType, got $t") 
+    case t => Violation.violation(s"Unexpected Expression or Type in isPrivateExpType, got $t") 
   }
 
-  private def isPrivateRegular(id: PIdnNode): Boolean = regular(id) match {
+  def isPrivateRegular(id: PIdnNode): Boolean = regular(id) match {
     case g: symb.GlobalVariable => startsWithLowercase(g.id.name)
-    case v: symb.Variable => false //startsWithLowercase(v.toString)
-    case c: symb.Constant => false //startsWithLowercase(c.toString) //Constant but with IdnNode???
+    case _: symb.Variable => false 
+    case c: symb.Constant => startsWithLowercase(c.toString)
     case f: symb.Function => startsWithLowercase(f.decl.id.name) || (if (f.isPure) isPrivateParam(f.args) else false)
     case m: symb.Method => m match {
       case mi: symb.MethodImpl => startsWithLowercase(mi.decl.id.name) || (if (m.isPure) isPrivateParam(mi.args) else false)
@@ -61,11 +40,12 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
       case t => Violation.violation(s"Unexpected Predicate in isPrivateRegular, got $t") 
     }
     case f: symb.Field => startsWithLowercase(f.decl.id.name)
-    case t: symb.NamedType => startsWithLowercase(t.decl.left.name) //isPrivateType(t.decl.right)
+    case t: symb.NamedType => startsWithLowercase(t.decl.left.name) 
+    case _: symb.Import => false
     case t => Violation.violation(s"Unexpected PIdnNode in isPrivateRegular, got $t") 
   }
 
-  private def isPrivateType(typ: PType): Boolean = typ match {
+  def isPrivateType(typ: PType): Boolean = typ match {
     case atyp: PActualType => atyp match {
       case PNamedOperand(id) => isPrivateRegular(id)
       case PBoolType() => false
@@ -98,13 +78,10 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
         case PRecvChannelType(elem) => isPrivateType(elem)
         case t => Violation.violation(s"Unexpected ChannelType in isPrivateType, got $t") 
       }
-      //case PStructType(clauses) => clauses.map(c => isPrivate(c)).reduce(_||_)
-      case styp: PStructType => startsWithLowercase(styp.toString) //styp name?
-      case PFunctionType(args, _) => isPrivateParam(args) //check args: Vector[PParameter]
-      case PPredType(args) => args.map(arg => isPrivateType(arg)).reduceOption(_||_).getOrElse(false) //check the args: Vectro[PType]
-      case ityp: PInterfaceType => startsWithLowercase(ityp.toString) //ityp name?
-      //case PMethodReceiveName(t) => startsWithLowercase(t.typ.id.name)
-      //case PMethodReceivePointer(t) => startsWithLowercase(t.typ.id.name)
+      case styp: PStructType => startsWithLowercase(styp.toString) 
+      case PFunctionType(args, _) => isPrivateParam(args)
+      case PPredType(args) => args.map(arg => isPrivateType(arg)).reduceOption(_||_).getOrElse(false) 
+      case ityp: PInterfaceType => startsWithLowercase(ityp.toString) 
       case t => Violation.violation(s"Unexpected ActualType in isPrivateType, got $t") 
     }
     case gtyp: PGhostType => gtyp match {
@@ -121,33 +98,12 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
     case t => Violation.violation(s"Unexpected Type in isPrivateType, got $t") 
   }
 
-  /* private def isPrivateMember(mem: PMember): Boolean = mem match {
-    case mem: PActualMember => mem match {
-      case PConstDecl(specs) => specs.map(c => c.left.map(id => isPrivateRegular(id)).reduce(_||_)).reduce(_||_) //id: PDefLikeId
-      case PVarDecl(_, _, l, _) => l.map(id => isPrivateRegular(id)).reduce(_||_) //l: PDefLikeId
-      case n: PTypeDecl => isPrivateRegular(n.left) //n.left: PIdnDef
-      case PFunctionDecl(id, _, _, _, _) => isPrivateRegular(id) 
-      case PMethodDecl(id, _, _, _, _, _) => isPrivateRegular(id) 
-      case t => Violation.violation(s"Unexpected ActualMember in isPrivateMember, got $t")
-    }
-    case gmem: PGhostMember => gmem match {
-      case PExplicitGhostMember(_) => true //???
-      //case PFPredicateDecl(id, args, body) => isPrivateRegular(id) || isPrivateParam(args) || isPrivateExpression(body.getOrElse(null))
-      //case PMPredicateDecl(id, recv, args, body) => isPrivateRegular(id) || isPrivateType(recv.typ.typ) || isPrivateParam(args) || isPrivateExpression(body.getOrElse(null))
-      case PFPredicateDecl(id, _, _) => isPrivateRegular(id) //only need this because isPrivateRegular does the above already
-      case PMPredicateDecl(id, _, _, _) => isPrivateRegular(id) //only need this because isPrivateRegular does the above already
-      case t => Violation.violation(s"Unexpected GhostMember in isPrivateMember, got $t" )
-    }
-    case t => Violation.violation(s"Unexpected Member in isPrivateMember, got $t")
-  } */
-
   private def isPrivateExpression(expr: PExpression): Boolean = expr match {
-    case null => false
     case expr: PActualExpression => expr match {
       case PReceive(op) => isPrivateExpression(op)
       case PReference(op) => isPrivateExpression(op)
       case PDeref(base) => isPrivateExpType(base)
-      case PDot(base, id) => isPrivateExpType(base) || isPrivateRegular(id)
+      case PDot(base, id) =>  isPrivateExpType(base) || isPrivateRegular(id)
       case PNegation(op) => isPrivateExpression(op)
       case PNamedOperand(id) => isPrivateRegular(id)
       case PBoolLit(_) => false
@@ -155,13 +111,13 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
       case PFloatLit(_) => false
       case PNilLit() => false
       case PStringLit(_) => false
-      case PCompositeLit(typ, lit) => false //typ: PLiteralType, lit: PLiteralValue
-      case PFunctionLit(id, _) => isPrivateRegular(id.getOrElse(null)) //id: Option[PIdnDef], args: Vector[PParameter]
+      case PCompositeLit(typ, _) => s"$typ".split('.').tail.map(startsWithLowercase).reduceOption(_||_).getOrElse(false) 
+      case PFunctionLit(id, _) => isPrivateRegular(id.getOrElse(null)) 
       case PInvoke(base, args, _) => isPrivateExpType(base) || isPrivateVector(args)
       case PIndexedExp(base, index) => isPrivateExpression(base) || isPrivateExpression(index)
       case PSliceExp(base, low, high, cap) => isPrivateExpression(base) || isPrivateExpression(low.getOrElse(null)) || isPrivateExpression(high.getOrElse(null)) || isPrivateExpression(cap.getOrElse(null))
       case PUnpackSlice(elem) => isPrivateExpression(elem)
-      case PTypeAssertion(base, typ) => isPrivateExpression(base) || isPrivateType(typ) //typ: PType
+      case PTypeAssertion(base, typ) => isPrivateExpression(base) || isPrivateType(typ)
       case PEquals(l, r) => isPrivateExpType(l) || isPrivateExpType(r)
       case PUnequals(l, r) => isPrivateExpType(l) || isPrivateExpType(r)
       case PAnd(l, r) => isPrivateExpression(l) || isPrivateExpression(r)
@@ -207,7 +163,7 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
       case PPredicateAccess(exp, perm) => isPrivateExpression(exp) || isPrivateExpression(perm)
       case PPrivate(exp) => isPrivateExpression(exp)
       case PMagicWand(l, r) => isPrivateExpression(l) || isPrivateExpression(r)
-      case PClosureImplements(closure, _) => isPrivateExpression(closure) //spec: PClosureSpecInstance
+      case PClosureImplements(closure, _) => isPrivateExpression(closure) 
       case PTypeOf(exp) => isPrivateExpression(exp)
       case PTypeExpr(typ) => isPrivateType(typ)
       case PIsComparable(exp) => isPrivateExpType(exp)
@@ -246,10 +202,6 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
   private def isPrivateVector(v: Vector[PExpression]): Boolean = v.map(arg => isPrivateExpression(arg)).reduceOption(_||_).getOrElse(false)
   private def isPrivateParam(v: Vector[PParameter]): Boolean = v.map(p => isPrivateType(p.typ)).reduceOption(_||_).getOrElse(false)
 
-  //private def privateFunctionArgumentsType(w: WithArguments): Boolean = if (w.isPure) privateType(w.args) else false
-  //private def privateArgumentsType(w: WithArguments): Boolean = privateType(w.args)
-
   private def startsWithLowercase(s: String): Boolean = s.charAt(0).isLower
 
-  //private def isArgument(p: PParameter): Boolean = isParamGhost(p)
 }

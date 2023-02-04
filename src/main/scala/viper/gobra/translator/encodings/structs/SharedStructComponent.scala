@@ -35,7 +35,7 @@ trait SharedStructComponent extends Generator {
     */
   def convertToExclusive(loc: in.Location)(ctx: Context, ex: ExclusiveStructComponent): CodeWriter[vpr.Exp] = {
     loc match {
-      case _ :: ctx.Struct(fs) / Shared =>
+      case _ :: ctx.CompleteStruct(fs) / Shared =>
         val vti = cptParam(fs)(ctx)
         pure(
           for {
@@ -44,6 +44,16 @@ trait SharedStructComponent extends Generator {
             args <- sequence(locFAs.map(fa => ctx.expression(fa)))
           } yield ex.create(args, vti)(loc)(ctx)
         )(ctx)
+
+      case _ :: ctx.PartialStruct(fs) / Shared =>
+        val vti = cptParam(fs)(ctx)
+        pure(
+          for {
+            x <- bind(loc)(ctx)
+            locFAs = fs.map(f => in.FieldRef(x, f)(loc.info))
+            args <- sequence(locFAs.map(fa => ctx.expression(fa)))
+          } yield ex.create(args, vti)(loc)(ctx)
+        )(ctx) 
 
       case _ :: t => Violation.violation(s"expected struct, but got $t")
     }
@@ -59,7 +69,17 @@ trait SharedStructComponent extends Generator {
     */
   def addressFootprint(loc: in.Location, perm: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
     loc match {
-      case _ :: ctx.Struct(fs) / Shared =>
+      case _ :: ctx.CompleteStruct(fs) / Shared =>
+        val (pos, info, errT) = loc.vprMeta
+        pure(
+          for {
+            x <- bind(loc)(ctx)
+            locFAs = fs.map(f => in.FieldRef(x, f)(loc.info))
+            parts <- sequence(locFAs.map(fa => ctx.footprint(fa, perm)))
+          } yield VU.bigAnd(parts)(pos, info, errT)
+        )(ctx)
+        
+      case _ :: ctx.PartialStruct(fs) / Shared =>
         val (pos, info, errT) = loc.vprMeta
         pure(
           for {

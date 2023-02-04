@@ -7,12 +7,11 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
+import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PPrivateSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
-import viper.gobra.ast.frontend.PPrivateSpec
 
 trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -105,7 +104,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def isPurePostcondition(spec: PFunctionSpec): Messages = (spec.posts ++ spec.preserves ++ getPrivatePostcondition(spec.privateSpec)) flatMap isPureExpr
 
-  private def getPrivatePostcondition(spec: Option[PPrivateSpec]) = if(spec.isEmpty) Vector.empty else spec.getOrElse(null).posts ++ spec.getOrElse(null).preserves
+  private def getPrivatePostcondition(spec: Option[PPrivateSpec]) = (for { s <- spec } yield s.posts ++ s.preserves).getOrElse(Vector())
 
   private[typing] def nonVariadicArguments(args: Vector[PParameter]): Messages = args.flatMap {
     p: PParameter => error(p, s"Pure members cannot have variadic arguments, but got $p", p.typ.isInstanceOf[PVariadicType])

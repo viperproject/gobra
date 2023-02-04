@@ -53,13 +53,21 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PDot =>
       resolve(n) match {
-        case Some(_: ap.FieldSelection) => noMessages
+        case Some(f: ap.FieldSelection) => 
+          val referenceToImportedPackage = s"$pkgName" != s"${regular(f.id).context.pkgName}"
+          if (referenceToImportedPackage && isPvt(n)) {
+            error(n, s"expression error: expected public field, but got $n")
+          } else noMessages
         case Some(_: ap.ReceivedMethod) => noMessages
         case Some(_: ap.ReceivedPredicate) => noMessages
         case Some(_: ap.MethodExpr) => noMessages
         case Some(_: ap.PredicateExpr) => noMessages
         // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
-        case Some(_: ap.Constant) => noMessages
+        case Some(c: ap.Constant) => 
+          val referenceToImportedPackage = s"$pkgName" != s"${c.symb.context.pkgName}"
+          if (referenceToImportedPackage && isPvt(n)) {
+            error(n, s"expression error: expected public constant, but got $n")
+          } else noMessages
         case Some(_: ap.GlobalVariable) => noMessages
         case Some(_: ap.Function) => noMessages
         case Some(_: ap.Closure) => violation(s"the name of a function literal should not be accessible from a different package")
@@ -248,25 +256,32 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
-          val isCallToInit =
-            error(n, s"${Constants.INIT_FUNC_NAME} function is not callable",
-              c.callee.isInstanceOf[ap.Function] && c.callee.id.name == Constants.INIT_FUNC_NAME)
-          // arguments have to be assignable to function
-          val wellTypedArgs = exprType(callee) match {
-            case FunctionT(args, _) => // TODO: add special assignment
-              if (n.spec.nonEmpty) wellDefCallWithSpec(n)
-              else if (n.args.isEmpty && args.isEmpty) noMessages
-              else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
-            case t: AbstractType => t.messages(n, n.args map exprType)
-            case t => error(n, s"type error: got $t but expected function type or AbstractType")
+          val referenceToImportedPackage = s"$pkgName" != s"${regular(c.callee.id).context.pkgName}"
+          if (referenceToImportedPackage && isPvt(callee)) {
+            error(n, s"invoke error: expected a public function, but got $callee") 
+          } else {
+            val isCallToInit =
+              error(n, s"${Constants.INIT_FUNC_NAME} function is not callable",
+                c.callee.isInstanceOf[ap.Function] && c.callee.id.name == Constants.INIT_FUNC_NAME)
+            // arguments have to be assignable to function
+            val wellTypedArgs = exprType(callee) match {
+              case FunctionT(args, _) => // TODO: add special assignment
+                if (n.spec.nonEmpty) wellDefCallWithSpec(n)
+                else if (n.args.isEmpty && args.isEmpty) noMessages
+                else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+              case t: AbstractType => t.messages(n, n.args map exprType)
+              case t => error(n, s"type error: got $t but expected function type or AbstractType")
+            }
+            isCallToInit ++ wellTypedArgs
           }
-          isCallToInit ++ wellTypedArgs
 
         case (Left(_), Some(_: ap.ClosureCall)) => wellDefCallWithSpec(n)
 
         case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
           val pureReceiverMsgs = p.predicate match {
-            case _: ap.Predicate => noMessages
+            case pr: ap.Predicate => if (s"$pkgName" != s"${pr.symb.context.pkgName}" && pr.id.name.charAt(0).isLower) { 
+              error(n, s"invoke error: expected a public object, but got $callee")
+             } else noMessages
             case _: ap.PredicateExpr => noMessages
             case pei: ap.PredExprInstance => pei.args flatMap isPureExpr
             case _: ap.BuiltInPredicate => noMessages
@@ -417,7 +432,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => error(n, s"expected receive-permitting channel but got $t")
     })
 
-    case n@PReference(e) => isExpr(e).out ++ effAddressable.errors(e)(n)
+    case n@PReference(e) => 
+      val referenceToImportedPackage = {e match { 
+        case n: PCompositeLit => n.typ match {
+          case n: PTypeName => s"${regular(n.id).context.pkgName}" != s"$pkgName"
+          case _ => false
+        }
+        case _ => false
+      }}
+      if (referenceToImportedPackage && isPvt(e)) { error(n, s"reference error: expected public struct, but got $e") }
+      else { isExpr(e).out ++ effAddressable.errors(e)(n) }
 
     case n@PNegation(e) => isExpr(e).out ++ assignableTo.errors(exprType(e), BooleanT)(n)
 

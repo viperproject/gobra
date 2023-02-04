@@ -13,11 +13,19 @@ import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.ast.Method
 import viper.silver.{ast => vpr}
+import viper.gobra.translator.library.privates.{Private, PrivateImpl}
+
 
 class DefaultMethodEncoding extends Encoding {
 
   import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl, _}
   import MemberLevel._
+
+  override def finalize (addMemberFn: vpr.Member => Unit): Unit = {
+    privateProof.finalize(addMemberFn)
+  } 
+
+  private val privateProof: Private = new PrivateImpl
 
   override def method(ctx: Context): in.Member ==> MemberWriter[vpr.Method] = {
     case x: in.Method => methodDefault(x)(ctx)
@@ -37,10 +45,27 @@ class DefaultMethodEncoding extends Encoding {
     val vResultPosts = x.results.flatMap(ctx.varPostcondition)
     val vResultInit = cl.seqns(x.results map ctx.initialization)
 
-    for {
-      pres <- sequence((vRecvPres ++ vArgPres) ++ x.pres.map(ctx.precondition))
-      posts <- sequence(vResultPosts ++ x.posts.map(ctx.postcondition))
-      measures <- sequence(x.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
+    //Depending if a private spec exists, we verify the public or private specification
+    val (vPres, vPosts, vMeasures) = if (x.privateSpec.isEmpty) {
+      ((vRecvPres ++ vArgPres) ++ x.pres.map(ctx.precondition),
+        vResultPosts ++ x.posts.map(ctx.postcondition),
+        x.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
+    } else {
+      val spec = x.privateSpec.getOrElse(null) //not empty
+
+      //Generates a method to prove private entailment
+      privateProof.privateProofMethod(x)(ctx)
+
+      ((vRecvPres ++ vArgPres) ++ spec.pres.map(ctx.precondition),
+        vResultPosts ++ spec.posts.map(ctx.postcondition),
+        spec.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
+      
+    }
+
+    for { 
+      pres <- sequence(vPres)
+      posts <- sequence(vPosts)
+      measures <- sequence(vMeasures)
 
       body <- option(x.body.map{ b => block{
         for {
@@ -58,6 +83,8 @@ class DefaultMethodEncoding extends Encoding {
         body = body
       )(pos, info, errT)
 
+      _ <- errorT(privateProof.privateProofError(x.name.name))
+
     } yield method
   }
 
@@ -74,10 +101,27 @@ class DefaultMethodEncoding extends Encoding {
     val vResultPosts = x.results.flatMap(ctx.varPostcondition)
     val vResultInit = cl.seqns(x.results map ctx.initialization)
 
+    //Depending if a private spec exists, we verify the public or private specification
+    val (vPres, vPosts, vMeasures) = if (x.privateSpec.isEmpty) {
+      (vArgPres ++ x.pres.map(ctx.precondition),
+       vResultPosts ++ x.posts.map(ctx.postcondition),
+       x.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
+    } else {
+      val spec = x.privateSpec.getOrElse(null) //not empty
+
+      //Generates a method to prove private entailment
+      privateProof.privateProofFunction(x)(ctx)
+
+      (vArgPres ++ spec.pres.map(ctx.precondition),
+       vResultPosts ++ spec.posts.map(ctx.postcondition),
+       spec.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
+      
+    }
+
     for {
-      pres <- sequence(vArgPres ++ x.pres.map(ctx.precondition))
-      posts <- sequence(vResultPosts ++ x.posts.map(ctx.postcondition))
-      measures <- sequence(x.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
+      pres <- sequence(vPres)
+      posts <- sequence(vPosts)
+      measures <- sequence(vMeasures)
 
       body <- option(x.body.map{ b => block{
         for {
@@ -94,6 +138,8 @@ class DefaultMethodEncoding extends Encoding {
         posts = posts,
         body = body
       )(pos, info, errT)
+
+      _ <- errorT(privateProof.privateProofError(x.name.name))
 
     } yield method
   }

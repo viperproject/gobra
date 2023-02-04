@@ -329,6 +329,13 @@ case class SpecImplementationPostconditionError(info: Source.Verifier.Info, spec
   override def localMessage: String = s"Postcondition of spec $specName might not hold"
 }
 
+case class PrivateEntailmentError(info: Source.Verifier.Info, specName: String, msg: String) extends VerificationError {
+  override def localId: String = "private_entailment_error"
+  override def localMessage: String = 
+    s"$msg of call ${info.trySrc[frontend.PInvoke](" ")}might not hold. " + 
+    s"Private specification might not entail the public specification."
+}
+
 case class ChannelReceiveError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "receive_error"
   override def localMessage: String = s"The receive expression ${info.trySrc[PReceive](" ")}might fail"

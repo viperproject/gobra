@@ -33,7 +33,7 @@ import viper.gobra.translator.library.multiplicity.{SeqMultiplicity, SeqMultipli
 import viper.gobra.translator.library.options.{OptionImpl, Options}
 import viper.gobra.translator.library.slices.{Slices, SlicesImpl}
 import viper.gobra.translator.library.tos._
-import viper.gobra.translator.library.tuples.{Tuples, TuplesImpl}
+import viper.gobra.translator.library.tuples.{Tuples, TuplesImpl, PartialTuplesImpl}
 import viper.gobra.translator.library.unknowns.{UnknownValues, UnknownValuesImpl}
 import viper.gobra.translator.util.ViperWriter.MemberWriter
 import viper.silver.{ast => vpr}
@@ -46,6 +46,7 @@ class DfltTranslatorConfig(
   val option : Options = new OptionImpl,
   val fixpoint: Fixpoint = new FixpointImpl,
   val tuple : Tuples = new TuplesImpl,
+  val partialTuple: Tuples = new PartialTuplesImpl,
   val equality: Equality = new EqualityImpl,
   val condition: Conditions = new ConditionsImpl,
   val unknownValue: UnknownValues = new UnknownValuesImpl,

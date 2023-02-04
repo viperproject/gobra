@@ -147,7 +147,7 @@ sealed trait MethodMember extends MethodLikeMember {
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
   def terminationMeasures: Vector[TerminationMeasure]
-  //def privateSpec: Option[PrivateSpec]
+  def privateSpec: Option[PrivateSpec]
 }
 
 sealed trait FunctionLikeMember extends Member {
@@ -160,7 +160,6 @@ sealed trait FunctionLikeMemberOrLit extends Node {
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
   def terminationMeasures: Vector[TerminationMeasure]
-  //def privateSpec: Option[PrivateSpec]
 }
 
 sealed trait FunctionMember extends FunctionLikeMember with FunctionLikeMemberOrLit
@@ -177,7 +176,7 @@ case class GlobalVarDecl(left: Vector[GlobalVar],
 
 case class GlobalConstDecl(left: GlobalConst, right: Lit)(val info: Source.Parser.Info) extends Member
 
-case class Field(name: String, typ: Type, ghost: Boolean)(val info: Source.Parser.Info) extends Node
+case class Field(name: String, typ: Type, ghost: Boolean, notImported: Boolean)(val info: Source.Parser.Info) extends Node
 
 case class Method(
                  override val receiver: Parameter.In,
@@ -187,7 +186,7 @@ case class Method(
                  override val pres: Vector[Assertion],
                  override val posts: Vector[Assertion],
                  override val terminationMeasures: Vector[TerminationMeasure],
-                 //override val privateSpec: Option[PrivateSpec],
+                 override val privateSpec: Option[PrivateSpec],
                  body: Option[MethodBody]
                  )(val info: Source.Parser.Info) extends Member with MethodMember
 
@@ -199,7 +198,7 @@ case class PureMethod(
                        override val pres: Vector[Assertion],
                        override val posts: Vector[Assertion],
                        override val terminationMeasures: Vector[TerminationMeasure],
-                       //override val privateSpec: Option[PrivateSpec],
+                       override val privateSpec: Option[PrivateSpec],
                        body: Option[Expr]
                      )(val info: Source.Parser.Info) extends Member with MethodMember {
   require(results.size <= 1)
@@ -245,7 +244,7 @@ case class Function(
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
                      override val terminationMeasures: Vector[TerminationMeasure],
-                     //override val privateSpec: Option[PrivateSpec],
+                     val privateSpec: Option[PrivateSpec],
                      body: Option[MethodBody]
                    )(val info: Source.Parser.Info) extends Member with FunctionMember
 
@@ -256,7 +255,7 @@ case class PureFunction(
                          override val pres: Vector[Assertion],
                          override val posts: Vector[Assertion],
                          override val terminationMeasures: Vector[TerminationMeasure],
-                         //override val privateSpec: Option[PrivateSpec],
+                         val privateSpec: Option[PrivateSpec],
                          body: Option[Expr]
                        )(val info: Source.Parser.Info) extends Member with FunctionMember {
   require(results.size <= 1)
@@ -454,7 +453,6 @@ case class Outline(
                     pres: Vector[Assertion],
                     posts: Vector[Assertion],
                     terminationMeasures: Vector[TerminationMeasure],
-                    //privateSpec: Option[PrivateSpec],
                     body: Stmt,
                     trusted: Boolean,
                   )(val info: Source.Parser.Info) extends Stmt
@@ -1155,7 +1153,6 @@ case class FunctionLit(
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
                      override val terminationMeasures: Vector[TerminationMeasure],
-                     //override val privateSpec: Option[PrivateSpec],
                      body: Option[MethodBody]
                    )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
@@ -1169,7 +1166,6 @@ case class PureFunctionLit(
                          override val pres: Vector[Assertion],
                          override val posts: Vector[Assertion],
                          override val terminationMeasures: Vector[TerminationMeasure],
-                         //override val privateSpec: Option[PrivateSpec],
                          body: Option[Expr]
                        )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
@@ -1194,20 +1190,12 @@ case class FunctionObject(func: FunctionProxy, override val typ: Type)(override 
 
 case class MethodObject(recv: Expr, meth: MethodProxy, override val typ: Type)(override val info: Source.Parser.Info) extends Expr
 
-/*case class PrivateSpec(
+case class PrivateSpec(
                       pres: Vector[Assertion],
                       posts: Vector[Assertion],
                       terminationMeasures: Vector[TerminationMeasure],
-                      proof: PrivateEntailmentProof
-                      )(override val info: Source.Parser.Info) extends Assertion */
-
-/*case class PrivateEntailmentProof(
-                                   name: FunctionProxy, //needed?
-                                   body: Block, 
-                                   privatePres: Vector[Assertion], 
-                                   privatePosts: Vector[Assertion],
-                                   pres: Vector[Assertion],
-                                   posts: Vector[Assertion])*/
+                      proof: Option[Stmt]
+                      )(override val info: Source.Parser.Info) extends Assertion 
 
 /**
   * Represents (full) slice expressions "`base`[`low`:`high`:`max`]".
@@ -1567,7 +1555,7 @@ case class StructT(fields: Vector[Field], addressability: Addressability) extend
   }
 
   override def withAddressability(newAddressability: Addressability): StructT =
-    StructT(fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost)(f.info)), newAddressability)
+    StructT(fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost, f.notImported)(f.info)), newAddressability)
 }
 
 case class InterfaceT(name: String, addressability: Addressability) extends PrettyType(s"interface{ name is $name }") with TopType {

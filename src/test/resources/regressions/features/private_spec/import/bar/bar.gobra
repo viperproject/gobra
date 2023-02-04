@@ -1,0 +1,86 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package bar
+
+type Pair struct {
+  Left, Right, p int
+}
+
+type pair struct {
+  Left, Right, p2 int
+}
+
+const g int = 2
+const G int = 42
+
+var v int = 3
+var V int = 43
+
+var barN, barN2 int = 4, 6
+
+//private function with struct (private specification and proof)
+requires acc(x) && x.Left == 2 
+ensures  acc(x) && x.Left == 2 
+private {
+  requires acc(x) && x.Left == 2 
+  ensures  acc(x) && x.Left == 2 && x.p == 3
+  proof Foo {
+    Foo(a, b, x)
+  }
+}
+func Foo(a, b int, x *Pair)
+
+requires acc(x) && x.Left == 2 
+ensures  acc(x) && x.Left == 2 // && x.GetP2() == 3
+private {
+  requires acc(x) && x.Left == 2 
+  ensures  acc(x) && x.Left == 2 && x.p2 == 3
+  proof foo {
+    foo(a, b, x)
+  }
+}
+func foo(a, b int, x *pair)
+
+
+pred P(a int) {
+  a == 0
+}
+
+requires P(a)
+ensures P(a)
+private {
+  requires a == 0
+  ensures a == 0
+  proof FPred {
+    unfold P(a)
+    FPred(a)
+    fold P(a)
+  }
+}
+func FPred(a int)
+
+pred p(a int) {
+  a == 0
+}
+
+requires P(a)
+ensures P(a)
+private {
+  requires P(a)
+  ensures P(a)
+  proof FPred2 {
+    unfold P(a)
+    FPred2(a)
+    fold P(a)
+  }
+}
+func FPred2(a int) 
+
+pure func PF(a int) int {
+  return a
+}
+
+pure func pf(a int) int {
+  return a
+}

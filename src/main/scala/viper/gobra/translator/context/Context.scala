@@ -46,6 +46,8 @@ trait Context {
 
   def tuple: Tuples
 
+  def partialTuple: Tuples
+
   def equality: Equality
 
   def condition: Conditions
@@ -158,6 +160,7 @@ trait Context {
           sliceN: Slices = slice,
           fixpointN: Fixpoint = fixpoint,
           tupleN: Tuples = tuple,
+          partialTupleN: Tuples = partialTuple,
           equalityN: Equality = equality,
           conditionN: Conditions = condition,
           unknownValueN: UnknownValues = unknownValue,
@@ -179,6 +182,7 @@ trait Context {
     col.finalize(slice)
     col.finalize(fixpoint)
     col.finalize(tuple)
+    col.finalize(partialTuple)
     col.finalize(equality)
     col.finalize(condition)
     col.finalize(unknownValue)

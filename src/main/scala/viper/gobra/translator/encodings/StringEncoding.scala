@@ -298,6 +298,7 @@ class StringEncoding extends LeafTypeEncoding {
         pres = Vector(pre),
         posts = Vector(),
         terminationMeasures = Vector(in.WildcardMeasure(None)(info)),
+        privateSpec = None,
         body = None
       )(info)
       val translatedFunc = ctx.function(func)

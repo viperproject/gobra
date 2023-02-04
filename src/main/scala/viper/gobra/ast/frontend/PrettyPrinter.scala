@@ -132,25 +132,25 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, measures, privateSpec, isPure, isTrusted) =>
-      val pSpec = if (!privateSpec.isEmpty) showSpec(privateSpec.getOrElse(null)) else emptyDoc
+    case PFunctionSpec(pres, preserves, posts, measures, privateSpec, isPure, isTrusted) => 
       (if (isPure) showPure else emptyDoc) <>
       (if (isTrusted) showTrusted else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
         hcat(preserves map (showPreserves(_) <> line)) <>
         hcat(posts map (showPost(_) <> line)) <>
         hcat(measures map (showTerminationMeasure(_) <> line)) <>
-        pSpec
+        opt(privateSpec)(showSpec) 
 
     case PLoopSpec(inv, measure) =>
       hcat(inv map (showInv(_) <> line)) <> opt(measure)(showTerminationMeasure) <> line
 
     case PPrivateSpec(pres, preserves, posts, measures, proof) =>
+      "private" <+> block(
       hcat(pres map (showPre(_) <> line)) <>
         hcat(preserves map (showPreserves(_) <> line)) <>
         hcat(posts map (showPost(_) <> line)) <>
         hcat(measures map (showTerminationMeasure(_) <> line)) <>
-        showStmt(proof)
+        opt(proof)(showStmt)) <> line
   }
 
   def showBodyParameterInfoWithBlock(info: PBodyParameterInfo, block: PBlock): Doc = {
@@ -288,7 +288,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMatchStatement(exp, clauses, _) => "match" <+>
         showExpr(exp) <+> block(ssep(clauses map showMatchClauseStatement, line))
       case PClosureImplProof(impl, PBlock(stmts)) => "proof" <+> showExpr(impl) <> block(showStmtList(stmts))
-      case PPrivateEntailmentProof(_, PBlock(stmts)) => "proof" <> block(showStmtList(stmts))
+      case PPrivateEntailmentProof(spec, PBlock(stmts)) => "proof" <+> showMisc(spec) <> block(showStmtList(stmts))
     }
   }
 

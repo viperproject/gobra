@@ -330,6 +330,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case GoMethodCall(recv, meth, args) =>
       "go" <+> showExpr(recv) <> "." <>  meth.name <> parens(showExprList(args))
 
+    case GoClosureCall(closure, args) =>
+      "go" <+> showExpr(closure) <> parens(showExprList(args))
+
     case s: Defer => "defer" <+> showStmt(s.stmt)
 
     case Return() => "return"
@@ -753,6 +756,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case GoMethodCall(recv, meth, args) =>
       "go" <+> showExpr(recv) <> "." <> meth.name <> parens(showExprList(args))
+
+    case GoClosureCall(closure, args) =>
+      "go" <+> showExpr(closure) <> parens(showExprList(args))
 
     case s: Defer => "defer" <+> showStmt(s.stmt)
 

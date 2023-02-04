@@ -82,6 +82,13 @@ class CallEncoding extends Encoding {
       val (pos, info, errT) = x.vprMeta
       val methM = ctx.lookup(meth)
       translateGoCall(methM.pres, methM.receiver +: methM.args, recv +: args)(ctx)(pos, info, errT)
+
+    case x@in.GoClosureCall(closure, args) =>
+      val (pos, info, errT) = x.vprMeta
+      closure match {
+        case f: in.FunctionLit =>
+          translateGoCall(f.pres, f.args, args)(ctx)(pos, info, errT)
+      }
   }
 
   /**

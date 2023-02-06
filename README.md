@@ -36,20 +36,16 @@ Gobra can be run either from sbt or from a compiled jar:
 - running from sbt:
     1. change directory to the `gobra` directory obtained from cloning this repository.
     2. run `sbt`.
-    3. inside the sbt shell, run `run - i path/to/file` (
-       e.g., `run -i src/test/resources/regressions/examples/swap.gobra`)
+    3. inside the sbt shell, run `run - i path/to/file` (e.g., `run -i src/test/resources/regressions/examples/swap.gobra`)
 - running from a compiled jar:
     1. run `java -jar -Xss128m path/to/gobra.jar -i path/to/file`.
 
-More information about the available options in Gobra can be found by running `run --help` in an sbt shell
-or `java -jar path/to/gobra.jar --help` if you assembled Gobra.
+More information about the available options in Gobra can be found by running `run --help` in an sbt shell or `java -jar path/to/gobra.jar --help` if you assembled Gobra.
 
 ### Running the Tests
-
 In the `gobra` directory, run the command `sbt test`.
 
 ### Debugging
-
 By default, Gobra runs in sbt on a forked JVM. This means that simply attaching a debugger to sbt will not work. There
 are two workarounds:
 
@@ -64,15 +60,11 @@ are two workarounds:
   every `run`.
 
 ## Licensing
-
 Most Gobra sources are licensed under the Mozilla Public License Version 2.0.
 The [LICENSE](./LICENSE) lists the exceptions to this rule.
 Note that source files (whenever possible) should list their license in a short header.
 Continuous integration checks these file headers.
-The same checks can be performed locally by
-running `npx github:viperproject/check-license-header#v1 check --config .github/license-check/config.json --strict` in
-this repository's root directory.
+The same checks can be performed locally by running `npx github:viperproject/check-license-header#v1 check --config .github/license-check/config.json --strict` in this repository's root directory.
 
 ## Get in touch
-
 Do you still have questions? Open an issue or contact us on [Zulip](https://gobra.zulipchat.com).

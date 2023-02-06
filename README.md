@@ -36,21 +36,41 @@ Gobra can be run either from sbt or from a compiled jar:
 - running from sbt:
     1. change directory to the `gobra` directory obtained from cloning this repository.
     2. run `sbt`.
-    3. inside the sbt shell, run `run - i path/to/file` (e.g., `run -i src/test/resources/regressions/examples/swap.gobra`)
+    3. inside the sbt shell, run `run - i path/to/file` (
+       e.g., `run -i src/test/resources/regressions/examples/swap.gobra`)
 - running from a compiled jar:
     1. run `java -jar -Xss128m path/to/gobra.jar -i path/to/file`.
 
-More information about the available options in Gobra can be found by running `run --help` in an sbt shell or `java -jar path/to/gobra.jar --help` if you assembled Gobra.
+More information about the available options in Gobra can be found by running `run --help` in an sbt shell
+or `java -jar path/to/gobra.jar --help` if you assembled Gobra.
 
 ### Running the Tests
+
 In the `gobra` directory, run the command `sbt test`.
 
+### Debugging
+
+By default, Gobra runs in sbt on a forked VM. This means that simply attaching a debugger to sbt will not work. There
+are two workarounds:
+
+- Run Gobra in a non-forked VM by first running `set fork := false` in sbt. This will allow you to attach a debugger to
+  sbt normally. However, for unknown reasons, this causes issues with class resolution in the Viper backend, so actually
+  only the parsing can really be debugged.
+- Attach the debugger to the forked VM. By
+  running `set javaOptions += "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005"` in sbt, the forked
+  VM can be debugged. However, this will require starting the debugger for each run after the VM has started and is
+  ready for connection. In particular, it may be more difficult to debug early stages.
+
 ## Licensing
+
 Most Gobra sources are licensed under the Mozilla Public License Version 2.0.
 The [LICENSE](./LICENSE) lists the exceptions to this rule.
 Note that source files (whenever possible) should list their license in a short header.
 Continuous integration checks these file headers.
-The same checks can be performed locally by running `npx github:viperproject/check-license-header#v1 check --config .github/license-check/config.json --strict` in this repository's root directory.
+The same checks can be performed locally by
+running `npx github:viperproject/check-license-header#v1 check --config .github/license-check/config.json --strict` in
+this repository's root directory.
 
 ## Get in touch
+
 Do you still have questions? Open an issue or contact us on [Zulip](https://gobra.zulipchat.com).

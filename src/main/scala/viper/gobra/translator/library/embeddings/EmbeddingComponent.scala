@@ -82,9 +82,11 @@ object EmbeddingComponent {
       * function boxNT(x: T): N
       *   requires p(x)
       *   ensures  unbox(result) == x
+      *   decreases
       *
       * function unboxNT(y: N): T
       *   ensures p(result) && boxN(result) == y
+      *   decreases
       *
       * */
     private def genTriple(id: P)(ctx: Context): Unit = {

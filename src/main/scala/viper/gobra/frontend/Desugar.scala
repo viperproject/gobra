@@ -1031,7 +1031,7 @@ object Desugar {
         *   var i0 int = 0 // since 'i' can change in the iteration we store the true index in i0
         *   var j T = c[0] // [v]
         *   invariant 0 <= i0 && i0 <= len(c)
-        *   invariant i0 < len(c) ==> i0 == i && j == c[i0] // [v] just the j == c[i0] part
+        *   invariant i0 < len(c) ==> i0 == i && j === c[i0] // [v] just the j == c[i0] part
         *   <invariant...>
         *   for i0 < length {
         *     <body>
@@ -1084,7 +1084,7 @@ object Desugar {
         addedInvariantsAfter = (if (hasValue) Vector(
           in.Implication(
             in.LessCmp(i0, in.Length(c)(src))(src),
-            in.ExprAssertion(in.EqCmp(j, in.IndexedExp(c, i0, typ)(indexValueSrc))(indexValueSrc))(indexValueSrc))(indexValueSrc))
+            in.ExprAssertion(in.GhostEqCmp(j, in.IndexedExp(c, i0, typ)(indexValueSrc))(indexValueSrc))(indexValueSrc))(indexValueSrc))
         else
           Vector())
 
@@ -1175,7 +1175,7 @@ object Desugar {
         *   var i0 int = 0 // since 'i' can change in the iteration we store the true index in i0
         *   var j T = c[0] // [v]
         *   invariant 0 <= i0 && i0 <= len(c)
-        *   invariant i0 < len(c) ==> i0 == i && j == c[i0] // [v] just the j == c[i0] part
+        *   invariant i0 < len(c) ==> i0 == i && j === c[i0] // [v] just the j == c[i0] part
         *   <invariant...>
         *   for i0 < length {
         *     <body>
@@ -1190,9 +1190,9 @@ object Desugar {
       def desugarArrSliceAssRange(n: PAssForRange, range: PRange, ass: Vector[PAssignee], spec: PLoopSpec, body: PBlock)(src: Source.Parser.Info): Writer[in.Stmt] = unit(block(for {
         exp <- goE(range.exp)
 
-        (elemType, typ) = underlyingType(exp.typ) match {
-          case s: in.SliceT => (s.elems, s)
-          case a: in.ArrayT => (a.elems, a)
+        typ = underlyingType(exp.typ) match {
+          case s: in.SliceT => s
+          case a: in.ArrayT => a
           case _ => violation("Expected slice or array in for-range statement")
         }
 
@@ -1223,7 +1223,7 @@ object Desugar {
             in.ExprAssertion(in.EqCmp(i0, i.op)(src))(src))(src),
           in.Implication(
             in.LessCmp(i0, in.Length(c)(src))(src),
-            in.ExprAssertion(in.EqCmp(j.op, in.IndexedExp(c, i0, typ)(indexValueSrc))(indexValueSrc))(indexValueSrc))(indexValueSrc))
+            in.ExprAssertion(in.GhostEqCmp(j.op, in.IndexedExp(c, i0, typ)(indexValueSrc))(indexValueSrc))(indexValueSrc))(indexValueSrc))
         else
           Vector(
             in.Implication(
@@ -1344,7 +1344,6 @@ object Desugar {
           case in.MapT(k, v, _) => (k.withAddressability(Addressability.exclusiveVariable), v.withAddressability(Addressability.exclusiveVariable))
           case _ => violation("unexpected type of range expression")
         }
-        visType = in.SetT(keyType, Addressability.exclusiveVariable)
 
         domain = in.MapKeys(c, underlyingType(exp.typ))(src)
 
@@ -1364,7 +1363,6 @@ object Desugar {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
-        indexValueSrc = meta(range.exp, info).createAnnotatedInfo(Source.NoPermissionToRangeExpressionAnnotation())
         addedInvariants = Vector(
           in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
           in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
@@ -1420,11 +1418,10 @@ object Desugar {
       def desugarMapAssRange(n: PAssForRange, range: PRange, ass: Vector[PAssignee], spec: PLoopSpec, body: PBlock)(src: Source.Parser.Info): Writer[in.Stmt] = unit(block(for {
         exp <- goE(range.exp)
 
-        (keyType, valType) = underlyingType(exp.typ) match {
-          case in.MapT(k, v, _) => (k.withAddressability(Addressability.exclusiveVariable), v.withAddressability(Addressability.exclusiveVariable))
+        keyType = underlyingType(exp.typ) match {
+          case in.MapT(k, _, _) => k.withAddressability(Addressability.exclusiveVariable)
           case _ => violation("unexpected type of range expression")
         }
-        visType = in.SetT(keyType, Addressability.exclusiveVariable)
 
         c <- freshDeclaredExclusiveVar(exp.typ.withAddressability(Addressability.exclusiveVariable), n, info)(src)
 
@@ -1446,7 +1443,6 @@ object Desugar {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
-        indexValueSrc = meta(range.exp, info).createAnnotatedInfo(Source.NoPermissionToRangeExpressionAnnotation())
         addedInvariants = Vector(
           in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
           in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))

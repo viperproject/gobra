@@ -114,6 +114,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
        | _: PBitNegation
        | _: PBinaryExp[_,_]
        | _: PUnfolding
+       | _: PLet
        | _: PLength
        | _: PCapacity
        | _: PLiteral

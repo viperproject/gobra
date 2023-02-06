@@ -410,6 +410,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       })
 
       case _: PUnfolding => true
+      case _: PLet => true
       case _: POld | _: PLabeledOld | _: PBefore => true
       case _: PForall => true
       case _: PExists => true

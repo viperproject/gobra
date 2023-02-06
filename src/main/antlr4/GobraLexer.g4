@@ -40,6 +40,7 @@ ACCESS      : 'acc' -> mode(NLSEMI);
 FOLD        : 'fold';
 UNFOLD      : 'unfold';
 UNFOLDING   : 'unfolding';
+LET         : 'let';
 GHOST       : 'ghost';
 IN          : 'in';
 MULTI       : '#';

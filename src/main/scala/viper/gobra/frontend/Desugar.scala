@@ -2622,6 +2622,12 @@ object Desugar {
             val dOp = pureExprD(ctx, info)(op)
             unit(in.Unfolding(dAcc, dOp)(src))
 
+          case PLet(ass, op) =>
+            val dOp = pureExprD(ctx, info)(op)
+            val left = in.LocalVar(ass.left(0).name, dOp.typ)(src)
+            val right = pureExprD(ctx, info)(ass.right(0))
+            unit(in.Let(left, right, dOp)(src))
+
           case n : PIndexedExp => indexedExprD(n)(ctx, info)
 
           case PSliceExp(base, low, high, cap) => for {

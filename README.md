@@ -50,16 +50,18 @@ In the `gobra` directory, run the command `sbt test`.
 
 ### Debugging
 
-By default, Gobra runs in sbt on a forked VM. This means that simply attaching a debugger to sbt will not work. There
+By default, Gobra runs in sbt on a forked JVM. This means that simply attaching a debugger to sbt will not work. There
 are two workarounds:
 
-- Run Gobra in a non-forked VM by first running `set fork := false` in sbt. This will allow you to attach a debugger to
+- Run Gobra in a non-forked JVM by first running `set fork := false` in sbt. This will allow you to attach a debugger to
   sbt normally. However, for unknown reasons, this causes issues with class resolution in the Viper backend, so actually
   only the parsing can really be debugged.
-- Attach the debugger to the forked VM. By
-  running `set javaOptions += "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005"` in sbt, the forked
-  VM can be debugged. However, this will require starting the debugger for each run after the VM has started and is
-  ready for connection. In particular, it may be more difficult to debug early stages.
+- Attach the debugger to the forked JVM.
+  Run `set javaOptions += "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005"`
+  in sbt (use any port you like, just make sure to use the same one in the debugger). Now, the forked JVM can be
+  debugged
+  instead of the sbt JVM. This requires starting the debugger again every time a new VM is created, e.g. for
+  every `run`.
 
 ## Licensing
 

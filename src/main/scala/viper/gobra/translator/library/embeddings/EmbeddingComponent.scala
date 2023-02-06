@@ -10,6 +10,7 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.library.Generator
 import viper.silver.{ast => vpr}
+import viper.silver.plugin.standard.termination
 
 trait EmbeddingParameter {
   def serialize: String
@@ -81,9 +82,11 @@ object EmbeddingComponent {
       * function boxNT(x: T): N
       *   requires p(x)
       *   ensures  unbox(result) == x
+      *   decreases
       *
       * function unboxNT(y: N): T
       *   ensures p(result) && boxN(result) == y
+      *   decreases
       *
       * */
     private def genTriple(id: P)(ctx: Context): Unit = {
@@ -121,7 +124,10 @@ object EmbeddingComponent {
         name = boxName,
         formalArgs = Seq(x),
         typ = N,
-        pres = Seq(p(x.localVar, id)(ctx)),
+        pres = Seq(
+          p(x.localVar, id)(ctx),
+          synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
+        ),
         posts = Seq(vpr.EqCmp(unboxApp(vpr.Result(N)()), x.localVar)()),
         body = None
       )()
@@ -130,7 +136,7 @@ object EmbeddingComponent {
         name = unboxName,
         formalArgs = Seq(y),
         typ = T,
-        pres = Seq.empty,
+        pres = Seq(synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")),
         posts = Seq(p(vpr.Result(T)(), id)(ctx), vpr.EqCmp(boxApp(vpr.Result(T)()), y.localVar)()),
         body = None
       )()
@@ -143,4 +149,7 @@ object EmbeddingComponent {
       genUnboxFuncMap += (id -> unbox)
     }
   }
+
+  private def synthesized[T](node: (vpr.Position, vpr.Info, vpr.ErrorTrafo) => T)(comment: String): T =
+    node(vpr.NoPosition, vpr.SimpleInfo(Seq(comment)), vpr.NoTrafos)
 }

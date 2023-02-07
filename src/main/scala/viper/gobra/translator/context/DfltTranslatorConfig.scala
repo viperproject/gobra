@@ -71,7 +71,7 @@ class DfltTranslatorConfig(
       new MapEncoding, new MathematicalMapEncoding, new FloatEncoding,
       new AssertionEncoding, new CallEncoding, new MemoryEncoding, new ControlEncoding,
       new TerminationEncoding, new BuiltInEncoding, new OutlineEncoding, new DeferEncoding,
-      new GlobalEncoding, new Comments, new LetEncoding
+      new GlobalEncoding, new Comments
     ), Vector(
       methodEncoding, pureMethodEncoding, predicateEncoding, globalVarEncoding
     ))

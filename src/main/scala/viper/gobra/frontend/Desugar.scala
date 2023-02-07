@@ -2624,9 +2624,11 @@ object Desugar {
 
           case PLet(ass, op) =>
             val dOp = pureExprD(ctx, info)(op)
-            val left = in.LocalVar(ass.left(0).name, dOp.typ)(src)
-            val right = pureExprD(ctx, info)(ass.right(0))
-            unit(in.Let(left, right, dOp)(src))
+            unit((ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
+              val left = in.LocalVar(nm.variable(lr._1.name, info.scope(lr._1), info), dOp.typ)(src)
+              val right = pureExprD(ctx, info)(lr._2)
+              in.Let(left, right, letop)(src)
+            }))
 
           case n : PIndexedExp => indexedExprD(n)(ctx, info)
 

@@ -54,6 +54,14 @@ class AssertionEncoding extends Encoding {
         case Seq() => newExists
         case errors => Violation.violation(s"invalid trigger pattern (${errors.head.readableMessage})")
       }
+
+    case let: in.Let =>
+      val (pos, info, errT) = let.vprMeta
+      for {
+        exp <- ctx.expression(let.in)
+        l = vpr.LocalVarDecl(let.left.id, ctx.typ(let.right.typ))(pos, info, errT)
+        r <- ctx.expression(let.right)
+      } yield withSrc(vpr.Let(l, r, exp), let)
   }
 
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {

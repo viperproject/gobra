@@ -571,7 +571,7 @@ case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualEx
   override def nonGhostChildren: Vector[PNode] = Vector(op)
 }
 
-case class PLet(ass: PShortVarDecl, op: PExpression) extends PActualExpression with PProofAnnotation with PScope {
+case class PLet(ass: PShortVarDecl, op: PExpression) extends PGhostExpression with PProofAnnotation with PScope {
   override def nonGhostChildren: Vector[PNode] = Vector(op)
 }
 

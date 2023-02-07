@@ -469,7 +469,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMod(left, right) => showSubExpr(expr, left) <+> "%" <+> showSubExpr(expr, right)
       case PDiv(left, right) => showSubExpr(expr, left) <+> "/" <+> showSubExpr(expr, right)
       case PUnfolding(acc, op) => "unfolding" <+> showExpr(acc) <+> "in" <+> showExpr(op)
-      case PLet(ass, op) => "let" <+> showStmt(ass) <+> "in" <+> showExpr(op)
       case PLength(expr) => "len" <> parens(showExpr(expr))
       case PCapacity(expr) => "cap" <> parens(showExpr(expr))
       case PMake(typ, args) => "make" <> parens(showList[PExpressionOrType](typ +: args){
@@ -494,6 +493,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PGhostEquals(l, r) => showExpr(l) <+> "===" <+> showExpr(r)
       case PGhostUnequals(l, r) => showExpr(l) <+> "!==" <+> showExpr(r)
       case POld(e) => "old" <> parens(showExpr(e))
+      case PLet(ass, op) => "let" <+> showStmt(ass) <+> "in" <+> showExpr(op)
       case PLabeledOld(l, e) => "old" <> brackets(l.name) <> parens(showExpr(e))
       case PBefore(e) => "before" <> parens(showExpr(e))
       case PConditional(cond, thn, els) => showSubExpr(expr, cond) <> "?" <> showSubExpr(expr, thn) <> ":" <> showSubExpr(expr, els)

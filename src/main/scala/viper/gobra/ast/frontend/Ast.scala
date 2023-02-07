@@ -571,6 +571,10 @@ case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualEx
   override def nonGhostChildren: Vector[PNode] = Vector(op)
 }
 
+case class PLet(ass: PShortVarDecl, op: PExpression) extends PGhostExpression with PProofAnnotation with PScope {
+  override def nonGhostChildren: Vector[PNode] = Vector(op)
+}
+
 /**
   * Represents Go's built-in "make(`T`, `size` ...IntegerType)" function that allocates and initializes
   * an object of type `T` and returns it. The documentation (https://golang.org/pkg/builtin/#make) gives

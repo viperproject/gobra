@@ -56,10 +56,9 @@ class AssertionEncoding extends Encoding {
       }
 
     case let: in.Let =>
-      val (pos, info, errT) = let.vprMeta
       for {
         exp <- ctx.expression(let.in)
-        l = vpr.LocalVarDecl(let.left.id, ctx.typ(let.right.typ))(pos, info, errT)
+        l = ctx.variable(let.left)
         r <- ctx.expression(let.right)
       } yield withSrc(vpr.Let(l, r, exp), let)
   }

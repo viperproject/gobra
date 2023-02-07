@@ -2625,8 +2625,8 @@ object Desugar {
           case PLet(ass, op) =>
             val dOp = pureExprD(ctx, info)(op)
             unit((ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
-              val left = in.LocalVar(nm.variable(lr._1.name, info.scope(lr._1), info), dOp.typ)(src)
               val right = pureExprD(ctx, info)(lr._2)
+              val left = in.LocalVar(nm.variable(lr._1.name, info.scope(lr._1), info), right.typ.withAddressability(Addressability.exclusiveVariable))(src)
               in.Let(left, right, letop)(src)
             }))
 

@@ -1,0 +1,39 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I ./)
+import bar "bar"
+
+type T struct {
+    Left, Right int
+}
+
+func foo(x, y bar.Pair) {
+  if x.Left == y.Left && x.Right == y.Right {
+    assert x == y // should fail
+  }
+}
+
+func main() {
+    x := bar.Pair{Left: 2, Right: 0} 
+    y := bar.Pair{Left: 2, Right: 0}
+    assert(x == y)
+
+    x2 := &bar.Pair{Left: 2, Right: 0}
+    y2 := &bar.Pair{Left: 2, Right: 0}
+
+    //:: ExpectedOutput(error:assertion_error)
+    assert(x2 == y2) 
+
+    xt := T{Left: 2, Right: 0}
+    yt := T{Left: 2, Right: 0}
+    assert(xt == yt)
+
+    xt2 := &T{Left: 2, Right: 0}
+    yt2 := &T{Left: 2, Right: 0}
+
+    //:: ExpectedOutput(error:assertion_error)
+    assert(xt2 == yt2) 
+}

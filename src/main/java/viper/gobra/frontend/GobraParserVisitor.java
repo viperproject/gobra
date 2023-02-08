@@ -510,6 +510,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitMpredicateDecl(GobraParser.MpredicateDeclContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#constructDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitConstructDecl(GobraParser.ConstructDeclContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#varSpec}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

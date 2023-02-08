@@ -25,9 +25,9 @@ public class GobraLexer extends Lexer {
 		QMARK=36, L_PRED=37, R_PRED=38, SEQ=39, SET=40, MSET=41, DICT=42, OPT=43, 
 		LEN=44, NEW=45, MAKE=46, CAP=47, SOME=48, GET=49, DOM=50, AXIOM=51, ADT=52, 
 		MATCH=53, NONE=54, PRED=55, TYPE_OF=56, IS_COMPARABLE=57, SHARE=58, ADDR_MOD=59, 
-		DOT_DOT=60, SHARED=61, EXCLUSIVE=62, PREDICATE=63, CONSTRUCT=64, PRIVATE=65, 
-		WRITEPERM=66, NOPERM=67, TRUSTED=68, OUTLINE=69, INIT_POST=70, IMPORT_PRE=71, 
-		PROOF=72, GHOST_EQUALS=73, GHOST_NOT_EQUALS=74, WITH=75, PVT=76, BREAK=77, 
+		DOT_DOT=60, SHARED=61, EXCLUSIVE=62, PREDICATE=63, PRIVATE=64, WRITEPERM=65, 
+		NOPERM=66, TRUSTED=67, OUTLINE=68, INIT_POST=69, IMPORT_PRE=70, PROOF=71, 
+		GHOST_EQUALS=72, GHOST_NOT_EQUALS=73, WITH=74, PVT=75, CONSTRUCT=76, BREAK=77, 
 		DEFAULT=78, FUNC=79, INTERFACE=80, SELECT=81, CASE=82, DEFER=83, GO=84, 
 		MAP=85, STRUCT=86, CHAN=87, ELSE=88, GOTO=89, PACKAGE=90, SWITCH=91, CONST=92, 
 		FALLTHROUGH=93, IF=94, RANGE=95, TYPE=96, CONTINUE=97, FOR=98, IMPORT=99, 
@@ -62,9 +62,9 @@ public class GobraLexer extends Lexer {
 			"SETMINUS", "IMPLIES", "WAND", "APPLY", "QMARK", "L_PRED", "R_PRED", 
 			"SEQ", "SET", "MSET", "DICT", "OPT", "LEN", "NEW", "MAKE", "CAP", "SOME", 
 			"GET", "DOM", "AXIOM", "ADT", "MATCH", "NONE", "PRED", "TYPE_OF", "IS_COMPARABLE", 
-			"SHARE", "ADDR_MOD", "DOT_DOT", "SHARED", "EXCLUSIVE", "PREDICATE", "CONSTRUCT", 
-			"PRIVATE", "WRITEPERM", "NOPERM", "TRUSTED", "OUTLINE", "INIT_POST", 
-			"IMPORT_PRE", "PROOF", "GHOST_EQUALS", "GHOST_NOT_EQUALS", "WITH", "PVT", 
+			"SHARE", "ADDR_MOD", "DOT_DOT", "SHARED", "EXCLUSIVE", "PREDICATE", "PRIVATE", 
+			"WRITEPERM", "NOPERM", "TRUSTED", "OUTLINE", "INIT_POST", "IMPORT_PRE", 
+			"PROOF", "GHOST_EQUALS", "GHOST_NOT_EQUALS", "WITH", "PVT", "CONSTRUCT", 
 			"BREAK", "DEFAULT", "FUNC", "INTERFACE", "SELECT", "CASE", "DEFER", "GO", 
 			"MAP", "STRUCT", "CHAN", "ELSE", "GOTO", "PACKAGE", "SWITCH", "CONST", 
 			"FALLTHROUGH", "IF", "RANGE", "TYPE", "CONTINUE", "FOR", "IMPORT", "RETURN", 
@@ -97,9 +97,9 @@ public class GobraLexer extends Lexer {
 			"'mset'", "'dict'", "'option'", "'len'", "'new'", "'make'", "'cap'", 
 			"'some'", "'get'", "'domain'", "'axiom'", "'adt'", "'match'", "'none'", 
 			"'pred'", "'typeOf'", "'isComparable'", "'share'", "'@'", "'..'", "'shared'", 
-			"'exclusive'", "'predicate'", "'construct'", "'private'", "'writePerm'", 
-			"'noPerm'", "'trusted'", "'outline'", "'initEnsures'", "'importRequires'", 
-			"'proof'", "'==='", "'!=='", "'with'", "'pvt'", "'break'", "'default'", 
+			"'exclusive'", "'predicate'", "'private'", "'writePerm'", "'noPerm'", 
+			"'trusted'", "'outline'", "'initEnsures'", "'importRequires'", "'proof'", 
+			"'==='", "'!=='", "'with'", "'pvt'", "'construct'", "'break'", "'default'", 
 			"'func'", "'interface'", "'select'", "'case'", "'defer'", "'go'", "'map'", 
 			"'struct'", "'chan'", "'else'", "'goto'", "'package'", "'switch'", "'const'", 
 			"'fallthrough'", "'if'", "'range'", "'type'", "'continue'", "'for'", 
@@ -120,9 +120,9 @@ public class GobraLexer extends Lexer {
 			"SETMINUS", "IMPLIES", "WAND", "APPLY", "QMARK", "L_PRED", "R_PRED", 
 			"SEQ", "SET", "MSET", "DICT", "OPT", "LEN", "NEW", "MAKE", "CAP", "SOME", 
 			"GET", "DOM", "AXIOM", "ADT", "MATCH", "NONE", "PRED", "TYPE_OF", "IS_COMPARABLE", 
-			"SHARE", "ADDR_MOD", "DOT_DOT", "SHARED", "EXCLUSIVE", "PREDICATE", "CONSTRUCT", 
-			"PRIVATE", "WRITEPERM", "NOPERM", "TRUSTED", "OUTLINE", "INIT_POST", 
-			"IMPORT_PRE", "PROOF", "GHOST_EQUALS", "GHOST_NOT_EQUALS", "WITH", "PVT", 
+			"SHARE", "ADDR_MOD", "DOT_DOT", "SHARED", "EXCLUSIVE", "PREDICATE", "PRIVATE", 
+			"WRITEPERM", "NOPERM", "TRUSTED", "OUTLINE", "INIT_POST", "IMPORT_PRE", 
+			"PROOF", "GHOST_EQUALS", "GHOST_NOT_EQUALS", "WITH", "PVT", "CONSTRUCT", 
 			"BREAK", "DEFAULT", "FUNC", "INTERFACE", "SELECT", "CASE", "DEFER", "GO", 
 			"MAP", "STRUCT", "CHAN", "ELSE", "GOTO", "PACKAGE", "SWITCH", "CONST", 
 			"FALLTHROUGH", "IF", "RANGE", "TYPE", "CONTINUE", "FOR", "IMPORT", "RETURN", 
@@ -267,11 +267,11 @@ public class GobraLexer extends Lexer {
 		"\3\67\3\67\3\67\3\67\3\67\3\67\38\38\38\38\38\39\39\39\39\39\39\39\39"+
 		"\39\3:\3:\3:\3:\3:\3:\3:\3:\3:\3:\3:\3:\3:\3:\3:\3;\3;\3;\3;\3;\3;\3<"+
 		"\3<\3<\3<\3=\3=\3=\3>\3>\3>\3>\3>\3>\3>\3?\3?\3?\3?\3?\3?\3?\3?\3?\3?"+
-		"\3@\3@\3@\3@\3@\3@\3@\3@\3@\3@\3A\3A\3A\3A\3A\3A\3A\3A\3A\3A\3B\3B\3B"+
-		"\3B\3B\3B\3B\3B\3C\3C\3C\3C\3C\3C\3C\3C\3C\3C\3C\3C\3D\3D\3D\3D\3D\3D"+
-		"\3D\3D\3D\3E\3E\3E\3E\3E\3E\3E\3E\3E\3E\3F\3F\3F\3F\3F\3F\3F\3F\3G\3G"+
-		"\3G\3G\3G\3G\3G\3G\3G\3G\3G\3G\3H\3H\3H\3H\3H\3H\3H\3H\3H\3H\3H\3H\3H"+
-		"\3H\3H\3I\3I\3I\3I\3I\3I\3J\3J\3J\3J\3K\3K\3K\3K\3L\3L\3L\3L\3L\3M\3M"+
+		"\3@\3@\3@\3@\3@\3@\3@\3@\3@\3@\3A\3A\3A\3A\3A\3A\3A\3A\3B\3B\3B\3B\3B"+
+		"\3B\3B\3B\3B\3B\3B\3B\3C\3C\3C\3C\3C\3C\3C\3C\3C\3D\3D\3D\3D\3D\3D\3D"+
+		"\3D\3D\3D\3E\3E\3E\3E\3E\3E\3E\3E\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F"+
+		"\3G\3G\3G\3G\3G\3G\3G\3G\3G\3G\3G\3G\3G\3G\3G\3H\3H\3H\3H\3H\3H\3I\3I"+
+		"\3I\3I\3J\3J\3J\3J\3K\3K\3K\3K\3K\3L\3L\3L\3L\3L\3L\3M\3M\3M\3M\3M\3M"+
 		"\3M\3M\3M\3M\3N\3N\3N\3N\3N\3N\3N\3N\3O\3O\3O\3O\3O\3O\3O\3O\3P\3P\3P"+
 		"\3P\3P\3Q\3Q\3Q\3Q\3Q\3Q\3Q\3Q\3Q\3Q\3R\3R\3R\3R\3R\3R\3R\3S\3S\3S\3S"+
 		"\3S\3T\3T\3T\3T\3T\3T\3U\3U\3U\3V\3V\3V\3V\3W\3W\3W\3W\3W\3W\3W\3X\3X"+
@@ -538,10 +538,10 @@ public class GobraLexer extends Lexer {
 		"\2\2\2h\u02c3\3\2\2\2j\u02cb\3\2\2\2l\u02d1\3\2\2\2n\u02d9\3\2\2\2p\u02e0"+
 		"\3\2\2\2r\u02e5\3\2\2\2t\u02ee\3\2\2\2v\u02fd\3\2\2\2x\u0303\3\2\2\2z"+
 		"\u0307\3\2\2\2|\u030a\3\2\2\2~\u0311\3\2\2\2\u0080\u031b\3\2\2\2\u0082"+
-		"\u0325\3\2\2\2\u0084\u032f\3\2\2\2\u0086\u0337\3\2\2\2\u0088\u0343\3\2"+
-		"\2\2\u008a\u034c\3\2\2\2\u008c\u0356\3\2\2\2\u008e\u035e\3\2\2\2\u0090"+
-		"\u036a\3\2\2\2\u0092\u0379\3\2\2\2\u0094\u037f\3\2\2\2\u0096\u0383\3\2"+
-		"\2\2\u0098\u0387\3\2\2\2\u009a\u038c\3\2\2\2\u009c\u0392\3\2\2\2\u009e"+
+		"\u0325\3\2\2\2\u0084\u032d\3\2\2\2\u0086\u0339\3\2\2\2\u0088\u0342\3\2"+
+		"\2\2\u008a\u034c\3\2\2\2\u008c\u0354\3\2\2\2\u008e\u0360\3\2\2\2\u0090"+
+		"\u036f\3\2\2\2\u0092\u0375\3\2\2\2\u0094\u0379\3\2\2\2\u0096\u037d\3\2"+
+		"\2\2\u0098\u0382\3\2\2\2\u009a\u0388\3\2\2\2\u009c\u0392\3\2\2\2\u009e"+
 		"\u039a\3\2\2\2\u00a0\u03a2\3\2\2\2\u00a2\u03a7\3\2\2\2\u00a4\u03b1\3\2"+
 		"\2\2\u00a6\u03b8\3\2\2\2\u00a8\u03bd\3\2\2\2\u00aa\u03c3\3\2\2\2\u00ac"+
 		"\u03c6\3\2\2\2\u00ae\u03ca\3\2\2\2\u00b0\u03d1\3\2\2\2\u00b2\u03d6\3\2"+
@@ -692,36 +692,36 @@ public class GobraLexer extends Lexer {
 		"\177\3\2\2\2\u031b\u031c\7r\2\2\u031c\u031d\7t\2\2\u031d\u031e\7g\2\2"+
 		"\u031e\u031f\7f\2\2\u031f\u0320\7k\2\2\u0320\u0321\7e\2\2\u0321\u0322"+
 		"\7c\2\2\u0322\u0323\7v\2\2\u0323\u0324\7g\2\2\u0324\u0081\3\2\2\2\u0325"+
-		"\u0326\7e\2\2\u0326\u0327\7q\2\2\u0327\u0328\7p\2\2\u0328\u0329\7u\2\2"+
-		"\u0329\u032a\7v\2\2\u032a\u032b\7t\2\2\u032b\u032c\7w\2\2\u032c\u032d"+
-		"\7e\2\2\u032d\u032e\7v\2\2\u032e\u0083\3\2\2\2\u032f\u0330\7r\2\2\u0330"+
-		"\u0331\7t\2\2\u0331\u0332\7k\2\2\u0332\u0333\7x\2\2\u0333\u0334\7c\2\2"+
-		"\u0334\u0335\7v\2\2\u0335\u0336\7g\2\2\u0336\u0085\3\2\2\2\u0337\u0338"+
-		"\7y\2\2\u0338\u0339\7t\2\2\u0339\u033a\7k\2\2\u033a\u033b\7v\2\2\u033b"+
-		"\u033c\7g\2\2\u033c\u033d\7R\2\2\u033d\u033e\7g\2\2\u033e\u033f\7t\2\2"+
-		"\u033f\u0340\7o\2\2\u0340\u0341\3\2\2\2\u0341\u0342\bC\2\2\u0342\u0087"+
-		"\3\2\2\2\u0343\u0344\7p\2\2\u0344\u0345\7q\2\2\u0345\u0346\7R\2\2\u0346"+
-		"\u0347\7g\2\2\u0347\u0348\7t\2\2\u0348\u0349\7o\2\2\u0349\u034a\3\2\2"+
-		"\2\u034a\u034b\bD\2\2\u034b\u0089\3\2\2\2\u034c\u034d\7v\2\2\u034d\u034e"+
-		"\7t\2\2\u034e\u034f\7w\2\2\u034f\u0350\7u\2\2\u0350\u0351\7v\2\2\u0351"+
-		"\u0352\7g\2\2\u0352\u0353\7f\2\2\u0353\u0354\3\2\2\2\u0354\u0355\bE\2"+
-		"\2\u0355\u008b\3\2\2\2\u0356\u0357\7q\2\2\u0357\u0358\7w\2\2\u0358\u0359"+
-		"\7v\2\2\u0359\u035a\7n\2\2\u035a\u035b\7k\2\2\u035b\u035c\7p\2\2\u035c"+
-		"\u035d\7g\2\2\u035d\u008d\3\2\2\2\u035e\u035f\7k\2\2\u035f\u0360\7p\2"+
-		"\2\u0360\u0361\7k\2\2\u0361\u0362\7v\2\2\u0362\u0363\7G\2\2\u0363\u0364"+
-		"\7p\2\2\u0364\u0365\7u\2\2\u0365\u0366\7w\2\2\u0366\u0367\7t\2\2\u0367"+
-		"\u0368\7g\2\2\u0368\u0369\7u\2\2\u0369\u008f\3\2\2\2\u036a\u036b\7k\2"+
-		"\2\u036b\u036c\7o\2\2\u036c\u036d\7r\2\2\u036d\u036e\7q\2\2\u036e\u036f"+
-		"\7t\2\2\u036f\u0370\7v\2\2\u0370\u0371\7T\2\2\u0371\u0372\7g\2\2\u0372"+
-		"\u0373\7s\2\2\u0373\u0374\7w\2\2\u0374\u0375\7k\2\2\u0375\u0376\7t\2\2"+
-		"\u0376\u0377\7g\2\2\u0377\u0378\7u\2\2\u0378\u0091\3\2\2\2\u0379\u037a"+
-		"\7r\2\2\u037a\u037b\7t\2\2\u037b\u037c\7q\2\2\u037c\u037d\7q\2\2\u037d"+
-		"\u037e\7h\2\2\u037e\u0093\3\2\2\2\u037f\u0380\7?\2\2\u0380\u0381\7?\2"+
-		"\2\u0381\u0382\7?\2\2\u0382\u0095\3\2\2\2\u0383\u0384\7#\2\2\u0384\u0385"+
-		"\7?\2\2\u0385\u0386\7?\2\2\u0386\u0097\3\2\2\2\u0387\u0388\7y\2\2\u0388"+
-		"\u0389\7k\2\2\u0389\u038a\7v\2\2\u038a\u038b\7j\2\2\u038b\u0099\3\2\2"+
-		"\2\u038c\u038d\7r\2\2\u038d\u038e\7x\2\2\u038e\u038f\7v\2\2\u038f\u0390"+
-		"\3\2\2\2\u0390\u0391\bM\2\2\u0391\u009b\3\2\2\2\u0392\u0393\7d\2\2\u0393"+
+		"\u0326\7r\2\2\u0326\u0327\7t\2\2\u0327\u0328\7k\2\2\u0328\u0329\7x\2\2"+
+		"\u0329\u032a\7c\2\2\u032a\u032b\7v\2\2\u032b\u032c\7g\2\2\u032c\u0083"+
+		"\3\2\2\2\u032d\u032e\7y\2\2\u032e\u032f\7t\2\2\u032f\u0330\7k\2\2\u0330"+
+		"\u0331\7v\2\2\u0331\u0332\7g\2\2\u0332\u0333\7R\2\2\u0333\u0334\7g\2\2"+
+		"\u0334\u0335\7t\2\2\u0335\u0336\7o\2\2\u0336\u0337\3\2\2\2\u0337\u0338"+
+		"\bB\2\2\u0338\u0085\3\2\2\2\u0339\u033a\7p\2\2\u033a\u033b\7q\2\2\u033b"+
+		"\u033c\7R\2\2\u033c\u033d\7g\2\2\u033d\u033e\7t\2\2\u033e\u033f\7o\2\2"+
+		"\u033f\u0340\3\2\2\2\u0340\u0341\bC\2\2\u0341\u0087\3\2\2\2\u0342\u0343"+
+		"\7v\2\2\u0343\u0344\7t\2\2\u0344\u0345\7w\2\2\u0345\u0346\7u\2\2\u0346"+
+		"\u0347\7v\2\2\u0347\u0348\7g\2\2\u0348\u0349\7f\2\2\u0349\u034a\3\2\2"+
+		"\2\u034a\u034b\bD\2\2\u034b\u0089\3\2\2\2\u034c\u034d\7q\2\2\u034d\u034e"+
+		"\7w\2\2\u034e\u034f\7v\2\2\u034f\u0350\7n\2\2\u0350\u0351\7k\2\2\u0351"+
+		"\u0352\7p\2\2\u0352\u0353\7g\2\2\u0353\u008b\3\2\2\2\u0354\u0355\7k\2"+
+		"\2\u0355\u0356\7p\2\2\u0356\u0357\7k\2\2\u0357\u0358\7v\2\2\u0358\u0359"+
+		"\7G\2\2\u0359\u035a\7p\2\2\u035a\u035b\7u\2\2\u035b\u035c\7w\2\2\u035c"+
+		"\u035d\7t\2\2\u035d\u035e\7g\2\2\u035e\u035f\7u\2\2\u035f\u008d\3\2\2"+
+		"\2\u0360\u0361\7k\2\2\u0361\u0362\7o\2\2\u0362\u0363\7r\2\2\u0363\u0364"+
+		"\7q\2\2\u0364\u0365\7t\2\2\u0365\u0366\7v\2\2\u0366\u0367\7T\2\2\u0367"+
+		"\u0368\7g\2\2\u0368\u0369\7s\2\2\u0369\u036a\7w\2\2\u036a\u036b\7k\2\2"+
+		"\u036b\u036c\7t\2\2\u036c\u036d\7g\2\2\u036d\u036e\7u\2\2\u036e\u008f"+
+		"\3\2\2\2\u036f\u0370\7r\2\2\u0370\u0371\7t\2\2\u0371\u0372\7q\2\2\u0372"+
+		"\u0373\7q\2\2\u0373\u0374\7h\2\2\u0374\u0091\3\2\2\2\u0375\u0376\7?\2"+
+		"\2\u0376\u0377\7?\2\2\u0377\u0378\7?\2\2\u0378\u0093\3\2\2\2\u0379\u037a"+
+		"\7#\2\2\u037a\u037b\7?\2\2\u037b\u037c\7?\2\2\u037c\u0095\3\2\2\2\u037d"+
+		"\u037e\7y\2\2\u037e\u037f\7k\2\2\u037f\u0380\7v\2\2\u0380\u0381\7j\2\2"+
+		"\u0381\u0097\3\2\2\2\u0382\u0383\7r\2\2\u0383\u0384\7x\2\2\u0384\u0385"+
+		"\7v\2\2\u0385\u0386\3\2\2\2\u0386\u0387\bL\2\2\u0387\u0099\3\2\2\2\u0388"+
+		"\u0389\7e\2\2\u0389\u038a\7q\2\2\u038a\u038b\7p\2\2\u038b\u038c\7u\2\2"+
+		"\u038c\u038d\7v\2\2\u038d\u038e\7t\2\2\u038e\u038f\7w\2\2\u038f\u0390"+
+		"\7e\2\2\u0390\u0391\7v\2\2\u0391\u009b\3\2\2\2\u0392\u0393\7d\2\2\u0393"+
 		"\u0394\7t\2\2\u0394\u0395\7g\2\2\u0395\u0396\7c\2\2\u0396\u0397\7m\2\2"+
 		"\u0397\u0398\3\2\2\2\u0398\u0399\bN\2\2\u0399\u009d\3\2\2\2\u039a\u039b"+
 		"\7f\2\2\u039b\u039c\7g\2\2\u039c\u039d\7h\2\2\u039d\u039e\7c\2\2\u039e"+

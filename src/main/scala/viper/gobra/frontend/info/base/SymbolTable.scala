@@ -200,6 +200,11 @@ object SymbolTable extends Environments[Entity] {
     val itfType: Type.InterfaceT = Type.InterfaceT(itfDef, context)
   }
 
+  case class Construct(decl: PConstructDecl, context: ExternalTypeInfo) extends ActualRegular {
+    override def rep: PNode = decl
+    override def ghost: Boolean = false
+  }
+
   case class Import(decl: PImport, context: ExternalTypeInfo) extends ActualRegular with TypeEntity {
     override def rep: PNode = decl
     // TODO: requires checks that no actual entity from package is taken

@@ -195,6 +195,7 @@ case class PTypeDef(right: PType, left: PIdnDef) extends PTypeDecl
 
 case class PTypeAlias(right: PType, left: PIdnDef) extends PTypeDecl
 
+case class PConstructDecl(typ: PType, args: Vector[PParameter], spec: PFunctionSpec, body: PGhostStatement) extends PActualMember with PScope
 
 /**
   * Statements

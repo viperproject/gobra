@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+ensures 
+type Pair struct {
+  Left, Right, p int
+}
+
+pred (s *Pair) PrivateMem() {
+  acc(&s.p)
+}
+
+pred (s *Pair) PublicMem() {
+  acc(&s.Left) && acc(&s.Right) && s.PrivateMem()
+}
+
+ensures result.PublicMem()
+construct Pair() {
+  unfold result.PublicMem()
+}
+
+
+func main() {
+  x := &Pair{Left: 2, Right: 0, p: 3}
+}
+
+
+

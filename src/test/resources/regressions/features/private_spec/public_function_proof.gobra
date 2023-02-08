@@ -11,7 +11,7 @@ type Pair struct {
 requires acc(x) && x.Left == 2 
 ensures  acc(x) && x.Left == 2
 private {
-  requires acc(x) && x.Left == 2 && x.p == 3
+  requires acc(x) && x.Left == 2
   ensures  acc(x) && x.Left == 2 && x.p == 3
   proof Foo {
     Foo(x)
@@ -54,3 +54,39 @@ ensures a == 0
 func F3(a int) (r int) {
   return a
 }
+
+
+pred P(a int) {
+  a == 0
+}
+
+// public function, predicates
+requires P(a)
+ensures P(a)
+private {
+  requires a == 0
+  ensures a == 0
+  proof FPred {
+    unfold P(a)
+    FPred(a)
+    fold P(a)
+  }
+}
+func FPred(a int)
+
+pred p(a int) {
+  a == 0
+}
+
+requires P(a)
+ensures P(a)
+private {
+  requires P(a)
+  ensures P(a)
+  proof FPred2 {
+    FPred2(a)
+  }
+}
+func FPred2(a int) 
+
+

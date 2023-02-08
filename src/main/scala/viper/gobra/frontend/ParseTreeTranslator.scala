@@ -844,6 +844,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       => PFunctionDecl(id, args, result, spec, body)
     case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
       => PMethodDecl(id, receiver, args, result, spec, body)
+    case Vector(spec : PFunctionSpec, Vector(_, typ: PType, (args: Vector[PParameter@unchecked], _), _, body: PGhostStatement, _, _))
+      => PConstructDecl(typ, args, spec, body)
   }
 
   /**
@@ -917,6 +919,23 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case Vector("ghost", decl : Vector[PGhostifiableMember] @unchecked) => decl.map(PExplicitGhostMember(_).at(ctx))
   }
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  /* override def visitConstructDecl(ctx: ConstructDeclContext): PConstructDecl = {
+    val typ = idnUse.get(ctx.IDENTIFIER())
+    println(s"visitConstructDecl typ: $typ")
+    val stmt = ctx.ghostStatement() match {
+      case f: FoldStatementContext => visitFoldStatement(f)
+      case c => unexpected(c)
+    }
+    //val body = visitConstructBody(ctx.ghostStatement())
+    //println(s"visitConstructMember body: $body")
+    PConstructDecl(post, typ, stmt).at(ctx)
+  } */
 
   //region Implementation proofs
   /**

@@ -133,7 +133,6 @@ object Names {
 
   // struct
   def sharedStructDomain: String = "ShStruct"
-  def sharedPartialStructDomain: String = "PshStruct"
   def sharedStructDfltFunc: String = "shStructDefault"
   def partialSharedStructDfltFunc: String = "pshStructDefault"
 

@@ -69,6 +69,7 @@ trait NameResolution {
             // therefore, we do not use `isGhost` but `spec.isGhost`:
             MethodSpec(spec, tdef, spec.isGhost, this)
 
+          case decl: PConstructDecl => Construct(decl, this)
           case decl: PFieldDecl => Field(decl, isGhost, this)
           case decl: PEmbeddedDecl => Embbed(decl, isGhost, this)
 
@@ -260,6 +261,7 @@ trait NameResolution {
         case d: PFunctionDecl => Vector(d.id)
         case d: PTypeDecl => Vector(d.left) ++ leakingIdentifier(d.right)
         case d: PMethodDecl => Vector(d.id)
+        case _: PConstructDecl => Vector.empty
       }
       case PExplicitGhostMember(a) => packageLevelDefinitions(a)
       case p: PMPredicateDecl => Vector(p.id)

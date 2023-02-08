@@ -397,6 +397,7 @@ object Desugar {
         case x: PMPredicateDecl => Vector(registerMPredicate(x))
         case x: PFPredicateDecl => Vector(registerFPredicate(x))
         case x: PImplementationProof => registerImplementationProof(x); Vector.empty
+        case x: PConstructDecl => typeD(info.symbType(x.typ), Addressability.dereference)(meta(x, info)); Vector.empty
         case _ => Vector.empty
       }
 
@@ -987,7 +988,6 @@ object Desugar {
           case unk: PIdnUnk if info.isDef(unk) => true
           case _ => false
         }
-
         idn match {
           case _: PWildcard => freshDeclaredExclusiveVar(t.withAddressability(Addressability.Exclusive), idn, info)(src).map(in.Assignee.Var)
 
@@ -4106,130 +4106,6 @@ object Desugar {
       }
     }
 
-    def privateEntailmentProofD(ctx: FunctionContext)(proof: PPrivateEntailmentProof): Writer[in.Stmt] = {
-      val proofSpec = proof.spec
-
-      val (f, fTypeInfo, fSpec) = info.resolve(proofSpec.func) match {
-        case Some(ap.Function(_, f)) => (f, f.context.getTypeInfo, f.decl.spec)
-        case _ => Violation.violation(s"expected a function, but got ${proofSpec.func}")
-      }
-
-      // Generate a new local variable for an argument or result of the spec function.
-      def localVarFromParam(p: PParameter): in.LocalVar = {
-        val src = meta(p, fTypeInfo)
-        val typ = typeD(fTypeInfo.typ(p), Addressability.inParameter)(src)
-        in.LocalVar(nm.fresh(proof, info), typ)(src)
-      }
-
-      val argSubs = f.args map localVarFromParam
-      val retSubs = f.result.outs map localVarFromParam
-
-      // We replace a return statement inside the proof with the equivalent assignment to the result variables.
-      @tailrec
-      def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt =
-        if (rets.isEmpty) in.Seqn(Vector.empty)(src)
-        else if (rets.size == retSubs.size) in.Seqn(retSubs.zip(rets).map{ case (p, v) => singleAss(in.Assignee.Var(p), v)(src) })(src)
-        else if (rets.size == 1) rets.head match {
-          case in.Tuple(args) => assignReturns(args)(src)
-          case _ => multiassD(retSubs.map(v => in.Assignee.Var(v)), rets.head, proof.block)(src)
-        }
-        else violation(s"found ${rets.size} returns but expected 0, 1, or ${retSubs.size}")
-
-      // Depending on the shape of c in `proof c implements ...`, get:
-      // - the receiver, if c corresponds to a received method
-      // - the closure expression, if c is the name of a closure variable
-      // - nothing, if c is a function name
-      val recvOrClosure: Option[PExpression] = info.resolve(proofSpec.func) match {
-        case Some(ap.ReceivedMethod(recv, _, _, _)) => Some(recv)
-        case Some(ap.BuiltInReceivedMethod(recv, _, _, _)) => Some(recv)
-        case Some(_: ap.Function) => None
-        case _ if !proofSpec.func.isInstanceOf[PNamedOperand] => None
-        case _ => Some(proofSpec.func)
-      }
-
-      // Create a local variable, as an alias of c (or recv, if c has the form recv.methodName)
-      val recvOrClosureAlias = recvOrClosure map { exp =>
-        val src = meta(exp, info)
-        val typ = typeD(info.typ(exp), Addressability.inParameter)(src)
-        in.LocalVar(nm.fresh(proof, info), typ)(src)
-      }
-
-      // If the expression matches [[recvOrClosure]], replace it with [[recvOrClosureAlias]]
-      def replaceRecvOrClosure(exp: PExpression): Option[Writer[in.Expr]] =
-        if (recvOrClosure.contains(exp)) recvOrClosureAlias.map(unit)
-        else None
-
-      val newCtx = ctx.copyWith(assignReturns).copyWithExpD(replaceRecvOrClosure)
-      // We need to substitute the argument and result names with the corresponding fresh variables.
-      ((argSubs zip f.args) ++ (retSubs zip f.result.outs)) foreach {
-        case (s, PNamedParameter(id, _)) => newCtx.addSubst(id, s, fTypeInfo)
-        case (s, PExplicitGhostParameter(PNamedParameter(id, _))) => newCtx.addSubst(id, s, fTypeInfo)
-        case _ =>
-      }
-
-      val src = meta(proof, info)
-
-      val spec = closureSpecD(newCtx, info)(proofSpec)
-
-      // Declare all the aliases
-      val declarations = argSubs ++ retSubs ++ recvOrClosureAlias.toVector
-      // Assign the parameter values to the corresponding argument aliases
-      val assignments =
-        recvOrClosure.map(exp => singleAss(in.Assignee(recvOrClosureAlias.get), exprD(ctx, info)(exp).res)(meta(exp, info))).toVector ++
-          argSubs.zipWithIndex.collect {
-            case (v, idx) if spec.params.contains(idx+1) =>
-              val exp = spec.params(idx+1)
-              singleAss(in.Assignee(v), exp)(src)
-          }
-
-      // Desugar the precondition of spec, replacing the argument and results with their aliases
-      val pres = (fSpec.pres ++ fSpec.preserves) map preconditionD(newCtx, fTypeInfo)
-
-      // For the postcondition, we need to replace all old() expressions with labeled old expressions,
-      // and add a label at the beginning of the proof body
-      var postsCtx = newCtx.copy
-      val oldLabelProxy = in.LabelProxy(nm.label(nm.fresh(proof, info)))(src)
-      val oldLabel = in.Label(oldLabelProxy)(src)
-      def replaceOldLabel(old: POld): Writer[in.Expr] = for {
-        operand <- exprD(postsCtx, fTypeInfo)(old.operand)
-      } yield in.LabeledOld(oldLabelProxy, operand)(src)
-      postsCtx = postsCtx.copyWithExpD({
-        case old: POld =>
-          Some(replaceOldLabel(old))
-        case exp =>
-          replaceRecvOrClosure(exp)
-      })
-      val posts = (fSpec.preserves ++ fSpec.posts) map postconditionD(postsCtx, fTypeInfo)
-
-      // Desugar the proof as a block containing all the aliases declarations and assignments, and
-      // the corresponding internal proof node.
-      /* val closure = exprD(ctx, info)(proofSpec.func).res
-      val body = stmtD(ctx, info)(proof.block).res
-      val block = in.Block(Vector.empty, Vector(oldLabel, body))(meta(proof.block, info))
-      val privateProof = in.SpecImplementationProof(closure, spec, block, pres, posts)(src)
-      println(s"closure: ${closure}")
-      println(s"body: ${body}")
-      println(s"privateProof: ${privateProof}")
-      println(s"entireProof: ${in.Block(Vector(oldLabelProxy),  Vector(privateProof))(src)}")
-      for {
-        proof <- for {
-          closure <- exprD(newCtx, info)(proofSpec.func)
-          spec = closureSpecD(newCtx, info)(proofSpec)
-          body <- stmtD(newCtx, info)(proof.block)
-          block = in.Block(Vector.empty, Vector(oldLabel, body))(meta(proof.block, info))
-        } yield in.SpecImplementationProof(closure, spec, block, pres, posts)(src)
-      } yield in.Block(declarations ++ Vector(oldLabelProxy), assignments ++ Vector(proof))(src) */
-
-      stmtD(ctx, info)(proof.block)
-
-      /* val closure = exprD(newCtx, info)(proofSpec.func).res
-      val body = stmtD(newCtx, info)(proof.block).res
-      val block = in.Block(Vector.empty, Vector(oldLabel, body))(meta(proof.block, info))
-      val privateProof = in.SpecImplementationProof(closure, spec, block, privatePres, privatePosts)(src)
-
-      in.Block(declarations ++ Vector(oldLabelProxy), assignments ++ Vector(privateProof))(src) */
-    } 
-
     /**
       * Desugar a specification entailment proof (proof c implements spec{params} { BODY }), as follows:
       * - Declare a fresh variable for all the arguments and results of spec.
@@ -4576,7 +4452,7 @@ object Desugar {
         pres = (spec.pres ++ spec.preserves) map preconditionD(ctx, info)
         posts = (spec.preserves ++ spec.posts) map postconditionD(ctx, info)
         terminationMeasures = sequence(spec.terminationMeasures map terminationMeasureD(ctx, info)).res
-        proof = for { p <- spec.proof } yield block(privateEntailmentProofD(ctx)(p))
+        proof = for { p <- spec.proof } yield block(stmtD(ctx, info)(p.block))
       } yield in.PrivateSpec(pres, posts, terminationMeasures, proof)(src)
     }
 

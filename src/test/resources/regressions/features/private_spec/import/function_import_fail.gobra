@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I ./)
+import bar "bar"
+
+func main() {
+    X := &bar.Pair{Left: 2, Right: 0}
+
+    bar.Foo(1,1,X)
+
+    x := bar.Getx(2, 2, 3)
+
+    bar.Foo2(1,1,x)
+
+    //:: ExpectedOutput(type_error)
+    bar.foo3(1,1,x) 
+}

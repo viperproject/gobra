@@ -229,7 +229,7 @@ new_: NEW L_PAREN type_ R_PAREN;
 
 // Added specifications and parameter info
 
-specMember: specification (functionDecl[$specification.trusted, $specification.pure] | methodDecl[$specification.trusted, $specification.pure]);
+specMember: specification (functionDecl[$specification.trusted, $specification.pure] | methodDecl[$specification.trusted, $specification.pure] | constructDecl);
 
 functionDecl[boolean trusted, boolean pure]:  FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
 
@@ -245,9 +245,7 @@ predicateBody: L_CURLY expression eos R_CURLY;
 
 mpredicateDecl: PRED receiver IDENTIFIER parameters predicateBody?;
 
-// constructMember: specification constructDecl;
-
-// constructDecl: CONSTRUCT IDENTIFIER L_CURLY fold_stmt=(FOLD | UNFOLD) predicateAccess R_CURLY;
+constructDecl: CONSTRUCT type_ signature (L_CURLY ghostStatement eos R_CURLY);
 
 // Addressability
 

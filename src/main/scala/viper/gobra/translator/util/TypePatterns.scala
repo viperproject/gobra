@@ -190,11 +190,18 @@ object TypePatterns {
       }
     }
 
+    object Struct {
+      def unapply(arg: in.Type): Option[Vector[in.Field]] = underlyingType(arg)(ctx) match {
+        case t: in.StructT => Some(t.fields.filter(!_.notImported))
+        case _ => None
+      }
+    }
+
     /* imported struct with private fields */
     object PartialStruct {
       def unapply(arg: in.Type): Option[Vector[in.Field]] = underlyingType(arg)(ctx) match {
         case t: in.StructT =>
-          val existingFields = t.fields.filter(!_.notImported) // removed not imported fields
+          val existingFields = t.fields.filter(!_.notImported)
           if (existingFields.size == t.fields.size) None
           else Some(existingFields)
         case _ => None
@@ -204,9 +211,8 @@ object TypePatterns {
     object CompleteStruct {
       def unapply(arg: in.Type): Option[Vector[in.Field]] = underlyingType(arg)(ctx) match {
         case t: in.StructT =>
-          if (t.fields.exists(_.notImported)) { // exists not imported field
-            None
-          } else Some(t.fields)
+          if (t.fields.exists(_.notImported)) None
+          else Some(t.fields)
         case _ => None
       }
     } 

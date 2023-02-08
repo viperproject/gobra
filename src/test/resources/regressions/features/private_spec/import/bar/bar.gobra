@@ -14,11 +14,6 @@ type pair struct {
 const g int = 2
 const G int = 42
 
-var v int = 3
-var V int = 43
-
-var barN, barN2 int = 4, 6
-
 //private function with struct (private specification and proof)
 requires acc(x) && x.Left == 2 
 ensures  acc(x) && x.Left == 2 
@@ -31,16 +26,32 @@ private {
 }
 func Foo(a, b int, x *Pair)
 
+ensures acc(r) && r.Left == a && r.Right == b
+func Getx(a, b, c int) (r *pair) {
+  return &pair{Left: a, Right: b, p2: c}
+}
+
+requires acc(x) && x.Left == 2 && x.Right == 2
+ensures  acc(x) && x.Left == 2 && x.Right == 2
+private {
+  requires acc(x) && x.Left == 2 && x.Right == 2
+  ensures  acc(x) && x.Left == 2 && x.Right == 2 && x.p2 == 3
+  proof Foo2 {
+    Foo2(a, b, x)
+  }
+}
+func Foo2(a, b int, x *pair)
+
 requires acc(x) && x.Left == 2 
-ensures  acc(x) && x.Left == 2 // && x.GetP2() == 3
+ensures  acc(x) && x.Left == 2 
 private {
   requires acc(x) && x.Left == 2 
   ensures  acc(x) && x.Left == 2 && x.p2 == 3
-  proof foo {
-    foo(a, b, x)
+  proof foo3 {
+    foo3(a, b, x)
   }
 }
-func foo(a, b int, x *pair)
+func foo3(a, b int, x *pair)
 
 
 pred P(a int) {
@@ -70,9 +81,7 @@ private {
   requires P(a)
   ensures P(a)
   proof FPred2 {
-    unfold P(a)
     FPred2(a)
-    fold P(a)
   }
 }
 func FPred2(a int) 

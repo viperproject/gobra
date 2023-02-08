@@ -32,9 +32,9 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
       case t => Violation.violation(s"Unexpected Method in isPrivateRegular, got $t") 
     } 
     case p: symb.Predicate => p match {
-      case fp: symb.FPredicate => startsWithLowercase(fp.decl.id.name) || isPrivateParam(fp.args) || isPrivateExpression(fp.decl.body.getOrElse(null))
+      case fp: symb.FPredicate => startsWithLowercase(fp.decl.id.name) || isPrivateParam(fp.args) // || isPrivateExpression(fp.decl.body.getOrElse(null))
       case mp: symb.MPredicate => mp match {
-        case mpi: symb.MPredicateImpl => startsWithLowercase(mpi.decl.id.name) || isPrivateParam(mpi.args) || isPrivateExpression(mpi.decl.body.getOrElse(null))
+        case mpi: symb.MPredicateImpl => startsWithLowercase(mpi.decl.id.name) || isPrivateParam(mpi.args) // || isPrivateExpression(mpi.decl.body.getOrElse(null))
         case mps: symb.MPredicateSpec => startsWithLowercase(mps.decl.id.name) || isPrivateParam(mps.args)
       }
       case t => Violation.violation(s"Unexpected Predicate in isPrivateRegular, got $t") 

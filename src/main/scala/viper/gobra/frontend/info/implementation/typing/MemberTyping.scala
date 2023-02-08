@@ -46,6 +46,8 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
           idsOkMsgs
         }
       }
+    case c: PConstructDecl => 
+      wellDefVariadicArgs(c.args) ++ wellDefConstructor(c)
     case s: PActualStatement =>
       wellDefStmt(s).out
   }
@@ -105,5 +107,12 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
     // TODO: add support for ghost out-params
     val noInputsAndOutputs = n.args.isEmpty && n.result.outs.isEmpty
     error(n, errorMsg, isMainFunc && !noInputsAndOutputs)
+  }
+
+  private def wellDefConstructor(c: PConstructDecl): Messages = {
+    wellDefGhostStmt(c.body) ++
+    error(c, s"construct statement can only have unfold statements, but got ${c.body}", c.body match { case PUnfold(_) => false; case _ => true }) ++
+    error(c, s"construct statement can only have postconditions, but got ${c.spec}", c.spec.pres.nonEmpty || c.spec.preserves.nonEmpty || c.spec.privateSpec.nonEmpty || c.spec.terminationMeasures.nonEmpty) ++
+    error(c, s"the construct statement does not refer to a struct type, but got ${c.typ}", underlyingTypeP(c.typ) match { case Some(_: PStructType) => false; case _ => true })
   }
 }

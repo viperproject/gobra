@@ -142,6 +142,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: MethodSpec => LocalMessages(noMessages) // not typed
 
+    case _: Construct => LocalMessages(noMessages) // not typed
+
     case _: Import => LocalMessages(noMessages)
 
     case _: Wildcard => LocalMessages(noMessages) // not typed
@@ -214,6 +216,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       // Thus, the receiver is supplied implicitly.
     case MethodSpec(PMethodSig(_, args, result, _, _), _, _, context) =>
       FunctionT(args map context.typ, context.typ(result))
+
+    case Construct(decl, context) => context.symbType(decl.typ)
 
     case BuiltInFunction(tag, _, _) => typ(tag)
 

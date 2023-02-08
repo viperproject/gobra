@@ -1,0 +1,31 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type Pair struct {
+  Left, Right, p int
+}
+
+// test private member in public specification
+//:: ExpectedOutput(error)
+requires acc(x) && x.Left == 2 && x.p == 3
+ensures  acc(x) && x.Left == 2
+private {
+  requires acc(x) && x.Left == 2 && x.p == 3
+  ensures  acc(x) && x.Left == 2 && x.p == 3
+  proof Foo {
+    Foo(x)
+  }
+}
+func Foo(x *Pair) {
+  x.Left = 2
+  x.p = 3
+}
+
+const g int = 6
+
+//:: ExpectedOutput(error)
+requires g == 6
+func Foo2()
+

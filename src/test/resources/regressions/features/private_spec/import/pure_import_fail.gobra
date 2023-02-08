@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I ./)
+import bar "bar"
+
+func main() {
+    assert(bar.PF(2) == 2)
+
+    //:: ExpectedOutput(type_error)
+    assert(bar.pf(2) == 2)
+}

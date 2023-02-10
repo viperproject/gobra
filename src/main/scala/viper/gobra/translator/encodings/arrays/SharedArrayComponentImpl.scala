@@ -51,7 +51,7 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
         formalArgs = Seq.empty,
         typ = vResType,
         pres = Seq(synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")),
-          posts = Vector(vpr.EqCmp(ctx.array.len(vpr.Result(vResType)())(), vpr.IntLit(1)())(), forall),
+        posts = Vector(vpr.EqCmp(ctx.array.len(vpr.Result(vResType)())(), vpr.IntLit(1)())(), forall),
         body = None
       )()
     }

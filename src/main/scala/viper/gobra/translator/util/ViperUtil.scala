@@ -104,4 +104,8 @@ object ViperUtil {
 
     s.reduceWithContext(Nil, addDecls, combineResults)
   }
+
+  /** Adds simple (source) information to a node without source information. */
+  def synthesized[T](node: (Position, Info, ErrorTrafo) => T)(comment: String): T =
+    node(NoPosition, SimpleInfo(Seq(comment)), NoTrafos)
 }

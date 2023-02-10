@@ -15,7 +15,6 @@ import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
-import viper.gobra.util.TypeBounds
 import viper.gobra.util.Violation.violation
 
 import scala.annotation.unused

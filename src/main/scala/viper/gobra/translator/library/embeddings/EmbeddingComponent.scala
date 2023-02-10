@@ -9,6 +9,7 @@ package viper.gobra.translator.library.embeddings
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.library.Generator
+import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.silver.{ast => vpr}
 import viper.silver.plugin.standard.termination
 
@@ -149,7 +150,4 @@ object EmbeddingComponent {
       genUnboxFuncMap += (id -> unbox)
     }
   }
-
-  private def synthesized[T](node: (vpr.Position, vpr.Info, vpr.ErrorTrafo) => T)(comment: String): T =
-    node(vpr.NoPosition, vpr.SimpleInfo(Seq(comment)), vpr.NoTrafos)
 }

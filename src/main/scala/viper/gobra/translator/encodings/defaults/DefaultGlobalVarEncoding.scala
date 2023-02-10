@@ -10,6 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.Encoding
+import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.MemberLevel.unit
 import viper.gobra.translator.util.ViperWriter.MemberWriter
 import viper.silver.{ast => vpr}

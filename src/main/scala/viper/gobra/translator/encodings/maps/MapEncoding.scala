@@ -16,6 +16,7 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.encodings.maps.MapEncoding.{checkKeyComparability, comparabilityErrorT, repeatedKeyErrorT}
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.{FunctionGenerator, MethodGenerator, PrimitiveGenerator}
 import viper.gobra.translator.util.ViperWriter.CodeLevel._
 import viper.gobra.translator.util.ViperWriter.CodeWriter
@@ -55,10 +56,10 @@ class MapEncoding extends LeafTypeEncoding {
     * Encodes expressions as values that do not occupy some identifiable location in memory.
     * R[ nil(map[K]V°) ] -> null
     * R[ dflt(map[K]V°) ] -> null
-    * R[ len(e: map[K]V) ] -> [e] == null? 0 : | getCorrespondingMap([e]) |
-    * R[ (e: map[K]V)[idx] ] -> [e] == null? [ dflt(V) ] : goMapLookup(e[idx])
-    * R[ keySet(e: map[K]V) ] -> [e] == null? 0 : MapDomain(getCorrespondingMap(e))
-    * R[ valueSet(e: map[K]V) ] -> [e] == null? 0 : MapRange(getCorrespondingMap(e))
+    * R[ len(e: map[K]V) ] -> mapCardinality([e])
+    * R[ (e: map[K]V)[idx] ] -> mapLookup([e], [idx])
+    * R[ keySet(e: map[K]V) ] -> mapKeySet([e])
+    * R[ valueSet(e: map[K]V) ] -> mapValueSet([e])
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)

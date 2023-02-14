@@ -13,20 +13,20 @@ requires acc(m)
 func test2(m map[interface{}]int) int {
 	var m1 interface{} = make(map[int]int)
 	// runtime type of m1 is not comparable
-	//:: ExpectedOutput(assert_error:key_not_comparable_reason)
+	//:: ExpectedOutput(precondition_error:permission_error)
 	return m[m1]
 }
 
 func test3() {
 	x := -100
 	// x is negative (determined dynamically)
-	//:: ExpectedOutput(make_precondition_error)
+	//:: ExpectedOutput(precondition_error)
 	m := make(map[int]int, x)
 }
 
 
 // cannot compute domain(m), no permission to m
-//:: ExpectedOutput(contract_not_well_formed)
+//:: ExpectedOutput(precondition_error:permission_error)
 requires "key" in domain(m)
 func test4(m map[string]string) (r string){
 	return m["key"]

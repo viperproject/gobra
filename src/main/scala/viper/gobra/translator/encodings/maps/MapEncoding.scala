@@ -115,7 +115,7 @@ class MapEncoding extends LeafTypeEncoding {
     def goT(t: in.Type): vpr.Type = ctx.typ(t)
 
     default(super.statement(ctx)) {
-      case makeStmt@in.MakeMap(target, t@in.MapT(keys, values, _), makeArg) =>
+      case makeStmt@in.MakeMap(target, in.MapT(keys, values, _), makeArg) =>
         val (pos, info, errT) = makeStmt.vprMeta
 
         // Get optional param to make
@@ -440,32 +440,30 @@ class MapEncoding extends LeafTypeEncoding {
     }
   }
 
-  /*
-          for {
-          vIdx <- goE(idx)
-          isComp <- MapEncoding.checkKeyComparability(idx)(ctx)
-          vDflt <- goE(in.DfltVal(values)(l.info))
-          mapVpr <- goE(exp)
-          correspondingMap <- getCorrespondingMap(exp, keys, values)(ctx)
-          containsExp = withSrc(vpr.CondExp(
-            withSrc(vpr.EqCmp(mapVpr, withSrc(vpr.NullLit(), l)), l),
-            withSrc(vpr.FalseLit(), l),
-            goMapContains(correspondingMap, vIdx)(l)),
-            l)
-          lookupRes = withSrc(vpr.CondExp(containsExp, withSrc(vpr.MapLookup(correspondingMap, vIdx), l), vDflt), l)
-          lookupResCheckComp <- assert(isComp, lookupRes, comparabilityErrorT)(ctx)
-        } yield (lookupResCheckComp, containsExp)
-   */
-
   private val mapLookupGenerator: FunctionGenerator[(in.Type, in.Type)] = new FunctionGenerator[(in.Type, in.Type)] {
+    /**
+      * Generates viper method for performing a map lookup
+      *
+      * function mapLookupKV(m: [ Map[K,V] ], k: [ K ]): [ V ]
+      *   requires m != nil ==> acc(res.underlyingMapField, _)
+      *   requires isComparable(k)
+      *   ensures  k in valueSetKV(m) ==> result == [ m[k] ]
+      *   ensures  !k in valueSetKV(m) ==> result == dfltVal[V]
+      *   decreases _
+      */
     override def genFunction(x: (in.Type, in.Type))(ctx: Context): vpr.Function = {
       val field = underlyingMapField(ctx)(x._1, x._2)
-      val vprKeyT = ctx.typ(x._1)
       val vprValueT = ctx.typ(x._2)
       val mapParamDecl = vpr.LocalVarDecl("x", mapType)()
-      val keyParamDecl = vpr.LocalVarDecl("k", vprKeyT)()
+      val internalKeyParamDecl = in.Parameter.In("k", x._1)(Source.Parser.Internal)
+      val checkIsComparable = pure(ctx.isComparable(internalKeyParamDecl) match {
+        case Left(true) => unit(vpr.TrueLit()())
+        case Left(false) => unit(vpr.FalseLit()())
+        case Right(w) => w
+      })(ctx).res
       val dfltVal = in.DfltVal(x._2)(Source.Parser.Internal)
       val vprDfltVal = pure(ctx.expression(dfltVal))(ctx).res
+      val keyParamDecl = ctx.variable(internalKeyParamDecl)
       vpr.Function(
         name = internalMemberName("mapLookup", x._1, x._2),
         formalArgs = Seq(mapParamDecl, keyParamDecl),
@@ -475,13 +473,18 @@ class MapEncoding extends LeafTypeEncoding {
             vpr.NeCmp(mapParamDecl.localVar, vpr.NullLit()())(),
             vpr.FieldAccessPredicate(vpr.FieldAccess(mapParamDecl.localVar, field)(), vpr.WildcardPerm()())()
           )(),
+          checkIsComparable,
           synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
         ),
         posts = Seq(
-          //vpr.EqCmp(vpr.Result(resultT)(), vpr.AnySetCardinality(mapKeySetGenerator(Vector(paramDecl.localVar), (x._1, x._2))()(ctx))())()
           vpr.Implies(
             vpr.AnySetContains(keyParamDecl.localVar, mapKeySetGenerator(Vector(mapParamDecl.localVar), (x._1, x._2))()(ctx))(),
             vpr.EqCmp(vpr.Result(vprValueT)(), vpr.MapLookup(vpr.FieldAccess(mapParamDecl.localVar, field)(), keyParamDecl.localVar)())()
+          )(),
+          // deals with some incompletnesses in Viper's map encoding
+          vpr.Implies(
+            vpr.AnySetContains(keyParamDecl.localVar, mapKeySetGenerator(Vector(mapParamDecl.localVar), (x._1, x._2))()(ctx))(),
+            vpr.AnySetContains(vpr.Result(vprValueT)(), mapValueSetGenerator(Vector(mapParamDecl.localVar), (x._1, x._2))()(ctx))()
           )(),
           vpr.Implies(
             vpr.Not(vpr.AnySetContains(keyParamDecl.localVar, mapKeySetGenerator(Vector(mapParamDecl.localVar), (x._1, x._2))()(ctx))())(),

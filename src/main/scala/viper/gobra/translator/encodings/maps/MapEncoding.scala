@@ -94,6 +94,12 @@ class MapEncoding extends LeafTypeEncoding {
           e <- goE(mapExp)
         } yield mapValueSetGenerator(Vector(e), (keys, values))(pos, info, errT)(ctx)
 
+      case i@in.Contains(k, m :: ctx.Map(keys, values)) =>
+        val (pos, info, errT) = i.vprMeta
+        for {
+          base <- goE(m)
+          key <-  goE(k)
+        } yield mapContainsGenerator(Vector(base, key), (keys, values))(pos, info, errT)(ctx)
     }
   }
 
@@ -134,28 +140,20 @@ class MapEncoding extends LeafTypeEncoding {
           }
         } yield makeCall
 
-      case l@in.SafeMapLookup(resTarget, successTarget, indexedExp@in.IndexedExp(_, _, _)) =>
+      case l@in.SafeMapLookup(resTarget, successTarget, in.IndexedExp(m :: ctx.Map(keys, values), k, _)) =>
         val (pos, info, errT) = l.vprMeta
-        val res = in.LocalVar(ctx.freshNames.next(), indexedExp.typ.withAddressability(Addressability.Exclusive))(l.info)
-        val vprRes = ctx.variable(res)
-        val ok = in.LocalVar(ctx.freshNames.next(), in.BoolT(Addressability.Exclusive))(l.info)
-        val vprOk = ctx.variable(ok)
+        val vprResTarget = ctx.variable(resTarget)
+        val vprSuccessTarget = ctx.variable(successTarget)
 
         seqn(
           for {
-            _ <- local(vprRes)
-            _ <- local(vprOk)
-
-            (lookupVal, okCond) <- goMapLookup(indexedExp)(ctx)
-            lookupValAss = vpr.LocalVarAssign(vprRes.localVar, lookupVal)(pos, info, errT)
-            okAss = vpr.LocalVarAssign(vprOk.localVar, okCond)(pos, info, errT)
-            _ <- write(okAss)
+            base <- goE(m)
+            key <- goE(k)
+            lookupVal = mapLookupGenerator(Vector(base, key), (keys, values))(pos, info, errT)(ctx)
+            okCond = mapContainsGenerator(Vector(base, key), (keys, values))(pos, info, errT)(ctx)
+            lookupValAss = vpr.LocalVarAssign(vprResTarget.localVar, lookupVal)(pos, info, errT)
             _ <- write(lookupValAss)
-
-            resAss <- ctx.assignment(in.Assignee.Var(resTarget), res)(l)
-            _ <- write(resAss)
-
-            okAss <- ctx.assignment(in.Assignee.Var(successTarget), ok)(l)
+            okAss = vpr.LocalVarAssign(vprSuccessTarget.localVar, okCond)(pos, info, errT)
           } yield okAss
         )
 
@@ -256,6 +254,7 @@ class MapEncoding extends LeafTypeEncoding {
     mapCardinalityGenerator.finalize(addMemberFn)
     mapLookupGenerator.finalize(addMemberFn)
     makeMethodGenerator.finalize(addMemberFn)
+    mapContainsGenerator.finalize(addMemberFn)
   }
 
   /**
@@ -268,39 +267,6 @@ class MapEncoding extends LeafTypeEncoding {
       vExp <- goE(exp)
       res = withSrc(vpr.FieldAccess(vExp, underlyingMapField(ctx)(keys, values)), exp)
     } yield res
-  }
-
-  /**
-    * Builds the expression `idx in Domain(vprMap)`
-    */
-  private def goMapContains(vprMap: vpr.Exp, idx: vpr.Exp)(src: in.Node): vpr.Exp =
-    withSrc(vpr.AnySetContains(idx, withSrc(vpr.MapDomain(vprMap), src)), src)
-
-  /**
-    * Computes the result of looking up a value in an indexed expression and a bool expression asserting
-    * whether the key is in the map
-    */
-  private def goMapLookup(lookupExp: in.IndexedExp)(ctx: Context): CodeWriter[(vpr.Exp, vpr.Exp)] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
-
-    lookupExp match {
-      case l@in.IndexedExp(exp :: ctx.Map(keys, values), idx, _) =>
-        for {
-          vIdx <- goE(idx)
-          isComp <- MapEncoding.checkKeyComparability(idx)(ctx)
-          vDflt <- goE(in.DfltVal(values)(l.info))
-          mapVpr <- goE(exp)
-          correspondingMap <- getCorrespondingMap(exp, keys, values)(ctx)
-          containsExp = withSrc(vpr.CondExp(
-            withSrc(vpr.EqCmp(mapVpr, withSrc(vpr.NullLit(), l)), l),
-            withSrc(vpr.FalseLit(), l),
-            goMapContains(correspondingMap, vIdx)(l)),
-            l)
-          lookupRes = withSrc(vpr.CondExp(containsExp, withSrc(vpr.MapLookup(correspondingMap, vIdx), l), vDflt), l)
-          lookupResCheckComp <- assert(isComp, lookupRes, comparabilityErrorT)(ctx)
-        } yield (lookupResCheckComp, containsExp)
-      case _ => Violation.violation(s"unexpected case reached")
-    }
   }
 
   private def internalMemberName(prefix: String, k: in.Type, v: in.Type): String = {
@@ -415,7 +381,8 @@ class MapEncoding extends LeafTypeEncoding {
       *
       * function mapCardinalityKV(m: [ Map[K,V] ]) returns (res: Int)
       *   requires m != nil ==> acc(res.underlyingMapField, _)
-      *   ensures  res == |mapKeySetKV(res.underlyingMapField)|
+      *   ensures  m == nil ==> res == 0
+      *   ensures  m != nil ==> res == cardinality([ m ])
       *   decreases _
       */
     override def genFunction(x: (in.Type, in.Type))(ctx: Context): vpr.Function = {
@@ -434,7 +401,54 @@ class MapEncoding extends LeafTypeEncoding {
           synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
         ),
         posts = Seq(
-          vpr.EqCmp(vpr.Result(resultT)(), vpr.AnySetCardinality(mapKeySetGenerator(Vector(paramDecl.localVar), (x._1, x._2))()(ctx))())()
+          vpr.Implies(
+            vpr.EqCmp(paramDecl.localVar, vpr.NullLit()())(),
+            vpr.EqCmp(vpr.Result(vpr.Int)(), vpr.IntLit(0)())())(),
+          vpr.Implies(
+            vpr.NeCmp(paramDecl.localVar, vpr.NullLit()())(),
+            vpr.EqCmp(vpr.Result(vpr.Int)(), vpr.MapCardinality(vpr.FieldAccess(paramDecl.localVar, field)())())())(),
+        ),
+        body = None
+      )()
+    }
+  }
+
+  private val mapContainsGenerator: FunctionGenerator[(in.Type, in.Type)] = new FunctionGenerator[(in.Type, in.Type)] {
+    /**
+      * Generates viper function for computing the cardinality of a map with type parameters K and V
+      *
+      * function mapContainsKV(m: [ Map[K,V] ], k: K): Boolean
+      *   requires m != nil ==> acc(res.underlyingMapField, _)
+      *   ensures  m == nil ==> !result
+      *   ensures  m != nil ==> result == MapContains([ m ], [ k ])
+      *   decreases _
+      */
+    override def genFunction(x: (in.Type, in.Type))(ctx: Context): vpr.Function = {
+      val keyType = ctx.typ(x._1)
+      val mapParamDecl = vpr.LocalVarDecl("x", mapType)()
+      val keyParamDecl = vpr.LocalVarDecl("k", keyType)()
+      val field = underlyingMapField(ctx)(x._1, x._2)
+      val resultT = vpr.Bool
+      vpr.Function(
+        name = internalMemberName("mapContains", x._1, x._2),
+        formalArgs = Seq(mapParamDecl, keyParamDecl),
+        typ = resultT,
+        pres = Seq(
+          vpr.Implies(
+            vpr.NeCmp(mapParamDecl.localVar, vpr.NullLit()())(),
+            vpr.FieldAccessPredicate(vpr.FieldAccess(mapParamDecl.localVar, field)(), vpr.WildcardPerm()())()
+          )(),
+          synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
+        ),
+        posts = Seq(
+          vpr.Implies(
+            vpr.EqCmp(mapParamDecl.localVar, vpr.NullLit()())(),
+            vpr.Not(vpr.Result(resultT)())())(),
+          vpr.Implies(
+            vpr.NeCmp(mapParamDecl.localVar, vpr.NullLit()())(),
+            vpr.EqCmp(
+              vpr.Result(resultT)(),
+              vpr.MapContains(keyParamDecl.localVar, vpr.FieldAccess(mapParamDecl.localVar, field)())())())(),
         ),
         body = None
       )()
@@ -448,8 +462,9 @@ class MapEncoding extends LeafTypeEncoding {
       * function mapLookupKV(m: [ Map[K,V] ], k: [ K ]): [ V ]
       *   requires m != nil ==> acc(res.underlyingMapField, _)
       *   requires isComparable(k)
-      *   ensures  k in valueSetKV(m) ==> result == [ m[k] ]
-      *   ensures  !k in valueSetKV(m) ==> result == dfltVal[V]
+      *   ensures  k in keySetKV(m) ==> result == [ m[k] ]
+      *   ensures  k in keySetKV(m) ==> result in valueSetKV(m)
+      *   ensures  !k in keySetKV(m) ==> result == dfltVal[V]
       *   decreases _
       */
     override def genFunction(x: (in.Type, in.Type))(ctx: Context): vpr.Function = {

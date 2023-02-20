@@ -24,7 +24,7 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
-      if (config.conditionalizeConditions) {
+      if (config.conditionalizePermissions) {
         options ++= Vector("--conditionalizePermissions")
       }
       if (!config.disableMoreCompleteExhale) {

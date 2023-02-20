@@ -109,6 +109,9 @@ object ViperBackends {
       if (config.parallelizeBranches) {
         options ++= Vector("--parallelizeBranches")
       }
+      if (config.conditionalizePermissions) {
+        options ++= Vector("--conditionalizePermissions")
+      }
       options ++= exePaths
       ViperServerConfig.ConfigWithSilicon(options.toList)
     }

@@ -63,6 +63,7 @@ object ConfigDefaults {
   lazy val DefaultTaskName: String = "gobra-task"
   lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
   lazy val DefaultParallelizeBranches: Boolean = false
+  lazy val DefaultConditionalizePermissions: Boolean = false
   lazy val DefaultDisableMoreCompleteExhale: Boolean = false
   lazy val DefaultEnableLazyImports: Boolean = false
   lazy val DefaultNoVerify: Boolean = false
@@ -113,6 +114,7 @@ case class Config(
                    // if enabled, and if the chosen backend is either SILICON or VSWITHSILICON,
                    // branches will be verified in parallel
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
+                   conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
                    disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
@@ -157,6 +159,7 @@ case class Config(
       onlyFilesWithHeader = onlyFilesWithHeader || other.onlyFilesWithHeader,
       assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale,
       parallelizeBranches = parallelizeBranches,
+      conditionalizePermissions = conditionalizePermissions,
       disableMoreCompleteExhale = disableMoreCompleteExhale,
       enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
@@ -206,6 +209,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
                       assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
+                      conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
                       disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
@@ -259,6 +263,7 @@ trait RawConfig {
     onlyFilesWithHeader = baseConfig.onlyFilesWithHeader,
     assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,
     parallelizeBranches = baseConfig.parallelizeBranches,
+    conditionalizePermissions = baseConfig.conditionalizePermissions,
     disableMoreCompleteExhale = baseConfig.disableMoreCompleteExhale,
     enableLazyImports = baseConfig.enableLazyImports,
     noVerify = baseConfig.noVerify,
@@ -597,6 +602,15 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val conditionalizePermissions: ScallopOption[Boolean] = opt[Boolean](
+    name = "conditionalizePermissions",
+    descr = "Experimental: if enabled, and if the chosen backend is either SILICON or VSWITHSILICON, silicon will try " +
+      "to reduce the number of symbolic execution paths by conditionalising permission expressions. " +
+      "E.g. \"b ==> acc(x.f, p)\" is rewritten to \"acc(x.f, b ? p : none)\".",
+    default = Some(ConfigDefaults.DefaultConditionalizePermissions),
+    short = 'c',
+  )
+
   val disableMoreCompleteExhale: ScallopOption[Boolean] = opt[Boolean](
     name = "disableMoreCompleteExhale",
     descr = "Disables the flag --enableMoreCompleteExhale passed by default to Silicon",
@@ -657,6 +671,15 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     val parallelizeBranchesOn = parallelizeBranches.toOption.contains(true)
     if (parallelizeBranchesOn && !isSiliconBasedBackend) {
       Left("The selected backend does not support branch parallelization.")
+    } else {
+      Right(())
+    }
+  }
+
+  addValidation {
+    val conditionalizePermissionsOn = conditionalizePermissions.toOption.contains(true)
+    if (conditionalizePermissionsOn && !isSiliconBasedBackend) {
+      Left("The selected backend does not support --conditionalizePermissions.")
     } else {
       Right(())
     }
@@ -757,6 +780,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     onlyFilesWithHeader = onlyFilesWithHeader(),
     assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
     parallelizeBranches = parallelizeBranches(),
+    conditionalizePermissions = conditionalizePermissions(),
     disableMoreCompleteExhale = disableMoreCompleteExhale(),
     enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),

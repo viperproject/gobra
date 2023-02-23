@@ -17,6 +17,7 @@ import viper.gobra.translator.encodings.arrays.SharedArrayEmbedding
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.FunctionGenerator
+import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.silver.verifier.{errors => err}
@@ -123,7 +124,14 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     * Encodes the allocation of a new slice
     *
     *  [r := make([]T, len, cap)] ->
-    *   TODO
+    *    asserts 0 <= [len] && 0 <= [cap] && [len] <= [cap]
+    *    var a [ []T ]
+    *    inhales cap(a) == [cap]
+    *    inhales len(a) == [len]
+    *    inhales forall i: int :: {loc(a, i)} 0 <= i && i < [cap] ==> Footprint[ a[i] ]
+    *    inhales forall i: int :: {loc(a, i)} 0 <= i && i < [len] ==> [ a[i] == dfltVal(T) ]
+    *    r := a
+    *
     *  R[ sliceLit(E) ] -> R[ arrayLit(E)[0:|E|] ]
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {

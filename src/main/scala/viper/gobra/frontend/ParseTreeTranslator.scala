@@ -1615,6 +1615,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val op = visitNode[PExpression](ctx.expression())
     PUnfolding(pred, op).at(ctx)
   }
+
+  override def visitLet(ctx: LetContext): PLet = {
+    val ass = visitNode[PShortVarDecl](ctx.shortVarDecl())
+    val op = visitNode[PExpression](ctx.expression())
+    PLet(ass, op).at(ctx)
+  }
   //endregion
 
   //region Statements

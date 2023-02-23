@@ -493,6 +493,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PGhostEquals(l, r) => showExpr(l) <+> "===" <+> showExpr(r)
       case PGhostUnequals(l, r) => showExpr(l) <+> "!==" <+> showExpr(r)
       case POld(e) => "old" <> parens(showExpr(e))
+      case PLet(ass, op) => "let" <+> showStmt(ass) <+> "in" <+> showExpr(op)
       case PLabeledOld(l, e) => "old" <> brackets(l.name) <> parens(showExpr(e))
       case PBefore(e) => "before" <> parens(showExpr(e))
       case PConditional(cond, thn, els) => showSubExpr(expr, cond) <> "?" <> showSubExpr(expr, thn) <> ":" <> showSubExpr(expr, els)

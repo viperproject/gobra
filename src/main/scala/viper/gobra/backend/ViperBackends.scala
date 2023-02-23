@@ -10,6 +10,7 @@ import viper.gobra.frontend.Config
 import viper.gobra.util.GobraExecutionContext
 import viper.server.ViperConfig
 import viper.server.core.ViperCoreServer
+import viper.server.vsi.DefaultVerificationServerStart
 
 trait ViperBackend {
   def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperVerifier
@@ -23,6 +24,9 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
+      if (config.conditionalizePermissions) {
+        options ++= Vector("--conditionalizePermissions")
+      }
       if (!config.disableMoreCompleteExhale) {
         options ++= Vector("--enableMoreCompleteExhale")
       }
@@ -79,7 +83,7 @@ object ViperBackends {
           serverConfig = serverConfig.appendedAll(List("--cacheFile", config.cacheFile.get.toString))
         }
 
-        val createdServer = new ViperCoreServer(new ViperConfig(serverConfig))(executionContext)
+        val createdServer = new ViperCoreServer(new ViperConfig(serverConfig))(executionContext) with DefaultVerificationServerStart
         // store server for next time:
         server = Some(createdServer)
         createdServer
@@ -104,6 +108,9 @@ object ViperBackends {
       }
       if (config.parallelizeBranches) {
         options ++= Vector("--parallelizeBranches")
+      }
+      if (config.conditionalizePermissions) {
+        options ++= Vector("--conditionalizePermissions")
       }
       options ++= exePaths
       ViperServerConfig.ConfigWithSilicon(options.toList)

@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type A struct {
+	x [3]int
+}
+
+ghost
+requires acc(&a.x)
+decreases
+pure func f(a *A) int {
+	return let x := a.x in x[0]
+}

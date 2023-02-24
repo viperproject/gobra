@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package gomaps
+
+requires acc(m)
+func test1(m map[int]int) {
+	m[0] = 0
+	// assert 0 in m
+    assert m in old(m) ==> range(m) == old(range(m))
+}

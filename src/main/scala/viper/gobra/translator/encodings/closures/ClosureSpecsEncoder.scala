@@ -6,13 +6,14 @@
 
 package viper.gobra.translator.encodings.closures
 
-import viper.gobra.ast.internal.FunctionLikeMemberOrLit
+import viper.gobra.ast.internal.{FunctionLikeMemberOrLit, LookupTable}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.BackTranslator.ErrorTransformer
 import viper.gobra.reporting.{PreconditionError, Source, SpecNotImplementedByClosure}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.encodings.typeless.CallEncoding
 import viper.gobra.translator.util.ViperWriter.CodeLevel.errorT
 import viper.gobra.translator.util.ViperWriter.MemberKindCompanion.ErrorT
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
@@ -81,6 +82,35 @@ protected class ClosureSpecsEncoder {
     } yield exp
   }
 
+  // TODO
+  // Distinguish between pure/impure?
+  def goClosureCall(c: in.GoClosureCall)(ctx: Context): CodeWriter[vpr.Stmt] = {
+    register(c.spec)(ctx, c.spec.info)
+
+    val (pos, info, errT) = c.vprMeta
+    for {
+      member <- callableMemberWithClosure(c.spec)(ctx)
+      args <- sequence()
+      stmt = member match {
+        case x => ???
+      }
+
+      stmt = CallEncoding.translateGoCall(spec.pres, spec.args, closureCallArgs(c.closure, c.args, c.spec)(ctx).tail)(ctx)(pos, info, errT)
+    } yield ???
+    val spec = memberOrLit(ctx)(c.spec.func)
+
+
+    /*
+    // TODO: better error
+    for {
+      n <- ctx.statement(in.GoFunctionCall(closureCallProxy(c.spec)(c.info), closureCallArgs(c.closure, c.args, c.spec)(ctx))(c.info))
+      // callNode = call.deepCollect{ case methCall: vpr.MethodCall => methCall }.head
+      //_ <- errorT(doesNotImplementSpecErr(n, c.closure.info.tag))
+    } yield n
+
+     */
+  }
+
   def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     genMembers foreach { m => addMemberFn(m.res) }
   }
@@ -114,7 +144,7 @@ protected class ClosureSpecsEncoder {
       specsSeen += ((spec.func, spec.params.keySet))
       val implementsF = implementsFunction(spec)(ctx, info)
       val callable = callableMemberWithClosure(spec)(ctx)
-      errorTransformers = callable.sum.collect{ case ErrorT(t) => t }.toVector
+      errorTransformers = callable.sum.collect { case ErrorT(t) => t }
       genDomFuncs :+= implementsF
       genMembers :+= callable
     }

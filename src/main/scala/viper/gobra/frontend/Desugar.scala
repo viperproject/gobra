@@ -1741,7 +1741,6 @@ object Desugar {
                   case Some(_: ap.ClosureCall) =>
                     closureCallDAux(ctx, info)(inv)(src) map {
                       case Left((_, call: in.ClosureCall)) =>
-                        println(s"call args: ${call}")
                         in.GoClosureCall(call.closure, call.args, call.spec)(src)
                       case Right(call: in.PureClosureCall) =>
                         in.GoClosureCall(call.closure, call.args, call.spec)(src)

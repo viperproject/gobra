@@ -10,8 +10,8 @@ func intSeq() {
 		func f() int {
 			return i
 		}
-    // The following fails because there is no proof that tmp implements spec{&i}
-    //:: ExpectedOutput(precondition_error:go_call_precondition_error)
+	// The following fails because there is no proof that tmp implements spec{&i}
+	//:: ExpectedOutput(precondition_error:go_call_precondition_error)
 	go tmp() as spec{&i}
 	return
 }

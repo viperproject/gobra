@@ -76,43 +76,26 @@ class CallEncoding extends Encoding {
     case x@in.GoFunctionCall(func, args) =>
       val (pos, info, errT) = x.vprMeta
       val funcM = ctx.lookup(func)
-      CallEncoding.translateGoCall(funcM.pres, funcM.args, args)(ctx)(pos, info, errT)
+      translateGoCall(funcM.pres, funcM.args, args)(ctx)(pos, info, errT)
 
     case x@in.GoMethodCall(recv, meth, args) =>
       val (pos, info, errT) = x.vprMeta
       val methM = ctx.lookup(meth)
-      CallEncoding.translateGoCall(methM.pres, methM.receiver +: methM.args, recv +: args)(ctx)(pos, info, errT)
+      translateGoCall(methM.pres, methM.receiver +: methM.args, recv +: args)(ctx)(pos, info, errT)
   }
-
-
-
-  private def viperTarget(x: vpr.Exp)(ctx: Context): (vpr.LocalVar, Option[(vpr.LocalVarDecl, vpr.AbstractAssign)]) = {
-    x match {
-      case x: vpr.LocalVar => (x, None)
-      case _ =>
-        val decl = vpr.LocalVarDecl(ctx.freshNames.next(), x.typ)(x.pos, x.info, x.errT)
-        val ass  = vu.valueAssign(x, decl.localVar)(x.pos, x.info, x.errT)
-        (decl.localVar, Some((decl, ass)))
-    }
-  }
-}
-
-object CallEncoding {
-  import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
   /**
     * Translates a go call to a function or method with pre-condition `pre` which is parameterized by
     * formal parameters `formalParams` and is instantiated with `args`
     */
-  protected[encodings] def translateGoCall(pre: Vector[in.Assertion],
-                                           formalParams: Vector[in.Parameter.In],
-                                           args: Vector[in.Expr]
-                                          )(ctx: Context)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)
+  private def translateGoCall(pre: Vector[in.Assertion],
+                              formalParams: Vector[in.Parameter.In],
+                              args: Vector[in.Expr]
+                             )(ctx: Context)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)
   : Writer[vpr.Stmt] = {
-    println(args)
     Violation.violation(
       args.length == formalParams.length,
-      s"number of passed arguments (${args.length}) must match number of expected arguments (${formalParams.length})."
+      "number of passed arguments must match number of expected arguments"
     )
 
     import viper.silver.verifier.{errors => err}
@@ -129,5 +112,15 @@ object CallEncoding {
         case err.ExhaleFailed(Source(info), _, _) => PreconditionError(info).dueTo(GoCallPreconditionReason(info))
       }
     } yield exhale
+  }
+
+  private def viperTarget(x: vpr.Exp)(ctx: Context): (vpr.LocalVar, Option[(vpr.LocalVarDecl, vpr.AbstractAssign)]) = {
+    x match {
+      case x: vpr.LocalVar => (x, None)
+      case _ =>
+        val decl = vpr.LocalVarDecl(ctx.freshNames.next(), x.typ)(x.pos, x.info, x.errT)
+        val ass  = vu.valueAssign(x, decl.localVar)(x.pos, x.info, x.errT)
+        (decl.localVar, Some((decl, ass)))
+    }
   }
 }

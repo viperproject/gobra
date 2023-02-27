@@ -6,17 +6,18 @@
 
 package viper.gobra.translator.encodings.closures
 
-import viper.gobra.ast.internal.{FunctionLikeMemberOrLit, LookupTable}
+import viper.gobra.ast.internal.FunctionLikeMemberOrLit
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.BackTranslator.ErrorTransformer
-import viper.gobra.reporting.{PreconditionError, Source, SpecNotImplementedByClosure}
+import viper.gobra.reporting.{GoCallPreconditionReason, PreconditionError, Source, SpecNotImplementedByClosure}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
-import viper.gobra.translator.encodings.typeless.CallEncoding
-import viper.gobra.translator.util.ViperWriter.CodeLevel.errorT
+import viper.gobra.translator.util.ViperUtil
+import viper.gobra.translator.util.ViperWriter.CodeLevel.{errorT, fromMemberLevel, sequence}
 import viper.gobra.translator.util.ViperWriter.MemberKindCompanion.ErrorT
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
+import viper.gobra.util.Violation
 import viper.silver.verifier.{reasons, errors => vprerr}
 import viper.silver.{ast => vpr}
 
@@ -82,33 +83,29 @@ protected class ClosureSpecsEncoder {
     } yield exp
   }
 
-  // TODO
-  // Distinguish between pure/impure?
   def goClosureCall(c: in.GoClosureCall)(ctx: Context): CodeWriter[vpr.Stmt] = {
-    register(c.spec)(ctx, c.spec.info)
+    import viper.silver.verifier.{errors => err}
 
+    register(c.spec)(ctx, c.spec.info)
     val (pos, info, errT) = c.vprMeta
     for {
-      member <- callableMemberWithClosure(c.spec)(ctx)
-      args <- sequence()
-      stmt = member match {
-        case x => ???
+      member <- fromMemberLevel(callableMemberWithClosure(c.spec)(ctx))
+      args = closureCallArgs(c.closure, c.args, c.spec)(ctx)
+      vprargs <- sequence(args map ctx.expression)
+      (pres, formalParamDecls) = member match {
+        case f: vpr.Function => (f.pres, f.formalArgs)
+        case m: vpr.Method => (m.pres, m.formalArgs)
+        case e => Violation.violation(s"expected a function or method, but found $e instead.")
       }
-
-      stmt = CallEncoding.translateGoCall(spec.pres, spec.args, closureCallArgs(c.closure, c.args, c.spec)(ctx).tail)(ctx)(pos, info, errT)
-    } yield ???
-    val spec = memberOrLit(ctx)(c.spec.func)
-
-
-    /*
-    // TODO: better error
-    for {
-      n <- ctx.statement(in.GoFunctionCall(closureCallProxy(c.spec)(c.info), closureCallArgs(c.closure, c.args, c.spec)(ctx))(c.info))
-      // callNode = call.deepCollect{ case methCall: vpr.MethodCall => methCall }.head
-      //_ <- errorT(doesNotImplementSpecErr(n, c.closure.info.tag))
-    } yield n
-
-     */
+      formalParams = formalParamDecls.map(_.localVar)
+      substitutions = (formalParams zip vprargs).toMap
+      instantiatedPres = pres.map(_.replace(substitutions))
+      and = ViperUtil.bigAnd(instantiatedPres)(pos, info, errT)
+      exhale = vpr.Exhale(and)(pos, info, errT)
+      _ <- errorT {
+        case err.ExhaleFailed(Source(info), _, _) => PreconditionError(info).dueTo(GoCallPreconditionReason(info))
+      }
+    } yield exhale
   }
 
   def finalize(addMemberFn: vpr.Member => Unit): Unit = {

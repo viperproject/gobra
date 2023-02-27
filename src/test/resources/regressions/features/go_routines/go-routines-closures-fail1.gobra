@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func intSeq() {
+	i@ := 0
+	tmp :=
+		preserves acc(&i, 1/10)
+		func f() int {
+			return i
+		}
+    // The following fails because there is no proof that tmp implements spec{&i}
+    //:: ExpectedOutput(precondition_error:go_call_precondition_error)
+	go tmp() as spec{&i}
+	return
+}
+
+preserves acc(x, 1/2)
+func spec(x *int) int {
+	return *x
+}

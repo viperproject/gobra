@@ -14,7 +14,7 @@ ensures  acc(x) && x.Left == 2
 private {
   requires acc(x) && x.Left == 2 && x.p == 3
   ensures  acc(x) && x.Left == 2 && x.p == 3
-  proof Foo {
+  proof {
     Foo(x)
   }
 }

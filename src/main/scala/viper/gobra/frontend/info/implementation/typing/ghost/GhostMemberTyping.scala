@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PPrivateSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
+import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PConstructDecl, PDerefDecl, PAssignDecl, PFunctionSpec, PPrivateSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody, PStructType, PUnfold, PFold, PInhale, PExhale}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -56,6 +56,12 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
           allPredicatesDefined.asReason(ip, "Some predicate definitions are missing")
         }
       }
+    case c: PConstructDecl => 
+      wellDefConstructor(c)
+    case c: PDerefDecl =>
+      wellDefDeref(c)
+    case c: PAssignDecl =>
+      wellDefAssign(c)
   }
 
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
@@ -211,4 +217,34 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     } else Left(noMessages)
   }
 
+  private def wellDefConstructor(c: PConstructDecl): Messages = {
+    error(c, s"postcondition of constructors needs to be public, but got ${c.posts}", c.posts.exists(isPrivate)) ++
+    /* error(c, s"construct statement can only have unfold and inhale statements, but got ${c.body}", 
+      if (c.body.isEmpty) false 
+      else c.body.getOrElse(null)._2.stmts.map(st => st match { 
+        case PUnfold(_) => false; 
+        case PFold(_) => false;
+        case PInhale(_) => false;
+        //case PExhale(_) => false;
+        case _ => true 
+      }).reduce(_||_)) ++ */
+    error(c, s"the construct statement does not refer to a struct type, but got ${c.typ}", 
+      underlyingTypeP(c.typ) match { case Some(_: PStructType) => false; case _ => true })
+  }
+
+  private def wellDefDeref(c: PDerefDecl): Messages = {
+    (if (!c.body.isEmpty) isPureBlock(c.body.getOrElse(null)._2) else noMessages) ++
+    error(c, s"precondition of dereference declaration needs to be public, but got ${c.pres}", c.pres.exists(isPrivate)) ++
+    error(c, s"dereference declarations needs to be pure", !c.isPure) ++
+    error(c, s"dereference declaration does not refer to a struct type, but got ${c.typ}", 
+      underlyingTypeP(c.typ) match { case Some(_: PStructType) => false; case _ => true })
+  }
+
+  private def wellDefAssign(c: PAssignDecl): Messages = {
+    error(c, s"precondition of assignment declaration needs to be public, but got ${c.spec.pres}", c.spec.pres.exists(isPrivate)) ++
+    error(c, s"postcondition of assignment declaration needs to be public, but got ${c.spec.posts}", c.spec.posts.exists(isPrivate)) ++
+    error(c, s"preserves of assignment declaration needs to be public, but got ${c.spec.preserves}", c.spec.preserves.exists(isPrivate)) ++
+    error(c, s"assignment declaration does not refer to a struct type, but got ${c.typ}", 
+      underlyingTypeP(c.typ) match { case Some(_: PStructType) => false; case _ => true })
+  }
 }

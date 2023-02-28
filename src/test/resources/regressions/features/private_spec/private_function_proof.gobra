@@ -18,7 +18,7 @@ ensures  acc(x) && x.Left == 2
 private {
   requires acc(x) && x.Left == 2 && x.p == 3
   ensures  acc(x) && x.Left == 2 && x.p == 3
-  proof foo {
+  proof {
     r = foo(a, b, x)
   }
 }
@@ -64,7 +64,7 @@ decreases
 private {
   requires n >= 0
   decreases n
-  proof factorial {
+  proof {
     r = factorial(n)
   }
 }

@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+requires forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
+ensures  forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
+ensures  forall k int :: 0 <= k && k < len(s) ==> s[k] == old(s[k]) + n
+func incr (s []int, n int) {
+
+  invariant 0 <= i && i <= len(s)
+  invariant forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
+  invariant forall k int :: i <= k && k < len(s) ==> s[k] == old(s[k])
+  invariant forall k int :: 0 <= k && k < i ==> s[k] == old(s[k]) + n
+  for i := 0; i < len(s); i += 1 {
+    s[i] = s[i] + n
+  }
+}
+
+func client () {
+  a@ := [4]int { 1, 2, 4, 8 }
+  incr(a[2:], 2)
+
+  assert a[0] == 1 && a[1] == 2
+  assert a[2:][0] == a[2] && a[2:][1] == a[3]
+  assert a == [4]int { 1, 2, 6, 10 }
+}

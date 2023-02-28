@@ -433,6 +433,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     PMethodSig(id, args.flatten, result, spec, isGhost = ghost).at(ctx)
   }
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
   override def visitPrivateSpec(ctx: GobraParser.PrivateSpecContext): PPrivateSpec = {
     val groups = ctx.specStatement().asScala.view.groupBy(_.kind.getType)
 
@@ -445,11 +451,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     PPrivateSpec(pres, preserves, posts, terms, proof).at(ctx)
   } 
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
   override def visitPrivateEntailmentProof(ctx: PrivateEntailmentProofContext): PPrivateEntailmentProof = {
     val body = visitNode[PBlock](ctx.block())
-    val spec = visitNode[PClosureSpecInstance](ctx.closureSpecInstance())
 
-    PPrivateEntailmentProof(spec, body).at(ctx)
+    PPrivateEntailmentProof(body).at(ctx)
   }
 
   /**
@@ -844,8 +855,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       => PFunctionDecl(id, args, result, spec, body)
     case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
       => PMethodDecl(id, receiver, args, result, spec, body)
-    case Vector(spec : PFunctionSpec, Vector(_, typ: PType, (args: Vector[PParameter@unchecked], _), _, body: PGhostStatement, _, _))
-      => PConstructDecl(typ, args, spec, body)
+	  case Vector(spec : PFunctionSpec, (typ: PType, args: Vector[PParameter@unchecked], body: Option[(PBodyParameterInfo, PBlock)@unchecked], isShared: Boolean))
+	    => if (spec.pres.isEmpty && spec.preserves.isEmpty && spec.privateSpec.isEmpty && has(ctx.constructDecl())) PConstructDecl(typ, args, spec.posts, body, isShared) 
+         else if (spec.privateSpec.isEmpty && has(ctx.assignDecl())) PAssignDecl(typ, args, spec, body, isShared)
+         else unexpected(ctx)
+    case Vector(spec : PFunctionSpec, (typ: PType, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked], isShared: Boolean, isPure: Boolean))
+      => if (spec.preserves.isEmpty && spec.posts.isEmpty && spec.privateSpec.isEmpty && isShared) 
+         PDerefDecl(typ, args, result, spec.pres, body, isShared, isPure) else unexpected(ctx)
   }
 
   /**
@@ -872,6 +888,55 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val body = if (has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted && (!specOnly || ctx.pure)) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
     (id, recv,sig._1, sig._2, body)
   }
+  
+  override def visitConstructDecl(ctx: ConstructDeclContext): (PType, Vector[PParameter], Option[(PBodyParameterInfo, PBlock)], Boolean) = {
+    val isShared = has(ctx.AMPERSAND())
+    val typ = visitNode[PType](ctx.type_())
+    val body = if (has(ctx.blockWithBodyParameterInfo())) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
+    
+    //generates a virtual arguments
+    val id = PIdnDef("this").at(typ)
+    val tRet = if (isShared) PDeref(typ.copy).at(typ) else typ.copy
+    val pRet: PParameter = PNamedParameter(id, tRet).at(id)
+
+    val init = PIdnDef("init").at(typ)
+    val tInit = typ.copy
+    val pInit: PParameter = PNamedParameter(init, tInit).at(init)
+
+    (typ, Vector(pRet, pInit), body, isShared)
+  }
+
+  override def visitDerefDecl(ctx: DerefDeclContext): (PType, Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)], Boolean, Boolean) = {
+    val isShared = has(ctx.AMPERSAND())
+    val typ = visitNode[PType](ctx.type_())
+    val body = if (has(ctx.blockWithBodyParameterInfo())) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
+    
+    //generates a virtual argument
+    val id = PIdnDef("this").at(typ)
+    val tRet = if (isShared) PDeref(typ.copy).at(typ) else typ.copy
+    val pRet: PParameter = PNamedParameter(id, tRet).at(id)
+
+    val pResult = PResult(Vector(PUnnamedParameter(typ.copy.copy).at(ctx))).at(ctx)
+
+    (typ, Vector(pRet), pResult, body, isShared, ctx.pure)
+  }
+
+  override def visitAssignDecl(ctx: AssignDeclContext): (PType, Vector[PParameter], Option[(PBodyParameterInfo, PBlock)], Boolean) = {
+    val isShared = has(ctx.AMPERSAND())
+    val typ = visitNode[PType](ctx.type_())
+    val body = if (has(ctx.blockWithBodyParameterInfo())) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
+    
+    val (args, _) = visitNode[Signature](ctx.signature())
+
+    if (args.isEmpty || args.length >= 2) unexpected(ctx)
+
+    //generates a virtual argument
+    val id = PIdnDef("this").at(typ)
+    val param = if (isShared) PDeref(typ.copy).at(typ) else typ.copy
+    val sig: PParameter = PNamedParameter(id, param).at(id)
+
+    (typ, Vector(sig) ++ args, body, isShared)
+  }
 
   /**
     * Visits Gobra specifications
@@ -885,7 +950,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val preserves = groups.getOrElse(GobraParser.PRESERVES, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
     val posts = groups.getOrElse(GobraParser.POST, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
     val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).toVector.map(s => visitTerminationMeasure(s.terminationMeasure()))
-    val privateSpec = visitNodeOrNone[PPrivateSpec](ctx.privateSpec())
+    val privateList = ctx.privateSpec()
+    val privateSpec = if (privateList.isEmpty()) { None }
+      else if (privateList.length == 1) { visitNodeOrNone[PPrivateSpec](privateList.get(0)) }
+      else { unexpected(ctx) }
   
     PFunctionSpec(pres, preserves, posts, terms, privateSpec, isPure = ctx.pure, isTrusted = ctx.trusted)
   }
@@ -918,24 +986,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case Vector("ghost", decl : PGhostifiableMember) => Vector(PExplicitGhostMember(decl).at(ctx))
     case Vector("ghost", decl : Vector[PGhostifiableMember] @unchecked) => decl.map(PExplicitGhostMember(_).at(ctx))
   }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  /* override def visitConstructDecl(ctx: ConstructDeclContext): PConstructDecl = {
-    val typ = idnUse.get(ctx.IDENTIFIER())
-    println(s"visitConstructDecl typ: $typ")
-    val stmt = ctx.ghostStatement() match {
-      case f: FoldStatementContext => visitFoldStatement(f)
-      case c => unexpected(c)
-    }
-    //val body = visitConstructBody(ctx.ghostStatement())
-    //println(s"visitConstructMember body: $body")
-    PConstructDecl(post, typ, stmt).at(ctx)
-  } */
 
   //region Implementation proofs
   /**
@@ -2171,10 +2221,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case _ => fail(ctx, "Expected invocation")
   }
 
-  override def visitPvt(ctx: PvtContext): PPrivate = super.visitPvt(ctx) match {
-    case Vector("pvt", "(", expr: PExpression, ")") => PPrivate(expr)
-  }
-
   /**
     * {@inheritDoc  }
     *
@@ -2425,6 +2471,15 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     ctx.asScala.toVector.collect {
       case c if cond(c) => visitNode(c)
     }.asInstanceOf[Vector[P]]
+  }
+
+  def genParamFromBlockWithBodyParameterInfo(body: Option[(PBodyParameterInfo, PBlock)], typ: PType): Vector[PParameter] = {
+    (for {
+      b <- body
+      param = b._1.shareableParameters.map(p => {
+        val ap: PActualParameter = PNamedParameter(PIdnDef(p.name), typ)
+        PExplicitGhostParameter(ap)
+    })} yield param: Vector[PParameter]).getOrElse(Vector.empty)
   }
   //endregion
 

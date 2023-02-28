@@ -11,6 +11,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignMode}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType.ghost
 import viper.gobra.util.Violation
@@ -247,11 +248,19 @@ trait GhostAssignability {
     def paramTyping(params: Vector[PParameter], context: ExternalTypeInfo): GhostType =
       GhostType.ghostTuple(params.map(p => context.isParamGhost(p)))
 
-    val spec = p.spec
+    val privateSpec = tree.parent(p).head
+    val funcSpec = tree.parent(privateSpec).head
+    val func = tree.parent(funcSpec).head
 
-    val (funcId, fArgs, fRes, context) = resolve(spec.func) match {
-      case Some(ap.Function(id, f)) => (id, f.args, f.result.outs, f.context)
-      case _ => Violation.violation(s"expected a function, but got ${spec.func}")
+    val funcId = func match {
+      case PFunctionDecl(id, _, _, _, _) => id
+      case PMethodDecl(id, _, _, _, _, _) => id
+      case _ => Violation.violation(s"expected a function or method, but got ${func}")
+    }
+
+    val (fArgs, fRes, context) = regular(funcId) match {
+      case f: st.Function => (f.args, f.result.outs, f.context)
+      case _ => Violation.violation(s"expected a function, but got ${funcId}")
     }
 
     val argTyping = paramTyping(fArgs, context)

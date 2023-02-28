@@ -219,9 +219,18 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
       terminationMeasures.flatMap(wellDefTerminationMeasure) ++
       privateSpec.toVector.flatMap(wellDefPrivateSpec) ++
-      // specifications outside the private clause cannot be private, 
-      // private members are only allowed in privateSpec
-      error(n, "Private members must all be defined in the private clause.", pres.exists(isPrivate) || preserves.exists(isPrivate) || posts.exists(isPrivate)) ++
+      // if the function itself is public then specifications outside the private clause cannot be private, 
+      // private members are allowed everywhere if the function itself is private
+      error(n, s"Private members inside a public function must all be defined in the private clause.", {
+        val func = tree.parent(n)
+        val isFuncPvt = func.exists(f => f match {
+          case PFunctionDecl(id, _, _, _, _) => isPrivateReg(id)
+          case PMethodDecl(id, _, _, _, _, _) => isPrivateReg(id)
+          case _ => false
+        })
+        if (!isFuncPvt) pres.exists(isPrivate) || preserves.exists(isPrivate) || posts.exists(isPrivate)
+        else false
+      }) ++
       // if has conditional clause, all clauses must be conditional
       // can only have one non-conditional clause
       error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
@@ -236,14 +245,14 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       val funcSpec = tree.parent(n).head
       val func = tree.parent(funcSpec).head
       val isFuncPvt = func match {
-        case PFunctionDecl(id, _, _, _, _) => isPrivateRegular(id)
-        case PMethodDecl(id, _, _, _, _, _) => isPrivateRegular(id)
+        case PFunctionDecl(id, _, _, _, _) => isPrivateReg(id)
+        case PMethodDecl(id, _, _, _, _, _) => isPrivateReg(id)
         case _ => Violation.violation(s"expected a function or method, but got ${func}")
       }
       wellDefPrivateSpec(n) ++ 
       // a public function with private specifications needs to have a private entailment proof
       // otherwise the public specification of the function is not sound
-      error(n, s"Public function ${func} has private specifications and needs to have a proof statement.", 
+      error(n, s"Public function ${func} has nonEmpty private specifications and needs to have a proof statement.", 
               proof.isEmpty && !isFuncPvt && (!pres.isEmpty || !preserves.isEmpty || !posts.isEmpty))
   }
 

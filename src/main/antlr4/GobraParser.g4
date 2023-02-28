@@ -84,7 +84,6 @@ ghostPrimaryExpr: range
   | optionNone | optionSome | optionGet
   | permission
   | matchExpr
-  | pvt
   ;
 
 permission: WRITEPERM | NOPERM;
@@ -127,8 +126,6 @@ typeOf: TYPE_OF L_PAREN expression R_PAREN;
 
 access: ACCESS L_PAREN expression (COMMA expression)? R_PAREN;
 
-pvt: PVT L_PAREN expression R_PAREN;
-
 range: kind=(SEQ | SET | MSET) L_BRACKET expression DOT_DOT expression R_BRACKET;
 
 matchExpr: MATCH expression L_CURLY (matchExprClause eos)* R_CURLY;
@@ -159,7 +156,7 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 // Specifications
 
 specification returns[boolean trusted = false, boolean pure = false;]:
-  ((specStatement | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? (PRIVATE privateSpec)? // Non-greedily match PURE to avoid missing eos errors.
+  ((specStatement | PRIVATE privateSpec | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? // Non-greedily match PURE to avoid missing eos errors.
   ;
 
 specStatement
@@ -176,9 +173,9 @@ assertion:
   ;
 
 // Private specification
-privateSpec: L_CURLY ((specStatement eos)*? privateEntailmentProof?)? R_CURLY eos;
+privateSpec: L_CURLY ((specStatement eos)*? privateEntailmentProof?)? R_CURLY;
 
-privateEntailmentProof: PROOF closureSpecInstance block eos;
+privateEntailmentProof: PROOF block eos;
 
 matchStmt: MATCH expression L_CURLY matchStmtClause* R_CURLY;
 matchStmtClause: matchCase COLON statementList?;
@@ -229,7 +226,13 @@ new_: NEW L_PAREN type_ R_PAREN;
 
 // Added specifications and parameter info
 
-specMember: specification (functionDecl[$specification.trusted, $specification.pure] | methodDecl[$specification.trusted, $specification.pure] | constructDecl);
+specMember: specification (
+  functionDecl[$specification.trusted, $specification.pure] 
+  | methodDecl[$specification.trusted, $specification.pure] 
+  | constructDecl
+  | derefDecl[$specification.pure]
+  | assignDecl
+  );
 
 functionDecl[boolean trusted, boolean pure]:  FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
 
@@ -245,7 +248,13 @@ predicateBody: L_CURLY expression eos R_CURLY;
 
 mpredicateDecl: PRED receiver IDENTIFIER parameters predicateBody?;
 
-constructDecl: CONSTRUCT type_ signature (L_CURLY ghostStatement eos R_CURLY);
+// Struct Constructor
+constructDecl: CONSTRUCT AMPERSAND? type_ (signature blockWithBodyParameterInfo?);
+// Struct Dereference
+derefDecl[boolean pure]: DEREF AMPERSAND? type_ (signature blockWithBodyParameterInfo?);
+// Struct Assignment
+assignDecl: ASSIGN_STRUCT AMPERSAND? type_ (signature blockWithBodyParameterInfo?);
+
 
 // Addressability
 

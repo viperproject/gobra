@@ -29,6 +29,7 @@ class PrivateImpl extends Private {
     * Takes the method 'x' and creates a method 'proof' with name 
     * '${x.name.name}_public' that is put into 'proofMembers'.
     * 
+    * [
     * func rec F(A) ret 
     *   requires P
     *   ensures Q
@@ -42,8 +43,9 @@ class PrivateImpl extends Private {
     * {
     *   body
     * }
+    * ]
     * 
-    * is transformed to the proof method
+    * generates the proof method:
     * 
     * method rec F_public(A) ret
     *   requires [P]
@@ -104,21 +106,23 @@ class PrivateImpl extends Private {
     * Takes the function 'x' and creates a method 'proof' with name 
     * '${x.name.name}_public' that is put into 'proofMembers'.
     * 
-    * func F(A) ret 
-    *   requires P
-    *   ensures Q
-    *   private {
-    *     requires P'
-    *     ensures Q'
-    *     proof F {
-    *       proof_body
+    * [
+    *   func F(A) ret 
+    *     requires P
+    *     ensures Q
+    *     private {
+    *       requires P'
+    *       ensures Q'
+    *       proof F {
+    *         proof_body
+    *       }
     *     }
+    *   {
+    *     body
     *   }
-    * {
-    *   body
-    * }
+    * ]
     * 
-    * is transformed to the proof method
+    * generates the proof method:
     * 
     * method F_public(A) ret
     *   requires [P]

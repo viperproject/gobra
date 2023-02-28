@@ -11,16 +11,21 @@ type pair struct {
   Left, Right, p2 int
 }
 
+requires acc(p)
+pure func (p *Pair) GetP() int {
+  return p.p
+}
+
 const g int = 2
 const G int = 42
 
 //private function with struct (private specification and proof)
-requires acc(x) && x.Left == 2 
-ensures  acc(x) && x.Left == 2 
+requires acc(x) && x.Left == 2
+ensures  acc(x) && x.Left == 2
 private {
-  requires acc(x) && x.Left == 2 
+  requires acc(x) && x.Left == 2
   ensures  acc(x) && x.Left == 2 && x.p == 3
-  proof Foo {
+  proof {
     Foo(a, b, x)
   }
 }
@@ -36,7 +41,7 @@ ensures  acc(x) && x.Left == 2 && x.Right == 2
 private {
   requires acc(x) && x.Left == 2 && x.Right == 2
   ensures  acc(x) && x.Left == 2 && x.Right == 2 && x.p2 == 3
-  proof Foo2 {
+  proof {
     Foo2(a, b, x)
   }
 }
@@ -47,7 +52,7 @@ ensures  acc(x) && x.Left == 2
 private {
   requires acc(x) && x.Left == 2 
   ensures  acc(x) && x.Left == 2 && x.p2 == 3
-  proof foo3 {
+  proof {
     foo3(a, b, x)
   }
 }
@@ -63,7 +68,7 @@ ensures P(a)
 private {
   requires a == 0
   ensures a == 0
-  proof FPred {
+  proof {
     unfold P(a)
     FPred(a)
     fold P(a)
@@ -80,7 +85,7 @@ ensures P(a)
 private {
   requires P(a)
   ensures P(a)
-  proof FPred2 {
+  proof {
     FPred2(a)
   }
 }

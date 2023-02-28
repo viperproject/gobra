@@ -1,0 +1,57 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package bar
+
+type Pair struct {
+  Left, Right, p int
+}
+
+type Pair2 struct {
+  Left, Right int
+}
+
+type Test struct {
+  L, R, p int
+}
+
+pred (s *Pair) PrivateMem()
+
+ensures acc(&this.Left) && acc(&this.Right) && this.PrivateMem() //PublicMem()
+ensures this.Left == init.Left && this.Right == init.Right
+construct &Pair()
+
+requires acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
+pure deref &Pair()
+
+requires acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
+ensures  acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
+ensures  a == *this// deref(this) == rhs
+assign &Pair(a Pair)
+
+//ensures a == this
+//assign Pair(a Pair)
+
+ensures this.Left == init.Left && this.Right == init.Right
+construct Pair()
+
+/*
+func bad1(a, b Pair) {
+  if a.Left == b.Left && a.Right == b.Right {
+    assert a == b // should fail => OK
+  }
+}
+
+requires acc(&a.Left) && acc(&a.Right)
+func bad2(a *Pair) {
+  *a = Pair{} // fails, not enough permission
+}
+
+requires acc(&a.Left) && acc(&a.Right)
+func bad3(a *Pair) {
+  x := *a // fails, not enough permission
+}
+*/
+
+
+

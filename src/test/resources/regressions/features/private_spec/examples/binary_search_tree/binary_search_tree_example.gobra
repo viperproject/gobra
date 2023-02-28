@@ -1,0 +1,56 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I ./)
+import binary_search_tree "binary_search_tree"
+
+func client() {
+    t := binary_search_tree.NewTree()
+    assert t.IsEmpty()
+    t.Insert(5)
+    //assert t.IsEmpty()
+    t.Delete(5)
+    //assert t.IsEmpty()
+}
+
+ensures t.Tree()
+func client0(value int) (t *binary_search_tree.Tree) {
+    t = binary_search_tree.NewTree()
+    assert !t.PureContains(value, 2)
+    t.Insert(value)
+    assert t.SortedValues() == seq[int]{ value }
+    t.Delete(value)
+    assert !t.PureContains(value, 2)
+    return t
+}
+
+requires t.Tree()
+ensures t.Tree()
+func client1(t *binary_search_tree.Tree, value int) {
+    var oldValues = t.SortedValues()
+    t.Contains(value, 2) // passing a fractional permission of t.Tree() enables proof that the tree values remain unchanged
+    var newValues = t.SortedValues()
+    assert oldValues == newValues
+}
+
+requires t.Tree()
+ensures t.Tree()
+func client2(t *binary_search_tree.Tree, value int) {
+    var oldValues = t.SortedValues()
+    // insert a new value
+    t.Insert(value)
+    var newValues = t.SortedValues()
+    assert t.PureContains(value, 2)
+    ghost if (value in oldValues) {
+        assert oldValues == newValues
+    } else {
+        // this cannot be proven:
+        // assert newValues == insertIntoSortedSeq(oldValues, value)
+    }
+}
+
+
+
+

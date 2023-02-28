@@ -70,7 +70,7 @@ class PositionManager(val positions: Positions) extends Messaging(positions) {
     messages.sorted map { m =>
       errorFactory(
         formatMessage(m),
-        if (positions.getStart(m.value).isEmpty) None else 
+        if (positions.getStart(m.value).isEmpty) None else //TODO: position of private members in private specifications
         Some(translate(positions.getStart(m.value).get, positions.getFinish(m.value).get))
       )
     }
@@ -195,7 +195,31 @@ case class PTypeDef(right: PType, left: PIdnDef) extends PTypeDecl
 
 case class PTypeAlias(right: PType, left: PIdnDef) extends PTypeDecl
 
-case class PConstructDecl(typ: PType, args: Vector[PParameter], spec: PFunctionSpec, body: PGhostStatement) extends PActualMember with PScope
+case class PConstructDecl(
+                          typ: PType, 
+                          args: Vector[PParameter], 
+                          posts: Vector[PExpression], 
+                          body: Option[(PBodyParameterInfo, PBlock)],
+                          isShared: Boolean
+                         ) extends PGhostMember with PScope
+
+case class PDerefDecl(
+                      typ: PType, 
+                      args: Vector[PParameter],
+                      result: PResult, 
+                      pres: Vector[PExpression], 
+                      body: Option[(PBodyParameterInfo, PBlock)],
+                      isShared: Boolean,
+                      isPure: Boolean
+                     ) extends PGhostMember with PScope with PCodeRootWithResult
+
+case class PAssignDecl(
+                       typ: PType, 
+                       args: Vector[PParameter], 
+                       spec: PFunctionSpec, 
+                       body: Option[(PBodyParameterInfo, PBlock)],
+                       isShared: Boolean
+                      ) extends PGhostMember with PScope
 
 /**
   * Statements
@@ -938,7 +962,7 @@ case class PMethodImplementationProof(
 
 case class PImplementationProofPredicateAlias(left: PIdnUse, right: PNameOrDot) extends PGhostMisc
 
-case class PPrivateEntailmentProof(spec: PClosureSpecInstance, block: PBlock) extends PGhostStatement with PScope
+case class PPrivateEntailmentProof(block: PBlock) extends PGhostStatement with PScope
 
 sealed trait PNameOrDot extends PExpression
 
@@ -1029,8 +1053,6 @@ case class PAccess(exp: PExpression, perm: PExpression) extends PGhostExpression
 
 /** Specialised version of PAccess that only handles predicate accesses. E.g, used for foldings.  */
 case class PPredicateAccess(pred: PInvoke, perm: PExpression) extends PGhostExpression
-
-case class PPrivate(exp: PExpression) extends PGhostExpression
 
 case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
 

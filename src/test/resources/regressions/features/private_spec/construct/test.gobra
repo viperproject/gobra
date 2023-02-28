@@ -1,0 +1,49 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+// ##(-I ./)
+import bar "bar"
+
+func bad0(a, b bar.Pair2) {
+  if a.Left == b.Left && a.Right == b.Right {
+    assert a == b // should fail?, not encoded as partial struct (no private fields) 
+  }
+}
+
+func bad1(a, b bar.Pair) {
+  if a.Left == b.Left && a.Right == b.Right {
+    assert a == b // fails, partial struct
+  }
+}
+
+requires acc(&a.Left) && acc(&a.Right)
+func bad2(a *bar.Pair) {
+  *a = bar.Pair{} // fails, not enough permission
+}
+
+requires acc(&a.Left) && acc(&a.Right) && a.PrivateMem()
+func good2(a *bar.Pair) {
+  *a = bar.Pair{} // OK
+}
+
+requires acc(&a.Left) && acc(&a.Right)
+func bad3(a *bar.Pair) {
+  x := *a // fails, not enough permission
+}
+
+requires acc(&a.Left) && acc(&a.Right) && a.PrivateMem()
+func good3(a *bar.Pair) {
+  x := *a // OK
+}
+
+requires acc(&a.Left) && acc(&a.Right) && a.PrivateMem()
+requires acc(&b.Left) && acc(&b.Right) && b.PrivateMem()
+func bad4(a, b *bar.Pair) {
+  assert *a == *b // fail
+}
+
+
+
+

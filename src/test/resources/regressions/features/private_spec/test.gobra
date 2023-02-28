@@ -3,9 +3,12 @@
 
 package pkg
 
-ensures 
 type Pair struct {
   Left, Right, p int
+}
+
+type Test struct {
+  L, R, p int
 }
 
 pred (s *Pair) PrivateMem() {
@@ -16,14 +19,57 @@ pred (s *Pair) PublicMem() {
   acc(&s.Left) && acc(&s.Right) && s.PrivateMem()
 }
 
-ensures result.PublicMem()
-construct Pair() {
-  unfold result.PublicMem()
+ensures acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
+ensures this.Left == init.Left && this.Right == init.Right
+construct &Pair() {
+  fold this.PrivateMem()
+}
+
+requires acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
+pure deref &Pair() {
+  return unfolding this.PrivateMem() in *this
+} 
+
+requires acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
+pure func Get(this *Pair) Pair {
+  return *this
+}
+
+requires acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
+ensures  acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
+ensures  a == *this // deref(this) == rhs
+assign &Pair(a Pair) {
+  unfold this.PrivateMem()
+  *this = a // regular assignment to all fields including private and public ones
+  fold this.PrivateMem()
+}
+
+ensures this.Left == init.Left && this.Right == init.Right
+construct Pair()
+
+func bad1(a, b Pair) {
+  if a.Left == b.Left && a.Right == b.Right {
+    assert a == b // should fail => OK
+  }
+}
+
+requires acc(&a.Left) && acc(&a.Right)
+func bad2(a *Pair) {
+  *a = Pair{} // fails, not enough permission
+}
+
+requires acc(&a.Left) && acc(&a.Right)
+func bad3(a *Pair) {
+  x := *a // fails, not enough permission
 }
 
 
 func main() {
-  x := &Pair{Left: 2, Right: 0, p: 3}
+  x := &Pair{Left: 2, Right: 0, p: 1}
+  t := &Test{L: 2, R: 0, p: 3}
+  var t2 = Test{L: 2, R: 0, p: 3}
+  y := new(Pair)
+  var z = Pair{Left: 2, Right: 3, p: 1}
 }
 
 

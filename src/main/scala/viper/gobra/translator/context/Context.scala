@@ -132,6 +132,12 @@ trait Context {
     case bfp: BuiltInFPredicate => typeEncoding.builtInFPredicate(this)(bfp)
   }
 
+  def lookupConstructor(t: in.Type): Option[in.ConstructorProxy] = table.lookupConstructors(t)
+
+  def lookupDereference(t: in.Type): Option[in.DereferenceProxy] = table.lookupDereferences(t)
+
+  def lookupAssignments(t: in.Type): Option[in.AssignmentsProxy] = table.lookupAssignments(t)
+
   def underlyingType(t: in.Type): in.Type = t match {
     case t: in.DefinedT => underlyingType(lookup(t))
     case t => t

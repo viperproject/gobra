@@ -1,0 +1,63 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+
+type Stream interface {
+    pred Mem()
+
+    requires acc(Mem(), 1/2)
+    pure HasNext() bool
+
+    requires Mem() && HasNext()
+    ensures  Mem()
+    Next() interface{}
+}
+
+
+// implementation
+
+type Counter struct{ F, Max int }
+
+requires acc(x, 1/2)
+pure func (x *Counter) HasNext() bool {
+  return x.F < x.Max
+}
+
+requires acc(&x.F) && acc(&x.Max, 1/2) && x.HasNext()
+ensures  acc(&x.F) && acc(&x.Max, 1/2) && x.F == old(x.F)+1 && typeOf(y) == type[int]
+ensures  y.(int) == old(x.F)
+func (x *Counter) Next() (y interface{}) {
+  y = x.F
+  x.F += 1
+  return
+}
+
+
+// implementation proof
+
+pred (x *Counter) Mem() { acc(x) }
+
+(*Counter) implements Stream {
+
+  pure (x *Counter) HasNext() bool {
+    return unfolding acc(x.Mem(), 1/2) in x.HasNext()
+  }
+
+  (x *Counter) Next() (res interface{}) {
+    unfold x.Mem()
+    res = x.Next()
+    fold x.Mem()
+  }
+}
+
+
+// client code
+
+func client() {
+  x := &Counter{0, 50}
+  var y Stream = x
+  fold y.Mem()
+  var z interface{} = y.Next()
+}

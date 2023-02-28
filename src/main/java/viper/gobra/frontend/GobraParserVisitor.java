@@ -237,12 +237,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitAccess(GobraParser.AccessContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link GobraParser#pvt}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitPvt(GobraParser.PvtContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link GobraParser#range}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -515,6 +509,18 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitConstructDecl(GobraParser.ConstructDeclContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#derefDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitDerefDecl(GobraParser.DerefDeclContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#assignDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAssignDecl(GobraParser.AssignDeclContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#varSpec}.
 	 * @param ctx the parse tree

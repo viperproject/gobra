@@ -13,7 +13,7 @@ ensures  acc(x) && x.Left == 2
 private {
   requires acc(x) && x.Left == 2
   ensures  acc(x) && x.Left == 2 && x.p == 3
-  proof Foo {
+  proof {
     Foo(x)
   }
 }
@@ -28,7 +28,7 @@ ensures a == 0
 private {
   requires a == 0
   ensures a == 0
-  proof F {
+  proof {
     F(a)
   }
 }
@@ -40,7 +40,7 @@ ensures a == 0
 private {
   requires a == 0
   ensures a == 0
-  proof F2 {
+  proof {
     r = F2(a)
   }
 }
@@ -66,7 +66,7 @@ ensures P(a)
 private {
   requires a == 0
   ensures a == 0
-  proof FPred {
+  proof {
     unfold P(a)
     FPred(a)
     fold P(a)

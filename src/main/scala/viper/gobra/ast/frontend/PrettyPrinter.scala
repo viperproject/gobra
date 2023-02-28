@@ -101,8 +101,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMethodDecl(id, rec, args, res, spec, body) =>
         showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
         opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
-      case PConstructDecl(typ, args, spec, body) => 
-        showSpec(spec) <> "construct" <+> showType(typ) <> parens(showParameterList(args)) <> block(showStmt(body))
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
@@ -115,6 +113,15 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
             if (ip.alias.isEmpty && ip.memberProofs.isEmpty) emptyDoc
             else block(ssep(ip.alias map showMisc, line) <> line <> ssep(ip.memberProofs map showMisc, line))
           )
+      case PConstructDecl(typ, args, posts, body, isShared) => 
+        hcat(posts map (showPost(_) <> line)) <> "construct" <+> (if (isShared) "&" else emptyDoc) <> showType(typ) <> 
+        parens(showParameterList(args)) <> opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
+      case PDerefDecl(typ, args, _, pres, body, isShared, _) =>
+        hcat(pres map (showPre(_) <> line)) <> "pure deref" <+> (if (isShared) "&" else emptyDoc) <> showType(typ) <> 
+        parens(showParameterList(args)) <> opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
+      case PAssignDecl(typ, args, spec, body, isShared) =>
+        showSpec(spec) <> "assign" <+> (if (isShared) "&" else emptyDoc) <> showType(typ) <> 
+        parens(showParameterList(args)) <> opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
     }
   }
 
@@ -290,7 +297,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMatchStatement(exp, clauses, _) => "match" <+>
         showExpr(exp) <+> block(ssep(clauses map showMatchClauseStatement, line))
       case PClosureImplProof(impl, PBlock(stmts)) => "proof" <+> showExpr(impl) <> block(showStmtList(stmts))
-      case PPrivateEntailmentProof(spec, PBlock(stmts)) => "proof" <+> showMisc(spec) <> block(showStmtList(stmts))
+      case PPrivateEntailmentProof(PBlock(stmts)) => "proof" <+> block(showStmtList(stmts))
     }
   }
 
@@ -524,8 +531,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMagicWand(left, right) => showSubExpr(expr, left) <+> "--*" <+> showSubExpr(expr, right)
       case PClosureImplements(closure, spec) => showExpr(closure) <+> "implements" <+> showMisc(spec)
 
-      case PPrivate(exp) => "pvt" <> parens(showExpr(exp))
-
       case PTypeOf(exp) => "typeOf" <> parens(showExpr(exp))
       case PTypeExpr(typ) => "type" <> brackets(showType(typ))
       case PIsComparable(exp) => "isComparable" <> parens(showExprOrType(exp))
@@ -748,7 +753,6 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
         showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
       case PMethodDecl(id, rec, args, res, spec, _) =>
         showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
-      case _: PConstructDecl => emptyDoc //for now nothing yet
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
@@ -758,6 +762,12 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
         "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args))
       case ip: PImplementationProof =>
         showType(ip.subT) <+> "implements" <+> showType(ip.superT)
+      case PConstructDecl(typ, args, posts, _, isShared) => 
+        hcat(posts map (showPost(_) <> line)) <> "construct" <+> (if (isShared) "&" else emptyDoc) <> showType(typ) <> parens(showParameterList(args))
+      case PDerefDecl(typ, args, _, pres, _, isShared, _) =>
+        hcat(pres map (showPre(_) <> line)) <> "pure deref" <+> (if (isShared) "&" else emptyDoc) <> showType(typ) <> parens(showParameterList(args))
+      case PAssignDecl(typ, args, spec, _, isShared) =>
+        showSpec(spec) <> "assign" <+> (if (isShared) "&" else emptyDoc) <> showType(typ) <> parens(showParameterList(args))
     }
   }
 

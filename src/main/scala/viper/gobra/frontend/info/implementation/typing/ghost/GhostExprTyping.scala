@@ -97,8 +97,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => error(n, s"expected reference, dereference, field selection, or predicate expression instance, but got ${n.pred}")
     }
 
-    case PPrivate(e) => isExpr(e).out
-
     case PTypeOf(e) => isExpr(e).out
     case PTypeExpr(t) => isType(t).out
     case n@ PIsComparable(e) => typOfExprOrType(e) match {
@@ -240,8 +238,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PImplication => exprType(n.right) // implication is assertion or boolean iff its right side is
 
     case _: PAccess | _: PPredicateAccess | _: PMagicWand => AssertionT
-
-    case _: PPrivate => BooleanT
 
     case _: PClosureImplements => BooleanT
 
@@ -447,8 +443,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       
       case _: PAccess | _: PPredicateAccess => !strong
-      
-      case n: PPrivate => go(n.exp)
 
       case PPredConstructor(_, args) => args.flatten.forall(go)
 

@@ -101,6 +101,9 @@ object Desugar {
       interfaceImplMaps.groupMapReduce[in.InterfaceT, SortedSet[in.Type]](_._1)(_._2)(_ ++ _)
     }
     val combinedMemberProxies = computeMemberProxies(combinedMethods.values ++ combinedMPredicates.values, combinedImplementations, combinedDefinedT)
+    val combinedConstructors = combineTableField(_.directConstructors)
+    val combinedDereferences = combineTableField(_.directDereferences)
+    val combinedAssignments = combineTableField(_.directAssignments)
     val combineImpProofPredAliases = combineTableField(_.implementationProofPredicateAliases)
     val table = new in.LookupTable(
       combinedDefinedT,
@@ -110,6 +113,9 @@ object Desugar {
       combineTableField(_.definedFPredicates) ++ builtInFPredicates,
       combineTableField(_.definedFuncLiterals),
       combinedMemberProxies,
+      combinedConstructors, 
+      combinedDereferences,
+      combinedAssignments,
       combinedImplementations,
       combineImpProofPredAliases
       )
@@ -392,12 +398,14 @@ object Desugar {
           // in methods [registerPackage] and [registerMainPackage].
           Vector.empty
         case NoGhost(x: PConstDecl) => constDeclD(x)
-        case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
-        case NoGhost(x: PFunctionDecl) => registerFunction(x).toVector
-        case x: PMPredicateDecl => Vector(registerMPredicate(x))
-        case x: PFPredicateDecl => Vector(registerFPredicate(x))
+        case NoGhost(x: PMethodDecl) => if (imported && x.id.name.charAt(0).isLower) Vector.empty else Vector(registerMethod(x))
+        case NoGhost(x: PFunctionDecl) => if (imported && x.id.name.charAt(0).isLower) Vector.empty else registerFunction(x).toVector
+        case x: PMPredicateDecl => if (imported && x.id.name.charAt(0).isLower) Vector.empty else Vector(registerMPredicate(x))
+        case x: PFPredicateDecl => if (imported && x.id.name.charAt(0).isLower) Vector.empty else Vector(registerFPredicate(x))
         case x: PImplementationProof => registerImplementationProof(x); Vector.empty
-        case x: PConstructDecl => typeD(info.symbType(x.typ), Addressability.dereference)(meta(x, info)); Vector.empty
+        case x: PConstructDecl => Vector(registerConstructor(x))
+        case x: PDerefDecl => Vector(registerDereference(x))
+        case x: PAssignDecl => Vector(registerAssignments(x))
         case _ => Vector.empty
       }
 
@@ -419,6 +427,9 @@ object Desugar {
         definedFPredicates,
         definedFuncLiterals,
         computeMemberProxies(dMembers ++ additionalMembers, interfaceImplementations, definedTypes),
+        directConstructors,
+        directDereferences,
+        directAssignments,
         interfaceImplementations,
         implementationProofPredicateAliases
       )
@@ -736,13 +747,16 @@ object Desugar {
 
       val capturedWithAliases = (captured.map { v => in.Ref(localVarD(outerCtx, info)(v))(meta(v, info)) } zip capturedPar)
 
-      val bodyOpt = decl.body.map {
+      val bodyOpt: Option[in.Expr] = decl.body.flatMap {
         case (_, b: PBlock) =>
-          val res = b.nonEmptyStmts match {
-            case Vector(PReturn(Vector(ret))) => pureExprD(ctx, info)(ret)
+          val resOpt = b.nonEmptyStmts match { 
+            case Vector(PReturn(Vector(ret))) if imported && info.isPvt(ret) => None // if imported and has private body then import pure func as abstract
+            case Vector(PReturn(Vector(ret))) => Some(pureExprD(ctx, info)(ret))
             case b => Violation.violation(s"unexpected pure function body: $b")
           }
-          implicitConversion(res.typ, returns.head.typ, res)
+          for {
+            res <- resOpt
+          } yield implicitConversion(res.typ, returns.head.typ, res)
       }
 
       PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, privateSpec, bodyOpt)
@@ -908,13 +922,16 @@ object Desugar {
       // private specification
       val privateSpec = if (imported) None else privateSpecD(ctx)(decl.spec.privateSpec) 
 
-      val bodyOpt = decl.body.map {
+      val bodyOpt: Option[in.Expr] = decl.body.flatMap {
         case (_, b: PBlock) =>
-          val res = b.nonEmptyStmts match {
-            case Vector(PReturn(Vector(ret))) => pureExprD(ctx, info)(ret)
-            case s => Violation.violation(s"unexpected pure function body: $s")
+          val resOpt = b.nonEmptyStmts match {
+            case Vector(PReturn(Vector(ret))) if imported && info.isPvt(ret) => None // if imported and has private body then import pure func as abstract
+            case Vector(PReturn(Vector(ret))) => Some(pureExprD(ctx, info)(ret))
+            case b => Violation.violation(s"unexpected pure function body: $b")
           }
-          implicitConversion(res.typ, returns.head.typ, res)
+          for {
+            res <- resOpt
+          } yield implicitConversion(res.typ, returns.head.typ, res)
       }
 
       in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, privateSpec, bodyOpt)(fsrc)
@@ -930,8 +947,9 @@ object Desugar {
       // create context for body translation
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
 
-      val bodyOpt = decl.body.map{ s =>
-        specificationD(ctx, info)(s)
+      val bodyOpt = decl.body.flatMap{ s =>
+        if (!imported || !info.isPvt(s)) Some(specificationD(ctx, info)(s))
+        else None // if imported and has private body then import predicate as abstract
       }
 
       in.FPredicate(name, args, bodyOpt)(fsrc)
@@ -950,8 +968,9 @@ object Desugar {
       // create context for body translation
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
 
-      val bodyOpt = decl.body.map{ s =>
-        specificationD(ctx, info)(s)
+      val bodyOpt = decl.body.flatMap{ s =>
+        if (!imported || !info.isPvt(s)) Some(specificationD(ctx, info)(s))
+        else None // if imported and has private body then import predicate as abstract
       }
 
       in.MPredicate(recv, name, args, bodyOpt)(fsrc)
@@ -3183,6 +3202,102 @@ object Desugar {
     var definedMPredicates: Map[in.MPredicateProxy, in.MPredicate] = Map.empty
     var definedFPredicates: Map[in.FPredicateProxy, in.FPredicate] = Map.empty
     var definedFuncLiterals: Map[in.FunctionLitProxy, in.FunctionLitLike] = Map.empty
+    var directConstructors: Map[in.Type, in.ConstructorProxy] = Map.empty
+    var directDereferences: Map[in.Type, in.DereferenceProxy] = Map.empty
+    var directAssignments: Map[in.Type, in.AssignmentsProxy] = Map.empty
+
+    def registerConstructor(cons: PConstructDecl): in.Constructor = {
+      val src = meta(cons, info)
+
+      val typ = if (cons.isShared) {
+        val addrMod = Addressability.Shared
+        val t = typeD(info.symbType(cons.typ), addrMod)(src)
+        in.PointerT(t.withAddressability(addrMod), Addressability.reference)
+      } else {
+        val addrMod = Addressability.Exclusive
+        typeD(info.symbType(cons.typ), addrMod)(src)
+      }
+
+      val name = nm.constrd(typ)
+      val proxy = in.ConstructorProxy(s"$typ", name)(src)
+
+      directConstructors += typ -> proxy
+
+      val args = cons.args.zipWithIndex map { case (p,i) => inParameterD(p, i, info)._1 }
+      
+      val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) //dummy assign
+      val posts = cons.posts map postconditionD(ctx, info)
+      val body = for {
+        b <- cons.body
+        bl = blockD(ctx, info)(b._2)
+      } yield bl
+
+      in.Constructor(proxy, args, posts, body, typ)(src)
+    }
+
+    def registerDereference(deref: PDerefDecl): in.Dereference = {
+      val src = meta(deref, info)
+
+      val typ = if (deref.isShared) {
+        val addrMod = Addressability.Shared
+        val t = typeD(info.symbType(deref.typ), addrMod)(src)
+        in.PointerT(t.withAddressability(addrMod), Addressability.reference)
+      } else {
+        val addrMod = Addressability.Exclusive
+        typeD(info.symbType(deref.typ), addrMod)(src)
+      }
+
+      val name = nm.derefsd(typ)
+      val proxy = in.DereferenceProxy(s"$typ", name)(src)
+
+      directDereferences += typeD(info.symbType(deref.typ), Addressability.Shared)(src) -> proxy
+
+      val args = deref.args.zipWithIndex map { case (p,i) => inParameterD(p, i, info)._1 }
+      val ret = deref.result.outs.zipWithIndex map { case (p,i) => outParameterD(p, i, info)._1 }
+      
+      val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) //dummy assign
+      val pres = deref.pres map preconditionD(ctx, info)
+      val body = deref.body.map {
+        case (_, b: PBlock) =>
+          val res = b.nonEmptyStmts match {
+            case Vector(PReturn(Vector(ret))) => pureExprD(ctx, info)(ret)
+            case b => Violation.violation(s"unexpected pure function body: $b")
+          }
+          implicitConversion(res.typ, ret.head.typ, res)
+      }
+
+      in.Dereference(proxy, args, ret, pres, body, typ)(src)
+    }
+
+    def registerAssignments(ass: PAssignDecl): in.Assignments = {
+      val src = meta(ass, info)
+
+      val typ = if (ass.isShared) {
+        val addrMod = Addressability.Shared
+        val t = typeD(info.symbType(ass.typ), addrMod)(src)
+        in.PointerT(t.withAddressability(addrMod), Addressability.reference)
+      } else {
+        val addrMod = Addressability.Exclusive
+        typeD(info.symbType(ass.typ), addrMod)(src)
+      }
+
+      val name = nm.assignd(typ)
+      val proxy = in.AssignmentsProxy(s"$typ", name)(src)
+
+      directAssignments += typeD(info.symbType(ass.typ), (if (ass.isShared) Addressability.Shared else Addressability.Exclusive))(src) -> proxy
+
+      val args = ass.args.zipWithIndex map { case (p,i) => inParameterD(p, i, info)._1 }
+      
+      val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) //dummy assign
+      val pres = (ass.spec.pres ++ ass.spec.preserves) map preconditionD(ctx, info)
+      val posts = (ass.spec.preserves ++ ass.spec.posts) map postconditionD(ctx, info)
+      val body = for {
+        b <- ass.body
+        bl = blockD(ctx, info)(b._2)
+      } yield bl
+
+      in.Assignments(proxy, args, pres, posts, body, typ)(src)
+    }
 
     def registerDefinedType(t: Type.DeclaredT, addrMod: Addressability)(src: Meta): in.DefinedT = {
       // this type was declared in the current package
@@ -3735,7 +3850,7 @@ object Desugar {
 
       case t: Type.StructT =>
         val inFields: Vector[in.Field] = structD(t, addrMod)(src)
-        registerType(in.StructT(inFields, addrMod))
+        registerType(in.StructT(inFields, addrMod, imported))
 
       case t: Type.AdtT =>
         val adtName = nm.adt(t)
@@ -4238,8 +4353,6 @@ object Desugar {
 
       val typ = typeD(info.typ(expr), info.addressability(expr))(src)
 
-      def single[E <: in.Expr](gen: Meta => E): Writer[in.Expr] = unit[in.Expr](gen(src))
-
       expr match {
         case POld(op) => for {o <- go(op)} yield in.Old(o, typ)(src)
         case PLabeledOld(l, op) => for {o <- go(op)} yield in.LabeledOld(labelProxy(l), o)(src)
@@ -4263,9 +4376,6 @@ object Desugar {
           wthn <- go(right)
           wels = in.BoolLit(b = true)(src)
         } yield in.Conditional(wcond, wthn, wels, typ)(src)
-        
-        //desugar the expression into a BoolLit (boolean) for the translator
-        case PPrivate(exp) => single(in.BoolLit(info.isPvt(exp))) 
 
         case PTypeOf(exp) => for { wExp <- go(exp) } yield in.TypeOf(wExp)(src)
         case PIsComparable(exp) => underlyingType(info.typOfExprOrType(exp)) match {
@@ -4765,6 +4875,9 @@ object Desugar {
     private val FUNCTION_PREFIX = "F"
     private val METHODSPEC_PREFIX = "S"
     private val METHOD_PREFIX = "M"
+    private val CONSTRUCT_PREFIX = "$CONSTR"
+    private val DEREF_PREFIX = "$DEREF"
+    private val ASSIGN_PREFIX = "$ASSIGN"
     private val TYPE_PREFIX = "T"
     private val PROGRAM_INIT_CODE_PREFIX = "$INIT"
     private val PACKAGE_IMPORT_OBLIGATIONS_PREFIX = "$IMPORTS"
@@ -4852,6 +4965,9 @@ object Desugar {
       case PMethodReceiveName(typ)    => topLevelName(s"$METHOD_PREFIX${typ.name}")(n, context)
       case PMethodReceivePointer(typ) => topLevelName(s"P$METHOD_PREFIX${typ.name}")(n, context)
     }
+    def constrd (typ: in.Type): String = s"${stringifyType(typ)}_$CONSTRUCT_PREFIX"
+    def derefsd (typ: in.Type): String = s"${stringifyType(typ)}_$DEREF_PREFIX"
+    def assignd (typ: in.Type): String = s"${stringifyType(typ)}_$ASSIGN_PREFIX"
     private def stringifyType(typ: in.Type): String = Names.serializeType(typ)
     def builtInMember(tag: BuiltInMemberTag, dependantTypes: Vector[in.Type]): String = {
       val typeString = dependantTypes.map(stringifyType).mkString("_")

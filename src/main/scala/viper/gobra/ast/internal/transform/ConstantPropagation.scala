@@ -32,6 +32,9 @@ object ConstantPropagation extends InternalTransform {
       definedFPredicates = p.table.definedFPredicates.view.mapValues(propagate).toMap,
       definedFuncLiterals = p.table.definedFuncLiterals.view.mapValues(propagate).toMap,
       directMemberProxies = p.table.directMemberProxies,
+      directConstructor = p.table.directConstructor,
+      directDereference = p.table.directDereference,
+      directAssignments = p.table.directAssignments,
       directInterfaceImplementations = p.table.directInterfaceImplementations,
       implementationProofPredicateAliases = p.table.implementationProofPredicateAliases,
     )

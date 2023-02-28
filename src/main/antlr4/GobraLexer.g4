@@ -89,5 +89,6 @@ PROOF       : 'proof';
 GHOST_EQUALS     : '===';
 GHOST_NOT_EQUALS : '!==';
 WITH        : 'with';
-PVT         : 'pvt' -> mode(NLSEMI); 
 CONSTRUCT   : 'construct';
+DEREF       : 'deref';
+ASSIGN_STRUCT : 'assign';

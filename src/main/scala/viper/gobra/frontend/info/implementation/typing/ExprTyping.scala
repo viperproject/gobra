@@ -55,7 +55,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       resolve(n) match {
         case Some(f: ap.FieldSelection) => 
           val referenceToImportedPackage = s"$pkgName" != s"${regular(f.id).context.pkgName}"
-          if (referenceToImportedPackage && isPvt(n)) {
+          if (referenceToImportedPackage && isPrivate(n)) {
             error(n, s"expression error: expected public field, but got $n")
           } else noMessages
         case Some(_: ap.ReceivedMethod) => noMessages
@@ -65,7 +65,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
         case Some(c: ap.Constant) => 
           val referenceToImportedPackage = s"$pkgName" != s"${c.symb.context.pkgName}"
-          if (referenceToImportedPackage && isPvt(n)) {
+          if (referenceToImportedPackage && isPrivate(n)) {
             error(n, s"expression error: expected public constant, but got $n")
           } else noMessages
         case Some(_: ap.GlobalVariable) => noMessages
@@ -257,7 +257,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
           val referenceToImportedPackage = s"$pkgName" != s"${regular(c.callee.id).context.pkgName}"
-          if (referenceToImportedPackage && isPvt(callee)) {
+          if (referenceToImportedPackage && isPrivate(callee)) {
             error(n, s"invoke error: expected a public function, but got $callee") 
           } else {
             val isCallToInit =
@@ -440,7 +440,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         case _ => false
       }}
-      if (referenceToImportedPackage && isPvt(e)) { error(n, s"reference error: expected public struct, but got $e") }
+      if (referenceToImportedPackage && isPrivate(e)) { error(n, s"reference error: expected public struct, but got $e") }
       else { isExpr(e).out ++ effAddressable.errors(e)(n) }
 
     case n@PNegation(e) => isExpr(e).out ++ assignableTo.errors(exprType(e), BooleanT)(n)

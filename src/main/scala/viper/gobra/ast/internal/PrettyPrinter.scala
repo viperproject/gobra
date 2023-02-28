@@ -126,6 +126,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PureFunction => showPureFunction(n)
     case n: FPredicate => showFPredicate(n)
     case n: MPredicate => showMPredicate(n)
+    case n: Constructor => showConstructor(n)
+    case n: Dereference => showDereference(n)
+    case n: Assignments => showAssignments(n)
     case n: DomainDefinition => showDomainDefinition(n)
     case n: MethodSubtypeProof => showMethodSubtypeProof(n)
     case n: PureMethodSubtypeProof => showPureMethodSubtypeProof(n)
@@ -195,6 +198,25 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showMPredicate(predicate: MPredicate): Doc = predicate match {
     case MPredicate(recv, name, args, body) =>
       "pred" <+> parens(showVarDecl(recv)) <+> name.name <> parens(showFormalArgList(args)) <> opt(body)(b => block(showAss(b)))
+  }
+
+  def showConstructor(construct: Constructor): Doc = construct match {
+    case Constructor(name, args, posts, body, _) => 
+      "constructor" <+> name.name <> parens(showFormalArgList(args)) <> 
+      showPostconditions(posts) <> opt(body)(showStmt)
+  }
+
+  def showDereference(deref: Dereference): Doc = deref match {
+    case Dereference(name, args, results, pres, body, _) => 
+      "pure deref" <+> name.name <> parens(showFormalArgList(args)) <> parens(showVarDeclList(results)) <>
+      showPreconditions(pres) <> opt(body)(showExpr) 
+  }
+
+  def showAssignments(ass: Assignments): Doc = ass match {
+    case Assignments(name, args, pres, posts, body, _) =>
+      "assign" <+> name.name <> parens(showFormalArgList(args)) <>
+      spec(showPreconditions(pres) <> showPostconditions(posts)) <>
+      opt(body)(showStmt)
   }
 
   def showGlobalConstDecl(globalConst: GlobalConstDecl): Doc = {
@@ -269,8 +291,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       posts = s.posts
       terminationMeasures = s.terminationMeasures
       proof = s.proof
-    } yield block(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(terminationMeasures) <>
-                 opt(proof)(showStmt))).getOrElse(emptyDoc) <> line
+    } yield block(
+      spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(terminationMeasures)) <>
+      opt(proof)(showStmt))
+    ).getOrElse(emptyDoc) <> line
   }
 
   def showCaptured(captured: Vector[(Expr, Parameter.In)]): Doc =
@@ -382,6 +406,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case FunctionLitProxy(name) => name
     case AdtClauseProxy(name, _) => name
     case l: LabelProxy => l.name
+    case ConstructorProxy(name, _) => name
+    case DereferenceProxy(name, _) => name
+    case AssignmentsProxy(name, _) => name
   })
 
   def showBlockDecl(x: BlockDeclaration): Doc = x match {

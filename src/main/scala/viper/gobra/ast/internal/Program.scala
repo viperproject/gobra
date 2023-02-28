@@ -37,12 +37,16 @@ class LookupTable(
                    private[internal] val definedMPredicates: Map[MPredicateProxy, MPredicateLikeMember] = Map.empty,
                    private[internal] val definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember] = Map.empty,
                    private[internal] val definedFuncLiterals: Map[FunctionLitProxy, FunctionLitLike] = Map.empty,
-
+                   
                    /**
                    * only has to be defined on types that implement an interface // might change depending on how embedding support changes
                    * SortedSet is used to achieve a consistent ordering of members across runs of Gobra
                    */
                    private[internal] val directMemberProxies: Map[Type, SortedSet[MemberProxy]] = Map.empty,
+                   private[internal] val directConstructor: Map[Type, ConstructorProxy] = Map.empty,
+                   private[internal] val directDereference: Map[Type, DereferenceProxy] = Map.empty,
+                   private[internal] val directAssignments: Map[Type, AssignmentsProxy] = Map.empty,
+
                    /**
                    * empty interface does not have to be included
                    * SortedSet is used to achieve a consistent ordering of members across runs of Gobra
@@ -66,6 +70,9 @@ class LookupTable(
   def lookupNonInterfaceImplementations(t: InterfaceT): SortedSet[Type] = lookupImplementations(t).filterNot(_.isInstanceOf[InterfaceT])
   def lookupMembers(t: Type): SortedSet[MemberProxy] = getMembers.getOrElse(t.withAddressability(Addressability.Exclusive), SortedSet.empty)
   def lookup(t: Type, name: String): Option[MemberProxy] = lookupMembers(t).find(_.name == name)
+  def lookupConstructors(t: Type): Option[ConstructorProxy] = directConstructor.get(t)
+  def lookupDereferences(t: Type): Option[DereferenceProxy] = directDereference.get(t)
+  def lookupAssignments(t: Type): Option[AssignmentsProxy] = directAssignments.get(t)
 
   def lookupImplementationPredicate(impl: Type, itf: InterfaceT, name: String): Option[PredicateProxy] = {
     lookup(impl, name).collect{ case m: MPredicateProxy => m }.orElse{
@@ -84,6 +91,9 @@ class LookupTable(
     definedFPredicates ++ other.definedFPredicates,
     definedFuncLiterals ++ other.definedFuncLiterals,
     directMemberProxies ++ other.directMemberProxies,
+    directConstructor ++ other.directConstructor,
+    directDereference ++ other.directDereference,
+    directAssignments ++ other.directAssignments,
     directInterfaceImplementations ++ other.directInterfaceImplementations,
     implementationProofPredicateAliases ++ other.implementationProofPredicateAliases,
   )
@@ -1172,6 +1182,32 @@ case class PureFunctionLit(
   require(results.size <= 1)
 }
 
+case class Constructor(
+                       id: ConstructorProxy,
+                       args: Vector[Parameter.In],
+                       posts: Vector[Assertion],
+                       body: Option[Stmt],
+                       ret: Type
+                      )(val info: Source.Parser.Info) extends Member
+
+case class Dereference(
+                       id: DereferenceProxy,
+                       args: Vector[Parameter.In],
+                       results: Vector[Parameter.Out],
+                       pres: Vector[Assertion],
+                       body: Option[Expr],
+                       ret: Type
+                      )(val info: Source.Parser.Info) extends Member
+
+case class Assignments(
+                       id: AssignmentsProxy,
+                       args: Vector[Parameter.In],
+                       pres: Vector[Assertion],
+                       posts: Vector[Assertion],
+                       body: Option[Stmt],
+                       ret: Type
+                      )(val info: Source.Parser.Info) extends Member
+
 case class ClosureImplements(closure: Expr, spec: ClosureSpec)(override val info: Source.Parser.Info) extends Expr {
   override def typ: Type = BoolT(Addressability.rValue)
 }
@@ -1423,7 +1459,7 @@ case class SliceT(elems : Type, addressability: Addressability) extends PrettyTy
   */
 case class MapT(keys: Type, values: Type, addressability: Addressability) extends PrettyType(s"map[$keys]$values") {
   def hasGhostField(k: Type): Boolean = k match {
-    case StructT(fields, _) => fields exists (_.ghost)
+    case StructT(fields, _, _) => fields exists (_.ghost)
     case _ => false
   }
   // this check must be done here instead of at the type system level because the concrete AST does not support
@@ -1548,9 +1584,9 @@ case class PredT(args: Vector[Type], addressability: Addressability) extends Pre
 
 // StructT does not have a name because equality of two StructT does not depend at all on their declaration site but
 // only on their structure, i.e. whether the fields (and addressability) are equal
-case class StructT(fields: Vector[Field], addressability: Addressability) extends PrettyType(fields.mkString("struct{", ", ", "}")) with TopType {
+case class StructT(fields: Vector[Field], addressability: Addressability, imported: Boolean = false) extends PrettyType(fields.mkString("struct{", ", ", "}")) with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
-    case StructT(otherFields, _) => fields.zip(otherFields).forall{ case (l, r) => l.typ.equalsWithoutMod(r.typ) }
+    case StructT(otherFields, _, _) => fields.zip(otherFields).forall{ case (l, r) => l.typ.equalsWithoutMod(r.typ) }
     case _ => false
   }
 
@@ -1646,3 +1682,8 @@ case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy 
 
 case class GlobalVarProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
 
+case class ConstructorProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
+
+case class DereferenceProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
+
+case class AssignmentsProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy

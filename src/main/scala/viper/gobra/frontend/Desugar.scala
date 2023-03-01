@@ -1738,6 +1738,13 @@ object Desugar {
                         in.GoMethodCall(call.recv, call.meth, call.args)(src)
                       case _ => unexpectedExprError(exp)
                     }
+                  case Some(_: ap.ClosureCall) =>
+                    closureCallDAux(ctx, info)(inv)(src) map {
+                      case Left((_, call: in.ClosureCall)) =>
+                        in.GoClosureCall(call.closure, call.args, call.spec)(src)
+                      case Right(call: in.PureClosureCall) =>
+                        in.GoClosureCall(call.closure, call.args, call.spec)(src)
+                    }
                   case _ => unexpectedExprError(exp)
                 }
               case _ => unexpectedExprError(exp)

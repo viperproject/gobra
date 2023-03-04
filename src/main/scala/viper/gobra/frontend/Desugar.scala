@@ -31,6 +31,7 @@ object Desugar {
   def desugar(pkg: PPackage, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
     val importsCollector = new PackageInitSpecCollector
     // independently desugar each imported package.
+    val importedDesugaringStartMs = System.currentTimeMillis()
     val importedPrograms = info.context.getContexts map { tI => {
       val typeInfo: TypeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
@@ -39,12 +40,18 @@ object Desugar {
       d.registerPackage(importedPackage, importsCollector)(config)
       (d, d.packageD(importedPackage))
     }}
+    val importedDurationS = f"${(System.currentTimeMillis() - importedDesugaringStartMs) / 1000f}%.1f"
+    println(s"desugaring imported packages done, took ${importedDurationS}s")
+
+    val desugaringStartMs = System.currentTimeMillis()
     // desugar the main package, i.e. the package on which verification is performed:
     val mainDesugarer = new Desugarer(pkg.positions, info)
     // registers main package to generate proof obligations for its init code
     mainDesugarer.registerMainPackage(pkg, importsCollector)(config)
     // combine all desugared results into one Viper program:
     val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
+    val durationS = f"${(System.currentTimeMillis() - desugaringStartMs) / 1000f}%.1f"
+    println(s"desugaring main package done, took ${durationS}s")
     config.reporter report DesugaredMessage(config.packageInfoInputMap(pkg.info).map(_.name), () => internalProgram)
     internalProgram
   }
@@ -3455,7 +3462,8 @@ object Desugar {
       // Collect and register all import-preconditions
       pkg.imports.foreach{ imp =>
         info.context.getTypeInfo(RegularImport(imp.importPath))(config) match {
-          case Some(Right(tI)) =>
+          // case Some(Right(tI)) =>
+          case Right(tI) =>
             val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
             Violation.violation(!config.enableLazyImports || desugaredPre.isEmpty, s"Import precondition found despite running with ${Config.enableLazyImportOptionPrettyPrinted}")
             specCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)

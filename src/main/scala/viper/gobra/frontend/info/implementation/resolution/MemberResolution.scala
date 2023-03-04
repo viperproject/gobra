@@ -405,6 +405,7 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   // TODO: move this method to another file
   def getTypeChecker(importTarget: AbstractImport, errNode: PNode): Either[Messages, ExternalTypeInfo] = {
+    /*
     def parseAndTypeCheck(importTarget: AbstractImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
       val pkgSources = PackageResolver.resolveSources(importTarget)(config)
         .getOrElse(Vector())
@@ -425,14 +426,15 @@ trait MemberResolution { this: TypeInfoImpl =>
       )
       res
     }
-
+    */
     def createImportError(errs: Vector[VerifierError]): Messages = {
       // create an error message located at the import statement to indicate errors in the imported package
       // we distinguish between parse and type errors, cyclic imports, and packages whose source files could not be found
       val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
       // alternativeErr is a function to compute the message only when needed
-      val alternativeErr = () => context.getImportCycle(importTarget) match {
-        case Some(cycle) => message(errNode, s"Package '$importTarget' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
+      val alternativeErr = () => context.getParserImportCycle(importTarget) match {
+        case Some(cycle) =>
+          message(errNode, s"Package '$importTarget' is part of the following import cycle that involves the import ${cycle.importNodeCausingCycle}: ${cycle.cyclicPackages.mkString("[", ", ", "]")}")
         case _ => message(errNode, s"Package '$importTarget' contains errors: $errs")
       }
       notFoundErr.map(e => message(errNode, e.message))
@@ -440,7 +442,15 @@ trait MemberResolution { this: TypeInfoImpl =>
     }
 
     // check if package was already parsed, otherwise do parsing and type checking:
+    /*
     val cachedInfo = context.getTypeInfo(importTarget)(config)
-    cachedInfo.getOrElse(parseAndTypeCheck(importTarget)).left.map(createImportError)
+    if (cachedInfo.isEmpty) {
+      println(s"package $importTarget is not contained in context")
+    }
+    Violation.violation(cachedInfo.nonEmpty, s"package $importTarget is not contained in context")
+    cachedInfo.get.left.map(createImportError)
+    // cachedInfo.getOrElse(parseAndTypeCheck(importTarget)).left.map(createImportError)
+     */
+    context.getTypeInfo(importTarget)(config).left.map(createImportError)
   }
 }

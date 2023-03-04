@@ -22,6 +22,7 @@ import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable.ListBuffer
 import java.security.MessageDigest
+import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 
 object Parser {
 
@@ -59,7 +60,7 @@ object Parser {
 
   type SourceCacheKey = String
   // cache maps a key (obtained by hasing file path and file content) to the parse result
-  private var sourceCache: Map[SourceCacheKey, (Either[Vector[ParserError], PProgram], Positions)] = Map.empty
+  private var sourceCache: ConcurrentMap[SourceCacheKey, (Either[Vector[ParserError], PProgram], Positions)] = new ConcurrentHashMap()
 
   /** computes the key for caching a particular source. This takes the name, the specOnly flag, and the file's contents into account */
   private def getCacheKey(source: Source, specOnly: Boolean): SourceCacheKey = {
@@ -70,7 +71,7 @@ object Parser {
   }
 
   def flushCache(): Unit = {
-    sourceCache = Map.empty
+    sourceCache.clear()
   }
 
   private def parseSources(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
@@ -100,10 +101,11 @@ object Parser {
       def parseAndStore(): (Either[Vector[ParserError], PProgram], Positions) = {
         cacheHit = false
         val res = parseSource(source)
-        sourceCache += getCacheKey(source, specOnly) -> (res, positions)
+        // sourceCache.put(getCacheKey(source, specOnly), (res, positions))
         (res, positions)
       }
-      val (res, pos) = sourceCache.getOrElse(getCacheKey(source, specOnly), parseAndStore())
+      // val (res, pos) = sourceCache.getOrElse(getCacheKey(source, specOnly), parseAndStore())
+      val (res, pos) = sourceCache.computeIfAbsent(getCacheKey(source, specOnly), _ => parseAndStore())
       if (cacheHit) {
         // a cached AST has been found in the cache. The position manager does not yet have any positions for nodes in
         // this AST. Therefore, the following strategy iterates over the entire AST and copies positional information

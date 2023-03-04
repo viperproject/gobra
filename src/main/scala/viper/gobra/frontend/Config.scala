@@ -16,6 +16,8 @@ import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
+import viper.gobra.frontend.info.Info.TypeCheckMode
+import viper.gobra.frontend.info.Info.TypeCheckMode.TypeCheckMode
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
@@ -68,6 +70,7 @@ object ConfigDefaults {
   lazy val DefaultEnableLazyImports: Boolean = false
   lazy val DefaultNoVerify: Boolean = false
   lazy val DefaultNoStreamErrors: Boolean = false
+  lazy val DefaultTypeCheckMode: TypeCheckMode = TypeCheckMode.Parallel
 }
 
 case class Config(
@@ -118,7 +121,8 @@ case class Config(
                    disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
-                   noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors
+                   noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
+                   typeCheckMode: TypeCheckMode = ConfigDefaults.DefaultTypeCheckMode,
 ) {
 
   def merge(other: Config): Config = {
@@ -163,7 +167,8 @@ case class Config(
       disableMoreCompleteExhale = disableMoreCompleteExhale,
       enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
-      noStreamErrors = noStreamErrors || other.noStreamErrors
+      noStreamErrors = noStreamErrors || other.noStreamErrors,
+      typeCheckMode = typeCheckMode
     )
   }
 
@@ -214,6 +219,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
+                      typeCheckMode: TypeCheckMode = ConfigDefaults.DefaultTypeCheckMode,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -268,6 +274,7 @@ trait RawConfig {
     enableLazyImports = baseConfig.enableLazyImports,
     noVerify = baseConfig.noVerify,
     noStreamErrors = baseConfig.noStreamErrors,
+    typeCheckMode = baseConfig.typeCheckMode,
   )
 }
 
@@ -639,6 +646,19 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val typeCheckMode: ScallopOption[TypeCheckMode] = choice(
+    name = "typeCheckMode",
+    choices = Seq("LAZY", "SEQUENTIAL", "PARALLEL"),
+    descr = "Specifies the mode in which type-checking is performed.",
+    default = Some("PARALLEL"),
+    noshort = true
+  ).map {
+    case "LAZY" => TypeCheckMode.Lazy
+    case "SEQUENTIAL" => TypeCheckMode.Sequential
+    case "PARALLEL" => TypeCheckMode.Parallel
+    case _ => ConfigDefaults.DefaultTypeCheckMode
+  }
+
   /**
     * Exception handling
     */
@@ -785,5 +805,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),
     noStreamErrors = noStreamErrors(),
+    typeCheckMode = typeCheckMode(),
   )
 }

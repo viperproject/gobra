@@ -16,6 +16,7 @@ import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, InternalTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
+import viper.gobra.frontend.info.Info.Context
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, PackageInfo, Parser, ScallopGobraConfig}
 import viper.gobra.reporting._
@@ -158,7 +159,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
         finalConfig <- getAndMergeInFileConfig(config, pkgInfo)
         _ = setLogLevel(finalConfig)
         parsedPackage <- performParsing(pkgInfo, finalConfig)
-        typeInfo <- performTypeChecking(parsedPackage, finalConfig)
+        typeInfo <- performTypeChecking(parsedPackage, executor, finalConfig)
         program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
         program <- performInternalTransformations(program, finalConfig, pkgInfo)
         viperTask <- performViperEncoding(program, finalConfig, pkgInfo)
@@ -243,16 +244,20 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performParsing(pkgInfo: PackageInfo, config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
+      val startMs = System.currentTimeMillis()
       val sourcesToParse = config.packageInfoInputMap(pkgInfo)
-      Parser.parse(sourcesToParse, pkgInfo)(config)
+      val res = Parser.parse(sourcesToParse, pkgInfo)(config)
+      val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
+      println(s"parser phase done, took ${durationS}s")
+      res
     } else {
       Left(Vector())
     }
   }
 
-  private def performTypeChecking(parsedPackage: PPackage, config: Config): Either[Vector[VerifierError], TypeInfo] = {
+  private def performTypeChecking(parsedPackage: PPackage, executionContext: GobraExecutionContext, config: Config): Either[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
-      Info.check(parsedPackage, config.packageInfoInputMap(parsedPackage.info), isMainContext = true)(config)
+      Info.check(parsedPackage, config.packageInfoInputMap(parsedPackage.info), isMainContext = true, context = new Context(executionContext, config))(config)
     } else {
       Left(Vector())
     }
@@ -260,7 +265,11 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performDesugaring(parsedPackage: PPackage, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
     if (config.shouldDesugar) {
-      Right(Desugar.desugar(parsedPackage, typeInfo)(config))
+      val startMs = System.currentTimeMillis()
+      val res = Right(Desugar.desugar(parsedPackage, typeInfo)(config))
+      val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
+      println(s"desugaring done, took ${durationS}s")
+      res
     } else {
       Left(Vector())
     }
@@ -282,18 +291,25 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     // constant propagation does not cause duplication of verification errors caused
     // by overflow checks (if enabled) because all overflows in constant declarations 
     // can be found by the well-formedness checks.
+    val startMs = System.currentTimeMillis()
     var transformations: Vector[InternalTransform] = Vector(CGEdgesTerminationTransform, ConstantPropagation)
     if (config.checkOverflows) {
       transformations :+= OverflowChecksTransform
     }
     val result = transformations.foldLeft(program)((prog, transf) => transf.transform(prog))
     config.reporter.report(AppliedInternalTransformsMessage(config.packageInfoInputMap(pkgInfo).map(_.name), () => result))
+    val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
+    println(s"internal transformations done, took ${durationS}s")
     Right(result)
   }
 
   private def performViperEncoding(program: Program, config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], BackendVerifier.Task] = {
     if (config.shouldViperEncode) {
-      Right(Translator.translate(program, pkgInfo)(config))
+      val startMs = System.currentTimeMillis()
+      val res = Right(Translator.translate(program, pkgInfo)(config))
+      val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
+      println(s"Viper encoding done, took ${durationS}s")
+      res
     } else {
       Left(Vector())
     }

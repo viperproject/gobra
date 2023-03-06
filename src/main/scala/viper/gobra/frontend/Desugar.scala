@@ -3813,7 +3813,7 @@ object Desugar {
           // to simplify, we just return the enclosing function or method's name
           info.enclosingFunctionOrMethod(decl) match {
             case Some(d) => idName(d.id, context)
-            case None => violation(s"Could not find function or method declaration enclosing the closure declaration.")
+            case None => violation(s"Could not find a function or method declaration enclosing the closure declaration.")
           }
         case _ => ??? // axiom and method-implementation-proof
       }

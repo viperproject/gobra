@@ -3808,6 +3808,13 @@ object Desugar {
         case decl: PMethodSig      => idName(decl.id, context)
         case decl: PMPredicateSig  => idName(decl.id, context)
         case decl: PDomainFunction => idName(decl.id, context)
+        case decl: PClosureDecl =>
+          // closure declarations do not have an associated name and may be arbitrarily nested.
+          // to simplify, we just return the enclosing function or method's name
+          info.enclosingFunctionOrMethod(decl) match {
+            case Some(d) => idName(d.id, context)
+            case None => violation(s"Could not find function or method declaration enclosing the closure declaration.")
+          }
         case _ => ??? // axiom and method-implementation-proof
       }
     }

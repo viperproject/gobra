@@ -8,12 +8,12 @@ package viper.gobra
 
 import java.nio.file.Path
 import java.util.concurrent.TimeUnit
-
 import org.scalatest.DoNotDiscover
-import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.OverflowChecksTransform
 import viper.gobra.backend.BackendVerifier
+import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
+import viper.gobra.frontend.Parser.ParseSuccessResult
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Desugar, Parser}
 import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, VerifierError, VerifierResult}
@@ -105,22 +105,24 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       val c = config.get
       assert(c.packageInfoInputMap.size == 1)
       val pkgInfo = c.packageInfoInputMap.keys.head
-      Parser.parse(c.packageInfoInputMap(pkgInfo), pkgInfo)(c)
+      Parser.parse(c, pkgInfo)(executor)
     })
 
-    private val typeChecking: NextStep[PPackage, (PPackage, TypeInfo), Vector[VerifierError]] =
-      NextStep("type-checking", parsing, (parsedPackage: PPackage) => {
+    private val typeChecking: NextStep[Map[AbstractPackage, ParseSuccessResult], TypeInfo, Vector[VerifierError]] =
+      NextStep("type-checking", parsing, (parseResults: Map[AbstractPackage, ParseSuccessResult]) => {
         assert(config.isDefined)
         val c = config.get
         assert(c.packageInfoInputMap.size == 1)
         val pkgInfo = c.packageInfoInputMap.keys.head
-        Info.check(parsedPackage, c.packageInfoInputMap(pkgInfo))(c).map(typeInfo => (parsedPackage, typeInfo))
+        Info.check(c, RegularPackage(pkgInfo.id), parseResults)(executor)
+        // Info.check(parsedPackage, c.packageInfoInputMap(pkgInfo))(c).map(typeInfo => (parsedPackage, typeInfo))
       })
 
-    private val desugaring: NextStep[(PPackage, TypeInfo), Program, Vector[VerifierError]] =
-      NextStep("desugaring", typeChecking, { case (parsedPackage: PPackage, typeInfo: TypeInfo) =>
+    private val desugaring: NextStep[TypeInfo, Program, Vector[VerifierError]] =
+      NextStep("desugaring", typeChecking, { case (typeInfo: TypeInfo) =>
         assert(config.isDefined)
-        Right(Desugar.desugar(parsedPackage, typeInfo)(config.get))
+        val c = config.get
+        Right(Desugar.desugar(c, typeInfo)(executor))
       })
 
     private val internalTransforming = NextStep("internal transforming", desugaring, (program: Program) => {

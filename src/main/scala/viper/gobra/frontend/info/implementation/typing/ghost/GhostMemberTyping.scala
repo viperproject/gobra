@@ -130,22 +130,17 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     // the main context reports missing implementation proof for all packages (i.e. all packages that have been parsed & typechecked so far)
     if (isMainContext) {
       // we not only collect the type information for directly imported packages but for all transitively imported ones:
-      // val typeInfos = getTransitiveTypeInfos(dependentTypeInfo) + this
-      val typeInfos = getTransitiveTypeInfos
-      // val typeInfos = dependentTypeInfo.map { case (_, resultFn) => resultFn() }.collect { case Right(info) => info }.toVector :+ this
+      val typeInfos = getTransitiveTypeInfos()
       val allRequiredImplements = {
-        // val foundRequired = localRequiredImplements ++ context.getContexts.flatMap(_.localRequiredImplements)
-        val foundRequired = localRequiredImplements ++ typeInfos.flatMap(_.localRequiredImplements)
-        // val foundGuaranteed = localGuaranteedImplements ++ context.getContexts.flatMap(_.localGuaranteedImplements)
-        val foundGuaranteed = localGuaranteedImplements ++ typeInfos.flatMap(_.localGuaranteedImplements)
+        val foundRequired = typeInfos.flatMap(_.localRequiredImplements)
+        val foundGuaranteed = typeInfos.flatMap(_.localGuaranteedImplements)
         foundRequired diff foundGuaranteed
       }
       if (allRequiredImplements.nonEmpty) {
         // For every required implementation, check that there is at most one proof
         // and if not all predicates are defined, then check that there is a proof.
 
-        // val providedImplProofs = localImplementationProofs ++ context.getContexts.flatMap(_.localImplementationProofs)
-        val providedImplProofs = localImplementationProofs ++ typeInfos.flatMap(_.localImplementationProofs)
+        val providedImplProofs = typeInfos.flatMap(_.localImplementationProofs)
         val groupedProofs = allRequiredImplements.toVector.map{ case (impl, itf) =>
           (impl, itf, providedImplProofs.collect{ case (`impl`, `itf`, alias, proofs) => (alias, proofs) })
         }

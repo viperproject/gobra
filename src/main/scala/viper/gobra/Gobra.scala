@@ -247,25 +247,11 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     if (config.shouldParse) {
       val startMs = System.currentTimeMillis()
       val res = Parser.parse(config, pkgInfo)(executor)
-      val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
-      println(s"parser phase done, took ${durationS}s")
-      res
-      /*
-      val sourcesToParse = config.packageInfoInputMap(pkgInfo)
-      val res = Parser.parse(sourcesToParse, pkgInfo)(config)
-       */
-      /*
-      val parseManager = Parser.parse(pkgInfo)(config, executionContext)
-      config.typeCheckMode match {
-        case TypeCheckMode.Lazy => // don't do anything
-        case TypeCheckMode.Sequential | TypeCheckMode.Parallel =>
-          parseManager.awaitResults()
-          val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
-          println(s"parser phase done, took ${durationS}s")
-          println(s"parsed packages: ${parseManager.getResults.map{ case (pkg, _) => pkg }.mkString(", ")}")
+      logger.debug {
+        val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
+        s"parser phase done, took ${durationS}s"
       }
-      Right(parseManager)
-      */
+      res
     } else {
       Left(Vector())
     }
@@ -279,12 +265,14 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  private def performDesugaring(config: Config, typeInfo: TypeInfo)(@unused executor: GobraExecutionContext): Either[Vector[VerifierError], Program] = {
+  private def performDesugaring(config: Config, typeInfo: TypeInfo)(executor: GobraExecutionContext): Either[Vector[VerifierError], Program] = {
     if (config.shouldDesugar) {
       val startMs = System.currentTimeMillis()
-      val res = Right(Desugar.desugar(typeInfo.tree.root, typeInfo)(config))
-      val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
-      println(s"desugaring done, took ${durationS}s")
+      val res = Right(Desugar.desugar(config, typeInfo)(executor))
+      logger.debug {
+        val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
+        s"desugaring done, took ${durationS}s"
+      }
       res
     } else {
       Left(Vector())
@@ -305,9 +293,11 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       transformations :+= OverflowChecksTransform
     }
     val result = transformations.foldLeft(program)((prog, transf) => transf.transform(prog))
+    logger.debug {
+      val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
+      s"internal transformations done, took ${durationS}s"
+    }
     config.reporter.report(AppliedInternalTransformsMessage(config.packageInfoInputMap(pkgInfo).map(_.name), () => result))
-    val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
-    println(s"internal transformations done, took ${durationS}s")
     Right(result)
   }
 
@@ -315,8 +305,10 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     if (config.shouldViperEncode) {
       val startMs = System.currentTimeMillis()
       val res = Right(Translator.translate(program, pkgInfo)(config))
-      val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
-      println(s"Viper encoding done, took ${durationS}s")
+      logger.debug {
+        val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
+        s"Viper encoding done, took ${durationS}s"
+      }
       res
     } else {
       Left(Vector())

@@ -6,6 +6,7 @@
 
 package viper.gobra.frontend
 
+import com.typesafe.scalalogging.LazyLogging
 import org.bitbucket.inkytonik.kiama.rewriting.Cloner.{rewrite, topdown}
 import org.bitbucket.inkytonik.kiama.rewriting.PositionedRewriter.strategyWithName
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
@@ -30,7 +31,7 @@ object Parser {
 
   type ParseSuccessResult = (Vector[Source], PPackage)
   type ParseResult = Either[Vector[VerifierError], ParseSuccessResult]
-  class ParseManager(config: Config, executionContext: GobraExecutionContext) {
+  class ParseManager(config: Config, executionContext: GobraExecutionContext) extends LazyLogging {
     private val manager = new TaskManager[AbstractPackage, ParseResult](TaskManagerMode.Parallel)
 
     def parse(pkgInfo: PackageInfo): Unit = {
@@ -44,76 +45,74 @@ object Parser {
     trait ParseJob extends Job[ParseResult] {
       def pkgInfo: PackageInfo
       def pkgSources: Vector[Source]
+      def specOnly: Boolean
 
       override def compute(): ParseResult = {
         require(pkgSources.nonEmpty)
 
+        val preprocessedSources = preprocess(pkgSources)(config)
+
         val startPreambleParsingMs = System.currentTimeMillis()
-        var endPreambleParsingMs: Option[Long] = None
         // before parsing, get imports and add these parse jobs
-        fastParse(pkgSources)
-          .map(directImportTarget => {
-            if (endPreambleParsingMs.isEmpty) {
-              endPreambleParsingMs = Some(System.currentTimeMillis())
-            }
+        val imports = fastParse(preprocessedSources)
+        val preambleParsingDurationMs = System.currentTimeMillis() - startPreambleParsingMs
+        imports.foreach(directImportTarget => {
             val directImportPackage = AbstractPackage(directImportTarget)(config)
-            val pkgSources = PackageResolver.resolveSources(directImportTarget)(config)
+            val importedSources = PackageResolver.resolveSources(directImportTarget)(config)
               .getOrElse(Vector())
               .map(_.source)
-            if (pkgSources.isEmpty) {
+            if (importedSources.isEmpty) {
               manager.addIfAbsent(directImportPackage, ParseFailureJob(Vector(NotFoundError(s"No source files for package '$directImportTarget found"))))(executionContext)
             } else {
-              manager.addIfAbsent(directImportPackage, ParseSourcesJob(pkgSources, directImportPackage))(executionContext)
+              manager.addIfAbsent(directImportPackage, ParseSourcesJob(importedSources, directImportPackage))(executionContext)
             }
           })
 
         val startMs = System.currentTimeMillis()
         val res = for {
-          parsedProgram <- Parser.parse(pkgSources, pkgInfo, specOnly = true)(config)
+          parsedProgram <- Parser.process(preprocessedSources, pkgInfo, specOnly = specOnly)(config)
         } yield (pkgSources, parsedProgram)
-        val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
-        val preambleParsingRatio = f"${100f * (endPreambleParsingMs.get - startPreambleParsingMs) / (System.currentTimeMillis() - startMs)}%.1f"
-        println(s"parsing ${pkgInfo.id} done (took ${durationS}s; parsing preamble takes ${preambleParsingRatio}%)")
+
+        logger.trace {
+          val parsingDurationMs = System.currentTimeMillis() - startMs
+          val parsingDurationS = f"${parsingDurationMs / 1000f}%.1f"
+          val preambleParsingRatio = f"${100f * preambleParsingDurationMs / parsingDurationMs}%.1f"
+          s"parsing ${pkgInfo.id} done (took ${parsingDurationS}s; parsing preamble overhead is ${preambleParsingRatio}%)"
+        }
+
         res
       }
 
-      private def fastParse(sources: Vector[Source]): Set[AbstractImport] = {
-        def getImportPaths(source: Source): Set[AbstractImport] = {
-          parsePreamble(source)(config)
+      private def fastParse(preprocessedInput: Vector[Source]): Set[AbstractImport] = {
+        def getImportPaths(preprocessedSource: Source): Set[AbstractImport] = {
+          processPreamble(preprocessedSource)(config)
             .map(_.imports.toSet.map[AbstractImport](importNode => RegularImport(importNode.importPath)))
             // we do not handle parser errors here but defer this to the time point when we actually
             // parse this source
             .getOrElse(Set.empty)
         }
 
-        sources.flatMap(getImportPaths).toSet + BuiltInImport
+        preprocessedInput.flatMap(getImportPaths).toSet + BuiltInImport
       }
     }
 
+    /** this job is used to parse the package that should be verified */
     case class ParseInfoJob(override val pkgInfo: PackageInfo) extends ParseJob {
       lazy val pkgSources: Vector[Source] = config.packageInfoInputMap(pkgInfo)
+      lazy val specOnly: Boolean = false
     }
 
+    /** this job is used to parse all packages that are imported */
     case class ParseSourcesJob(override val pkgSources: Vector[Source], pkg: AbstractPackage) extends ParseJob {
       require(pkgSources.nonEmpty)
       lazy val pkgInfo: PackageInfo = Source.getPackageInfo(pkgSources.head, config.projectRoot)
+      lazy val specOnly: Boolean = true
     }
 
     case class ParseFailureJob(errs: Vector[NotFoundError]) extends Job[ParseResult] {
       override def compute(): ParseResult = Left(errs)
     }
-    /*
-    def awaitResults(): Iterable[ParseResult] = manager.getAllResults(executionContext)
 
-    def getResult(pkgInfo: PackageInfo): ParseResult =
-      getResult(RegularPackage(pkgInfo.id))
-
-    def getResult(abstractPackage: AbstractPackage): ParseResult =
-      manager.getResult(abstractPackage)
-
-    def getResults: Iterable[(AbstractPackage, ParseResult)] =
-      manager.getAllResultsWithKeys
-    */
     def getParseResults(executionContext: GobraExecutionContext): Either[Map[AbstractPackage, Vector[VerifierError]], Map[AbstractPackage, ParseSuccessResult]] = {
       val (failedResults, successfulResults) = manager.getAllResultsWithKeys(executionContext)
         .partitionMap { case (key, eitherResult) => eitherResult.fold[Either[(AbstractPackage, Vector[VerifierError]), (AbstractPackage, ParseSuccessResult)]](errs => Left((key, errs)), result => Right((key, result))) }
@@ -146,13 +145,45 @@ object Parser {
   }
 
   def parse(input: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
+    val preprocessedInputs = preprocess(input)(config)
+    process(preprocessedInputs, pkgInfo, specOnly = specOnly)(config)
+  }
+
+  private def preprocess(input: Vector[Source])(config: Config): Vector[Source] = {
     val sources = input.map(Gobrafier.gobrafy)
     sources.foreach { s => config.reporter report PreprocessedInputMessage(s.name, () => s.content) }
+    sources
+  }
+
+  /**
+    * Parses a source's preamble containing all (file-level) imports; This function expects that the input has already
+    * been preprocessed
+    */
+  private def processPreamble(preprocessedSource: Source)(config: Config): Either[Vector[ParserError], PPreamble] = {
+    val positions = new Positions
+    val pom = new PositionManager(positions)
+
+    def parseSource(preprocessedSource: Source): Either[Vector[ParserError], PPreamble] = {
+      val parser = new SyntaxAnalyzer[PreambleContext, PPreamble](preprocessedSource, ListBuffer.empty[ParserError], pom, specOnly = true)
+      parser.parse(parser.preamble)
+    }
+
+    def parseSourceCached(preprocessedSource: Source): Either[Vector[ParserError], PPreamble] = {
+      def parseAndStore(): Either[Vector[ParserError], PPreamble] =
+        parseSource(preprocessedSource)
+
+      preambleCache.computeIfAbsent(getCacheKey(preprocessedSource, specOnly = true), _ => parseAndStore())
+    }
+
+    if (config.cacheParser) parseSourceCached(preprocessedSource) else parseSource(preprocessedSource)
+  }
+
+  private def process(preprocessedInputs: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
     for {
-      parseAst <- parseSources(sources, pkgInfo, specOnly)(config)
+      parseAst <- parseSources(preprocessedInputs, pkgInfo, specOnly = specOnly)(config)
       postprocessors = Seq(
         new ImportPostprocessor(parseAst.positions.positions),
-        new TerminationMeasurePostprocessor(parseAst.positions.positions, specOnly),
+        new TerminationMeasurePostprocessor(parseAst.positions.positions, specOnly = specOnly),
       )
       postprocessedAst <- postprocessors.foldLeft[Either[Vector[VerifierError], PPackage]](Right(parseAst)) {
         case (Right(ast), postprocessor) => postprocessor.postprocess(ast)(config)
@@ -284,27 +315,6 @@ object Parser {
     val pom = new PositionManager(positions)
     val parser = new SyntaxAnalyzer[SourceFileContext, PProgram](source, ListBuffer.empty[ParserError], pom, specOnly)
     parser.parse(parser.sourceFile())
-  }
-
-  /** parses a source's preamble containing all (file-level) imports */
-  def parsePreamble(source: Source)(config: Config): Either[Vector[ParserError], PPreamble] = {
-    // TODO: gobrafy only once
-    val positions = new Positions
-    val pom = new PositionManager(positions)
-
-    def parseSource(source: Source): Either[Vector[ParserError], PPreamble] = {
-      val parser = new SyntaxAnalyzer[PreambleContext, PPreamble](Gobrafier.gobrafy(source), ListBuffer.empty[ParserError], pom, specOnly = true)
-      parser.parse(parser.preamble)
-    }
-
-    def parseSourceCached(source: Source): Either[Vector[ParserError], PPreamble] = {
-      def parseAndStore(): Either[Vector[ParserError], PPreamble] =
-        parseSource(source)
-
-      preambleCache.computeIfAbsent(getCacheKey(source, specOnly = true), _ => parseAndStore())
-    }
-
-    if (config.cacheParser) parseSourceCached(source) else parseSource(source)
   }
 
   def parseFunction(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], PMember] = {

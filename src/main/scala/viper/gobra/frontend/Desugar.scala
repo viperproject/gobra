@@ -32,8 +32,11 @@ object Desugar {
     val importsCollector = new PackageInitSpecCollector
     // independently desugar each imported package.
     val importedDesugaringStartMs = System.currentTimeMillis()
-    val importedPrograms = info.context.getContexts map { tI => {
-      val typeInfo: TypeInfo = tI.getTypeInfo
+    // val importedPrograms = info.context.getContexts map { tI => {
+    // val importedPrograms = info.dependentTypeInfo.map { case (abstractPackage, tIFn) => {
+    val importedPrograms = info.getTransitiveTypeInfos.map { tI => {
+      val typeInfo = tI.getTypeInfo
+      // val typeInfo: TypeInfo = tIFn().map(_.getTypeInfo).getOrElse(Violation.violation(s"cannot desugar package $abstractPackage for which type-checking failed")) // tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
       val d = new Desugarer(importedPackage.positions, typeInfo)
       // registers a package to generate proof obligations for its init code
@@ -3460,8 +3463,11 @@ object Desugar {
       }
 
       // Collect and register all import-preconditions
-      pkg.imports.foreach{ imp =>
-        info.context.getTypeInfo(RegularImport(imp.importPath))(config) match {
+      pkg.imports.foreach{ imp => {
+        val importedPackage = RegularImport(imp.importPath)
+        Violation.violation(info.dependentTypeInfo.contains(importedPackage), s"Desugarer expects to have acess to the type information of all imported packages but could not find $importedPackage")
+        // info.context.getTypeInfo(RegularImport(imp.importPath))(config) match {
+        info.dependentTypeInfo(importedPackage)() match {
           // case Some(Right(tI)) =>
           case Right(tI) =>
             val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
@@ -3469,7 +3475,7 @@ object Desugar {
             specCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
           case e => Violation.violation(config.enableLazyImports, s"Unexpected value found $e while importing ${imp.importPath} - type information is assumed to be available for all packages when Gobra is executed with lazy imports disabled")
         }
-      }
+      }}
 
       // Collect and register all postconditions of all PPrograms (i.e., files) in pkg
       val pkgPost = pkg.programs.flatMap(_.initPosts).map(specificationD(FunctionContext.empty(), info))

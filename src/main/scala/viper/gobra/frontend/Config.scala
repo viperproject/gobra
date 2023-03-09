@@ -16,8 +16,7 @@ import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
-import viper.gobra.frontend.info.Info.TypeCheckMode
-import viper.gobra.frontend.info.Info.TypeCheckMode.TypeCheckMode
+import viper.gobra.frontend.TaskManagerMode.{Lazy, Parallel, Sequential, TaskManagerMode}
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
@@ -70,7 +69,7 @@ object ConfigDefaults {
   lazy val DefaultEnableLazyImports: Boolean = false
   lazy val DefaultNoVerify: Boolean = false
   lazy val DefaultNoStreamErrors: Boolean = false
-  lazy val DefaultTypeCheckMode: TypeCheckMode = TypeCheckMode.Parallel
+  lazy val DefaultTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
 }
 
 case class Config(
@@ -122,7 +121,7 @@ case class Config(
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
-                   typeCheckMode: TypeCheckMode = ConfigDefaults.DefaultTypeCheckMode,
+                   typeCheckMode: TaskManagerMode = ConfigDefaults.DefaultTypeCheckMode,
 ) {
 
   def merge(other: Config): Config = {
@@ -219,7 +218,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
-                      typeCheckMode: TypeCheckMode = ConfigDefaults.DefaultTypeCheckMode,
+                      typeCheckMode: TaskManagerMode = ConfigDefaults.DefaultTypeCheckMode,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -646,16 +645,16 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
-  val typeCheckMode: ScallopOption[TypeCheckMode] = choice(
+  val typeCheckMode: ScallopOption[TaskManagerMode] = choice(
     name = "typeCheckMode",
     choices = Seq("LAZY", "SEQUENTIAL", "PARALLEL"),
     descr = "Specifies the mode in which type-checking is performed.",
     default = Some("PARALLEL"),
     noshort = true
   ).map {
-    case "LAZY" => TypeCheckMode.Lazy
-    case "SEQUENTIAL" => TypeCheckMode.Sequential
-    case "PARALLEL" => TypeCheckMode.Parallel
+    case "LAZY" => Lazy
+    case "SEQUENTIAL" => Sequential
+    case "PARALLEL" => Parallel
     case _ => ConfigDefaults.DefaultTypeCheckMode
   }
 

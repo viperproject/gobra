@@ -12,11 +12,11 @@ import java.nio.file.Paths
 import java.util.concurrent.ExecutionException
 import com.typesafe.scalalogging.StrictLogging
 import org.slf4j.LoggerFactory
-import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, InternalTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
-import viper.gobra.frontend.info.Info.Context
+import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
+import viper.gobra.frontend.Parser.ParseSuccessResult
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, PackageInfo, Parser, ScallopGobraConfig}
 import viper.gobra.reporting._
@@ -28,6 +28,7 @@ import viper.silver.{ast => vpr}
 
 import java.time.format.DateTimeFormatter
 import java.time.LocalTime
+import scala.annotation.unused
 import scala.concurrent.{Await, Future, TimeoutException}
 
 object GoVerifier {
@@ -158,11 +159,11 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       for {
         finalConfig <- getAndMergeInFileConfig(config, pkgInfo)
         _ = setLogLevel(finalConfig)
-        parsedPackage <- performParsing(pkgInfo, finalConfig)
-        typeInfo <- performTypeChecking(parsedPackage, executor, finalConfig)
-        program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
-        program <- performInternalTransformations(program, finalConfig, pkgInfo)
-        viperTask <- performViperEncoding(program, finalConfig, pkgInfo)
+        parseResults <- performParsing(finalConfig, pkgInfo)(executor)
+        typeInfo <- performTypeChecking(finalConfig, pkgInfo, parseResults)(executor)
+        program <- performDesugaring(finalConfig, typeInfo)(executor)
+        program <- performInternalTransformations(finalConfig, pkgInfo, program)(executor)
+        viperTask <- performViperEncoding(finalConfig, pkgInfo, program)(executor)
       } yield (viperTask, finalConfig)
     }
 
@@ -177,7 +178,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
     val viperTask = BackendVerifier.Task(ast, backtrack)
-    performVerification(viperTask, config, pkgInfo)
+    performVerification(config, pkgInfo, viperTask)
       .map(BackTranslator.backTranslate(_)(config))
       .recoverWith {
         case e: ExecutionException if isKnownZ3Bug(e) =>
@@ -242,31 +243,46 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       .setLevel(config.logLevel)
   }
 
-  private def performParsing(pkgInfo: PackageInfo, config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def performParsing(config: Config, pkgInfo: PackageInfo)(executor: GobraExecutionContext): Either[Vector[VerifierError], Map[AbstractPackage, ParseSuccessResult]] = {
     if (config.shouldParse) {
       val startMs = System.currentTimeMillis()
-      val sourcesToParse = config.packageInfoInputMap(pkgInfo)
-      val res = Parser.parse(sourcesToParse, pkgInfo)(config)
+      val res = Parser.parse(config, pkgInfo)(executor)
       val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
       println(s"parser phase done, took ${durationS}s")
       res
+      /*
+      val sourcesToParse = config.packageInfoInputMap(pkgInfo)
+      val res = Parser.parse(sourcesToParse, pkgInfo)(config)
+       */
+      /*
+      val parseManager = Parser.parse(pkgInfo)(config, executionContext)
+      config.typeCheckMode match {
+        case TypeCheckMode.Lazy => // don't do anything
+        case TypeCheckMode.Sequential | TypeCheckMode.Parallel =>
+          parseManager.awaitResults()
+          val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
+          println(s"parser phase done, took ${durationS}s")
+          println(s"parsed packages: ${parseManager.getResults.map{ case (pkg, _) => pkg }.mkString(", ")}")
+      }
+      Right(parseManager)
+      */
     } else {
       Left(Vector())
     }
   }
 
-  private def performTypeChecking(parsedPackage: PPackage, executionContext: GobraExecutionContext, config: Config): Either[Vector[VerifierError], TypeInfo] = {
+  private def performTypeChecking(config: Config, pkgInfo: PackageInfo, parseResults: Map[AbstractPackage, ParseSuccessResult])(executor: GobraExecutionContext): Either[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
-      Info.check(parsedPackage, config.packageInfoInputMap(parsedPackage.info), isMainContext = true, context = new Context(executionContext, config))(config)
+      Info.check(config, RegularPackage(pkgInfo.id), parseResults)(executor)
     } else {
       Left(Vector())
     }
   }
 
-  private def performDesugaring(parsedPackage: PPackage, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
+  private def performDesugaring(config: Config, typeInfo: TypeInfo)(@unused executor: GobraExecutionContext): Either[Vector[VerifierError], Program] = {
     if (config.shouldDesugar) {
       val startMs = System.currentTimeMillis()
-      val res = Right(Desugar.desugar(parsedPackage, typeInfo)(config))
+      val res = Right(Desugar.desugar(typeInfo.tree.root, typeInfo)(config))
       val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
       println(s"desugaring done, took ${durationS}s")
       res
@@ -275,19 +291,11 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  private def performVerification(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {
-    if (config.noVerify) {
-      Future(VerifierResult.Success)(executor)
-    } else {
-      verifyAst(config, pkgInfo, ast, backtrack)(executor)
-    }
-  }
-
   /**
     * Applies transformations to programs in the internal language. Currently, only adds overflow checks but it can
     * be easily extended to perform more transformations
     */
-  private def performInternalTransformations(program: Program, config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], Program] = {
+  private def performInternalTransformations(config: Config, pkgInfo: PackageInfo, program: Program)(@unused executor: GobraExecutionContext): Either[Vector[VerifierError], Program] = {
     // constant propagation does not cause duplication of verification errors caused
     // by overflow checks (if enabled) because all overflows in constant declarations 
     // can be found by the well-formedness checks.
@@ -303,7 +311,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     Right(result)
   }
 
-  private def performViperEncoding(program: Program, config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], BackendVerifier.Task] = {
+  private def performViperEncoding(config: Config, pkgInfo: PackageInfo, program: Program)(@unused executor: GobraExecutionContext): Either[Vector[VerifierError], BackendVerifier.Task] = {
     if (config.shouldViperEncode) {
       val startMs = System.currentTimeMillis()
       val res = Right(Translator.translate(program, pkgInfo)(config))
@@ -315,7 +323,15 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  private def performVerification(viperTask: BackendVerifier.Task, config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): Future[BackendVerifier.Result] = {
+  private def performVerification(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {
+    if (config.noVerify) {
+      Future(VerifierResult.Success)(executor)
+    } else {
+      verifyAst(config, pkgInfo, ast, backtrack)(executor)
+    }
+  }
+
+  private def performVerification(config: Config, pkgInfo: PackageInfo, viperTask: BackendVerifier.Task)(implicit executor: GobraExecutionContext): Future[BackendVerifier.Result] = {
     if (config.shouldVerify) {
       BackendVerifier.verify(viperTask, pkgInfo)(config)
     } else {

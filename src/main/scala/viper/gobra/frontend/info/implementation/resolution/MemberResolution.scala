@@ -13,8 +13,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.PackageResolver.{AbstractImport, BuiltInImport, RegularImport}
 import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInMPredicateTag, BuiltInMethodTag}
-import viper.gobra.frontend.{PackageResolver, Parser, Source}
-import viper.gobra.frontend.info.{ExternalTypeInfo, Info}
+import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -427,16 +426,29 @@ trait MemberResolution { this: TypeInfoImpl =>
       res
     }
     */
+    /*
     def createImportError(errs: Vector[VerifierError]): Messages = {
       // create an error message located at the import statement to indicate errors in the imported package
       // we distinguish between parse and type errors, cyclic imports, and packages whose source files could not be found
       val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
       // alternativeErr is a function to compute the message only when needed
+
       val alternativeErr = () => context.getParserImportCycle(importTarget) match {
         case Some(cycle) =>
           message(errNode, s"Package '$importTarget' is part of the following import cycle that involves the import ${cycle.importNodeCausingCycle}: ${cycle.cyclicPackages.mkString("[", ", ", "]")}")
         case _ => message(errNode, s"Package '$importTarget' contains errors: $errs")
       }
+      notFoundErr.map(e => message(errNode, e.message))
+        .getOrElse(alternativeErr())
+    }
+    */
+    def createImportError(errs: Vector[VerifierError]): Messages = {
+      // create an error message located at the import statement to indicate errors in the imported package
+      // we distinguish between regular errors and packages whose source files could not be found (not that cyclic
+      // errors are handled before type-checking)
+      val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
+      // alternativeErr is a function to compute the message only when needed
+      val alternativeErr = () => message(errNode, s"Package '$importTarget' contains errors: $errs")
       notFoundErr.map(e => message(errNode, e.message))
         .getOrElse(alternativeErr())
     }
@@ -451,6 +463,8 @@ trait MemberResolution { this: TypeInfoImpl =>
     cachedInfo.get.left.map(createImportError)
     // cachedInfo.getOrElse(parseAndTypeCheck(importTarget)).left.map(createImportError)
      */
-    context.getTypeInfo(importTarget)(config).left.map(createImportError)
+    // context.getTypeInfo(importTarget)(config).left.map(createImportError)
+    Violation.violation(dependentTypeInfo.contains(importTarget), s"Expected that package ${tree.root.info.id} has access to the type information of package $importTarget")
+    dependentTypeInfo(importTarget)().left.map(createImportError)
   }
 }

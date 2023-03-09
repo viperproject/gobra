@@ -2188,6 +2188,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     PProgram(packageClause, initPosts, importDecls, members ++ decls ++ ghostMembers).at(ctx)
   }
 
+  override def visitPreamble(ctx: GobraParser.PreambleContext): PPreamble = {
+    val packageClause: PPackageClause = visitNode(ctx.packageClause())
+    val initPosts: Vector[PExpression] = visitListNode[PExpression](ctx.initPost())
+    val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
+    PPreamble(packageClause, initPosts, importDecls).at(ctx)
+  }
+
   /**
     * Visists an init postcondition
     * @param ctx the parse tree

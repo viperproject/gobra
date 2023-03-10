@@ -1031,7 +1031,7 @@ object Desugar {
         *   var i0 int = 0 // since 'i' can change in the iteration we store the true index in i0
         *   var j T = c[0] // [v]
         *   invariant 0 <= i0 && i0 <= len(c)
-        *   invariant i0 < len(c) ==> i0 == i && j == c[i0] // [v] just the j == c[i0] part
+        *   invariant i0 < len(c) ==> i0 == i && j === c[i0] // [v] just the j == c[i0] part
         *   <invariant...>
         *   for i0 < length {
         *     <body>
@@ -1084,7 +1084,7 @@ object Desugar {
         addedInvariantsAfter = (if (hasValue) Vector(
           in.Implication(
             in.LessCmp(i0, in.Length(c)(src))(src),
-            in.ExprAssertion(in.EqCmp(j, in.IndexedExp(c, i0, typ)(indexValueSrc))(indexValueSrc))(indexValueSrc))(indexValueSrc))
+            in.ExprAssertion(in.GhostEqCmp(j, in.IndexedExp(c, i0, typ)(indexValueSrc))(indexValueSrc))(indexValueSrc))(indexValueSrc))
         else
           Vector())
 
@@ -1175,7 +1175,7 @@ object Desugar {
         *   var i0 int = 0 // since 'i' can change in the iteration we store the true index in i0
         *   var j T = c[0] // [v]
         *   invariant 0 <= i0 && i0 <= len(c)
-        *   invariant i0 < len(c) ==> i0 == i && j == c[i0] // [v] just the j == c[i0] part
+        *   invariant i0 < len(c) ==> i0 == i && j === c[i0] // [v] just the j == c[i0] part
         *   <invariant...>
         *   for i0 < length {
         *     <body>
@@ -1190,9 +1190,9 @@ object Desugar {
       def desugarArrSliceAssRange(n: PAssForRange, range: PRange, ass: Vector[PAssignee], spec: PLoopSpec, body: PBlock)(src: Source.Parser.Info): Writer[in.Stmt] = unit(block(for {
         exp <- goE(range.exp)
 
-        (elemType, typ) = underlyingType(exp.typ) match {
-          case s: in.SliceT => (s.elems, s)
-          case a: in.ArrayT => (a.elems, a)
+        typ = underlyingType(exp.typ) match {
+          case s: in.SliceT => s
+          case a: in.ArrayT => a
           case _ => violation("Expected slice or array in for-range statement")
         }
 
@@ -1223,7 +1223,7 @@ object Desugar {
             in.ExprAssertion(in.EqCmp(i0, i.op)(src))(src))(src),
           in.Implication(
             in.LessCmp(i0, in.Length(c)(src))(src),
-            in.ExprAssertion(in.EqCmp(j.op, in.IndexedExp(c, i0, typ)(indexValueSrc))(indexValueSrc))(indexValueSrc))(indexValueSrc))
+            in.ExprAssertion(in.GhostEqCmp(j.op, in.IndexedExp(c, i0, typ)(indexValueSrc))(indexValueSrc))(indexValueSrc))(indexValueSrc))
         else
           Vector(
             in.Implication(
@@ -1344,7 +1344,6 @@ object Desugar {
           case in.MapT(k, v, _) => (k.withAddressability(Addressability.exclusiveVariable), v.withAddressability(Addressability.exclusiveVariable))
           case _ => violation("unexpected type of range expression")
         }
-        visType = in.SetT(keyType, Addressability.exclusiveVariable)
 
         domain = in.MapKeys(c, underlyingType(exp.typ))(src)
 
@@ -1364,7 +1363,6 @@ object Desugar {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
-        indexValueSrc = meta(range.exp, info).createAnnotatedInfo(Source.NoPermissionToRangeExpressionAnnotation())
         addedInvariants = Vector(
           in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
           in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
@@ -1420,11 +1418,10 @@ object Desugar {
       def desugarMapAssRange(n: PAssForRange, range: PRange, ass: Vector[PAssignee], spec: PLoopSpec, body: PBlock)(src: Source.Parser.Info): Writer[in.Stmt] = unit(block(for {
         exp <- goE(range.exp)
 
-        (keyType, valType) = underlyingType(exp.typ) match {
-          case in.MapT(k, v, _) => (k.withAddressability(Addressability.exclusiveVariable), v.withAddressability(Addressability.exclusiveVariable))
+        keyType = underlyingType(exp.typ) match {
+          case in.MapT(k, _, _) => k.withAddressability(Addressability.exclusiveVariable)
           case _ => violation("unexpected type of range expression")
         }
-        visType = in.SetT(keyType, Addressability.exclusiveVariable)
 
         c <- freshDeclaredExclusiveVar(exp.typ.withAddressability(Addressability.exclusiveVariable), n, info)(src)
 
@@ -1446,7 +1443,6 @@ object Desugar {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
-        indexValueSrc = meta(range.exp, info).createAnnotatedInfo(Source.NoPermissionToRangeExpressionAnnotation())
         addedInvariants = Vector(
           in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
           in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
@@ -1742,6 +1738,13 @@ object Desugar {
                         in.GoMethodCall(call.recv, call.meth, call.args)(src)
                       case _ => unexpectedExprError(exp)
                     }
+                  case Some(_: ap.ClosureCall) =>
+                    closureCallDAux(ctx, info)(inv)(src) map {
+                      case Left((_, call: in.ClosureCall)) =>
+                        in.GoClosureCall(call.closure, call.args, call.spec)(src)
+                      case Right(call: in.PureClosureCall) =>
+                        in.GoClosureCall(call.closure, call.args, call.spec)(src)
+                    }
                   case _ => unexpectedExprError(exp)
                 }
               case _ => unexpectedExprError(exp)
@@ -1805,7 +1808,7 @@ object Desugar {
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
 
           case n: POutline =>
-            val name = s"${rootName(n, info)}$$${nm.relativeId(n, info)}"
+            val name = s"${rootName(n, info)}$$${nm.relativeIdEnclosingFuncOrMethodDecl(n, info)}"
             val pres = (n.spec.pres ++ n.spec.preserves) map preconditionD(ctx, info)
             val posts = (n.spec.preserves ++ n.spec.posts) map postconditionD(ctx, info)
             val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
@@ -2625,6 +2628,14 @@ object Desugar {
             val dAcc = specificationD(ctx, info)(acc).asInstanceOf[in.Access]
             val dOp = pureExprD(ctx, info)(op)
             unit(in.Unfolding(dAcc, dOp)(src))
+
+          case PLet(ass, op) =>
+            val dOp = pureExprD(ctx, info)(op)
+            unit((ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
+              val right = pureExprD(ctx, info)(lr._2)
+              val left = in.LocalVar(nm.variable(lr._1.name, info.scope(lr._1), info), right.typ.withAddressability(Addressability.exclusiveVariable))(src)
+              in.Let(left, right, letop)(src)
+            }))
 
           case n : PIndexedExp => indexedExprD(n)(ctx, info)
 
@@ -3797,6 +3808,13 @@ object Desugar {
         case decl: PMethodSig      => idName(decl.id, context)
         case decl: PMPredicateSig  => idName(decl.id, context)
         case decl: PDomainFunction => idName(decl.id, context)
+        case decl: PClosureDecl =>
+          // closure declarations do not have an associated name and may be arbitrarily nested.
+          // to simplify, we just return the enclosing function or method's name
+          info.enclosingFunctionOrMethod(decl) match {
+            case Some(d) => idName(d.id, context)
+            case None => violation(s"Could not find a function or method declaration enclosing the closure declaration.")
+          }
         case _ => ??? // axiom and method-implementation-proof
       }
     }
@@ -4841,7 +4859,7 @@ object Desugar {
       * The id is of the form 'L$<a>$<b>' where a is the difference of the lines
       * of the node with the code root and b is the difference of the columns
       * of the node with the code root.
-      * If a differce is negative, the '-' character is replaced with '_'.
+      * If the difference is negative, the '-' character is replaced with '_'.
       *
       * @param node the node we are interested in
       * @param info type info to get position information
@@ -4851,6 +4869,25 @@ object Desugar {
       val pom = info.getTypeInfo.tree.originalRoot.positions
       val lpos = pom.positions.getStart(node).get
       val rpos = pom.positions.getStart(info.codeRoot(node)).get
+      ("L$" + (lpos.line - rpos.line) + "$" + (lpos.column - rpos.column)).replace("-", "_")
+    }
+
+    /**
+      * Returns an id for a node with respect to its enclosing function or method declaration.
+      * The id is of the form 'L$<a>$<b>' where a is the difference of the lines
+      * of the node with the enclosing declaration and b is the difference of the columns
+      * of the node with the enclosing declaration.
+      * If the difference is negative, the '-' character is replaced with '_'.
+      *
+      * @param node the node we are interested in
+      * @param info type info to get position information
+      * @return     string
+      */
+    def relativeIdEnclosingFuncOrMethodDecl(node: PNode, info: TypeInfo) : String = {
+      val pom = info.getTypeInfo.tree.originalRoot.positions
+      val lpos = pom.positions.getStart(node).get
+      val enclosingMember = info.enclosingFunctionOrMethod(node).get
+      val rpos = pom.positions.getStart(enclosingMember).get
       ("L$" + (lpos.line - rpos.line) + "$" + (lpos.column - rpos.column)).replace("-", "_")
     }
 

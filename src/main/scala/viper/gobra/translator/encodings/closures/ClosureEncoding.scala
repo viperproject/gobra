@@ -85,6 +85,8 @@ class ClosureEncoding extends LeafTypeEncoding {
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = default(super.statement(ctx)) {
     case c: in.ClosureCall => specs.closureCall(c)(ctx)
 
+    case c: in.GoClosureCall => specs.goClosureCall(c)(ctx)
+
     case p: in.SpecImplementationProof =>
       specImplementationProof(p)(ctx)
   }

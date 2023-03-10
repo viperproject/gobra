@@ -330,6 +330,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case GoMethodCall(recv, meth, args) =>
       "go" <+> showExpr(recv) <> "." <>  meth.name <> parens(showExprList(args))
 
+    case GoClosureCall(closure, args, spec) =>
+      "go" <+> showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
+
     case s: Defer => "defer" <+> showStmt(s.stmt)
 
     case Return() => "return"
@@ -458,6 +461,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showExpr(e: Expr): Doc = updatePositionStore(e) <> (e match {
     case Unfolding(acc, exp) => "unfolding" <+> showAss(acc) <+> "in" <+> showExpr(exp)
+
+    case Let(left, right, exp) => "let" <+> showVar(left) <+> "==" <+> parens(showExpr(right)) <+> "in" <+> showExpr(exp)
 
     case Old(op, _) => "old" <> parens(showExpr(op))
 
@@ -753,6 +758,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case GoMethodCall(recv, meth, args) =>
       "go" <+> showExpr(recv) <> "." <> meth.name <> parens(showExprList(args))
+
+    case GoClosureCall(closure, args, spec) =>
+      "go" <+> showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
 
     case s: Defer => "defer" <+> showStmt(s.stmt)
 

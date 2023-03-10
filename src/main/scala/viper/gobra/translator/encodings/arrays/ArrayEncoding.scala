@@ -17,8 +17,10 @@ import viper.gobra.translator.encodings.combinators.TypeEncoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.library.embeddings.EmbeddingParameter
 import viper.gobra.translator.util.FunctionGenerator
+import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
+import viper.silver.plugin.standard.termination
 import viper.silver.{ast => vpr}
 
 import scala.annotation.unused
@@ -318,7 +320,10 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         name = s"${Names.arrayConversionFunc}_${t.serialize}",
         formalArgs = Vector(variable(ctx)(x)),
         typ = vResultType,
-        pres = Vector(pure(addressFootprint(ctx)(x, in.WildcardPerm(Source.Parser.Internal)))(ctx).res),
+        pres = Vector(
+          pure(addressFootprint(ctx)(x, in.WildcardPerm(Source.Parser.Internal)))(ctx).res,
+          synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
+        ),
         posts = Vector(post),
         body = None
       )()

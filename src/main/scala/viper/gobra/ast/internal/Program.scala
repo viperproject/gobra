@@ -416,6 +416,7 @@ case class ClosureCall(targets: Vector[LocalVar], closure: Expr, args: Vector[Ex
 
 case class GoFunctionCall(func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 case class GoMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
+case class GoClosureCall(closure: Expr, args: Vector[Expr], spec: ClosureSpec)(val info: Source.Parser.Info) extends Stmt
 
 sealed trait Deferrable extends Stmt
 case class Defer(stmt: Deferrable)(val info: Source.Parser.Info) extends Stmt
@@ -540,6 +541,10 @@ case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extend
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
   override def typ: Type = in.typ
   require(typ.addressability == Addressability.unfolding(in.typ.addressability))
+}
+
+case class Let(left: LocalVar, right: Expr, in: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = in.typ
 }
 
 case class Old(operand: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr

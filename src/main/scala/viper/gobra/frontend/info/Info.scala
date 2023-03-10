@@ -260,12 +260,22 @@ object Info extends LazyLogging {
   private val typeInfoCache: ConcurrentMap[TypeInfoCacheKey, TypeInfoImpl] = new ConcurrentHashMap()
 
   private def getCacheKey(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean, config: Config): TypeInfoCacheKey = {
-    // type-checking depends on `typeBounds` and `enableLazyImport`
-    val key = pkg.hashCode().toString ++
-      dependentTypeInfo.hashCode().toString ++
-      (if (isMainContext) "1" else "0") ++
-      config.typeBounds.hashCode().toString ++
+    // the cache key only depends on config's `typeBounds` and `enableLazyImport`
+    val pkgKey = pkg.hashCode().toString
+    // the computed key must be deterministic!
+    val dependentTypeInfoKey = dependentTypeInfo
+      .toVector
+      .map { case (pkg, fn) => pkg.hashCode().toString ++ fn().hashCode().toString }
+      .sorted
+      .mkString("")
+    val isMainContextKey = if (isMainContext) "1" else "0"
+    val configKey = config.typeBounds.hashCode().toString ++
       (if (config.enableLazyImports) "1" else "0")
+
+    val key = pkgKey ++
+      dependentTypeInfoKey ++
+      isMainContextKey ++
+      configKey
 
     val bytes = MessageDigest.getInstance("MD5").digest(key.getBytes)
     // convert `bytes` to a hex string representation such that we get equality on the key while performing cache lookups
@@ -277,7 +287,9 @@ object Info extends LazyLogging {
   }
 
   def checkSources(sources: Vector[Source], pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean = false)(config: Config): TypeCheckResult = {
+    var cacheHit: Boolean = true
     def getTypeInfo(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean, config: Config): TypeInfoImpl = {
+      cacheHit = false
       val tree = new GoTree(pkg)
       new TypeInfoImpl(tree, dependentTypeInfo, isMainContext)(config: Config)
     }
@@ -288,6 +300,9 @@ object Info extends LazyLogging {
 
     val checkFn = if (config.cacheParser) { getTypeInfoCached _ } else { getTypeInfo _ }
     val info = checkFn(pkg, dependentTypeInfo, isMainContext, config)
+    if (!cacheHit) {
+      println(s"No cache hit for type info for ${pkg.info.id}")
+    }
 
     val errors = info.errors
 

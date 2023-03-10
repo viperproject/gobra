@@ -105,6 +105,9 @@ class TaskManager[K, R](mode: TaskManagerMode) {
     job.getFuture
   }
 
+  def getAllFutures: Iterable[(K, Future[R])] =
+    jobs.asScala.toVector.map { case (key, job) => (key, job.getFuture) }
+
   def getResult(id: K): R = {
     val job = jobs.get(id)
     Violation.violation(job != null, s"Task $id not found")

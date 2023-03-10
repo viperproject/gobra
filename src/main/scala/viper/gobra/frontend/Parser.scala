@@ -20,34 +20,38 @@ import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, PreambleContext, SourceFileContext, SpecMemberContext, StmtOnlyContext, TypeOnlyContext}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, RegularImport, RegularPackage}
+import viper.gobra.frontend.info.Info.{getCacheKey, typeInfoCache}
 import viper.gobra.util.GobraExecutionContext
 import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable.ListBuffer
 import java.security.MessageDigest
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 
 object Parser {
 
   type ParseSuccessResult = (Vector[Source], PPackage)
   type ParseResult = Either[Vector[VerifierError], ParseSuccessResult]
-  class ParseManager(config: Config, executionContext: GobraExecutionContext) extends LazyLogging {
-    private val manager = new TaskManager[AbstractPackage, ParseResult](TaskManagerMode.Parallel)
 
-    def parse(pkgInfo: PackageInfo): Unit = {
+  class ParseManager(config: Config, executionContext: GobraExecutionContext) extends LazyLogging {
+    private val manager = new TaskManager[AbstractPackage, Future[ParseResult]](TaskManagerMode.Parallel)
+
+    def parse(pkgInfo: PackageInfo): ParseResult = {
       val pkg = RegularPackage(pkgInfo.id)
       val parseJob = ParseInfoJob(pkgInfo)
       manager.addIfAbsent(pkg, parseJob)(executionContext)
       // trigger and wait for parsing of at least this package (which will ensure that parse jobs for all dependent packages are created too)
-      manager.getResult(pkg)
+      Await.result(manager.getResult(pkg), Duration.Inf)
     }
 
-    trait ParseJob extends Job[ParseResult] {
+    trait ParseJob extends Job[Future[ParseResult]] {
       def pkgInfo: PackageInfo
       def pkgSources: Vector[Source]
       def specOnly: Boolean
 
-      override def compute(): ParseResult = {
+      override def compute(): Future[ParseResult] = {
         require(pkgSources.nonEmpty)
 
         val preprocessedSources = preprocess(pkgSources)(config)
@@ -56,15 +60,17 @@ object Parser {
         // before parsing, get imports and add these parse jobs
         val imports = fastParse(preprocessedSources)
         val preambleParsingDurationMs = System.currentTimeMillis() - startPreambleParsingMs
-        imports.foreach(directImportTarget => {
+        val futs = imports.map(directImportTarget => {
             val directImportPackage = AbstractPackage(directImportTarget)(config)
             val importedSources = PackageResolver.resolveSources(directImportTarget)(config)
               .getOrElse(Vector())
               .map(_.source)
             if (importedSources.isEmpty) {
               manager.addIfAbsent(directImportPackage, ParseFailureJob(Vector(NotFoundError(s"No source files for package '$directImportTarget found"))))(executionContext)
+              manager.getFuture(directImportPackage) // we do not flatten here as we only need to await the job's creation
             } else {
               manager.addIfAbsent(directImportPackage, ParseSourcesJob(importedSources, directImportPackage))(executionContext)
+              manager.getFuture(directImportPackage) // we do not flatten here as we only need to await the job's creation
             }
           })
 
@@ -80,7 +86,9 @@ object Parser {
           s"parsing ${pkgInfo.id} done (took ${parsingDurationS}s; parsing preamble overhead is ${preambleParsingRatio}%)"
         }
 
-        res
+        implicit val executor: GobraExecutionContext = executionContext
+        Future.sequence(futs)
+          .map(_ => res)
       }
 
       private def fastParse(preprocessedInput: Vector[Source]): Set[AbstractImport] = {
@@ -109,12 +117,16 @@ object Parser {
       lazy val specOnly: Boolean = true
     }
 
-    case class ParseFailureJob(errs: Vector[NotFoundError]) extends Job[ParseResult] {
-      override def compute(): ParseResult = Left(errs)
+    case class ParseFailureJob(errs: Vector[NotFoundError]) extends Job[Future[ParseResult]] {
+      override def compute(): Future[ParseResult] = Future.successful[ParseResult](Left(errs))
     }
 
     def getParseResults(executionContext: GobraExecutionContext): Either[Map[AbstractPackage, Vector[VerifierError]], Map[AbstractPackage, ParseSuccessResult]] = {
-      val (failedResults, successfulResults) = manager.getAllResultsWithKeys(executionContext)
+      implicit val executor: GobraExecutionContext = executionContext
+      // val futs = manager.getAllResultsWithKeys(executionContext).map { case (key, fut) => fut.map(res => (key, res)) }
+      val futs = manager.getAllFutures.map { case (key, fut) => fut.flatten.map(res => (key, res)) }
+      val results = Await.result(Future.sequence(futs), Duration.Inf)
+      val (failedResults, successfulResults) = results
         .partitionMap { case (key, eitherResult) => eitherResult.fold[Either[(AbstractPackage, Vector[VerifierError]), (AbstractPackage, ParseSuccessResult)]](errs => Left((key, errs)), result => Right((key, result))) }
       if (failedResults.isEmpty) Right(successfulResults.toMap)
       else Left(failedResults.toMap)
@@ -168,11 +180,18 @@ object Parser {
       parser.parse(parser.preamble)
     }
 
+    var cacheHit: Boolean = true
     def parseSourceCached(preprocessedSource: Source): Either[Vector[ParserError], PPreamble] = {
-      def parseAndStore(): Either[Vector[ParserError], PPreamble] =
+      def parseAndStore(): Either[Vector[ParserError], PPreamble] = {
+        cacheHit = false
         parseSource(preprocessedSource)
+      }
 
-      preambleCache.computeIfAbsent(getCacheKey(preprocessedSource, specOnly = true), _ => parseAndStore())
+      val res = preambleCache.computeIfAbsent(getCacheKey(preprocessedSource, specOnly = true), _ => parseAndStore())
+      if (!cacheHit) {
+        println(s"No cache hit for ${res.map(_.packageClause.id.name)}'s preamble")
+      }
+      res
     }
 
     if (config.cacheParser) parseSourceCached(preprocessedSource) else parseSource(preprocessedSource)
@@ -193,9 +212,10 @@ object Parser {
   }
 
   type SourceCacheKey = String
-  // cache maps a key (obtained by hasing file path and file content) to the parse result
-  private val sourceCache: ConcurrentMap[SourceCacheKey, (Either[Vector[ParserError], PProgram], Positions)] = new ConcurrentHashMap()
+  // cache maps a key (obtained by hashing file path and file content) to the parse result
   private val preambleCache: ConcurrentMap[SourceCacheKey, Either[Vector[ParserError], PPreamble]] = new ConcurrentHashMap()
+  type PackageCacheKey = String
+  private val packageCache: ConcurrentMap[PackageCacheKey, Either[Vector[VerifierError], PPackage]] = new ConcurrentHashMap()
 
   /** computes the key for caching a particular source. This takes the name, the specOnly flag, and the file's contents into account */
   private def getCacheKey(source: Source, specOnly: Boolean): SourceCacheKey = {
@@ -205,12 +225,37 @@ object Parser {
     bytes.map { "%02x".format(_) }.mkString
   }
 
+  private def getPackageCacheKey(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean): PackageCacheKey = {
+    val key = sources.map(source => source.name ++ source.content).mkString("") ++ pkgInfo.hashCode.toString ++ (if (specOnly) "1" else "0")
+    val bytes = MessageDigest.getInstance("MD5").digest(key.getBytes)
+    // convert `bytes` to a hex string representation such that we get equality on the key while performing cache lookups
+    bytes.map { "%02x".format(_) }.mkString
+  }
+
   def flushCache(): Unit = {
-    sourceCache.clear()
     preambleCache.clear()
+    packageCache.clear()
   }
 
   private def parseSources(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
+    def parseSourcesCached(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
+      var cacheHit: Boolean = true
+      val res = packageCache.computeIfAbsent(getPackageCacheKey(sources, pkgInfo, specOnly), _ => {
+        cacheHit = false
+        parseSourcesUncached(sources, pkgInfo, specOnly)(config)
+      })
+      if (!cacheHit) {
+        println(s"No cache hit for package ${pkgInfo.id}")
+      }
+      res
+    }
+
+    val parseFn = if (config.cacheParser) { parseSourcesCached _ } else { parseSourcesUncached _ }
+    parseFn(sources, pkgInfo, specOnly)(config)
+  }
+
+  /** parses a package not taking the package cache but only the program cache into account */
+  private def parseSourcesUncached(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     lazy val rewriter = new PRewriter(pom.positions)
@@ -227,35 +272,6 @@ object Parser {
           // Non-positioned errors imply some unexpected problems within the parser. We can't continue.
           if (nonpos.nonEmpty) throw new Exception("ANTLR threw unexpected errors" + nonpos.mkString(","))
           Left(positionedErrors)
-      }
-    }
-
-    def parseSourceCached(source: Source): Either[Vector[ParserError], PProgram] = {
-      var cacheHit = true
-      def parseAndStore(): (Either[Vector[ParserError], PProgram], Positions) = {
-        cacheHit = false
-        val res = parseSource(source)
-        // sourceCache.put(getCacheKey(source, specOnly), (res, positions))
-        (res, positions)
-      }
-      // val (res, pos) = sourceCache.getOrElse(getCacheKey(source, specOnly), parseAndStore())
-      val (res, pos) = sourceCache.computeIfAbsent(getCacheKey(source, specOnly), _ => parseAndStore())
-      if (cacheHit) {
-        // a cached AST has been found in the cache. The position manager does not yet have any positions for nodes in
-        // this AST. Therefore, the following strategy iterates over the entire AST and copies positional information
-        // from the cached positions to the position manager
-        val copyPosStrategy = strategyWithName[Any]("copyPositionInformation", {
-          case n: PNode =>
-            val start = pos.getStart(n)
-            val finish = pos.getFinish(n)
-            start.foreach(positions.setStart(n, _))
-            finish.foreach(positions.setFinish(n, _))
-            Some(n): Option[Any]
-          case n => Some(n)
-        })
-        res.map(prog => rewrite(topdown(copyPosStrategy))(prog))
-      } else {
-        res
       }
     }
 
@@ -290,8 +306,7 @@ object Parser {
       Right(parsedPackage)
     }
 
-    val parsingFn = if (config.cacheParser) { parseSourceCached _ } else { parseSource _ }
-    val parsedPrograms = sources.map(parsingFn)
+    val parsedPrograms = sources.map(parseSource)
 
     val res = for {
       // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files

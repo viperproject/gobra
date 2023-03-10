@@ -64,10 +64,20 @@ object ConfigDefaults {
   lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
   lazy val DefaultParallelizeBranches: Boolean = false
   lazy val DefaultConditionalizePermissions: Boolean = false
-  lazy val DefaultDisableMoreCompleteExhale: Boolean = false
+  lazy val DefaultMCEMode: MCE.Mode = MCE.Enabled
   lazy val DefaultEnableLazyImports: Boolean = false
   lazy val DefaultNoVerify: Boolean = false
   lazy val DefaultNoStreamErrors: Boolean = false
+}
+
+// More-complete exhale modes
+object MCE {
+  sealed trait Mode
+  object Disabled extends Mode
+  // When running in `OnDemand`, mce will only be enabled when silicon retries a query.
+  // More information can be found in https://github.com/viperproject/silicon/pull/682.
+  object OnDemand extends Mode
+  object Enabled extends Mode
 }
 
 case class Config(
@@ -115,10 +125,10 @@ case class Config(
                    // branches will be verified in parallel
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                    conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
-                   disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
+                   mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
-                   noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors
+                   noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
 ) {
 
   def merge(other: Config): Config = {
@@ -160,7 +170,7 @@ case class Config(
       assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale,
       parallelizeBranches = parallelizeBranches,
       conditionalizePermissions = conditionalizePermissions,
-      disableMoreCompleteExhale = disableMoreCompleteExhale,
+      mceMode = mceMode,
       enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
       noStreamErrors = noStreamErrors || other.noStreamErrors
@@ -210,7 +220,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                       conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
-                      disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
+                      mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
@@ -264,7 +274,7 @@ trait RawConfig {
     assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,
     parallelizeBranches = baseConfig.parallelizeBranches,
     conditionalizePermissions = baseConfig.conditionalizePermissions,
-    disableMoreCompleteExhale = baseConfig.disableMoreCompleteExhale,
+    mceMode = baseConfig.mceMode,
     enableLazyImports = baseConfig.enableLazyImports,
     noVerify = baseConfig.noVerify,
     noStreamErrors = baseConfig.noStreamErrors,
@@ -611,12 +621,23 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     short = 'c',
   )
 
-  val disableMoreCompleteExhale: ScallopOption[Boolean] = opt[Boolean](
-    name = "disableMoreCompleteExhale",
-    descr = "Disables the flag --enableMoreCompleteExhale passed by default to Silicon",
-    default = Some(ConfigDefaults.DefaultDisableMoreCompleteExhale),
-    noshort = true,
-  )
+  val mceMode: ScallopOption[MCE.Mode] = {
+    val on = "on"
+    val off = "off"
+    val od = "od"
+    choice(
+      choices = Seq("on", "off", "od"),
+      name = "mceMode",
+      descr = s"Specifies if silicon should be run with more complete exhale enabled ($on), disabled ($off), or enabled on demand ($od).",
+      default = Some(on),
+      noshort = true
+    ).map{
+      case `on` => MCE.Enabled
+      case `off` => MCE.Disabled
+      case `od` => MCE.OnDemand
+      case s => Violation.violation(s"Unexpected mode for more complete exhale: $s")
+    }
+  }
 
   val enableLazyImports: ScallopOption[Boolean] = opt[Boolean](
     name = Config.enableLazyImportOptionName,
@@ -685,11 +706,11 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     }
   }
 
-  // `disableMoreCompleteExhale` can only be enabled when using a silicon-based backend
+  // `mceMode` can only be provided when using a silicon-based backend
   addValidation {
-    val disableMoreCompleteExh = disableMoreCompleteExhale.toOption.contains(true)
-    if (disableMoreCompleteExh && !isSiliconBasedBackend) {
-      Left("The flag --disableMoreCompleteExhale can only be used with Silicon and ViperServer with Silicon")
+    val mceModeSupplied = mceMode.isSupplied
+    if (mceModeSupplied && !isSiliconBasedBackend) {
+      Left("The flag --mceMode can only be used with Silicon or ViperServer with Silicon")
     } else {
       Right(())
     }
@@ -781,7 +802,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
     parallelizeBranches = parallelizeBranches(),
     conditionalizePermissions = conditionalizePermissions(),
-    disableMoreCompleteExhale = disableMoreCompleteExhale(),
+    mceMode = mceMode(),
     enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),
     noStreamErrors = noStreamErrors(),

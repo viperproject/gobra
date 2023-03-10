@@ -9,7 +9,7 @@ type Shape interface {
    requires acc(mem(), 1/2)
    pure Size() bool
 
-   requires mem() && Size()
-   ensures ret > 0
+   requires mem()
+   ensures  mem()
    Area() (ret int)
 }

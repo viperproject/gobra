@@ -56,7 +56,7 @@ object Desugar extends LazyLogging {
       // registers main package to generate proof obligations for its init code
       mainDesugarer.registerMainPackage(pkg, importsCollector)(config)
       val res = (mainDesugarer, mainDesugarer.packageD(pkg))
-      logger.debug {
+      logger.trace {
         val durationS = f"${(System.currentTimeMillis() - mainDesugaringStartMs) / 1000f}%.1f"
         s"desugaring package ${info.pkgInfo.id} done, took ${durationS}s"
       }
@@ -68,7 +68,7 @@ object Desugar extends LazyLogging {
     val futResults = Await.result(allPackagesFut, Duration.Inf)
     val (mainDesugarer, mainProgram) = futResults.head
     val importedPrograms = futResults.tail
-    logger.debug {
+    logger.trace {
       val importedDurationS = f"${importeDesugaringDurationMs.get() / 1000f}%.1f"
       s"desugaring imported packages done, took ${importedDurationS}s"
     }

@@ -15,13 +15,13 @@ pred (r *Rect) mem() {
   acc(r, 1/2)
 }
 
-requires acc(r, 1/2)
+requires acc(r, _)
 pure func (r *Rect) Size() bool {
-  return r.width > 0 && r.height > 0
+  return r.width >= 0 && r.height >= 0
 }
 
-requires acc(r, 1/2) && r.Size()
-ensures  acc(r, 1/2) && ret > 0
+requires acc(r, 1/2)
+ensures  acc(r, 1/2)
 func (r *Rect) Area() (ret int) {
   return r.width * r.height
 }

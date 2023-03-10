@@ -29,9 +29,9 @@ pred (n *node) tree() {
 }
 
 ghost
-requires n.tree()
+requires acc(n.tree(), _)
 pure func (n *node) sorted(lowerBound, upperBound option[int]) bool {
-    return unfolding n.tree() in (lowerBound != none[int] ==> get(lowerBound) < n.value) &&
+    return unfolding acc(n.tree(), _) in (lowerBound != none[int] ==> get(lowerBound) < n.value) &&
         (upperBound != none[int] ==> n.value < get(upperBound)) &&
         (n.left != nil ==> n.left.sorted(lowerBound, some(n.value))) &&
         (n.right != nil ==> n.right.sorted(some(n.value), upperBound))
@@ -59,19 +59,19 @@ func (n *node) convert(oldLowerBound, oldUpperBound, newLowerBound, newUpperBoun
 }
 
 ghost
-requires t.tree()
+requires acc(t.tree(), _)
 ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // ordered
 pure func (t *Tree) sortedValues() (res seq[int]) {
-    return unfolding t.tree() in (t.root == nil) ? seq[int] { } : t.root.sortedValues(none[int], none[int])
+    return unfolding acc(t.tree(), _) in (t.root == nil) ? seq[int] { } : t.root.sortedValues(none[int], none[int])
 }
 
 ghost
-requires n.tree() && n.sorted(lowerBound, upperBound)
+requires acc(n.tree(), _) && n.sorted(lowerBound, upperBound)
 ensures n.sorted(lowerBound, upperBound)
 ensures forall i int :: (0 <= i && i < len(res) ==> ((lowerBound != none[int] ==> res[i] > get(lowerBound)) && (upperBound != none[int] ==> res[i] < get(upperBound))))
 ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // ordered
 pure func (n *node) sortedValues(lowerBound, upperBound option[int]) (res seq[int]) {
-    return unfolding n.tree() in (n.left == nil ? seq[int]{ } : n.left.sortedValues(lowerBound, some(n.value))) ++ seq[int]{ n.value } ++ (n.right == nil ? seq[int]{ } : n.right.sortedValues(some(n.value), upperBound))
+    return unfolding acc(n.tree(), _) in (n.left == nil ? seq[int]{ } : n.left.sortedValues(lowerBound, some(n.value))) ++ seq[int]{ n.value } ++ (n.right == nil ? seq[int]{ } : n.right.sortedValues(some(n.value), upperBound))
 }
 
 ensures t.tree() && t.IsEmpty()

@@ -29,9 +29,9 @@ pred (n *node) tree() {
 }
 
 ghost
-requires n.tree()
+requires acc(n.tree(), _)
 pure func (n *node) sorted(lowerBound, upperBound option[int]) bool {
-    return unfolding n.tree() in (lowerBound != none[int] ==> get(lowerBound) < n.value) &&
+    return unfolding acc(n.tree(), _) in (lowerBound != none[int] ==> get(lowerBound) < n.value) &&
         (upperBound != none[int] ==> n.value < get(upperBound)) &&
         (n.left != nil ==> n.left.sorted(lowerBound, some(n.value))) &&
         (n.right != nil ==> n.right.sorted(some(n.value), upperBound))
@@ -59,19 +59,19 @@ func (n *node) convert(oldLowerBound, oldUpperBound, newLowerBound, newUpperBoun
 }
 
 ghost
-requires t.tree()
+requires acc(t.tree(), _)
 ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // ordered
 pure func (t *Tree) sortedValues() (res seq[int]) {
-    return unfolding t.tree() in (t.root == nil) ? seq[int] { } : t.root.sortedValues(none[int], none[int])
+    return unfolding acc(t.tree(), _) in (t.root == nil) ? seq[int] { } : t.root.sortedValues(none[int], none[int])
 }
 
 ghost
-requires n.tree() && n.sorted(lowerBound, upperBound)
+requires acc(n.tree(), _) && n.sorted(lowerBound, upperBound)
 ensures n.sorted(lowerBound, upperBound)
 ensures forall i int :: (0 <= i && i < len(res) ==> ((lowerBound != none[int] ==> res[i] > get(lowerBound)) && (upperBound != none[int] ==> res[i] < get(upperBound))))
 ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // ordered
 pure func (n *node) sortedValues(lowerBound, upperBound option[int]) (res seq[int]) {
-    return unfolding n.tree() in (n.left == nil ? seq[int]{ } : n.left.sortedValues(lowerBound, some(n.value))) ++ seq[int]{ n.value } ++ (n.right == nil ? seq[int]{ } : n.right.sortedValues(some(n.value), upperBound))
+    return unfolding acc(n.tree(), _) in (n.left == nil ? seq[int]{ } : n.left.sortedValues(lowerBound, some(n.value))) ++ seq[int]{ n.value } ++ (n.right == nil ? seq[int]{ } : n.right.sortedValues(some(n.value), upperBound))
 }
 
 ensures t.tree() && t.IsEmpty()
@@ -81,16 +81,16 @@ func NewTree() (t *Tree) {
     return t
 }
 
-requires t.tree()
-ensures res == unfolding t.tree() in t.root == nil
+requires acc(t.tree(), _)
+ensures res == unfolding acc(t.tree(), _) in t.root == nil
 pure func (t *Tree) IsEmpty() (res bool) {
-    return unfolding t.tree() in t.root == nil
+    return unfolding acc(t.tree(), _) in t.root == nil
 }
 
 requires dividend > 0
 requires acc(t.tree(), 1/dividend)
 ensures acc(t.tree(), 1/dividend)
-ensures res == t.pureContains(value, dividend)
+ensures res == t.pureContains(value)
 func (t *Tree) Contains(value, dividend int) (res bool) {
     unfold acc(t.tree(), 1/dividend)
     if (t.root == nil) {
@@ -103,9 +103,9 @@ func (t *Tree) Contains(value, dividend int) (res bool) {
 }
 
 ghost
-requires dividend > 0 && acc(t.tree(), 1/dividend)
-pure func (t *Tree) pureContains(value, dividend int) bool {
-  return unfolding acc(t.tree(), 1/dividend) in t.root != nil && value in t.root.sortedValues(none[int], none[int])
+requires acc(t.tree(), _)
+pure func (t *Tree) pureContains(value int) bool {
+  return unfolding acc(t.tree(), _) in t.root != nil && value in t.root.sortedValues(none[int], none[int])
 }
 
 requires dividend > 0
@@ -300,12 +300,12 @@ func main() {
 ensures t.tree()
 func client0(value int) (t *Tree) {
     t = NewTree()
-    assert !t.pureContains(value, 2)
+    assert !t.pureContains(value)
     t.Insert(value)
     //:: ExpectedOutput(assert_error:assertion_error)
     assert t.sortedValues() == seq[int]{ value }
     t.Delete(value)
-    assert !t.pureContains(value, 2)
+    assert !t.pureContains(value)
     return t
 }
 
@@ -326,7 +326,7 @@ func client2(t *Tree, value int) {
     t.Insert(value)
     var newValues = t.sortedValues()
     //:: ExpectedOutput(assert_error:assertion_error)
-    assert t.pureContains(value, 2)
+    assert t.pureContains(value)
     ghost if (value in oldValues) {
         assert oldValues == newValues
     } else {

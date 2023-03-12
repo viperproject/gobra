@@ -11,6 +11,9 @@ type pair struct {
   Left, Right, p2 int
 }
 
+func Foo5() *pair
+func Foo4(p *pair) int
+
 requires acc(p)
 pure func (p *Pair) GetP() int {
   return p.p

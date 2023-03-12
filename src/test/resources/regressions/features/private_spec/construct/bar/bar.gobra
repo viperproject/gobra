@@ -17,22 +17,22 @@ type Test struct {
 
 pred (s *Pair) PrivateMem()
 
-ensures acc(&this.Left) && acc(&this.Right) && this.PrivateMem() //PublicMem()
-ensures this.Left == init.Left && this.Right == init.Right
+ensures acc(&result.Left) && acc(&result.Right) && result.PrivateMem() //PublicMem()
+ensures result.Left == value.Left && result.Right == value.Right
 construct &Pair()
 
-requires acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
+/* requires acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
 pure deref &Pair()
 
 requires acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
 ensures  acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
 ensures  a == *this// deref(this) == rhs
-assign &Pair(a Pair)
+assign &Pair(a Pair) */
 
 //ensures a == this
 //assign Pair(a Pair)
 
-ensures this.Left == init.Left && this.Right == init.Right
+ensures result.Left == value.Left && result.Right == value.Right
 construct Pair()
 
 /*

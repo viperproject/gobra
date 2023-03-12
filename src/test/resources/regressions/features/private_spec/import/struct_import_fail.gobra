@@ -9,6 +9,10 @@ import bar "bar"
 func main() {
     x := &bar.Pair{Left: 2, Right: 0}
 
+
     //:: ExpectedOutput(type_error)
     y := &bar.pair{Left: 2, Right: 0} 
+
+    z1 := new(bar.pair)
+    z2 := make(bar.pair, 2)
 }

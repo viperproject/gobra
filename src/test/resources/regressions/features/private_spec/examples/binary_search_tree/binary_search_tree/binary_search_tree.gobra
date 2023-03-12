@@ -17,7 +17,7 @@ type node struct {
   right *node
 }
 
-pred (t *Tree) Tree() { //ADDED
+pred (t *Tree) Tree() { //ADDED: tree() => Tree()
     acc(&t.root) &&
     (t.root != nil ==> t.root.tree() && t.root.sorted(none[int], none[int]))
 }

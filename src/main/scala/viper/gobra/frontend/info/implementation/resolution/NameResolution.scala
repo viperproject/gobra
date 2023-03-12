@@ -268,9 +268,9 @@ trait NameResolution {
       case p: PMPredicateDecl => Vector(p.id)
       case p: PFPredicateDecl => Vector(p.id)
       case _: PImplementationProof => Vector.empty
-      case _: PConstructDecl => Vector.empty
-      case _: PDerefDecl => Vector.empty
-      case _: PAssignDecl => Vector.empty
+      case _: PConstructDecl => Vector.empty //constructor has no identifier
+      case _: PDerefDecl => Vector.empty //dereference has no identifier
+      case _: PAssignDecl => Vector.empty //assignment has no identifier
     }
   }
 

@@ -107,6 +107,9 @@ object Names {
   def polyValueBoxFunc: String = "box"
   def polyValueUnboxFunc: String = "unbox"
 
+  // private
+  def privateProof: String = "$Public"
+
   // closures
   def closureDomain: String = "Closure"
   def closureCaptVar(i: Int): String = s"captVar$i"
@@ -144,6 +147,12 @@ object Names {
   // tuples
   def tupleDomain: String = "Tuple"
   def partialTupleDomain: String = "PartialTuple"
+
+  // constructors
+  def constrConstruct: String = "$CONSTR"
+  def derefConstruct: String = "$DEREF"
+  def assignConstruct: String = "$ASSIGN"
+  def generatedConstruct: String = "$GEN"
 
   // array
   def sharedArrayDomain: String = "ShArray"

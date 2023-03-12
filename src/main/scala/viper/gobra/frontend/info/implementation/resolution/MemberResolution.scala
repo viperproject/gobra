@@ -44,6 +44,15 @@ trait MemberResolution { this: TypeInfoImpl =>
   override def createMPredSpec(spec: PMPredicateSig): MPredicateSpec =
     defEntity(spec.id).asInstanceOf[MPredicateSpec]
 
+  override def createConstructor(decl: PConstructDecl): ConstructDecl =
+    ConstructDecl(decl, this)
+
+  override def createDereference(decl: PDerefDecl): DerefDecl =
+    DerefDecl(decl, this)
+
+  override def createAssignments(decl: PAssignDecl): AssignDecl =
+    AssignDecl(decl, this)
+
   // Struct Fields
 
   private val fieldSuffix: Type => AdvancedMemberSet[StructMember] = {
@@ -169,6 +178,22 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   lazy val receiverSet: Type => AdvancedMemberSet[TypeMember] =
     attr[Type, AdvancedMemberSet[TypeMember]] (t => receiverMethodSet(t) union receiverPredicateSet(t))
+
+  // Constructors
+
+  private lazy val constructSetMap: Map[Type, ConstructMemberSet[Constructor]] = {
+    tree.root.declarations
+      .collect { 
+        case c: PConstructDecl => createConstructor(c) 
+        case d: PDerefDecl => createDereference(d)
+        case a: PAssignDecl => createAssignments(a)
+      }.groupBy { c: Constructor => memberType(c) }
+      .transform((_, ms) => ConstructMemberSet.init(ms))
+  }
+
+  lazy val constructSet: Type => ConstructMemberSet[Constructor] = {
+    attr[Type, ConstructMemberSet[Constructor]] (t => constructSetMap(t))
+  }
 
   // Interfaces
 
@@ -326,6 +351,39 @@ trait MemberResolution { this: TypeInfoImpl =>
           case pkg: ImportT => tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl)
           case t => tryMethodLikeLookup(t, id)
         }
+    }
+  }
+
+  def tryConstructLookup(mem: PGhostMember): Either[Messages, Constructor] = {
+    mem match {
+      case decl: PConstructDecl =>
+        val typ = typeSymbType(decl.typ)
+        val miscType = if (decl.spec.isShared) FunctionT(Vector(typ), PointerT(typ)) else FunctionT(Vector(typ), typ)
+        val set = constructSet(miscType)
+        val err = set.errors(decl.typ)
+        val look = set.lookup(s"$miscType")
+        if (!err.isEmpty) Left(err)
+        else if (look.isEmpty) Left(error(decl, s"No constructor for type $miscType found")) //should be unreachable
+        else Right(look.get)
+      case decl: PDerefDecl =>
+        val typ = typeSymbType(decl.typ)
+        val miscType = FunctionT(Vector(PointerT(typ)), typ)
+        val set = constructSet(miscType)
+        val err = set.errors(decl.typ)
+        val look = set.lookup(s"$miscType")
+        if (!err.isEmpty) Left(err)
+        else if (look.isEmpty) Left(error(decl, s"No dereference for type $miscType found")) //should be unreachable
+        else Right(look.get)
+      case decl: PAssignDecl => 
+        val typ = typeSymbType(decl.typ)
+        val miscType = FunctionT(Vector(PointerT(typ), typ), VoidType)
+        val set = constructSet(miscType)
+        val err = set.errors(decl.typ)
+        val look = set.lookup(s"$miscType")
+        if (!err.isEmpty) Left(err)
+        else if (look.isEmpty) Left(error(decl, s"No assignment for type $miscType found")) //should be unreachable
+        else Right(look.get)
+      case _ => Left(Vector.empty)
     }
   }
 

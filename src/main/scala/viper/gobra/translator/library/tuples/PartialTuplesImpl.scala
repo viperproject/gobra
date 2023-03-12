@@ -2,7 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2020 ETH Zurich.
+// Copyright (c) 2011-2023 ETH Zurich.
+
 package viper.gobra.translator.library.tuples
 
 import viper.gobra.translator.Names
@@ -10,6 +11,10 @@ import viper.silver.{ast => vpr}
 
 import scala.collection.mutable
 
+/* 
+ * Creates PartialTuple domain with name 'PartialTuple${arity}'. A PartialTuple is a domain of an imported struct.
+ * Partial tuples do not have the "tupleOverGetAxiom" axiom.
+ */
 class PartialTuplesImpl extends Tuples {
 
   /**
@@ -74,7 +79,6 @@ class PartialTuplesImpl extends Tuples {
 
     val domainTyp = vpr.DomainType(domainName, typVarMap)(typeVars)
     val domainDecl = vpr.LocalVarDecl("p", domainTyp)()
-    //val domainVar = domainDecl.localVar
 
     val tupleFunc = vpr.DomainFunc(s"partialTuple$arity",decls, domainTyp)(domainName = domainName)
     val getFuncs = 0.until(arity) map (ix =>
@@ -104,27 +108,7 @@ class PartialTuplesImpl extends Tuples {
       )(domainName = domainName)
     } 
 
-    /* val tupleOverGetAxiom = {
-      val nGetApp = getFuncs map (f =>
-        vpr.DomainFuncApp(f, Seq(domainVar), typVarMap)()
-        )
-
-      vpr.NamedDomainAxiom(
-        name = s"partialTuple${arity}_over_getter",
-        exp = vpr.Forall(
-          Seq(domainDecl),
-          nGetApp map (g => vpr.Trigger(Seq(g))()),
-          vpr.EqCmp(
-            vpr.DomainFuncApp(
-              tupleFunc,
-              nGetApp,
-              typVarMap
-            )(),
-            domainVar
-          )()
-        )()
-      )(domainName = domainName)
-    } */
+    // partial tuples do not have a "tupleOverGetAxiom" axiom.
 
     // there are not quantified variables for tuples of 0 arity. Thus, do not generate any axioms in this case:
     val axioms = if (arity == 0) Seq.empty else Seq(getOverTupleAxiom) //, tupleOverGetAxiom)

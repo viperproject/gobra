@@ -855,13 +855,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       => PFunctionDecl(id, args, result, spec, body)
     case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
       => PMethodDecl(id, receiver, args, result, spec, body)
-	  case Vector(spec : PFunctionSpec, (typ: PType, args: Vector[PParameter@unchecked], body: Option[(PBodyParameterInfo, PBlock)@unchecked], isShared: Boolean))
-	    => if (spec.pres.isEmpty && spec.preserves.isEmpty && spec.privateSpec.isEmpty && has(ctx.constructDecl())) PConstructDecl(typ, args, spec.posts, body, isShared) 
-         else if (spec.privateSpec.isEmpty && has(ctx.assignDecl())) PAssignDecl(typ, args, spec, body, isShared)
-         else unexpected(ctx)
-    case Vector(spec : PFunctionSpec, (typ: PType, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked], isShared: Boolean, isPure: Boolean))
-      => if (spec.preserves.isEmpty && spec.posts.isEmpty && spec.privateSpec.isEmpty && isShared) 
-         PDerefDecl(typ, args, result, spec.pres, body, isShared, isPure) else unexpected(ctx)
+    case Vector(spec : PFunctionSpec, (ConstructorMemberKind, typ: PType, args: Vector[PParameter@unchecked], body: Option[(PBodyParameterInfo, PBlock)@unchecked], isShared: Boolean))
+      => PConstructDecl(typ, args, getConstructSpec(spec, isShared)(ctx.specification()), body) 
+    case Vector(spec : PFunctionSpec, (AssignmentsMemberKind, typ: PType, args: Vector[PParameter@unchecked], body: Option[(PBodyParameterInfo, PBlock)@unchecked], isShared: Boolean))
+      => PAssignDecl(typ, args, getConstructSpec(spec, isShared)(ctx.specification()), body)
+    case Vector(spec : PFunctionSpec, (DereferenceMemberKind, typ: PType, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked], isShared: Boolean))
+      => PDerefDecl(typ, args, result, getConstructSpec(spec, isShared)(ctx.specification()), body)
   }
 
   /**
@@ -888,25 +887,30 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val body = if (has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted && (!specOnly || ctx.pure)) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
     (id, recv,sig._1, sig._2, body)
   }
+
+  sealed trait SpecMemberKind
+  case object ConstructorMemberKind extends SpecMemberKind
+  case object DereferenceMemberKind extends SpecMemberKind
+  case object AssignmentsMemberKind extends SpecMemberKind
   
-  override def visitConstructDecl(ctx: ConstructDeclContext): (PType, Vector[PParameter], Option[(PBodyParameterInfo, PBlock)], Boolean) = {
+  override def visitConstructDecl(ctx: ConstructDeclContext): (SpecMemberKind, PType, Vector[PParameter], Option[(PBodyParameterInfo, PBlock)], Boolean) = {
     val isShared = has(ctx.AMPERSAND())
     val typ = visitNode[PType](ctx.type_())
     val body = if (has(ctx.blockWithBodyParameterInfo())) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
     
-    //generates a virtual arguments
-    val id = PIdnDef("this").at(typ)
+    //generates virtual arguments
+    val id = PIdnDef("result").at(typ)
     val tRet = if (isShared) PDeref(typ.copy).at(typ) else typ.copy
     val pRet: PParameter = PNamedParameter(id, tRet).at(id)
 
-    val init = PIdnDef("init").at(typ)
+    val init = PIdnDef("value").at(typ)
     val tInit = typ.copy
     val pInit: PParameter = PNamedParameter(init, tInit).at(init)
 
-    (typ, Vector(pRet, pInit), body, isShared)
+    (ConstructorMemberKind, typ, Vector(pRet, pInit), body, isShared)
   }
 
-  override def visitDerefDecl(ctx: DerefDeclContext): (PType, Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)], Boolean, Boolean) = {
+  override def visitDerefDecl(ctx: DerefDeclContext): (SpecMemberKind, PType, Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)], Boolean) = {
     val isShared = has(ctx.AMPERSAND())
     val typ = visitNode[PType](ctx.type_())
     val body = if (has(ctx.blockWithBodyParameterInfo())) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
@@ -918,10 +922,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
     val pResult = PResult(Vector(PUnnamedParameter(typ.copy.copy).at(ctx))).at(ctx)
 
-    (typ, Vector(pRet), pResult, body, isShared, ctx.pure)
+    if (!ctx.pure) unexpected(ctx)
+
+    (DereferenceMemberKind, typ, Vector(pRet), pResult, body, isShared)
   }
 
-  override def visitAssignDecl(ctx: AssignDeclContext): (PType, Vector[PParameter], Option[(PBodyParameterInfo, PBlock)], Boolean) = {
+  override def visitAssignDecl(ctx: AssignDeclContext): (SpecMemberKind, PType, Vector[PParameter], Option[(PBodyParameterInfo, PBlock)], Boolean) = {
     val isShared = has(ctx.AMPERSAND())
     val typ = visitNode[PType](ctx.type_())
     val body = if (has(ctx.blockWithBodyParameterInfo())) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
@@ -935,7 +941,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val param = if (isShared) PDeref(typ.copy).at(typ) else typ.copy
     val sig: PParameter = PNamedParameter(id, param).at(id)
 
-    (typ, Vector(sig) ++ args, body, isShared)
+    (AssignmentsMemberKind, typ, Vector(sig) ++ args, body, isShared)
+  }
+
+  // helper function to translate PConstructSpec from PFunctionSpec
+  private def getConstructSpec(spec: PFunctionSpec, isShared: Boolean)(ctx: SpecificationContext): PConstructSpec = {
+    if (!spec.privateSpec.isEmpty || !spec.terminationMeasures.isEmpty) unexpected(ctx)
+    PConstructSpec(spec.pres, spec.preserves, spec.posts, isShared)
   }
 
   /**
@@ -950,10 +962,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val preserves = groups.getOrElse(GobraParser.PRESERVES, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
     val posts = groups.getOrElse(GobraParser.POST, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
     val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).toVector.map(s => visitTerminationMeasure(s.terminationMeasure()))
-    val privateList = ctx.privateSpec()
-    val privateSpec = if (privateList.isEmpty()) { None }
-      else if (privateList.length == 1) { visitNodeOrNone[PPrivateSpec](privateList.get(0)) }
-      else { unexpected(ctx) }
+    
+    // private specification
+    val privateV = groups.getOrElse(GobraParser.PRIVATE, Vector.empty).toVector.map(s => visitNodeOrNone[PPrivateSpec](s.asInstanceOf[SpecStatementContext].privateSpec()))
+    val privateSpec = if (privateV.length == 1) privateV.head else if (privateV.length == 0) None else unexpected(ctx)
   
     PFunctionSpec(pres, preserves, posts, terms, privateSpec, isPure = ctx.pure, isTrusted = ctx.trusted)
   }
@@ -2473,14 +2485,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }.asInstanceOf[Vector[P]]
   }
 
-  def genParamFromBlockWithBodyParameterInfo(body: Option[(PBodyParameterInfo, PBlock)], typ: PType): Vector[PParameter] = {
-    (for {
-      b <- body
-      param = b._1.shareableParameters.map(p => {
-        val ap: PActualParameter = PNamedParameter(PIdnDef(p.name), typ)
-        PExplicitGhostParameter(ap)
-    })} yield param: Vector[PParameter]).getOrElse(Vector.empty)
-  }
   //endregion
 
   //region Error reporting and positioning

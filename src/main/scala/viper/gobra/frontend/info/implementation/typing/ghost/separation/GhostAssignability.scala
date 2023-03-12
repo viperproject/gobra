@@ -248,15 +248,8 @@ trait GhostAssignability {
     def paramTyping(params: Vector[PParameter], context: ExternalTypeInfo): GhostType =
       GhostType.ghostTuple(params.map(p => context.isParamGhost(p)))
 
-    val privateSpec = tree.parent(p).head
-    val funcSpec = tree.parent(privateSpec).head
-    val func = tree.parent(funcSpec).head
-
-    val funcId = func match {
-      case PFunctionDecl(id, _, _, _, _) => id
-      case PMethodDecl(id, _, _, _, _, _) => id
-      case _ => Violation.violation(s"expected a function or method, but got ${func}")
-    }
+    val func = tryEnclosingFunctionOrMethod(p).getOrElse(Violation.violation(s"PrivateEntailmentProof is not enclosed inside a function: $p"))
+    val funcId = func.id
 
     val (fArgs, fRes, context) = regular(funcId) match {
       case f: st.Function => (f.args, f.result.outs, f.context)
@@ -267,8 +260,8 @@ trait GhostAssignability {
     val resTyping = paramTyping(fRes, context)
     val specTyping = (argTyping, resTyping)
 
-    p.block.stmts.map({
-      case PExpressionStmt(c: PInvoke) => 
+    privateProofCallAttr(p) match {
+      case c: PInvoke =>
         // If the callee is ghost, we don't care about the ghostness of the arguments.
         if (isExprGhost(c.base.asInstanceOf[PExpression])) noMessages
         else resolve(c) match {
@@ -282,6 +275,6 @@ trait GhostAssignability {
           case _ => Violation.violation("expected function call")
         }
       case _ => noMessages
-    }).iterator.find(_.nonEmpty).getOrElse(noMessages) 
+    }
   } 
 }

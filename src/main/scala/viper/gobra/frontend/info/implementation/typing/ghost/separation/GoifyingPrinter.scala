@@ -84,7 +84,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
       hcat(preserves map (p => specComment <+> showPreserves(p) <> line)) <>
       hcat(posts map (p => specComment <+> showPost(p) <> line)) <>
       hcat(measures map (p => specComment <+> showTerminationMeasure(p) <> line)) <>
-      (for { p <- privateSpec } yield showSpec(p)).getOrElse(emptyDoc)
+      (for { p <- privateSpec } yield showSpec(p)).getOrElse(emptyDoc) // specComment is added by `showSpec`
 
     case PLoopSpec(inv, measure) =>
       hcat(inv map (p => specComment <+> showInv(p) <> line)) <>

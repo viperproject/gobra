@@ -156,7 +156,7 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 // Specifications
 
 specification returns[boolean trusted = false, boolean pure = false;]:
-  ((specStatement | PRIVATE privateSpec | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? // Non-greedily match PURE to avoid missing eos errors.
+  ((specStatement | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? // Non-greedily match PURE to avoid missing eos errors.
   ;
 
 specStatement
@@ -164,6 +164,7 @@ specStatement
   | kind=PRESERVES assertion
   | kind=POST assertion
   | kind=DEC terminationMeasure
+  | kind=PRIVATE privateSpec
   ;
 
 terminationMeasure: expressionList? (IF expression)?;

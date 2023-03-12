@@ -750,7 +750,7 @@ object Desugar {
       val bodyOpt: Option[in.Expr] = decl.body.flatMap {
         case (_, b: PBlock) =>
           val resOpt = b.nonEmptyStmts match { 
-            case Vector(PReturn(Vector(ret))) if imported && info.isPvt(ret) => None // if imported and has private body then import pure func as abstract
+            case Vector(PReturn(Vector(ret))) if imported && info.isPrivate(ret) => None // if imported and has private body then import pure func as abstract
             case Vector(PReturn(Vector(ret))) => Some(pureExprD(ctx, info)(ret))
             case b => Violation.violation(s"unexpected pure function body: $b")
           }
@@ -925,7 +925,7 @@ object Desugar {
       val bodyOpt: Option[in.Expr] = decl.body.flatMap {
         case (_, b: PBlock) =>
           val resOpt = b.nonEmptyStmts match {
-            case Vector(PReturn(Vector(ret))) if imported && info.isPvt(ret) => None // if imported and has private body then import pure func as abstract
+            case Vector(PReturn(Vector(ret))) if imported && info.isPrivate(ret) => None // if imported and has private body then import pure func as abstract
             case Vector(PReturn(Vector(ret))) => Some(pureExprD(ctx, info)(ret))
             case b => Violation.violation(s"unexpected pure function body: $b")
           }
@@ -948,7 +948,7 @@ object Desugar {
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
 
       val bodyOpt = decl.body.flatMap{ s =>
-        if (!imported || !info.isPvt(s)) Some(specificationD(ctx, info)(s))
+        if (!imported || !info.isPrivate(s)) Some(specificationD(ctx, info)(s))
         else None // if imported and has private body then import predicate as abstract
       }
 
@@ -969,7 +969,7 @@ object Desugar {
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
 
       val bodyOpt = decl.body.flatMap{ s =>
-        if (!imported || !info.isPvt(s)) Some(specificationD(ctx, info)(s))
+        if (!imported || !info.isPrivate(s)) Some(specificationD(ctx, info)(s))
         else None // if imported and has private body then import predicate as abstract
       }
 
@@ -3209,36 +3209,38 @@ object Desugar {
     def registerConstructor(cons: PConstructDecl): in.Constructor = {
       val src = meta(cons, info)
 
-      val typ = if (cons.isShared) {
+      val (typ, typ2) = if (cons.spec.isShared) {
         val addrMod = Addressability.Shared
         val t = typeD(info.symbType(cons.typ), addrMod)(src)
-        in.PointerT(t.withAddressability(addrMod), Addressability.reference)
+        (in.PointerT(t.withAddressability(addrMod), Addressability.reference), t)
       } else {
         val addrMod = Addressability.Exclusive
-        typeD(info.symbType(cons.typ), addrMod)(src)
+        (typeD(info.symbType(cons.typ), addrMod)(src), typeD(info.symbType(cons.typ), addrMod)(src))
       }
 
       val name = nm.constrd(typ)
-      val proxy = in.ConstructorProxy(s"$typ", name)(src)
+      val proxy = in.ConstructorProxy(name)(src)
 
       directConstructors += typ -> proxy
+      directConstructors += typ2 -> proxy
 
       val args = cons.args.zipWithIndex map { case (p,i) => inParameterD(p, i, info)._1 }
       
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) //dummy assign
-      val posts = cons.posts map postconditionD(ctx, info)
+      val pres = (cons.spec.pres ++ cons.spec.preserves) map preconditionD(ctx, info)
+      val posts = (cons.spec.preserves ++ cons.spec.posts) map postconditionD(ctx, info)
       val body = for {
         b <- cons.body
         bl = blockD(ctx, info)(b._2)
       } yield bl
 
-      in.Constructor(proxy, args, posts, body, typ)(src)
+      in.Constructor(proxy, args, pres, posts, body, typ)(src)
     }
 
     def registerDereference(deref: PDerefDecl): in.Dereference = {
       val src = meta(deref, info)
 
-      val typ = if (deref.isShared) {
+      val typ = if (deref.spec.isShared) {
         val addrMod = Addressability.Shared
         val t = typeD(info.symbType(deref.typ), addrMod)(src)
         in.PointerT(t.withAddressability(addrMod), Addressability.reference)
@@ -3248,7 +3250,7 @@ object Desugar {
       }
 
       val name = nm.derefsd(typ)
-      val proxy = in.DereferenceProxy(s"$typ", name)(src)
+      val proxy = in.DereferenceProxy(name)(src)
 
       directDereferences += typeD(info.symbType(deref.typ), Addressability.Shared)(src) -> proxy
 
@@ -3256,7 +3258,8 @@ object Desugar {
       val ret = deref.result.outs.zipWithIndex map { case (p,i) => outParameterD(p, i, info)._1 }
       
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) //dummy assign
-      val pres = deref.pres map preconditionD(ctx, info)
+      val pres = (deref.spec.pres ++ deref.spec.preserves) map preconditionD(ctx, info)
+      val posts = (deref.spec.preserves ++ deref.spec.posts) map postconditionD(ctx, info)
       val body = deref.body.map {
         case (_, b: PBlock) =>
           val res = b.nonEmptyStmts match {
@@ -3266,13 +3269,13 @@ object Desugar {
           implicitConversion(res.typ, ret.head.typ, res)
       }
 
-      in.Dereference(proxy, args, ret, pres, body, typ)(src)
+      in.Dereference(proxy, args, ret, pres, posts, body, typ)(src)
     }
 
     def registerAssignments(ass: PAssignDecl): in.Assignments = {
       val src = meta(ass, info)
 
-      val typ = if (ass.isShared) {
+      val typ = if (ass.spec.isShared) {
         val addrMod = Addressability.Shared
         val t = typeD(info.symbType(ass.typ), addrMod)(src)
         in.PointerT(t.withAddressability(addrMod), Addressability.reference)
@@ -3282,9 +3285,9 @@ object Desugar {
       }
 
       val name = nm.assignd(typ)
-      val proxy = in.AssignmentsProxy(s"$typ", name)(src)
+      val proxy = in.AssignmentsProxy(name)(src)
 
-      directAssignments += typeD(info.symbType(ass.typ), (if (ass.isShared) Addressability.Shared else Addressability.Exclusive))(src) -> proxy
+      directAssignments += typeD(info.symbType(ass.typ), (if (ass.spec.isShared) Addressability.Shared else Addressability.Exclusive))(src) -> proxy
 
       val args = ass.args.zipWithIndex map { case (p,i) => inParameterD(p, i, info)._1 }
       
@@ -4875,9 +4878,6 @@ object Desugar {
     private val FUNCTION_PREFIX = "F"
     private val METHODSPEC_PREFIX = "S"
     private val METHOD_PREFIX = "M"
-    private val CONSTRUCT_PREFIX = "$CONSTR"
-    private val DEREF_PREFIX = "$DEREF"
-    private val ASSIGN_PREFIX = "$ASSIGN"
     private val TYPE_PREFIX = "T"
     private val PROGRAM_INIT_CODE_PREFIX = "$INIT"
     private val PACKAGE_IMPORT_OBLIGATIONS_PREFIX = "$IMPORTS"
@@ -4965,9 +4965,9 @@ object Desugar {
       case PMethodReceiveName(typ)    => topLevelName(s"$METHOD_PREFIX${typ.name}")(n, context)
       case PMethodReceivePointer(typ) => topLevelName(s"P$METHOD_PREFIX${typ.name}")(n, context)
     }
-    def constrd (typ: in.Type): String = s"${stringifyType(typ)}_$CONSTRUCT_PREFIX"
-    def derefsd (typ: in.Type): String = s"${stringifyType(typ)}_$DEREF_PREFIX"
-    def assignd (typ: in.Type): String = s"${stringifyType(typ)}_$ASSIGN_PREFIX"
+    def constrd (typ: in.Type): String = s"${stringifyType(typ)}"
+    def derefsd (typ: in.Type): String = s"${stringifyType(typ)}"
+    def assignd (typ: in.Type): String = s"${stringifyType(typ)}"
     private def stringifyType(typ: in.Type): String = Names.serializeType(typ)
     def builtInMember(tag: BuiltInMemberTag, dependantTypes: Vector[in.Type]): String = {
       val typeString = dependantTypes.map(stringifyType).mkString("_")

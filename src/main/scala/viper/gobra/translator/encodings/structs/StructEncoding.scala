@@ -115,33 +115,35 @@ class StructEncoding extends TypeEncoding {
     * [lhs: Struct{F}@ = rhs] -> FOREACH f in F: [lhs.f = rhs.f]
     * 
     * ASSIGNMENT implements:
-    * [lhs: Struct{F}@ = rhs] if has(F@_ASSIGNMENTS) -> [lhs = F@_ASSIGNMENTS(lhs, rhs)]
+    * [lhs: T@ = rhs] if has(T@_ASSIGNMENT) -> [lhs = T@_ASSIGNMENT(lhs, rhs)]
+    * [lhs: T@ = rhs] if !has(T@_ASSIGNMENT) && has(T@_CONSTRUCTOR) -> [lhs = T@_GEN_ASSIGNMENT(lhs, rhs)]
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
     case (in.Assignee((fa: in.FieldRef) :: _ / Exclusive), rhs, src) =>
       ctx.assignment(in.Assignee(fa.recv), in.StructUpdate(fa.recv, fa.field, rhs)(src.info))(src)
 
-    case (in.Assignee(lhs :: ctx.Struct(lhsFs) / Shared), rhs :: ctx.Struct(rhsFs), src) if ctx.lookupAssignments(lhs.typ).isEmpty =>
-      for {
-        x <- bind(lhs)(ctx)
-        y <- bind(rhs)(ctx)
-        lhsFAs = fieldAccesses(x, lhsFs).map(in.Assignee.Field)
-        rhsFAs = fieldAccesses(y, rhsFs)
-        res <- seqns((lhsFAs zip rhsFAs).map { case (lhsFA, rhsFA) => ctx.assignment(lhsFA, rhsFA)(src) })
-      } yield res
-
-    case (in.Assignee(lhs :: ctx.Struct(_) / Shared), rhs :: ctx.Struct(_), src) if !ctx.lookupAssignments(lhs.typ).isEmpty =>
-      val (pos, info, errT) = src.vprMeta
-      val exprTyp = ctx.typ(lhs.typ)
-      val methodName = ctx.lookupAssignments(lhs.typ).getOrElse(null).uniqueName //proxy not empty
-      for {
-        x <- bind(lhs)(ctx)
-        yArg <- ctx.expression(rhs)
-        xArg = vpr.LocalVar(x.id, exprTyp)(pos, info, errT)
-        vTarget = vpr.LocalVar(ctx.freshNames.next(), exprTyp)(pos, info, errT)
-        _ <- local(vpr.LocalVarDecl(vTarget.name, exprTyp)(pos, info, errT))
-        method = vpr.MethodCall(methodName, Seq(xArg, yArg), Seq(vTarget))(pos, info, errT)
-      } yield method
+    case (in.Assignee(lhs :: ctx.Struct(lhsFs) / Shared), rhs :: ctx.Struct(rhsFs), src) =>
+      val construct = constructName(ctx.lookupAssignments(lhs.typ), ctx.lookupConstructor(lhs.typ))
+      if (construct.isEmpty()) {
+        for {
+          x <- bind(lhs)(ctx)
+          y <- bind(rhs)(ctx)
+          lhsFAs = fieldAccesses(x, lhsFs).map(in.Assignee.Field)
+          rhsFAs = fieldAccesses(y, rhsFs)
+          res <- seqns((lhsFAs zip rhsFAs).map { case (lhsFA, rhsFA) => ctx.assignment(lhsFA, rhsFA)(src) })
+        } yield res
+      } else {
+        val (pos, info, errT) = src.vprMeta
+        val exprTyp = ctx.typ(lhs.typ)
+        for {
+          x <- bind(lhs)(ctx)
+          yArg <- ctx.expression(rhs)
+          xArg = vpr.LocalVar(x.id, exprTyp)(pos, info, errT)
+          vTarget = vpr.LocalVarDecl(ctx.freshNames.next(), exprTyp)(pos, info, errT)
+          _ <- local(vTarget)
+          method = vpr.MethodCall(s"${construct}_${Names.assignConstruct}", Seq(xArg, yArg), Seq(vTarget.localVar))(pos, info, errT)
+        } yield method
+      }
   }
 
   /**
@@ -159,44 +161,29 @@ class StructEncoding extends TypeEncoding {
     * [(x: *Struct{}°) == x: *Struct{}] -> true
     * [(lhs: *Struct{}°) == rhs: *Struct{}] -> unknown()
     * [(lhs: *Struct{F}°) == rhs: *Struct{_}] -> [lhs] == [rhs]
-    * 
-    * DEREFERENCE implements:
-    * [(lhs: T@) == rhs: T] if has(T@_DEREF) -> [T@_DEREF(lhs)] == [rhs] 
     */
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
-    case (lhs :: ctx.CompleteStruct(lhsFs), rhs :: ctx.CompleteStruct(rhsFs), src)
-      if ctx.lookupDereference(lhs.typ).isEmpty && ctx.lookupDereference(rhs.typ).isEmpty =>
-        val (pos, info, errT) = src.vprMeta
-        pure(
-          for {
-            x <- bind(lhs)(ctx)
-            y <- bind(rhs)(ctx)
-            lhsFAccs = fieldAccesses(x, lhsFs)
-            rhsFAccs = fieldAccesses(y, rhsFs)
-            equalFields <- sequence((lhsFAccs zip rhsFAccs).map { case (lhsFA, rhsFA) => ctx.equal(lhsFA, rhsFA)(src) })
-          } yield VU.bigAnd(equalFields)(pos, info, errT)
-        )(ctx)
-
-    case (lhs :: ctx.CompleteStruct(lhsFs), rhs :: ctx.CompleteStruct(_), src)
-      if !ctx.lookupDereference(lhs.typ).isEmpty || !ctx.lookupDereference(rhs.typ).isEmpty =>
-        if (lhsFs.isEmpty) {
-          unit(withSrc(if (lhs == rhs) vpr.TrueLit() else ctx.unknownValue.unkownValue(vpr.Bool), src))
-        } else {
-          for {
-            vLhs <- ctx.expression(lhs)
-            vRhs <- ctx.expression(rhs)
-          } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
-        }
+    case (lhs :: ctx.CompleteStruct(lhsFs), rhs :: ctx.CompleteStruct(rhsFs), src) =>
+      val (pos, info, errT) = src.vprMeta
+      pure(
+        for {
+          x <- bind(lhs)(ctx)
+          y <- bind(rhs)(ctx)
+          lhsFAccs = fieldAccesses(x, lhsFs)
+          rhsFAccs = fieldAccesses(y, rhsFs)
+          equalFields <- sequence((lhsFAccs zip rhsFAccs).map { case (lhsFA, rhsFA) => ctx.equal(lhsFA, rhsFA)(src) })
+        } yield VU.bigAnd(equalFields)(pos, info, errT)
+      )(ctx)
 
     case (lhs :: ctx.PartialStruct(lhsFs), rhs :: ctx.PartialStruct(_), src) =>
-        if (lhsFs.isEmpty) {
-          unit(withSrc(if (lhs == rhs) vpr.TrueLit() else ctx.unknownValue.unkownValue(vpr.Bool), src))
-        } else {
-          for {
-            vLhs <- ctx.expression(lhs)
-            vRhs <- ctx.expression(rhs)
-          } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
-        }
+      if (lhsFs.isEmpty) {
+        unit(withSrc(if (lhs == rhs) vpr.TrueLit() else ctx.unknownValue.unkownValue(vpr.Bool), src))
+      } else {
+        for {
+          vLhs <- ctx.expression(lhs)
+          vRhs <- ctx.expression(rhs)
+        } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
+      }
 
     case (lhs :: ctx.*(ctx.Struct(lhsFs)) / Exclusive, rhs :: ctx.*(ctx.Struct(_)), src) =>
       if (lhsFs.isEmpty) {
@@ -226,8 +213,9 @@ class StructEncoding extends TypeEncoding {
     * CONSTRUCTOR implements:
     * R[ structLit(E: T°) ] if has(T°_CONSTRUCTOR) => T°_CONSTRUCTOR(E)
     * 
-    * DEREFERENCE implements:
+    * DEREFERENCE implements (only for typeOf(T) == PartialStruct):
     * R[ loc: T@ ] if has(T@_DEREF) => T@_DEREF(loc)
+    * R[ loc: T@ ] if !has(T@_DEREF) && has(T@_CONSTRUCTOR) => T@_GEN_DEREF(loc)
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
     case (loc@in.FieldRef(recv :: ctx.CompleteStruct(fs), field)) :: _ / Exclusive =>
@@ -270,47 +258,25 @@ class StructEncoding extends TypeEncoding {
 
     case (lit: in.StructLit) :: ctx.CompleteStruct(fs) =>
       val fieldExprs = lit.args.map(arg => ctx.expression(arg))
-      println(s"complete lit: $lit, ${ctx.lookupConstructor(lit.typ)}")
       sequence(fieldExprs).map(ex.create(_, cptParam(fs)(ctx))(lit)(ctx))
-      /* val construct = ctx.lookupConstructor(lit.typ)
-      if (construct.isEmpty) { sequence(fieldExprs).map(ex.create(_, cptParam(fs)(ctx))(lit)(ctx)) }
-      else {
-        val (pos, info, errT) = lit.vprMeta
-        println(s"complete lit2: $lit, ${ctx.lookupConstructor(lit.typ)}")
-        val funcName = construct.getOrElse(null).uniqueName
-        val src = lit.info
-        val z = in.LocalVar(ctx.freshNames.next(), lit.typ)(src)
-        val v = variable(ctx)(z).localVar
-        write(vpr.FuncApp(funcName, Seq(v))(pos, info, v.typ, errT))
-      } */
 
     case (lit: in.StructLit) :: ctx.PartialStruct(fs) =>
       val fieldExprs = lit.args.map(arg => ctx.expression(arg)).zip(fs.map(_.notImported)).collect { case (e, false) => e }
       sequence(fieldExprs).map(pex.create(_, cptParam(fs)(ctx))(lit)(ctx)) 
 
     case (loc: in.Location) :: ctx.CompleteStruct(_) / Shared =>
-      val deref = ctx.lookupDereference(loc.typ)
-      if (deref.isEmpty) { sh.convertToExclusive(loc)(ctx, ex) }
-      else { 
-        val (pos, info, errT) = loc.vprMeta
-        val funcName = deref.getOrElse(null).uniqueName
-        for {
-          b <- bind(loc)(ctx)
-          v = variable(ctx)(b).localVar
-          func = vpr.FuncApp(funcName, Seq(v))(pos, info, v.typ, errT)
-        } yield func
-      }
+      sh.convertToExclusive(loc)(ctx, ex) 
     
     case (loc: in.Location) :: ctx.PartialStruct(_) / Shared =>
-      val deref = ctx.lookupDereference(loc.typ)
-      if (deref.isEmpty) { sh.convertToExclusive(loc)(ctx, pex) }
-      else { 
+      val construct = constructName(ctx.lookupDereference(loc.typ), ctx.lookupConstructor(loc.typ))
+      if (construct.isEmpty()) { 
+        Violation.violation(s"Did not find dereference for parital struct $loc")
+      } else { 
         val (pos, info, errT) = loc.vprMeta
-        val funcName = deref.getOrElse(null).uniqueName
         for {
           b <- bind(loc)(ctx)
           v = variable(ctx)(b).localVar
-          func = vpr.FuncApp(funcName, Seq(v))(pos, info, v.typ, errT)
+          func = vpr.FuncApp(s"${construct}_${Names.derefConstruct}", Seq(v))(pos, info, v.typ, errT)
         } yield func
       }
   }
@@ -378,36 +344,46 @@ class StructEncoding extends TypeEncoding {
     * Encodes new-statements for structs:
     *
     * The default implements:
-    * [v: *T = new(lit)] if !has(T*_CONSTRUCTOR) -> var z (*T)°; inhale Footprint[*z] && [*z == lit]; [v = z]
+    * [v: *T = new(lit)] -> var z (*T)°; inhale Footprint[*z] && [*z == lit]; [v = z]
     * 
     * CONSTRUCTOR implements:
     * [v: *T = new(lit)] if has(T*_CONSTRUCTOR) -> [v = T*_CONSTRUCTOR(lit)]
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
-    case newStmt@in.New(target, expr) if typ(ctx).isDefinedAt(expr.typ) && ctx.lookupConstructor(target.typ).isEmpty =>
+    case newStmt@in.New(target, expr) if typ(ctx).isDefinedAt(expr.typ) =>
       val (pos, info, errT) = newStmt.vprMeta
-      val z = in.LocalVar(ctx.freshNames.next(), target.typ.withAddressability(Exclusive))(newStmt.info)
-      val zDeref = in.Deref(z, underlyingType(z.typ)(ctx))(newStmt.info)
-      seqn(
-        for {
-          _ <- local(ctx.variable(z))
-          footprint <- addressFootprint(ctx)(zDeref, in.FullPerm(zDeref.info))
-          eq <- ctx.equal(zDeref, expr)(newStmt)
-          _ <- write(vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT))
-          ass <- ctx.assignment(in.Assignee.Var(target), z)(newStmt)
-        } yield ass
-      ): CodeWriter[vpr.Stmt]
+      val construct = constructName(ctx.lookupConstructor(target.typ), None)
+      if (construct.isEmpty()) {
+        val z = in.LocalVar(ctx.freshNames.next(), target.typ.withAddressability(Exclusive))(newStmt.info)
+        val zDeref = in.Deref(z, underlyingType(z.typ)(ctx))(newStmt.info)
+        seqn(
+          for {
+            _ <- local(ctx.variable(z))
+            footprint <- addressFootprint(ctx)(zDeref, in.FullPerm(zDeref.info))
+            eq <- ctx.equal(zDeref, expr)(newStmt)
+            _ <- write(vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT))
+            ass <- ctx.assignment(in.Assignee.Var(target), z)(newStmt)
+          } yield ass
+        ): CodeWriter[vpr.Stmt]
+      } else {
+        val vTarget = vpr.LocalVar(target.id, ctx.typ(target.typ))(pos, info, errT)
+        seqn(
+          for {
+            vExpr <- ctx.expression(expr)
+            methodCall = vpr.MethodCall(s"${construct}_${Names.constrConstruct}", Seq(vExpr), Seq(vTarget))(pos, info, errT)
+          } yield methodCall
+        ): CodeWriter[vpr.Stmt]
+      }
+  }
 
-    case newStmt@in.New(target, expr) if typ(ctx).isDefinedAt(expr.typ) && !ctx.lookupConstructor(target.typ).isEmpty =>
-      val (pos, info, errT) = newStmt.vprMeta
-      val vTarget = vpr.LocalVar(target.id, ctx.typ(target.typ))(pos, info, errT)
-      val methodName = ctx.lookupConstructor(target.typ).getOrElse(null).uniqueName //proxy not empty
-      seqn(
-        for {
-          vExpr <- ctx.expression(expr)
-          methodCall = vpr.MethodCall(methodName, Seq(vExpr), Seq(vTarget))(pos, info, errT)
-        } yield methodCall
-      ): CodeWriter[vpr.Stmt]
+  /* 
+   * If there is a construct defined then it returns the defined method/function.
+   * Otherwise it checks if a CONSTRUCTOR exists (gets generated) and it returns the generated method/function.
+   */
+  private def constructName(defined: Option[in.Proxy], generated: Option[in.ConstructorProxy]): String = (defined, generated) match {
+    case (Some(a), _) => s"${a.name}"
+    case (_, Some(b)) => s"${b.name}_${Names.generatedConstruct}"
+    case _ => ""
   }
 
   /**

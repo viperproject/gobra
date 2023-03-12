@@ -54,20 +54,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PDot =>
       resolve(n) match {
         case Some(f: ap.FieldSelection) => 
-          val referenceToImportedPackage = s"$pkgName" != s"${regular(f.id).context.pkgName}"
-          if (referenceToImportedPackage && isPrivate(n)) {
-            error(n, s"expression error: expected public field, but got $n")
-          } else noMessages
+          if (this != f.symb.context && isPrivate(n)) error(n, s"expression error: expected public field, but got $n") else noMessages
         case Some(_: ap.ReceivedMethod) => noMessages
         case Some(_: ap.ReceivedPredicate) => noMessages
         case Some(_: ap.MethodExpr) => noMessages
         case Some(_: ap.PredicateExpr) => noMessages
         // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
         case Some(c: ap.Constant) => 
-          val referenceToImportedPackage = s"$pkgName" != s"${c.symb.context.pkgName}"
-          if (referenceToImportedPackage && isPrivate(n)) {
-            error(n, s"expression error: expected public constant, but got $n")
-          } else noMessages
+          if (this != c.symb.context && isPrivate(n)) error(n, s"expression error: expected public constant, but got $n") else noMessages
         case Some(_: ap.GlobalVariable) => noMessages
         case Some(_: ap.Function) => noMessages
         case Some(_: ap.Closure) => violation(s"the name of a function literal should not be accessible from a different package")
@@ -231,11 +225,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PFloatLit => ???
 
     case n@PCompositeLit(t, lit) =>
+      val isImportedPrivate = t match { 
+        case t: PTypeName => error(n, s"compositeLit error: expected public type, but got $n", this != regular(t.id).context && isPrivate(n))
+        case _ => noMessages
+      }
       val simplifiedT = t match {
         case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeSymbType(elem))
         case t: PType => typeSymbType(t)
       }
-      literalAssignableTo.errors(lit, simplifiedT)(n)
+      isImportedPrivate ++ literalAssignableTo.errors(lit, simplifiedT)(n)
 
     case f: PFunctionLit =>
       capturedLocalVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
@@ -256,8 +254,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
-          val referenceToImportedPackage = s"$pkgName" != s"${regular(c.callee.id).context.pkgName}"
-          if (referenceToImportedPackage && isPrivate(callee)) {
+          if (this != regular(c.callee.id).context && isPrivate(callee)) {
             error(n, s"invoke error: expected a public function, but got $callee") 
           } else {
             val isCallToInit =
@@ -279,8 +276,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
           val pureReceiverMsgs = p.predicate match {
-            case pr: ap.Predicate => if (s"$pkgName" != s"${pr.symb.context.pkgName}" && pr.id.name.charAt(0).isLower) { 
-              error(n, s"invoke error: expected a public object, but got $callee")
+            case pr: ap.Predicate => if (this != pr.symb.context && isPrivateString(pr.id.name)) { 
+              error(n, s"invoke error: expected a public predicate, but got $callee")
              } else noMessages
             case _: ap.PredicateExpr => noMessages
             case pei: ap.PredExprInstance => pei.args flatMap isPureExpr
@@ -433,15 +430,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     })
 
     case n@PReference(e) => 
-      val referenceToImportedPackage = {e match { 
-        case n: PCompositeLit => n.typ match {
-          case n: PTypeName => s"${regular(n.id).context.pkgName}" != s"$pkgName"
-          case _ => false
-        }
-        case _ => false
-      }}
-      if (referenceToImportedPackage && isPrivate(e)) { error(n, s"reference error: expected public struct, but got $e") }
-      else { isExpr(e).out ++ effAddressable.errors(e)(n) }
+      isExpr(e).out ++ effAddressable.errors(e)(n)
 
     case n@PNegation(e) => isExpr(e).out ++ assignableTo.errors(exprType(e), BooleanT)(n)
 
@@ -538,7 +527,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
     }
 
-    case _: PNew => noMessages
+    case n@PNew(typ) => resolve(typ) match {
+      case Some(ap.NamedType(_, s)) => if (this != s.context && isPrivate(n)) { 
+        error(n, s"new struct error: expected a public struct, but got $n")
+      } else noMessages
+      case _ => noMessages
+    }
 
     case m@PMake(typ, args) =>
       args.flatMap { arg =>

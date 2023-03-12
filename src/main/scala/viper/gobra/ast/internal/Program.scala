@@ -1185,9 +1185,10 @@ case class PureFunctionLit(
 case class Constructor(
                        id: ConstructorProxy,
                        args: Vector[Parameter.In],
+                       pres: Vector[Assertion],
                        posts: Vector[Assertion],
                        body: Option[Stmt],
-                       ret: Type
+                       typ: Type
                       )(val info: Source.Parser.Info) extends Member
 
 case class Dereference(
@@ -1195,6 +1196,7 @@ case class Dereference(
                        args: Vector[Parameter.In],
                        results: Vector[Parameter.Out],
                        pres: Vector[Assertion],
+                       posts: Vector[Assertion],
                        body: Option[Expr],
                        ret: Type
                       )(val info: Source.Parser.Info) extends Member
@@ -1591,7 +1593,7 @@ case class StructT(fields: Vector[Field], addressability: Addressability, import
   }
 
   override def withAddressability(newAddressability: Addressability): StructT =
-    StructT(fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost, f.notImported)(f.info)), newAddressability)
+    StructT(fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost, f.notImported)(f.info)), newAddressability, imported)
 }
 
 case class InterfaceT(name: String, addressability: Addressability) extends PrettyType(s"interface{ name is $name }") with TopType {
@@ -1682,8 +1684,8 @@ case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy 
 
 case class GlobalVarProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
 
-case class ConstructorProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
+case class ConstructorProxy(name: String)(val info: Source.Parser.Info) extends Proxy
 
-case class DereferenceProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
+case class DereferenceProxy(name: String)(val info: Source.Parser.Info) extends Proxy
 
-case class AssignmentsProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
+case class AssignmentsProxy(name: String)(val info: Source.Parser.Info) extends Proxy

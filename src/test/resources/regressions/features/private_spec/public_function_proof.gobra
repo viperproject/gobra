@@ -83,10 +83,10 @@ ensures P(a)
 private {
   requires P(a)
   ensures P(a)
-  proof FPred2 {
-    FPred2(a)
+  proof {
+    FPred2(a, b)
   }
 }
-func FPred2(a int) 
+func FPred2(a int, ghost b int) 
 
 

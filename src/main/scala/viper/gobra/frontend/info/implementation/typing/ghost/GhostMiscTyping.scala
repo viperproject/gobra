@@ -9,8 +9,8 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
-import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec, MethodSpec}
-import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, BooleanT, FunctionT, PredT, Type, UnknownType}
+import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec, MethodSpec, ConstructDecl, DerefDecl, AssignDecl}
+import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, PointerT, BooleanT, FunctionT, PredT, Type, VoidType, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -210,6 +210,13 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case SymbolTable.AdtDestructor(decl, _, ctx) => ctx.symbType(decl.typ)
     case _: SymbolTable.AdtDiscriminator => BooleanT
     case BuiltInMPredicate(tag, _, _) => typ(tag)
+    case ConstructDecl(decl, _) => 
+      if (decl.spec.isShared) FunctionT(Vector(symbType(decl.typ)), PointerT(symbType(decl.typ)))
+      else FunctionT(Vector(symbType(decl.typ)), symbType(decl.typ))
+    case DerefDecl(decl, _) => 
+      FunctionT(Vector(PointerT(symbType(decl.typ))), symbType(decl.typ))
+    case AssignDecl(decl, _) => 
+      FunctionT(Vector(PointerT(symbType(decl.typ)), symbType(decl.typ)), VoidType)
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
@@ -221,13 +228,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       privateSpec.toVector.flatMap(wellDefPrivateSpec) ++
       // if the function itself is public then specifications outside the private clause cannot be private, 
       // private members are allowed everywhere if the function itself is private
-      error(n, s"Private members inside a public function must all be defined in the private clause.", {
-        val func = tree.parent(n)
-        val isFuncPvt = func.exists(f => f match {
-          case PFunctionDecl(id, _, _, _, _) => isPrivateReg(id)
-          case PMethodDecl(id, _, _, _, _, _) => isPrivateReg(id)
-          case _ => false
-        })
+      error(n, s"Only the private clause of a public function may reference private state.", {
+        val (_, isFuncPvt) = getAndcheckIfMemberPrivateFromSpec(n)
         if (!isFuncPvt) pres.exists(isPrivate) || preserves.exists(isPrivate) || posts.exists(isPrivate)
         else false
       }) ++
@@ -242,18 +244,19 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         error(n, "Termination measures of loops cannot be conditional.", terminationMeasure.exists(isConditional))
   
     case n@ PPrivateSpec(pres, preserves, posts, _, proof) =>
-      val funcSpec = tree.parent(n).head
-      val func = tree.parent(funcSpec).head
-      val isFuncPvt = func match {
-        case PFunctionDecl(id, _, _, _, _) => isPrivateReg(id)
-        case PMethodDecl(id, _, _, _, _, _) => isPrivateReg(id)
-        case _ => Violation.violation(s"expected a function or method, but got ${func}")
-      }
+      val (func, isFuncPvt) = getAndcheckIfMemberPrivateFromSpec(n)
       wellDefPrivateSpec(n) ++ 
       // a public function with private specifications needs to have a private entailment proof
       // otherwise the public specification of the function is not sound
       error(n, s"Public function ${func} has nonEmpty private specifications and needs to have a proof statement.", 
               proof.isEmpty && !isFuncPvt && (!pres.isEmpty || !preserves.isEmpty || !posts.isEmpty))
+      
+    case n@ PConstructSpec(pres, preserves, posts, _) =>
+      pres.flatMap(assignableToSpec) ++ preserves.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
+      preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
+      pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
+      error(n, s"specification of constructor needs to be public, but got ${n}", 
+        pres.exists(isPrivate) || preserves.exists(isPrivate) || posts.exists(isPrivate))
   }
 
   private def wellDefPrivateSpec(spec: PPrivateSpec): Messages = spec match {

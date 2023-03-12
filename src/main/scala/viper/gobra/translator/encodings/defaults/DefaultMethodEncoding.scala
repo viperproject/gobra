@@ -15,7 +15,6 @@ import viper.silver.ast.Method
 import viper.silver.{ast => vpr}
 import viper.gobra.translator.library.privates.{Private, PrivateImpl}
 
-
 class DefaultMethodEncoding extends Encoding {
 
   import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl, _}
@@ -46,19 +45,20 @@ class DefaultMethodEncoding extends Encoding {
     val vResultInit = cl.seqns(x.results map ctx.initialization)
 
     //Depending if a private spec exists, we verify the public or private specification
-    val (vPres, vPosts, vMeasures) = if (x.privateSpec.isEmpty) {
+    val (vPres, vPosts, vMeasures, vProof) = if (x.privateSpec.isEmpty) {
       ((vRecvPres ++ vArgPres) ++ x.pres.map(ctx.precondition),
         vResultPosts ++ x.posts.map(ctx.postcondition),
-        x.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
+        x.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)),
+        option(None))
+
     } else {
       val spec = x.privateSpec.getOrElse(null) //not empty
 
-      //Generates a method to prove private entailment
-      privateProof.privateProofMethod(x)(ctx)
-
       ((vRecvPres ++ vArgPres) ++ spec.pres.map(ctx.precondition),
         vResultPosts ++ spec.posts.map(ctx.postcondition),
-        spec.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
+        spec.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)),
+        //Generates a method to prove private entailment
+        privateProof.privateProofMethod(x)(ctx))
       
     }
 
@@ -74,6 +74,8 @@ class DefaultMethodEncoding extends Encoding {
         } yield vu.seqn(Vector(init, core))(pos, info, errT)
       }})
 
+      _ <- vProof
+
       method = vpr.Method(
         name = x.name.uniqueName,
         formalArgs = vRecv +: vArgs,
@@ -82,8 +84,6 @@ class DefaultMethodEncoding extends Encoding {
         posts = posts,
         body = body
       )(pos, info, errT)
-
-      _ <- errorT(privateProof.privateProofError(x.name.name))
 
     } yield method
   }
@@ -102,19 +102,20 @@ class DefaultMethodEncoding extends Encoding {
     val vResultInit = cl.seqns(x.results map ctx.initialization)
 
     //Depending if a private spec exists, we verify the public or private specification
-    val (vPres, vPosts, vMeasures) = if (x.privateSpec.isEmpty) {
+    val (vPres, vPosts, vMeasures, vProof) = if (x.privateSpec.isEmpty) {
       (vArgPres ++ x.pres.map(ctx.precondition),
        vResultPosts ++ x.posts.map(ctx.postcondition),
-       x.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
-    } else {
-      val spec = x.privateSpec.getOrElse(null) //not empty
+       x.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)),
+       option(None))
 
-      //Generates a method to prove private entailment
-      privateProof.privateProofFunction(x)(ctx)
+    } else {
+      val spec = x.privateSpec.get //not empty
 
       (vArgPres ++ spec.pres.map(ctx.precondition),
        vResultPosts ++ spec.posts.map(ctx.postcondition),
-       spec.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
+       spec.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)),
+       //Generates a method to prove private entailment
+       privateProof.privateProofFunction(x)(ctx)) 
       
     }
 
@@ -130,6 +131,8 @@ class DefaultMethodEncoding extends Encoding {
         } yield vu.seqn(Vector(init, core))(pos, info, errT)
       }})
 
+      _ <- vProof
+
       method = vpr.Method(
         name = x.name.name,
         formalArgs = vArgs,
@@ -138,8 +141,6 @@ class DefaultMethodEncoding extends Encoding {
         posts = posts,
         body = body
       )(pos, info, errT)
-
-      _ <- errorT(privateProof.privateProofError(x.name.name))
 
     } yield method
   }

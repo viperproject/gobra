@@ -61,17 +61,24 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
+  lazy val privateProofCallAttr: PPrivateEntailmentProof => PInvoke =
+    attr[PPrivateEntailmentProof, PInvoke] { proof =>
+      def findCallDescendent(n: PNode): Option[PInvoke] = n match {
+        case call: PInvoke => resolve(call) match {
+          case Some(_: ap.FunctionCall) => Some(call)
+          case Some(_: ap.ClosureCall) => Some(call)
+          case _ => None
+        }
+        case _ => tree.child(n).iterator.map(findCallDescendent).find(_.nonEmpty).flatten
+      }
+
+      findCallDescendent(proof).get
+    }
+
   private def wellDefPrivateEntailmentProof(p: PPrivateEntailmentProof): Messages = {
     val b = p.block
-    val privateSpec = tree.parent(p).head
-    val funcSpec = tree.parent(privateSpec).head
-    val func = tree.parent(funcSpec).head
-
-    val funcId = func match {
-      case PFunctionDecl(id, _, _, _, _) => id
-      case PMethodDecl(id, _, _, _, _, _) => id
-      case _ => Violation.violation(s"expected a function or method, but got ${func}")
-    }
+    val func = tryEnclosingFunctionOrMethod(p).getOrElse(Violation.violation(s"PrivateEntailmentProof is not enclosed inside a function: $p"))
+    val funcId = func.id
 
     val f = regular(funcId) match {
       case f: st.Function => f 
@@ -81,16 +88,14 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     val isPure = f.isPure
     val specArgs = f.args
 
-    lazy val expectedCallArgs = specArgs.flatMap(nameFromParam).map(a => PNamedOperand(PIdnUse(a)))
-
-    def isExpectedCall(i: PInvoke): Boolean = i.base.toString == funcId.name && i.args == expectedCallArgs
-
-    lazy val expectedCallString: String = s"$funcId(${specArgs.flatMap(nameFromParam).mkString(",")})"
-
-    def pureWellDefIfIsSinglePureReturnExpr: Messages = if (isPure) isPureBlock(b) else noMessages
-
     def wellDefIfRightShape: Messages = {
-      if (isPure) noMessages
+      lazy val expectedCallArgs = specArgs.flatMap(nameFromParam).map(a => PNamedOperand(PIdnUse(a)))
+
+      def isExpectedCall(i: PInvoke): Boolean = i.base.toString == funcId.name && i.args == expectedCallArgs
+
+      lazy val expectedCallString: String = s"$funcId(${specArgs.flatMap(nameFromParam).mkString(",")})"
+
+      if (isPure) isPureBlock(b)
       else implementationProofBodyHasRightShape(b, isExpectedCall, expectedCallString, f.result)
         .asReason(b, "invalid body of an implementation proof")
     }
@@ -98,9 +103,9 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     def wellDefIfTerminationMeasuresConsistent: Messages = {
       val specMeasures = f.decl.spec.terminationMeasures
 
-      lazy val callMeasures = if (f.decl.spec.privateSpec.isEmpty) { Vector.empty } else {
-        f.decl.spec.privateSpec.getOrElse(null).terminationMeasures
-      }
+      lazy val callMeasures = 
+        if (f.decl.spec.privateSpec.isEmpty) { Vector.empty } 
+        else { f.decl.spec.privateSpec.get.terminationMeasures }
 
       // If the spec has termination measures, then the call inside the proof
       // must be done with a spec that also has termination measures
@@ -109,8 +114,9 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
         s"private specification of function ${funcId}" + s"(used inside the proof) must", callMeasures.isEmpty)
     }
 
-    Seq(pureWellDefIfIsSinglePureReturnExpr, wellDefIfRightShape, wellDefIfTerminationMeasuresConsistent)
-      .iterator.find(_.nonEmpty).getOrElse(noMessages) 
+    // Return the error messages for the first check that fails.
+    Seq(wellDefIfRightShape, wellDefIfTerminationMeasuresConsistent)
+      .find(_.nonEmpty).getOrElse(noMessages) 
   }
 
   lazy val closureImplProofCallAttr: PClosureImplProof => PInvoke =

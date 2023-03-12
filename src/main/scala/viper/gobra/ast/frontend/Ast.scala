@@ -195,32 +195,39 @@ case class PTypeDef(right: PType, left: PIdnDef) extends PTypeDecl
 
 case class PTypeAlias(right: PType, left: PIdnDef) extends PTypeDecl
 
+sealed trait PConstructor extends PGhostMember with PScope {
+  def typ: PType
+  def spec: PConstructSpec
+}
+
+case class PConstructSpec(
+                      pres: Vector[PExpression],
+                      preserves: Vector[PExpression],
+                      posts: Vector[PExpression],
+                      isShared: Boolean
+                      ) extends PSpecification
+
 case class PConstructDecl(
                           typ: PType, 
                           args: Vector[PParameter], 
-                          posts: Vector[PExpression], 
-                          body: Option[(PBodyParameterInfo, PBlock)],
-                          isShared: Boolean
-                         ) extends PGhostMember with PScope
+                          spec: PConstructSpec,
+                          body: Option[(PBodyParameterInfo, PBlock)]
+                         ) extends PConstructor
 
 case class PDerefDecl(
                       typ: PType, 
                       args: Vector[PParameter],
                       result: PResult, 
-                      pres: Vector[PExpression], 
-                      body: Option[(PBodyParameterInfo, PBlock)],
-                      isShared: Boolean,
-                      isPure: Boolean
-                     ) extends PGhostMember with PScope with PCodeRootWithResult
+                      spec: PConstructSpec,
+                      body: Option[(PBodyParameterInfo, PBlock)]
+                     ) extends PConstructor with PCodeRootWithResult
 
 case class PAssignDecl(
                        typ: PType, 
                        args: Vector[PParameter], 
-                       spec: PFunctionSpec, 
-                       body: Option[(PBodyParameterInfo, PBlock)],
-                       isShared: Boolean
-                      ) extends PGhostMember with PScope
-
+                       spec: PConstructSpec, 
+                       body: Option[(PBodyParameterInfo, PBlock)]
+                      ) extends PConstructor
 /**
   * Statements
   */

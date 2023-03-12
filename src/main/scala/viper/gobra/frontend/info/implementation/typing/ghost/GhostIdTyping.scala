@@ -63,10 +63,6 @@ trait GhostIdTyping { this: TypeInfoImpl =>
     case BuiltInFPredicate(tag, _, _) => typ(tag)
     case BuiltInMPredicate(tag, _, _) => typ(tag)
 
-    case ConstructDecl(decl, context) => context.symbType(decl.typ)
-    case DerefDecl(decl, context) => context.symbType(decl.typ)
-    case AssignDecl(decl, context) => context.symbType(decl.typ)
-    
     case _ => violation("untypeable")
   }
 }

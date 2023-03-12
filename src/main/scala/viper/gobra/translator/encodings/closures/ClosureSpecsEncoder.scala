@@ -277,7 +277,7 @@ protected class ClosureSpecsEncoder {
       case f: in.PureFunction =>
         val posts = func.posts ++ assertionFromPureFunctionBody(f.body, f.results.head)
         val m = in.PureFunction(proxy, args, f.results, pres, posts, f.terminationMeasures, 
-                                f.privateSpec, None)(spec.info)
+                                None, None)(spec.info)
         ctx.defaultEncoding.pureFunction(m)(ctx)
       case lit: in.PureFunctionLit =>
         val body = if (spec.params.isEmpty) lit.body else None

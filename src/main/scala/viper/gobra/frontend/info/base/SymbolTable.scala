@@ -200,18 +200,20 @@ object SymbolTable extends Environments[Entity] {
     val itfType: Type.InterfaceT = Type.InterfaceT(itfDef, context)
   }
 
-  case class ConstructDecl(decl: PConstructDecl, context: ExternalTypeInfo) extends GhostRegular {
+  sealed trait Constructor extends GhostRegular with GhostTypeMember
+
+  case class ConstructDecl(decl: PConstructDecl, context: ExternalTypeInfo) extends Constructor {
     override def rep: PNode = decl
     override def ghost: Boolean = false
   }
 
-  case class DerefDecl(decl: PDerefDecl, context: ExternalTypeInfo) extends GhostRegular with WithResult {
+  case class DerefDecl(decl: PDerefDecl, context: ExternalTypeInfo) extends Constructor with WithResult {
     override def rep: PNode = decl
     override def ghost: Boolean = false
     override val result: PResult = decl.result
   }
 
-  case class AssignDecl(decl: PAssignDecl, context: ExternalTypeInfo) extends GhostRegular {
+  case class AssignDecl(decl: PAssignDecl, context: ExternalTypeInfo) extends Constructor {
     override def rep: PNode = decl
     override def ghost: Boolean = false
   }

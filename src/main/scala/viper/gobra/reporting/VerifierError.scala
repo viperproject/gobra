@@ -309,6 +309,47 @@ case class ShiftPreconditionError(info: Source.Verifier.Info) extends Verificati
   override def localMessage: String = s"The shift count in ${info.origin.tag.trim} might be negative"
 }
 
+case class ConstructorError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "constructor_error"
+  override def localMessage: String = s"The constructor is not well formed."
+}
+
+case class DerefConstructError(info: Source.Verifier.Info, src: Source.Parser.Info, generated: Boolean) extends VerificationError {
+  override def localId: String = "gen_deref_constr_error"
+  override def localMessage: String = if (generated) { s"The constructor of $structType does not give enough permission. " +
+    s"Generated dereference does not have enough permission to deref $structType" }
+    else { s"The dereference constructor of $structType is not well formed. The permission does not suffice" }
+
+  private def structType = extractSrc(if (generated) "construct" else "pure deref", src.tag)
+  private def extractSrc(ex: String, s: String): String = {
+    val construct = s"(?m)^$ex\\s+(.+?)\\s+\\{.*$$".r 
+    construct.findFirstMatchIn(s).map(_.group(1)).getOrElse("not found")
+  }
+}
+
+case class PermissionDerefConstructError(info: Source.Verifier.Info, generated: Boolean) extends VerificationError {
+  override def localId: String = "gen_deref_perm_error"
+  override def localMessage: String = s"Permission to call ${if (generated) "generated " else ""}dereference for ${info.trySrc[frontend.PDeref]("")} might not suffice"
+}
+
+case class AssignConstructError(info: Source.Verifier.Info, src: Source.Parser.Info, generated: Boolean) extends VerificationError {
+  override def localId: String = "gen_assign_constr_error"
+  override def localMessage: String = if (generated) { s"The constructor of $structType does not give enough permission. " +
+    s"Generated assignment does not have enough permission to assign to $structType" }
+    else { s"The assignment constructor of $structType is not well formed. The permission does not suffice" }
+
+  private def structType = extractSrc(if (generated) "construct" else "assign", src.tag)
+  private def extractSrc(ex: String, s: String): String = {
+    val construct = s"(?m)^$ex\\s+(.+?)\\s+\\{.*$$".r
+    construct.findFirstMatchIn(s).map(_.group(1)).getOrElse("not found")
+  }
+}
+
+case class PermissionAssignConstructError(info: Source.Verifier.Info, generated: Boolean) extends VerificationError {
+  override def localId: String = "gen_assign_perm_error"
+  override def localMessage: String = s"Permission to call ${if (generated) "generated " else ""}assignment for ${info.trySrc[frontend.PAssignment]("")} may not suffice"
+}
+
 case class GeneratedImplementationProofError(subT: String, superT: String, error: VerificationError) extends ErrorExtension(error) {
   override def extensionId: String = "generated_implementation_proof"
   override def extensionMessage: String = s"Generated implementation proof ($subT implements $superT) failed"
@@ -329,11 +370,11 @@ case class SpecImplementationPostconditionError(info: Source.Verifier.Info, spec
   override def localMessage: String = s"Postcondition of spec $specName might not hold"
 }
 
-case class PrivateEntailmentError(info: Source.Verifier.Info, specName: String, msg: String) extends VerificationError {
+case class PrivateEntailmentError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "private_entailment_error"
   override def localMessage: String = 
-    s"$msg of call ${info.trySrc[frontend.PInvoke](" ")}might not hold. " + 
-    s"Private specification might not entail the public specification."
+    s"Private entailment proof of ${info.trySrc[frontend.PInvoke](" ")}failed. " +
+      "Private specification might not entail the public specification"
 }
 
 case class ChannelReceiveError(info: Source.Verifier.Info) extends VerificationError {

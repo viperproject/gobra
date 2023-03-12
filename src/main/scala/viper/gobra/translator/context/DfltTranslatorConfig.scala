@@ -24,8 +24,6 @@ import viper.gobra.translator.encodings.sets.SetEncoding
 import viper.gobra.translator.encodings.slices.SliceEncoding
 import viper.gobra.translator.encodings.structs.StructEncoding
 import viper.gobra.translator.encodings.structs.ConstructorEncoding
-import viper.gobra.translator.encodings.structs.DereferenceEncoding
-import viper.gobra.translator.encodings.structs.AssignmentsEncoding
 import viper.gobra.translator.encodings.typeless._
 import viper.gobra.translator.library.arrays.{Arrays, ArraysImpl}
 import viper.gobra.translator.library.conditions.{Conditions, ConditionsImpl}
@@ -69,7 +67,7 @@ class DfltTranslatorConfig(
   val typeEncoding: TypeEncoding = new FinalTypeEncoding(
     new SafeTypeEncodingCombiner(Vector(
       new BoolEncoding, new IntEncoding, new PermissionEncoding, new PointerEncoding, 
-      new StructEncoding, new ConstructorEncoding, new DereferenceEncoding, new AssignmentsEncoding,
+      new StructEncoding, new ConstructorEncoding, 
       arrayEncoding, new ClosureEncoding, new InterfaceEncoding,
       new SequenceEncoding, new SetEncoding, new OptionEncoding, new DomainEncoding, new AdtEncoding,
       new SliceEncoding(arrayEncoding), new PredEncoding, new ChannelEncoding, new StringEncoding,

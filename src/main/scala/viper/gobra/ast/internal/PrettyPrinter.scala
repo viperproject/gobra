@@ -201,15 +201,17 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showConstructor(construct: Constructor): Doc = construct match {
-    case Constructor(name, args, posts, body, _) => 
+    case Constructor(name, args, pres, posts, body, _) => 
       "constructor" <+> name.name <> parens(showFormalArgList(args)) <> 
-      showPostconditions(posts) <> opt(body)(showStmt)
+      spec(showPreconditions(pres) <> showPostconditions(posts)) <> 
+      opt(body)(showStmt)
   }
 
   def showDereference(deref: Dereference): Doc = deref match {
-    case Dereference(name, args, results, pres, body, _) => 
+    case Dereference(name, args, results, pres, posts, body, _) => 
       "pure deref" <+> name.name <> parens(showFormalArgList(args)) <> parens(showVarDeclList(results)) <>
-      showPreconditions(pres) <> opt(body)(showExpr) 
+      spec(showPreconditions(pres) <> showPostconditions(posts)) <> 
+      opt(body)(showExpr) 
   }
 
   def showAssignments(ass: Assignments): Doc = ass match {
@@ -406,9 +408,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case FunctionLitProxy(name) => name
     case AdtClauseProxy(name, _) => name
     case l: LabelProxy => l.name
-    case ConstructorProxy(name, _) => name
-    case DereferenceProxy(name, _) => name
-    case AssignmentsProxy(name, _) => name
+    case ConstructorProxy(name) => name
+    case DereferenceProxy(name) => name
+    case AssignmentsProxy(name) => name
   })
 
   def showBlockDecl(x: BlockDeclaration): Doc = x match {

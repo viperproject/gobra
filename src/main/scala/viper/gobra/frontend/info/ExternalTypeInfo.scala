@@ -6,12 +6,12 @@
 
 package viper.gobra.frontend.info
 
-import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PFunctionDecl, PFunctionOrMethodDecl, PGeneralForStmt, PIdnNode, PIdnUse, PKeyedElement, PLabelUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
+import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PFunctionDecl, PFunctionOrMethodDecl, PConstructDecl, PDerefDecl, PAssignDecl, PGeneralForStmt, PIdnNode, PIdnUse, PKeyedElement, PLabelUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMemberTag
 import viper.gobra.frontend.info.base.Type.{AbstractType, InterfaceT, StructT, Type}
 import viper.gobra.frontend.info.base.SymbolTable
-import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
+import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember, ConstructDecl, DerefDecl, AssignDecl}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
 
@@ -53,6 +53,12 @@ trait ExternalTypeInfo {
   def createMPredImpl(decl: PMPredicateDecl): MPredicateImpl
 
   def createMPredSpec(spec: PMPredicateSig): MPredicateSpec
+  
+  def createConstructor(decl: PConstructDecl): ConstructDecl
+
+  def createDereference(decl: PDerefDecl): DerefDecl
+
+  def createAssignments(decl: PAssignDecl): AssignDecl
 
   def typ(misc: PMisc): Type
 
@@ -119,5 +125,5 @@ trait ExternalTypeInfo {
   /** returns all global variables declared in the same package as 'n' on which the declaration of 'n' depends */
   def samePkgDepsOfGlobalVar(n: SymbolTable.GlobalVariable): Vector[SymbolTable.GlobalVariable]
 
-  def isPvt(expr: PExpression): Boolean
+  def isPrivate(expr: PExpression): Boolean
 }

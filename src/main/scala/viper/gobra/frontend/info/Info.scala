@@ -300,7 +300,7 @@ object Info extends LazyLogging {
 
     val checkFn = if (config.cacheParser) { getTypeInfoCached _ } else { getTypeInfo _ }
     val info = checkFn(pkg, dependentTypeInfo, isMainContext, config)
-    if (!cacheHit) {
+    if (!cacheHit && config.cacheParser) {
       println(s"No cache hit for type info for ${pkg.info.id}")
     }
 

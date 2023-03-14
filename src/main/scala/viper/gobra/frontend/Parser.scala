@@ -60,19 +60,19 @@ object Parser {
         // before parsing, get imports and add these parse jobs
         val imports = fastParse(preprocessedSources)
         val preambleParsingDurationMs = System.currentTimeMillis() - startPreambleParsingMs
-        val futs = imports.map(directImportTarget => {
+        val futs = imports.map{ case (directImportTarget, optSourcePos) => {
             val directImportPackage = AbstractPackage(directImportTarget)(config)
             val importedSources = PackageResolver.resolveSources(directImportTarget)(config)
               .getOrElse(Vector())
               .map(_.source)
             if (importedSources.isEmpty) {
-              manager.addIfAbsent(directImportPackage, ParseFailureJob(Vector(NotFoundError(s"No source files for package '$directImportTarget found"))))(executionContext)
+              manager.addIfAbsent(directImportPackage, ParseFailureJob(Vector(NotFoundError(s"No source files for package '$directImportTarget' found", optSourcePos))))(executionContext)
               manager.getFuture(directImportPackage) // we do not flatten here as we only need to await the job's creation
             } else {
               manager.addIfAbsent(directImportPackage, ParseSourcesJob(importedSources, directImportPackage))(executionContext)
               manager.getFuture(directImportPackage) // we do not flatten here as we only need to await the job's creation
             }
-          })
+          }}
 
         val startMs = System.currentTimeMillis()
         val res = for {
@@ -91,16 +91,27 @@ object Parser {
           .map(_ => res)
       }
 
-      private def fastParse(preprocessedInput: Vector[Source]): Set[AbstractImport] = {
-        def getImportPaths(preprocessedSource: Source): Set[AbstractImport] = {
+      private def fastParse(preprocessedInput: Vector[Source]): Set[(AbstractImport, Option[SourcePosition])] = {
+        def getImportPaths(preprocessedSource: Source): Set[(RegularImport, Option[SourcePosition])] = {
           processPreamble(preprocessedSource)(config)
-            .map(_.imports.toSet.map[AbstractImport](importNode => RegularImport(importNode.importPath)))
-            // we do not handle parser errors here but defer this to the time point when we actually
-            // parse this source
+            .map(preambleManager => {
+              preambleManager.preamble.imports
+                .map(importNode => {
+                  val nodeStart = preambleManager.pom.positions.getStart(importNode)
+                  val nodeFinish = preambleManager.pom.positions.getFinish(importNode)
+                  val nodePos = (nodeStart, nodeFinish) match {
+                    case (Some(start), Some(finish)) => Some(preambleManager.pom.translate(start, finish))
+                    case _ => None
+                  }
+                  (RegularImport(importNode.importPath), nodePos)
+                })
+                .toSet
+              })
             .getOrElse(Set.empty)
         }
 
-        preprocessedInput.flatMap(getImportPaths).toSet + BuiltInImport
+        val builtInImportTuple = (BuiltInImport, None)
+        preprocessedInput.flatMap(getImportPaths).toSet + builtInImportTuple
       }
     }
 
@@ -167,29 +178,29 @@ object Parser {
     sources
   }
 
+  case class PreambleManager(preamble: PPreamble, pom: PositionManager)
   /**
     * Parses a source's preamble containing all (file-level) imports; This function expects that the input has already
     * been preprocessed
     */
-  private def processPreamble(preprocessedSource: Source)(config: Config): Either[Vector[ParserError], PPreamble] = {
-    val positions = new Positions
-    val pom = new PositionManager(positions)
-
-    def parseSource(preprocessedSource: Source): Either[Vector[ParserError], PPreamble] = {
+  private def processPreamble(preprocessedSource: Source)(config: Config): Either[Vector[ParserError], PreambleManager] = {
+    def parseSource(preprocessedSource: Source): Either[Vector[ParserError], PreambleManager] = {
+      val positions = new Positions
+      val pom = new PositionManager(positions)
       val parser = new SyntaxAnalyzer[PreambleContext, PPreamble](preprocessedSource, ListBuffer.empty[ParserError], pom, specOnly = true)
-      parser.parse(parser.preamble)
+      parser.parse(parser.preamble).map(preamble => PreambleManager(preamble, pom))
     }
 
     var cacheHit: Boolean = true
-    def parseSourceCached(preprocessedSource: Source): Either[Vector[ParserError], PPreamble] = {
-      def parseAndStore(): Either[Vector[ParserError], PPreamble] = {
+    def parseSourceCached(preprocessedSource: Source): Either[Vector[ParserError], PreambleManager] = {
+      def parseAndStore(): Either[Vector[ParserError], PreambleManager] = {
         cacheHit = false
         parseSource(preprocessedSource)
       }
 
       val res = preambleCache.computeIfAbsent(getCacheKey(preprocessedSource, specOnly = true), _ => parseAndStore())
       if (!cacheHit) {
-        println(s"No cache hit for ${res.map(_.packageClause.id.name)}'s preamble")
+        println(s"No cache hit for ${res.map(_.preamble.packageClause.id.name)}'s preamble")
       }
       res
     }
@@ -213,7 +224,7 @@ object Parser {
 
   type SourceCacheKey = String
   // cache maps a key (obtained by hashing file path and file content) to the parse result
-  private val preambleCache: ConcurrentMap[SourceCacheKey, Either[Vector[ParserError], PPreamble]] = new ConcurrentHashMap()
+  private val preambleCache: ConcurrentMap[SourceCacheKey, Either[Vector[ParserError], PreambleManager]] = new ConcurrentHashMap()
   type PackageCacheKey = String
   private val packageCache: ConcurrentMap[PackageCacheKey, Either[Vector[VerifierError], PPackage]] = new ConcurrentHashMap()
 

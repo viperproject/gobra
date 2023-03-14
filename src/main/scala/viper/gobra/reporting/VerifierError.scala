@@ -28,8 +28,7 @@ sealed trait VerifierError {
   var cached: Boolean = false
 }
 
-case class NotFoundError(message: String) extends VerifierError {
-  val position: Option[SourcePosition] = None
+case class NotFoundError(message: String, position: Option[SourcePosition]) extends VerifierError {
   val id = "not_found_error"
 }
 

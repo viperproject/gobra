@@ -42,7 +42,7 @@ object PackageResolver {
 
   sealed trait AbstractPackage
   /** represents an error */
-  case object NoPackage extends AbstractPackage
+  case class NoPackage(importTarget: RegularImport) extends AbstractPackage
   /** represents all built-in packages together */
   case object BuiltInPackage extends AbstractPackage
   /** represents a regular package */
@@ -54,11 +54,11 @@ object PackageResolver {
         case BuiltInImport => BuiltInPackage
         case imp: RegularImport =>
           getLookupPath(imp)(config) match {
-            case Left(_) => NoPackage
+            case Left(_) => NoPackage(imp)
             case Right(inputResource) =>
               try {
                 RegularPackage(Source.uniquePath(inputResource.path, config.projectRoot).toString)
-              } catch { case _: Throwable => NoPackage }
+              } catch { case _: Throwable => NoPackage(imp) }
           }
       }
     }

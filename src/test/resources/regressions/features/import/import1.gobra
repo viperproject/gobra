@@ -4,20 +4,27 @@
 package main
 
 import fmt "fmt"
+//:: ExpectedOutput(not_found_error)
 import a "a";
+//:: ExpectedOutput(not_found_error)
 import (b "b")
+//:: ExpectedOutput(not_found_error)
 import (c "c");
 import (
+    //:: ExpectedOutput(not_found_error)
     d "d"
+    //:: ExpectedOutput(not_found_error)
     e "e")
 import (
+    //:: ExpectedOutput(not_found_error)
     f "f"
+    //:: ExpectedOutput(not_found_error)
     g "g"
 )
 
-import math "lib/math"
-//:: ExpectedOutput(type_error)
+//:: ExpectedOutput(not_found_error)
 import m "lib/mathm" // wrong package name used on purpose such that this test case does not potentially depend on the configured Go path
+//:: ExpectedOutput(not_found_error)
 import . "lib/mathn"
 
 func test() {

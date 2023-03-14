@@ -36,8 +36,15 @@ trait Job[R] {
       }
       Violation.violation(!compututationStarted, s"Job $this is already on-going")
       compututationStarted = true
-      val res = compute()
-      promise.success(res)
+      val res = try {
+        val res = compute()
+        promise.success(res)
+        res
+      } catch {
+        case e: Exception =>
+          promise.failure(e)
+          throw e
+      }
       res
     }
   // }

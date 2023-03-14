@@ -48,7 +48,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
 
       override def run(input: AnnotatedTestInput): Seq[AbstractOutput] = {
 
-        val source = FromFileSource(input.file);
+        val source = FromFileSource(input.file)
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,

@@ -249,7 +249,8 @@ object PackageResolver {
           lazy val shouldBeConsidered = !shouldIgnoreResource(resource)
           // note that the following condition has to be lazily evaluated to avoid reading the file's content and applying
           // a regex. The first part in particular can fail when the file does not contain text!
-          lazy val headerIsMissing = onlyFilesWithHeader && !isResourceWithHeader(resource)
+          // Note that that we do not enforce the header for builtin resources (even if onlyFilesWithHeader is set to true)
+          lazy val headerIsMissing = onlyFilesWithHeader && !resource.builtin && !isResourceWithHeader(resource)
           if (validExtension && shouldBeConsidered && !headerIsMissing) Vector(resource) else Vector()
         } else {
           Vector()
@@ -268,8 +269,14 @@ object PackageResolver {
     * Returns right with the package name used in the package clause if they do, otherwise returns left with an error message
     */
   private def checkPackageClauses(files: Vector[InputResource], importTarget: AbstractImport): Either[String, String] = {
+    def isEmpty(files: Vector[InputResource]): Either[String, Vector[InputResource]] = {
+      if (files.isEmpty) Left(s"No files belonging to package $importTarget found")
+      else Right(files)
+    }
+
     // importPath is only used to create an error message that is similar to the error message of the official Go compiler
     def getPackageClauses(files: Vector[InputResource]): Either[String, Vector[(InputResource, String)]] = {
+      require(files.nonEmpty)
       val pkgClauses = files.map(f => {
         getPackageClause(f.asSource()) match {
           case Some(pkgClause) => Right(f -> pkgClause)
@@ -282,6 +289,7 @@ object PackageResolver {
     }
 
     def isEqual(pkgClauses: Vector[(InputResource, String)]): Either[String, String] = {
+      require(pkgClauses.nonEmpty)
       val differingClauses = pkgClauses.filter(_._2 != pkgClauses.head._2)
       if (differingClauses.isEmpty) Right(pkgClauses.head._2)
       else {
@@ -291,7 +299,8 @@ object PackageResolver {
     }
 
     for {
-      pkgClauses <- getPackageClauses(files)
+      nonEmptyFiles <- isEmpty(files)
+      pkgClauses <- getPackageClauses(nonEmptyFiles)
       pkgName <- isEqual(pkgClauses)
     } yield pkgName
   }
@@ -349,7 +358,7 @@ object PackageResolver {
 
     override def listContent(): Vector[FileResource] = {
       Files.newDirectoryStream(path).asScala.toVector
-        .map(p => FileResource(p))
+        .map(p => FileResource(p, builtin))
     }
 
     override def asSource(): FromFileSource = FromFileSource(path, builtin)

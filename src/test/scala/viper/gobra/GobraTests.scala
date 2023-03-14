@@ -8,9 +8,11 @@ package viper.gobra
 
 import java.nio.file.Path
 import ch.qos.logback.classic.Level
-import org.scalatest.BeforeAndAfterAll
+import org.bitbucket.inkytonik.kiama.util.Source
+import org.scalatest.{Args, BeforeAndAfterAll, Status}
+import viper.gobra.frontend.Parser.ParseManager
 import viper.gobra.frontend.Source.FromFileSource
-import viper.gobra.frontend.{Config, PackageResolver, Source}
+import viper.gobra.frontend.{Config, PackageInfo, PackageResolver, Source}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.gobra.reporting.{NoopReporter, VerifierError}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
@@ -30,10 +32,28 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
 
   var gobraInstance: Gobra = _
   var executor: GobraExecutionContext = _
+  var inputMapping: Vector[(PackageInfo, Vector[Source])] = Vector.empty
+  val cacheParser = true
 
   override def beforeAll(): Unit = {
     executor = new DefaultGobraExecutionContext()
     gobraInstance = new Gobra()
+  }
+
+  override def registerTest(input: AnnotatedTestInput): Unit = {
+    super.registerTest(input)
+    val source = FromFileSource(input.file)
+    inputMapping = inputMapping :+ (Source.getPackageInfo(source, Path.of("")) -> Vector(source))
+  }
+
+  override def runTests(testName: Option[String], args: Args): Status = {
+    val inputMap = inputMapping.toMap
+    if (cacheParser) {
+      val config = Config(packageInfoInputMap = inputMap, cacheParser = true)
+      val parseManager = new ParseManager(config, executor)
+      parseManager.parseAll(inputMap.keys.toVector)
+    }
+    super.runTests(testName, args)
   }
 
   override def afterAll(): Unit = {
@@ -48,16 +68,18 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
 
       override def run(input: AnnotatedTestInput): Seq[AbstractOutput] = {
 
-        val source = FromFileSource(input.file)
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,
-          packageInfoInputMap = Map(Source.getPackageInfo(source, Path.of("")) -> Vector(source)),
+          packageInfoInputMap = inputMapping.toMap,
           checkConsistency = true,
+          cacheParser = cacheParser,
           z3Exe = z3Exe
         )
 
-        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config.packageInfoInputMap.keys.head, config)(executor), Duration.Inf))
+        val source = FromFileSource(input.file)
+        val pkgInfo = Source.getPackageInfo(source, Path.of(""))
+        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(pkgInfo, config)(executor), Duration.Inf))
 
         info(s"Time required: $elapsedMilis ms")
 

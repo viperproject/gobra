@@ -57,6 +57,18 @@ object Parser {
       }
     }
 
+    /** this is only used for unit testing to fill the parse cache */
+    def parseAll(pkgInfos: Vector[PackageInfo]): Map[PackageInfo, ParseResult] = {
+      val createdFuts = pkgInfos.map(pkgInfo => {
+        val pkg = RegularPackage(pkgInfo.id)
+        val parseJob = ParallelParseInfoJob(pkgInfo)
+        parallelManager.addIfAbsent(pkg, parseJob)(executionContext)
+          .map(res => (pkgInfo, res))(executionContext)
+      })
+      implicit val executor: GobraExecutionContext = executionContext
+      Await.result(Future.sequence(createdFuts), Duration.Inf).toMap
+    }
+
     trait ImportResolver {
       def pkgInfo: PackageInfo
 

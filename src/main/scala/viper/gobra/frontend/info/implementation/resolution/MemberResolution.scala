@@ -402,46 +402,7 @@ trait MemberResolution { this: TypeInfoImpl =>
     )
   }
 
-  // TODO: move this method to another file
   def getTypeChecker(importTarget: AbstractImport, errNode: PNode): Either[Messages, ExternalTypeInfo] = {
-    /*
-    def parseAndTypeCheck(importTarget: AbstractImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
-      val pkgSources = PackageResolver.resolveSources(importTarget)(config)
-        .getOrElse(Vector())
-        .map(_.source)
-      val res = for {
-        nonEmptyPkgSources <- if (pkgSources.isEmpty)
-          Left(Vector(NotFoundError(s"No source files for package '$importTarget' found")))
-        else Right(pkgSources)
-        parsedProgram <- Parser.parse(nonEmptyPkgSources, Source.getPackageInfo(nonEmptyPkgSources.head, config.projectRoot), specOnly = true)(config)
-        // TODO maybe don't check whole file but only members that are actually used/imported
-        // By parsing only declarations and their specification, there shouldn't be much left to type check anyways
-        // Info.check would probably need some restructuring to type check only certain members
-        info <- Info.check(parsedProgram, nonEmptyPkgSources, context)(config)
-      } yield info
-      res.fold(
-        errs => context.addErrenousPackage(importTarget, errs)(config),
-        info => context.addPackage(importTarget, info)(config)
-      )
-      res
-    }
-    */
-    /*
-    def createImportError(errs: Vector[VerifierError]): Messages = {
-      // create an error message located at the import statement to indicate errors in the imported package
-      // we distinguish between parse and type errors, cyclic imports, and packages whose source files could not be found
-      val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
-      // alternativeErr is a function to compute the message only when needed
-
-      val alternativeErr = () => context.getParserImportCycle(importTarget) match {
-        case Some(cycle) =>
-          message(errNode, s"Package '$importTarget' is part of the following import cycle that involves the import ${cycle.importNodeCausingCycle}: ${cycle.cyclicPackages.mkString("[", ", ", "]")}")
-        case _ => message(errNode, s"Package '$importTarget' contains errors: $errs")
-      }
-      notFoundErr.map(e => message(errNode, e.message))
-        .getOrElse(alternativeErr())
-    }
-    */
     def createImportError(errs: Vector[VerifierError]): Messages = {
       // create an error message located at the import statement to indicate errors in the imported package
       // we distinguish between regular errors and packages whose source files could not be found (not that cyclic
@@ -453,17 +414,6 @@ trait MemberResolution { this: TypeInfoImpl =>
         .getOrElse(alternativeErr())
     }
 
-    // check if package was already parsed, otherwise do parsing and type checking:
-    /*
-    val cachedInfo = context.getTypeInfo(importTarget)(config)
-    if (cachedInfo.isEmpty) {
-      println(s"package $importTarget is not contained in context")
-    }
-    Violation.violation(cachedInfo.nonEmpty, s"package $importTarget is not contained in context")
-    cachedInfo.get.left.map(createImportError)
-    // cachedInfo.getOrElse(parseAndTypeCheck(importTarget)).left.map(createImportError)
-     */
-    // context.getTypeInfo(importTarget)(config).left.map(createImportError)
     Violation.violation(dependentTypeInfo.contains(importTarget), s"Expected that package ${tree.root.info.id} has access to the type information of package $importTarget")
     dependentTypeInfo(importTarget)().left.map(createImportError)
   }

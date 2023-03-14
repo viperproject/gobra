@@ -115,7 +115,6 @@ class DetailedBenchmarkTests extends BenchmarkTests {
         assert(c.packageInfoInputMap.size == 1)
         val pkgInfo = c.packageInfoInputMap.keys.head
         Info.check(c, RegularPackage(pkgInfo.id), parseResults)(executor)
-        // Info.check(parsedPackage, c.packageInfoInputMap(pkgInfo))(c).map(typeInfo => (parsedPackage, typeInfo))
       })
 
     private val desugaring: NextStep[TypeInfo, Program, Vector[VerifierError]] =

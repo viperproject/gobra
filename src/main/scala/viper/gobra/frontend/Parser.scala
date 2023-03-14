@@ -7,8 +7,6 @@
 package viper.gobra.frontend
 
 import com.typesafe.scalalogging.LazyLogging
-import org.bitbucket.inkytonik.kiama.rewriting.Cloner.{rewrite, topdown}
-import org.bitbucket.inkytonik.kiama.rewriting.PositionedRewriter.strategyWithName
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
 import org.bitbucket.inkytonik.kiama.util.{Positions, Source}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{error, message}
@@ -20,7 +18,6 @@ import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, PreambleContext, SourceFileContext, SpecMemberContext, StmtOnlyContext, TypeOnlyContext}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, RegularImport, RegularPackage}
-import viper.gobra.frontend.info.Info.{getCacheKey, typeInfoCache}
 import viper.gobra.util.GobraExecutionContext
 import viper.silver.ast.SourcePosition
 
@@ -94,13 +91,14 @@ object Parser {
       private def fastParse(preprocessedInput: Vector[Source]): Set[(AbstractImport, Option[SourcePosition])] = {
         def getImportPaths(preprocessedSource: Source): Set[(RegularImport, Option[SourcePosition])] = {
           processPreamble(preprocessedSource)(config)
-            .map(preambleManager => {
-              preambleManager.preamble.imports
+            .map(preamble => {
+              val pom = preamble.positions
+              preamble.imports
                 .map(importNode => {
-                  val nodeStart = preambleManager.pom.positions.getStart(importNode)
-                  val nodeFinish = preambleManager.pom.positions.getFinish(importNode)
+                  val nodeStart = pom.positions.getStart(importNode)
+                  val nodeFinish = pom.positions.getFinish(importNode)
                   val nodePos = (nodeStart, nodeFinish) match {
-                    case (Some(start), Some(finish)) => Some(preambleManager.pom.translate(start, finish))
+                    case (Some(start), Some(finish)) => Some(pom.translate(start, finish))
                     case _ => None
                   }
                   (RegularImport(importNode.importPath), nodePos)
@@ -178,29 +176,28 @@ object Parser {
     sources
   }
 
-  case class PreambleManager(preamble: PPreamble, pom: PositionManager)
   /**
     * Parses a source's preamble containing all (file-level) imports; This function expects that the input has already
     * been preprocessed
     */
-  private def processPreamble(preprocessedSource: Source)(config: Config): Either[Vector[ParserError], PreambleManager] = {
-    def parseSource(preprocessedSource: Source): Either[Vector[ParserError], PreambleManager] = {
+  private def processPreamble(preprocessedSource: Source)(config: Config): Either[Vector[ParserError], PPreamble] = {
+    def parseSource(preprocessedSource: Source): Either[Vector[ParserError], PPreamble] = {
       val positions = new Positions
       val pom = new PositionManager(positions)
       val parser = new SyntaxAnalyzer[PreambleContext, PPreamble](preprocessedSource, ListBuffer.empty[ParserError], pom, specOnly = true)
-      parser.parse(parser.preamble).map(preamble => PreambleManager(preamble, pom))
+      parser.parse(parser.preamble)
     }
 
     var cacheHit: Boolean = true
-    def parseSourceCached(preprocessedSource: Source): Either[Vector[ParserError], PreambleManager] = {
-      def parseAndStore(): Either[Vector[ParserError], PreambleManager] = {
+    def parseSourceCached(preprocessedSource: Source): Either[Vector[ParserError], PPreamble] = {
+      def parseAndStore(): Either[Vector[ParserError], PPreamble] = {
         cacheHit = false
         parseSource(preprocessedSource)
       }
 
-      val res = preambleCache.computeIfAbsent(getCacheKey(preprocessedSource, specOnly = true), _ => parseAndStore())
+      val res = preambleCache.computeIfAbsent(getPreambleCacheKey(preprocessedSource), _ => parseAndStore())
       if (!cacheHit) {
-        println(s"No cache hit for ${res.map(_.preamble.packageClause.id.name)}'s preamble")
+        println(s"No cache hit for ${res.map(_.packageClause.id.name)}'s preamble")
       }
       res
     }
@@ -224,18 +221,22 @@ object Parser {
 
   type SourceCacheKey = String
   // cache maps a key (obtained by hashing file path and file content) to the parse result
-  private val preambleCache: ConcurrentMap[SourceCacheKey, Either[Vector[ParserError], PreambleManager]] = new ConcurrentHashMap()
+  private val preambleCache: ConcurrentMap[SourceCacheKey, Either[Vector[ParserError], PPreamble]] = new ConcurrentHashMap()
   type PackageCacheKey = String
+  // we cache entire packages and not individual files (i.e. PProgram) as this saves us from copying over positional information
+  // from one to the other position manager. Also, this transformation of copying positional information results in
+  // differen PPackage instances that is problematic for caching type-check results.
   private val packageCache: ConcurrentMap[PackageCacheKey, Either[Vector[VerifierError], PPackage]] = new ConcurrentHashMap()
 
-  /** computes the key for caching a particular source. This takes the name, the specOnly flag, and the file's contents into account */
-  private def getCacheKey(source: Source, specOnly: Boolean): SourceCacheKey = {
-    val key = source.name ++ (if (specOnly) "1" else "0") ++ source.content
+  /** computes the key for caching the preamble of a particular source. This takes the name and the source's content into account */
+  private def getPreambleCacheKey(source: Source): SourceCacheKey = {
+    val key = source.name ++ source.content
     val bytes = MessageDigest.getInstance("MD5").digest(key.getBytes)
     // convert `bytes` to a hex string representation such that we get equality on the key while performing cache lookups
     bytes.map { "%02x".format(_) }.mkString
   }
 
+  /** computes the key for caching a package. This takes the name and the content of each source, the package info and the `specOnly` flag into account */
   private def getPackageCacheKey(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean): PackageCacheKey = {
     val key = sources.map(source => source.name ++ source.content).mkString("") ++ pkgInfo.hashCode.toString ++ (if (specOnly) "1" else "0")
     val bytes = MessageDigest.getInstance("MD5").digest(key.getBytes)

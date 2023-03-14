@@ -69,7 +69,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // preamble
 
   def showPreamble(p: PPreamble): Doc = p match {
-    case PPreamble(packageClause, progPosts, imports) =>
+    case PPreamble(packageClause, progPosts, imports, _) =>
       showPreamble(packageClause, progPosts, imports)
   }
 

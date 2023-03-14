@@ -2192,7 +2192,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val packageClause: PPackageClause = visitNode(ctx.packageClause())
     val initPosts: Vector[PExpression] = visitListNode[PExpression](ctx.initPost())
     val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
-    PPreamble(packageClause, initPosts, importDecls).at(ctx)
+    PPreamble(packageClause, initPosts, importDecls, pom).at(ctx)
   }
 
   /**

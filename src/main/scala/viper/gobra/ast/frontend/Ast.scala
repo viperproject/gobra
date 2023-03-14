@@ -67,7 +67,8 @@ case class PPreamble(
                       // after this program is initialized
                       initPosts: Vector[PExpression],
                       imports: Vector[PImport],
-                    ) extends PNode with PUnorderedScope // imports are in program scopes
+                      positions: PositionManager,
+                    ) extends PNode with PUnorderedScope
 
 
 class PositionManager(val positions: Positions) extends Messaging(positions) {

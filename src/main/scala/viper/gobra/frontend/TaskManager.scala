@@ -25,62 +25,28 @@ trait Job[R] {
   private val promise: Promise[R] = Promise()
   def getFuture: Future[R] = promise.future
   protected def compute(): R
-  // private val lock: Object = new AnyRef
 
   def call(): R = {
-    // lock.synchronized {
-      getFuture.value match {
-        case Some(Success(res)) => return res // return already computed type-checker result
-        case Some(Failure(exception)) => Violation.violation(s"Job resulted in exception: $exception")
-        case _ =>
-      }
-      Violation.violation(!compututationStarted, s"Job $this is already on-going")
-      compututationStarted = true
-      val res = try {
-        val res = compute()
-        promise.success(res)
-        res
-      } catch {
-        case e: Exception =>
-          promise.failure(e)
-          throw e
-      }
-      res
-    }
-  // }
-}
-
-/*
-trait Job[R] extends DependentJob[Nothing, R] {
-  val dependencies = Set.empty
-  protected def compute(): R
-
-  override protected def compute(dependentResults: Map[Nothing, R]): R = compute()
-}
-
-trait DependentJob[K, R] {
-  val dependencies: Set[K]
-  private val promise: Promise[R] = Promise()
-  private var compututationStarted = false
-
-  def getFuture: Future[R] = promise.future
-
-  protected def compute(dependentResults: Map[K, R]): R
-
-  def call(dependentResults: Map[K, R]): R = {
     getFuture.value match {
       case Some(Success(res)) => return res // return already computed type-checker result
       case Some(Failure(exception)) => Violation.violation(s"Job resulted in exception: $exception")
       case _ =>
     }
-    Violation.violation(!compututationStarted, s"Job is already on-going")
+    Violation.violation(!compututationStarted, s"Job $this is already on-going")
     compututationStarted = true
-    val res = compute(dependentResults)
-    promise.success(res)
+    val res = try {
+      val res = compute()
+      promise.success(res)
+      res
+    } catch {
+      case e: Exception =>
+        promise.failure(e)
+        // propagate this exception for the case that `call` is executed synchronously:
+        throw e
+    }
     res
   }
 }
- */
 
 class TaskManager[K, R](mode: TaskManagerMode) {
   private val jobs: ConcurrentMap[K, Job[R]] = new ConcurrentHashMap()

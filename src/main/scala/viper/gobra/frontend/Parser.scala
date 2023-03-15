@@ -17,7 +17,8 @@ import org.antlr.v4.runtime.{CharStreams, CommonTokenStream, DefaultErrorStrateg
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, PreambleContext, SourceFileContext, SpecMemberContext, StmtOnlyContext, TypeOnlyContext}
-import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, RegularImport, RegularPackage}
+import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, BuiltInPackage, RegularImport, RegularPackage}
+import viper.gobra.frontend.Parser.{ImportPostprocessor, TerminationMeasurePostprocessor}
 import viper.gobra.util.GobraExecutionContext
 import viper.silver.ast.SourcePosition
 
@@ -33,8 +34,9 @@ object Parser {
   type ParseResult = Either[Vector[VerifierError], ParseSuccessResult]
 
   class ParseManager(config: Config, executionContext: GobraExecutionContext) extends LazyLogging {
-    private val manager = new TaskManager[AbstractPackage, Future[ParseResult]](TaskManagerMode.Parallel)
-
+    // private val manager = new TaskManager[AbstractPackage, Future[ParseResult]](TaskManagerMode.Parallel)
+    private val manager = new DependentTaskManager[AbstractPackage, ParseResult, ParseResult]()
+    /*
     def parse(pkgInfo: PackageInfo): ParseResult = {
       val pkg = RegularPackage(pkgInfo.id)
       val parseJob = ParseInfoJob(pkgInfo)
@@ -42,12 +44,55 @@ object Parser {
       // trigger and wait for parsing of at least this package (which will ensure that parse jobs for all dependent packages are created too)
       Await.result(manager.getResult(pkg), Duration.Inf)
     }
+    */
+    def parse(pkgInfo: PackageInfo): Either[Vector[VerifierError], Map[AbstractPackage, ParseSuccessResult]] = { // ParseResult = {
+      val pkg = RegularPackage(pkgInfo.id)
+      val parseJob = ParseInfoJob(pkgInfo)
 
-    trait ParseJob extends Job[Future[ParseResult]] {
+      manager.addIfAbsent(parseJob)
+      println("execute called in parse")
+      val results = manager.execute()(executionContext)
+      val (failedResults, successfulResults) = results
+        .partitionMap { case (key, eitherResult) => eitherResult.fold[Either[(AbstractPackage, Vector[VerifierError]), (AbstractPackage, ParseSuccessResult)]](errs => Left((key, errs)), result => Right((key, result))) }
+      if (failedResults.isEmpty) Right(successfulResults.toMap)
+      else Left(failedResults.flatMap(_._2).toVector)
+    }
+
+    // trait ParseJob extends Job[Future[ParseResult]] {
+    trait ParseJob extends DependentTask[AbstractPackage, ParseResult, ParseResult] {
       def pkgInfo: PackageInfo
       def pkgSources: Vector[Source]
       def specOnly: Boolean
 
+      override def toString: String = s"ParseJob for ${pkgInfo.id}"
+
+      private lazy val preprocessedSources = preprocess(pkgSources)(config)
+
+      override lazy val dependencies: Set[AbstractPackage] = {
+        println(s"dependencies for ${pkgInfo.id}")
+        val startPreambleParsingMs = System.currentTimeMillis()
+        // before parsing, get imports and add these parse jobs
+        val imports = fastParse(preprocessedSources)
+        val preambleParsingDurationMs = System.currentTimeMillis() - startPreambleParsingMs
+        imports.map { case (directImportTarget, optSourcePos) =>
+          val directImportPackage = AbstractPackage(directImportTarget)(config)
+          val importedSources = PackageResolver.resolveSources(directImportTarget)(config)
+            .getOrElse(Vector())
+            .map(_.source)
+          if (importedSources.isEmpty) {
+            manager.addIfAbsent(ParseFailureJob(directImportPackage, Vector(NotFoundError(s"No source files for package '$directImportTarget' found", optSourcePos))))
+          } else {
+            manager.addIfAbsent(ParseSourcesJob(importedSources, directImportPackage))
+          }
+          directImportPackage
+        }
+      }
+
+      override def setup(manager: DependentTaskManager[AbstractPackage, ParseResult, ParseResult]): Unit = {
+        // invoke `dependencies` such that its side-effects are executed
+        dependencies
+      }
+      /*
       override def compute(): Future[ParseResult] = {
         require(pkgSources.nonEmpty)
 
@@ -73,7 +118,10 @@ object Parser {
 
         val startMs = System.currentTimeMillis()
         val res = for {
-          parsedProgram <- Parser.process(preprocessedSources, pkgInfo, specOnly = specOnly)(config)
+          // parsedProgram <- Parser.process(preprocessedSources, pkgInfo, specOnly = specOnly)(config)
+          // parsedProgram <- parseSources(preprocessedSources, pkgInfo, specOnly = specOnly)(config)
+          parsedProgram <- process(preprocessedSources, pkgInfo, specOnly = specOnly)(config)
+          // we do not post-process here!
         } yield (pkgSources, parsedProgram)
 
         logger.trace {
@@ -86,6 +134,27 @@ object Parser {
         implicit val executor: GobraExecutionContext = executionContext
         Future.sequence(futs)
           .map(_ => res)
+      }
+      */
+
+      override def compute1(): ParseResult = {
+        println(s"compute1 for ${pkgInfo.id}")
+        val res = for {
+          parsedProgram <- process(preprocessedSources, pkgInfo, specOnly = specOnly)(config)
+        } yield (pkgSources, parsedProgram)
+        println(s"compute1 done for ${pkgInfo.id}")
+        res
+      }
+
+      override def compute2(phase1Res: ParseResult, dependentResults: Map[AbstractPackage, ParseResult]): ParseResult = {
+        println(s"compute2 for ${pkgInfo.id}")
+        val res = for {
+          phase1SuccessfulResult <- phase1Res
+          (pkgSources, parsedProgram) = phase1SuccessfulResult
+          postprocessedProgram <- postprocess(Right(parsedProgram), specOnly)(config)
+        } yield (pkgSources, postprocessedProgram)
+        println(s"compute2 done for ${pkgInfo.id}")
+        res
       }
 
       private def fastParse(preprocessedInput: Vector[Source]): Set[(AbstractImport, Option[SourcePosition])] = {
@@ -108,13 +177,19 @@ object Parser {
             .getOrElse(Set.empty)
         }
 
-        val builtInImportTuple = (BuiltInImport, None)
-        preprocessedInput.flatMap(getImportPaths).toSet + builtInImportTuple
+        val explicitImports: Set[(AbstractImport, Option[SourcePosition])] = preprocessedInput.flatMap(getImportPaths).toSet
+        if (id == BuiltInPackage) {
+          explicitImports
+        } else {
+          val builtInImportTuple = (BuiltInImport, None)
+          explicitImports + builtInImportTuple
+        }
       }
     }
 
     /** this job is used to parse the package that should be verified */
     case class ParseInfoJob(override val pkgInfo: PackageInfo) extends ParseJob {
+      override val id = RegularPackage(pkgInfo.id)
       lazy val pkgSources: Vector[Source] = config.packageInfoInputMap(pkgInfo)
       lazy val specOnly: Boolean = false
     }
@@ -122,14 +197,24 @@ object Parser {
     /** this job is used to parse all packages that are imported */
     case class ParseSourcesJob(override val pkgSources: Vector[Source], pkg: AbstractPackage) extends ParseJob {
       require(pkgSources.nonEmpty)
+      override val id: AbstractPackage = pkg
       lazy val pkgInfo: PackageInfo = Source.getPackageInfo(pkgSources.head, config.projectRoot)
       lazy val specOnly: Boolean = true
     }
-
+    /*
     case class ParseFailureJob(errs: Vector[NotFoundError]) extends Job[Future[ParseResult]] {
       override def compute(): Future[ParseResult] = Future.successful[ParseResult](Left(errs))
     }
+    */
+    case class ParseFailureJob(id: AbstractPackage, errs: Vector[NotFoundError]) extends DependentTask[AbstractPackage, ParseResult, ParseResult] {
+      override val dependencies: Set[AbstractPackage] = Set.empty
 
+      override def setup(manager: DependentTaskManager[AbstractPackage, ParseResult, ParseResult]): Unit = {}
+
+      override def compute1(): ParseResult = Left(errs)
+      override def compute2(phase1Res: ParseResult, dependentResults: Map[AbstractPackage, ParseResult]): ParseResult = phase1Res
+    }
+    /*
     def getParseResults(executionContext: GobraExecutionContext): Either[Map[AbstractPackage, Vector[VerifierError]], Map[AbstractPackage, ParseSuccessResult]] = {
       implicit val executor: GobraExecutionContext = executionContext
       // val futs = manager.getAllResultsWithKeys(executionContext).map { case (key, fut) => fut.map(res => (key, res)) }
@@ -140,6 +225,7 @@ object Parser {
       if (failedResults.isEmpty) Right(successfulResults.toMap)
       else Left(failedResults.toMap)
     }
+    */
   }
 
   /**
@@ -161,8 +247,9 @@ object Parser {
   def parse(config: Config, pkgInfo: PackageInfo)(executionContext: GobraExecutionContext): Either[Vector[VerifierError], Map[AbstractPackage, ParseSuccessResult]] = {
     val parseManager = new ParseManager(config, executionContext)
     parseManager.parse(pkgInfo)
-    val res = parseManager.getParseResults(executionContext).left.map(errMap => errMap.values.flatten.toVector)
-    res
+    // val res = parseManager.getParseResults(executionContext).left.map(errMap => errMap.values.flatten.toVector)
+    // println(res)
+    // res
   }
 
   def parse(input: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
@@ -206,11 +293,28 @@ object Parser {
   }
 
   private def process(preprocessedInputs: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
+    /*
     for {
       parseAst <- parseSources(preprocessedInputs, pkgInfo, specOnly = specOnly)(config)
       postprocessors = Seq(
         new ImportPostprocessor(parseAst.positions.positions),
         new TerminationMeasurePostprocessor(parseAst.positions.positions, specOnly = specOnly),
+      )
+      postprocessedAst <- postprocessors.foldLeft[Either[Vector[VerifierError], PPackage]](Right(parseAst)) {
+        case (Right(ast), postprocessor) => postprocessor.postprocess(ast)(config)
+        case (e, _) => e
+      }
+    } yield postprocessedAst
+     */
+    parseSources(preprocessedInputs, pkgInfo, specOnly = specOnly)(config)
+  }
+
+  private def postprocess(processResult: Either[Vector[VerifierError], PPackage], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
+    for {
+      parseAst <- processResult
+      postprocessors = Seq(
+      new ImportPostprocessor(parseAst.positions.positions),
+      new TerminationMeasurePostprocessor(parseAst.positions.positions, specOnly = specOnly),
       )
       postprocessedAst <- postprocessors.foldLeft[Either[Vector[VerifierError], PPackage]](Right(parseAst)) {
         case (Right(ast), postprocessor) => postprocessor.postprocess(ast)(config)

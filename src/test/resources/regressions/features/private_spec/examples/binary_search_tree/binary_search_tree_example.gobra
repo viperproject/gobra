@@ -7,17 +7,16 @@ package main
 import binary_search_tree "binary_search_tree"
 
 func client() {
-    t := binary_search_tree.NewTree()
-    assert t.IsEmpty()
+    t := &binary_search_tree.Tree{}
     t.Insert(5)
-    //assert t.IsEmpty()
+    assert !t.IsEmpty()
     t.Delete(5)
-    //assert t.IsEmpty()
+    assert t.IsEmpty()
 }
 
 ensures t.Tree()
 func client0(value int) (t *binary_search_tree.Tree) {
-    t = binary_search_tree.NewTree()
+    t = &binary_search_tree.Tree{}
     assert !t.PureContains(value, 2)
     t.Insert(value)
     assert t.SortedValues() == seq[int]{ value }

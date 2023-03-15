@@ -176,6 +176,8 @@ class ConstructorEncoding extends Encoding {
       Some( block(
         for {
           _ <- cl.local(ctx.variable(z))
+          eqDflt <- ctx.equal(z, in.DfltVal(z.typ)(z.info))(b)
+          _ <- cl.write(vpr.Inhale(eqDflt)(pos, info, errT))
 
           footprint <- struct.addressFootprint(ctx)(zDeref, in.FullPerm(zDeref.info))
           // if Exclusive Constructor exists it gets called, otherwise it compares the fields
@@ -373,7 +375,7 @@ class ConstructorEncoding extends Encoding {
     for {
       pres <- sequence(ass.pres.map(ctx.precondition))
       posts <- dereferenceInAssignmentSpec(ass.posts, exprTyp)(ctx)
-      body <- option(assignmentBody(ass.body)(ctx))
+      body <- option(assignmentBody(ass.body, ret)(ctx))
 
       _ <- errorT(construction.permissionAssignError(generated=false))
       _ <- if (body.isEmpty) option(None) else errorT(construction.assignWellFormedError(ass.info, body.get))
@@ -393,27 +395,46 @@ class ConstructorEncoding extends Encoding {
   * 
   * [lhs: Struct{F}@ = rhs] -> FOREACH f in F: [lhs.f = rhs.f]
   */
-  private def assignmentBody(body: Option[in.Stmt])(ctx: Context): Option[Writer[vpr.Seqn]] = {
+  private def assignmentBody(body: Option[in.Stmt], ret: in.LocalVar)(ctx: Context): Option[Writer[vpr.Seqn]] = {
     for {
       stmt <- if (body.isEmpty) { None } 
       else { 
         val b = body.get
-        Some (block(cl.seqns(b match {
-          case in.Block(_, stmts) => stmts.map(s => s match {
-            // an assignment inside the assign declaration should not call itself
-            case a@in.SingleAss(in.Assignee(lhs :: ctx.Struct(lhsFs) / Addressability.Shared), rhs :: ctx.Struct(rhsFs)) 
-              if !ctx.lookupAssignments(lhs.typ).isEmpty => 
-                for {
-                  x <- cl.bind(lhs)(ctx)
-                  y <- cl.bind(rhs)(ctx)
-                  lhsFAs = lhsFs.map(f => in.FieldRef(x, f)(x.info)).map(in.Assignee.Field)
-                  rhsFAs = rhsFs.map(f => in.FieldRef(y, f)(y.info))
-                  res <- cl.seqns((lhsFAs zip rhsFAs).map { case (lhsFA, rhsFA) => ctx.assignment(lhsFA, rhsFA)(a) })
-                } yield res
-            case s => ctx.statement(s)
-          })
-          case _ => ???
-      })))}
+        val (pos, info, errT) = b.vprMeta
+        val r = vpr.LocalVar(ret.id, ctx.typ(ret.typ))(pos, info, errT)
+        Some(
+          block(
+            cl.seqns(
+              for { 
+                w <- b match {
+                  case in.Block(_, stmts) => stmts.map(s => s match {
+                    // an assignment inside the assign declaration should not call itself
+                    case a@in.SingleAss(in.Assignee(lhs :: ctx.Struct(lhsFs) / Addressability.Shared), rhs :: ctx.Struct(rhsFs)) 
+                      if !ctx.lookupAssignments(lhs.typ).isEmpty => 
+                        assert(lhs.typ == getPointer(ret.typ).withAddressability(Addressability.Shared), s"type of ${lhs} does not match ${ret}")
+                        for {
+                          x <- cl.bind(lhs)(ctx)
+                          newX = in.LocalVar(x.id, ret.typ)(ret.info)
+                          eqDflt <- ctx.equal(newX, in.DfltVal(ret.typ)(ret.info))(b)
+                          _ <- cl.write(vpr.Inhale(eqDflt)(pos, info, errT))
+
+                          y <- cl.bind(rhs)(ctx)
+                          lhsFAs = lhsFs.map(f => in.FieldRef(x, f)(x.info)).map(in.Assignee.Field)
+                          rhsFAs = rhsFs.map(f => in.FieldRef(y, f)(y.info))
+                          res <- cl.seqns((lhsFAs zip rhsFAs).map { case (lhsFA, rhsFA) => ctx.assignment(lhsFA, rhsFA)(a) })
+                          _ <- cl.write(res)
+
+                          e = vpr.LocalVar(x.id, ctx.typ(x.typ))(pos, info, errT)
+                        } yield vpr.LocalVarAssign(r, e)(pos, info, errT)
+                    case s => ctx.statement(s)
+                  })
+                  case _ => ???
+                }
+              } yield w 
+            )
+          )
+        )
+      }
     } yield stmt
   }
 

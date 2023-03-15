@@ -134,11 +134,18 @@ class ConstructImpl extends Construct {
       case (lhs :: ctx.Struct(lhsFs), rhs :: ctx.Struct(rhsFs)) => 
         block(for {
           x <- cl.bind(lhs)(ctx)
+          newX = in.LocalVar(x.id, ret.typ)(ret.info)
+          eqDflt <- ctx.equal(newX, in.DfltVal(ret.typ)(ret.info))(ctor)
+          _ <- cl.write(vpr.Inhale(eqDflt)(pos, info, errT))
+
           y <- cl.bind(rhs)(ctx)
           lhsFAs = lhsFs.map(f => in.FieldRef(x, f)(x.info)).map(in.Assignee.Field)
           rhsFAs = rhsFs.map(f => in.FieldRef(y, f)(y.info))
           res <- cl.seqns((lhsFAs zip rhsFAs).map { case (lhsFA, rhsFA) => ctx.assignment(lhsFA, rhsFA)(ctor) })
-        } yield res)
+          _ <- cl.write(res)
+          
+          e = vpr.LocalVar(x.id, ctx.typ(x.typ))(pos, info, errT)
+        } yield vpr.LocalVarAssign(vRetD.localVar, e)(pos, info, errT))
 
       case _ => ???
     }
@@ -158,8 +165,12 @@ class ConstructImpl extends Construct {
       body1 <- option(body1)
       assign <- assign
       body2 <- option(body2)
+      body = for {
+        b1 <- body1
+        b2 <- body2
+      } yield vpr.Seqn(b1.ss ++ assign.ss ++ b2.ss, assign.scopedDecls)(pos, info, errT)
 
-      _ <- errorT(generatedAssignError(src))
+      _ <- errorT(generatedAssignError(src, body.getOrElse(vpr.Seqn(Seq.empty, Seq.empty)(pos, info, errT))))
       _ <- errorT(permissionAssignError(true))
 
       method = vpr.Method(
@@ -168,10 +179,7 @@ class ConstructImpl extends Construct {
         formalReturns = Seq(vRetD),
         pres = pres,
         posts = posts ++ Vector(eq),
-        body = for {
-          b1 <- body1
-          b2 <- body2
-        } yield vpr.Seqn(b1.ss ++ assign.ss ++ b2.ss, assign.scopedDecls)(pos, info, errT)
+        body = body
       )(pos, info, errT)
     } yield method).map{
       case p => assignments ::= p; Some(p)
@@ -183,10 +191,10 @@ class ConstructImpl extends Construct {
       DerefConstructError(info, src, true).dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
   }
 
-  private def generatedAssignError(src: Source.Parser.Info): ErrorTransformer = {
-    case e@err.AssignmentFailed(Source(info), reason, _) => 
+  private def generatedAssignError(src: Source.Parser.Info, res: vpr.Stmt): ErrorTransformer = {
+    case e@err.AssignmentFailed(Source(info), reason, _) if e causedBy res => 
       AssignConstructError(info, src, true).dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
-    case e@err.PostconditionViolated(Source(info), _, reason, _) =>
+    case e@err.PostconditionViolated(Source(info), _, reason, _) if e causedBy res =>
       AssignConstructError(info, src, true).dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
   }
 

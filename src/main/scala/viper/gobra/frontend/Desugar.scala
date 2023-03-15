@@ -3229,7 +3229,7 @@ object Desugar {
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) //dummy assign
       val pres = (cons.spec.pres ++ cons.spec.preserves) map preconditionD(ctx, info)
       val posts = (cons.spec.preserves ++ cons.spec.posts) map postconditionD(ctx, info)
-      val body = for {
+      val body = if (imported) None else for {
         b <- cons.body
         bl = blockD(ctx, info)(b._2)
       } yield bl
@@ -3260,7 +3260,7 @@ object Desugar {
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) //dummy assign
       val pres = (deref.spec.pres ++ deref.spec.preserves) map preconditionD(ctx, info)
       val posts = (deref.spec.preserves ++ deref.spec.posts) map postconditionD(ctx, info)
-      val body = deref.body.map {
+      val body = if (imported) None else deref.body.map {
         case (_, b: PBlock) =>
           val res = b.nonEmptyStmts match {
             case Vector(PReturn(Vector(ret))) => pureExprD(ctx, info)(ret)
@@ -3294,7 +3294,7 @@ object Desugar {
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) //dummy assign
       val pres = (ass.spec.pres ++ ass.spec.preserves) map preconditionD(ctx, info)
       val posts = (ass.spec.preserves ++ ass.spec.posts) map postconditionD(ctx, info)
-      val body = for {
+      val body = if (imported) None else for {
         b <- ass.body
         bl = blockD(ctx, info)(b._2)
       } yield bl

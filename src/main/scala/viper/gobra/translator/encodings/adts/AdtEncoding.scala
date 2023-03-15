@@ -300,7 +300,7 @@ class AdtEncoding extends LeafTypeEncoding {
       formalArgs = Seq(variableDecl),
       typ = vpr.Int,
       unique = false,
-      //interpretation = None
+      interpretation = None
     )(pos, info, adtName, errT)
   }
 

@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+
+var b int = 2
+var B int = 2
+
+requires a == 0
+ensures res == 0
+func Foo(a int) (res int) {
+    var c = 0
+    var d = 0
+    return a + c + d
+}
+
+

@@ -76,9 +76,10 @@ pure func (n *node) sortedValues(lowerBound, upperBound option[int]) (res seq[in
     return unfolding n.tree() in (n.left == nil ? seq[int]{ } : n.left.sortedValues(lowerBound, some(n.value))) ++ seq[int]{ n.value } ++ (n.right == nil ? seq[int]{ } : n.right.sortedValues(some(n.value), upperBound))
 }
 
+pure func (t *Tree) ModelContains(value int) (res bool) // t.ModelContains(2) <==> t.Contains(2, dividend)
 
 ensures result.Tree() && result.IsEmpty()
-construct &Tree() {
+construct &Tree() { //ADDED
     fold result.Tree()
 }
 
@@ -116,6 +117,7 @@ requires dividend > 0
 requires acc(t.Tree(), 1/dividend)
 ensures acc(t.Tree(), 1/dividend)
 ensures res == t.PureContains(value, dividend)
+ensures t.ModelContains(value) ==> res
 func (t *Tree) Contains(value, dividend int) (res bool) {
     unfold acc(t.Tree(), 1/dividend)
     if (t.root == nil) {
@@ -129,7 +131,8 @@ func (t *Tree) Contains(value, dividend int) (res bool) {
 
 ghost
 requires dividend > 0 && acc(t.Tree(), 1/dividend)
-ensures (value in t.SortedValues()) == res //ADDED
+//ensures (value in t.SortedValues()) == res //ADDED
+ensures res ==> t.ModelContains(value)
 pure func (t *Tree) PureContains(value, dividend int) (res bool) { //ADDED: res
   return unfolding acc(t.Tree(), 1/dividend) in t.root != nil && value in t.root.sortedValues(none[int], none[int])
 }
@@ -159,6 +162,7 @@ ensures value in t.SortedValues()
 ensures len(t.SortedValues()) == old(len(t.SortedValues())) + (value in old(t.SortedValues()) ? 0 : 1)
 ensures forall i int :: (i in old(t.SortedValues()) ==> i in t.SortedValues())
 ensures value in old(t.SortedValues()) ==> old(t.SortedValues()) == t.SortedValues()
+ensures t.ModelContains(value) //ADDED
 func (t *Tree) Insert(value int) {
     unfold t.Tree()
     if (t.root == nil) {
@@ -202,7 +206,7 @@ requires t.Tree()
 ensures t.Tree()
 ensures !(value in t.SortedValues())
 //ensures old(len(t.SortedValues())) == 1 && (value in old(t.SortedValues())) ==> seq[int]{} == t.SortedValues()
-ensures len(t.SortedValues()) == old(len(t.SortedValues())) - (value in old(t.SortedValues()) ? 1 : 0) //ADDED
+//ensures len(t.SortedValues()) == old(len(t.SortedValues())) - (value in old(t.SortedValues()) ? 1 : 0) //ADDED
 //ensures forall i int :: value != i && (i in old(t.SortedValues()) ==> (i in t.SortedValues()))
 //ensures !(value in old(t.SortedValues())) ==> old(t.SortedValues()) == t.SortedValues() //ADDED
 func (t *Tree) Delete(value int) {

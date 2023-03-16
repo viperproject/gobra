@@ -17,13 +17,20 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
 
   private def isPrivateExpTyp(etyp: PExpressionOrType): Boolean = etyp match {
     case exp: PExpression => isPrivateExp(exp)
-    case typ: PType => isPrivateTyp(typ)
+    case typ: PType => isPrivateType(typ)
     case t => Violation.violation(s"Unexpected Expression or Type in isPrivateExpTyp, got $t") 
   }
 
   def isPrivateIdentifier(id: PIdnNode): Boolean = regular(id) match {
     case g: symb.GlobalVariable => isPrivateString(g.id.name)
-    case _: symb.Variable => false
+    case _: symb.InParameter => false
+    case _: symb.OutParameter => false
+    case _: symb.ReceiverParameter => false
+    case v: symb.Variable => v match {
+      case v: symb.SingleLocalVariable => v.exp.exists(isPrivateExp)
+      case v: symb.MultiLocalVariable => isPrivateExp(v.exp)
+      case _ => false
+    }
     case c: symb.Constant => c.decl.left.exists(id => isPrivateString(id.name))
     case f: symb.Function => isPrivateString(f.decl.id.name)
     case m: symb.Method => m match {
@@ -46,7 +53,7 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
     case _ => false
   }
 
-  private def isPrivateTyp(typ: PType): Boolean = typ match {
+  private def isPrivateType(typ: PType): Boolean = typ match {
     case atyp: PActualType => atyp match {
       case PBoolType() => false
       case PStringType() => false
@@ -59,16 +66,16 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
       case PFloat32() | PFloat64() => false
       case styp: PStructType => isPrivateString(styp.toString) 
       case PFunctionType(args, _) => isPrivateVParam(args)
-      case PPredType(args) => args.exists(arg => isPrivateTyp(arg))
+      case PPredType(args) => args.exists(arg => isPrivateType(arg))
       case ityp: PInterfaceType => isPrivateString(ityp.toString) 
-      case _ => isPrivateChild(atyp)
+      case _ => isPrivateNode(atyp)
     }
     case gtyp: PGhostType => gtyp match {
       case PDomainType(funcs, _) => funcs.exists(f => isPrivateString(f.id.name))
       case PAdtType(clauses) => clauses.exists(c => isPrivateString(c.id.name))
-      case _ => isPrivateChild(gtyp)
+      case _ => isPrivateNode(gtyp)
     }
-    case t => Violation.violation(s"Unexpected Type in isPrivateTyp, got $t") 
+    case t => Violation.violation(s"Unexpected Type in isPrivateType, got $t") 
   }
 
   private def isPrivateExp(expr: PExpression): Boolean = expr match {
@@ -82,10 +89,10 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
       case PFunctionLit(id, _) => id.exists(s => isPrivateString(s.name))
       case PInvoke(base, args, _) => isPrivateExpTyp(base) || isPrivateVExp(args)
       case PSliceExp(base, low, high, cap) => isPrivateExp(base) || low.exists(isPrivateExp) || high.exists(isPrivateExp) || cap.exists(isPrivateExp)
-      case PMake(typ, args) => isPrivateTyp(typ) || isPrivateVExp(args)
+      case PMake(typ, args) => isPrivateType(typ) || isPrivateVExp(args)
       case PBlankIdentifier() => false
       case PPredConstructor(id, _) => isPrivateString(id.id.name)
-      case _ => isPrivateChild(expr)
+      case _ => isPrivateNode(expr)
     }
     case expr: PGhostExpression => expr match {
       case PForall(_, triggers, body) => triggers.exists(t => t.exps.exists(isPrivateExp)) || isPrivateExp(body)
@@ -93,27 +100,22 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
       case PMatchExp(exp, clauses) => isPrivateExp(exp) || isPrivateVExp(clauses.map(c => c.exp))
       case expr : PGhostCollectionExp => expr match {
         case PGhostCollectionUpdate(col, clauses) => isPrivateExp(col) || isPrivateVExp(clauses.map(c => c.left)) || isPrivateVExp(clauses.map(c => c.right))
-        case _ => isPrivateChild(expr)
+        case _ => isPrivateNode(expr)
       }
-      case _ => isPrivateChild(expr)
+      case _ => isPrivateNode(expr)
     }
     case t => Violation.violation(s"Unexpected Expression in isPrivateExp, got $t")
   }
 
   private def isPrivateVExp(v: Vector[PExpression]): Boolean = v.exists(arg => isPrivateExp(arg))
-  private def isPrivateVParam(v: Vector[PParameter]): Boolean = v.exists(p => isPrivateTyp(p.typ))
+  private def isPrivateVParam(v: Vector[PParameter]): Boolean = v.exists(p => isPrivateType(p.typ))
   def isPrivateString(s: String): Boolean = s.charAt(0).isLower
 
-  private def isPrivateChild(n: PNode): Boolean = 
-    tree.child(n).exists {
-      case e if e.isInstanceOf[PExpression] => isPrivateExp(e.asInstanceOf[PExpression])
-      case t if t.isInstanceOf[PType] => isPrivateTyp(t.asInstanceOf[PType])
-      case i if i.isInstanceOf[PIdnNode] => isPrivateIdentifier(i.asInstanceOf[PIdnNode])
+  lazy val isPrivateNode: PNode => Boolean = 
+    attr[PNode, Boolean] {
+      case e: PExpression => tree.child(e).exists(isPrivateNode)
+      case t: PType => isPrivateType(t)
+      case i: PIdnNode => isPrivateIdentifier(i)
       case _ => false
     }
-
-  def getAndcheckIfMemberPrivateFromSpec(spec: PSpecification): (Option[PFunctionOrMethodDecl], Boolean) = {
-    val func = tryEnclosingFunctionOrMethod(spec)
-    (func, if (func.isEmpty) false else isPrivateIdentifier(func.get.id))
-  }
 }

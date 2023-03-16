@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2020 ETH Zurich.
+// Copyright (c) 2011-2023 ETH Zurich.
 
 package viper.gobra.reporting
 
@@ -311,7 +311,7 @@ case class ShiftPreconditionError(info: Source.Verifier.Info) extends Verificati
 
 case class ConstructorError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "constructor_error"
-  override def localMessage: String = s"The constructor is not well formed."
+  override def localMessage: String = s"The constructor is not well formed"
 }
 
 case class DerefConstructError(info: Source.Verifier.Info, src: Source.Parser.Info, generated: Boolean) extends VerificationError {

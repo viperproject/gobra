@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2020 ETH Zurich.
+// Copyright (c) 2011-2023 ETH Zurich.
 
 package viper.gobra.translator.encodings.structs
 
@@ -270,7 +270,7 @@ class StructEncoding extends TypeEncoding {
     case (loc: in.Location) :: ctx.PartialStruct(_) / Shared =>
       val construct = constructName(ctx.lookupDereference(loc.typ), ctx.lookupConstructor(loc.typ))
       if (construct.isEmpty()) { 
-        Violation.violation(s"Did not find dereference for parital struct $loc")
+        Violation.violation(s"Did not find dereference for parital struct $loc") //sh.convertToExclusive(loc)(ctx, pex)
       } else { 
         val (pos, info, errT) = loc.vprMeta
         for {

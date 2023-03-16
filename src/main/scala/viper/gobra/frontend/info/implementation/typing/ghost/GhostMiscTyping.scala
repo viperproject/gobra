@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2020 ETH Zurich.
+// Copyright (c) 2011-2023 ETH Zurich.
 
 package viper.gobra.frontend.info.implementation.typing.ghost
 
@@ -229,7 +229,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       // if the function itself is public then specifications outside the private clause cannot be private, 
       // private members are allowed everywhere if the function itself is private
       error(n, s"Only the private clause of a public function may reference private state.", {
-        val (_, isFuncPvt) = getAndcheckIfMemberPrivateFromSpec(n)
+        val func = tryEnclosingFunctionOrMethod(n)
+        val isFuncPvt = if (func.isEmpty) false else isPrivateIdentifier(func.get.id)
         if (!isFuncPvt) pres.exists(isPrivate) || preserves.exists(isPrivate) || posts.exists(isPrivate)
         else false
       }) ++
@@ -244,7 +245,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         error(n, "Termination measures of loops cannot be conditional.", terminationMeasure.exists(isConditional))
   
     case n@ PPrivateSpec(pres, preserves, posts, _, proof) =>
-      val (func, isFuncPvt) = getAndcheckIfMemberPrivateFromSpec(n)
+      val func = tryEnclosingFunctionOrMethod(n)
+      val isFuncPvt = if (func.isEmpty) false else isPrivateIdentifier(func.get.id)
       wellDefPrivateSpec(n) ++ 
       // a public function with private specifications needs to have a private entailment proof
       // otherwise the public specification of the function is not sound

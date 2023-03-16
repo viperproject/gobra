@@ -12,11 +12,12 @@ type T struct {
 
 func foo(x, y bar.Pair) {
   if x.Left == y.Left && x.Right == y.Right {
-    assert x == y // should fail
+    //:: ExpectedOutput(error:assertion_error)
+    assert x == y
   }
 }
 
-func main() {
+func client0() {
     x := bar.Pair{Left: 2, Right: 0} 
     y := bar.Pair{Left: 2, Right: 0}
     assert(x == y)
@@ -25,8 +26,10 @@ func main() {
     y2 := &bar.Pair{Left: 2, Right: 0}
 
     //:: ExpectedOutput(error:assertion_error)
-    assert(x2 == y2) 
+    assert(x2 == y2)
+}
 
+func client1() {
     xt := T{Left: 2, Right: 0}
     yt := T{Left: 2, Right: 0}
     assert(xt == yt)

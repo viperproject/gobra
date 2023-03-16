@@ -23,7 +23,7 @@ ensures acc(&result.Left) && acc(&result.Right) && result.PrivateMem()
 //ensures this.PublicMem()
 ensures /* unfolding this.PublicMem() in */ (result.Left == value.Left && result.Right == value.Right)
 construct &Pair() {
-  //fold result.PrivateMem()
+  fold result.PrivateMem()
   //fold this.PublicMem()
 }
 
@@ -58,16 +58,16 @@ construct Pair()
 
 func bad1(a, b Pair) {
   if a.Left == b.Left && a.Right == b.Right {
-    assert a == b // should fail => OK
+    assert a == b // fails
   }
 }
 
-requires acc(&a.Left) && acc(&a.Right)
+requires acc(&a.Left) && acc(&a.Right) && a.PrivateMem()
 func bad2(a *Pair) {
   *a = Pair{} // fails, not enough permission
 }
 
-requires acc(&a.Left) && acc(&a.Right)
+requires acc(&a.Left) && acc(&a.Right) && a.PrivateMem()
 func bad3(a *Pair) {
   x := *a // fails, not enough permission
 }
@@ -75,10 +75,14 @@ func bad3(a *Pair) {
 
 func main() {
   x := &Pair{Left: 2, Right: 0, p: 1}
+  assert(x.PrivateMem())
+  x2 := *x
+  z := &Pair{Left: 2, Right: 0, p: 1}
+  assert(x == z)
   t := &Test{L: 2, R: 0, p: 3}
   var t2 = Test{L: 2, R: 0, p: 3}
   y := new(Pair)
-  var z = Pair{Left: 2, Right: 3, p: 1}
+  //var z = Pair{Left: 2, Right: 3, p: 1}
 }
 
 

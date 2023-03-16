@@ -2,13 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2020 ETH Zurich.
+// Copyright (c) 2011-2023 ETH Zurich.
 
 package viper.gobra.reporting
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.relation.NodeNotInTreeException
-import viper.gobra.ast.frontend.{PClosureDecl, PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PMPredicateDecl, PMPredicateSig, PMethodDecl, PDerefDecl, PMethodImplementationProof, PMethodSig, PNode, PPackage, PParameter, PPredConstructor, PProgram}
+import viper.gobra.ast.frontend.{PClosureDecl, PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PMPredicateDecl, PMPredicateSig, PMethodDecl, PConstructDecl, PAssignDecl, PDerefDecl, PMethodImplementationProof, PMethodSig, PNode, PPackage, PParameter, PPredConstructor, PProgram}
 import viper.gobra.ast.internal.BuiltInMember
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.{Info, TypeInfo}
@@ -376,11 +376,37 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
       // Consider the enclosing function, for closure declarations
       case p: PClosureDecl => getMemberInformation(nodeTypeInfo.enclosingFunctionOrMethod(p).get, typeInfo, viperMember)
       
+      case p: PConstructDecl =>
+        GobraMemberInfo(
+          pkgId = pkgId,
+          pkg = pkgName,
+          memberName = s"${p.typ}" ++ "_construct",
+          args = "",
+          nodeType = FunctionDeclaration,
+          hasSpecification = true,
+          isTrusted = false,
+          isAbstractAndNotImported = false,
+          isImported = isImported,
+          isBuiltIn = isBuiltIn)
+
       case p: PDerefDecl =>
         GobraMemberInfo(
           pkgId = pkgId,
           pkg = pkgName,
           memberName = s"${p.typ}" ++ "_deref",
+          args = "",
+          nodeType = FunctionDeclaration,
+          hasSpecification = true,
+          isTrusted = false,
+          isAbstractAndNotImported = false,
+          isImported = isImported,
+          isBuiltIn = isBuiltIn)
+
+      case p: PAssignDecl => 
+        GobraMemberInfo(
+          pkgId = pkgId,
+          pkg = pkgName,
+          memberName = s"${p.typ}" ++ "_assign",
           args = "",
           nodeType = FunctionDeclaration,
           hasSpecification = true,

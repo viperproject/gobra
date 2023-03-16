@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2020 ETH Zurich.
+// Copyright (c) 2011-2023 ETH Zurich.
 
 package viper.gobra.frontend.info.implementation.resolution
 
@@ -268,9 +268,9 @@ trait NameResolution {
       case p: PMPredicateDecl => Vector(p.id)
       case p: PFPredicateDecl => Vector(p.id)
       case _: PImplementationProof => Vector.empty
-      case _: PConstructDecl => Vector.empty //constructor has no identifier
-      case _: PDerefDecl => Vector.empty //dereference has no identifier
-      case _: PAssignDecl => Vector.empty //assignment has no identifier
+      case _: PConstructDecl => Vector.empty //constructors do not have identifiers that they can be referred by
+      case _: PDerefDecl => Vector.empty //dereference do not have identifiers that they can be referred by
+      case _: PAssignDecl => Vector.empty //assignments do not have identifiers that they can be referred by
     }
   }
 

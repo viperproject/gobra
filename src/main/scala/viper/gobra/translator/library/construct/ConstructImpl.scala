@@ -223,7 +223,5 @@ class ConstructImpl extends Construct {
   override def constructWellFormedError(res: vpr.Stmt): ErrorTransformer = {
     case e@err.FunctionNotWellformed(Source(info), reason, _) if e causedBy res => 
       ConstructorError(info).dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
-    case e@err.AssignmentFailed(Source(info), reason, _) => 
-      ConstructorError(info).dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
   }
 }

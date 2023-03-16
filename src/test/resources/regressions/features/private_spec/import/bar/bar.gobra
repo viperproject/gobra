@@ -22,6 +22,9 @@ pure func (p *Pair) GetP() int {
 const g int = 2
 const G int = 42
 
+var s int = 2
+var S int = 42
+
 //private function with struct (private specification and proof)
 requires acc(x) && x.Left == 2
 ensures  acc(x) && x.Left == 2

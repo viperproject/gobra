@@ -12,8 +12,8 @@ import viper.silver.{ast => vpr}
 import scala.collection.mutable
 
 /* 
- * Creates PartialTuple domain with name 'PartialTuple${arity}'. A PartialTuple is a domain of an imported struct.
- * Partial tuples do not have the "tupleOverGetAxiom" axiom.
+ * Creates PartialTuple domain with name 'PartialTuple${arity}'. 
+ * PartialTuple encodes tuples without equality.
  */
 class PartialTuplesImpl extends Tuples {
 

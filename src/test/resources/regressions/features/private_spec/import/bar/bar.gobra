@@ -89,10 +89,12 @@ pred p(a int) {
 requires P(a)
 ensures P(a)
 private {
-  requires P(a)
-  ensures P(a)
+  requires a == 0
+  ensures a == 0
   proof {
+    unfold P(a)
     FPred2(a)
+    fold P(a)
   }
 }
 func FPred2(a int) 

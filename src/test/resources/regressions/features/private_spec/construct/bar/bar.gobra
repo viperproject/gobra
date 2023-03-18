@@ -17,9 +17,9 @@ type Test struct {
 
 pred (s *Pair) PrivateMem()
 
-ensures acc(&result.Left) && acc(&result.Right) && result.PrivateMem() //PublicMem()
+/* ensures acc(&result.Left) && acc(&result.Right) && result.PrivateMem() //PublicMem()
 ensures result.Left == value.Left && result.Right == value.Right
-construct &Pair()
+construct &Pair() */
 
 /* requires acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
 pure deref &Pair()

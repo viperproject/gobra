@@ -10,8 +10,9 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.gobra.translator.Names
-import viper.gobra.reporting.{PrivateEntailmentError, AssertionFalseError, InsufficientPermissionError, Source}
+import viper.gobra.reporting.{PrivateEntailmentError, DefaultErrorBackTranslator, AssertionFalseError, InsufficientPermissionError, Source}
 import viper.gobra.reporting.BackTranslator.ErrorTransformer
+import viper.gobra.reporting.BackTranslator._
 import viper.silver.{ast => vpr}
 import viper.silver.verifier.{errors => err, reasons}
 
@@ -156,7 +157,7 @@ class PrivateImpl extends Private {
         for {
           init <- vResultInit
           core <- ctx.statement(b)
-          _ <- cl.errorT(privateProofError())
+          _ <- cl.errorT(privateProofError(core))
         } yield vu.seqn(Vector(init, core))(pos, info, errT)
       }})
 
@@ -179,23 +180,10 @@ class PrivateImpl extends Private {
     }
   }
 
- /*
-  * 
-  */
-  private def privateProofError(): ErrorTransformer = {
-    case err.PostconditionViolated(Source(info), _, reason, _) => 
-      reason match {
-          case reason: reasons.AssertionFalse => PrivateEntailmentError(info)
-            .dueTo(AssertionFalseError(reason.offendingNode.info.asInstanceOf[Source.Verifier.Info]))
-          case _ => PrivateEntailmentError(info)
-      }
-    case err.PreconditionInCallFalse(Source(info), reason, _) =>
-      reason match {
-          case reason: reasons.AssertionFalse => PrivateEntailmentError(info)
-            .dueTo(AssertionFalseError(reason.offendingNode.info.asInstanceOf[Source.Verifier.Info]))
-          case reason: reasons.InsufficientPermission => PrivateEntailmentError(info)
-            .dueTo(InsufficientPermissionError(reason.offendingNode.info.asInstanceOf[Source.Verifier.Info]))
-          case _ => PrivateEntailmentError(info)
-      }
+  private def privateProofError(stmt: vpr.Stmt): ErrorTransformer = {
+    case e@err.PostconditionViolated(Source(info), _, reason, _) if e causedBy stmt => 
+      PrivateEntailmentError(info).dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
+    case e@err.PreconditionInCallFalse(Source(info), reason, _) if e causedBy stmt =>
+      PrivateEntailmentError(info).dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
   }
 }

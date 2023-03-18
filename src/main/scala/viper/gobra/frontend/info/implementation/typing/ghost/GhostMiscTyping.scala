@@ -250,7 +250,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       wellDefPrivateSpec(n) ++ 
       // a public function with private specifications needs to have a private entailment proof
       // otherwise the public specification of the function is not sound
-      error(n, s"Public function ${func} has nonEmpty private specifications and needs to have a proof statement.", 
+      error(n, s"Public function has nonEmpty private specifications and needs to have a proof statement.", 
               proof.isEmpty && !isFuncPvt && (!pres.isEmpty || !preserves.isEmpty || !posts.isEmpty))
       
     case n@ PConstructSpec(pres, preserves, posts, _) =>

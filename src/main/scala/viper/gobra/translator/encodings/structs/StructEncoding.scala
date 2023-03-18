@@ -270,7 +270,7 @@ class StructEncoding extends TypeEncoding {
     case (loc: in.Location) :: ctx.PartialStruct(_) / Shared =>
       val construct = constructName(ctx.lookupDereference(loc.typ), ctx.lookupConstructor(loc.typ))
       if (construct.isEmpty()) { 
-        Violation.violation(s"Did not find dereference for parital struct $loc") //sh.convertToExclusive(loc)(ctx, pex)
+        Violation.violation(s"Did not find dereference for partial struct $loc") //sh.convertToExclusive(loc)(ctx, pex)
       } else { 
         val (pos, info, errT) = loc.vprMeta
         for {
@@ -353,7 +353,11 @@ class StructEncoding extends TypeEncoding {
     case newStmt@in.New(target, expr) if typ(ctx).isDefinedAt(expr.typ) =>
       val (pos, info, errT) = newStmt.vprMeta
       val construct = constructName(ctx.lookupConstructor(target.typ), None)
-      if (construct.isEmpty()) {
+      val imported = target.typ match {
+        case in.StructT(_, _, i) => i
+        case _ => false
+      }
+      if (construct.isEmpty() || !imported) {
         val z = in.LocalVar(ctx.freshNames.next(), target.typ.withAddressability(Exclusive))(newStmt.info)
         val zDeref = in.Deref(z, underlyingType(z.typ)(ctx))(newStmt.info)
         seqn(

@@ -363,7 +363,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         val err = set.errors(decl.typ)
         val look = set.lookup(s"$miscType")
         if (!err.isEmpty) Left(err)
-        else if (look.isEmpty) Left(error(decl, s"No constructor for type $miscType found")) //should be unreachable
+        else if (look.isEmpty) Left(error(decl, s"The constructor for type $typ is not declared within the same package as the struct type $typ."))
         else Right(look.get)
       case decl: PDerefDecl =>
         val typ = typeSymbType(decl.typ)
@@ -372,7 +372,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         val err = set.errors(decl.typ)
         val look = set.lookup(s"$miscType")
         if (!err.isEmpty) Left(err)
-        else if (look.isEmpty) Left(error(decl, s"No dereference for type $miscType found")) //should be unreachable
+        else if (look.isEmpty) Left(error(decl, s"The dereference for type $typ is not declared within the same package as the struct type $typ."))
         else Right(look.get)
       case decl: PAssignDecl => 
         val typ = typeSymbType(decl.typ)
@@ -381,7 +381,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         val err = set.errors(decl.typ)
         val look = set.lookup(s"$miscType")
         if (!err.isEmpty) Left(err)
-        else if (look.isEmpty) Left(error(decl, s"No assignment for type $miscType found")) //should be unreachable
+        else if (look.isEmpty) Left(error(decl, s"The assignment for type $typ is not declared within the same package as the struct type $typ."))
         else Right(look.get)
       case _ => Left(Vector.empty)
     }

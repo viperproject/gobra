@@ -9,5 +9,5 @@ import bar "bar"
 func main() {
     x := &bar.Pair{Left: 2, Right: 0}
 
-    assert(acc(x) && x.Left == 2 && x.Right == 0)
+    assert(acc(x) && x.Mem() && x.Left == 2 && x.Right == 0)
 }

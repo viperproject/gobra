@@ -198,8 +198,6 @@ class ConstructorEncoding extends Encoding {
             val newExpr = in.LocalVar(ctx.freshNames.next(), typ)(z.info)
             for {
               _ <- cl.local(ctx.variable(newExpr))
-              stmt <- ctx.statement(in.New(newExpr, exp)(z.info))
-              _ <- cl.write(stmt)
               vLhs <- zDeref match { // DEREFERENCE should not be called in CONSTRUCTOR
                 case (z: in.Deref) :: ctx.CompleteStruct(fs) =>
                   for {
@@ -212,7 +210,7 @@ class ConstructorEncoding extends Encoding {
               vRhs <- ctx.expression(newExpr)
               eq = vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
               w <- cl.write(vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT))
-            } yield w 
+            } yield w
           }
 
           _ <- cl.bind(vRet, vZ)

@@ -53,7 +53,7 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
     case _ => false
   }
 
-  private def isPrivateType(typ: PType): Boolean = typ match {
+  def isPrivateType(typ: PType): Boolean = typ match {
     case atyp: PActualType => atyp match {
       case PBoolType() => false
       case PStringType() => false
@@ -64,7 +64,7 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
       case PByte() => false
       case PUIntPtr() => false
       case PFloat32() | PFloat64() => false
-      case styp: PStructType => isPrivateString(styp.toString) 
+      case styp: PStructType => isPrivateString(styp.toString) | styp.fields.exists(isPrivateNode)
       case PFunctionType(args, _) => isPrivateVParam(args)
       case PPredType(args) => args.exists(arg => isPrivateType(arg))
       case ityp: PInterfaceType => isPrivateString(ityp.toString) 
@@ -111,9 +111,9 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
   private def isPrivateVParam(v: Vector[PParameter]): Boolean = v.exists(p => isPrivateType(p.typ))
   def isPrivateString(s: String): Boolean = s.charAt(0).isLower
 
-  lazy val isPrivateNode: PNode => Boolean = 
-    attr[PNode, Boolean] {
-      case e: PExpression => tree.child(e).exists(isPrivateNode)
+  private def isPrivateNode(node: PNode): Boolean = 
+    tree.child(node).exists {
+      case e: PExpression => isPrivateExp(e) //tree.child(e).exists(isPrivateNode)
       case t: PType => isPrivateType(t)
       case i: PIdnNode => isPrivateIdentifier(i)
       case _ => false

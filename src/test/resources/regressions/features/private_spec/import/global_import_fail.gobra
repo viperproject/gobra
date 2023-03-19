@@ -6,9 +6,10 @@ package main
 // ##(-I ./)
 import bar "bar"
 
-func main() {
+func client0() {
     assert(bar.G == 42) 
 
     //:: ExpectedOutput(type_error) 
     assert(bar.g == 2) 
 }
+

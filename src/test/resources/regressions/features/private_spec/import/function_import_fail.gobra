@@ -6,15 +6,21 @@ package main
 // ##(-I ./)
 import bar "bar"
 
-func main() {
+func client0() {
+    //:: ExpectedOutput(type_error)
+    bar.testPrivate()
+}
+
+func client1() {
     X := &bar.Pair{Left: 2, Right: 0}
 
-    bar.Foo(1,1,X)
+    //:: ExpectedOutput(type_error)
+    X.testPairPrivate()
+}
 
-    x := bar.Getx(2, 2, 3)
-
-    bar.Foo2(1,1,x)
+func client2() {
+    x := bar.GetPvt(2)
 
     //:: ExpectedOutput(type_error)
-    bar.foo3(1,1,x) 
+    x.testPvtPrivate()
 }

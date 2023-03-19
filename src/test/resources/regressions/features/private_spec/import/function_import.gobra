@@ -9,11 +9,13 @@ import bar "bar"
 func main() {
     X := &bar.Pair{Left: 2, Right: 0}
 
-    bar.Foo(1,1,X)
+    bar.PairFunction(1,1,X)
 
-    x := bar.Getx(2, 2, 3)
+    x := bar.GetPvt(2)
 
-    bar.Foo2(1,1,x)
+    assert x.GetPvtX() == 2
 
-    assert(acc(x) && x.Left == 2 && x.Right == 2)
+    bar.PvtFunction(x, 3)
+
+    assert x.GetPvtX() == 5
 }

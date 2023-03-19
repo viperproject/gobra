@@ -154,13 +154,16 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
               , !elems.forall(_.key.nonEmpty)) and
               propForall(elems, createProperty[PKeyedElement] { e =>
                 e.key.map {
-                  case PIdentifierKey(id) if tmap.contains(id.name) =>
+                  case PIdentifierKey(id) if tmap.contains(id.name) && (this == s.context || !isPrivateString(id.name)) =>
                     compositeValAssignableTo.result(e.exp, tmap(id.name))
-
+                  case PIdentifierKey(id) if tmap.contains(id.name) && this != s.context && isPrivateString(id.name) =>
+                    failedProp(s"only public fields can be accessed, private field $id cannot be accessed")
                   case v => failedProp(s"got $v but expected field name")
                 }.getOrElse(successProp)
               })
           } else if (elems.size == s.embedded.size + s.fields.size) {
+            failedProp(s"struct literal has private fields and must be keyed", 
+              this != s.context && s.fields.keys.exists(isPrivateString)) and
             propForall(
               elems.map(_.exp).zip(s.fieldsAndEmbedded.values),/*
               elems.map(_.exp).zip(decl.clauses.flatMap { cl =>

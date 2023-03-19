@@ -29,10 +29,10 @@ func foo(a, b int, x *Pair) (r int) {
 } 
 
 //private function with struct (private specification and no proof)
-requires acc(x) && x.Left == 2 && x.GetP() == 3
-ensures  acc(x) && x.Left == 2
+requires acc(x) && x.Left == 2 
+ensures  acc(x) && x.Left == 2 && x.GetP() == 3
 private {
-  requires acc(x) && x.Left == 2 && x.p == 3
+  requires acc(x) && x.Left == 2
   ensures  acc(x) && x.Left == 2 && x.p == 3
 }
 func foo2(a int, x *Pair) (r int) {
@@ -42,8 +42,8 @@ func foo2(a int, x *Pair) (r int) {
 } 
 
 //private function, no private spec
-requires acc(x) && x.Left == 2 
-ensures  acc(x) && x.Left == 2
+requires acc(x) && x.Left == 2
+ensures  acc(x) && x.Left == 2 && x.p == 3
 func foo3(a int, x *Pair) (r int) {
   x.Left = 2
   x.p = 3
@@ -76,7 +76,7 @@ func factorial(n int) (r int) {
 	}
 }
 
-// private function with private spec, no proof
+// private function with private spec
 requires a == 0
 private {
   requires a == 0

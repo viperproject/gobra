@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package bad
+
+// ##(-I ./)
+import def "defined"
+
+//partial struct test
+func bad1(a, b def.Pair2) {
+  if a.Left == b.Left && a.Right == b.Right {
+    assert a == b
+  }
+}
+
+//no assignment declaration
+requires acc(&a.Left) && acc(&a.Right)
+func bad2(a *def.Pair2) {
+  *a = def.Pair2{}
+}
+
+//no dereference declaration
+requires acc(&a.Left) && acc(&a.Right)
+func bad3(a *def.Pair2) {
+  x := *a
+}
+
+
+

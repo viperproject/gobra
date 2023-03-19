@@ -80,12 +80,11 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     val func = tryEnclosingFunctionOrMethod(p).getOrElse(Violation.violation(s"PrivateEntailmentProof is not enclosed inside a function: $p"))
     val funcId = func.id
 
-    val f = regular(funcId) match {
-      case f: st.Function => f 
-      case _ => Violation.violation(s"expected a function, but got ${funcId}")
+    val (f, isPure, fSpec) = regular(funcId) match {
+      case f: st.Function => (f, f.isPure, f.decl.spec)
+      case s => Violation.violation(s"expected a function, but got ${funcId}")
     }
 
-    val isPure = f.isPure
     val specArgs = f.args
 
     def wellDefIfRightShape: Messages = {
@@ -101,11 +100,11 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     def wellDefIfTerminationMeasuresConsistent: Messages = {
-      val specMeasures = f.decl.spec.terminationMeasures
+      val specMeasures = fSpec.terminationMeasures
 
       lazy val callMeasures = 
-        if (f.decl.spec.privateSpec.isEmpty) { Vector.empty } 
-        else { f.decl.spec.privateSpec.get.terminationMeasures }
+        if (fSpec.privateSpec.isEmpty) { Vector.empty } 
+        else { fSpec.privateSpec.get.terminationMeasures }
 
       // If the spec has termination measures, then the call inside the proof
       // must be done with a spec that also has termination measures

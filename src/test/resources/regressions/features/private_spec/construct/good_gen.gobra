@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package good
+
+// ##(-I ./)
+import gen "generated"
+
+func client() {
+  a := &gen.Pair{}
+  assert(acc(a) && a.PrivateMem() && a.Left == 0 && a.Right == 0)
+}
+
+requires acc(&a.Left) && acc(&a.Right) && a.PrivateMem()
+func good1(a *gen.Pair) {
+  *a = gen.Pair{}
+}
+
+requires acc(&a.Left) && acc(&a.Right) && a.PrivateMem()
+func good2(a *gen.Pair) {
+  x := *a
+}
+
+
+
+
+

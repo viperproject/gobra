@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package good
+
+// ##(-I ./)
+import def "defined"
+
+func client() {
+  a := &def.Pair{}
+  assert(acc(a) && a.PrivateMem() && a.Left == 0 && a.Right == 0)
+
+  b := &def.Pair2{} //Pair2 has no constructor defined
+  assert acc(b) && b.Left == 0 && b.Right == 0
+}
+
+requires acc(&a.Left) && acc(&a.Right) && a.PrivateMem()
+func good1(a *def.Pair) {
+  *a = def.Pair{}
+}
+
+requires acc(&a.Left) && acc(&a.Right) && a.PrivateMem()
+func good2(a *def.Pair) {
+  x := *a
+}
+
+
+
+
+

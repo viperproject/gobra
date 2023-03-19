@@ -3,27 +3,27 @@
 
 package bar
 
+//---------------------------------------------------
+
 type Pair struct {
   Left, Right, p int
 }
 
-type pair struct {
-  Left, Right, p2 int
+pred (p *Pair) Mem() {
+  acc(&p.p)
 }
 
-func Foo5() *pair
-func Foo4(p *pair) int
-
-requires acc(p)
-pure func (p *Pair) GetP() int {
-  return p.p
+ensures acc(&result.Left) && acc(&result.Right) && result.Mem()
+ensures result.Left == value.Left && result.Right == value.Right
+construct &Pair() {
+  fold result.Mem()
 }
 
-const g int = 2
-const G int = 42
-
-var s int = 2
-var S int = 42
+//get p field of Pair
+requires p.Mem()
+pure func (p *Pair) GetPairP() int {
+  return unfolding p.Mem() in p.p
+}
 
 //private function with struct (private specification and proof)
 requires acc(x) && x.Left == 2
@@ -32,38 +32,71 @@ private {
   requires acc(x) && x.Left == 2
   ensures  acc(x) && x.Left == 2 && x.p == 3
   proof {
-    Foo(a, b, x)
+    PairFunction(a, b, x)
   }
 }
-func Foo(a, b int, x *Pair)
-
-ensures acc(r) && r.Left == a && r.Right == b
-func Getx(a, b, c int) (r *pair) {
-  return &pair{Left: a, Right: b, p2: c}
+func PairFunction(a, b int, x *Pair) {
+  x.p = x.Left + 1
 }
 
-requires acc(x) && x.Left == 2 && x.Right == 2
-ensures  acc(x) && x.Left == 2 && x.Right == 2
+//--------------------------------------------------
+
+type pvt struct {
+  x int
+}
+
+pred (p *pvt) Mem() {
+  acc(&p.x)
+}
+
+ensures result.Mem()
+construct &pvt() {
+  fold result.Mem()
+}
+
+ensures p.Mem() && p.GetPvtX() == a
+func GetPvt(a int) (p *pvt) {
+  p := &pvt{x: a}
+  fold p.Mem()
+}
+
+requires p.Mem()
+pure func (p *pvt) GetPvtX() int {
+  return unfolding p.Mem() in p.x
+}
+
+requires p.Mem()
+ensures p.Mem()
+ensures p.GetPvtX() == old(p.GetPvtX()) + a
 private {
-  requires acc(x) && x.Left == 2 && x.Right == 2
-  ensures  acc(x) && x.Left == 2 && x.Right == 2 && x.p2 == 3
+  requires acc(p)
+  ensures acc(p)
+  ensures p.x == old(p.x) + a
   proof {
-    Foo2(a, b, x)
+    unfold p.Mem()
+    PvtFunction(p, a)
+    fold p.Mem()
   }
 }
-func Foo2(a, b int, x *pair)
-
-requires acc(x) && x.Left == 2 
-ensures  acc(x) && x.Left == 2 
-private {
-  requires acc(x) && x.Left == 2 
-  ensures  acc(x) && x.Left == 2 && x.p2 == 3
-  proof {
-    foo3(a, b, x)
-  }
+func PvtFunction(p *pvt, a int) {
+  p.x = p.x + a
 }
-func foo3(a, b int, x *pair)
 
+//--------------------------------------------------
+
+func testPrivate()
+
+func (p *Pair) testPairPrivate()
+
+func (p *pvt) testPvtPrivate()
+
+
+//---------------------------------------------------
+
+const g int = 2
+const G int = 42
+
+//----------------------------------------------------
 
 pred P(a int) {
   a == 0

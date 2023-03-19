@@ -329,7 +329,13 @@ case class DerefConstructError(info: Source.Verifier.Info, src: Source.Parser.In
 
 case class PermissionDerefConstructError(info: Source.Verifier.Info, generated: Boolean) extends VerificationError {
   override def localId: String = "gen_deref_perm_error"
-  override def localMessage: String = s"Permission to call ${if (generated) "generated " else ""}dereference for ${info.trySrc[frontend.PDeref]("")} might not suffice"
+  override def localMessage: String = s"Permission to call ${if (generated) "generated " else ""}dereference " +
+    s"for ${info.trySrc[frontend.PDeref]("")} might not suffice"
+}
+
+case class DereferenceDeclMissing(info: Source.Verifier.Info) extends VerificationError {
+  override def localId = "dereference_decl_not_implemented"
+  override def localMessage: String = s"Dereference declaration for ${info.trySrc[frontend.PDeref]("")} is not implemented"
 }
 
 case class AssignConstructError(info: Source.Verifier.Info, src: Source.Parser.Info, generated: Boolean) extends VerificationError {
@@ -347,7 +353,13 @@ case class AssignConstructError(info: Source.Verifier.Info, src: Source.Parser.I
 
 case class PermissionAssignConstructError(info: Source.Verifier.Info, generated: Boolean) extends VerificationError {
   override def localId: String = "gen_assign_perm_error"
-  override def localMessage: String = s"Permission to call ${if (generated) "generated " else ""}assignment for ${info.trySrc[frontend.PAssignment]("")} may not suffice"
+  override def localMessage: String = s"Permission to call ${if (generated) "generated " else ""}assignment " +
+    s"for ${info.trySrc[frontend.PAssignment]("")} may not suffice"
+}
+
+case class AssignmentDeclMissing(info: Source.Verifier.Info) extends VerificationError {
+  override def localId = "assignment_decl_not_implemented"
+  override def localMessage: String = s"Assingment declaration for ${info.trySrc[frontend.PType]("")} is not implemented"
 }
 
 case class GeneratedImplementationProofError(subT: String, superT: String, error: VerificationError) extends ErrorExtension(error) {

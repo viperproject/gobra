@@ -23,21 +23,7 @@ func Foo(x *Pair) {
   x.p = 3
 } 
 
-//ghostness of arguments
-//:: ExpectedOutput(type_error)
-requires acc(x) && x.Left == 2 
-ensures  acc(x) && x.Left == 2
-private {
-  requires acc(x) && x.Left == 2
-  ensures  acc(x) && x.Left == 2 && x.p == 3
-  proof {
-    a = Foo2(x)
-  }
-}
-func Foo2(x *Pair) (ghost a int) {
-  x.Left = 2
-  x.p = 3
-} 
+
 
 
 

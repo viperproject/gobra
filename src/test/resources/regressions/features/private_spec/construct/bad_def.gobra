@@ -1,0 +1,49 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package bad
+
+// ##(-I ./)
+import def "defined"
+
+//partial struct test (equality axiom)
+//constructor not defined
+func bad1(a, b def.Pair2) {
+  if a.Left == b.Left && a.Right == b.Right {
+    assert a == b
+  }
+}
+
+//partial struct test (equality axiom)
+//constructor defined
+func bad2(a, b def.Pair) {
+  if a.Left == b.Left && a.Right == b.Right {
+    assert a == b
+  }
+}
+
+//assignment declaration test
+//assignment defined
+requires acc(&a.Left) && acc(&a.Right)
+func bad3(a *def.Pair) {
+  *a = def.Pair{}
+}
+
+//dereference declaration test
+//dereference defined
+requires acc(&a.Left) && acc(&a.Right)
+func bad4(a *def.Pair) {
+  x := *a
+}
+
+//shared struct comparison with dereference declaration test
+//dereference defined
+requires acc(&a.Left) && acc(&a.Right) && a.PrivateMem()
+requires acc(&b.Left) && acc(&b.Right) && b.PrivateMem()
+func bad5(a, b *def.Pair) {
+  assert *a == *b
+}
+
+
+
+

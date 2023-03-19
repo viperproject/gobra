@@ -10,11 +10,11 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.gobra.translator.Names
-import viper.gobra.reporting.{PrivateEntailmentError, DefaultErrorBackTranslator, AssertionFalseError, InsufficientPermissionError, Source}
+import viper.gobra.reporting.{PrivateEntailmentError, DefaultErrorBackTranslator, Source}
 import viper.gobra.reporting.BackTranslator.ErrorTransformer
 import viper.gobra.reporting.BackTranslator._
 import viper.silver.{ast => vpr}
-import viper.silver.verifier.{errors => err, reasons}
+import viper.silver.verifier.{errors => err}
 
 class PrivateImpl extends Private {
 
@@ -82,6 +82,7 @@ class PrivateImpl extends Private {
         for {
           init <- vResultInit
           core <- ctx.statement(b)
+          _ <- cl.errorT(privateProofError(core))
         } yield vu.seqn(Vector(init, core))(pos, info, errT)
       }})
 
@@ -161,6 +162,8 @@ class PrivateImpl extends Private {
         } yield vu.seqn(Vector(init, core))(pos, info, errT)
       }})
 
+      
+
       proof = if (proof_body.isEmpty) { None } 
       else {
         Some(vpr.Method(
@@ -183,7 +186,7 @@ class PrivateImpl extends Private {
   private def privateProofError(stmt: vpr.Stmt): ErrorTransformer = {
     case e@err.PostconditionViolated(Source(info), _, reason, _) if e causedBy stmt => 
       PrivateEntailmentError(info).dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
-    case e@err.PreconditionInCallFalse(Source(info), reason, _) if e causedBy stmt =>
+    case _@err.PreconditionInCallFalse(Source(info), reason, _) => //if e causedBy stmt =>
       PrivateEntailmentError(info).dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
   }
 }

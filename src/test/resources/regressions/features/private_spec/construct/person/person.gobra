@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package person
+
+type Person struct {
+  Name string
+  Age int
+  address
+}
+
+type address struct {
+	street  string
+	city    string
+	country string
+}
+
+pred (p *Person) Mem() {
+  acc(&p.street) && acc(&p.city) && acc(&p.country)
+}
+
+ensures acc(&result.Name) && acc(&result.Age) && result.Mem()
+construct &Person() {
+  fold result.Mem()
+}
+
+
+
+
+

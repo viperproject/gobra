@@ -1,0 +1,35 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package defined
+
+type Pair struct {
+  Left, Right, p int
+}
+
+type Pair2 struct {
+  Left, Right int
+}
+
+pred (s *Pair) PrivateMem() {
+  acc(&s.p)
+}
+
+ensures acc(&result.Left) && acc(&result.Right) && result.PrivateMem()
+ensures result.Left == value.Left && result.Right == value.Right
+construct &Pair() {
+  fold result.PrivateMem()
+}
+
+requires acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
+pure deref &Pair() {
+  return unfolding this.PrivateMem() in *this
+}
+
+requires acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
+ensures  acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
+ensures  a == *this // a == deref(this)
+assign &Pair(a Pair)
+
+
+

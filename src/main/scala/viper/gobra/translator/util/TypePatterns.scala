@@ -202,7 +202,7 @@ object TypePatterns {
       def unapply(arg: in.Type): Option[Vector[in.Field]] = underlyingType(arg)(ctx) match {
         case t: in.StructT =>
           val existingFields = t.fields.filter(!_.notImported)
-          if (!t.imported && existingFields.size == t.fields.size) None
+          if (!t.imported) None //&& existingFields.size == t.fields.size) None
           else Some(existingFields)
         case _ => None
       }

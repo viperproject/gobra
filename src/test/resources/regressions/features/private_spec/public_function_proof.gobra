@@ -60,7 +60,7 @@ pred P(a int) {
   a == 0
 }
 
-// public function, predicates
+//unfolding predicates
 requires P(a)
 ensures P(a)
 private {
@@ -78,6 +78,7 @@ pred p(a int) {
   a == 0
 }
 
+//predicates
 requires P(a)
 ensures P(a)
 private {
@@ -90,3 +91,17 @@ private {
 func FPred2(a int, ghost b int) 
 
 
+//ghostness of arguments
+requires acc(x) && x.Left == 2 
+ensures  acc(x) && x.Left == 2
+private {
+  requires acc(x) && x.Left == 2
+  ensures  acc(x) && x.Left == 2 && x.p == 3
+  proof {
+    a = FooGhost(x)
+  }
+}
+func FooGhost(x *Pair) (ghost a int) {
+  x.Left = 2
+  x.p = 3
+} 

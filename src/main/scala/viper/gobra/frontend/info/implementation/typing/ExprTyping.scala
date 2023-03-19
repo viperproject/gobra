@@ -54,14 +54,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PDot =>
       resolve(n) match {
         case Some(f: ap.FieldSelection) => 
-          if (this != f.symb.context && isPrivate(n)) error(n, s"expression error: expected public field, but got $n") else noMessages
+          error(n, s"expression error: expected public field, but got $n", this != f.symb.context && isPrivate(n))
         case Some(_: ap.ReceivedMethod) => noMessages
         case Some(_: ap.ReceivedPredicate) => noMessages
         case Some(_: ap.MethodExpr) => noMessages
         case Some(_: ap.PredicateExpr) => noMessages
         // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
         case Some(c: ap.Constant) => 
-          if (this != c.symb.context && isPrivate(n)) error(n, s"expression error: expected public constant, but got $n") else noMessages
+          error(n, s"expression error: expected public constant, but got $n", this != c.symb.context && isPrivate(n))
         case Some(_: ap.GlobalVariable) => noMessages
         case Some(_: ap.Function) => noMessages
         case Some(_: ap.Closure) => violation(s"the name of a function literal should not be accessible from a different package")

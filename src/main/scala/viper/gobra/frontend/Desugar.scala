@@ -3016,7 +3016,7 @@ object Desugar {
     def isStructType(typ: in.Type): Boolean = structType(typ).isDefined
 
     def structType(typ: in.Type): Option[in.StructT] = underlyingType(typ) match {
-      case st: in.StructT => Some(st)
+      case in.StructT(f, addr, _) => Some(in.StructT(f, addr, imported))
       case _ => None
     }
 

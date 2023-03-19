@@ -8,7 +8,7 @@ package viper.gobra.translator.encodings.structs
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.Source
+import viper.gobra.reporting.{Source, AssignmentDeclMissing, DereferenceDeclMissing}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.TypeEncoding
@@ -17,6 +17,7 @@ import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
+import viper.silver.verifier.ErrorReason
 
 private[structs] object StructEncoding {
   /** Parameter of struct components. */
@@ -122,16 +123,25 @@ class StructEncoding extends TypeEncoding {
     case (in.Assignee((fa: in.FieldRef) :: _ / Exclusive), rhs, src) =>
       ctx.assignment(in.Assignee(fa.recv), in.StructUpdate(fa.recv, fa.field, rhs)(src.info))(src)
 
-    case (in.Assignee(lhs :: ctx.Struct(lhsFs) / Shared), rhs :: ctx.Struct(rhsFs), src) =>
+    case (in.Assignee(lhs :: ctx.CompleteStruct(lhsFs) / Shared), rhs :: ctx.CompleteStruct(rhsFs), src) =>
+      for {
+        x <- bind(lhs)(ctx)
+        y <- bind(rhs)(ctx)
+        lhsFAs = fieldAccesses(x, lhsFs).map(in.Assignee.Field)
+        rhsFAs = fieldAccesses(y, rhsFs)
+        res <- seqns((lhsFAs zip rhsFAs).map { case (lhsFA, rhsFA) => ctx.assignment(lhsFA, rhsFA)(src) })
+      } yield res
+
+    case (in.Assignee(lhs :: ctx.PartialStruct(_) / Shared), rhs :: ctx.PartialStruct(_), src) =>
       val construct = constructName(ctx.lookupAssignments(lhs.typ), ctx.lookupConstructor(lhs.typ))
+      val (pos, info, errT) = lhs.vprMeta
       if (construct.isEmpty()) {
+        val exp = vpr.BoolLit(false)(pos, info, errT)
+        val errorT = (x: Source.Verifier.Info, _: ErrorReason) => AssignmentDeclMissing(x)
         for {
-          x <- bind(lhs)(ctx)
-          y <- bind(rhs)(ctx)
-          lhsFAs = fieldAccesses(x, lhsFs).map(in.Assignee.Field)
-          rhsFAs = fieldAccesses(y, rhsFs)
-          res <- seqns((lhsFAs zip rhsFAs).map { case (lhsFA, rhsFA) => ctx.assignment(lhsFA, rhsFA)(src) })
-        } yield res
+          _ <- assert(exp, errorT)
+          ass = vpr.Assert(exp)(pos, info, errT)
+        } yield ass
       } else {
         val (pos, info, errT) = src.vprMeta
         val exprTyp = ctx.typ(lhs.typ)
@@ -269,10 +279,15 @@ class StructEncoding extends TypeEncoding {
     
     case (loc: in.Location) :: ctx.PartialStruct(_) / Shared =>
       val construct = constructName(ctx.lookupDereference(loc.typ), ctx.lookupConstructor(loc.typ))
+      val (pos, info, errT) = loc.vprMeta
       if (construct.isEmpty()) { 
-        Violation.violation(s"Did not find dereference for partial struct $loc") //sh.convertToExclusive(loc)(ctx, pex)
+        val exp = vpr.BoolLit(false)(pos, info, errT)
+        val errorT = (x: Source.Verifier.Info, _: ErrorReason) => DereferenceDeclMissing(x)
+        for {
+          _ <- assert(exp, errorT)
+          e = exp
+        } yield e
       } else { 
-        val (pos, info, errT) = loc.vprMeta
         for {
           b <- bind(loc)(ctx)
           v = variable(ctx)(b).localVar
@@ -350,21 +365,41 @@ class StructEncoding extends TypeEncoding {
     * [v: *T = new(lit)] if has(T*_CONSTRUCTOR) -> [v = T*_CONSTRUCTOR(lit)]
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
-    case newStmt@in.New(target, expr) if typ(ctx).isDefinedAt(expr.typ) =>
+    case newStmt@in.New(target, expr :: ctx.CompleteStruct(_)) if typ(ctx).isDefinedAt(expr.typ) =>
+      val (pos, info, errT) = newStmt.vprMeta
+      val z = in.LocalVar(ctx.freshNames.next(), target.typ.withAddressability(Exclusive))(newStmt.info)
+      val zDeref = in.Deref(z, underlyingType(z.typ)(ctx))(newStmt.info)
+      seqn(
+        for {
+          _ <- local(ctx.variable(z))
+          footprint <- addressFootprint(ctx)(zDeref, in.FullPerm(zDeref.info))
+          eq <- ctx.equal(zDeref, expr)(newStmt)
+          _ <- write(vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT))
+          ass <- ctx.assignment(in.Assignee.Var(target), z)(newStmt)
+        } yield ass
+      ): CodeWriter[vpr.Stmt]
+
+    case newStmt@in.New(target, expr :: ctx.PartialStruct(lhsFs)) if typ(ctx).isDefinedAt(expr.typ) =>
       val (pos, info, errT) = newStmt.vprMeta
       val construct = constructName(ctx.lookupConstructor(target.typ), None)
-      val imported = target.typ match {
-        case in.StructT(_, _, i) => i
-        case _ => false
-      }
-      if (construct.isEmpty() || !imported) {
+      if (construct.isEmpty) {
         val z = in.LocalVar(ctx.freshNames.next(), target.typ.withAddressability(Exclusive))(newStmt.info)
         val zDeref = in.Deref(z, underlyingType(z.typ)(ctx))(newStmt.info)
         seqn(
           for {
             _ <- local(ctx.variable(z))
             footprint <- addressFootprint(ctx)(zDeref, in.FullPerm(zDeref.info))
-            eq <- ctx.equal(zDeref, expr)(newStmt)
+            eq <- zDeref match { // a new statement without constructor should use the default constructor
+              case ((d: in.Deref) :: ctx.Struct(fz)) =>
+                for {
+                  x <- bind(d)(ctx)
+                  y <- bind(expr)(ctx)
+                  lhsFAccs = fz.map(f => in.FieldRef(x, f)(x.info))
+                  rhsFAccs = lhsFs.map(f => in.FieldRef(y, f)(y.info))
+                  equalFields <- sequence((lhsFAccs zip rhsFAccs).map { case (lhsFA, rhsFA) => ctx.equal(lhsFA, rhsFA)(newStmt) })
+                } yield VU.bigAnd(equalFields)(pos, info, errT)
+              case _ => ???
+            }
             _ <- write(vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT))
             ass <- ctx.assignment(in.Assignee.Var(target), z)(newStmt)
           } yield ass

@@ -6,10 +6,18 @@ package main
 // ##(-I ./)
 import bar "bar"
 
-func main() {
-    x := &bar.Pair{Left: 2, Right: 0}
+func client0() {
+    //:: ExpectedOutput(type_error)
+    x := &bar.Pair{Left: 2, Right: 0, p: 4}
+}
 
-    assert(acc(x) && x.Left == 2 && x.Right == 0)
+func client1() {
+    //:: ExpectedOutput(type_error)
+    y := &bar.Pair{2, 0, 4}
+}
+
+func client2() {
+    x := &bar.Pair{Left: 2, Right: 0}
 
     //:: ExpectedOutput(type_error)
     assert(x.p == 0)

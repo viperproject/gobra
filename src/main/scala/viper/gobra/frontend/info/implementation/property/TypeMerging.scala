@@ -6,6 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
+import viper.gobra.ast.internal.{Float32T, Float64T}
 import viper.gobra.frontend.info.base.Type.{AdtClauseT, AdtT, ArrayT, ChannelT, GhostSliceT, IntT, InternalSingleMulti, InternalTupleT, MapT, MultisetT, PermissionT, PointerT, SequenceT, SetT, Single, SliceT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -23,6 +24,10 @@ trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
           (lst, rst) match {
             case (a, UNTYPED_INT_CONST) if underlyingType(a).isInstanceOf[IntT] => Some(a)
             case (UNTYPED_INT_CONST, b) if underlyingType(b).isInstanceOf[IntT] => Some(b)
+            case (a, UNTYPED_INT_CONST) if underlyingType(a).isInstanceOf[Float64T] => Some(a)
+            case (UNTYPED_INT_CONST, b) if underlyingType(b).isInstanceOf[Float64T] => Some(b)
+            case (a, UNTYPED_INT_CONST) if underlyingType(a).isInstanceOf[Float32T] => Some(a)
+            case (UNTYPED_INT_CONST, b) if underlyingType(b).isInstanceOf[Float32T] => Some(b)
             case (IntT(_), PermissionT) => Some(PermissionT)
             case (PermissionT, IntT(_)) => Some(PermissionT)
             case (SequenceT(l), SequenceT(r)) => typeMerge(l,r) map SequenceT

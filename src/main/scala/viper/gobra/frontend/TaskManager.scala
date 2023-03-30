@@ -48,13 +48,49 @@ trait Job[R] {
   }
 }
 
+trait ParallelJob[R] {
+  /*
+  protected def compute(): Future[R]
+  private var compututationStarted: Option[Future[R]] = None
+  def call(): Future[R] = {
+    compututationStarted.getOrElse {
+      val fut = compute()
+      compututationStarted = Some(fut)
+      fut
+    }
+  }
+  */
+
+  private var compututationStarted = false
+  private val promise: Promise[R] = Promise()
+  def getFuture: Future[R] = promise.future
+  protected def compute(): Future[R]
+
+  def call(executionContext: GobraExecutionContext): Future[R] = {
+    getFuture.value match {
+      case Some(Success(res)) => return Future.successful(res) // return already computed type-checker result
+      case Some(Failure(exception)) => Violation.violation(s"Job resulted in exception: $exception")
+      case _ =>
+    }
+    Violation.violation(!compututationStarted, s"Job $this is already on-going")
+    compututationStarted = true
+    compute()
+      .map(res => {
+        promise.success(res)
+        res
+      })(executionContext)
+  }
+}
+
 class TaskManager[K, R](mode: TaskManagerMode) {
+  require(mode != Parallel)
+
   private val jobs: ConcurrentMap[K, Job[R]] = new ConcurrentHashMap()
 
   /**
     * returns true if job has been inserted and thus was previously absent
     */
-  def addIfAbsent(id: K, job: Job[R], insertOnly: Boolean = false)(executionContext: GobraExecutionContext): Boolean = {
+  def addIfAbsent(id: K, job: Job[R], insertOnly: Boolean = false): Unit = {
     var isAbsent = false
     // first insert job, then run it (if necessary)
     jobs.computeIfAbsent(id, _ => {
@@ -66,12 +102,10 @@ class TaskManager[K, R](mode: TaskManagerMode) {
       mode match {
         case Lazy => // don't do anything as of now
         case Sequential => job.call()
-        case Parallel => Future{ job.call() }(executionContext)
       }
     }
-    isAbsent
   }
-
+  /*
   def getFuture(id: K): Future[R] = {
     val job = jobs.get(id)
     Violation.violation(job != null, s"Task $id not found")
@@ -80,13 +114,13 @@ class TaskManager[K, R](mode: TaskManagerMode) {
 
   def getAllFutures: Iterable[(K, Future[R])] =
     jobs.asScala.toVector.map { case (key, job) => (key, job.getFuture) }
-
+  */
   def getResult(id: K): R = {
     val job = jobs.get(id)
     Violation.violation(job != null, s"Task $id not found")
     getResultFromJob(job)
   }
-
+  /*
   def getAllResults(executionContext: GobraExecutionContext): Iterable[R] = mode match {
     case Lazy | Sequential => jobs.values().asScala.map(getResultFromJob)
     case Parallel =>
@@ -94,7 +128,10 @@ class TaskManager[K, R](mode: TaskManagerMode) {
       implicit val executor: GobraExecutionContext = executionContext
       Await.result(Future.sequence(futs), Duration.Inf)
   }
-
+   */
+  def getAllResults: Iterable[R] =
+    jobs.values().asScala.map(getResultFromJob)
+  /*
   def getAllResultsWithKeys(executionContext: GobraExecutionContext): Iterable[(K, R)] = mode match {
     case Lazy | Sequential => jobs.asScala.toVector.map { case (key, job) => (key, getResultFromJob(job)) }
     case Parallel =>
@@ -102,6 +139,9 @@ class TaskManager[K, R](mode: TaskManagerMode) {
       val futs = jobs.asScala.toVector.map { case (key, job) => job.getFuture.map(res => (key, res)) }
       Await.result(Future.sequence(futs), Duration.Inf)
   }
+   */
+  def getAllResultsWithKeys: Iterable[(K, R)] =
+    jobs.asScala.toVector.map { case (key, job) => (key, getResultFromJob(job)) }
 
   private def getResultFromJob(job: Job[R]): R = mode match {
     case Lazy => job.call() // we perform the computation now that we need the result
@@ -109,8 +149,36 @@ class TaskManager[K, R](mode: TaskManagerMode) {
       // note that we cannot await the future here as type-checking of this package might not have started yet.
       // Thus, we use `.call()` that either returns a previously calculated type-checking result or will calculate it.
       job.call()
-    case Parallel =>
-      Await.result(job.getFuture, Duration.Inf)
+    // case Parallel =>
+    //   Await.result(job.getFuture, Duration.Inf)
+  }
+}
+
+class ParallelTaskManager[K, R] {
+  private val jobs: ConcurrentMap[K, ParallelJob[R]] = new ConcurrentHashMap()
+
+  /**
+    * returns true if job has been inserted and thus was previously absent
+    */
+  def addIfAbsent(id: K, job: ParallelJob[R], insertOnly: Boolean = false)(executionContext: GobraExecutionContext): Future[R] = {
+    var isAbsent = false
+    // first insert job, then run it (if necessary)
+    val res = jobs.computeIfAbsent(id, _ => {
+      isAbsent = true
+      job
+    })
+    // now run it but only if it's a new job:
+    if (isAbsent && !insertOnly) {
+      job.call(executionContext)
+    }
+    // return the future (either of the inserted job or the already existing job with the same id)
+    res.getFuture
+  }
+
+  def getAllResultsWithKeys(executionContext: GobraExecutionContext): Iterable[(K, R)] = {
+      implicit val executor: GobraExecutionContext = executionContext
+      val futs = jobs.asScala.toVector.map { case (key, job) => job.getFuture.map(res => (key, res)) }
+      Await.result(Future.sequence(futs), Duration.Inf)
   }
 }
 

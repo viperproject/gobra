@@ -11,7 +11,7 @@ import org.bitbucket.inkytonik.kiama.relation.Tree
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import org.bitbucket.inkytonik.kiama.util.{Position, Source}
 import viper.gobra.ast.frontend.{PImport, PNode, PPackage}
-import viper.gobra.frontend.{Config, Job, TaskManager}
+import viper.gobra.frontend.{Config, Job, ParallelJob, ParallelTaskManager, TaskManager}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, BuiltInPackage, RegularImport}
 import viper.gobra.frontend.Parser.{ParseResult, ParseSuccessResult}
 import viper.gobra.frontend.TaskManagerMode.{Lazy, Parallel, Sequential}
@@ -168,8 +168,8 @@ object Info extends LazyLogging {
     * Therefore, package management is centralized.
     */
   class Context(val config: Config, val parseResults: Map[AbstractPackage, ParseSuccessResult])(val executionContext: GobraExecutionContext) extends GetParseResult {
-    private val typeCheckManager = new TaskManager[AbstractPackage, TypeCheckResult](config.typeCheckMode)
-    private val parallelTypeCheckManager = new TaskManager[AbstractPackage, Future[TypeCheckResult]](config.typeCheckMode)
+    private val typeCheckManager = new TaskManager[AbstractPackage, TypeCheckResult](if (config.typeCheckMode == Parallel) Sequential else config.typeCheckMode)
+    private val parallelTypeCheckManager = new ParallelTaskManager[AbstractPackage, TypeCheckResult]()
 
     trait TypeCheckJob {
       protected def typeCheck(pkgSources: Vector[Source], pkg: PPackage, dependentTypeInfo: DependentTypeInfo, isMainContext: Boolean = false): TypeCheckResult = {
@@ -216,7 +216,7 @@ object Info extends LazyLogging {
             val dependentPackage = AbstractPackage(importTarget)(config)
             // add to manager & typecheck them if not present yet
             val job = SequentialTypeCheckJob(dependentPackage)
-            typeCheckManager.addIfAbsent(dependentPackage, job)(executionContext)
+            typeCheckManager.addIfAbsent(dependentPackage, job)
             (importTarget, () => typeCheckManager.getResult(dependentPackage))
           })
 
@@ -224,7 +224,8 @@ object Info extends LazyLogging {
       }
     }
 
-    case class ParallelTypeCheckJob(abstractPackage: AbstractPackage, isMainContext: Boolean = false) extends Job[Future[TypeCheckResult]] with TypeCheckJob {
+    // case class ParallelTypeCheckJob(abstractPackage: AbstractPackage, isMainContext: Boolean = false) extends Job[Future[TypeCheckResult]] with TypeCheckJob {
+    case class ParallelTypeCheckJob(abstractPackage: AbstractPackage, isMainContext: Boolean = false) extends ParallelJob[TypeCheckResult] with TypeCheckJob {
       override def toString: String = s"ParallelTypeCheckJob for $abstractPackage"
 
       override def compute(): Future[TypeCheckResult] = {
@@ -239,8 +240,11 @@ object Info extends LazyLogging {
             // add to manager & typecheck them if not present yet
             val job = ParallelTypeCheckJob(dependentPackage)
             parallelTypeCheckManager.addIfAbsent(dependentPackage, job)(executionContext)
+              .map(typeInfo => (importTarget, () => typeInfo))(executionContext)
+            /*
             parallelTypeCheckManager.getFuture(dependentPackage).flatten
               .map(typeInfo => (importTarget, () => typeInfo))(executionContext)
+            */
           })
         implicit val executor: GobraExecutionContext = executionContext
         val dependentJobsFut = Future.sequence(dependentJobsFuts)
@@ -259,12 +263,15 @@ object Info extends LazyLogging {
           lazyTypeCheckRecursively(pkg, isMainContext = true)
           typeCheckManager.getResult(pkg)
         case Sequential =>
-          typeCheckManager.addIfAbsent(pkg, SequentialTypeCheckJob(pkg, isMainContext = true))(executionContext)
+          typeCheckManager.addIfAbsent(pkg, SequentialTypeCheckJob(pkg, isMainContext = true))
           typeCheckManager.getResult(pkg)
         case Parallel =>
+          /*
           parallelTypeCheckManager.addIfAbsent(pkg, ParallelTypeCheckJob(pkg, isMainContext = true))(executionContext)
           // wait for result:
           val fut = parallelTypeCheckManager.getResult(pkg)
+          */
+          val fut = parallelTypeCheckManager.addIfAbsent(pkg, ParallelTypeCheckJob(pkg, isMainContext = true))(executionContext)
           Await.result(fut, Duration.Inf)
       }
     }
@@ -281,9 +288,9 @@ object Info extends LazyLogging {
 
       val dependentPackages = allImports(abstractPackage) + BuiltInPackage
       // create jobs for all dependent packages
-      dependentPackages.foreach(pkg => typeCheckManager.addIfAbsent(pkg, LazyTypeCheckJob(pkg))(executionContext))
+      dependentPackages.foreach(pkg => typeCheckManager.addIfAbsent(pkg, LazyTypeCheckJob(pkg)))
       // create job for this package:
-      typeCheckManager.addIfAbsent(abstractPackage, LazyTypeCheckJob(abstractPackage, isMainContext = isMainContext))(executionContext)
+      typeCheckManager.addIfAbsent(abstractPackage, LazyTypeCheckJob(abstractPackage, isMainContext = isMainContext))
     }
     /*
     def getContexts: Iterable[ExternalTypeInfo] = {

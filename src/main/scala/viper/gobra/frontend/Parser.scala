@@ -17,8 +17,9 @@ import org.antlr.v4.runtime.{CharStreams, CommonTokenStream, DefaultErrorStrateg
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, PreambleContext, SourceFileContext, SpecMemberContext, StmtOnlyContext, TypeOnlyContext}
-import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, RegularImport, RegularPackage}
+import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, BuiltInPackage, RegularImport, RegularPackage}
 import viper.gobra.frontend.Parser.ParseSuccessResult
+import viper.gobra.frontend.TaskManagerMode.{Lazy, Parallel, Sequential}
 import viper.gobra.util.GobraExecutionContext
 import viper.silver.ast.SourcePosition
 
@@ -34,20 +35,119 @@ object Parser {
   type ParseResult = Either[Vector[ParserError], ParseSuccessResult]
 
   class ParseManager(config: Config, executionContext: GobraExecutionContext) extends LazyLogging {
-    private val manager = new TaskManager[AbstractPackage, Future[ParseResult]](TaskManagerMode.Parallel)
+    private val manager = new TaskManager[AbstractPackage, ParseResult](Sequential) // we currently do not support the lazy mode
+    private val parallelManager = new ParallelTaskManager[AbstractPackage, ParseResult]
 
     def parse(pkgInfo: PackageInfo): ParseResult = {
       val pkg = RegularPackage(pkgInfo.id)
-      val parseJob = ParseInfoJob(pkgInfo)
+      /*
       manager.addIfAbsent(pkg, parseJob)(executionContext)
       // trigger and wait for parsing of at least this package (which will ensure that parse jobs for all dependent packages are created too)
       Await.result(manager.getResult(pkg), Duration.Inf)
+       */
+      config.typeCheckMode match {
+        case Lazy | Sequential =>
+          val parseJob = ParseInfoJob(pkgInfo)
+          manager.addIfAbsent(pkg, parseJob)
+          manager.getResult(pkg)
+        case Parallel =>
+          val parseJob = ParallelParseInfoJob(pkgInfo)
+          val fut = parallelManager.addIfAbsent(pkg, parseJob)(executionContext)
+          Await.result(fut, Duration.Inf)
+      }
     }
 
-    trait ParseJob extends Job[Future[ParseResult]] {
+    trait ImportResolver {
+      def pkgInfo: PackageInfo
+
+      type ImportErrorFactory = String => Vector[ParserError]
+      // protected def getImports(importNodes: Vector[PImport], pom: PositionManager): Set[(AbstractImport, ImportErrorFactory)] = {
+      protected def getImports(importNodes: Vector[PImport], pom: PositionManager): Vector[(AbstractPackage, Either[Vector[ParserError], Vector[Source]])] = {
+        val explicitImports: Vector[(AbstractImport, ImportErrorFactory)] = importNodes
+          .map(importNode => {
+            val importErrorFactory: ImportErrorFactory = (errMsg: String) => {
+              val err = pom.translate(message(importNode, errMsg), ParserError)
+              // config.reporter report ParserErrorMessage(err.head.position.get.file, err)
+              err
+            }
+            (RegularImport(importNode.importPath), importErrorFactory)
+          })
+        val imports = if (pkgInfo.isBuiltIn) { explicitImports } else {
+          val builtInImportErrorFactory: ImportErrorFactory = (errMsg: String) => {
+            val err = Vector(ParserError(errMsg, None))
+            config.reporter report ParserErrorMessage(err.head.position.get.file, err)
+            err
+          }
+          val builtInImportTuple = (BuiltInImport, builtInImportErrorFactory)
+          explicitImports :+ builtInImportTuple
+        }
+
+        val errsOrSources = imports.map { case (directImportTarget, importErrorFactory) =>
+          val directImportPackage = AbstractPackage(directImportTarget)(config)
+          val nonEmptyImportedSources = for {
+            resolveSourceResults <- PackageResolver.resolveSources(directImportTarget)(config)
+            importedSources = resolveSourceResults.map(_.source)
+            nonEmptyImportedSources <- if (importedSources.isEmpty) Left(s"No source files for package '$directImportTarget' found") else Right(importedSources)
+          } yield nonEmptyImportedSources
+          val res = nonEmptyImportedSources.left.map(importErrorFactory)
+          (directImportPackage, res)
+        }
+        errsOrSources
+        /*
+        val (errors, sources) = errsOrSources.partitionMap(identity)
+        if (errors.nonEmpty) {
+          Left(errors)
+        } else {
+          Right(sources)
+        }
+         */
+      }
+    }
+
+    trait ParseJob extends Job[ParseResult] with ImportResolver {
       def pkgInfo: PackageInfo
       def pkgSources: Vector[Source]
       def specOnly: Boolean
+
+      private def getImportsForPackage(p: PPackage): Vector[(AbstractPackage, Either[Vector[ParserError], Vector[Source]])] = {
+        getImports(p.imports, p.positions)
+      }
+
+      override def compute(): ParseResult = {
+        require(pkgSources.nonEmpty)
+
+        val startMs = System.currentTimeMillis()
+        val preprocessedSources = preprocess(pkgSources)(config)
+
+        for {
+          parsedProgram <- Parser.process(preprocessedSources, pkgInfo, specOnly = specOnly)(config)
+          imports = getImportsForPackage(parsedProgram)
+          _ = imports.map {
+            case (directImportPackage, Right(nonEmptySources)) => manager.addIfAbsent(directImportPackage, ParseSourcesJob(nonEmptySources, directImportPackage))
+            case (directImportPackage, Left(errs)) => manager.addIfAbsent(directImportPackage, ParseFailureJob(errs))
+          }
+          postprocessedProgram <- Parser.postprocess(Right((preprocessedSources, parsedProgram)), specOnly = specOnly)(config)
+          _ = logger.trace {
+            val parsingDurationMs = System.currentTimeMillis() - startMs
+            val parsingDurationS = f"${parsingDurationMs / 1000f}%.1f"
+            s"parsing ${pkgInfo.id} done (took ${parsingDurationS}s)"
+          }
+        } yield postprocessedProgram
+      }
+    }
+
+    trait ParallelParseJob extends ParallelJob[ParseResult] with ImportResolver {
+      def pkgInfo: PackageInfo
+      def pkgSources: Vector[Source]
+      def specOnly: Boolean
+
+      private def getImportsForPackage(preprocessedSources: Vector[Source]): Vector[(AbstractPackage, Either[Vector[ParserError], Vector[Source]])] = {
+        val preambles = preprocessedSources
+          .map(preprocessedSource => processPreamble(preprocessedSource)(config))
+          // we ignore imports in files that cannot be parsed:
+          .collect { case Right(p) => p }
+        preambles.flatMap(preamble => getImports(preamble.imports, preamble.positions))
+      }
 
       override def compute(): Future[ParseResult] = {
         require(pkgSources.nonEmpty)
@@ -56,8 +156,10 @@ object Parser {
 
         val startPreambleParsingMs = System.currentTimeMillis()
         // before parsing, get imports and add these parse jobs
-        val imports = fastParse(preprocessedSources)
+        // val imports = fastParse(preprocessedSources)
+        val imports = getImportsForPackage(preprocessedSources)
         val preambleParsingDurationMs = System.currentTimeMillis() - startPreambleParsingMs
+        /*
         val importResults: Set[Either[Vector[ParserError], Future[_]]] = imports.map { case (directImportTarget, importErrorFactory) =>
         // val importResults: Set[Future[ParseResult]] = imports.map { case (directImportTarget, importErrorFactory) =>
             val directImportPackage = AbstractPackage(directImportTarget)(config)
@@ -69,21 +171,22 @@ object Parser {
           nonEmptyImportedSources.fold(
             errMsg => {
               val errs = importErrorFactory(errMsg)
-              manager.addIfAbsent(directImportPackage, ParseFailureJob(errs))(executionContext)
+              parallelManager.addIfAbsent(directImportPackage, ParseFailureJob(errs))(executionContext)
               Left(errs)
             },
             nonEmptySources => {
-              manager.addIfAbsent(directImportPackage, ParseSourcesJob(nonEmptySources, directImportPackage))(executionContext)
-              Right(manager.getFuture(directImportPackage))
-              /*
+              // manager.addIfAbsent(directImportPackage, ParseSourcesJob(nonEmptySources, directImportPackage))(executionContext)
+              // Right(manager.getFuture(directImportPackage))
+              Right(parallelManager.addIfAbsent(directImportPackage, ParseSourcesJob(nonEmptySources, directImportPackage))(executionContext))
+              *//*
               manager.getFuture(directImportPackage).flatten
                 .map {
                   case Left(_) => Left(importErrorFactory(s"Imported package contains errors"))
                   case success => success
                 }(executionContext)
-              */
+              *//*
             })
-            /*
+            *//*
             val importedSources = PackageResolver.resolveSources(directImportTarget)(config)
               .getOrElse(Vector())
               .map(_.source)
@@ -99,11 +202,18 @@ object Parser {
                   case success => success
                 }(executionContext)
             }
-            */
+            *//*
+        }
+        */
+        val importResults: Vector[Either[Vector[ParserError], Future[_]]] = imports.map {
+          case (directImportPackage, Right(nonEmptySources)) => Right(parallelManager.addIfAbsent(directImportPackage, ParallelParseSourcesJob(nonEmptySources, directImportPackage))(executionContext))
+          case (directImportPackage, Left(errs)) =>
+            parallelManager.addIfAbsent(directImportPackage, ParallelParseFailureJob(errs))(executionContext)
+            Left(errs)
         }
 
         val (importFailures, futs) = importResults.partitionMap(identity)
-        val flatImportFailures = importFailures.toVector.flatten
+        val flatImportFailures = importFailures.flatten
 
         val res: ParseResult = for {
           _ <- if (flatImportFailures.isEmpty) Right(()) else Left(flatImportFailures)
@@ -158,7 +268,7 @@ object Parser {
         Future.sequence(futs)
           .map(_ => res)
       }
-
+      /*
       type ImportErrorFactory = String => Vector[ParserError]
       private def fastParse(preprocessedInput: Vector[Source]): Set[(AbstractImport, ImportErrorFactory)] = {
         def getImportPaths(preprocessedSource: Source): Set[(RegularImport, ImportErrorFactory)] = {
@@ -191,11 +301,15 @@ object Parser {
           val builtInImportTuple = (BuiltInImport, builtInImportErrorFactory)
           explicitImports + builtInImportTuple
         }
-      }
+      }*/
     }
 
     /** this job is used to parse the package that should be verified */
     case class ParseInfoJob(override val pkgInfo: PackageInfo) extends ParseJob {
+      lazy val pkgSources: Vector[Source] = config.packageInfoInputMap(pkgInfo)
+      lazy val specOnly: Boolean = false
+    }
+    case class ParallelParseInfoJob(override val pkgInfo: PackageInfo) extends ParallelParseJob {
       lazy val pkgSources: Vector[Source] = config.packageInfoInputMap(pkgInfo)
       lazy val specOnly: Boolean = false
     }
@@ -206,11 +320,20 @@ object Parser {
       lazy val pkgInfo: PackageInfo = Source.getPackageInfo(pkgSources.head, config.projectRoot)
       lazy val specOnly: Boolean = true
     }
+    case class ParallelParseSourcesJob(override val pkgSources: Vector[Source], pkg: AbstractPackage) extends ParallelParseJob {
+      require(pkgSources.nonEmpty)
+      lazy val pkgInfo: PackageInfo = Source.getPackageInfo(pkgSources.head, config.projectRoot)
+      lazy val specOnly: Boolean = true
+    }
 
-    case class ParseFailureJob(errs: Vector[ParserError]) extends Job[Future[ParseResult]] {
+    case class ParseFailureJob(errs: Vector[ParserError]) extends Job[ParseResult] {
+      override def compute(): ParseResult = Left(errs)
+    }
+    case class ParallelParseFailureJob(errs: Vector[ParserError]) extends ParallelJob[ParseResult] {
       override def compute(): Future[ParseResult] = Future.successful[ParseResult](Left(errs))
     }
 
+    /*
     def getParseResults(executionContext: GobraExecutionContext): Either[Map[AbstractPackage, Vector[VerifierError]], Map[AbstractPackage, ParseSuccessResult]] = {
       implicit val executor: GobraExecutionContext = executionContext
       // val futs = manager.getAllResultsWithKeys(executionContext).map { case (key, fut) => fut.map(res => (key, res)) }
@@ -230,13 +353,10 @@ object Parser {
         .collect { case (key, Right(res)) => (key, res) }
         .toMap
     }
-
-    def getResults(executionContext: GobraExecutionContext): Map[AbstractPackage, ParseResult] = {
-      implicit val executor: GobraExecutionContext = executionContext
-      val futs = manager.getAllFutures.map { case (key, fut) => fut.flatten.map(res => (key, res)) }
-      val results = Await.result(Future.sequence(futs), Duration.Inf)
-      results
-        .toMap
+    */
+    def getResults(executionContext: GobraExecutionContext): Map[AbstractPackage, ParseResult] = config.typeCheckMode match {
+      case Lazy | Sequential => manager.getAllResultsWithKeys.toMap
+      case Parallel => parallelManager.getAllResultsWithKeys(executionContext).toMap
     }
   }
 

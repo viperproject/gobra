@@ -18,6 +18,7 @@ import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, PreambleContext, SourceFileContext, SpecMemberContext, StmtOnlyContext, TypeOnlyContext}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, RegularImport, RegularPackage}
+import viper.gobra.frontend.Parser.ParseSuccessResult
 import viper.gobra.util.GobraExecutionContext
 import viper.silver.ast.SourcePosition
 
@@ -57,28 +58,30 @@ object Parser {
         // before parsing, get imports and add these parse jobs
         val imports = fastParse(preprocessedSources)
         val preambleParsingDurationMs = System.currentTimeMillis() - startPreambleParsingMs
-        // val importResults: Set[Either[Vector[VerifierError], Future[ParseResult]]] = imports.map{ case (directImportTarget, importErrorFactory) => {
-        val importResults: Set[Future[ParseResult]] = imports.map { case (directImportTarget, importErrorFactory) =>
+        val importResults: Set[Either[Vector[ParserError], Future[_]]] = imports.map { case (directImportTarget, importErrorFactory) =>
+        // val importResults: Set[Future[ParseResult]] = imports.map { case (directImportTarget, importErrorFactory) =>
             val directImportPackage = AbstractPackage(directImportTarget)(config)
             val nonEmptyImportedSources = for {
               resolveSourceResults <- PackageResolver.resolveSources(directImportTarget)(config)
               importedSources = resolveSourceResults.map(_.source)
               nonEmptyImportedSources <- if (importedSources.isEmpty) Left(s"No source files for package '$directImportTarget' found") else Right(importedSources)
             } yield nonEmptyImportedSources
-
           nonEmptyImportedSources.fold(
             errMsg => {
               val errs = importErrorFactory(errMsg)
               manager.addIfAbsent(directImportPackage, ParseFailureJob(errs))(executionContext)
-              Future.successful(Left(errs))
+              Left(errs)
             },
             nonEmptySources => {
               manager.addIfAbsent(directImportPackage, ParseSourcesJob(nonEmptySources, directImportPackage))(executionContext)
+              Right(manager.getFuture(directImportPackage))
+              /*
               manager.getFuture(directImportPackage).flatten
                 .map {
                   case Left(_) => Left(importErrorFactory(s"Imported package contains errors"))
                   case success => success
                 }(executionContext)
+              */
             })
             /*
             val importedSources = PackageResolver.resolveSources(directImportTarget)(config)
@@ -99,9 +102,23 @@ object Parser {
             */
         }
 
-        // val (importFailures, futs) = importResults.partitionMap(identity)
-        // val flatImportFailures = importFailures.toVector.flatten
+        val (importFailures, futs) = importResults.partitionMap(identity)
+        val flatImportFailures = importFailures.toVector.flatten
 
+        val res: ParseResult = for {
+          _ <- if (flatImportFailures.isEmpty) Right(()) else Left(flatImportFailures)
+          startMs = System.currentTimeMillis()
+          parsedProgram <- Parser.process(preprocessedSources, pkgInfo, specOnly = specOnly)(config)
+          postprocessedProgram <- Parser.postprocess(Right((preprocessedSources, parsedProgram)), specOnly = specOnly)(config)
+          _ = logger.trace {
+            val parsingDurationMs = System.currentTimeMillis() - startMs
+            val parsingDurationS = f"${parsingDurationMs / 1000f}%.1f"
+            val preambleParsingRatio = f"${100f * preambleParsingDurationMs / parsingDurationMs}%.1f"
+            s"parsing ${pkgInfo.id} done (took ${parsingDurationS}s; parsing preamble overhead is ${preambleParsingRatio}%)"
+          }
+        } yield (pkgSources, postprocessedProgram._2) // we use `pkgSources` as the preprocessing of sources should be transparent from the outside
+
+        /*
         val startMs = System.currentTimeMillis()
         val res = for {
           parsedProgram <- Parser.process(preprocessedSources, pkgInfo, specOnly = specOnly)(config)
@@ -112,10 +129,10 @@ object Parser {
           val parsingDurationS = f"${parsingDurationMs / 1000f}%.1f"
           val preambleParsingRatio = f"${100f * preambleParsingDurationMs / parsingDurationMs}%.1f"
           s"parsing ${pkgInfo.id} done (took ${parsingDurationS}s; parsing preamble overhead is ${preambleParsingRatio}%)"
-        }
+        }*/
 
         implicit val executor: GobraExecutionContext = executionContext
-
+        /*
         Future.sequence(importResults)
           .map(dependencyResults => {
             val (importErrors, _) = dependencyResults.partitionMap(identity)
@@ -137,10 +154,9 @@ object Parser {
             }
              */
           })
-        /*
+        */
         Future.sequence(futs)
           .map(_ => res)
-         */
       }
 
       type ImportErrorFactory = String => Vector[ParserError]
@@ -214,6 +230,14 @@ object Parser {
         .collect { case (key, Right(res)) => (key, res) }
         .toMap
     }
+
+    def getResults(executionContext: GobraExecutionContext): Map[AbstractPackage, ParseResult] = {
+      implicit val executor: GobraExecutionContext = executionContext
+      val futs = manager.getAllFutures.map { case (key, fut) => fut.flatten.map(res => (key, res)) }
+      val results = Await.result(Future.sequence(futs), Duration.Inf)
+      results
+        .toMap
+    }
   }
 
   /**
@@ -232,7 +256,7 @@ object Parser {
     *
     */
 
-  def parse(config: Config, pkgInfo: PackageInfo)(executionContext: GobraExecutionContext): Either[Vector[VerifierError], Map[AbstractPackage, ParseSuccessResult]] = {
+  def parse(config: Config, pkgInfo: PackageInfo)(executionContext: GobraExecutionContext): Either[Vector[VerifierError], Map[AbstractPackage, ParseResult]] = {
     val parseManager = new ParseManager(config, executionContext)
     /*
     parseManager.parse(pkgInfo)
@@ -240,7 +264,7 @@ object Parser {
     res
     */
     val res = parseManager.parse(pkgInfo)
-    res.map(_ => parseManager.getSuccessResults(executionContext))
+    res.map(_ => parseManager.getResults(executionContext))
   }
 
   def parse(input: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {

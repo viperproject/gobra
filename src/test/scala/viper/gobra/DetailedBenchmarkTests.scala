@@ -13,7 +13,7 @@ import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.OverflowChecksTransform
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
-import viper.gobra.frontend.Parser.ParseSuccessResult
+import viper.gobra.frontend.Parser.{ParseResult, ParseSuccessResult}
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Desugar, Parser}
 import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, VerifierError, VerifierResult}
@@ -108,8 +108,8 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       Parser.parse(c, pkgInfo)(executor)
     })
 
-    private val typeChecking: NextStep[Map[AbstractPackage, ParseSuccessResult], TypeInfo, Vector[VerifierError]] =
-      NextStep("type-checking", parsing, (parseResults: Map[AbstractPackage, ParseSuccessResult]) => {
+    private val typeChecking: NextStep[Map[AbstractPackage, ParseResult], TypeInfo, Vector[VerifierError]] =
+      NextStep("type-checking", parsing, (parseResults: Map[AbstractPackage, ParseResult]) => {
         assert(config.isDefined)
         val c = config.get
         assert(c.packageInfoInputMap.size == 1)

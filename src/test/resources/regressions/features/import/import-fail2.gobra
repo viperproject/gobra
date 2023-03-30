@@ -7,6 +7,6 @@ package main
 
 import (
     // note that package `parse_error` contains a parser error so the qualifier cannot be resolved
-    //:: ExpectedOutput(parser_error)
+    //:: ExpectedOutput(type_error)
     "parse_error"
 )

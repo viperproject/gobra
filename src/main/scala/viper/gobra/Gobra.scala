@@ -16,7 +16,7 @@ import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, InternalTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
-import viper.gobra.frontend.Parser.ParseSuccessResult
+import viper.gobra.frontend.Parser.{ParseResult, ParseSuccessResult}
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, PackageInfo, Parser, ScallopGobraConfig}
 import viper.gobra.reporting._
@@ -243,7 +243,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       .setLevel(config.logLevel)
   }
 
-  private def performParsing(config: Config, pkgInfo: PackageInfo)(executor: GobraExecutionContext): Either[Vector[VerifierError], Map[AbstractPackage, ParseSuccessResult]] = {
+  private def performParsing(config: Config, pkgInfo: PackageInfo)(executor: GobraExecutionContext): Either[Vector[VerifierError], Map[AbstractPackage, ParseResult]] = {
     if (config.shouldParse) {
       val startMs = System.currentTimeMillis()
       val res = Parser.parse(config, pkgInfo)(executor)
@@ -257,7 +257,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  private def performTypeChecking(config: Config, pkgInfo: PackageInfo, parseResults: Map[AbstractPackage, ParseSuccessResult])(executor: GobraExecutionContext): Either[Vector[VerifierError], TypeInfo] = {
+  private def performTypeChecking(config: Config, pkgInfo: PackageInfo, parseResults: Map[AbstractPackage, ParseResult])(executor: GobraExecutionContext): Either[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
       Info.check(config, RegularPackage(pkgInfo.id), parseResults)(executor)
     } else {

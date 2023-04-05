@@ -82,17 +82,26 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     val (f, isPure, fSpec) = regular(funcId) match {
       case f: st.Function => (f, f.isPure, f.decl.spec)
-      case s => Violation.violation(s"expected a function, but got ${funcId}")
+      case i: st.MethodImpl => (i, i.isPure, i.decl.spec)
+      case _ => Violation.violation(s"expected a function or method, but got ${funcId}")
     }
 
     val specArgs = f.args
 
     def wellDefIfRightShape: Messages = {
+      val recvExist: String = f match {
+        case (i: st.MethodImpl) => i.decl.receiver match {
+          case r: PNamedReceiver => s"${r.id}."
+          case _ => ""
+        }
+        case _ => ""
+      }
+
       lazy val expectedCallArgs = specArgs.flatMap(nameFromParam).map(a => PNamedOperand(PIdnUse(a)))
 
-      def isExpectedCall(i: PInvoke): Boolean = i.base.toString == funcId.name && i.args == expectedCallArgs
+      def isExpectedCall(i: PInvoke): Boolean = i.base.toString == recvExist + funcId.name && i.args == expectedCallArgs
 
-      lazy val expectedCallString: String = s"$funcId(${specArgs.flatMap(nameFromParam).mkString(",")})"
+      lazy val expectedCallString: String = recvExist + s"$funcId(${specArgs.flatMap(nameFromParam).mkString(",")})"
 
       if (isPure) isPureBlock(b)
       else implementationProofBodyHasRightShape(b, isExpectedCall, expectedCallString, f.result)

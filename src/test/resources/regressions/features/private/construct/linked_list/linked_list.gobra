@@ -1,0 +1,237 @@
+package linked_list
+
+type Node struct {
+    value int
+    Next  *Node
+}
+
+type LinkedList struct {
+    Head *Node // Head is the first node of the linked list.
+    Tail *Node // Tail is the last node of the linked list.
+    size int   // size is the number of nodes in the linked list.
+}
+
+
+pred (n *Node) Mem() {
+	acc(&n.value)
+}
+
+ensures acc(&result.Next) && result.Mem()
+ensures result.Next == value.Next
+construct &Node() {
+	fold result.Mem()
+}
+
+requires n.Mem()
+pure func (n *Node) GetNodeValue() int {
+    return unfolding n.Mem() in n.value
+}
+
+pred (ll *LinkedList) LLMem() {
+    acc(&ll.size)
+}
+
+ensures acc(&result.Head) && acc(&result.Tail) && result.LLMem()
+ensures result.Head == value.Head && result.Tail == value.Tail
+ensures result.Head == nil && result.Tail == nil ==> result.IsEmpty()
+construct &LinkedList() {
+    fold result.LLMem()
+}
+
+
+requires acc(&ll.Head) && acc(&ll.Tail) && ll.LLMem()
+requires ll != nil
+ensures b == ((ll.Head == nil) && (ll.Tail == nil) && ll.Size() == 0)
+pure func (ll *LinkedList) IsEmpty() (b bool) {
+    return unfolding ll.LLMem() in ll.Head == nil && ll.Tail == nil && ll.size == 0
+}
+
+requires ll.LLMem()
+requires ll != nil
+pure func (ll *LinkedList) Size() int {
+    return unfolding ll.LLMem() in ll.size
+}
+
+requires acc(&ll.Head) && ll.LLMem() && ll.Head.Mem()
+requires ll != nil && ll.Head != nil 
+ensures acc(&ll.Head) && ll.LLMem() && ll.Head.Mem()
+ensures ll.Head.GetNodeValue() == i
+private {
+    requires acc(&ll.Head) && acc(&ll.size) && acc(&ll.Head.value)
+    requires ll != nil && ll.Head != nil 
+    ensures acc(&ll.Head) && acc(&ll.size) && acc(&ll.Head.value)
+    ensures ll.Head.value == i
+    proof {
+        unfold ll.LLMem()
+        unfold ll.Head.Mem()
+        i =  First(ll)
+        fold ll.Head.Mem()
+        fold ll.LLMem()
+    }
+}
+func First(ll *LinkedList) (i int) {
+    return ll.Head.value
+}
+
+requires acc(&ll.Tail) && ll.LLMem() && ll.Tail.Mem()
+requires ll != nil && ll.Tail != nil
+ensures acc(&ll.Tail) && ll.LLMem() && ll.Tail.Mem()
+ensures ll.Tail.GetNodeValue() == i
+private {
+    requires acc(&ll.Tail) && acc(&ll.size) && acc(&ll.Tail.value)
+    requires ll != nil && ll.Tail != nil
+    ensures acc(&ll.Tail) && acc(&ll.size) && acc(&ll.Tail.value)
+    ensures ll.Tail.value == i
+    proof {
+        unfold ll.LLMem()
+        unfold ll.Tail.Mem()
+        i =  Last(ll)
+        fold ll.Tail.Mem()
+        fold ll.LLMem()
+    }
+}
+func Last(ll *LinkedList) (i int) {
+    return ll.Tail.value
+}
+
+requires acc(&ll.Head) && acc(&ll.Tail) && ll.LLMem()
+requires ll != nil
+ensures acc(&ll.Head) && acc(&ll.Tail) && ll.LLMem() 
+ensures acc(&ll.Head.Next) && ll.Head.Mem()
+ensures ll.Head.GetNodeValue() == elem
+ensures old(ll.Head) == ll.Head.Next
+ensures ll.Size() == old(ll.Size()) + 1
+private {
+    requires acc(&ll.Head) && acc(&ll.Tail) && acc(&ll.size)
+    requires ll != nil
+    ensures acc(&ll.Head) && acc(&ll.Tail) && acc(&ll.size)
+    ensures acc(&ll.Head.Next) && acc(&ll.Head.value)
+    ensures ll.Head.value == elem
+    ensures old(ll.Head) == ll.Head.Next
+    ensures ll.size == old(ll.size) + 1
+    proof {
+        unfold ll.LLMem()
+        Prepend(ll, elem)
+        fold ll.Head.Mem()
+        fold ll.LLMem()
+    }
+}
+func Prepend(ll *LinkedList, elem int) {
+    node := &Node{value: elem}
+    if ll.Head == nil {
+        ll.Head = node
+        ll.Tail = node
+    } else {
+        node.Next = ll.Head
+        ll.Head = node
+    }
+    ll.size += 1
+}
+
+requires acc(&ll.Head) && acc(&ll.Tail) && ll.LLMem()
+requires acc(&ll.Tail.Next) && ll.Tail.Mem()
+requires ll != nil && ll.Tail != nil
+ensures acc(&ll.Head) && acc(&ll.Tail) && ll.LLMem()
+ensures acc(&ll.Tail.Next) && ll.Tail.Mem()
+ensures ll.Tail.GetNodeValue() == elem
+ensures ll.Size() == old(ll.Size()) + 1
+private {
+    requires acc(&ll.Head) && acc(&ll.Tail) && acc(&ll.size)
+    requires acc(&ll.Tail.Next) && acc(&ll.Tail.value)
+    requires ll != nil && ll.Tail != nil
+    ensures acc(&ll.Head) && acc(&ll.Tail) && acc(&ll.size)
+    ensures acc(&ll.Tail.Next) && acc(&ll.Tail.value)
+    ensures ll.Tail.value == elem
+    ensures ll.size == old(ll.size) + 1
+    proof {
+        unfold ll.LLMem()
+        unfold ll.Tail.Mem()
+        Append(ll, elem)
+        fold ll.Tail.Mem()
+        fold ll.LLMem()
+    }
+}
+func Append(ll *LinkedList, elem int) {
+    node := &Node{value: elem}
+    if ll.Tail == nil {
+        ll.Head = node
+        ll.Tail = node
+    } else {
+        ll.Tail.Next = node
+        ll.Tail = node
+    }
+    ll.size += 1
+}
+
+requires acc(&ll.Head) && acc(&ll.Tail) && ll.LLMem()
+requires acc(&ll.Head.Next) && ll.Head.Mem()
+requires ll != nil
+ensures acc(&ll.Head) && acc(&ll.Tail) && ll.LLMem()
+ensures old(ll.Head.GetNodeValue()) == i
+private {
+    requires acc(&ll.Head) && acc(&ll.Tail) && acc(&ll.size)
+    requires acc(&ll.Head.Next) && acc(&ll.Head.value)
+    requires ll != nil
+    ensures acc(&ll.Head) && acc(&ll.Tail) && acc(&ll.size)
+    ensures old(ll.Head.value) == i
+    proof {
+        unfold ll.LLMem()
+        unfold ll.Head.Mem()
+        i = RemoveFirst(ll)
+        fold ll.LLMem()
+    }
+}
+func RemoveFirst(ll *LinkedList) (i int) {
+    if ll.Head == nil {
+        return -1
+    }
+    node := ll.Head
+    ll.Head = node.Next
+    if ll.Head == nil {
+        ll.Tail = nil
+    }
+    ll.size -= 1
+    return node.value
+}
+
+func client0() {
+    n := &Node{}
+    l := &LinkedList{Head: n, Tail: n, size: 1}
+
+    fold l.LLMem()
+    assert !l.IsEmpty()
+}
+
+func client1() {
+    l := &LinkedList{}
+
+    fold l.LLMem()
+    assert l.IsEmpty()
+    unfold l.LLMem()
+
+    inhale acc(&l.Head) && acc(&l.Tail)
+
+    Append(l, 5)
+    
+    assert l.Head.value == 5 && l.Tail.value == 5
+
+    Append(l, 6)
+
+    assert l.Head.value == 5 && l.Tail.value == 6
+
+    Prepend(l, 4)
+
+    assert l.Head.value == 4 && l.Tail.value == 6
+
+    var a int = RemoveFirst(l)
+
+    assert a == 4 && l.Head.value == 5 && l.Tail.value == 6
+
+    var b int = Last(l)
+
+    assert b == 6 && l.Head.value == 5 && l.Tail.value == 6
+	
+	var c int = First(l)
+
+	assert c == 5
+}

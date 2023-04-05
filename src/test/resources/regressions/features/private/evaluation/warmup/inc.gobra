@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+const g int = 1
+
+ensures res == 2
+private {
+    ensures res == g + 1
+    proof {
+        res = Inc()
+    }
+}
+func Inc() (res int) {
+    res = g + 1
+}

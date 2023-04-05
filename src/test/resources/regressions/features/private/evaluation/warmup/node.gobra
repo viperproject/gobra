@@ -1,0 +1,59 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type Node struct {
+	value int
+	next *Node
+}
+
+pred (n *Node) Mem() {
+	acc(&n.value) && acc(&n.next) &&
+	((n.next != nil) ==> n.next.Mem())
+}
+
+requires n.Mem()
+pure func (n *Node) GetValue() int {
+	return unfolding n.Mem() in n.value
+}
+
+ensures res.Mem()
+ensures res.GetValue() == 1
+func One() (res *Node) {
+	res := &Node{value: 1, next: nil}
+	fold res.Mem()
+}
+
+requires n.Mem()
+pure func (n *Node) GetNext() *Node {
+	return unfolding n.Mem() in n.next
+}
+
+ensures result.Mem()
+ensures result.GetValue() == 1
+ensures result.GetNext() != nil
+ensures result.GetNext().Mem()
+ensures result.GetNext().GetValue() == 0
+construct &Node() {
+	result.value = 1
+	result.next = &Node{}
+	fold result.next.Mem()
+	fold result.Mem()
+}
+
+type Node2 struct {
+	Value int
+	next *Node2
+}
+
+pred (n *Node2) Mem() {
+	acc(&n.next) &&
+	((n.next != nil) ==> n.next.Mem())
+}
+
+ensures acc(&result.Value) && result.Mem()
+ensures result.Value == value.Value
+construct &Node2() {
+	fold result.Mem()
+}

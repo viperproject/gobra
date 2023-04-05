@@ -9,6 +9,7 @@ package viper.gobra.frontend.info.implementation.property
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.{SymbolTable => symb}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.base.Type.{PointerT, StructT, SliceT, ArrayT, Single}
 import viper.gobra.util.Violation
 
 trait Visibility extends BaseProperty { this: TypeInfoImpl =>
@@ -47,6 +48,7 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
       case t => Violation.violation(s"Unexpected Predicate in isPrivateIdentifier, got $t") 
     }
     case f: symb.Field => isPrivateString(f.decl.id.name)
+    case e: symb.Embbed => isPrivateString(e.decl.id.name)
     case t: symb.NamedType => isPrivateString(t.decl.left.name) 
     case _: symb.Import => false
     case _: symb.Closure => false
@@ -98,6 +100,22 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
       case PForall(_, triggers, body) => triggers.exists(t => t.exps.exists(isPrivateExp)) || isPrivateExp(body)
       case PExists(_, triggers, body) => triggers.exists(t => t.exps.exists(isPrivateExp)) || isPrivateExp(body)
       case PMatchExp(exp, clauses) => isPrivateExp(exp) || isPrivateVExp(clauses.map(c => c.exp))
+      case a@PAccess(exp, _) => 
+        val argT = exprType(exp)
+        val uTyp = underlyingType(argT) match {
+          case Single(PointerT(t)) => underlyingType(t) match {
+            //pointer to structs, arrays, slices cannot use acc(x)
+            case StructT(_,_,_) | ArrayT(_,_) | SliceT(_) => true
+            case _ => false
+          }
+          case _ => false
+        }
+        exp match {
+          //acc(x) is sugar for permission to all accessible fields
+          //acc(x) is unsound for public specifications because the permission of x depends on the imported state of the struct
+          case PNamedOperand(_) => uTyp
+          case _ => isPrivateNode(a)
+        }
       case expr : PGhostCollectionExp => expr match {
         case PGhostCollectionUpdate(col, clauses) => isPrivateExp(col) || isPrivateVExp(clauses.map(c => c.left)) || isPrivateVExp(clauses.map(c => c.right))
         case _ => isPrivateNode(expr)
@@ -113,7 +131,7 @@ trait Visibility extends BaseProperty { this: TypeInfoImpl =>
 
   private def isPrivateNode(node: PNode): Boolean = 
     tree.child(node).exists {
-      case e: PExpression => isPrivateExp(e) //tree.child(e).exists(isPrivateNode)
+      case e: PExpression => isPrivateExp(e)
       case t: PType => isPrivateType(t)
       case i: PIdnNode => isPrivateIdentifier(i)
       case _ => false

@@ -62,9 +62,10 @@ trait GobraFrontendForTesting extends Frontend {
   /** Initialize this translator with a given verifier. Only meant to be called once. */
   override def init(verifier: Verifier): Unit = () // ignore verifier argument as we reuse the Gobra / Parser / TypeChecker / etc. instances for all tests
 
-  override def reset(files: Seq[Path]): Unit =
+  override def reset(files: Seq[Path]): Unit = {
+    config = Some(createConfig(Array("-i", files.toVector.mkString(" ")))) 
     createConfig(Array("-i", files.toVector.mkString(" ")))
-
+  }
 
   private def createConfig(args: Array[String]): Config = {
     // set throwError to true: Scallop will throw an exception instead of terminating the program in case an

@@ -1,4 +1,4 @@
-package pkg
+package visibility
 
 type Visibility struct {
   // Public fields
@@ -6,9 +6,6 @@ type Visibility struct {
 
   // Private fields
   pvtInt int
-
-  // Embedded structs
-  //Embedded
 }
 
 pred (vis *Visibility) PvtMem() {
@@ -21,19 +18,16 @@ pure func (vis *Visibility) GetPvtInt() int {
 }
 
 
-pure func GetPvtIntValue(v Visibility) int {
-  return v.pvtInt
-} 
-
 ensures acc(&result.PubInt) && result.PvtMem() && result.IsPvtEmpty()
 ensures result.PubInt == value.PubInt
-ensures result.GetPvtInt() == GetPvtIntValue(value)
+ensures result.IsPvtEmpty()
 construct &Visibility() {
   fold result.PvtMem()
 }
 
 requires vis.PvtMem()
-pure func (vis *Visibility) IsPvtEmpty() bool {
+ensures res == (vis.GetPvtInt() == 0)
+pure func (vis *Visibility) IsPvtEmpty() (res bool) {
   return unfolding vis.PvtMem() in vis.pvtInt == 0 
 }
 
@@ -80,20 +74,60 @@ func Next(vis *Visibility) {
   vis.PubInt += 1
 }
 
+requires acc(&vis.PubInt) && vis.PvtMem()
+ensures acc(&vis.PubInt) && vis.PvtMem()
+ensures vis.PubInt == old(vis.GetPvtInt())
+ensures vis.GetPvtInt() == old(vis.GetPvtInt()) - (old(vis.GetPvtInt()) > 0 ? 1 : 0)
+private {
+  requires acc(vis)
+  ensures acc(vis)
+  ensures vis.PubInt == old(vis.pvtInt)
+  ensures vis.pvtInt == old(vis.pvtInt) - (old(vis.pvtInt) > 0 ? 1 : 0)
+  proof {
+    unfold vis.PvtMem()
+    Reload(vis)
+    fold vis.PvtMem()
+  }
+}
+func Reload(vis *Visibility) {
+  vis.PubInt = vis.pvtInt
+  if (vis.pvtInt > 0) {
+    vis.pvtInt = vis.pvtInt - 1
+  }
+}
+
 func client() {
   v := &Visibility{PubInt: 0, pvtInt: 0} //constructor is not called here
-  assert v.PubInt == 0
-  assert v.pvtInt == 0
+  assert acc(v) && v.PubInt == 0 && v.pvtInt == 0
 
   Start(v) //start uses the private specification, only permission to the fields of Visibility needed
+  assert acc(v) && v.PubInt == 1 && v.pvtInt == 0
+  
+  Next(v)
+  assert acc(v) && v.PubInt == 2 && v.pvtInt == 1
+  
+  Next(v)
+  assert acc(v) && v.PubInt == 3 && v.pvtInt == 2
+  
+  Reload(v)
+  assert acc(v) && v.PubInt == 2 && v.pvtInt == 1
+  
+  Reload(v)
+  assert acc(v) && v.PubInt == 1 && v.pvtInt == 0
+  
+  Reload(v)
+  assert acc(v) && v.PubInt == 0 && v.pvtInt == 0
+  
+  Reload(v)
+  assert acc(v) && v.PubInt == 0 && v.pvtInt == 0
 
   fold v.PvtMem() //IsPvtEmpty() uses the private memory predicate
-  assert v.IsPvtEmpty() && v.PubInt == 1
-
+  assert v.IsPvtEmpty()
   unfold v.PvtMem()
 
   Next(v) //just like Start(v), next uses the private specification
+  assert acc(v) && v.PubInt == 1 && v.pvtInt == 0
  
   fold v.PvtMem() //IsPvtEmpty() uses the private memory predicate
-  assert !v.IsPvtEmpty() && v.PubInt == 2
+  assert !v.IsPvtEmpty() && v.PubInt == 1
 }

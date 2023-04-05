@@ -1,0 +1,38 @@
+package test
+
+// ##(-I ./)
+import ll "linked_list"
+
+func client() {
+    l1 := &ll.LinkedList{}
+    assert l1.IsEmpty()
+
+    n := &ll.Node{}
+    l := &ll.LinkedList{Head: n, Tail: n}
+    
+    inhale acc(&l.Tail)
+
+    ll.Append(l, 5)
+    
+    assert l.Head.GetNodeValue() == 5 && l.Tail.GetNodeValue() == 5
+
+    ll.Append(l, 6)
+
+    assert l.Head.GetNodeValue() == 5 && l.Tail.GetNodeValue() == 6
+
+    ll.Prepend(l, 4)
+
+    assert l.Head.GetNodeValue() == 4 && l.Tail.GetNodeValue() == 6
+
+    var a int = ll.RemoveFirst(l)
+
+    assert a == 4 && l.Head.GetNodeValue() == 5 && l.Tail.GetNodeValue() == 6
+
+    var b int = ll.Last(l)
+
+    assert b == 6 && l.Head.GetNodeValue() == 5 && l.Tail.GetNodeValue() == 6
+
+    var c int = ll.First(l)
+
+    assert c == 5
+}

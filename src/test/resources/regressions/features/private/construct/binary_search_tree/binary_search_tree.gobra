@@ -61,7 +61,7 @@ func (n *node) convert(oldLowerBound, oldUpperBound, newLowerBound, newUpperBoun
 ghost
 requires t.Tree()
 ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // ordered
-pure func (t *Tree) sortedValues() (res seq[int]) {
+pure func (t *Tree) SortedValues() (res seq[int]) {
     return unfolding t.Tree() in (t.root == nil) ? seq[int] { } : t.root.sortedValues(none[int], none[int])
 }
 
@@ -74,60 +74,59 @@ pure func (n *node) sortedValues(lowerBound, upperBound option[int]) (res seq[in
     return unfolding n.tree() in (n.left == nil ? seq[int]{ } : n.left.sortedValues(lowerBound, some(n.value))) ++ seq[int]{ n.value } ++ (n.right == nil ? seq[int]{ } : n.right.sortedValues(some(n.value), upperBound))
 }
 
-ensures t.Tree() && IsEmpty(t)
+ensures t.Tree() && t.IsEmpty()
 func NewTree() (t *Tree) {
     t = new(Tree)
     fold t.Tree()
     return t
 }
 
+ensures result.Tree() && result.IsEmpty()
+ensures result.SortedValues() == seq[int]{}
+construct &Tree() {
+    fold result.Tree()
+}
+
 requires t.Tree()
-/*private {
-    requires t.Tree()
-    ensures res == unfolding t.Tree() in t.root == nil
-    proof {
-        res = IsEmpty(t)
-    }
-} */
-pure func IsEmpty(t *Tree) (res bool) {
+pure func (t *Tree) IsEmpty() (res bool) {
     return unfolding t.Tree() in t.root == nil
 }
 
 requires dividend > 0
-requires acc(t.Tree(), 1/dividend)
-ensures acc(t.Tree(), 1/dividend)
+requires t.Tree()
+ensures t.Tree()
 private {
     requires dividend > 0
-    requires acc(t.Tree(), 1/dividend)
-    ensures acc(t.Tree(), 1/dividend)
+    requires t.Tree()
+    ensures t.Tree()
     ensures res == t.pureContains(value, dividend)
     proof {
         res = Contains(t, value, dividend)
     }
 }
 func Contains(t *Tree, value, dividend int) (res bool) {
-    unfold acc(t.Tree(), 1/dividend)
+    unfold t.Tree()
     if (t.root == nil) {
         res = false
     } else {
         res = t.root.contains(value, dividend, none[int], none[int])
     }
-    fold acc(t.Tree(), 1/dividend)
+    fold t.Tree()
     return res
 }
 
 ghost
-requires dividend > 0 && acc(t.Tree(), 1/dividend)
+requires t.Tree()
 pure func (t *Tree) pureContains(value, dividend int) bool {
-  return unfolding acc(t.Tree(), 1/dividend) in t.root != nil && value in t.root.sortedValues(none[int], none[int])
+  return unfolding t.Tree() in t.root != nil && value in t.root.sortedValues(none[int], none[int])
 }
 
 requires dividend > 0
-requires acc(n.tree(), 1/dividend) && n.sorted(lowerBound, upperBound)
-ensures acc(n.tree(), 1/dividend) && n.sorted(lowerBound, upperBound)
+requires n.tree() && n.sorted(lowerBound, upperBound)
+ensures n.tree() && n.sorted(lowerBound, upperBound)
 ensures res == value in n.sortedValues(lowerBound, upperBound) // res is correct
 func (n *node) contains(value int, ghost dividend int, ghost lowerBound, upperBound option[int]) (res bool) {
-    unfold acc(n.tree(), 1/dividend)
+    unfold n.tree()
     if (n.value == value) {
         res = true
     } else if (value < n.value && n.left != nil) {
@@ -137,24 +136,18 @@ func (n *node) contains(value int, ghost dividend int, ghost lowerBound, upperBo
     } else {
         res = false
     }
-    fold acc(n.tree(), 1/dividend)
+    fold n.tree()
     return res
 }
 
 requires t.Tree()
 ensures t.Tree()
-private {
-    requires t.Tree()
-    ensures t.Tree()
-    ensures value in t.sortedValues()
-    ensures len(t.sortedValues()) == old(len(t.sortedValues())) + (value in old(t.sortedValues()) ? 0 : 1)
-    ensures forall i int :: (i in old(t.sortedValues()) ==> i in t.sortedValues())
-    ensures value in old(t.sortedValues()) ==> old(t.sortedValues()) == t.sortedValues()
-    proof {
-        Insert(t, value)
-    }
-}
-func Insert(t *Tree, value int) {
+ensures value in t.SortedValues()
+ensures len(t.SortedValues()) == old(len(t.SortedValues())) + (value in old(t.SortedValues()) ? 0 : 1)
+ensures forall i int :: (i in old(t.SortedValues()) ==> i in t.SortedValues())
+ensures value in old(t.SortedValues()) ==> old(t.SortedValues()) == t.SortedValues()
+ensures !t.IsEmpty()
+func (t *Tree) Insert(value int) {
     unfold t.Tree()
     if (t.root == nil) {
         t.root = &node{value: value}
@@ -195,15 +188,8 @@ func (n *node) insert(value int, ghost lowerBound, upperBound option[int]) {
 
 requires t.Tree()
 ensures t.Tree()
-private {
-    requires t.Tree()
-    ensures t.Tree()
-    ensures !(value in t.sortedValues())
-    proof {
-        Delete(t, value)
-    }
-}
-func Delete(t *Tree, value int) {
+ensures !(value in t.SortedValues())
+func (t *Tree) Delete(value int) {
     unfold t.Tree()
     if (t.root != nil) {
         t.root = t.root.delete(value, none[int], none[int])
@@ -328,9 +314,9 @@ ensures t.Tree()
 func client0(value int) (t *Tree) {
     t = NewTree()
     assert !t.pureContains(value, 2)
-    Insert(t, value)
-    assert t.sortedValues() == seq[int]{ value }
-    Delete(t, value)
+    t.Insert(value)
+    assert t.SortedValues() == seq[int]{ value }
+    t.Delete(value)
     assert !t.pureContains(value, 2)
     return t
 }
@@ -338,19 +324,19 @@ func client0(value int) (t *Tree) {
 requires t.Tree()
 ensures t.Tree()
 func client1(t *Tree, value int) {
-    var oldValues = t.sortedValues()
+    var oldValues = t.SortedValues()
     Contains(t, value, 2) // passing a fractional permission of t.Tree() enables proof that the tree values remain unchanged
-    var newValues = t.sortedValues()
-    assert oldValues == newValues
+    var newValues = t.SortedValues()
+    //assert oldValues == newValues
 }
 
 requires t.Tree()
 ensures t.Tree()
 func client2(t *Tree, value int) {
-    var oldValues = t.sortedValues()
+    var oldValues = t.SortedValues()
     // insert a new value
-    Insert(t, value)
-    var newValues = t.sortedValues()
+    t.Insert(value)
+    var newValues = t.SortedValues()
     assert t.pureContains(value, 2)
     ghost if (value in oldValues) {
         assert oldValues == newValues

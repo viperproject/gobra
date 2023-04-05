@@ -7,16 +7,16 @@ package bad
 import gen "generated"
 
 //partial struct test (equality axiom)
-//constructor not defined
-func bad1(a, b def.Pair2) {
+//constructor not generated
+func bad1(a, b gen.Pair2) {
   if a.Left == b.Left && a.Right == b.Right {
     assert a == b
   }
 }
 
 //partial struct test (equality axiom)
-//constructor defined
-func bad2(a, b def.Pair) {
+//constructor generated
+func bad2(a, b gen.Pair) {
   if a.Left == b.Left && a.Right == b.Right {
     assert a == b
   }
@@ -25,14 +25,14 @@ func bad2(a, b def.Pair) {
 //assignment declaration test
 //assingment from constructor generated
 requires acc(&a.Left) && acc(&a.Right)
-func bad3(a *def.Pair) {
-  *a = def.Pair{}
+func bad3(a *gen.Pair) {
+  *a = gen.Pair{}
 }
 
 //dereference declaration test
 //dereference from constructor generated
 requires acc(&a.Left) && acc(&a.Right)
-func bad4(a *def.Pair) {
+func bad4(a *gen.Pair) {
   x := *a
 }
 
@@ -40,7 +40,7 @@ func bad4(a *def.Pair) {
 //dereference from constructor generated
 requires acc(&a.Left) && acc(&a.Right) && a.PrivateMem()
 requires acc(&b.Left) && acc(&b.Right) && b.PrivateMem()
-func bad5(a, b *def.Pair) {
+func bad5(a, b *gen.Pair) {
   assert *a == *b
 }
 

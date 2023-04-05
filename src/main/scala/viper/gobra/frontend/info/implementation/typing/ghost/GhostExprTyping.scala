@@ -85,7 +85,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val argT = exprType(n.exp)
           // Not all pointer types are supported currently. Later, we can just check isPointerType.
           underlyingType(argT) match {
-            case Single(Type.NilType | _: Type.PointerT | _: Type.SliceT | _: Type.MapT) => noMessages
+            case Single(Type.NilType | _: Type.PointerT | _: Type.SliceT | _: Type.MapT) => 
+              error(n, s"access expressions declared in constructors need to reference the field of the struct, but got ${n.exp}", 
+                !enclosingPConstructor(n).isEmpty && n.exp.isInstanceOf[PNamedOperand])
             case _ => error(n, s"expected expression with pointer or predicate type, but got $argT")
           }
       }

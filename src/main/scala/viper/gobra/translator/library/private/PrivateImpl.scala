@@ -186,7 +186,7 @@ class PrivateImpl extends Private {
   private def privateProofError(stmt: vpr.Stmt): ErrorTransformer = {
     case e@err.PostconditionViolated(Source(info), _, reason, _) if e causedBy stmt => 
       PrivateEntailmentError(info).dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
-    case _@err.PreconditionInCallFalse(Source(info), reason, _) => //if e causedBy stmt =>
+    case e@err.PreconditionInCallFalse(Source(info), reason, _) if e causedBy stmt =>
       PrivateEntailmentError(info).dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
   }
 }

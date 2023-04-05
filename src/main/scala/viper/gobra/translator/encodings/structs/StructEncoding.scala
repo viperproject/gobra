@@ -250,7 +250,7 @@ class StructEncoding extends TypeEncoding {
     case (upd: in.StructUpdate) :: ctx.PartialStruct(fs) =>
       for {
         vBase <- ctx.expression(upd.base)
-        idx = indexOfField(fs.filter(!_.notImported), upd.field)
+        idx = indexOfField(fs, upd.field)
         vVal <- ctx.expression(upd.newVal)
       } yield pex.update(vBase, idx, vVal, cptParam(fs)(ctx))(upd)(ctx)
 
@@ -271,7 +271,11 @@ class StructEncoding extends TypeEncoding {
       sequence(fieldExprs).map(ex.create(_, cptParam(fs)(ctx))(lit)(ctx))
 
     case (lit: in.StructLit) :: ctx.PartialStruct(fs) =>
-      val fieldExprs = lit.args.map(arg => ctx.expression(arg)).zip(fs.map(_.notImported)).collect { case (e, false) => e }
+      val fields = ctx.underlyingType(lit.typ) match {
+        case in.StructT(f, _, _) => f
+        case _ => ???
+      }
+      val fieldExprs = lit.args.map(arg => ctx.expression(arg)).zip(fields.map(_.notImported)).collect { case (e, false) => e }
       sequence(fieldExprs).map(pex.create(_, cptParam(fs)(ctx))(lit)(ctx)) 
 
     case (loc: in.Location) :: ctx.CompleteStruct(_) / Shared =>

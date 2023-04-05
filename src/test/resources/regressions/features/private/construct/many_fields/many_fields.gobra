@@ -1,0 +1,124 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package many_fields
+
+type Many struct {
+	a int
+	b [1000]byte
+	c [100]int
+	d string
+	e bool
+	f int
+	g [200]int
+	h int
+	i int
+	j [300]int
+	k [200]string
+	l [5000]bool
+	m [1000]int
+	n int
+	o string
+	p bool
+	q int
+	r [1001]int
+	s [1002]int
+	t [1003]int
+	u [1004]int
+	v [1005]int
+	w [1006]int
+	x [1007]int
+	y [1008]int
+	Z [100900]int
+}
+
+pred (m *Many) Mem() {
+	forall i int :: 0 <= i && i < len(m.u) ==> acc(&m.u[i]) &&
+	forall i int :: 0 <= i && i < len(m.v) ==> acc(&m.v[i]) &&
+	forall i int :: 0 <= i && i < len(m.w) ==> acc(&m.w[i])
+}
+
+ensures acc(&result.Z) && forall i int :: 0 <= i && i < len(result.Z) ==> acc(&result.Z[i])
+ensures result.Mem()
+construct &Many() {
+	fold result.Mem()
+}
+
+requires m.Mem()
+requires forall i int :: 0 <= i && i < len(m.Z) ==> acc(&m.Z[i])
+ensures m.Mem()
+ensures forall i int :: 0 <= i && i < len(m.Z) ==> acc(&m.Z[i])
+ensures forall i int :: {m.Z[i]} 0 <= i && i < len(m.Z) ==> m.Z[i] == i
+private {
+	requires forall i int :: 0 <= i && i < len(m.u) ==> acc(&m.u[i])
+	requires forall i int :: 0 <= i && i < len(m.v) ==> acc(&m.v[i])
+	requires forall i int :: 0 <= i && i < len(m.w) ==> acc(&m.w[i])
+	requires forall i int :: 0 <= i && i < len(m.Z) ==> acc(&m.Z[i])
+	ensures forall i int :: 0 <= i && i < len(m.u) ==> acc(&m.u[i])
+	ensures forall i int :: 0 <= i && i < len(m.v) ==> acc(&m.v[i])
+	ensures forall i int :: 0 <= i && i < len(m.w) ==> acc(&m.w[i])
+	ensures forall i int :: 0 <= i && i < len(m.Z) ==> acc(&m.Z[i])
+	ensures forall j int :: {m.u[j]} 0 <= j && j < i ==> m.u[j] == j - 1
+	ensures forall j int :: {m.v[j]} 0 <= j && j < i ==> m.v[j] == j + 1
+	ensures forall j int :: {m.w[j]} 0 <= j && j < i ==> m.w[j] == 2 * j
+	ensures forall i int :: {m.Z[i]} 0 <= i && i < len(m.Z) ==> m.Z[i] == i
+	ensures
+	
+	proof {
+		unfold m.Mem()
+		RisingNum(m)
+		fold m.Mem()
+	}
+}
+func RisingNum(m *Many) {
+	invariant 0 <= i && i <= len(m.u)
+    invariant forall j int :: 0 <= j && j < len(m.u) ==> acc(&m.u[j])
+	invariant forall j int :: {m.u[j]} 0 <= j && j < i ==> m.u[j] == j - 1
+	for i := 0; i < len(m.u); i++ {
+        m.u[i] = i - 1
+    }
+	invariant 0 <= i && i <= len(m.v)
+    invariant forall j int :: 0 <= j && j < len(m.v) ==> acc(&m.v[j])
+	invariant forall j int :: {m.v[j]} 0 <= j && j < i ==> m.v[j] == j + 1
+	for i := 0; i < len(m.v); i++ {
+        m.v[i] = i + 1
+    }
+	invariant 0 <= i && i <= len(m.w)
+    invariant forall j int :: 0 <= j && j < len(m.w) ==> acc(&m.w[j])
+	invariant forall j int :: {m.w[j]} 0 <= j && j < i ==> m.w[j] == 2 * j
+	for i := 0; i < len(m.w); i++ {
+        m.w[i] = 2 * i
+    }
+	invariant 0 <= i && i <= len(m.Z)
+    invariant forall j int :: 0 <= j && j < len(m.Z) ==> acc(&m.Z[j])
+	invariant forall j int :: {m.Z[j]} 0 <= j && j < i ==> m.Z[j] == j
+	for i := 0; i < len(m.Z); i++ {
+        m.Z[i] = i
+    }
+}
+
+
+type LotsOfFields struct {
+	a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, A11, a12, A13, a14, A15, a16, A17, a18, A19, 
+	a20, A21, a22, A23, a24, A25, a26, A27, a28, A29, a30, A31, A32, a33, A34, A35, a36, A37, 
+	A38, a39, A40, A41, a42, A43, A44, a45, A46, a47, a48, A49, A50 int
+}
+
+func client0() {
+	a := &mf.Many{}
+    a.RisingNum()
+    assert a.Z[200] == 200
+    assert a.u[200] == 199
+	assert a.v[224] == 225
+	assert a.w[106] == 212
+	assert a.Z[100000] == 100000
+}
+
+func client1() {
+	lots := &LotsOfFields{}
+	assert lots.a0 == 0
+	assert lots.A29 == 0 
+	assert lots.a48 == 0 
+	assert lots.a14 == 0
+	assert lots.A23 == 0
+}

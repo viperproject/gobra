@@ -1,0 +1,84 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type Pair struct {
+  Left, Right, p int
+}
+
+requires acc(x)
+pure func (x *Pair) GetP() int {
+  return x.p
+}
+
+//private function with struct (private specification and proof)
+requires acc(x) && x.Left == 2 && x.GetP() == 3
+ensures  acc(x) && x.Left == 2
+private {
+  requires acc(x) && x.Left == 2 && x.p == 3
+  ensures  acc(x) && x.Left == 2 && x.p == 3
+  proof {
+    r = foo(a, b, x)
+  }
+}
+func foo(a, b int, x *Pair) (r int) {
+  x.Left = 2
+  x.p = 3
+  return a
+} 
+
+//private function with struct (private specification and no proof)
+requires acc(x) && x.Left == 2 
+ensures  acc(x) && x.Left == 2 && x.GetP() == 3
+private {
+  requires acc(x) && x.Left == 2
+  ensures  acc(x) && x.Left == 2 && x.p == 3
+}
+func foo2(a int, x *Pair) (r int) {
+  x.Left = 2
+  x.p = 3
+  return a
+} 
+
+//private function, no private spec
+requires acc(x) && x.Left == 2
+ensures  acc(x) && x.Left == 2 && x.p == 3
+func foo3(a int, x *Pair) (r int) {
+  x.Left = 2
+  x.p = 3
+  return a
+} 
+
+//private function, no private spec
+requires a == 0
+ensures r == 1
+func f(a int) (r int) {
+  r := a + 1
+}
+
+//test for termination, if public spec has termination spec than private spec needs to have termination spec
+//but if private spec has termination spec then public spec does not need to have termination spec
+requires n >= 0
+decreases
+private {
+  requires n >= 0
+  decreases n
+  proof {
+    r = factorial(n)
+  }
+}
+func factorial(n int) (r int) {
+	if n == 0 {
+		return 1
+	} else {
+		return n * factorial(n-1)
+	}
+}
+
+// private function with private spec
+requires a == 0
+private {
+  requires a == 0
+}
+func noProof(a int)

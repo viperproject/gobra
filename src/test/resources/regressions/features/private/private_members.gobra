@@ -8,7 +8,7 @@ type Pair struct {
 }
 
 // test private member in public specification
-//:: ExpectedOutput(error)
+//:: ExpectedOutput(type_error)
 requires acc(x) && x.Left == 2 && x.p == 3
 ensures  acc(x) && x.Left == 2
 private {
@@ -25,7 +25,7 @@ func Foo(x *Pair) {
 
 const g int = 6
 
-//:: ExpectedOutput(error)
+//:: ExpectedOutput(type_error)
 requires g == 6
 func Foo2()
 

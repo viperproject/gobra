@@ -114,6 +114,9 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val enclosingPConstDecl: PNode => Option[PConstSpec] =
     down[Option[PConstSpec]](None) { case x: PConstSpec => Some(x) }
 
+  lazy val enclosingPConstructor: PNode => Option[PConstructor] = 
+    down[Option[PConstructor]](None) { case x: PConstructor => Some(x) }
+
   def typeSwitchConstraints(id: PIdnNode): Vector[PExpressionOrType] =
     typeSwitchConstraintsLookup(id)(id)
 

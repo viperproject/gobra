@@ -44,6 +44,7 @@ class ConstructorEncoding extends Encoding {
   /* 
    * Takes a constructor 'ctor' and creates a method '*TConstruct'.
    * [
+   *    requires P
    *    ensures Q
    *    construct *T() {
    *      proof
@@ -53,6 +54,7 @@ class ConstructorEncoding extends Encoding {
    * is encoded as:
    *
    * method *TConstruct(lit: T) returns (ret: *T)
+   *    requires [P]
    *    ensures [Q]
    * {
    *    var z (*T)°;
@@ -83,6 +85,7 @@ class ConstructorEncoding extends Encoding {
    * and the specification Q:
    *
    * [
+   *    requires P
    *    ensures Q
    *    construct *T() {
    *      fold A1
@@ -275,7 +278,8 @@ class ConstructorEncoding extends Encoding {
    * Takes a dereference 'deref' and creates a method '*TDeref'.
    * 
    * [
-   *    requires Q
+   *    requires P
+   *    ensures Q
    *    pure deref *T() {
    *      proof
    *    }
@@ -284,7 +288,8 @@ class ConstructorEncoding extends Encoding {
    * is encoded as:
    *
    * function *TDeref(this: *T) returns (ret: T)
-   *    requires [Q]
+   *    requires [P]
+   *    ensures [Q]
    * {
    *    [proof]
    * }
@@ -332,7 +337,7 @@ class ConstructorEncoding extends Encoding {
    * Takes an assignment 'ass' and creates a method '*TAssign'.
    * 
    * [
-   *    requires Q
+   *    requires P
    *    ensures Q
    *    ensures *this == rhs
    *    assign *T(rhs: T) {
@@ -342,8 +347,8 @@ class ConstructorEncoding extends Encoding {
    * 
    * is encoded as:
    *
-   * function *TAssign(this: *T, rhs: T) returns (ret: *T)
-   *    requires [Q]
+   * method *TAssign(this: *T, rhs: T) returns (ret: *T)
+   *    requires [P]
    *    ensures [Q]
    *    ensures *TDeref == rhs
    * {

@@ -253,7 +253,8 @@ trait GhostAssignability {
 
     val (fArgs, fRes, context) = regular(funcId) match {
       case f: st.Function => (f.args, f.result.outs, f.context)
-      case _ => Violation.violation(s"expected a function, but got ${funcId}")
+      case i: st.MethodImpl => (i.args, i.result.outs, i.context)
+      case _ => Violation.violation(s"expected a function or method, but got ${funcId}")
     }
 
     val argTyping = paramTyping(fArgs, context)

@@ -1,0 +1,126 @@
+package bloom
+
+type bloomFilter struct {
+	bitset []int
+	m      int
+	k      int
+}
+
+func NewBloomFilter(m int, k int) *bloomFilter {
+	return &bloomFilter{
+		bitset: make([]int, m),
+		m:      m,
+		k:      k,
+	}
+}
+
+requires acc(bf)
+ensures acc(bf)
+ensures len(bf.bitset) == len(old(bf.bitset)) + 1
+func (bf *bloomFilter) Add(key string) {
+	for i := 0; i < bf.k; i++ {
+		index := hash(key, i) % bf.m
+		bf.bitset[index] = 1
+	}
+}
+
+func (bf *bloomFilter) Contains(key string) bool {
+	for i := 0; i < bf.k; i++ {
+		index := hash(key, i) % bf.m
+		if bf.bitset[index] != 1 {
+			return false
+		}
+	}
+	return true
+}
+
+func hash(key string, seed int) int {
+	var h int
+	for _, c := range key {
+		h = seed*h + int(c)
+	}
+	return h
+}
+
+func main() {
+	bf := NewBloomFilter(100, 3)
+	fmt.Println(bf.bitset)
+	fmt.Println(bf.m)
+	fmt.Println(bf.k)
+}
+
+/*
+package main
+
+// BloomFilter is a probabilistic data structure for testing whether an element is a member of a set.
+type BloomFilter struct {
+	bits      []bool // The array of bits used to represent the filter
+	hashFuncs []func(string) uint64 // The hash functions used to calculate indices into the filter
+}
+
+// NewBloomFilter creates a new Bloom filter with the specified size and hash functions.
+// Preconditions:
+//   - size > 0
+//   - len(hashFuncs) > 0
+// Postconditions:
+//   - The returned BloomFilter has a bits array of length size.
+//   - The returned BloomFilter has a hashFuncs array with the same length as the input hashFuncs array.
+func NewBloomFilter(size int, hashFuncs []func(string) uint64) *BloomFilter {
+	if size <= 0 {
+		panic("BloomFilter size must be greater than 0")
+	}
+
+	if len(hashFuncs) == 0 {
+		panic("BloomFilter must have at least one hash function")
+	}
+
+	return &BloomFilter{
+		bits:      make([]bool, size),
+		hashFuncs: hashFuncs,
+	}
+}
+
+// Add adds an element to the Bloom filter.
+// Preconditions:
+//   - len(elem) > 0
+// Postconditions:
+//   - The bits in the Bloom filter corresponding to the element's hash values are set to true.
+func (b *BloomFilter) Add(elem string) {
+	if len(elem) == 0 {
+		panic("Cannot add an empty element to a Bloom filter")
+	}
+
+	for _, hashFunc := range b.hashFuncs {
+		index := hashFunc(elem) % uint64(len(b.bits))
+		b.bits[index] = true
+	}
+}
+
+// Test tests whether an element is a member of the Bloom filter.
+// Preconditions:
+//   - len(elem) > 0
+// Postconditions:
+//   - If Test returns true for an element, the element may be in the set (false positives are possible).
+//   - If Test returns false for an element, the element is definitely not in the set (false negatives are not possible).
+func (b *BloomFilter) Test(elem string) bool {
+	if len(elem) == 0 {
+		panic("Cannot test an empty element in a Bloom filter")
+	}
+
+	for _, hashFunc := range b.hashFuncs {
+		index := hashFunc(elem) % uint64(len(b.bits))
+		if !b.bits[index] {
+			return false
+		}
+	}
+
+	return true
+}
+
+// Invariant checks that the length of bits is always greater than 0.
+// Invariant:
+//   - len(bits) > 0
+func (b *BloomFilter) Invariant() bool {
+	return len(b.bits) > 0
+}
+*/

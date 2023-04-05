@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I ./)
+import bar "bar"
+
+func client0() {
+    x := &bar.Pair{Left: 2, Right: 0}
+
+    assert(acc(&x.Left) && acc(&x.Right) && x.Mem())
+    assert(x.Left == 2 && x.Right == 0)
+}
+
+func client1() {
+    x := &bar.Pair{Left: 90000, Right: 100000}
+
+    assert(acc(&x.Left) && acc(&x.Right) && x.Mem())
+    assert(acc(x) && x.Mem() && x.Left == 90000 && x.Right == 100000)
+}
+
+func client2() {
+	x := bar.GetPvt(2)
+	
+	assert(x.Mem() && x.GetPvtX() == 2)
+}

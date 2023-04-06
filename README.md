@@ -53,11 +53,19 @@ are two workarounds:
   sbt normally. However, for unknown reasons, this causes issues with class resolution in the Viper backend, so actually
   only the parsing can really be debugged.
 - Attach the debugger to the forked JVM.
-  Run `set javaOptions += "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005"`
-  in sbt (use any port you like, just make sure to use the same one in the debugger). Now, the forked JVM can be
-  debugged
-  instead of the sbt JVM. This requires starting the debugger again every time a new VM is created, e.g. for
-  every `run`.
+  - Create a debug configuration in IntelliJ and specify to `Attach to remote JVM`, set `localhost` as host, and 
+     a port (e.g. 5005).
+  - Run `set javaOptions += "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005"`
+     in sbt (use any port you like, just make sure to use the same one in the debugger). Now, the forked JVM can be
+    debugged instead of the sbt JVM. This requires starting the debugger again every time a new VM is created,
+    e.g. for every `run`.
+- Let the debugger listen to the forked JVM.
+  - Create a debug configuration in IntelliJ and specify to `Listen to remote JVM`, enable auto restart, set
+    `localhost` as host, and a port (e.g. 5005).
+  - Run `set javaOptions += "-agentlib:jdwp=transport=dt_socket,server=n,address=localhost:5005,suspend=y"` in sbt.
+    Thanks to auto restart, the debugger keeps listening even when the JVM is restarted, e.g. for every `run`.
+    Note however that the debugger must be running/listening as otherwise the JVM will emit a connection 
+    refused error.
 
 ## Licensing
 Most Gobra sources are licensed under the Mozilla Public License Version 2.0.

@@ -20,7 +20,6 @@ class ClosureDomainEncoder(specs: ClosureSpecsEncoder) {
 
   private var domainNeeded: Boolean = false
   lazy val vprType: vpr.DomainType = {
-    println("Use of closures detected: Closures are an experimental feature and may exhibit bugs.")
     domainNeeded = true
     vpr.DomainType(Names.closureDomain, Map.empty)(Vector.empty)
   }

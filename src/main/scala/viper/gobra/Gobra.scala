@@ -207,6 +207,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * The current config merged with the newly created config is then returned
     */
   def getAndMergeInFileConfig(config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], Config] = {
+    val startTime = System.currentTimeMillis()
     val inFileEitherConfigs = config.packageInfoInputMap(pkgInfo).map(input => {
       val content = input.content
       val configs = for (m <- inFileConfigRegex.findAllMatchIn(content)) yield m.group(1)
@@ -225,14 +226,19 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       }
     })
     val (errors, inFileConfigs) = inFileEitherConfigs.partitionMap(identity)
-    if (errors.nonEmpty) Left(errors.map(ConfigError))
-    else {
+    val result = if (errors.nonEmpty) {
+      Left(errors.map(ConfigError))
+    } else {
       // start with original config `config` and merge in every in file config:
       val mergedConfig = inFileConfigs.flatten.foldLeft(config) {
         case (oldConfig, fileConfig) => oldConfig.merge(fileConfig)
       }
       Right(mergedConfig)
     }
+    val endTime = System.currentTimeMillis()
+    val durationInMs = endTime - startTime
+    logger.debug(s"Configuration finished in $durationInMs")
+    result
   }
 
   private def setLogLevel(config: Config): Unit = {
@@ -243,8 +249,13 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performParsing(pkgInfo: PackageInfo, config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
+      val startTime = System.currentTimeMillis()
       val sourcesToParse = config.packageInfoInputMap(pkgInfo)
-      Parser.parse(sourcesToParse, pkgInfo)(config)
+      val result = Parser.parse(sourcesToParse, pkgInfo)(config)
+      val endTime = System.currentTimeMillis()
+      val durationInSec = (endTime - startTime)/1000.0
+      logger.debug(s"Parsing finished in ${durationInSec}s.")
+      result
     } else {
       Left(Vector())
     }
@@ -252,7 +263,12 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performTypeChecking(parsedPackage: PPackage, config: Config): Either[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
-      Info.check(parsedPackage, config.packageInfoInputMap(parsedPackage.info), isMainContext = true)(config)
+      val startTime = System.currentTimeMillis()
+      val result = Info.check(parsedPackage, config.packageInfoInputMap(parsedPackage.info), isMainContext = true)(config)
+      val endTime = System.currentTimeMillis()
+      val durationInSec = (endTime - startTime) / 1000.0
+      logger.debug(s"Type-checking finished in ${durationInSec}s.")
+      result
     } else {
       Left(Vector())
     }
@@ -260,7 +276,12 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performDesugaring(parsedPackage: PPackage, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
     if (config.shouldDesugar) {
-      Right(Desugar.desugar(parsedPackage, typeInfo)(config))
+      val startTime = System.currentTimeMillis()
+      val result = Right(Desugar.desugar(parsedPackage, typeInfo)(config))
+      val endTime = System.currentTimeMillis()
+      val durationInSec = (endTime - startTime) / 1000.0
+      logger.debug(s"Desugaring finished in ${durationInSec}s.")
+      result
     } else {
       Left(Vector())
     }
@@ -268,7 +289,12 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performVerification(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {
     if (config.noVerify) {
-      Future(VerifierResult.Success)(executor)
+      val startTime = System.currentTimeMillis()
+      val result = Future(VerifierResult.Success)(executor)
+      val endTime = System.currentTimeMillis()
+      val durationInSec = (endTime - startTime) / 1000.0
+      logger.debug(s"Verification finished in ${durationInSec}s.")
+      result
     } else {
       verifyAst(config, pkgInfo, ast, backtrack)(executor)
     }
@@ -282,18 +308,27 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     // constant propagation does not cause duplication of verification errors caused
     // by overflow checks (if enabled) because all overflows in constant declarations 
     // can be found by the well-formedness checks.
+    val startTime = System.currentTimeMillis()
     var transformations: Vector[InternalTransform] = Vector(CGEdgesTerminationTransform, ConstantPropagation)
     if (config.checkOverflows) {
       transformations :+= OverflowChecksTransform
     }
     val result = transformations.foldLeft(program)((prog, transf) => transf.transform(prog))
     config.reporter.report(AppliedInternalTransformsMessage(config.packageInfoInputMap(pkgInfo).map(_.name), () => result))
+    val endTime = System.currentTimeMillis()
+    val durationInSec = (endTime - startTime) / 1000.0
+    logger.debug(s"Internal transformations performed in ${durationInSec}s.")
     Right(result)
   }
 
   private def performViperEncoding(program: Program, config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], BackendVerifier.Task] = {
     if (config.shouldViperEncode) {
-      Right(Translator.translate(program, pkgInfo)(config))
+      val startTime = System.currentTimeMillis()
+      val result = Right(Translator.translate(program, pkgInfo)(config))
+      val endTime = System.currentTimeMillis()
+      val durationInSec = (endTime - startTime) / 1000.0
+      logger.debug(s"Encoding performed in ${durationInSec}s.")
+      result
     } else {
       Left(Vector())
     }

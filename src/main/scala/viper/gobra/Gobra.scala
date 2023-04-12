@@ -225,8 +225,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       }
     })
     val (errors, inFileConfigs) = inFileEitherConfigs.partitionMap(identity)
-    if (errors.nonEmpty)
-      Left(errors.map(ConfigError))
+    if (errors.nonEmpty) Left(errors.map(ConfigError))
     else {
       // start with original config `config` and merge in every in file config:
       val mergedConfig = inFileConfigs.flatten.foldLeft(config) {

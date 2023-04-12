@@ -207,7 +207,6 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * The current config merged with the newly created config is then returned
     */
   def getAndMergeInFileConfig(config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], Config] = {
-    val startTime = System.currentTimeMillis()
     val inFileEitherConfigs = config.packageInfoInputMap(pkgInfo).map(input => {
       val content = input.content
       val configs = for (m <- inFileConfigRegex.findAllMatchIn(content)) yield m.group(1)
@@ -226,19 +225,15 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       }
     })
     val (errors, inFileConfigs) = inFileEitherConfigs.partitionMap(identity)
-    val result = if (errors.nonEmpty) {
+    if (errors.nonEmpty)
       Left(errors.map(ConfigError))
-    } else {
+    else {
       // start with original config `config` and merge in every in file config:
       val mergedConfig = inFileConfigs.flatten.foldLeft(config) {
         case (oldConfig, fileConfig) => oldConfig.merge(fileConfig)
       }
       Right(mergedConfig)
     }
-    val endTime = System.currentTimeMillis()
-    val durationInMs = endTime - startTime
-    logger.debug(s"Configuration finished in $durationInMs")
-    result
   }
 
   private def setLogLevel(config: Config): Unit = {

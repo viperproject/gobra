@@ -235,11 +235,23 @@ trait TypeEncoding extends Generator {
 
   /**
     * Encodes assertions.
-    *
-    * Constraints:
-    * - in.Access with in.PredicateAccess has to encode to vpr.PredicateAccessPredicate.
     */
   def assertion(@unused ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = PartialFunction.empty
+
+  /**
+    * Encodes predicate accesses.
+    * Supported predicate accesses have a default encoding of access, fold, unfold, unfolding, trigger, perm, and termination measures.
+    */
+  def predicateAccess(@unused ctx: Context): in.PredicateAccess ==> CodeWriter[vpr.PredicateAccess] = PartialFunction.empty
+
+  final def predicateAccessPredicate(ctx: Context): (in.PredicateAccess, in.Expr, in.Node) ==> CodeWriter[vpr.PredicateAccessPredicate] = {
+    val pa = predicateAccess(ctx); { case (pa(w), perm, src) =>
+      for {
+        pacc <- w
+        perm <- ctx.expression(perm)
+      } yield withSrc(vpr.PredicateAccessPredicate(pacc, perm), src)
+    }
+  }
 
   final def invariant(ctx: Context): in.Assertion ==> (CodeWriter[Unit], vpr.Exp) = {
     def invErr(inv: vpr.Exp): ErrorTransformer = {

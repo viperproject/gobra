@@ -94,11 +94,11 @@ class InterfaceEncoding extends LeafTypeEncoding {
   override def method(ctx: Context): in.Member ==> MemberWriter[vpr.Method] = {
     case p: in.Method if p.receiver.typ.isInstanceOf[in.InterfaceT] =>
       // adds the precondition that the receiver is not equal to the nil interface
-      val (pos, info: Source.Verifier.Info, errT) = p.vprMeta
+      val (pos, info, errT) = p.vprMeta
       for {
         m <- ctx.defaultEncoding.method(p)(ctx)
         recv = m.formalArgs.head.localVar // receiver is always the first parameter
-        mWithNotNilCheck = m.copy(pres = utils.receiverNotNil(recv)(pos, info, errT)(ctx) +: m.pres)(pos, info, errT)
+        mWithNotNilCheck = m.copy(pres = utils.receiverNotNil(recv)(ctx) +: m.pres)(pos, info, errT)
       } yield mWithNotNilCheck
 
     case p: in.MethodSubtypeProof =>
@@ -249,33 +249,36 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
   /**
     * Encodes assertions.
-    *
-    * Constraints:
-    * - in.Access with in.PredicateAccess has to encode to vpr.PredicateAccessPredicate.
-    *
-    *
     */
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
+
+    def wrap(predicateAccess: vpr.PredicateAccess, perm: vpr.Exp): vpr.Exp = {
+      val (pos, info, errT) = predicateAccess.meta
+      val predicateAccessPredicate = vpr.PredicateAccessPredicate(predicateAccess, perm)(pos, info, errT)
+      val notNil = utils.receiverNotNil(predicateAccess.args.head)(ctx)
+      vpr.And(predicateAccessPredicate, notNil)(pos, info, errT)
+    }
 
     default(super.assertion(ctx)) {
-      case n@ in.Access(in.Accessible.Predicate(in.MPredicateAccess(recv, p, args)), perm) if hasFamily(p)(ctx) =>
-        val (pos, info, errT) = n.vprMeta
-        for {
-          instance <- mpredicateInstance(recv, p, args)(n)(ctx)
-          perm <- goE(perm)
-        } yield vpr.PredicateAccessPredicate(instance, perm)(pos, info, errT): vpr.Exp
 
-      case n@ in.Access(in.Accessible.Predicate(in.FPredicateAccess(p, args)), perm) if hasFamily(p)(ctx) =>
-        val (pos, info, errT) = n.vprMeta
+      case in.Access(in.Accessible.Predicate(pacc@ in.MPredicateAccess(_:: ctx.Interface(_), _, _)), perm) =>
         for {
-          instance <- fpredicateInstance(p, args)(n)(ctx)
-          perm <- goE(perm)
-        } yield vpr.PredicateAccessPredicate(instance, perm)(pos, info, errT): vpr.Exp
+          instance <- ctx.predicateAccess(pacc)
+          perm <- ctx.expression(perm)
+        } yield wrap(instance, perm)
+
+      case in.Access(in.Accessible.Predicate(pacc: in.FPredicateAccess), perm) if hasFamily(pacc.pred)(ctx) =>
+        for {
+          instance <- ctx.predicateAccess(pacc)
+          perm <- ctx.expression(perm)
+        } yield wrap(instance, perm)
     }
   }
 
-
+  override def predicateAccess(ctx: Context): in.PredicateAccess ==> CodeWriter[vpr.PredicateAccess] = {
+    case n@ in.MPredicateAccess(recv, p, args) if hasFamily(p)(ctx) => mpredicateInstance(recv ,p, args)(n)(ctx)
+    case n@ in.FPredicateAccess(p, args) if hasFamily(p)(ctx) => fpredicateInstance(p, args)(n)(ctx)
+  }
 
   /**
     * Encodes whether a value is comparable or not.
@@ -681,7 +684,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
   private def function(p: in.PureMethod)(ctx: Context): MemberWriter[vpr.Function] = {
     Violation.violation(p.results.size == 1, s"expected a single result, but got ${p.results}")
 
-    val (pos, info: Source.Verifier.Info, errT) = p.vprMeta
+    val (pos, info, errT) = p.vprMeta
 
     val pProxy = Names.InterfaceMethod.origin(p.name)
 
@@ -721,7 +724,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         name = p.name.uniqueName,
         formalArgs = recvDecl +: argDecls,
         typ = resultType,
-        pres = utils.receiverNotNil(recv)(pos, info, errT)(ctx) +: (vPres ++ measures),
+        pres = utils.receiverNotNil(recv)(ctx) +: (vPres ++ measures),
         posts = (cases map { case (impl, implProxy) => clause(impl, implProxy) }) ++ posts,
         body = body
       )(pos, info, errT)

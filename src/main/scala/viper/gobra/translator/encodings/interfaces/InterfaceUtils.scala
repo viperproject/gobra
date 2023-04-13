@@ -14,7 +14,8 @@ import viper.silver.{ast => vpr}
 class InterfaceUtils(interfaces: InterfaceComponent, types: TypeComponent, poly: PolymorphValueComponent) {
 
   /** Returns [x != nil: Interface{}] */
-  def receiverNotNil(recv: vpr.Exp)(pos: vpr.Position, info: Source.Verifier.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
+  def receiverNotNil(recv: vpr.Exp)(ctx: Context): vpr.Exp = {
+    val (pos, info: Source.Verifier.Info, errT) = recv.meta
     // In Go, checking that an interface receiver is not nil never panics.
     vpr.Not(vpr.EqCmp(recv, nilInterface()(pos, info, errT)(ctx))(pos, info, errT))(pos, info.createAnnotatedInfo(Source.ReceiverNotNilCheckAnnotation), errT)
   }

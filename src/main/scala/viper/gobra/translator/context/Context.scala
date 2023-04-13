@@ -89,6 +89,10 @@ trait Context {
 
   def assertion(x: in.Assertion): CodeWriter[vpr.Exp] = typeEncoding.finalAssertion(this)(x)
 
+  def predicateAccess(x: in.PredicateAccess): CodeWriter[vpr.PredicateAccess] = typeEncoding.predicateAccess(this)(x)
+
+  def predicateAccessPredicate(x: in.PredicateAccess, p: in.Expr)(src: in.Node): CodeWriter[vpr.PredicateAccessPredicate] = typeEncoding.predicateAccessPredicate(this)(x, p, src)
+
   def invariant(x: in.Assertion): (CodeWriter[Unit], vpr.Exp) = typeEncoding.invariant(this)(x)
 
   def precondition(x: in.Assertion): MemberWriter[vpr.Exp] = typeEncoding.precondition(this)(x)

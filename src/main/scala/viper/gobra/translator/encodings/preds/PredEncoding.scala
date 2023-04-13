@@ -68,9 +68,6 @@ class PredEncoding extends LeafTypeEncoding {
   /**
     * Encodes assertions.
     *
-    * Constraints:
-    * - in.Access with in.PredicateAccess has to encode to vpr.PredicateAccessPredicate.
-    *
     * [acc(p(e1, ..., en))] -> eval_S([p], [e1], ..., [en]) where p: pred(S)
     */
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
@@ -127,7 +124,7 @@ class PredEncoding extends LeafTypeEncoding {
             // a1, ..., ak
             qArgs = mergeArgs(ctrArgs, accArgs)
             // acc(Q(a1, ..., ak), [p])
-            qAcc <- proxyAccess(q, qArgs, perm)(n.info)(ctx)
+            qAcc <- proxyAccess(q, qArgs, perm)(n)(ctx)
             // fold acc(Q(a1, ..., ak), [p])
             fold = vpr.Fold(qAcc)(pos, info, errT)
             _ <- write(fold)
@@ -169,7 +166,7 @@ class PredEncoding extends LeafTypeEncoding {
                 UnfoldError(info) dueTo DefaultErrorBackTranslator.defaultTranslate(reason) // we might want to change the message
             }
             // acc(Q(a1, ..., ak), [p])
-            qAcc <- proxyAccess(q, qArgs, perm)(n.info)(ctx)
+            qAcc <- proxyAccess(q, qArgs, perm)(n)(ctx)
             // inhale acc(Q(a1, ..., ak), [p])
             _ <- write(vpr.Inhale(qAcc)(pos, info, errT))
             // unfold acc(Q(a1, ..., ak), [p])
@@ -179,11 +176,10 @@ class PredEncoding extends LeafTypeEncoding {
   }
 
   /** Returns proxy(args) */
-  def proxyAccess(proxy: in.PredicateProxy, args: Vector[in.Expr], perm: in.Expr)(src: Source.Parser.Info)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate] = {
-    val predicateInstance = proxy match {
-      case proxy: in.FPredicateProxy => in.Access(in.Accessible.Predicate(in.FPredicateAccess(proxy, args)(src)), perm)(src)
-      case proxy: in.MPredicateProxy => in.Access(in.Accessible.Predicate(in.MPredicateAccess(args.head, proxy, args.tail)(src)), perm)(src)
+  def proxyAccess(proxy: in.PredicateProxy, args: Vector[in.Expr], perm: in.Expr)(src: in.Node)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate] = {
+    proxy match {
+      case proxy: in.FPredicateProxy => ctx.predicateAccessPredicate(in.FPredicateAccess(proxy, args)(src.info), perm)(src)
+      case proxy: in.MPredicateProxy => ctx.predicateAccessPredicate(in.MPredicateAccess(args.head, proxy, args.tail)(src.info), perm)(src)
     }
-    ctx.assertion(predicateInstance).map(_.asInstanceOf[vpr.PredicateAccessPredicate])
   }
 }

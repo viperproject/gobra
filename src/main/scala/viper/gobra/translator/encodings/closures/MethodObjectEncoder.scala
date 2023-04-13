@@ -64,7 +64,7 @@ class MethodObjectEncoder(domain: ClosureDomainEncoder) {
     */
   private def genConversion(recvType: in.Type, meth: in.MethodProxy)(ctx: Context): vpr.Function = {
     generatedConversions.getOrElse(meth, {
-      val (pos, info: Source.Verifier.Info, errT) = meth.vprMeta
+      val (pos, info, errT) = meth.vprMeta
 
       val proxy = getterFunctionProxy(meth)
       val receiver = in.Parameter.In("self", recvType)(meth.info)
@@ -73,7 +73,7 @@ class MethodObjectEncoder(domain: ClosureDomainEncoder) {
 
       val result = underlyingType(recvType)(ctx) match {
         case recvType: in.InterfaceT =>
-          val recvNotNil = interfaceUtils.receiverNotNil(vprReceiverVar)(pos, info, errT)(ctx)
+          val recvNotNil = interfaceUtils.receiverNotNil(vprReceiverVar)(ctx)
           val defTCall: in.Type => vpr.Exp = t => {
             val func = genConversion(t, defTMethodProxy(t, meth.name)(ctx))(ctx)
             vpr.FuncApp(func = func, args = Seq(poly.unbox(interfaces.polyValOf(vprReceiverVar)()(ctx), t)(pos, info, errT)(ctx)))(pos, info, errT)

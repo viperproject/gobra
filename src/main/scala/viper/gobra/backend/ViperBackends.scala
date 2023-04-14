@@ -6,10 +6,11 @@
 
 package viper.gobra.backend
 
-import viper.gobra.frontend.Config
+import viper.gobra.frontend.{Config, MCE}
 import viper.gobra.util.GobraExecutionContext
 import viper.server.ViperConfig
 import viper.server.core.ViperCoreServer
+import viper.server.vsi.DefaultVerificationServerStart
 
 trait ViperBackend {
   def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperVerifier
@@ -23,9 +24,15 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
-      if (!config.disableMoreCompleteExhale) {
-        options ++= Vector("--enableMoreCompleteExhale")
+      if (config.conditionalizePermissions) {
+        options ++= Vector("--conditionalizePermissions")
       }
+      val mceSiliconOpt = config.mceMode match {
+        case MCE.Disabled => "0"
+        case MCE.Enabled  => "1"
+        case MCE.OnDemand => "2"
+      }
+      options ++= Vector(s"--exhaleMode=$mceSiliconOpt")
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }
@@ -74,12 +81,12 @@ object ViperBackends {
     /** returns an existing ViperCoreServer instance or otherwise creates a new one */
     protected def getOrCreateServer(config: Config)(executionContext: GobraExecutionContext): ViperCoreServer = {
       server.getOrElse({
-        var serverConfig = List("--logLevel", config.logLevel.levelStr)
+        var serverConfig = List("--disablePlugins", "--logLevel", config.logLevel.levelStr)
         if(config.cacheFile.isDefined) {
           serverConfig = serverConfig.appendedAll(List("--cacheFile", config.cacheFile.get.toString))
         }
 
-        val createdServer = new ViperCoreServer(new ViperConfig(serverConfig))(executionContext)
+        val createdServer = new ViperCoreServer(new ViperConfig(serverConfig))(executionContext) with DefaultVerificationServerStart
         // store server for next time:
         server = Some(createdServer)
         createdServer
@@ -96,14 +103,20 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
-      if (!config.disableMoreCompleteExhale) {
-        options ++= Vector("--enableMoreCompleteExhale")
+      val mceSiliconOpt = config.mceMode match {
+        case MCE.Disabled => "0"
+        case MCE.Enabled  => "1"
+        case MCE.OnDemand => "2"
       }
+      options ++= Vector(s"--exhaleMode=$mceSiliconOpt")
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }
       if (config.parallelizeBranches) {
         options ++= Vector("--parallelizeBranches")
+      }
+      if (config.conditionalizePermissions) {
+        options ++= Vector("--conditionalizePermissions")
       }
       options ++= exePaths
       ViperServerConfig.ConfigWithSilicon(options.toList)

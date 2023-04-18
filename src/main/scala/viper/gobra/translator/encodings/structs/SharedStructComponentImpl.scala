@@ -12,6 +12,8 @@ import StructEncoding.ComponentParameter
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 
+import scala.annotation.unused
+
 /**
   * Right now, this is just a tuples domain with an additional injectivity axiom to enable quantified permissions.
   * Because of the injectivity axiom, the constructor has to be removed. Otherwise the axioms are inconsistent.
@@ -49,15 +51,13 @@ class SharedStructComponentImpl extends SharedStructComponent {
     *   forall x: SharedStruct :: {getNofN(x)} revNofN(getNofN(x)) == x
     * }
     */
-  private def genDomain(arity: Int)(ctx: Context): Unit = {
+  private def genDomain(arity: Int)(@unused ctx: Context): Unit = {
     val domainName: String = s"${Names.sharedStructDomain}$arity"
     val typeVars = (0 until arity) map (i => vpr.TypeVar(s"T$i"))
     val typeVarMap = (typeVars zip typeVars).toMap
     val domainType = vpr.DomainType(domainName = domainName, partialTypVarsMap = typeVarMap)(typeVars)
     val xDecl = vpr.LocalVarDecl("x", domainType)()
     val x = xDecl.localVar
-    val yDecl = vpr.LocalVarDecl("y", domainType)()
-    val y = yDecl.localVar
     val vsDecl = (0 until arity) map (i => vpr.LocalVarDecl(s"v$i", typeVars(i))())
 
     val getFuncs = (0 until arity) map (i => vpr.DomainFunc(s"${Names.sharedStructDomain}get${i}of$arity", Seq(xDecl), typeVars(i))(domainName = domainName))
@@ -66,26 +66,31 @@ class SharedStructComponentImpl extends SharedStructComponent {
 
     val revFuncs = (0 until arity) map (i => vpr.DomainFunc(s"${Names.sharedStructDomain}rev${i}of$arity", Seq(vsDecl(i)), domainType)(domainName = domainName))
 
-    val eqApp = ctx.equality.eq(x, y)()
-    val eqAppTrigger = vpr.Trigger(Seq(eqApp))()
-
-    val equalityAxiom = {
-      vpr.AnonymousDomainAxiom(
-        vpr.Forall(
-          Seq(xDecl, yDecl),
-          Seq(eqAppTrigger),
-          vpr.EqCmp(
-            eqApp,
-            viper.silicon.utils.ast.BigAnd(getFuncs map (f =>
-              vpr.EqCmp(
-                vpr.DomainFuncApp(func = f, Seq(x), typeVarMap)(),
-                vpr.DomainFuncApp(func = f, Seq(y), typeVarMap)()
-              )()
-              ))
-          )()
-        )()
-      )(domainName = domainName)
-    }
+//    // Extensional Equality Axiom. The axiom is correct.
+//    // However, Gobra currently never triggers extensionality axioms.
+//    // This code can be added again if we ever to decide to use extentionality axioms.
+//    val yDecl = vpr.LocalVarDecl("y", domainType)()
+//    val y = yDecl.localVar
+//    val eqApp = ctx.equality.eq(x, y)()
+//    val eqAppTrigger = vpr.Trigger(Seq(eqApp))()
+//
+//    val equalityAxiom = {
+//      vpr.AnonymousDomainAxiom(
+//        vpr.Forall(
+//          Seq(xDecl, yDecl),
+//          Seq(eqAppTrigger),
+//          vpr.EqCmp(
+//            eqApp,
+//            viper.silicon.utils.ast.BigAnd(getFuncs map (f =>
+//              vpr.EqCmp(
+//                vpr.DomainFuncApp(func = f, Seq(x), typeVarMap)(),
+//                vpr.DomainFuncApp(func = f, Seq(y), typeVarMap)()
+//              )()
+//              ))
+//          )()
+//        )()
+//      )(domainName = domainName)
+//    }
 
     val injective = {
       (0 until arity) map { i =>
@@ -106,7 +111,7 @@ class SharedStructComponentImpl extends SharedStructComponent {
       name = domainName,
       typVars = typeVars,
       functions = revFuncs ++ getFuncs,
-      axioms = equalityAxiom +: injective
+      axioms = injective
     )()
 
     genDomains ::= domain

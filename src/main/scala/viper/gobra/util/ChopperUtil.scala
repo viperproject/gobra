@@ -12,10 +12,10 @@ import java.nio.file.Files
 import java.util.Properties
 import viper.silver.{ast => vpr}
 import viper.silver.ast.SourcePosition
-import viper.silver.ast.utility.Chopper
 import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.reporting.ChoppedViperMessage
 import viper.gobra.backend.BackendVerifier.Task
+import viper.gobra.util.{LocalChopper => Chopper}
 
 object ChopperUtil {
 
@@ -23,7 +23,6 @@ object ChopperUtil {
 
   /** Splits task program into multiple Viper programs depending on config. */
   def computeChoppedPrograms(task: Task, pkgInfo: PackageInfo)(config: Config): Vector[vpr.Program] = {
-
 
     val programs = Chopper.chop(task.program)(
       selection = computeIsolateMap(config, pkgInfo),
@@ -73,13 +72,12 @@ object ChopperUtil {
     * */
   def getPenalty: Chopper.Penalty[Chopper.Vertex] = {
     import scala.io.Source
-    import viper.silver.ast.utility.Chopper.Penalty
 
     val file = new File(GobraChopperFileLocation)
     if (!file.exists()) {
-      Penalty.Default
+      Chopper.Penalty.Default
     } else {
-      val dfltConf = Penalty.defaultPenaltyConfig
+      val dfltConf = Chopper.Penalty.defaultPenaltyConfig
       val settings = new Properties
       settings.load(Source.fromFile(file).bufferedReader())
       def get(name: String, dflt: Int): Int = {
@@ -87,7 +85,7 @@ object ChopperUtil {
         if (x == null) dflt else x.toIntOption.getOrElse(dflt)
       }
 
-      val penaltyConf = Penalty.PenaltyConfig(
+      val penaltyConf = Chopper.Penalty.PenaltyConfig(
         method          = get("method_body",      dfltConf.method),
         methodSpec      = get("method_spec",      dfltConf.methodSpec),
         function        = get("function",         dfltConf.function),
@@ -102,7 +100,7 @@ object ChopperUtil {
 
       println("Loaded chopper configuration from file.")
 
-      new Penalty.DefaultImpl(penaltyConf)
+      new Chopper.Penalty.DefaultImpl(penaltyConf)
     }
   }
 }

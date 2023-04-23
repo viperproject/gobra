@@ -1,38 +1,33 @@
 /*
- [The "BSD licence"]
- Copyright (c) 2017 Sasa Coh, Michał Błotniak
- Copyright (c) 2019 Ivan Kochurkin, kvanttt@gmail.com, Positive Technologies
- Copyright (c) 2019 Dmitry Rassadin, flipparassa@gmail.com, Positive Technologies
- Copyright (c) 2021 Martin Mirchev, mirchevmartin2203@gmail.com
- All rights reserved.
+ [The "BSD licence"] Copyright (c) 2017 Sasa Coh, Michał Błotniak Copyright (c) 2019 Ivan Kochurkin,
+ kvanttt@gmail.com, Positive Technologies Copyright (c) 2019 Dmitry Rassadin,
+ flipparassa@gmail.com,Positive Technologies All rights reserved. Copyright (c) 2021 Martin Mirchev,
+ mirchevmartin2203@gmail.com
 
- Redistribution and use in source and binary forms, with or without
- modification, are permitted provided that the following conditions
- are met:
- 1. Redistributions of source code must retain the above copyright
-    notice, this list of conditions and the following disclaimer.
- 2. Redistributions in binary form must reproduce the above copyright
-    notice, this list of conditions and the following disclaimer in the
-    documentation and/or other materials provided with the distribution.
- 3. The name of the author may not be used to endorse or promote products
-    derived from this software without specific prior written permission.
+ Redistribution and use in source and binary forms, with or without modification, are permitted
+ provided that the following conditions are met: 1. Redistributions of source code must retain the
+ above copyright notice, this list of conditions and the following disclaimer. 2. Redistributions in
+ binary form must reproduce the above copyright notice, this list of conditions and the following
+ disclaimer in the documentation and/or other materials provided with the distribution. 3. The name
+ of the author may not be used to endorse or promote products derived from this software without
+ specific prior written permission.
 
- THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
- IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
- INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+ THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING,
+ BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ POSSIBILITY OF SUCH DAMAGE.
+ */
+
 /*
  * A Go grammar for ANTLR 4 derived from the Go Language Specification https://golang.org/ref/spec
  */
 
-// Imported to Gobra from https://github.com/antlr/grammars-v4/blob/4c06ad8cc8130931c75ca0b17cbc1453f3830cd2/golang
+// Imported to Gobra from https://github.com/antlr/grammars-v4/blob/5493f3e2458d443f5a475359bf5e7cda87b25559/golang
+// Extended with Generics
 
 parser grammar GoParser;
 
@@ -67,11 +62,15 @@ expressionList: expression (COMMA expression)*;
 
 typeDecl: TYPE (typeSpec | L_PAREN (typeSpec eos)* R_PAREN);
 
-typeSpec: IDENTIFIER ASSIGN? type_;
+typeSpec: aliasDecl | typeDef;
+
+aliasDecl: IDENTIFIER ASSIGN type_;
+
+typeDef: IDENTIFIER typeParameters? type_;
 
 // Function declarations
 
-functionDecl: FUNC IDENTIFIER (signature block?);
+functionDecl: FUNC IDENTIFIER typeParameters? (signature block?);
 
 methodDecl: FUNC receiver IDENTIFIER ( signature block?);
 
@@ -87,7 +86,7 @@ varSpec:
 
 block: L_CURLY statementList? R_CURLY;
 
-statementList: (eos? statement eos)+;
+statementList: (statement EOS)+;
 
 statement:
 	declaration
@@ -194,7 +193,7 @@ commCase: CASE (sendStmt | recvStmt) | DEFAULT;
 
 recvStmt: (expressionList ASSIGN | identifierList DECLARE_ASSIGN)? recvExpr = expression;
 
-forStmt: FOR (expression | forClause | rangeClause)? block;
+forStmt: FOR (expression? | forClause | rangeClause?) block;
 
 forClause:
 	initStmt = simpleStmt? eos expression? eos postStmt = simpleStmt?;
@@ -206,9 +205,11 @@ rangeClause: (
 
 goStmt: GO expression;
 
-type_: typeName | typeLit | L_PAREN type_ R_PAREN;
+type_: typeName typeArgs? | typeLit | L_PAREN type_ R_PAREN;
 
 typeName: qualifiedIdent | IDENTIFIER;
+
+typeArgs: L_BRACKET typeList COMMA? R_BRACKET;
 
 typeLit:
 	arrayType
@@ -229,7 +230,13 @@ elementType: type_;
 pointerType: STAR type_;
 
 interfaceType:
-	INTERFACE L_CURLY ((methodSpec | typeName) eos)* R_CURLY;
+	INTERFACE L_CURLY (interfaceElem eos)* R_CURLY;
+
+interfaceElem: methodSpec | typeElem;
+
+typeElem: typeTerm (OR typeTerm)*;
+
+typeTerm: type_;
 
 sliceType: L_BRACKET R_BRACKET elementType;
 
@@ -254,6 +261,14 @@ parameters:
 	L_PAREN (parameterDecl (COMMA parameterDecl)* COMMA?)? R_PAREN;
 
 parameterDecl: identifierList? ELLIPSIS? type_;
+
+typeParameters: L_BRACKET typeParamList COMMA? R_BRACKET;
+
+typeParamList: typeParamDecl (COMMA typeParamDecl)*;
+
+typeParamDecl: identifierList typeConstraint;
+
+typeConstraint: typeElem;
 
 expression:
 	primaryExpr
@@ -300,11 +315,13 @@ primaryExpr:
 	);
 
 
+
+
 conversion: nonNamedType L_PAREN expression COMMA? R_PAREN;
 
 nonNamedType: typeLit | L_PAREN nonNamedType R_PAREN;
 
-operand: literal | operandName | L_PAREN expression R_PAREN;
+operand: literal | operandName typeArgs? | L_PAREN expression R_PAREN;
 
 literal: basicLit | compositeLit | functionLit;
 
@@ -334,7 +351,7 @@ literalType:
 	| L_BRACKET ELLIPSIS R_BRACKET elementType
 	| sliceType
 	| mapType
-	| typeName;
+	| typeName typeArgs?;
 
 literalValue: L_CURLY (elementList COMMA?)? R_CURLY;
 
@@ -346,7 +363,7 @@ key: expression | literalValue;
 
 element: expression | literalValue;
 
-structType: STRUCT L_CURLY (fieldDecl eos)* R_CURLY;
+structType: STRUCT L_CURLY (fieldDecl EOS)* R_CURLY;
 
 fieldDecl: (
 		identifierList type_
@@ -355,7 +372,7 @@ fieldDecl: (
 
 string_: RAW_STRING_LIT | INTERPRETED_STRING_LIT;
 
-embeddedField: STAR? typeName;
+embeddedField: STAR? typeName typeArgs?;
 
 functionLit: FUNC signature block; // function
 
@@ -384,5 +401,4 @@ eos:
 	SEMI
 	| EOF
 	| EOS
-	| {closingBracket()}?
-	;
+	| {closingBracket()}?;

@@ -19,7 +19,6 @@ import viper.gobra.translator.library.construct.{Construct, ConstructImpl}
 class ConstructorEncoding extends Encoding {
 
   import viper.gobra.translator.util.TypePatterns._
-  import viper.gobra.translator.util.{ViperUtil => VU}
   import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl, _}
   import MemberLevel._
 
@@ -53,35 +52,20 @@ class ConstructorEncoding extends Encoding {
    * 
    * is encoded as:
    *
-   * method *TConstruct(lit: T) returns (ret: *T)
+   * method *TConstruct(value: T) returns (result: *T)
    *    requires [P]
    *    ensures [Q]
    * {
    *    var z (*T)°;
-   *    inhale Footprint[*z] && [*z == lit];
-   *    [ret = z];
+   *    inhale Footprint[*z] && [*z == value];
+   *    [result = z];
    *    [proof];
    * }
    * 
    * The encoding inhales the Footprint of *z and assigns 'lit' to *z.
    * 
-   * If there is another constructor 'TConstruct' for the 'lit' argument, we call upon
-   * the TConstruct for that and we encode it as:
-   *
-   * method *TConstruct(lit: T) returns (ret: *T)
-   *    ensures [Q]
-   * {
-   *    var z (*T)°;
-   *    var l T;
-   *    [l = TConstruct(lit): T]
-   *    inhale Footprint[*z] && [*z == l];
-   *    [ret = z];
-   *    [proof];
-   * }
-   * 
-   * 
    * If there are no dereference or no assignment constructor(s), then the method generates
-   * a *TDeref or *TAssign. To do that it takes the fold statments inside the constructors body
+   * a *TDeref or *TAssign. To do that it takes the fold statments inside the constructor body
    * and the specification Q:
    *
    * [
@@ -97,29 +81,29 @@ class ConstructorEncoding extends Encoding {
    * 
    * is encoded as:
    *
-   * function *TDeref(this: *T) returns (ret: T) 
+   * function *TDeref([result: *T]) returns ([ret: T]) 
    *    requires [Q[Access]]
    * {
-   *    let z == this in [unfolding An] in ... [unfolding A1] in [*this]
+   *    let [z == result] in [unfolding An] in ... [unfolding A1] in [*result]
    * }
    * 
-   * method *TAssign(this: *T, init: T) returns (ret: *T)
+   * method *TAssign([result: *T], [value: T]) returns ([result: *T])
    *    requires [Q[Access]]
    *    ensures [Q[Access]]
-   *    ensures *TDeref(this) == rhs
+   *    ensures *TDeref(result) == [value]
    * {
    *    [unfold An]
    *    ...
    *    [unfold A1]
-   *    [*this = rhs]
+   *    [*result = value]
    *    [fold A1]
    *    ...
    *    [fold An]
    * }
    * 
-   * The "this"" and "init" arguments were virtually generated from the constructor 
-   * and resused in the generated constructors. Q[Access] only takes the permission
-   * part of the specification.
+   * The "result" and "value" arguments are virtually generated from the constructor 
+   * and reused in the generated constructors. Q[Access] only takes the permission
+   * and predicates of the specification Q.
    */
   private def shConstructor(ctor: in.Constructor)(ctx: Context): MemberWriter[vpr.Method] = {
     val (pos, info, errT) = ctor.vprMeta
@@ -148,7 +132,7 @@ class ConstructorEncoding extends Encoding {
     for {
       pres <- sequence(ctor.pres.map(ctx.precondition))
       posts <- sequence(ctor.posts.map(ctx.postcondition))
-      bodyCon <- option(shConstructorBody(ctor.body, exp, exprTyp, ret)(ctx))
+      bodyCon <- option(shConstructorBody(ctor.body, exp, ret)(ctx))
 
       _ <- if (bodyCon.isEmpty) option(None)
            else errorT(construction.constructWellFormedError(bodyCon.get))
@@ -167,7 +151,7 @@ class ConstructorEncoding extends Encoding {
     } yield method
   }
 
-  private def shConstructorBody(body: Option[in.Stmt], exp: in.LocalVar, typ: in.Type, ret: in.LocalVar)(ctx: Context): Option[Writer[vpr.Seqn]] = {
+  private def shConstructorBody(body: Option[in.Stmt], exp: in.LocalVar, ret: in.LocalVar)(ctx: Context): Option[Writer[vpr.Seqn]] = {
     if (body.isEmpty) { None }  
     else { 
       val b = body.get
@@ -183,38 +167,11 @@ class ConstructorEncoding extends Encoding {
           _ <- cl.write(vpr.Inhale(eqDflt)(pos, info, errT))
 
           footprint <- struct.addressFootprint(ctx)(zDeref, in.FullPerm(zDeref.info))
-          // if Exclusive Constructor exists it gets called, otherwise it compares the fields
-          _ <- if (ctx.lookupConstructor(typ).isEmpty) { for {
-            eq <- (zDeref, exp) match { // DEREFERENCE should not be called in CONSTRUCTOR
-              case ((z: in.Deref) :: ctx.Struct(fz), e :: ctx.Struct(fe)) =>
-                for {
-                  x <- cl.bind(z)(ctx)
-                  y <- cl.bind(e)(ctx)
-                  lhsFAccs = fz.map(f => in.FieldRef(x, f)(x.info))
-                  rhsFAccs = fe.map(f => in.FieldRef(y, f)(y.info))
-                  equalFields <- cl.sequence((lhsFAccs zip rhsFAccs).map { case (lhsFA, rhsFA) => ctx.equal(lhsFA, rhsFA)(b) })
-                } yield VU.bigAnd(equalFields)(pos, info, errT)
-              case _ => ???
-            }
+
+          _ <- for {
+            eq <- ctx.equal(zDeref, exp)(b)
             w <- cl.write(vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT))
-          } yield w } else { 
-            val newExpr = in.LocalVar(ctx.freshNames.next(), typ)(z.info)
-            for {
-              _ <- cl.local(ctx.variable(newExpr))
-              vLhs <- zDeref match { // DEREFERENCE should not be called in CONSTRUCTOR
-                case (z: in.Deref) :: ctx.CompleteStruct(fs) =>
-                  for {
-                    x <- cl.bind(z)(ctx)
-                    locFAs = fs.map(f => in.FieldRef(x, f)(z.info))
-                    args <- cl.sequence(locFAs.map(fa => ctx.expression(fa)))
-                  } yield withSrc(ctx.tuple.create(args), z)
-                case _ => cl.pure(ctx.expression(zDeref))(ctx)
-              }
-              vRhs <- ctx.expression(newExpr)
-              eq = vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
-              w <- cl.write(vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT))
-            } yield w
-          }
+          } yield w 
 
           _ <- cl.bind(vRet, vZ)
           
@@ -287,7 +244,7 @@ class ConstructorEncoding extends Encoding {
    * 
    * is encoded as:
    *
-   * function *TDeref(this: *T) returns (ret: T)
+   * function *TDeref([this: *T]) returns ([ret: T])
    *    requires [P]
    *    ensures [Q]
    * {
@@ -339,18 +296,18 @@ class ConstructorEncoding extends Encoding {
    * [
    *    requires P
    *    ensures Q
-   *    ensures *this == rhs
-   *    assign *T(rhs: T) {
+   *    ensures *this == value
+   *    assign *T(value: T) {
    *      proof
    *    }
    * ]
    * 
    * is encoded as:
    *
-   * method *TAssign(this: *T, rhs: T) returns (ret: *T)
+   * method *TAssign([this: *T], [value: T]) returns ([ret: *T])
    *    requires [P]
    *    ensures [Q]
-   *    ensures *TDeref == rhs
+   *    ensures *TDeref([this]) == [value]
    * {
    *    [proof]
    * }
@@ -378,7 +335,7 @@ class ConstructorEncoding extends Encoding {
     for {
       pres <- sequence(ass.pres.map(ctx.precondition))
       posts <- dereferenceInAssignmentSpec(ass.posts, exprTyp)(ctx)
-      body <- option(assignmentBody(ass.body, ret)(ctx))
+      body <- if (ass.body.isEmpty) option(None) else option(Some(block(ctx.statement(ass.body.get)))) //option(assignmentBody(ass.body, ret)(ctx))
 
       _ <- errorT(construction.permissionAssignError(generated=false))
       _ <- if (body.isEmpty) option(None) else errorT(construction.assignWellFormedError(ass.info, body.get))
@@ -393,53 +350,6 @@ class ConstructorEncoding extends Encoding {
       )(pos, info, errT)
     } yield method
   } 
-
- /* if an assignment is in the body of ASSIGN then it should not call itself
-  * 
-  * [lhs: Struct{F}@ = rhs] -> FOREACH f in F: [lhs.f = rhs.f]
-  */
-  private def assignmentBody(body: Option[in.Stmt], ret: in.LocalVar)(ctx: Context): Option[Writer[vpr.Seqn]] = {
-    for {
-      stmt <- if (body.isEmpty) { None } 
-      else { 
-        val b = body.get
-        val (pos, info, errT) = b.vprMeta
-        val r = vpr.LocalVar(ret.id, ctx.typ(ret.typ))(pos, info, errT)
-        Some(
-          block(
-            cl.seqns(
-              for { 
-                w <- b match {
-                  case in.Block(_, stmts) => stmts.map(s => s match {
-                    // an assignment inside the assign declaration should not call itself
-                    case a@in.SingleAss(in.Assignee(lhs :: ctx.Struct(lhsFs) / Addressability.Shared), rhs :: ctx.Struct(rhsFs)) 
-                      if !ctx.lookupAssignments(lhs.typ).isEmpty => 
-                        assert(lhs.typ == getPointer(ret.typ).withAddressability(Addressability.Shared), s"type of ${lhs} does not match ${ret}")
-                        for {
-                          x <- cl.bind(lhs)(ctx)
-                          newX = in.LocalVar(x.id, ret.typ)(ret.info)
-                          eqDflt <- ctx.equal(newX, in.DfltVal(ret.typ)(ret.info))(b)
-                          _ <- cl.write(vpr.Inhale(eqDflt)(pos, info, errT))
-
-                          y <- cl.bind(rhs)(ctx)
-                          lhsFAs = lhsFs.map(f => in.FieldRef(x, f)(x.info)).map(in.Assignee.Field)
-                          rhsFAs = rhsFs.map(f => in.FieldRef(y, f)(y.info))
-                          res <- cl.seqns((lhsFAs zip rhsFAs).map { case (lhsFA, rhsFA) => ctx.assignment(lhsFA, rhsFA)(a) })
-                          _ <- cl.write(res)
-
-                          e = vpr.LocalVar(x.id, ctx.typ(x.typ))(pos, info, errT)
-                        } yield vpr.LocalVarAssign(r, e)(pos, info, errT)
-                    case s => ctx.statement(s)
-                  })
-                  case _ => ???
-                }
-              } yield w 
-            )
-          )
-        )
-      }
-    } yield stmt
-  }
 
   // if there is a dereference inside the ASSIGN specification then DEREF needs to be called
   private def dereferenceInAssignmentSpec(spec: Vector[in.Assertion], typ: in.Type)(ctx: Context): Writer[Vector[vpr.Exp]] = {

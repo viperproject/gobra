@@ -7,6 +7,7 @@ package bad
 import def "defined"
 
 //partial struct test
+//:: ExpectedOutput(assertion_error)
 func bad1(a, b def.Pair2) {
   if a.Left == b.Left && a.Right == b.Right {
     assert a == b
@@ -14,12 +15,14 @@ func bad1(a, b def.Pair2) {
 }
 
 //no assignment declaration
+//:: ExpectedOutput(assignment_decl_not_implemented)
 requires acc(&a.Left) && acc(&a.Right)
 func bad2(a *def.Pair2) {
   *a = def.Pair2{}
 }
 
 //no dereference declaration
+//:: ExpectedOutput(dereference_decl_not_implemented)
 requires acc(&a.Left) && acc(&a.Right)
 func bad3(a *def.Pair2) {
   x := *a

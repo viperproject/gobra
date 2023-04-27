@@ -29,7 +29,11 @@ pure deref &Pair() {
 requires acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
 ensures  acc(&this.Left) && acc(&this.Right) && this.PrivateMem()
 ensures  a == *this // a == deref(this)
-assign &Pair(a Pair)
+assign &Pair(a Pair) {
+  unfold this.PrivateMem()
+  *this = a
+  fold this.PrivateMem()
+}
 
 
 

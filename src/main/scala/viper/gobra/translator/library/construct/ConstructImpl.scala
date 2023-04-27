@@ -55,6 +55,8 @@ class ConstructImpl extends Construct {
       case _ => cl.pure(ctx.expression(zDeref))(ctx)
     }
 
+    // generates the dereference body from the fold statments 
+    // in the constructor body and reverses the order to unfold
     val body = ctor.body.map{ b => pure(b match {
       case in.Block(_, stmts) => stmts.collect {
         case in.Fold(a) => for {
@@ -121,6 +123,8 @@ class ConstructImpl extends Construct {
       e = s.filterNot(a => Expressions.freeVariables(a).exists(n => n.name == ctor.args(1).id))
     } yield e
 
+    // generates the first part of the assignment body from the fold statments
+    // in the constructor body and reverses the order to unfold
     val body1 = ctor.body.map{ b => block{ b match {
       case in.Block(_, stmts) => cl.seqns(stmts.collect {
         case in.Fold(a) => for {
@@ -150,6 +154,8 @@ class ConstructImpl extends Construct {
       case _ => ???
     }
 
+    // generates the second part of the assignment body 
+    // from the fold statments in the constructor body
     val body2 = ctor.body.map{ b => block{ b match {
       case in.Block(_, stmts) => cl.seqns(stmts.collect {
         case f@in.Fold(_) => ctx.statement(f)

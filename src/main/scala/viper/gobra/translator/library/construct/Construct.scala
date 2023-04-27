@@ -39,12 +39,12 @@ trait Construct extends Generator {
   def permissionAssignError(generated: Boolean): ErrorTransformer
 
  /*
-  * Gives an error if there is not enough permission to deref inside the DEREF function.
+  * Gives an error if there is not enough permission to deref inside the DEREF body.
   */
   def derefWellFormedError(src: Source.Parser.Info, res: vpr.Exp): ErrorTransformer
 
  /*
-  * Gives an error if there is not enough permission to assign inside the ASSIGN method.
+  * Gives an error if there is not enough permission to assign inside the ASSIGN body.
   */
   def assignWellFormedError(src: Source.Parser.Info, res: vpr.Stmt): ErrorTransformer
 

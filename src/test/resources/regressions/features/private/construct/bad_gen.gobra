@@ -8,6 +8,7 @@ import gen "generated"
 
 //partial struct test (equality axiom)
 //constructor not generated
+//:: ExpectedOutput(assertion_error)
 func bad1(a, b gen.Pair2) {
   if a.Left == b.Left && a.Right == b.Right {
     assert a == b
@@ -16,6 +17,7 @@ func bad1(a, b gen.Pair2) {
 
 //partial struct test (equality axiom)
 //constructor generated
+//:: ExpectedOutput(assertion_error)
 func bad2(a, b gen.Pair) {
   if a.Left == b.Left && a.Right == b.Right {
     assert a == b
@@ -24,6 +26,7 @@ func bad2(a, b gen.Pair) {
 
 //assignment declaration test
 //assingment from constructor generated
+//:: ExpectedOutput(gen_assign_perm_error)
 requires acc(&a.Left) && acc(&a.Right)
 func bad3(a *gen.Pair) {
   *a = gen.Pair{}
@@ -32,12 +35,14 @@ func bad3(a *gen.Pair) {
 //dereference declaration test
 //dereference from constructor generated
 requires acc(&a.Left) && acc(&a.Right)
+//:: ExpectedOutput(gen_deref_perm_error)
 func bad4(a *gen.Pair) {
   x := *a
 }
 
 //shared struct comparison with dereference declaration test
 //dereference from constructor generated
+//:: ExpectedOutput(assertion_error)
 requires acc(&a.Left) && acc(&a.Right) && a.PrivateMem()
 requires acc(&b.Left) && acc(&b.Right) && b.PrivateMem()
 func bad5(a, b *gen.Pair) {

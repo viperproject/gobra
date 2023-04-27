@@ -1,0 +1,63 @@
+package visibility2
+
+type Visibility struct {
+  	PubInt int
+  	pvtInt int
+
+  	Embedded
+}
+
+type Embedded struct {
+  	PubString string
+  	pvtString string
+}
+
+requires vis.PvtMem()
+pure func (vis *Visibility) GetPvtInt() int {
+ 	return unfolding vis.PvtMem() in vis.pvtInt
+}
+
+requires e.PvtEmbMem()
+pure func (e *Embedded) GetPvtString() string {
+ 	return unfolding e.PvtEmbMem() in e.pvtString
+}
+
+pred (vis *Visibility) PvtMem() {
+  acc(&vis.pvtInt)
+}
+
+pred (e *Embedded) PvtEmbMem() {
+  acc(&e.pvtString)
+}
+
+ensures acc(&result.PubInt) && acc(&result.PubString)
+ensures result.PvtMem() && result.PvtEmbMem()
+ensures result.GetPvtInt()  == 0 && result.GetPvtString() == ""
+ensures result.PubInt == value.PubInt && result.PubString == value.PubString
+construct &Visibility() {
+	fold result.PvtEmbMem()
+  fold result.PvtMem()
+}
+
+ensures acc(&result.PubString) && result.PvtEmbMem()
+ensures result.GetPvtString() == ""
+ensures result.PubString == value.PubString
+construct &Embedded() {
+  fold result.PvtEmbMem()
+}
+
+requires e.PvtEmbMem() 
+pure func (e *Embedded) IsEmpty() bool {
+	return unfolding e.PvtEmbMem() in e.pvtString == ""
+}
+
+func main() {
+  e := &Embedded{}
+  assert acc(e) && e.PubString == "" && e.pvtString == ""
+  vis := &Visibility{}
+  assert acc(vis) && vis.PubInt == 0 && vis.pvtInt == 0 && vis.PubString == "" && vis.pvtString == ""
+  fold vis.PvtEmbMem()
+  assert vis.IsEmpty()
+  fold e.PvtEmbMem()
+  assert e.IsEmpty()
+}

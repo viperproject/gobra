@@ -142,3 +142,7 @@ func test16() {
 	x, contained := m[2]
 	assert x == 0 && !contained
 }
+
+requires m != nil ==> acc(m)
+requires forall s string :: { s in domain(m) } s in domain(m) ==> acc(m[s])
+func test17(m map[string]*int) {}

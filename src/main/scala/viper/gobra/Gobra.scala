@@ -25,6 +25,8 @@ import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silicon.BuildInfo
 import viper.silver.{ast => vpr}
 
+import java.time.format.DateTimeFormatter
+import java.time.LocalTime
 import scala.concurrent.{Await, Future, TimeoutException}
 
 object GoVerifier {
@@ -77,9 +79,10 @@ trait GoVerifier extends StrictLogging {
       }
     })
 
+    val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
     config.packageInfoInputMap.keys.foreach(pkgInfo => {
       val pkgId = pkgInfo.id
-      logger.info(s"Verifying Package $pkgId")
+      logger.info(s"Verifying package $pkgId [${LocalTime.now().format(timeFormatter)}]")
       val future = verify(pkgInfo, config.copy(reporter = statsCollector, taskName = pkgId))(executor)
         .map(result => {
           // report that verification of this package has finished in order that `statsCollector` can free space by getting rid of this package's typeInfo
@@ -93,6 +96,9 @@ trait GoVerifier extends StrictLogging {
             case VerifierResult.Success => logger.info(s"$name found no errors")
             case VerifierResult.Failure(errors) =>
               logger.error(s"$name has found ${errors.length} error(s) in package $pkgId")
+              if (config.noStreamErrors) {
+                errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
+              }
               allVerifierErrors = allVerifierErrors ++ errors
           }
         })(executor)
@@ -162,7 +168,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     task.flatMap{
       case Left(Vector()) => Future(VerifierResult.Success)
       case Left(errors)   => Future(VerifierResult.Failure(errors))
-      case Right((job, finalConfig)) => verifyAst(finalConfig, pkgInfo, job.program,  job.backtrack)(executor)
+      case Right((job, finalConfig)) => performVerification(finalConfig, pkgInfo, job.program,  job.backtrack)(executor)
     }
   }
 
@@ -257,6 +263,14 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       Right(Desugar.desugar(parsedPackage, typeInfo)(config))
     } else {
       Left(Vector())
+    }
+  }
+
+  private def performVerification(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {
+    if (config.noVerify) {
+      Future(VerifierResult.Success)(executor)
+    } else {
+      verifyAst(config, pkgInfo, ast, backtrack)(executor)
     }
   }
 

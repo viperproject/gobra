@@ -14,7 +14,8 @@ func main () {
   Area(&r)
 }
 
-requires s != nil && s.mem() && s.Size()
+requires s != nil && s.mem()
+ensures  s != nil && s.mem()
 func Area(s shape.Shape) (ret int) {
   return s.Area()
 }

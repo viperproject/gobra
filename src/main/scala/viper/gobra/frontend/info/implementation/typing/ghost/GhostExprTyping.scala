@@ -15,7 +15,6 @@ import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
-import viper.gobra.util.TypeBounds
 import viper.gobra.util.Violation.violation
 
 import scala.annotation.unused
@@ -74,6 +73,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         assignableToSpec(n.right)
 
     case n: PClosureImplements => isPureExpr(n.closure) ++ wellDefIfClosureMatchesSpec(n.closure, n.spec)
+
+    case n: PLet => isExpr(n.op).out ++ isPureExpr(n.op) ++
+      n.ass.right.foldLeft(noMessages)((a, b) => a ++ isPureExpr(b))
 
     case n: PAccess =>
       val permWellDef = error(n.perm, s"expected perm or integer division expression, but got ${n.perm}",
@@ -237,6 +239,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PImplication => exprType(n.right) // implication is assertion or boolean iff its right side is
 
+    case n: PLet => exprType(n.op)
+
     case _: PAccess | _: PPredicateAccess | _: PMagicWand => AssertionT
 
     case _: PClosureImplements => BooleanT
@@ -360,14 +364,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       // Might change at some point
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(p: ap.Conversion)) =>
-          val dstTyp = symbType(p.typ)
-          val exprTyp = typ(p.arg)
-          (underlyingType(dstTyp), underlyingType(exprTyp)) match {
-            case (SliceT(IntT(TypeBounds.Byte)), StringT) =>
-              // this is an effectful conversion which produces permissions to the resulting slice
-              false
-            case _ => go(p.arg)
-          }
+          !isEffectfulConversion(p) && go(p.arg)
         case (Left(callee), Some(p@ap.FunctionCall(f, _))) => go(callee) && p.args.forall(go) && (f match {
           case ap.Function(_, symb) => symb.isPure
           case ap.Closure(_, symb) => symb.isPure
@@ -417,6 +414,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       })
 
       case _: PUnfolding => true
+      case _: PLet => true // the well-definedness check makes sure that both sub-expressions are pure.
       case _: POld | _: PLabeledOld | _: PBefore => true
       case _: PForall => true
       case _: PExists => true

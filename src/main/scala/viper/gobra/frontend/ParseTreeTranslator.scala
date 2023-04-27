@@ -1138,7 +1138,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitFunctionLit(ctx: FunctionLitContext): PFunctionLit = {
     visitChildren(ctx) match {
       case Vector(spec: PFunctionSpec, (id: Option[PIdnDef@unchecked], args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked])) =>
-        PFunctionLit(id, PClosureDecl(args, result, spec, body))
+        PFunctionLit(id, PClosureDecl(args, result, spec, body).at(spec))
     }
   }
 
@@ -1614,6 +1614,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val pred = visitNode[PPredicateAccess](ctx.predicateAccess())
     val op = visitNode[PExpression](ctx.expression())
     PUnfolding(pred, op).at(ctx)
+  }
+
+  override def visitLet(ctx: LetContext): PLet = {
+    val ass = visitNode[PShortVarDecl](ctx.shortVarDecl())
+    val op = visitNode[PExpression](ctx.expression())
+    PLet(ass, op).at(ctx)
   }
   //endregion
 

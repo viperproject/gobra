@@ -163,14 +163,28 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
 
   /**
     * {{{
-    * axiom slice_deconstructor_over_constructor {
-    *   forall arr, off, len, cap :: { smake(arr,off,len,cap) }
-    *     0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==>
-    *       sarray(smake(arr,off,len,cap)) == arr && ...
+    * axiom slice_deconstructor_over_constructor_array {
+    *   forall arr, off, len, cap :: { sarray(smake(arr,off,len,cap)) }
+    *     0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> sarray(smake(arr,off,len,cap)) == arr
+    * }
+    *
+    * axiom slice_deconstructor_over_constructor_offset {
+    *   forall arr, off, len, cap :: { soffset(smake(arr,off,len,cap)) }
+    *     0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> soffset(smake(arr,off,len,cap)) == off
+    * }
+    *
+    * axiom slice_deconstructor_over_constructor_len {
+    *   forall arr, off, len, cap :: { slen(smake(arr,off,len,cap)) }
+    *     0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> slen(smake(arr,off,len,cap)) == len
+    * }
+    *
+    * axiom slice_deconstructor_over_constructor_cap {
+    *   forall arr, off, len, cap :: { slen(smake(arr,off,len,cap)) }
+    *     0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> scap(smake(arr,off,len,cap)) == cap
     * }
     * }}}
     */
-  private lazy val slice_deconstructor_over_constructor: vpr.DomainAxiom = {
+  private lazy val slice_deconstructors_over_constructor: Vector[vpr.DomainAxiom] = {
     val arrDecl = vpr.LocalVarDecl("a", arrays.typ(typeVar))(); val arr = arrDecl.localVar
     val offDecl = vpr.LocalVarDecl("o", vpr.Int)(); val off = offDecl.localVar
     val lehDecl = vpr.LocalVarDecl("l", vpr.Int)(); val leh = lehDecl.localVar
@@ -182,19 +196,50 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
         vpr.LeCmp(vpr.IntLit(0)(), leh)(), vpr.And(
           vpr.LeCmp(leh, cay)(),
           vpr.LeCmp(vpr.Add(off,cay)(), arrays.len(arr)())())())())()
-    val rhs = vpr.And(
-      vpr.EqCmp(array(smake)(), arr)(), vpr.And(
-        vpr.EqCmp(offset(smake)(), off)(), vpr.And(
-          vpr.EqCmp(len(smake)(), leh)(),
-          vpr.EqCmp(cap(smake)(), cay)())())())()
 
-    vpr.AnonymousDomainAxiom(
+    val funcAppAxiom1 = array(smake)()
+    val funcAppAxiom2 = offset(smake)()
+    val funcAppAxiom3 = len(smake)()
+    val funcAppAxiom4 = cap(smake)()
+    val rhsAxiom1 = vpr.EqCmp(funcAppAxiom1, arr)()
+    val rhsAxiom2 = vpr.EqCmp(funcAppAxiom2, off)()
+    val rhsAxiom3 = vpr.EqCmp(funcAppAxiom3, leh)()
+    val rhsAxiom4 = vpr.EqCmp(funcAppAxiom4, cay)()
+
+    val axiom1 = vpr.NamedDomainAxiom(
+      "deconstructor_over_constructor_array",
       vpr.Forall(
         Seq(arrDecl, offDecl, lehDecl, cayDecl),
-        Seq(vpr.Trigger(Seq(smake))()),
-        vpr.Implies(lhs, rhs)()
+        Seq(vpr.Trigger(Seq(funcAppAxiom1))()),
+        vpr.Implies(lhs, rhsAxiom1)()
       )()
     )(domainName = domainName)
+    val axiom2 = vpr.NamedDomainAxiom(
+      "deconstructor_over_constructor_offset",
+      vpr.Forall(
+        Seq(arrDecl, offDecl, lehDecl, cayDecl),
+        Seq(vpr.Trigger(Seq(funcAppAxiom2))()),
+        vpr.Implies(lhs, rhsAxiom2)()
+      )()
+    )(domainName = domainName)
+    val axiom3 = vpr.NamedDomainAxiom(
+      "deconstructor_over_constructor_len",
+      vpr.Forall(
+        Seq(arrDecl, offDecl, lehDecl, cayDecl),
+        Seq(vpr.Trigger(Seq(funcAppAxiom3))()),
+        vpr.Implies(lhs, rhsAxiom3)()
+      )()
+    )(domainName = domainName)
+    val axiom4 = vpr.NamedDomainAxiom(
+      "deconstructor_over_constructor_cap",
+      vpr.Forall(
+        Seq(arrDecl, offDecl, lehDecl, cayDecl),
+        Seq(vpr.Trigger(Seq(funcAppAxiom4))()),
+        vpr.Implies(lhs, rhsAxiom4)()
+      )()
+    )(domainName = domainName)
+
+    Vector(axiom1, axiom2, axiom3, axiom4)
   }
 
   /**
@@ -268,10 +313,24 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
     *       soffset(s) + scap(s) <= alen(sarray(s))
     *   }
     *
-    *   axiom slice_deconstructor_over_constructor {
-    *     forall arr, off, len, cap :: { smake(arr,off,len,cap) }
-    *       0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==>
-    *         sarray(smake(arr,off,len,cap)) == arr && ...
+    *   axiom slice_deconstructor_over_constructor_array {
+    *     forall arr, off, len, cap :: { sarray(smake(arr,off,len,cap)) }
+    *       0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> sarray(smake(arr,off,len,cap)) == arr
+    *   }
+    *
+    *   axiom slice_deconstructor_over_constructor_offset {
+    *     forall arr, off, len, cap :: { soffset(smake(arr,off,len,cap)) }
+    *       0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> soffset(smake(arr,off,len,cap)) == off
+    *   }
+    *
+    *   axiom slice_deconstructor_over_constructor_len {
+    *     forall arr, off, len, cap :: { slen(smake(arr,off,len,cap)) }
+    *       0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> slen(smake(arr,off,len,cap)) == len
+    *   }
+    *
+    *   axiom slice_deconstructor_over_constructor_cap {
+    *     forall arr, off, len, cap :: { slen(smake(arr,off,len,cap)) }
+    *       0 <= off && 0 <= len && len <= cap && off + cap <= alen(arr) ==> scap(smake(arr,off,len,cap)) == cap
     *   }
     *
     *   axiom slice_constructor_over_deconstructor {
@@ -284,9 +343,9 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
   private lazy val domain : vpr.Domain = vpr.Domain(
     domainName,
     Seq(sarray_func, soffset_func, slen_func, scap_func, smake_func),
-    Seq(slice_offset_nonneg_axiom, slice_len_nonneg_axiom,
-      slice_len_leq_cap_axiom, slice_cap_leq_alen_axiom,
-      slice_deconstructor_over_constructor, slice_constructor_over_deconstructor),
+    slice_offset_nonneg_axiom +: slice_len_nonneg_axiom +:
+      slice_len_leq_cap_axiom +: slice_cap_leq_alen_axiom +:
+      slice_constructor_over_deconstructor +: slice_deconstructors_over_constructor,
     Seq(typeVar)
   )()
 

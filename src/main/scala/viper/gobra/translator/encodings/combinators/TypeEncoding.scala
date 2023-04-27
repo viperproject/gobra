@@ -443,8 +443,4 @@ trait TypeEncoding extends Generator {
     val (pos, info, errT) = src.vprMeta
     node(pos, info, errT)(ctx)
   }
-
-  /** Adds simple (source) information to a node without source information. */
-  protected def synthesized[T](node: (vpr.Position, vpr.Info, vpr.ErrorTrafo) => T)(comment: String): T =
-    node(vpr.NoPosition, vpr.SimpleInfo(Seq(comment)), vpr.NoTrafos)
 }

@@ -42,12 +42,8 @@ object Parser {
     */
 
   def parse(input: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
-    val sources = input
-      .map(Gobrafier.gobrafy)
-      .map(s => {
-        config.reporter report PreprocessedInputMessage(s.name, () => s.content)
-        s
-      })
+    val sources = input.map(Gobrafier.gobrafy)
+    sources.foreach { s => config.reporter report PreprocessedInputMessage(s.name, () => s.content) }
     for {
       parseAst <- parseSources(sources, pkgInfo, specOnly)(config)
       postprocessors = Seq(
@@ -237,9 +233,12 @@ object Parser {
       * Replaces all PQualifiedWoQualifierImport by PQualifiedImport nodes
       */
     def postprocess(pkg: PPackage)(config: Config): Either[Vector[VerifierError], PPackage] = {
-      def createError(n: PImplicitQualifiedImport, errorMsg: String): Vector[VerifierError] =
-        pkg.positions.translate(message(n,
+      def createError(n: PImplicitQualifiedImport, errorMsg: String): Vector[VerifierError] = {
+        val err = pkg.positions.translate(message(n,
           s"Explicit qualifier could not be derived (reason: '$errorMsg')"), ParserError)
+        config.reporter report ParserErrorMessage(err.head.position.get.file, err)
+        err
+      }
 
       // unfortunately Kiama does not seem to offer a way to report errors while applying the strategy
       // hence, we keep ourselves track of errors

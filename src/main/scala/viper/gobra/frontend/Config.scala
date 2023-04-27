@@ -16,7 +16,7 @@ import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
-import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter, StreamingReporter}
+import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
@@ -63,8 +63,21 @@ object ConfigDefaults {
   lazy val DefaultTaskName: String = "gobra-task"
   lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
   lazy val DefaultParallelizeBranches: Boolean = false
-  lazy val DefaultDisableMoreCompleteExhale: Boolean = false
+  lazy val DefaultConditionalizePermissions: Boolean = false
+  lazy val DefaultMCEMode: MCE.Mode = MCE.Enabled
   lazy val DefaultEnableLazyImports: Boolean = false
+  lazy val DefaultNoVerify: Boolean = false
+  lazy val DefaultNoStreamErrors: Boolean = false
+}
+
+// More-complete exhale modes
+object MCE {
+  sealed trait Mode
+  object Disabled extends Mode
+  // When running in `OnDemand`, mce will only be enabled when silicon retries a query.
+  // More information can be found in https://github.com/viperproject/silicon/pull/682.
+  object OnDemand extends Mode
+  object Enabled extends Mode
 }
 
 case class Config(
@@ -111,8 +124,11 @@ case class Config(
                    // if enabled, and if the chosen backend is either SILICON or VSWITHSILICON,
                    // branches will be verified in parallel
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
-                   disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
+                   conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
+                   mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
+                   noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
+                   noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
 ) {
 
   def merge(other: Config): Config = {
@@ -153,8 +169,11 @@ case class Config(
       onlyFilesWithHeader = onlyFilesWithHeader || other.onlyFilesWithHeader,
       assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale,
       parallelizeBranches = parallelizeBranches,
-      disableMoreCompleteExhale = disableMoreCompleteExhale,
+      conditionalizePermissions = conditionalizePermissions,
+      mceMode = mceMode,
       enableLazyImports = enableLazyImports || other.enableLazyImports,
+      noVerify = noVerify || other.noVerify,
+      noStreamErrors = noStreamErrors || other.noStreamErrors
     )
   }
 
@@ -200,8 +219,11 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
                       assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
-                      disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
+                      conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
+                      mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
+                      noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
+                      noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -251,8 +273,11 @@ trait RawConfig {
     onlyFilesWithHeader = baseConfig.onlyFilesWithHeader,
     assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,
     parallelizeBranches = baseConfig.parallelizeBranches,
-    disableMoreCompleteExhale = baseConfig.disableMoreCompleteExhale,
+    conditionalizePermissions = baseConfig.conditionalizePermissions,
+    mceMode = baseConfig.mceMode,
     enableLazyImports = baseConfig.enableLazyImports,
+    noVerify = baseConfig.noVerify,
+    noStreamErrors = baseConfig.noStreamErrors,
   )
 }
 
@@ -587,17 +612,51 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
-  val disableMoreCompleteExhale: ScallopOption[Boolean] = opt[Boolean](
-    name = "disableMoreCompleteExhale",
-    descr = "Disables the flag --enableMoreCompleteExhale passed by default to Silicon",
-    default = Some(ConfigDefaults.DefaultDisableMoreCompleteExhale),
-    noshort = true,
+  val conditionalizePermissions: ScallopOption[Boolean] = opt[Boolean](
+    name = "conditionalizePermissions",
+    descr = "Experimental: if enabled, and if the chosen backend is either SILICON or VSWITHSILICON, silicon will try " +
+      "to reduce the number of symbolic execution paths by conditionalising permission expressions. " +
+      "E.g. \"b ==> acc(x.f, p)\" is rewritten to \"acc(x.f, b ? p : none)\".",
+    default = Some(ConfigDefaults.DefaultConditionalizePermissions),
+    short = 'c',
   )
+
+  val mceMode: ScallopOption[MCE.Mode] = {
+    val on = "on"
+    val off = "off"
+    val od = "od"
+    choice(
+      choices = Seq("on", "off", "od"),
+      name = "mceMode",
+      descr = s"Specifies if silicon should be run with more complete exhale enabled ($on), disabled ($off), or enabled on demand ($od).",
+      default = Some(on),
+      noshort = true
+    ).map{
+      case `on` => MCE.Enabled
+      case `off` => MCE.Disabled
+      case `od` => MCE.OnDemand
+      case s => Violation.violation(s"Unexpected mode for more complete exhale: $s")
+    }
+  }
 
   val enableLazyImports: ScallopOption[Boolean] = opt[Boolean](
     name = Config.enableLazyImportOptionName,
     descr = s"Enforces that ${GoVerifier.name} parses depending packages only when necessary. Note that this disables certain language features such as global variables.",
     default = Some(ConfigDefaults.DefaultEnableLazyImports),
+    noshort = true,
+  )
+
+  val noVerify: ScallopOption[Boolean] = opt[Boolean](
+    name = "noVerify",
+    descr = s"Skip the verification step performed after encoding the Gobra program into Viper.",
+    default = Some(ConfigDefaults.DefaultNoVerify),
+    noshort = true,
+  )
+
+  val noStreamErrors: ScallopOption[Boolean] = opt[Boolean](
+    name = "noStreamErrors",
+    descr = "Do not stream errors produced by Gobra but instead print them all organized by package in the end.",
+    default = Some(ConfigDefaults.DefaultNoStreamErrors),
     noshort = true,
   )
 
@@ -638,11 +697,20 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     }
   }
 
-  // `disableMoreCompleteExhale` can only be enabled when using a silicon-based backend
   addValidation {
-    val disableMoreCompleteExh = disableMoreCompleteExhale.toOption.contains(true)
-    if (disableMoreCompleteExh && !isSiliconBasedBackend) {
-      Left("The flag --disableMoreCompleteExhale can only be used with Silicon and ViperServer with Silicon")
+    val conditionalizePermissionsOn = conditionalizePermissions.toOption.contains(true)
+    if (conditionalizePermissionsOn && !isSiliconBasedBackend) {
+      Left("The selected backend does not support --conditionalizePermissions.")
+    } else {
+      Right(())
+    }
+  }
+
+  // `mceMode` can only be provided when using a silicon-based backend
+  addValidation {
+    val mceModeSupplied = mceMode.isSupplied
+    if (mceModeSupplied && !isSiliconBasedBackend) {
+      Left("The flag --mceMode can only be used with Silicon or ViperServer with Silicon")
     } else {
       Right(())
     }
@@ -709,14 +777,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     gobraDirectory = gobraDirectory(),
     moduleName = module(),
     includeDirs = includeDirs,
-    reporter = StreamingReporter(
-      FileWriterReporter(
+    reporter = FileWriterReporter(
         unparse = unparse(),
         eraseGhost = eraseGhost(),
         goify = goify(),
         debug = debug(),
         printInternal = printInternal(),
-        printVpr = printVpr())),
+        printVpr = printVpr(),
+        streamErrs = !noStreamErrors()),
     backend = backend(),
     isolate = isolate,
     choppingUpperBound = chopUpperBound(),
@@ -733,7 +801,10 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     onlyFilesWithHeader = onlyFilesWithHeader(),
     assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
     parallelizeBranches = parallelizeBranches(),
-    disableMoreCompleteExhale = disableMoreCompleteExhale(),
+    conditionalizePermissions = conditionalizePermissions(),
+    mceMode = mceMode(),
     enableLazyImports = enableLazyImports(),
+    noVerify = noVerify(),
+    noStreamErrors = noStreamErrors(),
   )
 }

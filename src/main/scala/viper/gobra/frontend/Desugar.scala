@@ -3221,8 +3221,9 @@ object Desugar {
       val name = nm.constrd(typ)
       val proxy = in.ConstructorProxy(name)(src)
 
-      directConstructors += typ -> proxy
-      directConstructors += typ2 -> proxy
+      //(*T)° equivalent to T
+      directConstructors += typ -> proxy //(*T)° -> proxy
+      directConstructors += typ2 -> proxy //T -> proxy
 
       val args = cons.args.zipWithIndex map { case (p,i) => inParameterD(p, i, info)._1 }
       

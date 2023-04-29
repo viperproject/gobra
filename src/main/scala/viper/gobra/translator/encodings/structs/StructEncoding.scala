@@ -219,9 +219,6 @@ class StructEncoding extends TypeEncoding {
     * R[ dflt(Struct{F}) ] -> create_ex_struct( [T] | (f: T) in F )
     * R[ structLit(E) ] -> create_ex_struct( [e] | e in E )
     * R[ loc: Struct{F}@ ] -> convert_to_exclusive( Ref[loc] )
-    *
-    * CONSTRUCTOR implements:
-    * R[ structLit(E: T°) ] if has(T°_CONSTRUCTOR) => T°_CONSTRUCTOR(E)
     * 
     * DEREFERENCE implements (only for typeOf(T) == PartialStruct):
     * R[ loc: T@ ] if has(T@_DEREF) => T@_DEREF(loc)
@@ -421,7 +418,7 @@ class StructEncoding extends TypeEncoding {
 
   /* 
    * If there is a construct defined then it returns the defined method/function.
-   * Otherwise it checks if a CONSTRUCTOR exists (gets generated) and it returns the generated method/function.
+   * Otherwise it checks if a CONSTRUCTOR exists and it returns the generated method/function.
    */
   private def constructName(defined: Option[in.Proxy], generated: Option[in.ConstructorProxy]): String = (defined, generated) match {
     case (Some(a), _) => s"${a.name}"

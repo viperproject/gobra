@@ -1,3 +1,4 @@
+// Generated from S:/GitHub/gobra/src/main/antlr4\GobraParser.g4 by ANTLR 4.12.0
 package viper.gobra.frontend;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -809,6 +810,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitInterfaceType(GobraParser.InterfaceTypeContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#interfaceElem}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitInterfaceElem(GobraParser.InterfaceElemContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#predicateSpec}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -946,6 +953,18 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitTypeSpec(GobraParser.TypeSpecContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#aliasDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAliasDecl(GobraParser.AliasDeclContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#typeDef}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTypeDef(GobraParser.TypeDefContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#varDecl}.
 	 * @param ctx the parse tree
@@ -1091,11 +1110,11 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitTypeSwitchCase(GobraParser.TypeSwitchCaseContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link GobraParser#typeList}.
+	 * Visit a parse tree produced by {@link GobraParser#typeListSwitch}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitTypeList(GobraParser.TypeListContext ctx);
+	T visitTypeListSwitch(GobraParser.TypeListSwitchContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#selectStmt}.
 	 * @param ctx the parse tree
@@ -1145,6 +1164,18 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitTypeName(GobraParser.TypeNameContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#typeArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTypeArgs(GobraParser.TypeArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#typeList}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTypeList(GobraParser.TypeListContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#arrayType}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -1168,6 +1199,18 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitPointerType(GobraParser.PointerTypeContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#typeElem}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTypeElem(GobraParser.TypeElemContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#typeTerm}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTypeTerm(GobraParser.TypeTermContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#sliceType}.
 	 * @param ctx the parse tree
@@ -1210,6 +1253,30 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitParameters(GobraParser.ParametersContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#typeParameters}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTypeParameters(GobraParser.TypeParametersContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#typeParamList}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTypeParamList(GobraParser.TypeParamListContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#typeParamDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTypeParamDecl(GobraParser.TypeParamDeclContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#typeConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTypeConstraint(GobraParser.TypeConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#conversion}.
 	 * @param ctx the parse tree

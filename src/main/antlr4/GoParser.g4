@@ -181,9 +181,9 @@ typeSwitchGuard: (IDENTIFIER DECLARE_ASSIGN)? primaryExpr DOT L_PAREN TYPE R_PAR
 
 typeCaseClause: typeSwitchCase COLON statementList?;
 
-typeSwitchCase: CASE typeList | DEFAULT;
+typeSwitchCase: CASE typeListSwitch | DEFAULT;
 
-typeList: (type_ | NIL_LIT) (COMMA (type_ | NIL_LIT))*;
+typeListSwitch: (type_ | NIL_LIT) (COMMA (type_ | NIL_LIT))*;
 
 selectStmt: SELECT L_CURLY commClause* R_CURLY;
 
@@ -193,7 +193,7 @@ commCase: CASE (sendStmt | recvStmt) | DEFAULT;
 
 recvStmt: (expressionList ASSIGN | identifierList DECLARE_ASSIGN)? recvExpr = expression;
 
-forStmt: FOR (expression? | forClause | rangeClause?) block;
+forStmt: FOR (expression | forClause | rangeClause)? block;
 
 forClause:
 	initStmt = simpleStmt? eos expression? eos postStmt = simpleStmt?;
@@ -210,6 +210,8 @@ type_: typeName typeArgs? | typeLit | L_PAREN type_ R_PAREN;
 typeName: qualifiedIdent | IDENTIFIER;
 
 typeArgs: L_BRACKET typeList COMMA? R_BRACKET;
+
+typeList: type_ (COMMA type_)*;
 
 typeLit:
 	arrayType

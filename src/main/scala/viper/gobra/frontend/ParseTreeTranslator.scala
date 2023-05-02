@@ -208,12 +208,52 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   //region Types
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitType_(ctx: Type_Context): PType = {
+    if (has(ctx.typeName())) {
+      val typeName = visitTypeName(ctx.typeName())
+
+      if (has(ctx.typeArgs())) {
+        typeName.typeArgs = visitTypeArgs(ctx.typeArgs())
+      }
+
+      typeName
+    } else {
+      visitNode[PType](ctx.type_())
+    }
+  }
+
   override def visitTypeName(ctx: GobraParser.TypeNameContext): PTypeName = {
     visitChildren(ctx) match {
       case idnUse(id) => visitTypeIdentifier(id) // replace with `PNamedOperand(id)` when arrays etc. of custom types are supported
       case qualified : PDot => qualified
       case _ => unexpected(ctx)
     }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeArgs(ctx: TypeArgsContext): Vector[PType] = {
+    visitTypeList(ctx.typeList())
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeList(ctx: TypeListContext): Vector[PType] = {
+    visitListNode[PType](ctx.type_())
   }
 
   /**
@@ -318,11 +358,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitEmbeddedField(ctx: EmbeddedFieldContext): PEmbeddedType = {
-    visitChildren(ctx) match {
+    val embeddedType = visitChildren(ctx) match {
       case name : PUnqualifiedTypeName => PEmbeddedName(name)
       case Vector("*", name : PUnqualifiedTypeName) => PEmbeddedPointer(name)
       case _ : PDot | Vector("*", _ : PDot) => fail(ctx, "Imported types are not yet supported as embedded interface names")
     }
+
+    embeddedType.typ.typeArgs = visitTypeArgs(ctx.typeArgs())
+    embeddedType
   }
   //endregion
 
@@ -406,16 +449,29 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitInterfaceType(ctx: GobraParser.InterfaceTypeContext): PInterfaceType = {
-    val methodDecls = visitListNode[PMethodSig](ctx.methodSpec())
-    val embedded = visitListNode[PTypeName](ctx.typeName()).map {
+    val methodDecls = visitNodeIf[PMethodSig, InterfaceElemContext](ctx.interfaceElem(), ctx => has(ctx.methodSpec()))
+    val embedded = visitNodeIf[PType, InterfaceElemContext](ctx.interfaceElem(), ctx => has(ctx.typeElem())).map {
       case tn: PUnqualifiedTypeName => PInterfaceName(tn).at(ctx)
       case _: PDot => fail(ctx, "Imported types are not yet supported as embedded fields.")
       case _ => fail(ctx, s"Interface embeds predeclared type.")
     }
-    val predicateDecls = visitListNode[PMPredicateSig](ctx.predicateSpec())
+    val predicateDecls = visitNodeIf[PMPredicateSig, InterfaceElemContext](ctx.interfaceElem(), ctx => has(ctx.predicateSpec()))
     PInterfaceType(embedded, methodDecls, predicateDecls).at(ctx)
   }
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeElem(ctx: TypeElemContext): PType = {
+    if (ctx.typeTerm().length > 1) {
+      fail(ctx, "Union types are not yet supported.")
+    }
+
+    visitNode[PType](ctx.typeTerm(0))
+  }
 
   /**
     * {@inheritDoc  }
@@ -728,17 +784,82 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitTypeSpec(ctx: GobraParser.TypeSpecContext): PTypeDecl = {
-    val left = goIdnDef.get(ctx.IDENTIFIER())
-    val right = visitNode[PType](ctx.type_())
-    if (ctx.ASSIGN() != null) {
-      // <identifier> = <type> -> This is a type alias
-      PTypeAlias(right, left).at(ctx)
-    } else {
-      // <identifier <type> -> This is a type definition
-      PTypeDef(right, left).at(ctx)
+    visitChildren(ctx) match {
+      case aliasDeclCtx : AliasDeclContext => visitAliasDecl(aliasDeclCtx)
+      case typeDefCtx : TypeDefContext => visitTypeDef(typeDefCtx)
+      case _ => unexpected(ctx)
     }
   }
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitAliasDecl(ctx: AliasDeclContext): PTypeDecl = {
+    val left = goIdnDef.get(ctx.IDENTIFIER())
+    val right = visitNode[PType](ctx.type_())
+
+    PTypeAlias(right, left)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeDef(ctx: TypeDefContext): PTypeDecl = {
+    val left = goIdnDef.get(ctx.IDENTIFIER())
+    val right = visitNode[PType](ctx.type_())
+    val typeParameters = visitTypeParameters(ctx.typeParameters())
+
+    PTypeDef(right, left, typeParameters)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeParameters(ctx: TypeParametersContext): Vector[PTypeParameter] = {
+    visitTypeParamList(ctx.typeParamList())
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeParamList(ctx: TypeParamListContext): Vector[PTypeParameter] = {
+    ctx.typeParamDecl().asScala.flatMap(typeParamDeclCtx => visitTypeParamDecl(typeParamDeclCtx)).toVector
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeParamDecl(ctx: TypeParamDeclContext): Vector[PTypeParameter] = {
+    val ids = visitIdentifierList(ctx.identifierList())
+    val constraint = visitTypeConstraint(ctx.typeConstraint())
+
+    ids.map(id => PTypeParameter(id.name, constraint)).toVector
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeConstraint(ctx: TypeConstraintContext): PTypeConstraint = {
+    PSimpleTypeConstraint(visitTypeElem(ctx.typeElem()))
+  }
 
   /**
     * {@inheritDoc  }
@@ -821,8 +942,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitSpecMember(ctx: SpecMemberContext): AnyRef = super.visitSpecMember(ctx) match {
-    case Vector(spec : PFunctionSpec, (id: PIdnDef, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
-      => PFunctionDecl(id, args, result, spec, body)
+    case Vector(spec : PFunctionSpec, (id: PIdnDef, typeParameters: Vector[PTypeParameter], args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
+      => PFunctionDecl(id, typeParameters, args, result, spec, body)
     case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
       => PMethodDecl(id, receiver, args, result, spec, body)
   }
@@ -833,13 +954,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @param ctx the parse tree
     * @return the visitor result
     */
-  override def visitFunctionDecl(ctx: GobraParser.FunctionDeclContext): (PIdnDef, Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)]) = {
+  override def visitFunctionDecl(ctx: FunctionDeclContext): (PIdnDef, Vector[PTypeParameter], Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)]) = {
     // Go allows the blank identifier here, but PFunctionDecl doesn't.
     val id = goIdnDef.get(ctx.IDENTIFIER())
+    val typeParameters = visitTypeParameters(ctx.typeParameters())
     val sig = visitNode[Signature](ctx.signature())
     // Translate the function body if the function is not abstract or trusted, specOnly isn't set or the function is pure
     val body = if (has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted && (!specOnly || ctx.pure)) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
-    (id, sig._1, sig._2, body)
+    (id, typeParameters, sig._1, sig._2, body)
   }
 
 
@@ -1010,7 +1132,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @return the visitor result
     */
   override def visitOperand(ctx: GobraParser.OperandContext): PExpression = {
+    val typeArgs = visitTypeArgs(ctx.typeArgs())
+
     visitChildren(ctx) match {
+      case op : PNamedOperand => {
+        op.typeArgs = typeArgs
+        op
+      }
       case e : PExpression => e
       case Vector("(", e : PExpression, ")") => e
       case _ => fail(ctx)
@@ -1064,6 +1192,23 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitLiteralType(ctx: LiteralTypeContext): PLiteralType = {
+    val typeArgs = visitTypeArgs(ctx.typeArgs())
+
+    visitChildren(ctx) match {
+      case typeName : PTypeName => {
+        typeName.typeArgs = typeArgs
+        typeName
+      }
+      case x : PLiteralType => x
+    }
+  }
 
   /** Translates the rule
     * literalValue: L_CURLY (elementList COMMA?)? R_CURLY;
@@ -1851,7 +1996,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
-  override def visitTypeList(ctx: TypeListContext): Vector[PExpressionOrType] = {
+  override def visitTypeListSwitch(ctx: TypeListSwitchContext): Vector[PExpressionOrType] = {
     val types = visitListNode[PType](ctx.type_())
     // Need to check whether this includes nil, since it's a predeclared identifier and not a type
     if (has(ctx.NIL_LIT()) && !ctx.NIL_LIT().isEmpty) types.appended(PNilLit().at(ctx.NIL_LIT(0))) else types
@@ -1866,7 +2011,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitTypeCaseClause(ctx: TypeCaseClauseContext): PTypeSwitchCase = {
     val body = PBlock(visitStatementList(ctx.statementList()))
       .at(if (has(ctx.statementList())) ctx.statementList() else ctx) // If we have no statement list, we need to position at the context
-    val left = visitTypeList(ctx.typeSwitchCase().typeList())
+    val left = visitTypeListSwitch(ctx.typeSwitchCase().typeListSwitch())
     PTypeSwitchCase(left, body).at(ctx)
   }
 

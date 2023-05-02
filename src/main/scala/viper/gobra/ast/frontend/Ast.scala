@@ -168,6 +168,7 @@ sealed trait PFunctionOrMethodDecl extends PNode with PScope {
 
 case class PFunctionDecl(
                           id: PIdnDef,
+                          typeParameters: Vector[PTypeParameter],
                           args: Vector[PParameter],
                           result: PResult,
                           spec: PFunctionSpec,
@@ -190,9 +191,15 @@ sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostif
   def right: PType
 }
 
-case class PTypeDef(right: PType, left: PIdnDef) extends PTypeDecl
+case class PTypeDef(right: PType, left: PIdnDef, typeParameters: Vector[PTypeParameter]) extends PTypeDecl
 
 case class PTypeAlias(right: PType, left: PIdnDef) extends PTypeDecl
+
+sealed trait PTypeConstraint extends PNode
+
+case class PSimpleTypeConstraint(t: PType) extends PTypeConstraint
+
+case class PUnionTypeConstraint(ts: Vector[PTypeConstraint]) extends PTypeConstraint
 
 
 /**
@@ -616,9 +623,11 @@ sealed trait PLiteralType extends PNode
   * Represents a named type in Go.
   * @see [[https://go.dev/ref/spec#TypeName]]
   **/
-sealed trait PTypeName extends PActualType {
+sealed trait PTypeName extends PActualType with PLiteralType {
   def id : PUseLikeId
   val name: String = id.name
+
+  var typeArgs: Vector[PType] = Vector.empty
 }
 
 /**
@@ -766,6 +775,10 @@ sealed trait PUnkLikeId extends PIdnNode
 case class PIdnDef(name: String) extends PDefLikeId
 case class PIdnUse(name: String) extends PUseLikeId
 case class PIdnUnk(name: String) extends PUnkLikeId
+
+case class PTypeParameter(name: String, restriction: PTypeConstraint) extends PDefLikeId
+
+case class PTypeArgument(name: String) extends PUseLikeId
 
 sealed trait PLabelNode extends PNode {
   def name: String

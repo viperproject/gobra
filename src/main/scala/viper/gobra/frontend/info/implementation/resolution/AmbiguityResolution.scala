@@ -43,8 +43,14 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
 
   def asExpr(n: PExpressionOrType): Option[PExpression] = exprOrType(n).left.toOption
   def asType(n: PExpressionOrType): Option[PType] = exprOrType(n).toOption
-
-
+  def asExprList(n: Vector[PExpressionOrType]): Option[Vector[PExpression]] = {
+    val asExprs = n.map(asExpr)
+    if (asExprs.forall(_.nonEmpty)) Some(asExprs.map(_.get)) else None
+  }
+  def asTypeList(n: Vector[PExpressionOrType]): Option[Vector[PType]] = {
+    val asTypes = n.map(asType)
+    if (asTypes.forall(_.nonEmpty)) Some(asTypes.map(_.get)) else None
+  }
 
   def resolve(n: PExpressionOrType): Option[ap.Pattern] = n match {
 
@@ -122,9 +128,26 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case _ => violation(s"unexpected case reached: type conversion with arguments ${n.args}, expected single argument instead")
       }
 
-    case n: PIndexedExp => exprOrType(n.base) match {
-      case Left(base) => Some(ap.IndexedExp(base, n.index))
-      case Right(_) => None // unknown pattern
+    case n: PIndexedExp => resolve(n.base) match {
+      case Some(f: ap.Parameterizable) =>
+        val indexes = asTypeList(n.index)
+        if (indexes.isEmpty) return None
+        val indexesResolved = indexes.get.map(resolve)
+        if (!indexesResolved.forall(_.nonEmpty)) return None
+        val indexTypePatterns = indexesResolved.map {
+          case t : Option[ap.Type] => t
+          case _ => None
+        }
+        if (!indexTypePatterns.forall(_.nonEmpty)) return None
+        f.typeArgs = indexTypePatterns.map(_.get)
+        Some(f)
+      case _ if n.index.length == 1 => {
+        exprOrType(n.index.head) match {
+          case Left(expression) => Some(ap.IndexedExp(n.base, expression))
+          case _ => None
+        }
+      }
+      case _ => None // unknow pattern
     }
 
     case b: PBlankIdentifier => Some(ap.BlankIdentifier(b))

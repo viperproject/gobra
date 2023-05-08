@@ -1110,11 +1110,11 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitTypeSwitchCase(GobraParser.TypeSwitchCaseContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link GobraParser#typeListSwitch}.
+	 * Visit a parse tree produced by {@link GobraParser#typeList}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitTypeListSwitch(GobraParser.TypeListSwitchContext ctx);
+	T visitTypeList(GobraParser.TypeListContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#selectStmt}.
 	 * @param ctx the parse tree
@@ -1163,18 +1163,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitTypeName(GobraParser.TypeNameContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#typeArgs}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitTypeArgs(GobraParser.TypeArgsContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#typeList}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitTypeList(GobraParser.TypeListContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#arrayType}.
 	 * @param ctx the parse tree

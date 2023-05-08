@@ -181,9 +181,9 @@ typeSwitchGuard: (IDENTIFIER DECLARE_ASSIGN)? primaryExpr DOT L_PAREN TYPE R_PAR
 
 typeCaseClause: typeSwitchCase COLON statementList?;
 
-typeSwitchCase: CASE typeListSwitch | DEFAULT;
+typeSwitchCase: CASE typeList | DEFAULT;
 
-typeListSwitch: (type_ | NIL_LIT) (COMMA (type_ | NIL_LIT))*;
+typeList: (type_ | NIL_LIT) (COMMA (type_ | NIL_LIT))*;
 
 selectStmt: SELECT L_CURLY commClause* R_CURLY;
 
@@ -205,13 +205,9 @@ rangeClause: (
 
 goStmt: GO expression;
 
-type_: typeName typeArgs? | typeLit | L_PAREN type_ R_PAREN;
+type_: typeName index? | typeLit | L_PAREN type_ R_PAREN;
 
 typeName: qualifiedIdent | IDENTIFIER;
-
-typeArgs: L_BRACKET typeList COMMA? R_BRACKET;
-
-typeList: type_ (COMMA type_)*;
 
 typeLit:
 	arrayType
@@ -323,7 +319,7 @@ conversion: nonNamedType L_PAREN expression COMMA? R_PAREN;
 
 nonNamedType: typeLit | L_PAREN nonNamedType R_PAREN;
 
-operand: literal | operandName typeArgs? | L_PAREN expression R_PAREN;
+operand: literal | operandName | L_PAREN expression R_PAREN;
 
 literal: basicLit | compositeLit | functionLit;
 
@@ -353,7 +349,7 @@ literalType:
 	| L_BRACKET ELLIPSIS R_BRACKET elementType
 	| sliceType
 	| mapType
-	| typeName typeArgs?;
+	| typeName index?;
 
 literalValue: L_CURLY (elementList COMMA?)? R_CURLY;
 
@@ -374,11 +370,11 @@ fieldDecl: (
 
 string_: RAW_STRING_LIT | INTERPRETED_STRING_LIT;
 
-embeddedField: STAR? typeName typeArgs?;
+embeddedField: STAR? typeName index?;
 
 functionLit: FUNC signature block; // function
 
-index: L_BRACKET expression R_BRACKET;
+index: L_BRACKET expression (COMMA expression)* COMMA? R_BRACKET;
 
 slice_:
 	L_BRACKET (

@@ -472,7 +472,8 @@ case class PInvoke(base: PExpressionOrType, args: Vector[PExpression], spec: Opt
 
 case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNameOrDot with PTypeName
 
-case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
+
+case class PIndexedExp(base: PExpression, index: Vector[PExpressionOrType]) extends PActualExpression with PAssignee
 
 /**
   * Represents Go's built-in "len(`exp`)" function that returns the

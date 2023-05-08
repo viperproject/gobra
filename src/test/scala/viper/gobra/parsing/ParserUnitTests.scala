@@ -120,13 +120,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: spec only function") {
     frontend.parseFunctionDecl("func foo() { b.bar() }", specOnly = true) should matchPattern {
-      case PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None) =>
+      case PFunctionDecl(PIdnDef("foo"), Vector(), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None) =>
     }
   }
 
   test("Parser: spec only function with nested blocks") {
     frontend.parseFunctionDecl("func foo() { if(true) { b.bar() } else { foo() } }", specOnly = true) should matchPattern {
-      case PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None) =>
+      case PFunctionDecl(PIdnDef("foo"), Vector(), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None) =>
     }
   }
 
@@ -159,7 +159,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     val modes: Set[Boolean] = Set(false, true)
     modes.foreach(specOnly => {
       frontend.parseFunctionDecl("func bar()", specOnly) should matchPattern {
-        case PFunctionDecl(PIdnDef("bar"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None) =>
+        case PFunctionDecl(PIdnDef("bar"), Vector(), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false, false), None) =>
       }
     })
   }
@@ -171,6 +171,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.parseExp("bla{42}") should matchPattern {
       case Right(PCompositeLit(PNamedOperand(PIdnUse("bla")), PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value, Decimal))))))) if value == 42 =>
     }
+
   }
 
   test("Parser: struct literal with inline type") {
@@ -717,7 +718,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse simple indexed expressions") {
     frontend.parseExpOrFail("xs[i]") should matchPattern {
-      case PIndexedExp(PNamedOperand(PIdnUse("xs")), PNamedOperand(PIdnUse("i"))) =>
+      case PIndexedExp(PNamedOperand(PIdnUse("xs")), Vector(PNamedOperand(PIdnUse("i")))) =>
     }
   }
 
@@ -728,9 +729,11 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
           PNamedOperand(PIdnUse("xs")),
           PNamedOperand(PIdnUse("ys"))
         ),
-        PAdd(
-          PLength(PNamedOperand(PIdnUse("zs"))),
-          PIntLit(n, Decimal)
+        Vector(
+          PAdd(
+            PLength(PNamedOperand(PIdnUse("zs"))),
+            PIntLit(n, Decimal)
+          )
         )
       ) if n == BigInt(2) =>
     }
@@ -742,11 +745,11 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
         PIndexedExp(
           PIndexedExp(
             PNamedOperand(PIdnUse("xs")),
-            PNamedOperand(PIdnUse("i")),
+            Vector(PNamedOperand(PIdnUse("i"))),
           ),
-          PNamedOperand(PIdnUse("j")),
+          Vector(PNamedOperand(PIdnUse("j"))),
         ),
-        PNamedOperand(PIdnUse("k")),
+        Vector(PNamedOperand(PIdnUse("k"))),
       ) =>
     }
   }
@@ -785,7 +788,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
             PKeyedElement(None, PExpCompositeVal(PBoolLit(false))),
           ))
         ),
-        PIntLit(n, Decimal)
+        Vector(PIntLit(n, Decimal))
       ) if n == BigInt(1) =>
     }
   }
@@ -794,7 +797,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.parseExpOrFail("seq[1..10][2]") should matchPattern {
       case PIndexedExp(
         PRangeSequence(PIntLit(low, Decimal), PIntLit(high, Decimal)),
-        PIntLit(i, Decimal)
+        Vector(PIntLit(i, Decimal))
       ) if low == BigInt(1) && high == BigInt(10) && i == BigInt(2) =>
     }
   }
@@ -2344,7 +2347,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.parseExpOrFail("seq(a)[2]") should matchPattern {
       case PIndexedExp(
         PSequenceConversion(PNamedOperand(PIdnUse("a"))),
-        PIntLit(i, Decimal)
+        Vector(PIntLit(i, Decimal))
       ) if i == BigInt(2) =>
     }
   }
@@ -2643,19 +2646,19 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse normal termination measure") {
     frontend.parseFunctionDecl("decreases n; func factorial (n int) int") should matchPattern {
-      case PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), None)), false, false), None) =>
+      case PFunctionDecl(PIdnDef("factorial"), Vector(), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), None)), false, false), None) =>
     }
   }
 
   test("Parser: should be able to parse underscore termination measure") {
     frontend.parseFunctionDecl("decreases _; func factorial (n int) int") should matchPattern {
-      case PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PWildcardMeasure(None)), false, false), None) =>
+      case PFunctionDecl(PIdnDef("factorial"), Vector(), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PWildcardMeasure(None)), false, false), None) =>
     }
   }
 
   test("Parser: should be able to parse conditional termination measure" ) {
     frontend.parseFunctionDecl("decreases n if n>1; decreases _ if n<2; func factorial (n int) int") should matchPattern {
-      case PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), Some(PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal)))), PWildcardMeasure(Some(PLess(PNamedOperand(PIdnUse("n")), PIntLit(two, Decimal))))), false, false), None) if one == 1 && two == 2 =>
+      case PFunctionDecl(PIdnDef("factorial"), Vector(), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), Some(PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal)))), PWildcardMeasure(Some(PLess(PNamedOperand(PIdnUse("n")), PIntLit(two, Decimal))))), false, false), None) if one == 1 && two == 2 =>
     }
   }
 
@@ -2686,7 +2689,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse a labeled continue statement") {
     frontend.parseFunctionDecl("func main() {continue l}") should matchPattern {
-      case PFunctionDecl(_, _, _, _, Some((_, PBlock(Vector(PContinue(Some(p))))))) if p.name == "l" =>
+      case PFunctionDecl(_, _, _, _, _, Some((_, PBlock(Vector(PContinue(Some(p))))))) if p.name == "l" =>
     }
   }
 }

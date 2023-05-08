@@ -462,7 +462,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PSliceExp(base, low, high, cap) =>
         go(base) && Seq(low, high, cap).flatten.forall(go)
 
-      case PIndexedExp(base, index) => Seq(base, index).forall(go)
+      case PIndexedExp(base, index) => go(base) && index.map(exprOrType).forall {
+        case Left(e) => go(e)
+        case _ => true
+      }
 
       case _: PMake | _: PNew => false
 

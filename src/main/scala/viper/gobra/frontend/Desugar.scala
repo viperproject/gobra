@@ -2424,8 +2424,13 @@ object Desugar {
       } yield in.IndexedExp(dbase, dindex, baseUnderlyingType)(src)
     }
 
-    def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext, info : TypeInfo) : Writer[in.IndexedExp] =
-      indexedExprD(expr.base, expr.index)(ctx, info)(meta(expr, info))
+    def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext, info : TypeInfo) : Writer[in.IndexedExp] = {
+      info.resolve(expr) match {
+        case Some(indexedExpr@ap.IndexedExp(_, _)) => indexedExprD(indexedExpr)(ctx, info)(meta(expr, info))
+        // TODO handle function case properly here
+      }
+    }
+
     def indexedExprD(expr : ap.IndexedExp)(ctx : FunctionContext, info : TypeInfo)(src : Meta) : Writer[in.IndexedExp] =
       indexedExprD(expr.base, expr.index)(ctx, info)(src)
 

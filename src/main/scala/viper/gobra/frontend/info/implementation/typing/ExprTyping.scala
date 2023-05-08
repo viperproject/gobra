@@ -299,8 +299,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PBitNegation(op) => isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST)(op)
 
-    case n@PIndexedExp(base, index) =>
-      isExpr(base).out ++ isExpr(index).out ++ {
+    case n : PIndexedExp => resolve(n) match {
+      case Some(ap.Function(id, symb)) => noMessages // TODO handle this properly
+      case Some(ap.IndexedExp(base, index)) => isExpr(base).out ++ isExpr(index).out ++ {
         val baseType = exprType(base)
         val idxType  = exprType(index)
         (underlyingType(baseType), underlyingType(idxType)) match {
@@ -351,6 +352,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (bt, it) => error(n, s"$it index is not a proper index of $bt")
         }
       }
+    }
 
 
     case n@PSliceExp(base, low, high, cap) => isExpr(base).out ++
@@ -664,22 +666,25 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case p => violation(s"expected conversion, function call, predicate call, or predicate expression instance, but got $p")
     }
 
-    case PIndexedExp(base, index) =>
-      val baseType = exprType(base)
-      val idxType  = exprType(index)
-      (underlyingType(baseType), underlyingType(idxType)) match {
-        case (ArrayT(_, elem), IntT(_)) => elem
-        case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
-        case (SequenceT(elem), IntT(_)) => elem
-        case (SliceT(elem), IntT(_)) => elem
-        case (GhostSliceT(elem), IntT(_)) => elem
-        case (VariadicT(elem), IntT(_)) => elem
-        case (MapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
-          InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
-        case (MathMapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
-          InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
-        case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
-      }
+    case n : PIndexedExp => resolve(n) match {
+      case Some(ap.Function(id, symb)) => NilType // TODO handle this case properly
+      case Some(ap.IndexedExp(base, index)) =>
+        val baseType = exprType(base)
+        val idxType  = exprType(index)
+        (underlyingType(baseType), underlyingType(idxType)) match {
+          case (ArrayT(_, elem), IntT(_)) => elem
+          case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
+          case (SequenceT(elem), IntT(_)) => elem
+          case (SliceT(elem), IntT(_)) => elem
+          case (GhostSliceT(elem), IntT(_)) => elem
+          case (VariadicT(elem), IntT(_)) => elem
+          case (MapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+            InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+          case (MathMapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+            InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+          case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
+        }
+    }
 
     case PSliceExp(base, low, high, cap) =>
       val baseType = exprType(base)

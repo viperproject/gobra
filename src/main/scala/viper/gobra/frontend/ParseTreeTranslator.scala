@@ -220,7 +220,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         typeName.typeArgs = index
         typeName
       case typeName: PTypeName => typeName
-      case _ => unexpected(ctx)
+      case typeLit: PTypeLit => typeLit
+      case pType: PType => pType
+      case _ => fail(ctx)
     }
   }
 
@@ -930,7 +932,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitFunctionDecl(ctx: FunctionDeclContext): (PIdnDef, Vector[PTypeParameter], Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)]) = {
     // Go allows the blank identifier here, but PFunctionDecl doesn't.
     val id = goIdnDef.get(ctx.IDENTIFIER())
-    val typeParameters = visitTypeParameters(ctx.typeParameters())
+    val typeParameters = if (has(ctx.typeParameters())) visitNode[Vector[PTypeParameter]](ctx.typeParameters()) else Vector.empty
     val sig = visitNode[Signature](ctx.signature())
     // Translate the function body if the function is not abstract or trusted, specOnly isn't set or the function is pure
     val body = if (has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted && (!specOnly || ctx.pure)) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None

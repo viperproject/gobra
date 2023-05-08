@@ -6392,7 +6392,6 @@ public class GobraParser extends GobraParserBase {
 	public final PackageStmtContext packageStmt() throws RecognitionException {
 		PackageStmtContext _localctx = new PackageStmtContext(_ctx, getState());
 		enterRule(_localctx, 168, RULE_packageStmt);
-		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
@@ -6402,14 +6401,14 @@ public class GobraParser extends GobraParserBase {
 			expression(0);
 			setState(1116);
 			_errHandler.sync(this);
-			_la = _input.LA(1);
-			if (_la==L_CURLY) {
+			switch ( getInterpreter().adaptivePredict(_input,82,_ctx) ) {
+			case 1:
 				{
 				setState(1115);
 				block();
 				}
+				break;
 			}
-
 			}
 		}
 		catch (RecognitionException re) {
@@ -9306,9 +9305,11 @@ public class GobraParser extends GobraParserBase {
 		public StatementContext statement(int i) {
 			return getRuleContext(StatementContext.class,i);
 		}
-		public List<TerminalNode> EOS() { return getTokens(GobraParser.EOS); }
-		public TerminalNode EOS(int i) {
-			return getToken(GobraParser.EOS, i);
+		public List<EosContext> eos() {
+			return getRuleContexts(EosContext.class);
+		}
+		public EosContext eos(int i) {
+			return getRuleContext(EosContext.class,i);
 		}
 		public StatementListContext(ParserRuleContext parent, int invokingState) {
 			super(parent, invokingState);
@@ -9337,7 +9338,7 @@ public class GobraParser extends GobraParserBase {
 				setState(1452);
 				statement();
 				setState(1453);
-				match(EOS);
+				eos();
 				}
 				}
 				setState(1457); 
@@ -9686,7 +9687,6 @@ public class GobraParser extends GobraParserBase {
 	public final LabeledStmtContext labeledStmt() throws RecognitionException {
 		LabeledStmtContext _localctx = new LabeledStmtContext(_ctx, getState());
 		enterRule(_localctx, 258, RULE_labeledStmt);
-		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
@@ -9696,14 +9696,14 @@ public class GobraParser extends GobraParserBase {
 			match(COLON);
 			setState(1484);
 			_errHandler.sync(this);
-			_la = _input.LA(1);
-			if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 571956122151714810L) != 0) || ((((_la - 65)) & ~0x3f) == 0 && ((1L << (_la - 65)) & 3019359876175L) != 0) || ((((_la - 131)) & ~0x3f) == 0 && ((1L << (_la - 131)) & 1587199L) != 0)) {
+			switch ( getInterpreter().adaptivePredict(_input,131,_ctx) ) {
+			case 1:
 				{
 				setState(1483);
 				statement();
 				}
+				break;
 			}
-
 			}
 		}
 		catch (RecognitionException re) {
@@ -9737,7 +9737,6 @@ public class GobraParser extends GobraParserBase {
 	public final ReturnStmtContext returnStmt() throws RecognitionException {
 		ReturnStmtContext _localctx = new ReturnStmtContext(_ctx, getState());
 		enterRule(_localctx, 260, RULE_returnStmt);
-		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
@@ -9745,14 +9744,14 @@ public class GobraParser extends GobraParserBase {
 			match(RETURN);
 			setState(1488);
 			_errHandler.sync(this);
-			_la = _input.LA(1);
-			if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 571956053407067674L) != 0) || ((((_la - 65)) & ~0x3f) == 0 && ((1L << (_la - 65)) & 2440348577799L) != 0) || ((((_la - 131)) & ~0x3f) == 0 && ((1L << (_la - 131)) & 1587199L) != 0)) {
+			switch ( getInterpreter().adaptivePredict(_input,132,_ctx) ) {
+			case 1:
 				{
 				setState(1487);
 				expressionList();
 				}
+				break;
 			}
-
 			}
 		}
 		catch (RecognitionException re) {
@@ -9784,7 +9783,6 @@ public class GobraParser extends GobraParserBase {
 	public final BreakStmtContext breakStmt() throws RecognitionException {
 		BreakStmtContext _localctx = new BreakStmtContext(_ctx, getState());
 		enterRule(_localctx, 262, RULE_breakStmt);
-		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
@@ -9792,14 +9790,14 @@ public class GobraParser extends GobraParserBase {
 			match(BREAK);
 			setState(1492);
 			_errHandler.sync(this);
-			_la = _input.LA(1);
-			if (_la==IDENTIFIER) {
+			switch ( getInterpreter().adaptivePredict(_input,133,_ctx) ) {
+			case 1:
 				{
 				setState(1491);
 				match(IDENTIFIER);
 				}
+				break;
 			}
-
 			}
 		}
 		catch (RecognitionException re) {
@@ -9831,7 +9829,6 @@ public class GobraParser extends GobraParserBase {
 	public final ContinueStmtContext continueStmt() throws RecognitionException {
 		ContinueStmtContext _localctx = new ContinueStmtContext(_ctx, getState());
 		enterRule(_localctx, 264, RULE_continueStmt);
-		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
@@ -9839,14 +9836,14 @@ public class GobraParser extends GobraParserBase {
 			match(CONTINUE);
 			setState(1496);
 			_errHandler.sync(this);
-			_la = _input.LA(1);
-			if (_la==IDENTIFIER) {
+			switch ( getInterpreter().adaptivePredict(_input,134,_ctx) ) {
+			case 1:
 				{
 				setState(1495);
 				match(IDENTIFIER);
 				}
+				break;
 			}
-
 			}
 		}
 		catch (RecognitionException re) {
@@ -9969,7 +9966,6 @@ public class GobraParser extends GobraParserBase {
 	public final IfStmtContext ifStmt() throws RecognitionException {
 		IfStmtContext _localctx = new IfStmtContext(_ctx, getState());
 		enterRule(_localctx, 270, RULE_ifStmt);
-		int _la;
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
@@ -10007,8 +10003,8 @@ public class GobraParser extends GobraParserBase {
 			block();
 			setState(1520);
 			_errHandler.sync(this);
-			_la = _input.LA(1);
-			if (_la==ELSE) {
+			switch ( getInterpreter().adaptivePredict(_input,137,_ctx) ) {
+			case 1:
 				{
 				setState(1515);
 				match(ELSE);
@@ -10031,8 +10027,8 @@ public class GobraParser extends GobraParserBase {
 					throw new NoViableAltException(this);
 				}
 				}
+				break;
 			}
-
 			}
 		}
 		catch (RecognitionException re) {
@@ -12968,9 +12964,11 @@ public class GobraParser extends GobraParserBase {
 		public FieldDeclContext fieldDecl(int i) {
 			return getRuleContext(FieldDeclContext.class,i);
 		}
-		public List<TerminalNode> EOS() { return getTokens(GobraParser.EOS); }
-		public TerminalNode EOS(int i) {
-			return getToken(GobraParser.EOS, i);
+		public List<EosContext> eos() {
+			return getRuleContexts(EosContext.class);
+		}
+		public EosContext eos(int i) {
+			return getRuleContext(EosContext.class,i);
 		}
 		public StructTypeContext(ParserRuleContext parent, int invokingState) {
 			super(parent, invokingState);
@@ -13003,7 +13001,7 @@ public class GobraParser extends GobraParserBase {
 				setState(1834);
 				fieldDecl();
 				setState(1835);
-				match(EOS);
+				eos();
 				}
 				}
 				setState(1841);
@@ -14602,7 +14600,7 @@ public class GobraParser extends GobraParserBase {
 		"\u05a7\u05a9\u0003\u00f4z\u0000\u05a8\u05a7\u0001\u0000\u0000\u0000\u05a8"+
 		"\u05a9\u0001\u0000\u0000\u0000\u05a9\u05aa\u0001\u0000\u0000\u0000\u05aa"+
 		"\u05ab\u0005i\u0000\u0000\u05ab\u00f3\u0001\u0000\u0000\u0000\u05ac\u05ad"+
-		"\u0003\u00a4R\u0000\u05ad\u05ae\u0005\u009f\u0000\u0000\u05ae\u05b0\u0001"+
+		"\u0003\u00a4R\u0000\u05ad\u05ae\u0003\u0180\u00c0\u0000\u05ae\u05b0\u0001"+
 		"\u0000\u0000\u0000\u05af\u05ac\u0001\u0000\u0000\u0000\u05b0\u05b1\u0001"+
 		"\u0000\u0000\u0000\u05b1\u05af\u0001\u0000\u0000\u0000\u05b1\u05b2\u0001"+
 		"\u0000\u0000\u0000\u05b2\u00f5\u0001\u0000\u0000\u0000\u05b3\u05b9\u0003"+
@@ -14814,7 +14812,7 @@ public class GobraParser extends GobraParserBase {
 		"\u0725\u0727\u0003\u0164\u00b2\u0000\u0726\u0724\u0001\u0000\u0000\u0000"+
 		"\u0726\u0725\u0001\u0000\u0000\u0000\u0727\u016d\u0001\u0000\u0000\u0000"+
 		"\u0728\u0729\u0005T\u0000\u0000\u0729\u072f\u0005h\u0000\u0000\u072a\u072b"+
-		"\u0003\u0170\u00b8\u0000\u072b\u072c\u0005\u009f\u0000\u0000\u072c\u072e"+
+		"\u0003\u0170\u00b8\u0000\u072b\u072c\u0003\u0180\u00c0\u0000\u072c\u072e"+
 		"\u0001\u0000\u0000\u0000\u072d\u072a\u0001\u0000\u0000\u0000\u072e\u0731"+
 		"\u0001\u0000\u0000\u0000\u072f\u072d\u0001\u0000\u0000\u0000\u072f\u0730"+
 		"\u0001\u0000\u0000\u0000\u0730\u0732\u0001\u0000\u0000\u0000\u0731\u072f"+

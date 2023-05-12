@@ -342,13 +342,18 @@ class MapEncoding extends LeafTypeEncoding {
       *   requires m != nil ==> acc(res.underlyingMapField, _)
       *   ensures  m == nil ==> res == set[V]{}
       *   ensures  m != nil ==> res == range(res.underlyingMapField)
+      *   ensures  forall v: V :: { v in result } v in result ==>
+      *     exists k: K :: mapLookupKV(m, k) == v
       *   decreases _
       */
     override def genFunction(x: (in.Type, in.Type))(ctx: Context): vpr.Function = {
       val paramDecl = vpr.LocalVarDecl("x", mapType)()
       val field = underlyingMapField(ctx)(x._1, x._2)
+      val vprKeyT = ctx.typ(x._1)
       val vprValueT = ctx.typ(x._2)
       val resultT = vpr.SetType(vprValueT)
+      val uQtfierVarDecl = vpr.LocalVarDecl("v", vprValueT)()
+      val eQtfierVarDecl = vpr.LocalVarDecl("k", vprKeyT)()
       vpr.Function(
         name = internalMemberName("mapValueSet", x._1, x._2),
         formalArgs = Seq(paramDecl),
@@ -368,6 +373,18 @@ class MapEncoding extends LeafTypeEncoding {
           vpr.Implies(
             vpr.NeCmp(paramDecl.localVar, vpr.NullLit()())(),
             vpr.EqCmp(vpr.Result(resultT)(), vpr.MapRange(vpr.FieldAccess(paramDecl.localVar, field)())())()
+          )(),
+          vpr.Forall(
+            Seq(uQtfierVarDecl),
+            Seq(vpr.Trigger(Seq(vpr.AnySetContains(uQtfierVarDecl.localVar, vpr.Result(resultT)())()))()),
+            vpr.Implies(
+              vpr.AnySetContains(uQtfierVarDecl.localVar, vpr.Result(resultT)())(),
+              vpr.Exists(
+                Seq(eQtfierVarDecl),
+                Seq(),
+                mapLookupGenerator(Vector(paramDecl.localVar, eQtfierVarDecl.localVar), (x._1, x._2))()(ctx)
+              )()
+            )()
           )()
         ),
         body = None

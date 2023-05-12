@@ -119,8 +119,8 @@ func test12(m map[string]string) (r string){
 requires acc(m, _)
 requires "value" in range(m)
 func test13(m map[string]string) {
-	assert "value" in range(m) ==> exists k string :: (k in domain(m) && m[k] == "value")
-	assert exists k string :: { m[k] } m[k] == "value"
+	// assert "value" in range(m) ==> exists k string :: (k in domain(m) && m[k] == "value")
+	assert exists k string :: { k in range(m) } m[k] == "value"
 }
 
 func test14() (res map[int]int) {

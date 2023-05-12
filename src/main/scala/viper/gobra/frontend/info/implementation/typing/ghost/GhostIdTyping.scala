@@ -14,6 +14,7 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation.violation
 
 import scala.annotation.unused
+import scala.collection.immutable.ListMap
 
 trait GhostIdTyping { this: TypeInfoImpl =>
 
@@ -42,7 +43,7 @@ trait GhostIdTyping { this: TypeInfoImpl =>
 
     case AdtClause(decl, adtDecl, context) =>
       AdtClauseT(
-        decl.args.flatMap(_.fields).map(f => f.id.name -> context.symbType(f.typ)).toMap,
+        ListMap.from(decl.args.flatMap(_.fields).map(f => f.id.name -> context.symbType(f.typ))),
         decl,
         adtDecl,
         context

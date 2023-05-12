@@ -13,7 +13,7 @@ import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.util.TypeBounds
 
 import scala.annotation.tailrec
-import scala.collection.immutable.ListMap
+import scala.collection.immutable.{ListMap, SeqMap}
 
 object Type {
 
@@ -58,7 +58,7 @@ object Type {
 
   case class AdtT(decl: PAdtType, context: ExternalTypeInfo) extends Type
 
-  case class AdtClauseT(fields: ListMap[String, Type], decl: PAdtClause, adtT: PAdtType, context: ExternalTypeInfo) extends Type
+  case class AdtClauseT(fields: SeqMap[String, Type], decl: PAdtClause, adtT: PAdtType, context: ExternalTypeInfo) extends Type
 
   case class MapT(key: Type, elem: Type) extends PrettyType(s"map[$key]$elem")
 

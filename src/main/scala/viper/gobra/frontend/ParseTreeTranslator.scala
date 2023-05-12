@@ -1318,9 +1318,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @param ctx the parse tree
     */
   override def visitSlice_(ctx: Slice_Context): (Option[PExpression], Option[PExpression], Option[PExpression]) = {
-    val low = if (ctx.low() != null) Some(visitNode[PExpression](ctx.low().expression())).pos() else None
-    val high = if (ctx.high() != null) Some(visitNode[PExpression](ctx.high().expression())).pos() else None
-    val cap = if (ctx.cap() != null) Some(visitNode[PExpression](ctx.cap().expression())).pos() else None
+    val low = if (ctx.lowSliceArgument() != null) Some(visitNode[PExpression](ctx.lowSliceArgument().expression())).pos() else None
+    val high = if (ctx.highSliceArgument() != null) Some(visitNode[PExpression](ctx.highSliceArgument().expression())).pos() else None
+    val cap = if (ctx.capSliceArgument() != null) Some(visitNode[PExpression](ctx.capSliceArgument().expression())).pos() else None
     (low, high, cap)
   }
 
@@ -1381,6 +1381,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitIsComparable(ctx: IsComparableContext): AnyRef = super.visitIsComparable(ctx) match {
     case Vector("isComparable", "(", e : PExpression, ")") => PIsComparable(e)
+  }
+
+  /**
+    * Visits the rule
+    * typeOf: LOW L_PAREN expression R_PAREN;
+    */
+  override def visitLow(ctx: LowContext): AnyRef = super.visitLow(ctx) match {
+    case Vector("low", "(", expr: PExpression, ")") => PLow(expr)
   }
 
 

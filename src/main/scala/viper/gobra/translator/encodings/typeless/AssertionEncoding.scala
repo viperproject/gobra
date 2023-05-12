@@ -10,6 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.transformers.hyper.SIFLowExp
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.gobra.translator.util.{ViperUtil => vu}
@@ -61,6 +62,8 @@ class AssertionEncoding extends Encoding {
         l = ctx.variable(let.left)
         r <- ctx.expression(let.right)
       } yield withSrc(vpr.Let(l, r, exp), let)
+
+    case n@ in.Low(e) => for {arg <- ctx.expression(e) } yield withSrc(SIFLowExp(arg), n)
   }
 
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {

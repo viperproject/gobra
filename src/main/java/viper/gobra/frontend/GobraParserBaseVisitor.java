@@ -1,3 +1,4 @@
+// Generated from src/main/antlr4/GobraParser.g4 by ANTLR 4.9.2
 package viper.gobra.frontend;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 
@@ -255,6 +256,13 @@ public class GobraParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> imple
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public T visitIsComparable(GobraParser.IsComparableContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitLow(GobraParser.LowContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -968,21 +976,21 @@ public class GobraParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> imple
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitLow(GobraParser.LowContext ctx) { return visitChildren(ctx); }
+	@Override public T visitLowSliceArgument(GobraParser.LowSliceArgumentContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitHigh(GobraParser.HighContext ctx) { return visitChildren(ctx); }
+	@Override public T visitHighSliceArgument(GobraParser.HighSliceArgumentContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitCap(GobraParser.CapContext ctx) { return visitChildren(ctx); }
+	@Override public T visitCapSliceArgument(GobraParser.CapSliceArgumentContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *

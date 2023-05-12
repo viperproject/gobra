@@ -4265,6 +4265,8 @@ object Desugar {
           case t => Violation.violation(s"Expected interface or sort type, but got $t")
         }
 
+        case PLow(exp) => for { wExp <- go(exp) } yield in.Low(wExp)(src)
+
         case PIn(left, right) => for {
           dleft <- go(left)
           dright <- go(right)

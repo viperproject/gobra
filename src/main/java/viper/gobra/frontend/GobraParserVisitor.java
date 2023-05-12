@@ -1,3 +1,4 @@
+// Generated from src/main/antlr4/GobraParser.g4 by ANTLR 4.9.2
 package viper.gobra.frontend;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -223,6 +224,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitIsComparable(GobraParser.IsComparableContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#low}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitLow(GobraParser.LowContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#typeOf}.
 	 * @param ctx the parse tree
@@ -863,23 +870,23 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitSlice_(GobraParser.Slice_Context ctx);
 	/**
-	 * Visit a parse tree produced by {@link GobraParser#low}.
+	 * Visit a parse tree produced by {@link GobraParser#lowSliceArgument}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitLow(GobraParser.LowContext ctx);
+	T visitLowSliceArgument(GobraParser.LowSliceArgumentContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link GobraParser#high}.
+	 * Visit a parse tree produced by {@link GobraParser#highSliceArgument}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitHigh(GobraParser.HighContext ctx);
+	T visitHighSliceArgument(GobraParser.HighSliceArgumentContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link GobraParser#cap}.
+	 * Visit a parse tree produced by {@link GobraParser#capSliceArgument}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitCap(GobraParser.CapContext ctx);
+	T visitCapSliceArgument(GobraParser.CapSliceArgumentContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#assign_op}.
 	 * @param ctx the parse tree

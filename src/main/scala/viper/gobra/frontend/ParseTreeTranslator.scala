@@ -19,6 +19,7 @@ import viper.gobra.util.Violation.violation
 
 import scala.StringContext.InvalidEscapeException
 import scala.annotation.unused
+import scala.collection.convert.ImplicitConversions.`iterable AsScalaIterable`
 import scala.collection.mutable.ListBuffer
 import scala.jdk.CollectionConverters._
 
@@ -433,9 +434,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitInterfaceType(ctx: GobraParser.InterfaceTypeContext): PInterfaceType = {
     val methodDecls = visitNodeIf[PMethodSig, InterfaceElemContext](ctx.interfaceElem(), ctx => has(ctx.methodSpec()))
-    val embedded = visitNodeIf[PType, InterfaceElemContext](ctx.interfaceElem(), ctx => has(ctx.typeElem())).map {
-      case tn: PUnqualifiedTypeName => PInterfaceName(tn).at(ctx)
-      case _: PDot => fail(ctx, "Imported types are not yet supported as embedded fields.")
+    val embedded = visitListNodeIf[PType, InterfaceElemContext](ctx.interfaceElem(), ctx => has(ctx.typeElem()), _.typeElem().typeTerm()).map {
+      case Vector(tn: PUnqualifiedTypeName) => PInterfaceName(tn).at(ctx)
+      case Vector(_: PDot) => fail(ctx, "Imported types are not yet supported as embedded fields.")
+      case x if x.length > 1 => fail(ctx, "Union types are not yet supported as embedded types")
       case _ => fail(ctx, s"Interface embeds predeclared type.")
     }
     val predicateDecls = visitNodeIf[PMPredicateSig, InterfaceElemContext](ctx.interfaceElem(), ctx => has(ctx.predicateSpec()))
@@ -448,15 +450,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
-  override def visitTypeElem(ctx: TypeElemContext): PType = {
-    val typeElements = visitListNode[PType](ctx.typeTerm())
-
-    if (typeElements.length > 1) {
-      fail(ctx, "Union types are currently not implemented yet")
-      // TODO discuss this with Felix (cannot use a simple PInterfaceType)
-    } else {
-      typeElements.head
-    }
+  override def visitTypeElem(ctx: TypeElemContext): Vector[PType] = {
+    visitListNode[PType](ctx.typeTerm())
   }
 
   /**
@@ -767,20 +762,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@inheritDoc  }
     *
     * <p>The default implementation returns the result of calling
-    * {@link #visitChildren} on {@code ctx}.</p>
-    */
-  override def visitTypeSpec(ctx: GobraParser.TypeSpecContext): PTypeDecl = {
-    visitChildren(ctx) match {
-      case aliasDeclCtx : AliasDeclContext => visitAliasDecl(aliasDeclCtx)
-      case typeDefCtx : TypeDefContext => visitTypeDef(typeDefCtx)
-      case _ => unexpected(ctx)
-    }
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
   override def visitAliasDecl(ctx: AliasDeclContext): PTypeDecl = {
@@ -798,9 +779,20 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitTypeDef(ctx: TypeDefContext): PTypeDecl = {
     visitChildren(ctx) match {
-      case Vector(idnDef: PIdnDef, typeParameters: Vector[PTypeParameter], pType: PType) => PTypeDef(pType, idnDef, typeParameters).at(ctx)
-      case Vector(idnDef: PIdnDef, pType: PType) => PTypeDef(pType, idnDef, Vector.empty).at(ctx)
+      case Vector(goIdnDef(id), typeParameters: Vector[PTypeParameter], pType: PType) => PTypeDef(pType, id, typeParameters).at(ctx)
+      case Vector(goIdnDef(id), pType: PType) => PTypeDef(pType, id, Vector.empty).at(ctx)
     }
+  }
+
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeParameters(ctx: TypeParametersContext): Vector[PTypeParameter] = super.visitTypeParameters(ctx) match {
+    case Vector("[", typeParamList: Vector[PTypeParameter], "]") => typeParamList
   }
 
   /**
@@ -810,7 +802,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
   override def visitTypeParamList(ctx: TypeParamListContext): Vector[PTypeParameter] = {
-    visitListNode[PTypeParameter](ctx.typeParamDecl())
+    ctx.typeParamDecl().asScala.flatMap(typeParamDeclCtx => visitTypeParamDecl(typeParamDeclCtx)).toVector
   }
 
   /**
@@ -821,7 +813,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitTypeParamDecl(ctx: TypeParamDeclContext): Vector[PTypeParameter] = {
     visitChildren(ctx) match {
-      case Vector(identifierList: Vector[PIdnDef], typeConstraint: PTypeConstraint) =>
+      case Vector(idnDefList(identifierList), typeConstraint: PTypeConstraint) =>
         identifierList.map(id => PTypeParameter(id.name, typeConstraint).at(id))
     }
   }
@@ -833,7 +825,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
   override def visitTypeConstraint(ctx: TypeConstraintContext): PTypeConstraint = {
-    PSimpleTypeConstraint(visitNode[PType](ctx.typeElem())).at(ctx)
+    visitNode[Vector[PType]](ctx.typeElem()) match {
+      case Vector(pType: PType) => PSimpleTypeConstraint(pType).at(ctx)
+      case pTypes => PUnionTypeConstraint(pTypes).at(ctx)
+    }
   }
 
   /**
@@ -2507,6 +2502,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     ctx.asScala.toVector.collect {
       case c if cond(c) => visitNode(c)
     }.asInstanceOf[Vector[P]]
+  }
+
+  def visitListNodeIf[P <: PNode, C <: ParserRuleContext](ctx: java.util.List[C], cond: (C => Boolean), select : (C => java.util.List[_ <: ParserRuleContext])): Vector[Vector[P]] = {
+    ctx.asScala.toVector.collect {
+      case c if cond(c) => visitListNode(select(c))
+    }.asInstanceOf[Vector[Vector[P]]]
   }
   //endregion
 

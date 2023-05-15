@@ -49,6 +49,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PInterfaceClause => showInterfaceClause(n)
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
     case n: PTerminationMeasure => showTerminationMeasure(n)
+    case n: PTypeConstraint => showTypeConstraint(n)
     case PPos(_) => emptyDoc
   }
 
@@ -166,11 +167,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showList[T](list: Vector[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
 
   def showTypeParameters(typeParameters: Vector[PTypeParameter]): Doc =
-    if (typeParameters.nonEmpty) brackets(showIdList(typeParameters)) else emptyDoc
+    if (typeParameters.nonEmpty) brackets(ssep(typeParameters map (p => p.name <+> showTypeConstraint(p.constraint)), comma <> space)) else emptyDoc
 
   def showFunctionLit(lit: PFunctionLit): Doc = lit match {
     case PFunctionLit(id, PClosureDecl(args, result, spec, body)) =>
-      showSpec(spec) <> "func" <> id.fold(emptyDoc)(id => emptyDoc <+> showId(id)) <> parens(showParameterList(args)) <> showResult(result) <>
+      showSpec(spec) <> "func" <> id.fold(emptyDoc)(id => emptyDoc <+> showId(id)) <>  parens(showParameterList(args)) <> showResult(result) <>
         opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
   }
 
@@ -190,7 +191,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showTypeDecl(decl: PTypeDecl): Doc = decl match {
-    case PTypeDef(right, left, typeParameters) => "type" <+> showId(left) <+> showType(right) <> showTypeParameters(typeParameters)
+    case PTypeDef(right, left, typeParameters) => "type" <+> showId(left) <> showTypeParameters(typeParameters) <+> showType(right)
     case PTypeAlias(right, left) => "type" <+> showId(left) <+> "=" <+> showType(right)
   }
 
@@ -446,7 +447,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
       case lit: PFunctionLit => showFunctionLit(lit)
       case PInvoke(base, args, spec) => showExprOrType(base) <> parens(showExprList(args)) <> opt(spec)(s => emptyDoc <+> "as" <+> showMisc(s))
-      case PIndexedExp(base, index) => showExprOrType(base) <> showList(index)(showExprOrType)
+      case PIndexedExp(base, index) => showExprOrType(base) <> brackets(showList(index)(showExprOrType))
 
       case PSliceExp(base, low, high, cap) => {
         val lowP = low.fold(emptyDoc)(showExpr)
@@ -671,6 +672,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       (if (isGhost) "ghost" <> line else emptyDoc) <> showSpec(spec) <>
         showId(id) <> parens(showParameterList(args)) <> showResult(result)
     case PMPredicateSig(id, args) => "pred"  <+> showId(id) <> parens(showParameterList(args))
+  }
+
+  def showTypeConstraint(n: PTypeConstraint): Doc = n match {
+    case PSimpleTypeConstraint(t) => showType(t)
+    case PUnionTypeConstraint(ts) => ssep(ts map showType, space <> verticalbar <> space)
   }
 
   // ids

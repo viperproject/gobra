@@ -237,12 +237,6 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: mistyped sequence 2") {
-    frontend.parseType("SEQ[int]") should matchPattern {
-      case Left(_) =>
-    }
-  }
-
   test("Parser: empty integer sequence literal") {
     frontend.parseExpOrFail("seq[int] { }") should matchPattern {
       case PCompositeLit(
@@ -2354,7 +2348,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should parse type equality") {
     frontend.parseExpOrFail("typeOf(a) == type[int]") should matchPattern {
-      case PEquals(PTypeOf(_), PTypeExpr(PUnqualifiedTypeName("int"))) =>
+      case PEquals(PTypeOf(_), PTypeExpr(PUnqualifiedTypeName("int", Vector()))) =>
     }
   }
 
@@ -2690,6 +2684,37 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: should be able to parse a labeled continue statement") {
     frontend.parseFunctionDecl("func main() {continue l}") should matchPattern {
       case PFunctionDecl(_, _, _, _, _, Some((_, PBlock(Vector(PContinue(Some(p))))))) if p.name == "l" =>
+    }
+  }
+
+  test("Parser: should be able to parse function with type parameters") {
+    frontend.parseFunctionDecl("func foo[T interface{}]() {}") should matchPattern {
+      case PFunctionDecl(PIdnDef("foo"), Vector(PTypeParameter("T", PSimpleTypeConstraint(_))), _, _, _, _) =>
+    }
+  }
+
+  test("Parser: should be able to parse type definition with type parameters") {
+    frontend.parseStmtOrFail("type Bar[T interface{}] struct {}") should matchPattern {
+      case PSeq(Vector(PTypeDef(PStructType(_), PIdnDef("Bar"), Vector(PTypeParameter("T", PSimpleTypeConstraint(_)))))) =>
+    }
+  }
+
+  test("Parser: should be able to parse union type constraints") {
+    frontend.parseFunctionDecl("func foo[T int | bool]() {}") should matchPattern {
+      case PFunctionDecl(PIdnDef("foo"), Vector(PTypeParameter("T", PUnionTypeConstraint(Vector(PIntType(), PBoolType())))), _, _, _, _) =>
+    }
+  }
+
+  test("Parser: should be able to parse generic function instantiation") {
+    frontend.parseExpOrFail("foo[T, int](y)") should matchPattern {
+      case PInvoke(PIndexedExp(PNamedOperand(PIdnUse("foo")), Vector(PNamedOperand(PIdnUse("T")), PNamedOperand(PIdnUse("int")))), Vector(PNamedOperand(PIdnUse("y"))), _) =>
+    }
+  }
+
+  test("Parser: should be able to parse struct instantiation with type arguments") {
+    frontend.parseExpOrFail("Bar[int]{3}") should matchPattern {
+      case PCompositeLit(PUnqualifiedTypeName("Bar", Vector(PNamedOperand(PIdnUse("int")))), PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(n, Decimal))
+      )))) if n == BigInt(3) =>
     }
   }
 }

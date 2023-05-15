@@ -199,7 +199,7 @@ sealed trait PTypeConstraint extends PNode
 
 case class PSimpleTypeConstraint(t: PType) extends PTypeConstraint
 
-case class PUnionTypeConstraint(ts: Vector[PTypeConstraint]) extends PTypeConstraint
+case class PUnionTypeConstraint(ts: Vector[PType]) extends PTypeConstraint
 
 
 /**
@@ -637,7 +637,7 @@ sealed trait PTypeName extends PActualType with PLiteralType {
 sealed trait PUnqualifiedTypeName extends PTypeName
 
 object PUnqualifiedTypeName {
-  def unapply(arg: PUnqualifiedTypeName): Option[String] = Some(arg.name)
+  def unapply(arg: PUnqualifiedTypeName): Option[(String, Vector[PType])] = Some((arg.name, arg.typeArgs))
 }
 
 /**
@@ -777,7 +777,7 @@ case class PIdnDef(name: String) extends PDefLikeId
 case class PIdnUse(name: String) extends PUseLikeId
 case class PIdnUnk(name: String) extends PUnkLikeId
 
-case class PTypeParameter(name: String, restriction: PTypeConstraint) extends PDefLikeId
+case class PTypeParameter(name: String, constraint: PTypeConstraint) extends PDefLikeId
 
 case class PTypeArgument(name: String) extends PUseLikeId
 

@@ -374,6 +374,7 @@ class MapEncoding extends LeafTypeEncoding {
             vpr.NeCmp(paramDecl.localVar, vpr.NullLit()())(),
             vpr.EqCmp(vpr.Result(resultT)(), vpr.MapRange(vpr.FieldAccess(paramDecl.localVar, field)())())()
           )(),
+          // TODO: comment
           vpr.Forall(
             Seq(uQtfierVarDecl),
             Seq(vpr.Trigger(Seq(vpr.AnySetContains(uQtfierVarDecl.localVar, vpr.Result(resultT)())()))()),
@@ -381,8 +382,13 @@ class MapEncoding extends LeafTypeEncoding {
               vpr.AnySetContains(uQtfierVarDecl.localVar, vpr.Result(resultT)())(),
               vpr.Exists(
                 Seq(eQtfierVarDecl),
-                Seq(),
-                mapLookupGenerator(Vector(paramDecl.localVar, eQtfierVarDecl.localVar), (x._1, x._2))()(ctx)
+                Seq(), // TODO
+                vpr.And(
+                  vpr.MapContains(uQtfierVarDecl.localVar, vpr.FieldAccess(paramDecl.localVar, field)())(),
+                  vpr.EqCmp(
+                    mapLookupGenerator(Vector(paramDecl.localVar, eQtfierVarDecl.localVar), (x._1, x._2))()(ctx),
+                    uQtfierVarDecl.localVar
+                  )())()
               )()
             )()
           )()
@@ -480,7 +486,7 @@ class MapEncoding extends LeafTypeEncoding {
       *   requires m != nil ==> acc(res.underlyingMapField, _)
       *   requires isComparable(k)
       *   ensures  k in keySetKV(m) ==> result == [ m[k] ]
-      *   ensures  k in keySetKV(m) ==> result in valueSetKV(m)
+      // *   ensures  k in keySetKV(m) ==> result in valueSetKV(m)
       *   ensures  !k in keySetKV(m) ==> result == dfltVal[V]
       *   decreases _
       */
@@ -515,10 +521,11 @@ class MapEncoding extends LeafTypeEncoding {
             vpr.EqCmp(vpr.Result(vprValueT)(), vpr.MapLookup(vpr.FieldAccess(mapParamDecl.localVar, field)(), keyParamDecl.localVar)())()
           )(),
           // deals with some incompletnesses in Viper's map encoding
+          /*
           vpr.Implies(
             vpr.AnySetContains(keyParamDecl.localVar, mapKeySetGenerator(Vector(mapParamDecl.localVar), (x._1, x._2))()(ctx))(),
             vpr.AnySetContains(vpr.Result(vprValueT)(), mapValueSetGenerator(Vector(mapParamDecl.localVar), (x._1, x._2))()(ctx))()
-          )(),
+          )(), */
           vpr.Implies(
             vpr.Not(vpr.AnySetContains(keyParamDecl.localVar, mapKeySetGenerator(Vector(mapParamDecl.localVar), (x._1, x._2))()(ctx))())(),
             vpr.EqCmp(vpr.Result(vprValueT)(), vprDfltVal)()

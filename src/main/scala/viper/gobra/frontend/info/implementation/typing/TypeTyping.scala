@@ -155,7 +155,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
         // ADT clause is special since it is a type with a name that is not a named type
         case Some(p: ap.AdtClause) =>
-          val types = p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ)).toMap
+          val types = ListMap.from(p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ)))
           AdtClauseT(types, p.symb.decl, p.symb.adtDecl, p.symb.context)
 
         case _ => violation(s"expected type, but got $n")

@@ -1,0 +1,25 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+type A adt {
+	A_ {
+		a uint
+		b set[int]
+		c bool
+		d bool
+		e seq[int]
+	}
+}
+
+ghost
+decreases
+pure func f(x A) A {
+	return A_ {
+	a: x.a,
+	b: x.b,
+	c: x.c,
+	d: x.d,
+	e: x.e}
+}

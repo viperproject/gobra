@@ -343,7 +343,7 @@ class MapEncoding extends LeafTypeEncoding {
       *   ensures  m == nil ==> res == set[V]{}
       *   ensures  m != nil ==> res == range(res.underlyingMapField)
       *   ensures  forall v: V :: { v in result } v in result ==>
-      *     exists k: K :: mapLookupKV(m, k) == v
+      *     TODO (domain(...) && exists k: K :: mapLookupKV(m, k) == v)
       *   decreases _
       */
     override def genFunction(x: (in.Type, in.Type))(ctx: Context): vpr.Function = {
@@ -384,7 +384,7 @@ class MapEncoding extends LeafTypeEncoding {
                 Seq(eQtfierVarDecl),
                 Seq(), // TODO
                 vpr.And(
-                  vpr.MapContains(uQtfierVarDecl.localVar, vpr.FieldAccess(paramDecl.localVar, field)())(),
+                  vpr.MapContains(eQtfierVarDecl.localVar, vpr.FieldAccess(paramDecl.localVar, field)())(),
                   vpr.EqCmp(
                     mapLookupGenerator(Vector(paramDecl.localVar, eQtfierVarDecl.localVar), (x._1, x._2))()(ctx),
                     uQtfierVarDecl.localVar

@@ -77,7 +77,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       ))
     )
 
-    val expr = PIndexedExp(base, PIntLit(0))
+    val expr = PIndexedExp(base, Vector(PIntLit(0)))
 
     assert(frontend.isGhostExpr(expr)())
   }
@@ -91,7 +91,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       ))
     )
 
-    val expr = PIndexedExp(base, PIntLit(0))
+    val expr = PIndexedExp(base, Vector(PIntLit(0)))
 
     frontend.exprType(expr)() should matchPattern {
       case Type.IntT(DefaultInt) =>
@@ -99,7 +99,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: mark a sequence indexed expression with an incorrect left-hand side as not well-defined") {
-    val expr = PIndexedExp(PIntLit(42), PIntLit(0))
+    val expr = PIndexedExp(PIntLit(42), Vector(PIntLit(0)))
     assert(!frontend.wellDefExpr(expr)().valid)
   }
 
@@ -112,7 +112,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       ))
     )
 
-    val expr = PIndexedExp(base, PBoolLit(false))
+    val expr = PIndexedExp(base, Vector(PBoolLit(false)))
 
     assert(!frontend.wellDefExpr(expr)().valid)
   }
@@ -127,8 +127,8 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       )
     )
     val expr = PIndexedExp(
-      PIndexedExp(PNamedOperand(PIdnUse("xs")), PIntLit(2)),
-      PIntLit(4)
+      PIndexedExp(PNamedOperand(PIdnUse("xs")), Vector(PIntLit(2))),
+      Vector(PIntLit(4))
     )
     frontend.exprType(expr)(inArgs) should matchPattern {
       case Type.IntT(DefaultInt) =>
@@ -2046,7 +2046,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   test("TypeChecker: should let a simple (integer) sequence index operation be marked a pure") {
     val expr = PIndexedExp(
       PLiteral.sequence(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3))),
-      PIntLit(2)
+      Vector(PIntLit(2))
     )
 
     assert (frontend.isPureExpr(expr)())
@@ -2591,49 +2591,49 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("TypeChecker: should mark an indexing operator on an array as non-ghost") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(12), PIntType())), false))
-    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(4)))
     assert (!frontend.isGhostExpr(expr)(inargs))
   }
 
   test("TypeChecker: should mark a very simple indexing on an integer array be well-defined") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(12), PIntType())), false))
-    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(4)))
     assert (frontend.wellDefExpr(expr)(inargs).valid)
   }
 
   test("TypeChecker: should mark integer array indexing be well-defined also if the index exceeds the array length") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(12), PIntType())), false))
-    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(412))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(412)))
     assert (!frontend.wellDefExpr(expr)(inargs).valid)
   }
 
   test("TypeChecker: should not let indexing on an integer array be well-defined if the array length happens to be negatieve") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(-12), PIntType())), false))
-    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(4)))
     assert (!frontend.wellDefExpr(expr)(inargs).valid)
   }
 
   test("TypeChecker: should let array indexing be well-defined if the array is multidimensional") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(10), PArrayType(PIntLit(20), PBoolType()))), false))
-    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(4)))
     assert (frontend.wellDefExpr(expr)(inargs).valid)
   }
 
   test("TypeChecker: should not let indexing be well-defined if the base is simply, say, a Boolean literal") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PBoolType()), false))
-    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(4)))
     assert (!frontend.wellDefExpr(expr)(inargs).valid)
   }
 
   test("TypeChecker: should let array indexing be well-defined if applied on an array of (ghost) sets") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PSetType(PIntType()))), false))
-    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(12))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(12)))
     assert (frontend.wellDefExpr(expr)(inargs).valid)
   }
 
   test("TypeChecker: should assign the correct type to simple indexing on an integer array") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PIntType())), false))
-    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(12))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(12)))
 
     frontend.exprType(expr)(inargs) should matchPattern {
       case Type.IntT(DefaultInt) =>
@@ -2642,7 +2642,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("TypeChecker: should assign the correct type to simple indexing on a Boolean array") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PBoolType())), false))
-    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(12))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(12)))
 
     frontend.exprType(expr)(inargs) should matchPattern {
       case Type.BooleanT =>
@@ -2651,7 +2651,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("TypeChecker: should assign the correct type to simple indexing on a multidimensional array") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PArrayType(PIntLit(12), PIntType()))), false))
-    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(12))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(12)))
 
     frontend.exprType(expr)(inargs) should matchPattern {
       case Type.ArrayT(n, Type.IntT(_)) if n == BigInt(12) =>
@@ -2660,13 +2660,13 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("TypeChecker: should mark a small chain of indexing operations as well-defined if the base type allows it") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PArrayType(PIntLit(12), PIntType()))), false))
-    val expr = PIndexedExp(PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4)), PIntLit(8))
+    val expr = PIndexedExp(PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(4))), Vector(PIntLit(8)))
     assert (frontend.wellDefExpr(expr)(inargs).valid)
   }
 
   test("TypeChecker: should assign the correct type to a small chain of indexing operations") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PArrayType(PIntLit(12), PMultisetType(PBoolType())))), false))
-    val expr = PIndexedExp(PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4)), PIntLit(8))
+    val expr = PIndexedExp(PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(4))), Vector(PIntLit(8)))
 
     frontend.exprType(expr)(inargs) should matchPattern {
       case Type.MultisetT(Type.BooleanT) =>
@@ -2675,31 +2675,31 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("TypeChecker: should not allow array indexing with a negative index") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PBoolType())), false))
-    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(-12))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(-12)))
     assert (!frontend.wellDefExpr(expr)(inargs).valid)
   }
 
   test("TypeChecker: should allow array indexing with an index that is zero") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PBoolType())), false))
-    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(0))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(0)))
     assert (frontend.wellDefExpr(expr)(inargs).valid)
   }
 
   test("TypeChecker: should not let a simple array access predicate be well-defined if the index is negative") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PBoolType())), false))
-    val expr = PAccess(PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(-4)), PFullPerm())
+    val expr = PAccess(PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(-4))), PFullPerm())
     assert (!frontend.wellDefExpr(expr)(inargs).valid)
   }
 
   test("TypeChecker: should not let a simple array access predicate be well-defined if the index exceeds the array length") {
     val inargs = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PBoolType())), false))
-    val expr = PAccess(PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(42)), PFullPerm())
+    val expr = PAccess(PIndexedExp(PNamedOperand(PIdnUse("a")), Vector(PIntLit(42))), PFullPerm())
     assert (!frontend.wellDefExpr(expr)(inargs).valid)
   }
 
   test("TypeChecker: should not let an 'acc' predicate be well-defined when used on a sequence instead of an array") {
     val inargs = Vector((PNamedParameter(PIdnDef("xs"), PSequenceType(PBoolType())), false))
-    val expr = PAccess(PIndexedExp(PNamedOperand(PIdnUse("xs")), PIntLit(4)), PFullPerm())
+    val expr = PAccess(PIndexedExp(PNamedOperand(PIdnUse("xs")), Vector(PIntLit(4))), PFullPerm())
     assert (!frontend.wellDefExpr(expr)(inargs).valid)
   }
 
@@ -3358,31 +3358,71 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
+  test("TypeChecker: should be able to type instantiation of generic function") {
+    // func bar[T any](x T) T {}
+    val functionDecl = PFunctionDecl(
+      PIdnDef("bar"),
+      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
+      Vector(PNamedParameter(PIdnDef("x"), PTypeArgument(PIdnUse("T")))),
+      PResult(Vector(PUnnamedParameter(PTypeArgument(PIdnUse("T"))))),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some((PBodyParameterInfo(Vector()), PBlock(Vector())))
+    )
+
+    // bar[int](4)
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("bar")), Vector(PIntType()))
+
+    frontend.exprType(expr)(Vector(), Vector(functionDecl)) should matchPattern {
+          // TODO consider if we really want to put the resolved type arguments into the FuntionT or not
+          // TODO continue with type argument
+      case Type.FunctionT(Vector(Type.IntT(_)), Type.IntT(_)) =>
+    }
+  }
+
+  test("TypeChecker: should be able to type invocation of instantiated generic function") {
+    // func bar[T any](x T) T {}
+    val functionDecl = PFunctionDecl(
+      PIdnDef("bar"),
+      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
+      Vector(PNamedParameter(PIdnDef("x"), PTypeArgument(PIdnUse("T")))),
+      PResult(Vector(PUnnamedParameter(PTypeArgument(PIdnUse("T"))))),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some((PBodyParameterInfo(Vector()), PBlock(Vector())))
+    )
+
+    val expr = PInvoke(PIndexedExp(PNamedOperand(PIdnUse("bar")), Vector(PIntType())), Vector(PIntLit(BigInt(8))), None)
+
+    frontend.exprType(expr)(Vector(), Vector(functionDecl)) should matchPattern {
+      case Type.VoidType =>
+    }
+  }
 
   /* * Stubs, mocks, and other test setup  */
 
   class TestFrontend {
-    def stubProgram(inArgs: Vector[(PParameter, Boolean)], body : PStatement) : PProgram = PProgram(
+    def stubProgram(inArgs: Vector[(PParameter, Boolean)], members: Vector[PMember], body : PStatement) : PProgram = PProgram(
       PPackageClause(PPkgDef("pkg")),
       Vector(),
       Vector(),
-      Vector(PMethodDecl(
-        PIdnDef("foo"),
-        PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("self")))),
-        inArgs.map(_._1),
-        PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), Vector(), Vector(), isPure = true),
-        Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
-      ))
+      members.appended(
+        PMethodDecl(
+          PIdnDef("foo"),
+          PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("self")))),
+          inArgs.map(_._1),
+          PResult(Vector()),
+          PFunctionSpec(Vector(), Vector(), Vector(), Vector(), isPure = true),
+          Some(PBodyParameterInfo(inArgs.collect { case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
+        )
+      )
     )
 
-    def singleExprProgram(inArgs: Vector[(PParameter, Boolean)], expr : PExpression) : PProgram = {
+    def singleExprProgram(inArgs: Vector[(PParameter, Boolean)], members: Vector[PMember], expr : PExpression) : PProgram = {
       val stmt = PShortVarDecl(Vector(expr), Vector(PIdnUnk("n")), Vector(false))
-      stubProgram(inArgs, stmt)
+      stubProgram(inArgs, members, stmt)
     }
 
-    def singleExprTypeInfo(inArgs: Vector[(PParameter, Boolean)], expr : PExpression) : TypeInfoImpl = {
-      val program = singleExprProgram(inArgs, expr)
+    def singleExprTypeInfo(inArgs: Vector[(PParameter, Boolean)], members: Vector[PMember], expr : PExpression) : TypeInfoImpl = {
+      val program = singleExprProgram(inArgs, members, expr)
       val positions = new Positions
       val pkg = PPackage(
         PPackageClause(PPkgDef("pkg")),
@@ -3396,16 +3436,16 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       new TypeInfoImpl(tree, context)(config)
     }
 
-    def exprType(expr : PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector()) : Type.Type =
-      singleExprTypeInfo(inArgs, expr).exprType(expr)
+    def exprType(expr : PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector(), members: Vector[PMember] = Vector()) : Type.Type =
+      singleExprTypeInfo(inArgs, members, expr).exprType(expr)
 
-    def isGhostExpr(expr : PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector()) : Boolean =
-      singleExprTypeInfo(inArgs, expr).isExprGhost(expr)
+    def isGhostExpr(expr : PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector(), members: Vector[PMember] = Vector()) : Boolean =
+      singleExprTypeInfo(inArgs, members, expr).isExprGhost(expr)
 
-    def isPureExpr(expr : PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector()) : Boolean =
-      singleExprTypeInfo(inArgs, expr).isPureExpr(expr).isEmpty
+    def isPureExpr(expr : PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector(), members: Vector[PMember] = Vector()) : Boolean =
+      singleExprTypeInfo(inArgs, members, expr).isPureExpr(expr).isEmpty
 
-    def wellDefExpr(expr : PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector()) =
-      singleExprTypeInfo(inArgs, expr).wellDefExpr(expr)
+    def wellDefExpr(expr : PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector(), members: Vector[PMember] = Vector()) =
+      singleExprTypeInfo(inArgs, members, expr).wellDefExpr(expr)
   }
 }

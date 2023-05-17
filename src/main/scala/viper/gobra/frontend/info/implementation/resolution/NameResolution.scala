@@ -62,6 +62,7 @@ trait NameResolution {
             }
           case decl: PTypeDef => NamedType(decl, isGhost, this)
           case decl: PTypeAlias => TypeAlias(decl, isGhost, this)
+          case decl: PTypeParameter => TypeParameter(decl, isGhost, this)
           case decl: PFunctionDecl => Function(decl, isGhost, this)
           case decl: PMethodDecl => MethodImpl(decl, isGhost, this)
           case tree.parent.pair(spec: PMethodSig, tdef: PInterfaceType) =>

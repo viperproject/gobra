@@ -73,6 +73,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       }
 
     case t: PExpressionAndType => wellDefExprAndType(t).out
+    case t: PTypeArgument => noMessages // TODO handle this
   }
 
   lazy val typeSymbType: Typing[PType] = {
@@ -142,6 +143,8 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       res
 
     case n: PNamedOperand => idSymType(n.id)
+
+    case n: PTypeArgument => idSymType(n.id) // TODO verify this
 
     case n: PDeref =>
       resolve(n) match {

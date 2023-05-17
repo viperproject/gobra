@@ -90,7 +90,16 @@ object Type {
     }
   }
 
-  case class FunctionT(args: Vector[Type], result: Type) extends PrettyType(s"func(${args.mkString(",")}) $result")
+  // TODO check if we need to ad type parameters to function type info
+  case class FunctionT(args: Vector[Type], result: Type, typeParameters: Vector[TypeParameterT])
+    extends PrettyType(s"func(${args.mkString(",")}) $result") {
+
+    def instantiate(typeParameter: TypeParameterT, typ: Type): Unit = {
+      val newArgs = args.map(arg => if (arg == typeParameter) typ else arg)
+
+      FunctionT(args, result, typeParameters)
+    }
+  }
 
   case class PredT(args: Vector[Type]) extends PrettyType(s"pred(${args.mkString(",")})")
 
@@ -115,6 +124,10 @@ object Type {
   case class ImportT(decl: PImport) extends PrettyType(decl.formatted)
 
   case object SortT extends PrettyType("Type")
+
+  case class TypeParameterT(name: String) extends PrettyType(s"${name}IamATypeParameter")
+
+  case class UnionT(types: Vector[Type]) extends PrettyType(s"${types.mkString(" | ")}")
 
   sealed trait GhostType extends Type
 

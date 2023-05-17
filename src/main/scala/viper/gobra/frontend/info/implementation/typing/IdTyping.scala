@@ -139,6 +139,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       wellDefMisc.valid(typ)
     })
 
+    case TypeParameter(_, _, _) => LocalMessages(noMessages) // TODO handle this
+
     case _: MethodImpl => LocalMessages(noMessages) // not typed
 
     case _: MethodSpec => LocalMessages(noMessages) // not typed
@@ -162,6 +164,9 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
         AdtClauseT(types, a.decl, a.adtDecl, this)
 
       case BuiltInType(tag, _, _) => tag.typ
+
+      case TypeParameter(decl, _, context) => TypeParameterT(id.name) // TODO verify this
+
       case _ => violation(s"expected type, but got $id")
     }
   }
@@ -205,8 +210,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
         case t => violation(s"expected tuple but got $t")
       })
 
-    case Function(PFunctionDecl(_, _, args, r, _, _), _, context) =>
-      // TODO handle this
+    // TODO handle this
+    case Function(PFunctionDecl(_, typeParameters, args, r, _, _), _, context) =>
       FunctionT(args map context.typ, context.typ(r))
 
     case Closure(PFunctionLit(_, PClosureDecl(args, r, _, _)), _, context) =>
@@ -250,6 +255,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case Import(decl, _) => ImportT(decl)
 
     case Wildcard(decl, _) => getWildcardType(decl)
+
+    case TypeParameter(_, _, _) => SortT
 
     case e => violation(s"untypable: $e")
   }

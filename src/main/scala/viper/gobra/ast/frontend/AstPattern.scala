@@ -55,7 +55,7 @@ object AstPattern {
   }
 
   sealed trait Parameterizable {
-    var typeArgs: Vector[Type] = Vector.empty
+    var typeArgs: Vector[PType] = Vector.empty
   }
 
   case class Function(id: PIdnUse, symb: st.Function) extends FunctionKind with Symbolic with Parameterizable

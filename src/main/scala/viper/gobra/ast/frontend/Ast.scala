@@ -777,10 +777,6 @@ case class PIdnDef(name: String) extends PDefLikeId
 case class PIdnUse(name: String) extends PUseLikeId
 case class PIdnUnk(name: String) extends PUnkLikeId
 
-case class PTypeParameter(name: String, constraint: PTypeConstraint) extends PDefLikeId
-
-case class PTypeArgument(name: String) extends PUseLikeId
-
 sealed trait PLabelNode extends PNode {
   def name: String
 }
@@ -851,6 +847,9 @@ case class PEmbeddedName(typ: PUnqualifiedTypeName) extends PEmbeddedType
 
 case class PEmbeddedPointer(typ: PUnqualifiedTypeName) extends PEmbeddedType
 
+case class PTypeParameter(id: PIdnDef, constraint: PTypeConstraint) extends PNode
+
+case class PTypeArgument(id: PIdnUse) extends PActualType
 
 /**
   * Ghost

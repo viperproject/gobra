@@ -493,11 +493,7 @@ class MapEncoding extends LeafTypeEncoding {
       val vprValueT = ctx.typ(x._2)
       val mapParamDecl = vpr.LocalVarDecl("x", mapType)()
       val internalKeyParamDecl = in.Parameter.In("k", x._1)(Source.Parser.Internal)
-      val checkIsComparable = pure(ctx.isComparable(internalKeyParamDecl) match {
-        case Left(true) => unit(vpr.TrueLit()())
-        case Left(false) => unit(vpr.FalseLit()())
-        case Right(w) => w
-      })(ctx).res
+      val checkIsComparable = pure(MapEncoding.checkKeyComparability(internalKeyParamDecl)(ctx))(ctx).res
       val dfltVal = in.DfltVal(x._2)(Source.Parser.Internal)
       val vprDfltVal = pure(ctx.expression(dfltVal))(ctx).res
       val keyParamDecl = ctx.variable(internalKeyParamDecl)

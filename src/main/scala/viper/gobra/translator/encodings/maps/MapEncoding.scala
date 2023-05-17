@@ -571,6 +571,7 @@ class MapEncoding extends LeafTypeEncoding {
       *   requires isComparable(k)
       *   ensures  acc(res.underlyingMapField)
       *   ensures  res.underlyingMapField == old(res.underlyingMapField)[k := v]
+      *   ensures  let r == (old(valueSetKV(res.underlyingField))) in true
       *   decreases _
       */
     override def genMethod(types: (in.Type, in.Type))(ctx: Context): vpr.Method = {
@@ -598,6 +599,13 @@ class MapEncoding extends LeafTypeEncoding {
           valParamDecl.localVar
         )()
       )()
+      // TODO: doc
+      val letVarDecl = vpr.LocalVarDecl("h", vpr.SetType(vprValT))()
+      val triggerHack = vpr.Let(
+        variable = letVarDecl,
+        exp = vpr.Old(mapValueSetGenerator(Vector(mapParamDecl.localVar), (keyT, valT))()(ctx))(),
+        body = vpr.TrueLit()()
+      )()
 
       vpr.Method(
         name = internalMemberName("updateMap", keyT, valT),
@@ -608,7 +616,7 @@ class MapEncoding extends LeafTypeEncoding {
           isCompKey,
           synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
         ),
-        posts = Seq(mapAcc, newAndOldRelation),
+        posts = Seq(mapAcc, newAndOldRelation /*, triggerHack*/),
         body = None
       )()
     }

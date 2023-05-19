@@ -109,55 +109,56 @@ object ViperUtil {
   def synthesized[T](node: (Position, Info, ErrorTrafo) => T)(comment: String): T =
     node(NoPosition, SimpleInfo(Seq(comment)), NoTrafos)
 
-  // TODO: explain
-  def genQuasiHavocStmt(lhs: Option[Exp], e: Exp)(pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): Stmt = {
-    def helper(exp: Exp): (Option[Exp], Option[ResourceAccess]) = exp match {
-      case f: FieldAccessPredicate => (None, Some(f.loc))
-      case PredicateAccessPredicate(predAccess, perm) =>
-        // A PrediateAccessPredicate is a PredicateResourceAccess combined with
-        // a Permission. Havoc expects a ResourceAccess. To make types match,
-        // we must extract the PredicateResourceAccess.
-        assert(perm.isInstanceOf[FullPerm]) // only full-permission supported for now // TODO: violation
-        (None, Some(predAccess))
-      case exp: MagicWand => (None, Some(exp))
-      case implies: Implies =>
-        val cond1 = implies.left
-        val (cond2, r) = helper(implies.right)
-        val finalCond = cond2.map(c => And(cond1, c)(pos, info, errT)) orElse Some(cond1)
-        (finalCond, r)
-      case _ => (None, None)
-    }
-    e match {
-      case Forall(vars, _, body) =>
-        val (cond, bOpt) = helper(body)
-        bOpt match {
-          case Some(b) =>
-            val finalCond = (lhs, cond) match {
-              case (Some(lhs), Some(cond)) => Some(And(lhs, cond)(pos, info, errT))
-              case (lhs, None) => lhs
-              case (None, cond) => cond
+  case object QuasiHavoc {
+    private def extractResourceAcc(exp: Exp)(pos: Position, info: Info, errT: ErrorTrafo): (Option[Exp], Option[ResourceAccess]) =
+      exp match {
+        case FieldAccessPredicate(loc, _: FullPerm) =>
+          // only full-permission supported, it is not clear whether QuasiHavoc does what is intended when
+          // the permission amount is different.
+          (None, Some(loc))
+        // TODO: Not sure if the following would behave as intended for predicates:
+        // case PredicateAccessPredicate(predAccess, _: FullPerm) =>
+        //   (None, Some(predAccess))
+        case exp: MagicWand =>
+          (None, Some(exp))
+        case implies: Implies =>
+          val cond1 = implies.left
+          val (cond2, r) = extractResourceAcc(implies.right)(pos, info, errT)
+          val finalCond = cond2.map(c => And(cond1, c)(pos, info, errT)) orElse Some(cond1)
+          (finalCond, r)
+        case _ =>
+          (None, None)
+      }
+
+    /**
+      * If possible, generates a quasihavoc of expression 'e' (or quasihavocall if 'e' is a QP). The quasichavoc can
+      * be conditional on the value of 'cond'.
+      */
+    def apply(cond: Option[Exp], e: Exp)(pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): Option[Stmt] =
+      e match {
+        case Forall(vars, _, body) =>
+          val (additionalCond, resAccOpt) = extractResourceAcc(body)(pos, info, errT)
+          resAccOpt map { b: ResourceAccess =>
+            val finalCond = (cond, additionalCond) match {
+              case (Some(cond1), Some(cond2)) => Some(And(cond1, cond2)(pos, info, errT))
+              case (cond1, None) => cond1
+              case (None, cond2) => cond2
             }
             Quasihavocall(vars, finalCond, b)(pos, info, errT)
-          case None =>
-            // TODO: explain that this case is due to a limitation of silver
-            seqn(Vector(Exhale(e)(pos, info, errT), Inhale(e)(pos, info, errT)))(pos, info, errT)
-        }
 
-      case e =>
-        val (cond, bOpt) = helper(e)
-        bOpt match {
-          case Some(b) =>
-            val finalCond = (lhs, cond) match {
-              case (Some (lhs), Some (cond) ) => Some (And (lhs, cond) (pos, info, errT) )
-              case (lhs, None) => lhs
-              case (None, cond) => cond
+          }
+
+        case e =>
+          val (additionalCond, resAccOpt) = extractResourceAcc(e)(pos, info, errT)
+          resAccOpt map { b: ResourceAccess =>
+            val finalCond = (cond, additionalCond) match {
+              case (Some(cond1), Some(cond2)) => Some(And(cond1, cond2)(pos, info, errT))
+              case (cond1, None) => cond1
+              case (None, cond2) => cond2
             }
-            Quasihavoc (finalCond, b) (pos, info, errT)
-          case None =>
-            // TODO: explain that this case is due to a limitation of silver
-            seqn(Vector(Exhale(e)(pos, info, errT), Inhale(e)(pos, info, errT)))(pos, info, errT)
-        }
+            Quasihavoc(finalCond, b)(pos, info, errT)
+          }
+      }
     }
-  }
 
 }

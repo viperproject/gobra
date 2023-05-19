@@ -175,7 +175,15 @@ trait TypeEncoding extends Generator {
       seqn(
         for {
           footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
-          quasiHavoc = ViperUtil.genQuasiHavocStmt(None, footprint)(pos, info, errT)
+          quasiHavoc = ViperUtil.QuasiHavoc(None, footprint)(pos, info, errT) match {
+            case Some(qh) => qh
+            case None =>
+              // if a quasihavoc cannot be generated, just exhale and inhale the footprint
+              vpr.Seqn(
+                ss = Seq(vpr.Exhale(footprint)(pos, info, errT), vpr.Inhale(footprint)(pos, info, errT)),
+                scopedSeqnDeclarations = Seq()
+              )(pos, info, errT)
+          }
           _ <- write(quasiHavoc)
           eq <- ctx.equal(loc, rhs)(src)
           inhale = vpr.Inhale(eq)(pos, info, errT)

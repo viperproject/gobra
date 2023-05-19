@@ -78,6 +78,10 @@ class FloatEncoding extends LeafTypeEncoding {
         for { e <- goE(expr) } yield withSrc(vpr.FuncApp(fromIntTo32, Seq(e)), conv)
       case conv@in.Conversion(in.Float64T(_), expr :: ctx.Int()) =>
         for { e <- goE(expr) } yield withSrc(vpr.FuncApp(fromIntTo64, Seq(e)), conv)
+      case conv@in.Conversion(in.IntT(_, _), expr :: ctx.Float32()) =>
+        for { e <- goE(expr) } yield withSrc(vpr.FuncApp(from32ToInt, Seq(e)), conv)
+      case conv@in.Conversion(in.IntT(_, _), expr :: ctx.Float64()) =>
+        for { e <- goE(expr) } yield withSrc(vpr.FuncApp(from64ToInt, Seq(e)), conv)
     }
   }
 
@@ -95,6 +99,8 @@ class FloatEncoding extends LeafTypeEncoding {
       addMemberFn(mulFloat64)
       addMemberFn(divFloat64)
       addMemberFn(fromIntTo64)
+      addMemberFn(from32ToInt)
+      addMemberFn(from64ToInt)
     }
   }
   private var isUsed32: Boolean = false
@@ -262,6 +268,38 @@ class FloatEncoding extends LeafTypeEncoding {
       name = "fromIntTo64",
       formalArgs = Seq(arg),
       typ = floatType64,
+      pres = Seq(),
+      posts = Seq(),
+      body = None
+    )()
+  }
+
+  /**
+    * Generates
+    *   function from32ToInt(l: Int): Int
+    */
+  private lazy val from32ToInt = {
+    val arg = vpr.LocalVarDecl("n", floatType32)()
+    vpr.Function(
+      name = "from32ToInt",
+      formalArgs = Seq(arg),
+      typ = vpr.Int,
+      pres = Seq(),
+      posts = Seq(),
+      body = None
+    )()
+  }
+
+  /**
+    * Generates
+    *   function from64ToInt(l: Int): Int
+    */
+  private lazy val from64ToInt = {
+    val arg = vpr.LocalVarDecl("n", floatType64)()
+    vpr.Function(
+      name = "from64ToInt",
+      formalArgs = Seq(arg),
+      typ = vpr.Int,
       pres = Seq(),
       posts = Seq(),
       body = None

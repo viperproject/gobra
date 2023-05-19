@@ -416,6 +416,7 @@ case class ClosureCall(targets: Vector[LocalVar], closure: Expr, args: Vector[Ex
 
 case class GoFunctionCall(func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 case class GoMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
+case class GoClosureCall(closure: Expr, args: Vector[Expr], spec: ClosureSpec)(val info: Source.Parser.Info) extends Stmt
 
 sealed trait Deferrable extends Stmt
 case class Defer(stmt: Deferrable)(val info: Source.Parser.Info) extends Stmt

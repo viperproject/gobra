@@ -94,3 +94,15 @@ func test6() {
     //:: ExpectedOutput(assert_error:assertion_error)
     assert x == 11
 }
+
+func test7() {
+    f :=
+        ensures acc(y) && *y >= 5
+        func fspec() (y *int) {
+            ensures acc(&x) && x >= 5
+            outline (
+                x@ := 10
+            )
+            return &x
+        }
+}

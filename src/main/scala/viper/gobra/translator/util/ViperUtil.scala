@@ -145,7 +145,6 @@ object ViperUtil {
               case (None, cond2) => cond2
             }
             Quasihavocall(vars, finalCond, b)(pos, info, errT)
-
           }
 
         case e =>
@@ -160,5 +159,4 @@ object ViperUtil {
           }
       }
     }
-
 }

@@ -616,7 +616,7 @@ class MapEncoding extends LeafTypeEncoding {
           isCompKey,
           synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
         ),
-        posts = Seq(mapAcc, newAndOldRelation /*, triggerHack*/),
+        posts = Seq(mapAcc, newAndOldRelation , triggerHack),
         body = None
       )()
     }

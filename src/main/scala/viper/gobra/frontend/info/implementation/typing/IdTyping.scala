@@ -14,6 +14,8 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 
+import scala.collection.immutable.ListMap
+
 trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
   import viper.gobra.util.Violation._
@@ -157,7 +159,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
       // ADT clause is special since it is a type with a name that is not a named type
       case a: AdtClause =>
-        val types = a.fields.map(f => f.id.name -> a.context.symbType(f.typ)).toMap
+        val types = ListMap.from(a.fields.map(f => f.id.name -> a.context.symbType(f.typ)))
         AdtClauseT(types, a.decl, a.adtDecl, this)
 
       case BuiltInType(tag, _, _) => tag.typ

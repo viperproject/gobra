@@ -2750,7 +2750,7 @@ object Desugar {
                 dArgs <- sequence(args.map { x => option(x.map(exprD(ctx, info)(_))) })
                 idT = info.typ(base) match {
                   // TODO handle this
-                  case FunctionT(fnArgs, AssertionT, _) => in.PredT(fnArgs.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
+                  case FunctionT(fnArgs, AssertionT) => in.PredT(fnArgs.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
                   case _: AbstractType =>
                     violation(dArgs.length == dArgs.flatten.length, "non-applied arguments in abstract type")
                     // The result can have arguments, namely the arguments that are provided.
@@ -3748,7 +3748,7 @@ object Desugar {
         in.AdtClauseT(idName(t.decl.id, t.context.getTypeInfo), adt, fields, addrMod)
 
       case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
-      case Type.FunctionT(args, result, _) => // TODO handle this
+      case Type.FunctionT(args, result) => // TODO handle this
         val res = result match {
           case InternalTupleT(r) => r
           case r: Type => Vector(r)

@@ -849,8 +849,6 @@ case class PEmbeddedPointer(typ: PUnqualifiedTypeName) extends PEmbeddedType
 
 case class PTypeParameter(id: PIdnDef, constraint: PTypeConstraint) extends PNode
 
-case class PTypeArgument(id: PIdnUse) extends PActualType
-
 /**
   * Ghost
   */

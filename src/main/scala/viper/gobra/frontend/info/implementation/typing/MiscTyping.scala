@@ -33,7 +33,6 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PParameter => isType(n.typ).out
     case n: PReceiver => isType(n.typ).out
     case _: PResult => noMessages // children already taken care of
-    case n : PTypeParameter => noMessages // TODO handle this (I guess children should be already checked automatically)
 
     case n: PEmbeddedName => isType(n.typ).out
     case n: PEmbeddedPointer => isType(n.typ).out

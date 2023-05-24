@@ -2688,8 +2688,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse function with type parameters") {
-    frontend.parseFunctionDecl("func foo[T interface{}]() {}") should matchPattern {
-      case PFunctionDecl(PIdnDef("foo"), Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(_))), _, _, _, _) =>
+    frontend.parseFunctionDecl("func foo[T interface{}](x T) {}") should matchPattern {
+      case PFunctionDecl(PIdnDef("foo"), Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(_))), Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))), _, _, _) =>
     }
   }
 

@@ -8,16 +8,23 @@ package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
-import viper.gobra.ast.frontend.{PAdtClause, PAdtType, PDomainType, PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
+import viper.gobra.ast.frontend.{PAdtClause, PAdtType, PDomainType, PIdnDef, PIdnNode, PImport, PInterfaceType, PNode, PStructType, PTypeConstraint, PTypeDecl}
+import viper.gobra.ast.internal.Node
+import viper.gobra.ast.internal.utility.Nodes
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.reporting.Source
+import viper.gobra.reporting.Source.Parser
 import viper.gobra.util.TypeBounds
+import viper.silver.ast.{NoInfo, Position}
+import viper.silver.ast.utility.Visitor
+import viper.silver.ast.utility.rewriter.Rewritable
 
 import scala.annotation.tailrec
 import scala.collection.immutable.ListMap
 
 object Type {
 
-  sealed trait Type
+  sealed trait Type extends TypeNode
 
   abstract class PrettyType(pretty: => String) extends Type {
     override lazy val toString: String = pretty
@@ -91,15 +98,8 @@ object Type {
   }
 
   // TODO check if we need to ad type parameters to function type info
-  case class FunctionT(args: Vector[Type], result: Type, typeParameters: Vector[TypeParameterT])
-    extends PrettyType(s"func(${args.mkString(",")}) $result") {
-
-    def instantiate(typeParameter: TypeParameterT, typ: Type): Unit = {
-      val newArgs = args.map(arg => if (arg == typeParameter) typ else arg)
-
-      FunctionT(args, result, typeParameters)
-    }
-  }
+  case class FunctionT(args: Vector[Type], result: Type)
+    extends PrettyType(s"func(${args.mkString(",")}) $result")
 
   case class PredT(args: Vector[Type]) extends PrettyType(s"pred(${args.mkString(",")})")
 
@@ -125,9 +125,7 @@ object Type {
 
   case object SortT extends PrettyType("Type")
 
-  case class TypeParameterT(name: String) extends PrettyType(s"${name}IamATypeParameter")
-
-  case class UnionT(types: Vector[Type]) extends PrettyType(s"${types.mkString(" | ")}")
+  case class TypeParameterT(id: PIdnDef, constraint: PTypeConstraint) extends PrettyType(s"${id.name}IamATypeParameter")
 
   sealed trait GhostType extends Type
 
@@ -213,4 +211,38 @@ object Type {
     * vector storing the receiver's type for methods and mpredicates.
     */
   case class AbstractType(messages: (PNode, Vector[Type]) => Messages, typing: Vector[Type] ==> FunctionT) extends PrettyType("abstract")
+
+  trait TypeNode extends Node {
+    def substitute(f: PartialFunction[PIdnDef, Type]): this.type = {
+      this.transform({
+        case TypeParameterT(id, _) if f.isDefinedAt(id) => f(id)
+      })
+    }
+
+    override def info: Parser.Info = Source.Parser.Unsourced
+
+    override def withChildren(children: Seq[Any], pos: Option[(Position, Position)], forceRewrite: Boolean): this.type = {
+      assert(pos.isEmpty, "The pos argument must be set to nil if called on Gobra nodes.")
+
+      if (!forceRewrite && this.children == children) {
+        this
+      } else {
+        create(children)
+      }
+    }
+
+    private def create(children: Seq[Any]): this.type = {
+      import scala.reflect.runtime.{universe => reflection}
+      val mirror = reflection.runtimeMirror(reflection.getClass.getClassLoader)
+      val instanceMirror = mirror.reflect(this)
+      val classSymbol = instanceMirror.symbol
+      val classMirror = mirror.reflectClass(classSymbol)
+      val constructorSymbol = instanceMirror.symbol.primaryConstructor.asMethod
+      val constructorMirror = classMirror.reflectConstructor(constructorSymbol)
+
+      // Call constructor
+      val newNode = constructorMirror(children: _*)
+      newNode.asInstanceOf[this.type]
+    }
+  }
 }

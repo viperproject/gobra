@@ -21,33 +21,42 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
 
   test("TypeChecker: should be able to type non-generic function") {
-    val testValue = frontend.wellDefMember(
-      PFunctionDecl(
-        PIdnDef("foo"),
-        Vector(),
-        Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("int")))),
-        PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
-        Some(PBodyParameterInfo(Vector()), PBlock(Vector()))
-      )
+    val member = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("int")))),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector()))
     )
 
-    assert(testValue.valid)
+    assert(frontend.wellDefMember(member).valid)
   }
 
   test("TypeChecker: should be able to type generic function") {
-    val testValue = frontend.wellDefMember(
-      PFunctionDecl(
-        PIdnDef("foo"),
-        Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
-        Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
-        PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
-        None
-      )
+    val member = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      None
     )
 
-    assert(testValue.valid)
+    assert(frontend.wellDefMember(member).valid)
+  }
+
+  test("TypeChecker: should not accept generic function that uses type parameters that are not defined") {
+    val member = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T"))), PNamedParameter(PIdnDef("y"), PNamedOperand(PIdnUse("V")))),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      None
+    )
+
+    assert(!frontend.wellDefMember(member).valid)
   }
 
   class TestFrontend {

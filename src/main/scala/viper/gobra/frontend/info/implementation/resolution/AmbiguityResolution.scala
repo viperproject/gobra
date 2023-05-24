@@ -57,6 +57,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
     case n: PNamedOperand =>
       entity(n.id) match {
         case s: st.NamedType => Some(ap.NamedType(n.id, s))
+        case s: st.TypeParameter => Some(ap.TypeArgument(n.id, s))
         case s: st.Variable => s match {
           case g: st.GlobalVariable => Some(ap.GlobalVariable(n.id, g))
           case _ => Some(ap.LocalVariable(n.id, s))
@@ -135,7 +136,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
             f.typeArgs = typeArgs
             Some(f)
           }
-          case _ => None
+          case _ => Some(f)
         }
       case _ if n.index.length == 1 => {
         exprOrType(n.index.head) match {

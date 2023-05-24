@@ -3363,18 +3363,16 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     val functionDecl = PFunctionDecl(
       PIdnDef("bar"),
       Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
-      Vector(PNamedParameter(PIdnDef("x"), PTypeArgument(PIdnUse("T")))),
-      PResult(Vector(PUnnamedParameter(PTypeArgument(PIdnUse("T"))))),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
+      PResult(Vector(PUnnamedParameter(PNamedOperand(PIdnUse("T"))))),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
       Some((PBodyParameterInfo(Vector()), PBlock(Vector())))
     )
 
-    // bar[int](4)
+    // bar[int]
     val expr = PIndexedExp(PNamedOperand(PIdnUse("bar")), Vector(PIntType()))
 
     frontend.exprType(expr)(Vector(), Vector(functionDecl)) should matchPattern {
-          // TODO consider if we really want to put the resolved type arguments into the FuntionT or not
-          // TODO continue with type argument
       case Type.FunctionT(Vector(Type.IntT(_)), Type.IntT(_)) =>
     }
   }
@@ -3384,17 +3382,69 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     val functionDecl = PFunctionDecl(
       PIdnDef("bar"),
       Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
-      Vector(PNamedParameter(PIdnDef("x"), PTypeArgument(PIdnUse("T")))),
-      PResult(Vector(PUnnamedParameter(PTypeArgument(PIdnUse("T"))))),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
+      PResult(Vector(PUnnamedParameter(PNamedOperand(PIdnUse("T"))))),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
       Some((PBodyParameterInfo(Vector()), PBlock(Vector())))
     )
 
+    // bar[int](8)
     val expr = PInvoke(PIndexedExp(PNamedOperand(PIdnUse("bar")), Vector(PIntType())), Vector(PIntLit(BigInt(8))), None)
 
     frontend.exprType(expr)(Vector(), Vector(functionDecl)) should matchPattern {
-      case Type.VoidType =>
+      case Type.IntT(_) =>
     }
+  }
+
+  test("TypeChecker: should not accept generic functions that are not instantiated") {
+    // func bar[T any](x T) T {}
+    val functionDecl = PFunctionDecl(
+      PIdnDef("bar"),
+      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
+      PResult(Vector(PUnnamedParameter(PNamedOperand(PIdnUse("T"))))),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some((PBodyParameterInfo(Vector()), PBlock(Vector())))
+    )
+
+    // bar
+    val expr = PNamedOperand(PIdnUse("bar"))
+
+    assert (!frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
+  }
+
+  test("TypeChecker: should not accept expression type arguments") {
+    // func bar[T any](x T) T {}
+    val functionDecl = PFunctionDecl(
+      PIdnDef("bar"),
+      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
+      PResult(Vector(PUnnamedParameter(PNamedOperand(PIdnUse("T"))))),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some((PBodyParameterInfo(Vector()), PBlock(Vector())))
+    )
+
+    // bar[3]
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("bar")), Vector(PIntLit(BigInt(3))))
+
+    assert(!frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
+  }
+
+  test("TypeChecker: should not accept incorrect amount of type arguments") {
+    // func bar[T any](x T) T {}
+    val functionDecl = PFunctionDecl(
+      PIdnDef("bar"),
+      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
+      PResult(Vector(PUnnamedParameter(PNamedOperand(PIdnUse("T"))))),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some((PBodyParameterInfo(Vector()), PBlock(Vector())))
+    )
+
+    // bar[int, int]
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("bar")), Vector(PIntType(), PIntType()))
+
+    assert(!frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
   }
 
   /* * Stubs, mocks, and other test setup  */

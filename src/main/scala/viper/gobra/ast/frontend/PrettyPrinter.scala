@@ -631,7 +631,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       )
     case PMethodReceiveName(t) => showType(t)
     case PMethodReceivePointer(t) => "*" <> showType(t)
-    case PTypeArgument(id) => showId(id) // TODO handle this
   }
 
   def showGhostType(typ : PGhostType) : Doc = typ match {

@@ -165,7 +165,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case BuiltInType(tag, _, _) => tag.typ
 
-      case TypeParameter(decl, _, context) => TypeParameterT(id.name) // TODO verify this
+      case TypeParameter(decl, _, context) => TypeParameterT(decl.id, decl.constraint) // TODO handle this
 
       case _ => violation(s"expected type, but got $id")
     }

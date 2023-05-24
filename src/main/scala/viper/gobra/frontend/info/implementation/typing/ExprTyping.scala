@@ -37,6 +37,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(ap.Closure(id, _)) => error(n, s"expected valid operand, got closure declaration name $n",
           !tree.parent(n).head.isInstanceOf[PClosureSpecInstance] &&
             tryEnclosingFunctionLit(n).fold(true)(lit => lit.id.fold(true)(encId => encId.name != id.name)))
+        case Some(ap.Function(id, symb)) if symb.typeParameters.nonEmpty => error(n,s"cannot use generic function $id without instantiation",
+          !tree.parent(n).head.isInstanceOf[PIndexedExp])
         case _ => noMessages
       } // no more checks to avoid cycles
 
@@ -305,10 +307,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n : PIndexedExp => resolve(n) match {
       case Some(ap.Function(id, symb)) =>
-        n.index.flatMap(isType(_).out) ++ error(n, "wrong amount of type arguments provided", n.index.length != symb.typeParameters.length) ++ n.index.flatMap(i => {
-          val idxType = typeSymbType(asType(i).get)
-          // TODO check here that idxType conforms to the type constraint of the type parameter
-          noMessages
+        error(n, s"got ${n.index.length} type arguments but want ${symb.typeParameters.length}", n.index.length != symb.typeParameters.length) ++ n.index.flatMap(i => {
+          asType(i) match {
+            case Some(idxType) =>
+              // TODO check here that idxType conforms to the type constraint of the type parameter (with assignableTo or implements?)
+              noMessages
+            case None => error(i, s"$i is not a type")
+          }
         })
       case Some(ap.IndexedExp(base, index)) => isExpr(base).out ++ isExpr(index).out ++ {
         val baseType = exprType(base)
@@ -679,14 +684,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case n : PIndexedExp => resolve(n) match {
-      case Some(ap.Function(id, symb)) =>
-        val typeArguments = symb.typeParameters.map(_.id.name).zip(n.index.map(i => typeSymbType(asType(i).get))).toMap
-        val argumentTypes = symb.args.map(_.typ).map {
-          case PTypeArgument(id) => typeArguments(id.name)
-          case n => typeSymbType(n)
-        }
 
-        FunctionT(argumentTypes, VoidType)
+
+      case Some(f@ap.Function(id, symb)) =>
+        // TODO handle type parameter instantiations that have to be inferred
+        val typeArgs = f.typeArgs.map(typeSymbType)
+        val substitution = symb.typeParameters.map(_.id).zip(typeArgs).toMap
+
+        FunctionT(symb.args.map(miscType), miscType(symb.result)).substitute(substitution)
+
       case Some(ap.IndexedExp(base, index)) =>
         val baseType = exprType(base)
         val idxType  = exprType(index)
@@ -879,6 +885,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           // PInvoke and thus, `expr` can onlu appear in `n` as an argument
           lazy val errorMessage = s"violation of assumption: a numeric expression $expr does not occur as an argument of its parent $n"
           resolve(n) match {
+
             case Some(ap.FunctionCall(_, args)) =>
               val index = args.indexWhere(_.eq(expr))
               violation(index >= 0, errorMessage)

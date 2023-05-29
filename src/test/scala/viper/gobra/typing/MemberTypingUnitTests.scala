@@ -59,6 +59,19 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert(!frontend.wellDefMember(member).valid)
   }
 
+  test("TypeChecker: should accept generic type definition") {
+    val member = PTypeDef(
+      PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("x"), PNamedOperand(PIdnUse("T"))))))),
+      PIdnDef("Bar"),
+      Vector(
+        PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector()))),
+        PTypeParameter(PIdnDef("V"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))
+      )
+    )
+
+    assert(frontend.wellDefMember(member).valid)
+  }
+
   class TestFrontend {
     def singleMemberProgram(member: PMember): PProgram =
       PProgram(

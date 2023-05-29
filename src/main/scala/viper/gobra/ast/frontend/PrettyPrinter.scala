@@ -169,6 +169,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showTypeParameters(typeParameters: Vector[PTypeParameter]): Doc =
     if (typeParameters.nonEmpty) brackets(ssep(typeParameters map (p => showId(p.id) <+> showTypeConstraint(p.constraint)), comma <> space)) else emptyDoc
 
+  def showTypeArguments(typeArgs: Vector[PType]): Doc =
+    if (typeArgs.nonEmpty) brackets(ssep(typeArgs map showType, comma <> space)) else emptyDoc
+
   def showFunctionLit(lit: PFunctionLit): Doc = lit match {
     case PFunctionLit(id, PClosureDecl(args, result, spec, body)) =>
       showSpec(spec) <> "func" <> id.fold(emptyDoc)(id => emptyDoc <+> showId(id)) <>  parens(showParameterList(args)) <> showResult(result) <>
@@ -584,7 +587,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   // types
 
+  def showParameterizedType(typ: PParameterizedType): Doc = {
+    showType(typ.typ) <> showTypeArguments(typ.typeArgs)
+  }
+
   def showType(typ: PType): Doc = typ match {
+    case t: PParameterizedType => showParameterizedType(t)
     case t: PActualType => showActualType(t)
     case t: PGhostType => showGhostType(t)
   }

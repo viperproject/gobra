@@ -217,9 +217,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitType_(ctx: Type_Context): PType = {
     visitChildren(ctx) match {
-      case Vector(typeName: PTypeName, index: Vector[PType]) =>
-        typeName.typeArgs = index
-        typeName
+      case Vector(typeName: PTypeName, index: Vector[PType]) => PParameterizedTypeName(typeName, index)
       case typeName: PTypeName => typeName
       case typeLit: PTypeLit => typeLit
       case pType: PType => pType
@@ -340,14 +338,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     visitChildren(ctx) match {
       case name : PUnqualifiedTypeName => PEmbeddedName(name)
       case Vector(name: PUnqualifiedTypeName, index: Vector[PType]) =>
-        val embeddedName = PEmbeddedName(name)
-        embeddedName.typ.typeArgs = index
-        embeddedName
+        PEmbeddedName(PParameterizedUnqualifiedTypeName(name, index))
       case Vector("*", name : PUnqualifiedTypeName) => PEmbeddedPointer(name)
       case Vector("*", name : PUnqualifiedTypeName, index: Vector[PType]) =>
-        val embeddedPointer = PEmbeddedPointer(name)
-        embeddedPointer.typ.typeArgs = index
-        embeddedPointer
+        PEmbeddedPointer(PParameterizedUnqualifiedTypeName(name, index))
       case _ : PDot | Vector(_: PDot, _: Vector[PType]) | Vector("*", _ : PDot) | Vector("*", _ :PDot, _ : Vector[PType]) => fail(ctx, "Imported types are not yet supported as embedded interface names")
     }
   }
@@ -1164,9 +1158,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitLiteralType(ctx: LiteralTypeContext): PLiteralType = {
     visitChildren(ctx) match {
-      case Vector(typeName: PTypeName, index: Vector[PType]) =>
-        typeName.typeArgs = index
-        typeName
+      case Vector(typeName: PTypeName, index: Vector[PType]) => PParameterizedTypeName(typeName, index)
       case x : PLiteralType => x
     }
   }

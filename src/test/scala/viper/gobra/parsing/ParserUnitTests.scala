@@ -2348,7 +2348,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should parse type equality") {
     frontend.parseExpOrFail("typeOf(a) == type[int]") should matchPattern {
-      case PEquals(PTypeOf(_), PTypeExpr(PUnqualifiedTypeName("int", Vector()))) =>
+      case PEquals(PTypeOf(_), PTypeExpr(PUnqualifiedTypeName("int"))) =>
     }
   }
 
@@ -2713,7 +2713,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse struct instantiation with type arguments") {
     frontend.parseExpOrFail("Bar[int]{3}") should matchPattern {
-      case PCompositeLit(PUnqualifiedTypeName("Bar", Vector(PNamedOperand(PIdnUse("int")))), PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(n, Decimal))
+      case PCompositeLit(PParameterizedTypeName(PNamedOperand(PIdnUse("Bar")), Vector(PNamedOperand(PIdnUse("int")))), PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(n, Decimal))
       )))) if n == BigInt(3) =>
     }
   }

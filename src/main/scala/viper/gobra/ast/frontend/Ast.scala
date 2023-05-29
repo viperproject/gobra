@@ -620,6 +620,11 @@ sealed trait PActualType extends PType
 
 sealed trait PLiteralType extends PNode
 
+sealed trait PParameterizedType extends PType {
+  def typ: PType
+  def typeArgs: Vector[PType]
+}
+
 /**
   * Represents a named type in Go.
   * @see [[https://go.dev/ref/spec#TypeName]]
@@ -627,8 +632,12 @@ sealed trait PLiteralType extends PNode
 sealed trait PTypeName extends PActualType with PLiteralType {
   def id : PUseLikeId
   val name: String = id.name
+}
 
-  var typeArgs: Vector[PType] = Vector.empty
+case class PParameterizedTypeName(typ: PTypeName, typeArgs: Vector[PType]) extends PParameterizedType with PLiteralType
+
+case class PParameterizedUnqualifiedTypeName(typ: PUnqualifiedTypeName, typeArgs: Vector[PType]) extends PParameterizedType with PUnqualifiedTypeName {
+  override def id: PUseLikeId = typ.id
 }
 
 /**
@@ -637,7 +646,7 @@ sealed trait PTypeName extends PActualType with PLiteralType {
 sealed trait PUnqualifiedTypeName extends PTypeName
 
 object PUnqualifiedTypeName {
-  def unapply(arg: PUnqualifiedTypeName): Option[(String, Vector[PType])] = Some((arg.name, arg.typeArgs))
+  def unapply(arg: PUnqualifiedTypeName): Option[String] = Some(arg.name)
 }
 
 /**

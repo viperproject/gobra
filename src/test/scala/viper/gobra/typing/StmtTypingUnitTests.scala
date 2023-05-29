@@ -46,8 +46,6 @@ class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       ))().valid)
   }
 
-  test("TypeChecker: valid")
-
   class TestFrontend {
 
     /**

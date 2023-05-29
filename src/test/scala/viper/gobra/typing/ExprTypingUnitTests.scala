@@ -15,6 +15,7 @@ import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.Decimal
 import viper.gobra.util.TypeBounds.{DefaultInt, UnboundedInteger}
 
 class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
@@ -3445,6 +3446,29 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     val expr = PIndexedExp(PNamedOperand(PIdnUse("bar")), Vector(PIntType(), PIntType()))
 
     assert(!frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
+  }
+
+  test("TypeChecker: should be able to type instantiation of generic struct type") {
+    // type Bar[T any, V any] struct { x T }
+    val typeDecl = PTypeDef(
+      PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("x"), PNamedOperand(PIdnUse("T"))))))),
+      PIdnDef("Bar"),
+      Vector(
+        PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector()))),
+        PTypeParameter(PIdnDef("V"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))
+      )
+    )
+
+    // Bar[int, bool]{3}
+
+    val expr = PCompositeLit(
+      PParameterizedTypeName(PNamedOperand(PIdnUse("Bar")), Vector(PIntType(), PBoolType())),
+      PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(3, Decimal)))))
+    )
+
+    frontend.exprType(expr)(Vector(), Vector(typeDecl)) should matchPattern {
+      case _ =>
+    }
   }
 
   /* * Stubs, mocks, and other test setup  */

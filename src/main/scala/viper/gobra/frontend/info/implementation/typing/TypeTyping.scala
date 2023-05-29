@@ -83,9 +83,18 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => t
     }
     createTyping {
+      case typ: PParameterizedType => handleTypeAlias(parameterizedTypeSymbType(typ))
       case typ: PActualType => handleTypeAlias(actualTypeSymbType(typ))
       case typ: PGhostType  => handleTypeAlias(ghostTypeSymbType(typ))
     }
+  }
+
+  private[typing] def parameterizedTypeSymbType(typ: PParameterizedType): Type = {
+
+    val baseType = typeSymbType(typ.typ)
+    val typArgTypes = typ.typeArgs map typeSymbType
+    val substitution = typ..map(_.id).zip(typeArgs).toMap
+    baseType.substitute()
   }
 
   private[typing] def actualTypeSymbType(typ: PActualType): Type = typ match {

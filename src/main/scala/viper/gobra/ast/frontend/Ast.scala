@@ -191,7 +191,7 @@ sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostif
   def right: PType
 }
 
-case class PTypeDef(right: PType, left: PIdnDef, typeParameters: Vector[PTypeParameter]) extends PTypeDecl
+case class PTypeDef(typeParameters: Vector[PTypeParameter], right: PType, left: PIdnDef) extends PTypeDecl with PScope
 
 case class PTypeAlias(right: PType, left: PIdnDef) extends PTypeDecl
 
@@ -620,8 +620,8 @@ sealed trait PActualType extends PType
 
 sealed trait PLiteralType extends PNode
 
-sealed trait PParameterizedType extends PType {
-  def typ: PType
+sealed trait PParameterizedType extends PActualType {
+  def typeName: PTypeName
   def typeArgs: Vector[PType]
 }
 
@@ -634,10 +634,10 @@ sealed trait PTypeName extends PActualType with PLiteralType {
   val name: String = id.name
 }
 
-case class PParameterizedTypeName(typ: PTypeName, typeArgs: Vector[PType]) extends PParameterizedType with PLiteralType
+case class PParameterizedTypeName(typeName: PTypeName, typeArgs: Vector[PType]) extends PParameterizedType with PLiteralType
 
-case class PParameterizedUnqualifiedTypeName(typ: PUnqualifiedTypeName, typeArgs: Vector[PType]) extends PParameterizedType with PUnqualifiedTypeName {
-  override def id: PUseLikeId = typ.id
+case class PParameterizedUnqualifiedTypeName(typeName: PUnqualifiedTypeName, typeArgs: Vector[PType]) extends PParameterizedType with PUnqualifiedTypeName {
+  override def id: PUseLikeId = typeName.id
 }
 
 /**

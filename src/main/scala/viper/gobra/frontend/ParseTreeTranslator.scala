@@ -773,8 +773,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitTypeDef(ctx: TypeDefContext): PTypeDecl = {
     visitChildren(ctx) match {
-      case Vector(goIdnDef(id), typeParameters: Vector[PTypeParameter], pType: PType) => PTypeDef(pType, id, typeParameters).at(ctx)
-      case Vector(goIdnDef(id), pType: PType) => PTypeDef(pType, id, Vector.empty).at(ctx)
+      case Vector(goIdnDef(id), typeParameters: Vector[PTypeParameter], pType: PType) => PTypeDef(typeParameters, pType, id).at(ctx)
+      case Vector(goIdnDef(id), pType: PType) => PTypeDef(Vector(), pType, id).at(ctx)
     }
   }
 

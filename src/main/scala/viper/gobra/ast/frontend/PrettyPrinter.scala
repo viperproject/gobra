@@ -588,7 +588,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // types
 
   def showParameterizedType(typ: PParameterizedType): Doc = {
-    showType(typ.typ) <> showTypeArguments(typ.typeArgs)
+    showType(typ.typeName) <> showTypeArguments(typ.typeArgs)
   }
 
   def showType(typ: PType): Doc = typ match {

@@ -15,8 +15,10 @@ import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.util.Decimal
+import viper.gobra.util.{Decimal, TypeBounds}
 import viper.gobra.util.TypeBounds.{DefaultInt, UnboundedInteger}
+
+import scala.collection.immutable.ListMap
 
 class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
@@ -3414,7 +3416,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert (!frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
   }
 
-  test("TypeChecker: should not accept expression type arguments") {
+  test("TypeChecker: should not accept expression type arguments for generic functions") {
     // func bar[T any](x T) T {}
     val functionDecl = PFunctionDecl(
       PIdnDef("bar"),
@@ -3431,7 +3433,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert(!frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
   }
 
-  test("TypeChecker: should not accept incorrect amount of type arguments") {
+  test("TypeChecker: should not accept incorrect amount of type arguments for generic function") {
     // func bar[T any](x T) T {}
     val functionDecl = PFunctionDecl(
       PIdnDef("bar"),
@@ -3451,12 +3453,12 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   test("TypeChecker: should be able to type instantiation of generic struct type") {
     // type Bar[T any, V any] struct { x T }
     val typeDecl = PTypeDef(
-      PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("x"), PNamedOperand(PIdnUse("T"))))))),
-      PIdnDef("Bar"),
       Vector(
         PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector()))),
         PTypeParameter(PIdnDef("V"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))
-      )
+      ),
+      PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("x"), PNamedOperand(PIdnUse("T"))))))),
+      PIdnDef("Bar")
     )
 
     // Bar[int, bool]{3}
@@ -3466,9 +3468,31 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(3, Decimal)))))
     )
 
-    frontend.exprType(expr)(Vector(), Vector(typeDecl)) should matchPattern {
-      case _ =>
+    inside (frontend.exprType(expr)(Vector(), Vector(typeDecl))) {
+      case Type.StructT(l, _, _) =>
+        l should equal (ListMap("x" -> (true, Type.IntT(TypeBounds.DefaultInt))))
     }
+  }
+
+  test("TypeChecker: should not accept incorrect amount of type arguments for generic type") {
+    // type Bar[T any, V any] struct { x T }
+    val typeDecl = PTypeDef(
+      Vector(
+        PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector()))),
+        PTypeParameter(PIdnDef("V"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))
+      ),
+      PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("x"), PNamedOperand(PIdnUse("T"))))))),
+      PIdnDef("Bar")
+    )
+
+    // Bar[int]{3}
+
+    val expr = PCompositeLit(
+      PParameterizedTypeName(PNamedOperand(PIdnUse("Bar")), Vector(PIntType())),
+      PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(3, Decimal)))))
+    )
+
+    assert(!frontend.wellDefExpr(expr)(Vector(), Vector(typeDecl)).valid)
   }
 
   /* * Stubs, mocks, and other test setup  */

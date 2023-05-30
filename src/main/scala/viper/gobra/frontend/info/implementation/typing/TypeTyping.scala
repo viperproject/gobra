@@ -11,6 +11,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages
 import scala.collection.immutable.ListMap
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.info.base.SymbolTable.NamedType
 import viper.gobra.frontend.info.base.Type.{StructT, _}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.UnderlyingType
@@ -29,8 +30,18 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefType: WellDefinedness[PType] = createWellDef {
+    case typ: PParameterizedType => wellDefParameterizedType(typ)
     case typ: PActualType => wellDefActualType(typ)
     case typ: PGhostType  => wellDefGhostType(typ)
+  }
+
+  private[typing] def wellDefParameterizedType(typ: PParameterizedType): Messages = entity(typ.typeName.id) match {
+    case NamedType(decl, _, _) =>
+      error(typ, s"got ${typ.typeArgs.length} type arguments but want ${decl.typeParameters.length}", typ.typeArgs.length != decl.typeParameters.length) ++ typ.typeArgs.flatMap(arg => {
+        val argType = typeSymbType(arg)
+        // TODO check that arg conforms to declaration (assignableTo or implements?)
+        noMessages
+      })
   }
 
   private[typing] def wellDefActualType(typ: PActualType): Messages = typ match {
@@ -89,12 +100,11 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  private[typing] def parameterizedTypeSymbType(typ: PParameterizedType): Type = {
-
-    val baseType = typeSymbType(typ.typ)
-    val typArgTypes = typ.typeArgs map typeSymbType
-    val substitution = typ..map(_.id).zip(typeArgs).toMap
-    baseType.substitute()
+  private[typing] def parameterizedTypeSymbType(typ: PParameterizedType): Type = entity(typ.typeName.id) match {
+    case NamedType(decl, _, _) =>
+      val typeArgs = typ.typeArgs map typeSymbType
+      val substitution = decl.typeParameters.map(_.id).zip(typeArgs).toMap
+      typeSymbType(decl.right).substitute(substitution)
   }
 
   private[typing] def actualTypeSymbType(typ: PActualType): Type = typ match {

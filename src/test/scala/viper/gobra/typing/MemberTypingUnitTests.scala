@@ -36,7 +36,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   test("TypeChecker: should be able to type generic function") {
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
+      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PNamedOperand(PIdnUse("any"))))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -49,7 +49,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   test("TypeChecker: should not accept generic function that uses type parameters that are not defined") {
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
+      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PNamedOperand(PIdnUse("any"))))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T"))), PNamedParameter(PIdnDef("y"), PNamedOperand(PIdnUse("V")))),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -59,14 +59,24 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert(!frontend.wellDefMember(member).valid)
   }
 
+  test("TypeChecker: should accept struct type definition") {
+    val member = PTypeDef(
+      Vector(),
+      PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("x"), PNamedOperand(PIdnUse("int"))))))),
+      PIdnDef("Bar")
+    )
+
+    assert(frontend.wellDefMember(member).valid)
+  }
+
   test("TypeChecker: should accept generic type definition") {
     val member = PTypeDef(
-      PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("x"), PNamedOperand(PIdnUse("T"))))))),
-      PIdnDef("Bar"),
       Vector(
         PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector()))),
         PTypeParameter(PIdnDef("V"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))
-      )
+      ),
+      PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("x"), PNamedOperand(PIdnUse("T"))))))),
+      PIdnDef("Bar")
     )
 
     assert(frontend.wellDefMember(member).valid)

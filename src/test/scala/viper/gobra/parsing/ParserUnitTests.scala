@@ -2695,7 +2695,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse type definition with type parameters") {
     frontend.parseStmtOrFail("type Bar[T interface{}] struct {}") should matchPattern {
-      case PSeq(Vector(PTypeDef(PStructType(_), PIdnDef("Bar"), Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(_)))))) =>
+      case PSeq(Vector(PTypeDef(Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(_))), PStructType(_), PIdnDef("Bar")))) =>
     }
   }
 

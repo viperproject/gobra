@@ -125,7 +125,15 @@ object Type {
 
   case object SortT extends PrettyType("Type")
 
-  case class TypeParameterT(id: PIdnDef, constraint: PTypeConstraint) extends PrettyType(s"${id.name}")
+  case class TypeParameterT(id: PIdnDef, constraint: TypeConstraint) extends PrettyType(s"${id.name}")
+
+  sealed trait TypeConstraint
+
+  case class SimpleTypeConstraint(t: Type) extends TypeConstraint
+
+  case class UnionTypeConstraint(ts: Vector[Type]) extends TypeConstraint
+
+  case class ComparableTypeConstraint() extends TypeConstraint
 
   sealed trait GhostType extends Type
 

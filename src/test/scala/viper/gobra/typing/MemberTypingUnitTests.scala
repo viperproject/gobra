@@ -16,6 +16,7 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.Config
+import viper.gobra.util.TypeBounds
 
 class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
@@ -80,6 +81,122 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     )
 
     assert(frontend.wellDefMember(member).valid)
+  }
+
+  test("TypeChecker: foo1") {
+    // func foo[T int]() {
+    //	 var _ T = 3 // valid
+    // }
+    val member = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PIntType()))),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector(
+        PVarDecl(Some(PNamedOperand(PIdnUse("T"))), Vector(PIntLit(BigInt(3))), Vector(PWildcard()), Vector())
+      )))
+    )
+
+    assert(frontend.wellDefMember(member).valid)
+  }
+
+  test("TypeChecker: foo2") {
+    // func foo[T int]() {
+    //	 var _ T = false // invalid
+    // }
+    val member = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PIntType()))),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector(
+        PVarDecl(Some(PNamedOperand(PIdnUse("T"))), Vector(PBoolLit(false)), Vector(PWildcard()), Vector())
+      )))
+    )
+
+    assert(!frontend.wellDefMember(member).valid)
+  }
+
+  test("TypeChecker: foo3") {
+    // func foo[T int | bool]() {
+    //	 var _ T = 3 // invalid
+    // }
+    val member = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PUnionTypeConstraint(Vector(PIntType(), PBoolType())))),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector(
+        PVarDecl(Some(PNamedOperand(PIdnUse("T"))), Vector(PIntLit(BigInt(3))), Vector(PWildcard()), Vector())
+      )))
+    )
+
+    assert(!frontend.wellDefMember(member).valid)
+  }
+
+  test("TypeChecker: foo41") {
+    // func foo[T int](x T) {
+    //	 var _ int = x // invalid
+    // }
+    val member = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(PInterfaceName(PIntType())), Vector(), Vector())))),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector(
+        PVarDecl(Some(PIntType()), Vector(PNamedOperand(PIdnUse("x"))), Vector(PWildcard()), Vector())
+      )))
+    )
+
+    assert(!frontend.wellDefMember(member).valid)
+  }
+
+  test("TypeChecker: foo42") {
+    // func foo[T interface{ m(); n() }](x T) {
+    //	 var _ interface{ m() } = x // valid
+    // }
+    val member = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(
+        PMethodSig(PIdnDef("m"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector()), isGhost = false),
+        PMethodSig(PIdnDef("n"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector()), isGhost = false),
+      ), Vector())))),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector(
+        PVarDecl(
+          Some(PInterfaceType(Vector(), Vector(
+            PMethodSig(PIdnDef("m"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector()), isGhost = false),
+          ), Vector())),
+          Vector(PNamedOperand(PIdnUse("x"))),
+          Vector(PWildcard()), Vector())
+      )))
+    )
+
+    assert(frontend.wellDefMember(member).valid)
+  }
+
+  test("TypeChecker: foo5") {
+    // func foo5[T int | bool](x T) {
+    //	 var _ int = x // invalid
+    // }
+    val member = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PUnionTypeConstraint(Vector(PIntType(), PBoolType())))),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector(
+        PVarDecl(Some(PIntType()), Vector(PNamedOperand(PIdnUse("x"))), Vector(PWildcard()), Vector())
+      )))
+    )
+
+    assert(!frontend.wellDefMember(member).valid)
   }
 
   class TestFrontend {

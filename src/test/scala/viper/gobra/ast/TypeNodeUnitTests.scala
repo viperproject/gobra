@@ -9,7 +9,7 @@ import viper.gobra.util.TypeBounds
 
 class TypeNodeUnitTests extends AnyFunSuite with Matchers with Inside {
    test ("TypeNode: should correctly substitute simple TypeParameter") {
-    val typeNode = Type.TypeParameterT(PIdnDef("x"), PSimpleTypeConstraint(PIntType()))
+    val typeNode = Type.TypeParameterT(PIdnDef("x"), Type.SimpleTypeConstraint(Type.IntT(TypeBounds.DefaultInt)))
     val sub: PartialFunction[PIdnDef, Type.Type] = {
       case PIdnDef("z") => Type.StringT
       case PIdnDef("x") => Type.IntT(TypeBounds.DefaultInt)
@@ -22,7 +22,7 @@ class TypeNodeUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeNode: should not substitute anything if type argument is not provided") {
-    val typeNode = Type.TypeParameterT(PIdnDef("x"), PSimpleTypeConstraint(PIntType()))
+    val typeNode = Type.TypeParameterT(PIdnDef("x"), Type.SimpleTypeConstraint(Type.IntT(TypeBounds.DefaultInt)))
     val sub: PartialFunction[PIdnDef, Type.Type] = {
       case PIdnDef("y") => Type.IntT(TypeBounds.DefaultInt)
     }
@@ -31,7 +31,7 @@ class TypeNodeUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeNode: should correctly substitute in children (single)") {
-    val typeNode = Type.MultisetT(Type.TypeParameterT(PIdnDef("x"), PSimpleTypeConstraint(PIntType())))
+    val typeNode = Type.MultisetT(Type.TypeParameterT(PIdnDef("x"), Type.SimpleTypeConstraint(Type.IntT(TypeBounds.DefaultInt))))
     val sub: PartialFunction[PIdnDef, Type.Type] = {
       case PIdnDef("x") => Type.IntT(TypeBounds.DefaultInt)
     }
@@ -42,7 +42,7 @@ class TypeNodeUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeNode: should correctly substitute in children (multiple)") {
-    val typeNode = Type.MathMapT(Type.TypeParameterT(PIdnDef("x"), PSimpleTypeConstraint(PIntType())), Type.TypeParameterT(PIdnDef("y"), PSimpleTypeConstraint(PBoolType())))
+    val typeNode = Type.MathMapT(Type.TypeParameterT(PIdnDef("x"), Type.SimpleTypeConstraint(Type.IntT(TypeBounds.DefaultInt))), Type.TypeParameterT(PIdnDef("y"), Type.SimpleTypeConstraint(Type.BooleanT)))
     val sub: PartialFunction[PIdnDef, Type.Type] = {
       case PIdnDef("x") => Type.IntT(TypeBounds.DefaultInt)
       case PIdnDef("y") => Type.BooleanT

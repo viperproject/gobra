@@ -6,10 +6,10 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.ast.frontend.{PDeref, PDot, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PNamedOperand, PStructType, PType, PTypeDecl}
+import viper.gobra.ast.frontend.{PDeref, PDot, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PNamedOperand, PStructType, PType, PTypeAlias, PTypeDecl, PTypeDef}
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInTypeTag
-import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelT, DeclaredT, FunctionT, GhostSliceT, IntT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StringT, StructT, Type}
+import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelT, DeclaredT, FunctionT, GhostSliceT, IntT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StringT, StructT, Type, TypeParameterT}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -214,5 +214,10 @@ trait UnderlyingType { this: TypeInfoImpl =>
       case _: IntT | BooleanT | _: DeclaredT | StringT => true
       case _ => false
     }
+  }
+
+  def isTypeParameter(t: Type): Boolean = t match {
+    case TypeParameterT(_, _) => true
+    case _ => false
   }
 }

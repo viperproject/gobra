@@ -49,6 +49,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PInterfaceClause => showInterfaceClause(n)
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
     case n: PTerminationMeasure => showTerminationMeasure(n)
+    case n: PTypeParameter => showTypeParameter(n)
     case n: PTypeConstraint => showTypeConstraint(n)
     case PPos(_) => emptyDoc
   }
@@ -167,7 +168,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showList[T](list: Vector[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
 
   def showTypeParameters(typeParameters: Vector[PTypeParameter]): Doc =
-    if (typeParameters.nonEmpty) brackets(ssep(typeParameters map (p => showId(p.id) <+> showTypeConstraint(p.constraint)), comma <> space)) else emptyDoc
+    if (typeParameters.nonEmpty) brackets(ssep(typeParameters map showTypeParameter, comma <> space)) else emptyDoc
+
+  def showTypeParameter(typeParameter: PTypeParameter): Doc =
+    showId(typeParameter.id) <+> showTypeConstraint(typeParameter.constraint)
 
   def showTypeArguments(typeArgs: Vector[PType]): Doc =
     if (typeArgs.nonEmpty) brackets(ssep(typeArgs map showType, comma <> space)) else emptyDoc
@@ -194,7 +198,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showTypeDecl(decl: PTypeDecl): Doc = decl match {
-    case PTypeDef(right, left, typeParameters) => "type" <+> showId(left) <> showTypeParameters(typeParameters) <+> showType(right)
+    case PTypeDef(typeParameters, right, left) => "type" <+> showId(left) <> showTypeParameters(typeParameters) <+> showType(right)
     case PTypeAlias(right, left) => "type" <+> showId(left) <+> "=" <+> showType(right)
   }
 

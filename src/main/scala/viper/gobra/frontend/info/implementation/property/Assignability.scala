@@ -82,14 +82,30 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       // the go language spec states that a value x of type V is assignable to a variable of type T
       // if V and T have identical underlying types and at least one of V or T is not a defined type
       case (l, r) if !(isDefinedType(l) && isDefinedType(r))
-        && identicalTypes(underlyingType(l), underlyingType(r)) => successProp
+        && identicalTypes(underlyingType(l), underlyingType(r))
+        && !isTypeParameter(l) && !isTypeParameter(r) => successProp
 
-      case (l, r) if underlyingType(r).isInstanceOf[InterfaceT] => implements(l, r)
+      case (l, r) if underlyingType(r).isInstanceOf[InterfaceT] && !isTypeParameter(underlyingType(r)) => implements(l, r)
       case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => successProp
-      case (NilType, r) if isPointerType(r) => successProp
+      case (NilType, r) if isPointerType(r) && !isTypeParameter(r) => successProp
       case (VariadicT(t1), VariadicT(t2)) => assignableTo.result(t1, t2)
       case (t1, VariadicT(t2)) => assignableTo.result(t1, t2)
       case (VariadicT(t1), SliceT(t2)) if identicalTypes(t1, t2) => successProp
+      case (NilType, r) if isTypeParameter(r) => r.asInstanceOf[TypeParameterT].constraint match {
+        case SimpleTypeConstraint(t) => assignableTo.result(NilType, t)
+        case UnionTypeConstraint(ts) => propForall(ts map (t => (NilType, t)), assignableTo)
+        case ComparableTypeConstraint() => errorProp()
+      }
+      case (l, r) if isDefinedType(l) && isTypeParameter(r) => r.asInstanceOf[TypeParameterT].constraint match {
+        case SimpleTypeConstraint(t) => assignableTo.result(l, t)
+        case UnionTypeConstraint(ts) => propForall(ts map (t => (l, t)), assignableTo)
+        case ComparableTypeConstraint() => errorProp()
+      }
+      case (l, r) if isTypeParameter(l) && isDefinedType(r) => l.asInstanceOf[TypeParameterT].constraint match {
+        case SimpleTypeConstraint(t) => assignableTo.result(t, r)
+        case UnionTypeConstraint(ts) => propForall(ts map (t => (t, r)), assignableTo)
+        case ComparableTypeConstraint() => errorProp()
+      }
 
         // for ghost types
       case (BooleanT, AssertionT) => successProp

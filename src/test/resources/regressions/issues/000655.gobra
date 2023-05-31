@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+// ##(-I ./000655/)
+import "pkg"
+
+ghost
+pure func foo(x pkg.List) bool {
+  return match x {
+    case pkg.Nil{}: true
+    case pkg.Cons{?head, pkg.Nil{}}: true
+    case _: false
+  }
+}

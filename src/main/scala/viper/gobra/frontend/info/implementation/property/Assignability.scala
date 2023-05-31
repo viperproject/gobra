@@ -184,7 +184,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
           if (elems.isEmpty) {
             successProp
           } else if (elems.exists(_.key.nonEmpty)) {
-            val tmap: Map[String, Type] = a.fields
+            val tmap: Map[String, Type] = a.fieldTypes
 
             failedProp("for adt literals either all or none elements must be keyed",
               !elems.forall(_.key.nonEmpty)) and
@@ -196,9 +196,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
                   case v => failedProp(s"got $v but expected field name")
                 }.getOrElse(successProp)
               })
-          } else if (elems.size == a.fields.size) {
+          } else if (elems.size == a.fieldTypes.size) {
             propForall(
-              elems.map(_.exp).zip(a.fields.values),
+              elems.map(_.exp).zip(a.fieldTypes.values),
               compositeValAssignableTo
             )
           } else {

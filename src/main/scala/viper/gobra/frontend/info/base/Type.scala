@@ -13,7 +13,7 @@ import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.util.TypeBounds
 
 import scala.annotation.tailrec
-import scala.collection.immutable.{ListMap, SeqMap}
+import scala.collection.immutable.ListMap
 
 object Type {
 
@@ -58,7 +58,14 @@ object Type {
 
   case class AdtT(decl: PAdtType, context: ExternalTypeInfo) extends Type
 
-  case class AdtClauseT(fields: SeqMap[String, Type], decl: PAdtClause, adtT: PAdtType, context: ExternalTypeInfo) extends Type
+  case class AdtClauseT(fieldTypes: Map[String, Type], fields: Vector[String], decl: PAdtClause, adtT: PAdtType, context: ExternalTypeInfo) extends Type {
+    require(fields.forall(fieldTypes.isDefinedAt), "there must be a type for each key")
+
+    def typeAt(idx: Int): Type = {
+      val resOpt = for (f <- fields.lift(idx); t <- fieldTypes.get(f)) yield t
+      resOpt.getOrElse(UnknownType)
+    }
+  }
 
   case class MapT(key: Type, elem: Type) extends PrettyType(s"map[$key]$elem")
 

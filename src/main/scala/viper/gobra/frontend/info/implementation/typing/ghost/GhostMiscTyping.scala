@@ -55,7 +55,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case PMatchAdt(clause, fields) => symbType(clause) match {
         case t: AdtClauseT =>
           val fieldTypes = fields.map(typ)
-          val clauseFieldTypes = t.fields.map(t.fieldTypes)
+          val clauseFieldTypes = t.fieldTypes
           error(m, s"Expected ${clauseFieldTypes.size} patterns, but got ${fieldTypes.size}", clauseFieldTypes.size != fieldTypes.size) ++
             fieldTypes.zip(clauseFieldTypes).flatMap(a => assignableTo.errors(a)(m))
         case _ => violation("Pattern matching only works on ADT Literals")
@@ -292,7 +292,6 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
             w eq _
           }
           val adtClauseT = underlyingType(typeSymbType(c)).asInstanceOf[AdtClauseT]
-          val flatFields = adtClauseT.decl.args.flatMap(f => f.fields)
           if (index < adtClauseT.fields.size) {
             adtClauseT.typeAt(index)
           } else UnknownType // Error is found when PMatchADT is checked higher up the ADT

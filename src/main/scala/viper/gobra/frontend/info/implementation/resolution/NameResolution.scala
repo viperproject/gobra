@@ -94,9 +94,12 @@ trait NameResolution {
 
           case tree.parent.pair(decl: PAdtClause, adtDecl: PAdtType) => AdtClause(decl, adtDecl, this)
 
-          case tree.parent.pair(decl: PMatchBindVar, adt: PMatchAdt) => MatchVariable(decl, adt, this)
           case tree.parent.pair(decl: PMatchBindVar, tree.parent.pair(_: PMatchStmtCase, matchE: PMatchStatement)) =>
-            MatchVariable(decl, matchE.exp, this)
+            MatchVariable(decl, matchE.exp, this) // match full expression of match statement
+          case tree.parent.pair(decl: PMatchBindVar, tree.parent.pair(_: PMatchExpCase, matchE: PMatchExp)) =>
+            MatchVariable(decl, matchE.exp, this) // match full expression of match expression
+          case tree.parent.pair(decl: PMatchBindVar, adt: PMatchAdt) =>
+            MatchVariable(decl, adt, this) // match part of subexpression
 
           case c => Violation.violation(s"This case should be unreachable, but got $c")
         }

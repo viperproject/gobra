@@ -44,6 +44,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
           case value : PType => Some(value, this)
           case _ => None
         }
+        // TODO handle type parameters
         case _ => None // type not defined
       }
       case PDot(_, id) => entity(id) match {

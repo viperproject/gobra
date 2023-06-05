@@ -182,7 +182,7 @@ trait MemberResolution { this: TypeInfoImpl =>
             entity(e.typ.id) match {
               // TODO: might break for imported interfaces
               case NamedType(PTypeDef(_, t: PInterfaceType, _), _, _) => InterfaceT(t, ctxt) // TODO handle this
-              case _ => ???
+              case _ => InterfaceT(PInterfaceType(Vector(), Vector(), Vector()), ctxt)
             }
           ).promoteItf(e.typ.name))
         }

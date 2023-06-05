@@ -96,12 +96,12 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         case UnionTypeConstraint(ts) => propForall(ts map (t => (NilType, t)), assignableTo)
         case ComparableTypeConstraint() => errorProp()
       }
-      case (l, r) if isDefinedType(l) && isTypeParameter(r) => r.asInstanceOf[TypeParameterT].constraint match {
+      case (l, r) if !isDefinedType(l) && isTypeParameter(r) => r.asInstanceOf[TypeParameterT].constraint match {
         case SimpleTypeConstraint(t) => assignableTo.result(l, t)
         case UnionTypeConstraint(ts) => propForall(ts map (t => (l, t)), assignableTo)
         case ComparableTypeConstraint() => errorProp()
       }
-      case (l, r) if isTypeParameter(l) && isDefinedType(r) => l.asInstanceOf[TypeParameterT].constraint match {
+      case (l, r) if isTypeParameter(l) && !isDefinedType(r) => l.asInstanceOf[TypeParameterT].constraint match {
         case SimpleTypeConstraint(t) => assignableTo.result(t, r)
         case UnionTypeConstraint(ts) => propForall(ts map (t => (t, r)), assignableTo)
         case ComparableTypeConstraint() => errorProp()

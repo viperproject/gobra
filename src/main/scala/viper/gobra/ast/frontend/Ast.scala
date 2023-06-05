@@ -199,7 +199,7 @@ sealed trait PTypeConstraint extends PNode
 
 case class PSimpleTypeConstraint(t: PType) extends PTypeConstraint
 
-case class PUnionTypeConstraint(ts: Vector[PType]) extends PTypeConstraint
+case class PUnionTypeConstraint(ts: Vector[PType]) extends PTypeConstraint // TODO remove this
 
 case class PComparableTypeConstraint() extends PTypeConstraint
 
@@ -758,7 +758,7 @@ case class PFunctionType(args: Vector[PParameter], result: PResult) extends PTyp
 case class PPredType(args: Vector[PType]) extends PTypeLit
 
 case class PInterfaceType(
-                           embedded: Vector[PInterfaceName],
+                           embedded: Vector[PInterfaceName], // TODO replace this with all sorts of types
                            methSpecs: Vector[PMethodSig],
                            predSpecs: Vector[PMPredicateSig]
                          ) extends PTypeLit with PUnorderedScope

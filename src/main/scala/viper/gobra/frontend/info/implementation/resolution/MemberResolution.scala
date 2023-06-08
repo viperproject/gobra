@@ -20,6 +20,7 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.reporting.{NotFoundError, VerifierError}
 import viper.gobra.util.Violation
+import viper.gobra.ast.frontend.{PTypeName}
 
 import scala.annotation.tailrec
 
@@ -178,13 +179,14 @@ trait MemberResolution { this: TypeInfoImpl =>
         val topLevel = AdvancedMemberSet.init[TypeMember](methSpecs.map(m => ctxt.createMethodSpec(m))) union
           AdvancedMemberSet.init[TypeMember](predSpecs.map(m => ctxt.createMPredSpec(m)))
         AdvancedMemberSet.union {
-          topLevel +: es.map(e => interfaceMethodSet(
-            entity(e.typ.id) match {
-              // TODO: might break for imported interfaces
-              case NamedType(PTypeDef(_, t: PInterfaceType, _), _, _) => InterfaceT(t, ctxt) // TODO handle this
-              case _ => InterfaceT(PInterfaceType(Vector(), Vector(), Vector()), ctxt)
-            }
-          ).promoteItf(e.typ.name))
+          topLevel +: es.map(_.terms).map {
+            case Vector(t: PTypeName) => interfaceMethodSet(
+              symbType(t) match {
+                case i: InterfaceT => i
+                case _ => InterfaceT(PInterfaceType(Vector(), Vector(), Vector()), ctxt) // TODO handle this properly (non interface types)
+              }).promoteItf(t.name)
+            case _ => AdvancedMemberSet.empty[TypeMember] // TODO handle this properly (union types, underlying types)
+          }
         }
     }
 

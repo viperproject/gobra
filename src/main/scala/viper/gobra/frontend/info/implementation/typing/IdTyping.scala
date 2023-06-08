@@ -165,13 +165,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case BuiltInType(tag, _, _) => tag.typ
 
-      case TypeParameter(decl, _, _) =>
-        val constraintT = decl.constraint match {
-          case PSimpleTypeConstraint(t) => SimpleTypeConstraint(symbType(t))
-          case PUnionTypeConstraint(ts) => UnionTypeConstraint(ts map symbType)
-          case PComparableTypeConstraint() => ComparableTypeConstraint()
-        }
-        TypeParameterT(decl.id, constraintT)
+      case TypeParameter(decl, _, ctx) =>
+        TypeParameterT(decl.id, InterfaceT(PInterfaceType(Vector(decl.constraint), Vector(), Vector()), ctx))
 
       case _ => violation(s"expected type, but got $id")
     }

@@ -3365,7 +3365,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // func bar[T any](x T) T {}
     val functionDecl = PFunctionDecl(
       PIdnDef("bar"),
-      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
+      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector(PUnnamedParameter(PNamedOperand(PIdnUse("T"))))),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -3384,7 +3384,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // func bar[T any](x T) T {}
     val functionDecl = PFunctionDecl(
       PIdnDef("bar"),
-      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
+      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector(PUnnamedParameter(PNamedOperand(PIdnUse("T"))))),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -3403,7 +3403,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // func bar[T any](x T) T {}
     val functionDecl = PFunctionDecl(
       PIdnDef("bar"),
-      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
+      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector(PUnnamedParameter(PNamedOperand(PIdnUse("T"))))),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -3420,7 +3420,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // func bar[T any](x T) T {}
     val functionDecl = PFunctionDecl(
       PIdnDef("bar"),
-      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
+      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector(PUnnamedParameter(PNamedOperand(PIdnUse("T"))))),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -3437,7 +3437,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // func bar[T any](x T) T {}
     val functionDecl = PFunctionDecl(
       PIdnDef("bar"),
-      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))),
+      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector(PUnnamedParameter(PNamedOperand(PIdnUse("T"))))),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -3454,8 +3454,8 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // type Bar[T any, V any] struct { x T }
     val typeDecl = PTypeDef(
       Vector(
-        PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector()))),
-        PTypeParameter(PIdnDef("V"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))
+        PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+        PTypeParameter(PIdnDef("V"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))
       ),
       PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("x"), PNamedOperand(PIdnUse("T"))))))),
       PIdnDef("Bar")
@@ -3478,8 +3478,8 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // type Bar[T any, V any] struct { x T }
     val typeDecl = PTypeDef(
       Vector(
-        PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector()))),
-        PTypeParameter(PIdnDef("V"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))
+        PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+        PTypeParameter(PIdnDef("V"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))
       ),
       PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("x"), PNamedOperand(PIdnUse("T"))))))),
       PIdnDef("Bar")

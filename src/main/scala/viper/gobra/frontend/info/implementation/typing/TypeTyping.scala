@@ -249,7 +249,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     // `ctx` of type UnderlyingType represents the current context in which a lookup should happen
     // ExternalTypeInfo is not used as we need access to `underlyingTypeWithCtxP`, which is not exposed by the interface.
     def isCyclic(itfT: PInterfaceType, visitedTypes: Set[String], ctx: UnderlyingType): Boolean = {
-      val fieldTypes = itfT.embedded.map(_.typ)
+      val fieldTypes = itfT.embedded.flatMap(_.terms)
       fieldTypes exists {
         case n: PUnqualifiedTypeName if visitedTypes.contains(n.name) => true
         case n: PUnqualifiedTypeName if isUnderlyingInterfaceType(n, ctx).isDefined =>
@@ -270,7 +270,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     */
   def containsRedeclarations(t: PInterfaceType): Messages = {
     def findAllEmbeddedMethods(itfT: PInterfaceType, ctx: UnderlyingType): Set[String] = {
-      val fieldTypes = itfT.embedded.map(_.typ).toSet
+      val fieldTypes = itfT.embedded.flatMap(_.terms).toSet
       fieldTypes.flatMap{
         case n: PTypeName if isUnderlyingInterfaceType(n, ctx).isDefined =>
           val (itfT, itfCtx) = isUnderlyingInterfaceType(n, ctx).get

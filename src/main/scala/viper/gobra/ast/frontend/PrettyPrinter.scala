@@ -50,7 +50,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
     case n: PTerminationMeasure => showTerminationMeasure(n)
     case n: PTypeParameter => showTypeParameter(n)
-    case n: PTypeConstraint => showTypeConstraint(n)
     case PPos(_) => emptyDoc
   }
 
@@ -171,7 +170,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     if (typeParameters.nonEmpty) brackets(ssep(typeParameters map showTypeParameter, comma <> space)) else emptyDoc
 
   def showTypeParameter(typeParameter: PTypeParameter): Doc =
-    showId(typeParameter.id) <+> showTypeConstraint(typeParameter.constraint)
+    showId(typeParameter.id) <+> showTypeElement(typeParameter.constraint)
 
   def showTypeArguments(typeArgs: Vector[PType]): Doc =
     if (typeArgs.nonEmpty) brackets(ssep(typeArgs map showType, comma <> space)) else emptyDoc
@@ -679,16 +678,20 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showInterfaceClause(n: PInterfaceClause): Doc = n match {
-    case PInterfaceName(typ) => showType(typ)
+    case t: PTypeElement => showTypeElement(t)
     case PMethodSig(id, args, result, spec, isGhost) =>
       (if (isGhost) "ghost" <> line else emptyDoc) <> showSpec(spec) <>
         showId(id) <> parens(showParameterList(args)) <> showResult(result)
     case PMPredicateSig(id, args) => "pred"  <+> showId(id) <> parens(showParameterList(args))
   }
 
-  def showTypeConstraint(n: PTypeConstraint): Doc = n match {
-    case PSimpleTypeConstraint(t) => showType(t)
-    case PUnionTypeConstraint(ts) => ssep(ts map showType, space <> verticalbar <> space)
+  def showTypeElement(n: PTypeElement): Doc = {
+    ssep(n.terms map showTypeTerm, space <> verticalbar <> space)
+  }
+
+  def showTypeTerm(n: PTypeTerm): Doc = n match {
+    case t: PType => showType(t)
+    case PUnderlyingType(t: PType) => tilde <> showType(t)
   }
 
   // ids

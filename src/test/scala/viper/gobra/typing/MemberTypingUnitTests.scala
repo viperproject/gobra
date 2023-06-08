@@ -37,7 +37,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   test("TypeChecker: should be able to type generic function") {
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PNamedOperand(PIdnUse("any"))))),
+      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -50,7 +50,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   test("TypeChecker: should not accept generic function that uses type parameters that are not defined") {
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PNamedOperand(PIdnUse("any"))))),
+      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T"))), PNamedParameter(PIdnDef("y"), PNamedOperand(PIdnUse("V")))),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -73,8 +73,8 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   test("TypeChecker: should accept generic type definition") {
     val member = PTypeDef(
       Vector(
-        PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector()))),
-        PTypeParameter(PIdnDef("V"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(), Vector())))
+        PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+        PTypeParameter(PIdnDef("V"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))
       ),
       PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("x"), PNamedOperand(PIdnUse("T"))))))),
       PIdnDef("Bar")
@@ -89,7 +89,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // }
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PIntType()))),
+      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PIntType())))),
       Vector(),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -107,7 +107,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // }
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PIntType()))),
+      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PIntType())))),
       Vector(),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -125,7 +125,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // }
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PUnionTypeConstraint(Vector(PIntType(), PBoolType())))),
+      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PIntType(), PBoolType())))),
       Vector(),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -143,7 +143,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // }
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(PInterfaceName(PIntType())), Vector(), Vector())))),
+      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PIntType())))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -161,10 +161,10 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // }
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(PInterfaceType(Vector(), Vector(
+      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PInterfaceType(Vector(), Vector(
         PMethodSig(PIdnDef("m"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector()), isGhost = false),
         PMethodSig(PIdnDef("n"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector()), isGhost = false),
-      ), Vector())))),
+      ), Vector()))))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -187,7 +187,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // }
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PUnionTypeConstraint(Vector(PIntType(), PBoolType())))),
+      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PIntType(), PBoolType())))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),

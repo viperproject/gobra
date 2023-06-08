@@ -195,14 +195,6 @@ case class PTypeDef(typeParameters: Vector[PTypeParameter], right: PType, left: 
 
 case class PTypeAlias(right: PType, left: PIdnDef) extends PTypeDecl
 
-sealed trait PTypeConstraint extends PNode
-
-case class PSimpleTypeConstraint(t: PType) extends PTypeConstraint
-
-case class PUnionTypeConstraint(ts: Vector[PType]) extends PTypeConstraint // TODO remove this
-
-case class PComparableTypeConstraint() extends PTypeConstraint
-
 
 /**
   * Statements
@@ -616,7 +608,7 @@ case class PPredConstructor(id: PPredConstructorBase, args: Vector[Option[PExpre
   * Types
   */
 
-sealed trait PType extends PNode with PExpressionOrType
+sealed trait PType extends PNode with PExpressionOrType with PTypeTerm
 
 sealed trait PActualType extends PType
 
@@ -688,6 +680,7 @@ sealed trait PFloatType extends PType
 case class PFloat32() extends PPredeclaredType("float32") with PFloatType
 case class PFloat64() extends PPredeclaredType("float64") with PFloatType
 
+case class PComparable() extends PPredeclaredType("comparable")
 // TODO: add more types
 
 // TODO: ellipsis type
@@ -758,14 +751,18 @@ case class PFunctionType(args: Vector[PParameter], result: PResult) extends PTyp
 case class PPredType(args: Vector[PType]) extends PTypeLit
 
 case class PInterfaceType(
-                           embedded: Vector[PInterfaceName], // TODO replace this with all sorts of types
+                           embedded: Vector[PTypeElement],
                            methSpecs: Vector[PMethodSig],
                            predSpecs: Vector[PMPredicateSig]
                          ) extends PTypeLit with PUnorderedScope
 
 sealed trait PInterfaceClause extends PNode
 
-case class PInterfaceName(typ: PTypeName) extends PInterfaceClause
+case class PTypeElement(terms: Vector[PTypeTerm]) extends PInterfaceClause
+
+sealed trait PTypeTerm extends PNode
+
+case class PUnderlyingType(typ: PType) extends PTypeTerm // TODO implement this
 
 // Felix: I see `isGhost` as part of the declaration and not as port of the specification.
 //        In the past, I usually created some ghost wrapper for these cases, but I wanted to get rid of them in the future.
@@ -858,7 +855,7 @@ case class PEmbeddedName(typ: PUnqualifiedTypeName) extends PEmbeddedType
 
 case class PEmbeddedPointer(typ: PUnqualifiedTypeName) extends PEmbeddedType
 
-case class PTypeParameter(id: PIdnDef, constraint: PTypeConstraint) extends PNode
+case class PTypeParameter(id: PIdnDef, constraint: PTypeElement) extends PNode
 
 /**
   * Ghost

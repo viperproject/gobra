@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.ast.frontend.{PExplicitGhostStructClause, PInterfaceType, PTypeDef, AstPattern => ap}
+import viper.gobra.ast.frontend.{PExplicitGhostStructClause, PInterfaceType, PTypeDef, AstPattern => ap, PTypeElement, PType}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, Method}
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.base.Type.{GhostCollectionType, NilType, Type}
@@ -38,14 +38,17 @@ trait Implements { this: TypeInfoImpl =>
     }
   }
   def addDemandedEmbeddedInterfaceImplements(itf: Type.InterfaceT): Unit = {
-    itf.decl.embedded.foreach{ x => resolve(x.typ) match { // interface implements its embedded types
-      case Some(ap.NamedType(_, st.NamedType(PTypeDef(int: PInterfaceType, _, _), _, context))) => // TODO handle this
-        context.symbType(int) match {
-          case embeddedItfT: Type.InterfaceT => _guaranteedImplements ++= Set((itf, embeddedItfT))
-          case _ =>
-        }
-      case _ =>
-    }}
+    itf.decl.embedded.foreach {
+      case PTypeElement(Vector(t: PType)) => resolve(t) match { // interface implements its embedded types
+        case Some(ap.NamedType(_, st.NamedType(PTypeDef(int: PInterfaceType, _, _), _, context))) =>
+          context.symbType(int) match {
+            case embeddedItfT: Type.InterfaceT => _guaranteedImplements ++= Set((itf, embeddedItfT))
+            case _ =>
+          }
+        case _ =>
+      }
+      case _ => failedProp("Not implemented yet") // TODO implement other cases
+    }
   }
 
   override def interfaceImplementations: Map[Type.InterfaceT, Set[Type]] = {
@@ -54,10 +57,7 @@ trait Implements { this: TypeInfoImpl =>
 
   def syntaxImplements(l: Type, r: Type): PropertyResult = (l, underlyingType(r)) match {
     case (NilType, _: Type.InterfaceT) => successProp
-    case (Type.TypeParameterT(_, constraint), _: Type.InterfaceT) => constraint match {
-      case Type.SimpleTypeConstraint(t) => syntaxImplements(t, r)
-      case _ => failedProp("Not implemented yet") // TODO handle other constraints
-    }
+    case (Type.TypeParameterT(_, constraint), _: Type.InterfaceT) => syntaxImplements(constraint, r)
     case (_, _: Type.InterfaceT) =>
       supportedSortForInterfaces(l) and {
         val itfMemberSet = memberSet(r)

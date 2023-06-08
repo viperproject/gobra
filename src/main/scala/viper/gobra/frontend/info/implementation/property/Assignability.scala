@@ -63,13 +63,6 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       }
   }
 
-  lazy val parameterAssignableTo: Property[(Type, Type)] = createProperty[(Type, Type)] {
-    case (Argument(InternalTupleT(rs)), Argument(InternalTupleT(ls))) if rs.size == ls.size =>
-      propForall(rs zip ls, assignableTo)
-
-    case (r, l) => assignableTo.result(r, l)
-  }
-
   lazy val assignableTo: Property[(Type, Type)] = createFlatPropertyWithReason[(Type, Type)] {
     case (right, left) => s"$right is not assignable to $left"
   } {
@@ -91,21 +84,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (VariadicT(t1), VariadicT(t2)) => assignableTo.result(t1, t2)
       case (t1, VariadicT(t2)) => assignableTo.result(t1, t2)
       case (VariadicT(t1), SliceT(t2)) if identicalTypes(t1, t2) => successProp
-      case (NilType, r) if isTypeParameter(r) => r.asInstanceOf[TypeParameterT].constraint match {
-        case SimpleTypeConstraint(t) => assignableTo.result(NilType, t)
-        case UnionTypeConstraint(ts) => propForall(ts map (t => (NilType, t)), assignableTo)
-        case ComparableTypeConstraint() => errorProp()
-      }
-      case (l, r) if !isDefinedType(l) && isTypeParameter(r) => r.asInstanceOf[TypeParameterT].constraint match {
-        case SimpleTypeConstraint(t) => assignableTo.result(l, t)
-        case UnionTypeConstraint(ts) => propForall(ts map (t => (l, t)), assignableTo)
-        case ComparableTypeConstraint() => errorProp()
-      }
-      case (l, r) if isTypeParameter(l) && !isDefinedType(r) => l.asInstanceOf[TypeParameterT].constraint match {
-        case SimpleTypeConstraint(t) => assignableTo.result(t, r)
-        case UnionTypeConstraint(ts) => propForall(ts map (t => (t, r)), assignableTo)
-        case ComparableTypeConstraint() => errorProp()
-      }
+      case (NilType, TypeParameterT(_, constraint)) => assignableTo.result(NilType, constraint)
+      case (l, TypeParameterT(_, constraint)) if !isDefinedType(l) => assignableTo.result(l, constraint)
+      case (TypeParameterT(_, constraint), r) if !isDefinedType(r) => assignableTo.result(constraint, r)
 
         // for ghost types
       case (BooleanT, AssertionT) => successProp

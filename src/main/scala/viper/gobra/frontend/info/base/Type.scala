@@ -8,16 +8,13 @@ package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
-import viper.gobra.ast.frontend.{PAdtClause, PAdtType, PDomainType, PIdnDef, PIdnNode, PImport, PInterfaceType, PNode, PStructType, PTypeConstraint, PTypeDecl}
+import viper.gobra.ast.frontend.{PAdtClause, PAdtType, PDomainType, PIdnDef, PImport, PInterfaceType, PNode, PStructType, PTypeDecl, PTypeElement}
 import viper.gobra.ast.internal.Node
-import viper.gobra.ast.internal.utility.Nodes
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.util.TypeBounds
-import viper.silver.ast.{NoInfo, Position}
-import viper.silver.ast.utility.Visitor
-import viper.silver.ast.utility.rewriter.Rewritable
+import viper.silver.ast.Position
 
 import scala.annotation.tailrec
 import scala.collection.immutable.ListMap
@@ -125,15 +122,7 @@ object Type {
 
   case object SortT extends PrettyType("Type")
 
-  case class TypeParameterT(id: PIdnDef, constraint: TypeConstraint) extends PrettyType(s"${id.name}")
-
-  sealed trait TypeConstraint
-
-  case class SimpleTypeConstraint(t: Type) extends TypeConstraint
-
-  case class UnionTypeConstraint(ts: Vector[Type]) extends TypeConstraint
-
-  case class ComparableTypeConstraint() extends TypeConstraint
+  case class TypeParameterT(id: PIdnDef, constraint: InterfaceT) extends PrettyType(s"${id.name}")
 
   sealed trait GhostType extends Type
 

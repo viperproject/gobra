@@ -2688,20 +2688,20 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse function with type parameters") {
-    frontend.parseFunctionDecl("func foo[T interface{}](x T) {}") should matchPattern {
-      case PFunctionDecl(PIdnDef("foo"), Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(_))), Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))), _, _, _) =>
+    frontend.parseFunctionDecl("func foo[T any](x T) {}") should matchPattern {
+      case PFunctionDecl(PIdnDef("foo"), Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))), Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))), _, _, _) =>
     }
   }
 
   test("Parser: should be able to parse type definition with type parameters") {
-    frontend.parseStmtOrFail("type Bar[T interface{}] struct {}") should matchPattern {
-      case PSeq(Vector(PTypeDef(Vector(PTypeParameter(PIdnDef("T"), PSimpleTypeConstraint(_))), PStructType(_), PIdnDef("Bar")))) =>
+    frontend.parseStmtOrFail("type Bar[T any] struct {}") should matchPattern {
+      case PSeq(Vector(PTypeDef(Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))), PStructType(_), PIdnDef("Bar")))) =>
     }
   }
 
   test("Parser: should be able to parse union type constraints") {
     frontend.parseFunctionDecl("func foo[T int | bool]() {}") should matchPattern {
-      case PFunctionDecl(PIdnDef("foo"), Vector(PTypeParameter(PIdnDef("T"), PUnionTypeConstraint(Vector(PIntType(), PBoolType())))), _, _, _, _) =>
+      case PFunctionDecl(PIdnDef("foo"), Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PIntType(), PBoolType())))), _, _, _, _) =>
     }
   }
 

@@ -428,12 +428,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitInterfaceType(ctx: GobraParser.InterfaceTypeContext): PInterfaceType = {
     val methodDecls = visitNodeIf[PMethodSig, InterfaceElemContext](ctx.interfaceElem(), ctx => has(ctx.methodSpec()))
-    val embedded = visitListNodeIf[PType, InterfaceElemContext](ctx.interfaceElem(), ctx => has(ctx.typeElem()), _.typeElem().typeTerm()).map {
-      case Vector(tn: PUnqualifiedTypeName) => PInterfaceName(tn).at(ctx)
-      case Vector(_: PDot) => fail(ctx, "Imported types are not yet supported as embedded fields.")
-      case x if x.length > 1 => fail(ctx, "Union types are not yet supported as embedded types")
-      case _ => fail(ctx, s"Interface embeds predeclared type.")
-    }
+    val embedded = visitNodeIf[PTypeElement, InterfaceElemContext](ctx.interfaceElem(), ctx => has(ctx.typeElem()))
     val predicateDecls = visitNodeIf[PMPredicateSig, InterfaceElemContext](ctx.interfaceElem(), ctx => has(ctx.predicateSpec()))
     PInterfaceType(embedded, methodDecls, predicateDecls).at(ctx)
   }
@@ -444,8 +439,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
-  override def visitTypeElem(ctx: TypeElemContext): Vector[PType] = {
-    visitListNode[PType](ctx.typeTerm())
+  override def visitTypeElem(ctx: TypeElemContext): PTypeElement = {
+    PTypeElement(visitListNode[PTypeTerm](ctx.typeTerm()).map {
+      case _: PDot => fail(ctx, "Imported types are not yet supported as embedded fields.")
+      case x => x
+    }).at(ctx)
   }
 
   /**
@@ -807,21 +805,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitTypeParamDecl(ctx: TypeParamDeclContext): Vector[PTypeParameter] = {
     visitChildren(ctx) match {
-      case Vector(idnDefList(identifierList), typeConstraint: PTypeConstraint) =>
+      case Vector(idnDefList(identifierList), typeConstraint: PTypeElement) =>
         identifierList.map(id => PTypeParameter(id, typeConstraint).at(id))
-    }
-  }
-
-  /**
-    * {@inheritDoc  }
-    *
-    * <p>The default implementation returns the result of calling
-    * {@link #   visitChildren} on {@code ctx}.</p>
-    */
-  override def visitTypeConstraint(ctx: TypeConstraintContext): PTypeConstraint = {
-    visitNode[Vector[PType]](ctx.typeElem()) match {
-      case Vector(pType: PType) => PSimpleTypeConstraint(pType).at(ctx)
-      case pTypes => PUnionTypeConstraint(pTypes).at(ctx)
     }
   }
 

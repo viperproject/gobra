@@ -83,7 +83,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert(frontend.wellDefMember(member).valid)
   }
 
-  test("TypeChecker: foo1") {
+  test("TypeChecker: should accept valid assignment of constant to simple type parameter") {
     // func foo[T int]() {
     //	 var _ T = 3 // valid
     // }
@@ -101,7 +101,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert(frontend.wellDefMember(member).valid)
   }
 
-  test("TypeChecker: foo2") {
+  test("TypeChecker: should not accept invalid assignment of constant to simple type parameter") {
     // func foo[T int]() {
     //	 var _ T = false // invalid
     // }
@@ -119,7 +119,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert(!frontend.wellDefMember(member).valid)
   }
 
-  test("TypeChecker: foo3") {
+  test("TypeChecker: should not accept invalid assignment of constant to union type parameter") {
     // func foo[T int | bool]() {
     //	 var _ T = 3 // invalid
     // }
@@ -137,7 +137,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert(!frontend.wellDefMember(member).valid)
   }
 
-  test("TypeChecker: foo41") {
+  test("TypeChecker: should not accept invalid assignment of generic function parameter to static type") {
     // func foo[T int](x T) {
     //	 var _ int = x // invalid
     // }
@@ -155,7 +155,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert(!frontend.wellDefMember(member).valid)
   }
 
-  test("TypeChecker: foo42") {
+  test("TypeChecker: should accept valid assignment of generic interface parameter to interface type") {
     // func foo[T interface{ m(); n() }](x T) {
     //	 var _ interface{ m() } = x // valid
     // }
@@ -181,14 +181,64 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert(frontend.wellDefMember(member).valid)
   }
 
-  test("TypeChecker: foo5") {
-    // func foo5[T int | bool](x T) {
+  test("TypeChecker: should not accept invalid assignment of generic union parameter to static type") {
+    // func foo[T int | bool](x T) {
     //	 var _ int = x // invalid
     // }
     val member = PFunctionDecl(
       PIdnDef("foo"),
       Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PIntType(), PBoolType())))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector(
+        PVarDecl(Some(PIntType()), Vector(PNamedOperand(PIdnUse("x"))), Vector(PWildcard()), Vector())
+      )))
+    )
+
+    assert(!frontend.wellDefMember(member).valid)
+  }
+
+  test("TypeChecker: should not accept invalid assignment of interface parameter to generic interface type") {
+    // func foo[T interface{ m() }](x interface {
+    //	 m()
+    //	 n()
+    // }) {
+    //	 var _ T = x // invalid
+    // }
+    val member = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PInterfaceType(
+          Vector(),
+          Vector(PMethodSig(
+            PIdnDef("m"),
+            Vector(),
+            PResult(Vector()),
+            PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+            isGhost = false
+          )),
+          Vector()
+      ))))),
+      Vector(PNamedParameter(PIdnDef("x"), PInterfaceType(
+        Vector(),
+        Vector(
+          PMethodSig(
+            PIdnDef("m"),
+            Vector(),
+            PResult(Vector()),
+            PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+            isGhost = false
+          ),
+          PMethodSig(
+            PIdnDef("n"),
+            Vector(),
+            PResult(Vector()),
+            PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+            isGhost = false
+          )
+        ),
+        Vector()
+      ))),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
       Some(PBodyParameterInfo(Vector()), PBlock(Vector(

@@ -9,9 +9,7 @@ object TypeSet {
   case object UnboundedTypeSet extends TypeSet
   case class BoundedTypeSet(ts: Set[Type]) extends TypeSet
 
-  def from(constraint: Type): TypeSet = constraint match {
-    case InterfaceT(pInterface, ctx) => typeSetFromInterfaceType(pInterface, ctx)
-  }
+  def from(constraint: PInterfaceType, ctx: ExternalTypeInfo): TypeSet = typeSetFromInterfaceType(constraint, ctx)
 
   private def typeSetFromInterfaceType(inter: PInterfaceType, ctx: ExternalTypeInfo): TypeSet = inter match {
     case PInterfaceType(embedded, _, _) => if (embedded.isEmpty) UnboundedTypeSet else intersect(embedded.map(el => typeSetFromElement(el, ctx)))

@@ -10,6 +10,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.resolution.TypeSet
 import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
 
@@ -84,9 +85,10 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (VariadicT(t1), VariadicT(t2)) => assignableTo.result(t1, t2)
       case (t1, VariadicT(t2)) => assignableTo.result(t1, t2)
       case (VariadicT(t1), SliceT(t2)) if identicalTypes(t1, t2) => successProp
-      case (NilType, TypeParameterT(_, constraint)) => assignableTo.result(NilType, constraint)
-      case (l, TypeParameterT(_, constraint)) if !isDefinedType(l) => assignableTo.result(l, constraint)
-      case (TypeParameterT(_, constraint), r) if !isDefinedType(r) => assignableTo.result(constraint, r)
+      case (UNTYPED_INT_CONST, TypeParameterT(_, constraint)) => assignableToAll(UNTYPED_INT_CONST, TypeSet.from(constraint))
+      case (NilType, TypeParameterT(_, constraint)) => assignableToAll(NilType, TypeSet.from(constraint))
+      case (l, TypeParameterT(_, constraint)) if !isDefinedType(l) => assignableToAll(l, TypeSet.from(constraint))
+      case (TypeParameterT(_, constraint), r) if !isDefinedType(r) => allAssignableTo(TypeSet.from(constraint), r)
 
         // for ghost types
       case (BooleanT, AssertionT) => successProp
@@ -333,5 +335,16 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case Some(f: ap.FieldSelection) => isMutable(f.base)
       case _ => true
     }
+  }
+
+  private def assignableToAll(t: Type, typeSet: TypeSet) = typeSet match {
+    case TypeSet.UnboundedTypeSet => errorProp()
+    case TypeSet.BoundedTypeSet(ts) => propForall(ts.map((t, _)), assignableTo)
+  }
+
+  private def allAssignableTo(typeSet: TypeSet, t: Type) = (typeSet, t) match {
+    case (TypeSet.UnboundedTypeSet, _: InterfaceT) => successProp
+    case (TypeSet.UnboundedTypeSet, _) => errorProp()
+    case (TypeSet.BoundedTypeSet(ts), _) => propForall(ts.map((_, t)), assignableTo)
   }
 }

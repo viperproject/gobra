@@ -827,8 +827,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     def defaultTypeIfInterface(t: Type) : Type = {
       if (t.isInstanceOf[InterfaceT]) DEFAULT_INTEGER_TYPE else t
     }
+    def untypedTypeIfTypeParameter(t: Type): Type = {
+      if (t.isInstanceOf[TypeParameterT]) UNTYPED_INT_CONST else t
+    }
     // handle cases where it returns a SingleMultiTuple and we only care about a single type
-    getTypeFromCtxt(expr).map(defaultTypeIfInterface) match {
+    getTypeFromCtxt(expr).map(defaultTypeIfInterface).map(untypedTypeIfTypeParameter) match {
       case Some(t) => t match {
         case Single(t) => Some(t)
         case UnknownType => Some(UnknownType)

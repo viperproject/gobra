@@ -3495,6 +3495,34 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert(!frontend.wellDefExpr(expr)(Vector(), Vector(typeDecl)).valid)
   }
 
+  test("TypeChecker: should accept generic function call with embedded interface type constraint") {
+    // type I interface { int | bool }
+    val interfaceDecl = PTypeDef(
+      Vector(),
+      PInterfaceType(Vector(PTypeElement(Vector(PIntType(), PBoolType()))), Vector(), Vector()),
+      PIdnDef("I")
+    )
+
+    // func foo[T I](x T) { }
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("I")))))),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some((PBodyParameterInfo(Vector()), PBlock(Vector())))
+    )
+
+    // foo[int](4)
+    val expr = PInvoke(
+      PIndexedExp(PNamedOperand(PIdnUse("foo")), Vector(PIntType())),
+      Vector(PIntLit(BigInt(4))),
+      None
+    )
+
+    assert(frontend.wellDefExpr(expr)(Vector(), Vector(interfaceDecl, functionDecl)).valid)
+  }
+
   /* * Stubs, mocks, and other test setup  */
 
   class TestFrontend {

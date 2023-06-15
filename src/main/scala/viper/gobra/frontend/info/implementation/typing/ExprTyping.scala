@@ -11,6 +11,7 @@ import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminator, GlobalVariable, SingleConstant}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.resolution.TypeSet
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
 import viper.gobra.util.{Constants, TypeBounds, Violation}
 
@@ -307,14 +308,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n : PIndexedExp => resolve(n) match {
       case Some(ap.Function(id, symb)) =>
-        error(n, s"got ${n.index.length} type arguments but want ${symb.typeParameters.length}", n.index.length != symb.typeParameters.length) ++ n.index.flatMap(i => {
-          asType(i) match {
-            case Some(idxType) =>
-              // TODO check here that idxType conforms to the type constraint of the type parameter (with assignableTo or implements?)
-              noMessages
-            case None => error(i, s"$i is not a type")
-          }
-        })
+        error(n, s"got ${n.index.length} type arguments but want ${symb.typeParameters.length}", n.index.length != symb.typeParameters.length) ++
+        n.index.zip(n.index.map(asType)).zip(symb.typeParameters).flatMap {
+          case ((i, None), _) => error(i, s"$i is not a type")
+          case ((i, Some(idxPType)), typeParam) => satisfies.errors((idxPType, typeParam.constraint))(i)
+        }
       case Some(ap.IndexedExp(base, index)) => isExpr(base).out ++ isExpr(index).out ++ {
         val baseType = exprType(base)
         val idxType  = exprType(index)

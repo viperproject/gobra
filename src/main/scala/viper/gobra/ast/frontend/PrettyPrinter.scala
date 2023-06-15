@@ -170,7 +170,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     if (typeParameters.nonEmpty) brackets(ssep(typeParameters map showTypeParameter, comma <> space)) else emptyDoc
 
   def showTypeParameter(typeParameter: PTypeParameter): Doc =
-    showId(typeParameter.id) <+> showTypeElement(typeParameter.constraint)
+    showId(typeParameter.id) <+> showType(typeParameter.constraint)
 
   def showTypeArguments(typeArgs: Vector[PType]): Doc =
     if (typeArgs.nonEmpty) brackets(ssep(typeArgs map showType, comma <> space)) else emptyDoc

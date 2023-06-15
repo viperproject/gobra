@@ -37,7 +37,11 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   test("TypeChecker: should be able to type generic function") {
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+        Vector(),
+        Vector()
+      ))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -50,7 +54,11 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   test("TypeChecker: should not accept generic function that uses type parameters that are not defined") {
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+        Vector(),
+        Vector()
+      ))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T"))), PNamedParameter(PIdnDef("y"), PNamedOperand(PIdnUse("V")))),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -73,8 +81,16 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   test("TypeChecker: should accept generic type definition") {
     val member = PTypeDef(
       Vector(
-        PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
-        PTypeParameter(PIdnDef("V"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))
+        PTypeParameter(PIdnDef("T"), PInterfaceType(
+          Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+          Vector(),
+          Vector()
+        )),
+        PTypeParameter(PIdnDef("V"), PInterfaceType(
+          Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+          Vector(),
+          Vector()
+        ))
       ),
       PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("x"), PNamedOperand(PIdnUse("T"))))))),
       PIdnDef("Bar")
@@ -89,7 +105,11 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // }
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PIntType())))),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PIntType()))),
+        Vector(),
+        Vector()
+      ))),
       Vector(),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -107,7 +127,11 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // }
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PIntType())))),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PIntType()))),
+        Vector(),
+        Vector()
+      ))),
       Vector(),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -125,7 +149,11 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // }
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PIntType(), PBoolType())))),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PIntType(), PBoolType()))),
+        Vector(),
+        Vector()
+      ))),
       Vector(),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -143,7 +171,11 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // }
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PIntType())))),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PIntType()))),
+        Vector(),
+        Vector()
+      ))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -161,10 +193,10 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // }
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PInterfaceType(Vector(), Vector(
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(), Vector(
         PMethodSig(PIdnDef("m"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector()), isGhost = false),
         PMethodSig(PIdnDef("n"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), Vector()), isGhost = false),
-      ), Vector()))))),
+      ), Vector()))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -187,7 +219,11 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // }
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PIntType(), PBoolType())))),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PIntType(), PBoolType()))),
+        Vector(),
+        Vector()
+      ))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -208,7 +244,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // }
     val member = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PInterfaceType(
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
           Vector(),
           Vector(PMethodSig(
             PIdnDef("m"),
@@ -218,7 +254,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
             isGhost = false
           )),
           Vector()
-      ))))),
+      ))),
       Vector(PNamedParameter(PIdnDef("x"), PInterfaceType(
         Vector(),
         Vector(
@@ -247,6 +283,70 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     )
 
     assert(!frontend.wellDefMember(member).valid)
+  }
+
+  test("TypeChecker: should accept assignment to identical type parameter types") {
+    // func foo[T interface { m() }](x T) {
+    //	 var _ T = x // valid
+    // }
+    val member = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(),
+        Vector(PMethodSig(
+          PIdnDef("m"),
+          Vector(),
+          PResult(Vector()),
+          PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+          isGhost = false
+        )),
+        Vector()
+      ))),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector(
+        PVarDecl(Some(PNamedOperand(PIdnUse("T"))), Vector(PNamedOperand(PIdnUse("x"))), Vector(PWildcard()), Vector())
+      )))
+    )
+
+    assert(frontend.wellDefMember(member).valid)
+  }
+
+  test("TypeChecker: should accept comparison of int and int type parameter") {
+    // func foo[T int](x T) {
+    //	 var _ = (x == 3)
+    // }
+    val member = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(PTypeElement(Vector(PIntType()))), Vector(), Vector()))),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector(
+        PVarDecl(None, Vector(PEquals(PNamedOperand(PIdnUse("x")), PIntLit(BigInt(3)))), Vector(PWildcard()), Vector())
+      )))
+    )
+
+    assert(frontend.wellDefMember(member).valid)
+  }
+
+  test("TypeChecker: should accept comparison of two comparable parameters") {
+    // func foo[T comparable](x T, y T) {
+    //	 var _ = (x == y)
+    // }
+    val member = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("comparable"))))), Vector(), Vector()))),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T"))), PNamedParameter(PIdnDef("y"), PNamedOperand(PIdnUse("T")))),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector(
+        PVarDecl(None, Vector(PEquals(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y")))), Vector(PWildcard()), Vector())
+      )))
+    )
+
+    assert(frontend.wellDefMember(member).valid)
   }
 
   class TestFrontend {

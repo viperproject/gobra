@@ -22,6 +22,8 @@ trait UnderlyingType { this: TypeInfoImpl =>
   lazy val underlyingType: Type => Type =
     attr[Type, Type] {
       case Single(DeclaredT(t: PTypeDecl, context: ExternalTypeInfo)) => underlyingType(context.symbType(t.right))
+      case Single(TypeParameterT(_, t: PInterfaceType, ctx)) =>
+        underlyingType(ctx.symbType(t)) // TODO verify this with Felix
       case t => t
     }
 
@@ -44,7 +46,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
           case value : PType => Some(value, this)
           case _ => None
         }
-        // TODO handle type parameters
+        // TODO handle this for type parameters
         case _ => None // type not defined
       }
       case PDot(_, id) => entity(id) match {
@@ -218,7 +220,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
   }
 
   def isTypeParameter(t: Type): Boolean = t match {
-    case TypeParameterT(_, _) => true
+    case TypeParameterT(_, _, _) => true
     case _ => false
   }
 }

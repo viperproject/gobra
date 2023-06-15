@@ -79,16 +79,16 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         && identicalTypes(underlyingType(l), underlyingType(r))
         && !isTypeParameter(l) && !isTypeParameter(r) => successProp
 
-      case (l, r) if underlyingType(r).isInstanceOf[InterfaceT] && !isTypeParameter(underlyingType(r)) => implements(l, r)
+      case (l, r) if !isTypeParameter(r) && underlyingType(r).isInstanceOf[InterfaceT] => implements(l, r)
       case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => successProp
       case (NilType, r) if isPointerType(r) && !isTypeParameter(r) => successProp
       case (VariadicT(t1), VariadicT(t2)) => assignableTo.result(t1, t2)
       case (t1, VariadicT(t2)) => assignableTo.result(t1, t2)
       case (VariadicT(t1), SliceT(t2)) if identicalTypes(t1, t2) => successProp
-      case (UNTYPED_INT_CONST, TypeParameterT(_, constraint)) => assignableToAll(UNTYPED_INT_CONST, TypeSet.from(constraint, this))
-      case (NilType, TypeParameterT(_, constraint)) => assignableToAll(NilType, TypeSet.from(constraint, this))
-      case (l, TypeParameterT(_, constraint)) if !isDefinedType(l) => assignableToAll(l, TypeSet.from(constraint, this))
-      case (TypeParameterT(_, constraint), r) if !isDefinedType(r) => allAssignableTo(TypeSet.from(constraint, this), r)
+      case (UNTYPED_INT_CONST, TypeParameterT(_, constraint, ctx)) => assignableToAll(UNTYPED_INT_CONST, TypeSet.from(constraint, ctx))
+      case (NilType, TypeParameterT(_, constraint, ctx)) => assignableToAll(NilType, TypeSet.from(constraint, ctx))
+      case (l, TypeParameterT(_, constraint, ctx)) if !isDefinedType(l) => assignableToAll(l, TypeSet.from(constraint, ctx))
+      case (TypeParameterT(_, constraint, ctx), r) if !isDefinedType(r) => allAssignableTo(TypeSet.from(constraint, ctx), r)
 
         // for ghost types
       case (BooleanT, AssertionT) => successProp
@@ -338,13 +338,13 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   }
 
   private def assignableToAll(t: Type, typeSet: TypeSet) = typeSet match {
-    case TypeSet.UnboundedTypeSet => errorProp()
+    case _: TypeSet.UnboundedTypeSet => errorProp()
     case TypeSet.BoundedTypeSet(ts) => propForall(ts.map((t, _)), assignableTo)
   }
 
   private def allAssignableTo(typeSet: TypeSet, t: Type) = (typeSet, t) match {
-    case (TypeSet.UnboundedTypeSet, _: InterfaceT) => successProp
-    case (TypeSet.UnboundedTypeSet, _) => errorProp()
+    case (_: TypeSet.UnboundedTypeSet, _: InterfaceT) => successProp
+    case (_: TypeSet.UnboundedTypeSet, _) => errorProp()
     case (TypeSet.BoundedTypeSet(ts), _) => propForall(ts.map((_, t)), assignableTo)
   }
 }

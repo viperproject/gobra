@@ -3365,7 +3365,11 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // func bar[T any](x T) T {}
     val functionDecl = PFunctionDecl(
       PIdnDef("bar"),
-      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+        Vector(),
+        Vector()
+      ))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector(PUnnamedParameter(PNamedOperand(PIdnUse("T"))))),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -3384,7 +3388,11 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // func bar[T any](x T) T {}
     val functionDecl = PFunctionDecl(
       PIdnDef("bar"),
-      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+        Vector(),
+        Vector()
+      ))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector(PUnnamedParameter(PNamedOperand(PIdnUse("T"))))),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -3403,7 +3411,11 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // func bar[T any](x T) T {}
     val functionDecl = PFunctionDecl(
       PIdnDef("bar"),
-      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+        Vector(),
+        Vector()
+      ))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector(PUnnamedParameter(PNamedOperand(PIdnUse("T"))))),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -3420,7 +3432,11 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // func bar[T any](x T) T {}
     val functionDecl = PFunctionDecl(
       PIdnDef("bar"),
-      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+        Vector(),
+        Vector()
+      ))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector(PUnnamedParameter(PNamedOperand(PIdnUse("T"))))),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -3437,7 +3453,11 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // func bar[T any](x T) T {}
     val functionDecl = PFunctionDecl(
       PIdnDef("bar"),
-      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+        Vector(),
+        Vector()
+      ))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector(PUnnamedParameter(PNamedOperand(PIdnUse("T"))))),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -3454,8 +3474,16 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // type Bar[T any, V any] struct { x T }
     val typeDecl = PTypeDef(
       Vector(
-        PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
-        PTypeParameter(PIdnDef("V"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))
+        PTypeParameter(PIdnDef("T"), PInterfaceType(
+          Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+          Vector(),
+          Vector()
+        )),
+        PTypeParameter(PIdnDef("V"), PInterfaceType(
+          Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+          Vector(),
+          Vector()
+        ))
       ),
       PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("x"), PNamedOperand(PIdnUse("T"))))))),
       PIdnDef("Bar")
@@ -3478,8 +3506,16 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // type Bar[T any, V any] struct { x T }
     val typeDecl = PTypeDef(
       Vector(
-        PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
-        PTypeParameter(PIdnDef("V"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))
+        PTypeParameter(PIdnDef("T"), PInterfaceType(
+          Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+          Vector(),
+          Vector()
+        )),
+        PTypeParameter(PIdnDef("V"), PInterfaceType(
+          Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+          Vector(),
+          Vector()
+        ))
       ),
       PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("x"), PNamedOperand(PIdnUse("T"))))))),
       PIdnDef("Bar")
@@ -3506,7 +3542,11 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     // func foo[T I](x T) { }
     val functionDecl = PFunctionDecl(
       PIdnDef("foo"),
-      Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("I")))))),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("I"))))),
+        Vector(),
+        Vector()
+      ))),
       Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))),
       PResult(Vector()),
       PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
@@ -3521,6 +3561,508 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     )
 
     assert(frontend.wellDefExpr(expr)(Vector(), Vector(interfaceDecl, functionDecl)).valid)
+  }
+
+  test("TypeChecker: valid generic function instantiation int") {
+    // func foo[T int]() { }
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("int"))))),
+        Vector(),
+        Vector()
+      ))),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      None
+    )
+
+    // foo[int]()
+    val expr = PInvoke(
+      PIndexedExp(PNamedOperand(PIdnUse("foo")), Vector(PIntType())),
+      Vector(),
+      None
+    )
+
+    assert(frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
+  }
+
+  test("TypeChecker: invalid generic function instantiation int") {
+    // func foo[T int]() { }
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("int"))))),
+        Vector(),
+        Vector()
+      ))),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      None
+    )
+
+    // foo[bool]()
+    val expr = PInvoke(
+      PIndexedExp(PNamedOperand(PIdnUse("foo")), Vector(PBoolType())),
+      Vector(),
+      None
+    )
+
+    assert(!frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
+  }
+
+  test("TypeChecker: valid generic function instantiation union") {
+    // func foo[T int | bool]() { }
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("int")), PNamedOperand(PIdnUse("bool"))))),
+        Vector(),
+        Vector()
+      ))),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      None
+    )
+
+    // foo[int]()
+    val expr = PInvoke(
+      PIndexedExp(PNamedOperand(PIdnUse("foo")), Vector(PIntType())),
+      Vector(),
+      None
+    )
+
+    assert(frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
+  }
+
+  test("TypeChecker: invalid generic function instantiation union") {
+    // func foo[T int | bool]() { }
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("int")), PNamedOperand(PIdnUse("bool"))))),
+        Vector(),
+        Vector()
+      ))),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      None
+    )
+
+    // foo[string]()
+    val expr = PInvoke(
+      PIndexedExp(PNamedOperand(PIdnUse("foo")), Vector(PStringType())),
+      Vector(),
+      None
+    )
+
+    assert(!frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
+  }
+
+  test("TypeChecker: valid generic function instantiation interface") {
+    // type Bar struct { }
+    val typeDecl = PTypeDef(Vector(), PStructType(Vector()), PIdnDef("Bar"))
+
+    // func (Bar) m(x int) int {
+    //    return x + 1
+    // }
+    val methodImpl = PMethodDecl(
+      PIdnDef("m"),
+      PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("Bar")))),
+      Vector(PNamedParameter(PIdnDef("x"), PIntType())),
+      PResult(Vector(PUnnamedParameter(PIntType()))),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some((PBodyParameterInfo(Vector()), PBlock(Vector(
+        PReturn(Vector(PAdd(PNamedOperand(PIdnUse("x")), PIntLit(BigInt(1)))))
+      ))))
+    )
+
+    // func foo[T interface { m(int) int}]() { }
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(),
+        Vector(PMethodSig(
+          PIdnDef("m"),
+          Vector(PUnnamedParameter(PIntType())),
+          PResult(Vector(PUnnamedParameter(PIntType()))),
+          PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+          isGhost = false
+        )),
+        Vector()
+      ))),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some((PBodyParameterInfo(Vector()), PBlock(Vector())))
+    )
+
+    // foo[Bar]()
+    val expr = PInvoke(
+      PIndexedExp(PNamedOperand(PIdnUse("foo")), Vector(PNamedOperand(PIdnUse("Bar")))),
+      Vector(),
+      None
+    )
+
+    assert(frontend.wellDefExpr(expr)(Vector(), Vector(typeDecl, methodImpl, functionDecl)).valid)
+  }
+
+  test("TypeChecker: invalid generic function instantiation interface") {
+    // type Bar struct { }
+    val typeDecl = PTypeDef(Vector(), PStructType(Vector()), PIdnDef("Bar"))
+
+    // func (Bar) n(x int) int {
+    //    return x + 1
+    // }
+    val methodImpl = PMethodDecl(
+      PIdnDef("n"),
+      PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("Bar")))),
+      Vector(PNamedParameter(PIdnDef("x"), PIntType())),
+      PResult(Vector(PUnnamedParameter(PIntType()))),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some((PBodyParameterInfo(Vector()), PBlock(Vector(
+        PReturn(Vector(PAdd(PNamedOperand(PIdnUse("x")), PIntLit(BigInt(1)))))
+      ))))
+    )
+
+    // func foo[T interface { m(int) int}]() { }
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(),
+        Vector(PMethodSig(
+          PIdnDef("m"),
+          Vector(PUnnamedParameter(PIntType())),
+          PResult(Vector(PUnnamedParameter(PIntType()))),
+          PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+          isGhost = false
+        )),
+        Vector()
+      ))),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some((PBodyParameterInfo(Vector()), PBlock(Vector(
+        PReturn(Vector(PAdd(PNamedOperand(PIdnUse("x")), PIntLit(BigInt(1)))))
+      ))))
+    )
+
+    // foo[Bar]()
+    val expr = PInvoke(
+      PIndexedExp(PNamedOperand(PIdnUse("foo")), Vector(PNamedOperand(PIdnUse("Bar")))),
+      Vector(),
+      None
+    )
+
+    assert(!frontend.wellDefExpr(expr)(Vector(), Vector(typeDecl, methodImpl, functionDecl)).valid)
+  }
+
+  test("TypeChecker: valid generic function instantiation comparable with strictly comparable type") {
+    // func foo[T comparable]() { }
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("comparable"))))),
+        Vector(),
+        Vector()
+      ))),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      None
+    )
+
+    // foo[int]()
+    val expr = PInvoke(
+      PIndexedExp(PNamedOperand(PIdnUse("foo")), Vector(PIntType())),
+      Vector(),
+      None
+    )
+
+    assert(frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
+  }
+
+  test("TypeChecker: valid generic function instantiation comparable with (non-strictly) comparable type") {
+    // type I interface { m() }
+    val interfaceDecl = PTypeDef(Vector(), PInterfaceType(Vector(), Vector(PMethodSig(
+      PIdnDef("m"),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      isGhost = false
+    )), Vector()), PIdnDef("I"))
+
+    // func foo[T comparable]() { }
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("comparable"))))),
+        Vector(),
+        Vector()
+      ))),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      None
+    )
+
+    // foo[I]()
+    val expr = PInvoke(
+      PIndexedExp(PNamedOperand(PIdnUse("foo")), Vector(PNamedOperand(PIdnUse("I")))),
+      Vector(),
+      None
+    )
+
+    assert(frontend.wellDefExpr(expr)(Vector(), Vector(interfaceDecl, functionDecl)).valid)
+  }
+
+  test("TypeChecker: invalid generic function instantiation comparable") {
+    // type Bar func(int) int
+    val typeDecl = PTypeDef(Vector(), PFunctionType(
+      Vector(PUnnamedParameter(PIntType())),
+      PResult(Vector(PUnnamedParameter(PIntType())))
+    ), PIdnDef("Bar"))
+
+    // func foo[T comparable]() { }
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("comparable"))))),
+        Vector(),
+        Vector()
+      ))),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      None
+    )
+
+    // foo[Bar]()
+    val expr = PInvoke(
+      PIndexedExp(PNamedOperand(PIdnUse("foo")), Vector(PNamedOperand(PIdnUse("Bar")))),
+      Vector(),
+      None
+    )
+
+    assert(!frontend.wellDefExpr(expr)(Vector(), Vector(typeDecl, functionDecl)).valid)
+  }
+
+  test("TypeChecker: valid generic type instantiation int") {
+    // type Bar[T int] struct {}
+    val typeDecl = PTypeDef(
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(PTypeElement(Vector(PIntType()))), Vector(), Vector()))),
+      PStructType(Vector()),
+      PIdnDef("Bar")
+    )
+
+    // Bar[int]{}
+    val expr = PCompositeLit(
+      PParameterizedTypeName(PNamedOperand(PIdnUse("Bar")), Vector(PIntType())),
+      PLiteralValue(Vector())
+    )
+
+    assert(frontend.wellDefExpr(expr)(Vector(), Vector(typeDecl)).valid)
+  }
+
+  test("TypeChecker: invalid generic type instantiation int") {
+    // type Bar[T int] struct {}
+    val typeDecl = PTypeDef(
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(PTypeElement(Vector(PIntType()))), Vector(), Vector()))),
+      PStructType(Vector()),
+      PIdnDef("Bar")
+    )
+
+    // Bar[bool]{}
+    val expr = PCompositeLit(
+      PParameterizedTypeName(PNamedOperand(PIdnUse("Bar")), Vector(PBoolType())),
+      PLiteralValue(Vector())
+    )
+
+    assert(!frontend.wellDefExpr(expr)(Vector(), Vector(typeDecl)).valid)
+  }
+
+  test("TypeChecker: valid generic type instantiation union") {
+    // type Bar[T int | bool] struct {}
+    val typeDecl = PTypeDef(
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(PTypeElement(Vector(PIntType(), PBoolType()))), Vector(), Vector()))),
+      PStructType(Vector()),
+      PIdnDef("Bar")
+    )
+
+    // Bar[int]{}
+    val expr = PCompositeLit(
+      PParameterizedTypeName(PNamedOperand(PIdnUse("Bar")), Vector(PBoolType())),
+      PLiteralValue(Vector())
+    )
+
+    assert(frontend.wellDefExpr(expr)(Vector(), Vector(typeDecl)).valid)
+  }
+
+  test("TypeChecker: invalid generic type instantiation union") {
+    // type Bar[T int | bool] struct {}
+    val typeDecl = PTypeDef(
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(PTypeElement(Vector(PIntType(), PBoolType()))), Vector(), Vector()))),
+      PStructType(Vector()),
+      PIdnDef("Bar")
+    )
+
+    // Bar[string]{}
+    val expr = PCompositeLit(
+      PParameterizedTypeName(PNamedOperand(PIdnUse("Bar")), Vector(PStringType())),
+      PLiteralValue(Vector())
+    )
+
+    assert(!frontend.wellDefExpr(expr)(Vector(), Vector(typeDecl)).valid)
+  }
+
+  test("TypeChecker: valid generic type instantiation interface") {
+    // type Baz struct { }
+    val typeDecl = PTypeDef(Vector(), PStructType(Vector()), PIdnDef("Baz"))
+
+    // func (Baz) m(x int) int {
+    //    return x + 1
+    // }
+    val methodImpl = PMethodDecl(
+      PIdnDef("m"),
+      PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("Baz")))),
+      Vector(PNamedParameter(PIdnDef("x"), PIntType())),
+      PResult(Vector(PUnnamedParameter(PIntType()))),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some((PBodyParameterInfo(Vector()), PBlock(Vector(
+        PReturn(Vector(PAdd(PNamedOperand(PIdnUse("x")), PIntLit(BigInt(1)))))
+      ))))
+    )
+
+    // type Bar[T interface { m(int) int}] struct {}
+    val genericTypeDecl = PTypeDef(
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(), Vector(PMethodSig(
+        PIdnDef("m"),
+        Vector(PUnnamedParameter(PIntType())),
+        PResult(Vector(PUnnamedParameter(PIntType()))),
+        PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+        isGhost = false
+      )), Vector()))),
+      PStructType(Vector()),
+      PIdnDef("Bar")
+    )
+
+    // Bar[Baz]{}
+    val expr = PCompositeLit(
+      PParameterizedTypeName(PNamedOperand(PIdnUse("Bar")), Vector(PNamedOperand(PIdnUse("Baz")))),
+      PLiteralValue(Vector())
+    )
+
+    assert(frontend.wellDefExpr(expr)(Vector(), Vector(typeDecl, methodImpl, genericTypeDecl)).valid)
+  }
+
+  test("TypeChecker: invalid generic type instantiation interface") {
+    // type Baz struct { }
+    val typeDecl = PTypeDef(Vector(), PStructType(Vector()), PIdnDef("Baz"))
+
+    // func (Baz) n(x int) int {
+    //    return x + 1
+    // }
+    val methodImpl = PMethodDecl(
+      PIdnDef("n"),
+      PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("Baz")))),
+      Vector(PNamedParameter(PIdnDef("x"), PIntType())),
+      PResult(Vector(PUnnamedParameter(PIntType()))),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some((PBodyParameterInfo(Vector()), PBlock(Vector(
+        PReturn(Vector(PAdd(PNamedOperand(PIdnUse("x")), PIntLit(BigInt(1)))))
+      ))))
+    )
+
+    // type Bar[T interface { m(int) int}] struct {}
+    val genericTypeDecl = PTypeDef(
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(), Vector(PMethodSig(
+        PIdnDef("m"),
+        Vector(PUnnamedParameter(PIntType())),
+        PResult(Vector(PUnnamedParameter(PIntType()))),
+        PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+        isGhost = false
+      )), Vector()))),
+      PStructType(Vector()),
+      PIdnDef("Bar")
+    )
+
+    // Bar[Baz]{}
+    val expr = PCompositeLit(
+      PParameterizedTypeName(PNamedOperand(PIdnUse("Bar")), Vector(PNamedOperand(PIdnUse("Baz")))),
+      PLiteralValue(Vector())
+    )
+
+    assert(!frontend.wellDefExpr(expr)(Vector(), Vector(typeDecl, methodImpl, genericTypeDecl)).valid)
+  }
+
+  test("TypeChecker: valid generic type instantiation comparable with strictly comparable type") {
+    // type Bar[T comparable] struct {}
+    val typeDecl = PTypeDef(
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("comparable"))))), Vector(), Vector()))),
+      PStructType(Vector()),
+      PIdnDef("Bar")
+    )
+
+    // Bar[int]{}
+    val expr = PCompositeLit(
+      PParameterizedTypeName(PNamedOperand(PIdnUse("Bar")), Vector(PIntType())),
+      PLiteralValue(Vector())
+    )
+
+    assert(frontend.wellDefExpr(expr)(Vector(), Vector(typeDecl)).valid)
+  }
+
+  test("TypeChecker: valid generic type instantiation comparable with (non-strictly) comparable type") {
+    // type I interface { m() }
+    val interfaceDecl = PTypeDef(Vector(), PInterfaceType(Vector(), Vector(PMethodSig(
+      PIdnDef("m"),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      isGhost = false
+    )), Vector()), PIdnDef("I"))
+
+    // type Bar[T comparable] struct { }
+    val typeDecl = PTypeDef(
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("comparable"))))), Vector(), Vector()))),
+      PStructType(Vector()),
+      PIdnDef("Bar")
+    )
+
+    // Bar[I]{}
+    val expr = PCompositeLit(
+      PParameterizedTypeName(PNamedOperand(PIdnUse("Bar")), Vector(PNamedOperand(PIdnUse("I")))),
+      PLiteralValue(Vector())
+    )
+
+    assert(frontend.wellDefExpr(expr)(Vector(), Vector(interfaceDecl, typeDecl)).valid)
+  }
+
+  test("TypeChecker: invalid generic type instantiation comparable") {
+    // type Baz func(int) int
+    val functionTypeDecl = PTypeDef(Vector(), PFunctionType(
+      Vector(PUnnamedParameter(PIntType())),
+      PResult(Vector(PUnnamedParameter(PIntType())))
+    ), PIdnDef("Baz"))
+
+    // type Bar[T comparable] struct { }
+    val typeDecl = PTypeDef(
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("comparable"))))), Vector(), Vector()))),
+      PStructType(Vector()),
+      PIdnDef("Bar")
+    )
+
+    // Bar[Baz]{}
+    val expr = PCompositeLit(
+      PParameterizedTypeName(PNamedOperand(PIdnUse("Bar")), Vector(PNamedOperand(PIdnUse("Baz")))),
+      PLiteralValue(Vector())
+    )
+
+    assert(!frontend.wellDefExpr(expr)(Vector(), Vector(functionTypeDecl, typeDecl)).valid)
   }
 
   /* * Stubs, mocks, and other test setup  */

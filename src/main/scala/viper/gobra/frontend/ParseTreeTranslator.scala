@@ -805,8 +805,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitTypeParamDecl(ctx: TypeParamDeclContext): Vector[PTypeParameter] = {
     visitChildren(ctx) match {
+      case Vector(idnDefList(identifierList), PTypeElement(Vector(t: PInterfaceType))) =>
+        identifierList.map(id => PTypeParameter(id, t).at(id))
       case Vector(idnDefList(identifierList), typeConstraint: PTypeElement) =>
-        identifierList.map(id => PTypeParameter(id, typeConstraint).at(id))
+        // embed non interface type constraint in interface
+        identifierList.map(id => PTypeParameter(id, PInterfaceType(Vector(typeConstraint), Vector(), Vector())).at(id))
     }
   }
 

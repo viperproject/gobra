@@ -58,6 +58,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   with Implements
   with UnderlyingType
   with TypeMerging
+  with Satisfiability
 
   with Errors
   with StrictLogging

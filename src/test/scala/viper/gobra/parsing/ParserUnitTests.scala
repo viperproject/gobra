@@ -2689,19 +2689,32 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse function with type parameters") {
     frontend.parseFunctionDecl("func foo[T any](x T) {}") should matchPattern {
-      case PFunctionDecl(PIdnDef("foo"), Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))), Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))), _, _, _) =>
+      case PFunctionDecl(PIdnDef("foo"), Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+        Vector(),
+        Vector()
+      ))),
+      Vector(PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T")))), _, _, _) =>
     }
   }
 
   test("Parser: should be able to parse type definition with type parameters") {
     frontend.parseStmtOrFail("type Bar[T any] struct {}") should matchPattern {
-      case PSeq(Vector(PTypeDef(Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PNamedOperand(PIdnUse("any")))))), PStructType(_), PIdnDef("Bar")))) =>
+      case PSeq(Vector(PTypeDef(Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("any"))))),
+        Vector(),
+        Vector()
+      ))), PStructType(_), PIdnDef("Bar")))) =>
     }
   }
 
   test("Parser: should be able to parse union type constraints") {
     frontend.parseFunctionDecl("func foo[T int | bool]() {}") should matchPattern {
-      case PFunctionDecl(PIdnDef("foo"), Vector(PTypeParameter(PIdnDef("T"), PTypeElement(Vector(PIntType(), PBoolType())))), _, _, _, _) =>
+      case PFunctionDecl(PIdnDef("foo"), Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PIntType(), PBoolType()))),
+        Vector(),
+        Vector()
+      ))), _, _, _, _) =>
     }
   }
 
@@ -2715,6 +2728,16 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.parseExpOrFail("Bar[int]{3}") should matchPattern {
       case PCompositeLit(PParameterizedTypeName(PNamedOperand(PIdnUse("Bar")), Vector(PNamedOperand(PIdnUse("int")))), PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(n, Decimal))
       )))) if n == BigInt(3) =>
+    }
+  }
+
+  test("Parser: should be able to parse comparable type constraint") {
+    frontend.parseFunctionDecl("func foo[T comparable]() {}") should matchPattern {
+      case PFunctionDecl(PIdnDef("foo"), Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(
+        Vector(PTypeElement(Vector(PNamedOperand(PIdnUse("comparable"))))),
+        Vector(),
+        Vector()
+      ))), _, _, _, _) =>
     }
   }
 }

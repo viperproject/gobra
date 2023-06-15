@@ -37,11 +37,10 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefParameterizedType(typ: PParameterizedType): Messages = entity(typ.typeName.id) match {
     case NamedType(decl, _, _) =>
-      error(typ, s"got ${typ.typeArgs.length} type arguments but want ${decl.typeParameters.length}", typ.typeArgs.length != decl.typeParameters.length) ++ typ.typeArgs.flatMap(arg => {
-        val argType = typeSymbType(arg)
-        // TODO check that arg conforms to declaration (assignableTo or implements?)
-        noMessages
-      })
+      error(typ, s"got ${typ.typeArgs.length} type arguments but want ${decl.typeParameters.length}", typ.typeArgs.length != decl.typeParameters.length) ++
+      typ.typeArgs.zip(decl.typeParameters).flatMap {
+        case (arg, typeParam) => satisfies.errors((arg, typeParam.constraint))(arg)
+      }
   }
 
   private[typing] def wellDefActualType(typ: PActualType): Messages = typ match {
@@ -275,7 +274,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
         case n: PTypeName if isUnderlyingInterfaceType(n, ctx).isDefined =>
           val (itfT, itfCtx) = isUnderlyingInterfaceType(n, ctx).get
           itfT.methSpecs.map(_.id.name) ++ findAllEmbeddedMethods(itfT, itfCtx)
-        case _: PTypeName =>
+        case _ =>
           // if the type is ill-formed and Gobra the previous case was not entered,
           // then we assume that another error will be reported while type-checking
           // this type

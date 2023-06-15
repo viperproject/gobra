@@ -680,7 +680,7 @@ sealed trait PFloatType extends PType
 case class PFloat32() extends PPredeclaredType("float32") with PFloatType
 case class PFloat64() extends PPredeclaredType("float64") with PFloatType
 
-case class PComparable() extends PPredeclaredType("comparable")
+
 // TODO: add more types
 
 // TODO: ellipsis type
@@ -855,7 +855,7 @@ case class PEmbeddedName(typ: PUnqualifiedTypeName) extends PEmbeddedType
 
 case class PEmbeddedPointer(typ: PUnqualifiedTypeName) extends PEmbeddedType
 
-case class PTypeParameter(id: PIdnDef, constraint: PTypeElement) extends PNode
+case class PTypeParameter(id: PIdnDef, constraint: PInterfaceType) extends PNode
 
 /**
   * Ghost

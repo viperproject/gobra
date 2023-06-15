@@ -57,7 +57,7 @@ trait Implements { this: TypeInfoImpl =>
 
   def syntaxImplements(l: Type, r: Type): PropertyResult = (l, underlyingType(r)) match {
     case (NilType, _: Type.InterfaceT) => successProp
-    case (Type.TypeParameterT(_, constraint), _: Type.InterfaceT) => syntaxImplements(symbType(constraint), r)
+    case (Type.TypeParameterT(_, constraint, _), _: Type.InterfaceT) => syntaxImplements(symbType(constraint), r)
     case (_, _: Type.InterfaceT) =>
       supportedSortForInterfaces(l) and {
         val itfMemberSet = memberSet(r)

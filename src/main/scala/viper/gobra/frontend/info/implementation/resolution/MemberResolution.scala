@@ -181,7 +181,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         AdvancedMemberSet.union {
           topLevel +: es.map(_.terms).map {
             case Vector(t: PTypeName) => interfaceMethodSet(
-              symbType(t) match {
+              underlyingType(symbType(t)) match {
                 case i: InterfaceT => i
                 case _ => InterfaceT(PInterfaceType(Vector(), Vector(), Vector()), ctxt) // TODO handle this properly (non interface types)
               }).promoteItf(t.name)

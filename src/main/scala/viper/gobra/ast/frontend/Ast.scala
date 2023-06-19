@@ -155,6 +155,10 @@ case class PConstSpec(typ: Option[PType], right: Vector[PExpression], left: Vect
 
 case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId], addressable: Vector[Boolean]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
 
+sealed trait PWithTypeParameters {
+    def typeParameters: Vector[PTypeParameter]
+}
+
 sealed trait PFunctionOrClosureDecl extends PScope {
   def args: Vector[PParameter]
   def result: PResult
@@ -173,7 +177,7 @@ case class PFunctionDecl(
                           result: PResult,
                           spec: PFunctionSpec,
                           body: Option[(PBodyParameterInfo, PBlock)]
-                        ) extends PFunctionOrClosureDecl with PActualMember with PCodeRootWithResult with PWithBody with PGhostifiableMember with PFunctionOrMethodDecl
+                        ) extends PFunctionOrClosureDecl with PActualMember with PCodeRootWithResult with PWithBody with PGhostifiableMember with PFunctionOrMethodDecl with PWithTypeParameters
 
 case class PMethodDecl(
                         id: PIdnDef,
@@ -191,7 +195,7 @@ sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostif
   def right: PType
 }
 
-case class PTypeDef(typeParameters: Vector[PTypeParameter], right: PType, left: PIdnDef) extends PTypeDecl with PScope
+case class PTypeDef(typeParameters: Vector[PTypeParameter], right: PType, left: PIdnDef) extends PTypeDecl with PScope with PWithTypeParameters
 
 case class PTypeAlias(right: PType, left: PIdnDef) extends PTypeDecl
 
@@ -467,7 +471,7 @@ case class PInvoke(base: PExpressionOrType, args: Vector[PExpression], spec: Opt
 case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNameOrDot with PTypeName
 
 
-case class PIndexedExp(base: PExpression, index: Vector[PExpressionOrType]) extends PActualExpression with PAssignee
+case class PIndexedExp(base: PExpression, index: Vector[PExpressionOrType]) extends PActualExpression with PActualType with PExpressionAndType with PAssignee
 
 /**
   * Represents Go's built-in "len(`exp`)" function that returns the

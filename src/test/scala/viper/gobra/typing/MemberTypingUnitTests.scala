@@ -350,16 +350,16 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   class TestFrontend {
-    def singleMemberProgram(member: PMember): PProgram =
+    def singleMemberProgram(members: Vector[PMember]): PProgram =
       PProgram(
         PPackageClause(PPkgDef("pkg")),
         Vector(),
         Vector(),
-        Vector(member)
+        members
       )
 
-    def memberTypeInfo(member: PMember): TypeInfoImpl = {
-      val program = singleMemberProgram(member)
+    def memberTypeInfo(member: PMember)(otherMembers: Vector[PMember]): TypeInfoImpl = {
+      val program = singleMemberProgram(member +: otherMembers )
       val positions = new Positions
       val pkg = PPackage(
         PPackageClause(PPkgDef("pkg")),
@@ -373,7 +373,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       new TypeInfoImpl(tree, context)(config)
     }
 
-    def wellDefMember(member: PMember) =
-      memberTypeInfo(member).wellDefMember(member)
+    def wellDefMember(member: PMember, otherMembers: Vector[PMember] = Vector()) =
+      memberTypeInfo(member)(otherMembers).wellDefMember(member)
   }
 }

@@ -52,7 +52,7 @@ trait Comparability extends BaseProperty { this: TypeInfoImpl =>
 
   private lazy val strictlyComparableType: Property[Type] = createBinaryProperty("strictly comparable") {
     case Single(st) => st match {
-      case t: TypeParameterT => allStrictlyComparableTypes(TypeSet.from(t.constraint, t.context))
+      case t: TypeParameterT => allStrictlyComparableTypes(TypeSet.from(t.constraint, this))
       case _ => underlyingType(st) match {
         case t: StructT =>
           structMemberSet(t).collect {

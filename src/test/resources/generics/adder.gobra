@@ -1,0 +1,19 @@
+// Copyright 2021 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package pkg
+
+type AddType interface {
+	int | int64 | string
+}
+
+// Add can add numbers or strings
+func Add[T AddType](a, b T) T {
+	return a + b
+}
+
+func main() {
+    Add[int](5, 3)
+    Add[string]("ab", "cd")
+}

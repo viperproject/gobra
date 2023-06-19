@@ -20,7 +20,7 @@ object AstPattern {
 
   sealed trait Type extends Pattern
 
-  case class NamedType(id: PIdnUse, symb: st.ActualTypeEntity) extends Type with Symbolic
+  case class NamedType(id: PIdnUse, symb: st.ActualTypeEntity) extends Type with Symbolic with Parameterizable
   case class PointerType(base: PType) extends Type
   case class AdtClause(id: PIdnUse, symb: st.AdtClause) extends Type with Symbolic
   case class TypeArgument(id: PIdnUse, symb: st.TypeParameter) extends Type with Symbolic
@@ -56,7 +56,7 @@ object AstPattern {
   }
 
   sealed trait Parameterizable {
-    var typeArgs: Vector[PType] = Vector.empty
+    var typeArgs: Vector[PType] = Vector()
   }
 
   case class Function(id: PIdnUse, symb: st.Function) extends FunctionKind with Symbolic with Parameterizable

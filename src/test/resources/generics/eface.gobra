@@ -1,0 +1,43 @@
+// Copyright 2021 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package pkg
+
+type E[T any] interface {
+}
+
+func f[T any](x E[T]) interface{} {
+	return x
+}
+
+func g[T any](x interface{}) E[T] {
+	return x
+}
+
+type I[T any] interface {
+	foo()
+}
+
+type myint int
+
+func (x myint) foo() {}
+
+func h[T any](x I[T]) interface{ foo() } {
+	return x
+}
+
+func i[T any](x interface{ foo() }) I[T] {
+	return x
+}
+
+func main() {
+	_ = f[int](1) != 1
+	_ = f[int](2) != (interface{})(2)
+	_ = g[int](3) != 3
+	_ = g[int](4) != (E[int])(4)
+	_ = h[int](myint(5)) != myint(5)
+	_ = h[int](myint(6)) != interface{ foo() }(myint(6))
+	_ = i[int](myint(7)) != myint(7)
+	_ = i[int](myint(8)) != I[int](myint(8))
+}

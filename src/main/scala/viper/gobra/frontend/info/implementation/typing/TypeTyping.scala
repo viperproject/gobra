@@ -30,17 +30,8 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefType: WellDefinedness[PType] = createWellDef {
-    case typ: PParameterizedType => wellDefParameterizedType(typ)
     case typ: PActualType => wellDefActualType(typ)
     case typ: PGhostType  => wellDefGhostType(typ)
-  }
-
-  private[typing] def wellDefParameterizedType(typ: PParameterizedType): Messages = entity(typ.typeName.id) match {
-    case NamedType(decl, _, _) =>
-      error(typ, s"got ${typ.typeArgs.length} type arguments but want ${decl.typeParameters.length}", typ.typeArgs.length != decl.typeParameters.length) ++
-      typ.typeArgs.zip(decl.typeParameters).flatMap {
-        case (arg, typeParam) => satisfies.errors((arg, typeParam.constraint))(arg)
-      }
   }
 
   private[typing] def wellDefActualType(typ: PActualType): Messages = typ match {
@@ -82,6 +73,11 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
         isRecursiveInterface
       }
 
+    case t: PParameterizedType => entity(t.typeName.id) match {
+      case NamedType(decl, _, _) =>
+        wellDefTypeArguments(t, t.typeArgs, decl)
+    }
+
     case t: PExpressionAndType => wellDefExprAndType(t).out
   }
 
@@ -93,17 +89,9 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => t
     }
     createTyping {
-      case typ: PParameterizedType => handleTypeAlias(parameterizedTypeSymbType(typ))
       case typ: PActualType => handleTypeAlias(actualTypeSymbType(typ))
       case typ: PGhostType  => handleTypeAlias(ghostTypeSymbType(typ))
     }
-  }
-
-  private[typing] def parameterizedTypeSymbType(typ: PParameterizedType): Type = entity(typ.typeName.id) match {
-    case NamedType(decl, _, _) =>
-      val typeArgs = typ.typeArgs map typeSymbType
-      val substitution = decl.typeParameters.map(_.id).zip(typeArgs).toMap
-      typeSymbType(decl.right).substitute(substitution)
   }
 
   private[typing] def actualTypeSymbType(typ: PActualType): Type = typ match {
@@ -178,6 +166,30 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case _ => violation(s"expected type, but got $n")
       }
+
+    case n: PIndexedExp =>
+      resolve(n) match {
+        case Some(f@ap.Function(id, symb)) =>
+          // TODO handle type parameter instantiations that have to be inferred
+          val typeArgs = f.typeArgs.map(typeSymbType)
+          val substitution = symb.typeParameters.map(_.id).zip(typeArgs).toMap
+
+          FunctionT(symb.args.map(miscType), miscType(symb.result)).substitute(substitution)
+
+        case Some(t@ap.NamedType(id, symb)) if symb.decl.isInstanceOf[PTypeDef] =>
+          val typeArgs = t.typeArgs.map(typeSymbType)
+          val typeDecl = symb.decl.asInstanceOf[PTypeDef]
+          val substitution = typeDecl.typeParameters.map(_.id).zip(typeArgs).toMap
+
+          underlyingType(symbType(symb.decl.right)).substitute(substitution)
+      }
+
+    case typ: PParameterizedType => entity(typ.typeName.id) match {
+      case NamedType(decl, _, _) =>
+        val typeArgs = typ.typeArgs map typeSymbType
+        val substitution = decl.typeParameters.map(_.id).zip(typeArgs).toMap
+        typeSymbType(decl.right).substitute(substitution)
+    }
   }
 
   private def structSymbType(t: PStructType): Type = {

@@ -22,8 +22,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
   lazy val underlyingType: Type => Type =
     attr[Type, Type] {
       case Single(DeclaredT(t: PTypeDecl, context: ExternalTypeInfo)) => underlyingType(context.symbType(t.right))
-      case Single(TypeParameterT(_, t: PInterfaceType, ctx)) =>
-        underlyingType(ctx.symbType(t)) // TODO verify this with Felix
+      case Single(TypeParameterT(_, t: PInterfaceType, ctx)) => underlyingType(ctx.symbType(t)) // TODO verify this with Felix
       case t => t
     }
 

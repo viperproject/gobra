@@ -94,7 +94,7 @@ object Type {
     }
   }
 
-  // TODO check if we need to ad type parameters to function type info
+  // TODO check if we need to add type parameters to function type info
   case class FunctionT(args: Vector[Type], result: Type)
     extends PrettyType(s"func(${args.mkString(",")}) $result")
 

@@ -3,25 +3,27 @@ package viper.gobra.frontend.info.implementation.resolution
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.implementation.TypeInfoImpl
+
+import scala.annotation.tailrec
 sealed trait TypeSet
 
 object TypeSet {
   case class UnboundedTypeSet(isComparable: Boolean = false) extends TypeSet
   case class BoundedTypeSet(ts: Set[Type]) extends TypeSet
 
-  def from(constraint: PInterfaceType, ctx: ExternalTypeInfo): TypeSet = typeSetFromInterfaceType(constraint, ctx)
+  def from(constraint: PInterfaceType, ctx: TypeInfoImpl): TypeSet = typeSetFromInterfaceType(constraint, ctx)
 
-  private def typeSetFromInterfaceType(inter: PInterfaceType, ctx: ExternalTypeInfo): TypeSet = inter match {
+  private def typeSetFromInterfaceType(inter: PInterfaceType, ctx: TypeInfoImpl): TypeSet = inter match {
     case PInterfaceType(embedded, _, _) => if (embedded.isEmpty) UnboundedTypeSet() else intersect(embedded.map(el => typeSetFromElement(el, ctx)))
   }
 
-  private def typeSetFromElement(element: PTypeElement, ctx: ExternalTypeInfo): TypeSet =
+  private def typeSetFromElement(element: PTypeElement, ctx: TypeInfoImpl): TypeSet =
     if (element.terms.isEmpty) UnboundedTypeSet() else union(element.terms.map(term => typeSetFromTerm(term, ctx)))
 
-  private def typeSetFromTerm(term: PTypeTerm, ctx: ExternalTypeInfo): TypeSet = term match {
+  private def typeSetFromTerm(term: PTypeTerm, ctx: TypeInfoImpl): TypeSet = term match {
     case PNamedOperand(PIdnUse("comparable")) => UnboundedTypeSet(isComparable = true)
-    case pType: PType => ctx.symbType(pType) match {
-      case DeclaredT(decl, ctx) => typeSetFromTerm(decl.right, ctx)
+    case pType: PType => ctx.underlyingType(ctx.symbType(pType)) match {
       case InterfaceT(i, _) => typeSetFromInterfaceType(i, ctx)
       case t => BoundedTypeSet(Set(t))
     }
@@ -62,5 +64,10 @@ object TypeSet {
     case (_, _: UnboundedTypeSet) => true
     case (_: UnboundedTypeSet, _) => false
     case (BoundedTypeSet(tsSub), BoundedTypeSet(tsOf)) => tsSub.subsetOf(tsOf)
+  }
+
+  def allMatch(all: TypeSet, matcher: PartialFunction[Type, Boolean]): Boolean = all match {
+    case _: UnboundedTypeSet => false
+    case BoundedTypeSet(ts) => ts.forall(t => matcher.isDefinedAt(t) && matcher(t))
   }
 }

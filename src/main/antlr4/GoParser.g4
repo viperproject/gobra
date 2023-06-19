@@ -315,7 +315,7 @@ primaryExpr:
 
 
 
-conversion: nonNamedType L_PAREN expression COMMA? R_PAREN;
+conversion: type_ L_PAREN expression COMMA? R_PAREN;
 
 nonNamedType: typeLit | L_PAREN nonNamedType R_PAREN;
 

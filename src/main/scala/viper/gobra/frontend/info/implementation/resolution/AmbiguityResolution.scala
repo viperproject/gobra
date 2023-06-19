@@ -35,6 +35,9 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
               case _ => Left(n)
             })
 
+      case n: PIndexedExp =>
+        if (exprOrType(n.base).isLeft) Left(n) else Right(n)
+
       // Otherwise just expression or type
       case n: PExpression => Left(n)
       case n: PType => Right(n)

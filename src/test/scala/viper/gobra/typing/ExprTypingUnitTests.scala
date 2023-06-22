@@ -4065,6 +4065,130 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert(!frontend.wellDefExpr(expr)(Vector(), Vector(functionTypeDecl, typeDecl)).valid)
   }
 
+  test("TypeChecker: should be able to infer second type argument with ints") {
+    // func foo[T any, V any](x T, y V) {}
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(
+        PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(), Vector(), Vector())),
+        PTypeParameter(PIdnDef("V"), PInterfaceType(Vector(), Vector(), Vector()))
+      ),
+      Vector(
+        PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T"))),
+        PNamedParameter(PIdnDef("y"), PNamedOperand(PIdnUse("V")))
+      ),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      None
+    )
+
+    // foo[int](3, 2)
+    val expr = PInvoke(
+      PIndexedExp(PNamedOperand(PIdnUse("foo")), Vector(PIntType())),
+      Vector(PIntLit(3), PIntLit(2)),
+      None
+    )
+
+    assert(frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
+  }
+
+  test("TypeChecker: should be able to infer all type argument with ints") {
+    // func foo[T any, V any](x T, y V) {}
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(
+        PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(), Vector(), Vector())),
+        PTypeParameter(PIdnDef("V"), PInterfaceType(Vector(), Vector(), Vector()))
+      ),
+      Vector(
+        PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T"))),
+        PNamedParameter(PIdnDef("y"), PNamedOperand(PIdnUse("V")))
+      ),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      None
+    )
+
+    // foo(3, 2)
+    val expr = PInvoke(
+      PNamedOperand(PIdnUse("foo")),
+      Vector(PIntLit(3), PIntLit(2)),
+      None
+    )
+
+    assert(frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
+  }
+
+  test("TypeChecker: should not accept uninstantiated generic function") {
+    // func foo[T any, V any](x T, y V) {}
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(
+        PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(), Vector(), Vector())),
+        PTypeParameter(PIdnDef("V"), PInterfaceType(Vector(), Vector(), Vector()))
+      ),
+      Vector(
+        PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T"))),
+        PNamedParameter(PIdnDef("y"), PNamedOperand(PIdnUse("V")))
+      ),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      None
+    )
+
+    // foo
+    val expr = PNamedOperand(PIdnUse("foo"))
+
+    assert(!frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
+  }
+
+  test("TypeChecker: should not accept partially instantiated generic function") {
+    // func foo[T any, V any](x T, y V) {}
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(
+        PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(), Vector(), Vector())),
+        PTypeParameter(PIdnDef("V"), PInterfaceType(Vector(), Vector(), Vector()))
+      ),
+      Vector(
+        PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T"))),
+        PNamedParameter(PIdnDef("y"), PNamedOperand(PIdnUse("V")))
+      ),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      None
+    )
+
+    // foo[int]
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("foo")), Vector(PIntType()))
+
+    assert(!frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
+  }
+
+  test("TypeChecker: should accept fully instantiated generic function") {
+    // func foo[T any, V any](x T, y V) {}
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(
+        PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(), Vector(), Vector())),
+        PTypeParameter(PIdnDef("V"), PInterfaceType(Vector(), Vector(), Vector()))
+      ),
+      Vector(
+        PNamedParameter(PIdnDef("x"), PNamedOperand(PIdnUse("T"))),
+        PNamedParameter(PIdnDef("y"), PNamedOperand(PIdnUse("V")))
+      ),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      None
+    )
+
+    // foo[int, int]
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("foo")), Vector(PIntType(), PIntType()))
+
+    assert(frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
+  }
+
+        PIfStmt(Vector(PIfClause(None, PEquals(PNamedOperand(PIdnUse("n")), PIntLit(BigInt(1))), PBlock(Vector(
   /* * Stubs, mocks, and other test setup  */
 
   class TestFrontend {

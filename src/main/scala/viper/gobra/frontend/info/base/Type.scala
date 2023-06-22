@@ -216,6 +216,12 @@ object Type {
       })
     }
 
+    def uninstantiatedTypeParameters: Seq[TypeParameterT] = {
+      this.deepCollect({
+        case t: TypeParameterT => t
+      })
+    }
+
     override def info: Parser.Info = Source.Parser.Unsourced
 
     override def withChildren(children: Seq[Any], pos: Option[(Position, Position)], forceRewrite: Boolean): this.type = {

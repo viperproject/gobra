@@ -7,6 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, message, noMessages}
+import viper.gobra.ast.frontend.AstPattern.FunctionCall
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminator, GlobalVariable, SingleConstant}
 import viper.gobra.frontend.info.base.Type._
@@ -37,8 +38,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(ap.Closure(id, _)) => error(n, s"expected valid operand, got closure declaration name $n",
           !tree.parent(n).head.isInstanceOf[PClosureSpecInstance] &&
             tryEnclosingFunctionLit(n).fold(true)(lit => lit.id.fold(true)(encId => encId.name != id.name)))
-        case Some(ap.Function(id, symb)) if symb.typeParameters.nonEmpty => error(n,s"cannot use generic function $id without instantiation",
-          !tree.parent(n).head.isInstanceOf[PIndexedExp])
+        case Some(ap.Function(id, symb)) if symb.typeParameters.nonEmpty =>
+          tree.parent(n).head match {
+            case _: PIndexedExp | _: PInvoke => noMessages
+            case _ => error(n, s"cannot use generic function $id without instantiation")
+          }
         case _ => noMessages
       } // no more checks to avoid cycles
 
@@ -99,9 +103,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PIndexedExp =>
       resolve(n) match {
         case Some(f@ap.Function(id, symb)) =>
-          wellDefTypeArguments(n, f.typeArgs, symb.decl)
+          tree.parent(n).head match {
+            case _: PInvoke => wellDefPartialIndexTypeArguments(n, symb.decl, f.typeArgs)
+            case _ => wellDefFullIndexTypeArguments(n, symb.decl, f.typeArgs)
+          }
         case Some(nt@ap.NamedType(id, symb)) if symb.decl.isInstanceOf[PTypeDef] =>
-          wellDefTypeArguments(n, nt.typeArgs, symb.decl.asInstanceOf[PTypeDef])
+          wellDefFullIndexTypeArguments(n, symb.decl.asInstanceOf[PTypeDef], nt.typeArgs)
         case Some(ap.IndexedExp(base, index)) => isExpr(base).out ++ isExpr(index).out ++ {
           val baseType = exprType(base)
           val idxType = exprType(index)
@@ -339,13 +346,32 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val isCallToInit =
             error(n, s"${Constants.INIT_FUNC_NAME} function is not callable",
               c.callee.isInstanceOf[ap.Function] && c.callee.id.name == Constants.INIT_FUNC_NAME)
+          val argTypes = n.args map exprType
           // arguments have to be assignable to function
           val wellTypedArgs = exprType(callee) match {
-            // TODO handle this
-            case FunctionT(args, _) => // TODO: add special assignment
-              if (n.spec.nonEmpty) wellDefCallWithSpec(n)
-              else if (n.args.isEmpty && args.isEmpty) noMessages
-              else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+            case f@FunctionT(args, _) =>
+              val (inferenceErrors: Messages, inferredFunctionType: FunctionT) = c.callee match {
+                case ap.Function(id, symb) =>
+                  if (f.uninstantiatedTypeParameters.isEmpty) (noMessages, f)
+                  else {
+                    // do type inference
+                    val typeMap = args.filter(isTypeParameter).zip(argTypes).map {
+                      case (TypeParameterT(id, _, _), typ) => (PIdnDef(id.name), typ)
+                    }.toMap[PIdnDef, Type]
+
+                    val inferredType = f.substitute(typeMap)
+
+                    (wellDefTypeArguments(callee, symb.decl, typeMap) ++ inferredType.uninstantiatedTypeParameters.flatMap(typeParam => {
+                      error(n, s"cannot infer ${typeParam.id}")
+                    }), inferredType)
+                  }
+                case _ => (noMessages, f)
+              }
+
+              if (inferenceErrors.nonEmpty) inferenceErrors
+              else if (n.spec.nonEmpty) wellDefCallWithSpec(n)
+              else if (n.args.isEmpty && inferredFunctionType.args.isEmpty) noMessages
+              else multiAssignableTo.errors(n.args map exprType, inferredFunctionType.args)(n) ++ n.args.flatMap(isExpr(_).out)
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n, s"type error: got $t but expected function type or AbstractType")
           }
@@ -703,10 +729,17 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (Left(_), Some(_: ap.PredExprInstance)) =>
         // a PInvoke on a predicate expression instance must fully apply the predicate arguments
         AssertionT
-      case (Left(callee), Some(_: ap.FunctionCall | _: ap.PredicateCall | _: ap.ClosureCall)) =>
+      case (Left(callee), Some(pattern@(_: ap.FunctionCall | _: ap.PredicateCall | _: ap.ClosureCall))) =>
         exprType(callee) match {
-          // TODO handle this
-          case FunctionT(_, res) => res
+          case f: FunctionT => pattern match {
+            case fc: FunctionCall =>
+              // do type inference
+              val typeMap = f.args.filter(isTypeParameter).zip(fc.args.map(exprType)).map {
+                case (TypeParameterT(id, _, _), typ) => (PIdnDef(id.name), typ)
+              }.toMap[PIdnDef, Type]
+              f.substitute(typeMap).result
+            case _ => f.result
+          }
           case t: AbstractType =>
             val argTypes = n.args map exprType
             if (t.typing.isDefinedAt(argTypes)) t.typing(argTypes).result
@@ -1099,11 +1132,21 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"unexpected argument ${expr.exp} of type $t passed to len")
     }
 
-  private[typing] def wellDefTypeArguments(n: PNode, typeArgs: Vector[PType], decl: PWithTypeParameters): Messages = {
+  private[typing] def wellDefFullIndexTypeArguments(n: PNode, decl: PWithTypeParameters, typeArgs: Vector[PType]): Messages = {
     error(n, s"got ${typeArgs.length} type arguments but want ${decl.typeParameters.length}", typeArgs.length != decl.typeParameters.length) ++
-    typeArgs.zip(typeArgs).zip(decl.typeParameters).flatMap {
-      case ((i, idxPType), typeParam) => satisfies.errors((idxPType, typeParam.constraint))(i)
-    }
+    wellDefTypeArguments(n, decl, decl.typeParameters.map(_.id).zip(typeArgs.map(symbType)).toMap)
+  }
+
+  private[typing] def wellDefPartialIndexTypeArguments(n: PNode, decl: PWithTypeParameters, typeArgs: Vector[PType]): Messages = {
+    wellDefTypeArguments(n, decl, decl.typeParameters.map(_.id).zip(typeArgs.map(symbType)).toMap)
+  }
+
+  private[typing] def wellDefTypeArguments(n: PNode, decl: PWithTypeParameters, typeArgs: Map[PIdnDef, Type]): Messages = {
+    decl.typeParameters.flatMap(typeParam => {
+      val typeParamId = typeParam.id
+      if (typeArgs.isDefinedAt(typeParamId)) satisfies.errors((typeArgs(typeParamId), typeParam.constraint))(n)
+      else noMessages
+    })
   }
 
   /**

@@ -75,7 +75,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case t: PParameterizedType => entity(t.typeName.id) match {
       case NamedType(decl, _, _) =>
-        wellDefTypeArguments(t, t.typeArgs, decl)
+        wellDefFullIndexTypeArguments(t, decl, t.typeArgs)
     }
 
     case t: PExpressionAndType => wellDefExprAndType(t).out
@@ -170,7 +170,6 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PIndexedExp =>
       resolve(n) match {
         case Some(f@ap.Function(id, symb)) =>
-          // TODO handle type parameter instantiations that have to be inferred
           val typeArgs = f.typeArgs.map(typeSymbType)
           val substitution = symb.typeParameters.map(_.id).zip(typeArgs).toMap
 

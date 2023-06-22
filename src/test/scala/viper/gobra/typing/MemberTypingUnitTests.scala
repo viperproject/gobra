@@ -349,6 +349,39 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert(frontend.wellDefMember(member).valid)
   }
 
+  test("TypeChecker: should accept instantiation of generic function with a type parameter") {
+    // type Bar[T interface{ m() }] struct {}
+    var typeDecl = PTypeDef(
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(), Vector(PMethodSig(
+        PIdnDef("m"),
+        Vector(),
+        PResult(Vector()),
+        PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+        isGhost = false
+      )), Vector()))),
+      PStructType(Vector()),
+      PIdnDef("Bar")
+    )
+
+    // func foo[T interface{ m() }](x Bar[T]) {}
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(PTypeParameter(PIdnDef("T"), PInterfaceType(Vector(), Vector(PMethodSig(
+        PIdnDef("m"),
+        Vector(),
+        PResult(Vector()),
+        PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+        isGhost = false
+      )), Vector()))),
+      Vector(PNamedParameter(PIdnDef("x"), PParameterizedTypeName(PNamedOperand(PIdnUse("Bar")), Vector(PNamedOperand(PIdnUse("T")))))),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      None
+    )
+
+    assert(frontend.wellDefMember(functionDecl, Vector(typeDecl)).valid)
+  }
+
   class TestFrontend {
     def singleMemberProgram(members: Vector[PMember]): PProgram =
       PProgram(

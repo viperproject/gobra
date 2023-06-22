@@ -1,0 +1,18 @@
+// Copyright 2021 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package pkg
+
+func fact[T interface{ int | int64 | float64 }](n T) T {
+	if n == 1 {
+		return 1
+	}
+	return n * fact(n-1)
+}
+
+func main() {
+    var _ = fact[int](5) // TODO remove instantiation
+    var _ = fact[int64](5)
+    var _ = fact[float64](5.0) // TODO remove instantiation
+}

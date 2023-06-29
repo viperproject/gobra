@@ -33,7 +33,11 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
   var gobraInstance: Gobra = _
   var executor: GobraExecutionContext = _
   var inputMapping: Vector[(PackageInfo, Vector[Source])] = Vector.empty
-  val cacheParser = true
+  // while we could pre-fetch and cache parse and maybe even type-check results, the regression test suite is designed
+  // in a way that each file is its own test case. However, feeding a map of package infos to Gobra results in Gobra
+  // considering these files in a Go way, i.e., groups them by package clause. This in turn results in testcase failures
+  // as errors occur in files technically not under test but in the same directory and having the same package clause.
+  val cacheParser = false
 
   override def beforeAll(): Unit = {
     executor = new DefaultGobraExecutionContext()

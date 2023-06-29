@@ -6,7 +6,7 @@
 
 package viper.gobra.typing
 
-import org.scalatest.Inside
+import org.scalatest.{BeforeAndAfterAll, Inside}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.funsuite.AnyFunSuite
 import viper.gobra.ast.frontend._
@@ -15,9 +15,19 @@ import org.bitbucket.inkytonik.kiama.util.Positions
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.Config
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 
-class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside {
+class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside with BeforeAndAfterAll {
   val frontend = new TestFrontend()
+  var executor: GobraExecutionContext = _
+
+  override def beforeAll(): Unit = {
+    executor = new DefaultGobraExecutionContext()
+  }
+
+  override def afterAll(): Unit = {
+    executor.terminateAndAssertInexistanceOfTimeout()
+  }
 
   test("TypeChecker: should detect labeled continues outside of loops") {
     assert(!frontend.wellDefStmt(PContinue(Some(PLabelUse("l"))))().valid)
@@ -82,7 +92,7 @@ class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       )
       val tree = new Info.GoTree(pkg)
       val config = Config()
-      new TypeInfoImpl(tree, Map.empty)(config)
+      new TypeInfoImpl(tree, Map.empty)(config, executor)
     }
 
     def wellDefStmt(stmt : PStatement)(inArgs: Vector[(PParameter, Boolean)] = Vector()) =

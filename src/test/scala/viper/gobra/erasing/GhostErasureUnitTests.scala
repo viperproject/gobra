@@ -7,7 +7,7 @@
 package viper.gobra.erasing
 
 import org.bitbucket.inkytonik.kiama.util.{Positions, StringSource}
-import org.scalatest.{Assertion, Inside, Succeeded}
+import org.scalatest.{Assertion, BeforeAndAfterAll, Inside, Succeeded}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import viper.gobra.ast.frontend._
@@ -15,9 +15,19 @@ import viper.gobra.frontend.{Config, PackageInfo, Parser}
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostLessPrinter
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 
-class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
+class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside with BeforeAndAfterAll {
   val frontend = new TestFrontend()
+  var executor: GobraExecutionContext = _
+
+  override def beforeAll(): Unit = {
+    executor = new DefaultGobraExecutionContext()
+  }
+
+  override def afterAll(): Unit = {
+    executor.terminateAndAssertInexistanceOfTimeout()
+  }
 
   test("Ghost Erasure: variable declaration should not have a trailing equal sign") {
     // var value int
@@ -343,7 +353,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
       )
       val tree = new Info.GoTree(pkg)
       val config = Config()
-      val info = new TypeInfoImpl(tree, Map.empty)(config)
+      val info = new TypeInfoImpl(tree, Map.empty)(config, executor)
       info.errors match {
         case Vector(msgs) => fail(s"Type-checking failed: $msgs")
         case _ =>

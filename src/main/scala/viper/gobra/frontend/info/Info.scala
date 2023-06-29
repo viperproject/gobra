@@ -11,20 +11,18 @@ import org.bitbucket.inkytonik.kiama.relation.Tree
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import org.bitbucket.inkytonik.kiama.util.{Position, Source}
 import viper.gobra.ast.frontend.{PImport, PNode, PPackage}
-import viper.gobra.frontend.{Config, Job, ParallelJob, ParallelTaskManager, TaskManager}
+import viper.gobra.frontend.{Config, Job, TaskManager}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, BuiltInPackage, RegularImport}
 import viper.gobra.frontend.Parser.{ParseResult, ParseSuccessResult}
 import viper.gobra.frontend.TaskManagerMode.{Lazy, Parallel, Sequential}
-import viper.gobra.frontend.info.Info.CycleChecker
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.{GhostLessPrinter, GoifyingPrinter}
 import viper.gobra.reporting.{CyclicImportError, ParserError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
 import viper.gobra.util.{GobraExecutionContext, Violation}
 
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
 
 object Info extends LazyLogging {
 
@@ -168,155 +166,68 @@ object Info extends LazyLogging {
     * Therefore, package management is centralized.
     */
   class Context(val config: Config, val parseResults: Map[AbstractPackage, ParseSuccessResult])(val executionContext: GobraExecutionContext) extends GetParseResult {
-    private val typeCheckManager = new TaskManager[AbstractPackage, TypeCheckResult](if (config.typeCheckMode == Parallel) Sequential else config.typeCheckMode)
-    private val parallelTypeCheckManager = new ParallelTaskManager[AbstractPackage, TypeCheckResult]()
+    private val typeCheckManager = new TaskManager[AbstractPackage, (Vector[Source], PPackage, Vector[AbstractImport]), () => TypeCheckResult](config.typeCheckMode)(executionContext)
 
-    trait TypeCheckJob {
-      protected def typeCheck(pkgSources: Vector[Source], pkg: PPackage, dependentTypeInfo: DependentTypeInfo, isMainContext: Boolean = false): TypeCheckResult = {
+    var tyeCheckDurationMs = new AtomicLong(0L)
+
+    case class TypeCheckJob(abstractPackage: AbstractPackage, isMainContext: Boolean = false) extends Job[(Vector[Source], PPackage, Vector[AbstractImport]), () => TypeCheckResult] {
+      override def toString: String = s"TypeCheckJob for $abstractPackage"
+
+      protected override def sequentialPrecompute(): (Vector[Source], PPackage, Vector[AbstractImport]) = {
+        val (sources, ast) = getParseResult(abstractPackage)
+        val importTargets = ast.imports.map(importNode => RegularImport(importNode.importPath))
+        val isBuiltIn = abstractPackage == BuiltInPackage
+        val dependencies = if (isBuiltIn) importTargets else BuiltInImport +: importTargets
+        // schedule type-checking of dependent packages:
+        dependencies.foreach(importTarget => {
+          val dependentPackage = AbstractPackage(importTarget)(config)
+          val job = TypeCheckJob(dependentPackage)
+          typeCheckManager.addIfAbsent(dependentPackage, job)
+        })
+        (sources, ast, dependencies)
+      }
+
+      protected def compute(precomputationResult: (Vector[Source], PPackage, Vector[AbstractImport])): () => TypeCheckResult = {
+        val (sources, ast, dependencies) = precomputationResult
+        val dependentTypeInfo = dependencies.map(importTarget => {
+          val dependentPackage = AbstractPackage(importTarget)(config)
+          (importTarget, typeCheckManager.getResult(dependentPackage))
+        })
+        config.typeCheckMode match {
+          case Sequential | Parallel =>
+            val res = typeCheck(sources, ast, dependentTypeInfo.toMap, isMainContext = isMainContext)
+            () => res
+          case Lazy =>
+            lazy val res = typeCheck(sources, ast, dependentTypeInfo.toMap, isMainContext = isMainContext)
+            () => res
+        }
+      }
+
+      private def typeCheck(pkgSources: Vector[Source], pkg: PPackage, dependentTypeInfo: DependentTypeInfo, isMainContext: Boolean = false, isLazy: Boolean = false): TypeCheckResult = {
         val startMs = System.currentTimeMillis()
         logger.trace(s"start type-checking ${pkg.info.id}")
-        val res = Info.checkSources(pkgSources, pkg, dependentTypeInfo, isMainContext = isMainContext)(config)
+        val res = Info.checkSources(pkgSources, pkg, dependentTypeInfo, isMainContext = isMainContext)(config, executionContext)
         logger.trace {
           val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
           s"type-checking ${pkg.info.id} done (took ${durationS}s with ${res.map(info => info.tree.nodes.length.toString).getOrElse("_")} nodes)"
+        }
+        if (isLazy) {
+          tyeCheckDurationMs.getAndUpdate(prev => Math.max(prev, System.currentTimeMillis() - startMs))
+        } else {
+          tyeCheckDurationMs.addAndGet(System.currentTimeMillis() - startMs)
         }
         res
       }
     }
 
-    case class LazyTypeCheckJob(abstractPackage: AbstractPackage, isMainContext: Boolean = false) extends Job[TypeCheckResult] with TypeCheckJob {
-      override def toString: String = s"LazyTypeCheckJob for $abstractPackage"
-
-      override def compute(): TypeCheckResult = {
-        // in lazy mode, this function is called exactly when this package needs to be type-checked
-        // we also do not care about any dependent packages, because they will be lazily type-checked
-        val (sources, ast) = getParseResult(abstractPackage)
-        // we assume that all packages have been registered with the typeCheckManager
-        val importTargets = ast.imports.map(importNode => RegularImport(importNode.importPath))
-        val isBuiltIn = abstractPackage == BuiltInPackage
-        val dependencies = if (isBuiltIn) importTargets else BuiltInImport +: importTargets
-        val dependentTypeInfo: DependentTypeInfo = dependencies
-          .map(importTarget => (importTarget, () => typeCheckManager.getResult(AbstractPackage(importTarget)(config))))
-          .toMap
-        typeCheck(sources, ast, dependentTypeInfo, isMainContext = isMainContext)
-      }
-    }
-
-    case class SequentialTypeCheckJob(abstractPackage: AbstractPackage, isMainContext: Boolean = false) extends Job[TypeCheckResult] with TypeCheckJob {
-      override def toString: String = s"SequentialTypeCheckJob for $abstractPackage"
-
-      override def compute(): TypeCheckResult = {
-        val (sources, ast) = getParseResult(abstractPackage)
-        val importTargets = ast.imports.map(importNode => RegularImport(importNode.importPath))
-        val isBuiltIn = abstractPackage == BuiltInPackage
-        val dependencies = if (isBuiltIn) importTargets else BuiltInImport +: importTargets
-        // first type-check dependent packages:
-        val dependentTypeInfos = dependencies
-          .map(importTarget => {
-            val dependentPackage = AbstractPackage(importTarget)(config)
-            // add to manager & typecheck them if not present yet
-            val job = SequentialTypeCheckJob(dependentPackage)
-            typeCheckManager.addIfAbsent(dependentPackage, job)
-            (importTarget, () => typeCheckManager.getResult(dependentPackage))
-          })
-
-        typeCheck(sources, ast, dependentTypeInfos.toMap, isMainContext = isMainContext)
-      }
-    }
-
-    // case class ParallelTypeCheckJob(abstractPackage: AbstractPackage, isMainContext: Boolean = false) extends Job[Future[TypeCheckResult]] with TypeCheckJob {
-    case class ParallelTypeCheckJob(abstractPackage: AbstractPackage, isMainContext: Boolean = false) extends ParallelJob[TypeCheckResult] with TypeCheckJob {
-      override def toString: String = s"ParallelTypeCheckJob for $abstractPackage"
-
-      override def compute(): Future[TypeCheckResult] = {
-        val (sources, ast) = getParseResult(abstractPackage)
-        val importTargets = ast.imports.map(importNode => RegularImport(importNode.importPath))
-        val isBuiltIn = abstractPackage == BuiltInPackage
-        val dependencies = if (isBuiltIn) importTargets else BuiltInImport +: importTargets
-        // first type-check dependent packages:
-        val dependentJobsFuts = dependencies
-          .map(importTarget => {
-            val dependentPackage = AbstractPackage(importTarget)(config)
-            // add to manager & typecheck them if not present yet
-            val job = ParallelTypeCheckJob(dependentPackage)
-            parallelTypeCheckManager.addIfAbsent(dependentPackage, job)(executionContext)
-              .map(typeInfo => (importTarget, () => typeInfo))(executionContext)
-            /*
-            parallelTypeCheckManager.getFuture(dependentPackage).flatten
-              .map(typeInfo => (importTarget, () => typeInfo))(executionContext)
-            */
-          })
-        implicit val executor: GobraExecutionContext = executionContext
-        val dependentJobsFut = Future.sequence(dependentJobsFuts)
-        dependentJobsFut.map(dependentTypeInfo => typeCheck(sources, ast, dependentTypeInfo.toMap, isMainContext = isMainContext))
-      }
-    }
-
-    case class FailureJob(errs: Vector[VerifierError]) extends Job[TypeCheckResult] {
-      override def compute(): TypeCheckResult = Left(errs)
-    }
-
     def typeCheck(pkg: AbstractPackage): TypeCheckResult = {
-      config.typeCheckMode match {
-        case Lazy =>
-          // we have to transitively add all packages to the typeCheckManager:
-          lazyTypeCheckRecursively(pkg, isMainContext = true)
-          typeCheckManager.getResult(pkg)
-        case Sequential =>
-          typeCheckManager.addIfAbsent(pkg, SequentialTypeCheckJob(pkg, isMainContext = true))
-          typeCheckManager.getResult(pkg)
-        case Parallel =>
-          /*
-          parallelTypeCheckManager.addIfAbsent(pkg, ParallelTypeCheckJob(pkg, isMainContext = true))(executionContext)
-          // wait for result:
-          val fut = parallelTypeCheckManager.getResult(pkg)
-          */
-          val fut = parallelTypeCheckManager.addIfAbsent(pkg, ParallelTypeCheckJob(pkg, isMainContext = true))(executionContext)
-          Await.result(fut, Duration.Inf)
-      }
+      typeCheckManager.addIfAbsent(pkg, TypeCheckJob(pkg, isMainContext = true))
+      val resFn = typeCheckManager.getResult(pkg)
+      resFn()
     }
-
-    private def lazyTypeCheckRecursively(abstractPackage: AbstractPackage, isMainContext: Boolean): Unit = {
-      /** returns all transitively imported packages. However, `abstractPackage` is not included in the returned set! */
-      def allImports(abstractPackage: AbstractPackage): Set[AbstractPackage] = {
-        val (_, ast: PPackage) = getParseResult(abstractPackage)
-        ast.imports
-          .map(importNode => AbstractPackage(RegularImport(importNode.importPath))(config))
-          .toSet
-          .flatMap[AbstractPackage](directlyImportedPackage => allImports(directlyImportedPackage) + directlyImportedPackage)
-      }
-
-      val dependentPackages = allImports(abstractPackage) + BuiltInPackage
-      // create jobs for all dependent packages
-      dependentPackages.foreach(pkg => typeCheckManager.addIfAbsent(pkg, LazyTypeCheckJob(pkg)))
-      // create job for this package:
-      typeCheckManager.addIfAbsent(abstractPackage, LazyTypeCheckJob(abstractPackage, isMainContext = isMainContext))
-    }
-    /*
-    def getContexts: Iterable[ExternalTypeInfo] = {
-      config.typeCheckMode match {
-        case Lazy | Sequential => typeCheckManager.getAllResults(executionContext).collect { case Right(info) => info }
-        case Parallel =>
-          implicit val executor: GobraExecutionContext = executionContext
-          val results = Await.result(Future.sequence(parallelTypeCheckManager.getAllResults(executionContext)), Duration.Inf)
-          results.collect { case Right(info) => info }
-      }
-    }
-
-    def getTypeInfo(importTarget: AbstractImport)(config: Config): TypeCheckResult = {
-      val packageTarget = AbstractPackage(importTarget)(config)
-      config.typeCheckMode match {
-        case Lazy | Sequential => typeCheckManager.getResult(packageTarget)
-        case Parallel =>
-          val future = parallelTypeCheckManager.getFuture(packageTarget).flatten
-          Violation.violation(future.isCompleted, s"job $importTarget is not yet completed")
-          Await.result(future, Duration.Inf)
-      }
-    }
-    */
   }
 
-  def check(config: Config, abstractPackage: AbstractPackage, /*parseResults: Map[AbstractPackage, ParseSuccessResult]*/ parseResults: Map[AbstractPackage, ParseResult])(executionContext: GobraExecutionContext): TypeCheckResult = {
+  def check(config: Config, abstractPackage: AbstractPackage, parseResults: Map[AbstractPackage, ParseResult])(executionContext: GobraExecutionContext): TypeCheckResult = {
     // check for cycles
     // val cyclicErrors = new CycleChecker(config, parseResults).check(abstractPackage)
     for {
@@ -334,29 +245,14 @@ object Info extends LazyLogging {
         val durationS = f"${(System.currentTimeMillis() - typeCheckingStartMs) / 1000f}%.1f"
         s"type-checking done, took ${durationS}s (in mode ${config.typeCheckMode})"
       }
-    } yield typeInfo
-
-
-    /*
-    if (cyclicErrors.isEmpty) {
-      val typeCheckingStartMs = System.currentTimeMillis()
-      // add type-checking jobs to context:
-      val context = new Context(config, parseResults)(executionContext)
-      val res = context.typeCheck(abstractPackage)
-      logger.debug {
-        val durationS = f"${(System.currentTimeMillis() - typeCheckingStartMs) / 1000f}%.1f"
-        s"type-checking done, took ${durationS}s (in mode ${config.typeCheckMode})"
+      _ = logger.debug {
+        val typeCheckingEndMs = System.currentTimeMillis()
+        val sumDurationS = f"${context.tyeCheckDurationMs.get() / 1000f}%.1f"
+        val overheadMs = (typeCheckingEndMs - typeCheckingStartMs) - context.tyeCheckDurationMs.get()
+        val overheadS = f"${overheadMs / 1000f}%.1f"
+        s"type-checking individual packages took ${sumDurationS}s. Overhead for tasks is thus ${overheadS}s (${(100f * overheadMs / (typeCheckingEndMs - typeCheckingStartMs)).toInt}%)"
       }
-      // we do not report any messages in this case, because `checkSources` will do so (for each package)
-      res
-    } else {
-      val (sources, pkg) = parseResults(abstractPackage)
-      val sourceNames = sources.map(_.name)
-      val errors = pkg.positions.translate(cyclicErrors, TypeError).distinct
-      config.reporter report TypeCheckFailureMessage(sourceNames, pkg.packageClause.id.name, () => pkg, errors)
-      Left(errors)
-    }
-     */
+    } yield typeInfo
   }
 
   type TypeInfoCacheKey = String
@@ -389,12 +285,12 @@ object Info extends LazyLogging {
     typeInfoCache.clear()
   }
 
-  def checkSources(sources: Vector[Source], pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean = false)(config: Config): TypeCheckResult = {
+  def checkSources(sources: Vector[Source], pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean = false)(config: Config, executionContext: GobraExecutionContext): TypeCheckResult = {
     var cacheHit: Boolean = true
     def getTypeInfo(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean, config: Config): TypeInfoImpl = {
       cacheHit = false
       val tree = new GoTree(pkg)
-      new TypeInfoImpl(tree, dependentTypeInfo, isMainContext)(config: Config)
+      new TypeInfoImpl(tree, dependentTypeInfo, isMainContext)(config: Config, executionContext)
     }
 
     def getTypeInfoCached(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean, config: Config): TypeInfoImpl = {
@@ -407,7 +303,12 @@ object Info extends LazyLogging {
       println(s"No cache hit for type info for ${pkg.info.id}")
     }
 
+    val startTimeMs = System.currentTimeMillis()
     val errors = info.errors
+    logger.trace {
+      val durationS = f"${(System.currentTimeMillis() - startTimeMs) / 1000f}%.1f"
+      s"computing errors for ${pkg.info.id} done, took ${durationS}s"
+    }
 
     val sourceNames = sources.map(_.name)
     // use `sources` instead of `context.inputs` for reporting such that the message is correctly attributed in case of imports

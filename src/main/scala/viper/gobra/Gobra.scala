@@ -16,7 +16,7 @@ import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, InternalTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
-import viper.gobra.frontend.Parser.{ParseResult, ParseSuccessResult}
+import viper.gobra.frontend.Parser.ParseResult
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, PackageInfo, Parser, ScallopGobraConfig}
 import viper.gobra.reporting._
@@ -159,7 +159,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       for {
         finalConfig <- getAndMergeInFileConfig(config, pkgInfo)
         _ = setLogLevel(finalConfig)
-        parseResults <- performParsing(finalConfig, pkgInfo)(executor)
+        parseResults = performParsing(finalConfig, pkgInfo)(executor)
         typeInfo <- performTypeChecking(finalConfig, pkgInfo, parseResults)(executor)
         program <- performDesugaring(finalConfig, typeInfo)(executor)
         program <- performInternalTransformations(finalConfig, pkgInfo, program)(executor)
@@ -243,7 +243,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       .setLevel(config.logLevel)
   }
 
-  private def performParsing(config: Config, pkgInfo: PackageInfo)(executor: GobraExecutionContext): Either[Vector[VerifierError], Map[AbstractPackage, ParseResult]] = {
+  private def performParsing(config: Config, pkgInfo: PackageInfo)(executor: GobraExecutionContext): Map[AbstractPackage, ParseResult] = {
     if (config.shouldParse) {
       val startMs = System.currentTimeMillis()
       val res = Parser.parse(config, pkgInfo)(executor)
@@ -253,7 +253,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       }
       res
     } else {
-      Left(Vector())
+      Map.empty
     }
   }
 

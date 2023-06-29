@@ -51,8 +51,8 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
   }
 
   override def runTests(testName: Option[String], args: Args): Status = {
-    val inputMap = inputMapping.toMap
     if (cacheParser) {
+      val inputMap = inputMapping.toMap
       val config = Config(packageInfoInputMap = inputMap, cacheParser = true)
       val parseManager = new ParseManager(config, executor)
       parseManager.parseAll(inputMap.keys.toVector)
@@ -72,16 +72,17 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
 
       override def run(input: AnnotatedTestInput): Seq[AbstractOutput] = {
 
+        val source = FromFileSource(input.file)
+        val packageInfoInputMap = if (cacheParser) inputMapping.toMap else Map(Source.getPackageInfo(source, Path.of("")) -> Vector(source))
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,
-          packageInfoInputMap = inputMapping.toMap,
+          packageInfoInputMap = packageInfoInputMap,
           checkConsistency = true,
           cacheParser = cacheParser,
           z3Exe = z3Exe
         )
 
-        val source = FromFileSource(input.file)
         val pkgInfo = Source.getPackageInfo(source, Path.of(""))
         val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(pkgInfo, config)(executor), Duration.Inf))
 

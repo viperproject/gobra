@@ -8,27 +8,17 @@ package viper.gobra.typing
 
 import org.bitbucket.inkytonik.kiama.util.Positions
 import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.{BeforeAndAfterAll, Inside}
+import org.scalatest.Inside
 import org.scalatest.matchers.should.Matchers
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.gobra.util.TypeBounds.{DefaultInt, UnboundedInteger}
 
-class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside with BeforeAndAfterAll {
+class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
-  var executor: GobraExecutionContext = _
-
-  override def beforeAll(): Unit = {
-    executor = new DefaultGobraExecutionContext()
-  }
-
-  override def afterAll(): Unit = {
-    executor.terminateAndAssertInexistanceOfTimeout()
-  }
 
   test("TypeChecker: should classify an integer literal as integer") {
     frontend.exprType(PIntLit(42))() should matchPattern {
@@ -3402,7 +3392,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside with Bef
       )
       val tree = new Info.GoTree(pkg)
       val config = Config()
-      new TypeInfoImpl(tree, Map.empty)(config, executor)
+      new TypeInfoImpl(tree, Map.empty)(config)
     }
 
     def exprType(expr : PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector()) : Type.Type =

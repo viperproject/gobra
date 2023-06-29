@@ -9,26 +9,16 @@ package viper.gobra.typing
 import org.bitbucket.inkytonik.kiama.util.Positions
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.{BeforeAndAfterAll, Inside}
+import org.scalatest.Inside
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.gobra.util.TypeBounds.DefaultInt
 
-class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside with BeforeAndAfterAll {
+class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
-  var executor: GobraExecutionContext = _
-
-  override def beforeAll(): Unit = {
-    executor = new DefaultGobraExecutionContext()
-  }
-
-  override def afterAll(): Unit = {
-    executor.terminateAndAssertInexistanceOfTimeout()
-  }
 
   test("Typing: should correctly type an integer sequence type") {
     val t = PSequenceType(PIntType())
@@ -389,7 +379,7 @@ class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside with Bef
       )
       val tree = new Info.GoTree(pkg)
       val config = Config()
-      new TypeInfoImpl(tree, Map.empty)(config, executor)
+      new TypeInfoImpl(tree, Map.empty)(config)
     }
 
     def areComparable(t1 : PType, t2 : PType) : Boolean = {

@@ -206,7 +206,7 @@ object Info extends LazyLogging {
       private def typeCheck(pkgSources: Vector[Source], pkg: PPackage, dependentTypeInfo: DependentTypeInfo, isMainContext: Boolean = false, isLazy: Boolean = false): TypeCheckResult = {
         val startMs = System.currentTimeMillis()
         logger.trace(s"start type-checking ${pkg.info.id}")
-        val res = Info.checkSources(pkgSources, pkg, dependentTypeInfo, isMainContext = isMainContext)(config, executionContext)
+        val res = Info.checkSources(pkgSources, pkg, dependentTypeInfo, isMainContext = isMainContext)(config)
         logger.trace {
           val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
           s"type-checking ${pkg.info.id} done (took ${durationS}s with ${res.map(info => info.tree.nodes.length.toString).getOrElse("_")} nodes)"
@@ -285,12 +285,12 @@ object Info extends LazyLogging {
     typeInfoCache.clear()
   }
 
-  def checkSources(sources: Vector[Source], pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean = false)(config: Config, executionContext: GobraExecutionContext): TypeCheckResult = {
+  def checkSources(sources: Vector[Source], pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean = false)(config: Config): TypeCheckResult = {
     var cacheHit: Boolean = true
     def getTypeInfo(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean, config: Config): TypeInfoImpl = {
       cacheHit = false
       val tree = new GoTree(pkg)
-      new TypeInfoImpl(tree, dependentTypeInfo, isMainContext)(config: Config, executionContext)
+      new TypeInfoImpl(tree, dependentTypeInfo, isMainContext)(config: Config)
     }
 
     def getTypeInfoCached(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean, config: Config): TypeInfoImpl = {

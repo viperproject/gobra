@@ -6,7 +6,7 @@
 
 package viper.gobra.backend
 
-import viper.gobra.frontend.Config
+import viper.gobra.frontend.{Config, MCE}
 import viper.gobra.util.GobraExecutionContext
 import viper.server.ViperConfig
 import viper.server.core.ViperCoreServer
@@ -27,9 +27,12 @@ object ViperBackends {
       if (config.conditionalizePermissions) {
         options ++= Vector("--conditionalizePermissions")
       }
-      if (!config.disableMoreCompleteExhale) {
-        options ++= Vector("--enableMoreCompleteExhale")
+      val mceSiliconOpt = config.mceMode match {
+        case MCE.Disabled => "0"
+        case MCE.Enabled  => "1"
+        case MCE.OnDemand => "2"
       }
+      options ++= Vector(s"--exhaleMode=$mceSiliconOpt")
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }
@@ -78,7 +81,7 @@ object ViperBackends {
     /** returns an existing ViperCoreServer instance or otherwise creates a new one */
     protected def getOrCreateServer(config: Config)(executionContext: GobraExecutionContext): ViperCoreServer = {
       server.getOrElse({
-        var serverConfig = List("--logLevel", config.logLevel.levelStr)
+        var serverConfig = List("--disablePlugins", "--logLevel", config.logLevel.levelStr)
         if(config.cacheFile.isDefined) {
           serverConfig = serverConfig.appendedAll(List("--cacheFile", config.cacheFile.get.toString))
         }
@@ -100,9 +103,12 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
-      if (!config.disableMoreCompleteExhale) {
-        options ++= Vector("--enableMoreCompleteExhale")
+      val mceSiliconOpt = config.mceMode match {
+        case MCE.Disabled => "0"
+        case MCE.Enabled  => "1"
+        case MCE.OnDemand => "2"
       }
+      options ++= Vector(s"--exhaleMode=$mceSiliconOpt")
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }

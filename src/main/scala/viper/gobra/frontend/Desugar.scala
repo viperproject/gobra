@@ -1838,7 +1838,7 @@ object Desugar extends LazyLogging {
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
 
           case n: POutline =>
-            val name = s"${rootName(n, info)}$$${nm.relativeId(n, info)}"
+            val name = s"${rootName(n, info)}$$${nm.relativeIdEnclosingFuncOrMethodDecl(n, info)}"
             val pres = (n.spec.pres ++ n.spec.preserves) map preconditionD(ctx, info)
             val posts = (n.spec.preserves ++ n.spec.posts) map postconditionD(ctx, info)
             val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
@@ -3768,7 +3768,7 @@ object Desugar extends LazyLogging {
       case t: Type.AdtClauseT =>
         val tAdt = Type.AdtT(t.adtT, t.context)
         val adt: in.AdtT = in.AdtT(nm.adt(tAdt), addrMod)
-        val fields: Vector[in.Field] = (t.fields map { case (key: String, typ: Type) =>
+        val fields: Vector[in.Field] = (t.fieldsWithTypes map { case (key: String, typ: Type) =>
           in.Field(nm.adtField(key, tAdt), typeD(typ, Addressability.mathDataStructureElement)(src), true)(src)
         }).toVector
         in.AdtClauseT(idName(t.decl.id, t.context.getTypeInfo), adt, fields, addrMod)
@@ -3840,6 +3840,13 @@ object Desugar extends LazyLogging {
         case decl: PMethodSig      => idName(decl.id, context)
         case decl: PMPredicateSig  => idName(decl.id, context)
         case decl: PDomainFunction => idName(decl.id, context)
+        case decl: PClosureDecl =>
+          // closure declarations do not have an associated name and may be arbitrarily nested.
+          // to simplify, we just return the enclosing function or method's name
+          info.enclosingFunctionOrMethod(decl) match {
+            case Some(d) => idName(d.id, context)
+            case None => violation(s"Could not find a function or method declaration enclosing the closure declaration.")
+          }
         case _ => ??? // axiom and method-implementation-proof
       }
     }
@@ -4884,7 +4891,7 @@ object Desugar extends LazyLogging {
       * The id is of the form 'L$<a>$<b>' where a is the difference of the lines
       * of the node with the code root and b is the difference of the columns
       * of the node with the code root.
-      * If a differce is negative, the '-' character is replaced with '_'.
+      * If the difference is negative, the '-' character is replaced with '_'.
       *
       * @param node the node we are interested in
       * @param info type info to get position information
@@ -4894,6 +4901,25 @@ object Desugar extends LazyLogging {
       val pom = info.getTypeInfo.tree.originalRoot.positions
       val lpos = pom.positions.getStart(node).get
       val rpos = pom.positions.getStart(info.codeRoot(node)).get
+      ("L$" + (lpos.line - rpos.line) + "$" + (lpos.column - rpos.column)).replace("-", "_")
+    }
+
+    /**
+      * Returns an id for a node with respect to its enclosing function or method declaration.
+      * The id is of the form 'L$<a>$<b>' where a is the difference of the lines
+      * of the node with the enclosing declaration and b is the difference of the columns
+      * of the node with the enclosing declaration.
+      * If the difference is negative, the '-' character is replaced with '_'.
+      *
+      * @param node the node we are interested in
+      * @param info type info to get position information
+      * @return     string
+      */
+    def relativeIdEnclosingFuncOrMethodDecl(node: PNode, info: TypeInfo) : String = {
+      val pom = info.getTypeInfo.tree.originalRoot.positions
+      val lpos = pom.positions.getStart(node).get
+      val enclosingMember = info.enclosingFunctionOrMethod(node).get
+      val rpos = pom.positions.getStart(enclosingMember).get
       ("L$" + (lpos.line - rpos.line) + "$" + (lpos.column - rpos.column)).replace("-", "_")
     }
 

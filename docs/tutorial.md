@@ -401,7 +401,7 @@ pure func toSeq(s []int) (res seq[int]) {
 
 Gobra supports many of Go's native types, namely integers (`int`, `int8`, `int16`, `int32`, `int64`, `byte`, `uint8`, `rune`, `uint16`, `uint32`, `uint64`, `uintptr`), strings, structs, pointers, arrays, slices, interfaces, and channels. Note that currently the support for strings and specific types of integers such as `rune` is very limited. 
 
-In addition, Gobra introduces additional ghost types for specification purposes. These are sequences (`seq[T]`), sets (`set[T]`), multisets (`mset[T]`), and permission amounts (`perm`). Gobra supports their common operations: sequence concatenation (`seq1 ++ seq2`), set union (`set1 union set2`), membership (`x in set1`), multiplicity (`x # set1`), sequence length (`len(seq1)`), and set cardinality (`|set1|`). 
+In addition, Gobra introduces additional ghost types for specification purposes. These are sequences (`seq[T]`), sets (`set[T]`), multisets (`mset[T]`), and permission amounts (`perm`). Gobra supports their common operations: sequence concatenation (`seq1 ++ seq2`), set union (`set1 union set2`), membership (`x in set1`), multiplicity (`x # set1`), sequence length (`len(seq1)`), and set cardinality (`len(set1)`). 
 
 
 ## Interfaces

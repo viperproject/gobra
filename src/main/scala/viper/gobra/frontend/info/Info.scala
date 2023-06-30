@@ -217,7 +217,7 @@ object Info extends LazyLogging {
   private val typeInfoCache: ConcurrentMap[TypeInfoCacheKey, TypeInfoImpl] = new ConcurrentHashMap()
 
   private def getCacheKey(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean, config: Config): TypeInfoCacheKey = {
-    // the cache key only depends on config's `typeBounds` and `enableLazyImport`
+    // the cache key only depends on config's `typeBounds`, `int32bit`, and `enableLazyImport`
     val pkgKey = pkg.hashCode().toString
     // the computed key must be deterministic!
     val dependentTypeInfoKey = dependentTypeInfo
@@ -227,6 +227,7 @@ object Info extends LazyLogging {
       .mkString("")
     val isMainContextKey = if (isMainContext) "1" else "0"
     val configKey = config.typeBounds.hashCode().toString ++
+      (if (config.int32bit) "1" else "0") ++
       (if (config.enableLazyImports) "1" else "0")
 
     val key = pkgKey ++

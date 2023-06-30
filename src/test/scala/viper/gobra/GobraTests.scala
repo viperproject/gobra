@@ -55,7 +55,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
       packageInfoInputMap = Map(Source.getPackageInfo(source, Path.of("")) -> Vector(source)),
       checkConsistency = true,
       cacheParserAndTypeChecker = cacheParserAndTypeChecker,
-      z3Exe = z3Exe
+      z3Exe = z3Exe,
     )
 
   override def runTests(testName: Option[String], args: Args): Status = {
@@ -92,7 +92,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
         val source = FromFileSource(input.file)
         val config = getConfig(source)
         val pkgInfo = config.packageInfoInputMap.keys.head
-        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(pkgInfo, getConfig(source))(executor), Duration.Inf))
+        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(pkgInfo, config)(executor), Duration.Inf))
 
         info(s"Time required: $elapsedMilis ms")
 

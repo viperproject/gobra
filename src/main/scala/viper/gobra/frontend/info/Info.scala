@@ -15,6 +15,7 @@ import viper.gobra.frontend.{Config, Job, TaskManager}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, BuiltInPackage, RegularImport}
 import viper.gobra.frontend.Parser.{ParseResult, ParseSuccessResult}
 import viper.gobra.frontend.TaskManagerMode.{Lazy, Parallel, Sequential}
+import viper.gobra.frontend.info.Info.Context
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.{GhostLessPrinter, GoifyingPrinter}
 import viper.gobra.reporting.{CyclicImportError, ParserError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
@@ -23,6 +24,7 @@ import viper.gobra.util.{GobraExecutionContext, Violation}
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
+import scala.concurrent.Future
 
 object Info extends LazyLogging {
 
@@ -225,6 +227,12 @@ object Info extends LazyLogging {
       val resFn = typeCheckManager.getResult(pkg)
       resFn()
     }
+
+    def typeCheckFut(pkg: AbstractPackage): Future[TypeCheckResult] = {
+      typeCheckManager.addIfAbsent(pkg, TypeCheckJob(pkg, isMainContext = true))
+      typeCheckManager.getResultFut(pkg)
+        .map(resFn => resFn())(executionContext)
+    }
   }
 
   def check(config: Config, abstractPackage: AbstractPackage, parseResults: Map[AbstractPackage, ParseResult])(executionContext: GobraExecutionContext): TypeCheckResult = {
@@ -254,6 +262,39 @@ object Info extends LazyLogging {
         s"type-checking individual packages took ${sumDurationS}s. Overhead for tasks is thus ${overheadS}s (${(100f * overheadMs / (typeCheckingEndMs - typeCheckingStartMs)).toInt}%)"
       }
     } yield typeInfo
+  }
+
+  def checkFut(config: Config, abstractPackage: AbstractPackage, parseResults: Map[AbstractPackage, ParseResult])(executionContext: GobraExecutionContext): Future[TypeCheckResult] = {
+    implicit val executor: GobraExecutionContext = executionContext
+    val res = for {
+      // check whether parsing of this package was successful:
+      parseResult <- parseResults(abstractPackage)
+      // check whether there are any import cycles:
+      cycleResult <- new CycleChecker(config, parseResults).check(abstractPackage)
+        .left.map(errs => {
+        val (sources, pkg) = parseResult
+        val sourceNames = sources.map(_.name)
+        config.reporter report TypeCheckFailureMessage(sourceNames, pkg.packageClause.id.name, () => pkg, errs)
+        errs
+      })
+      typeCheckingStartMs = System.currentTimeMillis()
+      context = new Context(config, cycleResult)(executionContext)
+      typeInfoFut = for {
+        typeInfo <- context.typeCheckFut(abstractPackage)
+        _ = logger.debug {
+          val durationS = f"${(System.currentTimeMillis() - typeCheckingStartMs) / 1000f}%.1f"
+          s"type-checking done, took ${durationS}s (in mode ${config.typeCheckMode})"
+        }
+        _ = logger.debug {
+          val typeCheckingEndMs = System.currentTimeMillis()
+          val sumDurationS = f"${context.tyeCheckDurationMs.get() / 1000f}%.1f"
+          val overheadMs = (typeCheckingEndMs - typeCheckingStartMs) - context.tyeCheckDurationMs.get()
+          val overheadS = f"${overheadMs / 1000f}%.1f"
+          s"type-checking individual packages took ${sumDurationS}s. Overhead for tasks is thus ${overheadS}s (${(100f * overheadMs / (typeCheckingEndMs - typeCheckingStartMs)).toInt}%)"
+        }
+      } yield typeInfo
+    } yield typeInfoFut
+    res.fold(errs => Future.successful(Left(errs)), identity)
   }
 
   type TypeInfoCacheKey = String
@@ -301,7 +342,7 @@ object Info extends LazyLogging {
     val checkFn = if (config.cacheParser) { getTypeInfoCached _ } else { getTypeInfo _ }
     val info = checkFn(pkg, dependentTypeInfo, isMainContext, config)
     if (!cacheHit && config.cacheParser) {
-      println(s"No cache hit for type info for ${pkg.info.id}")
+      logger.trace(s"No cache hit for type info for ${pkg.info.id}")
     }
 
     val startTimeMs = System.currentTimeMillis()

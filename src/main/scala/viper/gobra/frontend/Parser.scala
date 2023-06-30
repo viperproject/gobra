@@ -24,9 +24,10 @@ import viper.silver.ast.SourcePosition
 import scala.collection.mutable.ListBuffer
 import java.security.MessageDigest
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
+import scala.concurrent.Future
 
 
-object Parser {
+object Parser extends LazyLogging {
 
   type ParseSuccessResult = (Vector[Source], PPackage)
   type ParseResult = Either[Vector[ParserError], ParseSuccessResult]
@@ -36,20 +37,13 @@ object Parser {
   class ParseManager(config: Config, executionContext: GobraExecutionContext) extends LazyLogging {
     private val manager = new TaskManager[AbstractPackage, PreprocessedSources, ParseResult](config.typeCheckMode)(executionContext)
 
-    def parse(pkgInfo: PackageInfo): Unit = {
+    // note that the returned future might never complete if typeCheckMode is `Lazy` and there is no trigger to actually
+    // execute the parsing of the specified package
+    def parse(pkgInfo: PackageInfo): Future[ParseResult] = {
       val pkg = RegularPackage(pkgInfo.id)
       val parseJob = ParseInfoJob(pkgInfo)
       manager.addIfAbsent(pkg, parseJob)
-    }
-
-    /** this is only used for unit testing to fill the parse cache */
-    def parseAll(pkgInfos: Vector[PackageInfo]): Map[PackageInfo, ParseResult] = {
-      pkgInfos.foreach(pkgInfo => parse(pkgInfo))
-      val results = manager.getAllResultsWithKeys.toMap
-      pkgInfos.map(pkgInfo => {
-        val pkg = RegularPackage(pkgInfo.id)
-        (pkgInfo, results(pkg))
-      }).toMap
+      parseJob.getFuture
     }
 
     trait ImportResolver {
@@ -167,7 +161,9 @@ object Parser {
         Left(errs)
     }
 
-    def getResults: Map[AbstractPackage, ParseResult] = manager.getAllResultsWithKeys.toMap
+    def getResults: Map[AbstractPackage, ParseResult] = manager.getAllResultsWithKeys
+
+    def getResultsFut: Future[Map[AbstractPackage, ParseResult]] = manager.getAllResultsWithKeysFut
   }
 
   /**
@@ -195,6 +191,20 @@ object Parser {
       case Some(Left(errs)) => Left(errs)
       case _ => Violation.violation(s"No parse result for package '$pkgInfo' found")
     }
+  }
+
+  def parseFut(config: Config, pkgInfo: PackageInfo)(executionContext: GobraExecutionContext): Future[Either[Vector[ParserError], Map[AbstractPackage, ParseResult]]] = {
+    val parseManager = new ParseManager(config, executionContext)
+    parseManager.parse(pkgInfo)
+    implicit val executor: GobraExecutionContext = executionContext
+    for {
+      results <- parseManager.getResultsFut
+      res = results.get(RegularPackage(pkgInfo.id)) match {
+        case Some(Right(_)) => Right(results)
+        case Some(Left(errs)) => Left(errs)
+        case _ => Violation.violation(s"No parse result for package '$pkgInfo' found")
+      }
+    } yield res
   }
 
   def parse(input: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
@@ -229,7 +239,7 @@ object Parser {
 
       val res = preambleCache.computeIfAbsent(getPreambleCacheKey(preprocessedSource), _ => parseAndStore())
       if (!cacheHit) {
-        println(s"No cache hit for ${res.map(_.packageClause.id.name)}'s preamble (${preambleCache.size()} entries in cache)")
+        logger.trace(s"No cache hit for ${res.map(_.packageClause.id.name)}'s preamble")
       }
       res
     }
@@ -294,7 +304,7 @@ object Parser {
         parseSourcesUncached(sources, pkgInfo, specOnly)(config)
       })
       if (!cacheHit) {
-        println(s"No cache hit for package ${pkgInfo.id}")
+        logger.trace(s"No cache hit for package ${pkgInfo.id}'s parse AST)")
       }
       res
     }

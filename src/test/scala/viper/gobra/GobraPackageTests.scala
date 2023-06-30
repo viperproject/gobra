@@ -58,7 +58,6 @@ class GobraPackageTests extends GobraTests {
         // test scallop parsing by giving package name and testing whether the same set of files is created
         val currentDir = input.file.getParent
         val parsedConfig = for {
-          pkgName <- getPackageClause(input.file.toFile)
           config <- createConfig(Array(
             "--logLevel", "INFO",
             "--directory", currentDir.toFile.getPath,

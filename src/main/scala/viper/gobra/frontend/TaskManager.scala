@@ -73,17 +73,21 @@ class TaskManager[K, I, R](mode: TaskManagerMode)(executionContext: GobraExecuti
     }
   }
 
-  def getResult(id: K): R = {
+  def getResultFut(id: K): Future[R] = {
     val job = jobs.get(id)
     Violation.violation(job != null, s"Task $id not found")
     mode match {
       case Lazy => job.execute() // now we need the job's result
       case _ =>
     }
-    Await.result(job.getFuture, Duration.Inf)
+    job.getFuture
   }
 
-  def getAllResultsWithKeys: Iterable[(K, R)] = {
+  def getResult(id: K): R = {
+    Await.result(getResultFut(id), Duration.Inf)
+  }
+
+  def getAllResultsWithKeysFut: Future[Map[K, R]] = {
     implicit val executor: GobraExecutionContext = executionContext
     val futs = jobs.asScala.toVector.map { case (key, job) =>
       mode match {
@@ -92,6 +96,10 @@ class TaskManager[K, I, R](mode: TaskManagerMode)(executionContext: GobraExecuti
       }
       job.getFuture.map(res => (key, res))
     }
-    Await.result(Future.sequence(futs), Duration.Inf)
+    Future.sequence(futs).map(_.toMap)
+  }
+
+  def getAllResultsWithKeys: Map[K, R] = {
+    Await.result(getAllResultsWithKeysFut, Duration.Inf)
   }
 }

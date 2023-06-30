@@ -56,7 +56,7 @@ trait GobraFrontendForTesting extends Frontend {
   val z3PropertyName = "GOBRATESTS_Z3_EXE"
   val z3Exe: Option[String] = Option(System.getProperty(z3PropertyName))
 
-  protected val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
+  protected implicit val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
   protected var config: Option[Config] = None
 
   /** Initialize this translator with a given verifier. Only meant to be called once. */

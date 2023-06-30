@@ -35,6 +35,7 @@ lazy val gobra = (project in file("."))
     libraryDependencies += "org.apache.commons" % "commons-text" % "1.9", // for escaping strings in parser preprocessor
     libraryDependencies += "commons-codec" % "commons-codec" % "1.15", // for obtaining the hex encoding of a string
     libraryDependencies += "org.antlr" % "antlr4-runtime" % "4.12.0",
+    libraryDependencies += "org.scalaz" %% "scalaz-core" % "7.3.7", // used for EitherT
 
     scalacOptions ++= Seq(
       "-encoding", "UTF-8", // Enforce UTF-8, instead of relying on properly set locales

@@ -7,11 +7,13 @@
 package viper.gobra
 
 import ch.qos.logback.classic.Logger
+import scalaz.EitherT
 
 import java.nio.file.Paths
 import java.util.concurrent.ExecutionException
 import com.typesafe.scalalogging.StrictLogging
 import org.slf4j.LoggerFactory
+import scalaz.Scalaz.futureInstance
 import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, InternalTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
@@ -28,7 +30,6 @@ import viper.silver.{ast => vpr}
 
 import java.time.format.DateTimeFormatter
 import java.time.LocalTime
-import scala.annotation.unused
 import scala.concurrent.{Await, Future, TimeoutException}
 
 object GoVerifier {
@@ -142,7 +143,7 @@ trait GoVerifier extends StrictLogging {
     if (allErrors.isEmpty) VerifierResult.Success else VerifierResult.Failure(allErrors)
   }
 
-  protected[this] def verify(pkgInfo: PackageInfo, config: Config)(executor: GobraExecutionContext): Future[VerifierResult]
+  protected[this] def verify(pkgInfo: PackageInfo, config: Config)(implicit executor: GobraExecutionContext): Future[VerifierResult]
 }
 
 trait GoIdeVerifier {
@@ -151,27 +152,23 @@ trait GoIdeVerifier {
 
 class Gobra extends GoVerifier with GoIdeVerifier {
 
-  override def verify(pkgInfo: PackageInfo, config: Config)(executor: GobraExecutionContext): Future[VerifierResult] = {
-    // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
-    implicit val _executor: GobraExecutionContext = executor
+  override def verify(pkgInfo: PackageInfo, config: Config)(implicit executor: GobraExecutionContext): Future[VerifierResult] = {
+    val task = for {
+      finalConfig <- EitherT.fromEither(Future.successful(getAndMergeInFileConfig(config, pkgInfo)))
+      _ = setLogLevel(finalConfig)
+      parseResults <- performParsing(finalConfig, pkgInfo)
+      typeInfo <- performTypeChecking(finalConfig, pkgInfo, parseResults)
+      program <- performDesugaring(finalConfig, typeInfo)
+      program <- performInternalTransformations(finalConfig, pkgInfo, program)
+      viperTask <- performViperEncoding(finalConfig, pkgInfo, program)
+    } yield (viperTask, finalConfig)
 
-    val task = Future {
-      for {
-        finalConfig <- getAndMergeInFileConfig(config, pkgInfo)
-        _ = setLogLevel(finalConfig)
-        parseResults <- performParsing(finalConfig, pkgInfo)(executor)
-        typeInfo <- performTypeChecking(finalConfig, pkgInfo, parseResults)(executor)
-        program <- performDesugaring(finalConfig, typeInfo)(executor)
-        program <- performInternalTransformations(finalConfig, pkgInfo, program)(executor)
-        viperTask <- performViperEncoding(finalConfig, pkgInfo, program)(executor)
-      } yield (viperTask, finalConfig)
-    }
-
-    task.flatMap{
-      case Left(Vector()) => Future(VerifierResult.Success)
-      case Left(errors)   => Future(VerifierResult.Failure(errors))
-      case Right((job, finalConfig)) => performVerification(finalConfig, pkgInfo, job.program,  job.backtrack)(executor)
-    }
+    task.foldM({
+      case Vector() => Future(VerifierResult.Success)
+      case errors => Future(VerifierResult.Failure(errors))
+    }, {
+      case (job, finalConfig) => performVerification(finalConfig, pkgInfo, job.program,  job.backtrack)
+    })
   }
 
   override def verifyAst(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {
@@ -245,39 +242,39 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   // returns `Left(...)` if parsing of the package identified by `pkgInfo` failed. Note that `Right(...)` does not imply
   // that all imported packages have been parsed successfully (this is only checked during type-checking)
-  private def performParsing(config: Config, pkgInfo: PackageInfo)(executor: GobraExecutionContext): Either[Vector[VerifierError], Map[AbstractPackage, ParseResult]] = {
+  private def performParsing(config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Map[AbstractPackage, ParseResult]] = {
     if (config.shouldParse) {
       val startMs = System.currentTimeMillis()
-      val res = Parser.parse(config, pkgInfo)(executor)
+      val res = Parser.parse(config, pkgInfo)
       logger.debug {
         val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
         s"parser phase done, took ${durationS}s"
       }
       res
     } else {
-      Left(Vector.empty)
+      EitherT.left(Vector.empty)
     }
   }
 
-  private def performTypeChecking(config: Config, pkgInfo: PackageInfo, parseResults: Map[AbstractPackage, ParseResult])(executor: GobraExecutionContext): Either[Vector[VerifierError], TypeInfo] = {
+  private def performTypeChecking(config: Config, pkgInfo: PackageInfo, parseResults: Map[AbstractPackage, ParseResult])(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, TypeInfo] = {
     if (config.shouldTypeCheck) {
-      Info.check(config, RegularPackage(pkgInfo.id), parseResults)(executor)
+      Info.check(config, RegularPackage(pkgInfo.id), parseResults)
     } else {
-      Left(Vector())
+      EitherT.left(Vector.empty)
     }
   }
 
-  private def performDesugaring(config: Config, typeInfo: TypeInfo)(executor: GobraExecutionContext): Either[Vector[VerifierError], Program] = {
+  private def performDesugaring(config: Config, typeInfo: TypeInfo)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Program] = {
     if (config.shouldDesugar) {
       val startMs = System.currentTimeMillis()
-      val res = Right(Desugar.desugar(config, typeInfo)(executor))
+      val res = EitherT.right[Vector[VerifierError], Future, Program](Desugar.desugar(config, typeInfo)(executor))
       logger.debug {
         val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
         s"desugaring done, took ${durationS}s"
       }
       res
     } else {
-      Left(Vector())
+      EitherT.left(Vector.empty)
     }
   }
 
@@ -285,7 +282,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * Applies transformations to programs in the internal language. Currently, only adds overflow checks but it can
     * be easily extended to perform more transformations
     */
-  private def performInternalTransformations(config: Config, pkgInfo: PackageInfo, program: Program)(@unused executor: GobraExecutionContext): Either[Vector[VerifierError], Program] = {
+  private def performInternalTransformations(config: Config, pkgInfo: PackageInfo, program: Program)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Program] = {
     // constant propagation does not cause duplication of verification errors caused
     // by overflow checks (if enabled) because all overflows in constant declarations 
     // can be found by the well-formedness checks.
@@ -300,24 +297,24 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       s"internal transformations done, took ${durationS}s"
     }
     config.reporter.report(AppliedInternalTransformsMessage(config.packageInfoInputMap(pkgInfo).map(_.name), () => result))
-    Right(result)
+    EitherT.right(result)
   }
 
-  private def performViperEncoding(config: Config, pkgInfo: PackageInfo, program: Program)(@unused executor: GobraExecutionContext): Either[Vector[VerifierError], BackendVerifier.Task] = {
+  private def performViperEncoding(config: Config, pkgInfo: PackageInfo, program: Program)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, BackendVerifier.Task] = {
     if (config.shouldViperEncode) {
       val startMs = System.currentTimeMillis()
-      val res = Right(Translator.translate(program, pkgInfo)(config))
+      val res = EitherT.right[Vector[VerifierError], Future, BackendVerifier.Task](Translator.translate(program, pkgInfo)(config))
       logger.debug {
         val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
         s"Viper encoding done, took ${durationS}s"
       }
       res
     } else {
-      Left(Vector())
+      EitherT.left(Vector.empty)
     }
   }
 
-  private def performVerification(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {
+  private def performVerification(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(implicit executor: GobraExecutionContext): Future[VerifierResult] = {
     if (config.noVerify) {
       Future(VerifierResult.Success)(executor)
     } else {

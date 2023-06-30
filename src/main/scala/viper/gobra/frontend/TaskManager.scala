@@ -54,7 +54,7 @@ trait Job[I, R] {
   }
 }
 
-class TaskManager[K, I, R](mode: TaskManagerMode)(executionContext: GobraExecutionContext) {
+class TaskManager[K, I, R](mode: TaskManagerMode)(implicit executor: GobraExecutionContext) {
   private val jobs: ConcurrentMap[K, Job[I, R]] = new ConcurrentHashMap()
 
   def addIfAbsent(id: K, job: Job[I, R]): Unit = {
@@ -68,12 +68,12 @@ class TaskManager[K, I, R](mode: TaskManagerMode)(executionContext: GobraExecuti
       mode match {
         case Sequential => job.execute()
         case Lazy => // don't do anything as of now
-        case Parallel => Future{ job.execute() }(executionContext)
+        case Parallel => Future{ job.execute() }
       }
     }
   }
 
-  def getResultFut(id: K): Future[R] = {
+  def getResult(id: K): Future[R] = {
     val job = jobs.get(id)
     Violation.violation(job != null, s"Task $id not found")
     mode match {
@@ -83,12 +83,11 @@ class TaskManager[K, I, R](mode: TaskManagerMode)(executionContext: GobraExecuti
     job.getFuture
   }
 
-  def getResult(id: K): R = {
-    Await.result(getResultFut(id), Duration.Inf)
+  def getResultBlocking(id: K): R = {
+    Await.result(getResult(id), Duration.Inf)
   }
 
-  def getAllResultsWithKeysFut: Future[Map[K, R]] = {
-    implicit val executor: GobraExecutionContext = executionContext
+  def getAllResultsWithKeys: Future[Map[K, R]] = {
     val futs = jobs.asScala.toVector.map { case (key, job) =>
       mode match {
         case Lazy => job.execute() // now we need the job's result
@@ -97,9 +96,5 @@ class TaskManager[K, I, R](mode: TaskManagerMode)(executionContext: GobraExecuti
       job.getFuture.map(res => (key, res))
     }
     Future.sequence(futs).map(_.toMap)
-  }
-
-  def getAllResultsWithKeys: Map[K, R] = {
-    Await.result(getAllResultsWithKeysFut, Duration.Inf)
   }
 }

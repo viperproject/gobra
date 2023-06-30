@@ -16,6 +16,8 @@ import viper.gobra.reporting.{Source => _, _}
 import org.antlr.v4.runtime.{CharStreams, CommonTokenStream, DefaultErrorStrategy, ParserRuleContext}
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
+import scalaz.EitherT
+import scalaz.Scalaz.futureInstance
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, PreambleContext, SourceFileContext, SpecMemberContext, StmtOnlyContext, TypeOnlyContext}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, RegularImport, RegularPackage}
 import viper.gobra.util.{GobraExecutionContext, Violation}
@@ -31,11 +33,11 @@ object Parser extends LazyLogging {
 
   type ParseSuccessResult = (Vector[Source], PPackage)
   type ParseResult = Either[Vector[ParserError], ParseSuccessResult]
-  type PreprocessedSources = Vector[Source]
   type ImportToSourceOrErrorMap = Vector[(AbstractPackage, Either[Vector[ParserError], Vector[Source]])]
+  type PreprocessedSources = Vector[Source]
 
-  class ParseManager(config: Config, executionContext: GobraExecutionContext) extends LazyLogging {
-    private val manager = new TaskManager[AbstractPackage, PreprocessedSources, ParseResult](config.typeCheckMode)(executionContext)
+  class ParseManager(config: Config)(implicit executor: GobraExecutionContext) extends LazyLogging {
+    private val manager = new TaskManager[AbstractPackage, PreprocessedSources, ParseResult](config.parseAndTypeCheckMode)
 
     // note that the returned future might never complete if typeCheckMode is `Lazy` and there is no trigger to actually
     // execute the parsing of the specified package
@@ -50,13 +52,11 @@ object Parser extends LazyLogging {
       def pkgInfo: PackageInfo
 
       type ImportErrorFactory = String => Vector[ParserError]
-      // protected def getImports(importNodes: Vector[PImport], pom: PositionManager): Set[(AbstractImport, ImportErrorFactory)] = {
-      protected def getImports(importNodes: Vector[PImport], pom: PositionManager): Vector[(AbstractPackage, Either[Vector[ParserError], Vector[Source]])] = {
+      protected def getImports(importNodes: Vector[PImport], pom: PositionManager): ImportToSourceOrErrorMap = {
         val explicitImports: Vector[(AbstractImport, ImportErrorFactory)] = importNodes
           .map(importNode => {
             val importErrorFactory: ImportErrorFactory = (errMsg: String) => {
               val err = pom.translate(message(importNode, errMsg), ParserError)
-              // config.reporter report ParserErrorMessage(err.head.position.get.file, err)
               err
             }
             (RegularImport(importNode.importPath), importErrorFactory)
@@ -82,14 +82,6 @@ object Parser extends LazyLogging {
           (directImportPackage, res)
         }
         errsOrSources
-        /*
-        val (errors, sources) = errsOrSources.partitionMap(identity)
-        if (errors.nonEmpty) {
-          Left(errors)
-        } else {
-          Right(sources)
-        }
-         */
       }
     }
 
@@ -161,9 +153,7 @@ object Parser extends LazyLogging {
         Left(errs)
     }
 
-    def getResults: Map[AbstractPackage, ParseResult] = manager.getAllResultsWithKeys
-
-    def getResultsFut: Future[Map[AbstractPackage, ParseResult]] = manager.getAllResultsWithKeysFut
+    def getResults: Future[Map[AbstractPackage, ParseResult]] = manager.getAllResultsWithKeys
   }
 
   /**
@@ -182,34 +172,18 @@ object Parser extends LazyLogging {
     *
     */
 
-  def parse(config: Config, pkgInfo: PackageInfo)(executionContext: GobraExecutionContext): Either[Vector[ParserError], Map[AbstractPackage, ParseResult]] = {
-    val parseManager = new ParseManager(config, executionContext)
+  def parse(config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Map[AbstractPackage, ParseResult]] = {
+    val parseManager = new ParseManager(config)
     parseManager.parse(pkgInfo)
-    val results = parseManager.getResults
-    results.get(RegularPackage(pkgInfo.id)) match {
-      case Some(Right(_)) => Right(results)
-      case Some(Left(errs)) => Left(errs)
-      case _ => Violation.violation(s"No parse result for package '$pkgInfo' found")
-    }
-  }
-
-  def parseFut(config: Config, pkgInfo: PackageInfo)(executionContext: GobraExecutionContext): Future[Either[Vector[ParserError], Map[AbstractPackage, ParseResult]]] = {
-    val parseManager = new ParseManager(config, executionContext)
-    parseManager.parse(pkgInfo)
-    implicit val executor: GobraExecutionContext = executionContext
-    for {
-      results <- parseManager.getResultsFut
+    val res: Future[Either[Vector[VerifierError], Map[AbstractPackage, ParseResult]]] = for {
+      results <- parseManager.getResults
       res = results.get(RegularPackage(pkgInfo.id)) match {
         case Some(Right(_)) => Right(results)
         case Some(Left(errs)) => Left(errs)
         case _ => Violation.violation(s"No parse result for package '$pkgInfo' found")
       }
     } yield res
-  }
-
-  def parse(input: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
-    val preprocessedInputs = preprocess(input)(config)
-    process(preprocessedInputs, pkgInfo, specOnly = specOnly)(config)
+    EitherT.fromEither(res)
   }
 
   private def preprocess(input: Vector[Source])(config: Config): Vector[Source] = {
@@ -244,7 +218,7 @@ object Parser extends LazyLogging {
       res
     }
 
-    if (config.cacheParser) parseSourceCached(preprocessedSource) else parseSource(preprocessedSource)
+    if (config.cacheParserAndTypeChecker) parseSourceCached(preprocessedSource) else parseSource(preprocessedSource)
   }
 
   private def process(preprocessedInputs: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): Either[Vector[ParserError], PPackage] = {
@@ -309,7 +283,7 @@ object Parser extends LazyLogging {
       res
     }
 
-    val parseFn = if (config.cacheParser) { parseSourcesCached _ } else { parseSourcesUncached _ }
+    val parseFn = if (config.cacheParserAndTypeChecker) { parseSourcesCached _ } else { parseSourcesUncached _ }
     parseFn(sources, pkgInfo, specOnly)(config)
   }
 

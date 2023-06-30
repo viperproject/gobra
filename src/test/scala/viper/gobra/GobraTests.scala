@@ -10,6 +10,7 @@ import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import org.bitbucket.inkytonik.kiama.util.Source
 import org.scalatest.{Args, BeforeAndAfterAll, Status}
+import scalaz.Scalaz.futureInstance
 import viper.gobra.frontend.PackageResolver.RegularPackage
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.TaskManagerMode.{Lazy, Parallel}
@@ -35,10 +36,6 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
   var gobraInstance: Gobra = _
   var executor: GobraExecutionContext = _
   var inputs: Vector[Source] = Vector.empty
-  // while we could pre-fetch and cache parse and maybe even type-check results, the regression test suite is designed
-  // in a way that each file is its own test case. However, feeding a map of package infos to Gobra results in Gobra
-  // considering these files in a Go way, i.e., groups them by package clause. This in turn results in testcase failures
-  // as errors occur in files technically not under test but in the same directory and having the same package clause.
   val cacheParserAndTypeChecker = true
 
   override def beforeAll(): Unit = {
@@ -58,8 +55,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
       reporter = NoopReporter,
       packageInfoInputMap = Map(Source.getPackageInfo(source, Path.of("")) -> Vector(source)),
       checkConsistency = true,
-      cacheParser = cacheParserAndTypeChecker,
-      typeCheckMode = if (cacheParserAndTypeChecker) Parallel else Lazy,
+      cacheParserAndTypeChecker = cacheParserAndTypeChecker,
       z3Exe = z3Exe
     )
 
@@ -69,13 +65,12 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
       val futs = inputs.map(source => {
         val config = getConfig(source)
         val pkgInfo = config.packageInfoInputMap.keys.head
-        for {
-          parseResultEither <- Parser.parseFut(config, pkgInfo)(executor)
+        val fut = for {
+          parseResult <- Parser.parseFut(config, pkgInfo)
           pkg = RegularPackage(pkgInfo.id)
-          typeCheckResultEither <- parseResultEither.fold(
-            parseErrs => Future.successful(Left(parseErrs)),
-            parseResult => Info.checkFut(config, pkg, parseResult)(executor))
-        } yield typeCheckResultEither
+          typeCheckResult <- Info.checkFut(config, pkg, parseResult)
+        } yield typeCheckResult
+        fut.toEither
       })
       Await.result(Future.sequence(futs), Duration.Inf)
       println("pre-parsing and pre-typeChecking completed")

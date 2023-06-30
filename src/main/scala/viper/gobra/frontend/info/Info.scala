@@ -10,12 +10,13 @@ import com.typesafe.scalalogging.LazyLogging
 import org.bitbucket.inkytonik.kiama.relation.Tree
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import org.bitbucket.inkytonik.kiama.util.{Position, Source}
+import scalaz.EitherT
+import scalaz.Scalaz.futureInstance
 import viper.gobra.ast.frontend.{PImport, PNode, PPackage}
 import viper.gobra.frontend.{Config, Job, TaskManager}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, BuiltInPackage, RegularImport}
 import viper.gobra.frontend.Parser.{ParseResult, ParseSuccessResult}
 import viper.gobra.frontend.TaskManagerMode.{Lazy, Parallel, Sequential}
-import viper.gobra.frontend.info.Info.Context
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.{GhostLessPrinter, GoifyingPrinter}
 import viper.gobra.reporting.{CyclicImportError, ParserError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
@@ -61,12 +62,6 @@ object Info extends LazyLogging {
         parseResult <- getParseResult(abstractPackage)
         (_, ast) = parseResult
         perImportResult = ast.imports.map(importNode => {
-          // val cycles = getCycles(RegularImport(importNode.importPath))
-          /*
-          val cycles = getImportErrors(RegularImport(importNode.importPath))
-          val msgs = createImportError(importNode, cycles)
-          if (msgs.isEmpty) Right(()) else Left(ast.positions.translate(msgs, TypeError).distinct)
-           */
           val res = getImportErrors(RegularImport(importNode.importPath))
             .left
             .map(errs => {
@@ -81,18 +76,6 @@ object Info extends LazyLogging {
           case (key, Right(res)) => (key, res)
         }
       } yield successParseResults
-      /*
-      val (_, ast) = getParseResult(abstractPackage)
-      val msgs = ast.imports.flatMap(importNode => {
-        val cycles = getCycles(RegularImport(importNode.importPath))
-        createImportError(importNode, cycles)
-      })
-      if (msgs.isEmpty) {
-
-      } else {
-        Left(ast.positions.translate(msgs, TypeError).distinct)
-      }
-      */
     }
 
     /**
@@ -109,7 +92,6 @@ object Info extends LazyLogging {
           if (parserPendingPackages.contains(directlyImportedTarget)) {
             // package cycle detected
             val importNodeStart = ast.positions.positions.getStart(importNode)
-            // Vector(ImportCycle(importNode, importNodeStart, parserPendingPackages))
             val msg = s"Package '$importTarget' is part of the following import cycle that involves the import $importNode$importNodeStart: ${parserPendingPackages.mkString("[", ", ", "]")}"
             Left(Vector(CyclicImportError(s"Cyclic package import detected starting with package '$msg'")))
           } else {
@@ -122,44 +104,17 @@ object Info extends LazyLogging {
       parserPendingPackages = parserPendingPackages.filterNot(_ == importTarget)
       res
     }
-      /*
-    private def getCycles(importTarget: AbstractImport): Vector[ImportCycle] = {
-      val (_, ast) = getParseResult(abstractPackage)
-      val res = ast.imports.flatMap(importNode => {
-        val directlyImportedTarget = RegularImport(importNode.importPath)
-        if (parserPendingPackages.contains(directlyImportedTarget)) {
-          // package cycle detected
-          val importNodeStart = ast.positions.positions.getStart(importNode)
-          Vector(ImportCycle(importNode, importNodeStart, parserPendingPackages))
-        } else {
-          getCycles(directlyImportedTarget)
-        }
-      })
-      parserPendingPackages = parserPendingPackages.filterNot(_ == importTarget)
-      res
-    }
-       */
 
     private def createImportError(importNode: PImport, errorsInImportedPackage: Vector[VerifierError]): Messages = {
-      val importTarget = RegularImport(importNode.importPath)
       val (cyclicErrors, nonCyclicErrors) = errorsInImportedPackage.partitionMap {
         case cyclicErr: CyclicImportError => Left(cyclicErr)
         case e => Right(e)
       }
       if (cyclicErrors.isEmpty) {
-        // nonCyclicErrors.flatMap(err => message(importNode, err.message))
         message(importNode, s"Package contains ${nonCyclicErrors.length} error(s): ${nonCyclicErrors.map(_.message).mkString(", ")}")
       } else {
-        cyclicErrors.flatMap(cycle => {
-          // val positionalInfo = cycle.importNodeStart.map(pos => s" at ${pos.format}").getOrElse("")
-          // message(importNode, s"Package '$importTarget' is part of the following import cycle that involves the import ${cycle.importNodeCausingCycle}$positionalInfo: ${cycle.cyclicPackages.mkString("[", ", ", "]")}")
-          message(importNode, cycle.message)
-        })
-      }/*
-      cycles.flatMap(cycle => {
-        val positionalInfo = cycle.importNodeStart.map(pos => s" at ${pos.format}").getOrElse("")
-        message(importNode, s"Package '$importTarget' is part of the following import cycle that involves the import ${cycle.importNodeCausingCycle}$positionalInfo: ${cycle.cyclicPackages.mkString("[", ", ", "]")}")
-      })*/
+        cyclicErrors.flatMap(cycle => message(importNode, cycle.message))
+      }
     }
   }
 
@@ -167,8 +122,8 @@ object Info extends LazyLogging {
     * All TypeInfo instances share a single context instance.
     * Therefore, package management is centralized.
     */
-  class Context(val config: Config, val parseResults: Map[AbstractPackage, ParseSuccessResult])(val executionContext: GobraExecutionContext) extends GetParseResult {
-    private val typeCheckManager = new TaskManager[AbstractPackage, (Vector[Source], PPackage, Vector[AbstractImport]), () => TypeCheckResult](config.typeCheckMode)(executionContext)
+  class Context(val config: Config, val parseResults: Map[AbstractPackage, ParseSuccessResult])(implicit executor: GobraExecutionContext) extends GetParseResult {
+    private val typeCheckManager = new TaskManager[AbstractPackage, (Vector[Source], PPackage, Vector[AbstractImport]), () => TypeCheckResult](config.parseAndTypeCheckMode)
 
     var tyeCheckDurationMs = new AtomicLong(0L)
 
@@ -193,19 +148,19 @@ object Info extends LazyLogging {
         val (sources, ast, dependencies) = precomputationResult
         val dependentTypeInfo = dependencies.map(importTarget => {
           val dependentPackage = AbstractPackage(importTarget)(config)
-          (importTarget, typeCheckManager.getResult(dependentPackage))
+          (importTarget, typeCheckManager.getResultBlocking(dependentPackage))
         })
-        config.typeCheckMode match {
+        config.parseAndTypeCheckMode match {
           case Sequential | Parallel =>
-            val res = typeCheck(sources, ast, dependentTypeInfo.toMap, isMainContext = isMainContext)
+            val res = typeCheck(sources, ast, dependentTypeInfo.toMap)
             () => res
           case Lazy =>
-            lazy val res = typeCheck(sources, ast, dependentTypeInfo.toMap, isMainContext = isMainContext)
+            lazy val res = typeCheck(sources, ast, dependentTypeInfo.toMap)
             () => res
         }
       }
 
-      private def typeCheck(pkgSources: Vector[Source], pkg: PPackage, dependentTypeInfo: DependentTypeInfo, isMainContext: Boolean = false, isLazy: Boolean = false): TypeCheckResult = {
+      private def typeCheck(pkgSources: Vector[Source], pkg: PPackage, dependentTypeInfo: DependentTypeInfo, isLazy: Boolean = false): TypeCheckResult = {
         val startMs = System.currentTimeMillis()
         logger.trace(s"start type-checking ${pkg.info.id}")
         val res = Info.checkSources(pkgSources, pkg, dependentTypeInfo, isMainContext = isMainContext)(config)
@@ -222,37 +177,31 @@ object Info extends LazyLogging {
       }
     }
 
-    def typeCheck(pkg: AbstractPackage): TypeCheckResult = {
+    def typeCheck(pkg: AbstractPackage): Future[TypeCheckResult] = {
       typeCheckManager.addIfAbsent(pkg, TypeCheckJob(pkg, isMainContext = true))
-      val resFn = typeCheckManager.getResult(pkg)
-      resFn()
-    }
-
-    def typeCheckFut(pkg: AbstractPackage): Future[TypeCheckResult] = {
-      typeCheckManager.addIfAbsent(pkg, TypeCheckJob(pkg, isMainContext = true))
-      typeCheckManager.getResultFut(pkg)
-        .map(resFn => resFn())(executionContext)
+      typeCheckManager.getResult(pkg)
+        .map(resFn => resFn())
     }
   }
 
-  def check(config: Config, abstractPackage: AbstractPackage, parseResults: Map[AbstractPackage, ParseResult])(executionContext: GobraExecutionContext): TypeCheckResult = {
+  def check(config: Config, abstractPackage: AbstractPackage, parseResults: Map[AbstractPackage, ParseResult])(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, TypeInfo] = {
     for {
       // check whether parsing of this package was successful:
-      parseResult <- parseResults(abstractPackage)
+      parseResult <- EitherT.fromEither(Future.successful[Either[Vector[VerifierError], ParseSuccessResult]](parseResults(abstractPackage)))
       // check whether there are any import cycles:
-      cycleResult <- new CycleChecker(config, parseResults).check(abstractPackage)
-        .left.map(errs => {
+      cycleResult <- EitherT.fromEither(Future.successful(new CycleChecker(config, parseResults).check(abstractPackage)))
+        .leftMap(errs => {
           val (sources, pkg) = parseResult
           val sourceNames = sources.map(_.name)
           config.reporter report TypeCheckFailureMessage(sourceNames, pkg.packageClause.id.name, () => pkg, errs)
           errs
         })
       typeCheckingStartMs = System.currentTimeMillis()
-      context = new Context(config, cycleResult)(executionContext)
-      typeInfo <- context.typeCheck(abstractPackage)
+      context = new Context(config, cycleResult)
+      typeInfo <- EitherT.fromEither(context.typeCheck(abstractPackage))
       _ = logger.debug {
         val durationS = f"${(System.currentTimeMillis() - typeCheckingStartMs) / 1000f}%.1f"
-        s"type-checking done, took ${durationS}s (in mode ${config.typeCheckMode})"
+        s"type-checking done, took ${durationS}s (in mode ${config.parseAndTypeCheckMode})"
       }
       _ = logger.debug {
         val typeCheckingEndMs = System.currentTimeMillis()
@@ -262,39 +211,6 @@ object Info extends LazyLogging {
         s"type-checking individual packages took ${sumDurationS}s. Overhead for tasks is thus ${overheadS}s (${(100f * overheadMs / (typeCheckingEndMs - typeCheckingStartMs)).toInt}%)"
       }
     } yield typeInfo
-  }
-
-  def checkFut(config: Config, abstractPackage: AbstractPackage, parseResults: Map[AbstractPackage, ParseResult])(executionContext: GobraExecutionContext): Future[TypeCheckResult] = {
-    implicit val executor: GobraExecutionContext = executionContext
-    val res = for {
-      // check whether parsing of this package was successful:
-      parseResult <- parseResults(abstractPackage)
-      // check whether there are any import cycles:
-      cycleResult <- new CycleChecker(config, parseResults).check(abstractPackage)
-        .left.map(errs => {
-        val (sources, pkg) = parseResult
-        val sourceNames = sources.map(_.name)
-        config.reporter report TypeCheckFailureMessage(sourceNames, pkg.packageClause.id.name, () => pkg, errs)
-        errs
-      })
-      typeCheckingStartMs = System.currentTimeMillis()
-      context = new Context(config, cycleResult)(executionContext)
-      typeInfoFut = for {
-        typeInfo <- context.typeCheckFut(abstractPackage)
-        _ = logger.debug {
-          val durationS = f"${(System.currentTimeMillis() - typeCheckingStartMs) / 1000f}%.1f"
-          s"type-checking done, took ${durationS}s (in mode ${config.typeCheckMode})"
-        }
-        _ = logger.debug {
-          val typeCheckingEndMs = System.currentTimeMillis()
-          val sumDurationS = f"${context.tyeCheckDurationMs.get() / 1000f}%.1f"
-          val overheadMs = (typeCheckingEndMs - typeCheckingStartMs) - context.tyeCheckDurationMs.get()
-          val overheadS = f"${overheadMs / 1000f}%.1f"
-          s"type-checking individual packages took ${sumDurationS}s. Overhead for tasks is thus ${overheadS}s (${(100f * overheadMs / (typeCheckingEndMs - typeCheckingStartMs)).toInt}%)"
-        }
-      } yield typeInfo
-    } yield typeInfoFut
-    res.fold(errs => Future.successful(Left(errs)), identity)
   }
 
   type TypeInfoCacheKey = String
@@ -339,9 +255,9 @@ object Info extends LazyLogging {
       typeInfoCache.computeIfAbsent(getCacheKey(pkg, dependentTypeInfo, isMainContext, config), _ => getTypeInfo(pkg, dependentTypeInfo, isMainContext, config))
     }
 
-    val checkFn = if (config.cacheParser) { getTypeInfoCached _ } else { getTypeInfo _ }
+    val checkFn = if (config.cacheParserAndTypeChecker) { getTypeInfoCached _ } else { getTypeInfo _ }
     val info = checkFn(pkg, dependentTypeInfo, isMainContext, config)
-    if (!cacheHit && config.cacheParser) {
+    if (!cacheHit && config.cacheParserAndTypeChecker) {
       logger.trace(s"No cache hit for type info for ${pkg.info.id}")
     }
 

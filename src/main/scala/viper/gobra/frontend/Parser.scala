@@ -18,7 +18,7 @@ import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, PreambleContext, SourceFileContext, SpecMemberContext, StmtOnlyContext, TypeOnlyContext}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, RegularImport, RegularPackage}
-import viper.gobra.util.GobraExecutionContext
+import viper.gobra.util.{GobraExecutionContext, Violation}
 import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable.ListBuffer
@@ -186,10 +186,15 @@ object Parser {
     *
     */
 
-  def parse(config: Config, pkgInfo: PackageInfo)(executionContext: GobraExecutionContext): Map[AbstractPackage, ParseResult] = {
+  def parse(config: Config, pkgInfo: PackageInfo)(executionContext: GobraExecutionContext): Either[Vector[ParserError], Map[AbstractPackage, ParseResult]] = {
     val parseManager = new ParseManager(config, executionContext)
     parseManager.parse(pkgInfo)
-    parseManager.getResults
+    val results = parseManager.getResults
+    results.get(RegularPackage(pkgInfo.id)) match {
+      case Some(Right(_)) => Right(results)
+      case Some(Left(errs)) => Left(errs)
+      case _ => Violation.violation(s"No parse result for package '$pkgInfo' found")
+    }
   }
 
   def parse(input: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {

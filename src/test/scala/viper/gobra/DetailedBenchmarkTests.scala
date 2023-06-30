@@ -105,7 +105,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       val c = config.get
       assert(c.packageInfoInputMap.size == 1)
       val pkgInfo = c.packageInfoInputMap.keys.head
-      Right(Parser.parse(c, pkgInfo)(executor))
+      Parser.parse(c, pkgInfo)(executor)
     })
 
     private val typeChecking: NextStep[Map[AbstractPackage, ParseResult], TypeInfo, Vector[VerifierError]] =

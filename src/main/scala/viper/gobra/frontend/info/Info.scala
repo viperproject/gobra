@@ -228,18 +228,19 @@ object Info extends LazyLogging {
   }
 
   def check(config: Config, abstractPackage: AbstractPackage, parseResults: Map[AbstractPackage, ParseResult])(executionContext: GobraExecutionContext): TypeCheckResult = {
-    // check for cycles
-    // val cyclicErrors = new CycleChecker(config, parseResults).check(abstractPackage)
     for {
-      successParseResult <- new CycleChecker(config, parseResults).check(abstractPackage)
+      // check whether parsing of this package was successful:
+      parseResult <- parseResults(abstractPackage)
+      // check whether there are any import cycles:
+      cycleResult <- new CycleChecker(config, parseResults).check(abstractPackage)
         .left.map(errs => {
-          val (sources, pkg) = parseResults(abstractPackage).right.get
+          val (sources, pkg) = parseResult
           val sourceNames = sources.map(_.name)
           config.reporter report TypeCheckFailureMessage(sourceNames, pkg.packageClause.id.name, () => pkg, errs)
           errs
         })
       typeCheckingStartMs = System.currentTimeMillis()
-      context = new Context(config, successParseResult)(executionContext)
+      context = new Context(config, cycleResult)(executionContext)
       typeInfo <- context.typeCheck(abstractPackage)
       _ = logger.debug {
         val durationS = f"${(System.currentTimeMillis() - typeCheckingStartMs) / 1000f}%.1f"

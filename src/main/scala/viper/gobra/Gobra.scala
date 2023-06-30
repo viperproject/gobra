@@ -159,7 +159,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       for {
         finalConfig <- getAndMergeInFileConfig(config, pkgInfo)
         _ = setLogLevel(finalConfig)
-        parseResults = performParsing(finalConfig, pkgInfo)(executor)
+        parseResults <- performParsing(finalConfig, pkgInfo)(executor)
         typeInfo <- performTypeChecking(finalConfig, pkgInfo, parseResults)(executor)
         program <- performDesugaring(finalConfig, typeInfo)(executor)
         program <- performInternalTransformations(finalConfig, pkgInfo, program)(executor)
@@ -243,7 +243,9 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       .setLevel(config.logLevel)
   }
 
-  private def performParsing(config: Config, pkgInfo: PackageInfo)(executor: GobraExecutionContext): Map[AbstractPackage, ParseResult] = {
+  // returns `Left(...)` if parsing of the package identified by `pkgInfo` failed. Note that `Right(...)` does not imply
+  // that all imported packages have been parsed successfully (this is only checked during type-checking)
+  private def performParsing(config: Config, pkgInfo: PackageInfo)(executor: GobraExecutionContext): Either[Vector[VerifierError], Map[AbstractPackage, ParseResult]] = {
     if (config.shouldParse) {
       val startMs = System.currentTimeMillis()
       val res = Parser.parse(config, pkgInfo)(executor)
@@ -253,7 +255,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       }
       res
     } else {
-      Map.empty
+      Left(Vector.empty)
     }
   }
 

@@ -4,27 +4,27 @@
 package main
 
 import fmt "fmt"
-//:: ExpectedOutput(parser_error)
+//:: ExpectedOutput(type_error)
 import a "a";
-//:: ExpectedOutput(parser_error)
+//:: ExpectedOutput(type_error)
 import (b "b")
-//:: ExpectedOutput(parser_error)
+//:: ExpectedOutput(type_error)
 import (c "c");
 import (
-    //:: ExpectedOutput(parser_error)
+    //:: ExpectedOutput(type_error)
     d "d"
-    //:: ExpectedOutput(parser_error)
+    //:: ExpectedOutput(type_error)
     e "e")
 import (
-    //:: ExpectedOutput(parser_error)
+    //:: ExpectedOutput(type_error)
     f "f"
-    //:: ExpectedOutput(parser_error)
+    //:: ExpectedOutput(type_error)
     g "g"
 )
 
-//:: ExpectedOutput(parser_error)
+//:: ExpectedOutput(type_error)
 import m "lib/mathm" // wrong package name used on purpose such that this test case does not potentially depend on the configured Go path
-//:: ExpectedOutput(parser_error)
+//:: ExpectedOutput(type_error)
 import . "lib/mathn"
 
 func test() {

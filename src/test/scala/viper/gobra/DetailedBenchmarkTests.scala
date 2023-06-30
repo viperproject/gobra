@@ -7,8 +7,9 @@
 package viper.gobra
 
 import java.nio.file.Path
-import java.util.concurrent.TimeUnit
 import org.scalatest.DoNotDiscover
+import scalaz.EitherT
+import scalaz.Scalaz.futureInstance
 import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.OverflowChecksTransform
 import viper.gobra.backend.BackendVerifier
@@ -19,8 +20,7 @@ import viper.gobra.frontend.{Desugar, Parser}
 import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
 
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
+import scala.concurrent.Future
 
 /**
   * Tool for benchmarking Gobra's performance split into its individual steps (wrapped as a ScalaTest).
@@ -100,7 +100,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       config = gobra.getAndMergeInFileConfig(c, pkgInfo).toOption
     }
 
-    private val parsing = InitialStep[Vector[VerifierError], Map[AbstractPackage, ParseResult]]("parsing", () => {
+    private val parsing = InitialStepEitherT("parsing", () => {
       assert(config.isDefined)
       val c = config.get
       assert(c.packageInfoInputMap.size == 1)
@@ -108,8 +108,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       Parser.parse(c, pkgInfo)(executor)
     })
 
-    private val typeChecking: NextStep[Map[AbstractPackage, ParseResult], TypeInfo, Vector[VerifierError]] =
-      NextStep("type-checking", parsing, (parseResults: Map[AbstractPackage, ParseResult]) => {
+    private val typeChecking = NextStepEitherT("type-checking", parsing, (parseResults: Map[AbstractPackage, ParseResult]) => {
         assert(config.isDefined)
         val c = config.get
         assert(c.packageInfoInputMap.size == 1)
@@ -117,7 +116,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
         Info.check(c, RegularPackage(pkgInfo.id), parseResults)(executor)
       })
 
-    private val desugaring: NextStep[TypeInfo, Program, Vector[VerifierError]] =
+    private val desugaring: NextStep[TypeInfo, Vector[VerifierError], Program] =
       NextStep("desugaring", typeChecking, { case (typeInfo: TypeInfo) =>
         assert(config.isDefined)
         val c = config.get
@@ -146,14 +145,14 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       Right(Translator.translate(program, pkgInfo)(c))
     })
 
-    private val verifying = NextStep("Viper verification", encoding, (viperTask: BackendVerifier.Task) => {
+    private val verifying = NextStepEitherT("Viper verification", encoding, (viperTask: BackendVerifier.Task) => {
       assert(config.isDefined)
       val c = config.get
       assert(c.packageInfoInputMap.size == 1)
       val pkgInfo = c.packageInfoInputMap.keys.head
-      val resultFuture = BackendVerifier.verify(viperTask, pkgInfo)(c)(executor)
-        .map(BackTranslator.backTranslate(_)(c))(executor)
-      Right(Await.result(resultFuture, Duration(timeoutSec, TimeUnit.SECONDS)))
+      val resultFuture: Future[Either[Vector[VerifierError], VerifierResult]] = BackendVerifier.verify(viperTask, pkgInfo)(c)
+        .map(res => Right(BackTranslator.backTranslate(res)(c)))
+      EitherT.fromEither(resultFuture)
     })
 
     private val lastStep = verifying

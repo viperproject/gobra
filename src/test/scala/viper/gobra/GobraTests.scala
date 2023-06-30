@@ -13,7 +13,6 @@ import org.scalatest.{Args, BeforeAndAfterAll, Status}
 import scalaz.Scalaz.futureInstance
 import viper.gobra.frontend.PackageResolver.RegularPackage
 import viper.gobra.frontend.Source.FromFileSource
-import viper.gobra.frontend.TaskManagerMode.{Lazy, Parallel}
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.{Config, PackageResolver, Parser, Source}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
@@ -66,9 +65,9 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
         val config = getConfig(source)
         val pkgInfo = config.packageInfoInputMap.keys.head
         val fut = for {
-          parseResult <- Parser.parseFut(config, pkgInfo)
+          parseResult <- Parser.parse(config, pkgInfo)
           pkg = RegularPackage(pkgInfo.id)
-          typeCheckResult <- Info.checkFut(config, pkg, parseResult)
+          typeCheckResult <- Info.check(config, pkg, parseResult)
         } yield typeCheckResult
         fut.toEither
       })

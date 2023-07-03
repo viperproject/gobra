@@ -36,7 +36,7 @@ object Desugar extends LazyLogging {
     val pkg = info.tree.root
     val importsCollector = new PackageInitSpecCollector
 
-    val importeDesugaringDurationMs = new AtomicLong(0)
+    val importedDesugaringDurationMs = new AtomicLong(0)
     val importedProgramsFuts = info.getTransitiveTypeInfos(includeThis = false).toSeq.map { tI => Future {
       val importedDesugaringStartMs = System.currentTimeMillis()
       val typeInfo = tI.getTypeInfo
@@ -45,7 +45,7 @@ object Desugar extends LazyLogging {
       // registers a package to generate proof obligations for its init code
       d.registerPackage(importedPackage, importsCollector)(config)
       val res = (d, d.packageD(importedPackage))
-      importeDesugaringDurationMs.addAndGet(System.currentTimeMillis() - importedDesugaringStartMs)
+      importedDesugaringDurationMs.addAndGet(System.currentTimeMillis() - importedDesugaringStartMs)
       res
     }}
 
@@ -69,7 +69,7 @@ object Desugar extends LazyLogging {
     val (mainDesugarer, mainProgram) = futResults.head
     val importedPrograms = futResults.tail
     logger.trace {
-      val importedDurationS = f"${importeDesugaringDurationMs.get() / 1000f}%.1f"
+      val importedDurationS = f"${importedDesugaringDurationMs.get() / 1000f}%.1f"
       s"desugaring imported packages done, took ${importedDurationS}s"
     }
 

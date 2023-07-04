@@ -1,0 +1,5 @@
+package pkg
+
+func main(x int) {
+    var y = x
+}

@@ -173,6 +173,14 @@ case class GeneratedViperMessage(taskName: String, inputs: Vector[String], vprAs
   lazy val vprAstFormatted: String = silver.ast.pretty.FastPrettyPrinter.pretty(vprAst())
 }
 
+case class TransformerFailureMessage(inputs: Vector[String], result: Vector[VerifierError]) extends GobraMessage {
+  override val name: String = s"transformer_failure_message"
+
+  override def toString: String = s"transformer_failure_message(" +
+    s"files=$inputs, " +
+    s"failures=${result.map(_.toString).mkString(",")})"
+}
+
 case class ChoppedViperMessage(inputs: Vector[String], idx: Int, vprAst: () => vpr.Program, backtrack: () => BackTranslator.BackTrackInfo) extends GobraMessage {
   override val name: String = s"chopped_viper_message"
 

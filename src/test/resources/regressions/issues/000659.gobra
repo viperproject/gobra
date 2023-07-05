@@ -1,0 +1,33 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue659
+
+type Node struct {
+    ok     bool
+}
+
+pred (s *Set)mem(){
+    acc(s) &&
+    acc(s.nodes) &&
+    forall i int:: i in domain(s.nodes) ==> acc(s.nodes[i])
+}
+
+type Set struct {
+    nodes map[int]*Node
+}
+
+requires s.mem()
+requires acc(n)
+requires !(k in unfolding s.mem() in domain(s.nodes))
+func (s *Set) add2(n *Node, k int){
+    unfold s.mem()
+    _,ok := s.nodes[0];
+    if ok {
+        s.nodes[k] = n
+        fold s.mem()
+        //:: ExpectedOutput(assert_error:assertion_error)
+        assert false // should fail
+        return
+    }
+}

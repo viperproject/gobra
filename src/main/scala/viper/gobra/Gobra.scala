@@ -303,7 +303,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
   private def performViperEncoding(config: Config, pkgInfo: PackageInfo, program: Program)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, BackendVerifier.Task] = {
     if (config.shouldViperEncode) {
       val startMs = System.currentTimeMillis()
-      val res = EitherT.right[Vector[VerifierError], Future, BackendVerifier.Task](Translator.translate(program, pkgInfo)(config))
+      val res = EitherT.fromEither[Future, Vector[VerifierError], BackendVerifier.Task](Future.successful(Translator.translate(program, pkgInfo)(config)))
       logger.debug {
         val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
         s"Viper encoding done, took ${durationS}s"

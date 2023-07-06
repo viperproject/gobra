@@ -4188,7 +4188,6 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert(frontend.wellDefExpr(expr)(Vector(), Vector(functionDecl)).valid)
   }
 
-        PIfStmt(Vector(PIfClause(None, PEquals(PNamedOperand(PIdnUse("n")), PIntLit(BigInt(1))), PBlock(Vector(
   /* * Stubs, mocks, and other test setup  */
 
   class TestFrontend {

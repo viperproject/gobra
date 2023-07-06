@@ -417,7 +417,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => error(n, s"expected receive-permitting channel but got $t")
     })
 
-    case n@PReference(e) => isExpr(e).out
+    case n@PReference(e) => isExpr(e).out ++ effAddressable.errors(e)(n)
 
     case n@PNegation(e) => isExpr(e).out ++ assignableTo.errors(exprType(e), BooleanT)(n)
 

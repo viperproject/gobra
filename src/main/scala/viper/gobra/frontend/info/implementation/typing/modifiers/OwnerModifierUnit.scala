@@ -13,7 +13,6 @@ import viper.gobra.frontend.info.base.{SymbolTable => st}
 
 object OwnerModifierUnit extends ModifierUnit[OwnerModifier] {
   override def hasWellDefModifier(ctx: TypeInfoImpl): WellDefinedness[PNode] = createIndependentWellDef[PNode] {
-    case PReference(n) => error(n, s"cannot take reference of expression that is not shared", getModifier(ctx)(n).get != OwnerModifier.Shared)
     case _ => noMessages
   }(n => ctx.children(n).forall(ctx.childrenWellDefined))
 

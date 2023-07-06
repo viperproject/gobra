@@ -11,13 +11,13 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
-import viper.gobra.theory.Addressability
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 
 trait TypeInfo extends ExternalTypeInfo {
 
   def typOfExprOrType(expr: PExpressionOrType): Type
-  def addressability(expr: PExpression): Addressability
-  def addressableVar(id: PIdnNode): Addressability
+  def getOwnerModifier(expr: PExpression): OwnerModifier
+  def getVarOwnerModifier(id: PIdnNode): OwnerModifier
 
   def tree: Tree[PNode, PPackage]
 

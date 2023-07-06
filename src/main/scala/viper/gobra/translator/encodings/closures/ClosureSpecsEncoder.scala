@@ -8,9 +8,9 @@ package viper.gobra.translator.encodings.closures
 
 import viper.gobra.ast.internal.FunctionLikeMemberOrLit
 import viper.gobra.ast.{internal => in}
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 import viper.gobra.reporting.BackTranslator.ErrorTransformer
 import viper.gobra.reporting.{GoCallPreconditionReason, PreconditionError, Source, SpecNotImplementedByClosure}
-import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperUtil
@@ -29,7 +29,7 @@ protected class ClosureSpecsEncoder {
   def closureImplementsExpression(a: in.ClosureImplements)(ctx: Context): CodeWriter[vpr.Exp] = {
     register(a.spec)(ctx, a.info)
     ctx.expression(in.DomainFunctionCall(implementsFunctionProxy(a.spec)(a.info),
-      Vector(a.closure) ++ a.spec.params.toVector.sortBy(_._1).map(_._2), in.BoolT(Addressability.rValue))(a.info))
+      Vector(a.closure) ++ a.spec.params.toVector.sortBy(_._1).map(_._2), in.BoolT(OwnerModifier.rValue))(a.info))
   }
 
   /**
@@ -176,7 +176,7 @@ protected class ClosureSpecsEncoder {
 
   def generatedDomainFunctions: Vector[vpr.DomainFunc] = genDomFuncs
 
-  private val genericFuncType: in.FunctionT = in.FunctionT(Vector.empty, Vector.empty, Addressability.rValue)
+  private val genericFuncType: in.FunctionT = in.FunctionT(Vector.empty, Vector.empty, OwnerModifier.rValue)
 
   private def closureSpecName(spec: in.ClosureSpec): String =  s"${spec.func}$$${spec.params.keySet.toSeq.sorted.mkString("_")}"
   private def implementsFunctionName(spec: in.ClosureSpec) = s"${Names.closureImplementsFunc}$$${closureSpecName(spec)}"
@@ -191,7 +191,7 @@ protected class ClosureSpecsEncoder {
     * */
   private def implementsFunction(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): vpr.DomainFunc = {
     val closurePar = in.Parameter.In(Names.closureArg, genericFuncType)(info)
-    val params = spec.params.map(p => in.Parameter.In(Names.closureImplementsParam(p._1), p._2.typ.withAddressability(Addressability.inParameter))(p._2.info))
+    val params = spec.params.map(p => in.Parameter.In(Names.closureImplementsParam(p._1), p._2.typ.withOwnerModifier(OwnerModifier.inParameter))(p._2.info))
     val args = (Vector(closurePar) ++ params) map ctx.variable
     vpr.DomainFunc(implementsFunctionName(spec), args, vpr.Bool)(domainName = Names.closureDomain)
   }

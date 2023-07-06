@@ -7,8 +7,8 @@
 package viper.gobra.ast.internal.theory
 
 import viper.gobra.ast.internal._
-import viper.gobra.theory.Addressability
 import viper.gobra.util.RoseTree
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 
 import scala.annotation.tailrec
 
@@ -38,7 +38,7 @@ object Comparability {
     case TypeHead.PointerHD => Kind.Comparable
 
     case t: TypeHead.DefinedHD =>
-      compareKind(TypeHead.typeHead(reg(DefinedT(t.name, Addressability.Exclusive))))(reg)
+      compareKind(TypeHead.typeHead(reg(DefinedT(t.name, OwnerModifier.Exclusive))))(reg)
 
     case _: TypeHead.StructHD => Kind.Recursive
     case _: TypeHead.FunctionHD => Kind.NonComparable

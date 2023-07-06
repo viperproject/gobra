@@ -1,5 +1,6 @@
 package pkg
 
-func main(x int) {
-    var y = x
+func main() {
+    var y int
+    var x = &y
 }

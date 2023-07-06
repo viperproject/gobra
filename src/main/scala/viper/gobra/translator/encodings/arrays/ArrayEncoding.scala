@@ -8,9 +8,9 @@ package viper.gobra.translator.encodings.arrays
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 import viper.gobra.reporting.Source
-import viper.gobra.theory.Addressability
-import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.arrays.ArrayEncoding.ComponentParameter
 import viper.gobra.translator.encodings.combinators.TypeEncoding
@@ -29,7 +29,7 @@ private[arrays] object ArrayEncoding {
   /** Parameter of array components. */
   case class ComponentParameter(len: BigInt, elemT: in.Type) extends EmbeddingParameter {
     override val serialize: String = s"${len}_${Names.serializeType(elemT)}"
-    def arrayT(addressability: Addressability): in.ArrayT = in.ArrayT(len, elemT, addressability)
+    def arrayT(addressability: OwnerModifier): in.ArrayT = in.ArrayT(len, elemT, addressability)
   }
 
   /** Computes the component parameter. */
@@ -308,7 +308,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val argType = t.arrayT(Shared)
       // variable name does not matter because it is the only argument
       val x = in.LocalVar("x", argType)(Source.Parser.Internal)
-      val resultType = argType.withAddressability(Exclusive)
+      val resultType = argType.withOwnerModifier(Exclusive)
       val vResultType = typ(ctx)(resultType)
       // variable name does not matter because it is turned into a vpr.Result
       val resultVar = in.LocalVar("res", resultType)(Source.Parser.Internal)

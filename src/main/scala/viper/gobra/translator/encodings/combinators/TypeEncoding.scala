@@ -11,7 +11,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.ast.internal.theory.Comparability
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
 import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, NoPermissionToRangeExpressionError, Source}
-import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Exclusive, Shared }
 import viper.gobra.translator.library.Generator
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
@@ -113,14 +113,14 @@ trait TypeEncoding extends Generator {
     case loc :: t / Exclusive if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
       for {
-        eq <- ctx.equal(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info))(loc)
+        eq <- ctx.equal(loc, in.DfltVal(t.withOwnerModifier(Exclusive))(loc.info))(loc)
       } yield vpr.Inhale(eq)(pos, info, errT): vpr.Stmt
 
     case loc :: t / Shared if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
       for {
         footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
-        eq1 <- ctx.equal(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info))(loc)
+        eq1 <- ctx.equal(loc, in.DfltVal(t.withOwnerModifier(Exclusive))(loc.info))(loc)
         eq2 <- ctx.equal(in.Ref(loc)(loc.info), in.NilLit(in.PointerT(t, Exclusive))(loc.info))(loc)
       } yield vpr.Inhale(vpr.And(footprint, vpr.And(eq1, vpr.Not(eq2)(pos, info, errT))(pos, info, errT))(pos, info, errT))(pos, info, errT)
   }
@@ -343,7 +343,7 @@ trait TypeEncoding extends Generator {
   def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     case newStmt@in.New(target, expr) if typ(ctx).isDefinedAt(expr.typ) =>
       val (pos, info, errT) = newStmt.vprMeta
-      val z = in.LocalVar(ctx.freshNames.next(), target.typ.withAddressability(Exclusive))(newStmt.info)
+      val z = in.LocalVar(ctx.freshNames.next(), target.typ.withOwnerModifier(Exclusive))(newStmt.info)
       val zDeref = in.Deref(z, underlyingType(z.typ)(ctx))(newStmt.info)
       seqn(
         for {

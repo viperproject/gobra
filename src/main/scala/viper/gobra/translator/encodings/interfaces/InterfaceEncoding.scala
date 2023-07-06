@@ -10,8 +10,8 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.internal.theory.{Comparability, TypeHead}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.{ComparisonError, ComparisonOnIncomparableInterfaces, DiamondError, DynamicValueNotASubtypeReason, SafeTypeAssertionsToInterfaceNotSucceedingReason, Source, TypeAssertionError}
-import viper.gobra.theory.Addressability
-import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Shared, Exclusive }
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
@@ -214,7 +214,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
           TypeAssertionError(x).dueTo(DynamicValueNotASubtypeReason(x))
         for {
           arg <- goE(exp)
-          dynType = typeOfWithSubtypeFact(arg, in.InterfaceT(itf, Addressability.Exclusive))(pos, info, errT)(ctx)
+          dynType = typeOfWithSubtypeFact(arg, in.InterfaceT(itf, OwnerModifier.Exclusive))(pos, info, errT)(ctx)
           staticType = types.typeToExpr(t)(pos, info, errT)(ctx)
           cond  = types.behavioralSubtype(dynType, staticType)(pos, info, errT)(ctx)
           res = t match {
@@ -228,7 +228,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = n.vprMeta
         for {
           arg <- goE(exp)
-        } yield typeOfWithSubtypeFact(arg, in.InterfaceT(itf, Addressability.Exclusive))(pos, info, errT)(ctx)
+        } yield typeOfWithSubtypeFact(arg, in.InterfaceT(itf, OwnerModifier.Exclusive))(pos, info, errT)(ctx)
 
       case n@ in.IsComparableInterface(exp) =>
         val (pos, info, errT) = n.vprMeta
@@ -400,7 +400,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         seqn(
           for {
             arg <- ctx.expression(expr)
-            dynType = typeOfWithSubtypeFact(arg, in.InterfaceT(itf, Addressability.Exclusive))(pos, info, errT)(ctx)
+            dynType = typeOfWithSubtypeFact(arg, in.InterfaceT(itf, OwnerModifier.Exclusive))(pos, info, errT)(ctx)
             staticType = types.typeToExpr(typ)(pos, info, errT)(ctx)
             _ <- assert(types.behavioralSubtype(dynType, staticType)(pos, info, errT)(ctx), errorT)
             vResTarget = ctx.variable(resTarget).localVar
@@ -417,7 +417,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         seqn(
           for {
             arg <- ctx.expression(expr)
-            dynType = typeOfWithSubtypeFact(arg, in.InterfaceT(itf, Addressability.Exclusive))(pos, info, errT)(ctx)
+            dynType = typeOfWithSubtypeFact(arg, in.InterfaceT(itf, OwnerModifier.Exclusive))(pos, info, errT)(ctx)
             staticType = types.typeToExpr(typ)(pos, info, errT)(ctx)
             vResTarget = ctx.variable(resTarget).localVar
             vSuccessTarget = ctx.variable(successTarget).localVar
@@ -442,7 +442,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     */
   private val toInterfaceFunc: FunctionGenerator[in.Type] = new FunctionGenerator[in.Type] {
     override def genFunction(t: in.Type)(ctx: Context): vpr.Function = {
-      val x = in.LocalVar("x", t.withAddressability(Addressability.Exclusive))(Source.Parser.Internal)
+      val x = in.LocalVar("x", t.withOwnerModifier(OwnerModifier.Exclusive))(Source.Parser.Internal)
       val vX = ctx.variable(x)
 
       val isComp = ctx.isComparable(x).fold(vpr.BoolLit(_)(), pure(_)(ctx).res)

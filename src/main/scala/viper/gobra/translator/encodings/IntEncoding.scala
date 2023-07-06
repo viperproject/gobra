@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting.{ShiftPreconditionError, Source}
-import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Shared, Exclusive }
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context

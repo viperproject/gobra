@@ -7,10 +7,10 @@
 package viper.gobra.ast.internal.theory
 
 import viper.gobra.ast.internal._
-import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.RoseTree
 import viper.gobra.util.TypeBounds.IntegerKind
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 
 /** The head of a type. Used to abstract over types. */
 sealed trait TypeHead
@@ -54,8 +54,8 @@ object TypeHead {
     RoseTree(typeHead(typ), children(typ) map typeTree)
 
   /** Returns a tree representation of the type where the addressability information is preserved. */
-  def typeTreeWithAddressability(typ: Type): RoseTree[(TypeHead, Addressability)] =
-    RoseTree((typeHead(typ), typ.addressability), children(typ) map typeTreeWithAddressability)
+  def typeTreeWithAddressability(typ: Type): RoseTree[(TypeHead, OwnerModifier)] =
+    RoseTree((typeHead(typ), typ.ownerModifier), children(typ) map typeTreeWithAddressability)
 
   /** Returns type-head representation of the argument type. */
   def typeHead(typ: Type): TypeHead = typ match {

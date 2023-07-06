@@ -9,7 +9,7 @@ package viper.gobra.translator.encodings.structs
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.Source
-import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Shared, Exclusive }
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.TypeEncoding
 import viper.gobra.translator.context.Context
@@ -254,7 +254,7 @@ class StructEncoding extends TypeEncoding {
 
   private def indexOfField(fs: Vector[in.Field], f: in.Field): Int = {
     val idx = fs.indexOf(f)
-    Violation.violation(idx >= 0, s"$idx, ${f.typ.addressability}, ${fs.map(_.typ.addressability)} - Did not find field $f in $fs")
+    Violation.violation(idx >= 0, s"$idx, ${f.typ.ownerModifier}, ${fs.map(_.typ.ownerModifier)} - Did not find field $f in $fs")
     idx
   }
 

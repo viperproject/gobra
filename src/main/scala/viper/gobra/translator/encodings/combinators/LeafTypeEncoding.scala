@@ -7,7 +7,7 @@
 package viper.gobra.translator.encodings.combinators
 
 import org.bitbucket.inkytonik.kiama.==>
-import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Shared, Exclusive }
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeLevel.unit
@@ -69,7 +69,7 @@ trait LeafTypeEncoding extends TypeEncoding {
       val (pos, info, errT) = loc.vprMeta
       for {
         vLoc <- ctx.reference(loc)
-      } yield vpr.FieldAccess(vLoc, ctx.field.field(t.withAddressability(Exclusive))(ctx))(pos, info, errT)
+      } yield vpr.FieldAccess(vLoc, ctx.field.field(t.withOwnerModifier(Exclusive))(ctx))(pos, info, errT)
   }
 
   /**

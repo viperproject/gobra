@@ -36,7 +36,9 @@ trait Errors { this: TypeInfoImpl =>
 
         val ghostSeparated = wellGhostSeparated(m).out
 
-        wellDef ++ ghostSeparated
+        // TODO remove ghost separated well def
+
+        wellDef ++ ghostSeparated ++ wellDefModifiers(m).out
       }
 
       if (partialRes.isEmpty) {

@@ -10,11 +10,11 @@ import viper.gobra.frontend.info.implementation.typing.base.TypingComponents
 import viper.gobra.util.{Memoization, Safety, Validity}
 
 trait ModifierUnit[T <: Modifier] extends TypingComponents with BaseProperty {
-  def hasWellDefinedModifier(ctx: TypeInfoImpl): WellDefinedness[PNode]
+  def hasWellDefModifier(ctx: TypeInfoImpl): WellDefinedness[PNode]
 
   def getModifier(ctx: TypeInfoImpl): ModifierTyping[PNode, T]
 
-  def addressable: Boolean = true
+  def addressable(ctx: TypeInfoImpl)(exp: PExpression): Boolean = true
 
   trait ModifierTyping[-A, M] extends Safety[A, Option[M]] with Validity[A, Option[M]] {
     override def unsafe: Option[M] = None

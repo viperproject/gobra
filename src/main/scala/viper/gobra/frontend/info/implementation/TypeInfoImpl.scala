@@ -18,6 +18,7 @@ import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution,
 import viper.gobra.frontend.info.implementation.typing._
 import viper.gobra.frontend.info.implementation.typing.ghost._
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostSeparation
+import viper.gobra.frontend.info.implementation.typing.modifiers.{GhostModifierUnit, Modifier, ModifierUnit, OwnerModifier, OwnerModifierUnit}
 import viper.gobra.frontend.info.{ExternalTypeInfo, Info, TypeInfo}
 import viper.gobra.reporting.VerifierError
 
@@ -38,6 +39,8 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val dependentTypeInfo: Map
   with TypeTyping
   with IdTyping
   with MiscTyping
+
+  with ModifierTyping
 
   with GhostMemberTyping
   with GhostStmtTyping

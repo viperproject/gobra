@@ -7,7 +7,7 @@
 package viper.gobra.translator
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.theory.Addressability
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
@@ -78,9 +78,9 @@ object Names {
     case t => Violation.violation(s"cannot stringify type $t")
   }
 
-  def serializeAddressability(addr: Addressability): String = addr match {
-    case Addressability.Shared => "$$$_S_$$$"
-    case Addressability.Exclusive => "$$$$_E_$$$"
+  def serializeAddressability(addr: OwnerModifier): String = addr match {
+    case OwnerModifier.Shared => "$$$_S_$$$"
+    case OwnerModifier.Exclusive => "$$$$_E_$$$"
   }
 
   def serializeFields(fields: Vector[in.Field]): String = {

@@ -11,7 +11,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.reporting.Source
-import viper.gobra.theory.Addressability
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
@@ -209,9 +209,9 @@ class BuiltInEncoding extends Encoding {
           * requires acc(c.IsChannel(), _)
           * pure func (c chan T).BufferSize() (k Int)
           */
-        assert(recv.addressability == Addressability.inParameter)
+        assert(recv.ownerModifier == OwnerModifier.inParameter)
         val recvParam = in.Parameter.In("c", recv)(src)
-        val kParam = in.Parameter.Out("k", in.IntT(Addressability.outParameter))(src)
+        val kParam = in.Parameter.Out("k", in.IntT(OwnerModifier.outParameter))(src)
         val isChannelInst = builtInMPredAccessible(BuiltInMemberTag.IsChannelMPredTag, recvParam, Vector())(src)(ctx)
         val pres: Vector[in.Assertion] = Vector(
           in.Access(isChannelInst, in.WildcardPerm(src))(src),
@@ -227,13 +227,13 @@ class BuiltInEncoding extends Encoding {
           *   - chanPredicateTag is either SendChannel or RecvChannel
           *   - returnType is either pred(T) or pred()
           */
-        assert(recv.addressability == Addressability.inParameter)
+        assert(recv.ownerModifier == OwnerModifier.inParameter)
         val recvParam = in.Parameter.In("c", recv)(src)
         val resType = tag match {
-          case SendGotPermMethodTag | RecvGivenPermMethodTag => in.PredT(Vector(), Addressability.outParameter) // pred()
-          case _ => in.PredT(Vector(recv.elem), Addressability.outParameter) // pred(T)
+          case SendGotPermMethodTag | RecvGivenPermMethodTag => in.PredT(Vector(), OwnerModifier.outParameter) // pred()
+          case _ => in.PredT(Vector(recv.elem), OwnerModifier.outParameter) // pred(T)
         }
-        val resParam = in.Parameter.Out("res", resType.withAddressability(Addressability.outParameter))(src)
+        val resParam = in.Parameter.Out("res", resType.withOwnerModifier(OwnerModifier.outParameter))(src)
         val chanPredicateTag = tag match {
           case _: SendPermMethodTag => BuiltInMemberTag.SendChannelMPredTag
           case _: RecvPermMethodTag => BuiltInMemberTag.RecvChannelMPredTag
@@ -257,14 +257,14 @@ class BuiltInEncoding extends Encoding {
           * note that B is only of type pred() instead of pred(T) as long as we cannot deal with view shifts in Gobra.
           * as soon as we can, the third precondition can be changed to `[v] ((A(v) && C()) ==> (B(v) && D(v)))`
           */
-        assert(recv.addressability == Addressability.inParameter)
+        assert(recv.ownerModifier == OwnerModifier.inParameter)
         val recvParam = in.Parameter.In("c", recv)(src)
-        val predTType = in.PredT(Vector(recv.elem), Addressability.inParameter) // pred(T)
-        val predType = in.PredT(Vector(), Addressability.inParameter) // pred()
+        val predTType = in.PredT(Vector(recv.elem), OwnerModifier.inParameter) // pred(T)
+        val predType = in.PredT(Vector(), OwnerModifier.inParameter) // pred()
         val aParam = in.Parameter.In("A", predTType)(src)
         val bParam = in.Parameter.In("B", predType)(src)
         val isChannelInst = builtInMPredAccessible(BuiltInMemberTag.IsChannelMPredTag, recvParam, Vector())(src)(ctx)
-        val bufferSizeType = in.IntT(Addressability.inParameter)
+        val bufferSizeType = in.IntT(OwnerModifier.inParameter)
         val bufferSizeCall = builtInPureMethodCall(BuiltInMemberTag.BufferSizeMethodTag, recvParam, Vector(), bufferSizeType)(src)(ctx)
         val predTrueProxy = getOrGenerateFPredicate(BuiltInMemberTag.PredTrueFPredTag, Vector())(src)(ctx)
         val predTrueConstr = in.PredicateConstructor(predTrueProxy, predType, Vector())(src) // pred_true{}
@@ -307,12 +307,12 @@ class BuiltInEncoding extends Encoding {
           * ensures c.ClosureDebt(P, dividend, divisor /* p */) && c.Token(P)
           * ghost func (c chan T) CreateDebt(dividend int, divisor int /* p perm */, P pred())
           */
-        assert(recv.addressability == Addressability.inParameter)
+        assert(recv.ownerModifier == OwnerModifier.inParameter)
         val recvParam = in.Parameter.In("c", recv)(src)
-        val dividendParam = in.Parameter.In("dividend", in.IntT(Addressability.inParameter))(src)
-        val divisorParam = in.Parameter.In("divisor", in.IntT(Addressability.inParameter))(src)
-        // val permissionAmountParam = in.Parameter.In("p", in.PermissionT(Addressability.inParameter))(src)
-        val predicateParam = in.Parameter.In("P", in.PredT(Vector(), Addressability.inParameter))(src)
+        val dividendParam = in.Parameter.In("dividend", in.IntT(OwnerModifier.inParameter))(src)
+        val divisorParam = in.Parameter.In("divisor", in.IntT(OwnerModifier.inParameter))(src)
+        // val permissionAmountParam = in.Parameter.In("p", in.PermissionT(OwnerModifier.inParameter))(src)
+        val predicateParam = in.Parameter.In("P", in.PredT(Vector(), OwnerModifier.inParameter))(src)
         val sendChannelInst = builtInMPredAccessible(BuiltInMemberTag.SendChannelMPredTag, recvParam, Vector())(src)(ctx)
         val pres: Vector[in.Assertion] = Vector(
           in.ExprAssertion(in.AtLeastCmp(dividendParam, in.IntLit(0)(src))(src))(src),
@@ -337,9 +337,9 @@ class BuiltInEncoding extends Encoding {
           *
           * note that c.Closed() is duplicable and thus full permission can be ensured
           */
-        assert(recv.addressability == Addressability.inParameter)
+        assert(recv.ownerModifier == OwnerModifier.inParameter)
         val recvParam = in.Parameter.In("c", recv)(src)
-        val predicateParam = in.Parameter.In("P", in.PredT(Vector(), Addressability.inParameter))(src)
+        val predicateParam = in.Parameter.In("P", in.PredT(Vector(), OwnerModifier.inParameter))(src)
         val tokenInst = builtInMPredAccessible(BuiltInMemberTag.TokenMPredTag, recvParam, Vector(predicateParam))(src)(ctx)
         val closedInst = builtInMPredAccessible(BuiltInMemberTag.ClosedMPredTag, recvParam, Vector())(src)(ctx)
         val pres: Vector[in.Assertion] = Vector(
@@ -362,7 +362,7 @@ class BuiltInEncoding extends Encoding {
     var varCount = 0
     def freshBoundVar(): in.BoundVar = {
       varCount += 1
-      in.BoundVar(s"i$varCount", in.IntT(Addressability.boundVariable))(src)
+      in.BoundVar(s"i$varCount", in.IntT(OwnerModifier.boundVariable))(src)
     }
 
     def inRange(exp: in.Expr, lower: in.Expr, upper: in.Expr): in.Expr = {
@@ -393,13 +393,13 @@ class BuiltInEncoding extends Encoding {
           * ensures c.Closed()
           * func close(c chan T, ghost dividend int, divisor int /* p perm */, P pred())
           */
-        assert(channelT.addressability == Addressability.inParameter)
+        assert(channelT.ownerModifier == OwnerModifier.inParameter)
         val channelParam = in.Parameter.In("c", channelT)(src)
-        assert(dividendT.addressability == Addressability.inParameter)
+        assert(dividendT.ownerModifier == OwnerModifier.inParameter)
         val dividendParam = in.Parameter.In("dividend", dividendT)(src)
-        assert(divisorT.addressability == Addressability.inParameter)
+        assert(divisorT.ownerModifier == OwnerModifier.inParameter)
         val divisorParam = in.Parameter.In("divisor", divisorT)(src)
-        // assert(permissionAmountT.addressability == Addressability.inParameter)
+        // assert(permissionAmountT.addressability == OwnerModifier.inParameter)
         // val permissionAmountParam = in.Parameter.In("p", permissionAmountT)(src)
         val predicateParam = in.Parameter.In("P", predicateT)(src)
         val args = Vector(channelParam, dividendParam, divisorParam /* permissionAmountParam */, predicateParam)
@@ -445,15 +445,15 @@ class BuiltInEncoding extends Encoding {
           * ensures forall i int :: { &res[i] } len(dst) <= i && i < len(res) ==> res[i] === src[i - len(dst)]
           */
         val elemType = ctx.underlyingType(dst) match {
-          case t: in.SliceT => t.elems.withAddressability(Addressability.sliceLookup)
+          case t: in.SliceT => t.elems.withOwnerModifier(OwnerModifier.sliceLookup)
           case t => violation(s"Expected type with SliceT as underlying type, but got $t instead.")
         }
 
-        val sliceType = in.SliceT(elemType, Addressability.inParameter)
+        val sliceType = in.SliceT(elemType, OwnerModifier.inParameter)
 
         // parameters
         val sliceParam = in.Parameter.In("slice", sliceType)(src)
-        val pParam = in.Parameter.In("p", in.PermissionT(Addressability.Exclusive))(src)
+        val pParam = in.Parameter.In("p", in.PermissionT(OwnerModifier.Exclusive))(src)
         val variadicParam = in.Parameter.In("elems", sliceType)(src)
         val args = Vector(pParam, sliceParam, variadicParam)
 
@@ -534,11 +534,11 @@ class BuiltInEncoding extends Encoding {
           case t: in.SliceT => t
           case t => violation(s"Expected type with SliceT as underlying type, but got $t instead.")
         }
-        val pParam = in.Parameter.In("p", in.PermissionT(Addressability.inParameter))(src)
+        val pParam = in.Parameter.In("p", in.PermissionT(OwnerModifier.inParameter))(src)
         val args = Vector(dstParam, srcParam, pParam)
 
         // results
-        val resParam = in.Parameter.Out("res", in.IntT(Addressability.outParameter))(src)
+        val resParam = in.Parameter.Out("res", in.IntT(OwnerModifier.outParameter))(src)
         val results = Vector(resParam)
 
         // preconditions
@@ -623,7 +623,7 @@ class BuiltInEncoding extends Encoding {
           */
         val params = args.zipWithIndex.map {
           case (arg, idx) =>
-            assert(arg.addressability == Addressability.inParameter)
+            assert(arg.ownerModifier == OwnerModifier.inParameter)
             in.Parameter.In(s"arg$idx", arg)(src)
         }
         val body: Option[in.Assertion] = Some(in.ExprAssertion(in.BoolLit(b = true)(src))(src))
@@ -634,7 +634,7 @@ class BuiltInEncoding extends Encoding {
 
   private def translateMPredicate(x: in.BuiltInMPredicate)(@unused ctx: Context): in.MPredicate = {
     val src = x.info
-    assert(x.receiverT.addressability == Addressability.inParameter)
+    assert(x.receiverT.ownerModifier == OwnerModifier.inParameter)
     val recvParam = in.Parameter.In("c", x.receiverT)(src)
 
     x.tag match {
@@ -652,16 +652,16 @@ class BuiltInEncoding extends Encoding {
         /**
           * pred (c chan T) ClosureDebt(P pred(), dividend int, divisor int /* p perm */)
           */
-        val predicateParam = in.Parameter.In("P", in.PredT(Vector(), Addressability.inParameter))(src)
-        val dividendParam = in.Parameter.In("dividend", in.IntT(Addressability.inParameter))(src)
-        val divisorParam = in.Parameter.In("divisor", in.IntT(Addressability.inParameter))(src)
-        // val permissionAmountParam = in.Parameter.In("p", in.PermissionT(Addressability.inParameter))(src)
+        val predicateParam = in.Parameter.In("P", in.PredT(Vector(), OwnerModifier.inParameter))(src)
+        val dividendParam = in.Parameter.In("dividend", in.IntT(OwnerModifier.inParameter))(src)
+        val divisorParam = in.Parameter.In("divisor", in.IntT(OwnerModifier.inParameter))(src)
+        // val permissionAmountParam = in.Parameter.In("p", in.PermissionT(OwnerModifier.inParameter))(src)
         in.MPredicate(recvParam, x.name, Vector(predicateParam, dividendParam, divisorParam /* permissionAmountParam */), None)(src)
       case TokenMPredTag =>
         /**
           * pred (c chan T) Token(P pred())
           */
-        val predicateParam = in.Parameter.In("P", in.PredT(Vector(), Addressability.inParameter))(src)
+        val predicateParam = in.Parameter.In("P", in.PredT(Vector(), OwnerModifier.inParameter))(src)
         in.MPredicate(recvParam, x.name, Vector(predicateParam), None)(src)
       case tag => violation(s"no mpredicate generation defined for tag $tag")
     }

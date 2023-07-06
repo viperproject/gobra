@@ -39,7 +39,7 @@ trait BaseTyping extends TypingComponents { this: TypeInfoImpl =>
       case o: PMisc => wellDefMisc.valid(o)
       case s: PSpecification => wellDefSpec.valid(s)
       case m: PNode => childrenWellDefined(m)
-    }) && modifierWellDefined(n)
+    }) && wellDefModifiers(n).valid
 
     /**
       * Returns true iff well-definedness of node is not required for any ancestor node
@@ -69,11 +69,7 @@ trait BaseTyping extends TypingComponents { this: TypeInfoImpl =>
     case o: PMisc => wellDefMisc.valid(o)
     case s: PSpecification => wellDefSpec.valid(s)
     case m: PNode => childrenWellDefined(m)
-  }) && modifierWellDefined(n)
-
-  private def modifierWellDefined(n: PNode): Boolean = {
-    modifierUnits.forall(_.hasWellDefinedModifier(this)(n).valid)
-  }
+  }) && wellDefModifiers(n).valid
 
   private[typing] def createWellDef[T <: PNode](check: T => Messages): WellDefinedness[T] =
     new Attribution with WellDefinedness[T] with Safety[T, ValidityMessages] with Memoization[T, ValidityMessages] {

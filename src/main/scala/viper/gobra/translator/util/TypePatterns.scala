@@ -7,8 +7,8 @@
 package viper.gobra.translator.util
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.theory.Addressability
-import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Shared, Exclusive }
 import viper.gobra.translator.context.Context
 
 import scala.annotation.tailrec
@@ -25,17 +25,17 @@ object TypePatterns {
 
   /** Matches every type and splits it into the type and its addressability modifier. */
   object / {
-    def unapply[T <: in.Type](arg: T): Some[(T, Addressability)] = Some(arg, arg.addressability)
+    def unapply[T <: in.Type](arg: T): Some[(T, OwnerModifier)] = Some(arg, arg.ownerModifier)
   }
 
   /** Matches every shared type. */
   object Sh {
-    def unapply(arg: in.Type): Boolean = arg.addressability.isShared
+    def unapply(arg: in.Type): Boolean = arg.ownerModifier == OwnerModifier.Shared
   }
 
   /** Matches every exclusive type. */
   object Ex {
-    def unapply(arg: in.Type): Boolean = arg.addressability.isExclusive
+    def unapply(arg: in.Type): Boolean = arg.ownerModifier == OwnerModifier.Exclusive
   }
 
   /** One pattern for every type. The patterns disregard the addressability modifier. */

@@ -9,9 +9,9 @@ package viper.gobra.translator.encodings
 import org.apache.commons.codec.binary.Hex
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.frontend.info.implementation.typing.modifiers.{OwnerModifier, OwnerModifierUnit}
 import viper.gobra.reporting.Source
-import viper.gobra.theory.Addressability
-import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Shared, Exclusive }
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
@@ -102,10 +102,10 @@ class StringEncoding extends LeafTypeEncoding {
         // interesting properties
         val (pos, info, errT) = conv.vprMeta
 
-        val sliceT = in.SliceT(in.IntT(Addressability.sliceElement, TypeBounds.Byte), Addressability.outParameter)
+        val sliceT = in.SliceT(in.IntT(OwnerModifier.sliceElement, TypeBounds.Byte), OwnerModifier.outParameter)
         val slice = in.LocalVar(ctx.freshNames.next(), sliceT)(conv.info)
         val vprSlice = ctx.variable(slice)
-        val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(conv.info)
+        val qtfVar = in.BoundVar("i", in.IntT(OwnerModifier.boundVariable))(conv.info)
         val post = in.SepForall(
           vars = Vector(qtfVar),
           triggers = Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(slice, qtfVar, sliceT)(conv.info))(conv.info)))(conv.info)),
@@ -277,10 +277,10 @@ class StringEncoding extends LeafTypeEncoding {
   private val byteSliceToStrFuncGenerator: FunctionGenerator[Unit] = new FunctionGenerator[Unit] {
     override def genFunction(@unused x: Unit)(ctx: Context): vpr.Function = {
       val info = Source.Parser.Internal
-      val paramT = in.SliceT(in.IntT(Addressability.sliceElement, TypeBounds.Byte), Addressability.outParameter)
+      val paramT = in.SliceT(in.IntT(OwnerModifier.sliceElement, TypeBounds.Byte), OwnerModifier.outParameter)
       val param = in.Parameter.In("s", paramT)(info)
-      val res = in.Parameter.Out("res", in.StringT(Addressability.outParameter))(info)
-      val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(info)
+      val res = in.Parameter.Out("res", in.StringT(OwnerModifier.outParameter))(info)
+      val qtfVar = in.BoundVar("i", in.IntT(OwnerModifier.boundVariable))(info)
       val trigger = in.Trigger(Vector(in.Ref(in.IndexedExp(param, qtfVar, paramT)(info))(info)))(info)
       val pre = in.SepForall(
         vars = Vector(qtfVar),

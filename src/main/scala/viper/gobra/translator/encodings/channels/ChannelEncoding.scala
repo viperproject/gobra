@@ -9,8 +9,8 @@ package viper.gobra.translator.encodings.channels
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.{ChannelMakePreconditionError, ChannelReceiveError, ChannelSendError, InsufficientPermissionFromTagError, Source}
-import viper.gobra.theory.Addressability
-import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Shared, Exclusive }
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
@@ -57,7 +57,7 @@ class ChannelEncoding extends LeafTypeEncoding {
 
       case exp@in.Receive(channel :: ctx.Channel(typeParam), recvChannel, recvGivenPerm, recvGotPerm) =>
         val (pos, info, errT) = exp.vprMeta
-        val res = in.LocalVar(ctx.freshNames.next(), typeParam.withAddressability(Addressability.Exclusive))(exp.info)
+        val res = in.LocalVar(ctx.freshNames.next(), typeParam.withOwnerModifier(OwnerModifier.Exclusive))(exp.info)
         val vprRes = ctx.variable(res)
         val recvChannelPred = in.Accessible.Predicate(in.MPredicateAccess(channel, recvChannel, Vector())(exp.info))
         for {
@@ -132,7 +132,7 @@ class ChannelEncoding extends LeafTypeEncoding {
     default(super.statement(ctx)){
       case makeStmt@in.MakeChannel(target, in.ChannelT(typeParam, _), optBufferSizeArg, isChannelPred, bufferSizeMProxy) =>
         val (pos, info, errT) = makeStmt.vprMeta
-        val a = in.LocalVar(ctx.freshNames.next(), in.ChannelT(typeParam.withAddressability(Addressability.channelElement), Addressability.Exclusive))(makeStmt.info)
+        val a = in.LocalVar(ctx.freshNames.next(), in.ChannelT(typeParam.withOwnerModifier(OwnerModifier.channelElement), OwnerModifier.Exclusive))(makeStmt.info)
         val vprA = ctx.variable(a)
         val bufferSizeArg = optBufferSizeArg.getOrElse(in.IntLit(0)(makeStmt.info)) // create an unbuffered channel by default
         seqn(
@@ -156,7 +156,7 @@ class ChannelEncoding extends LeafTypeEncoding {
             _ <- write(vprIsChannelInhale)
 
             // inhale [a].BufferSize() == [bufferSize]
-            bufferSizeCall = in.PureMethodCall(a, bufferSizeMProxy, Vector(), in.IntT(Addressability.outParameter))(makeStmt.info)
+            bufferSizeCall = in.PureMethodCall(a, bufferSizeMProxy, Vector(), in.IntT(OwnerModifier.outParameter))(makeStmt.info)
             bufferSizeEq = in.EqCmp(bufferSizeCall, bufferSizeArg)(makeStmt.info)
             vprBufferSizeEq <- ctx.expression(bufferSizeEq)
             vprBufferSizeInhale = vpr.Inhale(vprBufferSizeEq)(pos, info, errT)
@@ -195,9 +195,9 @@ class ChannelEncoding extends LeafTypeEncoding {
 
       case stmt@in.SafeReceive(resTarget, successTarget, channel :: ctx.Channel(typeParam), recvChannel, recvGivenPerm, recvGotPerm, closed) =>
         val (pos, info, errT) = stmt.vprMeta
-        val res = in.LocalVar(ctx.freshNames.next(), typeParam.withAddressability(Addressability.Exclusive))(stmt.info)
+        val res = in.LocalVar(ctx.freshNames.next(), typeParam.withOwnerModifier(OwnerModifier.Exclusive))(stmt.info)
         val vprRes = ctx.variable(res)
-        val ok = in.LocalVar(ctx.freshNames.next(), in.BoolT(Addressability.Exclusive))(stmt.info)
+        val ok = in.LocalVar(ctx.freshNames.next(), in.BoolT(OwnerModifier.Exclusive))(stmt.info)
         val vprOk = ctx.variable(ok)
         val recvChannelPred = in.Accessible.Predicate(in.MPredicateAccess(channel, recvChannel, Vector())(stmt.info))
         seqn(
@@ -261,7 +261,7 @@ class ChannelEncoding extends LeafTypeEncoding {
     * Constructs `[channel].invariant()([args])`
     */
   private def getChannelInvariantAccess(channel: in.Expr, invariant: in.MethodProxy, args: Vector[in.Expr])(src: Source.Parser.Info): in.Access = {
-    val permReturnT = in.PredT(args.map(_.typ), Addressability.outParameter)
+    val permReturnT = in.PredT(args.map(_.typ), OwnerModifier.outParameter)
     val permPred = in.PureMethodCall(channel, invariant, Vector(), permReturnT)(src)
     in.Access(in.Accessible.PredExpr(in.PredExprInstance(permPred, args)(src)), in.FullPerm(src))(src)
   }

@@ -11,8 +11,8 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting
 import viper.gobra.reporting.BackTranslator.ErrorTransformer
 import viper.gobra.reporting.Source
-import viper.gobra.theory.Addressability
-import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Shared, Exclusive }
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
@@ -163,8 +163,8 @@ class ClosureEncoding extends LeafTypeEncoding {
     val (pos, info, errT) = proof.vprMeta
     val src = proof.info
 
-    val ifNdBool = in.LocalVar(ctx.freshNames.next(), in.BoolT(Addressability.exclusiveVariable))(src)
-    val numIterations = in.LocalVar(ctx.freshNames.next(), in.IntT(Addressability.exclusiveVariable))(src)
+    val ifNdBool = in.LocalVar(ctx.freshNames.next(), in.BoolT(OwnerModifier.exclusiveVariable))(src)
+    val numIterations = in.LocalVar(ctx.freshNames.next(), in.IntT(OwnerModifier.exclusiveVariable))(src)
 
     for {
       _ <- cl.local(vpr.LocalVarDecl(ifNdBool.id, ctx.typ(ifNdBool.typ))(pos, info, errT))

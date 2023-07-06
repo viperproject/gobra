@@ -7,7 +7,7 @@
 package viper.gobra.translator.encodings.structs
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.theory.Addressability.Shared
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.Shared
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 import viper.gobra.translator.util.ViperWriter.CodeLevel._

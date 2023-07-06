@@ -331,7 +331,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
   private def isMutable: Property[PExpression] = createBinaryProperty("mutable") { e =>
     resolve(e) match {
-      case Some(g: ap.GlobalVariable) => g.symb.addressable
+      case Some(g: ap.GlobalVariable) => g.symb.shared
       case Some(i: ap.IndexedExp) => isMutable(i.base)
       case Some(f: ap.FieldSelection) => isMutable(f.base)
       case _ => true

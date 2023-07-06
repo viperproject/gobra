@@ -8,7 +8,7 @@ package viper.gobra.translator.encodings.typeless
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.theory.Addressability
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.util.{Core, ViperWriter}
@@ -51,7 +51,7 @@ class DeferEncoding extends Encoding {
 
       val name = ctx.freshNames.next()
       val args = Core.coreArgs(n.stmt)
-      val vars = args.zipWithIndex map { case (v, idx) => in.LocalVar(s"${name}_$idx", v.typ.withAddressability(Addressability.Exclusive))(v.info) }
+      val vars = args.zipWithIndex map { case (v, idx) => in.LocalVar(s"${name}_$idx", v.typ.withOwnerModifier(OwnerModifier.Exclusive))(v.info) }
       val appliedCore = Core.core(n.stmt).run(vars)
 
       val vprVars = vars map ctx.variable // temporary variables

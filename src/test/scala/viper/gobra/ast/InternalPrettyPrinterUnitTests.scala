@@ -10,20 +10,20 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.Inside
 import org.scalatest.matchers.should.Matchers
 import viper.gobra.ast.internal._
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 import viper.gobra.reporting.Source.Parser.Internal
-import viper.gobra.theory.Addressability
 import viper.gobra.util.TypeBounds
 
 class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
 
-  val intT: Type = IntT(Addressability.Exclusive, TypeBounds.DefaultInt)
-  val boolT: Type = BoolT(Addressability.Exclusive)
-  def sequenceT(memT: Type): Type = SequenceT(memT, Addressability.Exclusive)
-  def setT(memT: Type): Type = SetT(memT, Addressability.Exclusive)
-  def multisetT(memT: Type): Type = MultisetT(memT, Addressability.Exclusive)
-  def exclusiveArrayT(length: BigInt, memT: Type): Type = ArrayT(length, memT, Addressability.Exclusive)
-  def sharedArrayT(length: BigInt, memT: Type): Type = ArrayT(length, memT, Addressability.Shared)
+  val intT: Type = IntT(OwnerModifier.Exclusive, TypeBounds.DefaultInt)
+  val boolT: Type = BoolT(OwnerModifier.Exclusive)
+  def sequenceT(memT: Type): Type = SequenceT(memT, OwnerModifier.Exclusive)
+  def setT(memT: Type): Type = SetT(memT, OwnerModifier.Exclusive)
+  def multisetT(memT: Type): Type = MultisetT(memT, OwnerModifier.Exclusive)
+  def exclusiveArrayT(length: BigInt, memT: Type): Type = ArrayT(length, memT, OwnerModifier.Exclusive)
+  def sharedArrayT(length: BigInt, memT: Type): Type = ArrayT(length, memT, OwnerModifier.Shared)
 
   test("Printer: should correctly show a standard sequence index expression") {
     val expr = IndexedExp(
@@ -961,7 +961,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should be able to correctly show a very simple 'acc' predicate applied on an array") {
-    val typ = sharedArrayT(12, sharedArrayT(24, BoolT(Addressability.Shared)))
+    val typ = sharedArrayT(12, sharedArrayT(24, BoolT(OwnerModifier.Shared)))
     val expr = Access(
       Accessible.Address(
         IndexedExp(
@@ -979,7 +979,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show a simple assignee indexed expression") {
-    val typ = sharedArrayT(12, sharedArrayT(24, BoolT(Addressability.Shared)))
+    val typ = sharedArrayT(12, sharedArrayT(24, BoolT(OwnerModifier.Shared)))
     val expr = Assignee.Index(
       IndexedExp(
         LocalVar("a", typ)(Internal),
@@ -1051,7 +1051,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show a shared (integer) array type") {
-    val typ = sharedArrayT(12, IntT(Addressability.Shared, TypeBounds.DefaultInt))
+    val typ = sharedArrayT(12, IntT(OwnerModifier.Shared, TypeBounds.DefaultInt))
 
     frontend.show(typ) should matchPattern {
       case "[12]int@@" =>
@@ -1059,7 +1059,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show a nested shared (Boolean) array type") {
-    val typ = sharedArrayT(12, sharedArrayT(24, BoolT(Addressability.Shared)))
+    val typ = sharedArrayT(12, sharedArrayT(24, BoolT(OwnerModifier.Shared)))
 
     frontend.show(typ) should matchPattern {
       case "[12][24]bool@@@" =>
@@ -1105,7 +1105,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show a simple (exclusive) option type") {
-    val a = Addressability.Exclusive
+    val a = OwnerModifier.Exclusive
     val typ = OptionT(OptionT(BoolT(a), a), a)
 
     frontend.show(typ) should matchPattern {
@@ -1114,7 +1114,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show a simple (shared) option type") {
-    val a = Addressability.Shared
+    val a = OwnerModifier.Shared
     val typ = OptionT(OptionT(BoolT(a), a), a)
 
     frontend.show(typ) should matchPattern {
@@ -1147,7 +1147,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show a simple integer slice type") {
-    val a = Addressability.Exclusive
+    val a = OwnerModifier.Exclusive
     val t = SliceT(intT, a)
 
     frontend.show(t) should matchPattern {
@@ -1156,7 +1156,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show a slightly more complex slice type") {
-    val a = Addressability.Exclusive
+    val a = OwnerModifier.Exclusive
     val t = SliceT(SetT(SequenceT(boolT, a), a), a)
 
     frontend.show(t) should matchPattern {
@@ -1165,7 +1165,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show a nested slice type") {
-    val a = Addressability.Exclusive
+    val a = OwnerModifier.Exclusive
     val t = SliceT(SliceT(SliceT(SliceT(intT, a), a), a), a)
 
     frontend.show(t) should matchPattern {
@@ -1175,7 +1175,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
 
   test("Printer: should correctly show a simple capacity expression") {
     val expr = Capacity(
-      LocalVar("s", SliceT(intT, Addressability.Exclusive))(Internal)
+      LocalVar("s", SliceT(intT, OwnerModifier.Exclusive))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -1185,11 +1185,11 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
 
   test("Printer: should correctly show a simple full slice expression") {
     val expr = Slice(
-      LocalVar("s", SliceT(intT, Addressability.Exclusive))(Internal),
+      LocalVar("s", SliceT(intT, OwnerModifier.Exclusive))(Internal),
       IntLit(2)(Internal),
       IntLit(4)(Internal),
       Some(IntLit(6)(Internal)),
-      SliceT(intT, Addressability.Exclusive)
+      SliceT(intT, OwnerModifier.Exclusive)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -1199,11 +1199,11 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
 
   test("Printer: should correctly show a (partial) slice expression") {
     val expr = Slice(
-      LocalVar("s", SliceT(intT, Addressability.Exclusive))(Internal),
+      LocalVar("s", SliceT(intT, OwnerModifier.Exclusive))(Internal),
       IntLit(8)(Internal),
       IntLit(4)(Internal),
       None,
-      SliceT(intT, Addressability.Exclusive)
+      SliceT(intT, OwnerModifier.Exclusive)
     )(Internal)
 
     frontend.show(expr) should matchPattern {

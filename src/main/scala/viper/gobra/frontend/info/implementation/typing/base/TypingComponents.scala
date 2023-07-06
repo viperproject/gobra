@@ -9,8 +9,6 @@ import viper.gobra.util.{Memoization, Safety, Validity}
 
 trait TypingComponents {
 
-  private[typing] final val modifierUnits = Vector(OwnerModifierUnit)
-
   sealed trait ValidityMessages {
     def out: Messages
 

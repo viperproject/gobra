@@ -10,8 +10,8 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting.{ArrayMakePreconditionError, Source}
-import viper.gobra.theory.Addressability
-import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Shared, Exclusive }
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.arrays.SharedArrayEmbedding
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
@@ -138,7 +138,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     default(super.statement(ctx)) {
       case makeStmt@in.MakeSlice(target, in.SliceT(typeParam, _), lenArg, optCapArg) =>
         val (pos, info, errT) = makeStmt.vprMeta
-        val sliceT = in.SliceT(typeParam.withAddressability(Shared), Addressability.Exclusive)
+        val sliceT = in.SliceT(typeParam.withOwnerModifier(Shared), OwnerModifier.Exclusive)
         val slice = in.LocalVar(ctx.freshNames.next(), sliceT)(makeStmt.info)
         val vprSlice = ctx.variable(slice)
         seqn(
@@ -185,7 +185,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
               trigger = (idx: vpr.LocalVar) =>
                 Seq(vpr.Trigger(Seq(ctx.slice.loc(vprSlice.localVar, idx)(pos, info, errT)))(pos, info, errT)),
               body = (x: in.BoundVar) =>
-                ctx.equal(in.IndexedExp(slice, x, sliceT)(makeStmt.info), in.DfltVal(typeParam.withAddressability(Exclusive))(makeStmt.info))(makeStmt)
+                ctx.equal(in.IndexedExp(slice, x, sliceT)(makeStmt.info), in.DfltVal(typeParam.withOwnerModifier(Exclusive))(makeStmt.info))(makeStmt)
             )(makeStmt)(ctx)
             _ <- write(vpr.Inhale(eqValueAssertion)(pos, info, errT))
 
@@ -196,7 +196,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       case lit: in.NewSliceLit =>
         val (pos, info, errT) = lit.vprMeta
         val litA = lit.asArrayLit
-        val tmp = in.LocalVar(ctx.freshNames.next(), litA.typ.withAddressability(Addressability.pointerBase))(lit.info)
+        val tmp = in.LocalVar(ctx.freshNames.next(), litA.typ.withOwnerModifier(OwnerModifier.pointerBase))(lit.info)
         val tmpT = ctx.variable(tmp)
         val underlyingTyp = underlyingType(lit.typ)(ctx)
         for {

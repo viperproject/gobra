@@ -10,8 +10,8 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting._
-import viper.gobra.theory.Addressability
-import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Shared, Exclusive }
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.encodings.maps.MapEncoding.{checkKeyComparability, comparabilityErrorT, repeatedKeyErrorT}
@@ -157,7 +157,7 @@ class MapEncoding extends LeafTypeEncoding {
                 MapMakePreconditionError(info)
             } else unit(())
 
-            mapVar = in.LocalVar(ctx.freshNames.next(), t.withAddressability(Exclusive))(makeStmt.info)
+            mapVar = in.LocalVar(ctx.freshNames.next(), t.withOwnerModifier(Exclusive))(makeStmt.info)
             mapVarVpr = ctx.variable(mapVar)
             _ <- local(mapVarVpr)
 
@@ -170,9 +170,9 @@ class MapEncoding extends LeafTypeEncoding {
 
       case l@in.SafeMapLookup(resTarget, successTarget, indexedExp@in.IndexedExp(_, _, _)) =>
         val (pos, info, errT) = l.vprMeta
-        val res = in.LocalVar(ctx.freshNames.next(), indexedExp.typ.withAddressability(Addressability.Exclusive))(l.info)
+        val res = in.LocalVar(ctx.freshNames.next(), indexedExp.typ.withOwnerModifier(OwnerModifier.Exclusive))(l.info)
         val vprRes = ctx.variable(res)
-        val ok = in.LocalVar(ctx.freshNames.next(), in.BoolT(Addressability.Exclusive))(l.info)
+        val ok = in.LocalVar(ctx.freshNames.next(), in.BoolT(OwnerModifier.Exclusive))(l.info)
         val vprOk = ctx.variable(ok)
 
         seqn(
@@ -195,7 +195,7 @@ class MapEncoding extends LeafTypeEncoding {
 
       case lit: in.NewMapLit =>
         val (pos, info, errT) = lit.vprMeta
-        val res = in.LocalVar(ctx.freshNames.next(), lit.typ.withAddressability(Exclusive))(lit.info)
+        val res = in.LocalVar(ctx.freshNames.next(), lit.typ.withOwnerModifier(Exclusive))(lit.info)
         val vRes = ctx.variable(res)
 
         for {

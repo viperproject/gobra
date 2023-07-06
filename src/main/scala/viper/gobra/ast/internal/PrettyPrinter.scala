@@ -9,9 +9,9 @@ package viper.gobra.ast.internal
 import org.bitbucket.inkytonik.kiama
 import org.bitbucket.inkytonik.kiama.util.Trampolines.Done
 import viper.gobra.ast.printing.PrettyPrinterCombinators
-import viper.gobra.theory.Addressability
 import viper.gobra.util.{Binary, Decimal, Hexadecimal, Octal}
 import viper.silver.ast.{Position => GobraPosition}
+import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
@@ -373,13 +373,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   })
 
   def showBlockDecl(x: BlockDeclaration): Doc = x match {
-    case localVar: LocalVar => showVar(localVar) <> ":" <+> showType(localVar.typ) <> showAddressability(localVar.typ.addressability)
+    case localVar: LocalVar => showVar(localVar) <> ":" <+> showType(localVar.typ) <> showOwnerModifier(localVar.typ.ownerModifier)
     case l: LabelProxy => showProxy(l)
   }
 
-  def showAddressability(x: Addressability): Doc = x match {
-    case Addressability.Shared => "@"
-    case Addressability.Exclusive => "°"
+  def showOwnerModifier(x: OwnerModifier): Doc = x match {
+    case OwnerModifier.Shared => "@"
+    case OwnerModifier.Exclusive => "°"
   }
 
   protected def showStmtList[T <: Stmt](list: Vector[T]): Doc =

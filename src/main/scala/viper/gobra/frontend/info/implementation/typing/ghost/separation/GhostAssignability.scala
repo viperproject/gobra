@@ -97,9 +97,9 @@ trait GhostAssignability {
 
     case PIndexedExp(_, index) => // a[i] := e ~ !ghost(i) && !ghost(e)
       error(left, "ghost error: ghost cannot be assigned to index expressions", isRightGhost) ++
-        error(left, "ghost error: ghost index are not permitted in index expressions", index.map(exprOrType).forall {
-          case Left(expression) => !ghostExprResultClassification(expression)
-          case Right(pType) => !ghostTypeClassification(pType)
+        error(left, "ghost error: ghost index are not permitted in index expressions", index.map(exprOrType).exists {
+          case Left(expression) => ghostExprResultClassification(expression)
+          case Right(pType) => ghostTypeClassification(pType)
         })
 
     case PNamedOperand(id) => // x := e ~ ghost(e) ==> ghost(x)

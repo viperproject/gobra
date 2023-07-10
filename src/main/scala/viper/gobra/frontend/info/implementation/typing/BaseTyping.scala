@@ -28,18 +28,20 @@ trait BaseTyping extends TypingComponents { this: TypeInfoImpl =>
 
   private[typing] def childrenWellDefined(n: PNode): Boolean = {
 
-    def selfWellDefined(n: PNode): Boolean = (n match {
-      case _ if isNotADependency(n) => true
-      case s: PStatement => wellDefStmt.valid(s)
-      case n: PExpressionAndType => wellDefExprAndType.valid(n)
-      case e: PExpression => wellDefExpr.valid(e)
-      case t: PType => wellDefType.valid(t)
-      case i: PIdnNode => wellDefID.valid(i)
-      case l: PLabelNode => wellDefLabel.valid(l)
-      case o: PMisc => wellDefMisc.valid(o)
-      case s: PSpecification => wellDefSpec.valid(s)
-      case m: PNode => childrenWellDefined(m)
-    }) && wellDefModifiers(n).valid
+    def selfWellDefined(n: PNode): Boolean = {
+      if (isNotADependency(n)) true
+      else (n match {
+        case s: PStatement => wellDefStmt.valid(s)
+        case n: PExpressionAndType => wellDefExprAndType.valid(n)
+        case e: PExpression => wellDefExpr.valid(e)
+        case t: PType => wellDefType.valid(t)
+        case i: PIdnNode => wellDefID.valid(i)
+        case l: PLabelNode => wellDefLabel.valid(l)
+        case o: PMisc => wellDefMisc.valid(o)
+        case s: PSpecification => wellDefSpec.valid(s)
+        case m: PNode => childrenWellDefined(m)
+      }) && wellDefModifiers(n).valid
+    }
 
     /**
       * Returns true iff well-definedness of node is not required for any ancestor node

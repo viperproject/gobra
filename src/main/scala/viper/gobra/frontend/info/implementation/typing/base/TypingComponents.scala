@@ -43,4 +43,14 @@ trait TypingComponents {
       override def compute(n: T): ValidityMessages =
         LocalMessages(if (check.isDefinedAt(n)) check(n) else noMessages)
     }
+
+  private[typing] def createWellDefWithValidityMessages[T <: PNode](check: T => ValidityMessages)(pre: T => Boolean): WellDefinedness[T] =
+    new Attribution with WellDefinedness[T] with Safety[T, ValidityMessages] with Memoization[T, ValidityMessages] {
+
+      override def safe(n: T): Boolean = pre(n)
+
+      override def unsafe: ValidityMessages = UnsafeForwardMessage
+
+      override def compute(n: T): ValidityMessages = check(n)
+    }
 }

@@ -12,9 +12,10 @@ import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
+import viper.gobra.frontend.info.implementation.typing.modifiers.{GhostModifier, ModifierUnit}
 import viper.gobra.util.Violation
 
-trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
+trait GhostTyping { this: ModifierUnit[GhostModifier] =>
 
   /** returns true iff member is classified as ghost */
   private[separation] lazy val ghostMemberClassification: PMember => Boolean =

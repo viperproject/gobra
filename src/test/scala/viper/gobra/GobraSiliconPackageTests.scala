@@ -12,6 +12,7 @@ import ch.qos.logback.classic.Level
 import org.bitbucket.inkytonik.kiama.util.Source
 import org.rogach.scallop.exceptions.ValidationFailure
 import org.rogach.scallop.throwError
+import viper.gobra.backend.ViperBackends
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, PackageInfo, ScallopGobraConfig, Source}
 import viper.gobra.reporting.{NoopReporter, ParserError}
@@ -22,7 +23,7 @@ import viper.silver.utility.TimingUtils
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
-class GobraPackageTests extends GobraTests {
+class GobraSiliconPackageTests extends GobraSiliconRegressionTests {
   val samePackagePropertyName    = "GOBRATESTS_SAME_PACKAGE_DIR"
   val builtinPackagePropertyName = "GOBRATESTS_BUILTIN_PACKAGES_DIR"
   val stubPackagesPropertyName   = "GOBRATESTS_STUB_PACKAGES_DIR"
@@ -75,6 +76,7 @@ class GobraPackageTests extends GobraTests {
           packageInfoInputMap = Map(pkgInfo -> input.files.toVector.map(FromFileSource(_))),
           includeDirs = Vector(currentDir),
           checkConsistency = true,
+          backend = ViperBackends.SiliconBackend,
           z3Exe = z3Exe
         )
 

@@ -9,6 +9,7 @@ package viper.gobra
 import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import org.scalatest.BeforeAndAfterAll
+import viper.gobra.backend.ViperBackends
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, PackageResolver, Source}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
@@ -20,7 +21,7 @@ import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
-class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
+class GobraSiliconRegressionTests extends AbstractGobraTests with BeforeAndAfterAll {
 
   val regressionsPropertyName = "GOBRATESTS_REGRESSIONS_DIR"
 
@@ -54,6 +55,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
           reporter = NoopReporter,
           packageInfoInputMap = Map(Source.getPackageInfo(source, Path.of("")) -> Vector(source)),
           checkConsistency = true,
+          backend = ViperBackends.SiliconBackend,
           z3Exe = z3Exe
         )
 

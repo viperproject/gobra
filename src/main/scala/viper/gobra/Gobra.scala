@@ -293,7 +293,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performViperEncoding(program: Program, config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], BackendVerifier.Task] = {
     if (config.shouldViperEncode) {
-      Right(Translator.translate(program, pkgInfo)(config))
+      Translator.translate(program, pkgInfo)(config)
     } else {
       Left(Vector())
     }

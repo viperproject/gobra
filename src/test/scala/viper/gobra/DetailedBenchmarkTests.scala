@@ -142,7 +142,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       val c = config.get
       assert(c.packageInfoInputMap.size == 1)
       val pkgInfo = c.packageInfoInputMap.keys.head
-      Right(Translator.translate(program, pkgInfo)(c))
+      Translator.translate(program, pkgInfo)(c)
     })
 
     private val verifying = NextStep("Viper verification", encoding, (viperTask: BackendVerifier.Task) => {

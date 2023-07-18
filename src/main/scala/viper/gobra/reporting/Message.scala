@@ -92,16 +92,14 @@ case class PreprocessedInputMessage(input: String, preprocessedContent: () => St
   override val name: String = s"preprocessed_input_message"
 
   override def toString: String = s"preprocessed_input_message(" +
-    s"file=$input, " +
-    s"content=${preprocessedContent()})"
+    s"file=$input)"
 }
 
 case class ParsedInputMessage(input: String, ast: () => PProgram) extends GobraMessage {
   override val name: String = s"parsed_input_message"
 
   override def toString: String = s"parsed_input_message(" +
-    s"file=$input, " +
-    s"ast=${ast().formatted})"
+    s"file=$input)"
 }
 
 case class ParserErrorMessage(input: Path, result: Vector[ParserError]) extends GobraMessage {
@@ -142,24 +140,21 @@ case class TypeCheckDebugMessage(inputs: Vector[String], ast: () => PPackage, de
   override val name: String = s"type_check_debug_message"
 
   override def toString: String = s"type_check_debug_message(" +
-    s"files=$inputs, " +
-    s"debugInfo=${debugTypeInfo()})"
+    s"files=$inputs)"
 }
 
 case class DesugaredMessage(inputs: Vector[String], internal: () => in.Program) extends GobraMessage {
   override val name: String = s"desugared_message"
 
   override def toString: String = s"desugared_message(" +
-    s"files=$inputs, " +
-    s"internal=${internal().formatted})"
+    s"files=$inputs)"
 }
 
 case class AppliedInternalTransformsMessage(inputs: Vector[String], internal: () => in.Program) extends GobraMessage {
   override val name: String = s"transform_message"
 
   override def toString: String = s"transform_message(" +
-    s"files=$inputs, " +
-    s"internal=${internal().formatted})"
+    s"files=$inputs)"
 }
 
 case class GeneratedViperMessage(taskName: String, inputs: Vector[String], vprAst: () => vpr.Program, backtrack: () => BackTranslator.BackTrackInfo) extends GobraMessage {
@@ -167,8 +162,7 @@ case class GeneratedViperMessage(taskName: String, inputs: Vector[String], vprAs
 
   override def toString: String = s"generated_viper_message(" +
     s"taskName=$taskName" +
-    s"files=$inputs, " +
-    s"vprFormated=$vprAstFormatted)"
+    s"files=$inputs)"
 
   lazy val vprAstFormatted: String = silver.ast.pretty.FastPrettyPrinter.pretty(vprAst())
 }
@@ -185,8 +179,7 @@ case class ChoppedViperMessage(inputs: Vector[String], idx: Int, vprAst: () => v
   override val name: String = s"chopped_viper_message"
 
   override def toString: String = s"chopped_viper_message(" +
-    s"file=$inputs, " +
-    s"vprFormated=$vprAstFormatted)"
+    s"file=$inputs)"
 
   lazy val vprAstFormatted: String = silver.ast.pretty.FastPrettyPrinter.pretty(vprAst())
 }

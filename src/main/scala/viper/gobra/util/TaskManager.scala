@@ -4,16 +4,15 @@
 //
 // Copyright (c) 2011-2023 ETH Zurich.
 
-package viper.gobra.frontend
+package viper.gobra.util
 
-import viper.gobra.frontend.TaskManagerMode.{Lazy, Parallel, Sequential, TaskManagerMode}
-import viper.gobra.util.{GobraExecutionContext, Violation}
+import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential, TaskManagerMode}
 
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, Promise}
-import scala.util.{Failure, Success}
 import scala.jdk.CollectionConverters._
+import scala.util.{Failure, Success}
 
 object TaskManagerMode extends Enumeration {
   type TaskManagerMode = Value
@@ -58,11 +57,9 @@ class TaskManager[K, I, R](mode: TaskManagerMode)(implicit executor: GobraExecut
   private val jobs: ConcurrentMap[K, Job[I, R]] = new ConcurrentHashMap()
 
   def addIfAbsent(id: K, job: Job[I, R]): Unit = {
-    var isAbsent = false
-    jobs.computeIfAbsent(id, _ => {
-      isAbsent = true
-      job
-    })
+    // `putIfAbsent` returns null if `id` does not yet exist in the map or is associated to a null value:
+    val oldValue = jobs.putIfAbsent(id, job)
+    val isAbsent = oldValue == null
     if (isAbsent) {
       job.triggerPrecomputation()
       mode match {

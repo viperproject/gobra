@@ -9,24 +9,25 @@ package viper.gobra.frontend.info
 import com.typesafe.scalalogging.LazyLogging
 import org.bitbucket.inkytonik.kiama.relation.Tree
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
-import org.bitbucket.inkytonik.kiama.util.{Position, Source}
+import org.bitbucket.inkytonik.kiama.util.Source
 import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
 import viper.gobra.ast.frontend.{PImport, PNode, PPackage}
-import viper.gobra.frontend.{Config, Job, TaskManager}
+import viper.gobra.frontend.Config
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, BuiltInPackage, RegularImport}
 import viper.gobra.frontend.Parser.{ParseResult, ParseSuccessResult}
-import viper.gobra.frontend.TaskManagerMode.{Lazy, Parallel, Sequential}
+import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.{GhostLessPrinter, GoifyingPrinter}
 import viper.gobra.reporting.{CyclicImportError, ParserError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
-import viper.gobra.util.{GobraExecutionContext, Violation}
+import viper.gobra.util.{GobraExecutionContext, Job, TaskManager, Violation}
 
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 import scala.concurrent.Future
 
+// `LazyLogging` provides us with access to `logger` to emit log messages
 object Info extends LazyLogging {
 
   type GoTree = Tree[PNode, PPackage]
@@ -42,13 +43,8 @@ object Info extends LazyLogging {
     }
   }
 
-  /**
-    * ImportCycle describes a cyclic import. `importClosingCycle` is the AST node that closes the cycle and
-    * `cyclicPackages` stores the packages involved in the cycle.
-    */
-  case class ImportCycle(importNodeCausingCycle: PImport, importNodeStart: Option[Position], cyclicPackages: Vector[AbstractImport])
-
-  class CycleChecker(val config: Config /*, val parseResults: Map[AbstractPackage, ParseSuccessResult]*/, val parseResults: Map[AbstractPackage, ParseResult]) {
+  /** checks whether cyclic import patterns exist in the results produced by the parser. */
+  class CycleChecker(val config: Config, val parseResults: Map[AbstractPackage, ParseResult]) {
     /** keeps track of the package dependencies that are currently resolved. This information is used to detect cycles */
     private var parserPendingPackages: Vector[AbstractImport] = Vector()
 
@@ -127,7 +123,15 @@ object Info extends LazyLogging {
 
     var tyeCheckDurationMs = new AtomicLong(0L)
 
-    case class TypeCheckJob(abstractPackage: AbstractPackage, isMainContext: Boolean = false) extends Job[(Vector[Source], PPackage, Vector[AbstractImport]), () => TypeCheckResult] {
+    /**
+      * This job creates type-check jobs for all packages imported by the specified package as part of the sequential
+      * pre-computations.
+      * Then, the parse result is retrieved for the specified package and this result is type-checked. To enable lazy
+      * processing and type-checking, this job provides the type-check result as a closure. While the result is eagerly
+      * computed in `Sequential` and `Parallel` modes, the result is lazily computed on the first closure call in `Lazy`
+      * mode.
+      */
+    private case class TypeCheckJob(abstractPackage: AbstractPackage, isMainContext: Boolean = false) extends Job[(Vector[Source], PPackage, Vector[AbstractImport]), () => TypeCheckResult] {
       override def toString: String = s"TypeCheckJob for $abstractPackage"
 
       protected override def sequentialPrecompute(): (Vector[Source], PPackage, Vector[AbstractImport]) = {

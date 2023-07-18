@@ -8,16 +8,12 @@ package viper.gobra.frontend.info
 
 import org.bitbucket.inkytonik.kiama.relation.Tree
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.PackageResolver.AbstractImport
 import viper.gobra.frontend.info.base.SymbolTable.{MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
-import viper.gobra.reporting.VerifierError
 import viper.gobra.theory.Addressability
 
 trait TypeInfo extends ExternalTypeInfo {
-
-  def dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]]
 
   def typOfExprOrType(expr: PExpressionOrType): Type
   def addressability(expr: PExpression): Addressability

@@ -30,6 +30,7 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 import scala.reflect.ClassTag
 
+// `LazyLogging` provides us with access to `logger` to emit log messages
 object Desugar extends LazyLogging {
 
   def desugar(config: Config, info: viper.gobra.frontend.info.TypeInfo)(implicit executionContext: GobraExecutionContext): in.Program = {

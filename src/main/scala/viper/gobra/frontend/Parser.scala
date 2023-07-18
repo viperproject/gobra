@@ -20,7 +20,7 @@ import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, PreambleContext, SourceFileContext, SpecMemberContext, StmtOnlyContext, TypeOnlyContext}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, RegularImport, RegularPackage}
-import viper.gobra.util.{GobraExecutionContext, Violation}
+import viper.gobra.util.{GobraExecutionContext, Job, TaskManager, Violation}
 import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable.ListBuffer
@@ -29,6 +29,7 @@ import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 import scala.concurrent.Future
 
 
+// `LazyLogging` provides us with access to `logger` to emit log messages
 object Parser extends LazyLogging {
 
   type ParseSuccessResult = (Vector[Source], PPackage)
@@ -85,7 +86,14 @@ object Parser extends LazyLogging {
       }
     }
 
-    trait ParseJob extends Job[PreprocessedSources, ParseResult] with ImportResolver {
+    /**
+      * Job that preprocesses the specified sources, parses their preambles, and creates parse jobs for all imported
+      * packages as part of the sequential pre-computations.
+      * This job then fully parses and post-processes the package (identified via `pkgInfo` and `pkgSources`) in the
+      * `compute` step and eventually produces this package's ParseResult. Additionally, the preprocessed sources are
+      * provided alongside.
+      */
+    private trait ParseJob extends Job[PreprocessedSources, ParseResult] with ImportResolver {
       def pkgInfo: PackageInfo
       def pkgSources: Vector[Source]
       def specOnly: Boolean
@@ -134,19 +142,19 @@ object Parser extends LazyLogging {
     }
 
     /** this job is used to parse the package that should be verified */
-    case class ParseInfoJob(override val pkgInfo: PackageInfo) extends ParseJob {
+    private case class ParseInfoJob(override val pkgInfo: PackageInfo) extends ParseJob {
       lazy val pkgSources: Vector[Source] = config.packageInfoInputMap(pkgInfo)
       lazy val specOnly: Boolean = false
     }
 
     /** this job is used to parse all packages that are imported */
-    case class ParseSourcesJob(override val pkgSources: Vector[Source], pkg: AbstractPackage) extends ParseJob {
+    private case class ParseSourcesJob(override val pkgSources: Vector[Source], pkg: AbstractPackage) extends ParseJob {
       require(pkgSources.nonEmpty)
       lazy val pkgInfo: PackageInfo = Source.getPackageInfo(pkgSources.head, config.projectRoot)
       lazy val specOnly: Boolean = true
     }
 
-    case class ParseFailureJob(errs: Vector[ParserError]) extends Job[PreprocessedSources, ParseResult] {
+    private case class ParseFailureJob(errs: Vector[ParserError]) extends Job[PreprocessedSources, ParseResult] {
       override protected def sequentialPrecompute(): PreprocessedSources =
         Vector.empty
       override protected def compute(precomputationResult: PreprocessedSources): ParseResult =

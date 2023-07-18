@@ -6,6 +6,7 @@
 
 package viper.gobra.frontend
 
+import com.typesafe.scalalogging.LazyLogging
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.PackageResolver.RegularImport
@@ -20,31 +21,61 @@ import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
-import viper.gobra.util.{Constants, DesugarWriter, Violation}
+import viper.gobra.util.{Constants, DesugarWriter, GobraExecutionContext, Violation}
 
+import java.util.concurrent.atomic.AtomicLong
 import scala.annotation.{tailrec, unused}
 import scala.collection.{Iterable, SortedSet}
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 import scala.reflect.ClassTag
 
-object Desugar {
+// `LazyLogging` provides us with access to `logger` to emit log messages
+object Desugar extends LazyLogging {
 
-  def desugar(pkg: PPackage, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
+  def desugar(config: Config, info: viper.gobra.frontend.info.TypeInfo)(implicit executionContext: GobraExecutionContext): in.Program = {
+    val pkg = info.tree.root
     val importsCollector = new PackageInitSpecCollector
-    // independently desugar each imported package.
-    val importedPrograms = info.context.getContexts map { tI => {
-      val typeInfo: TypeInfo = tI.getTypeInfo
+
+    val importedDesugaringDurationMs = new AtomicLong(0)
+    val importedProgramsFuts = info.getTransitiveTypeInfos(includeThis = false).toSeq.map { tI => Future {
+      val importedDesugaringStartMs = System.currentTimeMillis()
+      val typeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
       val d = new Desugarer(importedPackage.positions, typeInfo)
       // registers a package to generate proof obligations for its init code
       d.registerPackage(importedPackage, importsCollector)(config)
-      (d, d.packageD(importedPackage))
+      val res = (d, d.packageD(importedPackage))
+      importedDesugaringDurationMs.addAndGet(System.currentTimeMillis() - importedDesugaringStartMs)
+      res
     }}
-    // desugar the main package, i.e. the package on which verification is performed:
-    val mainDesugarer = new Desugarer(pkg.positions, info)
-    // registers main package to generate proof obligations for its init code
-    mainDesugarer.registerMainPackage(pkg, importsCollector)(config)
+
+    val mainPackageFut = Future {
+      val mainDesugaringStartMs = System.currentTimeMillis()
+      // desugar the main package, i.e. the package on which verification is performed:
+      val mainDesugarer = new Desugarer(pkg.positions, info)
+      // registers main package to generate proof obligations for its init code
+      mainDesugarer.registerMainPackage(pkg, importsCollector)(config)
+      val res = (mainDesugarer, mainDesugarer.packageD(pkg))
+      logger.trace {
+        val durationS = f"${(System.currentTimeMillis() - mainDesugaringStartMs) / 1000f}%.1f"
+        s"desugaring package ${info.pkgInfo.id} done, took ${durationS}s"
+      }
+      res
+    }
+
+    // we place `mainPackageFut` at index 0
+    val allPackagesFut = Future.sequence(mainPackageFut +: importedProgramsFuts)
+    val futResults = Await.result(allPackagesFut, Duration.Inf)
+    val (mainDesugarer, mainProgram) = futResults.head
+    val importedPrograms = futResults.tail
+    logger.trace {
+      val importedDurationS = f"${importedDesugaringDurationMs.get() / 1000f}%.1f"
+      s"desugaring imported packages done, took ${importedDurationS}s"
+    }
+
     // combine all desugared results into one Viper program:
-    val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
+    val internalProgram = combine(mainDesugarer, mainProgram, importedPrograms)
     config.reporter report DesugaredMessage(config.packageInfoInputMap(pkg.info).map(_.name), () => internalProgram)
     internalProgram
   }
@@ -3453,15 +3484,17 @@ object Desugar {
       }
 
       // Collect and register all import-preconditions
-      pkg.imports.foreach{ imp =>
-        info.context.getTypeInfo(RegularImport(imp.importPath))(config) match {
-          case Some(Right(tI)) =>
+      pkg.imports.foreach{ imp => {
+        val importedPackage = RegularImport(imp.importPath)
+        Violation.violation(info.dependentTypeInfo.contains(importedPackage), s"Desugarer expects to have acess to the type information of all imported packages but could not find $importedPackage")
+        info.dependentTypeInfo(importedPackage)() match {
+          case Right(tI) =>
             val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
             Violation.violation(!config.enableLazyImports || desugaredPre.isEmpty, s"Import precondition found despite running with ${Config.enableLazyImportOptionPrettyPrinted}")
             specCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
           case e => Violation.violation(config.enableLazyImports, s"Unexpected value found $e while importing ${imp.importPath} - type information is assumed to be available for all packages when Gobra is executed with lazy imports disabled")
         }
-      }
+      }}
 
       // Collect and register all postconditions of all PPrograms (i.e., files) in pkg
       val pkgPost = pkg.programs.flatMap(_.initPosts).map(specificationD(FunctionContext.empty(), info))

@@ -39,6 +39,10 @@ sourceFile:
     (specMember | declaration | ghostMember) eos
   )* EOF;
 
+// `preamble` is a second entry point allowing us to parse only the top of a source.
+// That's also why we don not enforce EOF at the end.
+preamble: (initPost eos)* packageClause eos (importDecl eos)*;
+
 initPost: INIT_POST expression;
 
 importPre: IMPORT_PRE expression;

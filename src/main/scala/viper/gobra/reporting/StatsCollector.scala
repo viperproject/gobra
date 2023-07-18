@@ -265,8 +265,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         typeInfo
       } else {
         // Try to find the correct typeInfo for the member
-        val typeInfoOption = typeInfo.context.getContexts
-          .map(externalTypeInfo => externalTypeInfo.getTypeInfo)
+        val typeInfoOption = typeInfo.getTransitiveTypeInfos()
+          .map(_.getTypeInfo)
           .find(typeInfo => treeContains(typeInfo.tree, p))
         typeInfoOption match {
           case Some(typeInfo) => typeInfo

@@ -61,6 +61,16 @@ case class PProgram(
                    ) extends PNode with PUnorderedScope // imports are in program scopes
 
 
+case class PPreamble(
+                      packageClause: PPackageClause,
+                      // init postconditions describe the state and resources right
+                      // after this program is initialized
+                      initPosts: Vector[PExpression],
+                      imports: Vector[PImport],
+                      positions: PositionManager,
+                    ) extends PNode with PUnorderedScope
+
+
 class PositionManager(val positions: Positions) extends Messaging(positions) {
 
   def translate[E <: VerifierError](

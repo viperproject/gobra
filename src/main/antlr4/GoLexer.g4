@@ -34,8 +34,7 @@
  * https://golang.org/ref/spec
  */
 
-// Imported to Gobra from https://github.com/antlr/grammars-v4/blob/4c06ad8cc8130931c75ca0b17cbc1453f3830cd2/golang
-
+// Imported to Gobra from https://github.com/antlr/grammars-v4/blob/fae6a8500e9c6a1ec895fca1495b0384b9144091/golang
 
 lexer grammar GoLexer;
 
@@ -145,7 +144,7 @@ HEX_FLOAT_LIT          : '0' [xX] HEX_MANTISSA HEX_EXPONENT
 fragment HEX_MANTISSA  : ('_'? HEX_DIGIT)+ ('.' ( '_'? HEX_DIGIT )*)?
                        | '.' HEX_DIGIT ('_'? HEX_DIGIT)*;
 
-fragment HEX_EXPONENT  : [pP] [+-] DECIMALS;
+fragment HEX_EXPONENT  : [pP] [+-]? DECIMALS;
 
 
 IMAGINARY_LIT          : (DECIMAL_LIT | BINARY_LIT |  OCTAL_LIT | HEX_LIT | FLOAT_LIT) 'i' -> mode(NLSEMI);
@@ -172,14 +171,18 @@ BIG_U_VALUE: '\\' 'U' HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGI
 
 RAW_STRING_LIT         : '`' ~'`'*                      '`' -> mode(NLSEMI);
 INTERPRETED_STRING_LIT : '"' (~["\\] | ESCAPED_VALUE)*  '"' -> mode(NLSEMI);
+
 // Hidden tokens
+
 WS                     : [ \t]+             -> channel(HIDDEN);
 COMMENT                : '/*' .*? '*/'      -> channel(HIDDEN);
 TERMINATOR             : [\r\n]+            -> channel(HIDDEN);
 LINE_COMMENT           : '//' ~[\r\n]*      -> channel(HIDDEN);
 
 fragment UNICODE_VALUE: ~[\r\n'] | LITTLE_U_VALUE | BIG_U_VALUE | ESCAPED_VALUE;
+
 // Fragments
+
 fragment ESCAPED_VALUE
     : '\\' ('u' HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT
            | 'U' HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT
@@ -187,27 +190,35 @@ fragment ESCAPED_VALUE
            | OCTAL_DIGIT OCTAL_DIGIT OCTAL_DIGIT
            | 'x' HEX_DIGIT HEX_DIGIT)
     ;
+
 fragment DECIMALS
     : [0-9] ('_'? [0-9])*
     ;
+
 fragment OCTAL_DIGIT
     : [0-7]
     ;
+
 fragment HEX_DIGIT
     : [0-9a-fA-F]
     ;
+
 fragment BIN_DIGIT
     : [01]
     ;
+
 fragment EXPONENT
     : [eE] [+-]? DECIMALS
     ;
+
 fragment LETTER
     : UNICODE_LETTER
     | '_'
     ;
+
 fragment UNICODE_DIGIT
     : [\p{Nd}]
+
     /*  [\u0030-\u0039]
     | [\u0660-\u0669]
     | [\u06F0-\u06F9]
@@ -229,6 +240,7 @@ fragment UNICODE_DIGIT
     | [\u1810-\u1819]
     | [\uFF10-\uFF19]*/
     ;
+
 fragment UNICODE_LETTER
     : [\p{L}]
     /*  [\u0041-\u005A]
@@ -494,7 +506,11 @@ fragment UNICODE_LETTER
     | [\uFFDA-\uFFDC]
     */
     ;
+
+
 mode NLSEMI;
+
+
 // Treat whitespace as normal
 WS_NLSEMI                     : [ \t]+             -> channel(HIDDEN);
 // Ignore any comments that only span one line

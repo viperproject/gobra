@@ -405,7 +405,7 @@ trait MemberResolution { this: TypeInfoImpl =>
   def getTypeChecker(importTarget: AbstractImport, errNode: PNode): Either[Messages, ExternalTypeInfo] = {
     def createImportError(errs: Vector[VerifierError]): Messages = {
       // create an error message located at the import statement to indicate errors in the imported package
-      // we distinguish between regular errors and packages whose source files could not be found (not that cyclic
+      // we distinguish between regular errors and packages whose source files could not be found (note that cyclic
       // errors are handled before type-checking)
       val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
       // alternativeErr is a function to compute the message only when needed

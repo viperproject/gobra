@@ -33,7 +33,7 @@ import scala.reflect.ClassTag
 // `LazyLogging` provides us with access to `logger` to emit log messages
 object Desugar extends LazyLogging {
 
-  def desugar(config: Config, info: viper.gobra.frontend.info.TypeInfo)(implicit executionContext: GobraExecutionContext): in.Program = {
+  def desugar(config: Config, info: viper.gobra.frontend.info.TypeInfo)(implicit executionContext: GobraExecutionContext): Future[in.Program] = {
     val pkg = info.tree.root
     val importsCollector = new PackageInitSpecCollector
 
@@ -75,28 +75,43 @@ object Desugar extends LazyLogging {
     }
 
     // combine all desugared results into one Viper program:
-    val internalProgram = combine(mainDesugarer, mainProgram, importedPrograms)
-    config.reporter report DesugaredMessage(config.packageInfoInputMap(pkg.info).map(_.name), () => internalProgram)
-    internalProgram
+    val combineStartMs = System.currentTimeMillis()
+    combine(mainDesugarer, mainProgram, importedPrograms)
+      .map(internalProgram => {
+        config.reporter report DesugaredMessage(config.packageInfoInputMap(pkg.info).map(_.name), () => internalProgram)
+        logger.trace {
+          val combineDurationS = f"${(System.currentTimeMillis() - combineStartMs) / 1000f}%.1f"
+          s"combining desugared packages in parallel done, took ${combineDurationS}s"
+        }
+        internalProgram
+      })
   }
 
-  private def combine(mainDesugarer: Desugarer, mainProgram: in.Program, imported: Iterable[(Desugarer, in.Program)]): in.Program = {
+  private def combine(mainDesugarer: Desugarer, mainProgram: in.Program, imported: Iterable[(Desugarer, in.Program)])(implicit executionContext: GobraExecutionContext): Future[in.Program] = {
     val importedDesugarers = imported.map(_._1)
     val importedPrograms = imported.map(_._2)
     val types = mainProgram.types ++ importedPrograms.flatMap(_.types)
     val members = mainProgram.members ++ importedPrograms.flatMap(_.members)
-    val (table, builtInMembers) = combineLookupTable(mainDesugarer +: importedDesugarers.toSeq)
-    in.Program(types, builtInMembers.toVector ++ members, table)(mainProgram.info)
+    combineLookupTable(mainDesugarer +: importedDesugarers.toSeq)
+      .map { case (table, builtInMembers) =>
+        val createProgramStartMs = System.currentTimeMillis()
+        val res = in.Program(types, builtInMembers.toVector ++ members, table)(mainProgram.info)
+        logger.trace {
+          val createProgramDurationS = f"${(System.currentTimeMillis() - createProgramStartMs) / 1000f}%.1f"
+          s"creating internal representation done, took ${createProgramDurationS}s"
+        }
+        res
+      }
   }
 
   /**
     * Combines the lookup tables of multiple desugarers incl. taking built-in members into account.
     * As a by-product, all built-in members that are used in all desugarers will be returned.
     */
-  private def combineLookupTable(desugarers: Iterable[Desugarer]): (in.LookupTable, Iterable[in.Member]) = {
+  private def combineLookupTable(desugarers: Iterable[Desugarer])(implicit executionContext: GobraExecutionContext): Future[(in.LookupTable, Iterable[in.Member])] = {
     // note that the same built-in member might exist in multiple tables. Thus, we need to deduplicate.
     // however, a sanity check is performed that filtered built-in members are actually equal
-    def combineTableFieldForBuiltInMember[M <: in.BuiltInMember : ClassTag,P <: in.Proxy](getProxy: M => P): Map[P, M] = {
+    def combineTableFieldForBuiltInMember[M <: in.BuiltInMember : ClassTag,P <: in.Proxy](getProxy: M => P): Future[Map[P, M]] = Future {
       // apply `f` to every desugarer and filter the resulting maps to only contain values of type `M`
       val res: Iterable[Map[_, M]] = desugarers.map(_.builtInMembers).map(memberMap => memberMap.collect {
         case (tag, m: M) => (tag, m) // note that checking for type `M` here works only because of `: ClassTag`
@@ -116,36 +131,80 @@ object Desugar extends LazyLogging {
       deduplicatedMap
     }
 
-    def combineTableField[X,Y](f: Desugarer => Map[X,Y]): Map[X,Y] =
-      desugarers.flatMap(f).toMap
+    def combineTableField[X,Y](f: Desugarer => Map[X,Y]): Future[Map[X,Y]] =
+      Future { desugarers.flatMap(f).toMap }
 
-    val builtInMethods = combineTableFieldForBuiltInMember((m: in.BuiltInMethod) => m.name)
-    val builtInFunctions = combineTableFieldForBuiltInMember((m: in.BuiltInFunction) => m.name)
-    val builtInMPredicates = combineTableFieldForBuiltInMember((m: in.BuiltInMPredicate) => m.name)
-    val builtInFPredicates = combineTableFieldForBuiltInMember((m: in.BuiltInFPredicate) => m.name)
+    val builtInMethodsFut = combineTableFieldForBuiltInMember((m: in.BuiltInMethod) => m.name)
+    val builtInFunctionsFut = combineTableFieldForBuiltInMember((m: in.BuiltInFunction) => m.name)
+    val builtInFPredicatesFut = combineTableFieldForBuiltInMember((m: in.BuiltInFPredicate) => m.name)
+    val builtInMPredicatesFut = combineTableFieldForBuiltInMember((m: in.BuiltInMPredicate) => m.name)
 
-    val combinedDefinedT = combineTableField(_.definedTypes)
-    val combinedMethods = combineTableField(_.definedMethods)
-    val combinedMPredicates = combineTableField(_.definedMPredicates)
-    val combinedImplementations = {
-      val interfaceImplMaps = desugarers.flatMap(_.interfaceImplementations.toSeq)
-      interfaceImplMaps.groupMapReduce[in.InterfaceT, SortedSet[in.Type]](_._1)(_._2)(_ ++ _)
-    }
-    val combinedMemberProxies = computeMemberProxies(combinedMethods.values ++ combinedMPredicates.values, combinedImplementations, combinedDefinedT)
-    val combineImpProofPredAliases = combineTableField(_.implementationProofPredicateAliases)
-    val table = new in.LookupTable(
-      combinedDefinedT,
-      combinedMethods ++ builtInMethods,
-      combineTableField(_.definedFunctions) ++ builtInFunctions,
-      combinedMPredicates ++ builtInMPredicates,
-      combineTableField(_.definedFPredicates) ++ builtInFPredicates,
-      combineTableField(_.definedFuncLiterals),
-      combinedMemberProxies,
-      combinedImplementations,
-      combineImpProofPredAliases
-      )
-    val builtInMembers = builtInMethods.values ++ builtInFunctions.values ++ builtInMPredicates.values ++ builtInFPredicates.values
-    (table, builtInMembers)
+    val combinedDefinedTFut = combineTableField(_.definedTypes)
+    val combinedFunctionsFut = combineTableField(_.definedFunctions)
+    val combinedFuncLiteralsFut = combineTableField(_.definedFuncLiterals)
+    val combinedMethodsFut = combineTableField(_.definedMethods)
+    val combinedFPredicatesFut = combineTableField(_.definedFPredicates)
+    val combinedMPredicatesFut = combineTableField(_.definedMPredicates)
+    val combinedImpProofPredAliasesFut = combineTableField(_.implementationProofPredicateAliases)
+
+    val futs: Seq[Future[_]] = Seq(builtInMethodsFut,
+                   builtInFunctionsFut,
+                   builtInFPredicatesFut,
+                   builtInMPredicatesFut,
+                   combinedDefinedTFut,
+                   combinedFunctionsFut,
+                   combinedFuncLiteralsFut,
+                   combinedMethodsFut,
+                   combinedFPredicatesFut,
+                   combinedMPredicatesFut,
+                   combinedImpProofPredAliasesFut)
+    Future.sequence(futs)
+      .map { case Seq(builtInMethods: Map[in.MethodProxy, in.BuiltInMethod] @unchecked,
+                   builtInFunctions: Map[in.FunctionProxy, in.BuiltInFunction] @unchecked,
+                   builtInFPredicates: Map[in.FPredicateProxy, in.BuiltInFPredicate] @unchecked,
+                   builtInMPredicates: Map[in.MPredicateProxy, in.BuiltInMPredicate] @unchecked,
+                   combinedDefinedT: Map[(String, Addressability), in.Type] @unchecked,
+                   combinedFunctions: Map[in.FunctionProxy, in.FunctionMember] @unchecked,
+                   combinedFuncLiterals: Map[in.FunctionLitProxy, in.FunctionLitLike] @unchecked,
+                   combinedMethods: Map[in.MethodProxy, in.MethodMember] @unchecked,
+                   combinedFPredicates: Map[in.FPredicateProxy, in.FPredicate] @unchecked,
+                   combinedMPredicates: Map[in.MPredicateProxy, in.MPredicate] @unchecked,
+                   combinedImpProofPredAliases: Map[(in.Type, in.InterfaceT, String), in.FPredicateProxy] @unchecked) =>
+        val combinedImplementations = {
+          val interfaceImplMaps = desugarers.flatMap(_.interfaceImplementations.toSeq)
+          interfaceImplMaps.groupMapReduce[in.InterfaceT, SortedSet[in.Type]](_._1)(_._2)(_ ++ _)
+        }
+        val startMemberProxiesMs = System.currentTimeMillis()
+        val combinedMemberProxies = computeMemberProxies(combinedMethods.values ++ combinedMPredicates.values, combinedImplementations, combinedDefinedT)
+        logger.trace {
+          val computingMemberProxiesDurationS = f"${(System.currentTimeMillis() - startMemberProxiesMs) / 1000f}%.1f"
+          s"computing member proxies done, took ${computingMemberProxiesDurationS}s"
+        }
+
+        val startTableCreationMs = System.currentTimeMillis()
+        val table = new in.LookupTable(
+          combinedDefinedT,
+          combinedMethods ++ builtInMethods,
+          combinedFunctions ++ builtInFunctions,
+          combinedMPredicates ++ builtInMPredicates,
+          combinedFPredicates ++ builtInFPredicates,
+          combinedFuncLiterals,
+          combinedMemberProxies,
+          combinedImplementations,
+          combinedImpProofPredAliases
+        )
+        logger.trace {
+          val tableCreationDurationS = f"${(System.currentTimeMillis() - startTableCreationMs) / 1000f}%.1f"
+          s"lookup table creation done, took ${tableCreationDurationS}s"
+        }
+        val startCollectingBuiltInMembersMs = System.currentTimeMillis()
+        val builtInMembers = builtInMethods.values ++ builtInFunctions.values ++ builtInMPredicates.values ++ builtInFPredicates.values
+        logger.trace {
+          val builtInMemberCollectionDurationS = f"${(System.currentTimeMillis() - startCollectingBuiltInMembersMs) / 1000f}%.1f"
+          s"collecting built-in members done, took ${builtInMemberCollectionDurationS}s"
+        }
+        (table, builtInMembers)
+      }
   }
 
   /** For now, the memberset is computed in an inefficient way. */

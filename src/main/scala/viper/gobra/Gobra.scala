@@ -267,12 +267,14 @@ class Gobra extends GoVerifier with GoIdeVerifier {
   private def performDesugaring(config: Config, typeInfo: TypeInfo)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Program] = {
     if (config.shouldDesugar) {
       val startMs = System.currentTimeMillis()
-      val res = EitherT.right[Vector[VerifierError], Future, Program](Desugar.desugar(config, typeInfo)(executor))
-      logger.debug {
-        val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
-        s"desugaring done, took ${durationS}s"
-      }
-      res
+      EitherT.rightT[Vector[VerifierError], Future, Program](Desugar.desugar(config, typeInfo)(executor)
+        .map(program => {
+          logger.debug {
+            val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
+            s"desugaring done, took ${durationS}s"
+          }
+          program
+        }))
     } else {
       EitherT.left(Vector.empty)
     }

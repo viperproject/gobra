@@ -116,11 +116,11 @@ class DetailedBenchmarkTests extends BenchmarkTests {
         Info.check(c, RegularPackage(pkgInfo.id), parseResults)(executor)
       })
 
-    private val desugaring: NextStep[TypeInfo, Vector[VerifierError], Program] =
-      NextStep("desugaring", typeChecking, { case (typeInfo: TypeInfo) =>
+    private val desugaring: NextStepEitherT[TypeInfo, Vector[VerifierError], Program] =
+      NextStepEitherT("desugaring", typeChecking, { case (typeInfo: TypeInfo) =>
         assert(config.isDefined)
         val c = config.get
-        Right(Desugar.desugar(c, typeInfo)(executor))
+        EitherT.rightT[Vector[VerifierError], Future, Program](Desugar.desugar(c, typeInfo)(executor))
       })
 
     private val internalTransforming = NextStep("internal transforming", desugaring, (program: Program) => {

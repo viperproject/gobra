@@ -388,7 +388,7 @@ class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       typeInfo(Vector(t1, t2)).comparableTypes((T1, T2))
     }
 
-    def isGhostType(t : PType) : Boolean = typeInfo(Vector(t)).isTypeGhost(t)
+    def isGhostType(t : PType) : Boolean = typeInfo(Vector(t)).ghostModifierUnit.isTypeGhost(t)
     def isWellDef(t : PType) = typeInfo(Vector(t)).wellDefType(t)
     def typType(t : PType) : Type.Type = typeInfo(Vector(t)).symbType(t)
   }

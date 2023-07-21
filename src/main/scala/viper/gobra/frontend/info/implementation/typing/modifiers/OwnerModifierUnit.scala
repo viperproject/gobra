@@ -1,5 +1,6 @@
 package viper.gobra.frontend.info.implementation.typing.modifiers
 
+import org.bitbucket.inkytonik.kiama.attribution.Attribution
 import viper.gobra.ast.frontend.{PAccess, PAdd, PBefore, PBinaryExp, PBitNegation, PBlankIdentifier, PCapacity, PClosureImplements, PConditional, PDeref, PDot, PExists, PExpression, PForall, PGhostCollectionExp, PGhostEquals, PGhostUnequals, PIdnNode, PImplication, PIn, PIndexedExp, PIntersection, PInvoke, PIota, PIsComparable, PLabeledOld, PLength, PLiteral, PMagicWand, PMake, PMapKeys, PMapValues, PMatchExp, PMultiplicity, PNamedOperand, PNegation, PNew, PNode, POld, POptionGet, POptionNone, POptionSome, PPermission, PPredConstructor, PPredicateAccess, PRangeSequence, PReceive, PReference, PSequenceAppend, PSetMinus, PSliceExp, PSubset, PTypeAssertion, PTypeExpr, PTypeOf, PUnfolding, PUnion, PUnpackSlice}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import org.bitbucket.inkytonik.kiama.util.Messaging.{error, noMessages}
@@ -11,13 +12,14 @@ import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 
-object OwnerModifierUnit extends ModifierUnit[OwnerModifier] {
-  override def hasWellDefModifier(ctx: TypeInfoImpl): WellDefinedness[PNode] = createIndependentWellDef[PNode] {
+class OwnerModifierUnit(final val ctx: TypeInfoImpl) extends ModifierUnit[OwnerModifier] {
+
+  override def hasWellDefModifier: WellDefinedness[PNode] = createIndependentWellDef[PNode] {
     case _ => noMessages
   }(n => ctx.children(n).forall(ctx.childrenWellDefined))
 
-  override def getModifier(ctx: TypeInfoImpl): ModifierTyping[PNode, OwnerModifier] = createModifier[PNode, OwnerModifier] {
-    case PNamedOperand(id) => getVarModifier(ctx)(id)
+  override def getModifier: ModifierTyping[PNode, OwnerModifier] = createModifier[PNode, OwnerModifier] {
+    case PNamedOperand(id) => getVarModifier(id)
     case PBlankIdentifier() => OwnerModifier.defaultValue
     case _: PTypeExpr => OwnerModifier.defaultValue
     case _: PDeref => OwnerModifier.dereference
@@ -26,14 +28,14 @@ object OwnerModifierUnit extends ModifierUnit[OwnerModifier] {
       baseType match {
         case _: SliceT | _: GhostSliceT => OwnerModifier.sliceLookup
         case _: VariadicT => OwnerModifier.variadicLookup
-        case _: ArrayT => OwnerModifier.arrayLookup(getModifier(ctx)(base).get)
+        case _: ArrayT => OwnerModifier.arrayLookup(getModifier(base).get)
         case _: SequenceT => OwnerModifier.mathDataStructureLookup
         case _: MathMapT => OwnerModifier.mathDataStructureLookup
         case _: MapT => OwnerModifier.mapLookup
         case t => Violation.violation(s"Expected slice, array, map, or sequence, but got $t")
       }
     case n: PDot => ctx.resolve(n) match {
-      case Some(s: ap.FieldSelection) => OwnerModifier.fieldLookup(getMemberPathModifier(getModifier(ctx)(s.base).get, s.path))
+      case Some(s: ap.FieldSelection) => OwnerModifier.fieldLookup(getMemberPathModifier(getModifier(s.base).get, s.path))
       case Some(_: ap.Constant) => OwnerModifier.constant
       case Some(_: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.ReceivedPredicate | _: ap.PredicateExpr | _: ap.AdtField) => OwnerModifier.rValue
       case Some(_: ap.NamedType | _: ap.BuiltInType | _: ap.Function | _: ap.Predicate | _: ap.DomainFunction) => OwnerModifier.rValue
@@ -62,7 +64,7 @@ object OwnerModifierUnit extends ModifierUnit[OwnerModifier] {
     case _: PGhostUnequals => OwnerModifier.rValue
     case _: PPermission => OwnerModifier.rValue
     case _: PPredConstructor => OwnerModifier.rValue
-    case n: PUnfolding => OwnerModifier.unfolding(getModifier(ctx)(n.op).get)
+    case n: PUnfolding => OwnerModifier.unfolding(getModifier(n.op).get)
     case _: POld | _: PLabeledOld | _: PBefore => OwnerModifier.old
     case _: PConditional | _: PImplication | _: PForall | _: PExists => OwnerModifier.rValue
     case _: PAccess | _: PPredicateAccess | _: PMagicWand => OwnerModifier.rValue
@@ -75,9 +77,9 @@ object OwnerModifierUnit extends ModifierUnit[OwnerModifier] {
     case _: PMatchExp => OwnerModifier.rValue
     case _: PMake | _: PNew => OwnerModifier.make
     case _: PUnpackSlice => OwnerModifier.rValue
-  }(hasWellDefModifier(ctx))
+  }(hasWellDefModifier)
 
-  def getVarModifier(ctx: TypeInfoImpl)(n: PIdnNode): OwnerModifier = ctx.regular(n) match {
+  def getVarModifier(n: PIdnNode): OwnerModifier = ctx.regular(n) match {
     case g: st.GlobalVariable => if (g.shared) OwnerModifier.sharedVariable else OwnerModifier.exclusiveVariable
     case v: st.Variable => if (v.shared) OwnerModifier.sharedVariable else OwnerModifier.exclusiveVariable
     case _: st.Constant => OwnerModifier.constant
@@ -95,7 +97,7 @@ object OwnerModifierUnit extends ModifierUnit[OwnerModifier] {
     }
   }
 
-  override def addressable(ctx: TypeInfoImpl)(exp: PExpression): Boolean = getModifier(ctx)(exp) match {
+  override def addressable(exp: PExpression): Boolean = getModifier(exp) match {
     case Some(OwnerModifier.Shared) => true
     case _ => false
   }

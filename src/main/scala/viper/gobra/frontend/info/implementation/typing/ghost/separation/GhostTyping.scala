@@ -9,16 +9,15 @@ package viper.gobra.frontend.info.implementation.typing.ghost.separation
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Closure, MultiLocalVariable, Regular, SingleLocalVariable}
 import viper.gobra.frontend.info.base.Type
-import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
-import viper.gobra.frontend.info.implementation.typing.modifiers.{GhostModifier, ModifierUnit}
+import viper.gobra.frontend.info.implementation.typing.modifiers.GhostModifierUnit
 import viper.gobra.util.Violation
 
-trait GhostTyping { this: ModifierUnit[GhostModifier] =>
+trait GhostTyping extends GhostClassifier { this: GhostModifierUnit =>
 
   /** returns true iff member is classified as ghost */
-  private[separation] lazy val ghostMemberClassification: PMember => Boolean =
+  lazy val ghostMemberClassification: PMember => Boolean =
     attr[PMember, Boolean] {
       case _: PGhostMember => true
       case m if enclosingGhostContext(m) => true
@@ -26,7 +25,7 @@ trait GhostTyping { this: ModifierUnit[GhostModifier] =>
     }
 
   /** returns true iff statement is classified as ghost */
-  private[separation] lazy val ghostStmtClassification: PStatement => Boolean = {
+  lazy val ghostStmtClassification: PStatement => Boolean = {
     def varDeclClassification(left: Vector[PIdnNode], right: Vector[PExpression]): Boolean =
       StrictAssignMode(left.size, right.size) match {
         case AssignMode.Single =>
@@ -62,7 +61,7 @@ trait GhostTyping { this: ModifierUnit[GhostModifier] =>
     * `ghostExprClassification` returns true iff callee is ghost. On the other hand, `ghostExprResultClassification` returns true iff the
     * callee's result is ghost.
     **/
-  private[separation] lazy val ghostExprClassification: PExpression => Boolean =
+  lazy val ghostExprClassification: PExpression => Boolean =
     createGhostClassification[PExpression](e => ghostExprTyping(e).isGhost)
 
   /**
@@ -71,48 +70,46 @@ trait GhostTyping { this: ModifierUnit[GhostModifier] =>
     * `ghostExprTyping` returns the ghost typing of the callee. On the other hand, `ghostExprResultTyping` returns the
     * ghost typing of the callee's results
     */
-  private[separation] lazy val ghostExprTyping: PExpression => GhostType = {
-    import GhostType._
+  lazy val ghostExprTyping: PExpression => GhostType = {
 
     createGhostTyping[PExpression]{
-      case _: PGhostExpression => isGhost
-      case e if exprType(e).isInstanceOf[Type.GhostType] => isGhost
+      case _: PGhostExpression => GhostType.isGhost
+      case e if ctx.exprType(e).isInstanceOf[Type.GhostType] => GhostType.isGhost
 
-      case PNamedOperand(id) => ghost(ghostIdClassification(id))
+      case PNamedOperand(id) => GhostType.ghost(ghostIdClassification(id))
 
-      case _: PFunctionLit => notGhost
+      case _: PFunctionLit => GhostType.notGhost
 
-      case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
-        case (Right(_), Some(_: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
+      case n: PInvoke => (ctx.exprOrType(n.base), ctx.resolve(n)) match {
+        case (Right(_), Some(_: ap.Conversion)) => GhostType.notGhost // conversions cannot be ghost (for now)
         case (Left(_), Some(call: ap.FunctionCall)) =>
-          if (tryEnclosingClosureImplementationProof(n).nonEmpty) notGhost
+          if (ctx.tryEnclosingClosureImplementationProof(n).nonEmpty) GhostType.notGhost
           else calleeGhostTyping(call)
         case (Left(_), Some(_: ap.ClosureCall)) =>
-          if (tryEnclosingClosureImplementationProof(n).nonEmpty) notGhost
+          if (ctx.tryEnclosingClosureImplementationProof(n).nonEmpty) GhostType.notGhost
           else ghostExprTyping(n.base.asInstanceOf[PExpression])
-        case (Left(_), Some(_: ap.PredicateCall)) => isGhost
+        case (Left(_), Some(_: ap.PredicateCall)) => GhostType.isGhost
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
 
       // catches ghost field reads, method calls, function calls since their id is ghost
-      case exp => ghost(!noGhostPropagationFromChildren(exp))
+      case exp => GhostType.ghost(!noGhostPropagationFromChildren(exp))
     }
   }
 
   /** returns true iff expression is classified as ghost */
-  private[separation] lazy val ghostExprResultClassification: PExpression => Boolean =
+  lazy val ghostExprResultClassification: PExpression => Boolean =
     createGhostClassification[PExpression](e => ghostExprResultTyping(e).isGhost)
 
   /** returns ghost typing of expression */
-  private[separation] lazy val ghostExprResultTyping: PExpression => GhostType = {
-    import GhostType._
+  lazy val ghostExprResultTyping: PExpression => GhostType = {
 
     createGhostTyping[PExpression]{
-      case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
-        case (Right(_), Some(_: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
+      case n: PInvoke => (ctx.exprOrType(n.base), ctx.resolve(n)) match {
+        case (Right(_), Some(_: ap.Conversion)) => GhostType.notGhost // conversions cannot be ghost (for now)
         case (Left(_), Some(call: ap.FunctionCall)) => calleeReturnGhostTyping(call)
         case (Left(_), Some(_: ap.ClosureCall)) => closureCallReturnGhostTyping(n)
-        case (Left(_), Some(_: ap.PredicateCall)) => isGhost
+        case (Left(_), Some(_: ap.PredicateCall)) => GhostType.isGhost
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
 
@@ -121,7 +118,7 @@ trait GhostTyping { this: ModifierUnit[GhostModifier] =>
   }
 
   /** returns true iff type is classified as ghost */
-  private[separation] lazy val ghostTypeClassification: PType => Boolean = createGhostClassification[PType]{
+  lazy val ghostTypeClassification: PType => Boolean = createGhostClassification[PType]{
     case _: PGhostType => true // TODO: This check seems insufficient to me in the long run. What if a type definition is ghost?
     case PArrayType(_, t) => isTypeGhost(t)
     case PSliceType(t) => isTypeGhost(t)
@@ -129,9 +126,9 @@ trait GhostTyping { this: ModifierUnit[GhostModifier] =>
   }
 
   /** returns true iff identifier is classified as ghost */
-  private[separation] lazy val ghostIdClassification: PIdnNode => Boolean = createGhostClassification[PIdnNode]{
+  lazy val ghostIdClassification: PIdnNode => Boolean = createGhostClassification[PIdnNode]{
     id => {
-      val ent = entity(id)
+      val ent = ctx.entity(id)
       ent match {
         case r: SingleLocalVariable => r.ghost || r.exp.exists(ghostExprResultClassification)
         case r: MultiLocalVariable => r.ghost || ghostExprResultTyping(r.exp).isIdxGhost(r.idx)
@@ -143,17 +140,17 @@ trait GhostTyping { this: ModifierUnit[GhostModifier] =>
   }
 
   /** returns true iff parameter is classified as ghost */
-  private[separation] lazy val ghostParameterClassification: PParameter => Boolean = createGhostClassification[PParameter] {
+  lazy val ghostParameterClassification: PParameter => Boolean = createGhostClassification[PParameter] {
     case _: PActualParameter => false
     case _: PExplicitGhostParameter => true
   }
 
   /** returns true iff node is contained in ghost code */
-  private[separation] def enclosingGhostContext(n: PNode): Boolean =
-    isEnclosingExplicitGhost(n) || isEnclosingDomain(n)
+  def enclosingGhostContext(n: PNode): Boolean =
+    ctx.isEnclosingExplicitGhost(n) || ctx.isEnclosingDomain(n)
 
   /** returns true iff node does not contain ghost expression or id that is not contained in another statement */
-  private[separation] lazy val noGhostPropagationFromChildren: PNode => Boolean =
+  lazy val noGhostPropagationFromChildren: PNode => Boolean =
     attr[PNode, Boolean] { node =>
 
       def noGhostPropagationFromSelfAndChildren(n: PNode): Boolean = n match {
@@ -167,18 +164,18 @@ trait GhostTyping { this: ModifierUnit[GhostModifier] =>
 
       val childrenToVisit: Iterable[PNode] = node match {
         case p: PProofAnnotation => p.nonGhostChildren
-        case _ => tree.child(node)
+        case _ => ctx.tree.child(node)
       }
 
       childrenToVisit.forall(noGhostPropagationFromSelfAndChildren)
     }
 
-  private[separation] def createGhostTyping[X <: PNode](typing: X => GhostType): X => GhostType =
-    createWellDefInference[X, GhostType](wellGhostSeparated.valid)(typing)
+  def createGhostTyping[X <: PNode](typing: X => GhostType): X => GhostType =
+    createWellDefInference[X, GhostType](hasWellDefModifier.valid)(typing)
       .andThen(_.getOrElse(Violation.violation("ghost typing on unsafe node")))
 
-  private[separation] def createGhostClassification[X <: PNode](classification: X => Boolean): X => Boolean =
-    createWellDefInference[X, Boolean](wellGhostSeparated.valid)(classification)
+  def createGhostClassification[X <: PNode](classification: X => Boolean): X => Boolean =
+    createWellDefInference[X, Boolean](hasWellDefModifier.valid)(classification)
       .andThen(_.getOrElse(Violation.violation("ghost classification on unsafe node")))
 
 
@@ -215,12 +212,12 @@ trait GhostTyping { this: ModifierUnit[GhostModifier] =>
   }
 
   override def expectedReturnGhostTyping(ret: PReturn): GhostType = {
-    val res = enclosingCodeRootWithResult(ret).result
+    val res = ctx.enclosingCodeRootWithResult(ret).result
     GhostType.ghostTuple(res.outs.map(isParamGhost))
   }
 
   override def expectedArgGhostTyping(n: PInvoke): GhostType = {
-    (exprOrType(n.base), resolve(n)) match {
+    (ctx.exprOrType(n.base), ctx.resolve(n)) match {
       case (Right(_), Some(_: ap.Conversion)) => GhostType.notGhost
       case (Left(_), Some(call: ap.FunctionCall)) => calleeArgGhostTyping(call)
       case (Left(_), Some(call: ap.ClosureCall)) => expectedArgGhostTyping(call.maybeSpec.get)
@@ -231,5 +228,5 @@ trait GhostTyping { this: ModifierUnit[GhostModifier] =>
 
   override def expectedArgGhostTyping(spec: PClosureSpecInstance): GhostType = closureSpecArgsAndResGhostTyping(spec)._1
 
-  override def isExprPure(expr: PExpression): Boolean = isPureExpr(expr).isEmpty
+  override def isExprPure(expr: PExpression): Boolean = ctx.isPureExpr(expr).isEmpty
 }

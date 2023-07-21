@@ -1,7 +1,6 @@
 package viper.gobra.frontend.info.implementation.typing.modifiers
 
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, noMessages}
 import viper.gobra.ast.frontend.{PExpression, PNode}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import Modifier._
@@ -10,11 +9,15 @@ import viper.gobra.frontend.info.implementation.typing.base.TypingComponents
 import viper.gobra.util.{Memoization, Safety, Validity}
 
 trait ModifierUnit[T <: Modifier] extends TypingComponents with BaseProperty {
-  def hasWellDefModifier(ctx: TypeInfoImpl): WellDefinedness[PNode]
+  def ctx: TypeInfoImpl
 
-  def getModifier(ctx: TypeInfoImpl): ModifierTyping[PNode, T]
+  def hasWellDefModifier: WellDefinedness[PNode]
 
-  def addressable(ctx: TypeInfoImpl)(exp: PExpression): Boolean = true
+  def getModifier: ModifierTyping[PNode, T]
+
+  def addressable(exp: PExpression): Boolean = true
+
+  def assignableTo(from: T, to: T): Boolean = true
 
   trait ModifierTyping[-A, M] extends Safety[A, Option[M]] with Validity[A, Option[M]] {
     override def unsafe: Option[M] = None

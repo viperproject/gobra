@@ -3398,8 +3398,8 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     def exprType(expr : PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector()) : Type.Type =
       singleExprTypeInfo(inArgs, expr).exprType(expr)
 
-    def isGhostExpr(expr : PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector()) : Boolean =
-      singleExprTypeInfo(inArgs, expr).isExprGhost(expr)
+    def isGhostExpr(expr : PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector(), members: Vector[PMember] = Vector()) : Boolean =
+      singleExprTypeInfo(inArgs, members, expr).ghostModifierUnit.isExprGhost(expr)
 
     def isPureExpr(expr : PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector()) : Boolean =
       singleExprTypeInfo(inArgs, expr).isPureExpr(expr).isEmpty

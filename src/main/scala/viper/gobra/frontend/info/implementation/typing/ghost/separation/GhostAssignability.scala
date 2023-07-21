@@ -8,15 +8,14 @@ package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignMode}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType.ghost
+import viper.gobra.frontend.info.implementation.typing.modifiers.GhostModifierUnit
 import viper.gobra.util.Violation
 
-trait GhostAssignability {
-  this: TypeInfoImpl =>
+trait GhostAssignability { this: GhostModifierUnit  =>
 
   /** checks that ghost arguments are not assigned to non-ghost arguments  */
   private[separation] def ghostAssignableToCallExpr(call: ap.FunctionCall): Messages = {
@@ -43,7 +42,7 @@ trait GhostAssignability {
 
   /** checks that ghost arguments are not assigned to non-ghost arguments in a call with spec  */
   private[separation] def ghostAssignableToClosureCall(call: ap.ClosureCall): Messages = {
-    val isPure = resolve(call.maybeSpec.get.func) match {
+    val isPure = ctx.resolve(call.maybeSpec.get.func) match {
       case Some(ap.Function(_, f)) => f.isPure
       case Some(ap.Closure(_, c)) => c.isPure
       case _ => Violation.violation("this case should be unreachable")
@@ -63,9 +62,9 @@ trait GhostAssignability {
     * not on the ghostness of the function. */
   private [separation] def closureSpecArgsAndResGhostTyping(spec: PClosureSpecInstance): (GhostType, GhostType) = {
     def paramTyping(params: Vector[PParameter], context: ExternalTypeInfo): GhostType =
-      GhostType.ghostTuple(params.map(p => context.isParamGhost(p)))
+      GhostType.ghostTuple(params.map(p => isParamGhost(p)))
 
-    val (fArgs, fRes, context) = resolve(spec.func) match {
+    val (fArgs, fRes, context) = ctx.resolve(spec.func) match {
       case Some(ap.Function(_, f)) => (f.args, f.result.outs, f.context)
       case Some(ap.Closure(_, c)) => (c.args, c.result.outs, c.context)
       case _ => Violation.violation("this case should be unreachable")
@@ -102,11 +101,11 @@ trait GhostAssignability {
     case PNamedOperand(id) => // x := e ~ ghost(e) ==> ghost(x)
       error(left, "ghost error: ghost cannot be assigned to non-ghost", isRightGhost && !ghostIdClassification(id))
 
-    case n: PDot => exprOrType(n.base) match {
+    case n: PDot => ctx.exprOrType(n.base) match {
       case Left(base) => // x.f := e ~ (ghost(x) || ghost(e)) ==> ghost(f)
         error(left, "ghost error: ghost cannot be assigned to non-ghost field", isRightGhost && !ghostIdClassification(n.id)) ++
           error(left, "ghost error: cannot assign to non-ghost field of ghost reference", ghostExprResultClassification(base) && !ghostIdClassification(n.id))
-      case _ if resolve(n).exists(_.isInstanceOf[ap.GlobalVariable]) =>
+      case _ if ctx.resolve(n).exists(_.isInstanceOf[ap.GlobalVariable]) =>
         error(left, "ghost error: ghost cannot be assigned to a global variable", isRightGhost)
       case _ => error(left, "ghost error: selections on types are not assignable")
   }
@@ -164,9 +163,9 @@ trait GhostAssignability {
       case p: ap.MethodExpr => GhostType.ghostTuple(false +: argTyping(p.symb.args, p.symb.ghost, p.symb.context).toTuple)
       case _: ap.PredicateKind => GhostType.isGhost
       case _: ap.DomainFunction => GhostType.isGhost
-      case ap.BuiltInFunction(_, symb) => argGhostTyping(symb.tag, call.args.map(typ))
-      case ap.BuiltInReceivedMethod(recv, _, _, symb) => argGhostTyping(symb.tag, Vector(typ(recv)))
-      case ap.BuiltInMethodExpr(typ, _, _, symb) => GhostType.ghostTuple(false +: argGhostTyping(symb.tag, Vector(typeSymbType(typ))).toTuple)
+      case ap.BuiltInFunction(_, symb) => ctx.argGhostTyping(symb.tag, call.args.map(ctx.typ))
+      case ap.BuiltInReceivedMethod(recv, _, _, symb) => ctx.argGhostTyping(symb.tag, Vector(ctx.typ(recv)))
+      case ap.BuiltInMethodExpr(typ, _, _, symb) => GhostType.ghostTuple(false +: ctx.argGhostTyping(symb.tag, Vector(ctx.typeSymbType(typ))).toTuple)
       case p: ap.ImplicitlyReceivedInterfaceMethod => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
       case _ => GhostType.notGhost // conservative choice
     }
@@ -198,9 +197,9 @@ trait GhostAssignability {
       case p: ap.MethodExpr => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
       case _: ap.PredicateKind => GhostType.isGhost
       case _: ap.DomainFunction => GhostType.isGhost
-      case ap.BuiltInFunction(_, symb) => returnGhostTyping(symb.tag, call.args.map(typ))
-      case ap.BuiltInReceivedMethod(recv, _, _, symb) => returnGhostTyping(symb.tag, Vector(typ(recv)))
-      case ap.BuiltInMethodExpr(typ, _, _, symb) => returnGhostTyping(symb.tag, Vector(typeSymbType(typ)))
+      case ap.BuiltInFunction(_, symb) => ctx.returnGhostTyping(symb.tag, call.args.map(ctx.typ))
+      case ap.BuiltInReceivedMethod(recv, _, _, symb) => ctx.returnGhostTyping(symb.tag, Vector(ctx.typ(recv)))
+      case ap.BuiltInMethodExpr(typ, _, _, symb) => ctx.returnGhostTyping(symb.tag, Vector(ctx.typeSymbType(typ)))
       case p: ap.ImplicitlyReceivedInterfaceMethod => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
       case _ => GhostType.isGhost // conservative choice
     }
@@ -213,11 +212,11 @@ trait GhostAssignability {
   private [separation] def provenSpecMatchesInGhostnessWithCall(p: PClosureImplProof): Messages = {
     val specTyping = closureSpecArgsAndResGhostTyping(p.impl.spec)
 
-    closureImplProofCallAttr(p) match {
+    ctx.closureImplProofCallAttr(p) match {
       case c: PInvoke =>
         // If the callee is ghost, we don't care about the ghostness of the arguments.
         if (isExprGhost(c.base.asInstanceOf[PExpression])) noMessages
-        else resolve(c) match {
+        else ctx.resolve(c) match {
           case Some(call: ap.FunctionCall) => error(c,
             s"the ghostness of arguments and results of ${p.impl.spec} and ${c.base} does not match",
             specTyping != (calleeArgGhostTyping(call), calleeReturnGhostTyping(call)))
@@ -236,7 +235,7 @@ trait GhostAssignability {
       GhostType.ghostTuple(result.outs.map(p => isClosureGhost || context.isParamGhost(p)))
     }
 
-    resolve(call.spec.get.func) match {
+    ctx.resolve(call.spec.get.func) match {
       case Some(p: ap.Function) => resultTyping(p.symb.result, isExprGhost(call.base.asInstanceOf[PExpression]), p.symb.context)
       case Some(p: ap.Closure) => resultTyping(p.symb.result, isExprGhost(call.base.asInstanceOf[PExpression]), p.symb.context)
       case _ => GhostType.isGhost // conservative choice

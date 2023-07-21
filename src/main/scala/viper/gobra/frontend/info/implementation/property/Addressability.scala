@@ -26,7 +26,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
 
   // depends on: entity, type
   lazy val addressable: Property[PExpression] = createBinaryProperty("addressable") {
-    n => this.modifierUnits.forall(_.addressable(this)(n))
+    n => this.modifierUnits.forall(_.addressable(n))
   }
 
   /** checks if argument is addressable according to Go language specification */

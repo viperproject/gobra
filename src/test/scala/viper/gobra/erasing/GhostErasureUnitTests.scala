@@ -348,7 +348,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         case _ =>
       }
 
-      val ghostLess = new GhostLessPrinter(info).format(pkg)
+      val ghostLess = new GhostLessPrinter(info.ghostModifierUnit).format(pkg)
       // try to parse ghostLess string:
       val parseRes = Parser.parseProgram(StringSource(ghostLess, "Ghostless Program"), false)
       parseRes match {

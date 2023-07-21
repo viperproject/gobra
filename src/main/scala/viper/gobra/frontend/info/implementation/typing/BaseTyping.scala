@@ -107,14 +107,4 @@ trait BaseTyping extends TypingComponents { this: TypeInfoImpl =>
 
       override def compute(n: T): Type = inference(n)
     }
-
-  private[typing] def createWellDefInference[X <: AnyRef, Z](wellDef: X => Boolean)(inference: X => Z): X => Option[Z] =
-    new Attribution with Safety[X, Option[Z]] with Memoization[X, Option[Z]] {
-
-      override def safe(n: X): Boolean = wellDef(n)
-
-      override def unsafe: Option[Z] = None
-
-      override def compute(n: X): Option[Z] = Some(inference(n))
-    }
 }

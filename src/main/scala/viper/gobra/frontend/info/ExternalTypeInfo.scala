@@ -41,6 +41,8 @@ trait ExternalTypeInfo {
     */
   def tryNonAddressableMethodLikeLookup(typ: Type, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])]
 
+  def isParamGhost(param: PParameter): Boolean
+
   /**
     * Returns true if a symbol table lookup was made through `externalRegular` for the given member
     */

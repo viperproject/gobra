@@ -6,13 +6,16 @@ import viper.gobra.frontend.info.implementation.typing.modifiers.{GhostModifierU
 
 trait ModifierTyping extends BaseTyping { this: TypeInfoImpl =>
 
-  final val modifierUnits: Vector[ModifierUnit[_ <: Modifier.Modifier]] = Vector(OwnerModifierUnit, GhostModifierUnit)
+  val ownerModifierUnit = new OwnerModifierUnit(this)
+  val ghostModifierUnit = new GhostModifierUnit(this)
+
+  val modifierUnits: Vector[ModifierUnit[_ <: Modifier.Modifier]] = Vector(ownerModifierUnit, ghostModifierUnit)
 
   def wellDefModifiers: WellDefinedness[PNode] = createWellDef {
-    n: PNode => modifierUnits.flatMap(_.hasWellDefModifier(this)(n).out)
+    n: PNode => modifierUnits.flatMap(_.hasWellDefModifier(n).out)
   }
 
-  override def getOwnerModifier(expr: PExpression): OwnerModifier = OwnerModifierUnit.getModifier(this)(expr).get
+  override def getOwnerModifier(expr: PExpression): OwnerModifier = ownerModifierUnit.getModifier(expr).get
 
-  override def getVarOwnerModifier(id: PIdnNode): OwnerModifier = OwnerModifierUnit.getVarModifier(this)(id)
+  override def getVarOwnerModifier(id: PIdnNode): OwnerModifier = ownerModifierUnit.getVarModifier(id)
 }

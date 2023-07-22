@@ -9,9 +9,9 @@ package viper.gobra.translator.encodings
 import org.apache.commons.codec.binary.Hex
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.frontend.info.implementation.typing.modifiers.{OwnerModifier, OwnerModifierUnit}
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.{OwnerModifier, OwnerModifierUnit}
 import viper.gobra.reporting.Source
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Shared, Exclusive }
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier.{ Shared, Exclusive }
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context

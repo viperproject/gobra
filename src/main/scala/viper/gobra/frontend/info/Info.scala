@@ -18,7 +18,7 @@ import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, Bu
 import viper.gobra.frontend.Parser.{ParseResult, ParseSuccessResult}
 import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.implementation.typing.ghost.separation.{GhostLessPrinter, GoifyingPrinter}
+import viper.gobra.frontend.info.implementation.typing.modifiers.ghost.{GhostLessPrinter, GoifyingPrinter}
 import viper.gobra.reporting.{CyclicImportError, ParserError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
 import viper.gobra.util.{GobraExecutionContext, Job, TaskManager, Violation}
 

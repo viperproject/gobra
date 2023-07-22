@@ -11,7 +11,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.ast.internal.theory.Comparability
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
 import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, NoPermissionToRangeExpressionError, Source}
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Exclusive, Shared }
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier.{ Exclusive, Shared }
 import viper.gobra.translator.library.Generator
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}

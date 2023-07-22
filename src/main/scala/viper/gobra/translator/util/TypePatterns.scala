@@ -7,8 +7,8 @@
 package viper.gobra.translator.util
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Shared, Exclusive }
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier.{ Shared, Exclusive }
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier
 import viper.gobra.translator.context.Context
 
 import scala.annotation.tailrec

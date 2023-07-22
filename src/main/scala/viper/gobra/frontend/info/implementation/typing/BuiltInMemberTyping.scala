@@ -12,7 +12,7 @@ import viper.gobra.ast.frontend.PNode
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
+import viper.gobra.frontend.info.implementation.typing.modifiers.ghost.GhostType
 import viper.gobra.util.TypeBounds.UnboundedInteger
 import viper.gobra.util.Violation
 

@@ -1,10 +1,9 @@
-package viper.gobra.frontend.info.implementation.typing.modifiers
+package viper.gobra.frontend.info.implementation.typing.modifiers.ghost
+
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
-import viper.gobra.ast.frontend.{PExpression, PIdnNode, PInterfaceClause, PMember, PMisc, PNode, PParameter, PStatement, PStructClause, PType}
+import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import org.bitbucket.inkytonik.kiama.util.Messaging.{error, noMessages}
-import viper.gobra.frontend.info.implementation.typing.ghost.separation.{GhostAssignability, GhostTyping, GhostWellDef}
-import viper.gobra.util.{Memoization, Safety}
+import viper.gobra.frontend.info.implementation.typing.modifiers.ModifierUnit
 
 class GhostModifierUnit(final val ctx: TypeInfoImpl) extends Attribution with ModifierUnit[GhostModifier]
   with GhostWellDef

@@ -8,7 +8,7 @@ package viper.gobra.translator.encodings.maps
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Shared, Exclusive }
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier.{ Shared, Exclusive }
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.encodings.maps.MapEncoding.repeatedKeyErrorT
 import viper.gobra.translator.context.Context

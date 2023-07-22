@@ -8,7 +8,7 @@ package viper.gobra.translator.encodings.adts
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Shared, Exclusive }
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier.{ Shared, Exclusive }
 import viper.gobra.reporting.MatchError
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context

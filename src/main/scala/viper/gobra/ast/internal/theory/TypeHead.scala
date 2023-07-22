@@ -7,10 +7,10 @@
 package viper.gobra.ast.internal.theory
 
 import viper.gobra.ast.internal._
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier
 import viper.gobra.translator.Names
 import viper.gobra.util.RoseTree
 import viper.gobra.util.TypeBounds.IntegerKind
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 
 /** The head of a type. Used to abstract over types. */
 sealed trait TypeHead

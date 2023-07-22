@@ -14,13 +14,13 @@ package viper.gobra.ast.internal
   */
 
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag}
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.translator.Names
 import viper.gobra.util.{Decimal, NumBase, TypeBounds, Violation}
 import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation.violation
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 
 import scala.collection.SortedSet
 

@@ -7,7 +7,7 @@
 package viper.gobra.translator
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 

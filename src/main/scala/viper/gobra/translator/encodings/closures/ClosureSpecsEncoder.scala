@@ -8,7 +8,7 @@ package viper.gobra.translator.encodings.closures
 
 import viper.gobra.ast.internal.FunctionLikeMemberOrLit
 import viper.gobra.ast.{internal => in}
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier
 import viper.gobra.reporting.BackTranslator.ErrorTransformer
 import viper.gobra.reporting.{GoCallPreconditionReason, PreconditionError, Source, SpecNotImplementedByClosure}
 import viper.gobra.translator.Names

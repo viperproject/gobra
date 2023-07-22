@@ -1,16 +1,13 @@
-package viper.gobra.frontend.info.implementation.typing.modifiers
+package viper.gobra.frontend.info.implementation.typing.modifiers.owner
 
-import org.bitbucket.inkytonik.kiama.attribution.Attribution
-import viper.gobra.ast.frontend.{PAccess, PAdd, PBefore, PBinaryExp, PBitNegation, PBlankIdentifier, PCapacity, PClosureImplements, PConditional, PDeref, PDot, PExists, PExpression, PForall, PGhostCollectionExp, PGhostEquals, PGhostUnequals, PIdnNode, PImplication, PIn, PIndexedExp, PIntersection, PInvoke, PIota, PIsComparable, PLabeledOld, PLength, PLiteral, PMagicWand, PMake, PMapKeys, PMapValues, PMatchExp, PMultiplicity, PNamedOperand, PNegation, PNew, PNode, POld, POptionGet, POptionNone, POptionSome, PPermission, PPredConstructor, PPredicateAccess, PRangeSequence, PReceive, PReference, PSequenceAppend, PSetMinus, PSliceExp, PSubset, PTypeAssertion, PTypeExpr, PTypeOf, PUnfolding, PUnion, PUnpackSlice}
-import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import org.bitbucket.inkytonik.kiama.util.Messaging.{error, noMessages}
-import viper.gobra.frontend.info.base.Type.{ArrayT, GhostSliceT, MapT, MathMapT, SequenceT, SliceT, VariadicT}
-import viper.gobra.util.Violation
-import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.implementation.resolution.MemberPath
-import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.frontend.info.TypeInfo
+import org.bitbucket.inkytonik.kiama.util.Messaging.noMessages
+import viper.gobra.ast.frontend.{PAccess, PBefore, PBinaryExp, PBitNegation, PBlankIdentifier, PCapacity, PClosureImplements, PConditional, PDeref, PDot, PExists, PExpression, PForall, PGhostCollectionExp, PGhostEquals, PGhostUnequals, PIdnNode, PImplication, PIn, PIndexedExp, PIntersection, PInvoke, PIota, PIsComparable, PLabeledOld, PLength, PLiteral, PMagicWand, PMake, PMapKeys, PMapValues, PMatchExp, PMultiplicity, PNamedOperand, PNegation, PNew, PNode, POld, POptionGet, POptionNone, POptionSome, PPermission, PPredConstructor, PPredicateAccess, PRangeSequence, PReceive, PReference, PSequenceAppend, PSetMinus, PSliceExp, PSubset, PTypeAssertion, PTypeExpr, PTypeOf, PUnfolding, PUnion, PUnpackSlice, AstPattern => ap}
+import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{SymbolTable => st}
+import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.resolution.MemberPath
+import viper.gobra.frontend.info.implementation.typing.modifiers.ModifierUnit
+import viper.gobra.util.Violation
 
 class OwnerModifierUnit(final val ctx: TypeInfoImpl) extends ModifierUnit[OwnerModifier] {
 

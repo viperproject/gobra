@@ -10,7 +10,7 @@ import viper.gobra.ast.{internal => in}
 import viper.silver.{ast => vpr}
 import ArrayEncoding.ComponentParameter
 import viper.gobra.reporting.Source
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{ Shared, Exclusive }
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier.{ Shared, Exclusive }
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.library.embeddings.EmbeddingComponent
 import viper.gobra.translator.Names

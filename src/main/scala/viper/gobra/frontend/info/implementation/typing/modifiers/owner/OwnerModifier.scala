@@ -1,6 +1,6 @@
-package viper.gobra.frontend.info.implementation.typing.modifiers
+package viper.gobra.frontend.info.implementation.typing.modifiers.owner
 
-import Modifier._
+import viper.gobra.frontend.info.implementation.typing.modifiers.Modifier.Modifier
 
 sealed trait OwnerModifier extends Modifier
 

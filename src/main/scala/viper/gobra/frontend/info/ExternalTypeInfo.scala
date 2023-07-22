@@ -14,7 +14,7 @@ import viper.gobra.frontend.info.base.Type.{AbstractType, InterfaceT, StructT, T
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
-import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
+import viper.gobra.frontend.info.implementation.typing.modifiers.ghost.GhostType
 import viper.gobra.reporting.VerifierError
 
 trait ExternalTypeInfo {

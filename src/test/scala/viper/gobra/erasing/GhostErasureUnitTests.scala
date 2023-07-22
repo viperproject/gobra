@@ -14,7 +14,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.{Config, PackageInfo, Parser}
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostLessPrinter
+import viper.gobra.frontend.info.implementation.typing.modifiers.ghost.GhostLessPrinter
 
 class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()

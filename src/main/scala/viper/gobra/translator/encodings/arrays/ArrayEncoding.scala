@@ -8,9 +8,9 @@ package viper.gobra.translator.encodings.arrays
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 import viper.gobra.reporting.Source
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier.{Exclusive, Shared}
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier.{Exclusive, Shared}
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.arrays.ArrayEncoding.ComponentParameter
 import viper.gobra.translator.encodings.combinators.TypeEncoding

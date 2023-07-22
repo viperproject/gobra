@@ -2,7 +2,9 @@ package viper.gobra.frontend.info.implementation.typing
 
 import viper.gobra.ast.frontend.{PExpression, PIdnNode, PNode}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.implementation.typing.modifiers.{GhostModifierUnit, Modifier, ModifierUnit, OwnerModifier, OwnerModifierUnit}
+import viper.gobra.frontend.info.implementation.typing.modifiers.ghost.GhostModifierUnit
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.{OwnerModifier, OwnerModifierUnit}
+import viper.gobra.frontend.info.implementation.typing.modifiers.{Modifier, ModifierUnit}
 
 trait ModifierTyping extends BaseTyping { this: TypeInfoImpl =>
 

@@ -9,9 +9,9 @@ package viper.gobra.ast.internal
 import org.bitbucket.inkytonik.kiama
 import org.bitbucket.inkytonik.kiama.util.Trampolines.Done
 import viper.gobra.ast.printing.PrettyPrinterCombinators
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier
 import viper.gobra.util.{Binary, Decimal, Hexadecimal, Octal}
 import viper.silver.ast.{Position => GobraPosition}
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer

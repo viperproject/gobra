@@ -4,14 +4,12 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra.frontend.info.implementation.typing.ghost.separation
+package viper.gobra.frontend.info.implementation.typing.modifiers.ghost
 
-import viper.gobra.ast.frontend._
+import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.{Closure, MultiLocalVariable, Regular, SingleLocalVariable}
 import viper.gobra.frontend.info.base.Type
-import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
-import viper.gobra.frontend.info.implementation.typing.modifiers.GhostModifierUnit
 import viper.gobra.util.Violation
 
 trait GhostTyping extends GhostClassifier { this: GhostModifierUnit =>

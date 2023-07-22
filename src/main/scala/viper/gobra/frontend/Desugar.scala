@@ -16,10 +16,10 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.implementation.typing.modifiers
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.{OwnerModifier, OwnerModifierUnit}
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, MainPreNotEstablished}
 import viper.gobra.reporting.{DesugaredMessage, Source}
-import viper.gobra.frontend.info.implementation.typing.modifiers.{OwnerModifier, OwnerModifierUnit}
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
 import viper.gobra.util.{Constants, DesugarWriter, GobraExecutionContext, Violation}
@@ -150,7 +150,7 @@ object Desugar extends LazyLogging {
   }
 
   /** For now, the memberset is computed in an inefficient way. */
-  def computeMemberProxies(decls: Iterable[in.Member], itfImpls: Map[in.InterfaceT, SortedSet[in.Type]], definedT: Map[(String, modifiers.OwnerModifier), in.Type]): Map[in.Type, SortedSet[in.MemberProxy]] = {
+  def computeMemberProxies(decls: Iterable[in.Member], itfImpls: Map[in.InterfaceT, SortedSet[in.Type]], definedT: Map[(String, OwnerModifier), in.Type]): Map[in.Type, SortedSet[in.MemberProxy]] = {
     val keys = itfImpls.flatMap{ case (k, v) => v union Set(k) }.toSet
     val pairs: Set[(in.Type, SortedSet[in.MemberProxy])] = keys.map{ key =>
 
@@ -3202,19 +3202,19 @@ object Desugar extends LazyLogging {
       t
     }
 
-    var definedTypes: Map[(String, modifiers.OwnerModifier), in.Type] = Map.empty
-    var definedTypesSet: Set[(String, modifiers.OwnerModifier)] = Set.empty
+    var definedTypes: Map[(String, OwnerModifier), in.Type] = Map.empty
+    var definedTypesSet: Set[(String, OwnerModifier)] = Set.empty
     var definedFunctions : Map[in.FunctionProxy, in.FunctionMember] = Map.empty
     var definedMethods: Map[in.MethodProxy, in.MethodMember] = Map.empty
     var definedMPredicates: Map[in.MPredicateProxy, in.MPredicate] = Map.empty
     var definedFPredicates: Map[in.FPredicateProxy, in.FPredicate] = Map.empty
     var definedFuncLiterals: Map[in.FunctionLitProxy, in.FunctionLitLike] = Map.empty
 
-    def registerDefinedType(t: Type.DeclaredT, addrMod: modifiers.OwnerModifier)(src: Meta): in.DefinedT = {
+    def registerDefinedType(t: Type.DeclaredT, addrMod: OwnerModifier)(src: Meta): in.DefinedT = {
       // this type was declared in the current package
       val name = nm.typ(t.decl.left.name, t.context)
 
-      def register(addrMod: modifiers.OwnerModifier): Unit = {
+      def register(addrMod: OwnerModifier): Unit = {
         if (!definedTypesSet.contains(name, addrMod)) {
           definedTypesSet += ((name, addrMod))
           val newEntry = typeD(t.context.symbType(t.decl.right), OwnerModifier.underlying(addrMod))(src)
@@ -3726,13 +3726,13 @@ object Desugar extends LazyLogging {
         .toMap
     }
 
-    def embeddedTypeD(t: PEmbeddedType, addrMod: modifiers.OwnerModifier)(src: Meta): in.Type = t match {
+    def embeddedTypeD(t: PEmbeddedType, addrMod: OwnerModifier)(src: Meta): in.Type = t match {
       case PEmbeddedName(typ) => typeD(info.symbType(typ), addrMod)(src)
       case PEmbeddedPointer(typ) =>
         registerType(in.PointerT(typeD(info.symbType(typ), OwnerModifier.pointerBase)(src), addrMod))
     }
 
-    def typeD(t: Type, addrMod: modifiers.OwnerModifier)(src: Source.Parser.Info): in.Type = t match {
+    def typeD(t: Type, addrMod: OwnerModifier)(src: Source.Parser.Info): in.Type = t match {
       case Type.VoidType => in.VoidT
       case t: DeclaredT => registerType(registerDefinedType(t, addrMod)(src))
       case Type.BooleanT => in.BoolT(addrMod)
@@ -3998,36 +3998,36 @@ object Desugar extends LazyLogging {
       case in.LocalVar(id, typ) => in.LocalVar(nm.alias(id, scope, ctx), typ)(internal.info)
     }
 
-    def structD(struct: StructT, addrMod: modifiers.OwnerModifier)(src: Meta): Vector[in.Field] =
+    def structD(struct: StructT, addrMod: OwnerModifier)(src: Meta): Vector[in.Field] =
       struct.clauses.map {
         case (name, (true, typ)) => fieldDeclD((name, typ), OwnerModifier.field(addrMod), struct)(src)
         case (name, (false, typ)) => embeddedDeclD((name, typ), OwnerModifier.field(addrMod), struct)(src)
       }.toVector
 
-    def structMemberD(m: st.StructMember, addrMod: modifiers.OwnerModifier)(src: Meta): in.Field = m match {
+    def structMemberD(m: st.StructMember, addrMod: OwnerModifier)(src: Meta): in.Field = m match {
       case st.Field(decl, _, context) => fieldDeclD(decl, addrMod, context)(src)
       case st.Embbed(decl, _, context) => embeddedDeclD(decl, addrMod, context)(src)
     }
 
-    def embeddedDeclD(embedded: (String, Type), fieldAddrMod: modifiers.OwnerModifier, struct: StructT)(src: Source.Parser.Info): in.Field = {
+    def embeddedDeclD(embedded: (String, Type), fieldAddrMod: OwnerModifier, struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(embedded._1, struct)
       val td = typeD(embedded._2, fieldAddrMod)(src)
       in.Field(idname, td, ghost = false)(src) // TODO: fix ghost attribute
     }
 
-    def embeddedDeclD(decl: PEmbeddedDecl, addrMod: modifiers.OwnerModifier, context: ExternalTypeInfo)(src: Meta): in.Field = {
+    def embeddedDeclD(decl: PEmbeddedDecl, addrMod: OwnerModifier, context: ExternalTypeInfo)(src: Meta): in.Field = {
       val struct = context.struct(decl)
       val embedded: (String, Type) = (decl.id.name, context.typ(decl.typ))
       embeddedDeclD(embedded, addrMod, struct.get)(src)
     }
 
-    def fieldDeclD(field: (String, Type), fieldAddrMod: modifiers.OwnerModifier, struct: StructT)(src: Source.Parser.Info): in.Field = {
+    def fieldDeclD(field: (String, Type), fieldAddrMod: OwnerModifier, struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(field._1, struct)
       val td = typeD(field._2, fieldAddrMod)(src)
       in.Field(idname, td, ghost = false)(src) // TODO: fix ghost attribute
     }
 
-    def fieldDeclD(decl: PFieldDecl, addrMod: modifiers.OwnerModifier, context: ExternalTypeInfo)(src: Meta): in.Field = {
+    def fieldDeclD(decl: PFieldDecl, addrMod: OwnerModifier, context: ExternalTypeInfo)(src: Meta): in.Field = {
       val struct = context.struct(decl)
       val field: (String, Type) = (decl.id.name, context.symbType(decl.typ))
       fieldDeclD(field, addrMod, struct.get)(src)

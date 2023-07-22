@@ -7,8 +7,8 @@
 package viper.gobra.ast.internal.theory
 
 import viper.gobra.ast.internal._
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier
 import viper.gobra.util.RoseTree
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 
 import scala.annotation.tailrec
 

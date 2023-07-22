@@ -10,8 +10,8 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier
 import viper.gobra.reporting.Source
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context

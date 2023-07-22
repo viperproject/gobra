@@ -4,7 +4,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, noMessages}
 import viper.gobra.ast.frontend.PNode
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifierUnit
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifierUnit
 import viper.gobra.util.{Memoization, Safety, Validity}
 
 trait TypingComponents {

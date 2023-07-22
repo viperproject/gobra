@@ -4,16 +4,12 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra.frontend.info.implementation.typing.ghost.separation
+package viper.gobra.frontend.info.implementation.typing.modifiers.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.{Closure, Function, Regular, SingleLocalVariable}
 import viper.gobra.frontend.info.implementation.typing.base.TypingComponents
-import viper.gobra.frontend.info.implementation.typing.modifiers.GhostModifierUnit
-import viper.gobra.frontend.info.implementation.typing.modifiers.{GhostModifier, ModifierUnit}
 import viper.gobra.util.Violation.violation
 
 trait GhostWellDef extends TypingComponents { this: GhostModifierUnit =>

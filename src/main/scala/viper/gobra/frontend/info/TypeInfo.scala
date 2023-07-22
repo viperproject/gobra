@@ -11,7 +11,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier
 
 trait TypeInfo extends ExternalTypeInfo {
 

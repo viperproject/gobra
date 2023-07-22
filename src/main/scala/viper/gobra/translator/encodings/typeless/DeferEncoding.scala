@@ -8,7 +8,7 @@ package viper.gobra.translator.encodings.typeless
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.frontend.info.implementation.typing.modifiers.OwnerModifier
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.util.{Core, ViperWriter}

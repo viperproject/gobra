@@ -1,4 +1,4 @@
-package viper.gobra.frontend.info.implementation.typing.modifiers
+package viper.gobra.frontend.info.implementation.typing.modifiers.ghost
 
 import viper.gobra.frontend.info.implementation.typing.modifiers.Modifier._
 

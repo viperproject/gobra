@@ -4,21 +4,19 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra.frontend.info.implementation.typing.ghost.separation
+package viper.gobra.frontend.info.implementation.typing.modifiers.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend._
-import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignMode}
-import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType.ghost
-import viper.gobra.frontend.info.implementation.typing.modifiers.GhostModifierUnit
+import viper.gobra.frontend.info.implementation.typing.modifiers.ghost.GhostType.ghost
 import viper.gobra.util.Violation
 
 trait GhostAssignability { this: GhostModifierUnit  =>
 
   /** checks that ghost arguments are not assigned to non-ghost arguments  */
-  private[separation] def ghostAssignableToCallExpr(call: ap.FunctionCall): Messages = {
+  private[ghost] def ghostAssignableToCallExpr(call: ap.FunctionCall): Messages = {
 
     val isPure = call.callee match {
       case p: ap.Function => p.symb.isPure
@@ -41,7 +39,7 @@ trait GhostAssignability { this: GhostModifierUnit  =>
   }
 
   /** checks that ghost arguments are not assigned to non-ghost arguments in a call with spec  */
-  private[separation] def ghostAssignableToClosureCall(call: ap.ClosureCall): Messages = {
+  private[ghost] def ghostAssignableToClosureCall(call: ap.ClosureCall): Messages = {
     val isPure = ctx.resolve(call.maybeSpec.get.func) match {
       case Some(ap.Function(_, f)) => f.isPure
       case Some(ap.Closure(_, c)) => c.isPure
@@ -60,9 +58,9 @@ trait GhostAssignability { this: GhostModifierUnit  =>
   /** ghost types of the call arguments and results of a closure spec instance.
     * The ghost type depends on that of the corresponding argument in the base function,
     * not on the ghostness of the function. */
-  private [separation] def closureSpecArgsAndResGhostTyping(spec: PClosureSpecInstance): (GhostType, GhostType) = {
+  private [ghost] def closureSpecArgsAndResGhostTyping(spec: PClosureSpecInstance): (GhostType, GhostType) = {
     def paramTyping(params: Vector[PParameter], context: ExternalTypeInfo): GhostType =
-      GhostType.ghostTuple(params.map(p => isParamGhost(p)))
+      GhostType.ghostTuple(params.map(p => context.isParamGhost(p)))
 
     val (fArgs, fRes, context) = ctx.resolve(spec.func) match {
       case Some(ap.Function(_, f)) => (f.args, f.result.outs, f.context)
@@ -85,7 +83,7 @@ trait GhostAssignability { this: GhostModifierUnit  =>
   }
 
   /** conservative ghost separation assignment check */
-  private[separation] def ghostAssignableToAssignee(exprs: PExpression*)(lefts: PAssignee*): Messages =
+  private[ghost] def ghostAssignableToAssignee(exprs: PExpression*)(lefts: PAssignee*): Messages =
     generalGhostAssignableTo(ghostExprResultTyping)(ghostAssigneeAssignmentMsg)(exprs: _*)(lefts: _*)
 
 
@@ -114,11 +112,11 @@ trait GhostAssignability { this: GhostModifierUnit  =>
   }
 
   /** conservative ghost separation assignment check */
-  private[separation] def ghostAssignableToId(exprs: PExpression*)(lefts: PIdnNode*): Messages =
+  private[ghost] def ghostAssignableToId(exprs: PExpression*)(lefts: PIdnNode*): Messages =
     generalGhostAssignableTo(ghostExprResultTyping)(dfltGhostAssignableMsg(ghostIdClassification))(exprs: _*)(lefts: _*)
 
   /** conservative ghost separation assignment check */
-  private[separation] def ghostAssignableToParam(exprs: PExpression*)(lefts: PParameter*): Messages =
+  private[ghost] def ghostAssignableToParam(exprs: PExpression*)(lefts: PParameter*): Messages =
     generalGhostAssignableTo(ghostExprResultTyping)(dfltGhostAssignableMsg(ghostParameterClassification))(exprs: _*)(lefts: _*)
 
   private def dfltGhostAssignableMsg[L <: PNode](ghost: L => Boolean): (Boolean, L) => Messages = {
@@ -151,7 +149,7 @@ trait GhostAssignability { this: GhostModifierUnit  =>
 
 
   /** ghost type of the arguments of a callee */
-  private[separation] def calleeArgGhostTyping(call: ap.FunctionCall): GhostType = {
+  private[ghost] def calleeArgGhostTyping(call: ap.FunctionCall): GhostType = {
     // a parameter of a ghost member is ghost (even if such a explicit declaration is missing)
     def argTyping(args: Vector[PParameter], isMemberGhost: Boolean, context: ExternalTypeInfo): GhostType =
       GhostType.ghostTuple(args.map(p => isMemberGhost || context.isParamGhost(p)))
@@ -172,7 +170,7 @@ trait GhostAssignability { this: GhostModifierUnit  =>
   }
 
   /* ghost type of the callee itself (not considering its arguments or results) */
-  private[separation] def calleeGhostTyping(call: ap.FunctionCall): GhostType = call.callee match {
+  private[ghost] def calleeGhostTyping(call: ap.FunctionCall): GhostType = call.callee match {
     case p: ap.Function => ghost(p.symb.ghost)
     case p: ap.ReceivedMethod => ghost(p.symb.ghost)
     case p: ap.MethodExpr => ghost(p.symb.ghost)
@@ -185,7 +183,7 @@ trait GhostAssignability { this: GhostModifierUnit  =>
   }
 
   /** ghost type of the result of a callee */
-  private[separation] def calleeReturnGhostTyping(call: ap.FunctionCall): GhostType = {
+  private[ghost] def calleeReturnGhostTyping(call: ap.FunctionCall): GhostType = {
     // a result of a ghost member is ghost (even if such a explicit declaration is missing)
     def resultTyping(result: PResult, isMemberGhost: Boolean, context: ExternalTypeInfo): GhostType = {
       GhostType.ghostTuple(result.outs.map(p => isMemberGhost || context.isParamGhost(p)))
@@ -209,7 +207,7 @@ trait GhostAssignability { this: GhostModifierUnit  =>
    * the same ghostness, so that removing ghost arguments yields a consistent result.
    * To ensure this, we make sure, for all spec implementation proofs, that the ghostness of the arguments and result
    * of the spec matches that of the call inside. */
-  private [separation] def provenSpecMatchesInGhostnessWithCall(p: PClosureImplProof): Messages = {
+  private[ghost] def provenSpecMatchesInGhostnessWithCall(p: PClosureImplProof): Messages = {
     val specTyping = closureSpecArgsAndResGhostTyping(p.impl.spec)
 
     ctx.closureImplProofCallAttr(p) match {
@@ -229,7 +227,7 @@ trait GhostAssignability { this: GhostModifierUnit  =>
     }
   }
 
-  private[separation] def closureCallReturnGhostTyping(call: PInvoke): GhostType = {
+  private[ghost] def closureCallReturnGhostTyping(call: PInvoke): GhostType = {
     // a result is ghost if the closure is ghost (even if such a explicit declaration is missing)
     def resultTyping(result: PResult, isClosureGhost: Boolean, context: ExternalTypeInfo): GhostType = {
       GhostType.ghostTuple(result.outs.map(p => isClosureGhost || context.isParamGhost(p)))

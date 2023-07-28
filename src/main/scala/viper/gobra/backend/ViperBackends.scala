@@ -29,7 +29,7 @@ object ViperBackends {
         options ++= Vector("--conditionalizePermissions")
       }
       if (config.z3APIMode) {
-        options = options ++ Vector(s"--prover ${Z3ProverAPI.name}")
+        options = options ++ Vector(s"--prover=${Z3ProverAPI.name}")
       }
       val mceSiliconOpt = config.mceMode match {
         case MCE.Disabled => "0"

@@ -10,6 +10,7 @@ import viper.gobra.frontend.{Config, MCE}
 import viper.gobra.util.GobraExecutionContext
 import viper.server.ViperConfig
 import viper.server.core.ViperCoreServer
+import viper.silicon.decider.Z3ProverAPI
 import viper.server.vsi.DefaultVerificationServerStart
 
 trait ViperBackend {
@@ -26,6 +27,9 @@ object ViperBackends {
       options ++= Vector("--disableCatchingExceptions")
       if (config.conditionalizePermissions) {
         options ++= Vector("--conditionalizePermissions")
+      }
+      if (config.z3ApiMode) {
+        options = options ++ Vector(s"--prover ${Z3ProverAPI.name}")
       }
       val mceSiliconOpt = config.mceMode match {
         case MCE.Disabled => "0"

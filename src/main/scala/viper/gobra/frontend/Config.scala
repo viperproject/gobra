@@ -65,6 +65,7 @@ object ConfigDefaults {
   lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
   lazy val DefaultParallelizeBranches: Boolean = false
   lazy val DefaultConditionalizePermissions: Boolean = false
+  lazy val DefaultZ3ApiMode: Boolean = false
   lazy val DefaultMCEMode: MCE.Mode = MCE.Enabled
   lazy val DefaultEnableLazyImports: Boolean = false
   lazy val DefaultNoVerify: Boolean = false
@@ -127,6 +128,7 @@ case class Config(
                    // branches will be verified in parallel
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                    conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
+                   z3ApiMode: Boolean = ConfigDefaults.DefaultZ3ApiMode,
                    mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
@@ -174,6 +176,7 @@ case class Config(
       assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale,
       parallelizeBranches = parallelizeBranches,
       conditionalizePermissions = conditionalizePermissions,
+      z3ApiMode = z3ApiMode || other.z3ApiMode,
       mceMode = mceMode,
       enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
@@ -225,6 +228,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                       conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
+                      z3ApiMode: Boolean = ConfigDefaults.DefaultZ3ApiMode,
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
@@ -280,6 +284,7 @@ trait RawConfig {
     assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,
     parallelizeBranches = baseConfig.parallelizeBranches,
     conditionalizePermissions = baseConfig.conditionalizePermissions,
+    z3ApiMode = baseConfig.z3ApiMode,
     mceMode = baseConfig.mceMode,
     enableLazyImports = baseConfig.enableLazyImports,
     noVerify = baseConfig.noVerify,
@@ -628,6 +633,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     short = 'c',
   )
 
+  val z3ApiMode: ScallopOption[Boolean] = opt[Boolean](
+    name = "z3ApiMode",
+    descr = "When the backend is either SILICON or VSWITHSILICON, silicon will use Z3 via API.",
+    default = Some(ConfigDefaults.DefaultZ3ApiMode),
+    noshort = true,
+  )
+
   val mceMode: ScallopOption[MCE.Mode] = {
     val on = "on"
     val off = "off"
@@ -721,6 +733,15 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     val conditionalizePermissionsOn = conditionalizePermissions.toOption.contains(true)
     if (conditionalizePermissionsOn && !isSiliconBasedBackend) {
       Left("The selected backend does not support --conditionalizePermissions.")
+    } else {
+      Right(())
+    }
+  }
+
+  addValidation {
+    val z3ApiModeOn = z3ApiMode.toOption.contains(true)
+    if (z3ApiModeOn && !isSiliconBasedBackend) {
+      Left("The selected backend does not support --z3ApiMode.")
     } else {
       Right(())
     }
@@ -822,6 +843,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
     parallelizeBranches = parallelizeBranches(),
     conditionalizePermissions = conditionalizePermissions(),
+    z3ApiMode = z3ApiMode(),
     mceMode = mceMode(),
     enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),

@@ -28,7 +28,7 @@ object ViperBackends {
       if (config.conditionalizePermissions) {
         options ++= Vector("--conditionalizePermissions")
       }
-      if (config.z3ApiMode) {
+      if (config.z3APIMode) {
         options = options ++ Vector(s"--prover ${Z3ProverAPI.name}")
       }
       val mceSiliconOpt = config.mceMode match {

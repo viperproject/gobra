@@ -36,8 +36,8 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
           {
             case (n, ts@PermissionT +: s +: v) => underlyingType(s) match {
               case t: SliceT => v match {
-                case Vector(v: VariadicT) if assignableTo(v.elem, t.elem) => noMessages
-                case tail if tail.forall(assignableTo(_, t.elem)) => noMessages
+                case Vector(v: VariadicT) if goAssignableTo(v.elem, t.elem) => noMessages
+                case tail if tail.forall(goAssignableTo(_, t.elem)) => noMessages
                 case _ => appendTypeError(n, ts)
               }
               case _ => appendTypeError(n, ts)
@@ -47,8 +47,8 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
           {
             case ts@PermissionT +: s +: v => underlyingType(s) match {
               case t: SliceT => v match {
-                case Vector(v: VariadicT) if assignableTo(v.elem, t.elem) => FunctionT(ts, s)
-                case tail if tail.forall(assignableTo(_, t.elem)) => FunctionT(Vector(PermissionT, s, VariadicT(t.elem)), s)
+                case Vector(v: VariadicT) if goAssignableTo(v.elem, t.elem) => FunctionT(ts, s)
+                case tail if tail.forall(goAssignableTo(_, t.elem)) => FunctionT(Vector(PermissionT, s, VariadicT(t.elem)), s)
                 case _ => Violation.violation(s"Unexpected pattern found for v: $v")
               }
               case t => Violation.violation(s"expected $s to have a slice type as underlying type, got $t instead")

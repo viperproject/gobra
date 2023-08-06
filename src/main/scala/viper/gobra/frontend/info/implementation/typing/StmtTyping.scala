@@ -8,8 +8,9 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelModus, ChannelT, FunctionT, InterfaceT, InternalTupleT, Type, ArrayT, SliceT, MapT, SetT}
+import viper.gobra.frontend.info.base.Type.{ArrayT, BooleanT, ChannelModus, ChannelT, FunctionT, InterfaceT, InternalTupleT, MapT, SetT, SliceT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.typing.modifiers.ModifierUnit
 
 trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -25,12 +26,12 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case PConstDecl(decls) => decls flatMap {
       case n@PConstSpec(typ, right, left) =>
         right.flatMap(isExpr(_).out) ++
-          declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
+          goDeclarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
     }
 
     case n@PVarDecl(typ, right, left, _) =>
       right.flatMap(isExpr(_).out) ++
-        declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
+        goDeclarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
 
     case n: PTypeDecl => isType(n.right).out ++ (n.right match {
       case s: PStructType =>
@@ -45,29 +46,31 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PSendStmt(chn, msg) =>
       isExpr(chn).out ++ isExpr(msg).out ++
         ((exprType(chn), exprType(msg)) match {
-          case (ChannelT(elem, ChannelModus.Bi | ChannelModus.Send), t) => assignableTo.errors(t, elem)(n)
+          case (ChannelT(elem, ChannelModus.Bi | ChannelModus.Send), t) => goAssignableTo.errors(t, elem)(n)
           case (chnt, _) => error(n, s"type error: got $chnt but expected send-permitting channel")
         })
 
     case n@PAssignment(rights, lefts) =>
       rights.flatMap(isExpr(_).out) ++ lefts.flatMap(isExpr(_).out) ++
-        lefts.flatMap(a => assignable.errors(a)(a)) ++ multiAssignableTo.errors(rights map exprType, lefts map exprType)(n)
+        lefts.flatMap(a => assignable.errors(a)(a)) ++
+        goMultiAssignableTo.errors(rights map exprType, lefts map exprType)(n)
+
 
     case n@PAssignmentWithOp(right, op@(_: PShiftLeftOp | _: PShiftRightOp), left) =>
       isExpr(right).out ++ isExpr(left).out ++
         assignable.errors(left)(n) ++ compatibleWithAssOp.errors(exprType(left), op)(n) ++
-        assignableTo.errors(exprType(right), UNTYPED_INT_CONST)(n)
+        goAssignableTo.errors(exprType(right), UNTYPED_INT_CONST)(n)
 
     case n@PAssignmentWithOp(right, op, left) =>
       isExpr(right).out ++ isExpr(left).out ++
         assignable.errors(left)(n) ++ compatibleWithAssOp.errors(exprType(left), op)(n) ++
-        assignableTo.errors(exprType(right), exprType(left))(n)
+        goAssignableTo.errors(exprType(right), exprType(left))(n)
 
     case n@PShortVarDecl(rights, lefts, _) =>
       // TODO: check that at least one of the variables is new
       if (lefts.forall(pointsToData))
         rights.flatMap(isExpr(_).out) ++
-          multiAssignableTo.errors(rights map exprType, lefts map idType)(n)
+          goMultiAssignableTo.errors(rights map exprType, lefts map idType)(n)
       else error(n, s"at least one assignee in $lefts points to a type")
 
     case _: PLabeledStmt => noMessages
@@ -104,17 +107,17 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case PShortForRange(range, shorts, _, _, _) =>
       underlyingType(exprType(range.exp)) match {
         case _ : ArrayT | _ : SliceT =>
-          multiAssignableTo.errors(Vector(miscType(range)), shorts map idType)(range) ++
-          assignableTo.errors(miscType(range), idType(range.enumerated))(range)
-        case MapT(key, _) => multiAssignableTo.errors(Vector(miscType(range)), shorts map idType)(range) ++
-          assignableTo.errors((SetT(key), idType(range.enumerated)))(range)
+          goMultiAssignableTo.errors(Vector(miscType(range)), shorts map idType)(range) ++
+          goAssignableTo.errors(miscType(range), idType(range.enumerated))(range)
+        case MapT(key, _) => goMultiAssignableTo.errors(Vector(miscType(range)), shorts map idType)(range) ++
+          goAssignableTo.errors((SetT(key), idType(range.enumerated)))(range)
         case t => error(range, s"range not supported for type $t")
       }
 
     case PAssForRange(range, ass, _, _) =>
       underlyingType(exprType(range.exp)) match {
         case _ : ArrayT | _ : SliceT | _ : MapT =>
-          multiAssignableTo.errors(Vector(miscType(range)), ass map exprType)(range)
+          goMultiAssignableTo.errors(Vector(miscType(range)), ass map exprType)(range)
         case t => error(range, s"range not supported for type $t")
       }
 
@@ -123,11 +126,11 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PSelectStmt =>
       n.aRec.flatMap(rec =>
         rec.ass.flatMap(isExpr(_).out) ++
-          multiAssignableTo.errors(Vector(exprType(rec.recv)), rec.ass.map(exprType))(rec) ++
+          goMultiAssignableTo.errors(Vector(exprType(rec.recv)), rec.ass.map(exprType))(rec) ++
           rec.ass.flatMap(a => assignable.errors(a)(a))
       ) ++ n.sRec.flatMap(rec =>
         if (rec.shorts.forall(pointsToData))
-          multiAssignableTo.errors(Vector(exprType(rec.recv)), rec.shorts map idType)(rec)
+          goMultiAssignableTo.errors(Vector(exprType(rec.recv)), rec.shorts map idType)(rec)
         else error(n, s"at least one assignee in ${rec.shorts} points to a type")
       )
 
@@ -140,7 +143,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
             if (res.isEmpty) return error(n, s"Statement does not root in a CodeRoot")
             if (!(res.get.result.outs forall wellDefMisc.valid)) return error(n, s"return cannot be checked because the enclosing signature is incorrect")
           }
-          multiAssignableTo.errors(exps map exprType, returnParamsAndTypes(n).map(_._1))(n)
+          goMultiAssignableTo.errors(exps map exprType, returnParamsAndTypes(n).map(_._1))(n)
         } else noMessages // a return without arguments is always well-defined
       }
 

@@ -42,7 +42,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       // check whether all operands are actually expressions indeed
       isExpr(cond).out ++ isExpr(thn).out ++ isExpr(els).out ++
         // check that `cond` is of type bool
-        assignableTo.errors(exprType(cond), BooleanT)(expr) ++
+        goAssignableTo.errors(exprType(cond), BooleanT)(expr) ++
         // check that `thn` and `els` have a common type
         mergeableTypes.errors(exprType(thn), exprType(els))(expr)
 
@@ -56,12 +56,12 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       // check whether all triggers are valid and consistent
       validTriggers(vars, triggers) ++
       // check that the quantifier `body` is Boolean
-        assignableToSpec(body) ++ assignableTo.errors(exprType(body), BooleanT)(expr)
+        assignableToSpec(body) ++ goAssignableTo.errors(exprType(body), BooleanT)(expr)
 
     case n: PImplication =>
       isExpr(n.left).out ++ isExpr(n.right).out ++
         // check whether the left operand is a Boolean expression
-        assignableTo.errors(exprType(n.left), BooleanT)(expr) ++
+        goAssignableTo.errors(exprType(n.left), BooleanT)(expr) ++
         // check whether the right operand is either Boolean or an assertion
         assignableToSpec(n.right)
 
@@ -79,7 +79,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PAccess =>
       val permWellDef = error(n.perm, s"expected perm or integer division expression, but got ${n.perm}",
-        !assignableTo(typ(n.perm), PermissionT))
+        !goAssignableTo(typ(n.perm), PermissionT))
       val expWellDef = resolve(n.exp) match {
         case Some(_: ap.PredicateCall) => noMessages
         case Some(_: ap.PredExprInstance) => noMessages
@@ -127,7 +127,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case m@PMatchExp(exp, clauses) =>
       val sameTypeE = allMergeableTypes.errors(clauses map { c => exprType(c.exp) })(exp)
       val patternE = m.caseClauses.flatMap(c => c.pattern match {
-        case PMatchAdt(clause, _) => assignableTo.errors(symbType(clause), exprType(exp))(c)
+        case PMatchAdt(clause, _) => goAssignableTo.errors(symbType(clause), exprType(exp))(c)
         case _ => comparableTypes.errors((miscType(c.pattern), exprType(exp)))(c)
       })
       val pureExpE = error(exp, "Expression has to be pure", !isPure(exp)(strong = false))
@@ -215,13 +215,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefMapUpdClause(keys: Type, values : Type, clause : PGhostCollectionUpdateClause) : Messages = {
     isExpr(clause.left).out ++ isExpr(clause.right).out ++
-      assignableTo.errors(exprType(clause.left), keys)(clause.left) ++
-      assignableTo.errors(exprType(clause.right), values)(clause.right)
+      goAssignableTo.errors(exprType(clause.left), keys)(clause.left) ++
+      goAssignableTo.errors(exprType(clause.right), values)(clause.right)
   }
 
   private[typing] def wellDefSeqUpdClause(seqTyp : Type, clause : PGhostCollectionUpdateClause) : Messages = exprType(clause.left) match {
     case IntT(_) => isExpr(clause.left).out ++ isExpr(clause.right).out ++
-      assignableTo.errors(exprType(clause.right), seqTyp)(clause.right)
+      goAssignableTo.errors(exprType(clause.right), seqTyp)(clause.right)
     case t => error(clause.left, s"expected an integer type but got $t")
   }
 

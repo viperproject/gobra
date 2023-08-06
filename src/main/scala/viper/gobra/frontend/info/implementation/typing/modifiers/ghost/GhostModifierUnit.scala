@@ -35,4 +35,11 @@ class GhostModifierUnit(final val ctx: TypeInfoImpl) extends Attribution with Mo
       case i: PInterfaceClause => isInterfaceClauseGhost(i)
     }) GhostModifier.Ghost else GhostModifier.Actual
   )(hasWellDefModifier)
+
+  override def assignableTo(from: PExpression, to: PExpression): Boolean = (getModifier(from), getModifier(to)) match {
+    case (None, None) | (_, None) | (None, _) => true // TODO check what do here
+    case (_, Some(GhostModifier.Ghost)) => true
+    case (Some(GhostModifier.Actual), Some(GhostModifier.Actual)) => true
+    case _ => false
+  }
 }

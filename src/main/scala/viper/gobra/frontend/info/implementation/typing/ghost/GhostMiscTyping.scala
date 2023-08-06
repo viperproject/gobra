@@ -43,7 +43,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case ax: PDomainAxiom =>
-      assignableTo.errors(exprType(ax.exp), BooleanT)(ax) ++ isPureExpr(ax.exp)
+      goAssignableTo.errors(exprType(ax.exp), BooleanT)(ax) ++ isPureExpr(ax.exp)
 
     case f: PDomainFunction =>
       error(f, s"Uninterpreted functions must have exactly one return argument", f.result.outs.size != 1) ++
@@ -57,7 +57,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
           val fieldTypes = fields.map(typ)
           val clauseFieldTypes = t.fieldTypes
           error(m, s"Expected ${clauseFieldTypes.size} patterns, but got ${fieldTypes.size}", clauseFieldTypes.size != fieldTypes.size) ++
-            fieldTypes.zip(clauseFieldTypes).flatMap(a => assignableTo.errors(a)(m))
+            fieldTypes.zip(clauseFieldTypes).flatMap(a => goAssignableTo.errors(a)(m))
         case _ => violation("Pattern matching only works on ADT Literals")
       }
       case PMatchValue(lit) => isPureExpr(lit)
@@ -241,7 +241,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case PClosureSpecInstance(fName, ps) if ps.size > fArgs.size =>
       error(c, s"spec instance $c has too many parameters (more than the arguments of function $fName)")
     case spec: PClosureSpecInstance if spec.paramKeys.isEmpty =>
-      (spec.paramExprs zip fArgs) flatMap { case (exp, a) => assignableTo.errors((exprType(exp), a._2))(exp) }
+      (spec.paramExprs zip fArgs) flatMap { case (exp, a) => goAssignableTo.errors((exprType(exp), a._2))(exp) }
     case spec@PClosureSpecInstance(fName, ps) if spec.paramKeys.size == ps.size =>
       val argsTypeMap = fArgs.collect {
         case (PNamedParameter(id, _), t) => id.name -> t
@@ -252,7 +252,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       }._2
       val wellDefIfCanAssignParams = (spec.paramKeys zip spec.paramExprs zip ps) flatMap {
         case ((k, exp), p) => argsTypeMap.get(k) match {
-          case Some(t: Type) => assignableTo.errors((exprType(exp), t))(exp)
+          case Some(t: Type) => goAssignableTo.errors((exprType(exp), t))(exp)
           case _ => error(p.key.get, s"could not find argument $k in the function $fName")
       }}
       wellDefIfNoDuplicateParams ++ wellDefIfCanAssignParams ++ c.paramExprs.flatMap(exp => isPureExpr(exp))
@@ -272,7 +272,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   def assignableToSpec(e: PExpression): Messages = {
-    isExpr(e).out ++ assignableTo.errors(exprType(e), AssertionT)(e) ++ isWeaklyPureExpr(e)
+    isExpr(e).out ++ goAssignableTo.errors(exprType(e), AssertionT)(e) ++ isWeaklyPureExpr(e)
   }
 
   private def illegalPreconditionNode(n: PNode): Messages = {

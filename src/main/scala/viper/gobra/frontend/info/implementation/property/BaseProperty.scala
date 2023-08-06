@@ -91,6 +91,9 @@ trait BaseProperty {
 
   def createProperty[A](gen: A => PropertyResult): Property[A] = Property[A](gen)
 
+  def createAndProperty[A, B](iterable: Vector[B])(gen: (B, A) => PropertyResult): Property[A] =
+    Property[A](x => PropertyResult.bigAnd(iterable.map(it => gen(it, x))))
+
   def createFlatProperty[A](msg: A => String)(check: A => Boolean): Property[A] =
     createProperty[A](n => failedProp(s"property error: ${msg(n)}", !check(n)))
 

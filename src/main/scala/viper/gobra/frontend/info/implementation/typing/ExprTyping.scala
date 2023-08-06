@@ -279,7 +279,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val argAssignMsgs = exprType(callee) match {
             case FunctionT(args, _) => // TODO: add special assignment
               if (n.args.isEmpty && args.isEmpty) noMessages
-              else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+              else goMultiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n, s"type error: got $t but expected function type or AbstractType")
           }
@@ -289,7 +289,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           exprType(callee) match {
             case PredT(args) =>
               if (n.args.isEmpty && args.isEmpty) noMessages
-              else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+              else goMultiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
             case c => Violation.violation(s"This case should be unreachable, but got $c")
           }
 
@@ -297,7 +297,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
     }
 
-    case PBitNegation(op) => isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST)(op)
+    case PBitNegation(op) => isExpr(op).out ++ goAssignableTo.errors(typ(op), UNTYPED_INT_CONST)(op)
 
     case n@PIndexedExp(base, index) =>
       isExpr(base).out ++ isExpr(index).out ++ {
@@ -419,29 +419,29 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PReference(e) => isExpr(e).out ++ effAddressable.errors(e)(n)
 
-    case n@PNegation(e) => isExpr(e).out ++ assignableTo.errors(exprType(e), BooleanT)(n)
+    case n@PNegation(e) => isExpr(e).out ++ goAssignableTo.errors(exprType(e), BooleanT)(n)
 
     case n: PBinaryExp[_,_] =>
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
-          case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
+          case (_: PAnd | _: POr, l, r) => goAssignableTo.errors(l, AssertionT)(n) ++ goAssignableTo.errors(r, AssertionT)(n)
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) => (l,r) match {
             case (StringT, StringT) => noMessages
             case (Float32T, Float32T) => noMessages
             case (Float64T, Float64T) => noMessages
             case _ if l == PermissionT || r == PermissionT =>
-              assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
-            case _ => assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
+              goAssignableTo.errors(l, PermissionT)(n) ++ goAssignableTo.errors(r, PermissionT)(n)
+            case _ => goAssignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ goAssignableTo.errors(r, UNTYPED_INT_CONST)(n)
           }
           case (_: PAdd, StringT, StringT) => noMessages
           case (_: PAdd | _: PSub | _: PMul | _: PDiv, l, r) if Set(l, r).intersect(Set(Float32T, Float64T)).nonEmpty =>
             mergeableTypes.errors(l, r)(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r)
             if l == PermissionT || r == PermissionT || getTypeFromCtxt(n).contains(PermissionT) =>
-              assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
+              goAssignableTo.errors(l, PermissionT)(n) ++ goAssignableTo.errors(r, PermissionT)(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear, l, r) =>
-            val lIsInteger = assignableTo.errors(l, UNTYPED_INT_CONST)(n)
-            val rIsInteger = assignableTo.errors(r, UNTYPED_INT_CONST)(n)
+            val lIsInteger = goAssignableTo.errors(l, UNTYPED_INT_CONST)(n)
+            val rIsInteger = goAssignableTo.errors(r, UNTYPED_INT_CONST)(n)
             val typesAreMergeable = mergeableTypes.errors(l, r)(n)
             val exprWithinBounds = {
               if(typesAreMergeable.isEmpty) {
@@ -461,7 +461,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             }
             lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds
           case (_: PShiftLeft, l, r) =>
-            val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
+            val integerOperands = goAssignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ goAssignableTo.errors(r, UNTYPED_INT_CONST)(n)
             if (integerOperands.isEmpty) {
               intConstantEval(n.right.asInstanceOf[PExpression]) match {
                 case Some(v) =>
@@ -480,7 +480,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               }
             } else integerOperands
           case (_: PShiftRight, l, r) =>
-            val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
+            val integerOperands = goAssignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ goAssignableTo.errors(r, UNTYPED_INT_CONST)(n)
             if (integerOperands.isEmpty) {
               (intConstantEval(n.right.asInstanceOf[PExpression]) match {
                 case Some(v) =>
@@ -518,7 +518,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case m@PMake(typ, args) =>
       args.flatMap { arg =>
-        assignableTo.errors(exprType(arg), INT_TYPE)(arg) ++
+        goAssignableTo.errors(exprType(arg), INT_TYPE)(arg) ++
           error(arg, s"arguments to make must be non-negative", intConstantEval(arg).exists(_ < 0))
       } ++ (underlyingTypeP(typ) match {
         case None => violation(s"unexpected case reached: underlyingTypeP($typ) returned None")
@@ -570,7 +570,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           if (givenArgs.isEmpty && expectedArgs.isEmpty) {
             noMessages
           } else {
-            multiAssignableTo.errors(givenArgs map exprType, expectedArgs)(p) ++
+            goMultiAssignableTo.errors(givenArgs map exprType, expectedArgs)(p) ++
               p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
           }
 
@@ -592,7 +592,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   if (givenArgs.isEmpty && args.isEmpty) {
                     noMessages
                   } else {
-                    multiAssignableTo.errors(givenArgs map exprType, args)(p) ++
+                    goMultiAssignableTo.errors(givenArgs map exprType, args)(p) ++
                       p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
                   }
                 case t => error(p, s"expected function type for resolved AbstractType but got $t")
@@ -708,7 +708,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PAnd => // is boolean if left and right argument are boolean, otherwise is an assertion
       val lt = exprType(n.left)
       val rt = exprType(n.right)
-      if (assignableTo(lt, BooleanT) && assignableTo(rt, BooleanT)) BooleanT else AssertionT
+      if (goAssignableTo(lt, BooleanT) && goAssignableTo(rt, BooleanT)) BooleanT else AssertionT
 
     case _: PNegation | _: PEquals | _: PUnequals | _: POr |
          _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
@@ -1035,7 +1035,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     val assignableArgs = (exprType(base), miscType(n.spec.get)) match {
       case (tC: FunctionT, _: FunctionT) => n.args.flatMap(isExpr(_).out) ++ (
         if (n.args.isEmpty && tC.args.isEmpty) noMessages
-        else multiAssignableTo.errors(n.args map exprType, tC.args)(base))
+        else goMultiAssignableTo.errors(n.args map exprType, tC.args)(base))
       case (tC, _) => error(base, s"expected function type, but got $tC")
     }
 

@@ -1,7 +1,7 @@
 package viper.gobra.frontend.info.implementation.typing.modifiers.owner
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.noMessages
-import viper.gobra.ast.frontend.{PAccess, PBefore, PBinaryExp, PBitNegation, PBlankIdentifier, PCapacity, PClosureImplements, PConditional, PDeref, PDot, PExists, PExpression, PForall, PGhostCollectionExp, PGhostEquals, PGhostUnequals, PIdnNode, PImplication, PIn, PIndexedExp, PIntersection, PInvoke, PIota, PIsComparable, PLabeledOld, PLength, PLiteral, PMagicWand, PMake, PMapKeys, PMapValues, PMatchExp, PMultiplicity, PNamedOperand, PNegation, PNew, PNode, POld, POptionGet, POptionNone, POptionSome, PPermission, PPredConstructor, PPredicateAccess, PRangeSequence, PReceive, PReference, PSequenceAppend, PSetMinus, PSliceExp, PSubset, PTypeAssertion, PTypeExpr, PTypeOf, PUnfolding, PUnion, PUnpackSlice, AstPattern => ap}
+import viper.gobra.ast.frontend.{PAccess, PBefore, PBinaryExp, PBitNegation, PBlankIdentifier, PCapacity, PClosureImplements, PConditional, PDeref, PDot, PExists, PExpression, PForall, PGhostCollectionExp, PGhostEquals, PGhostUnequals, PIdnNode, PImplication, PIn, PIndexedExp, PIntersection, PInvoke, PIota, PIsComparable, PLabeledOld, PLength, PLiteral, PMagicWand, PMake, PMapKeys, PMapValues, PMatchExp, PMultiplicity, PNamedOperand, PNegation, PNew, PNode, POld, POptionGet, POptionNone, POptionSome, PParameter, PPermission, PPredConstructor, PPredicateAccess, PRangeSequence, PReceive, PReference, PSequenceAppend, PSetMinus, PSliceExp, PSubset, PTypeAssertion, PTypeExpr, PTypeOf, PUnfolding, PUnion, PUnpackSlice, AstPattern => ap}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -75,6 +75,8 @@ class OwnerModifierUnit(final val ctx: TypeInfoImpl) extends ModifierUnit[OwnerM
     case _: PMake | _: PNew => OwnerModifier.make
     case _: PUnpackSlice => OwnerModifier.rValue
     case id: PIdnNode => getVarModifier(id)
+    case _: PParameter => OwnerModifier.inParameter
+    // case _ => OwnerModifier.Exclusive // conservative choice
   }(hasWellDefModifier)
 
   override def getFunctionLikeCallArgModifier: ModifierTyping[ap.FunctionLikeCall, Vector[OwnerModifier]] = createVectorModifier[ap.FunctionLikeCall, OwnerModifier](

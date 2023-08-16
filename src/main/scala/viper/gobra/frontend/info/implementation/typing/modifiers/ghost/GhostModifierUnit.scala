@@ -4,6 +4,9 @@ import org.bitbucket.inkytonik.kiama.attribution.Attribution
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.modifiers.ModifierUnit
+import viper.gobra.frontend.info.implementation.typing.modifiers.Modifier.Modifier
+import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.ast.frontend.{AstPattern => ap}
 
 class GhostModifierUnit(final val ctx: TypeInfoImpl) extends Attribution with ModifierUnit[GhostModifier]
   with GhostWellDef
@@ -36,10 +39,17 @@ class GhostModifierUnit(final val ctx: TypeInfoImpl) extends Attribution with Mo
     }) GhostModifier.Ghost else GhostModifier.Actual
   )(hasWellDefModifier)
 
-  override def assignableTo(from: PExpression, to: PExpression): Boolean = (getModifier(from), getModifier(to)) match {
-    case (None, None) | (_, None) | (None, _) => true // TODO check what do here
-    case (_, Some(GhostModifier.Ghost)) => true
-    case (Some(GhostModifier.Actual), Some(GhostModifier.Actual)) => true
+  override def getFunctionLikeCallArgModifier: ModifierTyping[ap.FunctionLikeCall, Vector[GhostModifier]] =
+    createVectorModifier[ap.FunctionLikeCall, GhostModifier] {
+      case f: ap.FunctionCall =>
+        calleeArgGhostTyping(f).toModifierTuple
+      case c: ap.ClosureCall =>
+        closureSpecArgsAndResGhostTyping(c.maybeSpec.get)._1.toModifierTuple
+    }
+
+  override def assignableTo(from: Modifier, to: Modifier): Boolean = (from, to) match {
+    case (_, GhostModifier.Ghost) => true
+    case (GhostModifier.Actual, GhostModifier.Actual) => true
     case _ => false
   }
 }

@@ -16,8 +16,6 @@ import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModi
 trait TypeInfo extends ExternalTypeInfo {
 
   def typOfExprOrType(expr: PExpressionOrType): Type
-  def getOwnerModifier(expr: PExpression): OwnerModifier
-  def getVarOwnerModifier(id: PIdnNode): OwnerModifier
 
   def tree: Tree[PNode, PPackage]
 

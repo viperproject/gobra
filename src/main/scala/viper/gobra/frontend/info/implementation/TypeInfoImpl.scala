@@ -17,6 +17,7 @@ import viper.gobra.frontend.info.implementation.property._
 import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, LabelResolution, MemberPath, MemberResolution, NameResolution}
 import viper.gobra.frontend.info.implementation.typing._
 import viper.gobra.frontend.info.implementation.typing.ghost._
+import viper.gobra.frontend.info.implementation.typing.modifiers.ghost.GhostModifier
 import viper.gobra.frontend.info.{ExternalTypeInfo, Info, TypeInfo}
 import viper.gobra.reporting.VerifierError
 

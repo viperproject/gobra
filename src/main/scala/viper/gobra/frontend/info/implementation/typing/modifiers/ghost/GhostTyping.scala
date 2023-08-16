@@ -7,9 +7,11 @@
 package viper.gobra.frontend.info.implementation.typing.modifiers.ghost
 
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
+import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.base.SymbolTable.{Closure, MultiLocalVariable, Regular, SingleLocalVariable}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
+import viper.gobra.frontend.info.implementation.typing.modifiers.ghost.GhostType.ghost
 import viper.gobra.util.Violation
 
 trait GhostTyping extends GhostClassifier { this: GhostModifierUnit =>
@@ -227,4 +229,99 @@ trait GhostTyping extends GhostClassifier { this: GhostModifierUnit =>
   override def expectedArgGhostTyping(spec: PClosureSpecInstance): GhostType = closureSpecArgsAndResGhostTyping(spec)._1
 
   override def isExprPure(expr: PExpression): Boolean = ctx.isPureExpr(expr).isEmpty
+
+  /* ghost type of the callee itself (not considering its arguments or results) */
+  private[ghost] def calleeGhostTyping(call: ap.FunctionCall): GhostType = call.callee match {
+    case p: ap.Function => ghost(p.symb.ghost)
+    case p: ap.ReceivedMethod => ghost(p.symb.ghost)
+    case p: ap.MethodExpr => ghost(p.symb.ghost)
+    case _: ap.PredicateKind => GhostType.isGhost
+    case _: ap.DomainFunction => GhostType.isGhost
+    case p: ap.BuiltInFunction => ghost(p.symb.ghost)
+    case p: ap.BuiltInReceivedMethod => ghost(p.symb.ghost)
+    case p: ap.BuiltInMethodExpr => ghost(p.symb.ghost)
+    case _ => GhostType.isGhost // conservative choice
+  }
+
+  /** ghost type of the arguments of a callee */
+  private[ghost] def calleeArgGhostTyping(call: ap.FunctionCall): GhostType = {
+    // a parameter of a ghost member is ghost (even if such a explicit declaration is missing)
+    def argTyping(args: Vector[PParameter], isMemberGhost: Boolean, context: ExternalTypeInfo): GhostType =
+      GhostType.ghostTuple(args.map(p => isMemberGhost || context.getGhostModifier(p) == GhostModifier.Ghost))
+
+    call.callee match {
+      case p: ap.Function => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
+      case p: ap.Closure => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
+      case p: ap.ReceivedMethod => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
+      case p: ap.MethodExpr => GhostType.ghostTuple(false +: argTyping(p.symb.args, p.symb.ghost, p.symb.context).toTuple)
+      case _: ap.PredicateKind => GhostType.isGhost
+      case _: ap.DomainFunction => GhostType.isGhost
+      case ap.BuiltInFunction(_, symb) => ctx.argGhostTyping(symb.tag, call.args.map(ctx.typ))
+      case ap.BuiltInReceivedMethod(recv, _, _, symb) => ctx.argGhostTyping(symb.tag, Vector(ctx.typ(recv)))
+      case ap.BuiltInMethodExpr(typ, _, _, symb) => GhostType.ghostTuple(false +: ctx.argGhostTyping(symb.tag, Vector(ctx.typeSymbType(typ))).toTuple)
+      case p: ap.ImplicitlyReceivedInterfaceMethod => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
+      case _ => GhostType.notGhost // conservative choice
+    }
+  }
+
+  /** ghost type of the result of a callee */
+  private[ghost] def calleeReturnGhostTyping(call: ap.FunctionCall): GhostType = {
+    // a result of a ghost member is ghost (even if such a explicit declaration is missing)
+    def resultTyping(result: PResult, isMemberGhost: Boolean, context: ExternalTypeInfo): GhostType = {
+      GhostType.ghostTuple(result.outs.map(p => isMemberGhost || context.getGhostModifier(p) == GhostModifier.Ghost))
+    }
+
+    call.callee match {
+      case p: ap.Function => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
+      case p: ap.ReceivedMethod => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
+      case p: ap.MethodExpr => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
+      case _: ap.PredicateKind => GhostType.isGhost
+      case _: ap.DomainFunction => GhostType.isGhost
+      case ap.BuiltInFunction(_, symb) => ctx.returnGhostTyping(symb.tag, call.args.map(ctx.typ))
+      case ap.BuiltInReceivedMethod(recv, _, _, symb) => ctx.returnGhostTyping(symb.tag, Vector(ctx.typ(recv)))
+      case ap.BuiltInMethodExpr(typ, _, _, symb) => ctx.returnGhostTyping(symb.tag, Vector(ctx.typeSymbType(typ)))
+      case p: ap.ImplicitlyReceivedInterfaceMethod => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
+      case _ => GhostType.isGhost // conservative choice
+    }
+  }
+
+  /** ghost types of the call arguments and results of a closure spec instance.
+    * The ghost type depends on that of the corresponding argument in the base function,
+    * not on the ghostness of the function. */
+  private[ghost] def closureSpecArgsAndResGhostTyping(spec: PClosureSpecInstance): (GhostType, GhostType) = {
+    def paramTyping(params: Vector[PParameter], context: ExternalTypeInfo): GhostType =
+      GhostType.ghostTuple(params.map(p => context.getGhostModifier(p) == GhostModifier.Ghost))
+
+    val (fArgs, fRes, context) = ctx.resolve(spec.func) match {
+      case Some(ap.Function(_, f)) => (f.args, f.result.outs, f.context)
+      case Some(ap.Closure(_, c)) => (c.args, c.result.outs, c.context)
+      case _ => Violation.violation("this case should be unreachable")
+    }
+
+    val argTyping = if (spec.params.forall(_.key.isEmpty))
+      paramTyping(fArgs.drop(spec.params.size), context)
+    else {
+      val pSet = spec.paramKeys.toSet
+      paramTyping(fArgs.filter {
+        case PNamedParameter(id, _) if pSet.contains(id.name) => false
+        case PExplicitGhostParameter(PNamedParameter(id, _)) if pSet.contains(id.name) => false
+        case _ => true
+      }, context)
+    }
+    val resTyping = paramTyping(fRes, context)
+    (argTyping, resTyping)
+  }
+
+  private[ghost] def closureCallReturnGhostTyping(call: PInvoke): GhostType = {
+    // a result is ghost if the closure is ghost (even if such a explicit declaration is missing)
+    def resultTyping(result: PResult, isClosureGhost: Boolean, context: ExternalTypeInfo): GhostType = {
+      GhostType.ghostTuple(result.outs.map(p => isClosureGhost || context.getGhostModifier(p) == GhostModifier.Ghost))
+    }
+
+    ctx.resolve(call.spec.get.func) match {
+      case Some(p: ap.Function) => resultTyping(p.symb.result, isExprGhost(call.base.asInstanceOf[PExpression]), p.symb.context)
+      case Some(p: ap.Closure) => resultTyping(p.symb.result, isExprGhost(call.base.asInstanceOf[PExpression]), p.symb.context)
+      case _ => GhostType.isGhost // conservative choice
+    }
+  }
 }

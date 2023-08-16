@@ -8,6 +8,8 @@ package viper.gobra.frontend.info.implementation.property
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend.PNode
+import viper.gobra.frontend.info.implementation.typing.modifiers.ModifierUnit
+import viper.gobra.frontend.info.implementation.typing.modifiers.Modifier.{Modifier, Modifiers}
 
 trait BaseProperty {
 
@@ -91,8 +93,8 @@ trait BaseProperty {
 
   def createProperty[A](gen: A => PropertyResult): Property[A] = Property[A](gen)
 
-  def createAndProperty[A, B](iterable: Vector[B])(gen: (B, A) => PropertyResult): Property[A] =
-    Property[A](x => PropertyResult.bigAnd(iterable.map(it => gen(it, x))))
+  def createBinaryModifierProperty(units: Vector[ModifierUnit[_ <: Modifier]])(gen: (ModifierUnit[_ <: Modifier], (Modifier, Modifier)) => PropertyResult): Property[(Modifiers, Modifiers)] =
+    Property[(Modifiers, Modifiers)] { case (mod1, mod2) => PropertyResult.bigAnd(units.zip(mod1.zip(mod2)).map(gen.tupled)) }
 
   def createFlatProperty[A](msg: A => String)(check: A => Boolean): Property[A] =
     createProperty[A](n => failedProp(s"property error: ${msg(n)}", !check(n)))

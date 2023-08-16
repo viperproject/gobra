@@ -14,8 +14,9 @@ import viper.gobra.frontend.info.base.Type.{AbstractType, InterfaceT, StructT, T
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
-import viper.gobra.frontend.info.implementation.typing.modifiers.ghost.GhostType
 import viper.gobra.reporting.VerifierError
+import viper.gobra.frontend.info.implementation.typing.modifiers.ghost.{GhostModifier, GhostType}
+import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifier
 
 trait ExternalTypeInfo {
 
@@ -40,8 +41,6 @@ trait ExternalTypeInfo {
     * Gets called by the type checker to perform a method lookup for a non-addressable receiver in an imported package
     */
   def tryNonAddressableMethodLikeLookup(typ: Type, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])]
-
-  def isParamGhost(param: PParameter): Boolean
 
   /**
     * Returns true if a symbol table lookup was made through `externalRegular` for the given member
@@ -124,4 +123,8 @@ trait ExternalTypeInfo {
 
   /** returns all global variables declared in the same package as 'n' on which the declaration of 'n' depends */
   def samePkgDepsOfGlobalVar(n: SymbolTable.GlobalVariable): Vector[SymbolTable.GlobalVariable]
+
+  def getGhostModifier(n: PNode): GhostModifier
+
+  def getOwnerModifier(n: PNode): OwnerModifier
 }

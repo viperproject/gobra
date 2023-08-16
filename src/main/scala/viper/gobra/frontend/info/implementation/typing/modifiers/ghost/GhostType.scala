@@ -11,6 +11,8 @@ sealed trait GhostType {
   def isIdxGhost(idx: Int): Boolean
   def length: Int
   def toTuple: Vector[Boolean]
+  def toModifier: GhostModifier = if (isGhost) GhostModifier.Ghost else GhostModifier.Actual
+  def toModifierTuple: Vector[GhostModifier] = toTuple.map(b => if (b) GhostModifier.Ghost else GhostModifier.Actual)
 }
 
 object GhostType {

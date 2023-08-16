@@ -2,22 +2,31 @@ package viper.gobra.frontend.info.implementation.typing
 
 import viper.gobra.ast.frontend.{PExpression, PIdnNode, PNode}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.implementation.typing.modifiers.ghost.GhostModifierUnit
+import viper.gobra.frontend.info.implementation.typing.modifiers.ghost.{GhostModifier, GhostModifierUnit}
 import viper.gobra.frontend.info.implementation.typing.modifiers.owner.{OwnerModifier, OwnerModifierUnit}
 import viper.gobra.frontend.info.implementation.typing.modifiers.{Modifier, ModifierUnit}
+import viper.gobra.frontend.info.implementation.typing.modifiers.Modifier.{Modifier, Modifiers}
+import viper.gobra.ast.frontend.{AstPattern => ap}
 
 trait ModifierTyping extends BaseTyping { this: TypeInfoImpl =>
 
   val ownerModifierUnit = new OwnerModifierUnit(this)
   val ghostModifierUnit = new GhostModifierUnit(this)
 
-  val modifierUnits: Vector[ModifierUnit[_ <: Modifier.Modifier]] = Vector(ownerModifierUnit, ghostModifierUnit)
+  val modifierUnits: Vector[ModifierUnit[_ <: Modifier]] = Vector(ownerModifierUnit, ghostModifierUnit)
+
+  def getModifiers(n: PNode): Modifiers =
+    modifierUnits.map(_.getModifier(n).get)
+
+  def getFunctionLikeCallArgModifiers(call: ap.FunctionLikeCall): Vector[Modifiers] = {
+    this.modifierUnits.map(_.getFunctionLikeCallArgModifier(call).get).transpose
+  }
 
   def wellDefModifiers: WellDefinedness[PNode] = createWellDef {
     n: PNode => modifierUnits.flatMap(_.hasWellDefModifier(n).out)
   }
 
-  override def getOwnerModifier(expr: PExpression): OwnerModifier = ownerModifierUnit.getModifier(expr).get
+  override def getOwnerModifier(n: PNode): OwnerModifier = ownerModifierUnit.getModifier(n).get
 
-  override def getVarOwnerModifier(id: PIdnNode): OwnerModifier = ownerModifierUnit.getVarModifier(id)
+  override def getGhostModifier(n: PNode): GhostModifier = ghostModifierUnit.getModifier(n).get
 }

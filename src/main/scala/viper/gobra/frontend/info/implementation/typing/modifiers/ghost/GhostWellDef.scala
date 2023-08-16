@@ -75,12 +75,9 @@ trait GhostWellDef extends TypingComponents { this: GhostModifierUnit =>
     case PAssignment(right, left) => ghostAssignableToAssignee(right: _*)(left: _*)
     case PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
 
-    case PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
+    case _: PShortVarDecl => noMessages
 
-    case n@ PReturn(right) =>
-      if (right.nonEmpty && ctx.tryEnclosingClosureImplementationProof(n).isEmpty) {
-        ghostAssignableToParam(right: _*)(ctx.returnParamsAndTypes(n).map(_._2): _*)
-      } else noMessages
+    case _: PReturn => noMessages
   }
 
   def exprGhostSeparation(expr: PExpression): Messages = expr match {
@@ -118,8 +115,8 @@ trait GhostWellDef extends TypingComponents { this: GhostModifierUnit =>
 
     case n: PInvoke => (ctx.exprOrType(n.base), ctx.resolve(n)) match {
       case (Right(_), Some(_: ap.Conversion)) => noMessages
-      case (Left(_), Some(call: ap.FunctionCall)) => ghostAssignableToCallExpr(call)
-      case (Left(_), Some(call: ap.ClosureCall)) => ghostAssignableToClosureCall(call)
+      case (Left(_), Some(_: ap.FunctionCall)) => noMessages
+      case (Left(_), Some(_: ap.ClosureCall)) => noMessages
       case (Left(_), Some(_: ap.PredicateCall)) => noMessages
       case (Left(_), Some(_: ap.PredExprInstance)) => noMessages
       case _ => violation("expected conversion, function call, or predicate call")

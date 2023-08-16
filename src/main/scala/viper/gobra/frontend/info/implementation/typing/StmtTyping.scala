@@ -31,7 +31,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PVarDecl(typ, right, left, _) =>
       right.flatMap(isExpr(_).out) ++
-        goDeclarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
+        declarableTo.errors(((right map exprType).zip(right map getModifiers), typ map typeSymbType, (left map idType).zip(left map getModifiers)))(n)
 
     case n: PTypeDecl => isType(n.right).out ++ (n.right match {
       case s: PStructType =>
@@ -53,24 +53,24 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PAssignment(rights, lefts) =>
       rights.flatMap(isExpr(_).out) ++ lefts.flatMap(isExpr(_).out) ++
         lefts.flatMap(a => assignable.errors(a)(a)) ++
-        goMultiAssignableTo.errors(rights map exprType, lefts map exprType)(n)
+        multiAssignableTo.errors((rights map exprType).zip(rights map getModifiers), (lefts map exprType).zip(lefts map getModifiers))(n)
 
 
     case n@PAssignmentWithOp(right, op@(_: PShiftLeftOp | _: PShiftRightOp), left) =>
       isExpr(right).out ++ isExpr(left).out ++
         assignable.errors(left)(n) ++ compatibleWithAssOp.errors(exprType(left), op)(n) ++
-        goAssignableTo.errors(exprType(right), UNTYPED_INT_CONST)(n)
+        assignableTo.errors(exprType(right) -> getModifiers(right), UNTYPED_INT_CONST -> getModifiers(left))(n)
 
     case n@PAssignmentWithOp(right, op, left) =>
       isExpr(right).out ++ isExpr(left).out ++
         assignable.errors(left)(n) ++ compatibleWithAssOp.errors(exprType(left), op)(n) ++
-        goAssignableTo.errors(exprType(right), exprType(left))(n)
+        assignableTo.errors(exprType(right) -> getModifiers(right), exprType(left) -> getModifiers(left))(n)
 
     case n@PShortVarDecl(rights, lefts, _) =>
       // TODO: check that at least one of the variables is new
       if (lefts.forall(pointsToData))
         rights.flatMap(isExpr(_).out) ++
-          goMultiAssignableTo.errors(rights map exprType, lefts map idType)(n)
+          multiAssignableTo.errors((rights map exprType).zip(rights map getModifiers), (lefts map idType).zip(lefts map getModifiers))(n)
       else error(n, s"at least one assignee in $lefts points to a type")
 
     case _: PLabeledStmt => noMessages
@@ -143,7 +143,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
             if (res.isEmpty) return error(n, s"Statement does not root in a CodeRoot")
             if (!(res.get.result.outs forall wellDefMisc.valid)) return error(n, s"return cannot be checked because the enclosing signature is incorrect")
           }
-          goMultiAssignableTo.errors(exps map exprType, returnParamsAndTypes(n).map(_._1))(n)
+          multiAssignableTo.errors(((exps map exprType).zip(exps map getModifiers), returnParamsAndTypes(n).map { case (typ, param) => (typ, getModifiers(param))} ))(n)
         } else noMessages // a return without arguments is always well-defined
       }
 

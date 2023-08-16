@@ -10,10 +10,9 @@ import org.bitbucket.inkytonik.kiama.util.Positions
 import org.scalatest.Inside
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.funsuite.AnyFunSuite
-import viper.gobra.ast.frontend.{PPackage, PPkgDef, PProgram}
+import viper.gobra.ast.frontend.{PIntType, PPackage, PPkgDef, PProgram, _}
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.Config
 import viper.gobra.util.TypeBounds
@@ -416,6 +415,69 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       Some(PBodyParameterInfo(Vector()), PBlock(Vector(
         PVarDecl(Some(PIntType()), Vector(), Vector(PIdnDef("x")), Vector(false)),
         PVarDecl(None, Vector(PReference(PNamedOperand(PIdnUse("x")))), Vector(PIdnDef("y")), Vector(false))
+      )))
+    )
+
+    assert(!frontend.wellDefMember(functionDecl).valid)
+  }
+
+  test("TypeChecker: should accept valid simple assignment") {
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(),
+      Vector(PNamedParameter(PIdnDef("y"), PIntType())),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector(
+        PVarDecl(Some(PIntType()), Vector(PNamedOperand(PIdnUse("y"))), Vector(PIdnDef("x")), Vector(false)),
+      )))
+    )
+
+    assert(frontend.wellDefMember(functionDecl).valid)
+  }
+
+  test("TypeChecker: should accept valid simple assignment from actual to ghost") {
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(),
+      Vector(PNamedParameter(PIdnDef("y"), PIntType())),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector(
+        PExplicitGhostStatement(PVarDecl(Some(PIntType()), Vector(PNamedOperand(PIdnUse("y"))), Vector(PIdnDef("x")), Vector(false)))
+      )))
+    )
+
+    assert(frontend.wellDefMember(functionDecl).valid)
+  }
+
+  test("TypeChecker: should accept valid simple assignment from ghost to ghost") {
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector(
+        PExplicitGhostStatement(PVarDecl(Some(PIntType()), Vector(PIntLit(BigInt(3))), Vector(PIdnDef("y")), Vector(false))),
+        PExplicitGhostStatement(PVarDecl(Some(PIntType()), Vector(PNamedOperand(PIdnUse("y"))), Vector(PIdnDef("x")), Vector(false)))
+      )))
+    )
+
+    assert(frontend.wellDefMember(functionDecl).valid)
+  }
+
+  test("TypeChecker: should reject invalid simple assignment from ghost to actual") {
+    val functionDecl = PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector(
+        PExplicitGhostStatement(PVarDecl(Some(PIntType()), Vector(PIntLit(BigInt(3))), Vector(PIdnDef("y")), Vector(false))),
+        PVarDecl(Some(PIntType()), Vector(), Vector(PIdnDef("x")), Vector(false)),
+        PAssignment(Vector(PNamedOperand(PIdnUse("y"))), Vector(PNamedOperand(PIdnUse("x"))))
       )))
     )
 

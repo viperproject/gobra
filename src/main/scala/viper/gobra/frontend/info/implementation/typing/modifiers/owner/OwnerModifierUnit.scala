@@ -74,9 +74,14 @@ class OwnerModifierUnit(final val ctx: TypeInfoImpl) extends ModifierUnit[OwnerM
     case _: PMatchExp => OwnerModifier.rValue
     case _: PMake | _: PNew => OwnerModifier.make
     case _: PUnpackSlice => OwnerModifier.rValue
+    case id: PIdnNode => getVarModifier(id)
   }(hasWellDefModifier)
 
-  def getVarModifier(n: PIdnNode): OwnerModifier = ctx.regular(n) match {
+  override def getFunctionLikeCallArgModifier: ModifierTyping[ap.FunctionLikeCall, Vector[OwnerModifier]] = createVectorModifier[ap.FunctionLikeCall, OwnerModifier](
+    f => f.args.map(_ => OwnerModifier.Exclusive)
+  )
+
+  private def getVarModifier(n: PIdnNode): OwnerModifier = ctx.regular(n) match {
     case g: st.GlobalVariable => if (g.shared) OwnerModifier.sharedVariable else OwnerModifier.exclusiveVariable
     case v: st.Variable => if (v.shared) OwnerModifier.sharedVariable else OwnerModifier.exclusiveVariable
     case _: st.Constant => OwnerModifier.constant

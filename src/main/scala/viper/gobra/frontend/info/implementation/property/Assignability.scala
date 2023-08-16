@@ -11,17 +11,18 @@ import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.resolution.TypeSet
-import viper.gobra.frontend.info.implementation.typing.modifiers.Modifier.Modifier
+import viper.gobra.frontend.info.implementation.typing.modifiers.Modifier.{Modifier, Modifiers}
 import viper.gobra.frontend.info.implementation.typing.modifiers.{Modifier, ModifierUnit}
 import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
 
 trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
-  lazy val declarableTo: Property[(Vector[(Type, PExpression)], Option[Type], Vector[(Type, PExpression)])] = createProperty[(Vector[(Type, PExpression)], Option[Type], Vector[(Type, PExpression)])] {
-    case (right, typ, left) =>
-      goDeclarableTo.result(right.map(_._1), typ, left.map(_._1)) and modifierMultiAssignableTo.result(right, left)
-  }
+  lazy val declarableTo: Property[(Vector[(Type, Modifiers)], Option[Type], Vector[(Type, Modifiers)])] =
+    createProperty[(Vector[(Type, Modifiers)], Option[Type], Vector[(Type, Modifiers)])] {
+      case (right, typ, left) =>
+        goDeclarableTo.result(right.map(_._1), typ, left.map(_._1)) and modifierDeclarableTo.result(right, typ, left)
+    }
 
   lazy val goDeclarableTo: Property[(Vector[Type], Option[Type], Vector[Type])] =
     createProperty[(Vector[Type], Option[Type], Vector[Type])] {
@@ -29,10 +30,17 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (right, Some(t), _) => propForall(right, goAssignableTo.before((l: Type) => (l, t)))
     }
 
-  lazy val multiAssignableTo: Property[(Vector[(Type, PExpression)], Vector[(Type, PExpression)])] = createProperty[(Vector[(Type, PExpression)], Vector[(Type, PExpression)])] {
-    case (right, left) =>
-      goMultiAssignableTo.result(right.map(_._1), left.map(_._1)) and modifierMultiAssignableTo.result(right, left)
-  }
+  private lazy val modifierDeclarableTo: Property[(Vector[(Type, Modifiers)], Option[Type], Vector[(Type, Modifiers)])] =
+    createProperty[(Vector[(Type, Modifiers)], Option[Type], Vector[(Type, Modifiers)])] {
+      case (right, None, left) => modifierMultiAssignableTo.result(right, left)
+      case (right, Some(_), left) => propForall(right.map(_._2).zip(left.map(_._2)), modifierAssignableTo)
+    }
+
+  lazy val multiAssignableTo: Property[(Vector[(Type, Modifiers)], Vector[(Type, Modifiers)])] =
+    createProperty[(Vector[(Type, Modifiers)], Vector[(Type, Modifiers)])] {
+      case (right, left) =>
+        goMultiAssignableTo.result(right.map(_._1), left.map(_._1)) and modifierMultiAssignableTo.result(right, left)
+    }
 
   lazy val goMultiAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
     case (right, left) =>
@@ -62,36 +70,37 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       }
   }
 
-  private lazy val modifierMultiAssignableTo: Property[(Vector[(Type, PExpression)], Vector[(Type, PExpression)])] = createProperty[(Vector[(Type, PExpression)], Vector[(Type, PExpression)])] {
-    case (right, left) =>
-      StrictAssignMode(left.size, right.size) match {
-        case AssignMode.Single =>
-          right match {
-            // To support Go's function chaining when a tuple with the results of a function call are passed to the
-            // only variadic argument of another function
-            case Vector((InternalTupleT(t), exp)) if left.lastOption.exists(_._1.isInstanceOf[VariadicT]) =>
-              // TODO implement this (ask felix how to handle)
-              successProp
-            case _ => propForall(right.map(_._2).zip(left.map(_._2)), modifierAssignableTo)
-          }
-        case AssignMode.Multi => right.head match {
-          case (Assign(InternalTupleT(ts)), _) =>
-            // TODO implement this (ask felix how to handle)
-            successProp
-          case (t, exp) =>
-            if (left.length == right.length + 1 && left.last._1.isInstanceOf[VariadicT]) {
-              // this handles the case when all parameters but the last are passed in a function call and the last parameter
-              // is variadic
-              modifierMultiAssignableTo.result(right, left.init)
-            } else {
-              failedProp(s"got $t but expected tuple type of size ${left.size}")
+  private lazy val modifierMultiAssignableTo: Property[(Vector[(Type, Modifiers)], Vector[(Type, Modifiers)])] =
+    createProperty[(Vector[(Type, Modifiers)], Vector[(Type, Modifiers)])] {
+      case (right, left) =>
+        StrictAssignMode(left.size, right.size) match {
+          case AssignMode.Single =>
+            right match {
+              // To support Go's function chaining when a tuple with the results of a function call are passed to the
+              // only variadic argument of another function
+              case Vector((InternalTupleT(t), rMods)) if left.lastOption.exists(_._1.isInstanceOf[VariadicT]) =>
+                // TODO ask felix if this is ok
+                modifierMultiAssignableTo.result(t.map((_, rMods)), left)
+              case _ => propForall(right.map(_._2).zip(left.map(_._2)), modifierAssignableTo)
             }
-        }
-        case AssignMode.Variadic => modifierVariadicAssignableTo.result(right, left)
+          case AssignMode.Multi => right.head match {
+            case (Assign(InternalTupleT(ts)), rMods) =>
+              // TODO ask felix if this is ok
+              modifierMultiAssignableTo.result(ts.map((_, rMods)), left)
+            case (t, exp) =>
+              if (left.length == right.length + 1 && left.last._1.isInstanceOf[VariadicT]) {
+                // this handles the case when all parameters but the last are passed in a function call and the last parameter
+                // is variadic
+                modifierMultiAssignableTo.result(right, left.init)
+              } else {
+                failedProp(s"got $t but expected tuple type of size ${left.size}")
+              }
+          }
+          case AssignMode.Variadic => modifierVariadicAssignableTo.result(right, left)
 
-        case AssignMode.Error => failedProp(s"cannot assign ${right.size} to ${left.size} elements")
-      }
-  }
+          case AssignMode.Error => failedProp(s"cannot assign ${right.size} to ${left.size} elements")
+        }
+    }
 
   lazy val goVariadicAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
     case (right, left) =>
@@ -107,20 +116,21 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       }
   }
 
-  private lazy val modifierVariadicAssignableTo: Property[(Vector[(Type, PExpression)], Vector[(Type, PExpression)])] = createProperty[(Vector[(Type, PExpression)], Vector[(Type, PExpression)])] {
-    case (right, left) =>
-      StrictAssignMode(left.size, right.size) match {
-        case AssignMode.Variadic => left.lastOption match {
-          case Some((VariadicT(elem), exp)) =>
-            // TODO implement this (ask felix how to handle)
-            successProp
-          case _ => failedProp(s"expected the last element of $left to be a variadic type")
+  private lazy val modifierVariadicAssignableTo: Property[(Vector[(Type, Modifiers)], Vector[(Type, Modifiers)])] =
+    createProperty[(Vector[(Type, Modifiers)], Vector[(Type, Modifiers)])] {
+      case (right, left) =>
+        StrictAssignMode(left.size, right.size) match {
+          case AssignMode.Variadic => left.lastOption match {
+            case Some((VariadicT(_), lMod)) =>
+              // left.init corresponds to the parameter list on the left except for the variadic type
+              propForall(right.map(_._2).zipAll(left.map(_._2).init, lMod, lMod), modifierAssignableTo)
+            case _ => failedProp(s"expected the last element of $left to be a variadic type")
+          }
+          case _ => failedProp(s"cannot assign $right to $left")
         }
-        case _ => failedProp(s"cannot assign $right to $left")
-      }
-  }
+    }
 
-  lazy val assignableTo: Property[((Type, PExpression), (Type, PExpression))] = createProperty {
+  lazy val assignableTo: Property[((Type, Modifiers), (Type, Modifiers))] = createProperty {
     case ((typeRight, right), (typeLeft, left)) =>
       goAssignableTo.result(typeRight, typeLeft) and modifierAssignableTo.result(right, left)
   }
@@ -161,9 +171,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case _ => errorProp()
   }
 
-  private lazy val modifierAssignableTo: Property[(PExpression, PExpression)] = createAndProperty[(PExpression, PExpression), ModifierUnit[_ <: Modifier]](this.modifierUnits) {
-    case (unit, (right: PExpression, left: PExpression)) =>
-      failedProp(s"$right is not assignable to $left", unit.assignableTo(right, left))
+  private lazy val modifierAssignableTo: Property[(Modifiers, Modifiers)] = createBinaryModifierProperty(this.modifierUnits) {
+    case (modUnit, (rMod, lMod)) =>
+      failedProp(s"$rMod is not assignable to $lMod", !modUnit.assignableTo(rMod, lMod))
   }
 
   lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {

@@ -7,6 +7,7 @@ import Modifier._
 import viper.gobra.frontend.info.implementation.property.BaseProperty
 import viper.gobra.frontend.info.implementation.typing.base.TypingComponents
 import viper.gobra.util.{Memoization, Safety, Validity}
+import viper.gobra.ast.frontend.{AstPattern => ap}
 
 trait ModifierUnit[T <: Modifier] extends TypingComponents {
   def ctx: TypeInfoImpl
@@ -15,9 +16,11 @@ trait ModifierUnit[T <: Modifier] extends TypingComponents {
 
   def getModifier: ModifierTyping[PNode, T]
 
+  def getFunctionLikeCallArgModifier: ModifierTyping[ap.FunctionLikeCall, Vector[T]]
+
   def addressable(exp: PExpression): Boolean = true
 
-  def assignableTo(right: PExpression, left: PExpression): Boolean = true
+  def assignableTo(right: Modifier, left: Modifier): Boolean = true
 
   trait ModifierTyping[-A, M] extends Safety[A, Option[M]] with Validity[A, Option[M]] {
     override def unsafe: Option[M] = None
@@ -30,5 +33,13 @@ trait ModifierUnit[T <: Modifier] extends TypingComponents {
       override def safe(n: N): Boolean = wellDef.valid(n)
 
       override def compute(n: N): Option[M] = Some(inference(n))
+    }
+
+  private[modifiers] def createVectorModifier[N <: AnyRef, M <: Modifier](inference: N => Vector[M]): ModifierTyping[N, Vector[M]] =
+    new Attribution with ModifierTyping[N, Vector[M]] with Memoization[N, Option[Vector[M]]] {
+
+      override def safe(n: N): Boolean = true
+
+      override def compute(n: N): Option[Vector[M]] = Some(inference(n))
     }
 }

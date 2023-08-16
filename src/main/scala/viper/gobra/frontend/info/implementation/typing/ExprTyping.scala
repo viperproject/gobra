@@ -262,7 +262,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           }
           isCallToInit ++ wellTypedArgs
 
-        case (Left(_), Some(_: ap.ClosureCall)) => wellDefCallWithSpec(n)
+        case (Left(callee), Some(c: ap.ClosureCall)) =>
+          exprType(callee) match {
+            case FunctionT(args, _) => wellDefCallWithSpec(n, c, args)
+          }
 
         case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
           val pureReceiverMsgs = p.predicate match {
@@ -1029,17 +1032,17 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _ => error(expr, s"expected a constant expression, but got $expr instead")
   }
 
-  private[typing] def wellDefCallWithSpec(n: PInvoke): Messages = {
-    val base = n.base.asInstanceOf[PExpression]
-    val closureMatchesSpec = wellDefIfClosureMatchesSpec(base, n.spec.get)
-    val assignableArgs = (exprType(base), miscType(n.spec.get)) match {
-      case (tC: FunctionT, _: FunctionT) => n.args.flatMap(isExpr(_).out) ++ (
-        if (n.args.isEmpty && tC.args.isEmpty) noMessages
-        else goMultiAssignableTo.errors(n.args map exprType, tC.args)(base))
-      case (tC, _) => error(base, s"expected function type, but got $tC")
-    }
-
-    closureMatchesSpec ++ assignableArgs
+  private[typing] def wellDefCallWithSpec(n: PInvoke, f: ap.FunctionLikeCall, expectedArgs: Vector[Type]): Messages = {
+    val callee = n.base.asInstanceOf[PExpression]
+    val specErrors =
+      if (f.maybeSpec.nonEmpty) wellDefIfClosureMatchesSpec(callee, f.maybeSpec.get)
+      else noMessages
+    val argErrors =
+      if (f.args.isEmpty && expectedArgs.isEmpty) noMessages
+      else
+        multiAssignableTo.errors((f.args.map(exprType).zip(f.args map getModifiers), expectedArgs.zip(getFunctionLikeCallArgModifiers(f))))(n) ++
+        f.args.flatMap(isExpr(_).out)
+    specErrors ++ argErrors
   }
 
   private[typing] def wellDefIfClosureMatchesSpec(closure: PExpression, spec: PClosureSpecInstance): Messages =

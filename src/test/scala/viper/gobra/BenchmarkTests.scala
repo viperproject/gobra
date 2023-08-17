@@ -68,7 +68,7 @@ trait BenchmarkTests extends StatisticalTestSuite {
     override def init(verifier: Verifier): Unit = () // ignore verifier argument as we reuse the Gobra / Parser / TypeChecker / etc. instances for all tests
 
     override def reset(files: Seq[Path]): Unit =
-      createConfig(Array("-i", files.toVector.mkString(" ")))
+      config = Some(createConfig(Array("-i", files.toVector.mkString(" "))))
 
 
     private def createConfig(args: Array[String]): Config = {

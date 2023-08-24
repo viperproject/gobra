@@ -1377,13 +1377,10 @@ case object SortT extends PrettyType("sort") {
 }
 
 case class TypeParameterT(name: String, addressability: Addressability) extends PrettyType(s"$name") {
-
-  /** Returns whether 'this' is equals to 't' without considering the addressability modifier of the types. */
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case TypeParameterT(n, _) => n == name
     case _ => false
   }
-
   override def withAddressability(newAddressability: Addressability): Type = TypeParameterT(name, newAddressability)
 }
 

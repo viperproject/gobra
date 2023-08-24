@@ -692,7 +692,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showTypeTerm(n: PTypeTerm): Doc = n match {
     case t: PType => showType(t)
-    case PUnderlyingType(t: PType) => tilde <> showType(t)
   }
 
   // ids

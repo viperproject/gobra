@@ -2427,7 +2427,7 @@ object Desugar {
     def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext, info : TypeInfo) : Writer[in.IndexedExp] = {
       info.resolve(expr) match {
         case Some(indexedExpr@ap.IndexedExp(_, _)) => indexedExprD(indexedExpr)(ctx, info)(meta(expr, info))
-        // TODO handle function case properly here
+        // TODO handle instantiated generic functions here in the future
       }
     }
 
@@ -3748,7 +3748,7 @@ object Desugar {
         in.AdtClauseT(idName(t.decl.id, t.context.getTypeInfo), adt, fields, addrMod)
 
       case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
-      case Type.FunctionT(args, result) => // TODO handle this
+      case Type.FunctionT(args, result) =>
         val res = result match {
           case InternalTupleT(r) => r
           case r: Type => Vector(r)

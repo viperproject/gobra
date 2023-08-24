@@ -766,8 +766,6 @@ case class PTypeElement(terms: Vector[PTypeTerm]) extends PInterfaceClause
 
 sealed trait PTypeTerm extends PNode
 
-case class PUnderlyingType(typ: PType) extends PTypeTerm // TODO implement this
-
 // Felix: I see `isGhost` as part of the declaration and not as port of the specification.
 //        In the past, I usually created some ghost wrapper for these cases, but I wanted to get rid of them in the future.
 case class PMethodSig(id: PIdnDef, args: Vector[PParameter], result: PResult, spec: PFunctionSpec, isGhost: Boolean) extends PInterfaceClause with PDependentDef with PScope with PCodeRootWithResult

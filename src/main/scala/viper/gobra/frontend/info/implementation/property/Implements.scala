@@ -47,7 +47,7 @@ trait Implements { this: TypeInfoImpl =>
           }
         case _ =>
       }
-      case _ => failedProp("Not implemented yet") // TODO implement other cases
+      case _ =>
     }
   }
 

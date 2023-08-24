@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
-import viper.gobra.ast.frontend.{PAdtClause, PAdtType, PDomainType, PIdnDef, PImport, PInterfaceType, PNode, PStructType, PTypeDecl, PTypeElement}
+import viper.gobra.ast.frontend.{PAdtClause, PAdtType, PDomainType, PIdnDef, PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
 import viper.gobra.ast.internal.Node
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.reporting.Source
@@ -94,7 +94,6 @@ object Type {
     }
   }
 
-  // TODO check if we need to add type parameters to function type info
   case class FunctionT(args: Vector[Type], result: Type)
     extends PrettyType(s"func(${args.mkString(",")}) $result")
 
@@ -116,7 +115,6 @@ object Type {
 
   case class InternalTupleT(ts: Vector[Type]) extends PrettyType(s"(${ts.mkString(",")})")
 
-  // TODO decide how to display this (define toString)
   case class InternalSingleMulti(sin: Type, mul: InternalTupleT) extends Type
 
   case class ImportT(decl: PImport) extends PrettyType(decl.formatted)
@@ -211,14 +209,23 @@ object Type {
   case class AbstractType(messages: (PNode, Vector[Type]) => Messages, typing: Vector[Type] ==> FunctionT) extends PrettyType("abstract")
 
   trait TypeNode extends Node {
+    /**
+      * Applies the type parameter substitution f to this type
+      */
     def substitute(f: PartialFunction[PIdnDef, Type]): this.type = {
       this.transform({
         case TypeParameterT(id, _, _) if f.isDefinedAt(id) => f(id)
       })
     }
 
+    /**
+      * Returns uninstantiated in the type
+      */
     def uninstantiatedTypeParameters(symb: SymbolTable.WithTypeParameters): Seq[PIdnDef] = {
-      // need symbol table entry to filter out type parameters that are not from own definitions (these could be type parameters from a function body)
+      /**
+        * collect all type parameters in the type and filter out type parameters that are not declared by the symb
+        * (we consider type parameters that are not declared by the symbol as instantiated)
+        */
       this.deepCollect({
         case t: TypeParameterT => t.id
       }).intersect(symb.typeParameters.map(_.id))
@@ -250,7 +257,9 @@ object Type {
       newNode.asInstanceOf[this.type]
     }
 
-    // Override toString method to prevent that the toString method of the internal Node is used
+    /**
+      * override toString method to prevent that the toString method of the internal Node [[viper.gobra.ast.internal.Node]] is used
+      */
     override def toString: String = ???
   }
 }

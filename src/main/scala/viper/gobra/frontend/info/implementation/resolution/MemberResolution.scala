@@ -183,9 +183,9 @@ trait MemberResolution { this: TypeInfoImpl =>
             case Vector(t: PTypeName) => interfaceMethodSet(
               underlyingType(symbType(t)) match {
                 case i: InterfaceT => i
-                case _ => InterfaceT(PInterfaceType(Vector(), Vector(), Vector()), ctxt) // TODO handle this properly (non interface types)
+                case _ => InterfaceT(PInterfaceType(Vector(), Vector(), Vector()), ctxt)
               }).promoteItf(t.name)
-            case _ => AdvancedMemberSet.empty[TypeMember] // TODO implement nameless interfaces
+            case _ => AdvancedMemberSet.empty[TypeMember] // TODO implement nameless interfaces in the future
           }
         }
     }

@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.ast.frontend.{PDeref, PDot, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PNamedOperand, PStructType, PType, PTypeAlias, PTypeDecl, PTypeDef}
+import viper.gobra.ast.frontend.{PDeref, PDot, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PNamedOperand, PStructType, PType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInTypeTag
 import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelT, DeclaredT, FunctionT, GhostSliceT, IntT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StringT, StructT, Type, TypeParameterT}
@@ -22,7 +22,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
   lazy val underlyingType: Type => Type =
     attr[Type, Type] {
       case Single(DeclaredT(t: PTypeDecl, context: ExternalTypeInfo)) => underlyingType(context.symbType(t.right))
-      case Single(TypeParameterT(_, t: PInterfaceType, ctx)) => underlyingType(ctx.symbType(t)) // TODO verify this with Felix
+      case Single(TypeParameterT(_, t: PInterfaceType, ctx)) => underlyingType(ctx.symbType(t))
       case t => t
     }
 
@@ -45,7 +45,6 @@ trait UnderlyingType { this: TypeInfoImpl =>
           case value : PType => Some(value, this)
           case _ => None
         }
-        // TODO handle this for type parameters
         case _ => None // type not defined
       }
       case PDot(_, id) => entity(id) match {

@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend.AstPattern.FunctionCall
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminator, GlobalVariable, SingleConstant}
@@ -102,12 +102,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PIndexedExp =>
       resolve(n) match {
-        case Some(f@ap.Function(id, symb)) =>
+        case Some(f@ap.Function(_, symb)) =>
           tree.parent(n).head match {
             case _: PInvoke => wellDefPartialIndexTypeArguments(n, symb.decl, f.typeArgs)
             case _ => wellDefFullIndexTypeArguments(n, symb.decl, f.typeArgs)
           }
-        case Some(nt@ap.NamedType(id, symb)) if symb.decl.isInstanceOf[PTypeDef] =>
+        case Some(nt@ap.NamedType(_, symb)) if symb.decl.isInstanceOf[PTypeDef] =>
           wellDefFullIndexTypeArguments(n, symb.decl.asInstanceOf[PTypeDef], nt.typeArgs)
         case Some(ap.IndexedExp(base, index)) => isExpr(base).out ++ isExpr(index).out ++ {
           val baseType = exprType(base)
@@ -351,7 +351,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val wellTypedArgs = exprType(callee) match {
             case f@FunctionT(args, _) =>
               val (inferenceErrors: Messages, inferredFunctionType: FunctionT) = c.callee match {
-                case ap.Function(id, symb) =>
+                case ap.Function(_, symb) =>
                   if (f.uninstantiatedTypeParameters(symb).isEmpty) (noMessages, f)
                   else {
                     // do type inference
@@ -392,7 +392,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           }
           val pureArgsMsgs = p.args.flatMap(isPureExpr)
           val argAssignMsgs = exprType(callee) match {
-            // TODO handle this
             case FunctionT(args, _) => // TODO: add special assignment
               if (n.args.isEmpty && args.isEmpty) noMessages
               else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
@@ -637,7 +636,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case p@PPredConstructor(base, _) => {
       def wellTypedApp(base: PPredConstructorBase): Messages = miscType(base) match {
-        // TODO handle this
         case FunctionT(args, AssertionT) =>
           val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
           val givenArgs = p.args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1.get)
@@ -663,7 +661,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             } else {
               // the typing function should be defined for these arguments as `msgs` is empty
               abstractT.typing(givenArgTypes) match {
-                // TODO handle this
                 case FunctionT(args, AssertionT) =>
                   if (givenArgs.isEmpty && args.isEmpty) {
                     noMessages
@@ -693,7 +690,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       val typCtx = getNonInterfaceTypeFromCtxt(exp)
       typCtx.map(underlyingType) match {
         case Some(intTypeCtx: IntT) => assignableWithinBounds.errors(intTypeCtx, exp)(exp)
-        case Some(_: TypeParameterT) => noMessages // TODO verify this with Felix
+        case Some(_: TypeParameterT) => noMessages
         case Some(t) => error(exp, s"$exp is not assignable to type $t")
         case None => noMessages // no type inferred from context
       }
@@ -807,7 +804,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       base match {
         case PFPredBase(id) =>
           idType(id) match {
-            // TODO handle this
             case FunctionT(fnArgs, AssertionT) =>
               PredT(fnArgs.zip(args).collect{ case (typ, None) => typ })
             case _: AbstractType =>
@@ -819,7 +815,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case Some(_: ap.Predicate | _: ap.ReceivedPredicate | _: ap.ImplicitlyReceivedInterfacePredicate) =>
             val recvWithIdT = exprOrTypeType(p.recvWithId)
             recvWithIdT match {
-              // TODO handle this
               case FunctionT(fnArgs, AssertionT) =>
                 PredT(fnArgs.zip(args).collect{ case (typ, None) => typ })
               case _: AbstractType =>
@@ -830,7 +825,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case Some(_: ap.PredicateExpr) =>
             val recvWithIdT = exprOrTypeType(p.recvWithId)
             recvWithIdT match {
-              // TODO handle this
               case FunctionT(fnArgs, AssertionT) =>
                 PredT(fnArgs.zip(args).collect{ case (typ, None) => typ })
               case _: AbstractType =>
@@ -930,7 +924,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               val index = args.indexWhere(_.eq(expr))
               violation(index >= 0, errorMessage)
               typOfExprOrType(n.base) match {
-                // TODO handle this
                 case FunctionT(fArgs, _) =>
                   if (index >= fArgs.length-1 && fArgs.lastOption.exists(_.isInstanceOf[VariadicT])) {
                     fArgs.lastOption.map(_.asInstanceOf[VariadicT].elem)
@@ -958,7 +951,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               val index = args.indexWhere(_.eq(expr))
               violation(index >= 0, errorMessage)
               typOfExprOrType(n.base) match {
-                // TODO handle this
                 case FunctionT(fArgs, AssertionT) => fArgs.lift(index)
                 case _: AbstractType =>
                   /* the abstract type cannot be resolved without creating a loop in kiama for the same reason as above
@@ -991,7 +983,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         val index = const.args.indexWhere { _.exists(y => y.eq(expr)) }
         violation(index >= 0, s"violation of assumption: a numeric expression $expr does not occur as an argument of its parent $const")
         typ(const.id) match {
-          // TODO handle this
           case FunctionT(args, AssertionT) => Some(args(index))
           case _: AbstractType =>
             // here too, resolving the abstract type would cause a cycle in kiama
@@ -1141,6 +1132,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     wellDefTypeArguments(n, decl, decl.typeParameters.map(_.id).zip(typeArgs.map(symbType)).toMap)
   }
 
+  /**
+    * Checks whether type arguments satisfy the type parameter constraints
+    */
   private[typing] def wellDefTypeArguments(n: PNode, decl: PWithTypeParameters, typeArgs: Map[PIdnDef, Type]): Messages = {
     decl.typeParameters.flatMap(typeParam => {
       val typeParamId = typeParam.id

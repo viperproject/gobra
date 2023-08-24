@@ -1,4 +1,4 @@
-// Generated from src/main/antlr4/GobraParser.g4 by ANTLR 4.12.0
+// Generated from S:/GitHub/gobra/src/main/antlr4\GobraParser.g4 by ANTLR 4.12.0
 package viper.gobra.frontend;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 

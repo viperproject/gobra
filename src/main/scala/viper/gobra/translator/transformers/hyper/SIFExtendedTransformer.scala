@@ -1398,7 +1398,7 @@ trait SIFExtendedTransformer {
       case f@DomainFuncApp("Low", args, _) => translateSIFAss(
         SIFLowExp(args.head, None)(f.pos, f.info, f.errT), ctx, relAssertCtx)
       case pap@PredicateAccessPredicate(pred, _) =>
-        val (lowFunc, lhs) = getPredicateLowFuncExp(pred.predicateName, ctx)
+        val (lowFunc, lhs) = getPredicateLowFuncExp(pred.predicateName, ctx, Some((p1, p2)))
         lowFunc match {
           case Some(f: Function) =>
             val lowFuncApp = Implies(lhs,
@@ -1579,10 +1579,10 @@ trait SIFExtendedTransformer {
       predLowFuncs(predName)
   }
 
-  def getPredicateLowFuncExp(predName: String, ctx: TranslationContext): (Option[Function], Exp) = {
+  def getPredicateLowFuncExp(predName: String, ctx: TranslationContext, acts: Option[(Exp, Exp)] = None): (Option[Function], Exp) = {
     val lowFunc = getPredicateLowFunction(predName, ctx.currentMethod)
-    lazy val act1: Exp = ctx.ctrlVars.activeExecNormal(Some(ctx.p1))
-    lazy val act2: Exp = ctx.ctrlVars.activeExecPrime(Some(ctx.p2))
+    lazy val act1: Exp = if (acts.isDefined) acts.get._1 else ctx.ctrlVars.activeExecNormal(Some(ctx.p1))
+    lazy val act2: Exp = if (acts.isDefined) acts.get._2 else ctx.ctrlVars.activeExecPrime(Some(ctx.p2))
     lazy val isInPreservesLow: Boolean = preservesLowMethods.contains(ctx.currentMethod.name)
     lowFunc match {
       case Some(f) =>

@@ -64,6 +64,7 @@ class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         Vector(),
         Vector(PFunctionDecl(
           PIdnDef("foo"),
+          Vector.empty,
           inArgs.map(_._1),
           PResult(Vector()),
           PFunctionSpec(Vector(), Vector(), Vector(), Vector(), isPure = false),
@@ -85,7 +86,8 @@ class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       new TypeInfoImpl(tree, Map.empty)(config)
     }
 
-    def wellDefStmt(stmt : PStatement)(inArgs: Vector[(PParameter, Boolean)] = Vector()) =
+    def wellDefStmt(stmt : PStatement)(inArgs: Vector[(PParameter, Boolean)] = Vector()) = {
       singleStmtTypeInfo(inArgs, stmt).wellDefStmt(stmt)
+    }
   }
 }

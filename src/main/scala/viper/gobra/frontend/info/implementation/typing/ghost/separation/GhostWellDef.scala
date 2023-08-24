@@ -166,7 +166,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
           exp.forall(wellGhostSeparated.valid)
         })
 
-        case Function(PFunctionDecl(_, args, r, _, _), _, _) => unsafeMessage(! {
+        case Function(PFunctionDecl(_, _, args, r, _, _), _, _) => unsafeMessage(! {
           args.forall(wellGhostSeparated.valid) && wellGhostSeparated.valid(r)
         })
 

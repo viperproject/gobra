@@ -67,8 +67,14 @@ object SymbolTable extends Environments[Entity] {
     def context: ExternalTypeInfo
   }
 
-  case class Function(decl: PFunctionDecl, ghost: Boolean, context: ExternalTypeInfo) extends ActualDataEntity with WithArguments with WithResult {
+  sealed trait WithTypeParameters {
+    def typeParameters: Vector[PTypeParameter] = Vector.empty
+    def context: ExternalTypeInfo
+  }
+
+  case class Function(decl: PFunctionDecl, ghost: Boolean, context: ExternalTypeInfo) extends ActualDataEntity with WithArguments with WithResult with WithTypeParameters {
     override def rep: PNode = decl
+    override val typeParameters: Vector[PTypeParameter] = decl.typeParameters
     override val args: Vector[PParameter] = decl.args
     override val result: PResult = decl.result
     def isPure: Boolean = decl.spec.isPure
@@ -153,15 +159,20 @@ object SymbolTable extends Environments[Entity] {
     val decl: PTypeDecl
   }
 
-  case class NamedType(decl: PTypeDef, ghost: Boolean, context: ExternalTypeInfo) extends ActualTypeEntity {
+  case class NamedType(decl: PTypeDef, ghost: Boolean, context: ExternalTypeInfo) extends ActualTypeEntity with WithTypeParameters {
     require(!ghost, "type entities are not supported to be ghost yet") // TODO
     override def rep: PNode = decl
+    override def typeParameters: Vector[PTypeParameter] = decl.typeParameters
   }
   case class TypeAlias(decl: PTypeAlias, ghost: Boolean, context: ExternalTypeInfo) extends ActualTypeEntity {
     require(!ghost, "type entities are not supported to be ghost yet") // TODO
     override def rep: PNode = decl
   }
 
+  case class TypeParameter(decl: PTypeParameter, ghost: Boolean, context: ExternalTypeInfo) extends TypeEntity with ActualRegular {
+    require(!ghost, "type entities are not supported to be ghost yet") // TODO
+    override def rep: PNode = decl
+  }
 
   sealed trait TypeMember extends Regular
 

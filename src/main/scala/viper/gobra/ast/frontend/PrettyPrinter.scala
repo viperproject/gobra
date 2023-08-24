@@ -50,6 +50,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PInterfaceClause => showInterfaceClause(n)
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
     case n: PTerminationMeasure => showTerminationMeasure(n)
+    case n: PTypeParameter => showTypeParameter(n)
     case PPos(_) => emptyDoc
   }
 
@@ -106,8 +107,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
-      case PFunctionDecl(id, args, res, spec, body) =>
-        showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
+      case PFunctionDecl(id, typeParameters, args, res, spec, body) =>
+        showSpec(spec) <> "func" <+> showId(id) <> showTypeParameters(typeParameters) <> parens(showParameterList(args)) <> showResult(res) <>
           opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
       case PMethodDecl(id, rec, args, res, spec, body) =>
         showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
@@ -176,9 +177,18 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showList[T](list: Vector[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
 
+  def showTypeParameters(typeParameters: Vector[PTypeParameter]): Doc =
+    if (typeParameters.nonEmpty) brackets(ssep(typeParameters map showTypeParameter, comma <> space)) else emptyDoc
+
+  def showTypeParameter(typeParameter: PTypeParameter): Doc =
+    showId(typeParameter.id) <+> showType(typeParameter.constraint)
+
+  def showTypeArguments(typeArgs: Vector[PType]): Doc =
+    if (typeArgs.nonEmpty) brackets(ssep(typeArgs map showType, comma <> space)) else emptyDoc
+
   def showFunctionLit(lit: PFunctionLit): Doc = lit match {
     case PFunctionLit(id, PClosureDecl(args, result, spec, body)) =>
-      showSpec(spec) <> "func" <> id.fold(emptyDoc)(id => emptyDoc <+> showId(id)) <> parens(showParameterList(args)) <> showResult(result) <>
+      showSpec(spec) <> "func" <> id.fold(emptyDoc)(id => emptyDoc <+> showId(id)) <>  parens(showParameterList(args)) <> showResult(result) <>
         opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
   }
 
@@ -198,7 +208,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showTypeDecl(decl: PTypeDecl): Doc = decl match {
-    case PTypeDef(right, left) => "type" <+> showId(left) <+> showType(right)
+    case PTypeDef(typeParameters, right, left) => "type" <+> showId(left) <> showTypeParameters(typeParameters) <+> showType(right)
     case PTypeAlias(right, left) => "type" <+> showId(left) <+> "=" <+> showType(right)
   }
 
@@ -454,7 +464,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
       case lit: PFunctionLit => showFunctionLit(lit)
       case PInvoke(base, args, spec) => showExprOrType(base) <> parens(showExprList(args)) <> opt(spec)(s => emptyDoc <+> "as" <+> showMisc(s))
-      case PIndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
+      case PIndexedExp(base, index) => showExprOrType(base) <> brackets(showList(index)(showExprOrType))
 
       case PSliceExp(base, low, high, cap) => {
         val lowP = low.fold(emptyDoc)(showExpr)
@@ -591,7 +601,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   // types
 
+  def showParameterizedType(typ: PParameterizedType): Doc = {
+    showType(typ.typeName) <> showTypeArguments(typ.typeArgs)
+  }
+
   def showType(typ: PType): Doc = typ match {
+    case t: PParameterizedType => showParameterizedType(t)
     case t: PActualType => showActualType(t)
     case t: PGhostType => showGhostType(t)
   }
@@ -622,6 +637,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PMapType(key, elem) => "map" <> brackets(showType(key)) <> showType(elem)
     case PDeref(base) => "*" <> showExprOrType(base)
     case PDot(base, id) => showExprOrType(base) <> "." <>  showId(id)
+    case PIndexedExp(base, index) => showExprOrType(base) <> brackets(showList(index)(showExprOrType))
     case channelType: PChannelType => channelType match {
       case PBiChannelType(elem)   => "chan" <+> showType(elem)
       case PSendChannelType(elem) => "chan" <> "<-" <+> showType(elem)
@@ -674,11 +690,19 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showInterfaceClause(n: PInterfaceClause): Doc = n match {
-    case PInterfaceName(typ) => showType(typ)
+    case t: PTypeElement => showTypeElement(t)
     case PMethodSig(id, args, result, spec, isGhost) =>
       (if (isGhost) "ghost" <> line else emptyDoc) <> showSpec(spec) <>
         showId(id) <> parens(showParameterList(args)) <> showResult(result)
     case PMPredicateSig(id, args) => "pred"  <+> showId(id) <> parens(showParameterList(args))
+  }
+
+  def showTypeElement(n: PTypeElement): Doc = {
+    ssep(n.terms map showTypeTerm, space <> verticalbar <> space)
+  }
+
+  def showTypeTerm(n: PTypeTerm): Doc = n match {
+    case t: PType => showType(t)
   }
 
   // ids
@@ -741,8 +765,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
-      case PFunctionDecl(id, args, res, spec, _) =>
-        showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
+      case PFunctionDecl(id, typeParameters, args, res, spec, _) =>
+        showSpec(spec) <> "func" <+> showId(id)  <> showTypeParameters(typeParameters) <>  parens(showParameterList(args)) <> showResult(res)
       case PMethodDecl(id, rec, args, res, spec, _) =>
         showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
     }

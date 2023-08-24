@@ -35,6 +35,9 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
               case _ => Left(n)
             })
 
+      case n: PIndexedExp =>
+        if (exprOrType(n.base).isLeft) Left(n) else Right(n)
+
       // Otherwise just expression or type
       case n: PExpression => Left(n)
       case n: PType => Right(n)
@@ -43,14 +46,21 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
 
   def asExpr(n: PExpressionOrType): Option[PExpression] = exprOrType(n).left.toOption
   def asType(n: PExpressionOrType): Option[PType] = exprOrType(n).toOption
-
-
+  def asExprList(n: Vector[PExpressionOrType]): Option[Vector[PExpression]] = {
+    val asExprs = n.map(asExpr)
+    if (asExprs.forall(_.nonEmpty)) Some(asExprs.map(_.get)) else None
+  }
+  def asTypeList(n: Vector[PExpressionOrType]): Option[Vector[PType]] = {
+    val asTypes = n.map(asType)
+    if (asTypes.forall(_.nonEmpty)) Some(asTypes.map(_.get)) else None
+  }
 
   def resolve(n: PExpressionOrType): Option[ap.Pattern] = n match {
 
     case n: PNamedOperand =>
       entity(n.id) match {
         case s: st.NamedType => Some(ap.NamedType(n.id, s))
+        case s: st.TypeParameter => Some(ap.TypeArgument(n.id, s))
         case s: st.Variable => s match {
           case g: st.GlobalVariable => Some(ap.GlobalVariable(n.id, g))
           case _ => Some(ap.LocalVariable(n.id, s))
@@ -122,9 +132,22 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case _ => violation(s"unexpected case reached: type conversion with arguments ${n.args}, expected single argument instead")
       }
 
-    case n: PIndexedExp => exprOrType(n.base) match {
-      case Left(base) => Some(ap.IndexedExp(base, n.index))
-      case Right(_) => None // unknown pattern
+    case n: PIndexedExp => resolve(n.base) match {
+      case Some(f: ap.Parameterizable) =>
+        asTypeList(n.index) match {
+          case Some(typeArgs) => {
+            f.typeArgs = typeArgs
+            Some(f)
+          }
+          case _ => Some(f)
+        }
+      case _ if n.index.length == 1 => {
+        exprOrType(n.index.head) match {
+          case Left(expression) => Some(ap.IndexedExp(n.base, expression))
+          case _ => None
+        }
+      }
+      case _ => None // unknow pattern
     }
 
     case b: PBlankIdentifier => Some(ap.BlankIdentifier(b))

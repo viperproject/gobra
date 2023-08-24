@@ -2455,8 +2455,13 @@ object Desugar extends LazyLogging {
       } yield in.IndexedExp(dbase, dindex, baseUnderlyingType)(src)
     }
 
-    def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext, info : TypeInfo) : Writer[in.IndexedExp] =
-      indexedExprD(expr.base, expr.index)(ctx, info)(meta(expr, info))
+    def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext, info : TypeInfo) : Writer[in.IndexedExp] = {
+      info.resolve(expr) match {
+        case Some(indexedExpr@ap.IndexedExp(_, _)) => indexedExprD(indexedExpr)(ctx, info)(meta(expr, info))
+        // TODO handle instantiated generic functions here in the future
+      }
+    }
+
     def indexedExprD(expr : ap.IndexedExp)(ctx : FunctionContext, info : TypeInfo)(src : Meta) : Writer[in.IndexedExp] =
       indexedExprD(expr.base, expr.index)(ctx, info)(src)
 
@@ -2775,6 +2780,7 @@ object Desugar extends LazyLogging {
               for {
                 dArgs <- sequence(args.map { x => option(x.map(exprD(ctx, info)(_))) })
                 idT = info.typ(base) match {
+                  // TODO handle this
                   case FunctionT(fnArgs, AssertionT) => in.PredT(fnArgs.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
                   case _: AbstractType =>
                     violation(dArgs.length == dArgs.flatten.length, "non-applied arguments in abstract type")
@@ -3775,7 +3781,6 @@ object Desugar extends LazyLogging {
         in.AdtClauseT(idName(t.decl.id, t.context.getTypeInfo), adt, fields, addrMod)
 
       case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
-
       case Type.FunctionT(args, result) =>
         val res = result match {
           case InternalTupleT(r) => r
@@ -3804,6 +3809,8 @@ object Desugar extends LazyLogging {
         in.SliceT(elemD, addrMod)
 
       case Type.PermissionT => in.PermissionT(addrMod)
+
+      case Type.TypeParameterT(id, _, _) => in.TypeParameterT(id.name, addrMod)
 
       case _ => Violation.violation(s"got unexpected type $t")
     }

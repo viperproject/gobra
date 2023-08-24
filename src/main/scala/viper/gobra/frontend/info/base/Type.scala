@@ -8,16 +8,20 @@ package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
-import viper.gobra.ast.frontend.{PAdtClause, PAdtType, PDomainType, PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
+import viper.gobra.ast.frontend.{PAdtClause, PAdtType, PDomainType, PIdnDef, PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
+import viper.gobra.ast.internal.Node
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.reporting.Source
+import viper.gobra.reporting.Source.Parser
 import viper.gobra.util.TypeBounds
+import viper.silver.ast.Position
 
 import scala.annotation.tailrec
 import scala.collection.immutable.ListMap
 
 object Type {
 
-  sealed trait Type
+  sealed trait Type extends TypeNode
 
   abstract class PrettyType(pretty: => String) extends Type {
     override lazy val toString: String = pretty
@@ -56,7 +60,7 @@ object Type {
 
   case class DomainT(decl: PDomainType, context: ExternalTypeInfo) extends PrettyType("domain{...}") with ContextualType
 
-  case class AdtT(decl: PAdtType, context: ExternalTypeInfo) extends Type
+  case class AdtT(decl: PAdtType, context: ExternalTypeInfo) extends PrettyType("adt{...}")
 
   case class AdtClauseT(fieldsToTypes: Map[String, Type], fields: Vector[String], decl: PAdtClause, adtT: PAdtType, context: ExternalTypeInfo) extends Type {
     require(fields.forall(fieldsToTypes.isDefinedAt), "there must be a type for each key")
@@ -100,7 +104,8 @@ object Type {
     }
   }
 
-  case class FunctionT(args: Vector[Type], result: Type) extends PrettyType(s"func(${args.mkString(",")}) $result")
+  case class FunctionT(args: Vector[Type], result: Type)
+    extends PrettyType(s"func(${args.mkString(",")}) $result")
 
   case class PredT(args: Vector[Type]) extends PrettyType(s"pred(${args.mkString(",")})")
 
@@ -125,6 +130,8 @@ object Type {
   case class ImportT(decl: PImport) extends PrettyType(decl.formatted)
 
   case object SortT extends PrettyType("Type")
+
+  case class TypeParameterT(id: PIdnDef, constraint: PInterfaceType, context: ExternalTypeInfo) extends PrettyType(s"${id.name}")
 
   sealed trait GhostType extends Type
 
@@ -210,4 +217,59 @@ object Type {
     * vector storing the receiver's type for methods and mpredicates.
     */
   case class AbstractType(messages: (PNode, Vector[Type]) => Messages, typing: Vector[Type] ==> FunctionT) extends PrettyType("abstract")
+
+  trait TypeNode extends Node {
+    /**
+      * Applies the type parameter substitution f to this type
+      */
+    def substitute(f: PartialFunction[PIdnDef, Type]): this.type = {
+      this.transform({
+        case TypeParameterT(id, _, _) if f.isDefinedAt(id) => f(id)
+      })
+    }
+
+    /**
+      * Returns uninstantiated in the type
+      */
+    def uninstantiatedTypeParameters(symb: SymbolTable.WithTypeParameters): Seq[PIdnDef] = {
+      /**
+        * collect all type parameters in the type and filter out type parameters that are not declared by the symb
+        * (we consider type parameters that are not declared by the symbol as instantiated)
+        */
+      this.deepCollect({
+        case t: TypeParameterT => t.id
+      }).intersect(symb.typeParameters.map(_.id))
+    }
+
+    override def info: Parser.Info = Source.Parser.Unsourced
+
+    override def withChildren(children: Seq[Any], pos: Option[(Position, Position)], forceRewrite: Boolean): this.type = {
+      assert(pos.isEmpty, "The pos argument must be set to nil if called on Gobra nodes.")
+
+      if (!forceRewrite && this.children == children) {
+        this
+      } else {
+        create(children)
+      }
+    }
+
+    private def create(children: Seq[Any]): this.type = {
+      import scala.reflect.runtime.{universe => reflection}
+      val mirror = reflection.runtimeMirror(reflection.getClass.getClassLoader)
+      val instanceMirror = mirror.reflect(this)
+      val classSymbol = instanceMirror.symbol
+      val classMirror = mirror.reflectClass(classSymbol)
+      val constructorSymbol = instanceMirror.symbol.primaryConstructor.asMethod
+      val constructorMirror = classMirror.reflectConstructor(constructorSymbol)
+
+      // Call constructor
+      val newNode = constructorMirror(children: _*)
+      newNode.asInstanceOf[this.type]
+    }
+
+    /**
+      * override toString method to prevent that the toString method of the internal Node [[viper.gobra.ast.internal.Node]] is used
+      */
+    override def toString: String = ???
+  }
 }

@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.property
 import viper.gobra.ast.frontend.{PDeref, PDot, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PNamedOperand, PStructType, PType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInTypeTag
-import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelT, DeclaredT, FunctionT, GhostSliceT, IntT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StringT, StructT, Type}
+import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelT, DeclaredT, FunctionT, GhostSliceT, IntT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StringT, StructT, Type, TypeParameterT}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -22,6 +22,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
   lazy val underlyingType: Type => Type =
     attr[Type, Type] {
       case Single(DeclaredT(t: PTypeDecl, context: ExternalTypeInfo)) => underlyingType(context.symbType(t.right))
+      case Single(TypeParameterT(_, t: PInterfaceType, ctx)) => underlyingType(ctx.symbType(t))
       case t => t
     }
 
@@ -211,8 +212,13 @@ trait UnderlyingType { this: TypeInfoImpl =>
     //   uint uint8 uint16 uint32 uint64 uintptr
     t match {
       // should be extended as new types are added to the language
-      case _: IntT | BooleanT | _: DeclaredT | StringT => true
+      case _: IntT | BooleanT | _: DeclaredT | StringT | _: TypeParameterT => true
       case _ => false
     }
+  }
+
+  def isTypeParameter(t: Type): Boolean = t match {
+    case TypeParameterT(_, _, _) => true
+    case _ => false
   }
 }

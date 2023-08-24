@@ -11,6 +11,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages
 import scala.collection.immutable.ListMap
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.info.base.SymbolTable.NamedType
 import viper.gobra.frontend.info.base.Type.{StructT, _}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.UnderlyingType
@@ -71,6 +72,11 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       } else {
         isRecursiveInterface
       }
+
+    case t: PParameterizedType => entity(t.typeName.id) match {
+      case NamedType(decl, _, _) =>
+        wellDefFullIndexTypeArguments(t, decl, t.typeArgs)
+    }
 
     case t: PExpressionAndType => wellDefExprAndType(t).out
   }
@@ -160,6 +166,29 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case _ => violation(s"expected type, but got $n")
       }
+
+    case n: PIndexedExp =>
+      resolve(n) match {
+        case Some(f@ap.Function(id, symb)) =>
+          val typeArgs = f.typeArgs.map(typeSymbType)
+          val substitution = symb.typeParameters.map(_.id).zip(typeArgs).toMap
+
+          FunctionT(symb.args.map(miscType), miscType(symb.result)).substitute(substitution)
+
+        case Some(t@ap.NamedType(id, symb)) if symb.decl.isInstanceOf[PTypeDef] =>
+          val typeArgs = t.typeArgs.map(typeSymbType)
+          val typeDecl = symb.decl.asInstanceOf[PTypeDef]
+          val substitution = typeDecl.typeParameters.map(_.id).zip(typeArgs).toMap
+
+          underlyingType(symbType(symb.decl.right)).substitute(substitution)
+      }
+
+    case typ: PParameterizedType => entity(typ.typeName.id) match {
+      case NamedType(decl, _, _) =>
+        val typeArgs = typ.typeArgs map typeSymbType
+        val substitution = decl.typeParameters.map(_.id).zip(typeArgs).toMap
+        typeSymbType(decl.right).substitute(substitution)
+    }
   }
 
   private def structSymbType(t: PStructType): Type = {
@@ -230,7 +259,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     // `ctx` of type UnderlyingType represents the current context in which a lookup should happen
     // ExternalTypeInfo is not used as we need access to `underlyingTypeWithCtxP`, which is not exposed by the interface.
     def isCyclic(itfT: PInterfaceType, visitedTypes: Set[String], ctx: UnderlyingType): Boolean = {
-      val fieldTypes = itfT.embedded.map(_.typ)
+      val fieldTypes = itfT.embedded.flatMap(_.terms)
       fieldTypes exists {
         case n: PUnqualifiedTypeName if visitedTypes.contains(n.name) => true
         case n: PUnqualifiedTypeName if isUnderlyingInterfaceType(n, ctx).isDefined =>
@@ -251,12 +280,12 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     */
   def containsRedeclarations(t: PInterfaceType): Messages = {
     def findAllEmbeddedMethods(itfT: PInterfaceType, ctx: UnderlyingType): Set[String] = {
-      val fieldTypes = itfT.embedded.map(_.typ).toSet
+      val fieldTypes = itfT.embedded.flatMap(_.terms).toSet
       fieldTypes.flatMap{
         case n: PTypeName if isUnderlyingInterfaceType(n, ctx).isDefined =>
           val (itfT, itfCtx) = isUnderlyingInterfaceType(n, ctx).get
           itfT.methSpecs.map(_.id.name) ++ findAllEmbeddedMethods(itfT, itfCtx)
-        case _: PTypeName =>
+        case _ =>
           // if the type is ill-formed and Gobra the previous case was not entered,
           // then we assume that another error will be reported while type-checking
           // this type

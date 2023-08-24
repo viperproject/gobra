@@ -500,7 +500,7 @@ object Parser extends LazyLogging {
         strategyWithName[Any]("replaceTerminationMeasuresForFunctionsAndMethods", {
           // apply transformation only to the specification of function or method declaration (in particular, do not
           // apply the transformation to method signatures in interface declarations)
-          case n: PFunctionDecl => Some(PFunctionDecl(n.id, n.args, n.result, replace(n.spec), n.body))
+          case n: PFunctionDecl => Some(PFunctionDecl(n.id, n.typeParameters, n.args, n.result, replace(n.spec), n.body))
           case n: PMethodDecl => Some(PMethodDecl(n.id, n.receiver, n.args, n.result, replace(n.spec), n.body))
           case n: PMember => Some(n)
         })

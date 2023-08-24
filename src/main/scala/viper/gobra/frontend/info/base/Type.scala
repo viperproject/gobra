@@ -58,7 +58,17 @@ object Type {
 
   case class AdtT(decl: PAdtType, context: ExternalTypeInfo) extends Type
 
-  case class AdtClauseT(fields: Map[String, Type], decl: PAdtClause, adtT: PAdtType, context: ExternalTypeInfo) extends Type
+  case class AdtClauseT(fieldsToTypes: Map[String, Type], fields: Vector[String], decl: PAdtClause, adtT: PAdtType, context: ExternalTypeInfo) extends Type {
+    require(fields.forall(fieldsToTypes.isDefinedAt), "there must be a type for each key")
+
+    def typeAt(idx: Int): Type = {
+      require(0 <= idx && idx < fields.size, s"index $idx is not within range of ADT fields (size ${fields.size})")
+      fieldsToTypes(fields(idx))
+    }
+
+    lazy val fieldsWithTypes: Vector[(String, Type)] = fields.map(f => (f, fieldsToTypes(f)))
+    lazy val fieldTypes: Vector[Type] = fieldsWithTypes.map(_._2)
+  }
 
   case class MapT(key: Type, elem: Type) extends PrettyType(s"map[$key]$elem")
 

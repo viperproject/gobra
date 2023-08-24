@@ -15,8 +15,6 @@ import viper.gobra.theory.Addressability
 
 trait TypeInfo extends ExternalTypeInfo {
 
-  def context: Info.Context
-
   def typOfExprOrType(expr: PExpressionOrType): Type
   def addressability(expr: PExpression): Addressability
   def addressableVar(id: PIdnNode): Addressability

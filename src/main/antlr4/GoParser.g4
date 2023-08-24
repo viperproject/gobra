@@ -28,11 +28,12 @@
  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
 /*
  * A Go grammar for ANTLR 4 derived from the Go Language Specification https://golang.org/ref/spec
  */
 
-// Imported to Gobra from https://github.com/antlr/grammars-v4/blob/4c06ad8cc8130931c75ca0b17cbc1453f3830cd2/golang
+// Imported to Gobra from https://github.com/antlr/grammars-v4/tree/fae6a8500e9c6a1ec895fca1495b0384b9144091/golang
 
 parser grammar GoParser;
 
@@ -87,7 +88,7 @@ varSpec:
 
 block: L_CURLY statementList? R_CURLY;
 
-statementList: (eos? statement eos)+;
+statementList: ((SEMI? | EOS? | {this.closingBracket()}?) statement eos)+;
 
 statement:
 	declaration
@@ -194,7 +195,7 @@ commCase: CASE (sendStmt | recvStmt) | DEFAULT;
 
 recvStmt: (expressionList ASSIGN | identifierList DECLARE_ASSIGN)? recvExpr = expression;
 
-forStmt: FOR (expression | forClause | rangeClause)? block;
+forStmt: FOR (expression? | forClause | rangeClause?) block;
 
 forClause:
 	initStmt = simpleStmt? eos expression? eos postStmt = simpleStmt?;
@@ -384,5 +385,5 @@ eos:
 	SEMI
 	| EOF
 	| EOS
-	| {closingBracket()}?
+	| {this.closingBracket()}?
 	;

@@ -13,8 +13,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.PackageResolver.{AbstractImport, BuiltInImport, RegularImport}
 import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInMPredicateTag, BuiltInMethodTag}
-import viper.gobra.frontend.{PackageResolver, Parser, Source}
-import viper.gobra.frontend.info.{ExternalTypeInfo, Info}
+import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -403,44 +402,19 @@ trait MemberResolution { this: TypeInfoImpl =>
     )
   }
 
-  // TODO: move this method to another file
   def getTypeChecker(importTarget: AbstractImport, errNode: PNode): Either[Messages, ExternalTypeInfo] = {
-    def parseAndTypeCheck(importTarget: AbstractImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
-      val pkgSources = PackageResolver.resolveSources(importTarget)(config)
-        .getOrElse(Vector())
-        .map(_.source)
-      val res = for {
-        nonEmptyPkgSources <- if (pkgSources.isEmpty)
-          Left(Vector(NotFoundError(s"No source files for package '$importTarget' found")))
-        else Right(pkgSources)
-        parsedProgram <- Parser.parse(nonEmptyPkgSources, Source.getPackageInfo(nonEmptyPkgSources.head, config.projectRoot), specOnly = true)(config)
-        // TODO maybe don't check whole file but only members that are actually used/imported
-        // By parsing only declarations and their specification, there shouldn't be much left to type check anyways
-        // Info.check would probably need some restructuring to type check only certain members
-        info <- Info.check(parsedProgram, nonEmptyPkgSources, context)(config)
-      } yield info
-      res.fold(
-        errs => context.addErrenousPackage(importTarget, errs)(config),
-        info => context.addPackage(importTarget, info)(config)
-      )
-      res
-    }
-
     def createImportError(errs: Vector[VerifierError]): Messages = {
       // create an error message located at the import statement to indicate errors in the imported package
-      // we distinguish between parse and type errors, cyclic imports, and packages whose source files could not be found
+      // we distinguish between regular errors and packages whose source files could not be found (note that cyclic
+      // errors are handled before type-checking)
       val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
       // alternativeErr is a function to compute the message only when needed
-      val alternativeErr = () => context.getImportCycle(importTarget) match {
-        case Some(cycle) => message(errNode, s"Package '$importTarget' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
-        case _ => message(errNode, s"Package '$importTarget' contains errors: $errs")
-      }
+      val alternativeErr = () => message(errNode, s"Package '$importTarget' contains errors: $errs")
       notFoundErr.map(e => message(errNode, e.message))
         .getOrElse(alternativeErr())
     }
 
-    // check if package was already parsed, otherwise do parsing and type checking:
-    val cachedInfo = context.getTypeInfo(importTarget)(config)
-    cachedInfo.getOrElse(parseAndTypeCheck(importTarget)).left.map(createImportError)
+    Violation.violation(dependentTypeInfo.contains(importTarget), s"Expected that package ${tree.root.info.id} has access to the type information of package $importTarget")
+    dependentTypeInfo(importTarget)().left.map(createImportError)
   }
 }

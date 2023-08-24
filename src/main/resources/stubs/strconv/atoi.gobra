@@ -44,6 +44,7 @@ pure func (e *NumError) Unwrap() error { return e.Err }
 ghost
 requires exp >= 0
 ensures res == (exp == 0 ? 1 : (base * Exp(base, exp - 1)))
+decreases exp
 pure func Exp(base int, exp int) (res int) {
 	return exp == 0 ? 1 : (base * Exp(base, exp - 1))
 }

@@ -16,8 +16,9 @@ import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
+import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential, TaskManagerMode}
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
-import viper.gobra.util.{TypeBounds, Violation}
+import viper.gobra.util.{TaskManagerMode, TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
 import scala.concurrent.duration.Duration
@@ -53,7 +54,7 @@ object ConfigDefaults {
   lazy val DefaultInt32bit: Boolean = false
   // the following option is currently not controllable via CLI as it is meaningless without a constantly
   // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
-  lazy val DefaultCacheParser: Boolean = false
+  lazy val DefaultCacheParserAndTypeChecker: Boolean = false
   // this option introduces a mode where Gobra only considers files with a specific annotation ("// +gobra").
   // this is useful when verifying large packages where some files might use some unsupported feature of Gobra,
   // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
@@ -68,6 +69,7 @@ object ConfigDefaults {
   lazy val DefaultEnableLazyImports: Boolean = false
   lazy val DefaultNoVerify: Boolean = false
   lazy val DefaultNoStreamErrors: Boolean = false
+  lazy val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
 }
 
 // More-complete exhale modes
@@ -113,7 +115,7 @@ case class Config(
                    int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
                    // the following option is currently not controllable via CLI as it is meaningless without a constantly
                    // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
-                   cacheParser: Boolean = ConfigDefaults.DefaultCacheParser,
+                   cacheParserAndTypeChecker: Boolean = ConfigDefaults.DefaultCacheParserAndTypeChecker,
                    // this option introduces a mode where Gobra only considers files with a specific annotation ("// +gobra").
                    // this is useful when verifying large packages where some files might use some unsupported feature of Gobra,
                    // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
@@ -129,6 +131,7 @@ case class Config(
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
+                   parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
 ) {
 
   def merge(other: Config): Config = {
@@ -166,6 +169,7 @@ case class Config(
       shouldVerify = shouldVerify,
       int32bit = int32bit || other.int32bit,
       checkConsistency = checkConsistency || other.checkConsistency,
+      cacheParserAndTypeChecker = cacheParserAndTypeChecker || other.cacheParserAndTypeChecker,
       onlyFilesWithHeader = onlyFilesWithHeader || other.onlyFilesWithHeader,
       assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale,
       parallelizeBranches = parallelizeBranches,
@@ -173,7 +177,8 @@ case class Config(
       mceMode = mceMode,
       enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
-      noStreamErrors = noStreamErrors || other.noStreamErrors
+      noStreamErrors = noStreamErrors || other.noStreamErrors,
+      parseAndTypeCheckMode = parseAndTypeCheckMode
     )
   }
 
@@ -215,7 +220,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
                       checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
                       int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
-                      cacheParser: Boolean = ConfigDefaults.DefaultCacheParser,
+                      cacheParserAndTypeChecker: Boolean = ConfigDefaults.DefaultCacheParserAndTypeChecker,
                       onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
                       assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
@@ -224,6 +229,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
+                      parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -269,7 +275,7 @@ trait RawConfig {
     shouldVerify = baseConfig.shouldVerify,
     shouldChop = baseConfig.shouldChop,
     int32bit = baseConfig.int32bit,
-    cacheParser = baseConfig.cacheParser,
+    cacheParserAndTypeChecker = baseConfig.cacheParserAndTypeChecker,
     onlyFilesWithHeader = baseConfig.onlyFilesWithHeader,
     assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,
     parallelizeBranches = baseConfig.parallelizeBranches,
@@ -278,6 +284,7 @@ trait RawConfig {
     enableLazyImports = baseConfig.enableLazyImports,
     noVerify = baseConfig.noVerify,
     noStreamErrors = baseConfig.noStreamErrors,
+    parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
   )
 }
 
@@ -660,6 +667,19 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val parseAndTypeCheckMode: ScallopOption[TaskManagerMode] = choice(
+    name = "parseAndTypeCheckMode",
+    choices = Seq("LAZY", "SEQUENTIAL", "PARALLEL"),
+    descr = "Specifies the mode in which parsing and type-checking is performed.",
+    default = Some("PARALLEL"),
+    noshort = true
+  ).map {
+    case "LAZY" => Lazy
+    case "SEQUENTIAL" => Sequential
+    case "PARALLEL" => Parallel
+    case _ => ConfigDefaults.DefaultParseAndTypeCheckMode
+  }
+
   /**
     * Exception handling
     */
@@ -797,7 +817,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     checkOverflows = checkOverflows(),
     checkConsistency = checkConsistency(),
     int32bit = int32Bit(),
-    cacheParser = false, // caching does not make sense when using the CLI. Thus, we simply set it to `false`
+    cacheParserAndTypeChecker = false, // caching does not make sense when using the CLI. Thus, we simply set it to `false`
     onlyFilesWithHeader = onlyFilesWithHeader(),
     assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
     parallelizeBranches = parallelizeBranches(),
@@ -806,5 +826,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),
     noStreamErrors = noStreamErrors(),
+    parseAndTypeCheckMode = parseAndTypeCheckMode(),
   )
 }

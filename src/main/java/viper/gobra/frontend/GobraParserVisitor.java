@@ -47,6 +47,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitSourceFile(GobraParser.SourceFileContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#preamble}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPreamble(GobraParser.PreambleContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#initPost}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

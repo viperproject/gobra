@@ -3,7 +3,7 @@
 
 package pkg
 
-// ##(-I src/test/resources/regressions/features/errors)
+// ##(-I ./)
 import . "bar"
 
 func foo(e error) int {

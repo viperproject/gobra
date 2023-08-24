@@ -10,18 +10,29 @@ package viper.gobra.translator
 import viper.gobra.ast.internal.Program
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.{Config, PackageInfo}
-import viper.gobra.reporting.GeneratedViperMessage
+import viper.gobra.reporting.{ConsistencyError, GeneratedViperMessage, TransformerFailureMessage, VerifierError}
 import viper.gobra.translator.context.DfltTranslatorConfig
 import viper.gobra.translator.encodings.programs.ProgramsImpl
 import viper.gobra.translator.transformers.hyper.SIFTransformer
 import viper.gobra.translator.transformers.{AssumeTransformer, TerminationTransformer, ViperTransformer}
 import viper.gobra.util.Violation
+import viper.silver.ast.{AbstractSourcePosition, SourcePosition}
 import viper.silver.ast.pretty.FastPrettyPrinter
+import viper.silver.verifier.AbstractError
 import viper.silver.{ast => vpr}
 
 object Translator {
 
-  def translate(program: Program, pkgInfo: PackageInfo)(config: Config): BackendVerifier.Task = {
+  private def createConsistencyErrors(errs: Seq[AbstractError]): Vector[ConsistencyError] =
+    errs.map(err => {
+      val pos = err.pos match {
+        case sp: AbstractSourcePosition => Some(new SourcePosition(sp.file, sp.start, sp.end))
+        case _ => None
+      }
+      ConsistencyError(err.readableMessage, pos)
+    }).toVector
+
+  def translate(program: Program, pkgInfo: PackageInfo)(config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
     val translationConfig = new DfltTranslatorConfig()
     val programTranslator = new ProgramsImpl()
     val task = programTranslator.translate(program)(translationConfig)
@@ -32,17 +43,25 @@ object Translator {
       // new SIFTransformer
     )
 
-    val transformedTask = transformers.foldLeft(task) {
-      case (t, transformer) => transformer.transform(t)
-        .fold(errs => Violation.violation(s"Applying transformer ${transformer.getClass.getSimpleName} resulted in errors: ${errs.toString}"), identity)
+    val transformedTask = transformers.foldLeft[Either[Vector[VerifierError], BackendVerifier.Task]](Right(task)) {
+      case (Right(t), transformer) => transformer.transform(t).left.map(createConsistencyErrors)
+      case (errs, _) => errs
     }
 
     if (config.checkConsistency) {
-      val errors = transformedTask.program.checkTransitively
-      if (errors.nonEmpty) Violation.violation(errors.toString)
+      transformedTask
+        .flatMap(task => {
+          val consistencyErrs = task.program.checkTransitively
+          if (consistencyErrs.isEmpty) Right(())
+          else Left(createConsistencyErrors(consistencyErrs))
+        })
+        .left.map(errs => Violation.violation(errs.toString))
     }
 
-    config.reporter report GeneratedViperMessage(config.taskName, config.packageInfoInputMap(pkgInfo).map(_.name), () => sortAst(transformedTask.program), () => transformedTask.backtrack)
+    val inputs = config.packageInfoInputMap(pkgInfo).map(_.name)
+    transformedTask.fold(
+      errs => config.reporter report TransformerFailureMessage(inputs, errs),
+      task => config.reporter report GeneratedViperMessage(config.taskName, inputs, () => sortAst(task.program), () => task.backtrack))
     transformedTask
   }
 

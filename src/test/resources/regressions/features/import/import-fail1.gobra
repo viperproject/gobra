@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+import (
+    // the following package does not exist
+    //:: ExpectedOutput(parser_error)
+    "nopackagewhatsoever"
+)

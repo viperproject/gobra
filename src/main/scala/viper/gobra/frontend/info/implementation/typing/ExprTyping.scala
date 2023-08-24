@@ -352,7 +352,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case f@FunctionT(args, _) =>
               val (inferenceErrors: Messages, inferredFunctionType: FunctionT) = c.callee match {
                 case ap.Function(id, symb) =>
-                  if (f.uninstantiatedTypeParameters.isEmpty) (noMessages, f)
+                  if (f.uninstantiatedTypeParameters(symb).isEmpty) (noMessages, f)
                   else {
                     // do type inference
                     val typeMap = args.filter(isTypeParameter).zip(argTypes).map {
@@ -361,8 +361,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
                     val inferredType = f.substitute(typeMap)
 
-                    (wellDefTypeArguments(callee, symb.decl, typeMap) ++ inferredType.uninstantiatedTypeParameters.flatMap(typeParam => {
-                      error(n, s"cannot infer ${typeParam.id}")
+                    (wellDefTypeArguments(callee, symb.decl, typeMap) ++ inferredType.uninstantiatedTypeParameters(symb).flatMap(typeParam => {
+                      error(n, s"cannot infer ${typeParam}")
                     }), inferredType)
                   }
                 case _ => (noMessages, f)

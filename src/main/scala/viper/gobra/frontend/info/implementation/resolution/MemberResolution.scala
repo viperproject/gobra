@@ -185,7 +185,7 @@ trait MemberResolution { this: TypeInfoImpl =>
                 case i: InterfaceT => i
                 case _ => InterfaceT(PInterfaceType(Vector(), Vector(), Vector()), ctxt) // TODO handle this properly (non interface types)
               }).promoteItf(t.name)
-            case _ => AdvancedMemberSet.empty[TypeMember] // TODO handle this properly (union types, underlying types)
+            case _ => AdvancedMemberSet.empty[TypeMember] // TODO implement nameless interfaces
           }
         }
     }

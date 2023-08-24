@@ -217,10 +217,11 @@ object Type {
       })
     }
 
-    def uninstantiatedTypeParameters: Seq[TypeParameterT] = {
+    def uninstantiatedTypeParameters(symb: SymbolTable.WithTypeParameters): Seq[PIdnDef] = {
+      // need symbol table entry to filter out type parameters that are not from own definitions (these could be type parameters from a function body)
       this.deepCollect({
-        case t: TypeParameterT => t
-      })
+        case t: TypeParameterT => t.id
+      }).intersect(symb.typeParameters.map(_.id))
     }
 
     override def info: Parser.Info = Source.Parser.Unsourced

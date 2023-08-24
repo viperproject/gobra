@@ -60,7 +60,7 @@ object Type {
 
   case class DomainT(decl: PDomainType, context: ExternalTypeInfo) extends PrettyType("domain{...}") with ContextualType
 
-  case class AdtT(decl: PAdtType, context: ExternalTypeInfo) extends Type
+  case class AdtT(decl: PAdtType, context: ExternalTypeInfo) extends PrettyType("adt{...}")
 
   case class AdtClauseT(fields: Map[String, Type], decl: PAdtClause, adtT: PAdtType, context: ExternalTypeInfo) extends PrettyType(decl.id.toString)
 

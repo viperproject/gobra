@@ -2780,7 +2780,6 @@ object Desugar extends LazyLogging {
               for {
                 dArgs <- sequence(args.map { x => option(x.map(exprD(ctx, info)(_))) })
                 idT = info.typ(base) match {
-                  // TODO handle this
                   case FunctionT(fnArgs, AssertionT) => in.PredT(fnArgs.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
                   case _: AbstractType =>
                     violation(dArgs.length == dArgs.flatten.length, "non-applied arguments in abstract type")

@@ -138,7 +138,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       wellDefMisc.valid(typ)
     })
 
-    case TypeParameter(_, _, _) => LocalMessages(noMessages)
+    case _: TypeParameter => LocalMessages(noMessages)
 
     case _: MethodImpl => LocalMessages(noMessages) // not typed
 
@@ -254,7 +254,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case Wildcard(decl, _) => getWildcardType(decl)
 
-    case TypeParameter(_, _, _) => SortT
+    case _: TypeParameter => SortT
 
     case e => violation(s"untypable: $e")
   }

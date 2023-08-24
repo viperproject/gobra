@@ -218,7 +218,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
   }
 
   def isTypeParameter(t: Type): Boolean = t match {
-    case TypeParameterT(_, _, _) => true
+    case _: TypeParameterT => true
     case _ => false
   }
 }

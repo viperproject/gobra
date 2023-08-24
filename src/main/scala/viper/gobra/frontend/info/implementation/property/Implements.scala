@@ -57,6 +57,7 @@ trait Implements { this: TypeInfoImpl =>
 
   def syntaxImplements(l: Type, r: Type): PropertyResult = (l, underlyingType(r)) match {
     case (NilType, _: Type.InterfaceT) => successProp
+    // a type parameter syntactically implements an interface iff its type constraint syntactically implements the interface
     case (Type.TypeParameterT(_, constraint, _), _: Type.InterfaceT) => syntaxImplements(symbType(constraint), r)
     case (_, _: Type.InterfaceT) =>
       supportedSortForInterfaces(l) and {

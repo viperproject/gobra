@@ -355,9 +355,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   if (f.uninstantiatedTypeParameters(symb).isEmpty) (noMessages, f)
                   else {
                     // do type inference
-                    val typeMap = args.filter(isTypeParameter).zip(argTypes).map {
-                      case (TypeParameterT(id, _, _), typ) => (PIdnDef(id.name), typ)
-                    }.toMap[PIdnDef, Type]
+                    val typeMap = inferTypeArgumentsFromCall(args, argTypes)
 
                     val inferredType = f.substitute(typeMap)
 
@@ -731,9 +729,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case f: FunctionT => pattern match {
             case fc: FunctionCall =>
               // do type inference
-              val typeMap = f.args.filter(isTypeParameter).zip(fc.args.map(exprType)).map {
-                case (TypeParameterT(id, _, _), typ) => (PIdnDef(id.name), typ)
-              }.toMap[PIdnDef, Type]
+              val typeMap = inferTypeArgumentsFromCall(f.args, fc.args.map(exprType))
               f.substitute(typeMap).result
             case _ => f.result
           }
@@ -1142,6 +1138,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       else noMessages
     })
   }
+
+  /**
+    * Infers type arguments for a function with the argument signature types and the provided argument types
+    */
+  private [typing] def inferTypeArgumentsFromCall(argSignatureTypes: Vector[Type], argTypes: Vector[Type]): Map[PIdnDef, Type] = argSignatureTypes.zip(argTypes).map {
+    case (TypeParameterT(id, _, _), typ) => (PIdnDef(id.name), typ)
+  }.toMap[PIdnDef, Type]
 
   /**
     * True iff a conversion may produce side-effects, such as allocating a slice.

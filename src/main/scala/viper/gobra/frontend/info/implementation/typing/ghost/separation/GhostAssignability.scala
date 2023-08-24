@@ -99,7 +99,7 @@ trait GhostAssignability {
       error(left, "ghost error: ghost cannot be assigned to index expressions", isRightGhost) ++
         error(left, "ghost error: ghost index are not permitted in index expressions", index.map(exprOrType).exists {
           case Left(expression) => ghostExprResultClassification(expression)
-          case Right(pType) => ghostTypeClassification(pType)
+          case _ => Violation.violation(s"unexpected case reached: index was a type")
         })
 
     case PNamedOperand(id) => // x := e ~ ghost(e) ==> ghost(x)

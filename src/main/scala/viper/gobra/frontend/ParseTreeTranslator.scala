@@ -809,7 +809,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         identifierList.map(id => PTypeParameter(id, t).at(id))
       case Vector(idnDefList(identifierList), typeConstraint: PTypeElement) =>
         // embed non interface type constraint in interface
-        identifierList.map(id => PTypeParameter(id, PInterfaceType(Vector(typeConstraint), Vector(), Vector())).at(id))
+        identifierList.map(id => PTypeParameter(id, PInterfaceType(Vector(typeConstraint), Vector(), Vector()).at(typeConstraint)).at(id))
     }
   }
 
@@ -2491,11 +2491,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }.asInstanceOf[Vector[P]]
   }
 
-  def visitListNodeIf[P <: PNode, C <: ParserRuleContext](ctx: java.util.List[C], cond: (C => Boolean), select : (C => java.util.List[_ <: ParserRuleContext])): Vector[Vector[P]] = {
-    ctx.asScala.toVector.collect {
-      case c if cond(c) => visitListNode(select(c))
-    }.asInstanceOf[Vector[Vector[P]]]
-  }
   //endregion
 
   //region Error reporting and positioning

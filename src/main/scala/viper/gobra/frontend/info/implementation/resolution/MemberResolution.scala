@@ -179,11 +179,12 @@ trait MemberResolution { this: TypeInfoImpl =>
           AdvancedMemberSet.init[TypeMember](predSpecs.map(m => ctxt.createMPredSpec(m)))
         AdvancedMemberSet.union {
           topLevel +: es.map(_.terms).map {
-            case Vector(t: PTypeName) => interfaceMethodSet(
+            case Vector(t: PTypeName) =>
               underlyingType(symbType(t)) match {
-                case i: InterfaceT => i
-                case _ => InterfaceT(PInterfaceType(Vector(), Vector(), Vector()), ctxt)
-              }).promoteItf(t.name)
+                case i: InterfaceT => interfaceMethodSet(i).promoteItf(t.name)
+                // only embedded interfaces increase the member set
+                case _ => AdvancedMemberSet.empty[TypeMember]
+              }
             case _ => AdvancedMemberSet.empty[TypeMember] // TODO implement nameless interfaces in the future
           }
         }

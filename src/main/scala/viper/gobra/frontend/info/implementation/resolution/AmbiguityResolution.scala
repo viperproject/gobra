@@ -36,6 +36,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
             })
 
       case n: PIndexedExp =>
+        // expression indexes have an expression base and type instantiations have a type base
         if (exprOrType(n.base).isLeft) Left(n) else Right(n)
 
       // Otherwise just expression or type

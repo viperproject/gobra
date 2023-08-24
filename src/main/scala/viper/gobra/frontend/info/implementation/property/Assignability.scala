@@ -337,11 +337,17 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     }
   }
 
+  /**
+    * checks whether a type is assignable to all types in a type set
+    */
   private def assignableToAll(t: Type, typeSet: TypeSet) = typeSet match {
     case _: TypeSet.UnboundedTypeSet => errorProp()
     case TypeSet.BoundedTypeSet(ts) => propForall(ts.map((t, _)), assignableTo)
   }
 
+  /**
+    * checks whether all types in a type set are assignable to a type
+    */
   private def allAssignableTo(typeSet: TypeSet, t: Type) = (typeSet, t) match {
     case (_: TypeSet.UnboundedTypeSet, _: InterfaceT) => successProp
     case (_: TypeSet.UnboundedTypeSet, _) => errorProp()

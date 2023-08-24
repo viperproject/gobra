@@ -181,6 +181,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
           val substitution = typeDecl.typeParameters.map(_.id).zip(typeArgs).toMap
 
           underlyingType(symbType(symb.decl.right)).substitute(substitution)
+        case _ => violation(s"expected function or named type, but got $n")
       }
 
     case typ: PParameterizedType => entity(typ.typeName.id) match {

@@ -401,9 +401,8 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         new PackageInfo("pkg", "pkg", false)
       )
       val tree = new Info.GoTree(pkg)
-      val context = new Info.Context()
       val config = Config()
-      new TypeInfoImpl(tree, context)(config)
+      new TypeInfoImpl(tree, Map.empty)(config)
     }
 
     def wellDefMember(member: PMember, otherMembers: Vector[PMember] = Vector()) =

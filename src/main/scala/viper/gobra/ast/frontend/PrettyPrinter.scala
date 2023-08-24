@@ -626,6 +626,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PMapType(key, elem) => "map" <> brackets(showType(key)) <> showType(elem)
     case PDeref(base) => "*" <> showExprOrType(base)
     case PDot(base, id) => showExprOrType(base) <> "." <>  showId(id)
+    case PIndexedExp(base, index) => showExprOrType(base) <> brackets(showList(index)(showExprOrType))
     case channelType: PChannelType => channelType match {
       case PBiChannelType(elem)   => "chan" <+> showType(elem)
       case PSendChannelType(elem) => "chan" <> "<-" <+> showType(elem)

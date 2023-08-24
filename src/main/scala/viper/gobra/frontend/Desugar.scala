@@ -3777,6 +3777,8 @@ object Desugar {
 
       case Type.PermissionT => in.PermissionT(addrMod)
 
+      case Type.TypeParameterT(id, _, _) => in.TypeParameterT(id.name, addrMod)
+
       case _ => Violation.violation(s"got unexpected type $t")
     }
 

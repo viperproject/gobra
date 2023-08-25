@@ -484,6 +484,23 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert(!frontend.wellDefMember(functionDecl).valid)
   }
 
+  test("TypeChecker: should not reject ghost return in ghost function") {
+    val functionDecl = PExplicitGhostMember(PFunctionDecl(
+      PIdnDef("foo"),
+      Vector(),
+      Vector(),
+      PResult(Vector(PUnnamedParameter(PIntType()))),
+      PFunctionSpec(Vector(), Vector(), Vector(), Vector()),
+      Some(PBodyParameterInfo(Vector()), PBlock(Vector(
+        PReturn(Vector(
+          PConditional(PEquals(PIntLit(0), PIntLit(0)), PIntLit(1), PIntLit(2))
+        ))
+      )))
+    ))
+
+    assert(frontend.wellDefMember(functionDecl).valid)
+  }
+
   class TestFrontend {
     def singleMemberProgram(members: Vector[PMember]): PProgram =
       PProgram(

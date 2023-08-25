@@ -38,7 +38,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(ap.Closure(id, _)) => error(n, s"expected valid operand, got closure declaration name $n",
           !tree.parent(n).head.isInstanceOf[PClosureSpecInstance] &&
             tryEnclosingFunctionLit(n).fold(true)(lit => lit.id.fold(true)(encId => encId.name != id.name)))
-        case Some(ap.Function(id, symb)) if symb.typeParameters.nonEmpty =>
+        case Some(ap.Function(id, symb, _)) if symb.typeParameters.nonEmpty =>
           tree.parent(n).head match {
             case _: PIndexedExp | _: PInvoke => noMessages
             case _ => error(n, s"cannot use generic function $id without instantiation")
@@ -102,13 +102,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PIndexedExp =>
       resolve(n) match {
-        case Some(f@ap.Function(_, symb)) =>
+        case Some(ap.Function(_, symb, typeArgs)) =>
           tree.parent(n).head match {
-            case _: PInvoke => wellDefPartialIndexTypeArguments(n, symb.decl, f.typeArgs)
-            case _ => wellDefFullIndexTypeArguments(n, symb.decl, f.typeArgs)
+            case _: PInvoke => wellDefPartialIndexTypeArguments(n, symb.decl, typeArgs)
+            case _ => wellDefFullIndexTypeArguments(n, symb.decl, typeArgs)
           }
-        case Some(nt@ap.NamedType(_, symb)) if symb.decl.isInstanceOf[PTypeDef] =>
-          wellDefFullIndexTypeArguments(n, symb.decl.asInstanceOf[PTypeDef], nt.typeArgs)
+        case Some(ap.NamedType(_, symb, typeArgs)) if symb.decl.isInstanceOf[PTypeDef] =>
+          wellDefFullIndexTypeArguments(n, symb.decl.asInstanceOf[PTypeDef], typeArgs)
         case Some(ap.IndexedExp(base, index)) => isExpr(base).out ++ isExpr(index).out ++ {
           val baseType = exprType(base)
           val idxType = exprType(index)
@@ -263,7 +263,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       resolve(n) match {
         case Some(_: ap.Function) => symbType(n)
 
-        case Some(ap.NamedType(_, symb)) if symb.decl.isInstanceOf[PTypeDef] => symbType(n)
+        case Some(ap.NamedType(_, symb, _)) if symb.decl.isInstanceOf[PTypeDef] => symbType(n)
 
         case Some(ap.IndexedExp(base, index)) =>
           val baseType = exprType(base)
@@ -351,7 +351,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val wellTypedArgs = exprType(callee) match {
             case f@FunctionT(args, _) =>
               val (inferenceErrors: Messages, inferredFunctionType: FunctionT) = c.callee match {
-                case ap.Function(_, symb) =>
+                case ap.Function(_, symb, _) =>
                   if (f.uninstantiatedTypeParameters(symb).isEmpty) (noMessages, f)
                   else {
                     // do type inference

@@ -136,11 +136,8 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
     case n: PIndexedExp => resolve(n.base) match {
       case Some(f: ap.Parameterizable) =>
         asTypeList(n.index) match {
-          case Some(typeArgs) => {
-            f.typeArgs = typeArgs
-            Some(f)
-          }
-          case _ => Some(f)
+          case Some(typeArgs) => Some(f.withTypeArgs(typeArgs))
+          case _ => None
         }
       case _ if n.index.length == 1 => {
         exprOrType(n.index.head) match {

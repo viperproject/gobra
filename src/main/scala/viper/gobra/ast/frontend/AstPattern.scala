@@ -20,7 +20,9 @@ object AstPattern {
 
   sealed trait Type extends Pattern
 
-  case class NamedType(id: PIdnUse, symb: st.ActualTypeEntity) extends Type with Symbolic with Parameterizable
+  case class NamedType(id: PIdnUse, symb: st.ActualTypeEntity, typeArgs: Vector[PType] = Vector()) extends Type with Symbolic with Parameterizable {
+    override def withTypeArgs(typeArgs: Vector[PType]): Parameterizable = NamedType(id, symb, typeArgs)
+  }
   case class PointerType(base: PType) extends Type
   case class AdtClause(id: PIdnUse, symb: st.AdtClause) extends Type with Symbolic
   case class TypeArgument(id: PIdnUse, symb: st.TypeParameter) extends Type with Symbolic
@@ -55,11 +57,15 @@ object AstPattern {
     def id: PIdnUse
   }
 
-  sealed trait Parameterizable {
-    var typeArgs: Vector[PType] = Vector()
+  sealed trait Parameterizable extends Pattern {
+    def typeArgs: Vector[PType]
+
+    def withTypeArgs(typeArgs: Vector[PType]): Parameterizable
   }
 
-  case class Function(id: PIdnUse, symb: st.Function) extends FunctionKind with Symbolic with Parameterizable
+  case class Function(id: PIdnUse, symb: st.Function, typeArgs: Vector[PType] = Vector()) extends FunctionKind with Symbolic with Parameterizable {
+    override def withTypeArgs(typeArgs: Vector[PType]): Function = Function(id, symb, typeArgs)
+  }
   case class Closure(id: PIdnUse, symb: st.Closure) extends FunctionKind with Symbolic
   case class DomainFunction(id: PIdnUse, symb: st.DomainFunction) extends FunctionKind with Symbolic
   case class ReceivedMethod(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.Method) extends FunctionKind with Symbolic

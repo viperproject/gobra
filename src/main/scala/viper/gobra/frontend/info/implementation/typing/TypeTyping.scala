@@ -169,16 +169,14 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PIndexedExp =>
       resolve(n) match {
-        case Some(f@ap.Function(id, symb)) =>
-          val typeArgs = f.typeArgs.map(typeSymbType)
-          val substitution = symb.typeParameters.map(_.id).zip(typeArgs).toMap
+        case Some(ap.Function(_, symb, typeArgs)) =>
+          val substitution = symb.typeParameters.map(_.id).zip(typeArgs.map(typeSymbType)).toMap
 
           FunctionT(symb.args.map(miscType), miscType(symb.result)).substitute(substitution)
 
-        case Some(t@ap.NamedType(id, symb)) if symb.decl.isInstanceOf[PTypeDef] =>
-          val typeArgs = t.typeArgs.map(typeSymbType)
+        case Some(ap.NamedType(_, symb, typeArgs)) if symb.decl.isInstanceOf[PTypeDef] =>
           val typeDecl = symb.decl.asInstanceOf[PTypeDef]
-          val substitution = typeDecl.typeParameters.map(_.id).zip(typeArgs).toMap
+          val substitution = typeDecl.typeParameters.map(_.id).zip(typeArgs.map(typeSymbType)).toMap
 
           underlyingType(symbType(symb.decl.right)).substitute(substitution)
         case _ => violation(s"expected function or named type, but got $n")

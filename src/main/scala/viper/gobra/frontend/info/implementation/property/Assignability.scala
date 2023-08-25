@@ -85,10 +85,10 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (VariadicT(t1), VariadicT(t2)) => assignableTo.result(t1, t2)
       case (t1, VariadicT(t2)) => assignableTo.result(t1, t2)
       case (VariadicT(t1), SliceT(t2)) if identicalTypes(t1, t2) => successProp
-      case (UNTYPED_INT_CONST, TypeParameterT(_, constraint, ctx)) => assignableToAll(UNTYPED_INT_CONST, TypeSet.from(constraint, this))
-      case (NilType, TypeParameterT(_, constraint, ctx)) => assignableToAll(NilType, TypeSet.from(constraint, this))
-      case (l, TypeParameterT(_, constraint, ctx)) if !isDefinedType(l) => assignableToAll(l, TypeSet.from(constraint, this))
-      case (TypeParameterT(_, constraint, ctx), r) if !isDefinedType(r) => allAssignableTo(TypeSet.from(constraint, this), r)
+      case (UNTYPED_INT_CONST, TypeParameterT(_, constraint, _)) => assignableToAll(UNTYPED_INT_CONST, TypeSet.from(constraint, this))
+      case (NilType, TypeParameterT(_, constraint, _)) => assignableToAll(NilType, TypeSet.from(constraint, this))
+      case (l, TypeParameterT(_, constraint, _)) if !isDefinedType(l) => assignableToAll(l, TypeSet.from(constraint, this))
+      case (TypeParameterT(_, constraint, _), r) if !isDefinedType(r) => allAssignableTo(TypeSet.from(constraint, this), r)
 
         // for ghost types
       case (BooleanT, AssertionT) => successProp

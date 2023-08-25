@@ -21,7 +21,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostMisc(misc: PGhostMisc) = misc match {
     case c@PClosureSpecInstance(id, _) => resolve(id) match {
-      case Some(ap.Function(_, f)) => wellDefClosureSpecInstanceParams(c, f.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
+      case Some(ap.Function(_, f, _)) => wellDefClosureSpecInstanceParams(c, f.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
       case Some(ap.Closure(_, l)) => if (c.params.isEmpty || capturedLocalVariables(l.lit.decl).isEmpty)
         wellDefClosureSpecInstanceParams(c, l.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
         else error(c, s"function literal ${l.lit.id.get} captures variables, so it cannot be used to derive a parametrized spec instance")
@@ -168,7 +168,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       if (spec.paramKeys.isEmpty) fType.copy(args = fType.args.drop(params.size))
       else {
         val f = resolve(func) match {
-          case Some(ap.Function(_, f)) => f
+          case Some(ap.Function(_, f, _)) => f
           case Some(ap.Closure(_, c)) => c
           case _ => Violation.violation(s"expected a function or closure, but got $func")
         }

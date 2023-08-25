@@ -1,7 +1,6 @@
 package viper.gobra.frontend.info.implementation.property
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.error
-import viper.gobra.ast.frontend.{PIdnUse, PInterfaceType, PNamedOperand, PType, PTypeElement}
+import viper.gobra.ast.frontend.{PIdnUse, PInterfaceType, PNamedOperand, PTypeElement}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.resolution.TypeSet

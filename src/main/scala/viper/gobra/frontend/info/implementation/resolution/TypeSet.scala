@@ -2,10 +2,8 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
-import scala.annotation.tailrec
 sealed trait TypeSet
 
 object TypeSet {

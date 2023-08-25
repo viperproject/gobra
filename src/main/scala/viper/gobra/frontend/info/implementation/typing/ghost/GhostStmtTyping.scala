@@ -78,7 +78,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     val PClosureImplProof(impl@PClosureImplements(closure, spec), b: PBlock) = p
 
     val func = resolve(spec.func) match {
-      case Some(ap.Function(_, f)) => f
+      case Some(ap.Function(_, f, _)) => f
       case Some(ap.Closure(_, c)) => c
       case _ => Violation.violation(s"expected a function or closure, but got ${spec.func}")
     }
@@ -289,7 +289,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     }
     resolve(closureImplProofCallAttr(p)) match {
         case Some(ap.FunctionCall(callee, _)) => callee match {
-            case ap.Function(_, symb) => symb.decl.spec.terminationMeasures
+            case ap.Function(_, symb, _) => symb.decl.spec.terminationMeasures
             case ap.Closure(_, symb) => symb.lit.spec.terminationMeasures
             case ap.ReceivedMethod(_, _, _, symb) => measuresFromMethod(symb)
             case ap.ImplicitlyReceivedInterfaceMethod(_, symb) => symb.spec.spec.terminationMeasures
@@ -297,7 +297,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
             case _ => Violation.violation("this case should be unreachable")
           }
         case Some(ap.ClosureCall(_, _, spec)) => resolve(spec.func) match {
-          case Some(ap.Function(_, f)) => f.decl.spec.terminationMeasures
+          case Some(ap.Function(_, f, _)) => f.decl.spec.terminationMeasures
           case Some(ap.Closure(_, c)) => c.lit.spec.terminationMeasures
           case _ => Violation.violation("this case should be unreachable")
         }

@@ -40,7 +40,7 @@ trait Implements { this: TypeInfoImpl =>
   def addDemandedEmbeddedInterfaceImplements(itf: Type.InterfaceT): Unit = {
     itf.decl.embedded.foreach {
       case PTypeElement(Vector(t: PType)) => resolve(t) match { // interface implements its embedded types
-        case Some(ap.NamedType(_, st.NamedType(PTypeDef(_, int: PInterfaceType, _), _, context))) =>
+        case Some(ap.NamedType(_, st.NamedType(PTypeDef(_, int: PInterfaceType, _), _, context), _)) =>
           context.symbType(int) match {
             case embeddedItfT: Type.InterfaceT => _guaranteedImplements ++= Set((itf, embeddedItfT))
             case _ =>

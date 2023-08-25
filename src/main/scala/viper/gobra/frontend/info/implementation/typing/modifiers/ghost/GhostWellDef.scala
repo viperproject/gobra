@@ -113,14 +113,7 @@ trait GhostWellDef extends TypingComponents { this: GhostModifierUnit =>
       _: PReceive
       ) => error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
 
-    case n: PInvoke => (ctx.exprOrType(n.base), ctx.resolve(n)) match {
-      case (Right(_), Some(_: ap.Conversion)) => noMessages
-      case (Left(_), Some(_: ap.FunctionCall)) => noMessages
-      case (Left(_), Some(_: ap.ClosureCall)) => noMessages
-      case (Left(_), Some(_: ap.PredicateCall)) => noMessages
-      case (Left(_), Some(_: ap.PredExprInstance)) => noMessages
-      case _ => violation("expected conversion, function call, or predicate call")
-    }
+    case _: PInvoke => noMessages
 
     case _: PNew => noMessages
 

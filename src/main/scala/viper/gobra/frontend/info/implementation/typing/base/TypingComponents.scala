@@ -8,6 +8,9 @@ import viper.gobra.frontend.info.implementation.typing.modifiers.Modifier.Modifi
 import viper.gobra.frontend.info.implementation.typing.modifiers.owner.OwnerModifierUnit
 import viper.gobra.util.{Memoization, Safety, Validity}
 
+/**
+  * Typing helpers needed for regular typing and modifier typing
+  */
 trait TypingComponents {
 
   sealed trait ValidityMessages {

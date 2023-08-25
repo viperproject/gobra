@@ -1038,7 +1038,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     val argErrors =
       if (f.args.isEmpty && expectedArgs.isEmpty) noMessages
       else
-        multiAssignableTo.errors((f.args.map(exprType).zip(f.args map getModifiers), expectedArgs.zip(getFunctionLikeCallArgModifiers(f))))(n) ++
+        multiAssignableTo.errors((f.args.map(exprType).zip(f.args map getModifiers), expectedArgs.zip(getExpectedFunctionLikeCallArgModifiers(f))))(n) ++
         f.args.flatMap(isExpr(_).out)
     specErrors ++ argErrors
   }

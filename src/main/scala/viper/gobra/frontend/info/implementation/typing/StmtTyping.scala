@@ -143,7 +143,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
             if (res.isEmpty) return error(n, s"Statement does not root in a CodeRoot")
             if (!(res.get.result.outs forall wellDefMisc.valid)) return error(n, s"return cannot be checked because the enclosing signature is incorrect")
           }
-          multiAssignableTo.errors(((exps map exprType).zip(exps map getModifiers), returnParamsAndTypes(n).map(_._1).zip(getReturnModifiers(n))))(n)
+          multiAssignableTo.errors(((exps map exprType).zip(exps map getModifiers), returnParamsAndTypes(n).map(_._1).zip(getExpectedReturnModifiers(n))))(n)
         } else noMessages // a return without arguments is always well-defined
       }
 

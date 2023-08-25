@@ -39,7 +39,7 @@ class GhostModifierUnit(final val ctx: TypeInfoImpl) extends Attribution with Mo
     }) GhostModifier.Ghost else GhostModifier.Actual
   )(hasWellDefModifier)
 
-  override def getFunctionLikeCallArgModifier: ModifierTyping[ap.FunctionLikeCall, Vector[GhostModifier]] =
+  override def getExpectedFunctionLikeCallArgModifier: ModifierTyping[ap.FunctionLikeCall, Vector[GhostModifier]] =
     createVectorModifier[ap.FunctionLikeCall, GhostModifier] {
       case f: ap.FunctionCall =>
         calleeArgGhostTyping(f).toModifierTuple
@@ -47,7 +47,7 @@ class GhostModifierUnit(final val ctx: TypeInfoImpl) extends Attribution with Mo
         closureSpecArgsAndResGhostTyping(c.maybeSpec.get)._1.toModifierTuple
     }
 
-  override def getReturnModifier: ModifierTyping[PReturn, Vector[GhostModifier]] =
+  override def getExpectedReturnModifier: ModifierTyping[PReturn, Vector[GhostModifier]] =
     createVectorModifier[PReturn, GhostModifier](
       n =>
         if (n.exps.nonEmpty && ctx.tryEnclosingClosureImplementationProof(n).isEmpty && !enclosingGhostContext(n)) {

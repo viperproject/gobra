@@ -79,11 +79,11 @@ class OwnerModifierUnit(final val ctx: TypeInfoImpl) extends ModifierUnit[OwnerM
     // case _ => OwnerModifier.Exclusive // conservative choice
   }(hasWellDefModifier)
 
-  override def getFunctionLikeCallArgModifier: ModifierTyping[ap.FunctionLikeCall, Vector[OwnerModifier]] = createVectorModifier[ap.FunctionLikeCall, OwnerModifier](
+  override def getExpectedFunctionLikeCallArgModifier: ModifierTyping[ap.FunctionLikeCall, Vector[OwnerModifier]] = createVectorModifier[ap.FunctionLikeCall, OwnerModifier](
     f => f.args.map(_ => OwnerModifier.Exclusive)
   )
 
-  override def getReturnModifier: ModifierTyping[PReturn, Vector[OwnerModifier]] =
+  override def getExpectedReturnModifier: ModifierTyping[PReturn, Vector[OwnerModifier]] =
     createVectorModifier[PReturn, OwnerModifier](
       n => n.exps.map(_ => OwnerModifier.outParameter)
     )

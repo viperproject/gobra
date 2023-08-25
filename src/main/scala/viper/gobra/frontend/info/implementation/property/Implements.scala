@@ -17,7 +17,7 @@ trait Implements { this: TypeInfoImpl =>
 
   def implements(l: Type, r: Type): PropertyResult = underlyingType(r) match {
     case itf: Type.InterfaceT =>
-      val valid = syntaxImplements(l, r)
+      val valid = implementsMemberSet(l, r)
       if (valid.holds && l != NilType && !itf.isEmpty) {
         _requiredImplements ++= Set((l, itf))
       }
@@ -55,10 +55,10 @@ trait Implements { this: TypeInfoImpl =>
     (localRequiredImplements ++ localGuaranteedImplements).groupMap(_._2)(_._1)
   }
 
-  def syntaxImplements(l: Type, r: Type): PropertyResult = (l, underlyingType(r)) match {
+  def implementsMemberSet(l: Type, r: Type): PropertyResult = (l, underlyingType(r)) match {
     case (NilType, _: Type.InterfaceT) => successProp
     // a type parameter syntactically implements an interface iff its type constraint syntactically implements the interface
-    case (Type.TypeParameterT(_, constraint, _), _: Type.InterfaceT) => syntaxImplements(symbType(constraint), r)
+    case (Type.TypeParameterT(_, constraint, _), _: Type.InterfaceT) => implementsMemberSet(symbType(constraint), r)
     case (_, _: Type.InterfaceT) =>
       supportedSortForInterfaces(l) and {
         val itfMemberSet = memberSet(r)

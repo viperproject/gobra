@@ -6,10 +6,21 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 sealed trait TypeSet
 
+/**
+  * The type set of a type parameter constraint is the set of all types that satisfy this constraint
+  * In this implementation, type sets that are unbounded are represented by the [[UnboundedTypeSet]]
+  * Bounded type sets are represented by [[BoundedTypeSet]] and explicitly list the set of types they contains
+  *
+  * Additionally, an unbounded type set needs to keep track whether all types in the type set are comparable
+  * The comparability of a bounded type set can just be calculated with the set of types it contains
+  */
 object TypeSet {
   case class UnboundedTypeSet(isComparable: Boolean = false) extends TypeSet
   case class BoundedTypeSet(ts: Set[Type]) extends TypeSet
 
+  /**
+    * Constructs the type set from a type parameter constraint
+    */
   def from(constraint: PInterfaceType, ctx: TypeInfoImpl): TypeSet = typeSetFromInterfaceType(constraint, ctx)
 
   private def typeSetFromInterfaceType(inter: PInterfaceType, ctx: TypeInfoImpl): TypeSet = inter match {

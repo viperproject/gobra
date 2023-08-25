@@ -23,6 +23,6 @@ trait Satisfiability extends BaseProperty { this: TypeInfoImpl =>
           failedProp("is not a subset of the allowed type set", !TypeSet.isSubset(TypeSet.from(i.decl, this), interfaceTypeSet))
         case _ =>
           failedProp("is not an element of the allowed type set", !TypeSet.contains(interfaceTypeSet, typ))
-      }) and syntaxImplements(typ, InterfaceT(interfacePType, this))
+      }) and implementsMemberSet(typ, InterfaceT(interfacePType, this))
   }
 }

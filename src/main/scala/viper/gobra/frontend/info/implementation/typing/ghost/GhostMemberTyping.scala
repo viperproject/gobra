@@ -30,7 +30,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       val subType = symbType(ip.subT)
       val superType = symbType(ip.superT)
 
-      val syntaxImplementsMsgs = syntaxImplements(subType, superType).asReason(ip, s"${ip.subT} does not implement the interface ${ip.superT}")
+      val syntaxImplementsMsgs = implementsMemberSet(subType, superType).asReason(ip, s"${ip.subT} does not implement the interface ${ip.superT}")
       if (syntaxImplementsMsgs.nonEmpty) syntaxImplementsMsgs
       else {
         addDemandedImplements(subType, superType)

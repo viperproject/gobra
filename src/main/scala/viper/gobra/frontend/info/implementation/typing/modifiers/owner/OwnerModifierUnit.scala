@@ -1,7 +1,7 @@
 package viper.gobra.frontend.info.implementation.typing.modifiers.owner
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.noMessages
-import viper.gobra.ast.frontend.{PAccess, PBefore, PBinaryExp, PBitNegation, PBlankIdentifier, PCapacity, PClosureImplements, PConditional, PDeref, PDot, PExists, PExpression, PForall, PGhostCollectionExp, PGhostEquals, PGhostUnequals, PIdnNode, PImplication, PIn, PIndexedExp, PIntersection, PInvoke, PIota, PIsComparable, PLabeledOld, PLength, PLiteral, PMagicWand, PMake, PMapKeys, PMapValues, PMatchExp, PMultiplicity, PNamedOperand, PNegation, PNew, PNode, POld, POptionGet, POptionNone, POptionSome, PParameter, PPermission, PPredConstructor, PPredicateAccess, PRangeSequence, PReceive, PReference, PSequenceAppend, PSetMinus, PSliceExp, PSubset, PTypeAssertion, PTypeExpr, PTypeOf, PUnfolding, PUnion, PUnpackSlice, AstPattern => ap}
+import viper.gobra.ast.frontend.{PAccess, PBefore, PBinaryExp, PBitNegation, PBlankIdentifier, PCapacity, PClosureImplements, PConditional, PDeref, PDot, PExists, PExpression, PForall, PGhostCollectionExp, PGhostEquals, PGhostUnequals, PIdnNode, PImplication, PIn, PIndexedExp, PIntersection, PInvoke, PIota, PIsComparable, PLabeledOld, PLength, PLiteral, PMagicWand, PMake, PMapKeys, PMapValues, PMatchExp, PMultiplicity, PNamedOperand, PNegation, PNew, PNode, POld, POptionGet, POptionNone, POptionSome, PParameter, PPermission, PPredConstructor, PPredicateAccess, PRangeSequence, PReceive, PReference, PReturn, PSequenceAppend, PSetMinus, PSliceExp, PSubset, PTypeAssertion, PTypeExpr, PTypeOf, PUnfolding, PUnion, PUnpackSlice, AstPattern => ap}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -82,6 +82,11 @@ class OwnerModifierUnit(final val ctx: TypeInfoImpl) extends ModifierUnit[OwnerM
   override def getFunctionLikeCallArgModifier: ModifierTyping[ap.FunctionLikeCall, Vector[OwnerModifier]] = createVectorModifier[ap.FunctionLikeCall, OwnerModifier](
     f => f.args.map(_ => OwnerModifier.Exclusive)
   )
+
+  override def getReturnModifier: ModifierTyping[PReturn, Vector[OwnerModifier]] =
+    createVectorModifier[PReturn, OwnerModifier](
+      n => n.exps.map(_ => OwnerModifier.outParameter)
+    )
 
   private def getVarModifier(n: PIdnNode): OwnerModifier = ctx.regular(n) match {
     case g: st.GlobalVariable => if (g.shared) OwnerModifier.sharedVariable else OwnerModifier.exclusiveVariable

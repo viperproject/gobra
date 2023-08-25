@@ -1,13 +1,12 @@
 package viper.gobra.frontend.info.implementation.typing.modifiers
 
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
-import viper.gobra.ast.frontend.{PAssignee, PExpression, PIdnNode, PNode}
+import viper.gobra.ast.frontend.{PAssignee, PExpression, PIdnNode, PNode, PReturn, AstPattern => ap}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import Modifier._
 import viper.gobra.frontend.info.implementation.property.BaseProperty
 import viper.gobra.frontend.info.implementation.typing.base.TypingComponents
 import viper.gobra.util.{Memoization, Safety, Validity}
-import viper.gobra.ast.frontend.{AstPattern => ap}
 
 trait ModifierUnit[T <: Modifier] extends TypingComponents {
   def ctx: TypeInfoImpl
@@ -17,6 +16,8 @@ trait ModifierUnit[T <: Modifier] extends TypingComponents {
   def getModifier: ModifierTyping[PNode, T]
 
   def getFunctionLikeCallArgModifier: ModifierTyping[ap.FunctionLikeCall, Vector[T]]
+
+  def getReturnModifier: ModifierTyping[PReturn, Vector[T]]
 
   def addressable(exp: PExpression): Boolean = true
 

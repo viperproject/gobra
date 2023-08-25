@@ -1,12 +1,11 @@
 package viper.gobra.frontend.info.implementation.typing
 
-import viper.gobra.ast.frontend.{PExpression, PIdnNode, PNode}
+import viper.gobra.ast.frontend.{PExpression, PIdnNode, PNode, PReturn, AstPattern => ap}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.modifiers.ghost.{GhostModifier, GhostModifierUnit}
 import viper.gobra.frontend.info.implementation.typing.modifiers.owner.{OwnerModifier, OwnerModifierUnit}
 import viper.gobra.frontend.info.implementation.typing.modifiers.{Modifier, ModifierUnit}
 import viper.gobra.frontend.info.implementation.typing.modifiers.Modifier.{Modifier, Modifiers}
-import viper.gobra.ast.frontend.{AstPattern => ap}
 
 trait ModifierTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -20,6 +19,10 @@ trait ModifierTyping extends BaseTyping { this: TypeInfoImpl =>
 
   def getFunctionLikeCallArgModifiers(call: ap.FunctionLikeCall): Vector[Modifiers] = {
     this.modifierUnits.map(_.getFunctionLikeCallArgModifier(call).get).transpose
+  }
+
+  def getReturnModifiers(n: PReturn): Vector[Modifiers] = {
+    this.modifierUnits.map(_.getReturnModifier(n).get).transpose
   }
 
   def wellDefModifiers: WellDefinedness[PNode] = createWellDef {

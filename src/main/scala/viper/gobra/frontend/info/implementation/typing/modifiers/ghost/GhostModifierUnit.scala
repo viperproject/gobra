@@ -47,6 +47,16 @@ class GhostModifierUnit(final val ctx: TypeInfoImpl) extends Attribution with Mo
         closureSpecArgsAndResGhostTyping(c.maybeSpec.get)._1.toModifierTuple
     }
 
+  override def getReturnModifier: ModifierTyping[PReturn, Vector[GhostModifier]] =
+    createVectorModifier[PReturn, GhostModifier](
+      n =>
+        if (n.exps.nonEmpty && ctx.tryEnclosingClosureImplementationProof(n).isEmpty && !enclosingGhostContext(n)) {
+          ctx.returnParamsAndTypes(n).map(_._2).map(getModifier).map(_.get)
+        } else {
+          n.exps.map(_ => GhostModifier.Ghost)
+        }
+    )
+
   override def assignableTo(from: Modifier, to: Modifier): Boolean = (from, to) match {
     case (_, GhostModifier.Ghost) => true
     case (GhostModifier.Actual, GhostModifier.Actual) => true

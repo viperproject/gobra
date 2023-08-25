@@ -77,13 +77,13 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
               // To support Go's function chaining when a tuple with the results of a function call are passed to the
               // only variadic argument of another function
               case Vector((InternalTupleT(t), rMods)) if left.lastOption.exists(_._1.isInstanceOf[VariadicT]) =>
-                // TODO ask felix if this is ok
+                // TODO verify if this is correct (I assume here that all types of the internal tuple should be assigned to the same modifier)
                 modifierMultiAssignableTo.result(t.map((_, rMods)), left)
               case _ => propForall(right.map(_._2).zip(left.map(_._2)), modifierAssignableTo)
             }
           case AssignMode.Multi => right.head match {
             case (Assign(InternalTupleT(ts)), rMods) =>
-              // TODO ask felix if this is ok
+              // TODO verify if this is correct (I assume here that all types of the internal tuple should be assigned to the same modifier)
               modifierMultiAssignableTo.result(ts.map((_, rMods)), left)
             case (t, exp) =>
               if (left.length == right.length + 1 && left.last._1.isInstanceOf[VariadicT]) {

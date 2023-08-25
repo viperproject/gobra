@@ -151,8 +151,7 @@ trait GhostWellDef extends TypingComponents { this: GhostModifierUnit =>
           exp.forall(hasWellDefModifier.valid)
         })
 
-        // TODO check this with Felix
-        case Function(PFunctionDecl(_, _, args, r, _, _), _, _) => unsafeMessage(! {
+        case Function(PFunctionDecl(_, args, r, _, _), _, _) => unsafeMessage(! {
           args.forall(hasWellDefModifier.valid) && hasWellDefModifier.valid(r)
         })
 

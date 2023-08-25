@@ -10,9 +10,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.implementation.resolution.TypeSet
-import viper.gobra.frontend.info.implementation.typing.modifiers.Modifier.{Modifier, Modifiers}
-import viper.gobra.frontend.info.implementation.typing.modifiers.{Modifier, ModifierUnit}
+import viper.gobra.frontend.info.implementation.typing.modifiers.Modifier.Modifiers
 import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
 

@@ -254,9 +254,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           // arguments have to be assignable to function
           val wellTypedArgs = exprType(callee) match {
             case FunctionT(args, _) => // TODO: add special assignment
-              if (n.spec.nonEmpty) wellDefCallWithSpec(n)
-              else if (n.args.isEmpty && args.isEmpty) noMessages
-              else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+              wellDefCallWithSpec(n, c, args)
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n, s"type error: got $t but expected function type or AbstractType")
           }
@@ -332,9 +330,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             // between two types, which is less precise. Because of this limitation, and with the goal of handling
             // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
             // expressions that are not accepted by the compiler.
-            val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
+            val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !goAssignableTo(idxType, key))
             if (assignableToIdxType.nonEmpty) {
-              error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
+              error(n, s"$underlyingIdxType is not assignable to map key of $key", !goAssignableTo(underlyingIdxType, key))
             } else {
               assignableToIdxType
             }
@@ -344,9 +342,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             // between two types, which is less precise. Because of this limitation, and with the goal of handling
             // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
             // expressions that are not accepted by the compiler.
-            val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
+            val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !goAssignableTo(idxType, key))
             if (assignableToIdxType.nonEmpty) {
-              error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
+              error(n, s"$underlyingIdxType is not assignable to map key of $key", !goAssignableTo(underlyingIdxType, key))
             } else {
               assignableToIdxType
             }
@@ -677,9 +675,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case (SliceT(elem), IntT(_)) => elem
         case (GhostSliceT(elem), IntT(_)) => elem
         case (VariadicT(elem), IntT(_)) => elem
-        case (MapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+        case (MapT(key, elem), underlyingIdxType) if goAssignableTo(idxType, key) || goAssignableTo(underlyingIdxType, key) =>
           InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
-        case (MathMapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+        case (MathMapT(key, elem), underlyingIdxType) if goAssignableTo(idxType, key) || goAssignableTo(underlyingIdxType, key) =>
           InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
         case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
       }

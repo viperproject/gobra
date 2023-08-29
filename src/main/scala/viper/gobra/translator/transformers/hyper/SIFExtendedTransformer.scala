@@ -275,12 +275,23 @@ trait SIFExtendedTransformer {
     * ] ->
     *
     * method M(p1,p2,t1,t2,x...,x'...) returns (t1_,t2_,r...,r'...)
-    *   requires AllVarsAndStateLow[P]
-    *   ensures  AllVarsAndStateLow[Q]
-    *   ensures  AllVarsAndStateLow[old(P)] ==> AllVarsAndStateLow[Q] // if `M` is in [[preservesLowMethods]]
+    *   requires Assertion[P]
+    *   requires Assertion[AllVarsAndStateLow[P] ]
+    *   requires Assertion[!TERMINATION ==> low_event] && Assertion[low(TERMINATION)] // if SIFTerminatesExp exists in precondition P
+    *   ensures  Assertion[Q]
+    *   ensures  Assertion[AllVarsAndStateLow[Q] ]
+    *   ensures  Assertion[AllVarsAndStateLow[old(P)] ==> AllVarsAndStateLow[Q] ] // if `M` is in [[preservesLowMethods]]
+    *   ensures  old(TERMINATION) // if SIFTerminatesExp exists in precondition P
+    *   ensures  !p1 ==> t1 == t1_ // if timing if active
+    *   ensures  !p2 ==> t2 == t2_ // if timing if active
     * {
-    *
+    *    assume p1
+    *    t1_ := t1; t2_ := t2;
+    *    [[createControlFlowVars]](z)
+    *    Statement[z]
     * }
+    *
+    *   where z is [[inferLowLoopInvariants]](s) if M is all low or preserves low and otherwise, s.
     *
     */
   def translateMethod(m: Method) : Method = {
@@ -500,7 +511,7 @@ trait SIFExtendedTransformer {
 
   def createControlFlowVars(methodBody: Seqn): MethodControlFlowVars = {
     val gotos = methodBody.collect({case Goto(l) => l}).toSet
-    val labels = methodBody.collect({case l@Label(n, _) if gotos.contains(n) => l}).toSet
+    val labels = methodBody.collect({case l@Label(n, _) if gotos.contains(n) => l}).toSet // targets of gotos
     if (!Config.optimizeControlFlow) return new MethodControlFlowVars(true, true, true, true, labels)
     var hasRet, hasBreak, hasCont, hasExcept: Boolean = false
     methodBody.visit({
@@ -526,6 +537,11 @@ trait SIFExtendedTransformer {
 
   }
 
+  /**
+    * define TerminationChannelsLowChecks
+    *
+    * TerminationChannelsLowChecks[P] -> Assertion[!P ==> low_event] && Assertion[low(P)]
+    */
   private def terminationChannelsLowChecks(terminates: SIFTerminatesExp,
                                            ctx: TranslationContext): Seq[Exp] = {
     val condLowEventReasonTrafo = ErrTrafo({case _ =>
@@ -998,6 +1014,11 @@ trait SIFExtendedTransformer {
     Seqn(stmts, newVarDecls)(info = SimpleInfo(Seq("Try/catch block\n  ")))
   }
 
+  /**
+    * define Statement
+    *
+    * Statement[]
+    */
   def translateStatement(s: Stmt, ctx: TranslationContext) : Stmt = {
     val p1 = ctx.p1
     val p2 = ctx.p2
@@ -1446,8 +1467,26 @@ trait SIFExtendedTransformer {
     * Assertion[low(e)] -> (p1 && p2) ==> Eq[low(e)]
     * Assertion[low(e) with dyn] -> (p1 && p2 && Normal[dyn] == Prime[dyn]) ==> Eq[low(e)] if dci.onlyDynVersion
     * Assertion[low(e) with dyn] -> InEx((p1 && p2 && Normal[dyn] == Prime[dyn]) ==> Eq[low(e)],
-    *                                    (p1 && p2) ==> Eq[low(e)]) if !dci.onlyDynVersion
+    *                                    (p1 && p2) ==> Eq[low(e)]) if !dyn.onlyDynVersion
+    * Assertion[Low(e)] -> Assertion[low(e)]
     *
+    * Assertion[p(e...)] -> Default[p(e..)] // if p is not relational
+    * Assertion[p(e...)] -> Default[p(e..)] && (LHS ==> q(e..., Prime[e...]) )
+    *   where (q,LHS) = getPredicateLowFuncExp(p)
+    * Assertion[p(e...) with dyn] -> Default[p(e..)] && (Normal[dyn] == Prime[dyn] && LHS ==> q(e..., Prime[e...]))
+    *   where (q,LHS) = getPredicateLowFuncExp(p) if dyn.onlyDynVersion
+    * Assertion[p(e...) with dyn] -> Default[p(e..)] && InEx(Normal[dyn] == Prime[dyn] && LHS ==> q(e..., Prime[e...]),
+    *                                                        LHS ==> q(e..., Prime[e...])
+    *   where (q,LHS) = getPredicateLowFuncExp(p) if !dyn.onlyDynVersion
+    *
+    * Assertion[p_all_low(e...)] -> (p1 && p2) ==> p_all_low(e...)
+    *
+    * Assertion[unfolding p in e] ->
+    *   (p1 && p2) ==> unfolding Normal[p] in unfolding Prime[p] in Assertion[e] // if e has low expr
+    *
+    * Assertion[sif_terminate] -> true
+    *
+    * Assertion[otherwise] -> Default[otherwise]
     *
     */
   def translateSIFAss(e: Exp, ctx: TranslationContext, relAssertCtx: TranslationContext = null): Exp = {
@@ -1511,7 +1550,7 @@ trait SIFExtendedTransformer {
         val act1 = ctx.ctrlVars.activeExecNoContNormal(None)
         val act2 = ctx.ctrlVars.activeExecNoContPrime(None)
         Implies(And(relCtx.p1, relCtx.p2)(), EqCmp(act1, act2)(e.pos, errT = fwTs(e, e)))(e.pos, errT = fwTs(e, e))
-      case l@SIFLowExp(_, _, _) =>
+      case l: SIFLowExp =>
         val comparison = translateSIFLowExpComparison(l, relCtx.p1, relCtx.p2)
         val dynCheckInfo = l.info.getUniqueInfo[SIFDynCheckInfo]
         dynCheckInfo match {
@@ -1764,6 +1803,10 @@ trait SIFExtendedTransformer {
     }
   }
 
+  /**
+    * Returns predAllLowFunc(predName) if `m` is either all low or preserves low.
+    * Otherwise, returns predLowFunc(predName).
+    * */
   def getPredicateLowFunction(predName: String, m: Method): Option[Function] = {
     if (allLowMethods.contains(m.name) || preservesLowMethods.contains(m.name))
       predAllLowFuncs(predName)
@@ -1771,6 +1814,15 @@ trait SIFExtendedTransformer {
       predLowFuncs(predName)
   }
 
+  /**
+    * define LowFuncExp
+    *
+    * LowFuncExp[p] -> (None, true) if p is not relational
+    * LowFuncExp[p] -> ([[getPredicateLowFunction]](p), activeExecNormal && activeExecPrime) // if m does not preserve low
+    * LowFuncExp[p] ->
+    *   ([[getPredicateLowFunction]](p), activeExecNormal && activeExecPrime && Assertion[AllVarsAndStateLow[m.Pre]])
+    *   // if m preserves low
+    */
   def getPredicateLowFuncExp(predName: String, ctx: TranslationContext, acts: Option[(Exp, Exp)] = None): (Option[Function], Exp) = {
     val lowFunc = getPredicateLowFunction(predName, ctx.currentMethod)
     lazy val act1: Exp = if (acts.isDefined) acts.get._1 else ctx.ctrlVars.activeExecNormal(Some(ctx.p1))
@@ -1815,6 +1867,8 @@ trait SIFExtendedTransformer {
                                ) {}
 
   class MethodControlFlowVars(hasRet: Boolean, hasBreak: Boolean, hasCont: Boolean, hasExcept: Boolean, labels: Set[Label]) {
+    // `labels` are all the targets of gotos in a method
+
     // TODO REM: do not keep everything twice
     var ret1d, ret2d, break1d, break2d, cont1d, cont2d, except1d, except2d: Option[LocalVarDecl] = None
     var ret1r, ret2r, break1r, break2r, cont1r, cont2r, except1r, except2r: Option[LocalVar] = None

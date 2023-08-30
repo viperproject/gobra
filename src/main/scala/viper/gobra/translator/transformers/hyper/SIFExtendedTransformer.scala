@@ -509,6 +509,8 @@ trait SIFExtendedTransformer {
     }).map(v => v.name)
   }
 
+  /** Identifies all targets of gotos and whether returns,breaks, continsues, raises, and try catch exists
+    * and returns the corresponding control flow context.  */
   def createControlFlowVars(methodBody: Seqn): MethodControlFlowVars = {
     val gotos = methodBody.collect({case Goto(l) => l}).toSet
     val labels = methodBody.collect({case l@Label(n, _) if gotos.contains(n) => l}).toSet // targets of gotos
@@ -526,6 +528,10 @@ trait SIFExtendedTransformer {
     new MethodControlFlowVars(hasRet, hasBreak, hasCont, hasExcept, labels)
   }
 
+  /**
+    * if p1 { time1 += 1 }; if p2 { time2 += 1 } // if timing is active
+    * skip                                       // otherhwise
+    */
   def incrementTime(p1: Exp, p2: Exp) : Seqn = {
     if (timing){
       val timeInc1 = If(p1, Seqn(Seq(LocalVarAssign(time.get, Add(time.get, IntLit(1)())())()), Seq())(), skip)()
@@ -658,14 +664,71 @@ trait SIFExtendedTransformer {
       (Seq(pred1, pred2), Seq(lowF, None))
   }
 
+  /**
+    * bypass1 := !(p1 && !ret1 && !break1 && !cont1 && !except1 && !L1...)
+    *
+    * bypass2 := !(p2 && !ret2 && !break2 && !cont2 && !except2 && !L2...)
+    */
   private def bypassPreamble(p1: Exp, p2: Exp, ctrlVars: MethodControlFlowVars,
                              bypass1r: LocalVar, bypass2r: LocalVar): Seq[Stmt] = {
-    Seq(LocalVarAssign(bypass1r,
-      Not(ctrlVars.activeExecNormal(Some(p1)))())(),
-      LocalVarAssign(bypass2r, Not(ctrlVars.activeExecPrime(Some(p2)))())())
+    Seq(
+      LocalVarAssign(bypass1r, Not(ctrlVars.activeExecNormal(Some(p1)))())(),
+      LocalVarAssign(bypass2r, Not(ctrlVars.activeExecPrime(Some(p2)))())()
+    )
   }
 
-  /** Translate a while statement into MPP.
+  /**
+    * Translate a while statement into MPP.
+    *
+    * var bypass1 := !(p1 && !ret1 && !break1 && !cont1 && !except1 && !L1...)
+    * var bypass2 := !(p2 && !ret2 && !break2 && !cont2 && !except2 && !L2...)
+    * if bypass1 { tmp1_1 := Target_1; ... tmp1_N := Target_N }
+    * if bypass2 { tmp2_1 := P[Target_1]; ... tmp2_N := P[Target_N] }
+    * var old_ret1 := ret1; var old_ret2 := ret2; ... // forall control variables (includes lables)
+    * var idle1 := false; var idl2 := false // if invariant has InhaleExhaleExp
+    * // if there is a termination measure
+    *   assert Assertion[!Termination ==> low_event]
+    *   assert Assertion[low(Termination)]
+    *   var term_cond1, term_cond2
+    *   if p1 { term_cond1 := Termination }
+    *   if p2 { term_cond2 := P[Termination] }
+    * var p1_, p2_
+    *
+    * while (
+    *   (p1 && !ret1 && !break1 && !except1 && !L1... && !bypass1 && cond) ||
+    *   (p2 && !ret2 && !break2 && !except2 && !L2... && !bypass2 && P[cond])
+    * )
+    *   invariant Assertion[ I[ InEx(A,B) -> InEx(A, !idle1 ==> B ) ] ]< p1 && !bypass1, p2 && !bypass2 >
+    *   invariant Assertion[ !term_cond1 ==> cond ]< p1 && !bypass1, p2 && !bypass2 >
+    *   invariant (bypass1 ==> tmp1_1 == Target_1) && ... (bypass1 ==> tmp1_N == Target_N)
+    *   invariant (bypass2 ==> tmp2_1 == P[Target_1]) && ... (bypass2 ==> tmp2_N == P[Target_N]) // TODO REM: maybe group them
+    * {
+    *   // preamble
+    *   cont1 := false; cont2 := false
+    *   p1_ := a1 && cond; p2_ := a2 && P[cond]
+    *   idle1 := a1 && !cond; idle2 := a2 && !P[cond]      // if invariant has InhaleExhaleExp
+    *   // body
+    *   Statement[body]< p1_, p2_ >
+    * }
+    *
+    * if (!bypass1 && (ret1 || break1 || except1)) || (!bypass2 && (ret2 || break2 || except2)) {
+    *   ret1 := old_ret1; var ret2 := old_ret2;... // forall control variables (includes lables)
+    *   inhale p1 && !ret1 && !break1 && !except1 && !L1... ==> cond
+    *   inhale p2 && !ret2 && !break2 && !except2 && !L2... ==> Prime[cond]
+    *   
+    *   // preamble
+    *   cont1 := false; cont2 := false
+    *   p1_ := a1 && cond; p2_ := a2 && P[cond]
+    *   idle1 := a1 && !cond; idle2 := a2 && !P[cond]      // if invariant has InhaleExhaleExp
+    *   // body
+    *   Statement[body]< p1_, p2_ >
+    *
+    *   inhale !p1_ || !(p1 && !ret1 && !break1 && !except1 && !L1..)
+    *   inhale !p2_ || !(p2 && !ret2 && !break2 && !except2 && !L2..)
+    * }
+    *
+    * if !bypass1 { break1 := false; cont1 := false }
+    * if !bypass2 { break2 := false; cont2 := false }
     */
   private def translateWhileStmt(w: While, ctx: TranslationContext): Seqn = {
     val p1 = ctx.p1; val p2 = ctx.p2; val ctrlVars = ctx.ctrlVars
@@ -693,7 +756,8 @@ trait SIFExtendedTransformer {
     newVarDecls ++= Seq(bypass1d, bypass2d)
     var stmts: Seq[Stmt] = bypassPreamble(p1, p2, ctrlVars, bypass1r, bypass2r)
 
-    def targetCollectF: PartialFunction[Node, Seq[LocalVar]] = {
+    // modified variables
+    def targetCollectF: PartialFunction[Node, Seq[LocalVar]] = { // TODO REM: make val
       case LocalVarAssign(lhs, _) => Seq(lhs)
       case MethodCall(_, _, ts) => ts
       case NewStmt(t, _) => Seq(t)
@@ -711,15 +775,17 @@ trait SIFExtendedTransformer {
     }
 
     // continue and break control variables will be assigned even if there is no continue in this loop -> add to targets
-    val targets = w.deepCollect(targetCollectF).flatten.distinct ++ (if (ctrlVars.cont1r.isDefined)
-      Seq(ctrlVars.cont1r.get, ctrlVars.cont2r.get) else Seq()) ++ (if (ctrlVars.break1r.isDefined)
-      Seq(ctrlVars.break1r.get, ctrlVars.break2r.get) else Seq())
+    val targets = w.deepCollect(targetCollectF).flatten.distinct ++ // TODO REM: remove cont2 break2, they are too much
+      (if (ctrlVars.cont1r.isDefined) Seq(ctrlVars.cont1r.get, ctrlVars.cont2r.get) else Seq()) ++
+      (if (ctrlVars.break1r.isDefined) Seq(ctrlVars.break1r.get, ctrlVars.break2r.get) else Seq())
 
     var tmpAssigns1 = Seq[LocalVarAssign]()
     var tmpAssigns2 = Seq[LocalVarAssign]()
+    // tmpAssigns1 += tmp1_1 := t1...; tmpAssigns2 += tmp1_2 := P[t1]...,
+    // targetValEqualities1 += tmp1_1 == t1...; targetValEqualities2 += tmp1_2 == P[t2])
     for (t <- targets) {
       // make sure the variable is defined outside the loop
-      if (primedNames.contains(t.name)){
+      if (primedNames.contains(t.name)){ // TODO REM: should be an assert, but currently fails due to cont2 break2
         val (tmp1d, tmp1r) = getNewVar("tmp1", t.typ)
         val (tmp2d, tmp2r) = getNewVar("tmp2", t.typ)
         newVarDecls ++= Seq(tmp1d, tmp2d)
@@ -732,6 +798,9 @@ trait SIFExtendedTransformer {
         targetValEqualities2 ++= Seq(eq2)
       }
     }
+    // TODO REM: change to target.nonEmpty
+    // if bypass1 { tmp1_1 := Target_1; ... tmp1_N := Target_N }
+    // if bypass2 { tmp2_1 := P[Target_1]; ... tmp2_N := P[Target_N] }
     if (tmpAssigns1.nonEmpty) targetValAssigns :+= If(bypass1r, Seqn(tmpAssigns1, Seq())(), skip)()
     if (tmpAssigns2.nonEmpty) targetValAssigns :+= If(bypass2r, Seqn(tmpAssigns2, Seq())(), skip)()
 
@@ -747,12 +816,13 @@ trait SIFExtendedTransformer {
       targetValEqualities1 ++= Seq(eq1)
       targetValEqualities2 ++= Seq(eq2)
     }*/
-    stmts ++= targetValAssigns
+    stmts ++= targetValAssigns // TODO REM: inline targetValAssigns
 
     // tmp assigns for all ctrlVars
     var ctrlVarToOldMap: Map[LocalVar, LocalVar] = Map()
+    // old_ret1 := ret1; old_ret2 := ret2; ... forall control variables (including lables)
     if (recNeeded) {
-      var ctrlFlowTmpAssigns = Seq[Stmt]()
+      var ctrlFlowTmpAssigns = Seq[Stmt]() // TODO REM: remove
       for (v <- ctrlVars.declarations().map(d => d.localVar)) {
         val (tmp1d, tmp1r) = getNewBool("old" + v.name)
         ctrlVarToOldMap += (v -> tmp1r)
@@ -762,12 +832,18 @@ trait SIFExtendedTransformer {
       }
     }
 
-    val newCond = Or(And(And(ctrlVars.activeExecNoContNormal(Some(p1)), Not(bypass1r)())(), w.cond)(),
-      And(And(ctrlVars.activeExecNoContPrime(Some(p2)), Not(bypass2r)())(), translatePrime(w.cond, p1, p2))())()
+    // (p1 && !ret1 && !break1 && !except1 && !L1... && !bypass1 && cond) ||
+    // (p2 && !ret2 && !break2 && !except2 && !L2... && !bypass2 && P[cond])
+    val newCond = Or(
+      And(And(ctrlVars.activeExecNoContNormal(Some(p1)), Not(bypass1r)())(), w.cond)(),
+      And(And(ctrlVars.activeExecNoContPrime(Some(p2)), Not(bypass2r)())(), translatePrime(w.cond, p1, p2))()
+    )()
     var bodyPreamble: Seq[Stmt] = Seq()
+    // cont1 := false; cont2 := false
     if (ctrlVars.cont1r.isDefined) bodyPreamble = bodyPreamble :+
       LocalVarAssign(ctrlVars.cont1r.get, FalseLit()())() :+
       LocalVarAssign(ctrlVars.cont2r.get, FalseLit()())()
+    // var p1 := a1 && cond; var p2 := a2 && P[cond]
     val (p1d, p1r) = getNewBool("p1")
     val (p2d, p2r) = getNewBool("p2")
     newVarDecls ++= Seq(p1d, p2d)
@@ -810,8 +886,10 @@ trait SIFExtendedTransformer {
       val (cond2d, cond2r) = getNewBool("cond")
       primedNames.update(cond1r.name, cond2r.name)
       newVarDecls ++= Seq(cond1d, cond2d)
-      stmts ++= Seq(If(p1, Seqn(Seq(LocalVarAssign(cond1r, terminates.get.cond)()), Seq())(), skip)(),
-        If(p2, Seqn(Seq(LocalVarAssign(cond2r, translatePrime(terminates.get.cond, p1, p2))()), Seq())(), skip)())
+      stmts ++= Seq(
+        If(p1, Seqn(Seq(LocalVarAssign(cond1r, terminates.get.cond)()), Seq())(), skip)(),
+        If(p2, Seqn(Seq(LocalVarAssign(cond2r, translatePrime(terminates.get.cond, p1, p2))()), Seq())(), skip)()
+      )
       newStdInvs :+= Implies(Not(cond1r)(), w.cond)(
         terminates.get.pos, terminates.get.info, ErrTrafo({
           case _ => SIFTerminationChannelCheckFailed(terminates.get, SIFTermCondNotTight(terminates.get))
@@ -842,39 +920,52 @@ trait SIFExtendedTransformer {
 
     // loop reconstruction
     if (recNeeded) {
+      // !bypass1 && (ret1 || break1 || except1)
       val recCond1 = And(Not(bypass1r)(), Seq(ctrlVars.ret1r, ctrlVars.break1r, ctrlVars.except1r)
-        .collect({ case Some(x) => x })
+        .flatten
         .reduceRight[Exp]((x, y) => Or(x, y)())
       )()
+      // !bypass2 && (ret2 || break2 || except2)
       val recCond2 = And(Not(bypass2r)(), Seq(ctrlVars.ret2r, ctrlVars.break2r, ctrlVars.except2r)
-        .collect({ case Some(x) => x })
+        .flatten
         .reduceRight[Exp]((x, y) => Or(x, y)()))()
+      // (!bypass1 && (ret1 || break1 || except1)) || (!bypass2 && (ret2 || break2 || except2))
       val recCond = Or(recCond1, recCond2)()
       val ctrlVarAssigns: Seq[Stmt] = ctrlVars.declarations()
         .map(d => d.localVar)
         .map(v => LocalVarAssign(v, ctrlVarToOldMap(v))())
+      // inhale p1 && !ret1 && !break1 && !except1 && !L1... ==> cond
+      // inhale p2 && !ret2 && !break2 && !except2 && !L2... ==> Prime[cond]
       val recInhales: Seq[Stmt] = Seq() :+ //newStdInvs.map(i => Inhale(i)()) :+
         Inhale(Implies(ctrlVars.activeExecNoContNormal(Some(p1)), w.cond)())() :+
         Inhale(Implies(ctrlVars.activeExecNoContNormal(Some(p2)), translatePrime(w.cond, p1, p2))())()
+      // inhale !p1_ || !(p1 && !ret1 && !break1 && !except1 && !L1..)
+      // inhale !p2_ || !(p2 && !ret2 && !break2 && !except2 && !L2..)
       val recKillInhales: Seq[Stmt] = Seq(
         Inhale(Or(Not(p1r)(), Not(ctrlVars.activeExecNoContNormal(None))())())(),
         Inhale(Or(Not(p2r)(), Not(ctrlVars.activeExecNoContPrime(None))())())()
       )
       val recThn = Seqn(
-        (ctrlVarAssigns ++ recInhales ++ bodyPreamble ++ Seq(bodyRes) ++ recKillInhales),
-        Seq())()
+        ctrlVarAssigns ++ recInhales ++ bodyPreamble ++ Seq(bodyRes) ++ recKillInhales,
+        Seq()
+      )()
       stmts :+= If(recCond, recThn, skip)(info=SimpleInfo(Seq("Loop Reconstruction.\n  ")))
     }
+
+    // if !bypass1 { break1 := false; cont1 := false }
+    // if !bypass2 { break2 := false; cont2 := false }
     if (Seq(ctrlVars.break1r, ctrlVars.cont1r).collect({case Some(x) => x}).nonEmpty) {
       stmts ++= Seq(
-        If(Not(bypass1r)(), Seqn(Seq(ctrlVars.break1r, ctrlVars.cont1r)
-          .collect({ case Some(x) => x })
-          .map(v => LocalVarAssign(v, FalseLit()())()),
-          Seq())(), skip)(),
-        If(Not(bypass2r)(), Seqn(Seq(ctrlVars.break2r, ctrlVars.cont2r)
-          .collect({ case Some(x) => x })
-          .map(v => LocalVarAssign(v, FalseLit()())()),
-          Seq())(), skip)()
+        If(
+          Not(bypass1r)(),
+          Seqn(Seq(ctrlVars.break1r, ctrlVars.cont1r).flatten.map(v => LocalVarAssign(v, FalseLit()())()), Seq())(),
+          skip
+        )(),
+        If(
+          Not(bypass2r)(),
+          Seqn(Seq(ctrlVars.break2r, ctrlVars.cont2r).flatten.map(v => LocalVarAssign(v, FalseLit()())()),Seq())(),
+          skip
+        )()
       )
     }
     Seqn(stmts, newVarDecls)()
@@ -1027,11 +1118,14 @@ trait SIFExtendedTransformer {
     lazy val act2: Exp = ctx.ctrlVars.activeExecPrime(Some(p2))
     lazy val isInPreservesLow: Boolean = preservesLowMethods.contains(ctx.currentMethod.name)
 
+    /** if a1 { ift1 }; if a2 { ift2 }; if p1 { time1 += 1 }; if p2 { time1 += 1 }; */
     def executeConditionally(ift1: Seqn, ift2: Seqn): Stmt = {
       val a1 = If(act1, ift1, skip)()
       val a2 = If(act2, ift2, skip)()
       Seqn(Seq(a1, a2, incrementTime(p1, p2)), Seq())()
     }
+
+    /** if a1 { to1 := v1 }; if a2 { to2 := v2 }; if p1 { time1 += 1 }; if p2 { time1 += 1 }; */
     def translateAssignment(to1: LocalVar, v1: Exp, to2: LocalVar, v2: Exp, orig: Stmt) : Stmt = {
       executeConditionally(
         Seqn(Seq(LocalVarAssign(to1, v1)(orig.pos, orig.info, orig.errT)), Seq())(),
@@ -1056,52 +1150,86 @@ trait SIFExtendedTransformer {
       }
     }
 
-    /** Do the translation of a statement without wrapping it in an if statement. Just returns the two versions in a
-      * tuple, to allow putting multiple statements in an if block. Requires [[isCompressible(s)]].
+    /**
+      * Do the translation of a statement without wrapping it in an if statement.
+      * Just returns the two versions (normal and prime) in a tuple,
+      * to allow putting multiple statements in an if block.
+      * Requires [[isCompressible(s)]].
+      *
+      * define StmtPartial
+      *
+      * StmtPartial[x := e] -> ( Normal[x] := Normal[e], Prime[x] := Prime[e] )
+      * StmtPartial[e1.f := e2] -> ( e1.f := e2, Prime[e1.f] := Prime[e2] )
+      * StmtPartial[inhale e] -> (inhale Normal[e], inhale Prime[e])
+      * StmtPartial[exhale e] -> (exhale Normal[e], exhale Prime[e])
+      * StmtPartial[break] -> (break1 := true, break2 := true)
+      * StmtPartial[continue] -> (cont1 := true, cont2 := true)
+      * StmtPartial[return v := e] -> (Normal[v] := Normal[e]; ret1 := true, Prime[v] := Prime[e]; ret2 := true)
+      *
       */
     def translateStmtPartial(s: Stmt): (Stmt, Stmt) = {
       assert(isCompressible(s))
       s match {
-        case l@LocalVarAssign(lhs, rhs) => (LocalVarAssign(translateNormal(lhs, p1, p2),
-          translateNormal(rhs, p1, p2))(l.pos, l.info, l.errT),
-          LocalVarAssign(translatePrime(lhs, p1, p2), translatePrime(rhs, p1, p2))(l.pos, l.info, l.errT))
-        case a@FieldAssign(lhs, rhs) => (a, FieldAssign(translatePrime(lhs, p1, p2),
-          translatePrime(rhs, p1, p2))(a.pos, a.info, a.errT))
-        case i@Inhale(e) => (Inhale(translateNormal(e, p1, p2))(i.pos, i.info, i.errT),
-          Inhale(translatePrime(e, p1, p2))(i.pos, i.info, i.errT))
-        case ex@Exhale(e) => (Exhale(translateNormal(e, p1, p2))(ex.pos, ex.info, ex.errT),
-          Exhale(translatePrime(e, p1, p2))(ex.pos, ex.info, ex.errT))
-        case b: SIFBreakStmt => {
+        case l@LocalVarAssign(lhs, rhs) =>
+          ( // ( Normal[lhs] := Normal[rhs], Prime[lhs] := Prime[rhs] )
+            LocalVarAssign(translateNormal(lhs, p1, p2), translateNormal(rhs, p1, p2))(l.pos, l.info, l.errT),
+            LocalVarAssign(translatePrime(lhs, p1, p2), translatePrime(rhs, p1, p2))(l.pos, l.info, l.errT)
+          )
+        case a@FieldAssign(lhs, rhs) =>
+          ( // ( lhs := rhs, Prime[lhs] := Prime[rhs] )
+            a, // TODO CHECK: why is translateNormal not used
+            FieldAssign(translatePrime(lhs, p1, p2), translatePrime(rhs, p1, p2))(a.pos, a.info, a.errT)
+          )
+        case i@Inhale(e) =>
+          ( // ( inhale Normal[e], inhale Prime[e] )
+            Inhale(translateNormal(e, p1, p2))(i.pos, i.info, i.errT),
+            Inhale(translatePrime(e, p1, p2))(i.pos, i.info, i.errT)
+          )
+        case ex@Exhale(e) =>
+          ( // ( exhale Normal[e], exhale Prime[e] )
+            Exhale(translateNormal(e, p1, p2))(ex.pos, ex.info, ex.errT),
+            Exhale(translatePrime(e, p1, p2))(ex.pos, ex.info, ex.errT)
+          )
+        case b: SIFBreakStmt =>
           // TODO
-          (LocalVarAssign(ctrlVars.break1r.get, TrueLit()())(b.pos, b.info, b.errT),
-            LocalVarAssign(ctrlVars.break2r.get, TrueLit()())(b.pos, b.info, b.errT))
-        }
-        case c: SIFContinueStmt => (LocalVarAssign(ctrlVars.cont1r.get, TrueLit()())(c.pos, c.info, c.errT),
-          LocalVarAssign(ctrlVars.cont2r.get, TrueLit()())(c.pos, c.info, c.errT))
+          ( // ( break1 := true, break2 := true )
+            LocalVarAssign(ctrlVars.break1r.get, TrueLit()())(b.pos, b.info, b.errT),
+            LocalVarAssign(ctrlVars.break2r.get, TrueLit()())(b.pos, b.info, b.errT)
+          )
+        case c: SIFContinueStmt =>
+          ( // ( cont1 := true, cont2 := true )
+            LocalVarAssign(ctrlVars.cont1r.get, TrueLit()())(c.pos, c.info, c.errT),
+            LocalVarAssign(ctrlVars.cont2r.get, TrueLit()())(c.pos, c.info, c.errT)
+          )
         case r@SIFReturnStmt(e, resVar) =>
-        {
+          // ( Normal[resVar] := Normal[e]; ret1 := true, Prime[resVar] := Prime[e]; ret2 := true )
           // TODO
           val assign1 = resVar match {
-            case Some(rv) => Seq(LocalVarAssign(translateNormal(rv, p1, p2),
-              translateNormal(e.get, p1, p2))(r.pos, r.info, r.errT))
+            case Some(rv) =>
+              Seq(LocalVarAssign(translateNormal(rv, p1, p2), translateNormal(e.get, p1, p2))(r.pos, r.info, r.errT))
             case None => Seq()
           }
           val assign2 = resVar match {
-            case Some(rv) => Seq(LocalVarAssign(translatePrime(rv, p1, p2),
-              translatePrime(e.get, p1, p2))(r.pos, r.info, r.errT))
+            case Some(rv) =>
+              Seq(LocalVarAssign(translatePrime(rv, p1, p2), translatePrime(e.get, p1, p2))(r.pos, r.info, r.errT))
             case None => Seq()
           }
-          (Seqn(assign1 :+ LocalVarAssign(ctrlVars.ret1r.get, TrueLit()())(), Seq())(),
-            Seqn(assign2 :+ LocalVarAssign(ctrlVars.ret2r.get, TrueLit()())(), Seq())())
-        }
+          (
+            Seqn(assign1 :+ LocalVarAssign(ctrlVars.ret1r.get, TrueLit()())(), Seq())(),
+            Seqn(assign2 :+ LocalVarAssign(ctrlVars.ret2r.get, TrueLit()())(), Seq())()
+          )
 
         case _ => throw new IllegalArgumentException(s"The statement $s can't be translated partially")
       }
     }
 
+    /**
+      * translate the statements of `in`, splitting statements into blocks as late as possible.
+      */
     def optimizeSequential(s: Seqn): Seq[Stmt] = {
+
+      /** split after return, break, continue, raise b.c. the ctrlVars will have changed */
       def sequenceSplit(in: Seq[Stmt]): (Seq[Stmt], Seq[Stmt]) = {
-        // ensure that we make a split after return, break, continue, raise, because the ctrlVars will have changed
         var stop: Boolean = false
         def keepGoing(stmt: Stmt): Boolean = {
           val oldStop = stop
@@ -1120,7 +1248,7 @@ trait SIFExtendedTransformer {
       var newStmts = Seq[Stmt]()
       var (comp, rest) = sequenceSplit(s.ss)
       //      println("optimizing compressible statements:")
-      while (comp.nonEmpty || rest.nonEmpty) {
+      while (comp.nonEmpty || rest.nonEmpty) { // TODO CHECK: if comp.isEmpty then why not optimize afterwards?
         //        println(s"split into comp: $comp and rest: $rest")
         // collect all compressible statements we have until here
         if (comp.nonEmpty) {
@@ -1142,13 +1270,17 @@ trait SIFExtendedTransformer {
     }
 
     s match {
+      // if a1 { N[lhs] := N[rhs] }; if a2 { P[lhs] := P[rhs] };  (timing omitted)
       case l@LocalVarAssign(lhs, rhs)  => translateAssignment(translateNormal(lhs, p1, p2),
         translateNormal(rhs, p1, p2), translatePrime(lhs, p1, p2), translatePrime(rhs, p1, p2), l)
-      case a@FieldAssign(lhs, rhs)  => executeConditionally(Seqn(Seq(a), Seq())(),
+      // if a1 { lhs := rhs }; if a2 { P[lhs] := P[rhs] }
+      case a@FieldAssign(lhs, rhs)  => // TODO BUG: no update of timing
+        executeConditionally(Seqn(Seq(a), Seq())(),
         Seqn(Seq(FieldAssign(translatePrime(lhs, p1, p2),
           translatePrime(rhs, p1, p2))(a.pos, a.info, a.errT)), Seq())())
-      case n@NewStmt(lhs, fields) => {
-        val allFields = fields ++ fields.map{f => newFields.find(f2 => f2.name == primedNames(f.name)).get}
+      // var tmp; tmp := new(fields...,fields'...); if a1 { lhs := tmp }; if a2 { P[lhs] := tmp }
+      case NewStmt(lhs, fields) =>
+        val allFields = fields ++ fields.map{f => newFields.find(f2 => f2.name == primedNames(f.name)).get} // TODO REM: outline field outline
         val (tmpd, tmpr) = getNewVar("tmp", Ref)
         val newNew = NewStmt(tmpr, allFields)()
         /*val allFieldAssigns = allFields.map { f =>
@@ -1157,11 +1289,15 @@ trait SIFExtendedTransformer {
           Seqn(Seq(FieldAssign(fieldAcc, hr)()), Seq(hd))()
         }*/
         val assign1 = If(act1, Seqn(Seq(LocalVarAssign(lhs, tmpr)()), Seq())(), skip)()
-        val assign2 = If(act2, Seqn(Seq(LocalVarAssign(translatePrime(lhs, p1, p2), tmpr)()),
-          Seq())(), skip)()
+        val assign2 = If(act2, Seqn(Seq(LocalVarAssign(translatePrime(lhs, p1, p2), tmpr)()), Seq())(), skip)()
         Seqn(Seq(newNew) ++  /*allFieldAssigns ++*/ Seq(assign1, assign2, incrementTime(p1, p2)), Seq(tmpd))()
-      }
-      case i@If(cond, thn, els) => {
+
+      // var p1_, p2_, p3_, p4_;
+      // p1_ := a1 && cond; p2_ := a2 && P[cond]; p3_ := a1 && !cond; p4 := a2 && !P[cond]
+      // if p1 { time1 += 1 }; if p2 { time2 += 1 }
+      // Statement[thn]<p1_, p2_>
+      // Statement[els]<p3_, p4_>
+      case i@If(cond, thn, els) =>
         val (p1d, p1r) = getNewBool("p1")
         val (p2d, p2r) = getNewBool("p2")
         val (p3d, p3r) = getNewBool("p3")
@@ -1175,9 +1311,21 @@ trait SIFExtendedTransformer {
         val thnRes = translateStatement(thn, TranslationContext(p1r, p2r, ctrlVars, ctx.currentMethod))
         val elsRes = translateStatement(els, TranslationContext(p3r, p4r, ctrlVars, ctx.currentMethod))
         Seqn(Seq(p1Assign, p2Assign, p3Assign, p4Assign, incrementTime(p1, p2), thnRes, elsRes), Seq(p1d, p2d, p3d, p4d))()
-      }
+
       case w: While => translateWhileStmt(w, ctx)
-      case mc@MethodCall(name, args, targets) => {
+
+      /**
+        * if a1 || a2 {
+        *   var tmp1_1, ..., tmp1_N, tmp2_1, ..., tmp2_N;
+        *   var tmp3_1, ..., tmp3_M, tmp4_1, ..., tmp4_M;
+        *   if a1 { tmp1_1 := e1; ... tmp1_N := eN; }
+        *   if a2 { tmp2_1 := P[e1]; ... tmp2_N := P[eN]; }
+        *   tmp3_1, ..., tmp3_M, tmp4_1, ..., tmp4_M := m(a1, a2, tmp1_1, ..., tmp1_N, tmp2_1, ..., tmp2_N)
+        *   if a1 { r1 := tmp3_1; ... rM := tmp3_M; }
+        *   if a2 { P[r1] := tmp4_1; ... P[rM] := tmp4_M }
+        * }
+        */
+      case mc@MethodCall(name, args, targets) =>
         var argDecls = Seq[LocalVarDecl]()
         var newArgs = Seq[Exp](act1, act2)
         var argAssigns1 = Seq[LocalVarAssign]()
@@ -1187,6 +1335,7 @@ trait SIFExtendedTransformer {
           newArgs ++= Seq(time.get, translatePrime(time.get, p1, p2))
         }
 
+        // tmp1_1 := e1; tmp2_1 := P[e1]; ... tmp1_N := eN; tmp2_N := P[eN]
         for (a <- args){
           val (tmp1d, tmp1r) = getNewVar("tmp1", a.typ)
           val (tmp2d, tmp2r) = getNewVar("tmp2", a.typ)
@@ -1227,37 +1376,52 @@ trait SIFExtendedTransformer {
           Seqn(argAssignsConditional ++ Seq(call) ++ targetAssignsConditional, argDecls ++ targetDecls)(),
           skip
         )(info = SimpleInfo(Seq(s"Method call: $name\n  ")))
-      }
-      case s: Seqn => {
+
+      case s: Seqn =>
         val seq = if (Config.optimizeSequential) flattenSeqn(s) else s
         var newDecls = Seq[Declaration]()
-        for (d <- seq.scopedDecls.filter(d => d.isInstanceOf[LocalVarDecl])){
+        for (d <- seq.scopedDecls.collect{ case d: LocalVarDecl => d }){ // add prime local variable declarations
           val newName = getUnusedName(d.name)
           primedNames.update(d.name, newName)
-          val newD = LocalVarDecl(newName, d.asInstanceOf[LocalVarDecl].typ)()
+          val newD = LocalVarDecl(newName, d.typ)()
           newDecls ++= Seq(d, newD)
         }
-        newDecls ++= seq.scopedDecls.filter(d => d.isInstanceOf[Label])
-        val newStmts = if (Config.optimizeSequential) optimizeSequential(seq)
-        else seq.ss.map{stmt => translateStatement(stmt, ctx)}
+        newDecls ++= seq.scopedDecls.collect{ case d: Label => d }
+        val newStmts =
+          if (Config.optimizeSequential) optimizeSequential(seq) // optimize if configured
+          else seq.ss.map{stmt => translateStatement(stmt, ctx)} // otherwise, just translate every statement separately
         Seqn(newStmts, newDecls)()
-      }
+
+      // assert/exhale/assume/inhale Assertion[ass]
       case a@Assert(e1) =>
         val newCtx = a.info.getUniqueInfo[SIFInfo] match {
-          case Some(info) if info.continueUnaware => ctx.copy(p1 = ctrlVars.activeExecNoContNormal(Some(p1)),
-            p2 = ctrlVars.activeExecNoContPrime(Some(p2)))
+          case Some(info) if info.continueUnaware =>
+            ctx.copy(p1 = ctrlVars.activeExecNoContNormal(Some(p1)), p2 = ctrlVars.activeExecNoContPrime(Some(p2)))
           case _ => ctx.copy(p1 = act1, p2 = act2)
         }
         Assert(translateSIFAss(e1, newCtx))(s.pos, errT= fwTs(s, s))
-      case i@Inhale(FalseLit()) => i
+      case i@Inhale(FalseLit()) => i // TODO REM: why is this necessary
       case Assume(e1) => Assume(translateSIFAss(e1, ctx.copy(p1 = act1, p2 = act2)))(s.pos, errT= fwTs(s, s))
       case Inhale(e1) => Inhale(translateSIFAss(e1, ctx.copy(p1 = act1, p2 = act2)))(s.pos, errT= fwTs(s, s))
       case Exhale(e1) => Exhale(translateSIFAss(e1, ctx.copy(p1 = act1, p2 = act2)))(s.pos, errT= fwTs(s, s))
       case d : LocalVarDeclStmt => d
+
+      /** if unfolded predicate is not relational:
+        *   skip; unfold acc(p(e...),w); unfold acc(p'(P[e...]), P[w])
+        * otherwise:
+        *   assert lhs && perm(p(e...)) >= write && perm(p'(P[e...])) >= write ==> q(e...,P[e...]) == True
+        *   unfold acc(p(e...),w); unfold acc(p'(P[e...]), P[w])
+        * where (q, lhs) = [[getPredicateLowFuncExp]](p)
+        * */
       case u@Unfold(acc) =>
-        val predicate2 = PredicateAccess(acc.loc.args.map(a => translatePrime(a, p1, p2)),
-          primedNames(acc.loc.predicateName))()
+        val predicate2 = PredicateAccess( // p'(P[e...])
+          acc.loc.args.map(a => translatePrime(a, p1, p2)), primedNames(acc.loc.predicateName)
+        )()
         val (lowFunc, lhs) = getPredicateLowFuncExp(acc.loc.predicateName, ctx)
+        /** skip // if unfolded predicate is not relational
+          * assert lhs && perm(p(e...)) >= write && perm(p'(P[e...])) >= write ==> q(e...,P[e...])
+          *   where (q, lhs) = [[getPredicateLowFuncExp]](p)
+          **/
         val assert = lowFunc match {
           case Some(f) =>
             val et = ErrTrafo({case _: AssertFailed => errors.UnfoldFailed(u, SIFUnfoldNotLow(u))})
@@ -1269,15 +1433,23 @@ trait SIFExtendedTransformer {
                   PermGeCmp(CurrentPerm(predicate2)(), FullPerm()())()
                 )(),
                 FuncApp(f, acc.loc.args ++ acc.loc.args.map(a => translatePrime(a, p1, p2)))()
-              )())()
-            )(u.pos, u.info, errT = et)
-          case None => skip
+              )()
+            )())(u.pos, u.info, errT = et)
+          case None => skip // unfolded predicate is not relational
         }
         val if1 = If(act1, Seqn(Seq(u), Seq())(), skip)()
         val if2 = If(act2, Seqn(Seq(
           Unfold(PredicateAccessPredicate(predicate2, translatePrime(acc.perm, p1, p2))())(u.pos, u.info, u.errT)
         ), Seq())(), skip)()
         Seqn(Seq(assert, if1, if2), Seq())()
+
+      /** if unfolded predicate is not relational:
+        *   fold acc(p(e...),w); fold acc(p'(P[e...]), P[w]); skip
+        * otherwise:
+        *   fold acc(p(e...),w); fold acc(p'(P[e...]), P[w])
+        *   assert lhs ==> q(e...,P[e...]) == True
+        * where (q, lhs) = [[getPredicateLowFuncExp]](p)
+        * */
       case f@Fold(acc) =>
         val if1 = If(act1, Seqn(Seq(f), Seq())(), skip)()
         val if2 = If(act2, Seqn(Seq(
@@ -1297,21 +1469,26 @@ trait SIFExtendedTransformer {
           case None => skip
         }
         Seqn(Seq(if1, if2, assert), Seq())()
-      case r: SIFReturnStmt => {
-        // TODO
+
+      // if a1 { Normal[v] := Normal[e]; ret1 := true }; if a2 { Prime[v] := Prime[e]; ret2 := true }
+      case r: SIFReturnStmt =>
         val (first, second) = translateStmtPartial(r).asInstanceOf[(Seqn, Seqn)]
         val r1 = If(act1, first, skip)()
         val r2 = If(act2, second, skip)()
         Seqn(Seq(r1, r2, incrementTime(p1, p2)), Seq())()
-      }
-      case b@SIFBreakStmt() => {
-        // TODO
-        translateAssignment(ctrlVars.break1r.get, TrueLit()(),
-          ctrlVars.break2r.get, TrueLit()(), b)
-      }
-      case c@SIFContinueStmt() => translateAssignment(ctrlVars.cont1r.get, TrueLit()(),
-        ctrlVars.cont2r.get, TrueLit()(), c)
+
+      // if a1 { break1 := true }; if a2 { break2 := true }
+      case b@SIFBreakStmt() =>
+        translateAssignment(ctrlVars.break1r.get, TrueLit()(), ctrlVars.break2r.get, TrueLit()(), b)
+
+      // if a1 { cont1 := true }; if a2 { cont2 := true }
+      case c@SIFContinueStmt() =>
+        translateAssignment(ctrlVars.cont1r.get, TrueLit()(), ctrlVars.cont2r.get, TrueLit()(), c)
+
+      // Nagini specific
       case tryCatch: SIFTryCatchStmt => translateTryCatchStmt(tryCatch, ctx)
+
+      // Nagini specific
       case SIFRaiseStmt(assignment) =>
         var stmts = Seq[Stmt]()
         val assign1 = assignment match {
@@ -1333,36 +1510,48 @@ trait SIFExtendedTransformer {
             .collect({case Some(x) => x}), Seq())(),
           skip)()
         Seqn(stmts, Seq())()
-      case d@SIFDeclassifyStmt(e) => Inhale(Implies(
-        And(act1, act2)(), EqCmp(translateNormal(e, p1, p2), translatePrime(e, p1, p2))()
-      )())(d.pos, d.info, d.errT)
+
+      // inhale (a1 && a2) ==> N[e] == P[e]
+      case d@SIFDeclassifyStmt(e) =>
+        Inhale(Implies(
+          And(act1, act2)(), EqCmp(translateNormal(e, p1, p2), translatePrime(e, p1, p2))()
+        )())(d.pos, d.info, d.errT)
+
+      // exhale (p1 ==> !except1) && (p2 ==> !except2) // if except vars exist, otherwise skip.
       case SIFAssertNoException() =>
-        val exp: Exp = if (ctrlVars.except1r.isDefined) And(
-          Implies(p1, Not(ctrlVars.except1r.get)())(s.pos, s.info, s.errT),
-          Implies(p2, Not(ctrlVars.except2r.get)())(s.pos, s.info, s.errT)
-        )(s.pos, s.info, s.errT)
-        else TrueLit()()
+        val exp: Exp =
+          if (ctrlVars.except1r.isDefined)
+            And(
+              Implies(p1, Not(ctrlVars.except1r.get)())(s.pos, s.info, s.errT),
+              Implies(p2, Not(ctrlVars.except2r.get)())(s.pos, s.info, s.errT)
+            )(s.pos, s.info, s.errT)
+          else TrueLit()()
         Exhale(exp)(s.pos, s.info, s.errT)
       case SIFInlinedCallStmt(stmts) =>
         val newCtrlVars = createControlFlowVars(stmts)
         val inlinedCtx = TranslationContext(p1, p2, newCtrlVars, ctx.currentMethod)
         Seqn(newCtrlVars.initAssigns() :+ translateStatement(stmts, inlinedCtx), newCtrlVars.declarations())()
-      case g@Goto(l) => {
-        val varName1 = ctrlVars.labelNames.get(l).get
-        val varName2 = primedNames.get(varName1).get
+
+      //  if a1 { l_var := true }; if a2 { l_var' := true }
+      case Goto(l) =>
+        val varName1 = ctrlVars.labelNames(l)
+        val varName2 = primedNames(varName1)
         val assign1 = If(act1, Seqn(Seq(LocalVarAssign(LocalVar(varName1, Bool)(), TrueLit()())()), Seq())(), Seqn(Seq(), Seq())())()
         val assign2 = If(act2, Seqn(Seq(LocalVarAssign(LocalVar(varName2, Bool)(), TrueLit()())()), Seq())(), Seqn(Seq(), Seq())())()
         Seqn(Seq(assign1, assign2), Seq())()
-      }
-      case lb@Label(l, _) if ctrlVars.labelNames.contains(l) => {
-        val varName1 = ctrlVars.labelNames.get(l).get
-        val varName2 = primedNames.get(varName1).get
+
+      // label l
+      // if (p1 && !ret1 && !break1 && !cont1 && !except1 && !{L1-l_var}...) { l_var := false }
+      // if (p2 && !ret2 && !break2 && !cont2 && !except2 && !{L2-l_var'}...) { l_var' := false }
+      case lb@Label(l, _) if ctrlVars.labelNames.contains(l) => // if label is target of goto
+        val varName1 = ctrlVars.labelNames(l)
+        val varName2 = primedNames(varName1)
         val thisAct1 = ctx.ctrlVars.activeExecNormalExceptLabel(Some(p1), varName1)
         val thisAct2 = ctx.ctrlVars.activeExecPrimeExceptLabel(Some(p2), varName2)
         val assign1 = If(thisAct1, Seqn(Seq(LocalVarAssign(LocalVar(varName1, Bool)(), FalseLit()())()), Seq())(), Seqn(Seq(), Seq())())()
         val assign2 = If(thisAct2, Seqn(Seq(LocalVarAssign(LocalVar(varName2, Bool)(), FalseLit()())()), Seq())(), Seqn(Seq(), Seq())())()
         Seqn(Seq(lb, assign1, assign2), Seq())()
-      }
+
       case lb : Label => lb
       case other => throw new IllegalArgumentException("unexpected: " + other)
     }

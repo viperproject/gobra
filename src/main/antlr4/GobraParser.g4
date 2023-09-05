@@ -83,6 +83,7 @@ ghostPrimaryExpr: range
   | typeExpr
   | isComparable
   | low
+  | lowc
   | old
   | before
   | sConversion
@@ -128,6 +129,8 @@ before: BEFORE L_PAREN expression R_PAREN;
 isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 
 low: LOW L_PAREN expression R_PAREN;
+
+lowc: LOWC L_PAREN R_PAREN;
 
 typeOf: TYPE_OF L_PAREN expression R_PAREN;
 

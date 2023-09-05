@@ -146,7 +146,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case Some(p: ap.AdtClause) =>
           val fields = p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ))
-          AdtClauseT(fields.toMap, fields.map(_._1), p.symb.decl, p.symb.adtDecl, this)
+          AdtClauseT(fields.toMap, fields.map(_._1), p.symb.decl, p.symb.adtDecl, p.symb.context)
         case Some(p: ap.AdtField) =>
           p.symb match {
             case AdtDestructor(decl, _, context) => context.symbType(decl.typ)

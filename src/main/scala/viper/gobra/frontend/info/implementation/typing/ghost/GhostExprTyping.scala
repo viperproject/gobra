@@ -108,6 +108,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case PLow(e) => isExpr(e).out
+    case _: PLowContext => noMessages
 
     case n: PGhostEquals =>
       val lType = typ(n.left)
@@ -251,7 +252,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PTypeExpr => SortT
     case _: PIsComparable => BooleanT
 
-    case _: PLow => BooleanT
+    case _: PLow | _: PLowContext => BooleanT
     case _: PGhostEquals | _: PGhostUnequals => BooleanT
 
     case POptionNone(t) => OptionT(typeSymbType(t))
@@ -453,6 +454,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case n: PIsComparable => asExpr(n.exp).forall(go)
 
       case n: PLow => go(n.exp)
+      case _: PLowContext => true
 
       case PCompositeLit(typ, _) => typ match {
         case _: PArrayType | _: PImplicitSizeArrayType => !strong

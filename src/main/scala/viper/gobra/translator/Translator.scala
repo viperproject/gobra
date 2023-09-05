@@ -40,7 +40,7 @@ object Translator {
     val transformers: Seq[ViperTransformer] = Seq(
       new AssumeTransformer,
       new TerminationTransformer,
-      // new SIFTransformer
+      new SIFTransformer
     )
 
     val transformedTask = transformers.foldLeft[Either[Vector[VerifierError], BackendVerifier.Task]](Right(task)) {

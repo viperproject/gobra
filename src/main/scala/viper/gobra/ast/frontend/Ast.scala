@@ -1043,6 +1043,8 @@ case class PIsComparable(exp: PExpressionOrType) extends PGhostExpression
 
 case class PLow(exp: PExpression) extends PGhostExpression
 
+case class PLowContext() extends PGhostExpression
+
 case class PMagicWand(left: PExpression, right: PExpression) extends PGhostExpression
 
 /* ** Option types */

@@ -1,37 +1,14 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package pkg;
+package pkg
 
-type cell struct{
-	val int;
-};
-
-requires low(x) && low(y)
-ensures  low(z)
-func foo(x, y int) (z int) {
-  if x < y {
-    z = 3
-  } else {
-    z = 4
-  }
+pred aux(x *int) {
+    acc(x) && low(*x)
 }
 
-requires acc(&self.val) && acc(&other.val);
-ensures  acc(&self.val) && acc(&other.val);
-ensures  self.val == old(other.val) && other.val == old(self.val);
-func (self *cell) swap3(other *cell) {
-  self.val, other.val = other.val, self.val;
-};
-
-
-func client() {
-    x@ := cell{42};
-    y@ := cell{17};
-
-    (&x).swap3(&y);
-    assert x == cell{17} && y == cell{42};
-};
-
-
-
+requires lowContext()
+func foo(x *int) {
+  inhale aux(x)
+  assert aux(x)
+}

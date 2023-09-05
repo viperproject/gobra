@@ -1391,6 +1391,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case Vector("low", "(", expr: PExpression, ")") => PLow(expr)
   }
 
+  /**
+    */
+  override def visitLowc(ctx: LowcContext): AnyRef = super.visitLowc(ctx) match {
+    case Vector("lowContext",  "(", ")") => PLowContext()
+  }
+
 
   /**
     * Visits the rule

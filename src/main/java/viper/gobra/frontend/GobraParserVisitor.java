@@ -237,6 +237,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitLow(GobraParser.LowContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#lowc}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitLowc(GobraParser.LowcContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#typeOf}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

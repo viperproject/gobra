@@ -145,7 +145,7 @@ trait SIFExtendedTransformer {
 
     val newMethods: Seq[Method] = if (Config.onlyTransformMethodsWithRelationalSpecs) {
       val relationalMethods = p.methods.filter(m => m.existsDefined({
-        case e: Exp if !isUnary(e) => true
+        case e: Exp if !isDirectlyUnary(e) => true
       }))
       val unaryMethods = p.methods.filter(m => !relationalMethods.contains(m))
       relationalMethods.map(m => translateMethod(m)) ++ unaryMethods
@@ -224,7 +224,7 @@ trait SIFExtendedTransformer {
   def collectRelationalPredicates(p: Program, relPreds: mutable.HashSet[Predicate]): Unit = {
     /** Returns whether pred has low expression */
     def directlyRelational(pred: Predicate): Boolean = {
-      pred.body.isDefined && !isUnary(pred.body.get)
+      pred.body.isDefined && !isDirectlyUnary(pred.body.get)
     }
 
     relPreds.clear() // TODO REM
@@ -276,10 +276,10 @@ trait SIFExtendedTransformer {
     *
     * method M(p1,p2,t1,t2,x...,x'...) returns (t1_,t2_,r...,r'...)
     *   requires Assertion[P]
-    *   requires Assertion[AllVarsAndStateLow[P] ]
+    *   requires Assertion[AllVarsAndStateLow[P] ]                                    // if `M` is in [[allLowMethods]]
     *   requires Assertion[!TERMINATION ==> low_event] && Assertion[low(TERMINATION)] // if SIFTerminatesExp exists in precondition P
     *   ensures  Assertion[Q]
-    *   ensures  Assertion[AllVarsAndStateLow[Q] ]
+    *   ensures  Assertion[AllVarsAndStateLow[Q] ]                                // if `M` is in [[allLowMethods]]
     *   ensures  Assertion[AllVarsAndStateLow[old(P)] ==> AllVarsAndStateLow[Q] ] // if `M` is in [[preservesLowMethods]]
     *   ensures  old(TERMINATION) // if SIFTerminatesExp exists in precondition P
     *   ensures  !p1 ==> t1 == t1_ // if timing if active
@@ -456,9 +456,11 @@ trait SIFExtendedTransformer {
     *
     * Lowness[P,Q] =
     *   (
-    *     P && AllVarsAndStateLow[P],
-    *     Q && AllVarsAndStateLow[Q]
-    *       && AllVarsAndStateLow[old(P)] ==> AllVarsAndStateLow[Q] // if `m` is in [[preservesLowMethods]]
+    *     P
+    *     && AllVarsAndStateLow[P], // if `m` is in [[allLowMethods]]
+    *     Q
+    *     && AllVarsAndStateLow[Q] // if `m` is in [[allLowMethods]]
+    *     && AllVarsAndStateLow[old(P)] ==> AllVarsAndStateLow[Q] // if `m` is in [[preservesLowMethods]]
     *   )
     */
   def addLownessConditions(m: Method, pres: Seq[Exp], posts: Seq[Exp]): (Seq[Exp], Seq[Exp]) = {
@@ -680,55 +682,55 @@ trait SIFExtendedTransformer {
   /**
     * Translate a while statement into MPP.
     *
-    * var bypass1 := !(p1 && !ret1 && !break1 && !cont1 && !except1 && !L1...)
-    * var bypass2 := !(p2 && !ret2 && !break2 && !cont2 && !except2 && !L2...)
-    * if bypass1 { tmp1_1 := Target_1; ... tmp1_N := Target_N }
-    * if bypass2 { tmp2_1 := P[Target_1]; ... tmp2_N := P[Target_N] }
-    * var old_ret1 := ret1; var old_ret2 := ret2; ... // forall control variables (includes lables)
-    * var idle1 := false; var idl2 := false // if invariant has InhaleExhaleExp
-    * // if there is a termination measure
-    *   assert Assertion[!Termination ==> low_event]
-    *   assert Assertion[low(Termination)]
-    *   var term_cond1, term_cond2
-    *   if p1 { term_cond1 := Termination }
-    *   if p2 { term_cond2 := P[Termination] }
-    * var p1_, p2_
-    *
-    * while (
-    *   (p1 && !ret1 && !break1 && !except1 && !L1... && !bypass1 && cond) ||
-    *   (p2 && !ret2 && !break2 && !except2 && !L2... && !bypass2 && P[cond])
-    * )
-    *   invariant Assertion[ I[ InEx(A,B) -> InEx(A, !idle1 ==> B ) ] ]< p1 && !bypass1, p2 && !bypass2 >
-    *   invariant Assertion[ !term_cond1 ==> cond ]< p1 && !bypass1, p2 && !bypass2 >
-    *   invariant (bypass1 ==> tmp1_1 == Target_1) && ... (bypass1 ==> tmp1_N == Target_N)
-    *   invariant (bypass2 ==> tmp2_1 == P[Target_1]) && ... (bypass2 ==> tmp2_N == P[Target_N]) // TODO REM: maybe group them
-    * {
-    *   // preamble
-    *   cont1 := false; cont2 := false
-    *   p1_ := a1 && cond; p2_ := a2 && P[cond]
-    *   idle1 := a1 && !cond; idle2 := a2 && !P[cond]      // if invariant has InhaleExhaleExp
-    *   // body
-    *   Statement[body]< p1_, p2_ >
-    * }
-    *
-    * if (!bypass1 && (ret1 || break1 || except1)) || (!bypass2 && (ret2 || break2 || except2)) {
-    *   ret1 := old_ret1; var ret2 := old_ret2;... // forall control variables (includes lables)
-    *   inhale p1 && !ret1 && !break1 && !except1 && !L1... ==> cond
-    *   inhale p2 && !ret2 && !break2 && !except2 && !L2... ==> Prime[cond]
-    *   
-    *   // preamble
-    *   cont1 := false; cont2 := false
-    *   p1_ := a1 && cond; p2_ := a2 && P[cond]
-    *   idle1 := a1 && !cond; idle2 := a2 && !P[cond]      // if invariant has InhaleExhaleExp
-    *   // body
-    *   Statement[body]< p1_, p2_ >
-    *
-    *   inhale !p1_ || !(p1 && !ret1 && !break1 && !except1 && !L1..)
-    *   inhale !p2_ || !(p2 && !ret2 && !break2 && !except2 && !L2..)
-    * }
-    *
-    * if !bypass1 { break1 := false; cont1 := false }
-    * if !bypass2 { break2 := false; cont2 := false }
+    * <br> var bypass1 := !(p1 && !ret1 && !break1 && !cont1 && !except1 && !L1...)
+    * <br> var bypass2 := !(p2 && !ret2 && !break2 && !cont2 && !except2 && !L2...)
+    * <br> if bypass1 { tmp1_1 := Target_1; ... tmp1_N := Target_N } // to derive that modified vars of non-active execs are unchanged
+    * <br> if bypass2 { tmp2_1 := P[Target_1]; ... tmp2_N := P[Target_N] }
+    * <br> var old_ret1 := ret1; var old_ret2 := ret2; ... // forall control variables (includes lables)
+    * <br> var idle1 := false; var idl2 := false // if invariant has InhaleExhaleExp
+    * <br> // if there is a termination measure
+    * <br>   assert Assertion[!Termination ==> low_event]
+    * <br>   assert Assertion[low(Termination)]
+    * <br>   var term_cond1, term_cond2
+    * <br>   if p1 { term_cond1 := Termination }
+    * <br>   if p2 { term_cond2 := P[Termination] }
+    * <br> var p1_, p2_
+    * <br>
+    * <br> while (
+    * <br>   (p1 && !ret1 && !break1 && !except1 && !L1... && !bypass1 && cond) ||
+    * <br>   (p2 && !ret2 && !break2 && !except2 && !L2... && !bypass2 && P[cond])
+    * <br> )
+    * <br>   invariant Assertion[ I[ InEx(A,B) -> InEx(A, !idle1 ==> B ) ] ]< p1 && !bypass1, p2 && !bypass2 >
+    * <br>   invariant Assertion[ !term_cond1 ==> cond ]< p1 && !bypass1, p2 && !bypass2 >
+    * <br>   invariant (bypass1 ==> tmp1_1 == Target_1) && ... (bypass1 ==> tmp1_N == Target_N)
+    * <br>   invariant (bypass2 ==> tmp2_1 == P[Target_1]) && ... (bypass2 ==> tmp2_N == P[Target_N]) // TODO REM: maybe group them
+    * <br> {
+    * <br>   // preamble
+    * <br>   cont1 := false; cont2 := false
+    * <br>   p1_ := a1 && cond; p2_ := a2 && P[cond]
+    * <br>   idle1 := a1 && !cond; idle2 := a2 && !P[cond]      // if invariant has InhaleExhaleExp
+    * <br>   // body
+    * <br>   Statement[body]< p1_, p2_ >
+    * <br> }
+    * <br>
+    * <br> if (!bypass1 && (ret1 || break1 || except1)) || (!bypass2 && (ret2 || break2 || except2)) {
+    * <br>   ret1 := old_ret1; var ret2 := old_ret2;... // forall control variables (includes lables)
+    * <br>   inhale p1 && !ret1 && !break1 && !except1 && !L1... ==> cond
+    * <br>   inhale p2 && !ret2 && !break2 && !except2 && !L2... ==> Prime[cond]
+    * <br>
+    * <br>   // preamble
+    * <br>   cont1 := false; cont2 := false
+    * <br>   p1_ := a1 && cond; p2_ := a2 && P[cond]
+    * <br>   idle1 := a1 && !cond; idle2 := a2 && !P[cond]      // if invariant has InhaleExhaleExp
+    * <br>   // body
+    * <br>   Statement[body]< p1_, p2_ >
+    * <br>
+    * <br>   inhale !p1_ || !(p1 && !ret1 && !break1 && !except1 && !L1..)
+    * <br>   inhale !p2_ || !(p2 && !ret2 && !break2 && !except2 && !L2..)
+    * <br> }
+    * <br>
+    * <br> if !bypass1 { break1 := false; cont1 := false }
+    * <br> if !bypass2 { break2 := false; cont2 := false }
     */
   private def translateWhileStmt(w: While, ctx: TranslationContext): Seqn = {
     val p1 = ctx.p1; val p2 = ctx.p2; val ctrlVars = ctx.ctrlVars
@@ -1566,15 +1568,26 @@ trait SIFExtendedTransformer {
     getNewVar(name, Bool)
   }
 
+  def isDirectlyRelational(e: Exp): Boolean = {
+    !isDirectlyUnary(e)
+  }
+
+  def isDirectlyUnary(e: Exp): Boolean = {
+    !e.exists{
+      case _: SIFLowExp => true
+      case _: SIFLowEventExp => true
+      case DomainFuncApp("Low", _, _) => true
+      case _ => false
+    }
+  }
+
   def isRelational(e: Exp): Boolean = {
     !isUnary(e)
   }
 
   def isUnary(e: Exp): Boolean = {
-    !e.exists{
-      case _: SIFLowExp => true
-      case _: SIFLowEventExp => true
-      case DomainFuncApp("Low", _, _) => true
+    isDirectlyUnary(e) && !e.exists{
+      case PredicateAccess(_, name) => predLowFuncs(name).isDefined // is relational
       case _ => false
     }
   }
@@ -1586,7 +1599,7 @@ trait SIFExtendedTransformer {
     * Exp1[e] -> N[e]              // otherwise
     **/
   def translateSIFExp1(e: Exp, p1: Exp, p2: Exp): Exp = {
-    if (isRelational(e)) {
+    if (isDirectlyRelational(e)) {
       Implies(And(p1, p2)(), translateNormal(e, p1, p2))(e.pos, errT = fwTs(e, e))
     } else translateNormal(e, p1, p2)
   }
@@ -1598,7 +1611,7 @@ trait SIFExtendedTransformer {
     * Exp2[e] -> P[e]  // otherwise
     * */
   def translateSIFExp2(e: Exp, p1: Exp, p2: Exp): Exp = {
-    if (isRelational(e)) {
+    if (isDirectlyRelational(e)) {
       TrueLit()(e. pos, errT = fwTs(e, e))
     } else translatePrime(e, p1, p2)
   }
@@ -1691,7 +1704,7 @@ trait SIFExtendedTransformer {
 
     e match {
       case And(e1, e2) => And(translateSIFAss(e1, ctx, relAssertCtx), translateSIFAss(e2, ctx, relAssertCtx))(e.pos, errT = fwTs(e, e))
-      case i@Implies(e1, e2) if !isUnary(i) =>
+      case i@Implies(e1, e2) if !isDirectlyUnary(i) =>
         Implies(translateSIFAss(e1, ctx, relAssertCtx), translateSIFAss(e2, ctx, relAssertCtx))(e.pos, errT = fwTs(e, e))
       case Implies(e1, e2) if e2.exists({
         case PredicateAccess(_, name) => predLowFuncs(name).isDefined // is relational
@@ -1782,7 +1795,7 @@ trait SIFExtendedTransformer {
       case o@Old(oldExp) => Old(translateSIFAss(oldExp, ctx, relAssertCtx))(o.pos, o.info, o.errT)
       case FuncApp(name, _) if predAllLowFuncs.values.exists(v => v.isDefined && v.get.name == name) =>
         bothExecutions(e)
-      case Unfolding(predAcc, body) if !isUnary(body) => bothExecutions(Unfolding(
+      case Unfolding(predAcc, body) if !isDirectlyUnary(body) => bothExecutions(Unfolding(
         translateNormal(predAcc, relCtx.p1, relCtx.p2),
         Unfolding(translatePrime(predAcc, relCtx.p1, relCtx.p2),
           translateSIFAss(body, ctx, relAssertCtx))(e.pos, e.info, e.errT))(e.pos, e.info, e.errT),
@@ -1828,7 +1841,7 @@ trait SIFExtendedTransformer {
       case pa@PredicateAccess(args, name) => PredicateAccess(args.map(a => translatePrime(a, p1, p2)),
         primedNames(name))(pa.pos, pa.info, pa.errT)
       case l: SIFLowExp => Implies(And(p1, p2)(), translateSIFLowExpComparison(l, p1, p2))()
-      case f@DomainFuncApp("Low", args, _) => TrueLit()()
+      case DomainFuncApp("Low", args, _) => TrueLit()()
       case f@ForPerm(vars, location, body) => ForPerm(vars,
         translateResourceAccess(location),
         translatePrime(body, p1, p2))(f.pos, f.info, f.errT)

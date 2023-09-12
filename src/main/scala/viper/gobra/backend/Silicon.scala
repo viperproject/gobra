@@ -36,12 +36,10 @@ class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
 
         result
       } catch {
-        case _: java.lang.UnsatisfiedLinkError => println("Couldn't find Z3 java API. No libz3java in java.library.path")
+        case _: java.lang.UnsatisfiedLinkError => System.err.println("Couldn't find Z3 java API. No libz3java in java.library.path")
           new Failure(Seq.empty)
         case e: Throwable =>
-          println("Couldn't verify package due to internal error:")
-          println(e.getMessage())
-          new Failure(Seq.empty)
+          throw e
       }
     }
   }

@@ -7,6 +7,8 @@
 package viper.gobra.translator.library.slices
 
 import viper.gobra.translator.library.arrays.Arrays
+import viper.silver.plugin.standard.termination
+import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.silver.{ast => vpr}
 
 class SlicesImpl(val arrays : Arrays) extends Slices {
@@ -274,6 +276,7 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
     * {{{
     * function sadd(left: Int, right: Int): Int
     *   ensures result == left + right
+    *   decreases
     * {
     *   left + right
     * }
@@ -284,7 +287,8 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
     val rDecl = vpr.LocalVarDecl("right", vpr.Int)()
     val body : vpr.Exp = vpr.Add(lDecl.localVar, rDecl.localVar)()
     val post : vpr.Exp = vpr.EqCmp(vpr.Result(vpr.Int)(), body)()
-    vpr.Function("sadd", Seq(lDecl, rDecl), vpr.Int, Seq(), Seq(post), Some(body))()
+    val pre  : vpr.Exp = synthesized(termination.DecreasesTuple(Seq.empty, None))("This function is assumed to terminate")
+    vpr.Function("sadd", Seq(lDecl, rDecl), vpr.Int, Seq(pre), Seq(post), Some(body))()
   }
 
   /**

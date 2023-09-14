@@ -287,7 +287,7 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
     val rDecl = vpr.LocalVarDecl("right", vpr.Int)()
     val body : vpr.Exp = vpr.Add(lDecl.localVar, rDecl.localVar)()
     val post : vpr.Exp = vpr.EqCmp(vpr.Result(vpr.Int)(), body)()
-    val pre  : vpr.Exp = synthesized(termination.DecreasesTuple(Seq.empty, None))("This function is assumed to terminate")
+    val pre  : vpr.Exp = synthesized(termination.DecreasesTuple(Seq.empty, None))("Termination measure")
     vpr.Function("sadd", Seq(lDecl, rDecl), vpr.Int, Seq(pre), Seq(post), Some(body))()
   }
 

@@ -76,7 +76,7 @@ trait NameResolution {
           case decl: PNamedParameter => InParameter(decl, isGhost, canParameterBeUsedAsShared(decl), this)
           case decl: PNamedReceiver => ReceiverParameter(decl, isGhost, canReceiverBeUsedAsShared(decl), this)
 
-          case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost, addressable = false, this) // TODO: check if type switch variables are addressable in Go
+          case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost, shared = false, this) // TODO: check if type switch variables are addressable in Go
 
           case decl: PImport => Import(decl, this)
 
@@ -124,15 +124,15 @@ trait NameResolution {
 
           case decl: PShortForRange =>
             val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
-            RangeVariable(idx, decl.range, isGhost, addressable = decl.addressable(idx), this)
+            RangeVariable(idx, decl.range, isGhost, shared = decl.addressable(idx), this)
 
           case decl: PSelectShortRecv =>
             val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
             val len = decl.shorts.size
 
             StrictAssignMode(len, 1) match { // TODO: check if selection variables are addressable in Go
-              case AssignMode.Single => SingleLocalVariable(Some(decl.recv), None, decl, isGhost, addressable = false, this)
-              case AssignMode.Multi => MultiLocalVariable(idx, decl.recv, isGhost, addressable = false, this)
+              case AssignMode.Single => SingleLocalVariable(Some(decl.recv), None, decl, isGhost, shared = false, this)
+              case AssignMode.Multi => MultiLocalVariable(idx, decl.recv, isGhost, shared = false, this)
               case _ => UnknownEntity()
             }
           case decl: PRange =>
@@ -417,12 +417,12 @@ trait NameResolution {
     // This is to be as permissive as possible at this point, since all ghostness-related checks are done later on.
     val inParam = func.args.flatMap(namedParam)
       .find(_.id.name == id.name)
-      .map(InParameter(_, ghost = false, addressable = false, func.context))
+      .map(InParameter(_, ghost = false, shared = false, func.context))
 
     inParam.orElse {
       func.result.outs.flatMap(namedParam)
         .find(_.id.name == id.name)
-        .map(OutParameter(_, ghost = true, addressable = false, func.context))
+        .map(OutParameter(_, ghost = true, shared = false, func.context))
     }
   }
 

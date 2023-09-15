@@ -4,13 +4,15 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra.frontend.info.implementation.typing.ghost.separation
+package viper.gobra.frontend.info.implementation.typing.modifiers.ghost
 
 sealed trait GhostType {
   def isGhost: Boolean
   def isIdxGhost(idx: Int): Boolean
   def length: Int
   def toTuple: Vector[Boolean]
+  def toModifier: GhostModifier = if (isGhost) GhostModifier.Ghost else GhostModifier.Actual
+  def toModifierTuple: Vector[GhostModifier] = toTuple.map(b => if (b) GhostModifier.Ghost else GhostModifier.Actual)
 }
 
 object GhostType {

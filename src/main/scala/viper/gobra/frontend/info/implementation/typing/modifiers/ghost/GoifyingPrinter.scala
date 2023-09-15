@@ -4,13 +4,13 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra.frontend.info.implementation.typing.ghost.separation
+package viper.gobra.frontend.info.implementation.typing.modifiers.ghost
 
+import org.bitbucket.inkytonik.kiama.attribution.Decorators
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.{Constants, Violation}
-import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import org.bitbucket.inkytonik.kiama.attribution.Decorators
 
 
 

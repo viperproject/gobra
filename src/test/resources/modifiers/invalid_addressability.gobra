@@ -1,0 +1,6 @@
+package pkg
+
+func main() {
+    var y int
+    var x = &y
+}

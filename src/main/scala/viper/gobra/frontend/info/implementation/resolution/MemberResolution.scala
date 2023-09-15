@@ -299,6 +299,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         lazy val isGoEffAddressable = goEffAddressable(expr)
         lazy val isEffAddressable = effAddressable(expr)
 
+        // TODO If more modifiers are added in the future modify error messages here
         if (addr.isEmpty && nonAddr.isEmpty) {
           // could not find the corresponding member
           val rcvTyp = exprType(expr)

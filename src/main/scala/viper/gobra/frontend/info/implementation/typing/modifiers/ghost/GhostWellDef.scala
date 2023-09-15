@@ -4,31 +4,19 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra.frontend.info.implementation.typing.ghost.separation
+package viper.gobra.frontend.info.implementation.typing.modifiers.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.{Closure, Function, Regular, SingleLocalVariable}
+import viper.gobra.frontend.info.implementation.typing.base.TypingComponents
 import viper.gobra.util.Violation.violation
 
-trait GhostWellDef { this: TypeInfoImpl =>
+trait GhostWellDef extends TypingComponents { this: GhostModifierUnit =>
 
-  private def selfWellGhostSeparated(n: PNode): Boolean = n match {
-    case i: PIdnNode => idGhostSeparation(i).valid
-    case n => wellGhostSeparated.valid(n)
-  }
+  def isGhost(n: PNode): Boolean = getModifier(n).get == GhostModifier.Ghost
 
-  lazy val wellGhostSeparated: WellDefinedness[PNode] = createIndependentWellDef[PNode]{
-    case m: PMember => memberGhostSeparation(m)
-    case s: PStatement => stmtGhostSeparation(s)
-    case e: PExpression => exprGhostSeparation(e)
-    case t: PType => typeGhostSeparation(t)
-    case m: PMisc => miscGhostSeparation(m)
-  }{ n => isWellDefined(n) && children(n).forall(selfWellGhostSeparated) }
-
-  private def memberGhostSeparation(member: PMember): Messages = member match {
+  def memberGhostSeparation(member: PMember): Messages = member match {
     case m: PExplicitGhostMember => m.actual match {
       case _: PTypeDecl => error(m, "ghost types are currently not supported") // TODO
       case _ => noMessages
@@ -38,7 +26,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
     case n : PVarDecl => n.typ match {
       case Some(typ) => error(n, s"ghost error: expected an actual type but found $typ",
-        isTypeGhost(typ) && !enclosingGhostContext(n))
+        isGhost(typ) && !enclosingGhostContext(n))
       case None => noMessages
     }
 
@@ -47,7 +35,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case _ => noMessages
   }
 
-  private def stmtGhostSeparation(stmt: PStatement): Messages = stmt match {
+  def stmtGhostSeparation(stmt: PStatement): Messages = stmt match {
     case p: PClosureImplProof => provenSpecMatchesInGhostnessWithCall(p)
 
     case _: PGhostStatement => noMessages
@@ -87,15 +75,12 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case PAssignment(right, left) => ghostAssignableToAssignee(right: _*)(left: _*)
     case PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
 
-    case PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
+    case _: PShortVarDecl => noMessages
 
-    case n@ PReturn(right) =>
-      if (right.nonEmpty && tryEnclosingClosureImplementationProof(n).isEmpty) {
-        ghostAssignableToParam(right: _*)(returnParamsAndTypes(n).map(_._2): _*)
-      } else noMessages
+    case _: PReturn => noMessages
   }
 
-  private def exprGhostSeparation(expr: PExpression): Messages = expr match {
+  def exprGhostSeparation(expr: PExpression): Messages = expr match {
     case _: PGhostExpression => noMessages
     case e if enclosingGhostContext(e) =>
       e match {
@@ -128,14 +113,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       _: PReceive
       ) => error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
 
-    case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
-      case (Right(_), Some(_: ap.Conversion)) => noMessages
-      case (Left(_), Some(call: ap.FunctionCall)) => ghostAssignableToCallExpr(call)
-      case (Left(_), Some(call: ap.ClosureCall)) => ghostAssignableToClosureCall(call)
-      case (Left(_), Some(_: ap.PredicateCall)) => noMessages
-      case (Left(_), Some(_: ap.PredExprInstance)) => noMessages
-      case _ => violation("expected conversion, function call, or predicate call")
-    }
+    case _: PInvoke => noMessages
 
     case _: PNew => noMessages
 
@@ -146,7 +124,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
     )
   }
 
-  private def typeGhostSeparation(typ: PType): Messages = typ match {
+  def typeGhostSeparation(typ: PType): Messages = typ match {
     case _: PGhostType => noMessages
     case n: PStructType => n.fields.flatMap(f => {
       error(f, s"ghost error: expected an actual type but found ${f.typ}",
@@ -156,29 +134,29 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case n: PType => error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
   }
 
-  private lazy val idGhostSeparation: WellDefinedness[PIdnNode] = createWellDefWithValidityMessages {
+  lazy val idGhostSeparation: WellDefinedness[PIdnNode] = createWellDefWithValidityMessages[PIdnNode] {
     id =>
-      entity(id) match {
-        case entity: Regular if entity.context != this => LocalMessages(noMessages) // imported entities are assumed to be well-formed
+      ctx.entity(id) match {
+        case entity: Regular if entity.context != ctx => LocalMessages(noMessages) // imported entities are assumed to be well-formed
 
         case SingleLocalVariable(exp, _, _, _, _, _) => unsafeMessage(! {
           // exp has to be well-def if it exists (independently on the existence of opt) as we need it for ghost typing
-          exp.forall(wellGhostSeparated.valid)
+          exp.forall(hasWellDefModifier.valid)
         })
 
         case Function(PFunctionDecl(_, args, r, _, _), _, _) => unsafeMessage(! {
-          args.forall(wellGhostSeparated.valid) && wellGhostSeparated.valid(r)
+          args.forall(hasWellDefModifier.valid) && hasWellDefModifier.valid(r)
         })
 
         case Closure(PFunctionLit(_, PClosureDecl(args, r, _, _)), _, _) => unsafeMessage(! {
-          args.forall(wellGhostSeparated.valid) && wellGhostSeparated.valid(r)
+          args.forall(hasWellDefModifier.valid) && hasWellDefModifier.valid(r)
         })
 
         case _ => LocalMessages(noMessages)
       }
-  }
+  }(_ => true)
 
-  private def miscGhostSeparation(misc : PMisc) : Messages = misc match {
+  def miscGhostSeparation(misc : PMisc) : Messages = misc match {
     case _: PGhostMisc => noMessages
     case p: PActualParameter => error(p, s"ghost error: expected an actual type but found ${p.typ}",
       isTypeGhost(p.typ) && !enclosingGhostContext(p))

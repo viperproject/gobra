@@ -14,7 +14,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.{Config, PackageInfo, Parser}
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostLessPrinter
+import viper.gobra.frontend.info.implementation.typing.modifiers.ghost.GhostLessPrinter
 
 class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
@@ -348,7 +348,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         case _ =>
       }
 
-      val ghostLess = new GhostLessPrinter(info).format(pkg)
+      val ghostLess = new GhostLessPrinter(info.ghostModifierUnit).format(pkg)
       // try to parse ghostLess string:
       val parseRes = Parser.parseProgram(StringSource(ghostLess, "Ghostless Program"), false)
       parseRes match {

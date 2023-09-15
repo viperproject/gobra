@@ -17,7 +17,7 @@ trait Convertibility extends BaseProperty { this: TypeInfoImpl =>
     case (left, right) => s"$left is not convertible to $right"
   } {
     case (Single(lst), Single(rst)) => (lst, rst) match {
-      case (left, right) if assignableTo(left, right) => true
+      case (left, right) if goAssignableTo(left, right) => true
       case (IntT(_), Float32T) => true
       case (IntT(_), Float64T) => true
       case (Float32T, IntT(_)) => true

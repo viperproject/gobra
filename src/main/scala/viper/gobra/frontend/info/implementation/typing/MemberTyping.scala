@@ -39,7 +39,7 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
         if (idsOkMsgs.isEmpty) {
           val isGhost = isEnclosingGhost(g)
           g.right.flatMap(isExpr(_).out) ++
-            declarableTo.errors(g.right map exprType, g.typ map typeSymbType, g.left map idType)(g) ++
+            goDeclarableTo.errors(g.right map exprType, g.typ map typeSymbType, g.left map idType)(g) ++
             error(g, s"Currently, global variables cannot be made ghost", isGhost) ++
             acyclicGlobalDeclaration.errors(g)(g)
         } else {
@@ -59,8 +59,8 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
       // between two types, which is less precise. Because of this limitation, and with the goal of handling
       // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
       // expressions that are not accepted by the compiler.
-      !(multiAssignableTo(spec.left.map(typ), spec.right.map(typ)) ||
-        multiAssignableTo(spec.left.map(n => underlyingType(typ(n))), spec.right.map(typ)))
+      !(goMultiAssignableTo(spec.left.map(typ), spec.right.map(typ)) ||
+        goMultiAssignableTo(spec.left.map(n => underlyingType(typ(n))), spec.right.map(typ)))
     )
     lazy val constExprMsgs = spec.right.flatMap(wellDefIfConstExpr)
     // helps producing less redundant error messages

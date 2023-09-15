@@ -1,0 +1,6 @@
+package pkg
+
+ghost
+func foo() int {
+    return 0 == 0 ? 1 : 2;
+}

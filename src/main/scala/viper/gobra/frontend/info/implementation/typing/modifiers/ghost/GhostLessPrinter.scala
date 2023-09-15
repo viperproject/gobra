@@ -4,7 +4,7 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-package viper.gobra.frontend.info.implementation.typing.ghost.separation
+package viper.gobra.frontend.info.implementation.typing.modifiers.ghost
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}

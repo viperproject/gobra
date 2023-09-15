@@ -92,15 +92,15 @@ object SymbolTable extends Environments[Entity] {
   }
 
   sealed trait Variable extends DataEntity {
-    def addressable: Boolean
+    def shared: Boolean
   }
 
   sealed trait ActualVariable extends Variable with ActualDataEntity
 
-  case class SingleLocalVariable(exp: Option[PExpression], opt: Option[PType], rep: PNode, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class SingleLocalVariable(exp: Option[PExpression], opt: Option[PType], rep: PNode, ghost: Boolean, shared: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     require(exp.isDefined || opt.isDefined)
   }
-  case class MultiLocalVariable(idx: Int, exp: PExpression, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class MultiLocalVariable(idx: Int, exp: PExpression, ghost: Boolean, shared: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = exp
   }
 
@@ -110,7 +110,7 @@ object SymbolTable extends Environments[Entity] {
                             expOpt: Option[PExpression],
                             typOpt: Option[PType],
                             ghost: Boolean,
-                            override val addressable: Boolean,
+                            override val shared: Boolean,
                             isSingleModeDecl: Boolean,
                             context: ExternalTypeInfo
                            ) extends ActualVariable {
@@ -125,25 +125,25 @@ object SymbolTable extends Environments[Entity] {
     override def ghost: Boolean = false
   }
 
-  case class InParameter(decl: PNamedParameter, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class InParameter(decl: PNamedParameter, ghost: Boolean, shared: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = decl
   }
-  case class ReceiverParameter(decl: PNamedReceiver, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class ReceiverParameter(decl: PNamedReceiver, ghost: Boolean, shared: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = decl
   }
-  case class OutParameter(decl: PNamedParameter, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class OutParameter(decl: PNamedParameter, ghost: Boolean, shared: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = decl
   }
-  case class TypeSwitchVariable(decl: PTypeSwitchStmt, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class TypeSwitchVariable(decl: PTypeSwitchStmt, ghost: Boolean, shared: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = decl
     override def toString: String = decl.binder.fold("unknown")(_.toString)
   }
-  case class RangeVariable(idx: Int, exp: PRange, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class RangeVariable(idx: Int, exp: PRange, ghost: Boolean, shared: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = exp
   }
 
   case class RangeEnumerateVariable(exp: PRange, ghost: Boolean, context: ExternalTypeInfo) extends ActualVariable {
-    override def addressable: Boolean = false
+    override def shared: Boolean = false
     override def rep: PNode = exp
   }
 
@@ -229,7 +229,7 @@ object SymbolTable extends Environments[Entity] {
 
   case class BoundVariable(decl: PBoundVariable, context: ExternalTypeInfo) extends GhostVariable {
     override def rep: PNode = decl
-    override def addressable: Boolean = false
+    override def shared: Boolean = false
   }
 
   sealed trait GhostTypeMember extends TypeMember with GhostRegular
@@ -258,7 +258,7 @@ object SymbolTable extends Environments[Entity] {
   case class MatchVariable(decl: PMatchBindVar, p: PNode, context: ExternalTypeInfo) extends GhostVariable {
     override def rep: PNode = decl
 
-    override def addressable: Boolean = false
+    override def shared: Boolean = false
   }
 
   case class AdtClause(decl: PAdtClause, adtDecl: PAdtType, context: ExternalTypeInfo) extends GhostRegular {

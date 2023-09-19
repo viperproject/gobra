@@ -106,18 +106,8 @@ class AssertionEncoding extends Encoding {
 
   def trigger(trigger: in.Trigger)(ctx: Context) : CodeWriter[vpr.Trigger] = {
     val (pos, info, errT) = trigger.vprMeta
-    for { expr <- sequence(trigger.exprs map (triggerExpr(_)(ctx))) }
+    for { expr <- sequence(trigger.exprs map ctx.triggerExpr)}
       yield vpr.Trigger(expr)(pos, info, errT)
-  }
-
-  def triggerExpr(expr: in.TriggerExpr)(ctx: Context): CodeWriter[vpr.Exp] = expr match {
-    // use predicate access encoding but then take just the predicate access, i.e. remove `acc` and the permission amount:
-    case in.Accessible.Predicate(op) =>
-      for {
-        v <- ctx.assertion(in.Access(in.Accessible.Predicate(op), in.FullPerm(op.info))(op.info))
-        pap = v.asInstanceOf[vpr.PredicateAccessPredicate]
-      } yield pap.loc
-    case e: in.Expr => ctx.expression(e)
   }
 
   def quantifier(vars: Vector[in.BoundVar], triggers: Vector[in.Trigger], body: in.Expr)(ctx: Context) : CodeWriter[(Seq[vpr.LocalVarDecl], Seq[vpr.Trigger], vpr.Exp)] = {

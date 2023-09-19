@@ -61,6 +61,7 @@ class FinalTypeEncoding(te: TypeEncoding) extends TypeEncoding {
   override def extendFunction(ctx: Context): in.Member ==> Extension[MemberWriter[vpr.Function]] = te.extendFunction(ctx) orElse { _ => identity }
   override def extendPredicate(ctx: Context): in.Member ==> Extension[MemberWriter[vpr.Predicate]] = te.extendPredicate(ctx) orElse { _ => identity }
   override def extendExpression(ctx: Context): in.Expr ==> Extension[CodeWriter[vpr.Exp]] = te.extendExpression(ctx) orElse { _ => identity }
+  override def extendTriggerExpr(ctx: Context): in.TriggerExpr ==> Extension[CodeWriter[vpr.Exp]] = te.extendTriggerExpr(ctx) orElse { _ => identity }
   override def extendAssertion(ctx: Context): in.Assertion ==> Extension[CodeWriter[vpr.Exp]] = te.extendAssertion(ctx) orElse { _ => identity }
   override def extendStatement(ctx: Context): in.Stmt ==> Extension[CodeWriter[vpr.Stmt]] = te.extendStatement(ctx) orElse { _ => identity }
 }

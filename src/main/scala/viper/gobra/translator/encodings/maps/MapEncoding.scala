@@ -24,6 +24,9 @@ import viper.silver.verifier.reasons.AssertionFalse
 import viper.silver.verifier.{ErrorReason, errors => err}
 import viper.silver.{ast => vpr}
 
+// TODO: use macros to make the generated code readable?
+// TODO: remove call to assert2 when the condition is the true lit
+
 /**
   * Encoding for Go maps. Unlike slices, maps are not thread-safe;
   * thus, all concurrent accesses to maps must be synchronized. In particular,
@@ -108,6 +111,12 @@ class MapEncoding extends LeafTypeEncoding {
             correspondingMapRange
           ), v)
         } yield res
+    }
+  }
+
+  override def triggerExpr(ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = {
+    default(super.triggerExpr(ctx)) {
+      case in.IndexedExp(_ :: ctx.Map(_, _), _, _) => unit(vpr.TrueLit()())
     }
   }
 

@@ -64,6 +64,7 @@ abstract class TypeEncodingCombiner(encodings: Vector[TypeEncoding], defaults: V
   override def extendFunction(ctx: Context): in.Member ==> Extension[MemberWriter[vpr.Function]] = extender(_.extendFunction(ctx))
   override def extendPredicate(ctx: Context): in.Member ==> Extension[MemberWriter[vpr.Predicate]] = extender(_.extendPredicate(ctx))
   override def extendExpression(ctx: Context): in.Expr ==> Extension[CodeWriter[vpr.Exp]] = extender(_.extendExpression(ctx))
+  override def extendTriggerExpr(ctx: Context): in.TriggerExpr ==> Extension[CodeWriter[vpr.Exp]] = extender(_.extendTriggerExpr(ctx))
   override def extendAssertion(ctx: Context): in.Assertion ==> Extension[CodeWriter[vpr.Exp]] = extender(_.extendAssertion(ctx))
   override def extendStatement(ctx: Context): in.Stmt ==> Extension[CodeWriter[vpr.Stmt]] = extender(_.extendStatement(ctx))
 }

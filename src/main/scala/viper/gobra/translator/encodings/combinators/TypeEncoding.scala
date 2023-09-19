@@ -233,6 +233,22 @@ trait TypeEncoding extends Generator {
     case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) => ctx.expression(expr)
   }
 
+  // TODO: doc
+  // TODO: enable consistency checks on triggers when --checkConsistency
+  def triggerExpr(ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = PartialFunction.empty
+
+  /*
+  {
+    // use predicate access encoding but then take just the predicate access, i.e. remove `acc` and the permission amount:
+    case in.Accessible.Predicate(op) =>
+      for {
+        v <- ctx.assertion(in.Access(in.Accessible.Predicate(op), in.FullPerm(op.info))(op.info))
+        pap = v.asInstanceOf[vpr.PredicateAccessPredicate]
+      } yield pap.loc
+    case e: in.Expr => ctx.expression(e)
+  }
+  */
+
   /**
     * Encodes assertions.
     *
@@ -404,6 +420,18 @@ trait TypeEncoding extends Generator {
   def extendExpression(@unused ctx: Context): in.Expr ==> Extension[CodeWriter[vpr.Exp]] = PartialFunction.empty
   final def finalExpression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     val f = expression(ctx); { case n@f(v) => extendExpression(ctx).lift(n).fold(v)(_(v)) }
+  }
+
+  /** Adds to the encoding of [[triggerExpr]]. The extension is applied to the result of the final trigger expression
+    * encoding.
+    */
+  def extendTriggerExpr(@unused ctx: Context): in.TriggerExpr ==> Extension[CodeWriter[vpr.Exp]] = PartialFunction.empty
+
+  final def finalTriggerExpr(ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = {
+    val f = triggerExpr(ctx);
+    {
+      case n@f(v) => extendTriggerExpr(ctx).lift(n).fold(v)(_(v))
+    }
   }
 
   /** Adds to the encoding of [[assertion]]. The extension is applied to the result of the final assertion encoding. */

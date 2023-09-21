@@ -52,6 +52,9 @@ func test6() {
 	m[3] = 10
 	v3, ok3 := m[3]
 	assert ok3 && v3 == 10
+
+	// check if key exists in the map
+	assert 3 in m
 }
 
 type T struct {
@@ -110,24 +113,24 @@ func test11() {
 requires acc(m, _)
 requires "key" in domain(m)
 func test12(m map[string]string) (r string){
-    return m["key"]
+	return m["key"]
 }
 
 requires acc(m, _)
 requires "value" in range(m)
 func test13(m map[string]string) {
-    assert exists k string :: m[k] == "value"
+	assert exists k string :: m[k] == "value"
 }
 
 func test14() (res map[int]int) {
 	x := 1
 	y := 2
-    m := map[int]int{x: y, y: x}
+	m := map[int]int{x: y, y: x}
 	return m
 }
 
 func test15() (res map[int]int) {
-    m := map[int]int{C1: C2, C2: C1}
+	m := map[int]int{C1: C2, C2: C1}
 	return m
 }
 
@@ -138,3 +141,7 @@ func test16() {
 	x, contained := m[2]
 	assert x == 0 && !contained
 }
+
+requires m != nil ==> acc(m)
+requires forall s string :: { s in domain(m) } s in domain(m) ==> acc(m[s])
+func test17(m map[string]*int) {}

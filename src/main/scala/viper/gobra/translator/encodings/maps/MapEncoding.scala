@@ -61,6 +61,7 @@ class MapEncoding extends LeafTypeEncoding {
     * R[ (e: map[K]V)[idx] ] -> [e] == null? [ dflt(V) ] : goMapLookup(e[idx])
     * R[ keySet(e: map[K]V) ] -> [e] == null? 0 : MapDomain(getCorrespondingMap(e))
     * R[ valueSet(e: map[K]V) ] -> [e] == null? 0 : MapRange(getCorrespondingMap(e))
+    * TODO: doc contains
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
@@ -87,6 +88,15 @@ class MapEncoding extends LeafTypeEncoding {
         } yield res
 
       case l@in.IndexedExp(_ :: ctx.Map(_, _), _, _) => for {(res, _) <- goMapLookup(l)(ctx)} yield res
+
+      case l@in.Contains(key, exp :: ctx.Map(keys, values)) =>
+        for {
+          keyVpr <- goE(key)
+          isComp <- MapEncoding.checkKeyComparability(key)(ctx)
+          correspondingMap <- getCorrespondingMap(exp, keys, values)(ctx)
+          containsExp = withSrc(vpr.MapContains(keyVpr, correspondingMap), l)
+          checkCompAndContains <- assert(isComp, containsExp, comparabilityErrorT)(ctx)
+        } yield checkCompAndContains
 
       case k@in.MapKeys(mapExp :: ctx.Map(keys, values), _) =>
         for {
@@ -116,7 +126,35 @@ class MapEncoding extends LeafTypeEncoding {
 
   override def triggerExpr(ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = {
     default(super.triggerExpr(ctx)) {
-      case in.IndexedExp(_ :: ctx.Map(_, _), _, _) => unit(vpr.TrueLit()())
+      case l@in.IndexedExp(m :: ctx.Map(keys, values), idx, _) =>
+        for {
+          vIdx <- ctx.expression(idx)
+          correspondingMap <- getCorrespondingMap(m, keys, values)(ctx)
+          lookupRes = withSrc(vpr.MapLookup(correspondingMap, vIdx), l)
+        } yield lookupRes
+
+      case l@in.Contains(key, m :: ctx.Map(keys, values)) =>
+        for {
+          vKey <- ctx.expression(key)
+          correspondingMap <- getCorrespondingMap(m, keys, values)(ctx)
+          contains = withSrc(vpr.MapContains(correspondingMap, vKey), l)
+        } yield contains
+
+      case l@in.Contains(key, in.MapKeys(m :: ctx.Map(keys, values), _)) =>
+        for {
+          vKey <- ctx.expression(key)
+          correspondingMap <- getCorrespondingMap(m, keys, values)(ctx)
+          vDomainMap = withSrc(vpr.MapDomain(correspondingMap), l)
+          contains = withSrc(vpr.AnySetContains(vKey, vDomainMap), l)
+        } yield contains
+
+      case l@in.Contains(key, in.MapValues(m :: ctx.Map(keys, values), _)) =>
+        for {
+          vKey <- ctx.expression(key)
+          correspondingMap <- getCorrespondingMap(m, keys, values)(ctx)
+          vRangeMap = withSrc(vpr.MapRange(correspondingMap), l)
+          contains = withSrc(vpr.AnySetContains(vKey, vRangeMap), l)
+        } yield contains
     }
   }
 

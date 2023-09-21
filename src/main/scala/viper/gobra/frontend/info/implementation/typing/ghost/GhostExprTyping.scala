@@ -139,6 +139,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PIn(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
         underlyingType(exprType(right)) match {
           case t : GhostCollectionType => ghostComparableTypes.errors(exprType(left), t.elem)(expr)
+          case t : MapT => ghostComparableTypes.errors(exprType(left), t.key)(expr)
           case _ : AdtT => noMessages
           case t => error(right, s"expected a ghost collection, but got $t")
         }

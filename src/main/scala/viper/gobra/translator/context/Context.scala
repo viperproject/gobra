@@ -87,7 +87,7 @@ trait Context {
 
   def expression(x: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.finalExpression(this)(x)
 
-  def triggerExpr(x: in.TriggerExpr): CodeWriter[vpr.Exp] = typeEncoding.finalTriggerExpr(this)(x)
+  def triggerExpr(x: in.TriggerExpr): CodeWriter[vpr.Exp] = typeEncoding.triggerExpr(this)(x)
 
   def assertion(x: in.Assertion): CodeWriter[vpr.Exp] = typeEncoding.finalAssertion(this)(x)
 

@@ -46,6 +46,9 @@ class FinalTypeEncoding(te: TypeEncoding) extends TypeEncoding {
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = te.equal(ctx) orElse expectedMatch("equal")
   override def goEqual(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = te.goEqual(ctx) orElse expectedMatch("equal")
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = te.expression(ctx) orElse expectedMatch("expression")
+  override def triggerExpr(ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = te.triggerExpr(ctx) orElse {
+    case e: in.Expr => te.expression(ctx)(e)
+  }
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = te.assertion(ctx) orElse expectedMatch("assertion")
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = te.reference(ctx) orElse expectedMatch("reference")
   override def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = te.addressFootprint(ctx) orElse expectedMatch("addressFootprint")
@@ -61,7 +64,6 @@ class FinalTypeEncoding(te: TypeEncoding) extends TypeEncoding {
   override def extendFunction(ctx: Context): in.Member ==> Extension[MemberWriter[vpr.Function]] = te.extendFunction(ctx) orElse { _ => identity }
   override def extendPredicate(ctx: Context): in.Member ==> Extension[MemberWriter[vpr.Predicate]] = te.extendPredicate(ctx) orElse { _ => identity }
   override def extendExpression(ctx: Context): in.Expr ==> Extension[CodeWriter[vpr.Exp]] = te.extendExpression(ctx) orElse { _ => identity }
-  override def extendTriggerExpr(ctx: Context): in.TriggerExpr ==> Extension[CodeWriter[vpr.Exp]] = te.extendTriggerExpr(ctx) orElse { _ => identity }
   override def extendAssertion(ctx: Context): in.Assertion ==> Extension[CodeWriter[vpr.Exp]] = te.extendAssertion(ctx) orElse { _ => identity }
   override def extendStatement(ctx: Context): in.Stmt ==> Extension[CodeWriter[vpr.Stmt]] = te.extendStatement(ctx) orElse { _ => identity }
 }

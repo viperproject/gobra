@@ -4304,6 +4304,7 @@ object Desugar extends LazyLogging {
         } yield underlyingType(dright.typ) match {
           case _: in.SequenceT | _: in.SetT => in.Contains(dleft, dright)(src)
           case _: in.MultisetT => in.LessCmp(in.IntLit(0)(src), in.Contains(dleft, dright)(src))(src)
+          case _: in.MapT => in.Contains(dleft, dright)(src)
           case t => violation(s"expected a sequence or (multi)set type, but got $t")
         }
 

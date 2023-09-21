@@ -24,9 +24,6 @@ import viper.silver.verifier.reasons.AssertionFalse
 import viper.silver.verifier.{ErrorReason, errors => err}
 import viper.silver.{ast => vpr}
 
-// TODO: use macros to make the generated code readable?
-// TODO: remove call to assert2 when the condition is the true lit
-
 /**
   * Encoding for Go maps. Unlike slices, maps are not thread-safe;
   * thus, all concurrent accesses to maps must be synchronized. In particular,
@@ -91,10 +88,16 @@ class MapEncoding extends LeafTypeEncoding {
 
       case l@in.Contains(key, exp :: ctx.Map(keys, values)) =>
         for {
+          mapVpr <- goE(exp)
           keyVpr <- goE(key)
           isComp <- MapEncoding.checkKeyComparability(key)(ctx)
           correspondingMap <- getCorrespondingMap(exp, keys, values)(ctx)
-          containsExp = withSrc(vpr.MapContains(keyVpr, correspondingMap), l)
+          containsExp =
+            withSrc(vpr.CondExp(
+              withSrc(vpr.EqCmp(mapVpr, withSrc(vpr.NullLit(), l)), l),
+              withSrc(vpr.FalseLit(), l),
+              withSrc(vpr.MapContains(keyVpr, correspondingMap), l)
+            ), l)
           checkCompAndContains <- assert(isComp, containsExp, comparabilityErrorT)(ctx)
         } yield checkCompAndContains
 
@@ -124,6 +127,7 @@ class MapEncoding extends LeafTypeEncoding {
     }
   }
 
+  // TODO: doc
   override def triggerExpr(ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = {
     default(super.triggerExpr(ctx)) {
       case l@in.IndexedExp(m :: ctx.Map(keys, values), idx, _) =>
@@ -137,7 +141,7 @@ class MapEncoding extends LeafTypeEncoding {
         for {
           vKey <- ctx.expression(key)
           correspondingMap <- getCorrespondingMap(m, keys, values)(ctx)
-          contains = withSrc(vpr.MapContains(correspondingMap, vKey), l)
+          contains = withSrc(vpr.MapContains(vKey, correspondingMap), l)
         } yield contains
 
       case l@in.Contains(key, in.MapKeys(m :: ctx.Map(keys, values), _)) =>

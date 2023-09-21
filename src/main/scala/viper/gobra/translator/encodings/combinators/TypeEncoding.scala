@@ -234,18 +234,7 @@ trait TypeEncoding extends Generator {
   }
 
   // TODO: doc
-  // TODO: optimize assert2(true, ...)
-  // TODO: key in map, instead of key in domain(map)
-  // TODO: enable consistency checks on triggers when --checkConsistency
-  def triggerExpr(ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = {
-    // use predicate access encoding but then take just the predicate access, i.e. remove `acc` and the permission amount:
-    case in.Accessible.Predicate(op) =>
-      for {
-        v <- ctx.assertion(in.Access(in.Accessible.Predicate(op), in.FullPerm(op.info))(op.info))
-        pap = v.asInstanceOf[vpr.PredicateAccessPredicate]
-      } yield pap.loc
-    // case e: in.Expr => ctx.expression(e)
-  }
+  def triggerExpr(@unused ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
   /**
     * Encodes assertions.

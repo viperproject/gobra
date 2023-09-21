@@ -32,6 +32,10 @@ func (a *A) g(x int) {
 	fold a.Mem()
 }
 
+pred Q(x int) {
+	true
+}
+
 requires acc(x)
 requires Q(y)
 func impureLets(x *int, y int) {

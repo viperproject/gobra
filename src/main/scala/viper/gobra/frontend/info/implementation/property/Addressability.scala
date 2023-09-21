@@ -86,6 +86,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
         case p => Violation.violation(s"Unexpected invoke resolve, got $p")
       }
       case _: PLength | _: PCapacity => AddrMod.callResult
+      case _: PLet => AddrMod.rValue
       case _: PSliceExp => AddrMod.sliceExpr
       case _: PTypeAssertion => AddrMod.typeAssertionResult
       case _: PReceive => AddrMod.receive

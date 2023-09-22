@@ -119,6 +119,7 @@ object Addressability {
   val mathDataStructureLookup: Addressability = mathDataStructureElement
 
   def unfolding(bodyAddressability: Addressability): Addressability = bodyAddressability
+  def let(bodyAddressability: Addressability): Addressability = bodyAddressability
   val old: Addressability = rValue
   val make: Addressability = Exclusive
   val exprInAcc: Addressability = Exclusive

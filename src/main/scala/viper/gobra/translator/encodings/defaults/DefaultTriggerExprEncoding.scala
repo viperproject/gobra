@@ -16,7 +16,7 @@ class DefaultTriggerExprEncoding extends Encoding {
   import viper.gobra.translator.util.ViperWriter._
 
   override def triggerExpr(ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = {
-    // use predicate access encoding but then take just the predicate access, i.e. remove `acc` and the permission amount:
+    // use predicate access encoding but then take just the predicate access, i.e. without the access predicate:
     case in.Accessible.Predicate(op) =>
       for {
         v <- ctx.assertion(in.Access(in.Accessible.Predicate(op), in.FullPerm(op.info))(op.info))

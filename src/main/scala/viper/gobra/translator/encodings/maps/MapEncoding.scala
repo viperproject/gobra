@@ -129,9 +129,9 @@ class MapEncoding extends LeafTypeEncoding {
 
   /**
     * Encodes expressions when they occur as the top-level expression in a trigger.
-    * Notice that if we had used the expression encoding for the following triggers,
-    * they would have resulted in ill-formed triggers at the Viper level (e.g., because
-    * they would have ternary operations).
+    * Notice that using the expression encoding for the following triggers,
+    * results in ill-formed triggers at the Viper level (e.g., because
+    * they have ternary operations).
     *   { m[i] } -> { getCorrespondingMap([ m ])[ [ i ] ] }
     *   { k in m } -> { [ k ] in getCorrespondingMap([ m ]) }
     *   { k in domain(m) } -> { [ k ] in domain(getCorrespondingMap([ m ])) }

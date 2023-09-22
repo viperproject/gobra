@@ -54,11 +54,11 @@ class MapEncoding extends LeafTypeEncoding {
     * Encodes expressions as values that do not occupy some identifiable location in memory.
     * R[ nil(map[K]V°) ] -> null
     * R[ dflt(map[K]V°) ] -> null
-    * R[ len(e: map[K]V) ] -> [e] == null? 0 : | getCorrespondingMap([e]) |
-    * R[ (e: map[K]V)[idx] ] -> [e] == null? [ dflt(V) ] : goMapLookup(e[idx])
-    * R[ keySet(e: map[K]V) ] -> [e] == null? 0 : MapDomain(getCorrespondingMap(e))
-    * R[ valueSet(e: map[K]V) ] -> [e] == null? 0 : MapRange(getCorrespondingMap(e))
-    * TODO: doc contains
+    * R[ len(e: map[K]V) ] -> [ e ] == null? 0 : | getCorrespondingMap([ e ]) |
+    * R[ (e: map[K]V)[idx] ] -> [ e ] == null? [ dflt(V) ] : goMapLookup(e[idx])
+    * R[ keySet(e: map[K]V) ] -> [ e ] == null? 0 : MapDomain(getCorrespondingMap([ e ]))
+    * R[ valueSet(e: map[K]V) ] -> [ e ] == null? 0 : MapRange(getCorrespondingMap([ e ]))
+    * R[ k in (e: map[K]V) ] -> [ e ] == null? false : MapContains([ k ], getCorrespondingMap([ e ]))
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
@@ -127,7 +127,16 @@ class MapEncoding extends LeafTypeEncoding {
     }
   }
 
-  // TODO: doc
+  /**
+    * Encodes expressions when they occur as the top-level expression in a trigger.
+    * Notice that if we had used the expression encoding for the following triggers,
+    * they would have resulted in ill-formed triggers at the Viper level (e.g., because
+    * they would have ternary operations).
+    *   { m[i] } -> { getCorrespondingMap([ m ])[ [ i ] ] }
+    *   { k in m } -> { [ k ] in getCorrespondingMap([ m ]) }
+    *   { k in domain(m) } -> { [ k ] in domain(getCorrespondingMap([ m ])) }
+    *   { k in range(m) } -> { [ k ] in range(getCorrespondingMap([ m ])) }
+    */
   override def triggerExpr(ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = {
     default(super.triggerExpr(ctx)) {
       case l@in.IndexedExp(m :: ctx.Map(keys, values), idx, _) =>

@@ -233,7 +233,11 @@ trait TypeEncoding extends Generator {
     case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) => ctx.expression(expr)
   }
 
-  // TODO: doc
+  /**
+    * Encodes expressions when they occur as the top-level expression in a trigger. The default implements
+    * an encoding for predicate instances that and defers the encoding of all expressions occurring in
+    * a trigger to the expression encoding.
+    */
   def triggerExpr(@unused ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
   /**

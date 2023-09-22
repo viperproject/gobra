@@ -543,9 +543,11 @@ case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extend
   require(typ.addressability == Addressability.unfolding(in.typ.addressability))
 }
 
-case class Let(left: LocalVar, right: Expr, in: Expr)(val info: Source.Parser.Info) extends Expr {
+case class PureLet(left: LocalVar, right: Expr, in: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = in.typ
 }
+
+case class Let(left: LocalVar, right: Expr, in: Assertion)(val info: Source.Parser.Info) extends Assertion
 
 case class Old(operand: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 

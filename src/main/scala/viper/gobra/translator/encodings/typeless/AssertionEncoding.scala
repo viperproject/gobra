@@ -55,7 +55,7 @@ class AssertionEncoding extends Encoding {
         case errors => Violation.violation(s"invalid trigger pattern (${errors.head.readableMessage})")
       }
 
-    case let: in.Let =>
+    case let: in.PureLet =>
       for {
         exp <- ctx.expression(let.in)
         l = ctx.variable(let.left)
@@ -66,6 +66,12 @@ class AssertionEncoding extends Encoding {
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
     case n@ in.SepAnd(l, r) => for {vl <- ctx.assertion(l); vr <- ctx.assertion(r)} yield withSrc(vpr.And(vl, vr), n)
     case in.ExprAssertion(e) => ctx.expression(e)
+    case n@ in.Let(left, right, op) =>
+      for {
+        exp <- ctx.assertion(op)
+        r <- ctx.expression(right)
+        l = ctx.variable(left)
+      } yield withSrc(vpr.Let(l, r, exp), n)
     case n@ in.MagicWand(l, r) => for {vl <- ctx.assertion(l); vr <- ctx.assertion(r)} yield withSrc(vpr.MagicWand(vl, vr), n)
     case n@ in.Implication(l, r) => for {vl <- ctx.expression(l); vr <- ctx.assertion(r)} yield withSrc(vpr.Implies(vl, vr), n)
 

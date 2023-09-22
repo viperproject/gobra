@@ -3,12 +3,35 @@
 
 package pkg
 
-pred aux(x *int) {
-    acc(x) && low(*x)
+/*
+pred p(x *int) {
+    acc(x) && (*x >= 5 ==> low(*x) && *x >= 6)
 }
 
-requires lowContext()
-func foo(x *int) {
-  inhale aux(x)
-  assert aux(x)
+
+requires acc(x)
+ensures acc(x)
+ensures  *x < 5 ==> *x == old(*x)
+ensures  *x >= 5 ==> low(*x)
+func example1(x *int) {
+  if *x >= 5 {
+    *x = 9
+  }
 }
+
+func example2(x *int) {
+    inhale p(x)
+    unfold p(x)
+    assert *x >= 5 ==> low(*x)
+    fold p(x)
+    exhale p(x)
+}
+
+pred unary(*int) {
+    true
+}
+
+pred q(x *int) {
+    unary(x) && p(x)
+}
+*/

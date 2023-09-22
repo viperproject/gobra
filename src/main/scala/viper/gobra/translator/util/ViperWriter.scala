@@ -399,11 +399,12 @@ object ViperWriter {
     /* Can be used in expressions. */
     def assert(cond: vpr.Exp, exp: vpr.Exp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError)(ctx: Context): Writer[vpr.Exp] = {
       // In the future, this might do something more sophisticated
-      if (cond.isInstanceOf[vpr.TrueLit]) {
-        unit(exp)
-      } else {
-        val (res, errT) = ctx.condition.assert(cond, exp, reasonT)
-        errorT(errT).map(_ => res)
+      cond match {
+        case vpr.TrueLit() =>
+          unit(exp)
+        case _ =>
+          val (res, errT) = ctx.condition.assert(cond, exp, reasonT)
+          errorT(errT).map(_ => res)
       }
     }
 

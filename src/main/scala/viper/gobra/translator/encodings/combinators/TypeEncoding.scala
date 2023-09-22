@@ -234,6 +234,13 @@ trait TypeEncoding extends Generator {
   }
 
   /**
+    * Encodes expressions when they occur as the top-level expression in a trigger.
+    * The default implements an encoding for predicate instances and defers the
+    * encoding of all expressions to the expression encoding.
+    */
+  def triggerExpr(@unused ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = PartialFunction.empty
+
+  /**
     * Encodes assertions.
     *
     * Constraints:

@@ -74,7 +74,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PClosureImplements => isPureExpr(n.closure) ++ wellDefIfClosureMatchesSpec(n.closure, n.spec)
 
-    case n: PLet => isExpr(n.op).out ++ isPureExpr(n.op) ++
+    case n: PLet => isExpr(n.op).out ++ isWeaklyPureExpr(n.op) ++
       n.ass.right.foldLeft(noMessages)((a, b) => a ++ isPureExpr(b))
 
     case n: PAccess =>

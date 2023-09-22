@@ -2446,7 +2446,6 @@ object Desugar extends LazyLogging {
       }
     }
 
-
     private def indexedExprD(base : PExpression, index : PExpression)(ctx : FunctionContext, info : TypeInfo)(src : Meta) : Writer[in.IndexedExp] = {
       for {
         dbase <- exprD(ctx, info)(base)
@@ -2659,14 +2658,6 @@ object Desugar extends LazyLogging {
             val dAcc = specificationD(ctx, info)(acc).asInstanceOf[in.Access]
             val dOp = pureExprD(ctx, info)(op)
             unit(in.Unfolding(dAcc, dOp)(src))
-
-          case PLet(ass, op) =>
-            val dOp = pureExprD(ctx, info)(op)
-            unit((ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
-              val right = pureExprD(ctx, info)(lr._2)
-              val left = in.LocalVar(nm.variable(lr._1.name, info.scope(lr._1), info), right.typ.withAddressability(Addressability.exclusiveVariable))(src)
-              in.Let(left, right, letop)(src)
-            }))
 
           case n : PIndexedExp => indexedExprD(n)(ctx, info)
 
@@ -4277,6 +4268,17 @@ object Desugar extends LazyLogging {
           wels <- go(els)
         } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
+        case PLet(ass, op) =>
+          val dOp = pureExprD(ctx, info)(op)
+          unit((ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
+            val right = pureExprD(ctx, info)(lr._2)
+            val left = in.LocalVar(
+              nm.variable(lr._1.name, info.scope(lr._1), info),
+              right.typ.withAddressability(Addressability.exclusiveVariable)
+            )(src)
+            in.PureLet(left, right, letop)(src)
+          }))
+
         case PForall(vars, triggers, body) =>
           for { (newVars, newTriggers, newBody) <- quantifierD(ctx, info)(vars, triggers, body)(ctx => exprD(ctx, info)) }
             yield in.PureForall(newVars, newTriggers, newBody)(src)
@@ -4530,6 +4532,19 @@ object Desugar extends LazyLogging {
 
         case n: PAccess => for {e <- accessibleD(ctx, info)(n.exp); p <- permissionD(ctx, info)(n.perm)} yield in.Access(e, p)(src)
         case n: PPredicateAccess => predicateCallD(ctx, info)(n.pred, n.perm)
+
+        case PLet(ass, op) =>
+          for {
+            dOp <- assertionD(ctx, info)(op)
+            lets = (ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
+              val right = pureExprD(ctx, info)(lr._2)
+              val left = in.LocalVar(
+                nm.variable(lr._1.name, info.scope(lr._1), info),
+                right.typ.withAddressability(Addressability.exclusiveVariable)
+              )(src)
+              in.Let(left, right, letop)(src)
+            })
+          } yield lets
 
         case n: PInvoke =>
           // a predicate invocation corresponds to a predicate access with full permissions

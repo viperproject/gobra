@@ -9,6 +9,7 @@ package viper.gobra.frontend.info.implementation.property
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.resolution.TypeSet
 
 trait Comparability extends BaseProperty { this: TypeInfoImpl =>
 
@@ -33,16 +34,41 @@ trait Comparability extends BaseProperty { this: TypeInfoImpl =>
   }
 
   lazy val comparableType: Property[Type] = createBinaryProperty("comparable") {
-    case Single(st) => underlyingType(st) match {
-      case t: StructT =>
-        structMemberSet(t).collect {
-          case (_, f: Field) => f.context.symbType(f.decl.typ)
-          case (_, e: Embbed) => e.context.typ(e.decl.typ)
-        }.forall(comparableType)
+    case Single(st) => st match {
+      case t: TypeParameterT => strictlyComparableType.result(t).holds
+      case _ => underlyingType (st) match {
+        case t: StructT =>
+          structMemberSet (t).collect {
+            case (_, f: Field) => f.context.symbType (f.decl.typ)
+            case (_, e: Embbed) => e.context.typ (e.decl.typ)
+          }.forall (comparableType)
 
-      case _: SliceT | _: GhostSliceT | _: MapT | _: FunctionT => false
-      case _ => true
+        case _: SliceT | _: GhostSliceT | _: MapT | _: FunctionT => false
+        case _ => true
+      }
     }
     case _ => false
+  }
+
+  private lazy val strictlyComparableType: Property[Type] = createBinaryProperty("strictly comparable") {
+    case Single(st) => st match {
+      case t: TypeParameterT => allStrictlyComparableTypes(TypeSet.from(t.constraint, this))
+      case _ => underlyingType(st) match {
+        case t: StructT =>
+          structMemberSet(t).collect {
+            case (_, f: Field) => f.context.symbType(f.decl.typ)
+            case (_, e: Embbed) => e.context.typ(e.decl.typ)
+          }.forall(strictlyComparableType)
+
+        case _: SliceT | _: GhostSliceT | _: MapT | _: FunctionT | _: InterfaceT => false
+        case _ => true
+      }
+    }
+    case _ => false
+  }
+
+  private def allStrictlyComparableTypes(typeSet: TypeSet) = typeSet match {
+    case TypeSet.UnboundedTypeSet(isComparable) => isComparable
+    case TypeSet.BoundedTypeSet(ts) => ts.forall(strictlyComparableType.result(_).holds)
   }
 }

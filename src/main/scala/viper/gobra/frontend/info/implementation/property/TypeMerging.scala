@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.internal.{Float32T, Float64T}
-import viper.gobra.frontend.info.base.Type.{AdtClauseT, AdtT, ArrayT, ChannelT, GhostSliceT, IntT, InternalSingleMulti, InternalTupleT, MapT, MultisetT, PermissionT, PointerT, SequenceT, SetT, Single, SliceT, Type}
+import viper.gobra.frontend.info.base.Type.{AdtClauseT, AdtT, ArrayT, ChannelT, GhostSliceT, IntT, InternalSingleMulti, InternalTupleT, MapT, MultisetT, PermissionT, PointerT, SequenceT, SetT, Single, SliceT, Type, TypeParameterT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
@@ -54,6 +54,7 @@ trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
               if l.context == r.context && l.adtT == r.adtT => Some(AdtT(l.adtT, l.context))
             case (c: AdtClauseT, u@UnderlyingType(a: AdtT)) if c.context == a.context && c.adtT == a.decl => Some(u)
             case (u@UnderlyingType(a: AdtT), c: AdtClauseT) if c.context == a.context && c.adtT == a.decl => Some(u)
+            case (l: TypeParameterT, r: TypeParameterT) if identicalTypes(l, r) => Some(l)
 
             case _ => None
           }

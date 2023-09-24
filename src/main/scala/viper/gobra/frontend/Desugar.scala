@@ -294,7 +294,7 @@ object Desugar extends LazyLogging {
 
     def closureSpecD(ctx: FunctionContext, info: TypeInfo)(s: PClosureSpecInstance): in.ClosureSpec = {
       val (funcTypeInfo, fArgs, proxy) = info.resolve(s.func) match {
-        case Some(ap.Function(id, symb)) => (symb.context.getTypeInfo, symb.decl.args, functionProxy(id, info))
+        case Some(ap.Function(id, symb, _)) => (symb.context.getTypeInfo, symb.decl.args, functionProxy(id, info))
         case Some(ap.Closure(id, symb)) => (symb.context.getTypeInfo, symb.lit.args, functionLitProxyD(id, info))
         case _ => violation("expected function or function literal")
       }
@@ -2081,7 +2081,7 @@ object Desugar extends LazyLogging {
       }
 
       def getFunctionProxy(f: ap.FunctionKind, args: Vector[in.Expr]): in.FunctionProxy = f match {
-        case ap.Function(id, _) => functionProxy(id, info)
+        case ap.Function(id, _, _) => functionProxy(id, info)
         case ap.BuiltInFunction(_, symb) => functionProxy(symb.tag, args.map(_.typ))(src)
         case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
@@ -2279,7 +2279,7 @@ object Desugar extends LazyLogging {
       * This method encodes closure calls, i.e. calls of the type c(_) as _, where c is a closure expression (and not a function/method proxy). */
     def closureCallDAux(ctx: FunctionContext, info: TypeInfo)(expr: PInvoke)(src: Meta): Writer[Either[(Vector[in.LocalVar], in.Stmt), in.Expr]] = {
       val (func, isPure) = info.resolve(expr.spec.get.func) match {
-        case Some(ap.Function(_, f)) => (f, f.isPure)
+        case Some(ap.Function(_, f, _)) => (f, f.isPure)
         case Some(ap.Closure(_, c)) => (c, c.isPure)
         case _ => violation("expected function or function literal")
       }
@@ -2454,8 +2454,13 @@ object Desugar extends LazyLogging {
       } yield in.IndexedExp(dbase, dindex, baseUnderlyingType)(src)
     }
 
-    def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext, info : TypeInfo) : Writer[in.IndexedExp] =
-      indexedExprD(expr.base, expr.index)(ctx, info)(meta(expr, info))
+    def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext, info : TypeInfo) : Writer[in.IndexedExp] = {
+      info.resolve(expr) match {
+        case Some(indexedExpr@ap.IndexedExp(_, _)) => indexedExprD(indexedExpr)(ctx, info)(meta(expr, info))
+        // TODO handle instantiated generic functions here in the future
+      }
+    }
+
     def indexedExprD(expr : ap.IndexedExp)(ctx : FunctionContext, info : TypeInfo)(src : Meta) : Writer[in.IndexedExp] =
       indexedExprD(expr.base, expr.index)(ctx, info)(src)
 
@@ -3766,7 +3771,6 @@ object Desugar extends LazyLogging {
         in.AdtClauseT(idName(t.decl.id, t.context.getTypeInfo), adt, fields, addrMod)
 
       case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
-
       case Type.FunctionT(args, result) =>
         val res = result match {
           case InternalTupleT(r) => r
@@ -3795,6 +3799,8 @@ object Desugar extends LazyLogging {
         in.SliceT(elemD, addrMod)
 
       case Type.PermissionT => in.PermissionT(addrMod)
+
+      case Type.TypeParameterT(id, _, _) => in.TypeParameterT(id.name, addrMod)
 
       case _ => Violation.violation(s"got unexpected type $t")
     }
@@ -4139,7 +4145,7 @@ object Desugar extends LazyLogging {
       */
     private def closureImplProofD(ctx: FunctionContext)(proof: PClosureImplProof): Writer[in.Stmt] = {
       val (func, funcTypeInfo) = info.resolve(proof.impl.spec.func) match {
-        case Some(ap.Function(_, f)) => (f, f.context.getTypeInfo)
+        case Some(ap.Function(_, f, _)) => (f, f.context.getTypeInfo)
         case Some(ap.Closure(_, c)) => (c, c.context.getTypeInfo)
         case _ => violation("expected function member or literal")
       }

@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.ast.frontend.{PExplicitGhostStructClause, PInterfaceType, PTypeDef, AstPattern => ap}
+import viper.gobra.ast.frontend.{PExplicitGhostStructClause, PInterfaceType, PTypeDef, AstPattern => ap, PTypeElement, PType}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, Method}
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.base.Type.{GhostCollectionType, NilType, Type}
@@ -17,7 +17,7 @@ trait Implements { this: TypeInfoImpl =>
 
   def implements(l: Type, r: Type): PropertyResult = underlyingType(r) match {
     case itf: Type.InterfaceT =>
-      val valid = syntaxImplements(l, r)
+      val valid = implementsMemberSet(l, r)
       if (valid.holds && l != NilType && !itf.isEmpty) {
         _requiredImplements ++= Set((l, itf))
       }
@@ -38,22 +38,27 @@ trait Implements { this: TypeInfoImpl =>
     }
   }
   def addDemandedEmbeddedInterfaceImplements(itf: Type.InterfaceT): Unit = {
-    itf.decl.embedded.foreach{ x => resolve(x.typ) match { // interface implements its embedded types
-      case Some(ap.NamedType(_, st.NamedType(PTypeDef(int: PInterfaceType, _), _, context))) =>
-        context.symbType(int) match {
-          case embeddedItfT: Type.InterfaceT => _guaranteedImplements ++= Set((itf, embeddedItfT))
-          case _ =>
-        }
+    itf.decl.embedded.foreach {
+      case PTypeElement(Vector(t: PType)) => resolve(t) match { // interface implements its embedded types
+        case Some(ap.NamedType(_, st.NamedType(PTypeDef(_, int: PInterfaceType, _), _, context), _)) =>
+          context.symbType(int) match {
+            case embeddedItfT: Type.InterfaceT => _guaranteedImplements ++= Set((itf, embeddedItfT))
+            case _ =>
+          }
+        case _ =>
+      }
       case _ =>
-    }}
+    }
   }
 
   override def interfaceImplementations: Map[Type.InterfaceT, Set[Type]] = {
     (localRequiredImplements ++ localGuaranteedImplements).groupMap(_._2)(_._1)
   }
 
-  def syntaxImplements(l: Type, r: Type): PropertyResult = (l, underlyingType(r)) match {
+  def implementsMemberSet(l: Type, r: Type): PropertyResult = (l, underlyingType(r)) match {
     case (NilType, _: Type.InterfaceT) => successProp
+    // a type parameter syntactically implements an interface iff its type constraint syntactically implements the interface
+    case (Type.TypeParameterT(_, constraint, _), _: Type.InterfaceT) => implementsMemberSet(symbType(constraint), r)
     case (_, _: Type.InterfaceT) =>
       supportedSortForInterfaces(l) and {
         val itfMemberSet = memberSet(r)

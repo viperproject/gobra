@@ -10,6 +10,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.resolution.TypeSet
 import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
 
@@ -63,13 +64,6 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       }
   }
 
-  lazy val parameterAssignableTo: Property[(Type, Type)] = createProperty[(Type, Type)] {
-    case (Argument(InternalTupleT(rs)), Argument(InternalTupleT(ls))) if rs.size == ls.size =>
-      propForall(rs zip ls, assignableTo)
-
-    case (r, l) => assignableTo.result(r, l)
-  }
-
   lazy val assignableTo: Property[(Type, Type)] = createFlatPropertyWithReason[(Type, Type)] {
     case (right, left) => s"$right is not assignable to $left"
   } {
@@ -82,14 +76,19 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       // the go language spec states that a value x of type V is assignable to a variable of type T
       // if V and T have identical underlying types and at least one of V or T is not a defined type
       case (l, r) if !(isDefinedType(l) && isDefinedType(r))
-        && identicalTypes(underlyingType(l), underlyingType(r)) => successProp
+        && identicalTypes(underlyingType(l), underlyingType(r))
+        && !isTypeParameter(l) && !isTypeParameter(r) => successProp
 
-      case (l, r) if underlyingType(r).isInstanceOf[InterfaceT] => implements(l, r)
+      case (l, r) if !isTypeParameter(r) && underlyingType(r).isInstanceOf[InterfaceT] => implements(l, r)
       case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => successProp
-      case (NilType, r) if isPointerType(r) => successProp
+      case (NilType, r) if isPointerType(r) && !isTypeParameter(r) => successProp
       case (VariadicT(t1), VariadicT(t2)) => assignableTo.result(t1, t2)
       case (t1, VariadicT(t2)) => assignableTo.result(t1, t2)
       case (VariadicT(t1), SliceT(t2)) if identicalTypes(t1, t2) => successProp
+      case (UNTYPED_INT_CONST, TypeParameterT(_, constraint, _)) => assignableToAll(UNTYPED_INT_CONST, TypeSet.from(constraint, this))
+      case (NilType, TypeParameterT(_, constraint, _)) => assignableToAll(NilType, TypeSet.from(constraint, this))
+      case (l, TypeParameterT(_, constraint, _)) if !isDefinedType(l) => assignableToAll(l, TypeSet.from(constraint, this))
+      case (TypeParameterT(_, constraint, _), r) if !isDefinedType(r) => allAssignableTo(TypeSet.from(constraint, this), r)
 
         // for ghost types
       case (BooleanT, AssertionT) => successProp
@@ -336,5 +335,22 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case Some(f: ap.FieldSelection) => isMutable(f.base)
       case _ => true
     }
+  }
+
+  /**
+    * checks whether a type is assignable to all types in a type set
+    */
+  private def assignableToAll(t: Type, typeSet: TypeSet) = typeSet match {
+    case _: TypeSet.UnboundedTypeSet => errorProp()
+    case TypeSet.BoundedTypeSet(ts) => propForall(ts.map((t, _)), assignableTo)
+  }
+
+  /**
+    * checks whether all types in a type set are assignable to a type
+    */
+  private def allAssignableTo(typeSet: TypeSet, t: Type) = (typeSet, t) match {
+    case (_: TypeSet.UnboundedTypeSet, _: InterfaceT) => successProp
+    case (_: TypeSet.UnboundedTypeSet, _) => errorProp()
+    case (TypeSet.BoundedTypeSet(ts), _) => propForall(ts.map((_, t)), assignableTo)
   }
 }

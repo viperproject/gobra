@@ -70,7 +70,7 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
 
       case (VoidType, VoidType) => true
 
-
+      case (TypeParameterT(l, _, _), TypeParameterT(r, _, _)) => l == r
 
       case _ => false
     }

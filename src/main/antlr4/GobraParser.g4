@@ -226,7 +226,7 @@ new_: NEW L_PAREN type_ R_PAREN;
 
 specMember: specification (functionDecl[$specification.trusted, $specification.pure] | methodDecl[$specification.trusted, $specification.pure]);
 
-functionDecl[boolean trusted, boolean pure]:  FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
+functionDecl[boolean trusted, boolean pure]:  FUNC IDENTIFIER typeParameters? (signature blockWithBodyParameterInfo?);
 
 methodDecl[boolean trusted, boolean pure]: FUNC receiver IDENTIFIER (signature blockWithBodyParameterInfo?);
 
@@ -393,7 +393,9 @@ predConstructArgs: L_PRED expressionList? COMMA? R_PRED;
 
 // Added predicate spec and method specifications
 interfaceType:
-  INTERFACE L_CURLY ((methodSpec | typeName| predicateSpec) eos)* R_CURLY;
+  INTERFACE L_CURLY (interfaceElem eos)* R_CURLY;
+
+interfaceElem: methodSpec | typeElem | predicateSpec;
 
 predicateSpec: PRED IDENTIFIER parameters;
 
@@ -402,7 +404,7 @@ methodSpec:
   | GHOST? specification IDENTIFIER parameters;
 
 // Added ghostTypeLiterals
-type_: typeName | typeLit | ghostTypeLit | L_PAREN type_ R_PAREN;
+type_: typeName index? | typeLit | ghostTypeLit | L_PAREN type_ R_PAREN;
 
 // Added pred types
 typeLit:
@@ -428,7 +430,7 @@ literalType:
   | sliceType
   | mapType
   | ghostTypeLit
-  | typeName;
+  | typeName index?;
 
 implicitArray: L_BRACKET ELLIPSIS R_BRACKET elementType;
 

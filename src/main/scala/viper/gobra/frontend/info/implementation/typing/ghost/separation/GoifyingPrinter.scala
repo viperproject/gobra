@@ -129,11 +129,12 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
         )
       )
 
-    case PFunctionDecl(id, args, res, spec, body) =>
+    case PFunctionDecl(id, typeParameters, args, res, spec, body) =>
       showDeclarationSpec(DeclarationSpec(getGhostParams(args), getGhostParams(res.outs), spec)) <>
       super.showMember(
         PFunctionDecl(
           id,
+          typeParameters,
           getActualParams(args),
           getActualResult(res),
           PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),

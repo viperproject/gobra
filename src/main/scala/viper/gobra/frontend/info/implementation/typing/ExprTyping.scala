@@ -7,12 +7,15 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
+import viper.gobra.ast.frontend.AstPattern.FunctionCall
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminator, GlobalVariable, SingleConstant}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.resolution.TypeSet
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
 import viper.gobra.util.{Constants, TypeBounds, Violation}
+
 
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -35,6 +38,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(ap.Closure(id, _)) => error(n, s"expected valid operand, got closure declaration name $n",
           !tree.parent(n).head.isInstanceOf[PClosureSpecInstance] &&
             tryEnclosingFunctionLit(n).fold(true)(lit => lit.id.fold(true)(encId => encId.name != id.name)))
+        case Some(ap.Function(id, symb, _)) if symb.typeParameters.nonEmpty =>
+          tree.parent(n).head match {
+            case _: PIndexedExp | _: PInvoke => noMessages
+            case _ => error(n, s"cannot use generic function $id without instantiation")
+          }
         case _ => noMessages
       } // no more checks to avoid cycles
 
@@ -90,6 +98,69 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
 
         case _ => error(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression, adt constructor or discriminator or destructor, an imported member or a built-in member, but got $n")
+      }
+
+    case n: PIndexedExp =>
+      resolve(n) match {
+        case Some(ap.Function(_, symb, typeArgs)) =>
+          tree.parent(n).head match {
+            case _: PInvoke => wellDefPartialIndexTypeArguments(n, symb.decl, typeArgs)
+            case _ => wellDefFullIndexTypeArguments(n, symb.decl, typeArgs)
+          }
+        case Some(ap.NamedType(_, symb, typeArgs)) if symb.decl.isInstanceOf[PTypeDef] =>
+          wellDefFullIndexTypeArguments(n, symb.decl.asInstanceOf[PTypeDef], typeArgs)
+        case Some(ap.IndexedExp(base, index)) => isExpr(base).out ++ isExpr(index).out ++ {
+          val baseType = exprType(base)
+          val idxType = exprType(index)
+          (underlyingType(baseType), underlyingType(idxType)) match {
+            case (ArrayT(l, _), IntT(_)) =>
+              val idxOpt = intConstantEval(index)
+              error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
+
+            case (PointerT(ArrayT(l, _)), IntT(_)) =>
+              val idxOpt = intConstantEval(index)
+              error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
+
+            case (SequenceT(_), IntT(_)) =>
+              noMessages
+
+            case (_: SliceT | _: GhostSliceT, IntT(_)) =>
+              noMessages
+
+            case (VariadicT(_), IntT(_)) =>
+              noMessages
+
+            case (StringT, IntT(_)) =>
+              error(n, "Indexing a string is currently not supported")
+
+            case (MapT(key, _), underlyingIdxType) =>
+              // Assignability in Go is a property between a value and and a type. In Gobra, we model this as a relation
+              // between two types, which is less precise. Because of this limitation, and with the goal of handling
+              // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
+              // expressions that are not accepted by the compiler.
+              val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
+              if (assignableToIdxType.nonEmpty) {
+                error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
+              } else {
+                assignableToIdxType
+              }
+
+            case (MathMapT(key, _), underlyingIdxType) =>
+              // Assignability in Go is a property between a value and and a type. In Gobra, we model this as a relation
+              // between two types, which is less precise. Because of this limitation, and with the goal of handling
+              // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
+              // expressions that are not accepted by the compiler.
+              val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
+              if (assignableToIdxType.nonEmpty) {
+                error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
+              } else {
+                assignableToIdxType
+              }
+
+            case (bt, it) => error(n, s"$it index is not a proper index of $bt")
+          }
+        }
+        case _ => error(n, s"invalid index expr $n")
       }
   }
 
@@ -188,6 +259,30 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case p => violation(s"expected field selection, method or predicate with a receiver, method expression, or predicate expression pattern, but got $p")
       }
 
+    case n: PIndexedExp =>
+      resolve(n) match {
+        case Some(_: ap.Function) => symbType(n)
+
+        case Some(ap.NamedType(_, symb, _)) if symb.decl.isInstanceOf[PTypeDef] => symbType(n)
+
+        case Some(ap.IndexedExp(base, index)) =>
+          val baseType = exprType(base)
+          val idxType = exprType(index)
+          (underlyingType(baseType), underlyingType(idxType)) match {
+            case (ArrayT(_, elem), IntT(_)) => elem
+            case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
+            case (SequenceT(elem), IntT(_)) => elem
+            case (SliceT(elem), IntT(_)) => elem
+            case (GhostSliceT(elem), IntT(_)) => elem
+            case (VariadicT(elem), IntT(_)) => elem
+            case (MapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+              InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+            case (MathMapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+              InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+            case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
+          }
+      }
+
   }(wellDefExprAndType)
 
   def exprOrTypeType(n: PExpressionOrType): Type = n match {
@@ -244,19 +339,37 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case Some(_: PIntegerType) => intExprWithinTypeBounds(p.arg, typ)
             case _ => noMessages
           }
-          convertibleTo.errors(exprType(p.arg), typ)(n) ++ isExpr(p.arg).out ++ argWithinBounds
+          convertibleTo.errors(exprType(p.arg), underlyingType(typ))(n) ++ isExpr(p.arg).out ++ argWithinBounds
 
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
           val isCallToInit =
             error(n, s"${Constants.INIT_FUNC_NAME} function is not callable",
               c.callee.isInstanceOf[ap.Function] && c.callee.id.name == Constants.INIT_FUNC_NAME)
+          val argTypes = n.args map exprType
           // arguments have to be assignable to function
           val wellTypedArgs = exprType(callee) match {
-            case FunctionT(args, _) => // TODO: add special assignment
-              if (n.spec.nonEmpty) wellDefCallWithSpec(n)
-              else if (n.args.isEmpty && args.isEmpty) noMessages
-              else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+            case f@FunctionT(args, _) =>
+              val (inferenceErrors: Messages, inferredFunctionType: FunctionT) = c.callee match {
+                case ap.Function(_, symb, _) =>
+                  if (f.uninstantiatedTypeParameters(symb).isEmpty) (noMessages, f)
+                  else {
+                    // do type inference
+                    val typeMap = inferTypeArgumentsFromCall(args, argTypes)
+
+                    val inferredType = f.substitute(typeMap)
+
+                    (wellDefTypeArguments(callee, symb.decl, typeMap) ++ inferredType.uninstantiatedTypeParameters(symb).flatMap(typeParam => {
+                      error(n, s"cannot infer ${typeParam}")
+                    }), inferredType)
+                  }
+                case _ => (noMessages, f)
+              }
+
+              if (inferenceErrors.nonEmpty) inferenceErrors
+              else if (n.spec.nonEmpty) wellDefCallWithSpec(n)
+              else if (n.args.isEmpty && inferredFunctionType.args.isEmpty) noMessages
+              else multiAssignableTo.errors(n.args map exprType, inferredFunctionType.args)(n) ++ n.args.flatMap(isExpr(_).out)
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n, s"type error: got $t but expected function type or AbstractType")
           }
@@ -298,60 +411,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case PBitNegation(op) => isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST)(op)
-
-    case n@PIndexedExp(base, index) =>
-      isExpr(base).out ++ isExpr(index).out ++ {
-        val baseType = exprType(base)
-        val idxType  = exprType(index)
-        (underlyingType(baseType), underlyingType(idxType)) match {
-          case (ArrayT(l, _), IntT(_)) =>
-            val idxOpt = intConstantEval(index)
-            error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
-
-          case (PointerT(ArrayT(l, _)), IntT(_)) =>
-            val idxOpt = intConstantEval(index)
-            error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
-
-          case (SequenceT(_), IntT(_)) =>
-            noMessages
-
-          case (_: SliceT | _: GhostSliceT, IntT(_)) =>
-            noMessages
-
-          case (VariadicT(_), IntT(_)) =>
-            noMessages
-
-          case (StringT, IntT(_)) =>
-            error(n, "Indexing a string is currently not supported")
-
-          case (MapT(key, _), underlyingIdxType) =>
-            // Assignability in Go is a property between a value and and a type. In Gobra, we model this as a relation
-            // between two types, which is less precise. Because of this limitation, and with the goal of handling
-            // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
-            // expressions that are not accepted by the compiler.
-            val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
-            if (assignableToIdxType.nonEmpty) {
-              error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
-            } else {
-              assignableToIdxType
-            }
-
-          case (MathMapT(key, _), underlyingIdxType) =>
-            // Assignability in Go is a property between a value and and a type. In Gobra, we model this as a relation
-            // between two types, which is less precise. Because of this limitation, and with the goal of handling
-            // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
-            // expressions that are not accepted by the compiler.
-            val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
-            if (assignableToIdxType.nonEmpty) {
-              error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
-            } else {
-              assignableToIdxType
-            }
-
-          case (bt, it) => error(n, s"$it index is not a proper index of $bt")
-        }
-      }
-
 
     case n@PSliceExp(base, low, high, cap) => isExpr(base).out ++
       low.fold(noMessages)(isExpr(_).out) ++
@@ -433,6 +492,18 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
             case _ => assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
           }
+          case (_: PAdd, t1: TypeParameterT, t2: TypeParameterT)
+            if TypeSet.allMatch(TypeSet.from(t1.constraint, this), {
+              case StringT | Float32T | Float64T | _: IntT => true
+            }) && identicalTypes.result(t1, t2).holds => noMessages
+          case (_: PSub | _: PMul | _: PDiv, t1: TypeParameterT, t2: TypeParameterT)
+            if TypeSet.allMatch(TypeSet.from(t1.constraint, this), {
+              case Float32T | Float64T | _: IntT => true
+            }) && identicalTypes.result(t1, t2).holds => noMessages
+          case (_: PMod | _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear, t1: TypeParameterT, t2: TypeParameterT)
+            if TypeSet.allMatch(TypeSet.from(t1.constraint, this), {
+              case _: IntT => true
+            }) && identicalTypes.result(t1, t2).holds => noMessages
           case (_: PAdd, StringT, StringT) => noMessages
           case (_: PAdd | _: PSub | _: PMul | _: PDiv, l, r) if Set(l, r).intersect(Set(Float32T, Float64T)).nonEmpty =>
             mergeableTypes.errors(l, r)(n)
@@ -617,6 +688,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       val typCtx = getNonInterfaceTypeFromCtxt(exp)
       typCtx.map(underlyingType) match {
         case Some(intTypeCtx: IntT) => assignableWithinBounds.errors(intTypeCtx, exp)(exp)
+        case Some(_: TypeParameterT) => noMessages
         case Some(t) => error(exp, s"$exp is not assignable to type $t")
         case None => noMessages // no type inferred from context
       }
@@ -652,9 +724,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (Left(_), Some(_: ap.PredExprInstance)) =>
         // a PInvoke on a predicate expression instance must fully apply the predicate arguments
         AssertionT
-      case (Left(callee), Some(_: ap.FunctionCall | _: ap.PredicateCall | _: ap.ClosureCall)) =>
+      case (Left(callee), Some(pattern@(_: ap.FunctionCall | _: ap.PredicateCall | _: ap.ClosureCall))) =>
         exprType(callee) match {
-          case FunctionT(_, res) => res
+          case f: FunctionT => pattern match {
+            case fc: FunctionCall =>
+              // do type inference
+              val typeMap = inferTypeArgumentsFromCall(f.args, fc.args.map(exprType))
+              f.substitute(typeMap).result
+            case _ => f.result
+          }
           case t: AbstractType =>
             val argTypes = n.args map exprType
             if (t.typing.isDefinedAt(argTypes)) t.typing(argTypes).result
@@ -663,23 +741,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       case p => violation(s"expected conversion, function call, predicate call, or predicate expression instance, but got $p")
     }
-
-    case PIndexedExp(base, index) =>
-      val baseType = exprType(base)
-      val idxType  = exprType(index)
-      (underlyingType(baseType), underlyingType(idxType)) match {
-        case (ArrayT(_, elem), IntT(_)) => elem
-        case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
-        case (SequenceT(elem), IntT(_)) => elem
-        case (SliceT(elem), IntT(_)) => elem
-        case (GhostSliceT(elem), IntT(_)) => elem
-        case (VariadicT(elem), IntT(_)) => elem
-        case (MapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
-          InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
-        case (MathMapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
-          InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
-        case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
-      }
 
     case PSliceExp(base, low, high, cap) =>
       val baseType = exprType(base)
@@ -793,8 +854,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     def defaultTypeIfInterface(t: Type) : Type = {
       if (t.isInstanceOf[InterfaceT]) DEFAULT_INTEGER_TYPE else t
     }
+    def untypedTypeIfTypeParameter(t: Type): Type = {
+      if (t.isInstanceOf[TypeParameterT]) UNTYPED_INT_CONST else t
+    }
     // handle cases where it returns a SingleMultiTuple and we only care about a single type
-    getTypeFromCtxt(expr).map(defaultTypeIfInterface) match {
+    getTypeFromCtxt(expr).map(defaultTypeIfInterface).map(untypedTypeIfTypeParameter) match {
       case Some(t) => t match {
         case Single(t) => Some(t)
         case UnknownType => Some(UnknownType)
@@ -1054,6 +1118,33 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT | _: AdtT => UNTYPED_INT_CONST
       case t => violation(s"unexpected argument ${expr.exp} of type $t passed to len")
     }
+
+  private[typing] def wellDefFullIndexTypeArguments(n: PNode, decl: PWithTypeParameters, typeArgs: Vector[PType]): Messages = {
+    error(n, s"got ${typeArgs.length} type arguments but want ${decl.typeParameters.length}", typeArgs.length != decl.typeParameters.length) ++
+    wellDefTypeArguments(n, decl, decl.typeParameters.map(_.id).zip(typeArgs.map(symbType)).toMap)
+  }
+
+  private[typing] def wellDefPartialIndexTypeArguments(n: PNode, decl: PWithTypeParameters, typeArgs: Vector[PType]): Messages = {
+    wellDefTypeArguments(n, decl, decl.typeParameters.map(_.id).zip(typeArgs.map(symbType)).toMap)
+  }
+
+  /**
+    * Checks whether type arguments satisfy the type parameter constraints
+    */
+  private[typing] def wellDefTypeArguments(n: PNode, decl: PWithTypeParameters, typeArgs: Map[PIdnDef, Type]): Messages = {
+    decl.typeParameters.flatMap(typeParam => {
+      val typeParamId = typeParam.id
+      if (typeArgs.isDefinedAt(typeParamId)) satisfies.errors((typeArgs(typeParamId), typeParam.constraint))(n)
+      else noMessages
+    })
+  }
+
+  /**
+    * Infers type arguments for a function with the argument signature types and the provided argument types
+    */
+  private [typing] def inferTypeArgumentsFromCall(argSignatureTypes: Vector[Type], argTypes: Vector[Type]): Map[PIdnDef, Type] = argSignatureTypes.zip(argTypes).map {
+    case (TypeParameterT(id, _, _), typ) => (PIdnDef(id.name), typ)
+  }.toMap[PIdnDef, Type]
 
   /**
     * True iff a conversion may produce side-effects, such as allocating a slice.

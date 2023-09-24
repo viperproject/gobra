@@ -44,7 +44,7 @@ trait GhostAssignability {
   /** checks that ghost arguments are not assigned to non-ghost arguments in a call with spec  */
   private[separation] def ghostAssignableToClosureCall(call: ap.ClosureCall): Messages = {
     val isPure = resolve(call.maybeSpec.get.func) match {
-      case Some(ap.Function(_, f)) => f.isPure
+      case Some(ap.Function(_, f, _)) => f.isPure
       case Some(ap.Closure(_, c)) => c.isPure
       case _ => Violation.violation("this case should be unreachable")
     }
@@ -66,7 +66,7 @@ trait GhostAssignability {
       GhostType.ghostTuple(params.map(p => context.isParamGhost(p)))
 
     val (fArgs, fRes, context) = resolve(spec.func) match {
-      case Some(ap.Function(_, f)) => (f.args, f.result.outs, f.context)
+      case Some(ap.Function(_, f, _)) => (f.args, f.result.outs, f.context)
       case Some(ap.Closure(_, c)) => (c.args, c.result.outs, c.context)
       case _ => Violation.violation("this case should be unreachable")
     }
@@ -97,7 +97,10 @@ trait GhostAssignability {
 
     case PIndexedExp(_, index) => // a[i] := e ~ !ghost(i) && !ghost(e)
       error(left, "ghost error: ghost cannot be assigned to index expressions", isRightGhost) ++
-        error(left, "ghost error: ghost index are not permitted in index expressions", ghostExprResultClassification(index))
+        error(left, "ghost error: ghost index are not permitted in index expressions", index.map(exprOrType).exists {
+          case Left(expression) => ghostExprResultClassification(expression)
+          case _ => Violation.violation(s"unexpected case reached: index was a type")
+        })
 
     case PNamedOperand(id) => // x := e ~ ghost(e) ==> ghost(x)
       error(left, "ghost error: ghost cannot be assigned to non-ghost", isRightGhost && !ghostIdClassification(id))

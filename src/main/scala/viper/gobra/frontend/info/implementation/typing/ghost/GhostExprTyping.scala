@@ -367,7 +367,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case (Right(_), Some(p: ap.Conversion)) =>
           !isEffectfulConversion(p) && go(p.arg)
         case (Left(callee), Some(p@ap.FunctionCall(f, _))) => go(callee) && p.args.forall(go) && (f match {
-          case ap.Function(_, symb) => symb.isPure
+          case ap.Function(_, symb, _) => symb.isPure
           case ap.Closure(_, symb) => symb.isPure
           case ap.DomainFunction(_, _) => true
           case ap.ReceivedMethod(_, _, _, symb) => symb.isPure
@@ -378,7 +378,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case ap.BuiltInFunction(_, symb) => symb.isPure
         })
         case (Left(callee), Some(_: ap.ClosureCall)) => resolve(n.spec.get.func) match {
-          case Some(ap.Function(_, f)) => f.isPure && go(callee) && n.args.forall(a => go(a))
+          case Some(ap.Function(_, f, _)) => f.isPure && go(callee) && n.args.forall(a => go(a))
           case Some(ap.Closure(_, c)) => c.isPure && go(callee) && n.args.forall(a => go(a))
           case _ => false
         }
@@ -463,7 +463,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PSliceExp(base, low, high, cap) =>
         go(base) && Seq(low, high, cap).flatten.forall(go)
 
-      case PIndexedExp(base, index) => Seq(base, index).forall(go)
+      case PIndexedExp(base, index) => go(base) && index.map(exprOrType).forall {
+        case Left(e) => go(e)
+        case _ => true
+      }
 
       case _: PMake | _: PNew => false
 

@@ -71,7 +71,6 @@ object ConfigDefaults {
   lazy val DefaultNoVerify: Boolean = false
   lazy val DefaultNoStreamErrors: Boolean = false
   lazy val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
-  // when enabled, all quantifiers without triggers are rejected
   lazy val DefaultRequireTriggers: Boolean = false
 }
 
@@ -136,6 +135,7 @@ case class Config(
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                    parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
+                   // when enabled, all quantifiers without triggers are rejected
                    requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
 ) {
 

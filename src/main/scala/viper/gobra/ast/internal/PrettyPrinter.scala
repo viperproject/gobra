@@ -310,6 +310,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
 
     case Initialization(left) => "init" <+> showVar(left)
+
+    case Allocation(left) => "allocate" <+> showVar(left)
+
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
 
     case FunctionCall(targets, func, args) =>
@@ -749,6 +752,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr)
 
     case Initialization(left) => "init" <+> showVar(left)
+
+    case Allocation(left) => "allocate" <+> showVar(left)
+
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
 
     case _: FunctionCall | _: MethodCall | _: ClosureCall => super.showStmt(s)

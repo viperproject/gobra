@@ -46,17 +46,21 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // check that `thn` and `els` have a common type
         mergeableTypes.errors(exprType(thn), exprType(els))(expr)
 
-    case PForall(vars, triggers, body) =>
+    case n@PForall(vars, triggers, body) =>
       // check whether all triggers are valid and consistent
       validTriggers(vars, triggers) ++
       // check that the quantifier `body` is either Boolean or an assertion
-      assignableToSpec(body)
+      assignableToSpec(body) ++
+      // check that the user provided triggers when running with --requireTriggers
+      error(n, "found a quantifier without triggers.", config.requireTriggers && triggers.isEmpty)
 
-    case PExists(vars, triggers, body) =>
+    case n@PExists(vars, triggers, body) =>
       // check whether all triggers are valid and consistent
       validTriggers(vars, triggers) ++
       // check that the quantifier `body` is Boolean
-        assignableToSpec(body) ++ assignableTo.errors(exprType(body), BooleanT)(expr)
+      assignableToSpec(body) ++ assignableTo.errors(exprType(body), BooleanT)(expr) ++
+      // check that the user provided triggers when running with --requireTriggers
+      error(n, "found a quantifier without triggers.", config.requireTriggers && triggers.isEmpty)
 
     case n: PImplication =>
       isExpr(n.left).out ++ isExpr(n.right).out ++

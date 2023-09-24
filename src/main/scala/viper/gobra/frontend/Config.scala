@@ -71,6 +71,7 @@ object ConfigDefaults {
   lazy val DefaultNoVerify: Boolean = false
   lazy val DefaultNoStreamErrors: Boolean = false
   lazy val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
+  lazy val DefaultRequireTriggers: Boolean = false
 }
 
 // More-complete exhale modes
@@ -134,6 +135,8 @@ case class Config(
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                    parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
+                   // when enabled, all quantifiers without triggers are rejected
+                   requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
 ) {
 
   def merge(other: Config): Config = {
@@ -181,7 +184,8 @@ case class Config(
       enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
       noStreamErrors = noStreamErrors || other.noStreamErrors,
-      parseAndTypeCheckMode = parseAndTypeCheckMode
+      parseAndTypeCheckMode = parseAndTypeCheckMode,
+      requireTriggers = requireTriggers || other.requireTriggers
     )
   }
 
@@ -234,6 +238,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
+                      requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -290,6 +295,7 @@ trait RawConfig {
     noVerify = baseConfig.noVerify,
     noStreamErrors = baseConfig.noStreamErrors,
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
+    requireTriggers = baseConfig.requireTriggers,
   )
 }
 
@@ -665,6 +671,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val requireTriggers: ScallopOption[Boolean] = opt[Boolean](
+    name = "requireTriggers",
+    descr = s"Enforces that all quantifiers have a user-provided trigger.",
+    default = Some(ConfigDefaults.DefaultRequireTriggers),
+    noshort = true,
+  )
+
   val noVerify: ScallopOption[Boolean] = opt[Boolean](
     name = "noVerify",
     descr = s"Skip the verification step performed after encoding the Gobra program into Viper.",
@@ -849,5 +862,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noVerify = noVerify(),
     noStreamErrors = noStreamErrors(),
     parseAndTypeCheckMode = parseAndTypeCheckMode(),
+    requireTriggers = requireTriggers(),
   )
 }

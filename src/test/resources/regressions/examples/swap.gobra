@@ -3,35 +3,19 @@
 
 package pkg
 
-/*
-pred p(x *int) {
-    acc(x) && (*x >= 5 ==> low(*x) && *x >= 6)
+pred /*#[MAJOR]*/ p(x int) {
+x == 1
 }
 
+pred /*#[MAJOR]*/ q(x int)
 
-requires acc(x)
-ensures acc(x)
-ensures  *x < 5 ==> *x == old(*x)
-ensures  *x >= 5 ==> low(*x)
-func example1(x *int) {
-  if *x >= 5 {
-    *x = 9
-  }
-}
+requires p(x)
+ensures q(x)
+func /*#[MAJOR]*/ m(x int)
 
-func example2(x *int) {
-    inhale p(x)
-    unfold p(x)
-    assert *x >= 5 ==> low(*x)
+func test() {
+    x := 1
     fold p(x)
-    exhale p(x)
+    m(x)
+    assume low(x)
 }
-
-pred unary(*int) {
-    true
-}
-
-pred q(x *int) {
-    unary(x) && p(x)
-}
-*/

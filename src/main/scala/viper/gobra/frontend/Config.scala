@@ -24,6 +24,8 @@ import viper.silver.ast.SourcePosition
 import scala.concurrent.duration.Duration
 import scala.util.matching.Regex
 
+import upickle.default.{ReadWriter => RW, macroRW}
+
 object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
 }
@@ -254,6 +256,44 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
       case _ => Some(positions.toVector)
     }
   }
+}
+
+// TODO: define constants for default values
+// TODO: uniform checking of configs between CLI and json
+case class JsonConfig(
+    input: Option[List[String]] = None,
+    directory: Option[List[String]] = None,
+    recursive: Boolean = false,
+    gobraDirectory: String = ".gobra",
+    moduleName: String = ConfigDefaults.DefaultModuleName,
+    includeDirs: Vector[String] = Vector.empty,
+    backend: String = "SILICON",
+    choppingUpperBound: Int = ConfigDefaults.DefaultChoppingUpperBound,
+    packageTimeout: Duration = ConfigDefaults.DefaultPackageTimeout,
+    z3Exe: Option[String] = ConfigDefaults.DefaultZ3Exe,
+    boogieExe: Option[String] = ConfigDefaults.DefaultBoogieExe,
+    logLevel: String = "INFO",
+    cacheFile: Option[String] = None,
+    shouldParseOnly: Boolean = ConfigDefaults.DefaultParseOnly,
+    stopAfterEncoding: Boolean = ConfigDefaults.DefaultStopAfterEncoding,
+    checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
+    checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
+    int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
+    cacheParserAndTypeChecker: Boolean = ConfigDefaults.DefaultCacheParserAndTypeChecker,
+    onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
+    assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
+    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
+    conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
+    z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
+    mceMode: String = "off",
+    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
+    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
+    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
+    requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
+)
+
+object JsonConfig {
+  implicit val rw: RW[JsonConfig] = macroRW
 }
 
 trait RawConfig {

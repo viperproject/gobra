@@ -71,9 +71,9 @@ trait MemberResolution { this: TypeInfoImpl =>
   // ADT
 
   /** Destructors and discriminator induced by adt clause */
-  private def adtClauseMemberSet(decl: PAdtClause, adtDecl: PAdtType, ctx: ExternalTypeInfo): AdvancedMemberSet[AdtMember] = {
-    val fields = decl.args.flatMap(_.fields).map(f => AdtDestructor(f, adtDecl, ctx))
-    val discriminator = AdtDiscriminator(decl, adtDecl, ctx)
+  private def adtClauseMemberSet(decl: PAdtClause, typeDecl: PTypeDef, adtDecl: PAdtType, ctx: ExternalTypeInfo): AdvancedMemberSet[AdtMember] = {
+    val fields = decl.args.flatMap(_.fields).map(f => AdtDestructor(f, typeDecl, adtDecl, ctx))
+    val discriminator = AdtDiscriminator(decl, typeDecl, adtDecl, ctx)
     AdvancedMemberSet.init[AdtMember](discriminator +: fields)
   }
 
@@ -89,13 +89,10 @@ trait MemberResolution { this: TypeInfoImpl =>
       case PointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
 
       case t: AdtT =>
-        val clauseMemberSets = t.decl.clauses.map(adtClauseMemberSet(_, t.decl, t.context))
+        val clauseMemberSets = t.adtDecl.clauses.map(adtClauseMemberSet(_, t.decl, t.adtDecl, t.context))
         AdvancedMemberSet.union(clauseMemberSets)
 
-      case t: AdtClauseT =>
-        val fields = t.decl.args.flatMap(_.fields).map(f => AdtDestructor(f, t.adtT, t.context))
-        val discriminator = AdtDiscriminator(t.decl, t.adtT, t.context)
-        AdvancedMemberSet.init[AdtMember](discriminator +: fields)
+      case t: AdtClauseT => adtClauseMemberSet(t.decl, t.typeDecl, t.adtDecl, t.context)
 
       case _ => AdvancedMemberSet.empty
     }
@@ -103,11 +100,45 @@ trait MemberResolution { this: TypeInfoImpl =>
     go(pastDeref = false)
   }
 
-  val adtMemberSet: Type => AdvancedMemberSet[AdtMember] =
+  lazy val adtMemberSet: Type => AdvancedMemberSet[AdtMember] =
     attr[Type, AdvancedMemberSet[AdtMember]] {
       case Single(t) => adtSuffix(t) union pastPromotions(adtSuffix)(t)
       case _ => AdvancedMemberSet.empty
     }
+
+  lazy val adtConstructorSet: Type => AdvancedMemberSet[AdtClause] = {
+
+    def constructorSuffix(t: Type): AdvancedMemberSet[AdtClause] = {
+      t match {
+        case t: AdtT =>
+          AdvancedMemberSet.init(
+            t.adtDecl.clauses.map { clause => AdtClause(clause, t.decl, t.context) }
+          )
+        case _ => AdvancedMemberSet.empty
+      }
+    }
+
+    attr[Type, AdvancedMemberSet[AdtClause]] {
+      case Single(t) => constructorSuffix(t) union pastPromotions(constructorSuffix)(t)
+      case _ => AdvancedMemberSet.empty
+    }
+  }
+
+  lazy val domainFunctionSet: Type => AdvancedMemberSet[DomainFunction] = {
+
+    def domainSuffix(t: Type): AdvancedMemberSet[DomainFunction] = {
+      t match {
+        case t: DomainT =>
+          AdvancedMemberSet.init(t.decl.funcs.map { f => DomainFunction(f, t.decl, t.context) })
+        case _ => AdvancedMemberSet.empty
+      }
+    }
+
+    attr[Type, AdvancedMemberSet[DomainFunction]] {
+      case Single(t) => domainSuffix(t) union pastPromotions(domainSuffix)(t)
+      case _ => AdvancedMemberSet.empty
+    }
+  }
 
   // Methods
 
@@ -322,7 +353,15 @@ trait MemberResolution { this: TypeInfoImpl =>
         }
       case Right(typ) => // base is a type
         typeSymbType(typ) match {
-          case pkg: ImportT => tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl)
+          case pkg: ImportT =>
+            tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl)
+
+          case DeclaredT(PTypeDef(adt: PAdtType, _), ctx) =>
+            adtConstructorSet(ctx.symbType(adt)).lookupWithPath(id.name)
+
+          case DeclaredT(PTypeDef(domain: PDomainType, _), ctx) =>
+            domainFunctionSet(ctx.symbType(domain)).lookupWithPath(id.name)
+
           case t => tryMethodLikeLookup(t, id)
         }
     }
@@ -388,7 +427,6 @@ trait MemberResolution { this: TypeInfoImpl =>
       case _ => UnknownEntity()
     }
   }
-
 
   /** lookup `id` in package `importTarget`. `errNode` is used as offending node. */
   def tryPackageLookup(importTarget: AbstractImport, id: PIdnUse, errNode: PNode): Option[(Entity, Vector[MemberPath])] = {

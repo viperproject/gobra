@@ -149,25 +149,25 @@ class SequenceEncoding extends LeafTypeEncoding {
           highT <- goE(high)
         } yield vpr.RangeSeq(lowT, highT)(pos, info, errT)
 
-      case n@ in.SequenceAppend(left, right) =>
+      case n: in.SequenceAppend =>
         val (pos, info, errT) = n.vprMeta
         for {
-          leftT <- goE(left)
-          rightT <- goE(right)
+          leftT <- goE(n.left)
+          rightT <- goE(n.right)
         } yield vpr.SeqAppend(leftT, rightT)(pos, info, errT)
 
-      case n@ in.SequenceDrop(left, right) =>
+      case n: in.SequenceDrop =>
         val (pos, info, errT) = n.vprMeta
         for {
-          leftT <- goE(left)
-          rightT <- goE(right)
+          leftT <- goE(n.left)
+          rightT <- goE(n.right)
         } yield vpr.SeqDrop(leftT, rightT)(pos, info, errT)
 
-      case n@ in.SequenceTake(left, right) =>
+      case n: in.SequenceTake =>
         val (pos, info, errT) = n.vprMeta
         for {
-          leftT <- goE(left)
-          rightT <- goE(right)
+          leftT <- goE(n.left)
+          rightT <- goE(n.right)
         } yield vpr.SeqTake(leftT, rightT)(pos, info, errT)
     }
   }

@@ -88,7 +88,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case (Right(base), Some((s: st.Method, path))) => Some(ap.MethodExpr(base, n.id, path, s))
         case (Right(base), Some((s: st.MPredicate, path))) => Some(ap.PredicateExpr(base, n.id, path, s))
 
-        // imported members
+        // imported members (also via adt)
         case (Right(_), Some((s: st.ActualTypeEntity, _))) => Some(ap.NamedType(n.id, s))
         case (Right(_), Some((s: st.Constant, _))) => Some(ap.Constant(n.id, s))
         case (Right(_), Some((s: st.GlobalVariable, _))) => Some(ap.GlobalVariable(n.id, s))

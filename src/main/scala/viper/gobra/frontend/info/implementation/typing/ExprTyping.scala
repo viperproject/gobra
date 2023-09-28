@@ -146,11 +146,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case Some(p: ap.AdtClause) =>
           val fields = p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ))
-          AdtClauseT(fields.toMap, fields.map(_._1), p.symb.decl, p.symb.adtDecl, this)
+          AdtClauseT(p.symb.getName, fields, p.symb.decl, p.symb.typeDecl, p.symb.context)
+
         case Some(p: ap.AdtField) =>
           p.symb match {
-            case AdtDestructor(decl, _, context) => context.symbType(decl.typ)
-            case AdtDiscriminator(_, _, _) => BooleanT
+            case dest: AdtDestructor => dest.context.symbType(dest.decl.typ)
+            case _: AdtDiscriminator => BooleanT
           }
 
         // TODO: fully supporting packages results in further options: global variable
@@ -1012,7 +1013,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {
     case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeSymbType(i.elem))
-    case t: PType => typeSymbType(t)
+    case t: PType =>
+      typeSymbType(t) match {
+        case t: AdtClauseT => t.declaredType // adt constructors return the defined type
+        case t => t
+      }
   }
 
   private[typing] def wellDefIfConstExpr(expr: PExpression): Messages = underlyingType(typ(expr)) match {

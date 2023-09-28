@@ -61,8 +61,8 @@ object ViperWriter {
     def container(data: Vector[DataKind]): DataContainer[K] = {
       val (own, other) = data.foldLeft[(Vector[K], Vector[DataKind])]((Vector.empty, Vector.empty)){
         case ((ow, ot), e) => ownKind(e) match {
-          case None    => (ow, e +: ot)
-          case Some(k) => (k +: ow, ot)
+          case None    => (ow, ot :+ e)
+          case Some(k) => (ow :+ k, ot)
         }
       }
 

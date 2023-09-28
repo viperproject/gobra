@@ -92,7 +92,8 @@ trait NameResolution {
 
           case tree.parent.pair(decl: PDomainFunction, domain: PDomainType) => DomainFunction(decl, domain, this)
 
-          case tree.parent.pair(decl: PAdtClause, adtDecl: PAdtType) => AdtClause(decl, adtDecl, this)
+          case tree.parent.pair(decl: PAdtClause, tree.parent(typeDecl: PTypeDef)) =>
+            AdtClause(decl, typeDecl, this)
 
           case tree.parent.pair(decl: PMatchBindVar, tree.parent.pair(_: PMatchStmtCase, matchE: PMatchStatement)) =>
             MatchVariable(decl, matchE.exp, this) // match full expression of match statement
@@ -249,8 +250,6 @@ trait NameResolution {
   private def packageLevelDefinitions(m: PMember): Vector[PIdnDef] = {
     /* Returns identifier definitions with a package scope occurring in a type. */
     def leakingIdentifier(t: PType): Vector[PIdnDef] = t match {
-      case t: PDomainType => t.funcs.map(_.id) // domain functions
-      case t: PAdtType => t.clauses.map(_.id) // adt constructors
       case _ => Vector.empty
     }
 
@@ -268,6 +267,36 @@ trait NameResolution {
       case _: PImplementationProof => Vector.empty
     }
   }
+
+  /**
+    * returns the (package-level) identifiers defined by a member
+    * that have a priority lower than all other identifiers
+    */
+  @scala.annotation.tailrec
+  private def latePackageLevelDefinitions(m: PMember): Vector[PIdnDef] = {
+    /* Returns identifier definitions with a package scope occurring in a type. */
+    def leakingIdentifier(t: PType): Vector[PIdnDef] = t match {
+      case t: PDomainType => t.funcs.map(_.id) // domain functions
+      case t: PAdtType => t.clauses.map(_.id) // adt constructors
+      case _ => Vector.empty
+    }
+
+    m match {
+      case a: PActualMember => a match {
+        case d: PTypeDecl => leakingIdentifier(d.right)
+        case _ => Vector.empty
+      }
+      case PExplicitGhostMember(a) => latePackageLevelDefinitions(a)
+      case _ => Vector.empty
+    }
+  }
+
+  lazy val lateEnvironments: PPackage => Environment =
+    attr[PPackage, Environment] { p =>
+      val definitions = p.declarations flatMap latePackageLevelDefinitions
+      val entities = definitions.map(d => serialize(d) -> defEntity(d))
+      rootenv(entities: _*)
+    }
 
   /** returns whether or not identified `id` is defined at node `n`. */
   def isDefinedAt(id: PIdnNode, n: PNode): Boolean = isDefinedInScope(sequentialDefenv.in(n), serialize(id))
@@ -384,8 +413,14 @@ trait NameResolution {
         case _ => None
       }
 
+    val level3: Level = n =>
+      tryEnclosingPackage(n) match {
+        case Some(p) => tryLookup(lateEnvironments(p), serialize(n))
+        case _ => None
+      }
+
     /** order of precedence; first level has highest precedence */
-    val levels: Seq[Level] = Seq(level0, level1, level2)
+    val levels: Seq[Level] = Seq(level0, level1, level2, level3)
 
     // returns first successfully defined entity otherwise `UnknownEntity()`
     levels.iterator.map(_(n)).find(_.isDefined).flatten.getOrElse(UnknownEntity())

@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.resolution
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
-import viper.gobra.frontend.info.base.Type.{ImportT, PredT, FunctionT}
+import viper.gobra.frontend.info.base.Type.{AdtT, FunctionT, ImportT, PredT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation.violation
 
@@ -31,7 +31,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
           .fold(
             _ => Left(n),
             symbType(_) match { // check if base is a package qualifier and id points to a type
-              case _: ImportT if pointsToType(n.id) => Right(n)
+              case _: ImportT | _: AdtT if pointsToType(n.id) => Right(n)
               case _ => Left(n)
             })
 
@@ -50,6 +50,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
 
     case n: PNamedOperand =>
       entity(n.id) match {
+        case s: st.Import => Some(ap.Import(n.id, s))
         case s: st.NamedType => Some(ap.NamedType(n.id, s))
         case s: st.Variable => s match {
           case g: st.GlobalVariable => Some(ap.GlobalVariable(n.id, g))

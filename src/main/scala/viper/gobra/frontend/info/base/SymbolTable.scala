@@ -261,7 +261,7 @@ object SymbolTable extends Environments[Entity] {
     override def addressable: Boolean = false
   }
 
-  case class AdtClause(decl: PAdtClause, typeDecl: PTypeDef, context: ExternalTypeInfo) extends GhostTypeMember {
+  case class AdtClause(decl: PAdtClause, typeDecl: PTypeDef, context: ExternalTypeInfo) extends GhostTypeMember with TypeEntity {
     require(typeDecl.right.isInstanceOf[PAdtType])
 
     override def rep: PNode = decl

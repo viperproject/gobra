@@ -11,7 +11,7 @@ import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag, BuiltInTypeTag}
 import viper.gobra.frontend.info.base.SymbolTable._
-import viper.gobra.frontend.info.base.Type.{AdtClauseT, InterfaceT, StructT}
+import viper.gobra.frontend.info.base.Type.{AdtT, InterfaceT, StructT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.Violation
@@ -320,7 +320,13 @@ trait NameResolution {
       case c => Violation.violation(s"Only the root has no parent, but got $c")
     }
 
-  lazy val topLevelEnvironment: Environment = scopedDefenv(tree.originalRoot)
+  /** Symboltable imported by a package import. */
+  lazy val topLevelEnvironment: Environment = {
+    val thisPkg = tree.originalRoot
+    val base = scopedDefenv(thisPkg)
+    val late = lateEnvironments(thisPkg)
+    base ++ late
+  }
 
   lazy val entity: PIdnNode => Entity =
     attr[PIdnNode, Entity] {
@@ -350,7 +356,7 @@ trait NameResolution {
           // if the enclosing literal is a struct then id is a field
           case t: StructT => tryFieldLookup(t, id).map(_._1).getOrElse(UnknownEntity())
           // if the enclosing literal is an adt clause then id is an adt field
-          case t: AdtClauseT => tryAdtMemberLookup(t, id).map(_._1).getOrElse(UnknownEntity())
+          case t: AdtT => tryAdtMemberLookup(t, id).map(_._1).getOrElse(UnknownEntity())
           // otherwise it is just a variable
           case _ => symbTableLookup(n)
         }

@@ -294,6 +294,7 @@ case class JsonConfig(
 
 object JsonConfig {
   implicit val rw: RW[JsonConfig] = macroRW
+  def read(s: File): JsonConfig = read(s)
 }
 
 trait RawConfig {
@@ -420,458 +421,381 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   extends ScallopConf(arguments)
     with StrictLogging {
 
-  /**
-    * Prologue
-    */
+  lazy val config: Either[String, Config] = readConfig()
 
-  version(
-    s"""
-       | ${GoVerifier.name} ${GoVerifier.copyright}
-       |   version ${GoVerifier.version}
+  private def readConfig(): Either[String, Config] = {
+
+    /**
+      * Prologue
+      */
+
+    version(
+      s"""
+         | ${GoVerifier.name} ${GoVerifier.copyright}
+         |   version ${GoVerifier.version}
      """.stripMargin
-  )
-
-  banner(
-    s""" Usage: ${GoVerifier.name} -i <input-files> [OPTIONS] OR
-       |  ${GoVerifier.name} -p <directory> [OPTIONS]
-       |
-       | Options:
-       |""".stripMargin
-  )
-
-  /**
-    * Command-line options
-    */
-  /** input is a list of strings as opposed to a list of files because line positions can optionally be provided */
-  val input: ScallopOption[List[String]] = opt[List[String]](
-    name = "input",
-    descr = "List of files to verify. Optionally, specific members can be verified by passing their line numbers (e.g. foo.gobra@42,111 corresponds to the members in lines 42 and 111)",
-    short = 'i'
-  )
-  /**
-    * List of input files together with their specified line numbers.
-    * Specified line numbers are removed from their corresponding input argument.
-    */
-  val cutInputWithIdxs: ScallopOption[List[(File, List[Int])]] = input.map(_.map{ arg =>
-    val pattern = """(.*)@(\d+(?:,\d+)*)""".r
-    arg match {
-      case pattern(prefix, idxs) =>
-        (new File(prefix), idxs.split(',').toList.map(_.toInt))
-
-      case _ => (new File(arg), List.empty[Int])
-    }
-  })
-  /** list of input files without line numbers */
-  val cutInput: ScallopOption[List[File]] = cutInputWithIdxs.map(_.map(_._1))
-
-  val directory: ScallopOption[List[File]] = opt[List[File]](
-    name = "directory",
-    descr = "List of directories to verify",
-    short = 'p'
-  )
-
-  val recursive: ScallopOption[Boolean] = opt[Boolean](
-    name = "recursive",
-    descr = "Verify nested packages recursively",
-    short = 'r'
-  )
-
-  val projectRoot: ScallopOption[File] = opt[File](
-    name = "projectRoot",
-    descr = "The root directory of the project",
-    default = Some(ConfigDefaults.DefaultProjectRoot),
-    noshort = true
-  )
-
-  val inclPackages: ScallopOption[List[String]] = opt[List[String]](
-    name = "includePackages",
-    descr = "Packages to verify. All packages found in the specified directories are verified by default.",
-    default = Some(ConfigDefaults.DefaultIncludePackages),
-    noshort = true
-  )
-
-  val exclPackages: ScallopOption[List[String]] = opt[List[String]](
-    name = "excludePackages",
-    descr = "Packages to ignore. These packages will not be verified, even if they are found in the specified directories.",
-    default = Some(ConfigDefaults.DefaultExcludePackages),
-    noshort = true
-  )
-
-  val gobraDirectory: ScallopOption[Path] = opt[Path](
-    name = "gobraDirectory",
-    descr = "Output directory for Gobra",
-    default = Some(ConfigDefaults.DefaultGobraDirectory),
-    short = 'g'
-  )(singleArgConverter(arg => Path.of(arg)))
-
-  val module: ScallopOption[String] = opt[String](
-    name = "module",
-    descr = "Name of current module that should be used for resolving imports",
-    default = Some(ConfigDefaults.DefaultModuleName)
-  )
-
-  val include: ScallopOption[List[File]] = opt[List[File]](
-    name = "include",
-    short = 'I',
-    descr = "Uses the provided directories to perform package-related lookups before falling back to $GOPATH",
-    default = Some(ConfigDefaults.DefaultIncludeDirs)
-  )
-  lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
-
-  val backend: ScallopOption[ViperBackend] = choice(
-    choices = Seq("SILICON", "CARBON", "VSWITHSILICON", "VSWITHCARBON"),
-    name = "backend",
-    descr = "Specifies the used Viper backend. The default is SILICON.",
-    default = Some("SILICON"),
-    noshort = true
-  ).map{
-    case "SILICON" => ViperBackends.SiliconBackend
-    case "CARBON" => ViperBackends.CarbonBackend
-    case "VSWITHSILICON" => ViperBackends.ViperServerWithSilicon()
-    case "VSWITHCARBON" => ViperBackends.ViperServerWithCarbon()
-    case s => Violation.violation(s"Unexpected backend option $s")
-  }
-
-  val debug: ScallopOption[Boolean] = opt[Boolean](
-    name = "debug",
-    descr = "Output additional debug information",
-    default = Some(false)
-  )
-
-  val logLevel: ScallopOption[Level] = choice(
-    name = "logLevel",
-    choices = Seq("ALL", "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "OFF"),
-    descr = "Specifies the log level. The default is OFF.",
-    default = Some(if (debug()) Level.DEBUG.toString else ConfigDefaults.DefaultLogLevel.toString),
-    noshort = true
-  ).map{arg => Level.toLevel(arg)}
-
-  val eraseGhost: ScallopOption[Boolean] = opt[Boolean](
-    name = "eraseGhost",
-    descr = "Print the input program without ghost code",
-    default = Some(false),
-    noshort = true
-  )
-
-  val goify: ScallopOption[Boolean] = opt[Boolean](
-    name = "goify",
-    descr = "Print the input program with the ghost code commented out",
-    default = Some(false),
-    noshort = true
-  )
-
-  val unparse: ScallopOption[Boolean] = opt[Boolean](
-    name = "unparse",
-    descr = "Print the parsed program",
-    default = Some(debug()),
-    noshort = true
-  )
-
-  val printInternal: ScallopOption[Boolean] = opt[Boolean](
-    name = "printInternal",
-    descr = "Print the internal program representation",
-    default = Some(debug()),
-    noshort = true
-  )
-
-  val printVpr: ScallopOption[Boolean] = opt[Boolean](
-    name = "printVpr",
-    descr = "Print the encoded Viper program",
-    default = Some(debug()),
-    noshort = true
-  )
-
-  val parseOnly: ScallopOption[Boolean] = opt[Boolean](
-    name = "parseOnly",
-    descr = "Perform only the parsing step",
-    default = Some(ConfigDefaults.DefaultParseOnly),
-    noshort = true
-  )
-
-  val chopUpperBound: ScallopOption[Int] = opt[Int](
-    name = "chop",
-    descr = "Number of parts the generated verification condition is split into (at most)",
-    default = Some(ConfigDefaults.DefaultChoppingUpperBound),
-    noshort = true
-  )
-
-  val packageTimeout: ScallopOption[String] = opt[String](
-    name = "packageTimeout",
-    descr = "Duration till the verification of a package times out",
-    default = None,
-    noshort = true
-  )
-  lazy val packageTimeoutDuration: Duration = packageTimeout.toOption match {
-    case Some(d) => Duration(d)
-    case _ => Duration.Inf
-  }
-
-  val z3Exe: ScallopOption[String] = opt[String](
-    name = "z3Exe",
-    descr = "The Z3 executable",
-    default = ConfigDefaults.DefaultZ3Exe,
-    noshort = true
-  )
-
-  val boogieExe: ScallopOption[String] = opt[String](
-    name = "boogieExe",
-    descr = "The Boogie executable",
-    default = ConfigDefaults.DefaultBoogieExe,
-    noshort = true
-  )
-
-  val checkOverflows: ScallopOption[Boolean] = opt[Boolean](
-    name = "overflow",
-    descr = "Find expressions that may lead to integer overflow",
-    default = Some(ConfigDefaults.DefaultCheckOverflows),
-    noshort = false
-  )
-
-  val cacheFile: ScallopOption[File] = opt[File](
-    name = "cacheFile",
-    descr = "Cache file to be used by Viper Server",
-    default = ConfigDefaults.DefaultCacheFile,
-    noshort = true
-  )
-
-  val int32Bit: ScallopOption[Boolean] = opt[Boolean](
-    name = "int32",
-    descr = "Run with 32-bit sized integers (the default is 64-bit ints)",
-    default = Some(ConfigDefaults.DefaultInt32bit),
-    noshort = false
-  )
-
-  val onlyFilesWithHeader: ScallopOption[Boolean] = opt[Boolean](
-    name = "onlyFilesWithHeader",
-    descr = s"When enabled, Gobra only looks at files that contain the header comment '${Config.prettyPrintedHeader}'",
-    default = Some(ConfigDefaults.DefaultOnlyFilesWithHeader),
-    noshort = false
-  )
-
-  val checkConsistency: ScallopOption[Boolean] = opt[Boolean](
-    name = "checkConsistency",
-    descr = "Perform consistency checks on the generated Viper code",
-    default = Some(ConfigDefaults.DefaultCheckConsistency),
-    noshort = true
-  )
-
-  val assumeInjectivityOnInhale: ScallopOption[Boolean] = toggle(
-    name = "assumeInjectivityOnInhale",
-    descrYes = "Assumes injectivity of the receiver expression when inhaling quantified permissions, instead of checking it, like in Viper versions previous to 2022.02 (default)",
-    descrNo = "Does not assume injectivity on inhales (this will become the default in future versions)",
-    default = Some(ConfigDefaults.DefaultAssumeInjectivityOnInhale),
-    noshort = true
-  )
-
-  val parallelizeBranches: ScallopOption[Boolean] = opt[Boolean](
-    name = "parallelizeBranches",
-    descr = "Performs parallel branch verification if the chosen backend is either SILICON or VSWITHSILICON",
-    default = Some(ConfigDefaults.DefaultParallelizeBranches),
-    noshort = true,
-  )
-
-  val conditionalizePermissions: ScallopOption[Boolean] = opt[Boolean](
-    name = "conditionalizePermissions",
-    descr = "Experimental: if enabled, and if the chosen backend is either SILICON or VSWITHSILICON, silicon will try " +
-      "to reduce the number of symbolic execution paths by conditionalising permission expressions. " +
-      "E.g. \"b ==> acc(x.f, p)\" is rewritten to \"acc(x.f, b ? p : none)\".",
-    default = Some(ConfigDefaults.DefaultConditionalizePermissions),
-    short = 'c',
-  )
-
-  val z3APIMode: ScallopOption[Boolean] = opt[Boolean](
-    name = "z3APIMode",
-    descr = "When the backend is either SILICON or VSWITHSILICON, silicon will use Z3 via API.",
-    default = Some(ConfigDefaults.DefaultZ3APIMode),
-    noshort = true,
-  )
-
-  val mceMode: ScallopOption[MCE.Mode] = {
-    val on = "on"
-    val off = "off"
-    val od = "od"
-    choice(
-      choices = Seq("on", "off", "od"),
-      name = "mceMode",
-      descr = s"Specifies if silicon should be run with more complete exhale enabled ($on), disabled ($off), or enabled on demand ($od).",
-      default = Some(on),
-      noshort = true
-    ).map{
-      case `on` => MCE.Enabled
-      case `off` => MCE.Disabled
-      case `od` => MCE.OnDemand
-      case s => Violation.violation(s"Unexpected mode for more complete exhale: $s")
-    }
-  }
-
-  val enableLazyImports: ScallopOption[Boolean] = opt[Boolean](
-    name = Config.enableLazyImportOptionName,
-    descr = s"Enforces that ${GoVerifier.name} parses depending packages only when necessary. Note that this disables certain language features such as global variables.",
-    default = Some(ConfigDefaults.DefaultEnableLazyImports),
-    noshort = true,
-  )
-
-  val requireTriggers: ScallopOption[Boolean] = opt[Boolean](
-    name = "requireTriggers",
-    descr = s"Enforces that all quantifiers have a user-provided trigger.",
-    default = Some(ConfigDefaults.DefaultRequireTriggers),
-    noshort = true,
-  )
-
-  val noVerify: ScallopOption[Boolean] = opt[Boolean](
-    name = "noVerify",
-    descr = s"Skip the verification step performed after encoding the Gobra program into Viper.",
-    default = Some(ConfigDefaults.DefaultNoVerify),
-    noshort = true,
-  )
-
-  val noStreamErrors: ScallopOption[Boolean] = opt[Boolean](
-    name = "noStreamErrors",
-    descr = "Do not stream errors produced by Gobra but instead print them all organized by package in the end.",
-    default = Some(ConfigDefaults.DefaultNoStreamErrors),
-    noshort = true,
-  )
-
-  val parseAndTypeCheckMode: ScallopOption[TaskManagerMode] = choice(
-    name = "parseAndTypeCheckMode",
-    choices = Seq("LAZY", "SEQUENTIAL", "PARALLEL"),
-    descr = "Specifies the mode in which parsing and type-checking is performed.",
-    default = Some("PARALLEL"),
-    noshort = true
-  ).map {
-    case "LAZY" => Lazy
-    case "SEQUENTIAL" => Sequential
-    case "PARALLEL" => Parallel
-    case _ => ConfigDefaults.DefaultParseAndTypeCheckMode
-  }
-
-  /**
-    * Exception handling
-    */
-  /**
-    * Epilogue
-    */
-
-  /** Argument Dependencies */
-  if (isInputOptional) {
-    mutuallyExclusive(input, directory, recursive)
-  } else {
-    // either `input`, `directory` or `recursive` must be provided but not both.
-    // this also checks that at least one file or directory is provided in the case of `input` and `directory`.
-    requireOne(input, directory, recursive)
-  }
-
-  // `inclPackages` and `exclPackages` only make sense when `recursive` is specified, `projectRoot` can only be used in `directory` or `recursive` mode.
-  // Thus, we restrict their use:
-  conflicts(input, List(projectRoot, inclPackages, exclPackages))
-  conflicts(directory, List(inclPackages, exclPackages))
-
-  // must be lazy to guarantee that this value is computed only during the CLI options validation and not before.
-  lazy val isSiliconBasedBackend = backend.toOption match {
-    case Some(ViperBackends.SiliconBackend | _: ViperBackends.ViperServerWithSilicon) => true
-    case _ => false
-  }
-
-  // `parallelizeBranches` requires a backend that supports branch parallelization (i.e., a silicon-based backend)
-  addValidation {
-    val parallelizeBranchesOn = parallelizeBranches.toOption.contains(true)
-    if (parallelizeBranchesOn && !isSiliconBasedBackend) {
-      Left("The selected backend does not support branch parallelization.")
-    } else {
-      Right(())
-    }
-  }
-
-  addValidation {
-    val conditionalizePermissionsOn = conditionalizePermissions.toOption.contains(true)
-    if (conditionalizePermissionsOn && !isSiliconBasedBackend) {
-      Left("The selected backend does not support --conditionalizePermissions.")
-    } else {
-      Right(())
-    }
-  }
-
-  addValidation {
-    val z3APIModeOn = z3APIMode.toOption.contains(true)
-    if (z3APIModeOn && !isSiliconBasedBackend) {
-      Left("The selected backend does not support --z3APIMode.")
-    } else {
-      Right(())
-    }
-  }
-
-  // `mceMode` can only be provided when using a silicon-based backend
-  addValidation {
-    val mceModeSupplied = mceMode.isSupplied
-    if (mceModeSupplied && !isSiliconBasedBackend) {
-      Left("The flag --mceMode can only be used with Silicon or ViperServer with Silicon")
-    } else {
-      Right(())
-    }
-  }
-
-
-  /** File Validation */
-  validateFilesExist(cutInput)
-  validateFilesIsFile(cutInput)
-  validateFilesExist(directory)
-  validateFilesIsDirectory(directory)
-  validateFileExists(projectRoot)
-  validateFileIsDirectory(projectRoot)
-  if (!skipIncludeDirChecks) {
-    validateFilesExist(include)
-    validateFilesIsDirectory(include)
-  }
-
-  verify()
-
-  lazy val config: Either[String, Config] = rawConfig.config
-
-  // note that we use `recursive.isSupplied` instead of `recursive.toOption` because it defaults to `Some(false)` if it
-  // was not provided by the user. Specifying a different default value does not seem to be respected.
-  private lazy val rawConfig: RawConfig = (cutInputWithIdxs.toOption, directory.toOption, recursive.isSupplied) match {
-    case (Some(inputsWithIdxs), None, false) => fileModeConfig(inputsWithIdxs)
-    case (None, Some(dirs), false) => packageModeConfig(dirs)
-    case (None, None, true) => recursiveModeConfig()
-    case (None, None, false) =>
-      Violation.violation(isInputOptional, "the configuration mode should be one of file, package or recursive unless inputs are optional")
-      noInputModeConfig()
-    case _ => Violation.violation(s"multiple modes have been found, which should have been caught by input validation")
-  }
-
-  private def fileModeConfig(cutInputWithIdxs: List[(File, List[Int])]): FileModeConfig = {
-    val cutPathsWithIdxs = cutInputWithIdxs.map { case (file, lineNrs) => (file.toPath, lineNrs) }
-    FileModeConfig(
-      inputFiles = cutPathsWithIdxs.map(_._1).toVector,
-      baseConfig = baseConfig(cutPathsWithIdxs)
     )
-  }
 
-  private def packageModeConfig(dirs: List[File]): PackageModeConfig = PackageModeConfig(
-    inputDirectories = dirs.map(_.toPath).toVector,
-    projectRoot = projectRoot().toPath,
-    // we currently do not offer a way via CLI to pass isolate information to Gobra in the package mode
-    baseConfig = baseConfig(ConfigDefaults.DefaultIsolate),
-  )
+    banner(
+      s""" Usage: ${GoVerifier.name} -i <input-files> [OPTIONS] OR
+         |  ${GoVerifier.name} -p <directory> [OPTIONS]
+         |
+         | Options:
+         |""".stripMargin
+    )
 
-  private def recursiveModeConfig(): RecursiveModeConfig = RecursiveModeConfig(
-    projectRoot = projectRoot().toPath,
-    includePackages = inclPackages(),
-    excludePackages = exclPackages(),
-    // we currently do not offer a way via CLI to pass isolate information to Gobra in the recursive mode
-    baseConfig(ConfigDefaults.DefaultIsolate),
-  )
+    /**
+      * Command-line options
+      */
+    /** input is a list of strings as opposed to a list of files because line positions can optionally be provided */
+    val input: ScallopOption[List[String]] = opt[List[String]](
+      name = "input",
+      descr = "List of files to verify. Optionally, specific members can be verified by passing their line numbers (e.g. foo.gobra@42,111 corresponds to the members in lines 42 and 111)",
+      short = 'i'
+    )
+    /**
+      * List of input files together with their specified line numbers.
+      * Specified line numbers are removed from their corresponding input argument.
+      */
+    val cutInputWithIdxs: ScallopOption[List[(File, List[Int])]] = input.map(_.map { arg =>
+      val pattern = """(.*)@(\d+(?:,\d+)*)""".r
+      arg match {
+        case pattern(prefix, idxs) =>
+          (new File(prefix), idxs.split(',').toList.map(_.toInt))
 
-  private def noInputModeConfig(): NoInputModeConfig = NoInputModeConfig(
-    // we currently do not offer a way via CLI to pass isolate information to Gobra in the recursive mode
-    baseConfig(ConfigDefaults.DefaultIsolate),
-  )
+        case _ => (new File(arg), List.empty[Int])
+      }
+    })
+    /** list of input files without line numbers */
+    val cutInput: ScallopOption[List[File]] = cutInputWithIdxs.map(_.map(_._1))
 
-  private def baseConfig(isolate: List[(Path, List[Int])]): BaseConfig = BaseConfig(
-    gobraDirectory = gobraDirectory(),
-    moduleName = module(),
-    includeDirs = includeDirs,
-    reporter = FileWriterReporter(
+    val directory: ScallopOption[List[File]] = opt[List[File]](
+      name = "directory",
+      descr = "List of directories to verify",
+      short = 'p'
+    )
+
+    val recursive: ScallopOption[Boolean] = opt[Boolean](
+      name = "recursive",
+      descr = "Verify nested packages recursively",
+      short = 'r'
+    )
+
+    val projectRoot: ScallopOption[File] = opt[File](
+      name = "projectRoot",
+      descr = "The root directory of the project",
+      default = Some(ConfigDefaults.DefaultProjectRoot),
+      noshort = true
+    )
+
+    val jsonConfig: ScallopOption[File] = opt[File](
+      name = "jsonConfig",
+      descr = "Read the configuration for a verification job from a JSON file instead of from the CLI",
+      default = None,
+      noshort = true
+    )
+
+    val inclPackages: ScallopOption[List[String]] = opt[List[String]](
+      name = "includePackages",
+      descr = "Packages to verify. All packages found in the specified directories are verified by default.",
+      default = Some(ConfigDefaults.DefaultIncludePackages),
+      noshort = true
+    )
+
+    val exclPackages: ScallopOption[List[String]] = opt[List[String]](
+      name = "excludePackages",
+      descr = "Packages to ignore. These packages will not be verified, even if they are found in the specified directories.",
+      default = Some(ConfigDefaults.DefaultExcludePackages),
+      noshort = true
+    )
+
+    val gobraDirectory: ScallopOption[Path] = opt[Path](
+      name = "gobraDirectory",
+      descr = "Output directory for Gobra",
+      default = Some(ConfigDefaults.DefaultGobraDirectory),
+      short = 'g'
+    )(singleArgConverter(arg => Path.of(arg)))
+
+    val module: ScallopOption[String] = opt[String](
+      name = "module",
+      descr = "Name of current module that should be used for resolving imports",
+      default = Some(ConfigDefaults.DefaultModuleName)
+    )
+
+    val include: ScallopOption[List[File]] = opt[List[File]](
+      name = "include",
+      short = 'I',
+      descr = "Uses the provided directories to perform package-related lookups before falling back to $GOPATH",
+      default = Some(ConfigDefaults.DefaultIncludeDirs)
+    )
+    lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
+
+    val backend: ScallopOption[ViperBackend] = choice(
+      choices = Seq("SILICON", "CARBON", "VSWITHSILICON", "VSWITHCARBON"),
+      name = "backend",
+      descr = "Specifies the used Viper backend. The default is SILICON.",
+      default = Some("SILICON"),
+      noshort = true
+    ).map {
+      case "SILICON" => ViperBackends.SiliconBackend
+      case "CARBON" => ViperBackends.CarbonBackend
+      case "VSWITHSILICON" => ViperBackends.ViperServerWithSilicon()
+      case "VSWITHCARBON" => ViperBackends.ViperServerWithCarbon()
+      case s => Violation.violation(s"Unexpected backend option $s")
+    }
+
+    val debug: ScallopOption[Boolean] = opt[Boolean](
+      name = "debug",
+      descr = "Output additional debug information",
+      default = Some(false)
+    )
+
+    val logLevel: ScallopOption[Level] = choice(
+      name = "logLevel",
+      choices = Seq("ALL", "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "OFF"),
+      descr = "Specifies the log level. The default is OFF.",
+      default = Some(if (debug()) Level.DEBUG.toString else ConfigDefaults.DefaultLogLevel.toString),
+      noshort = true
+    ).map { arg => Level.toLevel(arg) }
+
+    val eraseGhost: ScallopOption[Boolean] = opt[Boolean](
+      name = "eraseGhost",
+      descr = "Print the input program without ghost code",
+      default = Some(false),
+      noshort = true
+    )
+
+    val goify: ScallopOption[Boolean] = opt[Boolean](
+      name = "goify",
+      descr = "Print the input program with the ghost code commented out",
+      default = Some(false),
+      noshort = true
+    )
+
+    val unparse: ScallopOption[Boolean] = opt[Boolean](
+      name = "unparse",
+      descr = "Print the parsed program",
+      default = Some(debug()),
+      noshort = true
+    )
+
+    val printInternal: ScallopOption[Boolean] = opt[Boolean](
+      name = "printInternal",
+      descr = "Print the internal program representation",
+      default = Some(debug()),
+      noshort = true
+    )
+
+    val printVpr: ScallopOption[Boolean] = opt[Boolean](
+      name = "printVpr",
+      descr = "Print the encoded Viper program",
+      default = Some(debug()),
+      noshort = true
+    )
+
+    val parseOnly: ScallopOption[Boolean] = opt[Boolean](
+      name = "parseOnly",
+      descr = "Perform only the parsing step",
+      default = Some(ConfigDefaults.DefaultParseOnly),
+      noshort = true
+    )
+
+    val chopUpperBound: ScallopOption[Int] = opt[Int](
+      name = "chop",
+      descr = "Number of parts the generated verification condition is split into (at most)",
+      default = Some(ConfigDefaults.DefaultChoppingUpperBound),
+      noshort = true
+    )
+
+    val packageTimeout: ScallopOption[String] = opt[String](
+      name = "packageTimeout",
+      descr = "Duration till the verification of a package times out",
+      default = None,
+      noshort = true
+    )
+    lazy val packageTimeoutDuration: Duration = packageTimeout.toOption match {
+      case Some(d) => Duration(d)
+      case _ => Duration.Inf
+    }
+
+    val z3Exe: ScallopOption[String] = opt[String](
+      name = "z3Exe",
+      descr = "The Z3 executable",
+      default = ConfigDefaults.DefaultZ3Exe,
+      noshort = true
+    )
+
+    val boogieExe: ScallopOption[String] = opt[String](
+      name = "boogieExe",
+      descr = "The Boogie executable",
+      default = ConfigDefaults.DefaultBoogieExe,
+      noshort = true
+    )
+
+    val checkOverflows: ScallopOption[Boolean] = opt[Boolean](
+      name = "overflow",
+      descr = "Find expressions that may lead to integer overflow",
+      default = Some(ConfigDefaults.DefaultCheckOverflows),
+      noshort = false
+    )
+
+    val cacheFile: ScallopOption[File] = opt[File](
+      name = "cacheFile",
+      descr = "Cache file to be used by Viper Server",
+      default = ConfigDefaults.DefaultCacheFile,
+      noshort = true
+    )
+
+    val int32Bit: ScallopOption[Boolean] = opt[Boolean](
+      name = "int32",
+      descr = "Run with 32-bit sized integers (the default is 64-bit ints)",
+      default = Some(ConfigDefaults.DefaultInt32bit),
+      noshort = false
+    )
+
+    val onlyFilesWithHeader: ScallopOption[Boolean] = opt[Boolean](
+      name = "onlyFilesWithHeader",
+      descr = s"When enabled, Gobra only looks at files that contain the header comment '${Config.prettyPrintedHeader}'",
+      default = Some(ConfigDefaults.DefaultOnlyFilesWithHeader),
+      noshort = false
+    )
+
+    val checkConsistency: ScallopOption[Boolean] = opt[Boolean](
+      name = "checkConsistency",
+      descr = "Perform consistency checks on the generated Viper code",
+      default = Some(ConfigDefaults.DefaultCheckConsistency),
+      noshort = true
+    )
+
+    val assumeInjectivityOnInhale: ScallopOption[Boolean] = toggle(
+      name = "assumeInjectivityOnInhale",
+      descrYes = "Assumes injectivity of the receiver expression when inhaling quantified permissions, instead of checking it, like in Viper versions previous to 2022.02 (default)",
+      descrNo = "Does not assume injectivity on inhales (this will become the default in future versions)",
+      default = Some(ConfigDefaults.DefaultAssumeInjectivityOnInhale),
+      noshort = true
+    )
+
+    val parallelizeBranches: ScallopOption[Boolean] = opt[Boolean](
+      name = "parallelizeBranches",
+      descr = "Performs parallel branch verification if the chosen backend is either SILICON or VSWITHSILICON",
+      default = Some(ConfigDefaults.DefaultParallelizeBranches),
+      noshort = true,
+    )
+
+    val conditionalizePermissions: ScallopOption[Boolean] = opt[Boolean](
+      name = "conditionalizePermissions",
+      descr = "Experimental: if enabled, and if the chosen backend is either SILICON or VSWITHSILICON, silicon will try " +
+        "to reduce the number of symbolic execution paths by conditionalising permission expressions. " +
+        "E.g. \"b ==> acc(x.f, p)\" is rewritten to \"acc(x.f, b ? p : none)\".",
+      default = Some(ConfigDefaults.DefaultConditionalizePermissions),
+      short = 'c',
+    )
+
+    val z3APIMode: ScallopOption[Boolean] = opt[Boolean](
+      name = "z3APIMode",
+      descr = "When the backend is either SILICON or VSWITHSILICON, silicon will use Z3 via API.",
+      default = Some(ConfigDefaults.DefaultZ3APIMode),
+      noshort = true,
+    )
+
+    val mceMode: ScallopOption[MCE.Mode] = {
+      val on = "on"
+      val off = "off"
+      val od = "od"
+      choice(
+        choices = Seq("on", "off", "od"),
+        name = "mceMode",
+        descr = s"Specifies if silicon should be run with more complete exhale enabled ($on), disabled ($off), or enabled on demand ($od).",
+        default = Some(on),
+        noshort = true
+      ).map {
+        case `on` => MCE.Enabled
+        case `off` => MCE.Disabled
+        case `od` => MCE.OnDemand
+        case s => Violation.violation(s"Unexpected mode for more complete exhale: $s")
+      }
+    }
+
+    val enableLazyImports: ScallopOption[Boolean] = opt[Boolean](
+      name = Config.enableLazyImportOptionName,
+      descr = s"Enforces that ${GoVerifier.name} parses depending packages only when necessary. Note that this disables certain language features such as global variables.",
+      default = Some(ConfigDefaults.DefaultEnableLazyImports),
+      noshort = true,
+    )
+
+    val requireTriggers: ScallopOption[Boolean] = opt[Boolean](
+      name = "requireTriggers",
+      descr = s"Enforces that all quantifiers have a user-provided trigger.",
+      default = Some(ConfigDefaults.DefaultRequireTriggers),
+      noshort = true,
+    )
+
+    val noVerify: ScallopOption[Boolean] = opt[Boolean](
+      name = "noVerify",
+      descr = s"Skip the verification step performed after encoding the Gobra program into Viper.",
+      default = Some(ConfigDefaults.DefaultNoVerify),
+      noshort = true,
+    )
+
+    val noStreamErrors: ScallopOption[Boolean] = opt[Boolean](
+      name = "noStreamErrors",
+      descr = "Do not stream errors produced by Gobra but instead print them all organized by package in the end.",
+      default = Some(ConfigDefaults.DefaultNoStreamErrors),
+      noshort = true,
+    )
+
+    val parseAndTypeCheckMode: ScallopOption[TaskManagerMode] = choice(
+      name = "parseAndTypeCheckMode",
+      choices = Seq("LAZY", "SEQUENTIAL", "PARALLEL"),
+      descr = "Specifies the mode in which parsing and type-checking is performed.",
+      default = Some("PARALLEL"),
+      noshort = true
+    ).map {
+      case "LAZY" => Lazy
+      case "SEQUENTIAL" => Sequential
+      case "PARALLEL" => Parallel
+      case _ => ConfigDefaults.DefaultParseAndTypeCheckMode
+    }
+
+    /**
+      * Auxiliary definitions for configurations in different modes
+      */
+    def fileModeConfig(cutInputWithIdxs: List[(File, List[Int])]): FileModeConfig = {
+      val cutPathsWithIdxs = cutInputWithIdxs.map { case (file, lineNrs) => (file.toPath, lineNrs) }
+      FileModeConfig(
+        inputFiles = cutPathsWithIdxs.map(_._1).toVector,
+        baseConfig = baseConfig(cutPathsWithIdxs)
+      )
+    }
+
+    def packageModeConfig(dirs: List[File]): PackageModeConfig = PackageModeConfig(
+      inputDirectories = dirs.map(_.toPath).toVector,
+      projectRoot = projectRoot().toPath,
+      // we currently do not offer a way via CLI to pass isolate information to Gobra in the package mode
+      baseConfig = baseConfig(ConfigDefaults.DefaultIsolate),
+    )
+
+    def recursiveModeConfig(): RecursiveModeConfig = RecursiveModeConfig(
+      projectRoot = projectRoot().toPath,
+      includePackages = inclPackages(),
+      excludePackages = exclPackages(),
+      // we currently do not offer a way via CLI to pass isolate information to Gobra in the recursive mode
+      baseConfig(ConfigDefaults.DefaultIsolate),
+    )
+
+    def jsonFileConfig(): JsonConfig = ???
+    def jsonConfigToConfig(json: JsonConfig): Either[String, Config] = ???
+
+    def noInputModeConfig(): NoInputModeConfig = NoInputModeConfig(
+      // we currently do not offer a way via CLI to pass isolate information to Gobra in the recursive mode
+      baseConfig(ConfigDefaults.DefaultIsolate),
+    )
+
+    def baseConfig(isolate: List[(Path, List[Int])]): BaseConfig = BaseConfig(
+      gobraDirectory = gobraDirectory(),
+      moduleName = module(),
+      includeDirs = includeDirs,
+      reporter = FileWriterReporter(
         unparse = unparse(),
         eraseGhost = eraseGhost(),
         goify = goify(),
@@ -879,29 +803,129 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
         printInternal = printInternal(),
         printVpr = printVpr(),
         streamErrs = !noStreamErrors()),
-    backend = backend(),
-    isolate = isolate,
-    choppingUpperBound = chopUpperBound(),
-    packageTimeout = packageTimeoutDuration,
-    z3Exe = z3Exe.toOption,
-    boogieExe = boogieExe.toOption,
-    logLevel = logLevel(),
-    cacheFile = cacheFile.toOption.map(_.toPath),
-    shouldParseOnly = parseOnly(),
-    checkOverflows = checkOverflows(),
-    checkConsistency = checkConsistency(),
-    int32bit = int32Bit(),
-    cacheParserAndTypeChecker = false, // caching does not make sense when using the CLI. Thus, we simply set it to `false`
-    onlyFilesWithHeader = onlyFilesWithHeader(),
-    assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
-    parallelizeBranches = parallelizeBranches(),
-    conditionalizePermissions = conditionalizePermissions(),
-    z3APIMode = z3APIMode(),
-    mceMode = mceMode(),
-    enableLazyImports = enableLazyImports(),
-    noVerify = noVerify(),
-    noStreamErrors = noStreamErrors(),
-    parseAndTypeCheckMode = parseAndTypeCheckMode(),
-    requireTriggers = requireTriggers(),
-  )
+      backend = backend(),
+      isolate = isolate,
+      choppingUpperBound = chopUpperBound(),
+      packageTimeout = packageTimeoutDuration,
+      z3Exe = z3Exe.toOption,
+      boogieExe = boogieExe.toOption,
+      logLevel = logLevel(),
+      cacheFile = cacheFile.toOption.map(_.toPath),
+      shouldParseOnly = parseOnly(),
+      checkOverflows = checkOverflows(),
+      checkConsistency = checkConsistency(),
+      int32bit = int32Bit(),
+      cacheParserAndTypeChecker = false, // caching does not make sense when using the CLI. Thus, we simply set it to `false`
+      onlyFilesWithHeader = onlyFilesWithHeader(),
+      assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
+      parallelizeBranches = parallelizeBranches(),
+      conditionalizePermissions = conditionalizePermissions(),
+      z3APIMode = z3APIMode(),
+      mceMode = mceMode(),
+      enableLazyImports = enableLazyImports(),
+      noVerify = noVerify(),
+      noStreamErrors = noStreamErrors(),
+      parseAndTypeCheckMode = parseAndTypeCheckMode(),
+      requireTriggers = requireTriggers(),
+    )
+
+    /**
+      * Epilogue
+      */
+
+    /** Argument Dependencies */
+    if (isInputOptional) {
+      mutuallyExclusive(input, directory, recursive, jsonConfig)
+    } else {
+      // either `input`, `directory`, `recursive` or `jsonConfig` must be provided but not both.
+      // this also checks that at least one file or directory is provided in the case of `input` and `directory`.
+      requireOne(input, directory, recursive, jsonConfig)
+    }
+
+    // `inclPackages` and `exclPackages` only make sense when `recursive` is specified, `projectRoot` can only be used in `directory` or `recursive` mode.
+    // Thus, we restrict their use:
+    conflicts(input, List(projectRoot, inclPackages, exclPackages))
+    conflicts(directory, List(inclPackages, exclPackages))
+
+    // must be lazy to guarantee that this value is computed only during the CLI options validation and not before.
+    lazy val isSiliconBasedBackend = backend.toOption match {
+      case Some(ViperBackends.SiliconBackend | _: ViperBackends.ViperServerWithSilicon) => true
+      case _ => false
+    }
+
+    // `parallelizeBranches` requires a backend that supports branch parallelization (i.e., a silicon-based backend)
+    addValidation {
+      val parallelizeBranchesOn = parallelizeBranches.toOption.contains(true)
+      if (parallelizeBranchesOn && !isSiliconBasedBackend) {
+        Left("The selected backend does not support branch parallelization.")
+      } else {
+        Right(())
+      }
+    }
+
+    addValidation {
+      val conditionalizePermissionsOn = conditionalizePermissions.toOption.contains(true)
+      if (conditionalizePermissionsOn && !isSiliconBasedBackend) {
+        Left("The selected backend does not support --conditionalizePermissions.")
+      } else {
+        Right(())
+      }
+    }
+
+    addValidation {
+      val z3APIModeOn = z3APIMode.toOption.contains(true)
+      if (z3APIModeOn && !isSiliconBasedBackend) {
+        Left("The selected backend does not support --z3APIMode.")
+      } else {
+        Right(())
+      }
+    }
+
+    // `mceMode` can only be provided when using a silicon-based backend
+    addValidation {
+      val mceModeSupplied = mceMode.isSupplied
+      if (mceModeSupplied && !isSiliconBasedBackend) {
+        Left("The flag --mceMode can only be used with Silicon or ViperServer with Silicon")
+      } else {
+        Right(())
+      }
+    }
+
+    /** File Validation */
+    validateFilesExist(cutInput)
+    validateFilesIsFile(cutInput)
+    validateFilesExist(directory)
+    validateFilesIsDirectory(directory)
+    validateFileExists(projectRoot)
+    validateFileIsDirectory(projectRoot)
+    if (!skipIncludeDirChecks) {
+      validateFilesExist(include)
+      validateFilesIsDirectory(include)
+    }
+
+    verify()
+
+    // note that we use `recursive.isSupplied` instead of `recursive.toOption` because it defaults to `Some(false)` if it
+    // was not provided by the user. Specifying a different default value does not seem to be respected.
+    (cutInputWithIdxs.toOption, directory.toOption, recursive.isSupplied, jsonConfig.toOption) match {
+      case (Some(inputsWithIdxs), None, false, None) =>
+        fileModeConfig(inputsWithIdxs).config
+      case (None, Some(dirs), false, None) =>
+        packageModeConfig(dirs).config
+      case (None, None, true, None) =>
+        recursiveModeConfig().config
+      case (None, None, false, Some(jsonFile)) =>
+        // TODO: doc, explain why it is safe
+        val jsonConfig = JsonConfig.read(jsonFile)
+        val additionalFlags = noInputModeConfig()
+        for {
+          baseFlagsConfig <- jsonConfigToConfig(jsonConfig)
+          additionalFlagsConfig <- additionalFlags.config
+        } yield additionalFlagsConfig.merge(baseFlagsConfig)
+      case (None, None, false, None) =>
+        Violation.violation(isInputOptional, "the configuration mode should be one of file, package, recursive, or JSON, unless inputs are optional")
+        noInputModeConfig().config
+      case _ => Violation.violation(s"multiple modes have been found, which should have been caught by input validation")
+    }
+  }
 }

@@ -440,6 +440,11 @@ literalType:
 
 implicitArray: L_BRACKET ELLIPSIS R_BRACKET elementType;
 
+fieldDecl: GHOST? (
+		identifierList type_
+		| embeddedField
+	) tag = string_?;
+
 // ANTLR Grammar fixes
 
 // distinguish low,high cap

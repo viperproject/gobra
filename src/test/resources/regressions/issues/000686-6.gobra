@@ -3,10 +3,7 @@
 
 package pkg
 
-//:: ExpectedOutput(type_error)
-type X adt {
-  A { x int }
-  B { x int }
+type X struct{
+    ghost f seq[int]
 }
-
 

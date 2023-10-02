@@ -1,6 +1,7 @@
 package viper.gobra.translator.transformers.hyper
 
 import viper.gobra.backend.BackendVerifier
+import viper.gobra.frontend.{Config, Hyper}
 import viper.gobra.reporting.Source
 import viper.gobra.translator.transformers.ViperTransformer
 import viper.silver.ast._
@@ -14,11 +15,12 @@ trait SIFLowGuardTransformer {
   def program(
                  p: Program,
                  onlyMajor: String => Boolean,
+                 noMinor: Boolean,
                ): Program = {
 
     val relPreds = relationalPredicates(p)
     val noDups = noDuplicates(p)
-    val ctx = newContext(relPreds, noDups, onlyMajor)
+    val ctx = newContext(relPreds, noDups, onlyMajor, noMinor)
 
     val members =
       p.methods.flatMap(method(_, ctx)) ++
@@ -272,7 +274,7 @@ trait SIFLowGuardTransformer {
   }
 
   def removeMinorExp(e: Exp, ctx: RunContext): Exp = {
-    if (ctx.isMajor || e.typ != Bool) e
+    if (!ctx.removeMinor || e.typ != Bool) e
     else {
 
       def go(e: Exp): Reduction[Exp] = e match {
@@ -400,24 +402,32 @@ trait SIFLowGuardTransformer {
   }
 
   def removeMinorStmt(s: Stmt, ctx: RunContext): Stmt = {
-    if (ctx.isMajor || !hasMajorOnly(s, ctx)) s
+    if (!ctx.removeMinor || !hasMajorOnly(s, ctx)) s
     else Seqn(Seq.empty, Seq.empty)(s.pos, s.info, s.errT)
+  }
+
+  def removeLow[N <: Node](n: N): N = {
+    n.transform{
+      case n: SIFLowExp => TrueLit()(n.pos, n.info, n.errT)
+      case n: SIFLowEventExp => TrueLit()(n.pos, n.info, n.errT)
+    }
   }
 
   def newContext(
                   _relPreds: String => Boolean,
                   _noDups: String => Boolean,
                   _onlyMajor: String => Boolean,
+                  _noMinor: Boolean,
                 ): Context = {
 
     trait MajorContext extends RunContext { self: Context =>
-      override def isMajor: Boolean = true
+      override val removeMinor: Boolean = _noMinor
       override def rename(n: String): String =
         if (hasNoDuplicates(n)) n else s"${n}0"
     }
 
     trait MinorContext extends RunContext { self: Context =>
-      override def isMajor: Boolean = false
+      override val removeMinor: Boolean = true
       override def rename(n: String): String =
         if (hasNoDuplicates(n)) n else s"${n}1"
     }
@@ -454,7 +464,7 @@ trait Context {
 }
 
 trait RunContext extends Context {
-  def isMajor: Boolean
+  def removeMinor: Boolean
   def rename(@unused x: String): String
 }
 
@@ -495,7 +505,7 @@ object Reduction {
   }
 }
 
-class SIFLowGuardTransformerImpl extends SIFLowGuardTransformer with ViperTransformer {
+class SIFLowGuardTransformerImpl(config: Config) extends SIFLowGuardTransformer with ViperTransformer {
 
   def onlyMajor(p: Program): String => Boolean = {
     def nameBased(n: String): Boolean = n match {
@@ -514,6 +524,16 @@ class SIFLowGuardTransformerImpl extends SIFLowGuardTransformer with ViperTransf
   }
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
-    Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program)), task.backtrack))
+    config.hyperMode match {
+      case Hyper.Enabled =>
+        Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program), noMinor = false), task.backtrack))
+
+      case Hyper.Disabled =>
+        Right(BackendVerifier.Task(removeLow(task.program), task.backtrack))
+
+      case Hyper.NoMajor =>
+        Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program), noMinor = true), task.backtrack))
+    }
+
   }
 }

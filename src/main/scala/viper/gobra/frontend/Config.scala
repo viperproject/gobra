@@ -67,6 +67,7 @@ object ConfigDefaults {
   lazy val DefaultConditionalizePermissions: Boolean = false
   lazy val DefaultZ3APIMode: Boolean = false
   lazy val DefaultMCEMode: MCE.Mode = MCE.Enabled
+  lazy val DefaultHyperMode: Hyper.Mode = Hyper.Enabled
   lazy val DefaultEnableLazyImports: Boolean = false
   lazy val DefaultNoVerify: Boolean = false
   lazy val DefaultNoStreamErrors: Boolean = false
@@ -82,6 +83,13 @@ object MCE {
   // More information can be found in https://github.com/viperproject/silicon/pull/682.
   object OnDemand extends Mode
   object Enabled extends Mode
+}
+
+object Hyper {
+  sealed trait Mode
+  object Enabled extends Mode
+  object Disabled extends Mode
+  object NoMajor extends Mode
 }
 
 case class Config(
@@ -131,6 +139,7 @@ case class Config(
                    conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
                    z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
                    mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
+                   hyperMode: Hyper.Mode = ConfigDefaults.DefaultHyperMode,
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
@@ -181,6 +190,7 @@ case class Config(
       conditionalizePermissions = conditionalizePermissions,
       z3APIMode = z3APIMode || other.z3APIMode,
       mceMode = mceMode,
+      hyperMode = hyperMode,
       enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
       noStreamErrors = noStreamErrors || other.noStreamErrors,
@@ -234,6 +244,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
                       z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
+                      hyperMode: Hyper.Mode = ConfigDefaults.DefaultHyperMode,
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
@@ -291,6 +302,7 @@ trait RawConfig {
     conditionalizePermissions = baseConfig.conditionalizePermissions,
     z3APIMode = baseConfig.z3APIMode,
     mceMode = baseConfig.mceMode,
+    hyperMode = baseConfig.hyperMode,
     enableLazyImports = baseConfig.enableLazyImports,
     noVerify = baseConfig.noVerify,
     noStreamErrors = baseConfig.noStreamErrors,
@@ -664,6 +676,18 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     }
   }
 
+  val hyperMode: ScallopOption[Hyper.Mode] = choice(
+    name = "hyperMode",
+    choices = Seq("on", "off", "noMajor"),
+    descr = "Specifies whether hyper properties should be verified (on), not verified (off), or whether the major checks should be skipped (noMajor).",
+    default = Some("on"),
+    noshort = true
+  ).map {
+    case "on" => Hyper.Enabled
+    case "off" => Hyper.Disabled
+    case "noMajor" => Hyper.NoMajor
+  }
+
   val enableLazyImports: ScallopOption[Boolean] = opt[Boolean](
     name = Config.enableLazyImportOptionName,
     descr = s"Enforces that ${GoVerifier.name} parses depending packages only when necessary. Note that this disables certain language features such as global variables.",
@@ -858,6 +882,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     conditionalizePermissions = conditionalizePermissions(),
     z3APIMode = z3APIMode(),
     mceMode = mceMode(),
+    hyperMode = hyperMode(),
     enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),
     noStreamErrors = noStreamErrors(),

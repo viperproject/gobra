@@ -1378,7 +1378,8 @@ object Desugar extends LazyLogging {
 
         domain = in.MapKeys(c, underlyingType(exp.typ))(src)
 
-        visited <- leftOfAssignmentD(range.enumerated, info)(in.SetT(keyType, Addressability.exclusiveVariable))
+        visitedT = in.SetT(keyType, Addressability.exclusiveVariable)
+        visited <- leftOfAssignmentD(range.enumerated, info)(visitedT)
 
         perm <- freshDeclaredExclusiveVar(in.PermissionT(Addressability.exclusiveVariable), n, info)(src)
 
@@ -1411,7 +1412,7 @@ object Desugar extends LazyLogging {
         breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
 
         visitedEqDomain = in.Assert(in.ExprAssertion(in.EqCmp(
-          in.SetMinus(visited.op, domain)(src),
+          in.SetMinus(visited.op, domain, visitedT)(src),
           in.SetLit(keyType, Vector.empty)(src)
         )(src))(src))(src)
 
@@ -1424,7 +1425,7 @@ object Desugar extends LazyLogging {
             in.Negation(in.Contains(k, visited.op)(src))(src))(src))(src))(src)
         ) ++ (if (hasValue) Vector(in.Initialization(v)(src), singleAss(in.Assignee.Var(v), in.IndexedExp(c, k, underlyingType(exp.typ))(src))(src)) else Vector()))(src)
 
-        updateVisited = singleAss(visited, in.Union(visited.op, in.SetLit(keyType, Vector(k))(src))(src))(src)
+        updateVisited = singleAss(visited, in.Union(visited.op, in.SetLit(keyType, Vector(k))(src), visitedT)(src))(src)
 
         enc = in.Seqn(Vector(
           singleAss(in.Assignee.Var(c), exp)(src),
@@ -1458,7 +1459,8 @@ object Desugar extends LazyLogging {
 
         domain = in.MapKeys(c, underlyingType(exp.typ))(src)
 
-        visited <- leftOfAssignmentD(range.enumerated, info)(in.SetT(keyType, Addressability.exclusiveVariable))
+        visitedT = in.SetT(keyType, Addressability.exclusiveVariable)
+        visited <- leftOfAssignmentD(range.enumerated, info)(visitedT)
 
         perm <- freshDeclaredExclusiveVar(in.PermissionT(Addressability.exclusiveVariable), n, info)(src)
 
@@ -1491,7 +1493,7 @@ object Desugar extends LazyLogging {
         breakLoopLabel = in.Label(breakLoopLabelProxy)(src)
 
         visitedEqDomain = in.Assert(in.ExprAssertion(in.EqCmp(
-          in.SetMinus(visited.op, domain)(src),
+          in.SetMinus(visited.op, domain, visitedT)(src),
           in.SetLit(keyType, Vector.empty)(src)
         )(src))(src))(src)
 
@@ -1506,7 +1508,7 @@ object Desugar extends LazyLogging {
           singleAss(k, tempk)(src)
         ) ++ (if (hasValue) Vector(singleAss(v, in.IndexedExp(c, k.op, underlyingType(exp.typ))(src))(src)) else Vector()))(src)
 
-        updateVisited = singleAss(visited, in.Union(visited.op, in.SetLit(keyType, Vector(k.op))(src))(src))(src)
+        updateVisited = singleAss(visited, in.Union(visited.op, in.SetLit(keyType, Vector(k.op))(src), visitedT)(src))(src)
 
         enc = in.Seqn(Vector(
           singleAss(in.Assignee.Var(c), exp)(src),
@@ -1775,6 +1777,7 @@ object Desugar extends LazyLogging {
                         in.GoClosureCall(call.closure, call.args, call.spec)(src)
                       case Right(call: in.PureClosureCall) =>
                         in.GoClosureCall(call.closure, call.args, call.spec)(src)
+                      case _ => unexpectedExprError(exp)
                     }
                   case _ => unexpectedExprError(exp)
                 }
@@ -2028,19 +2031,19 @@ object Desugar extends LazyLogging {
       for {
         base <- exprD(ctx, info)(p.base)
       } yield p.symb match {
-        case st.AdtDestructor(decl, adtDecl, context) =>
-          val adtT: AdtT = context.symbType(adtDecl).asInstanceOf[AdtT]
+        case dest: st.AdtDestructor =>
+          val adtT = dest.context.symbType(dest.adtType).asInstanceOf[AdtT]
           in.AdtDestructor(base, in.Field(
-            nm.adtField(decl.id.name, adtT),
-            typeD(context.symbType(decl.typ), Addressability.mathDataStructureElement)(src),
+            nm.adtField(dest.decl.id.name, adtT.decl),
+            typeD(dest.context.symbType(dest.decl.typ), Addressability.mathDataStructureElement)(src),
             ghost = true
           )(src))(src)
 
-        case st.AdtDiscriminator(decl, adtDecl, context) =>
-          val adtT: AdtT = context.symbType(adtDecl).asInstanceOf[AdtT]
+        case disc: st.AdtDiscriminator =>
+          val declT = Type.DeclaredT(disc.typeDecl, disc.context)
           in.AdtDiscriminator(
             base,
-            adtClauseProxy(nm.adt(adtT), decl, context.getTypeInfo)
+            adtClauseProxy(nm.adt(declT), disc.decl, disc.context.getTypeInfo)
           )(src)
 
         case _ => violation("Expected AdtDiscriminator or AdtDestructor")
@@ -2446,7 +2449,6 @@ object Desugar extends LazyLogging {
       }
     }
 
-
     private def indexedExprD(base : PExpression, index : PExpression)(ctx : FunctionContext, info : TypeInfo)(src : Meta) : Writer[in.IndexedExp] = {
       for {
         dbase <- exprD(ctx, info)(base)
@@ -2659,14 +2661,6 @@ object Desugar extends LazyLogging {
             val dAcc = specificationD(ctx, info)(acc).asInstanceOf[in.Access]
             val dOp = pureExprD(ctx, info)(op)
             unit(in.Unfolding(dAcc, dOp)(src))
-
-          case PLet(ass, op) =>
-            val dOp = pureExprD(ctx, info)(op)
-            unit((ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
-              val right = pureExprD(ctx, info)(lr._2)
-              val left = in.LocalVar(nm.variable(lr._1.name, info.scope(lr._1), info), right.typ.withAddressability(Addressability.exclusiveVariable))(src)
-              in.Let(left, right, letop)(src)
-            }))
 
           case n : PIndexedExp => indexedExprD(n)(ctx, info)
 
@@ -3048,86 +3042,19 @@ object Desugar extends LazyLogging {
       compositeTypeD(t) match {
 
         case CompositeKind.Struct(it, ist) =>
-          val fields = ist.fields
+          val signature = ist.fields.map(f => nm.inverse(f.name) -> f.typ)
 
-          if (lit.elems.exists(_.key.isEmpty)) {
-            // all elements are not keyed
-            val wArgs = fields.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) =>
-              val wv = exp match {
-                case PExpCompositeVal(ev) => exprD(ctx, info)(ev)
-                case PLitCompositeVal(lv) => literalValD(ctx, info)(lv, f.typ)
-              }
-              wv.map{ v => implicitConversion(v.typ, f.typ, v) }
-            }
-
-            for {
-              args <- sequence(wArgs)
-            } yield in.StructLit(it, args)(src)
-
-          } else { // all elements are keyed
-            // maps field names to fields
-            val fMap = fields.map(f => nm.inverse(f.name) -> f).toMap
-            // maps fields to given value (if one is given)
-            val vMap = lit.elems.map {
-              case PKeyedElement(Some(PIdentifierKey(key)), exp) =>
-                val f = fMap(key.name)
-                val wv = exp match {
-                  case PExpCompositeVal(ev) => exprD(ctx, info)(ev)
-                  case PLitCompositeVal(lv) => literalValD(ctx, info)(lv, f.typ)
-                }
-                f -> wv.map{ v => implicitConversion(v.typ, f.typ, v) }
-
-              case _ => Violation.violation("expected identifier as a key")
-            }.toMap
-            // list of value per field
-            val wArgs = fields.map {
-              case f if vMap.isDefinedAt(f) => vMap(f)
-              case f => unit(in.DfltVal(f.typ)(src))
-            }
-
-            for {
-              args <- sequence(wArgs)
-            } yield in.StructLit(it, args)(src)
-          }
+          for {
+            args <- structLitLikeArguments(ctx, info)(lit, signature)
+          } yield in.StructLit(it, args)(src)
 
         case CompositeKind.Adt(t) =>
-          val fields = t.fields
+          val signature = t.fields.map(f => nm.inverse(f.name) -> f.typ)
           val proxy = in.AdtClauseProxy(t.name, t.adtT.name)(src)
 
-          if (lit.elems.exists(_.key.isEmpty)) {
-            //All elements are unkeyed
-
-            val wArgs = fields.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) => exp match {
-              case PExpCompositeVal(ev) => exprD(ctx, info)(ev)
-              case PLitCompositeVal(lv) => literalValD(ctx, info)(lv, f.typ)
-            }}
-
-            for {
-              args <- sequence(wArgs)
-            } yield in.AdtConstructorLit(t.adtT, proxy, args)(src)
-          } else {
-            val fMap = fields.map({ f => nm.inverse(f.name) -> f }).toMap
-
-            val vMap = lit.elems.map {
-              case PKeyedElement(Some(PIdentifierKey(key)), exp) =>
-                val f = fMap(key.name)
-                exp match {
-                  case PExpCompositeVal(ev) => f -> exprD(ctx, info)(ev)
-                  case PLitCompositeVal(lv) => f -> literalValD(ctx, info)(lv, f.typ)
-                }
-
-              case _ => Violation.violation("expected identifier as a key")
-            }.toMap
-
-            val wArgs = fields.map {
-              case f if vMap.isDefinedAt(f) => vMap(f)
-              case f => unit(in.DfltVal(f.typ)(src))
-            }
-
-            for {
-              args <- sequence(wArgs)
-            } yield in.AdtConstructorLit(t.adtT, proxy, args)(src)
-          }
+          for {
+            args <- structLitLikeArguments(ctx, info)(lit, signature)
+          } yield in.AdtConstructorLit(t.adtT.definedType, proxy, args)(src)
 
         case CompositeKind.Array(in.ArrayT(len, typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
@@ -3166,6 +3093,42 @@ object Desugar extends LazyLogging {
           entriesD <- handleMapEntries(ctx, info)(lit, keys, values)
         } yield in.MathMapLit(keys, values, entriesD)(src)
       }
+    }
+
+    private def structLitLikeArguments(ctx: FunctionContext, info: TypeInfo)(lit: PLiteralValue, signature: Vector[(String, in.Type)]): Writer[Vector[in.Expr]] = {
+      val src = meta(lit, info)
+
+      val wArgs = if (lit.elems.exists(_.key.isEmpty)) {
+        // all elements are not keyed
+        signature.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) =>
+          val wv = exp match {
+            case PExpCompositeVal(ev) => exprD(ctx, info)(ev)
+            case PLitCompositeVal(lv) => literalValD(ctx, info)(lv, f._2)
+          }
+          wv.map { v => implicitConversion(v.typ, f._2, v) }
+        }
+      } else { // all elements are keyed
+        // maps key names to field types
+        val typeMap = signature.toMap
+        // maps key names to given value (if one is given)
+        val vMap = lit.elems.map {
+          case PKeyedElement(Some(PIdentifierKey(key)), exp) =>
+            val fieldType = typeMap(key.name)
+            val wv = exp match {
+              case PExpCompositeVal(ev) => exprD(ctx, info)(ev)
+              case PLitCompositeVal(lv) => literalValD(ctx, info)(lv, fieldType)
+            }
+            key.name -> wv.map { v => implicitConversion(v.typ, fieldType, v) }
+
+          case _ => Violation.violation("expected identifier as a key")
+        }.toMap
+        // list of value per field
+        signature.map {
+          case f if vMap.isDefinedAt(f._1) => vMap(f._1)
+          case f => unit(in.DfltVal(f._2)(src))
+        }
+      }
+      sequence(wArgs)
     }
 
     private def handleMapEntries(ctx: FunctionContext, info: TypeInfo)(lit: PLiteralValue, keys: in.Type, values: in.Type): Writer[Seq[(in.Expr, in.Expr)]] = {
@@ -3208,9 +3171,10 @@ object Desugar extends LazyLogging {
     var definedFPredicates: Map[in.FPredicateProxy, in.FPredicate] = Map.empty
     var definedFuncLiterals: Map[in.FunctionLitProxy, in.FunctionLitLike] = Map.empty
 
+
     def registerDefinedType(t: Type.DeclaredT, addrMod: Addressability)(src: Meta): in.DefinedT = {
       // this type was declared in the current package
-      val name = nm.typ(t.decl.left.name, t.context)
+      val name = nm.declaredType(t)
 
       def register(addrMod: Addressability): Unit = {
         if (!definedTypesSet.contains(name, addrMod)) {
@@ -3685,9 +3649,9 @@ object Desugar extends LazyLogging {
 
     var registeredAdts: Set[String] = Set.empty
 
-    def fieldDeclAdtD(decl: PFieldDecl, context: ExternalTypeInfo, adt: AdtT)(src: Meta): in.Field = {
-      val fieldName = nm.adtField(decl.id.name, adt)
-      val typ = typeD(context.symbType(decl.typ), Addressability.mathDataStructureElement)(src)
+    def fieldDeclAdtD(name: String, ftyp: Type, @unused context: ExternalTypeInfo, adt: AdtT)(src: Meta): in.Field = {
+      val fieldName = nm.adtField(name, adt.decl)
+      val typ = typeD(ftyp, Addressability.mathDataStructureElement)(src)
       in.Field(fieldName, typ, true)(src)
     }
 
@@ -3697,11 +3661,11 @@ object Desugar extends LazyLogging {
 
         AdditionalMembers.addFinalizingComputation { () =>
           val xInfo = t.context.getTypeInfo
-
-          val clauses = t.decl.clauses.map { c =>
-            val src = meta(c, xInfo)
-            val proxy = adtClauseProxy(aT.name, c, xInfo)
-            val fields = c.args.flatMap(_.fields).map(f => fieldDeclAdtD(f, t.context, t)(src))
+          val adtDecl = t.adtDecl
+          val clauses = (adtDecl.clauses zip t.clauses).map { case (cDecl, c) =>
+            val src = meta(cDecl, xInfo)
+            val proxy = adtClauseProxy(aT.name, cDecl, xInfo)
+            val fields = c.fields.map(f => fieldDeclAdtD(f._1, f._2, t.context, t)(src))
 
             in.AdtClause(proxy, fields)(src)
           }
@@ -3711,17 +3675,6 @@ object Desugar extends LazyLogging {
           )
         }
       }
-    }
-
-    def getAdtClauseTagMap(t: Type.AdtT): Map[String, BigInt] = {
-      t.decl.clauses
-        .map(c => idName(c.id, t.context.getTypeInfo))
-        .sortBy(s => s)
-        .zipWithIndex
-        .map {
-          case (s, i) => s -> BigInt(i)
-        }
-        .toMap
     }
 
     def embeddedTypeD(t: PEmbeddedType, addrMod: Addressability)(src: Meta): in.Type = t match {
@@ -3761,17 +3714,19 @@ object Desugar extends LazyLogging {
         registerType(in.StructT(inFields, addrMod))
 
       case t: Type.AdtT =>
-        val adtName = nm.adt(t)
-        val res = registerType(in.AdtT(adtName, addrMod))
+        val adtName = nm.adt(t.declaredType)
+        val definedName = nm.declaredType(t.declaredType)
+        val res = registerType(in.AdtT(adtName, definedName, addrMod))
         registerAdt(t, res)
         res
 
       case t: Type.AdtClauseT =>
-        val tAdt = Type.AdtT(t.adtT, t.context)
-        val adt: in.AdtT = in.AdtT(nm.adt(tAdt), addrMod)
-        val fields: Vector[in.Field] = (t.fieldsWithTypes map { case (key: String, typ: Type) =>
-          in.Field(nm.adtField(key, tAdt), typeD(typ, Addressability.mathDataStructureElement)(src), true)(src)
-        }).toVector
+        val adtName = nm.adt(t.declaredType)
+        val definedName = nm.declaredType(t.declaredType)
+        val adt: in.AdtT = in.AdtT(adtName, definedName, addrMod)
+        val fields: Vector[in.Field] = t.fields.map{ case (key: String, typ: Type) =>
+          in.Field(nm.adtField(key, t.typeDecl), typeD(typ, Addressability.mathDataStructureElement)(src), true)(src)
+        }
         in.AdtClauseT(idName(t.decl.id, t.context.getTypeInfo), adt, fields, addrMod)
 
       case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
@@ -4086,7 +4041,7 @@ object Desugar extends LazyLogging {
         case p: PClosureImplProof => closureImplProofD(ctx)(p)
         case PExplicitGhostStatement(actual) => stmtD(ctx, info)(actual)
 
-        case PMatchStatement(exp, clauses, strict) => {
+        case PMatchStatement(exp, clauses, strict) =>
           def goC(clause: PMatchStmtCase): Writer[in.PatternMatchCaseStmt] = {
 
             val body = block(
@@ -4105,7 +4060,6 @@ object Desugar extends LazyLogging {
             e <- exprD(ctx, info)(exp)
             c <- sequence(clauses map goC)
           } yield in.PatternMatchStmt(e, c, strict)(src)
-        }
 
         case _ => ???
       }
@@ -4277,6 +4231,17 @@ object Desugar extends LazyLogging {
           wels <- go(els)
         } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
+        case PLet(ass, op) =>
+          val dOp = pureExprD(ctx, info)(op)
+          unit((ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
+            val right = pureExprD(ctx, info)(lr._2)
+            val left = in.LocalVar(
+              nm.variable(lr._1.name, info.scope(lr._1), info),
+              right.typ.withAddressability(Addressability.exclusiveVariable)
+            )(src)
+            in.PureLet(left, right, letop)(src)
+          }))
+
         case PForall(vars, triggers, body) =>
           for { (newVars, newTriggers, newBody) <- quantifierD(ctx, info)(vars, triggers, body)(ctx => exprD(ctx, info)) }
             yield in.PureForall(newVars, newTriggers, newBody)(src)
@@ -4307,6 +4272,7 @@ object Desugar extends LazyLogging {
         } yield underlyingType(dright.typ) match {
           case _: in.SequenceT | _: in.SetT => in.Contains(dleft, dright)(src)
           case _: in.MultisetT => in.LessCmp(in.IntLit(0)(src), in.Contains(dleft, dright)(src))(src)
+          case _: in.MapT => in.Contains(dleft, dright)(src)
           case t => violation(s"expected a sequence or (multi)set type, but got $t")
         }
 
@@ -4323,7 +4289,7 @@ object Desugar extends LazyLogging {
         case PSequenceAppend(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
-        } yield in.SequenceAppend(dleft, dright)(src)
+        } yield in.SequenceAppend(dleft, dright, typ)(src)
 
         case PGhostCollectionUpdate(col, clauses) => clauses.foldLeft(go(col)) {
           case (dcol, clause) => for {
@@ -4355,17 +4321,17 @@ object Desugar extends LazyLogging {
         case PUnion(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
-        } yield in.Union(dleft, dright)(src)
+        } yield in.Union(dleft, dright, typ)(src)
 
         case PIntersection(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
-        } yield in.Intersection(dleft, dright)(src)
+        } yield in.Intersection(dleft, dright, typ)(src)
 
         case PSetMinus(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
-        } yield in.SetMinus(dleft, dright)(src)
+        } yield in.SetMinus(dleft, dright, typ)(src)
 
         case PSubset(left, right) => for {
           dleft <- go(left)
@@ -4394,7 +4360,7 @@ object Desugar extends LazyLogging {
           dop <- go(op)
         } yield in.OptionGet(dop)(src)
 
-        case m@PMatchExp(exp, _) =>
+        case m: PMatchExp =>
           val defaultD: Writer[Option[in.Expr]] = if (m.hasDefault) {
             for {
               e <- exprD(ctx, info)(m.defaultClauses.head.exp)
@@ -4409,7 +4375,7 @@ object Desugar extends LazyLogging {
           } yield in.PatternMatchCaseExp(p, e)(src)
 
           for {
-            e <- exprD(ctx, info)(exp)
+            e <- exprD(ctx, info)(m.exp)
             cs <- sequence(m.caseClauses map caseD)
             de <- defaultD
           } yield in.PatternMatchExp(e, typ, cs, de)(src)
@@ -4532,6 +4498,40 @@ object Desugar extends LazyLogging {
 
         case n: PAccess => for {e <- accessibleD(ctx, info)(n.exp); p <- permissionD(ctx, info)(n.perm)} yield in.Access(e, p)(src)
         case n: PPredicateAccess => predicateCallD(ctx, info)(n.pred, n.perm)
+
+        case PLet(ass, op) =>
+          for {
+            dOp <- assertionD(ctx, info)(op)
+            lets = (ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
+              val right = pureExprD(ctx, info)(lr._2)
+              val left = in.LocalVar(
+                nm.variable(lr._1.name, info.scope(lr._1), info),
+                right.typ.withAddressability(Addressability.exclusiveVariable)
+              )(src)
+              in.Let(left, right, letop)(src)
+            })
+          } yield lets
+
+        case m: PMatchExp =>
+          val defaultD: Writer[Option[in.Assertion]] = if (m.hasDefault) {
+            for {
+              e <- assertionD(ctx, info)(m.defaultClauses.head.exp)
+            } yield Some(e)
+          } else {
+            unit(None)
+          }
+
+          def caseD(c: PMatchExpCase): Writer[in.PatternMatchCaseAss] = for {
+            p <- matchPatternD(ctx, info)(c.pattern)
+            e <- assertionD(ctx, info)(c.exp)
+          } yield in.PatternMatchCaseAss(p, e)(src)
+
+          for {
+            e <- exprD(ctx, info)(m.exp)
+            cs <- sequence(m.caseClauses map caseD)
+            de <- defaultD
+          } yield in.PatternMatchAss(e, cs, de)(src)
+
 
         case n: PInvoke =>
           // a predicate invocation corresponds to a predicate access with full permissions
@@ -4977,20 +4977,22 @@ object Desugar extends LazyLogging {
       }
     }
 
+    def declaredType(t: Type.DeclaredT): String = {
+      typ(t.decl.left.name, t.context)
+    }
+
     def domain(s: DomainT): String = {
       val pom = s.context.getTypeInfo.tree.originalRoot.positions
       val hash = srcTextName(pom, s.decl.funcs, s.decl.axioms)
       s"$DOMAIN_PREFIX$$${topLevelName("")(hash, s.context)}"
     }
 
-    def adt(a: AdtT): String = {
-      val pom = a.context.getTypeInfo.tree.originalRoot.positions
-      val hash = srcTextName(pom, a.decl.clauses)
-      s"$ADT_PREFIX$$${topLevelName("")(hash, a.context)}"
+    def adt(t: Type.DeclaredT): String = {
+      s"$ADT_PREFIX$$${declaredType(t)}"
     }
 
     /** can be inversed with [[inverse]] */
-    def adtField(n: String, @unused s: AdtT): String = s"$n$FIELD_PREFIX"
+    def adtField(n: String, @unused s: PTypeDef): String = s"$n$FIELD_PREFIX"
 
     def label(n: String): String = n match {
       case "#lhs" => "lhs"

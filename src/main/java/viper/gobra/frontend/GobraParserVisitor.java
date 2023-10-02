@@ -315,6 +315,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitAdtClause(GobraParser.AdtClauseContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#adtFieldDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAdtFieldDecl(GobraParser.AdtFieldDeclContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#ghostSliceType}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

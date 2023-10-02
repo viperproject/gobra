@@ -14,3 +14,23 @@ pure func foo(x pkg.List) bool {
     case _: false
   }
 }
+
+ghost
+func foo2() {
+    var x pkg.Tree = pkg.Branch{}
+    y := pkg.Branch{Left: x}
+    z := pkg.Branch{Right: x}
+}
+
+/*
+ghost
+pure func foo3(x pkg.Tree) bool {
+  return match x {
+    case pkg.Tree.Leaf{}: true
+    case pkg.Branch{?left, pkg.Tree.Leaf{}}: true
+    case pkg.Tree.Branch{pkg.Tree.Leaf{}, ?right}: true
+    case _: false
+  }
+}
+
+*/

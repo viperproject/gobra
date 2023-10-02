@@ -65,11 +65,13 @@ object ConfigDefaults {
   lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
   lazy val DefaultParallelizeBranches: Boolean = false
   lazy val DefaultConditionalizePermissions: Boolean = false
+  lazy val DefaultZ3APIMode: Boolean = false
   lazy val DefaultMCEMode: MCE.Mode = MCE.Enabled
   lazy val DefaultEnableLazyImports: Boolean = false
   lazy val DefaultNoVerify: Boolean = false
   lazy val DefaultNoStreamErrors: Boolean = false
   lazy val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
+  lazy val DefaultRequireTriggers: Boolean = false
 }
 
 // More-complete exhale modes
@@ -127,11 +129,14 @@ case class Config(
                    // branches will be verified in parallel
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                    conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
+                   z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
                    mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                    parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
+                   // when enabled, all quantifiers without triggers are rejected
+                   requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
 ) {
 
   def merge(other: Config): Config = {
@@ -174,11 +179,13 @@ case class Config(
       assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale,
       parallelizeBranches = parallelizeBranches,
       conditionalizePermissions = conditionalizePermissions,
+      z3APIMode = z3APIMode || other.z3APIMode,
       mceMode = mceMode,
       enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
       noStreamErrors = noStreamErrors || other.noStreamErrors,
-      parseAndTypeCheckMode = parseAndTypeCheckMode
+      parseAndTypeCheckMode = parseAndTypeCheckMode,
+      requireTriggers = requireTriggers || other.requireTriggers
     )
   }
 
@@ -225,11 +232,13 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                       conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
+                      z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
+                      requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -280,11 +289,13 @@ trait RawConfig {
     assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,
     parallelizeBranches = baseConfig.parallelizeBranches,
     conditionalizePermissions = baseConfig.conditionalizePermissions,
+    z3APIMode = baseConfig.z3APIMode,
     mceMode = baseConfig.mceMode,
     enableLazyImports = baseConfig.enableLazyImports,
     noVerify = baseConfig.noVerify,
     noStreamErrors = baseConfig.noStreamErrors,
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
+    requireTriggers = baseConfig.requireTriggers,
   )
 }
 
@@ -628,6 +639,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     short = 'c',
   )
 
+  val z3APIMode: ScallopOption[Boolean] = opt[Boolean](
+    name = "z3APIMode",
+    descr = "When the backend is either SILICON or VSWITHSILICON, silicon will use Z3 via API.",
+    default = Some(ConfigDefaults.DefaultZ3APIMode),
+    noshort = true,
+  )
+
   val mceMode: ScallopOption[MCE.Mode] = {
     val on = "on"
     val off = "off"
@@ -650,6 +668,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = Config.enableLazyImportOptionName,
     descr = s"Enforces that ${GoVerifier.name} parses depending packages only when necessary. Note that this disables certain language features such as global variables.",
     default = Some(ConfigDefaults.DefaultEnableLazyImports),
+    noshort = true,
+  )
+
+  val requireTriggers: ScallopOption[Boolean] = opt[Boolean](
+    name = "requireTriggers",
+    descr = s"Enforces that all quantifiers have a user-provided trigger.",
+    default = Some(ConfigDefaults.DefaultRequireTriggers),
     noshort = true,
   )
 
@@ -721,6 +746,15 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     val conditionalizePermissionsOn = conditionalizePermissions.toOption.contains(true)
     if (conditionalizePermissionsOn && !isSiliconBasedBackend) {
       Left("The selected backend does not support --conditionalizePermissions.")
+    } else {
+      Right(())
+    }
+  }
+
+  addValidation {
+    val z3APIModeOn = z3APIMode.toOption.contains(true)
+    if (z3APIModeOn && !isSiliconBasedBackend) {
+      Left("The selected backend does not support --z3APIMode.")
     } else {
       Right(())
     }
@@ -822,10 +856,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
     parallelizeBranches = parallelizeBranches(),
     conditionalizePermissions = conditionalizePermissions(),
+    z3APIMode = z3APIMode(),
     mceMode = mceMode(),
     enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),
     noStreamErrors = noStreamErrors(),
     parseAndTypeCheckMode = parseAndTypeCheckMode(),
+    requireTriggers = requireTriggers(),
   )
 }

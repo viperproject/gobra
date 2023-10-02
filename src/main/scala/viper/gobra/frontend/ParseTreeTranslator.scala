@@ -525,14 +525,26 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitAdtClause(ctx: AdtClauseContext): PAdtClause = {
-    val id = idnDef.unapply(ctx.IDENTIFIER())
-    val fieldClauses = ctx.fieldDecl().asScala.toVector.map(visitFieldDecl)
-    val args = fieldClauses.collect{ case x: PFieldDecls => x }
+    val id = idnDef.unapply(ctx.IDENTIFIER()).get
+    val fieldClauses = ctx.adtFieldDecl().asScala.toVector.map(visitAdtFieldDecl)
+    val args = fieldClauses.zipWithIndex.map{
+      case (AdtFieldDecl(Vector(), t), idx) =>
+        PFieldDecls(Vector(PFieldDecl(PIdnDef(s"_${id.name}_$idx").at(t), t).at(t))).at(t)
 
-    // embedded fields and ghost struct clauses are not supported.
-    if (id.isEmpty || args.size != fieldClauses.size) fail(ctx)
+      case (AdtFieldDecl(xs, t), _) =>
+        PFieldDecls(xs.map(x => PFieldDecl(x, t.copy).at(x))).at(t)
+    }
 
-    PAdtClause(id.get, args).at(ctx)
+    PAdtClause(id, args).at(ctx)
+  }
+
+  case class AdtFieldDecl(vars: Vector[PIdnDef], typ: PType)
+  override def visitAdtFieldDecl(ctx: AdtFieldDeclContext): AdtFieldDecl = {
+    visitChildren(ctx) match {
+      case t: PType => AdtFieldDecl(Vector.empty, t)
+      case Vector(goIdnDefList(xs), t: PType) => AdtFieldDecl(xs, t)
+      case _ => fail(ctx)
+    }
   }
 
   override def visitMatchStmt(ctx: MatchStmtContext): PMatchStatement = {
@@ -2323,21 +2335,24 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   override def visitChildren(node: RuleNode): AnyRef = {
     node match {
-      case context: ParserRuleContext => {
-        context.children.asScala.view.map{n =>
-          (n.accept(this), n) match {
-            case (p : PNode, ctx : ParserRuleContext) => p.at(ctx)
-            case (p : PNode, term : TerminalNode) => p.at(term)
-            case (p, _) => p
+      case context: ParserRuleContext =>
+        if (context.children == null) Vector.empty
+        else {
+          context.children.asScala.view.map { n =>
+            (n.accept(this), n) match {
+              case (p: PNode, ctx: ParserRuleContext) => p.at(ctx)
+              case (p: PNode, term: TerminalNode) => p.at(term)
+              case (p, _) => p
+            }
+          }.toVector match {
+            // make sure to avoid nested vectors of single items
+            case Vector(res) => res
+            case Vector("(", res, ")") => res
+            case v => v
           }
-        }.toVector match {
-          // make sure to avoid nested vectors of single items
-          case Vector(res) => res
-          case Vector("(", res, ")") => res
-          case v => v
         }
-      }
-      case x => violation(s"Expected ParserRuleContext, but got ${x}")
+
+      case x => violation(s"Expected ParserRuleContext, but got $x")
     }
   }
 

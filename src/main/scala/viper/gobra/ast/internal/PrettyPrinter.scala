@@ -417,6 +417,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showPatternMatchCaseExp(c: PatternMatchCaseExp): Doc = "case" <+> showMatchPattern(c.mExp) <> ":" <+> showExpr(c.exp)
 
+  def showPatternMatchCaseAss(c: PatternMatchCaseAss): Doc = "case" <+> showMatchPattern(c.mExp) <> ":" <+> showAss(c.ass)
+
   def showMatchPattern(expr: MatchPattern): Doc = expr match {
     case MatchBindVar(name, _) => name
     case MatchAdt(clause, expr) => clause.name <+> "{" <> ssep(expr map showMatchPattern, ",") <> "}"
@@ -428,6 +430,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showAss(a: Assertion): Doc = updatePositionStore(a) <> (a match {
     case SepAnd(left, right) => showAss(left) <+> "&&" <+> showAss(right)
     case ExprAssertion(exp) => showExpr(exp)
+    case Let(left, right, exp) =>
+      "let" <+> showVar(left) <+> "==" <+> parens(showExpr(right)) <+> "in" <+> showAss(exp)
+    case PatternMatchAss(exp, cases, default) => "match" <+> showExpr(exp) <+>
+      block(ssep(cases map showPatternMatchCaseAss, line) <> (if (default.isDefined) line <> "default:" <+> showAss(default.get) else ""))
+
     case MagicWand(left, right) => showAss(left) <+> "--*" <+> showAss(right)
     case Implication(left, right) => showExpr(left) <+> "==>" <+> showAss(right)
     case Access(e, FullPerm(_)) => "acc" <> parens(showAcc(e))
@@ -462,7 +469,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showExpr(e: Expr): Doc = updatePositionStore(e) <> (e match {
     case Unfolding(acc, exp) => "unfolding" <+> showAss(acc) <+> "in" <+> showExpr(exp)
 
-    case Let(left, right, exp) => "let" <+> showVar(left) <+> "==" <+> parens(showExpr(right)) <+> "in" <+> showExpr(exp)
+    case PureLet(left, right, exp) =>
+      "let" <+> showVar(left) <+> "==" <+> parens(showExpr(right)) <+> "in" <+> showExpr(exp)
 
     case Old(op, _) => "old" <> parens(showExpr(op))
 
@@ -628,7 +636,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       val entriesDoc = showList(entries){ case (x,y) => showExpr(x) <> ":" <+> showExpr(y) }
       showType(lit.typ) <+> braces(space <> entriesDoc <> (if (entries.nonEmpty) space else emptyDoc))
 
-    case AdtConstructorLit(typ, _, args) => showType(typ) <> braces(showExprList(args))
+    case lit: AdtConstructorLit => lit.clause.name <> braces(showExprList(lit.args))
   }
 
   // variables

@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type list adt {
+	Empty{}
+
+	Cons{
+		head any
+		tail list
+	}
+}
+
+ghost
+decreases l
+func length(l list) int {
+	match l {
+		case Empty{}:
+		    //:: ExpectedOutput(assert_error:assertion_error)
+			assert false // <--- assert false here should be reachable
+			return 0
+		default:
+			return 0
+	}
+}

@@ -11,7 +11,7 @@ import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag, BuiltInTypeTag}
 import viper.gobra.frontend.info.base.SymbolTable._
-import viper.gobra.frontend.info.base.Type.{AdtClauseT, InterfaceT, StructT}
+import viper.gobra.frontend.info.base.Type.{AdtT, InterfaceT, StructT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.Violation
@@ -92,7 +92,8 @@ trait NameResolution {
 
           case tree.parent.pair(decl: PDomainFunction, domain: PDomainType) => DomainFunction(decl, domain, this)
 
-          case tree.parent.pair(decl: PAdtClause, adtDecl: PAdtType) => AdtClause(decl, adtDecl, this)
+          case tree.parent.pair(decl: PAdtClause, tree.parent(typeDecl: PTypeDef)) =>
+            AdtClause(decl, typeDecl, this)
 
           case tree.parent.pair(decl: PMatchBindVar, tree.parent.pair(_: PMatchStmtCase, matchE: PMatchStatement)) =>
             MatchVariable(decl, matchE.exp, this) // match full expression of match statement
@@ -249,8 +250,6 @@ trait NameResolution {
   private def packageLevelDefinitions(m: PMember): Vector[PIdnDef] = {
     /* Returns identifier definitions with a package scope occurring in a type. */
     def leakingIdentifier(t: PType): Vector[PIdnDef] = t match {
-      case t: PDomainType => t.funcs.map(_.id) // domain functions
-      case t: PAdtType => t.clauses.map(_.id) // adt constructors
       case _ => Vector.empty
     }
 
@@ -268,6 +267,36 @@ trait NameResolution {
       case _: PImplementationProof => Vector.empty
     }
   }
+
+  /**
+    * returns the (package-level) identifiers defined by a member
+    * that have a priority lower than all other identifiers
+    */
+  @scala.annotation.tailrec
+  private def latePackageLevelDefinitions(m: PMember): Vector[PIdnDef] = {
+    /* Returns identifier definitions with a package scope occurring in a type. */
+    def leakingIdentifier(t: PType): Vector[PIdnDef] = t match {
+      case t: PDomainType => t.funcs.map(_.id) // domain functions
+      case t: PAdtType => t.clauses.map(_.id) // adt constructors
+      case _ => Vector.empty
+    }
+
+    m match {
+      case a: PActualMember => a match {
+        case d: PTypeDecl => leakingIdentifier(d.right)
+        case _ => Vector.empty
+      }
+      case PExplicitGhostMember(a) => latePackageLevelDefinitions(a)
+      case _ => Vector.empty
+    }
+  }
+
+  lazy val lateEnvironments: PPackage => Environment =
+    attr[PPackage, Environment] { p =>
+      val definitions = p.declarations flatMap latePackageLevelDefinitions
+      val entities = definitions.map(d => serialize(d) -> defEntity(d))
+      rootenv(entities: _*)
+    }
 
   /** returns whether or not identified `id` is defined at node `n`. */
   def isDefinedAt(id: PIdnNode, n: PNode): Boolean = isDefinedInScope(sequentialDefenv.in(n), serialize(id))
@@ -291,7 +320,13 @@ trait NameResolution {
       case c => Violation.violation(s"Only the root has no parent, but got $c")
     }
 
-  lazy val topLevelEnvironment: Environment = scopedDefenv(tree.originalRoot)
+  /** Symboltable imported by a package import. */
+  lazy val topLevelEnvironment: Environment = {
+    val thisPkg = tree.originalRoot
+    val base = scopedDefenv(thisPkg)
+    val late = lateEnvironments(thisPkg)
+    base ++ late
+  }
 
   lazy val entity: PIdnNode => Entity =
     attr[PIdnNode, Entity] {
@@ -321,7 +356,7 @@ trait NameResolution {
           // if the enclosing literal is a struct then id is a field
           case t: StructT => tryFieldLookup(t, id).map(_._1).getOrElse(UnknownEntity())
           // if the enclosing literal is an adt clause then id is an adt field
-          case t: AdtClauseT => tryAdtMemberLookup(t, id).map(_._1).getOrElse(UnknownEntity())
+          case t: AdtT => tryAdtMemberLookup(t, id).map(_._1).getOrElse(UnknownEntity())
           // otherwise it is just a variable
           case _ => symbTableLookup(n)
         }
@@ -384,8 +419,14 @@ trait NameResolution {
         case _ => None
       }
 
+    val level3: Level = n =>
+      tryEnclosingPackage(n) match {
+        case Some(p) => tryLookup(lateEnvironments(p), serialize(n))
+        case _ => None
+      }
+
     /** order of precedence; first level has highest precedence */
-    val levels: Seq[Level] = Seq(level0, level1, level2)
+    val levels: Seq[Level] = Seq(level0, level1, level2, level3)
 
     // returns first successfully defined entity otherwise `UnknownEntity()`
     levels.iterator.map(_(n)).find(_.isDefined).flatten.getOrElse(UnknownEntity())

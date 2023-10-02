@@ -72,7 +72,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
         isRecursiveInterface
       }
 
-    case t: PExpressionAndType => wellDefExprAndType(t).out
+    case t: PExpressionAndType => wellDefExprAndType(t).out ++ isType(t).out
   }
 
   lazy val typeSymbType: Typing[PType] = {
@@ -156,9 +156,9 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
         // ADT clause is special since it is a type with a name that is not a named type
         case Some(p: ap.AdtClause) =>
           val fields = p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ))
-          AdtClauseT(fields.toMap, fields.map(_._1), p.symb.decl, p.symb.adtDecl, p.symb.context)
+          AdtClauseT(p.symb.getName, fields, p.symb.decl, p.symb.typeDecl, p.symb.context)
 
-        case _ => violation(s"expected type, but got $n")
+        case p => violation(s"expected type, but got $n with resolved pattern $p")
       }
   }
 

@@ -156,7 +156,9 @@ domainClause: FUNC IDENTIFIER signature | AXIOM L_CURLY expression eos R_CURLY;
 
 adtType: ADT L_CURLY (adtClause eos)* R_CURLY;
 
-adtClause: IDENTIFIER L_CURLY (fieldDecl eos)* R_CURLY;
+adtClause: IDENTIFIER L_CURLY (adtFieldDecl eos)* R_CURLY;
+
+adtFieldDecl: identifierList? type_;
 
 ghostSliceType: GHOST L_BRACKET R_BRACKET elementType;
 

@@ -12,3 +12,11 @@ type List adt {
 	Nil {}
 }
 
+type Tree adt {
+    Leaf{}
+    Branch{ Left, Right Tree }
+}
+
+func Leaf() {
+}
+

@@ -472,6 +472,10 @@ case class PatternMatchExp(exp: Expr, typ: Type, cases: Vector[PatternMatchCaseE
 
 case class PatternMatchCaseExp(mExp: MatchPattern, exp: Expr)(val info: Source.Parser.Info) extends Node
 
+case class PatternMatchAss(exp: Expr, cases: Vector[PatternMatchCaseAss], default: Option[Assertion])(val info: Source.Parser.Info) extends Assertion
+
+case class PatternMatchCaseAss(mExp: MatchPattern, ass: Assertion)(val info: Source.Parser.Info) extends Node
+
 case class PatternMatchStmt(exp: Expr, cases: Vector[PatternMatchCaseStmt], strict: Boolean)(val info: Source.Parser.Info) extends Stmt
 
 case class PatternMatchCaseStmt(mExp: MatchPattern, body: Stmt)(val info: Source.Parser.Info) extends Node
@@ -543,9 +547,11 @@ case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extend
   require(typ.addressability == Addressability.unfolding(in.typ.addressability))
 }
 
-case class Let(left: LocalVar, right: Expr, in: Expr)(val info: Source.Parser.Info) extends Expr {
+case class PureLet(left: LocalVar, right: Expr, in: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = in.typ
 }
+
+case class Let(left: LocalVar, right: Expr, in: Assertion)(val info: Source.Parser.Info) extends Assertion
 
 case class Old(operand: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
@@ -766,11 +772,7 @@ case class RangeSequence(low : Expr, high : Expr)(val info : Source.Parser.Info)
   * The appending of two sequences represented by `left` and `right`
   * (which should be of identical types as result of type checking).
   */
-case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("++") {
-  /** Should be identical to `right.typ`. */
-  require(left.typ.isInstanceOf[SequenceT] && right.typ.isInstanceOf[SequenceT], s"expected two sequences, but got ${left.typ} and ${right.typ} (${info.origin})")
-  override val typ : Type = SequenceT(left.typ.asInstanceOf[SequenceT].t, Addressability.rValue)
-}
+case class SequenceAppend(left : Expr, right : Expr, typ: Type)(val info: Source.Parser.Info) extends BinaryExpr("++")
 
 /**
   * Denotes a ghost collection update "`col`[`left` = `right`]", which results in a
@@ -778,7 +780,6 @@ case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Inf
   * `baseUnderlyingType` is the underlyingType of `base`'s type
   */
 case class GhostCollectionUpdate(base : Expr, left : Expr, right : Expr, baseUnderlyingType: Type)(val info: Source.Parser.Info) extends Expr {
-  require(baseUnderlyingType.isInstanceOf[SequenceT] || baseUnderlyingType.isInstanceOf[MathMapT], s"expected sequence or mmap, but got ${base.typ} (${info.origin})")
   override val typ : Type = base.typ.withAddressability(Addressability.rValue)
 }
 
@@ -790,8 +791,7 @@ case class GhostCollectionUpdate(base : Expr, left : Expr, right : Expr, baseUnd
   */
 case class SequenceDrop(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
   /** Is equal to the type of `left`. */
-  require(left.typ.isInstanceOf[SequenceT])
-  override val typ : Type = SequenceT(left.typ.asInstanceOf[SequenceT].t, Addressability.rValue)
+  override val typ : Type = left.typ.withAddressability(Addressability.rValue)
 }
 
 /**
@@ -802,8 +802,7 @@ case class SequenceDrop(left : Expr, right : Expr)(val info: Source.Parser.Info)
   */
 case class SequenceTake(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
   /** Is equal to the type of `left`. */
-  require(left.typ.isInstanceOf[SequenceT])
-  override val typ : Type = SequenceT(left.typ.asInstanceOf[SequenceT].t, Addressability.rValue)
+  override val typ : Type = left.typ.withAddressability(Addressability.rValue)
 }
 
 /**
@@ -811,7 +810,7 @@ case class SequenceTake(left : Expr, right : Expr)(val info: Source.Parser.Info)
   * represented by `expr`, to a (mathematical) sequence of type 't'.
   * Here `expr` is assumed to be either a sequence or an exclusive array.
   */
-case class SequenceConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr {
+case class SequenceConversion(expr: Expr)(val info: Source.Parser.Info) extends Expr {
   override val typ : Type = expr.typ match {
     case t: SequenceT => t
     case t: ArrayT => t.sequence
@@ -827,55 +826,19 @@ case class SequenceConversion(expr : Expr)(val info: Source.Parser.Info) extends
   * Represents a (multi)set union "`left` union `right`",
   * where `left` and `right` should be (multi)sets of identical types.
   */
-case class Union(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("union") {
-  /** `left.typ` is expected to be identical to `right.typ`. */
-  require(
-    (left.typ.isInstanceOf[SetT] && right.typ.isInstanceOf[SetT])
-      || (left.typ.isInstanceOf[MultisetT] && right.typ.isInstanceOf[MultisetT]),
-    s"expected set or multiset, but got ${left.typ} and ${right.typ} (${info.origin})"
-  )
-  override val typ : Type = left.typ match {
-    case t: SetT => SetT(t.t, Addressability.rValue)
-    case t: MultisetT => MultisetT(t.t, Addressability.rValue)
-    case _ => Violation.violation("expected set or type")
-  }
-}
+case class Union(left : Expr, right : Expr, typ: Type)(val info : Source.Parser.Info) extends BinaryExpr("union")
 
 /**
   * Represents a (multi)set intersection "`left` intersection `right`",
   * where `left` and `right` should be (multi)sets of identical types.
   */
-case class Intersection(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("intersection") {
-  /** `left.typ` is expected to be identical to `right.typ`. */
-  require(
-    (left.typ.isInstanceOf[SetT] && right.typ.isInstanceOf[SetT])
-      || (left.typ.isInstanceOf[MultisetT] && right.typ.isInstanceOf[MultisetT]),
-    s"expected set or multiset, but got ${left.typ} and ${right.typ} (${info.origin})"
-  )
-  override val typ : Type = left.typ match {
-    case t: SetT => SetT(t.t, Addressability.rValue)
-    case t: MultisetT => MultisetT(t.t, Addressability.rValue)
-    case _ => Violation.violation("expected set or type")
-  }
-}
+case class Intersection(left : Expr, right : Expr, typ: Type)(val info : Source.Parser.Info) extends BinaryExpr("intersection")
 
 /**
   * Represents a (multi)set difference "`left` setminus `right`",
   * where `left` and `right` should be (multi)sets of identical types.
   */
-case class SetMinus(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("setminus") {
-  /** `left.typ` is expected to be identical to `right.typ`. */
-  require(
-    (left.typ.isInstanceOf[SetT] && right.typ.isInstanceOf[SetT])
-      || (left.typ.isInstanceOf[MultisetT] && right.typ.isInstanceOf[MultisetT]),
-    s"expected set or multiset, but got ${left.typ} and ${right.typ} (${info.origin})"
-  )
-  override val typ : Type = left.typ match {
-    case t: SetT => SetT(t.t, Addressability.rValue)
-    case t: MultisetT => MultisetT(t.t, Addressability.rValue)
-    case _ => Violation.violation("expected set or type")
-  }
-}
+case class SetMinus(left : Expr, right : Expr, typ: Type)(val info : Source.Parser.Info) extends BinaryExpr("setminus")
 
 /**
   * Represents a subset relation "`left` subset `right`", where
@@ -1578,14 +1541,16 @@ case class DomainT(name: String, addressability: Addressability) extends PrettyT
     DomainT(name, newAddressability)
 }
 
-case class AdtT(name: String, addressability: Addressability) extends PrettyType(s"adt{ name is $name }") with TopType {
+case class AdtT(name: String, definedName: String, addressability: Addressability) extends PrettyType(s"adt{ name is $name }") with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case o: AdtT => name == o.name
     case _ => false
   }
 
+  val definedType: DefinedT = DefinedT(definedName, addressability)
+
   override def withAddressability(newAddressability: Addressability): Type =
-    AdtT(name, newAddressability)
+    AdtT(name, definedName, newAddressability)
 }
 
 case class AdtClauseT(name: String, adtT: AdtT, fields: Vector[Field], addressability: Addressability) extends PrettyType(fields.mkString(s"$name{", ", ", "}")) {

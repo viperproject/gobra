@@ -349,6 +349,13 @@ class AdtEncoding extends LeafTypeEncoding {
     }
   }
 
+  override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
+
+    default(super.assertion(ctx)) {
+      case p: in.PatternMatchAss => translatePatternMatchAss(p)(ctx)
+    }
+  }
+
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     default(super.statement(ctx)) {
       case p: in.PatternMatchStmt => translatePatternMatch(p)(ctx)
@@ -389,25 +396,29 @@ class AdtEncoding extends LeafTypeEncoding {
 
     def translateCase(c: in.PatternMatchCaseStmt): CodeWriter[vpr.Stmt] = {
       val (cPos, cInfo, cErrT) = c.vprMeta
-      for {
-        check <- translateMatchPatternCheck(s.exp, c.mExp)(ctx)
-        setExVarV <- setExVar(cPos, cInfo, cErrT)
-        ass <- translateMatchPatternDeclarations(s.exp, c.mExp)(ctx)
-        body <- seqn(ctx.statement(c.body))
-      } yield vpr.If(
-        vpr.And(check, vpr.Not(checkExVar)(cPos, cInfo, cErrT))(cPos, cInfo, cErrT), // Check(pi, e) && !b
-        vpr.Seqn(Seq(setExVarV, ass, body), Seq.empty)(cPos, cInfo, cErrT),  // b := true; Assign(pi, e); [si]
-        vpr.Seqn(Seq(), Seq())(cPos, cInfo, cErrT) // empty else
-      )(cPos, cInfo, cErrT)
+      seqn(
+        for {
+          check <- translateMatchPatternCheck(s.exp, c.mExp)(ctx)
+          setExVarV <- setExVar(cPos, cInfo, cErrT)
+          ass <- translateMatchPatternDeclarations(s.exp, c.mExp)(ctx)
+          body <- ctx.statement(c.body)
+        } yield vpr.If(
+          vpr.And(check, vpr.Not(checkExVar)(cPos, cInfo, cErrT))(cPos, cInfo, cErrT), // Check(pi, e) && !b
+          vpr.Seqn(Seq(setExVarV, ass, body), Seq.empty)(cPos, cInfo, cErrT), // b := true; Assign(pi, e); [si]
+          vpr.Seqn(Seq(), Seq())(cPos, cInfo, cErrT) // empty else
+        )(cPos, cInfo, cErrT)
+      )
     }
 
-    for {
+    val res = for {
       _ <- local(checkExVarDecl)
       _ <- write(initialExVar)
       cs <- sequence(s.cases map translateCase)
       _ <- write(cs: _*)
       _ <- if (s.strict) assert(checkExVar, (info, _) => MatchError(info)) else unit(())
     } yield vu.nop(sPos, sInfo, sErrT)
+
+    res
   }
 
   /**
@@ -447,6 +458,49 @@ class AdtEncoding extends LeafTypeEncoding {
 
       for {
         matching <- translateCases(e.cases, in.DfltVal(e.typ)(e.info))
+        checks <- checkExpressionMatchesOnePattern
+        checkedMatching <- assert(checks, matching, (info, _) => MatchError(info))(ctx)
+      } yield checkedMatching
+    }
+  }
+
+  /**
+    * [e match { case1 p1: e1; ...; caseN pN: eN }] ->
+    * asserting Check(p1, e) || ... || Check(pN, e) in Match(case1 p1: e1; ...; caseN pN: eN; default: dflt(T), e)
+    * [e match { case1 p1: e1; ...; caseN pN: eN; default: e_ }] ->
+    * Match(case1 p1: e1; ...; caseN pN: eN; default: e_, e)
+    *
+    * Match(default: e_, e) -> e_
+    * Match(case1 p1: e1; ...; caseN pN: eN; default: e_, e) ->
+    * Check(p1, e) ? AssignIn(p1, e, [e1]) : Match(case p2: e2; ...; caseN pN: eN; default: e_, e)
+    *
+    */
+  def translatePatternMatchAss(e: in.PatternMatchAss)(ctx: Context): CodeWriter[vpr.Exp] = {
+
+    def translateCases(cases: Vector[in.PatternMatchCaseAss], dflt: in.Assertion): CodeWriter[vpr.Exp] = {
+      val (ePos, eInfo, eErrT) = if (cases.isEmpty) dflt.vprMeta else cases.head.vprMeta
+      cases match {
+        case c +: cs =>
+          for {
+            check <- translateMatchPatternCheck(e.exp, c.mExp)(ctx)
+            body <- ctx.assertion(c.ass)
+            decl <- declareIn(e.exp, c.mExp, body)(ctx)
+            el <- translateCases(cs, dflt)
+          } yield vpr.CondExp(check, decl, el)(ePos, eInfo, eErrT)
+        case _ => ctx.assertion(dflt)
+      }
+    }
+
+    if (e.default.isDefined) {
+      translateCases(e.cases, e.default.get)
+    } else {
+      val (pos, info, errT) = e.vprMeta
+
+      val checkExpressionMatchesOnePattern =
+        sequence(e.cases.map(c => translateMatchPatternCheck(e.exp, c.mExp)(ctx))).map(vu.bigOr(_)(pos, info, errT))
+
+      for {
+        matching <- translateCases(e.cases, in.ExprAssertion(in.BoolLit(b = true)(e.info))(e.info))
         checks <- checkExpressionMatchesOnePattern
         checkedMatching <- assert(checks, matching, (info, _) => MatchError(info))(ctx)
       } yield checkedMatching

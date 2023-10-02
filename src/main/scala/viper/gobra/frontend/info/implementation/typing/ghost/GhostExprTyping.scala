@@ -46,17 +46,21 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // check that `thn` and `els` have a common type
         mergeableTypes.errors(exprType(thn), exprType(els))(expr)
 
-    case PForall(vars, triggers, body) =>
+    case n@PForall(vars, triggers, body) =>
       // check whether all triggers are valid and consistent
       validTriggers(vars, triggers) ++
       // check that the quantifier `body` is either Boolean or an assertion
-      assignableToSpec(body)
+      assignableToSpec(body) ++
+      // check that the user provided triggers when running with --requireTriggers
+      error(n, "found a quantifier without triggers.", config.requireTriggers && triggers.isEmpty)
 
-    case PExists(vars, triggers, body) =>
+    case n@PExists(vars, triggers, body) =>
       // check whether all triggers are valid and consistent
       validTriggers(vars, triggers) ++
       // check that the quantifier `body` is Boolean
-        assignableToSpec(body) ++ assignableTo.errors(exprType(body), BooleanT)(expr)
+      assignableToSpec(body) ++ assignableTo.errors(exprType(body), BooleanT)(expr) ++
+      // check that the user provided triggers when running with --requireTriggers
+      error(n, "found a quantifier without triggers.", config.requireTriggers && triggers.isEmpty)
 
     case n: PImplication =>
       isExpr(n.left).out ++ isExpr(n.right).out ++
@@ -74,7 +78,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PClosureImplements => isPureExpr(n.closure) ++ wellDefIfClosureMatchesSpec(n.closure, n.spec)
 
-    case n: PLet => isExpr(n.op).out ++ isPureExpr(n.op) ++
+    case n: PLet => isExpr(n.op).out ++ isWeaklyPureExpr(n.op) ++
       n.ass.right.foldLeft(noMessages)((a, b) => a ++ isPureExpr(b))
 
     case n: PAccess =>
@@ -130,7 +134,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case m@PMatchExp(exp, clauses) =>
       val sameTypeE = allMergeableTypes.errors(clauses map { c => exprType(c.exp) })(exp)
       val patternE = m.caseClauses.flatMap(c => c.pattern match {
-        case PMatchAdt(clause, _) => assignableTo.errors(symbType(clause), exprType(exp))(c)
+        case p: PMatchAdt => assignableTo.errors(miscType(p), exprType(exp))(c)
         case _ => comparableTypes.errors((miscType(c.pattern), exprType(exp)))(c)
       })
       val pureExpE = error(exp, "Expression has to be pure", !isPure(exp)(strong = false))
@@ -142,6 +146,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PIn(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
         underlyingType(exprType(right)) match {
           case t : GhostCollectionType => ghostComparableTypes.errors(exprType(left), t.elem)(expr)
+          case t : MapT => ghostComparableTypes.errors(exprType(left), t.key)(expr)
           case _ : AdtT => noMessages
           case t => error(right, s"expected a ghost collection, but got $t")
         }
@@ -170,8 +175,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PSequenceAppend(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
           val t1 = exprType(left)
           val t2 = exprType(right)
-          error(left, s"expected a sequence, but got $t1", !t1.isInstanceOf[SequenceT]) ++
-            error(right, s"expected a sequence, but got $t2", !t2.isInstanceOf[SequenceT]) ++
+          val ut1 = underlyingType(t1)
+          val ut2 = underlyingType(t2)
+          error(left, s"expected a sequence, but got $t1", !ut1.isInstanceOf[SequenceT]) ++
+            error(right, s"expected a sequence, but got $t2", !ut2.isInstanceOf[SequenceT]) ++
             mergeableTypes.errors(t1, t2)(expr)
         }
         case PSequenceConversion(op) => exprType(op) match {
@@ -186,15 +193,17 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case expr: PBinaryGhostExp => isExpr(expr.left).out ++ isExpr(expr.right).out ++ {
           val t1 = exprType(expr.left)
           val t2 = exprType(expr.right)
-          error(expr.left, s"expected an unordered collection, but got $t1", !t1.isInstanceOf[GhostUnorderedCollectionType]) ++
-            error(expr.right, s"expected an unordered collection, but got $t2", !t2.isInstanceOf[GhostUnorderedCollectionType]) ++
+          val ut1 = underlyingType(t1)
+          val ut2 = underlyingType(t2)
+          error(expr.left, s"expected an unordered collection, but got $t1", !ut1.isInstanceOf[GhostUnorderedCollectionType]) ++
+            error(expr.right, s"expected an unordered collection, but got $t2", !ut2.isInstanceOf[GhostUnorderedCollectionType]) ++
             mergeableTypes.errors(t1, t2)(expr)
         }
-        case PSetConversion(op) => exprType(op) match {
+        case PSetConversion(op) => underlyingType(exprType(op)) match {
           case SequenceT(_) | SetT(_) | OptionT(_) => isExpr(op).out
           case t => error(op, s"expected a sequence, set or option type, but got $t")
         }
-        case PMultisetConversion(op) => exprType(op) match {
+        case PMultisetConversion(op) => underlyingType(exprType(op)) match {
           case SequenceT(_) | MultisetT(_) | OptionT(_) => isExpr(op).out
           case t => error(op, s"expected a sequence, multiset or option type, but got $t")
         }
@@ -278,7 +287,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val lType = exprType(left)
           val rType = exprType(right)
           typeMerge(lType, rType) match {
-            case Some(seq@SequenceT(_)) => seq
+            case Some(seq) => seq
             case _ => violation(s"types $lType and $rType cannot be merged.")
           }
         case PSequenceConversion(op) => exprType(op) match {

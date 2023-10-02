@@ -30,7 +30,7 @@ trait GhostIdTyping { this: TypeInfoImpl =>
     })
     case c: AdtDestructor => wellDefAndType(c.decl.typ)
     case _: AdtDiscriminator => LocalMessages(noMessages)
-    case _: MatchVariable => LocalMessages(noMessages) // TODO
+    case _: MatchVariable => LocalMessages(noMessages)
     case _: BuiltInFPredicate | _: BuiltInMPredicate => LocalMessages(noMessages)
   }
 

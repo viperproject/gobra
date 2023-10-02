@@ -25,7 +25,10 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
 
     case _: PDomainType => noMessages
     case n: PAdtType => n match {
-      case tree.parent(_: PTypeDef) => noMessages
+      case tree.parent(_: PTypeDef) =>
+        val t = adtSymbType(n)
+        adtConstructorSet(t).errors(n) ++ adtMemberSet(t).errors(n)
+
       case _ => error(n, "Adt types are only allowed within type declarations.")
     }
   }
@@ -38,10 +41,14 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case POptionType(elem) => OptionT(typeSymbType(elem))
     case PGhostSliceType(elem) => GhostSliceT(typeSymbType(elem))
     case t: PDomainType => DomainT(t, this)
+    case a: PAdtType => adtSymbType(a)
+  }
 
-    case a: PAdtType => a match {
+  /** Requires that the parent of a is PTypeDef. */
+  private def adtSymbType(a: PAdtType): Type = {
+    a match {
       case tree.parent(decl: PTypeDef) =>
-        val clauses = a.clauses.map{ clause =>
+        val clauses = a.clauses.map { clause =>
           val fields = clause.args.flatMap(_.fields.map(f => f.id.name -> typeSymbType(f.typ)))
           AdtClauseT(clause.id.name, fields, clause, decl, this)
         }

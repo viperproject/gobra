@@ -7,9 +7,9 @@ type X adt {
   A { int }
   B { bool; bool }
   C {}
-  D { bool; x bool }
+  D { bool; z bool }
   E { bool; x, y bool }
-  F { x X }
+  F { q X }
 }
 
 func client() {

@@ -3,16 +3,10 @@
 
 package pkg
 
+//:: ExpectedOutput(type_error)
 type X adt {
-  A { a int }
-  B { b bool }
-}
-
-type A int
-
-func client1() {
-    x := X.A{}
-    y := B{}
+  A { x int }
+  B { x int }
 }
 
 

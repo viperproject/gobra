@@ -17,7 +17,7 @@ decreases l
 func length(l list) int {
 	match l {
 		case Empty{}:
-		    //:: ExpectedOutput(assert_error:assertion_error)
+			//:: ExpectedOutput(assert_error:assertion_error)
 			assert false // <--- assert false here should be reachable
 			return 0
 		default:

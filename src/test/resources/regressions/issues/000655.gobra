@@ -23,6 +23,8 @@ func foo2() {
 }
 
 /*
+// should work in the future:
+
 ghost
 pure func foo3(x pkg.Tree) bool {
   return match x {
@@ -32,5 +34,4 @@ pure func foo3(x pkg.Tree) bool {
     case _: false
   }
 }
-
 */

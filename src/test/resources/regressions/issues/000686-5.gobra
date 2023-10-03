@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type X seq[int]
+
+ghost
+requires x == x ++ y
+func client1(x seq[int], y X)
+
+ghost
+requires typeOf(y) == type[X]
+requires x == x ++ y.(X)
+func client2(x seq[int], y any)
+

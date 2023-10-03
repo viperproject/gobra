@@ -105,32 +105,32 @@ class SetEncoding extends LeafTypeEncoding {
           vE <- goE(e)
         } yield vpr.AnySetContains(vX, vE)(pos, info, errT)
 
-      case n@ in.Union(left, right) =>
+      case n: in.Union =>
         val (pos, info, errT) = n.vprMeta
         for {
-          leftT <- goE(left)
-          rightT <- goE(right)
+          leftT <- goE(n.left)
+          rightT <- goE(n.right)
         } yield vpr.AnySetUnion(leftT, rightT)(pos, info, errT)
 
-      case n@ in.Intersection(left, right) =>
+      case n: in.Intersection =>
         val (pos, info, errT) = n.vprMeta
         for {
-          leftT <- goE(left)
-          rightT <- goE(right)
+          leftT <- goE(n.left)
+          rightT <- goE(n.right)
         } yield vpr.AnySetIntersection(leftT, rightT)(pos, info, errT)
 
-      case n@ in.SetMinus(left, right) =>
+      case n: in.SetMinus =>
         val (pos, info, errT) = n.vprMeta
         for {
-          leftT <- goE(left)
-          rightT <- goE(right)
+          leftT <- goE(n.left)
+          rightT <- goE(n.right)
         } yield vpr.AnySetMinus(leftT, rightT)(pos, info, errT)
 
-      case n@ in.Subset(left, right) =>
+      case n: in.Subset =>
         val (pos, info, errT) = n.vprMeta
         for {
-          leftT <- goE(left)
-          rightT <- goE(right)
+          leftT <- goE(n.left)
+          rightT <- goE(n.right)
         } yield vpr.AnySetSubset(leftT, rightT)(pos, info, errT)
     }
   }

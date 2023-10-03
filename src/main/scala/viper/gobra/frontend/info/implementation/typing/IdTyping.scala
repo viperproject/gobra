@@ -158,7 +158,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       // ADT clause is special since it is a type with a name that is not a named type
       case a: AdtClause =>
         val fields = a.fields.map(f => f.id.name -> a.context.symbType(f.typ))
-        AdtClauseT(fields.toMap, fields.map(_._1), a.decl, a.adtDecl, this)
+        AdtClauseT(a.getName, fields, a.decl, a.typeDecl, a.context)
 
       case BuiltInType(tag, _, _) => tag.typ
       case _ => violation(s"expected type, but got $id")

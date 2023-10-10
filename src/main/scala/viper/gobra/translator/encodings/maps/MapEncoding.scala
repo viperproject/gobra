@@ -54,10 +54,11 @@ class MapEncoding extends LeafTypeEncoding {
     * Encodes expressions as values that do not occupy some identifiable location in memory.
     * R[ nil(map[K]V°) ] -> null
     * R[ dflt(map[K]V°) ] -> null
-    * R[ len(e: map[K]V) ] -> [e] == null? 0 : | getCorrespondingMap([e]) |
-    * R[ (e: map[K]V)[idx] ] -> [e] == null? [ dflt(V) ] : goMapLookup(e[idx])
-    * R[ keySet(e: map[K]V) ] -> [e] == null? 0 : MapDomain(getCorrespondingMap(e))
-    * R[ valueSet(e: map[K]V) ] -> [e] == null? 0 : MapRange(getCorrespondingMap(e))
+    * R[ len(e: map[K]V) ] -> [ e ] == null? 0 : | getCorrespondingMap([ e ]) |
+    * R[ (e: map[K]V)[idx] ] -> [ e ] == null? [ dflt(V) ] : goMapLookup(e[idx])
+    * R[ keySet(e: map[K]V) ] -> [ e ] == null? 0 : MapDomain(getCorrespondingMap([ e ]))
+    * R[ valueSet(e: map[K]V) ] -> [ e ] == null? 0 : MapRange(getCorrespondingMap([ e ]))
+    * R[ k in (e: map[K]V) ] -> [ e ] == null? false : MapContains([ k ], getCorrespondingMap([ e ]))
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
@@ -85,6 +86,21 @@ class MapEncoding extends LeafTypeEncoding {
 
       case l@in.IndexedExp(_ :: ctx.Map(_, _), _, _) => for {(res, _) <- goMapLookup(l)(ctx)} yield res
 
+      case l@in.Contains(key, exp :: ctx.Map(keys, values)) =>
+        for {
+          mapVpr <- goE(exp)
+          keyVpr <- goE(key)
+          isComp <- MapEncoding.checkKeyComparability(key)(ctx)
+          correspondingMap <- getCorrespondingMap(exp, keys, values)(ctx)
+          containsExp =
+            withSrc(vpr.CondExp(
+              withSrc(vpr.EqCmp(mapVpr, withSrc(vpr.NullLit(), l)), l),
+              withSrc(vpr.FalseLit(), l),
+              withSrc(vpr.MapContains(keyVpr, correspondingMap), l)
+            ), l)
+          checkCompAndContains <- assert(isComp, containsExp, comparabilityErrorT)(ctx)
+        } yield checkCompAndContains
+
       case k@in.MapKeys(mapExp :: ctx.Map(keys, values), _) =>
         for {
           vprMap <- goE(mapExp)
@@ -108,6 +124,50 @@ class MapEncoding extends LeafTypeEncoding {
             correspondingMapRange
           ), v)
         } yield res
+    }
+  }
+
+  /**
+    * Encodes expressions when they occur as the top-level expression in a trigger.
+    * Notice that using the expression encoding for the following triggers,
+    * results in ill-formed triggers at the Viper level (e.g., because
+    * they have ternary operations).
+    *   { m[i] } -> { getCorrespondingMap([ m ])[ [ i ] ] }
+    *   { k in m } -> { [ k ] in getCorrespondingMap([ m ]) }
+    *   { k in domain(m) } -> { [ k ] in domain(getCorrespondingMap([ m ])) }
+    *   { k in range(m) } -> { [ k ] in range(getCorrespondingMap([ m ])) }
+    */
+  override def triggerExpr(ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = {
+    default(super.triggerExpr(ctx)) {
+      case l@in.IndexedExp(m :: ctx.Map(keys, values), idx, _) =>
+        for {
+          vIdx <- ctx.expression(idx)
+          correspondingMap <- getCorrespondingMap(m, keys, values)(ctx)
+          lookupRes = withSrc(vpr.MapLookup(correspondingMap, vIdx), l)
+        } yield lookupRes
+
+      case l@in.Contains(key, m :: ctx.Map(keys, values)) =>
+        for {
+          vKey <- ctx.expression(key)
+          correspondingMap <- getCorrespondingMap(m, keys, values)(ctx)
+          contains = withSrc(vpr.MapContains(vKey, correspondingMap), l)
+        } yield contains
+
+      case l@in.Contains(key, in.MapKeys(m :: ctx.Map(keys, values), _)) =>
+        for {
+          vKey <- ctx.expression(key)
+          correspondingMap <- getCorrespondingMap(m, keys, values)(ctx)
+          vDomainMap = withSrc(vpr.MapDomain(correspondingMap), l)
+          contains = withSrc(vpr.AnySetContains(vKey, vDomainMap), l)
+        } yield contains
+
+      case l@in.Contains(key, in.MapValues(m :: ctx.Map(keys, values), _)) =>
+        for {
+          vKey <- ctx.expression(key)
+          correspondingMap <- getCorrespondingMap(m, keys, values)(ctx)
+          vRangeMap = withSrc(vpr.MapRange(correspondingMap), l)
+          contains = withSrc(vpr.AnySetContains(vKey, vRangeMap), l)
+        } yield contains
     }
   }
 

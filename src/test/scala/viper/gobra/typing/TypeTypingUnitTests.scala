@@ -378,9 +378,8 @@ class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         new PackageInfo("pkg", "pkg", false)
       )
       val tree = new Info.GoTree(pkg)
-      val context = new Info.Context()
       val config = Config()
-      new TypeInfoImpl(tree, context)(config)
+      new TypeInfoImpl(tree, Map.empty)(config)
     }
 
     def areComparable(t1 : PType, t2 : PType) : Boolean = {

@@ -11,7 +11,6 @@ import viper.silicon
 import viper.silver.ast.Program
 import viper.silver.reporter._
 import viper.silver.verifier.{Failure, Success, VerificationResult}
-
 import scala.concurrent.Future
 
 class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
@@ -23,18 +22,25 @@ class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
       val backend: silicon.Silicon = silicon.Silicon.fromPartialCommandLineArguments(commandLineArguments, reporter)
       
       val startTime = System.currentTimeMillis()
-      backend.start()
-      val result = backend.verify(program)
-      backend.stop()
+      try {
+        backend.start()
+        val result = backend.verify(program)
+        backend.stop()
 
-      result match {
-        case Success =>
-          reporter report OverallSuccessMessage(backend.name, System.currentTimeMillis() - startTime)
-        case f@Failure(_) =>
-          reporter report OverallFailureMessage(backend.name, System.currentTimeMillis() - startTime, f)
+        result match {
+          case Success =>
+            reporter report OverallSuccessMessage(backend.name, System.currentTimeMillis() - startTime)
+          case f@Failure(_) =>
+            reporter report OverallFailureMessage(backend.name, System.currentTimeMillis() - startTime, f)
+        }
+
+        result
+      } catch {
+        case _: java.lang.UnsatisfiedLinkError => System.err.println("Couldn't find Z3 java API. No libz3java in java.library.path")
+          new Failure(Seq.empty)
+        case e: Throwable =>
+          throw e
       }
-
-      result
     }
   }
 }

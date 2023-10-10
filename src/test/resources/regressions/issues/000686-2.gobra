@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type X adt {
+  A { a int }
+  B { b bool }
+}
+
+type A int
+
+func client1() {
+    x := X.A{}
+    y := B{}
+}
+
+

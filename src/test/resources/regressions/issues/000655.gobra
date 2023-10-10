@@ -1,0 +1,37 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+// ##(-I ./000655/)
+import "pkg"
+
+ghost
+pure func foo(x pkg.List) bool {
+  return match x {
+    case pkg.Nil{}: true
+    case pkg.Cons{?head, pkg.Nil{}}: true
+    case _: false
+  }
+}
+
+ghost
+func foo2() {
+    var x pkg.Tree = pkg.Branch{}
+    y := pkg.Branch{Left: x}
+    z := pkg.Branch{Right: x}
+}
+
+/*
+// should work in the future:
+
+ghost
+pure func foo3(x pkg.Tree) bool {
+  return match x {
+    case pkg.Tree.Leaf{}: true
+    case pkg.Branch{?left, pkg.Tree.Leaf{}}: true
+    case pkg.Tree.Branch{pkg.Tree.Leaf{}, ?right}: true
+    case _: false
+  }
+}
+*/

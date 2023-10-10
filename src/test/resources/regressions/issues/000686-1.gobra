@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type X adt {
+  A { a int }
+  B { b bool }
+}
+
+requires match x {
+    case A{5}: acc(c)
+    case _: acc(c)
+}
+func foo1(c *int, ghost x X) {
+}
+
+requires match x {
+    case A{5}: acc(c)
+    case _: true
+}
+func foo2(c *int, ghost x X) {
+}

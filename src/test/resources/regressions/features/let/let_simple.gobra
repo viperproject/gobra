@@ -32,3 +32,13 @@ func (a *A) g(x int) {
 	fold a.Mem()
 }
 
+pred Q(x int) {
+	true
+}
+
+requires acc(x)
+requires Q(y)
+func impureLets(x *int, y int) {
+	assert let z := y in Q(z)
+	assert let z := x in acc(z)
+}

@@ -98,7 +98,6 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (MultisetT(l), MultisetT(r)) => assignableTo.result(l,r)
       case (OptionT(l), OptionT(r)) => assignableTo.result(l, r)
       case (IntT(_), PermissionT) => successProp
-      case (c: AdtClauseT, UnderlyingType(t: AdtT)) if c.context == t.context && c.adtT == t.decl => successProp
 
         // conservative choice
       case _ => errorProp()
@@ -162,18 +161,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
               })
           } else if (elems.size == s.embedded.size + s.fields.size) {
             propForall(
-              elems.map(_.exp).zip(s.fieldsAndEmbedded.values),/*
-              elems.map(_.exp).zip(decl.clauses.flatMap { cl =>
-                def clauseInducedTypes(clause: PActualStructClause): Vector[Type] = clause match {
-                  case PEmbeddedDecl(embeddedType, _) => Vector(context.typ(embeddedType))
-                  case PFieldDecls(fields) => fields map (f => context.typ(f.typ))
-                }
-
-                cl match {
-                  case PExplicitGhostStructClause(c) => clauseInducedTypes(c)
-                  case c: PActualStructClause => clauseInducedTypes(c)
-                }
-              }),*/
+              elems.map(_.exp).zip(s.fieldsAndEmbedded.values),
               compositeValAssignableTo
             )
           } else {
@@ -184,7 +172,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
           if (elems.isEmpty) {
             successProp
           } else if (elems.exists(_.key.nonEmpty)) {
-            val tmap: Map[String, Type] = a.fields
+            val tmap: Map[String, Type] = a.typeMap
 
             failedProp("for adt literals either all or none elements must be keyed",
               !elems.forall(_.key.nonEmpty)) and
@@ -198,7 +186,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
               })
           } else if (elems.size == a.fields.size) {
             propForall(
-              elems.map(_.exp).zip(a.fields.values),
+              elems.map(_.exp).zip(a.fields.map(_._2)),
               compositeValAssignableTo
             )
           } else {

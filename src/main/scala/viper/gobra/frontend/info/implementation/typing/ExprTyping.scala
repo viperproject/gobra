@@ -14,8 +14,6 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
 import viper.gobra.util.{Constants, TypeBounds, Violation}
 
-import scala.collection.immutable.ListMap
-
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   import viper.gobra.util.Violation._
@@ -147,12 +145,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.DomainFunction) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
 
         case Some(p: ap.AdtClause) =>
-          val fields = ListMap.from(p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ)))
-          AdtClauseT(fields, p.symb.decl, p.symb.adtDecl, this)
+          val fields = p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ))
+          AdtClauseT(p.symb.getName, fields, p.symb.decl, p.symb.typeDecl, p.symb.context)
+
         case Some(p: ap.AdtField) =>
           p.symb match {
-            case AdtDestructor(decl, _, context) => context.symbType(decl.typ)
-            case AdtDiscriminator(_, _, _) => BooleanT
+            case dest: AdtDestructor => dest.context.symbType(dest.decl.typ)
+            case _: AdtDiscriminator => BooleanT
           }
 
         // TODO: fully supporting packages results in further options: global variable
@@ -1014,7 +1013,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {
     case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeSymbType(i.elem))
-    case t: PType => typeSymbType(t)
+    case t: PType =>
+      typeSymbType(t) match {
+        case t: AdtClauseT => t.declaredType // adt constructors return the defined type
+        case t => t
+      }
   }
 
   private[typing] def wellDefIfConstExpr(expr: PExpression): Messages = underlyingType(typ(expr)) match {

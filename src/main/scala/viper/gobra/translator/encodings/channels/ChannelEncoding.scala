@@ -14,7 +14,6 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
-import viper.gobra.util.Violation.violation
 import viper.silver.{ast => vpr}
 
 class ChannelEncoding extends LeafTypeEncoding {
@@ -167,8 +166,8 @@ class ChannelEncoding extends LeafTypeEncoding {
           } yield ass
         )
 
-      case stmt@in.Send(channel :: ctx.Channel(typeParam), message, sendChannel, sendGivenPerm, sendGotPerm) =>
-        violation(message.typ == typeParam, s"message type ${message.typ} has to be the same as the channel element type $typeParam")
+      case stmt@in.Send(channel :: ctx.Channel(_), message, sendChannel, sendGivenPerm, sendGotPerm) =>
+        // note that the message type might not be identical to the channel element type but is assignable (as checked by the type checker)!
         val (pos, info, errT) = stmt.vprMeta
         val sendChannelPred = in.Accessible.Predicate(in.MPredicateAccess(channel, sendChannel, Vector())(stmt.info))
         seqn(

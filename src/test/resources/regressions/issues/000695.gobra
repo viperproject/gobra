@@ -1,0 +1,32 @@
+package issue000695
+
+type ChannelMsgType int
+
+const ChannelMsg1 = 42
+const ChannelMsg2 ChannelMsgType = 43
+
+pred sendInvariant(v ChannelMsgType) {
+    true
+}
+
+requires acc(channel.SendChannel(), 1/2)
+requires channel.SendGivenPerm() == sendInvariant!<_!>
+requires channel.SendGotPerm() == PredTrue!<!>
+func sendMsg1(channel chan ChannelMsgType) {
+    fold sendInvariant!<_!>(ChannelMsg1)
+    fold PredTrue!<!>()
+    assert acc(channel.SendChannel(), _) && sendInvariant!<_!>(ChannelMsg1)
+    assert acc(channel.SendChannel(), _) && channel.SendGivenPerm()(ChannelMsg1)
+    channel <- ChannelMsg1
+}
+
+requires acc(channel.SendChannel(), 1/2)
+requires channel.SendGivenPerm() == sendInvariant!<_!>
+requires channel.SendGotPerm() == PredTrue!<!>
+func sendMsg2(channel chan ChannelMsgType) {
+    fold sendInvariant!<_!>(ChannelMsg2)
+    fold PredTrue!<!>()
+    assert acc(channel.SendChannel(), _) && sendInvariant!<_!>(ChannelMsg2)
+    assert acc(channel.SendChannel(), _) && channel.SendGivenPerm()(ChannelMsg2)
+    channel <- ChannelMsg2
+}

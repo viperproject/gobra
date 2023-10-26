@@ -349,6 +349,26 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               assignableToIdxType
             }
 
+          case (InternalSingleMulti(MapT(key, _), _), underlyingIdxType) =>
+            // This case handles nested dicts. When having dicts as values in an other dict and try
+            // to access a value of an inner dict, gobra gets a base value of InternalSingleMulti instead
+            // of the actual mathmap type so it can be assignable to 1 or 2 variables with the normal
+            // go idiom.
+            val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
+            if (assignableToIdxType.nonEmpty) {
+              error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
+            } else {
+              assignableToIdxType
+            }
+
+          case (InternalSingleMulti(MathMapT(key, _), _), underlyingIdxType) =>
+            val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
+            if (assignableToIdxType.nonEmpty) {
+              error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
+            } else {
+              assignableToIdxType
+            }
+
           case (bt, it) => error(n, s"$it index is not a proper index of $bt")
         }
       }
@@ -677,7 +697,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case (VariadicT(elem), IntT(_)) => elem
         case (MapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
           InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+        case (InternalSingleMulti(MapT(key, elem), _), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+          InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
         case (MathMapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+          InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+        case (InternalSingleMulti(MathMapT(key, elem), _), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
           InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
         case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
       }

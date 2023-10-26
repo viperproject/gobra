@@ -3698,7 +3698,10 @@ object Desugar extends LazyLogging {
         val valuesD = typeD(values, Addressability.mapValue)(src)
         in.MapT(keysD, valuesD, addrMod)
       case Type.GhostSliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
-      case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
+      case Type.OptionT(elem) => elem match {
+        case InternalSingleMulti(trueElem, _) => in.OptionT(typeD(trueElem, Addressability.mathDataStructureElement)(src), addrMod)
+        case _ => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
+      }
       case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
       case Type.ChannelT(elem, _) => in.ChannelT(typeD(elem, Addressability.channelElement)(src), addrMod)
       case Type.SequenceT(elem) => in.SequenceT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)

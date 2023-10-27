@@ -1,0 +1,32 @@
+package issue000697
+
+// ##(-I ./000697/)
+import pkg "pkg"
+
+type Impl struct{
+    x *int
+}
+
+pred (impl Impl) inv() {
+    acc(impl.x)
+}
+
+func main() {
+    x@ := 0
+
+    cl :=   preserves acc(&x)
+            func closureImpl() int {
+                x += 42
+                return x
+            }
+
+    proof cl implements pkg.ClosureSpec{Impl{&x}} {
+        unfold Impl{&x}.inv()
+        res = cl() as closureImpl
+        fold Impl{&x}.inv()
+    }
+
+    impl := Impl{&x}
+    fold impl.inv()
+    pkg.Invoke(cl, impl)
+}

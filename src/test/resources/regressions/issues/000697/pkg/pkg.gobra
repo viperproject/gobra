@@ -1,0 +1,17 @@
+package pkg
+
+type Calls interface {
+	pred inv()
+}
+
+ghost
+requires cs != nil
+preserves cs.inv()
+func ClosureSpec(ghost cs Calls) (res int)
+
+requires fn implements ClosureSpec{cs}
+requires cs != nil && cs.inv()
+ensures  cs.inv()
+func Invoke(fn func () (int), ghost cs Calls) int {
+    return fn() as ClosureSpec{cs}
+}

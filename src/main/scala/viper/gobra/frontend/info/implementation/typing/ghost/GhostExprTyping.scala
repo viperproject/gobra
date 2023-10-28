@@ -205,11 +205,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t => error(op, s"expected a sequence, multiset or option type, but got $t")
         }
         case PMapKeys(exp) => underlyingType(exprType(exp)) match {
-          case _: MathMapT | _: MapT => isExpr(exp).out
+          case Single(_: MathMapT) | Single(_: MapT) => isExpr(exp).out
           case t => error(expr, s"expected a map, but got $t")
         }
         case PMapValues(exp) => underlyingType(exprType(exp)) match {
-          case _: MathMapT | _: MapT => isExpr(exp).out
+          case Single(_: MathMapT) | Single(_: MapT) => isExpr(exp).out
           case t => error(expr, s"expected a map, but got $t")
         }
       }
@@ -260,7 +260,14 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PGhostEquals | _: PGhostUnequals => BooleanT
 
     case POptionNone(t) => OptionT(typeSymbType(t))
-    case POptionSome(e) => OptionT(exprType(e))
+    case POptionSome(e) =>
+      val et = exprType(e)
+      val ut = underlyingType(et)
+      ut match {
+        case Single(t) => OptionT(t)
+        case t => violation(s"expected a single type, but got $t")
+      }
+
     case POptionGet(e) => exprType(e) match {
       case OptionT(t) => t
       case t => violation(s"expected an option type, but got $t")
@@ -308,13 +315,19 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t => violation(s"expected a sequence, set, multiset or option type, but got $t")
         }
         case PMapKeys(exp) => underlyingType(exprType(exp)) match {
-          case t: MathMapT => SetT(t.key)
-          case t: MapT => SetT(t.key)
+          case Single(t) => t match {
+            case t: MathMapT => SetT(t.key)
+            case t: MapT => SetT(t.key)
+            case t => violation(s"expected a map, but got $t")
+          }
           case t => violation(s"expected a map, but got $t")
         }
         case PMapValues(exp) => underlyingType(exprType(exp)) match {
-          case t: MathMapT => SetT(t.elem)
-          case t: MapT => SetT(t.elem)
+          case Single(t) => t match {
+            case t: MathMapT => SetT(t.elem)
+            case t: MapT => SetT(t.elem)
+            case t => violation(s"expected a map, but got $t")
+          }
           case t => violation(s"expected a map, but got $t")
         }
       }

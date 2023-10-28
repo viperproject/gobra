@@ -62,6 +62,7 @@ object Names {
     case in.ArrayT(len, elemT, addr) => s"Array$len${serializeType(elemT)}${serializeAddressability(addr)}"
     case in.SliceT(elemT, addr) => s"Slice${serializeType(elemT)}${serializeAddressability(addr)}"
     case in.MapT(keyT, valueT, addr) => s"Map${serializeType(keyT)}_${serializeType(valueT)}_${serializeAddressability(addr)}"
+    case in.MathMapT(keyT, valueT, addr) => s"Dict${serializeType(keyT)}_${serializeType(valueT)}_${serializeAddressability(addr)}"
     case in.SequenceT(elemT, addr) => s"Sequence${serializeType(elemT)}${serializeAddressability(addr)}"
     case in.SetT(elemT, addr) => s"Set${serializeType(elemT)}${serializeAddressability(addr)}"
     case in.MultisetT(elemT, addr) => s"Multiset${serializeType(elemT)}${serializeAddressability(addr)}"

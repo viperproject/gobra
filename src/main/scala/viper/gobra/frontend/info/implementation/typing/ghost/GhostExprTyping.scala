@@ -205,11 +205,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t => error(op, s"expected a sequence, multiset or option type, but got $t")
         }
         case PMapKeys(exp) => underlyingType(exprType(exp)) match {
-          case Single(_: MathMapT) | Single(_: MapT) => isExpr(exp).out
+          case Single(_: MathMapT | _: MapT) => isExpr(exp).out
           case t => error(expr, s"expected a map, but got $t")
         }
         case PMapValues(exp) => underlyingType(exprType(exp)) match {
-          case Single(_: MathMapT) | Single(_: MapT) => isExpr(exp).out
+          case Single(_: MathMapT | _: MapT) => isExpr(exp).out
           case t => error(expr, s"expected a map, but got $t")
         }
       }
@@ -315,19 +315,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t => violation(s"expected a sequence, set, multiset or option type, but got $t")
         }
         case PMapKeys(exp) => underlyingType(exprType(exp)) match {
-          case Single(t) => t match {
-            case t: MathMapT => SetT(t.key)
-            case t: MapT => SetT(t.key)
-            case t => violation(s"expected a map, but got $t")
-          }
+          case Single(t: MathMapT) => SetT(t.key)
+          case Single(t: MapT) => SetT(t.key)
           case t => violation(s"expected a map, but got $t")
         }
         case PMapValues(exp) => underlyingType(exprType(exp)) match {
-          case Single(t) => t match {
-            case t: MathMapT => SetT(t.elem)
-            case t: MapT => SetT(t.elem)
-            case t => violation(s"expected a map, but got $t")
-          }
+          case Single(t: MathMapT) => SetT(t.elem)
+          case Single(t: MapT) => SetT(t.elem)
           case t => violation(s"expected a map, but got $t")
         }
       }

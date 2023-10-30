@@ -305,49 +305,53 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         val baseType = exprType(base)
         val idxType  = exprType(index)
         (underlyingType(baseType), underlyingType(idxType)) match {
-          case (ArrayT(l, _), IntT(_)) =>
-            val idxOpt = intConstantEval(index)
-            error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
+          case (Single(base), Single(idx)) => (base, idx) match {
+            case (ArrayT(l, _), IntT(_)) =>
+              val idxOpt = intConstantEval(index)
+              error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
 
-          case (PointerT(ArrayT(l, _)), IntT(_)) =>
-            val idxOpt = intConstantEval(index)
-            error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
+            case (PointerT(ArrayT(l, _)), IntT(_)) =>
+              val idxOpt = intConstantEval(index)
+              error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
 
-          case (SequenceT(_), IntT(_)) =>
-            noMessages
+            case (SequenceT(_), IntT(_)) =>
+              noMessages
 
-          case (_: SliceT | _: GhostSliceT, IntT(_)) =>
-            noMessages
+            case (_: SliceT | _: GhostSliceT, IntT(_)) =>
+              noMessages
 
-          case (VariadicT(_), IntT(_)) =>
-            noMessages
+            case (VariadicT(_), IntT(_)) =>
+              noMessages
 
-          case (StringT, IntT(_)) =>
-            error(n, "Indexing a string is currently not supported")
+            case (StringT, IntT(_)) =>
+              error(n, "Indexing a string is currently not supported")
 
-          case (MapT(key, _), underlyingIdxType) =>
-            // Assignability in Go is a property between a value and and a type. In Gobra, we model this as a relation
-            // between two types, which is less precise. Because of this limitation, and with the goal of handling
-            // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
-            // expressions that are not accepted by the compiler.
-            val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
-            if (assignableToIdxType.nonEmpty) {
-              error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
-            } else {
-              assignableToIdxType
-            }
+            case (MapT(key, _), underlyingIdxType) =>
+              // Assignability in Go is a property between a value and and a type. In Gobra, we model this as a relation
+              // between two types, which is less precise. Because of this limitation, and with the goal of handling
+              // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
+              // expressions that are not accepted by the compiler.
+              val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
+              if (assignableToIdxType.nonEmpty) {
+                error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
+              } else {
+                assignableToIdxType
+              }
 
-          case (MathMapT(key, _), underlyingIdxType) =>
-            // Assignability in Go is a property between a value and and a type. In Gobra, we model this as a relation
-            // between two types, which is less precise. Because of this limitation, and with the goal of handling
-            // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
-            // expressions that are not accepted by the compiler.
-            val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
-            if (assignableToIdxType.nonEmpty) {
-              error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
-            } else {
-              assignableToIdxType
-            }
+            case (MathMapT(key, _), underlyingIdxType) =>
+              // Assignability in Go is a property between a value and and a type. In Gobra, we model this as a relation
+              // between two types, which is less precise. Because of this limitation, and with the goal of handling
+              // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
+              // expressions that are not accepted by the compiler.
+              val assignableToIdxType = error(n, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
+              if (assignableToIdxType.nonEmpty) {
+                error(n, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
+              } else {
+                assignableToIdxType
+              }
+
+            case (bt, it) => error(n, s"$it index is not a proper index of $bt")
+          }
 
           case (bt, it) => error(n, s"$it index is not a proper index of $bt")
         }
@@ -669,16 +673,19 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       val baseType = exprType(base)
       val idxType  = exprType(index)
       (underlyingType(baseType), underlyingType(idxType)) match {
-        case (ArrayT(_, elem), IntT(_)) => elem
-        case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
-        case (SequenceT(elem), IntT(_)) => elem
-        case (SliceT(elem), IntT(_)) => elem
-        case (GhostSliceT(elem), IntT(_)) => elem
-        case (VariadicT(elem), IntT(_)) => elem
-        case (MapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
-          InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
-        case (MathMapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
-          InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+        case (Single(base), Single(idx)) => (base, idx) match {
+          case (ArrayT(_, elem), IntT(_)) => elem
+          case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
+          case (SequenceT(elem), IntT(_)) => elem
+          case (SliceT(elem), IntT(_)) => elem
+          case (GhostSliceT(elem), IntT(_)) => elem
+          case (VariadicT(elem), IntT(_)) => elem
+          case (MapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+            InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+          case (MathMapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+            InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+          case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
+        }
         case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
       }
 

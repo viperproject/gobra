@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+ghost
+func foo(){
+    mm := dict[int](dict[int]int){1 : {2:3}}
+    assert mm[1][2] == 3
+    assert 2 in domain(mm[1])
+}

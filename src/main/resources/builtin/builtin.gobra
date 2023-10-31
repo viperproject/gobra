@@ -14,19 +14,29 @@ type error interface {
 	pred ErrorMem()
 
 	ghost
-	requires acc(ErrorMem(), _)
-	decreases
+	requires  acc(ErrorMem(), _)
+	decreases Size()
 	pure IsDuplicableMem() bool
 
 	ghost
 	preserves ErrorMem()
 	ensures   IsDuplicableMem() ==> ErrorMem() 
-	decreases
+	decreases Size()
 	Duplicate()
 
 	preserves ErrorMem()
-	decreases
+	decreases Size()
 	Error() string
+
+	// This function indicates the size of the longest chain of nested
+	// errors, and restricts it to be finite. Although this sounds limiting,
+	// it allows one to write recursive implementations of Error(), where
+	// the generated error message is, in part, obtained from nested errors,
+	// and to prove that these functions are terminating.
+	ghost
+	requires acc(ErrorMem(), _)
+	ensures  0 <= res
+	pure Size() (res int)
 }
 
 // The panic built-in function stops normal execution of the current

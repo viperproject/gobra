@@ -20,12 +20,14 @@ type error interface {
 
 	ghost
 	preserves ErrorMem()
-	ensures   IsDuplicableMem() ==> ErrorMem() 
+	ensures   IsDuplicableMem() ==> ErrorMem()
+	ensures   Size() == old(Size())
 	decreases Size()
 	Duplicate()
 
 	preserves ErrorMem()
 	decreases Size()
+	ensures   Size() == old(Size())
 	Error() string
 
 	// This function indicates the size of the longest chain of nested

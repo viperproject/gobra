@@ -262,8 +262,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case POptionNone(t) => OptionT(typeSymbType(t))
     case POptionSome(e) =>
       val et = exprType(e)
-      val ut = underlyingType(et)
-      ut match {
+      et match {
         case Single(t) => OptionT(t)
         case t => violation(s"expected a single type, but got $t")
       }

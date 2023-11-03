@@ -14,7 +14,6 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
-import viper.gobra.util.Violation.violation
 import viper.silver.{ast => vpr}
 
 class ChannelEncoding extends LeafTypeEncoding {
@@ -68,7 +67,7 @@ class ChannelEncoding extends LeafTypeEncoding {
           )
 
           // exhale [c].RecvGivenPerm()()
-          recvGivenPermInst = getChannelInvariantAccess(channel, recvGivenPerm, Vector())(exp.info)
+          recvGivenPermInst = getChannelInvariantAccess(channel, recvGivenPerm, Vector.empty, Vector.empty)(exp.info)
           vprRecvGivenPermInst <- ctx.assertion(recvGivenPermInst)
           _ <- exhale(vprRecvGivenPermInst,
             (info, _) => ChannelReceiveError(info) dueTo InsufficientPermissionFromTagError(s"${channel.info.tag}.RecvGivenPerm()()")
@@ -85,7 +84,7 @@ class ChannelEncoding extends LeafTypeEncoding {
 
           // inhale res != Dflt[T] ==> [c].RecvGotPerm()(res)
           isNotZero = in.UneqCmp(res, in.DfltVal(res.typ)(exp.info))(exp.info)
-          recvGotPermInst = getChannelInvariantAccess(channel, recvGotPerm, Vector(res))(exp.info)
+          recvGotPermInst = getChannelInvariantAccess(channel, recvGotPerm, Vector(res), Vector(typeParam))(exp.info)
           notZeroImpl = in.Implication(isNotZero, recvGotPermInst)(exp.info)
           vprNotZeroImpl <- ctx.assertion(notZeroImpl)
           vprInhaleNotZeroImpl = vpr.Inhale(vprNotZeroImpl)(pos, info, errT)
@@ -168,7 +167,7 @@ class ChannelEncoding extends LeafTypeEncoding {
         )
 
       case stmt@in.Send(channel :: ctx.Channel(typeParam), message, sendChannel, sendGivenPerm, sendGotPerm) =>
-        violation(message.typ == typeParam, s"message type ${message.typ} has to be the same as the channel element type $typeParam")
+        // note that the message type might not be identical to the channel element type but is assignable (as checked by the type checker)!
         val (pos, info, errT) = stmt.vprMeta
         val sendChannelPred = in.Accessible.Predicate(in.MPredicateAccess(channel, sendChannel, Vector())(stmt.info))
         seqn(
@@ -180,14 +179,14 @@ class ChannelEncoding extends LeafTypeEncoding {
             )
 
             // exhale [c].SendGivenPerm()([m])
-            sendGivenPermInst = getChannelInvariantAccess(channel, sendGivenPerm, Vector(message))(stmt.info)
+            sendGivenPermInst = getChannelInvariantAccess(channel, sendGivenPerm, Vector(message), Vector(typeParam))(stmt.info)
             vprSendGivenPermInst <- ctx.assertion(sendGivenPermInst)
             _ <- exhale(vprSendGivenPermInst,
               (info, _) => ChannelSendError(info) dueTo InsufficientPermissionFromTagError(s"${channel.info.tag}.SendGivenPerm()(${message.info.tag})")
             )
 
             // inhale [c].SendGotPerm()()
-            sendGotPermInst = getChannelInvariantAccess(channel, sendGotPerm, Vector())(stmt.info)
+            sendGotPermInst = getChannelInvariantAccess(channel, sendGotPerm, Vector.empty, Vector.empty)(stmt.info)
             vprSendGotPermInst <- ctx.assertion(sendGotPermInst)
             vprInhaleSendGotPermInst = vpr.Inhale(vprSendGotPermInst)(pos, info, errT)
           } yield vprInhaleSendGotPermInst
@@ -209,7 +208,7 @@ class ChannelEncoding extends LeafTypeEncoding {
             )
 
             // exhale [c].RecvGivenPerm()()
-            recvGivenPermInst = getChannelInvariantAccess(channel, recvGivenPerm, Vector())(stmt.info)
+            recvGivenPermInst = getChannelInvariantAccess(channel, recvGivenPerm, Vector.empty, Vector.empty)(stmt.info)
             vprRecvGivenPermInst <- ctx.assertion(recvGivenPermInst)
             _ <- exhale(vprRecvGivenPermInst,
               (info, _) => ChannelReceiveError(info) dueTo InsufficientPermissionFromTagError(s"${channel.info.tag}.RecvGivenPerm()()")
@@ -228,7 +227,7 @@ class ChannelEncoding extends LeafTypeEncoding {
             _ <- write(vprInhaleRecvChannelFull)
 
             // inhale ok ==> [c].RecvGotPerm()(res)
-            recvGotPermInst = getChannelInvariantAccess(channel, recvGotPerm, Vector(res))(stmt.info)
+            recvGotPermInst = getChannelInvariantAccess(channel, recvGotPerm, Vector(res), Vector(typeParam))(stmt.info)
             okImpl = in.Implication(ok, recvGotPermInst)(stmt.info)
             vprOkImpl <- ctx.assertion(okImpl)
             vprInhaleOkImpl = vpr.Inhale(vprOkImpl)(pos, info, errT)
@@ -260,8 +259,9 @@ class ChannelEncoding extends LeafTypeEncoding {
   /**
     * Constructs `[channel].invariant()([args])`
     */
-  private def getChannelInvariantAccess(channel: in.Expr, invariant: in.MethodProxy, args: Vector[in.Expr])(src: Source.Parser.Info): in.Access = {
-    val permReturnT = in.PredT(args.map(_.typ), Addressability.outParameter)
+  private def getChannelInvariantAccess(channel: in.Expr, invariant: in.MethodProxy, args: Vector[in.Expr], argTypes: Vector[in.Type])(src: Source.Parser.Info): in.Access = {
+    require(args.length == argTypes.length)
+    val permReturnT = in.PredT(argTypes, Addressability.outParameter)
     val permPred = in.PureMethodCall(channel, invariant, Vector(), permReturnT)(src)
     in.Access(in.Accessible.PredExpr(in.PredExprInstance(permPred, args)(src)), in.FullPerm(src))(src)
   }

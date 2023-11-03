@@ -340,7 +340,7 @@ case class ChannelReceiveError(info: Source.Verifier.Info) extends VerificationE
 
 case class ChannelSendError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "send_error"
-  override def localMessage: String = s"The receive expression ${info.trySrc[PSendStmt](" ")}might fail"
+  override def localMessage: String = s"The send expression ${info.trySrc[PSendStmt](" ")}might fail"
 }
 
 case class FunctionTerminationError(info: Source.Verifier.Info) extends VerificationError {

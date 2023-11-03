@@ -22,12 +22,14 @@ type error interface {
 	preserves ErrorMem()
 	ensures   IsDuplicableMem() ==> ErrorMem()
 	ensures   Size() == old(Size())
+	ensures   IsDuplicableMem() == old(IsDuplicableMem())
 	decreases Size()
 	Duplicate()
 
 	preserves ErrorMem()
 	decreases Size()
 	ensures   Size() == old(Size())
+	ensures   IsDuplicableMem() == old(IsDuplicableMem())
 	Error() string
 
 	// This function indicates the size of the longest chain of nested

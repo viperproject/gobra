@@ -11,36 +11,27 @@ package builtin
 type any = interface{}
 
 type error interface {
+	// To allow for recursive implementations of the
+	// following methods, we use ErrorMem() as the
+	// termination measure.
 	pred ErrorMem()
 
 	ghost
 	requires  acc(ErrorMem(), _)
-	decreases Size()
+	decreases ErrorMem()
 	pure IsDuplicableMem() bool
 
 	ghost
 	preserves ErrorMem()
-	ensures   IsDuplicableMem() ==> ErrorMem()
-	ensures   Size() == old(Size())
 	ensures   IsDuplicableMem() == old(IsDuplicableMem())
-	decreases Size()
+	ensures   IsDuplicableMem() ==> ErrorMem()
+	decreases ErrorMem()
 	Duplicate()
 
 	preserves ErrorMem()
-	decreases Size()
-	ensures   Size() == old(Size())
 	ensures   IsDuplicableMem() == old(IsDuplicableMem())
+	decreases ErrorMem()
 	Error() string
-
-	// This function indicates the size of the longest chain of nested
-	// errors, and restricts it to be finite. Although this sounds limiting,
-	// it allows one to write recursive implementations of Error(), where
-	// the generated error message is, in part, obtained from nested errors,
-	// and to prove that these functions are terminating.
-	ghost
-	requires acc(ErrorMem(), _)
-	ensures  0 <= res
-	pure Size() (res int)
 }
 
 // The panic built-in function stops normal execution of the current

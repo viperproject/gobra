@@ -72,6 +72,7 @@ object ConfigDefaults {
   lazy val DefaultNoStreamErrors: Boolean = false
   lazy val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
   lazy val DefaultRequireTriggers: Boolean = false
+  lazy val DefaultDisableSetAxiomatization: Boolean = false
 }
 
 // More-complete exhale modes
@@ -137,6 +138,7 @@ case class Config(
                    parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                    // when enabled, all quantifiers without triggers are rejected
                    requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
+                   disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
 ) {
 
   def merge(other: Config): Config = {
@@ -185,7 +187,8 @@ case class Config(
       noVerify = noVerify || other.noVerify,
       noStreamErrors = noStreamErrors || other.noStreamErrors,
       parseAndTypeCheckMode = parseAndTypeCheckMode,
-      requireTriggers = requireTriggers || other.requireTriggers
+      requireTriggers = requireTriggers || other.requireTriggers,
+      disableSetAxiomatization = disableSetAxiomatization || other.disableSetAxiomatization,
     )
   }
 
@@ -239,6 +242,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                       requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
+                      disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -296,6 +300,7 @@ trait RawConfig {
     noStreamErrors = baseConfig.noStreamErrors,
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
     requireTriggers = baseConfig.requireTriggers,
+    disableSetAxiomatization = baseConfig.disableSetAxiomatization,
   )
 }
 
@@ -705,6 +710,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     case _ => ConfigDefaults.DefaultParseAndTypeCheckMode
   }
 
+  val disableSetAxiomatization: ScallopOption[Boolean] = opt[Boolean](
+    name = "disableSetAxiomatization",
+    descr = s"Disables set axiomatization in Silicon.",
+    default = Some(ConfigDefaults.DefaultDisableSetAxiomatization),
+    noshort = true,
+  )
   /**
     * Exception handling
     */
@@ -765,6 +776,18 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     val mceModeSupplied = mceMode.isSupplied
     if (mceModeSupplied && !isSiliconBasedBackend) {
       Left("The flag --mceMode can only be used with Silicon or ViperServer with Silicon")
+    } else {
+      Right(())
+    }
+  }
+  
+  // `disableSetAxiomatization` can only be provided when using a silicon-based backend
+  // since, at the time of writing, we rely on Silicon's setAxiomatizationFile for the
+  // implementation
+  addValidation {
+    val disableSetAxiomatizationOn = disableSetAxiomatization.toOption.contains(true)
+    if (disableSetAxiomatizationOn && !isSiliconBasedBackend) {
+      Left("The selected backend does not support --disableSetAxiomatization.")
     } else {
       Right(())
     }
@@ -863,5 +886,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noStreamErrors = noStreamErrors(),
     parseAndTypeCheckMode = parseAndTypeCheckMode(),
     requireTriggers = requireTriggers(),
+    disableSetAxiomatization = disableSetAxiomatization(),
   )
 }

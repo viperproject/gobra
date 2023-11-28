@@ -142,14 +142,20 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     "decreases" <+> measureDoc(measure)
   }
 
+  def showExhaleMode(mode: PExhaleMode): Doc = mode match {
+    case PStrict => "strict"
+    case PMce => "mce"
+  }
+
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, measures, isPure, isTrusted) =>
+    case PFunctionSpec(pres, preserves, posts, measures, exhaleMode, isPure, isTrusted) =>
       (if (isPure) showPure else emptyDoc) <>
       (if (isTrusted) showTrusted else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
-        hcat(preserves map (showPreserves(_) <> line)) <>
-        hcat(posts map (showPost(_) <> line)) <>
-        hcat(measures map (showTerminationMeasure(_) <> line))
+      hcat(preserves map (showPreserves(_) <> line)) <>
+      hcat(posts map (showPost(_) <> line)) <>
+      hcat(measures map (showTerminationMeasure(_) <> line)) <>
+      hcat(exhaleMode map (showExhaleMode(_) <> line))
 
     case PLoopSpec(inv, measure) =>
       hcat(inv map (showInv(_) <> line)) <> opt(measure)(showTerminationMeasure) <> line

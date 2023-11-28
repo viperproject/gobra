@@ -876,13 +876,18 @@ case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PEx
 
 sealed trait PSpecification extends PGhostNode
 
+sealed trait PExhaleMode extends PNode
+case object PStrict extends PExhaleMode
+case object PMce extends PExhaleMode
+
 case class PFunctionSpec(
                       pres: Vector[PExpression],
                       preserves: Vector[PExpression],
                       posts: Vector[PExpression],
                       terminationMeasures: Vector[PTerminationMeasure],
+                      exhaleMode: Vector[PExhaleMode],
                       isPure: Boolean = false,
-                      isTrusted: Boolean = false
+                      isTrusted: Boolean = false,
                       ) extends PSpecification
 
 case class PBodyParameterInfo(

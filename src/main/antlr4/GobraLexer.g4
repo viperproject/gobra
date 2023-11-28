@@ -89,3 +89,6 @@ PROOF       : 'proof';
 GHOST_EQUALS     : '===';
 GHOST_NOT_EQUALS : '!==';
 WITH        : 'with';
+EXHALEMODE  : 'exhaleMode' -> mode(NLSEMI);
+MCE         : 'mce';
+STRICT      : 'strict';

@@ -162,7 +162,12 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 // Specifications
 
 specification returns[boolean trusted = false, boolean pure = false;]:
-  ((specStatement | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? // Non-greedily match PURE to avoid missing eos errors.
+  ((specStatement | PURE {$pure = true;} | (EXHALEMODE L_PAREN exhaleMode R_PAREN) | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? // Non-greedily match PURE to avoid missing eos errors.
+  ;
+
+exhaleMode
+  : MCE
+  | STRICT
   ;
 
 specStatement

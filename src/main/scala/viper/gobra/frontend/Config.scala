@@ -561,6 +561,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = None,
     noshort = true
   )
+
+  val disableNLIR: ScallopOption[Boolean] = opt[Boolean](
+    name = "disableNLIR",
+    descr = "Disable non-linear integer arithmetics. Non compatible using Z3 via API or Carbon",
+    noshort = true,
+    default = Some(false)
+  )
+
   lazy val packageTimeoutDuration: Duration = packageTimeout.toOption match {
     case Some(d) => Duration(d)
     case _ => Duration.Inf
@@ -770,6 +778,18 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     }
   }
 
+  addValidation {
+    if (disableNLIR.toOption.contains(true)) {
+      if (z3APIMode.toOption.contains(true) || !isSiliconBasedBackend) {
+        Left("--disableNLIR is not compatible with Z3 via API or Carbon")
+      } else {
+        Right(())
+      }
+    } else {
+      Right(())
+    }
+  }
+
 
   /** File Validation */
   validateFilesExist(cutInput)
@@ -857,6 +877,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parallelizeBranches = parallelizeBranches(),
     conditionalizePermissions = conditionalizePermissions(),
     z3APIMode = z3APIMode(),
+    disableNLIR = disableNLIR(),
     mceMode = mceMode(),
     enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),

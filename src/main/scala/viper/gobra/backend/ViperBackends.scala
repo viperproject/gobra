@@ -31,6 +31,9 @@ object ViperBackends {
       if (config.z3APIMode) {
         options = options ++ Vector(s"--prover=${Z3ProverAPI.name}")
       }
+      if (config.disableNLRI) {
+        options = options ++ Vector(s"--disableNLRI")
+      }
       val mceSiliconOpt = config.mceMode match {
         case MCE.Disabled => "0"
         case MCE.Enabled  => "1"

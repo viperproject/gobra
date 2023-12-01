@@ -66,7 +66,7 @@ object ConfigDefaults {
   lazy val DefaultParallelizeBranches: Boolean = false
   lazy val DefaultConditionalizePermissions: Boolean = false
   lazy val DefaultZ3APIMode: Boolean = false
-  lazy val DefaultDisableNLIR: Boolean = false
+  lazy val DefaultDisableNL: Boolean = false
   lazy val DefaultMCEMode: MCE.Mode = MCE.Enabled
   lazy val DefaultEnableLazyImports: Boolean = false
   lazy val DefaultNoVerify: Boolean = false
@@ -131,7 +131,7 @@ case class Config(
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                    conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
                    z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
-                   disableNLIR: Boolean = ConfigDefaults.DefaultDisableNLIR,
+                   disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                    mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
@@ -182,7 +182,7 @@ case class Config(
       parallelizeBranches = parallelizeBranches,
       conditionalizePermissions = conditionalizePermissions,
       z3APIMode = z3APIMode || other.z3APIMode,
-      disableNLIR = disableNLIR || other.disableNLIR,
+      disableNL = disableNL || other.disableNL,
       mceMode = mceMode,
       enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
@@ -236,7 +236,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                       conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
                       z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
-                      disableNLIR: Boolean = ConfigDefaults.DefaultDisableNLIR,
+                      disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
@@ -294,7 +294,7 @@ trait RawConfig {
     parallelizeBranches = baseConfig.parallelizeBranches,
     conditionalizePermissions = baseConfig.conditionalizePermissions,
     z3APIMode = baseConfig.z3APIMode,
-    disableNLIR = baseConfig.disableNLIR,
+    disableNL = baseConfig.disableNL,
     mceMode = baseConfig.mceMode,
     enableLazyImports = baseConfig.enableLazyImports,
     noVerify = baseConfig.noVerify,
@@ -652,10 +652,10 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
-  val disableNLIR: ScallopOption[Boolean] = opt[Boolean](
-    name = "disableNLIR",
+  val disableNL: ScallopOption[Boolean] = opt[Boolean](
+    name = "disableNL",
     descr = "Disable non-linear integer arithmetics. Non compatible using Z3 via API or Carbon",
-    default = Some(ConfigDefaults.DefaultDisableNLIR),
+    default = Some(ConfigDefaults.DefaultDisableNL),
     noshort = true,
   )
 
@@ -784,9 +784,9 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   }
 
   addValidation {
-    if (disableNLIR.toOption.contains(true)) {
+    if (disableNL.toOption.contains(true)) {
       if (z3APIMode.toOption.contains(true) || !isSiliconBasedBackend) {
-        Left("--disableNLIR is not compatible with Z3 via API or Carbon")
+        Left("--disableNL is not compatible with Z3 via API or Carbon")
       } else {
         Right(())
       }
@@ -882,7 +882,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parallelizeBranches = parallelizeBranches(),
     conditionalizePermissions = conditionalizePermissions(),
     z3APIMode = z3APIMode(),
-    disableNLIR = disableNLIR(),
+    disableNL = disableNL(),
     mceMode = mceMode(),
     enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),

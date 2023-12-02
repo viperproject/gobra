@@ -784,14 +784,10 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   }
 
   addValidation {
-    if (disableNL.toOption.contains(true)) {
-      if (z3APIMode.toOption.contains(true) || !isSiliconBasedBackend) {
-        Left("--disableNL is not compatible with Z3 via API or Carbon")
-      } else {
-        Right(())
-      }
+    if (!disableNL.toOption.contains(true) || (!z3APIMode.toOption.contains(true) && isSiliconBasedBackend)) {
+      Right(())      
     } else {
-      Right(())
+      Left("--disableNL is not compatible with Z3 via API or Carbon")
     }
   }
 

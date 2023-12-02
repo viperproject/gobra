@@ -564,6 +564,11 @@ object Desugar extends LazyLogging {
       typeD(DeclaredT(decl, info), Addressability.Exclusive)(meta(decl, info))
     }
 
+    def exhaleModeD(mode: PExhaleMode): in.ExhaleMode = mode match {
+      case PMce() => in.Mce
+      case PStrict() => in.Strict
+    }
+
     def functionD(decl: PFunctionDecl): in.FunctionMember =
       if (decl.spec.isPure) pureFunctionD(decl) else {
 
@@ -572,7 +577,7 @@ object Desugar extends LazyLogging {
       val functionInfo = functionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)))
 
       in.Function(name, functionInfo.args, functionInfo.results, functionInfo.pres, functionInfo.posts,
-        functionInfo.terminationMeasures, functionInfo.body)(fsrc)
+        functionInfo.terminationMeasures, functionInfo.exhaleMode, functionInfo.body)(fsrc)
     }
 
     private case class FunctionInfo(args: Vector[in.Parameter.In],
@@ -581,6 +586,7 @@ object Desugar extends LazyLogging {
                                     pres: Vector[in.Assertion],
                                     posts: Vector[in.Assertion],
                                     terminationMeasures: Vector[in.TerminationMeasure],
+                                    exhaleMode: Option[in.ExhaleMode],
                                     body: Option[in.MethodBody])
 
     private def functionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext): FunctionInfo = {
@@ -645,6 +651,7 @@ object Desugar extends LazyLogging {
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx, info)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx, info)
       val terminationMeasures = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx, info)).res
+      val exhaleMode = decl.spec.exhaleMode.headOption.map(exhaleModeD)
 
       // p1' := p1; ... ; pn' := pn
       val argInits = argsWithSubs.flatMap{
@@ -693,7 +700,7 @@ object Desugar extends LazyLogging {
         in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
-      FunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasures, bodyOpt)
+      FunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasures, exhaleMode, bodyOpt)
     }
 
     def pureFunctionD(decl: PFunctionDecl): in.PureFunction = {
@@ -701,7 +708,8 @@ object Desugar extends LazyLogging {
       val fsrc = meta(decl, info)
       val funcInfo = pureFunctionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)), info)
 
-      in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(fsrc)
+      in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures,
+        funcInfo.exhaleMode, funcInfo.body)(fsrc)
     }
 
     private case class PureFunctionInfo(args: Vector[in.Parameter.In],
@@ -710,6 +718,7 @@ object Desugar extends LazyLogging {
                                         pres: Vector[in.Assertion],
                                         posts: Vector[in.Assertion],
                                         terminationMeasures: Vector[in.TerminationMeasure],
+                                        exhaleMode: Option[in.ExhaleMode],
                                         body: Option[in.Expr])
 
 
@@ -755,6 +764,7 @@ object Desugar extends LazyLogging {
       val pres = decl.spec.pres map preconditionD(ctx, info)
       val posts = decl.spec.posts map postconditionD(ctx, info)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
+      val exhaleMode = decl.spec.exhaleMode.headOption.map(exhaleModeD)
 
       val capturedWithAliases = (captured.map { v => in.Ref(localVarD(outerCtx, info)(v))(meta(v, info)) } zip capturedPar)
 
@@ -767,7 +777,7 @@ object Desugar extends LazyLogging {
           implicitConversion(res.typ, returns.head.typ, res)
       }
 
-      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, bodyOpt)
+      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, exhaleMode, bodyOpt)
     }
 
 
@@ -3485,6 +3495,7 @@ object Desugar extends LazyLogging {
           a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(ImportPreNotEstablished))
         },
         terminationMeasures = Vector.empty,
+        exhaleMode = None,
         body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
       )(src)
     }
@@ -3519,6 +3530,7 @@ object Desugar extends LazyLogging {
           pres = mainPkgPosts,
           posts = mainFuncPreD,
           terminationMeasures = Vector.empty,
+          exhaleMode = None,
           body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
         )(src)
       }
@@ -3556,6 +3568,7 @@ object Desugar extends LazyLogging {
         posts = progPosts,
         // in our verification approach, the initialization code must be proven to terminate
         terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)),
+        exhaleMode = None,
         body = Some(
           in.MethodBody(
             decls = Vector(),

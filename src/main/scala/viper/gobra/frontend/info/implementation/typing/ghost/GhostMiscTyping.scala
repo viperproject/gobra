@@ -219,11 +219,12 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _, _) =>
+    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, exhaleMode, _, _) =>
       pres.flatMap(assignableToSpec) ++ preserves.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
       preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
       pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
       terminationMeasures.flatMap(wellDefTerminationMeasure) ++
+      error(n, "At most one exhaleMode may be specified per member", exhaleMode.length > 1) ++
       // if has conditional clause, all clauses must be conditional
       // can only have one non-conditional clause
       error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++

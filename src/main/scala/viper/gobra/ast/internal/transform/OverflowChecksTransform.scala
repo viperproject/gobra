@@ -25,8 +25,8 @@ object OverflowChecksTransform extends InternalTransform {
     // adds overflow checks per statement that contains subexpressions of bounded integer type and adds assume
     /// statements at the beginning of a function or method body assuming that the value of an argument (of
     // bounded integer type) respects the bounds.
-    case f@Function(name, args, results, pres, posts, terminationMeasure, body) =>
-      Function(name, args, results, pres, posts, terminationMeasure, body map computeNewBody)(f.info)
+    case f@Function(name, args, results, pres, posts, terminationMeasure, exhaleMode, body) =>
+      Function(name, args, results, pres, posts, terminationMeasure, exhaleMode, body map computeNewBody)(f.info)
 
     // same as functions
     case m@Method(receiver, name, args, results, pres, posts, terminationMeasure,body) =>
@@ -34,10 +34,10 @@ object OverflowChecksTransform extends InternalTransform {
 
     // Adds pre-conditions stating the bounds of each argument and a post-condition to check if the body expression
     // overflows
-    case f@PureFunction(name, args, results, pres, posts, terminationMeasure, body) => body match {
+    case f@PureFunction(name, args, results, pres, posts, terminationMeasure, exhaleMode, body) => body match {
       case Some(expr) =>
         val newPost = posts ++ getPureBlockPosts(expr, results)
-        PureFunction(name, args, results, pres, newPost, terminationMeasure, body)(f.info)
+        PureFunction(name, args, results, pres, newPost, terminationMeasure, exhaleMode, body)(f.info)
       case None => f
     }
 

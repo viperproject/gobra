@@ -147,16 +147,24 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
   }
 
+  def showExhaleMode(mode: ExhaleMode): Doc = {
+    val modDoc = mode match {
+      case Mce => "mce"
+      case Strict => "strict"
+    }
+    "exhaleMode" <> parens(modDoc) <> line
+  }
+
   def showFunction(f: Function): Doc = f match {
-    case Function(name, args, results, pres, posts, measures, body) =>
+    case Function(name, args, results, pres, posts, measures, exhaleMode, body) =>
       "func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block(showStmt(b)))
+        spec(opt(exhaleMode)(showExhaleMode) <> showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block(showStmt(b)))
   }
 
   def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, body) =>
+    case PureFunction(name, args, results, pres, posts, measures, exhaleMode, body) =>
       "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
+        spec(opt(exhaleMode)(showExhaleMode) <> showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
 
   def showMethod(m: Method): Doc = m match {
@@ -678,15 +686,15 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
 
   override def showFunction(f: Function): Doc = f match {
-    case Function(name, args, results, pres, posts, measures, _) =>
+    case Function(name, args, results, pres, posts, measures, exhaleMode, _) =>
       "func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
+        spec(opt(exhaleMode)(showExhaleMode) <> showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
   }
 
   override def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, _) =>
+    case PureFunction(name, args, results, pres, posts, measures, exhaleMode, _) =>
       "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
+        spec(opt(exhaleMode)(showExhaleMode) <> showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
   }
 
   override def showMethod(m: Method): Doc = m match {

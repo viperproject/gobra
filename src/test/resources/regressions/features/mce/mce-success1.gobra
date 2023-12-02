@@ -5,6 +5,7 @@ package pkg
 
 requires true
 exhaleMode(strict)
+exhaleMode(strict)
 func f(x, y *int) {
 
 }

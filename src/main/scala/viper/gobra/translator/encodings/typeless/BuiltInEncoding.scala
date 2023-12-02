@@ -424,7 +424,7 @@ class BuiltInEncoding extends Encoding {
           in.Access(closedInst, in.FullPerm(src))(src)
         )
 
-        in.Function(x.name, args, Vector(), pres, posts, Vector(), None)(src)
+        in.Function(x.name, args, Vector(), pres, posts, Vector(), None, None)(src)
 
       /* João, 18/08/2021:
        *  The spec for `append` currently does not allow the first and second non-ghost arguments to be the same. The go
@@ -502,7 +502,7 @@ class BuiltInEncoding extends Encoding {
         )
         val posts: Vector[in.Assertion] = Vector(postLen, postRes, postVariadic, postCmpSlice, postCmpVariadic)
 
-        in.Function(x.name, args, results, pres, posts, Vector(in.WildcardMeasure(None)(src)), None)(src)
+        in.Function(x.name, args, results, pres, posts, Vector(in.WildcardMeasure(None)(src)), None, None)(src)
 
       case (CopyFunctionTag, Vector(t1, t2, _)) =>
         /**
@@ -606,7 +606,7 @@ class BuiltInEncoding extends Encoding {
 
         val posts = Vector(postRes1, postRes2, postDst, postSrc, postUpdate, postSame)
 
-        in.Function(x.name, args, results, pres, posts, Vector(in.WildcardMeasure(None)(src)), None)(src)
+        in.Function(x.name, args, results, pres, posts, Vector(in.WildcardMeasure(None)(src)), None, None)(src)
 
       case (tag, args) => violation(s"no function generation defined for tag $tag and arguments $args")
     }

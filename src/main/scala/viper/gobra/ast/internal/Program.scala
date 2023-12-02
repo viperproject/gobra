@@ -136,6 +136,10 @@ sealed trait BuiltInMember extends Member {
   def argsT: Vector[Type]
 }
 
+sealed trait ExhaleMode
+case object Strict extends ExhaleMode
+case object Mce extends ExhaleMode
+
 sealed trait MethodLikeMember extends Member {
   def name: MethodProxy
 }
@@ -146,6 +150,8 @@ sealed trait MethodMember extends MethodLikeMember {
   def results: Vector[Parameter.Out]
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
+  // TODO: same in outline and below
+  //  def exhaleMode: Option[ExhaleMode]
   def terminationMeasures: Vector[TerminationMeasure]
 }
 
@@ -158,6 +164,7 @@ sealed trait FunctionLikeMemberOrLit extends Node {
   def results: Vector[Parameter.Out]
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
+  def exhaleMode: Option[ExhaleMode]
   def terminationMeasures: Vector[TerminationMeasure]
 }
 
@@ -241,6 +248,7 @@ case class Function(
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
                      override val terminationMeasures: Vector[TerminationMeasure],
+                     override val exhaleMode: Option[ExhaleMode],
                      body: Option[MethodBody]
                    )(val info: Source.Parser.Info) extends Member with FunctionMember
 
@@ -251,6 +259,7 @@ case class PureFunction(
                          override val pres: Vector[Assertion],
                          override val posts: Vector[Assertion],
                          override val terminationMeasures: Vector[TerminationMeasure],
+                         override val exhaleMode: Option[ExhaleMode],
                          body: Option[Expr]
                        )(val info: Source.Parser.Info) extends Member with FunctionMember {
   require(results.size <= 1)
@@ -1115,6 +1124,8 @@ case class FunctionLit(
                      body: Option[MethodBody]
                    )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
+  // todo: add type system check
+  override val exhaleMode: Option[ExhaleMode] = None
 }
 
 case class PureFunctionLit(
@@ -1129,6 +1140,8 @@ case class PureFunctionLit(
                        )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
   require(results.size <= 1)
+  // todo: add type system check
+  override val exhaleMode: Option[ExhaleMode] = None
 }
 
 case class ClosureImplements(closure: Expr, spec: ClosureSpec)(override val info: Source.Parser.Info) extends Expr {

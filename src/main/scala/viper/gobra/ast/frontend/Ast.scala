@@ -877,8 +877,8 @@ case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PEx
 sealed trait PSpecification extends PGhostNode
 
 sealed trait PExhaleMode extends PNode
-case object PStrict extends PExhaleMode
-case object PMce extends PExhaleMode
+case class PStrict() extends PExhaleMode
+case class PMce() extends PExhaleMode
 
 case class PFunctionSpec(
                       pres: Vector[PExpression],

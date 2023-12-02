@@ -880,8 +880,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val preserves = groups.getOrElse(GobraParser.PRESERVES, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
     val posts = groups.getOrElse(GobraParser.POST, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
     val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).toVector.map(s => visitTerminationMeasure(s.terminationMeasure()))
-
-    PFunctionSpec(pres, preserves, posts, terms, isPure = ctx.pure, isTrusted = ctx.trusted)
+    val exhaleModes = ctx.exhaleMode().asScala.toVector.map(visitExhaleMode)
+    PFunctionSpec(pres, preserves, posts, terms, exhaleModes, isPure = ctx.pure, isTrusted = ctx.trusted)
   }
 
   /**
@@ -1963,6 +1963,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         case l : LoopSpecContext => l.DEC()
       })
       case _ => unexpected(ctx)
+    }
+  }
+
+  override def visitExhaleMode(ctx: ExhaleModeContext): PExhaleMode = {
+    if (has(ctx.MCE())) {
+      PMce().at(ctx)
+    } else if (has(ctx.STRICT())) {
+      PStrict().at(ctx)
+    } else {
+      violation(s"Found unexpected exhaleMode")
     }
   }
 

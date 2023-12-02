@@ -654,7 +654,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val disableNL: ScallopOption[Boolean] = opt[Boolean](
     name = "disableNL",
-    descr = "Disable non-linear integer arithmetics. Non compatible using Z3 via API or Carbon",
+    descr = "Disable non-linear integer arithmetics. Non compatible with using Z3 via API or Carbon",
     default = Some(ConfigDefaults.DefaultDisableNL),
     noshort = true,
   )

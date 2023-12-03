@@ -17,7 +17,6 @@ import java.nio.file.{Files, Paths}
 import scala.io.Source
 import scala.util.Using
 
-
 trait ViperBackend {
   def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperVerifier
 }

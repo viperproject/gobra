@@ -22,6 +22,6 @@ As `assert` is a reserved keyword in Gobra and the implicit qualifier would be `
 The implicit qualifier corresponds to the last path component (here `assert`) and is not related to the package clause used in Gobra files located in the `assert` folder.
 
 ## noaxioms
-The `.vpr` files in the `noaxioms` folder are source files that are used to disable the axiomatization for various built-in Viper types.
+The `.vpr` files in the `noaxioms` folder contain minimal definitions of operations on the various built-in Viper types. These files are used when we disable the built-in axiomatisation of the Viper files.
 `sets.vpr` for example is used when the flag `--disableSetAxiomatization` is passed to Gobra, which in turn is useful if the user
 wants to manually prove obligations using the standard library.

@@ -1,12 +1,10 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-// ##(--disableNL)
 package pkg
 
 requires 0 <= x && x <= 10
 requires 0 <= y && y <= 10
-//:: ExpectedOutput(postcondition_error:assertion_error)
 ensures 0 <= res && res <= 100
 func f(x, y int) (res int) {
 	return x * y

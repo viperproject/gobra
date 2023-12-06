@@ -140,10 +140,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     measure match {
       case WildcardMeasure(cond) => "_" <+> showCond(cond)
       case TupleTerminationMeasure(tuple, cond) =>
-        hcat(tuple map {
-          case e: Expr => showExpr(e)
-          case n => violation(s"Unexpected node $n")
-        }) <+> showCond(cond)
+        hcat(tuple map show) <+> showCond(cond)
     }
   }
 

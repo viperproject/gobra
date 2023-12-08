@@ -66,6 +66,7 @@ object ConfigDefaults {
   lazy val DefaultParallelizeBranches: Boolean = false
   lazy val DefaultConditionalizePermissions: Boolean = false
   lazy val DefaultZ3APIMode: Boolean = false
+  lazy val DefaultDisableNL: Boolean = false
   lazy val DefaultMCEMode: MCE.Mode = MCE.Enabled
   lazy val DefaultEnableLazyImports: Boolean = false
   lazy val DefaultNoVerify: Boolean = false
@@ -131,6 +132,7 @@ case class Config(
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                    conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
                    z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
+                   disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                    mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
@@ -182,6 +184,7 @@ case class Config(
       parallelizeBranches = parallelizeBranches,
       conditionalizePermissions = conditionalizePermissions,
       z3APIMode = z3APIMode || other.z3APIMode,
+      disableNL = disableNL || other.disableNL,
       mceMode = mceMode,
       enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
@@ -236,6 +239,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                       conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
                       z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
+                      disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
@@ -294,6 +298,7 @@ trait RawConfig {
     parallelizeBranches = baseConfig.parallelizeBranches,
     conditionalizePermissions = baseConfig.conditionalizePermissions,
     z3APIMode = baseConfig.z3APIMode,
+    disableNL = baseConfig.disableNL,
     mceMode = baseConfig.mceMode,
     enableLazyImports = baseConfig.enableLazyImports,
     noVerify = baseConfig.noVerify,
@@ -566,6 +571,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = None,
     noshort = true
   )
+
   lazy val packageTimeoutDuration: Duration = packageTimeout.toOption match {
     case Some(d) => Duration(d)
     case _ => Duration.Inf
@@ -648,6 +654,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = "z3APIMode",
     descr = "When the backend is either SILICON or VSWITHSILICON, silicon will use Z3 via API.",
     default = Some(ConfigDefaults.DefaultZ3APIMode),
+    noshort = true,
+  )
+
+  val disableNL: ScallopOption[Boolean] = opt[Boolean](
+    name = "disableNL",
+    descr = "Disable non-linear integer arithmetics. Non compatible with Carbon",
+    default = Some(ConfigDefaults.DefaultDisableNL),
     noshort = true,
   )
 
@@ -793,6 +806,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     }
   }
 
+  addValidation {
+    if (!disableNL.toOption.contains(true) || isSiliconBasedBackend) {
+      Right(())      
+    } else {
+      Left("--disableNL is not compatible with Carbon")
+    }
+  }
+
 
   /** File Validation */
   validateFilesExist(cutInput)
@@ -880,6 +901,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parallelizeBranches = parallelizeBranches(),
     conditionalizePermissions = conditionalizePermissions(),
     z3APIMode = z3APIMode(),
+    disableNL = disableNL(),
     mceMode = mceMode(),
     enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),

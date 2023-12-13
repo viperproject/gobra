@@ -3,8 +3,67 @@
 
 package pkg
 
-requires true
-exhaleMode(strict)
-func f(x, y *int) {
+// Example in functions with disjunctive aliasing
+exhaleMode(greedy)
+requires acc(x) && acc(y)
+requires x == z || y == z
+ensures  acc(z)
+func f_greedy(x, y, z *int) { } // fails
 
+exhaleMode(mce)
+requires acc(x) && acc(y)
+requires x == z || y == z
+ensures  acc(z)
+func f_mce(x, y, z *int) { }
+
+// Example in outline blocks
+exhaleMode(greedy)
+requires acc(x) && acc(y)
+requires x == z || y == z
+ensures  acc(z)
+func g1(x, y, z *int) {
+    exhaleMode(mce)
+    requires acc(x) && acc(y)
+    requires x == z || y == z
+    ensures  acc(z)
+    outline(
+    assert true
+    )
+}
+
+exhaleMode(mce)
+requires acc(x) && acc(y)
+requires x == z || y == z
+ensures  acc(z)
+func g2(x, y, z *int) {
+    
+    exhaleMode(greedy)
+    requires acc(x) && acc(y)
+    requires x == z || y == z
+    ensures  acc(z) // fails
+    outline(
+    assert true
+    )
+}
+
+// closures
+func m1(x, y, z *int) {
+    foo := 
+        exhaleMode(greedy)
+        requires acc(x) && acc(y)
+        requires x == z || y == z
+        ensures  acc(z)  // should fail
+        func bar(x, y, z *int) {}
+}
+
+func m2(x, y, z *int) {
+
+    foo := 
+        exhaleMode(mce)
+        requires acc(x) && acc(y)
+        requires x == z || y == z
+        ensures  acc(z)
+        func bar(x, y, z *int) {
+
+        }
 }

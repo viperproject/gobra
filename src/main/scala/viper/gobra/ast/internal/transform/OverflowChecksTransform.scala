@@ -29,8 +29,8 @@ object OverflowChecksTransform extends InternalTransform {
       Function(name, args, results, pres, posts, terminationMeasure, exhaleMode, body map computeNewBody)(f.info)
 
     // same as functions
-    case m@Method(receiver, name, args, results, pres, posts, terminationMeasure,body) =>
-      Method(receiver, name, args, results, pres, posts, terminationMeasure, body map computeNewBody)(m.info)
+    case m@Method(receiver, name, args, results, pres, posts, terminationMeasure, exhaleMode, body) =>
+      Method(receiver, name, args, results, pres, posts, terminationMeasure, exhaleMode, body map computeNewBody)(m.info)
 
     // Adds pre-conditions stating the bounds of each argument and a post-condition to check if the body expression
     // overflows
@@ -42,10 +42,10 @@ object OverflowChecksTransform extends InternalTransform {
     }
 
     // Same as pure functions
-    case m@PureMethod(receiver, name, args, results, pres, posts, terminationMeasure, body) => body match {
+    case m@PureMethod(receiver, name, args, results, pres, posts, terminationMeasure, exhaleMode, body) => body match {
       case Some(expr) =>
         val newPost = posts ++ getPureBlockPosts(expr, results)
-        PureMethod(receiver, name, args, results, pres, newPost, terminationMeasure, body)(m.info)
+        PureMethod(receiver, name, args, results, pres, newPost, terminationMeasure, exhaleMode, body)(m.info)
       case None => m
     }
 

@@ -877,7 +877,7 @@ case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PEx
 sealed trait PSpecification extends PGhostNode
 
 sealed trait PExhaleMode extends PNode
-case class PStrict() extends PExhaleMode
+case class PGreedy() extends PExhaleMode
 case class PMce() extends PExhaleMode
 
 case class PFunctionSpec(
@@ -885,6 +885,7 @@ case class PFunctionSpec(
                       preserves: Vector[PExpression],
                       posts: Vector[PExpression],
                       terminationMeasures: Vector[PTerminationMeasure],
+                        // TODO: add a check that there is at most one
                       exhaleMode: Vector[PExhaleMode],
                       isPure: Boolean = false,
                       isTrusted: Boolean = false,

@@ -12,6 +12,7 @@ import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.library.outlines.{Outlines, OutlinesImpl}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.translator.util.VprInfo
 import viper.silver.{ast => vpr}
 
 class OutlineEncoding extends Encoding {
@@ -33,8 +34,9 @@ class OutlineEncoding extends Encoding {
           pres <- ml.sequence(n.pres map (p => ctx.precondition(p)))
           posts <- ml.sequence(n.posts map (p => ctx.postcondition(p)))
           measures <- ml.sequence(n.terminationMeasures map (m => ml.pure(ctx.assertion(m))(ctx)))
+          maybeAnnotatedInfo = VprInfo.attachOptExhaleModeAnnotation(n.exhaleMode, info)
           body <- ml.block(ctx.statement(n.body))
-        } yield outlines.outline(n.name, pres ++ measures, posts, body, n.trusted)(pos, info, errT)
+        } yield outlines.outline(n.name, pres ++ measures, posts, body, n.trusted)(pos, maybeAnnotatedInfo, errT)
       )
   }
 }

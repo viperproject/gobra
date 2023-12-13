@@ -1969,8 +1969,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitExhaleMode(ctx: ExhaleModeContext): PExhaleMode = {
     if (has(ctx.MCE())) {
       PMce().at(ctx)
-    } else if (has(ctx.STRICT())) {
-      PStrict().at(ctx)
+    } else if (has(ctx.GREEDY())) {
+      PGreedy().at(ctx)
     } else {
       violation(s"Found unexpected exhaleMode")
     }

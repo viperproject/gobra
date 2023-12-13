@@ -752,7 +752,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
       pres = Vector.empty,
       posts = Vector.empty,
       terminationMeasures = Vector.empty,
-      body = Some(body)
+      exhaleMode = None,
+      body = Some(body),
     )(p.info))(ctx)
 
     val pres = vItfFun.pres.map { pre =>
@@ -796,7 +797,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
       pres = Vector.empty,
       posts = Vector.empty,
       terminationMeasures = Vector.empty,
-      body = Some(body)
+      exhaleMode = None,
+      body = Some(body),
     )(p.info))(ctx)
 
     val pres = vItfMeth.pres.map { exp =>

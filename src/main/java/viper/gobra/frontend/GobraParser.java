@@ -27,7 +27,7 @@ public class GobraParser extends GobraParserBase {
 		MATCH=54, NONE=55, PRED=56, TYPE_OF=57, IS_COMPARABLE=58, SHARE=59, ADDR_MOD=60, 
 		DOT_DOT=61, SHARED=62, EXCLUSIVE=63, PREDICATE=64, WRITEPERM=65, NOPERM=66, 
 		TRUSTED=67, OUTLINE=68, INIT_POST=69, IMPORT_PRE=70, PROOF=71, GHOST_EQUALS=72, 
-		GHOST_NOT_EQUALS=73, WITH=74, EXHALEMODE=75, MCE=76, STRICT=77, BREAK=78, 
+		GHOST_NOT_EQUALS=73, WITH=74, EXHALEMODE=75, MCE=76, GREEDY=77, BREAK=78, 
 		DEFAULT=79, FUNC=80, INTERFACE=81, SELECT=82, CASE=83, DEFER=84, GO=85, 
 		MAP=86, STRUCT=87, CHAN=88, ELSE=89, GOTO=90, PACKAGE=91, SWITCH=92, CONST=93, 
 		FALLTHROUGH=94, IF=95, RANGE=96, TYPE=97, CONTINUE=98, FOR=99, IMPORT=100, 
@@ -154,7 +154,7 @@ public class GobraParser extends GobraParserBase {
 			"'none'", "'pred'", "'typeOf'", "'isComparable'", "'share'", "'@'", "'..'", 
 			"'shared'", "'exclusive'", "'predicate'", "'writePerm'", "'noPerm'", 
 			"'trusted'", "'outline'", "'initEnsures'", "'importRequires'", "'proof'", 
-			"'==='", "'!=='", "'with'", "'exhaleMode'", "'mce'", "'strict'", "'break'", 
+			"'==='", "'!=='", "'with'", "'exhaleMode'", "'mce'", "'greedy'", "'break'", 
 			"'default'", "'func'", "'interface'", "'select'", "'case'", "'defer'", 
 			"'go'", "'map'", "'struct'", "'chan'", "'else'", "'goto'", "'package'", 
 			"'switch'", "'const'", "'fallthrough'", "'if'", "'range'", "'type'", 
@@ -178,7 +178,7 @@ public class GobraParser extends GobraParserBase {
 			"TYPE_OF", "IS_COMPARABLE", "SHARE", "ADDR_MOD", "DOT_DOT", "SHARED", 
 			"EXCLUSIVE", "PREDICATE", "WRITEPERM", "NOPERM", "TRUSTED", "OUTLINE", 
 			"INIT_POST", "IMPORT_PRE", "PROOF", "GHOST_EQUALS", "GHOST_NOT_EQUALS", 
-			"WITH", "EXHALEMODE", "MCE", "STRICT", "BREAK", "DEFAULT", "FUNC", "INTERFACE", 
+			"WITH", "EXHALEMODE", "MCE", "GREEDY", "BREAK", "DEFAULT", "FUNC", "INTERFACE", 
 			"SELECT", "CASE", "DEFER", "GO", "MAP", "STRUCT", "CHAN", "ELSE", "GOTO", 
 			"PACKAGE", "SWITCH", "CONST", "FALLTHROUGH", "IF", "RANGE", "TYPE", "CONTINUE", 
 			"FOR", "IMPORT", "RETURN", "VAR", "NIL_LIT", "IDENTIFIER", "L_PAREN", 
@@ -3456,7 +3456,7 @@ public class GobraParser extends GobraParserBase {
 	@SuppressWarnings("CheckReturnValue")
 	public static class ExhaleModeContext extends ParserRuleContext {
 		public TerminalNode MCE() { return getToken(GobraParser.MCE, 0); }
-		public TerminalNode STRICT() { return getToken(GobraParser.STRICT, 0); }
+		public TerminalNode GREEDY() { return getToken(GobraParser.GREEDY, 0); }
 		public ExhaleModeContext(ParserRuleContext parent, int invokingState) {
 			super(parent, invokingState);
 		}
@@ -3477,7 +3477,7 @@ public class GobraParser extends GobraParserBase {
 			{
 			setState(774);
 			_la = _input.LA(1);
-			if ( !(_la==MCE || _la==STRICT) ) {
+			if ( !(_la==MCE || _la==GREEDY) ) {
 			_errHandler.recoverInline(this);
 			}
 			else {

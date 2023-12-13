@@ -566,7 +566,7 @@ object Desugar extends LazyLogging {
 
     def exhaleModeD(mode: PExhaleMode): in.ExhaleMode = mode match {
       case PMce() => in.Mce
-      case PStrict() => in.Strict
+      case PGreedy() => in.Greedy
     }
 
     def functionD(decl: PFunctionDecl): in.FunctionMember =
@@ -842,6 +842,7 @@ object Desugar extends LazyLogging {
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx, info)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx, info)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx, info)).res
+      val exhaleMode = decl.spec.exhaleMode.headOption.map(exhaleModeD)
 
       // s' := s
       val recvInits = (recvWithSubs match {
@@ -890,7 +891,7 @@ object Desugar extends LazyLogging {
         in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
-      in.Method(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
+      in.Method(recv, name, args, returns, pres, posts, terminationMeasure, exhaleMode, bodyOpt)(fsrc)
     }
 
     def pureMethodD(decl: PMethodDecl): in.PureMethod = {
@@ -933,6 +934,7 @@ object Desugar extends LazyLogging {
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(ctx, info)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(ctx, info)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
+      val exhaleMode = decl.spec.exhaleMode.headOption.map(exhaleModeD)
 
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
@@ -943,7 +945,7 @@ object Desugar extends LazyLogging {
           implicitConversion(res.typ, returns.head.typ, res)
       }
 
-      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
+      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, exhaleMode, bodyOpt)(fsrc)
     }
 
     def fpredicateD(decl: PFPredicateDecl): in.FPredicate = {
@@ -1856,11 +1858,12 @@ object Desugar extends LazyLogging {
             val pres = (n.spec.pres ++ n.spec.preserves) map preconditionD(ctx, info)
             val posts = (n.spec.preserves ++ n.spec.posts) map postconditionD(ctx, info)
             val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
+            val exhaleMode = n.spec.exhaleMode.headOption.map(exhaleModeD)
 
             if (!n.spec.isTrusted) {
               for {
                 body <- seqn(stmtD(ctx, info)(n.body))
-              } yield in.Outline(name, pres, posts, terminationMeasures, body, trusted = false)(src)
+              } yield in.Outline(name, pres, posts, terminationMeasures, exhaleMode, body, trusted = false)(src)
             } else {
               val declared = info.freeDeclared(n).map(localVarContextFreeD(_, info))
               // The dummy body preserves the reads and writes of the real body that target free variables.
@@ -1885,7 +1888,7 @@ object Desugar extends LazyLogging {
               for {
                 // since the body of an outline is not a separate scope, we have to preserve variable declarations.
                 _ <- declare(declared:_*)
-              } yield in.Outline(name, pres, posts, terminationMeasures, dummyBody, trusted = true)(src)
+              } yield in.Outline(name, pres, posts, terminationMeasures, exhaleMode, dummyBody, trusted = true)(src)
             }
 
 
@@ -2950,13 +2953,33 @@ object Desugar extends LazyLogging {
       val funcInfo = functionMemberOrLitD(lit.decl, meta(lit, info), ctx)
       val src = meta(lit, info)
       val name = functionLitProxyD(lit, info)
-      in.FunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(src)
+      in.FunctionLit(
+        name,
+        funcInfo.args,
+        funcInfo.captured,
+        funcInfo.results,
+        funcInfo.pres,
+        funcInfo.posts,
+        funcInfo.terminationMeasures,
+        funcInfo.exhaleMode,
+        funcInfo.body,
+      )(src)
     }
 
     def pureFunctionLitD(ctx: FunctionContext, info: TypeInfo)(lit: PFunctionLit): in.PureFunctionLit = {
       val funcInfo = pureFunctionMemberOrLitD(lit.decl, meta(lit, info), ctx, info)
       val name = functionLitProxyD(lit, info)
-      in.PureFunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit, info))
+      in.PureFunctionLit(
+        name,
+        funcInfo.args,
+        funcInfo.captured,
+        funcInfo.results,
+        funcInfo.pres,
+        funcInfo.posts,
+        funcInfo.terminationMeasures,
+        funcInfo.exhaleMode,
+        funcInfo.body,
+      )(meta(lit, info))
     }
 
     def capturedVarD(v: PIdnNode): (in.Parameter.In, in.LocalVar) = {
@@ -3241,11 +3264,12 @@ object Desugar extends LazyLogging {
           val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx, info)
           val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx, info)
           val terminationMeasures = sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx, info)).res
+          val exhaleMode = m.spec.exhaleMode.headOption.map(exhaleModeD)
 
           val mem = if (m.spec.isPure) {
-            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
+            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, exhaleMode, None)(src)
           } else {
-            in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
+            in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, exhaleMode, None)(src)
           }
           definedMethods += (proxy -> mem)
           AdditionalMembers.addMember(mem)

@@ -208,8 +208,16 @@ protected class ClosureSpecsEncoder {
     val result = in.Parameter.Out(Names.closureArg, genericFuncType)(info)
     val satisfiesSpec = in.ExprAssertion(in.ClosureImplements(result, in.ClosureSpec(func, Map.empty)(info))(info))(info)
     val (args, captAssertions) = capturedArgsAndAssertions(ctx)(result, captured(ctx)(func), info)
-    // TODO: reject exhaleMode in type system closures
-    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions, Vector.empty, None, None)(memberOrLit(ctx)(func).info)
+    val getter = in.PureFunction(
+      proxy,
+      args,
+      Vector(result),
+      Vector.empty,
+      Vector(satisfiesSpec) ++ captAssertions,
+      Vector.empty,
+      None,
+      None
+    )(memberOrLit(ctx)(func).info)
     ctx.defaultEncoding.pureFunction(getter)(ctx)
   }
 

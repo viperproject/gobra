@@ -167,7 +167,7 @@ specification returns[boolean trusted = false, boolean pure = false;]:
 
 exhaleMode
   : MCE
-  | STRICT
+  | GREEDY
   ;
 
 specStatement

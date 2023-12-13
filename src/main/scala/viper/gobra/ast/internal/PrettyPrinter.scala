@@ -15,7 +15,6 @@ import viper.silver.ast.{Position => GobraPosition}
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-import viper.gobra.util.Violation.violation
 
 trait PrettyPrinter {
   def format(node : Node): String
@@ -147,7 +146,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showExhaleMode(mode: ExhaleMode): Doc = {
     val modDoc = mode match {
       case Mce => "mce"
-      case Strict => "strict"
+      case Greedy => "greedy"
     }
     "exhaleMode" <> parens(modDoc) <> line
   }
@@ -165,15 +164,15 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showMethod(m: Method): Doc = m match {
-    case Method(receiver, name, args, results, pres, posts, measures, body) =>
+    case Method(receiver, name, args, results, pres, posts, measures, exhaleMode, body) =>
       "func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block(showStmt(b)))
+        spec(opt(exhaleMode)(showExhaleMode) <> showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block(showStmt(b)))
   }
 
   def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, body) =>
+    case PureMethod(receiver, name, args, results, pres, posts, measures, exhaleMode, body) =>
       "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
+        spec(opt(exhaleMode)(showExhaleMode) <> showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
 
   def showMethodSubtypeProof(m: MethodSubtypeProof): Doc = m match {
@@ -358,8 +357,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(mapLookup)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
-    case Outline(_, pres, posts, measures, body, trusted) =>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+    case Outline(_, pres, posts, measures, exhaleMode, body, trusted) =>
+        spec(opt(exhaleMode)(showExhaleMode) <> showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
           "outline" <> (if (trusted) emptyDoc else parens(nest(line <> showStmt(body)) <> line))
     case Continue(l, _) => "continue" <+> opt(l)(text)
     case Break(l, _) => "break" <+> opt(l)(text)
@@ -610,14 +609,17 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case BoolLit(b) => if (b) "true" else "false"
     case NilLit(t) => parens("nil" <> ":" <> showType(t))
 
-    case FunctionLit(name, args, captured, results, pres, posts, measures, body) =>
-      "func" <+> showProxy(name) <> showCaptured(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+    case FunctionLit(name, args, captured, results, pres, posts, measures, exhaleMode, body) =>
+      "func" <+> showProxy(name) <> showCaptured(captured) <> parens(showFormalArgList(args)) <+>
+        parens(showVarDeclList(results)) <>
+        spec(opt(exhaleMode)(showExhaleMode) <> showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
         opt(body)(b => block(showStmt(b)))
 
-    case PureFunctionLit(name, args, captured, results, pres, posts, measures, body) =>
-      "pure func" <+> showProxy(name)  <> showCaptured(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
+    case PureFunctionLit(name, args, captured, results, pres, posts, measures, exhaleMode, body) =>
+      "pure func" <+> showProxy(name)  <> showCaptured(captured) <> parens(showFormalArgList(args)) <+>
+        parens(showVarDeclList(results)) <>
+        spec(opt(exhaleMode)(showExhaleMode) <> showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+        opt(body)(b => block("return" <+> showExpr(b)))
 
     case ArrayLit(len, typ, elems) => {
       val lenP = brackets(len.toString)
@@ -695,15 +697,15 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   }
 
   override def showMethod(m: Method): Doc = m match {
-    case Method(receiver, name, args, results, pres, posts, measures, _) =>
+    case Method(receiver, name, args, results, pres, posts, measures, exhaleMode, _) =>
       "func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
+        spec(opt(exhaleMode)(showExhaleMode) <> showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
   }
 
   override def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, _) =>
+    case PureMethod(receiver, name, args, results, pres, posts, measures, exhaleMode, _) =>
       "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
+        spec(opt(exhaleMode)(showExhaleMode) <> showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
   }
 
   override def showFPredicate(predicate: FPredicate): Doc = predicate match {
@@ -795,8 +797,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case Continue(l, _) => "continue" <+> opt(l)(text)
     case Break(l, _) => "break" <+> opt(l)(text)
-    case Outline(_, pres, posts, measures, _, _) =>
-      spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+    case Outline(_, pres, posts, measures, exhaleMode, _, _) =>
+      spec(opt(exhaleMode)(showExhaleMode) <> showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
         "outline"
   }
 }

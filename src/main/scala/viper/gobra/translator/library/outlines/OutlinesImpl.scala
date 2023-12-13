@@ -58,6 +58,7 @@ class OutlinesImpl extends Outlines {
                         posts: Vector[vpr.Exp],
                         body: vpr.Stmt,
                         trusted: Boolean,
+                        //exhaleMode: Option[Program.ExhaleMode],
                       )(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.Stmt = {
 
     val (arguments, results) = {

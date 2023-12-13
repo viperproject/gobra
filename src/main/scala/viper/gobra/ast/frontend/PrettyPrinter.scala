@@ -143,7 +143,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showExhaleMode(mode: PExhaleMode): Doc = mode match {
-    case PStrict() => "strict"
+    case PGreedy() => "greedy"
     case PMce() => "mce"
   }
 

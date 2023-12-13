@@ -91,4 +91,4 @@ GHOST_NOT_EQUALS : '!==';
 WITH        : 'with';
 EXHALEMODE  : 'exhaleMode' -> mode(NLSEMI);
 MCE         : 'mce';
-STRICT      : 'strict';
+GREEDY      : 'greedy';

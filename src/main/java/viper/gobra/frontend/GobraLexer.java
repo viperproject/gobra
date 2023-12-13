@@ -27,7 +27,7 @@ public class GobraLexer extends Lexer {
 		MATCH=54, NONE=55, PRED=56, TYPE_OF=57, IS_COMPARABLE=58, SHARE=59, ADDR_MOD=60, 
 		DOT_DOT=61, SHARED=62, EXCLUSIVE=63, PREDICATE=64, WRITEPERM=65, NOPERM=66, 
 		TRUSTED=67, OUTLINE=68, INIT_POST=69, IMPORT_PRE=70, PROOF=71, GHOST_EQUALS=72, 
-		GHOST_NOT_EQUALS=73, WITH=74, EXHALEMODE=75, MCE=76, STRICT=77, BREAK=78, 
+		GHOST_NOT_EQUALS=73, WITH=74, EXHALEMODE=75, MCE=76, GREEDY=77, BREAK=78, 
 		DEFAULT=79, FUNC=80, INTERFACE=81, SELECT=82, CASE=83, DEFER=84, GO=85, 
 		MAP=86, STRUCT=87, CHAN=88, ELSE=89, GOTO=90, PACKAGE=91, SWITCH=92, CONST=93, 
 		FALLTHROUGH=94, IF=95, RANGE=96, TYPE=97, CONTINUE=98, FOR=99, IMPORT=100, 
@@ -65,7 +65,7 @@ public class GobraLexer extends Lexer {
 			"TYPE_OF", "IS_COMPARABLE", "SHARE", "ADDR_MOD", "DOT_DOT", "SHARED", 
 			"EXCLUSIVE", "PREDICATE", "WRITEPERM", "NOPERM", "TRUSTED", "OUTLINE", 
 			"INIT_POST", "IMPORT_PRE", "PROOF", "GHOST_EQUALS", "GHOST_NOT_EQUALS", 
-			"WITH", "EXHALEMODE", "MCE", "STRICT", "BREAK", "DEFAULT", "FUNC", "INTERFACE", 
+			"WITH", "EXHALEMODE", "MCE", "GREEDY", "BREAK", "DEFAULT", "FUNC", "INTERFACE", 
 			"SELECT", "CASE", "DEFER", "GO", "MAP", "STRUCT", "CHAN", "ELSE", "GOTO", 
 			"PACKAGE", "SWITCH", "CONST", "FALLTHROUGH", "IF", "RANGE", "TYPE", "CONTINUE", 
 			"FOR", "IMPORT", "RETURN", "VAR", "NIL_LIT", "IDENTIFIER", "L_PAREN", 
@@ -99,7 +99,7 @@ public class GobraLexer extends Lexer {
 			"'none'", "'pred'", "'typeOf'", "'isComparable'", "'share'", "'@'", "'..'", 
 			"'shared'", "'exclusive'", "'predicate'", "'writePerm'", "'noPerm'", 
 			"'trusted'", "'outline'", "'initEnsures'", "'importRequires'", "'proof'", 
-			"'==='", "'!=='", "'with'", "'exhaleMode'", "'mce'", "'strict'", "'break'", 
+			"'==='", "'!=='", "'with'", "'exhaleMode'", "'mce'", "'greedy'", "'break'", 
 			"'default'", "'func'", "'interface'", "'select'", "'case'", "'defer'", 
 			"'go'", "'map'", "'struct'", "'chan'", "'else'", "'goto'", "'package'", 
 			"'switch'", "'const'", "'fallthrough'", "'if'", "'range'", "'type'", 
@@ -123,7 +123,7 @@ public class GobraLexer extends Lexer {
 			"TYPE_OF", "IS_COMPARABLE", "SHARE", "ADDR_MOD", "DOT_DOT", "SHARED", 
 			"EXCLUSIVE", "PREDICATE", "WRITEPERM", "NOPERM", "TRUSTED", "OUTLINE", 
 			"INIT_POST", "IMPORT_PRE", "PROOF", "GHOST_EQUALS", "GHOST_NOT_EQUALS", 
-			"WITH", "EXHALEMODE", "MCE", "STRICT", "BREAK", "DEFAULT", "FUNC", "INTERFACE", 
+			"WITH", "EXHALEMODE", "MCE", "GREEDY", "BREAK", "DEFAULT", "FUNC", "INTERFACE", 
 			"SELECT", "CASE", "DEFER", "GO", "MAP", "STRUCT", "CHAN", "ELSE", "GOTO", 
 			"PACKAGE", "SWITCH", "CONST", "FALLTHROUGH", "IF", "RANGE", "TYPE", "CONTINUE", 
 			"FOR", "IMPORT", "RETURN", "VAR", "NIL_LIT", "IDENTIFIER", "L_PAREN", 
@@ -1038,9 +1038,9 @@ public class GobraLexer extends Lexer {
 		"\u0000\u0000\u0388\u0389\u0001\u0000\u0000\u0000\u0389\u038a\u0006J\u0000"+
 		"\u0000\u038a\u0097\u0001\u0000\u0000\u0000\u038b\u038c\u0005m\u0000\u0000"+
 		"\u038c\u038d\u0005c\u0000\u0000\u038d\u038e\u0005e\u0000\u0000\u038e\u0099"+
-		"\u0001\u0000\u0000\u0000\u038f\u0390\u0005s\u0000\u0000\u0390\u0391\u0005"+
-		"t\u0000\u0000\u0391\u0392\u0005r\u0000\u0000\u0392\u0393\u0005i\u0000"+
-		"\u0000\u0393\u0394\u0005c\u0000\u0000\u0394\u0395\u0005t\u0000\u0000\u0395"+
+		"\u0001\u0000\u0000\u0000\u038f\u0390\u0005g\u0000\u0000\u0390\u0391\u0005"+
+		"r\u0000\u0000\u0391\u0392\u0005e\u0000\u0000\u0392\u0393\u0005e\u0000"+
+		"\u0000\u0393\u0394\u0005d\u0000\u0000\u0394\u0395\u0005y\u0000\u0000\u0395"+
 		"\u009b\u0001\u0000\u0000\u0000\u0396\u0397\u0005b\u0000\u0000\u0397\u0398"+
 		"\u0005r\u0000\u0000\u0398\u0399\u0005e\u0000\u0000\u0399\u039a\u0005a"+
 		"\u0000\u0000\u039a\u039b\u0005k\u0000\u0000\u039b\u039c\u0001\u0000\u0000"+

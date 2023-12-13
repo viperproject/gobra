@@ -137,7 +137,7 @@ sealed trait BuiltInMember extends Member {
 }
 
 sealed trait ExhaleMode
-case object Strict extends ExhaleMode
+case object Greedy extends ExhaleMode
 case object Mce extends ExhaleMode
 
 sealed trait MethodLikeMember extends Member {
@@ -150,8 +150,7 @@ sealed trait MethodMember extends MethodLikeMember {
   def results: Vector[Parameter.Out]
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
-  // TODO: same in outline and below
-  //  def exhaleMode: Option[ExhaleMode]
+  def exhaleMode: Option[ExhaleMode]
   def terminationMeasures: Vector[TerminationMeasure]
 }
 
@@ -192,7 +191,8 @@ case class Method(
                  override val pres: Vector[Assertion],
                  override val posts: Vector[Assertion],
                  override val terminationMeasures: Vector[TerminationMeasure],
-                 body: Option[MethodBody]
+                 override val exhaleMode: Option[ExhaleMode],
+                 body: Option[MethodBody],
                  )(val info: Source.Parser.Info) extends Member with MethodMember
 
 case class PureMethod(
@@ -203,7 +203,8 @@ case class PureMethod(
                        override val pres: Vector[Assertion],
                        override val posts: Vector[Assertion],
                        override val terminationMeasures: Vector[TerminationMeasure],
-                       body: Option[Expr]
+                       override val exhaleMode: Option[ExhaleMode],
+                       body: Option[Expr],
                      )(val info: Source.Parser.Info) extends Member with MethodMember {
   require(results.size <= 1)
 }
@@ -458,6 +459,7 @@ case class Outline(
                     pres: Vector[Assertion],
                     posts: Vector[Assertion],
                     terminationMeasures: Vector[TerminationMeasure],
+                    exhaleMode: Option[ExhaleMode],
                     body: Stmt,
                     trusted: Boolean,
                   )(val info: Source.Parser.Info) extends Stmt
@@ -1121,11 +1123,10 @@ case class FunctionLit(
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
                      override val terminationMeasures: Vector[TerminationMeasure],
-                     body: Option[MethodBody]
+                     override val exhaleMode: Option[ExhaleMode],
+                     body: Option[MethodBody],
                    )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
-  // todo: add type system check
-  override val exhaleMode: Option[ExhaleMode] = None
 }
 
 case class PureFunctionLit(
@@ -1136,12 +1137,12 @@ case class PureFunctionLit(
                          override val pres: Vector[Assertion],
                          override val posts: Vector[Assertion],
                          override val terminationMeasures: Vector[TerminationMeasure],
-                         body: Option[Expr]
+                          // TODO: encoding, and clean warnings everywhere
+                         override val exhaleMode: Option[ExhaleMode],
+                         body: Option[Expr],
                        )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
   require(results.size <= 1)
-  // todo: add type system check
-  override val exhaleMode: Option[ExhaleMode] = None
 }
 
 case class ClosureImplements(closure: Expr, spec: ClosureSpec)(override val info: Source.Parser.Info) extends Expr {

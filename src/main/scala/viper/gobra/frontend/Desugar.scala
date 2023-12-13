@@ -708,8 +708,16 @@ object Desugar extends LazyLogging {
       val fsrc = meta(decl, info)
       val funcInfo = pureFunctionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)), info)
 
-      in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures,
-        funcInfo.exhaleMode, funcInfo.body)(fsrc)
+      in.PureFunction(
+        name,
+        funcInfo.args,
+        funcInfo.results,
+        funcInfo.pres,
+        funcInfo.posts,
+        funcInfo.terminationMeasures,
+        funcInfo.exhaleMode,
+        funcInfo.body,
+      )(fsrc)
     }
 
     private case class PureFunctionInfo(args: Vector[in.Parameter.In],

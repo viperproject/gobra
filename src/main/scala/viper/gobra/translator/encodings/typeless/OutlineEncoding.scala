@@ -34,9 +34,9 @@ class OutlineEncoding extends Encoding {
           pres <- ml.sequence(n.pres map (p => ctx.precondition(p)))
           posts <- ml.sequence(n.posts map (p => ctx.postcondition(p)))
           measures <- ml.sequence(n.terminationMeasures map (m => ml.pure(ctx.assertion(m))(ctx)))
-          maybeAnnotatedInfo = VprInfo.attachOptExhaleModeAnnotation(n.exhaleMode, info)
+          exhaleMode = n.exhaleMode
           body <- ml.block(ctx.statement(n.body))
-        } yield outlines.outline(n.name, pres ++ measures, posts, body, n.trusted)(pos, maybeAnnotatedInfo, errT)
+        } yield outlines.outline(n.name, pres ++ measures, posts, exhaleMode, body, n.trusted)(pos, info, errT)
       )
   }
 }

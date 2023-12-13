@@ -6,7 +6,9 @@
 
 package viper.gobra.translator.library.outlines
 
+import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.util.ViperUtil
+import viper.gobra.translator.util.VprInfo
 import viper.silver.{ast => vpr}
 
 class OutlinesImpl extends Outlines {
@@ -56,9 +58,9 @@ class OutlinesImpl extends Outlines {
                         name: String,
                         pres: Vector[vpr.Exp],
                         posts: Vector[vpr.Exp],
+                        exhaleMode: Option[in.ExhaleMode],
                         body: vpr.Stmt,
                         trusted: Boolean,
-                        //exhaleMode: Option[Program.ExhaleMode],
                       )(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.Stmt = {
 
     val (arguments, results) = {
@@ -95,6 +97,8 @@ class OutlinesImpl extends Outlines {
         replacedArguments
       }
 
+      val generatedMemberInfo = VprInfo.attachOptExhaleModeAnnotation(exhaleMode, info)
+
       vpr.Method(
         name = name,
         formalArgs = formals map ViperUtil.toVarDecl,
@@ -102,7 +106,7 @@ class OutlinesImpl extends Outlines {
         pres = actualPres,
         posts = actualPosts,
         body = actualBody,
-      )(pos, info, errT)
+      )(pos, generatedMemberInfo, errT)
     }
 
     vpr.MethodCall(methodName = name, args = arguments, targets = results)(pos, info, errT)

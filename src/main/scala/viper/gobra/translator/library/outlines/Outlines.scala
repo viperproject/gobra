@@ -6,6 +6,7 @@
 
 package viper.gobra.translator.library.outlines
 
+import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.library.Generator
 import viper.silver.{ast => vpr}
 
@@ -19,9 +20,9 @@ trait Outlines extends Generator {
                name: String,
                pres: Vector[vpr.Exp],
                posts: Vector[vpr.Exp],
+               exhaleMode: Option[in.ExhaleMode],
                body: vpr.Stmt,
                trusted: Boolean,
-               // exhaleMode: Option[Int],
              )(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.Stmt
 
   /**

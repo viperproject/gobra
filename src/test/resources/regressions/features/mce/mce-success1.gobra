@@ -7,8 +7,9 @@ package pkg
 exhaleMode(greedy)
 requires acc(x) && acc(y)
 requires x == z || y == z
+//:: ExpectedOutput(postcondition_error:assertion_error)
 ensures  acc(z)
-func f_greedy(x, y, z *int) { } // fails
+func f_greedy(x, y, z *int) { }
 
 exhaleMode(mce)
 requires acc(x) && acc(y)
@@ -36,11 +37,11 @@ requires acc(x) && acc(y)
 requires x == z || y == z
 ensures  acc(z)
 func g2(x, y, z *int) {
-    
     exhaleMode(greedy)
     requires acc(x) && acc(y)
     requires x == z || y == z
-    ensures  acc(z) // fails
+    //:: ExpectedOutput(postcondition_error:assertion_error)
+    ensures  acc(z)
     outline(
     assert true
     )
@@ -52,8 +53,9 @@ func m1(x, y, z *int) {
         exhaleMode(greedy)
         requires acc(x) && acc(y)
         requires x == z || y == z
-        ensures  acc(z)  // should fail
-        func bar(x, y, z *int) {}
+        //:: ExpectedOutput(postcondition_error:assertion_error)
+        ensures  acc(z)
+        func bar(x, y, z *int) { }
 }
 
 func m2(x, y, z *int) {
@@ -63,7 +65,5 @@ func m2(x, y, z *int) {
         requires acc(x) && acc(y)
         requires x == z || y == z
         ensures  acc(z)
-        func bar(x, y, z *int) {
-
-        }
+        func bar(x, y, z *int) { }
 }

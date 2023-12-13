@@ -885,7 +885,6 @@ case class PFunctionSpec(
                       preserves: Vector[PExpression],
                       posts: Vector[PExpression],
                       terminationMeasures: Vector[PTerminationMeasure],
-                        // TODO: add a check that there is at most one
                       exhaleMode: Vector[PExhaleMode],
                       isPure: Boolean = false,
                       isTrusted: Boolean = false,

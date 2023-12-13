@@ -12,7 +12,6 @@ import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.library.outlines.{Outlines, OutlinesImpl}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
-import viper.gobra.translator.util.VprInfo
 import viper.silver.{ast => vpr}
 
 class OutlineEncoding extends Encoding {

@@ -74,6 +74,7 @@ object ConfigDefaults {
   lazy val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
   lazy val DefaultRequireTriggers: Boolean = false
   lazy val DefaultDisableSetAxiomatization: Boolean = false
+  lazy val DefaultSubmitForEvaluation: Boolean = false
 }
 
 // More-complete exhale modes
@@ -141,6 +142,7 @@ case class Config(
                    // when enabled, all quantifiers without triggers are rejected
                    requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
                    disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
+                   submitForEvaluation: Boolean = ConfigDefaults.DefaultSubmitForEvaluation,
 ) {
 
   def merge(other: Config): Config = {
@@ -192,6 +194,7 @@ case class Config(
       parseAndTypeCheckMode = parseAndTypeCheckMode,
       requireTriggers = requireTriggers || other.requireTriggers,
       disableSetAxiomatization = disableSetAxiomatization || other.disableSetAxiomatization,
+      submitForEvaluation = submitForEvaluation || other.submitForEvaluation,
     )
   }
 
@@ -247,6 +250,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                       requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
                       disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
+                      submitForEvaluation: Boolean = ConfigDefaults.DefaultSubmitForEvaluation,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -262,6 +266,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
       case _ => Some(positions.toVector)
     }
   }
+  def allowSubmission: Boolean = submitForEvaluation && !shouldChop
 }
 
 trait RawConfig {
@@ -306,6 +311,7 @@ trait RawConfig {
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
     requireTriggers = baseConfig.requireTriggers,
     disableSetAxiomatization = baseConfig.disableSetAxiomatization,
+    submitForEvaluation = baseConfig.allowSubmission,
   )
 }
 
@@ -729,6 +735,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = Some(ConfigDefaults.DefaultDisableSetAxiomatization),
     noshort = true,
   )
+
+  val submitForEvaluation = opt[Boolean](name = "submitForEvaluation",
+    descr = "Whether to allow storing the current program for future evaluation.",
+    default = Some(false),
+    noshort = true
+  )
+
   /**
     * Exception handling
     */
@@ -909,5 +922,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parseAndTypeCheckMode = parseAndTypeCheckMode(),
     requireTriggers = requireTriggers(),
     disableSetAxiomatization = disableSetAxiomatization(),
+    submitForEvaluation = submitForEvaluation(),
   )
 }

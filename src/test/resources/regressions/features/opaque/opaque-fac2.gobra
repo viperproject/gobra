@@ -1,0 +1,44 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+ghost
+decreases i
+opaque pure func fac(i int) int {
+	return i <= 1 ? 1 : i * fac(i - 1)
+}
+
+ghost
+decreases
+func example1 (i int) int {
+	tmp := fac(3)
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert tmp == 6
+}
+
+ghost
+decreases
+func example2 (i int) int {
+	tmp := fac(3)
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert tmp == 3 * fac(2)
+}
+
+ghost
+decreases
+func example3 (i int) int {
+	tmp := reveal fac(3)
+	assert tmp == 3 * reveal fac(2)
+	assert tmp == 3 * 2 * reveal fac(1)
+	assert tmp == 6
+}
+
+ghost
+decreases
+func example4 (i int) int {
+	tmp := reveal fac(3)
+	assert tmp == 3 * fac(2)
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert tmp == 3 * 2 * reveal fac(1)
+}

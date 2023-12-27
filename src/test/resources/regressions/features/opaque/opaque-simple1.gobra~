@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+decreases i
+pure func fac1(i int) int {
+	return i <= i ? 1 : i * fac1(i - 1)
+}

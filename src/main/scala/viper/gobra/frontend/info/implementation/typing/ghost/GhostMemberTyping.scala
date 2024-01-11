@@ -63,7 +63,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     val spec = member match {
       case m: PMethodDecl => m.spec
       case f: PFunctionDecl => f.spec
-      case _ => Violation.violation("The function wellFoundedIfNeededPureSpec was called with an unexpected member type.")
+      case _ => Violation.violation("Unexpected member type")
     }
     val hasMeasureIfNeeded = config.disableCheckTerminationPureFns || spec.terminationMeasures.nonEmpty
     val needsMeasureError =

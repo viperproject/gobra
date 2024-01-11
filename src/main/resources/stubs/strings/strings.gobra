@@ -151,6 +151,7 @@ ensures len(elems) == 0 ==> res == ""
 ensures len(elems) == 1 ==> res == elems[0]
 // (joao) Leads to precondition of call might not hold (permission to elems[i] might not suffice)
 // ensures len(elems) > 1 ==> res == elems[0] + sep + Join(elems[1:], sep)
+decreases _
 pure func Join(elems []string, sep string) (res string) /*{
 	switch len(elems) {
 	case 0:
@@ -177,6 +178,7 @@ pure func Join(elems []string, sep string) (res string) /*{
 // HasPrefix tests whether the string s begins with prefix.
 pure
 ensures ret == (len(s) >= len(prefix) && s[0:len(prefix)] == prefix)
+decreases _
 func HasPrefix(s, prefix string) (ret bool) {
 	return len(s) >= len(prefix) && (s[0:len(prefix)] == prefix)
 }
@@ -184,6 +186,7 @@ func HasPrefix(s, prefix string) (ret bool) {
 // HasSuffix tests whether the string s ends with suffix.
 pure
 ensures ret == (len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix)
+decreases _
 func HasSuffix(s, suffix string) (ret bool) {
 	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
 }

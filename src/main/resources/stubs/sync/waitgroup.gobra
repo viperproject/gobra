@@ -17,6 +17,7 @@ pred (wg *WaitGroup) Token(t pred())
 
 ghost
 requires acc(g.WaitGroupP(), _)
+decreases _
 pure func (g *WaitGroup) WaitMode() bool
 
 ghost

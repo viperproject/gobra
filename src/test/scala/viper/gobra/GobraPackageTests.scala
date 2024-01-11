@@ -65,7 +65,7 @@ class GobraPackageTests extends GobraTests {
             "-I", currentDir.toFile.getPath,
             // termination checks in functions are currently disabled in the tests. This can be enabled in the future,
             // but requires some work to add termination measures all over the test suite.
-            disableCheckTerminationPureFns = true,
+            "--disableTermCheckPureFns",
           ))
         } yield config
 

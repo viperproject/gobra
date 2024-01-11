@@ -7,11 +7,12 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
+import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMember, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
+import viper.gobra.util.Violation
 
 trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -58,13 +59,26 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       }
   }
 
+  private[typing] def wellFoundedIfNeededPureSpec(member: PMember): Messages = {
+    val spec = member match {
+      case m: PMethodDecl => m.spec
+      case f: PFunctionDecl => f.spec
+      case _ => Violation.violation("The function wellFoundedIfNeededPureSpec was called with an unexpected member type.")
+    }
+    val hasMeasureIfNeeded = config.disableCheckTerminationPureFns || spec.terminationMeasures.nonEmpty
+    val needsMeasureError =
+      error(member, "All pure functions must have termination measures, but none was found for this member.", !hasMeasureIfNeeded)
+    needsMeasureError
+  }
+
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
 
     if (member.spec.isPure) {
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
-        nonVariadicArguments(member.args)
+        nonVariadicArguments(member.args) ++
+        wellFoundedIfNeededPureSpec(member)
     } else noMessages
   }
 
@@ -79,7 +93,8 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
-        nonVariadicArguments(member.args)
+        nonVariadicArguments(member.args) ++
+        wellFoundedIfNeededPureSpec(member)
     } else noMessages
   }
 

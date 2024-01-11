@@ -74,6 +74,7 @@ object ConfigDefaults {
   lazy val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
   lazy val DefaultRequireTriggers: Boolean = false
   lazy val DefaultDisableSetAxiomatization: Boolean = false
+  lazy val DefaultDisableCheckTerminationPureFns: Boolean = false
 }
 
 // More-complete exhale modes
@@ -141,6 +142,7 @@ case class Config(
                    // when enabled, all quantifiers without triggers are rejected
                    requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
                    disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
+                   disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
 ) {
 
   def merge(other: Config): Config = {
@@ -192,6 +194,7 @@ case class Config(
       parseAndTypeCheckMode = parseAndTypeCheckMode,
       requireTriggers = requireTriggers || other.requireTriggers,
       disableSetAxiomatization = disableSetAxiomatization || other.disableSetAxiomatization,
+      disableCheckTerminationPureFns = disableCheckTerminationPureFns || other.disableCheckTerminationPureFns,
     )
   }
 
@@ -247,6 +250,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                       requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
                       disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
+                      disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -306,6 +310,7 @@ trait RawConfig {
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
     requireTriggers = baseConfig.requireTriggers,
     disableSetAxiomatization = baseConfig.disableSetAxiomatization,
+    disableCheckTerminationPureFns = baseConfig.disableCheckTerminationPureFns,
   )
 }
 
@@ -710,6 +715,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val disableCheckTerminationPureFns: ScallopOption[Boolean] = opt[Boolean](
+    name = "disableTermCheckPureFns",
+    descr = "Do not check that all pure functions are marked with termination measures,",
+    default = Some(ConfigDefaults.DefaultDisableCheckTerminationPureFns),
+    noshort = true,
+  )
+
   val parseAndTypeCheckMode: ScallopOption[TaskManagerMode] = choice(
     name = "parseAndTypeCheckMode",
     choices = Seq("LAZY", "SEQUENTIAL", "PARALLEL"),
@@ -909,5 +921,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parseAndTypeCheckMode = parseAndTypeCheckMode(),
     requireTriggers = requireTriggers(),
     disableSetAxiomatization = disableSetAxiomatization(),
+    disableCheckTerminationPureFns = disableCheckTerminationPureFns(),
   )
 }

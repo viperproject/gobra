@@ -59,26 +59,28 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       }
   }
 
-  private[typing] def wellFoundedIfNeededPureSpec(member: PMember): Messages = {
+  private[typing] def wellFoundedIfNeeded(member: PMember): Messages = {
     val spec = member match {
       case m: PMethodDecl => m.spec
       case f: PFunctionDecl => f.spec
       case _ => Violation.violation("Unexpected member type")
     }
-    val hasMeasureIfNeeded = config.disableCheckTerminationPureFns || spec.terminationMeasures.nonEmpty
+    val hasMeasureIfNeeded =
+      if (spec.isPure || isEnclosingGhost(member))
+        config.disableCheckTerminationPureFns || spec.terminationMeasures.nonEmpty
+      else
+        true
     val needsMeasureError =
-      error(member, "All pure functions must have termination measures, but none was found for this member.", !hasMeasureIfNeeded)
+      error(member, "All pure or ghost functions and methods must have termination measures, but none was found for this member.", !hasMeasureIfNeeded)
     needsMeasureError
   }
 
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
-
     if (member.spec.isPure) {
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
-        nonVariadicArguments(member.args) ++
-        wellFoundedIfNeededPureSpec(member)
+        nonVariadicArguments(member.args)
     } else noMessages
   }
 
@@ -93,8 +95,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
-        nonVariadicArguments(member.args) ++
-        wellFoundedIfNeededPureSpec(member)
+        nonVariadicArguments(member.args)
     } else noMessages
   }
 

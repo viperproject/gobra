@@ -716,8 +716,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   )
 
   val disableCheckTerminationPureFns: ScallopOption[Boolean] = opt[Boolean](
-    name = "disableTermCheckPureFns",
-    descr = "Do not check that all pure functions are marked with termination measures,",
+    name = "disablePureFunctsTerminationRequirement",
+    descr = "Do not enforce that all pure functions must have termination measures",
     default = Some(ConfigDefaults.DefaultDisableCheckTerminationPureFns),
     noshort = true,
   )

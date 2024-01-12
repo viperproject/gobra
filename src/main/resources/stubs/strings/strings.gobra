@@ -178,7 +178,7 @@ pure func Join(elems []string, sep string) (res string) /*{
 // HasPrefix tests whether the string s begins with prefix.
 pure
 ensures ret == (len(s) >= len(prefix) && s[0:len(prefix)] == prefix)
-decreases _
+decreases
 func HasPrefix(s, prefix string) (ret bool) {
 	return len(s) >= len(prefix) && (s[0:len(prefix)] == prefix)
 }
@@ -186,7 +186,7 @@ func HasPrefix(s, prefix string) (ret bool) {
 // HasSuffix tests whether the string s ends with suffix.
 pure
 ensures ret == (len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix)
-decreases _
+decreases
 func HasSuffix(s, suffix string) (ret bool) {
 	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
 }

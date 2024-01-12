@@ -56,6 +56,9 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
       checkConsistency = true,
       cacheParserAndTypeChecker = cacheParserAndTypeChecker,
       z3Exe = z3Exe,
+      // termination checks in functions are currently disabled in the tests. This can be enabled in the future,
+      // but requires some work to add termination measures all over the test suite.
+      disableCheckTerminationPureFns = true,
     )
 
   override def runTests(testName: Option[String], args: Args): Status = {

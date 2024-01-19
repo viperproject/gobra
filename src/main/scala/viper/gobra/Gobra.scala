@@ -24,7 +24,7 @@ import viper.gobra.frontend.{Config, Desugar, PackageInfo, Parser, ScallopGobraC
 import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
-import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext, Sound}
 import viper.silicon.BuildInfo
 import viper.silver.{ast => vpr}
 
@@ -96,13 +96,17 @@ trait GoVerifier extends StrictLogging {
           warnings.foreach(w => logger.debug(w))
 
           result match {
-            case VerifierResult.Success => logger.info(s"$name found no errors")
+            case VerifierResult.Success =>
+              logger.info(s"$name found no errors")
+              Sound.playSuccess()
+
             case VerifierResult.Failure(errors) =>
               logger.error(s"$name has found ${errors.length} error(s) in package $pkgId")
               if (config.noStreamErrors) {
                 errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
               }
               allVerifierErrors = allVerifierErrors ++ errors
+              Sound.playFailure()
           }
         })(executor)
       try {

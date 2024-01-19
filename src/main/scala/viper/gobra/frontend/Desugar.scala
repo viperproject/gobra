@@ -3198,6 +3198,19 @@ object Desugar extends LazyLogging {
       in.DefinedT(name, addrMod)
     }
 
+    def registerDesugaredDefinedType(t: in.DefinedT, ut: => in.Type): Unit = {
+      def register(addrMod: Addressability): Unit = {
+        if (!definedTypesSet.contains(t.name, addrMod)) {
+          definedTypesSet += ((t.name, addrMod))
+          definedTypes += (t.name, addrMod) -> ut.withAddressability(addrMod)
+        }
+      }
+      // [[underlyingType(in.Type)]] assumes that the RHS of a type declaration is in `definedTypes`
+      // if the corresponding type declaration was translated. This is necessary to avoid cycles in the translation.
+      register(Addressability.Exclusive)
+      register(Addressability.Shared)
+    }
+
     def registerInterface(t: Type.InterfaceT, dT: in.InterfaceT): Unit = {
 
       if (!registeredInterfaces.contains(dT.name) && info == t.context.getTypeInfo) {
@@ -3723,7 +3736,8 @@ object Desugar extends LazyLogging {
       case t: Type.AdtClauseT =>
         val adtName = nm.adt(t.declaredType)
         val definedName = nm.declaredType(t.declaredType)
-        val adt: in.AdtT = in.AdtT(adtName, definedName, addrMod)
+        val adt: in.AdtT = registerType(in.AdtT(adtName, definedName, addrMod))
+        registerDesugaredDefinedType(adt.definedType, adt)
         val fields: Vector[in.Field] = t.fields.map{ case (key: String, typ: Type) =>
           in.Field(nm.adtField(key, t.typeDecl), typeD(typ, Addressability.mathDataStructureElement)(src), true)(src)
         }

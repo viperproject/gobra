@@ -261,7 +261,9 @@ case class PIfStmt(ifs: Vector[PIfClause], els: Option[PBlock]) extends PActualS
 
 case class PIfClause(pre: Option[PSimpleStmt], condition: PExpression, body: PBlock) extends PNode
 
-case class PExprSwitchStmt(pre: Option[PSimpleStmt], exp: PExpression, cases: Vector[PExprSwitchCase], dflt: Vector[PBlock]) extends PActualStatement with PScope with PGhostifiableStatement
+sealed trait PBreakableStmt extends PActualStatement
+
+case class PExprSwitchStmt(pre: Option[PSimpleStmt], exp: PExpression, cases: Vector[PExprSwitchCase], dflt: Vector[PBlock]) extends PBreakableStmt with PScope with PGhostifiableStatement
 
 sealed trait PExprSwitchClause extends PNode
 
@@ -269,7 +271,7 @@ case class PExprSwitchDflt(body: PBlock) extends PExprSwitchClause
 
 case class PExprSwitchCase(left: Vector[PExpression], body: PBlock) extends PExprSwitchClause
 
-case class PTypeSwitchStmt(pre: Option[PSimpleStmt], exp: PExpression, binder: Option[PIdnDef], cases: Vector[PTypeSwitchCase], dflt: Vector[PBlock]) extends PActualStatement with PScope with PGhostifiableStatement
+case class PTypeSwitchStmt(pre: Option[PSimpleStmt], exp: PExpression, binder: Option[PIdnDef], cases: Vector[PTypeSwitchCase], dflt: Vector[PBlock]) extends PBreakableStmt with PScope with PGhostifiableStatement
 
 sealed trait PTypeSwitchClause extends PNode
 
@@ -277,7 +279,7 @@ case class PTypeSwitchDflt(body: PBlock) extends PTypeSwitchClause
 
 case class PTypeSwitchCase(left: Vector[PExpressionOrType], body: PBlock) extends PTypeSwitchClause
 
-sealed trait PGeneralForStmt extends PActualStatement
+sealed trait PGeneralForStmt extends PBreakableStmt
 
 case class PForStmt(pre: Option[PSimpleStmt], cond: PExpression, post: Option[PSimpleStmt], spec: PLoopSpec, body: PBlock) extends PGeneralForStmt with PScope with PGhostifiableStatement
 
@@ -290,7 +292,7 @@ case class PGoStmt(exp: PExpression) extends PActualStatement
 sealed trait PDeferrable extends PNode
 case class PDeferStmt(exp: PDeferrable) extends PActualStatement with PGhostifiableStatement
 
-case class PSelectStmt(send: Vector[PSelectSend], rec: Vector[PSelectRecv], aRec: Vector[PSelectAssRecv], sRec: Vector[PSelectShortRecv], dflt: Vector[PSelectDflt]) extends PActualStatement with PScope
+case class PSelectStmt(send: Vector[PSelectSend], rec: Vector[PSelectRecv], aRec: Vector[PSelectAssRecv], sRec: Vector[PSelectShortRecv], dflt: Vector[PSelectDflt]) extends PBreakableStmt with PScope
 
 sealed trait PSelectClause extends PNode
 

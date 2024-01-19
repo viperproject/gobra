@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info
 
-import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PFunctionDecl, PFunctionOrMethodDecl, PGeneralForStmt, PIdnNode, PIdnUse, PKeyedElement, PLabelUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
+import viper.gobra.ast.frontend.{PActualStatement, PBreakableStmt, PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PFunctionDecl, PFunctionOrMethodDecl, PGeneralForStmt, PIdnNode, PIdnUse, PKeyedElement, PLabelUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.PackageResolver.AbstractImport
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMemberTag
@@ -118,6 +118,12 @@ trait ExternalTypeInfo {
 
   /** if it exists, it returns the for loop node that contains 'n' */
   def enclosingLoopNode(n: PNode) : Option[PGeneralForStmt]
+
+  /** if it exists, it returns the for loop, switch or select node that contains 'n' with label 'label' */
+  def enclosingBreakableNode(label: PLabelUse, n: PNode): Option[PBreakableStmt]
+
+  /** if it exists, it returns the for loop, switch or select node that contains 'n' */
+  def enclosingBreakableNode(n: PNode): Option[PBreakableStmt]
 
   /** returns the enclosing invariant of 'n' */
   def enclosingInvariantNode(n: PExpression) : PExpression

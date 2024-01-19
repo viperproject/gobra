@@ -50,6 +50,25 @@ trait Enclosing { this: TypeInfoImpl =>
     }
   }
 
+  lazy val enclosingBreakableUntilOutline: PNode => Either[Option[PNode], PBreakableStmt] = {
+    down[Either[Option[PNode], PBreakableStmt]](Left(None)) {
+      case x: POutline => Left(Some(x))
+      case x: PBreakableStmt => Right(x)
+    }
+  }
+
+  // Returns the enclosing breakable statement that has a specific label
+  def enclosingLabeledBreakable(label: PLabelUse, node: PNode): Either[Option[PNode], PBreakableStmt] = {
+    enclosingBreakableUntilOutline(node) match {
+      case Right(breakable) => breakable match {
+        case tree.parent(l: PLabeledStmt) if l.label.name == label.name => Right(breakable)
+        case tree.parent(p) => enclosingLabeledBreakable(label, p)
+        case _ => Left(None)
+      }
+      case r => r
+    }
+  }
+
   def enclosingInvariant(n: PExpression) : PExpression = {
     n match {
       case tree.parent(p) if enclosingExpr(p).isDefined => enclosingExpr(p).get

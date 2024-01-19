@@ -95,6 +95,10 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val dependentTypeInfo: Map
 
   override def enclosingLoopNode(n: PNode) : Option[PGeneralForStmt] = enclosingLoopUntilOutline(n).toOption
 
+  override def enclosingBreakableNode(label: PLabelUse, n: PNode): Option[PBreakableStmt] = enclosingLabeledBreakable(label, n).toOption
+
+  override def enclosingBreakableNode(n: PNode): Option[PBreakableStmt] = enclosingBreakableUntilOutline(n).toOption
+
   override def enclosingInvariantNode(n: PExpression) : PExpression = enclosingInvariant(n)
 
   override def samePkgDepsOfGlobalVar(n: SymbolTable.GlobalVariable): Vector[SymbolTable.GlobalVariable] =

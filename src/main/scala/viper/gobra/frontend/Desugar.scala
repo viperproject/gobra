@@ -4928,11 +4928,11 @@ object Desugar extends LazyLogging {
     def continueLabel(loop: PGeneralForStmt, info: TypeInfo) : String = relativeId(loop, info) + CONTINUE_LABEL_SUFFIX
 
     /** returns the relativeId with the BREAK_LABEL_SUFFIX appended */
-    def breakLabel(loop: PGeneralForStmt, info: TypeInfo) : String = relativeId(loop, info) + BREAK_LABEL_SUFFIX
+    def breakLabel(loop: PBreakableStmt, info: TypeInfo) : String = relativeId(loop, info) + BREAK_LABEL_SUFFIX
 
     /**
       * Finds the enclosing loop which the continue statement refers to and fetches its
-      * continue label.
+      * continue label. Note that `continue` always refers to the inner-most for loop.
       */
     def fetchContinueLabel(n: PContinue, info: TypeInfo) : String = {
       n.label match {
@@ -4947,15 +4947,15 @@ object Desugar extends LazyLogging {
 
     /**
       * Finds the enclosing loop which the break statement refers to and fetches its
-      * break label.
+      * break label. Note that `break` refers to the inner-most for loop, switch or select statement.
       */
     def fetchBreakLabel(n: PBreak, info: TypeInfo) : String = {
       n.label match {
         case None =>
-          val Some(loop) = info.enclosingLoopNode(n)
+          val Some(loop) = info.enclosingBreakableNode(n)
           breakLabel(loop, info)
         case Some(label) =>
-          val Some(loop) = info.enclosingLabeledLoopNode(label, n)
+          val Some(loop) = info.enclosingBreakableNode(label, n)
           breakLabel(loop, info)
       }
     }

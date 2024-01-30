@@ -10,6 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.util.VprInfo
 import viper.silver.{ast => vpr}
 
 class DefaultPureMethodEncoding extends Encoding {
@@ -55,6 +56,8 @@ class DefaultPureMethodEncoding extends Encoding {
         )(ctx)
       })
 
+      annotatedInfo = VprInfo.attachOpaqueAnnotation(meth.isOpaque, info)
+
       function = vpr.Function(
         name = meth.name.uniqueName,
         formalArgs = vRecv +: vArgs,
@@ -62,7 +65,7 @@ class DefaultPureMethodEncoding extends Encoding {
         pres = pres ++ measures,
         posts = posts,
         body = body
-      )(pos, info, errT)
+      )(pos, annotatedInfo, errT)
 
     } yield function
   }
@@ -97,6 +100,8 @@ class DefaultPureMethodEncoding extends Encoding {
         )(ctx)
       })
 
+      annotatedInfo = VprInfo.attachOpaqueAnnotation(func.isOpaque, info)
+
       function = vpr.Function(
         name = func.name.name,
         formalArgs = vArgs,
@@ -104,7 +109,7 @@ class DefaultPureMethodEncoding extends Encoding {
         pres = pres ++ measures,
         posts = posts,
         body = body
-      )(pos, info, errT)
+      )(pos, annotatedInfo, errT)
 
     } yield function
   }

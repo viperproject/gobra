@@ -567,6 +567,10 @@ object Desugar extends LazyLogging {
     def functionD(decl: PFunctionDecl): in.FunctionMember =
       if (decl.spec.isPure) pureFunctionD(decl) else {
 
+      if (decl.spec.isOpaque) {
+        violation("Cannot make a non-pure function opaque.")
+      }
+
       val name = functionProxyD(decl, info)
       val fsrc = meta(decl, info)
       val functionInfo = functionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)))
@@ -701,7 +705,7 @@ object Desugar extends LazyLogging {
       val fsrc = meta(decl, info)
       val funcInfo = pureFunctionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)), info)
 
-      in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(fsrc)
+      in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body, funcInfo.isOpaque)(fsrc)
     }
 
     private case class PureFunctionInfo(args: Vector[in.Parameter.In],
@@ -710,7 +714,8 @@ object Desugar extends LazyLogging {
                                         pres: Vector[in.Assertion],
                                         posts: Vector[in.Assertion],
                                         terminationMeasures: Vector[in.TerminationMeasure],
-                                        body: Option[in.Expr])
+                                        body: Option[in.Expr],
+                                        isOpaque: Boolean)
 
 
     private def pureFunctionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext, info: TypeInfo): PureFunctionInfo = {
@@ -756,6 +761,8 @@ object Desugar extends LazyLogging {
       val posts = decl.spec.posts map postconditionD(ctx, info)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
 
+      val isOpaque = decl.spec.isOpaque
+
       val capturedWithAliases = (captured.map { v => in.Ref(localVarD(outerCtx, info)(v))(meta(v, info)) } zip capturedPar)
 
       val bodyOpt = decl.body.map {
@@ -767,12 +774,17 @@ object Desugar extends LazyLogging {
           implicitConversion(res.typ, returns.head.typ, res)
       }
 
-      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, bodyOpt)
+      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, bodyOpt, isOpaque)
     }
 
 
     def methodD(decl: PMethodDecl): in.MethodMember =
       if (decl.spec.isPure) pureMethodD(decl) else {
+
+      if (decl.spec.isOpaque) {
+        violation("Cannot make a non-pure method opaque.")
+      }
+
 
       val name = methodProxyD(decl, info)
       val fsrc = meta(decl, info)
@@ -924,6 +936,8 @@ object Desugar extends LazyLogging {
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(ctx, info)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
 
+      val isOpaque = decl.spec.isOpaque
+
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
           val res = b.nonEmptyStmts match {
@@ -933,7 +947,7 @@ object Desugar extends LazyLogging {
           implicitConversion(res.typ, returns.head.typ, res)
       }
 
-      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
+      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt, isOpaque)(fsrc)
     }
 
     def fpredicateD(decl: PFPredicateDecl): in.FPredicate = {
@@ -3231,9 +3245,10 @@ object Desugar extends LazyLogging {
           val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx, info)
           val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx, info)
           val terminationMeasures = sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx, info)).res
+          val isOpaque = m.spec.isOpaque
 
           val mem = if (m.spec.isPure) {
-            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
+            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, None, isOpaque)(src)
           } else {
             in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
           }

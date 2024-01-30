@@ -196,7 +196,8 @@ case class PureMethod(
                        override val pres: Vector[Assertion],
                        override val posts: Vector[Assertion],
                        override val terminationMeasures: Vector[TerminationMeasure],
-                       body: Option[Expr]
+                       body: Option[Expr],
+                       isOpaque: Boolean
                      )(val info: Source.Parser.Info) extends Member with MethodMember {
   require(results.size <= 1)
 }
@@ -251,7 +252,8 @@ case class PureFunction(
                          override val pres: Vector[Assertion],
                          override val posts: Vector[Assertion],
                          override val terminationMeasures: Vector[TerminationMeasure],
-                         body: Option[Expr]
+                         body: Option[Expr],
+                         isOpaque: Boolean
                        )(val info: Source.Parser.Info) extends Member with FunctionMember {
   require(results.size <= 1)
 }

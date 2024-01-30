@@ -877,7 +877,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val posts = groups.getOrElse(GobraParser.POST, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
     val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).toVector.map(s => visitTerminationMeasure(s.terminationMeasure()))
 
-    PFunctionSpec(pres, preserves, posts, terms, isPure = ctx.pure, isTrusted = ctx.trusted)
+    PFunctionSpec(pres, preserves, posts, terms, isPure = ctx.pure, isTrusted = ctx.trusted, isOpaque = ctx.opaque)
   }
 
   /**
@@ -1223,6 +1223,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   override def visitInvokePrimaryExpr(ctx: InvokePrimaryExprContext): AnyRef = super.visitInvokePrimaryExpr(ctx) match {
     case Vector(pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args, None)
+  }
+
+  override def visitRevealInvokePrimaryExpr(ctx: RevealInvokePrimaryExprContext): AnyRef = super.visitRevealInvokePrimaryExpr(ctx) match {
+    case Vector(_, pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args, None, true)
   }
 
   override def visitInvokePrimaryExprWithSpec(ctx: InvokePrimaryExprWithSpecContext): AnyRef = super.visitInvokePrimaryExprWithSpec(ctx) match {

@@ -467,7 +467,7 @@ case class PClosureImplements(closure: PExpression, spec: PClosureSpecInstance) 
 
 case class PClosureImplProof(impl: PClosureImplements, block: PBlock) extends PGhostStatement with PScope
 
-case class PInvoke(base: PExpressionOrType, args: Vector[PExpression], spec: Option[PClosureSpecInstance]) extends PActualExpression {
+case class PInvoke(base: PExpressionOrType, args: Vector[PExpression], spec: Option[PClosureSpecInstance], reveal: Boolean = false) extends PActualExpression {
   require(base.isInstanceOf[PExpression] || spec.isEmpty) // `base` is a type for conversions only, for which `spec` is empty
 }
 
@@ -882,7 +882,8 @@ case class PFunctionSpec(
                       posts: Vector[PExpression],
                       terminationMeasures: Vector[PTerminationMeasure],
                       isPure: Boolean = false,
-                      isTrusted: Boolean = false
+                      isTrusted: Boolean = false,
+                      isOpaque: Boolean = false,
                       ) extends PSpecification
 
 case class PBodyParameterInfo(

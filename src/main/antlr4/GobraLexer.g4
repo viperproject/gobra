@@ -89,3 +89,5 @@ PROOF       : 'proof';
 GHOST_EQUALS     : '===';
 GHOST_NOT_EQUALS : '!==';
 WITH        : 'with';
+OPAQUE      : 'opaque';
+REVEAL      : 'reveal';

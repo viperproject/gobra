@@ -28,6 +28,10 @@ class DefaultPureMethodEncoding extends Encoding {
 
     val (pos, info, errT) = meth.vprMeta
 
+    if (meth.isOpaque) {
+      info = VprInfo.attachOpaque(info)
+    }
+
     val vRecv = ctx.variable(meth.receiver)
     val vRecvPres = ctx.varPrecondition(meth.receiver).toVector
 
@@ -56,10 +60,6 @@ class DefaultPureMethodEncoding extends Encoding {
         )(ctx)
       })
 
-      if (meth.isOpaque) {
-        info = VprInfo.attachOpaque(info)
-      }
-
       function = vpr.Function(
         name = meth.name.uniqueName,
         formalArgs = vRecv +: vArgs,
@@ -76,6 +76,10 @@ class DefaultPureMethodEncoding extends Encoding {
     require(func.results.size == 1)
 
     val (pos, info, errT) = func.vprMeta
+
+    if (func.isOpaque) {
+      info = VprInfo.attachOpaque(info)
+    }
 
     val vArgs = func.args.map(ctx.variable)
     val vArgPres = func.args.flatMap(ctx.varPrecondition)
@@ -101,10 +105,6 @@ class DefaultPureMethodEncoding extends Encoding {
           } yield results
         )(ctx)
       })
-
-      if (func.isOpaque) {
-        info = VprInfo.attachOpaque(info)
-      }
 
       function = vpr.Function(
         name = func.name.name,

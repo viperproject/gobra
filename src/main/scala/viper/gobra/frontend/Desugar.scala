@@ -2215,14 +2215,14 @@ object Desugar extends LazyLogging {
         case base: ap.FunctionKind => base match {
           case _: ap.Function | _: ap.BuiltInFunction =>
             if (isPure) {
+              if (expr.reveal && !isOpaque) {
+                violation("Cannot reveal a non-opaque function")
+              }
+
               for {
                 args <- dArgs
                 convertedArgs = convertArgs(args)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-
-                if (expr.reveal && !isOpaque) {
-                  violation("Cannot reveal a non-opaque function")
-                }
               } yield Right(pureFunctionCall(base, convertedArgs, spec, resT, expr.reveal))
             } else {
               for {
@@ -2237,13 +2237,18 @@ object Desugar extends LazyLogging {
             violation(info == iim.symb.context.getTypeInfo,
               "invariance in desugarer violated: interface methods can only be implicitly call in the interface itself")
             if (isPure) {
+              if (expr.reveal && !isOpaque) {
+                violation("Cannot reveal a non-opaque implicitly received interface method")
+              }
               for {
                 args <- dArgs
                 convertedArgs = convertArgs(args)
                 proxy = methodProxy(iim.id, iim.symb.context.getTypeInfo)
                 recvType = typeD(iim.symb.itfType, Addressability.receiver)(src)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Right(pureMethodCall(implicitThisD(recvType)(src), proxy, args, spec, resT))
+                // I don't know whether this is fully correct, as opaque/reveal should only really be
+                // implemented for normal method calls for now (e.g., not for whatever this is)
+              } yield Right(pureMethodCall(implicitThisD(recvType)(src), proxy, args, spec, resT, expr.reveal))
             } else {
               for {
                 args <- dArgs
@@ -2283,16 +2288,16 @@ object Desugar extends LazyLogging {
             }
 
             if (isPure) {
+              if (expr.reveal && !isOpaque) {
+                violation("Cannot reveal a non-opaque method")
+              }
+
               for {
                 (recv, args) <- dRecvWithArgs
                 convertedArgs = convertArgs(args)
                 mproxy = getMethodProxy(base, recv, convertedArgs)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-
-                if (expr.reveal && !isOpaque) {
-                  violation("Cannot reveal a non-opaque method")
-                }
-                // I don't know whether this is fully correct, as opaque should only really be
+                // I don't know whether this is fully correct, as opaque/reveal should only really be
                 // implemented for normal method calls for now (e.g., not for closures)
               } yield Right(pureMethodCall(recv, mproxy, convertedArgs, spec, resT, expr.reveal))
             } else {

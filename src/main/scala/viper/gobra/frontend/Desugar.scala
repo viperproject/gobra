@@ -946,7 +946,6 @@ object Desugar extends LazyLogging {
           }
           implicitConversion(res.typ, returns.head.typ, res)
       }
-
       in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt, isOpaque)(fsrc)
     }
 
@@ -2110,11 +2109,11 @@ object Desugar extends LazyLogging {
         case _ => in.FunctionCall(targets, getFunctionProxy(func, args), args)(src)
       }
 
-      def pureFunctionCall(func: ap.FunctionKind, args: Vector[in.Expr], spec: Option[in.ClosureSpec], resT: in.Type): in.Expr = spec match {
+      def pureFunctionCall(func: ap.FunctionKind, args: Vector[in.Expr], spec: Option[in.ClosureSpec], resT: in.Type, reveal: Boolean): in.Expr = spec match {
         case Some(spec) =>
           val funcObject = in.FunctionObject(getFunctionProxy(func, args), typeD(info.typ(func.id), Addressability.rValue)(src))(src)
           in.PureClosureCall(funcObject, args, spec, resT)(src)
-        case _ => in.PureFunctionCall(getFunctionProxy(func, args), args, resT)(src)
+        case _ => in.PureFunctionCall(getFunctionProxy(func, args), args, resT, reveal)(src)
       }
 
       def getMethodProxy(f: ap.FunctionKind, recv: in.Expr, args: Vector[in.Expr]): in.MethodProxy = f match {
@@ -2135,7 +2134,7 @@ object Desugar extends LazyLogging {
         case _ => in.MethodCall(targets, recv, meth, args)(src)
       }
 
-      def pureMethodCall(recv: in.Expr, meth: in.MethodProxy, args: Vector[in.Expr], spec: Option[in.ClosureSpec], resT: in.Type): in.Expr = spec match {
+      def pureMethodCall(recv: in.Expr, meth: in.MethodProxy, args: Vector[in.Expr], spec: Option[in.ClosureSpec], resT: in.Type, reveal: Boolean): in.Expr = spec match {
         case Some(spec) =>
           val resType = resT match {
             case in.TupleT(ts, _) => ts
@@ -2143,7 +2142,7 @@ object Desugar extends LazyLogging {
           }
           val methObject = in.MethodObject(recv, meth, in.FunctionT(args.map(_.typ), resType, Addressability.rValue))(src)
           in.PureClosureCall(methObject, args, spec, resT)(src)
-        case _ => in.PureMethodCall(recv, meth, args, resT)(src)
+        case _ => in.PureMethodCall(recv, meth, args, resT, reveal)(src)
       }
 
       def convertArgs(args: Vector[in.Expr]): Vector[in.Expr] = {
@@ -2204,6 +2203,14 @@ object Desugar extends LazyLogging {
         }
       }
 
+      val isOpaque = p.callee match {
+        case base: ap.Symbolic => base.symb match {
+          case f: st.Function => f.isOpaque
+          case m: st.MethodImpl => m.isOpaque
+          case _ => false
+        }
+      }
+
       p.callee match {
         case base: ap.FunctionKind => base match {
           case _: ap.Function | _: ap.BuiltInFunction =>
@@ -2212,7 +2219,11 @@ object Desugar extends LazyLogging {
                 args <- dArgs
                 convertedArgs = convertArgs(args)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Right(pureFunctionCall(base, convertedArgs, spec, resT))
+
+                if (expr.reveal && !isOpaque) {
+                  violation("Cannot reveal a non-opaque function")
+                }
+              } yield Right(pureFunctionCall(base, convertedArgs, spec, resT, expr.reveal))
             } else {
               for {
                 args <- dArgs
@@ -2277,7 +2288,13 @@ object Desugar extends LazyLogging {
                 convertedArgs = convertArgs(args)
                 mproxy = getMethodProxy(base, recv, convertedArgs)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Right(pureMethodCall(recv, mproxy, convertedArgs, spec, resT))
+
+                if (expr.reveal && !isOpaque) {
+                  violation("Cannot reveal a non-opaque method")
+                }
+                // I don't know whether this is fully correct, as opaque should only really be
+                // implemented for normal method calls for now (e.g., not for closures)
+              } yield Right(pureMethodCall(recv, mproxy, convertedArgs, spec, resT, expr.reveal))
             } else {
               for {
                 (recv, args) <- dRecvWithArgs
@@ -3248,6 +3265,8 @@ object Desugar extends LazyLogging {
           val isOpaque = m.spec.isOpaque
 
           val mem = if (m.spec.isPure) {
+            // Not sure whether passing opaque here instead of raising a violation if opaque
+            // is true is correct, since this doesn't seem to be a normal method/function call.
             in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, None, isOpaque)(src)
           } else {
             in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)

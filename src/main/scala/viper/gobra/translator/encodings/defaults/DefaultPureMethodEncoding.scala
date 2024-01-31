@@ -56,7 +56,9 @@ class DefaultPureMethodEncoding extends Encoding {
         )(ctx)
       })
 
-      annotatedInfo = VprInfo.attachOpaqueAnnotation(meth.isOpaque, info)
+      if (meth.isOpaque) {
+        info = VprInfo.attachOpaque(info)
+      }
 
       function = vpr.Function(
         name = meth.name.uniqueName,
@@ -65,7 +67,7 @@ class DefaultPureMethodEncoding extends Encoding {
         pres = pres ++ measures,
         posts = posts,
         body = body
-      )(pos, annotatedInfo, errT)
+      )(pos, info, errT)
 
     } yield function
   }
@@ -100,7 +102,9 @@ class DefaultPureMethodEncoding extends Encoding {
         )(ctx)
       })
 
-      annotatedInfo = VprInfo.attachOpaqueAnnotation(func.isOpaque, info)
+      if (func.isOpaque) {
+        info = VprInfo.attachOpaque(info)
+      }
 
       function = vpr.Function(
         name = func.name.name,
@@ -109,7 +113,7 @@ class DefaultPureMethodEncoding extends Encoding {
         pres = pres ++ measures,
         posts = posts,
         body = body
-      )(pos, annotatedInfo, errT)
+      )(pos, info, errT)
 
     } yield function
   }

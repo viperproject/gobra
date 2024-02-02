@@ -24,31 +24,25 @@ class CallEncoding extends Encoding {
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     case x@in.PureFunctionCall(func, args, typ, reveal) =>
       val (pos, info, errT) = x.vprMeta
-
-      if (reveal) {
-        info = VprInfo.attachReveal(info)
-      }
+      val annotatedInfo = VprInfo.maybeAttachReveal(info, reveal)
 
       val resultType = ctx.typ(typ)
 
       for {
         vArgs <- sequence(args map ctx.expression)
-        app = vpr.FuncApp(func.name, vArgs)(pos, info, resultType, errT)
+        app = vpr.FuncApp(func.name, vArgs)(pos, annotatedInfo, resultType, errT)
       } yield app
 
     case x@in.PureMethodCall(recv, meth, args, typ, reveal) =>
       val (pos, info, errT) = x.vprMeta
-
-      if (reveal) {
-          info = VprInfo.attachReveal(info)
-      }
+      val annotatedInfo = VprInfo.maybeAttachReveal(info, reveal)
 
       val resultType = ctx.typ(typ)
 
       for {
         vRecv <- ctx.expression(recv)
         vArgs <- sequence(args map ctx.expression)
-        app = vpr.FuncApp(meth.uniqueName, vRecv +: vArgs)(pos, info, resultType, errT)
+        app = vpr.FuncApp(meth.uniqueName, vRecv +: vArgs)(pos, annotatedInfo, resultType, errT)
       } yield app
   }
 

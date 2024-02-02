@@ -128,6 +128,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showPure: Doc = "pure" <> line
+  def showOpaque: Doc = "opaque" <> line
   def showTrusted: Doc = "trusted" <> line
   def showPre(pre: PExpression): Doc = "requires" <+> showExpr(pre)
   def showPreserves(preserves: PExpression): Doc = "preserves" <+> showExpr(preserves)
@@ -143,8 +144,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, measures, isPure, isTrusted) =>
+    case PFunctionSpec(pres, preserves, posts, measures, isPure, isTrusted, isOpaque) =>
       (if (isPure) showPure else emptyDoc) <>
+      (if (isOpaque) showOpaque else emptyDoc) <>
       (if (isTrusted) showTrusted else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
         hcat(preserves map (showPreserves(_) <> line)) <>
@@ -453,7 +455,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
       case lit: PFunctionLit => showFunctionLit(lit)
-      case PInvoke(base, args, spec) => showExprOrType(base) <> parens(showExprList(args)) <> opt(spec)(s => emptyDoc <+> "as" <+> showMisc(s))
+      case PInvoke(base, args, spec, reveal) =>
+        val revealDoc: Doc = if (reveal) "reveal" else emptyDoc
+        revealDoc <+> showExprOrType(base) <> parens(showExprList(args)) <> opt(spec)(s => emptyDoc <+> "as" <+> showMisc(s))
       case PIndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
 
       case PSliceExp(base, low, high, cap) => {

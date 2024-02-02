@@ -8,12 +8,20 @@ package viper.gobra.translator.util
 import viper.silver.{ast => vpr}
 
 object VprInfo {
-  def attachOpaque(info: vpr.Info): vpr.Info = {
-    attachAnnotation(info, "opaque")
+  def maybeAttachOpaque(info: vpr.Info, isOpaque: Boolean): vpr.Info = {
+    if (isOpaque) {
+      attachAnnotation(info, "opaque")
+    } else {
+      info
+    }
   }
 
-  def attachReveal(info: vpr.Info): vpr.Info = {
-    attachAnnotation(info, "reveal")
+  def maybeAttachReveal(info: vpr.Info, reveal: Boolean): vpr.Info = {
+    if (reveal) {
+      attachAnnotation(info, "reveal")
+    } else {
+      info
+    }
   }
 
   private def attachAnnotation(info: vpr.Info, key: String, values: String*) : vpr.Info = {

@@ -554,7 +554,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     expr match {
       case PDot(base, _) => goEorT(base)
-      case PInvoke(base, args, None) => {
+      case PInvoke(base, args, None, _) => {
         val res1 = goEorT(base)
         val res2 = combineTriggerResults(args.map(validTriggerPattern))
         combineTriggerResults(res1, res2)

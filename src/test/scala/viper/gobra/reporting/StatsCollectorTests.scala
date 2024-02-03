@@ -32,12 +32,12 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("Integration without chopper") {
-    val config = createConfig(Array("--recursive", "--projectRoot", statsCollectorTestDir, "-I", statsCollectorTestDir))
+    val config = createConfig(Array("--recursive", "--projectRoot", statsCollectorTestDir, "-I", statsCollectorTestDir, "--disablePureFunctsTerminationRequirement"))
     runIntegration(config)
   }
 
   test("Integration with chopper") {
-    val config = createConfig(Array("--recursive", "--projectRoot", statsCollectorTestDir, "-I", statsCollectorTestDir, "--chop", "10"))
+    val config = createConfig(Array("--recursive", "--projectRoot", statsCollectorTestDir, "-I", statsCollectorTestDir, "--chop", "10", "--disablePureFunctsTerminationRequirement"))
     runPackagesSeparately(config)
     runIntegration(config)
   }

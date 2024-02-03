@@ -14,6 +14,7 @@ pred (m *Mutex) UnlockP()
 
 ghost
 requires acc(m.LockP(), _)
+decreases _
 pure func (m *Mutex) LockInv() pred()
 
 ghost

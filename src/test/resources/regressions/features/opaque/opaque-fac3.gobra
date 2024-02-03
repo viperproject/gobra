@@ -4,7 +4,7 @@
 package pkg
 
 ghost
-decreases
+decreases i
 opaque
 pure func fac(i int) int {
 	return i <= 1 ? 1 : i * (reveal fac(i - 1))

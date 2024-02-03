@@ -156,7 +156,9 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         case n: PDeferStmt => error(n, "Currently, outline statements are not allowed to contain defer statements.")
         case n: PReturn => error(n, "outline statements must not contain return statements.")
       }
-      error(n, s"pure outline statements are not supported.", n.spec.isPure) ++ invalidNodes.flatten
+      error(n, s"pure outline statements are not supported.", n.spec.isPure) ++
+        error(n, "Opaque outline statements are not supported.", n.spec.isOpaque) ++
+        invalidNodes.flatten
 
     case _: PEmptyStmt => noMessages
     case _: PGoto => ???

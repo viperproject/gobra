@@ -5,7 +5,8 @@ package pkg
 
 ghost
 decreases
-opaque pure func fac(i int) int {
+opaque
+pure func fac(i int) int {
 	return i <= 1 ? 1 : i * (reveal fac(i - 1))
 }
 

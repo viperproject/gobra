@@ -3,11 +3,13 @@
 
 package pkg
 
-func test1() {
-	// Cannot make outline opaque
+decreases
+pure func A() int {
+	return 42
+}
+
+func B() {
+	// Cannot reveal non-opaque function
 	//:: ExpectedOutput(type_error)
-	opaque
-	outline (
-		x := 10
-	)
+	a := reveal A()
 }

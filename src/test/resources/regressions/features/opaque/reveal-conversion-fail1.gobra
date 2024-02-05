@@ -3,11 +3,8 @@
 
 package pkg
 
-func test1() {
-	// Cannot make outline opaque
+func foo(i int) {
+	// Cannot reveal conversions
 	//:: ExpectedOutput(type_error)
-	opaque
-	outline (
-		x := 10
-	)
+	f := reveal float64(i)
 }

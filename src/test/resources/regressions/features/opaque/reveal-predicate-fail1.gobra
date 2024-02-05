@@ -1,0 +1,31 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// QUES: In typing, both PPredicateCall and PPredicateAccess are checked;
+// however, what do they correspond to?
+
+package pkg;
+
+type coordinate struct{
+	x, y, val int;
+};
+
+pred cooMem(self *coordinate) {
+	acc(&self.x) && acc(&self.y) && acc(&self.val)
+};
+
+
+requires cooMem(self);
+decreases
+pure func (self *coordinate) value() int {
+	return unfolding cooMem(self) in self.val;
+};
+
+func test1() {
+	coo := &coordinate{1,2,3};
+	fold cooMem(coo);
+	assert coo.value() == 3;
+	// Cannot reveal predicate
+	//:: ExpectedOutput(type_error)
+	unfold reveal cooMem(coo);
+};

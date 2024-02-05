@@ -1,0 +1,20 @@
+package pkg
+
+// This does not parse:
+// type foo interface {
+//   opaque pure bar() (res int)
+// }
+
+// QUES: This both parses and type checks. I am not sure why.
+type foo interface {
+	opaque
+	pure bar() (res int)
+}
+
+type test int
+
+test implements foo
+
+ensures res == 5
+decreases
+pure func (x test) bar() (res int)

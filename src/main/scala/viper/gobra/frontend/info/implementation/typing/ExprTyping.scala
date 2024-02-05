@@ -306,7 +306,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
             case c => Violation.violation(s"This case should be unreachable, but got $c")
           }
-          error(n, "Cannot reveal a conversion.", n.reveal) ++ wellTypedArguments
+          error(n, "Cannot reveal a predicate expression instance.", n.reveal) ++ wellTypedArguments
 
         case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
       }

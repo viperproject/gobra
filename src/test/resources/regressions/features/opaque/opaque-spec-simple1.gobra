@@ -9,5 +9,5 @@ opaque
 pure func foo(x int) (res bool)
 
 func bar() {
-    t := reveal foo(3)
+	t := reveal foo(3)
 }

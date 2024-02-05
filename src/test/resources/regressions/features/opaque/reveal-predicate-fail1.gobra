@@ -1,9 +1,6 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-// QUES: In typing, both PPredicateCall and PPredicateAccess are checked;
-// however, what do they correspond to?
-
 package pkg;
 
 type coordinate struct{

@@ -4532,10 +4532,10 @@ object Desugar extends LazyLogging {
 
         case n: PInvoke =>
           // a predicate invocation corresponds to a predicate access with full permissions
-          // register the full permission AST node in the position manager such that its meta information
+          // register the full permission AST node in `info`'s position manager such that its meta information
           // is retrievable in predicateCallD
           val perm = PFullPerm()
-          pom.positions.dupPos(n, perm)
+          info.tree.root.positions.positions.dupPos(n, perm)
           predicateCallD(ctx, info)(n, perm)
 
         case PForall(vars, triggers, body) =>

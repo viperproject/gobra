@@ -9,8 +9,8 @@ package pkg
 // }
 
 // Interface method signatures cannot be opaque.
-//:: ExpectedOutput(type_error)
 type foo interface {
+	//:: ExpectedOutput(type_error)
 	opaque
 	pure bar() (res int)
 }

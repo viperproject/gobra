@@ -216,7 +216,7 @@ class BuiltInEncoding extends Encoding {
         val pres: Vector[in.Assertion] = Vector(
           in.Access(isChannelInst, in.WildcardPerm(src))(src),
         )
-        in.PureMethod(recvParam, x.name, Vector(), Vector(kParam), pres, Vector(), Vector(), None)(src)
+        in.PureMethod(recvParam, x.name, Vector(), Vector(kParam), pres, Vector(), Vector(), None, false)(src)
 
       case (tag: ChannelInvariantMethodTag, recv: in.ChannelT) =>
         /**
@@ -242,7 +242,7 @@ class BuiltInEncoding extends Encoding {
         val pres: Vector[in.Assertion] = Vector(
           in.Access(chanPredicate, in.WildcardPerm(src))(src)
         )
-        in.PureMethod(recvParam, x.name, Vector(), Vector(resParam), pres, Vector(), Vector(), None)(src)
+        in.PureMethod(recvParam, x.name, Vector(), Vector(resParam), pres, Vector(), Vector(), None, false)(src)
 
       case (InitChannelMethodTag, recv: in.ChannelT) =>
         /**
@@ -680,6 +680,6 @@ class BuiltInEncoding extends Encoding {
     */
   private def builtInPureMethodCall(tag: BuiltInMethodTag, recv: in.Expr, args: Vector[in.Expr], retType: in.Type)(src: Source.Parser.Info)(ctx: Context): in.PureMethodCall = {
     val method = getOrGenerateMethod(tag, recv.typ, args.map(_.typ))(src)(ctx)
-    in.PureMethodCall(recv, method, args, retType)(src)
+    in.PureMethodCall(recv, method, args, retType, false)(src)
   }
 }

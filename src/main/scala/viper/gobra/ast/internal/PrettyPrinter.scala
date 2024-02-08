@@ -151,8 +151,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, body) =>
-      "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+    case PureFunction(name, args, results, pres, posts, measures, body, isOpaque) =>
+      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <> "pure func"
+      funcPrefix <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
 
@@ -163,8 +164,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, body) =>
-      "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+    case PureMethod(receiver, name, args, results, pres, posts, measures, body, isOpaque) =>
+      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <> "pure func"
+      funcPrefix <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
 
@@ -488,9 +490,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case c: CurrentPerm => "perm" <> parens(showAcc(c.acc))
     case PermMinus(exp) => "-" <> showExpr(exp)
 
-    case PureFunctionCall(func, args, _) => func.name <> parens(showExprList(args))
+    case PureFunctionCall(func, args, _, reveal) =>
+      val revealDoc: Doc = if (reveal) "reveal" else emptyDoc
+      revealDoc <+> func.name <> parens(showExprList(args))
 
-    case PureMethodCall(recv, meth, args, _) => showExpr(recv) <> dot <> meth.name <> parens(showExprList(args))
+    case PureMethodCall(recv, meth, args, _, reveal) =>
+      val revealDoc: Doc = if (reveal) "reveal " else emptyDoc
+      revealDoc <> showExpr(recv) <> dot <> meth.name <> parens(showExprList(args))
 
     case PureClosureCall(closure, args, spec, _) => showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
 
@@ -681,8 +687,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   }
 
   override def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, _) =>
-      "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+    case PureFunction(name, args, results, pres, posts, measures, _, isOpaque) =>
+    val funcPrefix = if (isOpaque) "pure opaque func" else "pure func"
+      funcPrefix <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
   }
 
@@ -693,8 +700,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   }
 
   override def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, _) =>
-      "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+    case PureMethod(receiver, name, args, results, pres, posts, measures, _, isOpaque) =>
+      val funcPrefix = if (isOpaque) "pure opaque func" else "pure func"
+      funcPrefix <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
   }
 

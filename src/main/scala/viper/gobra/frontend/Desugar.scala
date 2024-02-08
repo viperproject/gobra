@@ -3239,8 +3239,6 @@ object Desugar extends LazyLogging {
           val isOpaque = m.spec.isOpaque
 
           val mem = if (m.spec.isPure) {
-            // Not sure whether passing opaque here instead of raising a violation if opaque
-            // is true is correct, since this doesn't seem to be a normal method/function call.
             in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, None, isOpaque)(src)
           } else {
             in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)

@@ -16,7 +16,7 @@ import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.{Config, PackageResolver, Parser, Source}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
-import viper.gobra.reporting.{NoopReporter, VerifierError}
+import viper.gobra.reporting.{GobraMessage, GobraReporter, VerifierError}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
@@ -51,11 +51,14 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
   private def getConfig(source: Source): Config =
     Config(
       logLevel = Level.INFO,
-      reporter = NoopReporter,
+      reporter = StringifyReporter,
       packageInfoInputMap = Map(Source.getPackageInfo(source, Path.of("")) -> Vector(source)),
       checkConsistency = true,
       cacheParserAndTypeChecker = cacheParserAndTypeChecker,
       z3Exe = z3Exe,
+      // termination checks in functions are currently disabled in the tests. This can be enabled in the future,
+      // but requires some work to add termination measures all over the test suite.
+      disableCheckTerminationPureFns = true,
     )
 
   override def runTests(testName: Option[String], args: Args): Status = {
@@ -119,5 +122,14 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
 
     /** A short and unique identifier for this output. */
     override def fullId: String = error.id
+  }
+
+  case object StringifyReporter extends GobraReporter {
+    override val name: String = "StringifyReporter"
+
+    override def report(msg: GobraMessage): Unit = {
+      // by invoking `toString`, we check that messages are printable, which includes pretty-printing AST nodes:
+      msg.toString
+    }
   }
 }

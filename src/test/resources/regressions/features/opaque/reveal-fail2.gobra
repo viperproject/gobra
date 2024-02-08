@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+type IntType int
+
+decreases
+pure func (x IntType) negateCorrectSpec() (ret IntType) {
+	return -x
+}
+
+func test(x IntType) {
+	// Cannot reveal non-opaque method
+	//:: ExpectedOutput(type_error)
+	nx := reveal x.negateCorrectSpec()
+}

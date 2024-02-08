@@ -66,12 +66,15 @@ object ConfigDefaults {
   lazy val DefaultParallelizeBranches: Boolean = false
   lazy val DefaultConditionalizePermissions: Boolean = false
   lazy val DefaultZ3APIMode: Boolean = false
+  lazy val DefaultDisableNL: Boolean = false
   lazy val DefaultMCEMode: MCE.Mode = MCE.Enabled
   lazy val DefaultEnableLazyImports: Boolean = false
   lazy val DefaultNoVerify: Boolean = false
   lazy val DefaultNoStreamErrors: Boolean = false
   lazy val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
   lazy val DefaultRequireTriggers: Boolean = false
+  lazy val DefaultDisableSetAxiomatization: Boolean = false
+  lazy val DefaultDisableCheckTerminationPureFns: Boolean = false
 }
 
 // More-complete exhale modes
@@ -130,6 +133,7 @@ case class Config(
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                    conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
                    z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
+                   disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                    mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
@@ -137,6 +141,8 @@ case class Config(
                    parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                    // when enabled, all quantifiers without triggers are rejected
                    requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
+                   disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
+                   disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
 ) {
 
   def merge(other: Config): Config = {
@@ -180,12 +186,15 @@ case class Config(
       parallelizeBranches = parallelizeBranches,
       conditionalizePermissions = conditionalizePermissions,
       z3APIMode = z3APIMode || other.z3APIMode,
+      disableNL = disableNL || other.disableNL,
       mceMode = mceMode,
       enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
       noStreamErrors = noStreamErrors || other.noStreamErrors,
       parseAndTypeCheckMode = parseAndTypeCheckMode,
-      requireTriggers = requireTriggers || other.requireTriggers
+      requireTriggers = requireTriggers || other.requireTriggers,
+      disableSetAxiomatization = disableSetAxiomatization || other.disableSetAxiomatization,
+      disableCheckTerminationPureFns = disableCheckTerminationPureFns || other.disableCheckTerminationPureFns,
     )
   }
 
@@ -233,12 +242,15 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                       conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
                       z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
+                      disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                       requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
+                      disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
+                      disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -290,12 +302,15 @@ trait RawConfig {
     parallelizeBranches = baseConfig.parallelizeBranches,
     conditionalizePermissions = baseConfig.conditionalizePermissions,
     z3APIMode = baseConfig.z3APIMode,
+    disableNL = baseConfig.disableNL,
     mceMode = baseConfig.mceMode,
     enableLazyImports = baseConfig.enableLazyImports,
     noVerify = baseConfig.noVerify,
     noStreamErrors = baseConfig.noStreamErrors,
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
     requireTriggers = baseConfig.requireTriggers,
+    disableSetAxiomatization = baseConfig.disableSetAxiomatization,
+    disableCheckTerminationPureFns = baseConfig.disableCheckTerminationPureFns,
   )
 }
 
@@ -561,6 +576,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = None,
     noshort = true
   )
+
   lazy val packageTimeoutDuration: Duration = packageTimeout.toOption match {
     case Some(d) => Duration(d)
     case _ => Duration.Inf
@@ -646,6 +662,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val disableNL: ScallopOption[Boolean] = opt[Boolean](
+    name = "disableNL",
+    descr = "Disable non-linear integer arithmetics. Non compatible with Carbon",
+    default = Some(ConfigDefaults.DefaultDisableNL),
+    noshort = true,
+  )
+
   val mceMode: ScallopOption[MCE.Mode] = {
     val on = "on"
     val off = "off"
@@ -692,6 +715,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val disableCheckTerminationPureFns: ScallopOption[Boolean] = opt[Boolean](
+    name = "disablePureFunctsTerminationRequirement",
+    descr = "Do not enforce that all pure functions must have termination measures",
+    default = Some(ConfigDefaults.DefaultDisableCheckTerminationPureFns),
+    noshort = true,
+  )
+
   val parseAndTypeCheckMode: ScallopOption[TaskManagerMode] = choice(
     name = "parseAndTypeCheckMode",
     choices = Seq("LAZY", "SEQUENTIAL", "PARALLEL"),
@@ -705,6 +735,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     case _ => ConfigDefaults.DefaultParseAndTypeCheckMode
   }
 
+  val disableSetAxiomatization: ScallopOption[Boolean] = opt[Boolean](
+    name = "disableSetAxiomatization",
+    descr = s"Disables set axiomatization in Silicon.",
+    default = Some(ConfigDefaults.DefaultDisableSetAxiomatization),
+    noshort = true,
+  )
   /**
     * Exception handling
     */
@@ -767,6 +803,26 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       Left("The flag --mceMode can only be used with Silicon or ViperServer with Silicon")
     } else {
       Right(())
+    }
+  }
+  
+  // `disableSetAxiomatization` can only be provided when using a silicon-based backend
+  // since, at the time of writing, we rely on Silicon's setAxiomatizationFile for the
+  // implementation
+  addValidation {
+    val disableSetAxiomatizationOn = disableSetAxiomatization.toOption.contains(true)
+    if (disableSetAxiomatizationOn && !isSiliconBasedBackend) {
+      Left("The selected backend does not support --disableSetAxiomatization.")
+    } else {
+      Right(())
+    }
+  }
+
+  addValidation {
+    if (!disableNL.toOption.contains(true) || isSiliconBasedBackend) {
+      Right(())      
+    } else {
+      Left("--disableNL is not compatible with Carbon")
     }
   }
 
@@ -857,11 +913,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parallelizeBranches = parallelizeBranches(),
     conditionalizePermissions = conditionalizePermissions(),
     z3APIMode = z3APIMode(),
+    disableNL = disableNL(),
     mceMode = mceMode(),
     enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),
     noStreamErrors = noStreamErrors(),
     parseAndTypeCheckMode = parseAndTypeCheckMode(),
     requireTriggers = requireTriggers(),
+    disableSetAxiomatization = disableSetAxiomatization(),
+    disableCheckTerminationPureFns = disableCheckTerminationPureFns(),
   )
 }

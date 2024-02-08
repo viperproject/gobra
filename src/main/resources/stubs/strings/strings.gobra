@@ -151,6 +151,7 @@ ensures len(elems) == 0 ==> res == ""
 ensures len(elems) == 1 ==> res == elems[0]
 // (joao) Leads to precondition of call might not hold (permission to elems[i] might not suffice)
 // ensures len(elems) > 1 ==> res == elems[0] + sep + Join(elems[1:], sep)
+decreases _
 pure func Join(elems []string, sep string) (res string) /*{
 	switch len(elems) {
 	case 0:
@@ -176,25 +177,17 @@ pure func Join(elems []string, sep string) (res string) /*{
 
 // HasPrefix tests whether the string s begins with prefix.
 pure
-ensures ret == (len(s) >= len(prefix) && s[0:len(prefix)] == prefix)
+decreases
 func HasPrefix(s, prefix string) (ret bool) {
 	return len(s) >= len(prefix) && (s[0:len(prefix)] == prefix)
 }
 
 // HasSuffix tests whether the string s ends with suffix.
 pure
-ensures ret == (len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix)
+decreases
 func HasSuffix(s, suffix string) (ret bool) {
 	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
 }
-
-// Map returns a copy of the string s with all its characters modified
-// according to the mapping function. If mapping returns a negative value, the character is
-// dropped from the string with no replacement.
-// (joao) no support for higher-order functions
-/*
-func Map(mapping func(rune) rune, s string) string 
-*/
 
 // Repeat returns a new string consisting of count copies of the string s.
 //

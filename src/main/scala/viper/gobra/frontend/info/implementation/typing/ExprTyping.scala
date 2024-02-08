@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
+import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminator, GlobalVariable, SingleConstant}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -233,22 +234,33 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case f: PFunctionLit =>
       capturedLocalVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
         wellDefVariadicArgs(f.args) ++
-        f.id.fold(noMessages)(id => wellDefID(id).out)
+        f.id.fold(noMessages)(id => wellDefID(id).out) ++
+        error(f, "Opaque function literals are not yet supported.", f.spec.isOpaque)
 
     case n: PInvoke => {
       val (l, r) = (exprOrType(n.base), resolve(n))
       (l,r) match {
-
         case (Right(_), Some(p: ap.Conversion)) =>
           val typ = typeSymbType(p.typ)
           val argWithinBounds: Messages = underlyingTypeP(p.typ) match {
             case Some(_: PIntegerType) => intExprWithinTypeBounds(p.arg, typ)
             case _ => noMessages
           }
-          convertibleTo.errors(exprType(p.arg), typ)(n) ++ isExpr(p.arg).out ++ argWithinBounds
-
+          error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a conversion.", n.reveal) ++
+            convertibleTo.errors(exprType(p.arg), typ)(n) ++
+            isExpr(p.arg).out ++
+            argWithinBounds
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
+          val isOpaque = c.callee match {
+            case base: ap.Symbolic => base.symb match {
+              case f: st.Function => f.isOpaque
+              case m: st.MethodImpl => m.isOpaque
+              case _ => false
+            }
+          }
+          val onlyRevealOpaqueFunc =
+            error(n, "Cannot reveal call to non-opaque function.", n.reveal && !isOpaque)
           val isCallToInit =
             error(n, s"${Constants.INIT_FUNC_NAME} function is not callable",
               c.callee.isInstanceOf[ap.Function] && c.callee.id.name == Constants.INIT_FUNC_NAME)
@@ -261,9 +273,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n, s"type error: got $t but expected function type or AbstractType")
           }
-          isCallToInit ++ wellTypedArgs
+          onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs
 
-        case (Left(_), Some(_: ap.ClosureCall)) => wellDefCallWithSpec(n)
+        case (Left(_), Some(_: ap.ClosureCall)) =>
+          error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a closure call.", n.reveal) ++ wellDefCallWithSpec(n)
 
         case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
           val pureReceiverMsgs = p.predicate match {
@@ -284,15 +297,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n, s"type error: got $t but expected function type or AbstractType")
           }
-          pureReceiverMsgs ++ pureArgsMsgs ++ argAssignMsgs
+          error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a predicate instance.", n.reveal) ++ pureReceiverMsgs ++ pureArgsMsgs ++ argAssignMsgs
 
         case (Left(callee), Some(_: ap.PredExprInstance)) =>
-          exprType(callee) match {
+          val wellTypedArguments = exprType(callee) match {
             case PredT(args) =>
               if (n.args.isEmpty && args.isEmpty) noMessages
               else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
             case c => Violation.violation(s"This case should be unreachable, but got $c")
           }
+          error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a predicate expression instance.", n.reveal) ++ wellTypedArguments
 
         case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
       }

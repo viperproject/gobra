@@ -13,6 +13,10 @@ import viper.server.core.ViperCoreServer
 import viper.silicon.decider.Z3ProverAPI
 import viper.server.vsi.DefaultVerificationServerStart
 
+import java.nio.file.{Files, Paths}
+import scala.io.Source
+import scala.util.Using
+
 trait ViperBackend {
   def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperVerifier
 }
@@ -31,6 +35,9 @@ object ViperBackends {
       if (config.z3APIMode) {
         options = options ++ Vector(s"--prover=${Z3ProverAPI.name}")
       }
+      if (config.disableNL) {
+        options = options ++ Vector(s"--disableNL")
+      }
       val mceSiliconOpt = config.mceMode match {
         case MCE.Disabled => "0"
         case MCE.Enabled  => "1"
@@ -47,6 +54,20 @@ object ViperBackends {
         options ++= Vector("--parallelizeBranches")
       }
       options ++= exePaths
+      if (config.disableSetAxiomatization) {
+        // Since resources are stored within the .jar archive, we cannot
+        // directly pass the axiom file to Silicon.
+        val tmpPath = Paths.get("gobra_tmp")
+        val axiomTmpPath = tmpPath.resolve("noaxioms_sets.vpr")
+        val axiom: Source = Source.fromResource("noaxioms/sets.vpr")
+
+        Files.createDirectories(tmpPath)
+        Using(axiom) { source =>
+          Files.write(axiomTmpPath, source.mkString.getBytes)
+        }
+
+        options ++= Vector("--setAxiomatizationFile", axiomTmpPath.toString())
+      }
 
       new Silicon(options)
     }

@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+ensures res == (x > 0)
+decreases
+opaque
+pure func foo(x int) (res bool)
+
+func bar() {
+	t := reveal foo(3)
+}

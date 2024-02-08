@@ -97,11 +97,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       permWellDef ++ expWellDef
 
-    case n: PPredicateAccess => resolve(n.pred) match {
-      case Some(_: ap.PredicateCall) => noMessages
-      case Some(_: ap.PredExprInstance) => noMessages
-      case _ => error(n, s"expected reference, dereference, field selection, or predicate expression instance, but got ${n.pred}")
-    }
+    case n: PPredicateAccess =>
+      val predWellDef = resolve(n.pred) match {
+        case Some(_: ap.PredicateCall) => noMessages
+        case Some(_: ap.PredExprInstance) => noMessages
+        case _ => error(n, s"expected reference, dereference, field selection, or predicate expression instance, but got ${n.pred}")
+      }
+      predWellDef ++ error(n, "Cannot reveal a predicate access.", n.pred.reveal)
 
     case PTypeOf(e) => isExpr(e).out
     case PTypeExpr(t) => isType(t).out
@@ -554,7 +556,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     expr match {
       case PDot(base, _) => goEorT(base)
-      case PInvoke(base, args, None) => {
+      case PInvoke(base, args, None, _) => {
         val res1 = goEorT(base)
         val res2 = combineTriggerResults(args.map(validTriggerPattern))
         combineTriggerResults(res1, res2)

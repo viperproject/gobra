@@ -8,7 +8,8 @@ package pkg
 //   opaque pure bar() (res int)
 // }
 
-// QUES: This both parses and type checks. I am not sure why.
+// Interface method signatures cannot be opaque.
+//:: ExpectedOutput(type_error)
 type foo interface {
 	opaque
 	pure bar() (res int)

@@ -99,28 +99,8 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     } else noMessages
   }
 
-  private[typing] def wellDefIfOpaqueFunction(member: PFunctionDecl): Messages = {
-    if (member.spec.isOpaque) {
-      isPureFunction(member)
-    } else noMessages
-  }
-
-  private[typing] def wellDefIfOpaqueMethod(member: PMethodDecl): Messages = {
-    if (member.spec.isOpaque) {
-      isPureMethod(member)
-    } else noMessages
-  }
-
   private def isSingleResultArg(member: PCodeRootWithResult): Messages = {
     error(member, "For now, pure methods and pure functions must have exactly one result argument", member.result.outs.size != 1)
-  }
-
-  private def isPureFunction(member: PFunctionDecl): Messages = {
-    error(member, "Cannot use opaque on non-pure functions.", !member.spec.isPure)
-  }
-
-  private def isPureMethod(member: PMethodDecl): Messages = {
-    error(member, "Cannot use opaque on non-pure methods.", !member.spec.isPure)
   }
 
   private def isSinglePureReturnExpr(member: PWithBody): Messages = {

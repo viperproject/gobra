@@ -14,7 +14,7 @@ func main() {
 
 	// QUES: Not sure how to test that we cannot reveal closure calls; the following
 	// doesn't parse
-	r := reveal c(10) as f
+	r := reveal (c(10) as f)
 	assert x == 10 && r == 10
 
 }

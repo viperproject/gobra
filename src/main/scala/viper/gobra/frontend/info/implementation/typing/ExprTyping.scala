@@ -235,7 +235,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       capturedLocalVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
         wellDefVariadicArgs(f.args) ++
         f.id.fold(noMessages)(id => wellDefID(id).out) ++
-        error(f, "Opaque function literals are not supported.", f.spec.isOpaque)
+        error(f, "Opaque function literals are not yet supported.", f.spec.isOpaque)
 
     case n: PInvoke => {
       val (l, r) = (exprOrType(n.base), resolve(n))
@@ -246,7 +246,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case Some(_: PIntegerType) => intExprWithinTypeBounds(p.arg, typ)
             case _ => noMessages
           }
-          error(n, "Cannot reveal a conversion.", n.reveal) ++
+          error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a conversion.", n.reveal) ++
             convertibleTo.errors(exprType(p.arg), typ)(n) ++
             isExpr(p.arg).out ++
             argWithinBounds
@@ -276,7 +276,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs
 
         case (Left(_), Some(_: ap.ClosureCall)) =>
-          error(n, "Cannot reveal a closure call.", n.reveal) ++ wellDefCallWithSpec(n)
+          error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a closure call.", n.reveal) ++ wellDefCallWithSpec(n)
 
         case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
           val pureReceiverMsgs = p.predicate match {
@@ -297,7 +297,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n, s"type error: got $t but expected function type or AbstractType")
           }
-          error(n, "Cannot reveal a predicate call.", n.reveal) ++ pureReceiverMsgs ++ pureArgsMsgs ++ argAssignMsgs
+          error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a predicate instance.", n.reveal) ++ pureReceiverMsgs ++ pureArgsMsgs ++ argAssignMsgs
 
         case (Left(callee), Some(_: ap.PredExprInstance)) =>
           val wellTypedArguments = exprType(callee) match {
@@ -306,7 +306,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
             case c => Violation.violation(s"This case should be unreachable, but got $c")
           }
-          error(n, "Cannot reveal a predicate expression instance.", n.reveal) ++ wellTypedArguments
+          error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a predicate expression instance.", n.reveal) ++ wellTypedArguments
 
         case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
       }

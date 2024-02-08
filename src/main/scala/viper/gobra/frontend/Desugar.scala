@@ -567,10 +567,6 @@ object Desugar extends LazyLogging {
     def functionD(decl: PFunctionDecl): in.FunctionMember =
       if (decl.spec.isPure) pureFunctionD(decl) else {
 
-      if (decl.spec.isOpaque) {
-        violation("Cannot make a non-pure function opaque.")
-      }
-
       val name = functionProxyD(decl, info)
       val fsrc = meta(decl, info)
       val functionInfo = functionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)))
@@ -780,11 +776,6 @@ object Desugar extends LazyLogging {
 
     def methodD(decl: PMethodDecl): in.MethodMember =
       if (decl.spec.isPure) pureMethodD(decl) else {
-
-      if (decl.spec.isOpaque) {
-        violation("Cannot make a non-pure method opaque.")
-      }
-
 
       val name = methodProxyD(decl, info)
       val fsrc = meta(decl, info)
@@ -2203,21 +2194,10 @@ object Desugar extends LazyLogging {
         }
       }
 
-      val isOpaque = p.callee match {
-        case base: ap.Symbolic => base.symb match {
-          case f: st.Function => f.isOpaque
-          case m: st.MethodImpl => m.isOpaque
-          case _ => false
-        }
-      }
-
       p.callee match {
         case base: ap.FunctionKind => base match {
           case _: ap.Function | _: ap.BuiltInFunction =>
             if (isPure) {
-              if (expr.reveal && !isOpaque) {
-                violation("Cannot reveal a non-opaque function")
-              }
 
               for {
                 args <- dArgs
@@ -2237,17 +2217,12 @@ object Desugar extends LazyLogging {
             violation(info == iim.symb.context.getTypeInfo,
               "invariance in desugarer violated: interface methods can only be implicitly call in the interface itself")
             if (isPure) {
-              if (expr.reveal && !isOpaque) {
-                violation("Cannot reveal a non-opaque implicitly received interface method")
-              }
               for {
                 args <- dArgs
                 convertedArgs = convertArgs(args)
                 proxy = methodProxy(iim.id, iim.symb.context.getTypeInfo)
                 recvType = typeD(iim.symb.itfType, Addressability.receiver)(src)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-                // I don't know whether this is fully correct, as opaque/reveal should only really be
-                // implemented for normal method calls for now (e.g., not for whatever this is)
               } yield Right(pureMethodCall(implicitThisD(recvType)(src), proxy, args, spec, resT, expr.reveal))
             } else {
               for {
@@ -2288,17 +2263,11 @@ object Desugar extends LazyLogging {
             }
 
             if (isPure) {
-              if (expr.reveal && !isOpaque) {
-                violation("Cannot reveal a non-opaque method")
-              }
-
               for {
                 (recv, args) <- dRecvWithArgs
                 convertedArgs = convertArgs(args)
                 mproxy = getMethodProxy(base, recv, convertedArgs)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-                // I don't know whether this is fully correct, as opaque/reveal should only really be
-                // implemented for normal method calls for now (e.g., not for closures)
               } yield Right(pureMethodCall(recv, mproxy, convertedArgs, spec, resT, expr.reveal))
             } else {
               for {

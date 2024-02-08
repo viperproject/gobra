@@ -35,7 +35,8 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PTypeDecl => isType(n.right).out ++ (n.right match {
       case s: PStructType =>
         error(n, s"invalid recursive type ${n.left.name}", cyclicStructDef(s, Some(n.left)))
-      case s: PInterfaceType =>
+      case s@PInterfaceType(_, methSpecs, _) =>
+        methSpecs.flatMap(m => error(m, "Interface method signatures cannot be opaque.", m.spec.isOpaque)) ++
         error(n, s"invalid recursive type ${n.left.name}", cyclicInterfaceDef(s, Some(n.left)))
       case _ => noMessages
     })

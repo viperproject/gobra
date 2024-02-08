@@ -1,6 +1,9 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
+// This file does not exercise opaque. Rather, it serves as a base case
+// compared to the files opaque-fac2.gobra and opaque-fac3.gobra.
+
 package pkg
 
 ghost

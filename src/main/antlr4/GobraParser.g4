@@ -376,7 +376,7 @@ primaryExpr:
   | primaryExpr slice_ #slicePrimaryExpr
   | primaryExpr seqUpdExp #seqUpdPrimaryExpr
   | primaryExpr typeAssertion #typeAssertionPrimaryExpr
-  // REVEAL? primaryExpr arguments doesn't work due to mutual left recursion
+  // "REVEAL? primaryExpr arguments" doesn't work due to mutual left recursion
   | primaryExpr arguments #invokePrimaryExpr
   | REVEAL primaryExpr arguments #revealInvokePrimaryExpr
   | primaryExpr arguments AS closureSpecInstance #invokePrimaryExprWithSpec

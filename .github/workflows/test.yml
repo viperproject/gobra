@@ -53,6 +53,7 @@ jobs:
           [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v\.?//')
           # Use Docker `latest` tag convention
           [ "$VERSION" == "master" ] && VERSION=latest
+          echo "IMAGE_ID=$IMAGE_ID" >> $GITHUB_ENV
           echo "IMAGE_TAG=$IMAGE_ID:$VERSION" >> $GITHUB_ENV
 
       # used to enable Docker caching (see https://github.com/docker/build-push-action)
@@ -64,6 +65,15 @@ jobs:
           CREATED_LABEL="org.opencontainers.image.created=\"$(date --rfc-3339=seconds)\""
           echo "CREATED_LABEL=$CREATED_LABEL" >> $GITHUB_ENV
 
+      - name: Create image metadata
+        id: image-metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_ID }}
+          labels: |
+            ${{ env.IMAGE_LABELS }}
+            ${{ env.CREATED_LABEL }}
+
       - name: Build image up to including stage 'build'
         id: image-build
         # note that the action's name is misleading: this step does NOT push
@@ -73,10 +83,8 @@ jobs:
           load: true # make the built image available in docker (locally)
           target: build # only build up to and including stage 'build'
           file: workflow-container/Dockerfile
-          tags: ${{ env.IMAGE_TAG }}
-          labels: |
-            ${{ env.IMAGE_LABELS }}
-            ${{ env.CREATED_LABEL }}
+          tags: ${{ steps.image-metadata.outputs.tags }}
+          labels: ${{ steps.image-metadata.outputs.labels }}
           push: false
           # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
@@ -196,10 +204,8 @@ jobs:
           context: .
           load: true # make the built image available in docker (locally)
           file: workflow-container/Dockerfile
-          tags: ${{ env.IMAGE_TAG }}
-          labels: |
-            ${{ env.IMAGE_LABELS }}
-            ${{ env.CREATED_LABEL }}
+          tags: ${{ steps.image-metadata.outputs.tags }}
+          labels: ${{ steps.image-metadata.outputs.labels }}
           push: false
           # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
@@ -241,10 +247,8 @@ jobs:
         with:
           context: .
           file: workflow-container/Dockerfile
-          tags: ${{ env.IMAGE_TAG }}
-          labels: |
-            ${{ env.IMAGE_LABELS }}
-            ${{ env.CREATED_LABEL }}
+          tags: ${{ steps.image-metadata.outputs.tags }}
+          labels: ${{ steps.image-metadata.outputs.labels }}
           push: true
           # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}

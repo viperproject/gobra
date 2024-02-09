@@ -60,12 +60,15 @@ jobs:
             ${{ env.IMAGE_LABELS }}
             ${{ env.CREATED_LABEL }}
           tags: |
+            # the first 4 tags correspond to the default options
             type=schedule
             type=ref,event=branch
             type=ref,event=tag
             type=ref,event=pr
+            # use (short) commit hash as tag:
             type=sha
-          # the first 4 tags correspond to the default options. We additionally add the commit hash
+            # set latest tag for default branch:
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Get first tag
         run: echo "IMAGE_TAG=$(echo "${{ steps.image-metadata.outputs.tags }}" | head -1)" >> $GITHUB_ENV

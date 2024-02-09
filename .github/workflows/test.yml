@@ -33,7 +33,7 @@ jobs:
           SILICON_SILVER_REF=$(git -C viperserver/silicon/silver rev-parse HEAD) && \
           CARBON_SILVER_REF=$(git -C viperserver/carbon/silver rev-parse HEAD) && \
           if [ "$SILICON_SILVER_REF" != "$CARBON_SILVER_REF" ]; then echo "Silicon and Carbon reference different Silver commits ($SILICON_SILVER_REF and $CARBON_SILVER_REF)" && exit 1 ; fi
-      - name: Create image tag
+      - name: Create image tag and labels
         run: |
           IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
 
@@ -46,6 +46,15 @@ jobs:
           # Use Docker `latest` tag convention
           [ "$VERSION" == "master" ] && VERSION=latest
           echo "IMAGE_TAG=$IMAGE_ID:$VERSION" >> $GITHUB_ENV
+          # image labels are new-line separated key value pairs (according to https://specs.opencontainers.org/image-spec/annotations/)
+          CREATED_LABEL="org.opencontainers.image.created=$(date --rfc-3339=seconds)"
+          AUTHORS_LABEL="org.opencontainers.image.authors=Viper Project (https://viper.ethz.ch)"
+          URL_LABEL="org.opencontainers.image.url=https://github.com/viperproject/gobra/pkgs/container/gobra"
+          SOURCE_LABEL="org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}"
+          REVISION_LABEL="org.opencontainers.image.revision=${{ github.sha }}"
+          LICENSE_LABEL="org.opencontainers.image.licenses=MPL-2.0"
+          DESCRIPTION_LABEL="org.opencontainers.image.description=Gobra image for revision ${{ github.sha }} built by workflow run ${{ github.run_id }}"
+          echo "IMAGE_LABELS=CREATED_LABEL\nAUTHORS_LABEL\nURL_LABEL\nSOURCE_LABEL\nREVISION_LABEL\nLICENSE_LABEL\nDESCRIPTION_LABEL" >> $GITHUB_ENV
 
       # used to enable Docker caching (see https://github.com/docker/build-push-action)
       - name: Set up Docker Buildx
@@ -60,7 +69,7 @@ jobs:
           target: build # only build up to and including stage 'build'
           file: workflow-container/Dockerfile
           tags: ${{ env.IMAGE_TAG }}
-          labels: "runnumber=${{ github.run_id }}"
+          labels: ${{ env.IMAGE_LABELS }}
           push: false
           # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
@@ -173,7 +182,7 @@ jobs:
           load: true # make the built image available in docker (locally)
           file: workflow-container/Dockerfile
           tags: ${{ env.IMAGE_TAG }}
-          labels: "runnumber=${{ github.run_id }}"
+          labels: ${{ env.IMAGE_LABELS }}
           push: false
           # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
@@ -202,7 +211,7 @@ jobs:
           echo "SHOULD_DEPLOY=$SHOULD_DEPLOY" >> $GITHUB_ENV
 
       - name: Login to Github Packages
-        if: env.SHOULD_DEPLOY == 'true'
+        # if: env.SHOULD_DEPLOY == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -210,13 +219,13 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push entire image
-        if: env.SHOULD_DEPLOY == 'true'
+        # if: env.SHOULD_DEPLOY == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
           file: workflow-container/Dockerfile
           tags: ${{ env.IMAGE_TAG }}
-          labels: "runnumber=${{ github.run_id }}"
+          labels: ${{ env.IMAGE_LABELS }}
           push: true
           # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}

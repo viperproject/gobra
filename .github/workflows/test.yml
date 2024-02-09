@@ -86,6 +86,7 @@ jobs:
           tags: ${{ steps.image-metadata.outputs.tags }}
           labels: ${{ steps.image-metadata.outputs.labels }}
           push: false
+          provenance: false # without this, GH displays 2 architecture (unknown/unknown) and omits labels
           # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
           cache-to: type=gha, scope=${{ github.workflow }}
@@ -207,6 +208,7 @@ jobs:
           tags: ${{ steps.image-metadata.outputs.tags }}
           labels: ${{ steps.image-metadata.outputs.labels }}
           push: false
+          provenance: false # without this, GH displays 2 architecture (unknown/unknown) and omits labels
           # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
           cache-to: type=gha, scope=${{ github.workflow }}
@@ -250,6 +252,7 @@ jobs:
           tags: ${{ steps.image-metadata.outputs.tags }}
           labels: ${{ steps.image-metadata.outputs.labels }}
           push: true
+          provenance: false # without this, GH displays 2 architecture (unknown/unknown) and omits labels
           # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
           cache-to: type=gha, scope=${{ github.workflow }}

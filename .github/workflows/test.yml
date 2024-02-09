@@ -16,6 +16,14 @@ jobs:
     runs-on: ubuntu-latest
     env:
       IMAGE_NAME: gobra
+      IMAGE_LABELS: |
+        org.opencontainers.image.created=$(date --rfc-3339=seconds)
+        org.opencontainers.image.authors=Viper Project (https://viper.ethz.ch)
+        org.opencontainers.image.url=https://github.com/viperproject/gobra/pkgs/container/gobra
+        org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+        org.opencontainers.image.revision=${{ github.sha }}
+        org.opencontainers.image.licenses=MPL-2.0
+        org.opencontainers.image.description=Gobra image for revision ${{ github.sha }} built by workflow run ${{ github.run_id }}
       CONCLUSION_SUCCESS: "success"
       CONCLUSION_FAILURE: "failure"
       # Output levels according to severity.
@@ -47,14 +55,14 @@ jobs:
           [ "$VERSION" == "master" ] && VERSION=latest
           echo "IMAGE_TAG=$IMAGE_ID:$VERSION" >> $GITHUB_ENV
           # image labels are new-line separated key value pairs (according to https://specs.opencontainers.org/image-spec/annotations/)
-          CREATED_LABEL="org.opencontainers.image.created=$(date --rfc-3339=seconds)"
-          AUTHORS_LABEL="org.opencontainers.image.authors=Viper Project (https://viper.ethz.ch)"
-          URL_LABEL="org.opencontainers.image.url=https://github.com/viperproject/gobra/pkgs/container/gobra"
-          SOURCE_LABEL="org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}"
-          REVISION_LABEL="org.opencontainers.image.revision=${{ github.sha }}"
-          LICENSE_LABEL="org.opencontainers.image.licenses=MPL-2.0"
-          DESCRIPTION_LABEL="org.opencontainers.image.description=Gobra image for revision ${{ github.sha }} built by workflow run ${{ github.run_id }}"
-          echo "IMAGE_LABELS=$CREATED_LABEL\n$AUTHORS_LABEL\n$URL_LABEL\n$SOURCE_LABEL\n$REVISION_LABEL\n$LICENSE_LABEL\n$DESCRIPTION_LABEL" >> $GITHUB_ENV
+          # CREATED_LABEL="org.opencontainers.image.created=$(date --rfc-3339=seconds)"
+          # AUTHORS_LABEL="org.opencontainers.image.authors=Viper Project (https://viper.ethz.ch)"
+          # URL_LABEL="org.opencontainers.image.url=https://github.com/viperproject/gobra/pkgs/container/gobra"
+          # SOURCE_LABEL="org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}"
+          # REVISION_LABEL="org.opencontainers.image.revision=${{ github.sha }}"
+          # LICENSE_LABEL="org.opencontainers.image.licenses=MPL-2.0"
+          # DESCRIPTION_LABEL="org.opencontainers.image.description=Gobra image for revision ${{ github.sha }} built by workflow run ${{ github.run_id }}"
+          # echo "IMAGE_LABELS=$CREATED_LABEL\n$AUTHORS_LABEL\n$URL_LABEL\n$SOURCE_LABEL\n$REVISION_LABEL\n$LICENSE_LABEL\n$DESCRIPTION_LABEL" >> $GITHUB_ENV
 
       # used to enable Docker caching (see https://github.com/docker/build-push-action)
       - name: Set up Docker Buildx

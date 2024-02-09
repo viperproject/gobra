@@ -84,8 +84,11 @@ jobs:
           cache-from: type=gha, scope=${{ github.workflow }}
           cache-to: type=gha, scope=${{ github.workflow }}
 
-      # - name: Print metadata
-      #   run: echo ${{ steps.image-build.outputs.metadata }}
+      - name: Print metadata
+        run: |
+          echo "${{ steps.image-metadata.outputs.tags }}"
+          echo "${{ steps.image-metadata.outputs.tags[0] }}"
+          echo "${{ steps.image-metadata.outputs.tags[1] }}"
 
       - name: Execute all tests
         run: |

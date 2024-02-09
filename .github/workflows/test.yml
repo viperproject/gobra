@@ -18,12 +18,12 @@ jobs:
       IMAGE_NAME: gobra
       # image labels are new-line separated key value pairs (according to https://specs.opencontainers.org/image-spec/annotations/):
       IMAGE_LABELS: |
-        org.opencontainers.image.authors="Viper Project (https://viper.ethz.ch)"
-        org.opencontainers.image.url="https://github.com/viperproject/gobra/pkgs/container/gobra"
-        org.opencontainers.image.source="${{ github.server_url }}/${{ github.repository }}"
-        org.opencontainers.image.revision="${{ github.sha }}"
-        org.opencontainers.image.licenses="MPL-2.0"
-        org.opencontainers.image.description="Gobra image for revision ${{ github.sha }} built by workflow run ${{ github.run_id }}"
+        org.opencontainers.image.authors=Viper Project <https://viper.ethz.ch>
+        org.opencontainers.image.url=https://github.com/viperproject/gobra/pkgs/container/gobra
+        org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+        org.opencontainers.image.revision=${{ github.sha }}
+        org.opencontainers.image.licenses=MPL-2.0
+        org.opencontainers.image.description=Gobra image for revision ${{ github.sha }} built by workflow run ${{ github.run_id }}
       CONCLUSION_SUCCESS: "success"
       CONCLUSION_FAILURE: "failure"
       # Output levels according to severity.
@@ -62,7 +62,7 @@ jobs:
 
       - name: Create image creation label
         run: |
-          CREATED_LABEL="org.opencontainers.image.created=\"$(date --rfc-3339=seconds)\""
+          CREATED_LABEL="org.opencontainers.image.created=$(date --rfc-3339=seconds)"
           echo "CREATED_LABEL=$CREATED_LABEL" >> $GITHUB_ENV
 
       - name: Create image metadata

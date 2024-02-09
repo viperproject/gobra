@@ -60,13 +60,13 @@ jobs:
           labels: |
             ${{ env.IMAGE_LABELS }}
             ${{ env.CREATED_LABEL }}
-          tags:
+          tags: |
             type=schedule
             type=ref,event=branch
             type=ref,event=tag
             type=ref,event=pr
-            # these are the default options so far. We additionally add the commit hash:
             type=sha
+          # the first 4 tags correspond to the default options. We additionally add the commit hash
 
       - name: Build image up to including stage 'build'
         id: image-build

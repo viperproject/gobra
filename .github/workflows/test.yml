@@ -10,15 +10,12 @@ on:
   push: # run this workflow on every push
   pull_request: # run this workflow on every pull_request
 
-env:
-  IMAGE_NAME: gobra
-
 jobs:
   # there is a single job to avoid copying the built docker image from one job to the other
   build-test-deploy-container:
     runs-on: ubuntu-latest
     env:
-      IMAGE_ID: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+      IMAGE_ID: ghcr.io/${{ github.repository_owner }}/gobra
       # image labels are new-line separated key value pairs (according to https://specs.opencontainers.org/image-spec/annotations/):
       IMAGE_LABELS: |
         org.opencontainers.image.authors=Viper Project <https://viper.ethz.ch>

@@ -67,8 +67,8 @@ jobs:
             type=ref,event=pr
             # use (short) commit hash as tag:
             type=sha
-            # set latest tag for default branch:
-            type=raw,value=latest,enable={{is_default_branch}}
+            # use latest tag for default branch and with highest priority (1000 is the highest default priority for the other types):
+            type=raw,value=latest,priority=1100,enable={{is_default_branch}}
 
       - name: Get first tag
         run: echo "IMAGE_TAG=$(echo "${{ steps.image-metadata.outputs.tags }}" | head -1)" >> $GITHUB_ENV

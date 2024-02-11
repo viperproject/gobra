@@ -15,7 +15,15 @@ jobs:
   build-test-deploy-container:
     runs-on: ubuntu-latest
     env:
-      IMAGE_NAME: gobra
+      IMAGE_ID: ghcr.io/${{ github.repository_owner }}/gobra
+      # image labels are new-line separated key value pairs (according to https://specs.opencontainers.org/image-spec/annotations/):
+      IMAGE_LABELS: |
+        org.opencontainers.image.authors=Viper Project <https://viper.ethz.ch>
+        org.opencontainers.image.url=https://github.com/viperproject/gobra/pkgs/container/gobra
+        org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+        org.opencontainers.image.revision=${{ github.sha }}
+        org.opencontainers.image.licenses=MPL-2.0
+        org.opencontainers.image.description=Gobra image for revision ${{ github.sha }} built by workflow run ${{ github.run_id }}
       CONCLUSION_SUCCESS: "success"
       CONCLUSION_FAILURE: "failure"
       # Output levels according to severity.
@@ -33,25 +41,40 @@ jobs:
           SILICON_SILVER_REF=$(git -C viperserver/silicon/silver rev-parse HEAD) && \
           CARBON_SILVER_REF=$(git -C viperserver/carbon/silver rev-parse HEAD) && \
           if [ "$SILICON_SILVER_REF" != "$CARBON_SILVER_REF" ]; then echo "Silicon and Carbon reference different Silver commits ($SILICON_SILVER_REF and $CARBON_SILVER_REF)" && exit 1 ; fi
-      - name: Create image tag
-        run: |
-          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
-
-          # Change all uppercase to lowercase
-          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
-          # Strip git ref prefix from version
-          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
-          # Strip "v" prefix from tag name
-          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v\.?//')
-          # Use Docker `latest` tag convention
-          [ "$VERSION" == "master" ] && VERSION=latest
-          echo "IMAGE_TAG=$IMAGE_ID:$VERSION" >> $GITHUB_ENV
 
       # used to enable Docker caching (see https://github.com/docker/build-push-action)
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Create image creation label
+        run: |
+          CREATED_LABEL="org.opencontainers.image.created=$(date --rfc-3339=seconds)"
+          echo "CREATED_LABEL=$CREATED_LABEL" >> $GITHUB_ENV
+
+      - name: Create image metadata
+        id: image-metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_ID }}
+          labels: |
+            ${{ env.IMAGE_LABELS }}
+            ${{ env.CREATED_LABEL }}
+          tags: |
+            # the first 4 tags correspond to the default options
+            type=schedule
+            type=ref,event=branch
+            type=ref,event=tag
+            type=ref,event=pr
+            # use (short) commit hash as tag:
+            type=sha
+            # use latest tag for default branch and with highest priority (1000 is the highest default priority for the other types):
+            type=raw,value=latest,priority=1100,enable={{is_default_branch}}
+
+      - name: Get first tag
+        run: echo "IMAGE_TAG=$(echo "${{ steps.image-metadata.outputs.tags }}" | head -1)" >> $GITHUB_ENV
+
       - name: Build image up to including stage 'build'
+        id: image-build
         # note that the action's name is misleading: this step does NOT push
         uses: docker/build-push-action@v5
         with:
@@ -59,9 +82,10 @@ jobs:
           load: true # make the built image available in docker (locally)
           target: build # only build up to and including stage 'build'
           file: workflow-container/Dockerfile
-          tags: ${{ env.IMAGE_TAG }}
-          labels: "runnumber=${{ github.run_id }}"
+          tags: ${{ steps.image-metadata.outputs.tags }}
+          labels: ${{ steps.image-metadata.outputs.labels }}
           push: false
+          provenance: false # without this, GH displays 2 architecture (unknown/unknown) and omits labels
           # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
           cache-to: type=gha, scope=${{ github.workflow }}
@@ -172,9 +196,10 @@ jobs:
           context: .
           load: true # make the built image available in docker (locally)
           file: workflow-container/Dockerfile
-          tags: ${{ env.IMAGE_TAG }}
-          labels: "runnumber=${{ github.run_id }}"
+          tags: ${{ steps.image-metadata.outputs.tags }}
+          labels: ${{ steps.image-metadata.outputs.labels }}
           push: false
+          provenance: false # without this, GH displays 2 architecture (unknown/unknown) and omits labels
           # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
           cache-to: type=gha, scope=${{ github.workflow }}
@@ -215,9 +240,10 @@ jobs:
         with:
           context: .
           file: workflow-container/Dockerfile
-          tags: ${{ env.IMAGE_TAG }}
-          labels: "runnumber=${{ github.run_id }}"
+          tags: ${{ steps.image-metadata.outputs.tags }}
+          labels: ${{ steps.image-metadata.outputs.labels }}
           push: true
+          provenance: false # without this, GH displays 2 architecture (unknown/unknown) and omits labels
           # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
           cache-to: type=gha, scope=${{ github.workflow }}

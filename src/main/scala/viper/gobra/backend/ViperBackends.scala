@@ -44,6 +44,9 @@ object ViperBackends {
         case MCE.OnDemand => "2"
       }
       options ++= Vector(s"--exhaleMode=$mceSiliconOpt")
+      // Gobra seems to be much slower with the new silicon axiomatization of collections.
+      // For now, we stick to the old one.
+      options ++= Vector("--useOldAxiomatization")
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }
@@ -128,6 +131,9 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
+      // Gobra seems to be much slower with the new silicon axiomatization of collections.
+      // For now, we stick to the old one.
+      options ++= Vector("--useOldAxiomatization")
       val mceSiliconOpt = config.mceMode match {
         case MCE.Disabled => "0"
         case MCE.Enabled  => "1"

@@ -8,6 +8,7 @@ package viper.gobra.translator.transformers
 import java.nio.file.Path
 import viper.gobra.backend.BackendVerifier
 import viper.silicon.Silicon
+import viper.silver.ast.utility.FileLoader
 import viper.silver.{ast => vpr}
 import viper.silver.frontend.{DefaultStates, ViperAstProvider}
 import viper.silver.plugin.SilverPlugin
@@ -134,8 +135,8 @@ class TerminationTransformer extends ViperTransformer {
       resetMessages()
     }
 
-    override def execute(args: Seq[String] = Seq()): Unit = {
-      super.execute(args ++ Seq("--ignoreFile", Silicon.dummyInputFilename))
+    override def execute(args: Seq[String] = Seq(), loader: Option[FileLoader] = None): Unit = {
+      super.execute(args ++ Seq("--ignoreFile", Silicon.dummyInputFilename), loader)
     }
   }
 }

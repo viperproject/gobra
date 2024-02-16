@@ -15,7 +15,6 @@ import viper.silver.ast.{Position => GobraPosition}
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-import viper.gobra.util.Violation.violation
 
 trait PrettyPrinter {
   def format(node : Node): String

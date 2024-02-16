@@ -44,6 +44,6 @@ class TerminationEncoding extends Encoding {
     for {
       v <- ctx.assertion(in.Access(in.Accessible.Predicate(x), in.FullPerm(x.info))(x.info))
       pap = v.asInstanceOf[vpr.PredicateAccessPredicate]
-    } yield predicateinstance.PredicateInstance(pap.loc.args, pap.loc.predicateName)(pos, info, errT)
+    } yield predicateinstance.PredicateInstance(pap.loc.predicateName, pap.loc.args)(pos, info, errT)
   }
 }

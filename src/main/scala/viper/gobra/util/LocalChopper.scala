@@ -679,10 +679,14 @@ object LocalChopper {
     case class DomainFunction(funcName: String) extends Vertex
 
     /** Represents a Viper domain axiom declaration. */
-    case class DomainAxiom(v: ast.DomainAxiom, d: ast.Domain) extends Vertex
+    case class DomainAxiom(v: ast.DomainAxiom, d: ast.Domain) extends Vertex {
+      override def toString: String = s"DomainAxiom(${d.name})"
+    }
 
     /** Represents a Viper domain type declaration. */
-    case class DomainType(v: ast.DomainType) extends Vertex
+    case class DomainType(v: ast.DomainType) extends Vertex {
+      override def toString: String = s"DomainType(${v.domainName})"
+    }
 
     /**
       * Represents a dependency that must be included in all programs.
@@ -831,47 +835,27 @@ object LocalChopper {
             }
 
             val mid = Vertex.DomainAxiom(ax, d)
-
-            val dependenciesWithoutQuantifiers = {
+            val dependenciesFromAxiom = dependenciesToChildren(ax.exp, mid)
+            val dependenciesToAxiom = {
               /**
-                * For the part of axioms without triggers, we do not distinct between
-                * vertices that depend on the axiom and vertices that the axiom depends on.
-                * Instead, all vertices that are in a relation with the axiom
-                * are considered as dependencies in both directions (from and to the axiom).
-                * If no other related vertices can be identified, then the axiom is always included,
-                * as a conservative choice.
+                * All uses outside of quantified expressions and uses in triggers
+                * depend on the axiom.
                 */
+              val outsideQuantifiers = Visitor.deepCollect[ast.Node, Seq[Vertex]](Seq(ax.exp), {
+                case x: ast.Forall if x.triggers.nonEmpty => Seq.empty
+                case x: ast.Exists if x.triggers.nonEmpty => Seq.empty
+                case x => Nodes.subnodes(x)
+              })(flatUsages).flatten
 
-              // `tos` can be used as source because axioms do not contain un-/foldings.
-              val tos = usagesWithoutQuantifiers(ax.exp)
-              val froms = removeAxiomDomain(tos)
-
-              if (froms.nonEmpty) {
-                froms.map(_ -> mid) ++ tos.map(mid -> _)
-              } else {
-                (Vertex.Always -> mid) +: tos.map(mid -> _)
-              }
-            }
-
-            val quantifierInducedDependencies = {
-              /**
-                * For quantifiers, we add a dependencies from the triggers use to
-                * (1) the axiom, so that the axiom is included if a trigger may appear in a program,
-                * (2) and the body uses, so that the parts necessary for the quantifier body are included.
-                */
-              def triggerDependencies(triggers: Seq[ast.Trigger], exp: ast.Exp): Seq[(Vertex, Vertex)] = {
-                val froms = removeAxiomDomain(triggers.flatMap(usages))
-                val tos = mid +: usagesWithoutQuantifiers(exp)
-                for {a <- froms; b <- tos} yield a -> b
-              }
-
-              (ax.exp deepCollect {
-                case x: ast.Forall if x.triggers.nonEmpty => triggerDependencies(x.triggers, x.exp)
-                case x: ast.Exists if x.triggers.nonEmpty => triggerDependencies(x.triggers, x.exp)
+              val quantifierTriggers = (ax.exp deepCollect {
+                case x: ast.Forall if x.triggers.nonEmpty => x.triggers.flatMap(usages)
+                case x: ast.Exists if x.triggers.nonEmpty => x.triggers.flatMap(usages)
               }).flatten
+
+              removeAxiomDomain(outsideQuantifiers ++ quantifierTriggers).map(_ -> mid)
             }
 
-            dependenciesWithoutQuantifiers ++ quantifierInducedDependencies
+            dependenciesFromAxiom ++ dependenciesToAxiom
 
           } ++ d.functions.flatMap { f => dependenciesToChildren(f, Vertex.DomainFunction(f.name)) }
 
@@ -902,47 +886,26 @@ object LocalChopper {
       n.deepCollect(flatUsages).flatten
     }
 
-    /**
-      * Returns all entities referenced in the subtree of node `n` w/o foralls and exists.
-      * May only be used as the target of a dependency.
-      * The result is an unsorted sequence of vertices.
-      * The vertices are never sorted, and duplicates are fine.
-      * Note that they are sorted indirectly when the edges are sorted.
-      * */
-    def usagesWithoutQuantifiers(n: ast.Node): Seq[Vertex] = {
-
-      // does not collect subnodes of foralls and exists with triggers
-      def collect(f: PartialFunction[ast.Node,Seq[Vertex]]): Seq[Vertex] = {
-        Visitor.deepCollect[ast.Node,Seq[Vertex]](Seq(n), {
-          case x: ast.Forall if x.triggers.nonEmpty => Seq.empty
-          case x: ast.Exists if x.triggers.nonEmpty => Seq.empty
-          case x => Nodes.subnodes(x)
-        })(f).flatten
-      }
-
-      collect(flatUsages)
+    /** May only be used as the target of a dependency. */
+    private def flatUsages: PartialFunction[ast.Node, Seq[Vertex]] = {
+      case n: ast.MethodCall => Seq(Vertex.MethodSpec(n.methodName))
+      case n: ast.FuncApp => Seq(Vertex.Function(n.funcname))
+      case n: ast.DomainFuncApp => Seq(Vertex.DomainFunction(n.funcname))
+      case n: ast.PredicateAccess => Seq(Vertex.PredicateSig(n.predicateName))
+      // The call is fine because the result is used as the target of a dependency.
+      case n: ast.Unfold => Seq(Vertex.predicateBody_check_that_call_is_ok(n.acc.loc.predicateName))
+      case n: ast.Fold => Seq(Vertex.predicateBody_check_that_call_is_ok(n.acc.loc.predicateName))
+      case n: ast.Unfolding => Seq(Vertex.predicateBody_check_that_call_is_ok(n.acc.loc.predicateName))
+      case n: ast.FieldAccess => Seq(Vertex.Field(n.field.name))
+      case n: ast.Type => usagesInType(n).collect { case t: ast.DomainType => Vertex.DomainType(t) }
     }
-  }
 
-  /** May only be used as the target of a dependency. */
-  private def flatUsages: PartialFunction[ast.Node,Seq[Vertex]] = {
-    case n: ast.MethodCall => Seq(Vertex.MethodSpec(n.methodName))
-    case n: ast.FuncApp => Seq(Vertex.Function(n.funcname))
-    case n: ast.DomainFuncApp => Seq(Vertex.DomainFunction(n.funcname))
-    case n: ast.PredicateAccess => Seq(Vertex.PredicateSig(n.predicateName))
-    // The call is fine because the result is used as the target of a dependency.
-    case n: ast.Unfold => Seq(Vertex.predicateBody_check_that_call_is_ok(n.acc.loc.predicateName))
-    case n: ast.Fold => Seq(Vertex.predicateBody_check_that_call_is_ok(n.acc.loc.predicateName))
-    case n: ast.Unfolding => Seq(Vertex.predicateBody_check_that_call_is_ok(n.acc.loc.predicateName))
-    case n: ast.FieldAccess => Seq(Vertex.Field(n.field.name))
-    case n: ast.Type => usagesInType(n).collect { case t: ast.DomainType => Vertex.DomainType(t) }
+    /** Returns all usages in the type `t`. */
+    private def usagesInType(t: ast.Type): Seq[ast.Type] = t +: (t match {
+      case t: ast.GenericType => t.typeArguments.flatMap(usagesInType)
+      case _ => Seq.empty
+    })
   }
-
-  /** Returns all usages in the type `t`. */
-  private def usagesInType(t: ast.Type): Seq[ast.Type] = t +: (t match {
-    case t: ast.GenericType => t.typeArguments.flatMap(usagesInType)
-    case _ => Seq.empty
-  })
 
   /**
     * Implements Tarjan's strongly connected component algorithm.

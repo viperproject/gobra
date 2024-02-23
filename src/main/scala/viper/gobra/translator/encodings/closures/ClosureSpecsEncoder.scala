@@ -28,8 +28,12 @@ protected class ClosureSpecsEncoder {
     * */
   def closureImplementsExpression(a: in.ClosureImplements)(ctx: Context): CodeWriter[vpr.Exp] = {
     register(a.spec)(ctx, a.info)
-    ctx.expression(in.DomainFunctionCall(implementsFunctionProxy(a.spec)(a.info),
-      Vector(a.closure) ++ a.spec.params.toVector.sortBy(_._1).map(_._2), in.BoolT(Addressability.rValue))(a.info))
+
+    ctx.expression(in.DomainFunctionCall(
+      implementsFunctionProxy(a.spec)(a.info),
+      closureCallArgs(a.closure, Vector.empty, a.spec)(ctx),
+      in.BoolT(Addressability.rValue)
+    )(a.info))
   }
 
   /**
@@ -190,10 +194,7 @@ protected class ClosureSpecsEncoder {
     * function closureImplements$[spec]$[idx of params](closure: Closure, [params name and type]): Bool
     * */
   private def implementsFunction(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): vpr.DomainFunc = {
-    val closurePar = in.Parameter.In(Names.closureArg, genericFuncType)(info)
-    val params = spec.params.map(p => in.Parameter.In(Names.closureImplementsParam(p._1), p._2.typ.withAddressability(Addressability.inParameter))(p._2.info))
-    val args = (Vector(closurePar) ++ params) map ctx.variable
-    vpr.DomainFunc(implementsFunctionName(spec), args, vpr.Bool)(domainName = Names.closureDomain)
+    vpr.DomainFunc(implementsFunctionName(spec), closureCallParams(spec)(ctx, info) map ctx.variable, vpr.Bool)(domainName = Names.closureDomain)
   }
 
   /**
@@ -201,6 +202,7 @@ protected class ClosureSpecsEncoder {
     * function closureGet$[fName](captvar1_0: Type0, captvar2_0: Type0, captvar1_1: Type1, ...): Closure
     *   ensures [result implements fName]
     *   for X-th captured variable of T-th type: ensures captVarXClosure_T(result) == captvarX_T(result)
+    *   ensures [result != nil]
     * */
   private def closureGetter(func: in.FunctionMemberOrLitProxy)(ctx: Context): MemberWriter[vpr.Member] = {
     val proxy = closureGetterFunctionProxy(func)
@@ -208,7 +210,8 @@ protected class ClosureSpecsEncoder {
     val result = in.Parameter.Out(Names.closureArg, genericFuncType)(info)
     val satisfiesSpec = in.ExprAssertion(in.ClosureImplements(result, in.ClosureSpec(func, Map.empty)(info))(info))(info)
     val (args, captAssertions) = capturedArgsAndAssertions(ctx)(result, captured(ctx)(func), info)
-    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions, Vector.empty, None, false)(memberOrLit(ctx)(func).info)
+    val notNil = in.ExprAssertion(in.UneqCmp(result, in.NilLit(genericFuncType)(info))(info))(info)
+    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions :+ notNil, Vector.empty, None, false)(memberOrLit(ctx)(func).info)
     ctx.defaultEncoding.pureFunction(getter)(ctx)
   }
 
@@ -219,12 +222,25 @@ protected class ClosureSpecsEncoder {
   private def closureCallArgs(closure: in.Expr, args: Vector[in.Expr], spec: in.ClosureSpec)(ctx: Context): Vector[in.Expr] = {
     val capt = captured(ctx)(spec.func)
     val captProxies = captVarProxies(ctx)(capt.map(_._1.typ), spec.func.info)
+    // TODO: replace domain function call with variable if captured variable is in scope (inside, function literals, exchange with recaptured variable if present)
     val captArgs = (1 to capt.size).map(i => in.DomainFunctionCall(captProxies(i-1), Vector(closure), capt(i-1)._2.typ)(closure.info))
     val argsAndParams = {
       var argsUsed = 0
       (1 to (args.size + spec.params.size)).map(i => if (spec.params.contains(i)) spec.params(i) else { argsUsed += 1; args(argsUsed-1) })
     }
     Vector(closure) ++ captArgs ++ argsAndParams
+  }
+
+  /**
+    * Returns the parameters for an encoded closure call:
+    * (closure, args, fName{params}) -> (closure, vars captured by fName, args + params)
+    */
+  private def closureCallParams(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): Vector[in.Parameter] = {
+    val closurePar = in.Parameter.In(Names.closureArg, genericFuncType)(info)
+    val capt = captured(ctx)(spec.func)
+    val captArgs = (1 to capt.size).map(i => in.Parameter.In(Names.closureCaptVarParam(i), capt(i - 1)._2.typ.withAddressability(Addressability.inParameter))(closurePar.info))
+    val params = spec.params.map(p => in.Parameter.In(Names.closureParam(p._1), p._2.typ.withAddressability(Addressability.inParameter))(p._2.info))
+    Vector(closurePar) ++ captArgs ++ params
   }
 
   /**
@@ -278,14 +294,9 @@ protected class ClosureSpecsEncoder {
     val func = memberOrLit(ctx)(spec.func)
     val closurePar = in.Parameter.In(Names.closureArg, genericFuncType)(func.info)
     val captArgs = captured(ctx)(spec.func).map(_._2)
-    val implementsAssertion = if (captArgs.isEmpty)
-      Some(in.ExprAssertion(in.ClosureImplements(closurePar, specWithFuncArgs(spec, func))(spec.info))(spec.info)) else None
-    val fromClosureGetter = if (captArgs.nonEmpty)
-      Some(in.ExprAssertion(in.EqCmp(closurePar,
-        in.PureFunctionCall(closureGetterFunctionProxy(spec.func), captArgs, genericFuncType, false)(spec.info))(spec.info)
-      )(spec.info)) else None
+    val implementsAssertion = in.ExprAssertion(in.ClosureImplements(closurePar, specWithFuncArgs(spec, func))(spec.info))(spec.info)
     val args = Vector(closurePar) ++ captArgs ++ func.args
-    val pres = implementsAssertion.toVector ++ fromClosureGetter ++ func.pres
+    val pres = implementsAssertion +: func.pres
 
     // Store the origin of the spec; if the first precondition fails, we use this to recognise and transform the error message
     implementAssertionSpecOriginToStr += spec.info.origin.get -> spec.info.tag

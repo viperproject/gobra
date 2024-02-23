@@ -117,7 +117,8 @@ object Names {
   def closureGetter: String = "closureGet"
   def closureCall: String = "closureCall"
   def closureImplementsFunc: String = "closureImplements"
-  def closureImplementsParam(i: Int): String = s"param$i"
+  def closureCaptVarParam(i: Int): String = s"captVarParam$i"
+  def closureParam(i: Int): String = s"param$i"
   def closureProofIterator: String = "closureProofIterator"
 
   // interface

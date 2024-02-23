@@ -5,6 +5,5 @@ package issue000713
 
 func foo() {
     f := func g() {}
-
     assert f != nil
 }

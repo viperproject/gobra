@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type X adt {
+  C{ c any }
+}
+
+func foo() {
+  x := C{5}
+  var i any = x
+
+  assert typeOf(i) == type[X]
+  assert i.(X).c == 5
+  assert i == C{5}
+
+  i = C{5}
+
+  assert typeOf(i) == type[X]
+  assert i.(X).c == 5
+  assert i == C{5}
+}

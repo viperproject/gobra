@@ -342,6 +342,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     *   ensures soffset(result) == offset
     *   ensures slen(result) == len
     *   ensures scap(result) == cap
+    *   dereases _
     * }}}
     */
   private val constructGenerator : FunctionGenerator[vpr.Type] = new FunctionGenerator[vpr.Type] {
@@ -357,6 +358,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val pre2 = synthesized(vpr.LeCmp(vpr.IntLit(0)(), lenDecl.localVar))("Slice length might be negative")
       val pre3 = synthesized(vpr.LeCmp(lenDecl.localVar, capDecl.localVar))("Slice length might exceed capacity")
       val pre4 = synthesized(vpr.LeCmp(vpr.Add(offsetDecl.localVar, capDecl.localVar)(), ctx.array.len(aDecl.localVar)()))("Slice capacity might exceed the capacity of the underlying array")
+      val pre5 = synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
 
       // postconditions
       val result = vpr.Result(ctx.slice.typ(typ))()
@@ -369,7 +371,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         s"${Names.sliceConstruct}_${Names.serializeType(typ)}",
         Seq(aDecl, offsetDecl, lenDecl, capDecl),
         ctx.slice.typ(typ),
-        Seq(pre1, pre2, pre3, pre4),
+        Seq(pre1, pre2, pre3, pre4, pre5),
         Seq(post1, post2, post3, post4),
         None
       )()
@@ -509,6 +511,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     *   ensures slen(result) == j - i
     *   ensures scap(result) == alen(a) - i
     *   ensures sarray(result) == a
+    *   decreases _
     * {
     *   sfullSliceFromArray(a, i, j, alen(a))
     * }
@@ -525,6 +528,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val pre1 = synthesized(vpr.LeCmp(vpr.IntLit(0)(), iDecl.localVar))("The low bound of the slice might be negative")
       val pre2 = synthesized(vpr.LeCmp(iDecl.localVar, jDecl.localVar))("The low bound of the slice might exceed the high bound")
       val pre3 = synthesized(vpr.LeCmp(jDecl.localVar, ctx.array.len(aDecl.localVar)()))("The high bound of the slice might exceed the array capacity")
+      val pre4 = synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
 
       // postconditions
       val result = vpr.Result(ctx.slice.typ(typ))()
@@ -545,7 +549,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         s"${Names.sliceFromArray}_${Names.serializeType(typ)}",
         Seq(aDecl, iDecl, jDecl),
         ctx.slice.typ(typ),
-        Seq(pre1, pre2, pre3),
+        Seq(pre1, pre2, pre3, pre4),
         Seq(post1, post2, post3, post4),
         if (generateFunctionBodies) Some(body) else None
       )()

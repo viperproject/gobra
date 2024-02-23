@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, n
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec, MethodSpec}
-import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, BooleanT, FunctionT, PredT, Type, UnknownType}
+import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, BooleanT, DeclaredT, FunctionT, PredT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -54,8 +54,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case m: PMatchPattern => m match {
       case PMatchAdt(clause, fields) => symbType(clause) match {
         case t: AdtClauseT =>
-          val fieldTypes = fields map typ
-          val clauseFieldTypes = t.decl.args.flatMap(f => f.fields).map(f => symbType(f.typ))
+          val fieldTypes = fields.map(typ)
+          val clauseFieldTypes = t.fields.map(_._2)
           error(m, s"Expected ${clauseFieldTypes.size} patterns, but got ${fieldTypes.size}", clauseFieldTypes.size != fieldTypes.size) ++
             fieldTypes.zip(clauseFieldTypes).flatMap(a => assignableTo.errors(a)(m))
         case _ => violation("Pattern matching only works on ADT Literals")
@@ -191,7 +191,11 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PAdtClause => UnknownType
     case exp: PMatchPattern => exp match {
       case PMatchBindVar(idn) => idType(idn)
-      case PMatchAdt(clause, _) => symbType(clause)
+      case PMatchAdt(clause, _) =>
+        symbType(clause) match {
+          case t: AdtClauseT => t.declaredType
+          case t => t
+        }
       case PMatchValue(lit) => typ(lit)
       case w: PMatchWildcard => wildcardMatchType(w)
     }
@@ -207,13 +211,15 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case MPredicateImpl(decl, ctx) => FunctionT(decl.args map ctx.typ, AssertionT)
     case MPredicateSpec(decl, _, ctx) => FunctionT(decl.args map ctx.typ, AssertionT)
     case _: SymbolTable.GhostStructMember => ???
-    case SymbolTable.AdtDestructor(decl, _, ctx) => ctx.symbType(decl.typ)
+    case dest: SymbolTable.AdtDestructor => dest.context.symbType(dest.decl.typ)
     case _: SymbolTable.AdtDiscriminator => BooleanT
+    case const: SymbolTable.AdtClause => DeclaredT(const.typeDecl, const.context)
     case BuiltInMPredicate(tag, _, _) => typ(tag)
+    case f: SymbolTable.DomainFunction => FunctionT(f.args map f.context.typ, f.context.typ(f.result))
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _, _) =>
+    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, isPure, _, isOpaque) =>
       pres.flatMap(assignableToSpec) ++ preserves.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
       preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
       pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
@@ -222,7 +228,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       // can only have one non-conditional clause
       error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
       // measures must have the same type
-      error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures))
+      error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures)) ++
+      error(n, "Opaque can only be used in combination with pure.", isOpaque && !isPure)
 
     case n@ PLoopSpec(invariants, terminationMeasure) =>
       invariants.flatMap(assignableToSpec) ++ terminationMeasure.toVector.flatMap(wellDefTerminationMeasure) ++
@@ -277,6 +284,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def illegalPreconditionNode(n: PNode): Messages = {
     n match {
+      case PLabeledOld(PLabelUse(PLabelNode.lhsLabel), _) => noMessages
       case n@ (_: POld | _: PLabeledOld) => message(n, s"old not permitted in precondition")
       case n@ (_: PBefore) => message(n, s"old not permitted in precondition")
       case _ => noMessages
@@ -292,10 +300,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
             w eq _
           }
           val adtClauseT = underlyingType(typeSymbType(c)).asInstanceOf[AdtClauseT]
-          val flatFields = adtClauseT.decl.args.flatMap(f => f.fields)
-          if (index < flatFields.size) {
-            val field = flatFields(index)
-            typeSymbType(field.typ)
+          if (index < adtClauseT.fields.size) {
+            adtClauseT.typeAt(index)
           } else UnknownType // Error is found when PMatchADT is checked higher up the ADT
 
         case tree.parent.pair(_: PMatchExpCase, m: PMatchExp) => exprType(m.exp)

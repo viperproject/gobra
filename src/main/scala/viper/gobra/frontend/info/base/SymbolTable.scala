@@ -72,6 +72,7 @@ object SymbolTable extends Environments[Entity] {
     override val args: Vector[PParameter] = decl.args
     override val result: PResult = decl.result
     def isPure: Boolean = decl.spec.isPure
+    def isOpaque: Boolean = decl.spec.isOpaque
   }
 
   case class Closure(lit: PFunctionLit, ghost: Boolean, context: ExternalTypeInfo) extends ActualDataEntity with WithArguments with WithResult {
@@ -190,6 +191,7 @@ object SymbolTable extends Environments[Entity] {
     override def isPure: Boolean = decl.spec.isPure
     override val args: Vector[PParameter] = decl.args
     override val result: PResult = decl.result
+    def isOpaque: Boolean = decl.spec.isOpaque
   }
 
   case class MethodSpec(spec: PMethodSig, itfDef: PInterfaceType, ghost: Boolean, context: ExternalTypeInfo) extends Method {
@@ -249,7 +251,7 @@ object SymbolTable extends Environments[Entity] {
 
   sealed trait GhostStructMember extends StructMember with GhostTypeMember
 
-  case class DomainFunction(decl: PDomainFunction, domain: PDomainType, context: ExternalTypeInfo) extends GhostRegular with WithArguments with WithResult {
+  case class DomainFunction(decl: PDomainFunction, domain: PDomainType, context: ExternalTypeInfo) extends GhostTypeMember with WithArguments with WithResult {
     override def rep: PNode = decl
     override val args: Vector[PParameter] = decl.args
     override val result: PResult = decl.result
@@ -261,11 +263,13 @@ object SymbolTable extends Environments[Entity] {
     override def addressable: Boolean = false
   }
 
-  case class AdtClause(decl: PAdtClause, adtDecl: PAdtType, context: ExternalTypeInfo) extends GhostRegular {
+  case class AdtClause(decl: PAdtClause, typeDecl: PTypeDef, context: ExternalTypeInfo) extends GhostTypeMember with TypeEntity {
+    require(typeDecl.right.isInstanceOf[PAdtType])
+
     override def rep: PNode = decl
 
+    val adtDecl: PAdtType = typeDecl.right.asInstanceOf[PAdtType]
     def getName: String = decl.id.name
-
     val fields: Vector[PFieldDecl] = decl.args.flatMap(f => f.fields)
   }
 
@@ -273,13 +277,13 @@ object SymbolTable extends Environments[Entity] {
     def getName: String
   }
 
-  case class AdtDestructor(decl: PFieldDecl, adtType: PAdtType, context: ExternalTypeInfo) extends AdtMember {
+  case class AdtDestructor(decl: PFieldDecl, typeDecl: PTypeDef, adtType: PAdtType, context: ExternalTypeInfo) extends AdtMember {
     override def rep: PNode = decl
 
     override def getName: String = decl.id.name
   }
 
-  case class AdtDiscriminator(decl: PAdtClause, adtType: PAdtType, context: ExternalTypeInfo) extends AdtMember {
+  case class AdtDiscriminator(decl: PAdtClause, typeDecl: PTypeDef, adtType: PAdtType, context: ExternalTypeInfo) extends AdtMember {
     override def rep: PNode = decl
 
     override def getName: String = s"is${decl.id.name}"

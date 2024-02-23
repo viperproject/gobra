@@ -15,7 +15,6 @@ import viper.silver.ast.{Position => GobraPosition}
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-import viper.gobra.util.Violation.violation
 
 trait PrettyPrinter {
   def format(node : Node): String
@@ -140,10 +139,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     measure match {
       case WildcardMeasure(cond) => "_" <+> showCond(cond)
       case TupleTerminationMeasure(tuple, cond) =>
-        hcat(tuple map {
-          case e: Expr => showExpr(e)
-          case n => violation(s"Unexpected node $n")
-        }) <+> showCond(cond)
+        hcat(tuple map show) <+> showCond(cond)
     }
   }
 
@@ -154,8 +150,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, body) =>
-      "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+    case PureFunction(name, args, results, pres, posts, measures, body, isOpaque) =>
+      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <> "pure func"
+      funcPrefix <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
 
@@ -166,8 +163,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, body) =>
-      "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+    case PureMethod(receiver, name, args, results, pres, posts, measures, body, isOpaque) =>
+      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <> "pure func"
+      funcPrefix <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
 
@@ -417,6 +415,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showPatternMatchCaseExp(c: PatternMatchCaseExp): Doc = "case" <+> showMatchPattern(c.mExp) <> ":" <+> showExpr(c.exp)
 
+  def showPatternMatchCaseAss(c: PatternMatchCaseAss): Doc = "case" <+> showMatchPattern(c.mExp) <> ":" <+> showAss(c.ass)
+
   def showMatchPattern(expr: MatchPattern): Doc = expr match {
     case MatchBindVar(name, _) => name
     case MatchAdt(clause, expr) => clause.name <+> "{" <> ssep(expr map showMatchPattern, ",") <> "}"
@@ -428,6 +428,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showAss(a: Assertion): Doc = updatePositionStore(a) <> (a match {
     case SepAnd(left, right) => showAss(left) <+> "&&" <+> showAss(right)
     case ExprAssertion(exp) => showExpr(exp)
+    case Let(left, right, exp) =>
+      "let" <+> showVar(left) <+> "==" <+> parens(showExpr(right)) <+> "in" <+> showAss(exp)
+    case PatternMatchAss(exp, cases, default) => "match" <+> showExpr(exp) <+>
+      block(ssep(cases map showPatternMatchCaseAss, line) <> (if (default.isDefined) line <> "default:" <+> showAss(default.get) else ""))
+
     case MagicWand(left, right) => showAss(left) <+> "--*" <+> showAss(right)
     case Implication(left, right) => showExpr(left) <+> "==>" <+> showAss(right)
     case Access(e, FullPerm(_)) => "acc" <> parens(showAcc(e))
@@ -462,7 +467,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showExpr(e: Expr): Doc = updatePositionStore(e) <> (e match {
     case Unfolding(acc, exp) => "unfolding" <+> showAss(acc) <+> "in" <+> showExpr(exp)
 
-    case Let(left, right, exp) => "let" <+> showVar(left) <+> "==" <+> parens(showExpr(right)) <+> "in" <+> showExpr(exp)
+    case PureLet(left, right, exp) =>
+      "let" <+> showVar(left) <+> "==" <+> parens(showExpr(right)) <+> "in" <+> showExpr(exp)
 
     case Old(op, _) => "old" <> parens(showExpr(op))
 
@@ -483,9 +489,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case c: CurrentPerm => "perm" <> parens(showAcc(c.acc))
     case PermMinus(exp) => "-" <> showExpr(exp)
 
-    case PureFunctionCall(func, args, _) => func.name <> parens(showExprList(args))
+    case PureFunctionCall(func, args, _, reveal) =>
+      val revealDoc: Doc = if (reveal) "reveal" else emptyDoc
+      revealDoc <+> func.name <> parens(showExprList(args))
 
-    case PureMethodCall(recv, meth, args, _) => showExpr(recv) <> dot <> meth.name <> parens(showExprList(args))
+    case PureMethodCall(recv, meth, args, _, reveal) =>
+      val revealDoc: Doc = if (reveal) "reveal " else emptyDoc
+      revealDoc <> showExpr(recv) <> dot <> meth.name <> parens(showExprList(args))
 
     case PureClosureCall(closure, args, spec, _) => showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
 
@@ -625,7 +635,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       val entriesDoc = showList(entries){ case (x,y) => showExpr(x) <> ":" <+> showExpr(y) }
       showType(lit.typ) <+> braces(space <> entriesDoc <> (if (entries.nonEmpty) space else emptyDoc))
 
-    case AdtConstructorLit(typ, _, args) => showType(typ) <> braces(showExprList(args))
+    case lit: AdtConstructorLit => lit.clause.name <> braces(showExprList(lit.args))
   }
 
   // variables
@@ -676,8 +686,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   }
 
   override def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, _) =>
-      "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+    case PureFunction(name, args, results, pres, posts, measures, _, isOpaque) =>
+    val funcPrefix = if (isOpaque) "pure opaque func" else "pure func"
+      funcPrefix <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
   }
 
@@ -688,8 +699,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   }
 
   override def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, _) =>
-      "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+    case PureMethod(receiver, name, args, results, pres, posts, measures, _, isOpaque) =>
+      val funcPrefix = if (isOpaque) "pure opaque func" else "pure func"
+      funcPrefix <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
   }
 

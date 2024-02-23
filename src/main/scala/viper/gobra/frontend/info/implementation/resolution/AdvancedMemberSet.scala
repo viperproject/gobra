@@ -97,7 +97,9 @@ object AdvancedMemberSet {
         case Field(m, _, _)      => m.id.name
         case Embbed(m, _, _)     => m.id.name
         case t: AdtMember => t.getName
+        case t: AdtClause => t.getName
         case ml: BuiltInMethodLike => ml.tag.identifier
+        case f: DomainFunction => f.decl.id.name
       }
 
       extractMemberName(tm) -> tm

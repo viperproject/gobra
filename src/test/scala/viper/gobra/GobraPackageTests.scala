@@ -58,12 +58,14 @@ class GobraPackageTests extends GobraTests {
         // test scallop parsing by giving package name and testing whether the same set of files is created
         val currentDir = input.file.getParent
         val parsedConfig = for {
-          pkgName <- getPackageClause(input.file.toFile)
           config <- createConfig(Array(
             "--logLevel", "INFO",
             "--directory", currentDir.toFile.getPath,
             "--projectRoot", currentDir.toFile.getPath, // otherwise, it assumes Gobra's root directory as the project root
-            "-I", currentDir.toFile.getPath
+            "-I", currentDir.toFile.getPath,
+            // termination checks in functions are currently disabled in the tests. This can be enabled in the future,
+            // but requires some work to add termination measures all over the test suite.
+            "--disablePureFunctsTerminationRequirement",
           ))
         } yield config
 

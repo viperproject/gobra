@@ -1,3 +1,4 @@
+// Generated from src/main/antlr4/GobraParser.g4 by ANTLR 4.13.1
 package viper.gobra.frontend;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 
@@ -9,6 +10,7 @@ import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
  * @param <T> The return type of the visit operation. Use {@link Void} for
  * operations with no return type.
  */
+@SuppressWarnings("CheckReturnValue")
 public class GobraParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements GobraParserVisitor<T> {
 	/**
 	 * {@inheritDoc}
@@ -52,6 +54,13 @@ public class GobraParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> imple
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public T visitSourceFile(GobraParser.SourceFileContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitPreamble(GobraParser.PreambleContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -339,6 +348,13 @@ public class GobraParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> imple
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public T visitAdtClause(GobraParser.AdtClauseContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitAdtFieldDecl(GobraParser.AdtFieldDeclContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -822,6 +838,13 @@ public class GobraParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> imple
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public T visitPredConstrPrimaryExpr(GobraParser.PredConstrPrimaryExprContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitRevealInvokePrimaryExpr(GobraParser.RevealInvokePrimaryExprContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *

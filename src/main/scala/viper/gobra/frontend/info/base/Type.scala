@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
-import viper.gobra.ast.frontend.{PAdtClause, PAdtType, PDomainType, PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
+import viper.gobra.ast.frontend.{PAdtClause, PAdtType, PDomainType, PImport, PInterfaceType, PNode, PStructType, PTypeDecl, PTypeDef}
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.util.TypeBounds
 
@@ -56,9 +56,21 @@ object Type {
 
   case class DomainT(decl: PDomainType, context: ExternalTypeInfo) extends PrettyType("domain{...}") with ContextualType
 
-  case class AdtT(decl: PAdtType, context: ExternalTypeInfo) extends Type
+  case class AdtT(clauses: Vector[AdtClauseT], decl: PTypeDef, context: ExternalTypeInfo) extends PrettyType(decl.left.name) {
+    val adtDecl: PAdtType = decl.right.asInstanceOf[PAdtType]
+    val declaredType: DeclaredT = DeclaredT(decl, context)
+  }
 
-  case class AdtClauseT(fields: Map[String, Type], decl: PAdtClause, adtT: PAdtType, context: ExternalTypeInfo) extends Type
+  case class AdtClauseT(name: String, fields: Vector[(String, Type)], decl: PAdtClause, typeDecl: PTypeDef, context: ExternalTypeInfo) extends PrettyType(name) {
+    val adtDecl: PAdtType = typeDecl.right.asInstanceOf[PAdtType]
+    val typeMap: Map[String, Type] = fields.toMap
+    val declaredType: DeclaredT = DeclaredT(typeDecl, context)
+
+    def typeAt(idx: Int): Type = {
+      require(0 <= idx && idx < fields.size, s"index $idx is not within range of ADT fields (size ${fields.size})")
+      fields(idx)._2
+    }
+  }
 
   case class MapT(key: Type, elem: Type) extends PrettyType(s"map[$key]$elem")
 

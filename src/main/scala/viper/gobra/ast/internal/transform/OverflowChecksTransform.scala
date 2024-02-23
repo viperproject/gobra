@@ -34,18 +34,18 @@ object OverflowChecksTransform extends InternalTransform {
 
     // Adds pre-conditions stating the bounds of each argument and a post-condition to check if the body expression
     // overflows
-    case f@PureFunction(name, args, results, pres, posts, terminationMeasure, body) => body match {
+    case f@PureFunction(name, args, results, pres, posts, terminationMeasure, body, isOpaque) => body match {
       case Some(expr) =>
         val newPost = posts ++ getPureBlockPosts(expr, results)
-        PureFunction(name, args, results, pres, newPost, terminationMeasure, body)(f.info)
+        PureFunction(name, args, results, pres, newPost, terminationMeasure, body, isOpaque)(f.info)
       case None => f
     }
 
     // Same as pure functions
-    case m@PureMethod(receiver, name, args, results, pres, posts, terminationMeasure, body) => body match {
+    case m@PureMethod(receiver, name, args, results, pres, posts, terminationMeasure, body, isOpaque) => body match {
       case Some(expr) =>
         val newPost = posts ++ getPureBlockPosts(expr, results)
-        PureMethod(receiver, name, args, results, pres, newPost, terminationMeasure, body)(m.info)
+        PureMethod(receiver, name, args, results, pres, newPost, terminationMeasure, body, isOpaque)(m.info)
       case None => m
     }
 

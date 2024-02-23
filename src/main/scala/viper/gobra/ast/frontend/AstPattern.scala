@@ -20,6 +20,7 @@ object AstPattern {
 
   sealed trait Type extends Pattern
 
+  case class Import(id: PIdnUse, symb: st.Import) extends Type with Symbolic
   case class NamedType(id: PIdnUse, symb: st.ActualTypeEntity) extends Type with Symbolic
   case class PointerType(base: PType) extends Type
   case class AdtClause(id: PIdnUse, symb: st.AdtClause) extends Type with Symbolic

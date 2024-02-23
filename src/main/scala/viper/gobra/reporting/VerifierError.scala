@@ -56,9 +56,13 @@ case class DiamondError(message: String) extends VerifierError {
   val id = "diamond_error"
 }
 
-case class TimeoutError(message: String) extends  VerifierError {
+case class TimeoutError(message: String) extends VerifierError {
   val position: Option[SourcePosition] = None
   val id = "timeout_error"
+}
+
+case class ConsistencyError(message: String, position: Option[SourcePosition]) extends VerifierError {
+  val id = "consistency_error"
 }
 
 sealed trait VerificationError extends VerifierError {
@@ -336,7 +340,7 @@ case class ChannelReceiveError(info: Source.Verifier.Info) extends VerificationE
 
 case class ChannelSendError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "send_error"
-  override def localMessage: String = s"The receive expression ${info.trySrc[PSendStmt](" ")}might fail"
+  override def localMessage: String = s"The send expression ${info.trySrc[PSendStmt](" ")}might fail"
 }
 
 case class FunctionTerminationError(info: Source.Verifier.Info) extends VerificationError {

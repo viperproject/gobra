@@ -39,6 +39,10 @@ sourceFile:
     (specMember | declaration | ghostMember) eos
   )* EOF;
 
+// `preamble` is a second entry point allowing us to parse only the top of a source.
+// That's also why we don not enforce EOF at the end.
+preamble: (initPost eos)* packageClause eos (importDecl eos)*;
+
 initPost: INIT_POST expression;
 
 importPre: IMPORT_PRE expression;
@@ -146,7 +150,9 @@ domainClause: FUNC IDENTIFIER signature | AXIOM L_CURLY expression eos R_CURLY;
 
 adtType: ADT L_CURLY (adtClause eos)* R_CURLY;
 
-adtClause: IDENTIFIER L_CURLY (fieldDecl eos)* R_CURLY;
+adtClause: IDENTIFIER L_CURLY (adtFieldDecl eos)* R_CURLY;
+
+adtFieldDecl: identifierList? type_;
 
 ghostSliceType: GHOST L_BRACKET R_BRACKET elementType;
 
@@ -155,8 +161,8 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 
 // Specifications
 
-specification returns[boolean trusted = false, boolean pure = false;]:
-  ((specStatement | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? // Non-greedily match PURE to avoid missing eos errors.
+specification returns[boolean trusted = false, boolean pure = false, boolean opaque = false;]:
+  ((specStatement | OPAQUE {$opaque = true;} | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? // Non-greedily match PURE to avoid missing eos errors.
   ;
 
 specStatement
@@ -220,11 +226,11 @@ new_: NEW L_PAREN type_ R_PAREN;
 
 // Added specifications and parameter info
 
-specMember: specification (functionDecl[$specification.trusted, $specification.pure] | methodDecl[$specification.trusted, $specification.pure]);
+specMember: specification (functionDecl[$specification.trusted, $specification.pure, $specification.opaque] | methodDecl[$specification.trusted, $specification.pure, $specification.opaque]);
 
-functionDecl[boolean trusted, boolean pure]:  FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
+functionDecl[boolean trusted, boolean pure, boolean opaque]:  FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
 
-methodDecl[boolean trusted, boolean pure]: FUNC receiver IDENTIFIER (signature blockWithBodyParameterInfo?);
+methodDecl[boolean trusted, boolean pure, boolean opaque]: FUNC receiver IDENTIFIER (signature blockWithBodyParameterInfo?);
 
 
 
@@ -370,7 +376,9 @@ primaryExpr:
   | primaryExpr slice_ #slicePrimaryExpr
   | primaryExpr seqUpdExp #seqUpdPrimaryExpr
   | primaryExpr typeAssertion #typeAssertionPrimaryExpr
+  // "REVEAL? primaryExpr arguments" doesn't work due to mutual left recursion
   | primaryExpr arguments #invokePrimaryExpr
+  | REVEAL primaryExpr arguments #revealInvokePrimaryExpr
   | primaryExpr arguments AS closureSpecInstance #invokePrimaryExprWithSpec
   | primaryExpr predConstructArgs #predConstrPrimaryExpr
   | call_op=(

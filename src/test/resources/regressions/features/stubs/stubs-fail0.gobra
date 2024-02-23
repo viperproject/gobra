@@ -3,7 +3,8 @@
 
 package main
 
-import (
-    //:: ExpectedOutput(parser_error)
-    "nopackagewhatsoever"
-)
+import "net"
+
+// Should fail, package net does not contain member DoesNotExist
+//:: ExpectedOutput(type_error)
+func closePacketConn(conn net.DoesNotExist) error

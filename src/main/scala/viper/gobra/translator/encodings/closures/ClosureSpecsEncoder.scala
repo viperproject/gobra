@@ -48,7 +48,7 @@ protected class ClosureSpecsEncoder {
   def callToClosureGetter(func: in.FunctionMemberOrLitProxy, captured: Vector[(in.Expr, in.Parameter.In)] = Vector.empty)(ctx: Context): CodeWriter[vpr.Exp] = {
     val errorTransformers = register(in.ClosureSpec(func, Map.empty)(func.info))(ctx, func.info)
     for {
-      exp <- ctx.expression(in.PureFunctionCall(closureGetterFunctionProxy(func), captured.map(c => c._1), genericFuncType)(func.info))
+      exp <- ctx.expression(in.PureFunctionCall(closureGetterFunctionProxy(func), captured.map(c => c._1), genericFuncType, false)(func.info))
       _ <- errorT(errorTransformers: _*)
     } yield exp
   }
@@ -77,7 +77,7 @@ protected class ClosureSpecsEncoder {
     register(c.spec)(ctx, c.spec.info)
 
     for {
-      exp <- ctx.expression(in.PureFunctionCall(closureCallProxy(c.spec)(c.info), closureCallArgs(c.closure, c.args, c.spec)(ctx), c.typ)(c.info))
+      exp <- ctx.expression(in.PureFunctionCall(closureCallProxy(c.spec)(c.info), closureCallArgs(c.closure, c.args, c.spec)(ctx), c.typ, false)(c.info))
       callNode = exp.deepCollect{ case funcApp: vpr.FuncApp => funcApp }.head
       _ <- errorT(doesNotImplementSpecErr(callNode, c.closure.info.tag))
     } yield exp
@@ -208,7 +208,7 @@ protected class ClosureSpecsEncoder {
     val result = in.Parameter.Out(Names.closureArg, genericFuncType)(info)
     val satisfiesSpec = in.ExprAssertion(in.ClosureImplements(result, in.ClosureSpec(func, Map.empty)(info))(info))(info)
     val (args, captAssertions) = capturedArgsAndAssertions(ctx)(result, captured(ctx)(func), info)
-    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions, Vector.empty, None)(memberOrLit(ctx)(func).info)
+    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions, Vector.empty, None, false)(memberOrLit(ctx)(func).info)
     ctx.defaultEncoding.pureFunction(getter)(ctx)
   }
 
@@ -282,7 +282,7 @@ protected class ClosureSpecsEncoder {
       Some(in.ExprAssertion(in.ClosureImplements(closurePar, specWithFuncArgs(spec, func))(spec.info))(spec.info)) else None
     val fromClosureGetter = if (captArgs.nonEmpty)
       Some(in.ExprAssertion(in.EqCmp(closurePar,
-        in.PureFunctionCall(closureGetterFunctionProxy(spec.func), captArgs, genericFuncType)(spec.info))(spec.info)
+        in.PureFunctionCall(closureGetterFunctionProxy(spec.func), captArgs, genericFuncType, false)(spec.info))(spec.info)
       )(spec.info)) else None
     val args = Vector(closurePar) ++ captArgs ++ func.args
     val pres = implementsAssertion.toVector ++ fromClosureGetter ++ func.pres
@@ -300,12 +300,12 @@ protected class ClosureSpecsEncoder {
         ctx.defaultEncoding.function(func)(ctx)
       case f: in.PureFunction =>
         val posts = func.posts ++ assertionFromPureFunctionBody(f.body, f.results.head)
-        val m = in.PureFunction(proxy, args, f.results, pres, posts, f.terminationMeasures, None)(spec.info)
+        val m = in.PureFunction(proxy, args, f.results, pres, posts, f.terminationMeasures, None, f.isOpaque)(spec.info)
         ctx.defaultEncoding.pureFunction(m)(ctx)
       case lit: in.PureFunctionLit =>
         val body = if (spec.params.isEmpty) lit.body else None
         val posts = lit.posts ++ (if (spec.params.isEmpty) Vector.empty else assertionFromPureFunctionBody(lit.body, lit.results.head).toVector)
-        val func = in.PureFunction(proxy, args, lit.results, pres, posts, lit.terminationMeasures, body)(lit.info)
+        val func = in.PureFunction(proxy, args, lit.results, pres, posts, lit.terminationMeasures, body, false)(lit.info)
         ctx.defaultEncoding.pureFunction(func)(ctx)
     }
   }

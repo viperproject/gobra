@@ -112,6 +112,7 @@ func test2() {
 
 ghost
 ensures forall k int :: k > 0 && len(s) == k ==> res == s[k-1] + seqSum(s[:(k-1)])
+decreases len(s)
 pure func seqSum(s seq[int]) (res int) {
     return len(s) == 0 ? 0 : (s[len(s)-1] + seqSum(s[:(len(s)-1)]))
 }

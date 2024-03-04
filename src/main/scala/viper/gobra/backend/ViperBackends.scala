@@ -33,10 +33,13 @@ object ViperBackends {
         options ++= Vector("--conditionalizePermissions")
       }
       if (config.z3APIMode) {
-        options = options ++ Vector(s"--prover=${Z3ProverAPI.name}")
+        options ++= Vector(s"--prover=${Z3ProverAPI.name}")
       }
       if (config.disableNL) {
-        options = options ++ Vector(s"--disableNL")
+        options ++= Vector(s"--disableNL")
+      }
+      if (config.unsafeWildcardOptimization) {
+        options ++= Vector(s"--unsafeWildcardOptimization")
       }
       val mceSiliconOpt = config.mceMode match {
         case MCE.Disabled => "0"
@@ -134,6 +137,15 @@ object ViperBackends {
       // Gobra seems to be much slower with the new silicon axiomatization of collections.
       // For now, we stick to the old one.
       options ++= Vector("--useOldAxiomatization")
+      if (config.z3APIMode) {
+        options ++= Vector(s"--prover=${Z3ProverAPI.name}")
+      }
+      if (config.disableNL) {
+        options ++= Vector(s"--disableNL")
+      }
+      if (config.unsafeWildcardOptimization) {
+        options ++= Vector(s"--unsafeWildcardOptimization")
+      }
       val mceSiliconOpt = config.mceMode match {
         case MCE.Disabled => "0"
         case MCE.Enabled  => "1"

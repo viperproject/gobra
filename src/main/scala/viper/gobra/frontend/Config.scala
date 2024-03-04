@@ -29,52 +29,53 @@ object LoggerDefaults {
 }
 
 object ConfigDefaults {
-  lazy val DefaultModuleName: String = ""
+  val DefaultModuleName: String = ""
   lazy val DefaultProjectRoot: File = new File("").getAbsoluteFile // current working directory
-  lazy val DefaultIncludePackages: List[String] = List.empty
-  lazy val DefaultExcludePackages: List[String] = List.empty
-  lazy val DefaultIncludeDirs: List[File] = List.empty
+  val DefaultIncludePackages: List[String] = List.empty
+  val DefaultExcludePackages: List[String] = List.empty
+  val DefaultIncludeDirs: List[File] = List.empty
   lazy val DefaultReporter: GobraReporter = StdIOReporter()
-  lazy val DefaultBackend: ViperBackend = ViperBackends.SiliconBackend
-  lazy val DefaultIsolate: List[(Path, List[Int])] = List.empty
-  lazy val DefaultChoppingUpperBound: Int = 1
-  lazy val DefaultPackageTimeout: Duration = Duration.Inf
-  lazy val DefaultZ3Exe: Option[String] = None
-  lazy val DefaultBoogieExe: Option[String] = None
-  lazy val DefaultLogLevel: Level = LoggerDefaults.DefaultLevel
-  lazy val DefaultCacheFile: Option[File] = None
-  lazy val DefaultParseOnly: Boolean = false
-  lazy val DefaultStopAfterEncoding: Boolean = false
-  lazy val DefaultCheckOverflows: Boolean = false
-  lazy val DefaultCheckConsistency: Boolean = false
-  lazy val DefaultShouldChop: Boolean = false
+  val DefaultBackend: ViperBackend = ViperBackends.SiliconBackend
+  val DefaultIsolate: List[(Path, List[Int])] = List.empty
+  val DefaultChoppingUpperBound: Int = 1
+  val DefaultPackageTimeout: Duration = Duration.Inf
+  val DefaultZ3Exe: Option[String] = None
+  val DefaultBoogieExe: Option[String] = None
+  val DefaultLogLevel: Level = LoggerDefaults.DefaultLevel
+  val DefaultCacheFile: Option[File] = None
+  val DefaultParseOnly: Boolean = false
+  val DefaultStopAfterEncoding: Boolean = false
+  val DefaultCheckOverflows: Boolean = false
+  val DefaultCheckConsistency: Boolean = false
+  val DefaultShouldChop: Boolean = false
   // The go language specification states that int and uint variables can have either 32bit or 64, as long
   // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
   // 64 bit otherwise.
-  lazy val DefaultInt32bit: Boolean = false
+  val DefaultInt32bit: Boolean = false
   // the following option is currently not controllable via CLI as it is meaningless without a constantly
   // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
-  lazy val DefaultCacheParserAndTypeChecker: Boolean = false
+  val DefaultCacheParserAndTypeChecker: Boolean = false
   // this option introduces a mode where Gobra only considers files with a specific annotation ("// +gobra").
   // this is useful when verifying large packages where some files might use some unsupported feature of Gobra,
   // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
   // to verify.
-  lazy val DefaultOnlyFilesWithHeader: Boolean = false
+  val DefaultOnlyFilesWithHeader: Boolean = false
   lazy val DefaultGobraDirectory: Path = Path.of(".gobra")
-  lazy val DefaultTaskName: String = "gobra-task"
-  lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
-  lazy val DefaultParallelizeBranches: Boolean = false
-  lazy val DefaultConditionalizePermissions: Boolean = false
-  lazy val DefaultZ3APIMode: Boolean = false
-  lazy val DefaultDisableNL: Boolean = false
-  lazy val DefaultMCEMode: MCE.Mode = MCE.Enabled
-  lazy val DefaultEnableLazyImports: Boolean = false
-  lazy val DefaultNoVerify: Boolean = false
-  lazy val DefaultNoStreamErrors: Boolean = false
-  lazy val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
-  lazy val DefaultRequireTriggers: Boolean = false
-  lazy val DefaultDisableSetAxiomatization: Boolean = false
-  lazy val DefaultDisableCheckTerminationPureFns: Boolean = false
+  val DefaultTaskName: String = "gobra-task"
+  val DefaultAssumeInjectivityOnInhale: Boolean = true
+  val DefaultParallelizeBranches: Boolean = false
+  val DefaultConditionalizePermissions: Boolean = false
+  val DefaultZ3APIMode: Boolean = false
+  val DefaultDisableNL: Boolean = false
+  val DefaultMCEMode: MCE.Mode = MCE.Enabled
+  val DefaultEnableLazyImports: Boolean = false
+  val DefaultNoVerify: Boolean = false
+  val DefaultNoStreamErrors: Boolean = false
+  val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
+  val DefaultRequireTriggers: Boolean = false
+  val DefaultDisableSetAxiomatization: Boolean = false
+  val DefaultDisableCheckTerminationPureFns: Boolean = false
+  val DefaultUnsafeWildcardOptimization: Boolean = false
 }
 
 // More-complete exhale modes
@@ -143,6 +144,8 @@ case class Config(
                    requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
                    disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
                    disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
+                   unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
+
 ) {
 
   def merge(other: Config): Config = {
@@ -195,6 +198,7 @@ case class Config(
       requireTriggers = requireTriggers || other.requireTriggers,
       disableSetAxiomatization = disableSetAxiomatization || other.disableSetAxiomatization,
       disableCheckTerminationPureFns = disableCheckTerminationPureFns || other.disableCheckTerminationPureFns,
+      unsafeWildcardOptimization = unsafeWildcardOptimization && other.unsafeWildcardOptimization,
     )
   }
 
@@ -251,6 +255,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
                       disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
                       disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
+                      unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -311,6 +316,7 @@ trait RawConfig {
     requireTriggers = baseConfig.requireTriggers,
     disableSetAxiomatization = baseConfig.disableSetAxiomatization,
     disableCheckTerminationPureFns = baseConfig.disableCheckTerminationPureFns,
+    unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
   )
 }
 
@@ -669,6 +675,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val unsafeWildcardOptimization: ScallopOption[Boolean] = opt[Boolean]("unsafeWildcardOptimization",
+    descr = "Simplify wildcard terms in a way that might be unsafe. Only use this if you know what you are doing! See Silicon PR #756 for details.",
+    default = Some(false),
+    noshort = true
+  )
+
   val mceMode: ScallopOption[MCE.Mode] = {
     val on = "on"
     val off = "off"
@@ -805,6 +817,15 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       Right(())
     }
   }
+
+  addValidation {
+    val unsafeWildcardOptSupplied = unsafeWildcardOptimization.isSupplied
+    if (unsafeWildcardOptSupplied  && !isSiliconBasedBackend) {
+      Left("The flag --unsafeWildcardOptimization can only be used with Silicon or ViperServer with Silicon")
+    } else {
+      Right(())
+    }
+  }
   
   // `disableSetAxiomatization` can only be provided when using a silicon-based backend
   // since, at the time of writing, we rely on Silicon's setAxiomatizationFile for the
@@ -922,5 +943,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     requireTriggers = requireTriggers(),
     disableSetAxiomatization = disableSetAxiomatization(),
     disableCheckTerminationPureFns = disableCheckTerminationPureFns(),
+    unsafeWildcardOptimization = unsafeWildcardOptimization(),
   )
 }

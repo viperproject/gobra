@@ -2643,8 +2643,53 @@ object Desugar extends LazyLogging {
               for {l <- go(left); r <- go(right)} yield in.AtLeastCmp(l, r)(src)
             }
 
-          case PAnd(left, right) => for {l <- go(left); r <- go(right)} yield in.And(l, r)(src)
-          case POr(left, right) => for {l <- go(left); r <- go(right)} yield in.Or(l, r)(src)
+          case PAnd(left, right) =>
+            val isPure = info.isPureExpression(expr)
+            if (isPure) {
+              // in this case, the generated expression will already be short-circuiting
+              for { l <- go(left); r <- go(right) } yield in.And(l, r)(src)
+            } else {
+              // here, we implement short-circuiting manually, as we need to be careful about
+              // when the side-effectful operations may run
+              for {
+                l <- go(left)
+                  rightW = go(right)
+                  res = freshExclusiveVar(in.BoolT(Addressability.Exclusive), expr, info)(src)
+                  fstAssign = singleAss(in.Assignee.Var(res), l)(src)
+                  sndAssign = singleAss(in.Assignee.Var(res), rightW.res)(src)
+                  condStmt = in.If(
+                    l,
+                    in.Block(rightW.decls, rightW.stmts :+ sndAssign)(src),
+                    in.Block(Vector.empty, Vector.empty)(src),
+                  )(src)
+                  _ <- declaredExclusiveVar(res)
+                  _ <- write(fstAssign, condStmt)
+              } yield res
+            }
+
+          case POr(left, right) =>
+            val isPure = info.isPureExpression(expr)
+            if (isPure) {
+              // in this case, the generated expression will already be short-circuiting
+              for {l <- go(left); r <- go(right)} yield in.Or(l, r)(src)
+            } else {
+              // here, we implement short-circuiting manually, as we need to be careful about
+              // when the side-effectful operations may run
+              for {
+                l <- go(left)
+                rightW = go(right)
+                res = freshExclusiveVar(in.BoolT(Addressability.Exclusive), expr, info)(src)
+                fstAssign = singleAss(in.Assignee.Var(res), l)(src)
+                sndAssign = singleAss(in.Assignee.Var(res), rightW.res)(src)
+                condStmt = in.If(
+                  l,
+                  in.Block(Vector.empty, Vector.empty)(src),
+                  in.Block(rightW.decls, rightW.stmts :+ sndAssign)(src),
+                )(src)
+                _ <- declaredExclusiveVar(res)
+                _ <- write(fstAssign, condStmt)
+              } yield res
+            }
 
           case PAdd(left, right) => for {l <- go(left); r <- go(right)} yield in.Add(l, r)(src)
           case PSub(left, right) => for {l <- go(left); r <- go(right)} yield in.Sub(l, r)(src)

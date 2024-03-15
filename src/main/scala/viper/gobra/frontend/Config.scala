@@ -76,6 +76,7 @@ object ConfigDefaults {
   val DefaultDisableSetAxiomatization: Boolean = false
   val DefaultDisableCheckTerminationPureFns: Boolean = false
   val DefaultUnsafeWildcardOptimization: Boolean = false
+  val DefaultEnableMoreJoins: Boolean = false
 }
 
 // More-complete exhale modes
@@ -145,6 +146,7 @@ case class Config(
                    disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
                    disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                    unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
+                   enableMoreJoins: Boolean = ConfigDefaults.DefaultEnableMoreJoins,
 
 ) {
 
@@ -199,6 +201,7 @@ case class Config(
       disableSetAxiomatization = disableSetAxiomatization || other.disableSetAxiomatization,
       disableCheckTerminationPureFns = disableCheckTerminationPureFns || other.disableCheckTerminationPureFns,
       unsafeWildcardOptimization = unsafeWildcardOptimization && other.unsafeWildcardOptimization,
+      enableMoreJoins = enableMoreJoins || other.enableMoreJoins,
     )
   }
 
@@ -256,6 +259,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
                       disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                       unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
+                      enableMoreJoins: Boolean = ConfigDefaults.DefaultEnableMoreJoins,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -317,6 +321,7 @@ trait RawConfig {
     disableSetAxiomatization = baseConfig.disableSetAxiomatization,
     disableCheckTerminationPureFns = baseConfig.disableCheckTerminationPureFns,
     unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
+    enableMoreJoins = baseConfig.enableMoreJoins,
   )
 }
 
@@ -681,6 +686,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val enableMoreJoins: ScallopOption[Boolean] = opt[Boolean](
+    name = "moreJoins",
+    descr = "Enable more joins using a more complete implementation of state merging.",
+    default = Some(false),
+    noshort = true
+  )
+
   val mceMode: ScallopOption[MCE.Mode] = {
     val on = "on"
     val off = "off"
@@ -826,6 +838,15 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       Right(())
     }
   }
+
+  addValidation {
+    val enableMoreJoinsOptSupplied = enableMoreJoins.isSupplied
+    if (enableMoreJoinsOptSupplied  && !isSiliconBasedBackend) {
+      Left("The flag --moreJoins can only be used with Silicon or ViperServer with Silicon")
+    } else {
+      Right(())
+    }
+  }
   
   // `disableSetAxiomatization` can only be provided when using a silicon-based backend
   // since, at the time of writing, we rely on Silicon's setAxiomatizationFile for the
@@ -944,5 +965,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     disableSetAxiomatization = disableSetAxiomatization(),
     disableCheckTerminationPureFns = disableCheckTerminationPureFns(),
     unsafeWildcardOptimization = unsafeWildcardOptimization(),
+    enableMoreJoins = enableMoreJoins(),
   )
 }

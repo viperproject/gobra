@@ -408,6 +408,16 @@ object ViperWriter {
       }
     }
 
+    /* Can be used in expressions. */
+    def funcAppPrecondition(call: vpr.FuncApp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError): Writer[vpr.Exp] = {
+      for {
+        _ <- errorT({
+          case e@vprerr.PreconditionInAppFalse(Source(info), reason, _) if e causedBy call =>
+            reasonT(info, reason)
+        })
+      } yield call
+    }
+
     /* Emits Viper statements. */
     def assert(cond: vpr.Exp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError): Writer[Unit] = {
       val res = vpr.Assert(cond)(cond.pos, cond.info, cond.errT)

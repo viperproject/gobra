@@ -6,8 +6,7 @@
 
 package viper.gobra.reporting
 
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, MainPreNotEstablished, OverflowCheckAnnotation, ReceiverNotNilCheckAnnotation, InsufficientPermissionToRangeExpressionAnnotation, LoopInvariantNotEstablishedAnnotation}
-
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, InsufficientPermissionToRangeExpressionAnnotation, LoopInvariantNotEstablishedAnnotation, MainPreNotEstablished, OverflowCheckAnnotation, OverwriteErrorAnnotation, ReceiverNotNilCheckAnnotation}
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
@@ -163,6 +162,8 @@ class DefaultErrorBackTranslator(
     }
 
     val transformAnnotatedError: VerificationError => VerificationError = x => x.info match {
+      case _ / (an: OverwriteErrorAnnotation) => an(x)
+
       case _ / OverflowCheckAnnotation =>
         x.reasons.foldLeft(OverflowError(x.info): VerificationError){ case (err, reason) => err dueTo reason }
 

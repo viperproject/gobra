@@ -1,0 +1,32 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000745
+
+func assignment() int {
+    var x@, y [10]int
+    exhale acc(&x)
+    //:: ExpectedOutput(assignment_error:permission_error)
+    x = y
+}
+
+func load0() int {
+    var x@, y int
+    exhale acc(&x)
+    //:: ExpectedOutput(assignment_error:permission_error)
+    y = x
+}
+
+func load1() int {
+    var x@, y struct{ f,g int }
+    exhale acc(&x)
+    //:: ExpectedOutput(assignment_error:permission_error)
+    y = x
+}
+
+func load2() int {
+    var x@, y [10]int
+    exhale acc(&x)
+    //:: ExpectedOutput(load_error:permission_error)
+    y = x
+}

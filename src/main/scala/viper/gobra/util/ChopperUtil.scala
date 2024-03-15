@@ -12,7 +12,7 @@ import java.nio.file.Files
 import java.util.Properties
 import viper.silver.{ast => vpr}
 import viper.silver.ast.SourcePosition
-import viper.silver.ast.utility.Chopper
+import viper.silver.ast.utility.chopper
 import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.reporting.ChoppedViperMessage
 import viper.gobra.backend.BackendVerifier.Task
@@ -25,7 +25,7 @@ object ChopperUtil {
   def computeChoppedPrograms(task: Task, pkgInfo: PackageInfo)(config: Config): Vector[vpr.Program] = {
 
 
-    val programs = Chopper.chop(task.program)(
+    val programs = chopper.Chopper.chop(task.program)(
       selection = computeIsolateMap(config, pkgInfo),
       bound = Some(config.choppingUpperBound),
       penalty = getPenalty
@@ -71,9 +71,9 @@ object ChopperUtil {
     * then a penalty object using this configuration is created and returned.
     * Otherwise, if no configuration is present, the default configuration is returned.
     * */
-  def getPenalty: Chopper.Penalty[Chopper.Vertex] = {
+  def getPenalty: chopper.Penalty[chopper.Vertices.Vertex] = {
     import scala.io.Source
-    import viper.silver.ast.utility.Chopper.Penalty
+    import viper.silver.ast.utility.chopper.Penalty
 
     val file = new File(GobraChopperFileLocation)
     if (!file.exists()) {
@@ -90,7 +90,7 @@ object ChopperUtil {
       val penaltyConf = Penalty.PenaltyConfig(
         method          = get("method_body",      dfltConf.method),
         methodSpec      = get("method_spec",      dfltConf.methodSpec),
-        function        = get("function",         dfltConf.function),
+        function        = get("function_body",    dfltConf.function),
         predicate       = get("predicate_body",   dfltConf.predicate),
         predicateSig    = get("predicate_spec",   dfltConf.predicateSig),
         field           = get("field",            dfltConf.field),

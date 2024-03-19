@@ -14,6 +14,7 @@ import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFo
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.library.Generator
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.util.ViperUtil
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.silver.verifier.{errors => vprerr}
 import viper.silver.{ast => vpr}
@@ -174,9 +175,18 @@ trait TypeEncoding extends Generator {
       seqn(
         for {
           footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
+          quasiHavoc = ViperUtil.QuasiHavoc(None, footprint)(pos, info, errT) match {
+            case Some(qh) => qh
+            case None =>
+              // if a quasihavoc cannot be generated, just exhale and inhale the footprint
+              vpr.Seqn(
+                ss = Seq(vpr.Exhale(footprint)(pos, info, errT), vpr.Inhale(footprint)(pos, info, errT)),
+                scopedSeqnDeclarations = Seq()
+              )(pos, info, errT)
+          }
+          _ <- write(quasiHavoc)
           eq <- ctx.equal(loc, rhs)(src)
-          _ <- write(vpr.Exhale(footprint)(pos, info, errT))
-          inhale = vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT)
+          inhale = vpr.Inhale(eq)(pos, info, errT)
         } yield inhale
       )
   }

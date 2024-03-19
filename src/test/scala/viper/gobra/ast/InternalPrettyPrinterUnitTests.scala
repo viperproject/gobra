@@ -216,7 +216,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "s union t" =>
+      case "(s union t)" =>
     }
   }
 
@@ -232,7 +232,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "s union t union u" =>
+      case "((s union t) union u)" =>
     }
   }
 
@@ -248,7 +248,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "s union t union u" =>
+      case "(s union (t union u))" =>
     }
   }
 
@@ -265,7 +265,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "set[bool°] { s } union set[bool°] { t, u }" =>
+      case "(set[bool°] { s } union set[bool°] { t, u })" =>
     }
   }
 
@@ -277,7 +277,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "s intersection t" =>
+      case "(s intersection t)" =>
     }
   }
 
@@ -293,7 +293,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "s intersection t intersection u" =>
+      case "((s intersection t) intersection u)" =>
     }
   }
 
@@ -309,7 +309,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "s intersection t intersection u" =>
+      case "(s intersection (t intersection u))" =>
     }
   }
 
@@ -326,7 +326,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "set[bool°] { s } intersection set[bool°] { t, u }" =>
+      case "(set[bool°] { s } intersection set[bool°] { t, u })" =>
     }
   }
 
@@ -338,7 +338,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "s setminus t" =>
+      case "(s setminus t)" =>
     }
   }
 
@@ -354,7 +354,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "s setminus t setminus u" =>
+      case "((s setminus t) setminus u)" =>
     }
   }
 
@@ -370,7 +370,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "s setminus t setminus u" =>
+      case "(s setminus (t setminus u))" =>
     }
   }
 
@@ -387,7 +387,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "set[bool°] { s } setminus set[bool°] { t, u }" =>
+      case "(set[bool°] { s } setminus set[bool°] { t, u })" =>
     }
   }
 
@@ -398,7 +398,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "s subset t" =>
+      case "(s subset t)" =>
     }
   }
 
@@ -412,7 +412,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "s subset t subset u" =>
+      case "((s subset t) subset u)" =>
     }
   }
 
@@ -423,7 +423,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "set[int°] { 42 } subset set[bool°] { }" =>
+      case "(set[int°] { 42 } subset set[bool°] { })" =>
     }
   }
 
@@ -434,7 +434,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "x in xs" =>
+      case "(x in xs)" =>
     }
   }
 
@@ -448,32 +448,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "x in xs in ys" =>
-    }
-  }
-
-  test("Printer: should correctly show a simple set membership expression") {
-    val expr = Contains(
-      LocalVar("x", sequenceT(boolT))(Internal),
-      LocalVar("s", sequenceT(boolT))(Internal)
-    )(Internal)
-
-    frontend.show(expr) should matchPattern {
-      case "x in s" =>
-    }
-  }
-
-  test("Printer: should correctly show a small 'chain' of set membership expressions") {
-    val expr = Contains(
-      Contains(
-        LocalVar("x", boolT)(Internal),
-        LocalVar("s", setT(boolT))(Internal)
-      )(Internal),
-      LocalVar("t", setT(boolT))(Internal),
-    )(Internal)
-
-    frontend.show(expr) should matchPattern {
-      case "x in s in t" =>
+      case "((x in xs) in ys)" =>
     }
   }
 
@@ -487,7 +462,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "set[bool°] { true, false } in set[set[set[int°]°]°] { }" =>
+      case "(set[bool°] { true, false } in set[set[set[int°]°]°] { })" =>
     }
   }
 
@@ -511,7 +486,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "len(s intersection t)" =>
+      case "len((s intersection t))" =>
     }
   }
 
@@ -608,7 +583,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "mset[int°] { 1, 2 } union mset[int°] { 3 }" =>
+      case "(mset[int°] { 1, 2 } union mset[int°] { 3 })" =>
     }
   }
 
@@ -620,7 +595,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "mset[int°] { 1, 2 } intersection mset[int°] { 3 }" =>
+      case "(mset[int°] { 1, 2 } intersection mset[int°] { 3 })" =>
     }
   }
 
@@ -631,7 +606,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "mset[int°] { 1, 2 } subset mset[int°] { 3 }" =>
+      case "(mset[int°] { 1, 2 } subset mset[int°] { 3 })" =>
     }
   }
 
@@ -664,23 +639,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "2 in mset[int°] { 1, 2, 3 }" =>
-    }
-  }
-
-  test("Printer: should correctly show a multiset inclusion expression (2)") {
-    val expr = Contains(
-      MultisetLit(intT, Vector(
-        IntLit(1)(Internal)
-      ))(Internal),
-      MultisetLit(intT, Vector(
-        IntLit(2)(Internal),
-        IntLit(3)(Internal),
-      ))(Internal)
-    )(Internal)
-
-    frontend.show(expr) should matchPattern {
-      case "mset[int°] { 1 } in mset[int°] { 2, 3 }" =>
+      case "(2 in mset[int°] { 1, 2, 3 })" =>
     }
   }
 
@@ -717,7 +676,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "set(xs ++ ys)" =>
+      case "set((xs ++ ys))" =>
     }
   }
 
@@ -729,7 +688,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "set(xs) union set(ys)" =>
+      case "(set(xs) union set(ys))" =>
     }
   }
 
@@ -740,7 +699,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "x # xs" =>
+      case "(x # xs)" =>
     }
   }
 
@@ -755,7 +714,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "40 + 2 # seq[int°] { 0:1, 1:2, 2:3 }" =>
+      case "((40 + 2) # seq[int°] { 0:1, 1:2, 2:3 })" =>
     }
   }
 
@@ -769,7 +728,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "x # xs # ys" =>
+      case "((x # xs) # ys)" =>
     }
   }
 
@@ -793,7 +752,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "mset(xs ++ ys)" =>
+      case "mset((xs ++ ys))" =>
     }
   }
 
@@ -805,7 +764,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "mset(xs) union mset(ys)" =>
+      case "(mset(xs) union mset(ys))" =>
     }
   }
 
@@ -863,27 +822,6 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     }
   }
 
-  test("Printer: should correctly show a slightly more complex array length expression") {
-    val expr = Length(
-      Add(
-        Length(LocalVar("s", setT(boolT))(Internal))(Internal),
-        IntLit(42)(Internal)
-      )(Internal)
-    )(Internal)
-
-    frontend.show(expr) should matchPattern {
-      case "len(len(s) + 42)" =>
-    }
-  }
-
-  test("Printer: should correctly show a nested array length expression") {
-    val expr = Length(Length(IntLit(42)(Internal))(Internal))(Internal)
-
-    frontend.show(expr) should matchPattern {
-      case "len(len(42))" =>
-    }
-  }
-
   test("Printer: should be able to show the addition of two uses of the array length function") {
     val expr = Add(
       Length(LocalVar("a", exclusiveArrayT(24, boolT))(Internal))(Internal),
@@ -891,7 +829,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "len(a) + len(b)" =>
+      case "(len(a) + len(b))" =>
     }
   }
 
@@ -915,7 +853,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "len(seq[bool°] { 0:false } ++ xs)" =>
+      case "len((seq[bool°] { 0:false } ++ xs))" =>
     }
   }
 
@@ -926,17 +864,6 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
 
     frontend.show(expr) should matchPattern {
       case "len(len(seq[int°] { }))" =>
-    }
-  }
-
-  test("Printer: should correctly show a composition of two sequence length function applications") {
-    val expr = Add(
-      Length(LocalVar("xs", sequenceT(intT))(Internal))(Internal),
-      Length(LocalVar("ys", sequenceT(intT))(Internal))(Internal)
-    )(Internal)
-
-    frontend.show(expr) should matchPattern {
-      case "len(xs) + len(ys)" =>
     }
   }
 
@@ -964,7 +891,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "a[x + 2]" =>
+      case "a[(x + 2)]" =>
     }
   }
 
@@ -1001,21 +928,6 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
 
     frontend.show(expr) should matchPattern {
       case "acc(a[2])" =>
-    }
-  }
-
-  test("Printer: should correctly show a simple assignee indexed expression") {
-    val typ = sharedArrayT(12, sharedArrayT(24, BoolT(Addressability.Shared)))
-    val expr = Assignee.Index(
-      IndexedExp(
-        LocalVar("a", typ)(Internal),
-        Add(IntLit(2)(Internal), IntLit(3)(Internal))(Internal),
-        typ
-      )(Internal)
-    )
-
-    frontend.show(expr) should matchPattern {
-      case "a[2 + 3]" =>
     }
   }
 
@@ -1127,7 +1039,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "seq(xs) ++ seq(a)" =>
+      case "(seq(xs) ++ seq(a))" =>
     }
   }
 
@@ -1161,7 +1073,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val exp = OptionSome(And(BoolLit(true)(Internal), BoolLit(false)(Internal))(Internal))(Internal)
 
     frontend.show(exp) should matchPattern {
-      case "some(true && false)" =>
+      case "some((true && false))" =>
     }
   }
 

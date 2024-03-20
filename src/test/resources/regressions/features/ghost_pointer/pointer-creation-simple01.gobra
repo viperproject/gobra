@@ -1,3 +1,6 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
 package PointerCreationSimple01
 
 // Pointers created in actual code are pointers to locations on the actual heap.

@@ -1,3 +1,6 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
 package GhostWriteFail01
 
 // x is a pointer to a location on the actual heap

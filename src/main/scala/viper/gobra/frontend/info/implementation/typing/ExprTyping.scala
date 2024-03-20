@@ -43,7 +43,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       resolve(n) match {
         case Some(p: ap.Deref) =>
           exprType(p.base) match {
-            case Single(PointerT(_)) => noMessages
+            case Single(_: PointerT) => noMessages
             case t => error(n, s"expected pointer type but got $t")
           }
 
@@ -101,7 +101,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       resolve(n) match {
         case Some(p: ap.Deref) =>
           exprType(p.base) match {
-            case Single(PointerT(t)) => t
+            case Single(p: PointerT) => p.elem
             case t => violation(s"expected pointer but got $t")
           }
         case Some(_: ap.PointerType) => SortT
@@ -324,7 +324,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               val idxOpt = intConstantEval(index)
               error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
 
-            case (PointerT(ArrayT(l, _)), IntT(_)) =>
+            case (ActualPointerT(ArrayT(l, _)), IntT(_)) =>
               val idxOpt = intConstantEval(index)
               error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
 
@@ -390,7 +390,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             error(cap, "sequence slice expressions do not allow specifying a capacity", capT.isDefined)
         }
 
-        case (PointerT(ArrayT(l, _)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) =>
+        case (ActualPointerT(ArrayT(l, _)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) =>
           val (lowOpt, highOpt, capOpt) = (low map intConstantEval, high map intConstantEval, cap map intConstantEval)
           error(n, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => i >= 0 && i < l))) ++
             error(n, s"index $high is out of bounds", !highOpt.forall(_.forall(i => i >= 0 && i < l))) ++
@@ -689,7 +689,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       (underlyingType(baseType), underlyingType(idxType)) match {
         case (Single(base), Single(idx)) => (base, idx) match {
           case (ArrayT(_, elem), IntT(_)) => elem
-          case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
+          case (ActualPointerT(ArrayT(_, elem)), IntT(_)) => elem
           case (SequenceT(elem), IntT(_)) => elem
           case (SliceT(elem), IntT(_)) => elem
           case (GhostSliceT(elem), IntT(_)) => elem
@@ -707,7 +707,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       val baseType = exprType(base)
       (underlyingType(baseType), low map exprType, high map exprType, cap map exprType) match {
         case (ArrayT(_, elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) if addressable(base) => SliceT(elem)
-        case (PointerT(ArrayT(_, elem)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
+        case (ActualPointerT(ArrayT(_, elem)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
         case (SequenceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None) => baseType
         case (SliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => baseType
         case (GhostSliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => baseType
@@ -725,7 +725,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"expected receive-permitting channel but got $t")
     }
 
-    case PReference(exp) if effAddressable(exp) => PointerT(exprType(exp))
+    case r@ PReference(exp) if effAddressable(exp) => if (isEnclosingGhost(r)) GhostPointerT(exprType(exp)) else ActualPointerT(exprType(exp))
 
     case n: PAnd => // is boolean if left and right argument are boolean, otherwise is an assertion
       val lt = exprType(n.left)
@@ -750,7 +750,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case b: PBlankIdentifier => getBlankIdType(b)
 
-    case PNew(typ) => PointerT(typeSymbType(typ))
+    case n: PNew => if (isEnclosingGhost(n)) GhostPointerT(typeSymbType(n.typ)) else ActualPointerT(typeSymbType(n.typ))
 
     case PMake(typ, _) => typeSymbType(typ)
 

@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.property
 import viper.gobra.ast.frontend.{PDeref, PDot, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PNamedOperand, PStructType, PType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInTypeTag
-import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelT, DeclaredT, FunctionT, GhostSliceT, IntT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StringT, StructT, Type}
+import viper.gobra.frontend.info.base.Type.{ActualPointerT, BooleanT, ChannelT, DeclaredT, FunctionT, GhostSliceT, IntT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StringT, StructT, Type}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -65,7 +65,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
   lazy val derefType: Type => Option[Type] =
     attr[Type, Option[Type]] {
       case Single(DeclaredT(t: PTypeDecl, context: ExternalTypeInfo)) => derefType(context.symbType(t.right))
-      case Single(PointerT(elem)) => Some(elem)
+      case Single(p: PointerT) => Some(p.elem)
       case _ => None
     }
 
@@ -200,7 +200,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
 
   lazy val isReceiverType: Property[Type] = createBinaryProperty("not a receiver type") {
     case _: DeclaredT => true
-    case PointerT(t) => t.isInstanceOf[DeclaredT]
+    case ActualPointerT(t) => t.isInstanceOf[DeclaredT]
     case _ => false
   }
 

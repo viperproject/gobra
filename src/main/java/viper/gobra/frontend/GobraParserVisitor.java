@@ -1,4 +1,4 @@
-// Generated from src/main/antlr4/GobraParser.g4 by ANTLR 4.13.1
+// Generated from src/main/antlr4/GobraParser.g4 by ANTLR 4.12.0
 package viper.gobra.frontend;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -314,6 +314,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitGhostSliceType(GobraParser.GhostSliceTypeContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#ghostPointerType}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitGhostPointerType(GobraParser.GhostPointerTypeContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#sqType}.
 	 * @param ctx the parse tree

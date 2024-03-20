@@ -1,0 +1,22 @@
+package GhostReferenceSimple01
+
+type Test struct {
+    field int
+}
+
+ghost
+decreases
+ensures acc(x)
+func GhostFunc() (x gpointer[Test]) {
+    x = &Test{ 42 }
+    //:: ExpectedOutput(assert.failed:assertion.false)
+    assert false
+}
+
+decreases
+ensures acc(x)
+func ActualFunc() (x *Test) {
+    x = &Test{ 42 }
+    //:: ExpectedOutput(assert.failed:assertion.false)
+    assert false
+}

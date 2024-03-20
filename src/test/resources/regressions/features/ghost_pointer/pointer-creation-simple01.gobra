@@ -1,0 +1,21 @@
+package PointerCreationSimple01
+
+// Pointers created in actual code are pointers to locations on the actual heap.
+// Pointers created in ghost code are pointers to locations on the ghost heap.
+
+ghost
+decreases
+ensures acc(x)
+func GhostFunc() (x gpointer[int]) {
+    x = new(int)
+    //:: ExpectedOutput(assert.failed:assertion.false)
+    assert false
+}
+
+decreases
+ensures acc(x)
+func ActualFunc() (x *int) {
+    x = new(int)
+    //:: ExpectedOutput(assert.failed:assertion.false)
+    assert false
+}

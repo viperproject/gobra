@@ -1,0 +1,12 @@
+package GhostReadFail01
+
+// x is a pointer to a location on the ghost heap
+// thus, reading it results in a ghost value, which
+// cannot be assigned to an actual program variable.
+
+decreases
+requires acc(x)
+func actualReadFunc(ghost x gpointer[int]) int {
+    //:: ExpectedOutput(type_error)
+    return *x
+}

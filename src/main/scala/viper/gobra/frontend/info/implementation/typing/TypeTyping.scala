@@ -130,7 +130,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PMethodReceiveName(t) => typeSymbType(t)
 
-    case PMethodReceivePointer(t) => PointerT(typeSymbType(t))
+    case PMethodReceivePointer(t) => ActualPointerT(typeSymbType(t))
 
     case PFunctionType(args, r) => FunctionT(args map miscType, miscType(r))
 
@@ -145,7 +145,8 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PDeref =>
       resolve(n) match {
-        case Some(p: ap.PointerType) => PointerT(typeSymbType(p.base))
+        // since we have special syntax for ghost pointer types, `*T` always resolves to an actual pointer type
+        case Some(p: ap.PointerType) => ActualPointerT(typeSymbType(p.base))
         case _ => violation(s"expected type, but got $n")
       }
 

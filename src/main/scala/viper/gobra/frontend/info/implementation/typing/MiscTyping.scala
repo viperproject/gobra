@@ -25,8 +25,8 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefActualMisc(misc: PActualMisc): Messages = misc match {
 
     case n@PRange(exp, _) => isExpr(exp).out ++ (underlyingType(exprType(exp)) match {
-      case _: ArrayT | PointerT(_: ArrayT) | _: SliceT | _: GhostSliceT | _: MapT |
-          ChannelT(_, ChannelModus.Recv | ChannelModus.Bi) => noMessages
+      case _: ArrayT | ActualPointerT(_: ArrayT) | _: SliceT | _: GhostSliceT | _: MapT |
+           ChannelT(_, ChannelModus.Recv | ChannelModus.Bi) => noMessages
       case t => message(n, s"type error: got $t but expected rangeable type")
     })
 
@@ -52,7 +52,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PRange(exp, _) => underlyingType(exprType(exp)) match {
       case ArrayT(_, elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
-      case PointerT(ArrayT(_, elem)) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
+      case ActualPointerT(ArrayT(_, elem)) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
       case SliceT(elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
       case GhostSliceT(elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
       case MapT(key, elem) => InternalSingleMulti(key, InternalTupleT(Vector(key, elem)))
@@ -68,7 +68,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case PClosureDecl(args, res, _, _)  => FunctionT(args.map(typ), miscType(res))
 
     case PEmbeddedName(t) => typeSymbType(t)
-    case PEmbeddedPointer(t) => PointerT(typeSymbType(t))
+    case PEmbeddedPointer(t) => ActualPointerT(typeSymbType(t))
 
     case l: PLiteralValue => expectedMiscType(l)
     case l: PKeyedElement => miscType(l.exp)

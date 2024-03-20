@@ -11,6 +11,8 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.SymbolTable.{Closure, Function, Regular, SingleLocalVariable}
+import viper.gobra.frontend.info.base.Type.GhostPointerT
+import viper.gobra.util.Violation
 import viper.gobra.util.Violation.violation
 
 trait GhostWellDef { this: TypeInfoImpl =>
@@ -100,7 +102,10 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case e if enclosingGhostContext(e) =>
       e match {
         case PMake(_: PGhostSliceType, _) => noMessages
-        case _: PMake | _: PNew | PReference(_: PCompositeLit) => error(e, "Allocating memory within ghost code is forbidden")
+        case _: PMake => error(e, "Allocating memory within ghost code is forbidden")
+        case _: PNew | PReference(_: PCompositeLit) =>
+          Violation.violation(exprType(e).isInstanceOf[GhostPointerT], s"All memory allocated within ghost code must be located on the ghost heap")
+          noMessages
         case _ => noMessages
       }
 

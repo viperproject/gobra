@@ -501,6 +501,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
+    * {@inheritDoc }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitGhostPointerType(ctx: GhostPointerTypeContext): PGhostPointerType = {
+    val typ = visitNode[PType](ctx.elementType().type_())
+    PGhostPointerType(typ).at(ctx)
+  }
+
+  /**
     * {@inheritDoc  }
     *
     * <p>The default implementation returns the result of calling

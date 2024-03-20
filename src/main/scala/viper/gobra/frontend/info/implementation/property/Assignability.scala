@@ -110,7 +110,14 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case e => s"got $e that is not assignable"
   } {
     case e if !isMutable(e) => false
-    case e: PDeref if isEnclosingGhost(e) => false // TODO allow derefs of ghost pointers
+    case e: PDeref if isEnclosingGhost(e) =>
+      resolve(e) match {
+        case Some(ap.Deref(base)) => exprType(base) match {
+          case _: GhostPointerT => true // we dereference a ghost pointer in ghost code
+          case _ => false
+        }
+        case _ => false
+      }
     case PIndexedExp(b, _) => underlyingType(exprType(b)) match {
       case _: ArrayT => assignable(b)
       case _: SliceT | _: GhostSliceT => assignable(b)

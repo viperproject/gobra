@@ -2979,7 +2979,7 @@ object Desugar extends LazyLogging {
         case PIntLit(v, base)  => single(in.IntLit(v, base = base))
         case PBoolLit(b) => single(in.BoolLit(b))
         case PStringLit(s) => single(in.StringLit(s))
-        case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.PointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
+        case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.ActualPointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
         case f: PFunctionLit => registerFunctionLit(ctx, info)(f)
         case c: PCompositeLit => compositeLitD(ctx, info)(c)
         case _ => ???
@@ -3004,7 +3004,7 @@ object Desugar extends LazyLogging {
       // Both will have type Pointer(typeOf(v))
       val src: Meta = meta(v, info)
       val refAlias = nm.refAlias(idName(v, info), info.scope(v), info)
-      val param = in.Parameter.In(refAlias, typeD(PointerT(info.typ(v)), Addressability.inParameter)(src))(src)
+      val param = in.Parameter.In(refAlias, typeD(ActualPointerT(info.typ(v)), Addressability.inParameter)(src))(src)
       val localVar = in.LocalVar(nm.alias(refAlias, info.scope(v), info), param.typ)(src)
       (param, localVar)
     }
@@ -3750,7 +3750,7 @@ object Desugar extends LazyLogging {
         in.MapT(keysD, valuesD, addrMod)
       case Type.GhostSliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
       case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
-      case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
+      case p: Type.PointerT => registerType(in.PointerT(typeD(p.elem, Addressability.pointerBase)(src), addrMod))
       case Type.ChannelT(elem, _) => in.ChannelT(typeD(elem, Addressability.channelElement)(src), addrMod)
       case Type.SequenceT(elem) => in.SequenceT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.SetT(elem) => in.SetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)

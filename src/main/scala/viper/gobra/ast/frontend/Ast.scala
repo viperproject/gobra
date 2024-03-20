@@ -1247,6 +1247,9 @@ case class PMathematicalMapType(keys: PType, values: PType) extends PGhostLitera
 /** The type of option types. */
 case class POptionType(elem : PType) extends PGhostLiteralType
 
+/** The type of ghost pointers */
+case class PGhostPointerType(elem: PType) extends PGhostLiteralType
+
 /** The type of ADT types */
 case class PAdtType(clauses: Vector[PAdtClause]) extends PGhostLiteralType with PUnorderedScope
 

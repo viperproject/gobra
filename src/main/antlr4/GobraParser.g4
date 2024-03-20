@@ -142,7 +142,7 @@ seqUpdClause: expression ASSIGN expression;
 
 // Ghost Type Literals
 
-ghostTypeLit: sqType | ghostSliceType | domainType | adtType;
+ghostTypeLit: sqType | ghostSliceType | ghostPointerType | domainType | adtType;
 
 domainType: DOM L_CURLY (domainClause eos)* R_CURLY;
 
@@ -155,6 +155,8 @@ adtClause: IDENTIFIER L_CURLY (adtFieldDecl eos)* R_CURLY;
 adtFieldDecl: identifierList? type_;
 
 ghostSliceType: GHOST L_BRACKET R_BRACKET elementType;
+
+ghostPointerType: GPOINTER L_BRACKET elementType R_BRACKET;
 
 sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
     | kind=DICT L_BRACKET type_ R_BRACKET type_;

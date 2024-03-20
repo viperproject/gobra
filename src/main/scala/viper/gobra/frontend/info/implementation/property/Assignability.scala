@@ -105,8 +105,12 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case _ => errorProp()
   }
 
-  lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {
+  lazy val assignable: Property[PExpression] = createFlatProperty[PExpression]{
+    case e if isEnclosingGhost(e) => s"got $e that is not assignable in ghost code"
+    case e => s"got $e that is not assignable"
+  } {
     case e if !isMutable(e) => false
+    case e: PDeref if isEnclosingGhost(e) => false // TODO allow derefs of ghost pointers
     case PIndexedExp(b, _) => underlyingType(exprType(b)) match {
       case _: ArrayT => assignable(b)
       case _: SliceT | _: GhostSliceT => assignable(b)

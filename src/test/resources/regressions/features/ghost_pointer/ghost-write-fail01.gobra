@@ -1,0 +1,32 @@
+package GhostWriteFail01
+
+// x is a pointer to a location on the actual heap
+// thus, writing in ghost code is forbidden as effects
+// are observable (via aliasing).
+
+ghost
+decreases
+requires acc(x)
+func ghostWriteFunc(x *int) {
+    //:: ExpectedOutput(type_error)
+    *x = 42
+}
+
+decreases
+requires acc(x)
+func actualWriteFunc(x *int) {
+    *x = 42
+}
+
+ghost
+decreases
+requires acc(x)
+func ghostReadFunc(x *int) int {
+    return *x
+}
+
+decreases
+requires acc(x)
+func actualReadFunc(x *int) int {
+    return *x
+}

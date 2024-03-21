@@ -5,6 +5,7 @@
 // Copyright (c) 2011-2023 ETH Zurich.
 
 package viper.gobra.translator.util
+import viper.gobra.util.BackendAnnotation
 import viper.silver.{ast => vpr}
 
 object VprInfo {
@@ -28,4 +29,19 @@ object VprInfo {
     val annotation = vpr.AnnotationInfo(Map(key -> values))
     vpr.ConsInfo(annotation, info)
   }
+
+  private def annotationToInfo(a: BackendAnnotation): vpr.AnnotationInfo = {
+    vpr.AnnotationInfo(Map(a.key -> Seq(a.value)))
+  }
+
+  private def attachAnnotation(a: BackendAnnotation, info: vpr.Info): vpr.Info = {
+    val modeAnnotation = annotationToInfo(a)
+    vpr.ConsInfo(modeAnnotation, info)
+  }
+
+  def attachAnnotations(as: Vector[BackendAnnotation], info: vpr.Info): vpr.Info =
+    as match {
+      case Vector() => info
+      case _ => attachAnnotations(as.tail, attachAnnotation(as.head, info))
+    }
 }

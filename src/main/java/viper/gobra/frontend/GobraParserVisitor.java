@@ -1,4 +1,4 @@
-// Generated from src/main/antlr4/GobraParser.g4 by ANTLR 4.13.1
+// Generated from /Users/joao/code/gobra/src/main/antlr4/GobraParser.g4 by ANTLR 4.13.1
 package viper.gobra.frontend;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -326,6 +326,30 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitSpecification(GobraParser.SpecificationContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#backend_annotation_entry}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBackend_annotation_entry(GobraParser.Backend_annotation_entryContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#singleBackendAnnotation}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleBackendAnnotation(GobraParser.SingleBackendAnnotationContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#backendAnnotationList}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBackendAnnotationList(GobraParser.BackendAnnotationListContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#backendAnnotation}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBackendAnnotation(GobraParser.BackendAnnotationContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#specStatement}.
 	 * @param ctx the parse tree

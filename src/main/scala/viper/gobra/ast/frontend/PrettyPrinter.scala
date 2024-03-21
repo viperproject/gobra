@@ -144,7 +144,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, measures, isPure, isTrusted, isOpaque) =>
+    case PFunctionSpec(pres, preserves, posts, measures, backendAnnotations, isPure, isTrusted, isOpaque) =>
+      showBackendAnnotations(backendAnnotations) <> line <>
       (if (isPure) showPure else emptyDoc) <>
       (if (isOpaque) showOpaque else emptyDoc) <>
       (if (isTrusted) showTrusted else emptyDoc) <>
@@ -691,6 +692,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showLabel(id: PLabelNode): Doc = id.name
 
+  def showBackendAnnotation(annotation: PBackendAnnotation): Doc =
+    annotation.key <> parens(annotation.value)
+
+  def showBackendAnnotations(annotations: Vector[PBackendAnnotation]): Doc =
+    "#backend" <> brackets(showList(annotations)(showBackendAnnotation))
+
   // misc
 
   def showMisc(id: PMisc): Doc = id match {
@@ -729,6 +736,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case expr: PMatchPattern => showMatchPattern(expr)
       case c: PMatchExpDefault => showMatchExpClause(c)
       case c: PMatchExpCase => showMatchExpClause(c)
+      case a: PBackendAnnotation => showBackendAnnotation(a)
     }
   }
 

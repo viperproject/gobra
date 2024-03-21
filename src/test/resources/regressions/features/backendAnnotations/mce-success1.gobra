@@ -4,26 +4,26 @@
 package pkg
 
 // Example in functions with disjunctive aliasing
-exhaleMode(greedy)
+#backend[exhaleMode(0)]
 requires acc(x) && acc(y)
 requires x == z || y == z
 //:: ExpectedOutput(postcondition_error:assertion_error)
 ensures  acc(z)
 func f_greedy(x, y, z *int) { }
 
-exhaleMode(mce)
+#backend[exhaleMode(1)]
 requires acc(x) && acc(y)
 requires x == z || y == z
 ensures  acc(z)
 func f_mce(x, y, z *int) { }
 
 // Example in outline blocks
-exhaleMode(greedy)
+#backend[exhaleMode(0)]
 requires acc(x) && acc(y)
 requires x == z || y == z
 ensures  acc(z)
 func g1(x, y, z *int) {
-    exhaleMode(mce)
+    #backend[exhaleMode(1)]
     requires acc(x) && acc(y)
     requires x == z || y == z
     ensures  acc(z)
@@ -32,12 +32,12 @@ func g1(x, y, z *int) {
     )
 }
 
-exhaleMode(mce)
+#backend[exhaleMode(1)]
 requires acc(x) && acc(y)
 requires x == z || y == z
 ensures  acc(z)
 func g2(x, y, z *int) {
-    exhaleMode(greedy)
+    #backend[exhaleMode(0)]
     requires acc(x) && acc(y)
     requires x == z || y == z
     //:: ExpectedOutput(postcondition_error:assertion_error)
@@ -50,7 +50,7 @@ func g2(x, y, z *int) {
 // closures
 func m1(x, y, z *int) {
     foo := 
-        exhaleMode(greedy)
+        #backend[exhaleMode(0)]
         requires acc(x) && acc(y)
         requires x == z || y == z
         //:: ExpectedOutput(postcondition_error:assertion_error)
@@ -61,7 +61,7 @@ func m1(x, y, z *int) {
 func m2(x, y, z *int) {
 
     foo := 
-        exhaleMode(mce)
+        #backend[exhaleMode(1)]
         requires acc(x) && acc(y)
         requires x == z || y == z
         ensures  acc(z)

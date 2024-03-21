@@ -1,3 +1,9 @@
-package main.scala.viper.gobra.util
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
 
-case class BackendAnnotation()
+package viper.gobra.util
+
+case class BackendAnnotation(key: String, value: String)

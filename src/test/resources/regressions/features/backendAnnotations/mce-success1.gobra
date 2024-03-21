@@ -7,7 +7,7 @@ package pkg
 #backend[exhaleMode(0)]
 requires acc(x) && acc(y)
 requires x == z || y == z
-//:: ExpectedOutput(postcondition_error:assertion_error)
+//:: ExpectedOutput(postcondition_error:permission_error)
 ensures  acc(z)
 func f_greedy(x, y, z *int) { }
 
@@ -40,7 +40,7 @@ func g2(x, y, z *int) {
     #backend[exhaleMode(0)]
     requires acc(x) && acc(y)
     requires x == z || y == z
-    //:: ExpectedOutput(postcondition_error:assertion_error)
+    //:: ExpectedOutput(postcondition_error:permission_error)
     ensures  acc(z)
     outline(
     assert true
@@ -53,7 +53,7 @@ func m1(x, y, z *int) {
         #backend[exhaleMode(0)]
         requires acc(x) && acc(y)
         requires x == z || y == z
-        //:: ExpectedOutput(postcondition_error:assertion_error)
+        //:: ExpectedOutput(postcondition_error:permission_error)
         ensures  acc(z)
         func bar(x, y, z *int) { }
 }

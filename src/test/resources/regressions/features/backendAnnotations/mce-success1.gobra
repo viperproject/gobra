@@ -32,7 +32,7 @@ func g1(x, y, z *int) {
     )
 }
 
-#backend[exhaleMode(1)]
+#backend[exhaleMode(1), moreJoins()]
 requires acc(x) && acc(y)
 requires x == z || y == z
 ensures  acc(z)

@@ -77,7 +77,8 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     * Shows the Goified version of the function / method specification
     */
   override def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, measures, _, isPure, isTrusted, isOpaque) =>
+    case PFunctionSpec(pres, preserves, posts, measures, backendAnnotations, isPure, isTrusted, isOpaque) =>
+      specComment <+> showBackendAnnotations(backendAnnotations) <> line <>
       (if (isPure) specComment <+> showPure else emptyDoc) <>
       (if (isOpaque) specComment <+> showOpaque else emptyDoc) <>
       (if (isTrusted) specComment <+> showTrusted else emptyDoc) <>

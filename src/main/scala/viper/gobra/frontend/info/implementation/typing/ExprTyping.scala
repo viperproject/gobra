@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noM
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminator, GlobalVariable, SingleConstant}
-import viper.gobra.frontend.info.base.Type._
+import viper.gobra.frontend.info.base.Type.{PointerT, _}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
 import viper.gobra.util.{Constants, TypeBounds, Violation}
@@ -324,7 +324,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               val idxOpt = intConstantEval(index)
               error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
 
-            case (ActualPointerT(ArrayT(l, _)), IntT(_)) =>
+            case (PointerT(ArrayT(l, _)), IntT(_)) =>
               val idxOpt = intConstantEval(index)
               error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
 
@@ -689,7 +689,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       (underlyingType(baseType), underlyingType(idxType)) match {
         case (Single(base), Single(idx)) => (base, idx) match {
           case (ArrayT(_, elem), IntT(_)) => elem
-          case (ActualPointerT(ArrayT(_, elem)), IntT(_)) => elem
+          case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
           case (SequenceT(elem), IntT(_)) => elem
           case (SliceT(elem), IntT(_)) => elem
           case (GhostSliceT(elem), IntT(_)) => elem

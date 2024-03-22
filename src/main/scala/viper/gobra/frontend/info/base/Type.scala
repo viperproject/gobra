@@ -74,8 +74,12 @@ object Type {
 
   case class MapT(key: Type, elem: Type) extends PrettyType(s"map[$key]$elem")
 
-  trait PointerT {
+  sealed trait PointerT {
     val elem: Type
+  }
+
+  object PointerT {
+    def unapply(arg: PointerT): Option[Type] = Some(arg.elem)
   }
 
   case class ActualPointerT(elem: Type) extends PrettyType(s"*$elem") with PointerT

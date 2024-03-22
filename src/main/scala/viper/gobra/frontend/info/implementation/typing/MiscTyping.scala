@@ -25,7 +25,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefActualMisc(misc: PActualMisc): Messages = misc match {
 
     case n@PRange(exp, _) => isExpr(exp).out ++ (underlyingType(exprType(exp)) match {
-      case _: ArrayT | ActualPointerT(_: ArrayT) | _: SliceT | _: GhostSliceT | _: MapT |
+      case _: ArrayT | PointerT(_: ArrayT) | _: SliceT | _: GhostSliceT | _: MapT |
            ChannelT(_, ChannelModus.Recv | ChannelModus.Bi) => noMessages
       case t => message(n, s"type error: got $t but expected rangeable type")
     })

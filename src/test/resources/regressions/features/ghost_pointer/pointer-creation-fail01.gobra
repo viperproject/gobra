@@ -27,6 +27,9 @@ func ActualFunc() {
     // ghost pointer is not assignable to an actual pointer
     //:: ExpectedOutput(type_error)
     ghost x = new(int)
+    
+    // ghost pointer is assignable:
+    ghost z = new(int)
 
     // actual pointer is not assignable to a ghost pointer:
     //:: ExpectedOutput(type_error)

@@ -14,7 +14,7 @@ func GhostFunc() (x [2]gpointer[int]) {
 ghost
 decreases
 requires acc(p[0]) && acc(p[1])
-func GhostArrayRange(p [2]*int) {
+func GhostRangeOverActualPts(p [2]*int) {
 	invariant acc(p[0])
 	invariant acc(p[1])
 	invariant 0 <= i && i <= len(p)
@@ -26,7 +26,11 @@ func GhostArrayRange(p [2]*int) {
 		// assignment is not possible
 		// *j = 42
 	}
+}
 
+ghost
+decreases
+func GhostRangeOverGhostPts() {
     x := GhostFunc()
     invariant acc(x[0])
     invariant acc(x[1])
@@ -35,18 +39,31 @@ func GhostArrayRange(p [2]*int) {
     for i, j := range x with i0 {
     	assert j != nil
         v := *j
-        v = *p[i]
+        v = *x[i]
         // assigning should be possible:
         *j = 42
     }
 }
 
 ghost
-func ActualPtrArrayRange() {
+decreases
+func GhostRangeOverGhostPtrToInts() {
     arr@ := [2]int{ 0, 1 }
     p := &arr
     var elem int
-    for elem = range(p) with i0 {
+    decreases len(*p) - i0
+    for elem = range(*p) with i0 {
+
+    }
+}
+
+decreases
+func ActualRangeOverPtrToInts() {
+    arr@ := [2]int{ 0, 1 }
+    p := &arr
+    var elem int
+    decreases len(*p) - i0
+    for elem = range(*p) with i0 {
 
     }
 }

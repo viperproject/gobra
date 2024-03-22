@@ -1,0 +1,50 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostLocationFail01
+
+ghost
+decreases
+requires 1 <= len(p)
+requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i])
+func SliceInGhostCode(p []int) {
+    gp := p
+
+    // both `p` and `gp` are slices that are located in actual memory
+    //:: ExpectedOutput(type_error)
+    p[0] = 42
+    //:: ExpectedOutput(type_error)
+    gp[0] = 42
+}
+
+ghost
+decreases
+requires 1 <= len(p)
+requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i])
+func GhostSliceInGhostCode(p ghost []int) {
+    gp := p
+    p[0] = 42
+    gp[0] = 42
+}
+
+decreases
+requires 1 <= len(p)
+requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i])
+func SliceInActualCode(p []int) {
+    gp := p
+
+    // both `p` and `gp` are slices that are located in actual memory
+    //:: ExpectedOutput(type_error)
+    p[0] = 42
+    //:: ExpectedOutput(type_error)
+    gp[0] = 42
+}
+
+decreases
+requires 1 <= len(p)
+requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i])
+func GhostSliceInActualCode(ghost p ghost []int) {
+    gp := p
+    p[0] = 42
+    gp[0] = 42
+}

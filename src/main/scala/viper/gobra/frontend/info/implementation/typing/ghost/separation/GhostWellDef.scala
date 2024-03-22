@@ -40,11 +40,11 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
     case n : PVarDecl => n.typ match {
       case Some(typ) => error(n, s"ghost error: expected an actual type but found $typ",
-        isTypeGhost(typ) && !enclosingGhostContext(n))
+        isTypeGhost(typ) && !isEnclosingGhost(n))
       case None => noMessages
     }
 
-    case m if enclosingGhostContext(m) => noMessages
+    case m if isEnclosingGhost(m) => noMessages
 
     case _ => noMessages
   }
@@ -52,8 +52,11 @@ trait GhostWellDef { this: TypeInfoImpl =>
   private def stmtGhostSeparation(stmt: PStatement): Messages = stmt match {
     case p: PClosureImplProof => provenSpecMatchesInGhostnessWithCall(p)
 
+    case PAssignment(right, left) => ghostAssignableToAssignee(right: _*)(left: _*)
+    case PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
+
     case _: PGhostStatement => noMessages
-    case s if enclosingGhostContext(s) => noMessages
+    case s if isEnclosingGhost(s) => noMessages
 
     case stmt @ PForStmt(pre, cond, post, _, body) => {
       // NOTE the loop specification *is* allowed to contain ghost constructs; the rest isn't
@@ -86,9 +89,6 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PDeferStmt
       ) => error(n, "ghost error: Found ghost child expression but expected none", !noGhostPropagationFromChildren(n))
 
-    case PAssignment(right, left) => ghostAssignableToAssignee(right: _*)(left: _*)
-    case PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
-
     case PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
 
     case n@ PReturn(right) =>
@@ -99,11 +99,11 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
   private def exprGhostSeparation(expr: PExpression): Messages = expr match {
     case _: PGhostExpression => noMessages
-    case e if enclosingGhostContext(e) =>
+    case e if isEnclosingGhost(e) =>
       e match {
         case PMake(_: PGhostSliceType, _) => noMessages
         case _: PMake => error(e, "Allocating memory within ghost code is forbidden")
-        case _: PNew | PReference(_: PCompositeLit) =>
+        case _: PNew =>
           Violation.violation(exprType(e).isInstanceOf[GhostPointerT], s"All memory allocated within ghost code must be located on the ghost heap")
           noMessages
         case _ => noMessages
@@ -155,7 +155,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case _: PGhostType => noMessages
     case n: PStructType => n.fields.flatMap(f => {
       error(f, s"ghost error: expected an actual type but found ${f.typ}",
-        isTypeGhost(f.typ) && !enclosingGhostContext(f))
+        isTypeGhost(f.typ) && !isEnclosingGhost(f))
     })
     case _: PInterfaceType => noMessages
     case n: PType => error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
@@ -186,7 +186,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
   private def miscGhostSeparation(misc : PMisc) : Messages = misc match {
     case _: PGhostMisc => noMessages
     case p: PActualParameter => error(p, s"ghost error: expected an actual type but found ${p.typ}",
-      isTypeGhost(p.typ) && !enclosingGhostContext(p))
+      isTypeGhost(p.typ) && !isEnclosingGhost(p))
     case _ => noMessages
   }
 }

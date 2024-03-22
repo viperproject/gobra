@@ -11,7 +11,7 @@ decreases
 ensures acc(x)
 func GhostFunc() (x gpointer[int]) {
     x = new(int)
-    //:: ExpectedOutput(assert.failed:assertion.false)
+    //:: ExpectedOutput(assert_error:assertion_error)
     assert false
 }
 
@@ -19,6 +19,6 @@ decreases
 ensures acc(x)
 func ActualFunc() (x *int) {
     x = new(int)
-    //:: ExpectedOutput(assert.failed:assertion.false)
+    //:: ExpectedOutput(assert_error:assertion_error)
     assert false
 }

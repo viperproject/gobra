@@ -641,7 +641,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           ssep(pspec map showInterfaceClause, line)
       )
     case PMethodReceiveName(t) => showType(t)
-    case PMethodReceivePointer(t) => "*" <> showType(t)
+    case r: PMethodReceivePointer => r match {
+      case PMethodReceiveActualPointer(t) => "*" <> showType(t)
+      case PMethodReceiveGhostPointer(t) => "gpointer" <> brackets(showType(t))
+    }
   }
 
   def showGhostType(typ : PGhostType) : Doc = typ match {

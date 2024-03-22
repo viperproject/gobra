@@ -725,7 +725,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"expected receive-permitting channel but got $t")
     }
 
-    case r@ PReference(exp) if effAddressable(exp) => if (isEnclosingGhost(r)) GhostPointerT(exprType(exp)) else ActualPointerT(exprType(exp))
+    case PReference(exp) if effAddressable(exp) =>
+      // we do not care whether the reference itself is in a ghost context or not but whether `exp` is ghost
+      if (isGhostLocation(exp)) GhostPointerT(exprType(exp)) else ActualPointerT(exprType(exp))
 
     case n: PAnd => // is boolean if left and right argument are boolean, otherwise is an assertion
       val lt = exprType(n.left)

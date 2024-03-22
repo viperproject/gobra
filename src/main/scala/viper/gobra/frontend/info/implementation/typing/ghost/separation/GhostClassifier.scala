@@ -24,6 +24,8 @@ trait GhostClassifier {
 
   def isParamGhost(param: PParameter): Boolean
 
+  def isGhostLocation(expr: PExpression): Boolean
+
   def isStructClauseGhost(clause: PStructClause): Boolean
 
   def isInterfaceClauseGhost(clause: PInterfaceClause): Boolean

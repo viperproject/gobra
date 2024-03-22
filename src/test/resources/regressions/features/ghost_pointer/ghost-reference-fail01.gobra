@@ -1,0 +1,10 @@
+package GhostReferenceFail01
+
+func ActualFunc() {
+    x@ := 42
+    ghost p := &x
+
+    // the following write fails as it's ghost code but assigning to an actual heap location:
+    //:: ExpectedOutput(type_error)
+    ghost *p = 42
+}

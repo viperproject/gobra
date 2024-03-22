@@ -4914,7 +4914,7 @@ object Desugar extends LazyLogging {
       topLevelName(s"$METHODSPEC_PREFIX${interface(t)}")(n, context)
     def method  (n: String, t: PMethodRecvType, context: ExternalTypeInfo): String = t match {
       case PMethodReceiveName(typ)    => topLevelName(s"$METHOD_PREFIX${typ.name}")(n, context)
-      case PMethodReceivePointer(typ) => topLevelName(s"P$METHOD_PREFIX${typ.name}")(n, context)
+      case r: PMethodReceivePointer => topLevelName(s"P$METHOD_PREFIX${r.typ.name}")(n, context)
     }
     private def stringifyType(typ: in.Type): String = Names.serializeType(typ)
     def builtInMember(tag: BuiltInMemberTag, dependantTypes: Vector[in.Type]): String = {

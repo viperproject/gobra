@@ -737,7 +737,13 @@ sealed trait PMethodRecvType extends PActualType { // TODO: will have to be remo
 
 case class PMethodReceiveName(typ: PNamedOperand) extends PMethodRecvType
 
-case class PMethodReceivePointer(typ: PNamedOperand) extends PMethodRecvType
+trait PMethodReceivePointer extends PMethodRecvType {
+  def typ: PNamedOperand
+}
+
+case class PMethodReceiveActualPointer(typ: PNamedOperand) extends PMethodReceivePointer
+
+case class PMethodReceiveGhostPointer(typ: PNamedOperand) extends PMethodReceivePointer with PGhostNode
 
 // TODO: Named type is not allowed to be an interface
 

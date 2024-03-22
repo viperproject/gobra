@@ -144,7 +144,7 @@ trait NameResolution {
       case _ => violation("PIdnUnk always has a parent")
     }
 
-  private[resolution] lazy val isGhostDef: PNode => Boolean = isEnclosingExplicitGhost
+  private[resolution] lazy val isGhostDef: PNode => Boolean = isEnclosingGhost
 
   private[resolution] def serialize(id: PIdnNode): String = id.name
 

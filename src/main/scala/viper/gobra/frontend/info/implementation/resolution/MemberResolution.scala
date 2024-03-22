@@ -50,7 +50,7 @@ trait MemberResolution { this: TypeInfoImpl =>
     def go(pastDeref: Boolean): Type => AdvancedMemberSet[StructMember] = attr[Type, AdvancedMemberSet[StructMember]] {
 
       case DeclaredT(decl, context) => go(pastDeref)(context.symbType(decl.right)).surface
-      case ActualPointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
+      case p: PointerT if !pastDeref => go(pastDeref = true)(p.elem).ref
 
       case s: StructT =>
         val (es, fs) = (s.decl.embedded, s.decl.fields)

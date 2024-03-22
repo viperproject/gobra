@@ -130,7 +130,10 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PMethodReceiveName(t) => typeSymbType(t)
 
-    case PMethodReceivePointer(t) => ActualPointerT(typeSymbType(t))
+    case r: PMethodReceivePointer => r match {
+      case PMethodReceiveActualPointer(t) => ActualPointerT(typeSymbType(t))
+      case PMethodReceiveGhostPointer(t) => GhostPointerT(typeSymbType(t))
+    }
 
     case PFunctionType(args, r) => FunctionT(args map miscType, miscType(r))
 

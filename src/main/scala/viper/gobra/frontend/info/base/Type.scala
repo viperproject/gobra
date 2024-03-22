@@ -80,7 +80,7 @@ object Type {
 
   case class ActualPointerT(elem: Type) extends PrettyType(s"*$elem") with PointerT
 
-  case class GhostPointerT(elem: Type) extends PrettyType(s"gpointer[$elem]") with PointerT
+  case class GhostPointerT(elem: Type) extends PrettyType(s"gpointer[$elem]") with PointerT with GhostType
 
   case class ChannelT(elem: Type, mod: ChannelModus) extends PrettyType(s"$mod $elem")
 

@@ -9,7 +9,8 @@ package GhostReadFail01
 
 decreases
 requires acc(x)
-func actualReadFunc(ghost x gpointer[int]) int {
+func actualReadFunc(ghost x gpointer[int]) (res int) {
     //:: ExpectedOutput(type_error)
-    return *x
+    res = *x
+    return
 }

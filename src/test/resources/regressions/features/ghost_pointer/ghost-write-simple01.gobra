@@ -12,7 +12,7 @@ decreases
 requires acc(x)
 func ghostWriteFunc(x gpointer[int]) {
     *x = 42
-    //:: ExpectedOutput(assert.failed:assertion.false)
+    //:: ExpectedOutput(assert_error:assertion_error)
     assert false
 }
 

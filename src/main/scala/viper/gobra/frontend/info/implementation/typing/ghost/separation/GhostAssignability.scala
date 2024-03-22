@@ -11,6 +11,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignMode}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType.ghost
 import viper.gobra.util.Violation
@@ -85,12 +86,15 @@ trait GhostAssignability {
     (argTyping, resTyping)
   }
 
-  /** conservative ghost separation assignment check */
+  /** conservative ghost separation assignment check for assignment in actual and ghost code */
   private[separation] def ghostAssignableToAssignee(exprs: PExpression*)(lefts: PAssignee*): Messages =
     generalGhostAssignableTo(ghostExprResultTyping)(ghostAssigneeAssignmentMsg)(exprs: _*)(lefts: _*)
 
+  private def ghostAssigneeAssignmentMsg(isRightGhost: Boolean, left: PAssignee): Messages =
+    if (isEnclosingGhost(left)) ghostAssigneeAssignmentMsgInGhostCode(left) else ghostAssigneeAssignmentMsgInActualCode(isRightGhost, left)
 
-  private def ghostAssigneeAssignmentMsg(isRightGhost: Boolean, left: PAssignee): Messages = left match {
+  // handles the case of assignments in actual code
+  private def ghostAssigneeAssignmentMsgInActualCode(isRightGhost: Boolean, left: PAssignee): Messages = left match {
 
     case _: PDeref => // *x := e ~ !ghost(e)
       error(left, "ghost error: ghost cannot be assigned to pointer", isRightGhost)
@@ -103,16 +107,19 @@ trait GhostAssignability {
       error(left, "ghost error: ghost cannot be assigned to non-ghost", isRightGhost && !ghostIdClassification(id))
 
     case n: PDot => exprOrType(n.base) match {
-      case Left(base) => // x.f := e ~ (ghost(x) || ghost(e)) ==> ghost(f)
-        error(left, "ghost error: ghost cannot be assigned to non-ghost field", isRightGhost && !ghostIdClassification(n.id)) ++
-          error(left, "ghost error: cannot assign to non-ghost field of ghost reference", ghostExprResultClassification(base) && !ghostIdClassification(n.id))
+      case Left(base) => // x.f := e ~ ghost(e) ==> ghostassignee(x.f)
+        error(left, "ghost error: ghost cannot be assigned to non-ghost location", isRightGhost && !ghostLocationClassification(left))
       case _ if resolve(n).exists(_.isInstanceOf[ap.GlobalVariable]) =>
         error(left, "ghost error: ghost cannot be assigned to a global variable", isRightGhost)
       case _ => error(left, "ghost error: selections on types are not assignable")
-  }
+    }
 
     case PBlankIdentifier() => noMessages
   }
+
+  // handles the case of assignments in ghost code
+  private def ghostAssigneeAssignmentMsgInGhostCode(left: PAssignee): Messages =
+    error(left, s"ghost error: only ghost locations can be assigned to in ghost code: ${exprType(left)}", !ghostLocationClassification(left))
 
   /** conservative ghost separation assignment check */
   private[separation] def ghostAssignableToId(exprs: PExpression*)(lefts: PIdnNode*): Messages =

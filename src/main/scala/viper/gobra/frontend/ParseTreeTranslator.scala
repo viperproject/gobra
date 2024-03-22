@@ -900,7 +900,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitReceiver(ctx: ReceiverContext): PReceiver = {
     val recvType = visitNode[PType](ctx.type_()) match {
       case t : PNamedOperand => PMethodReceiveName(t).at(t)
-      case PDeref(t : PNamedOperand) => PMethodReceivePointer(t).at(t)
+      case PDeref(t: PNamedOperand) => PMethodReceiveActualPointer(t).at(t)
+      case PGhostPointerType(t: PNamedOperand) => PMethodReceiveGhostPointer(t).at(t)
       case f => fail(ctx.type_(), s"Expected declared type or pointer to declared type but got: $f.")
     }
 

@@ -12,7 +12,7 @@ decreases
 ensures acc(x)
 func GhostFunc() (x gpointer[Test]) {
     x = &Test{ 42 }
-    //:: ExpectedOutput(assert.failed:assertion.false)
+    //:: ExpectedOutput(assert_error:assertion_error)
     assert false
 }
 
@@ -20,6 +20,12 @@ decreases
 ensures acc(x)
 func ActualFunc() (x *Test) {
     x = &Test{ 42 }
-    //:: ExpectedOutput(assert.failed:assertion.false)
+    ghost p1 := &Test{ 0 }
+    p1.field = 42
+    (*p1).field = 42
+    ghost t2@ := Test{ 0 }
+    t2.field = 42
+    (*(&t2)).field = 42
+    //:: ExpectedOutput(assert_error:assertion_error)
     assert false
 }

@@ -77,6 +77,7 @@ object ConfigDefaults {
   val DefaultDisableCheckTerminationPureFns: Boolean = false
   val DefaultUnsafeWildcardOptimization: Boolean = false
   val DefaultEnableMoreJoins: Boolean = false
+  val DefaultSubmitForEvaluation = false
 }
 
 // More-complete exhale modes
@@ -776,7 +777,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = Some(false),
     noshort = true
   )
-
 
   /**
     * Exception handling

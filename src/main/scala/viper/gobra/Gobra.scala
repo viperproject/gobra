@@ -27,6 +27,8 @@ import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silicon.BuildInfo
+import viper.silver.ast.pretty.FastPrettyPrinter
+import viper.silver.utility.ManualProgramSubmitter
 import viper.silver.{ast => vpr}
 import viper.silver.ast.pretty.FastPrettyPrinter
 import viper.silver.utility.ManualProgramSubmitter
@@ -110,9 +112,8 @@ trait GoVerifier extends StrictLogging {
           warnings.foreach(w => logger.debug(w))
 
           submitters.get(pkgId).foreach(s => {
-              s.setSuccess(result == VerifierResult.Success)
-              s.submit()
-            }
+            s.setSuccess(result == VerifierResult.Success)
+            s.submit()}
           )
           submitters = submitters.removed(pkgId)
 

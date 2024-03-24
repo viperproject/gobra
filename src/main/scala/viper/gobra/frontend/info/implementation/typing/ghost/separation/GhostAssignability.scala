@@ -11,7 +11,6 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.ExternalTypeInfo
-import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignMode}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType.ghost
 import viper.gobra.util.Violation
@@ -107,7 +106,7 @@ trait GhostAssignability {
       error(left, "ghost error: ghost cannot be assigned to non-ghost", isRightGhost && !ghostIdClassification(id))
 
     case n: PDot => exprOrType(n.base) match {
-      case Left(base) => // x.f := e ~ ghost(e) ==> ghostassignee(x.f)
+      case Left(_) => // x.f := e ~ ghost(e) ==> ghostassignee(x.f)
         error(left, "ghost error: ghost cannot be assigned to non-ghost location", isRightGhost && !ghostLocationClassification(left))
       case _ if resolve(n).exists(_.isInstanceOf[ap.GlobalVariable]) =>
         error(left, "ghost error: ghost cannot be assigned to a global variable", isRightGhost)

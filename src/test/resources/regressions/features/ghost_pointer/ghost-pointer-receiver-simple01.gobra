@@ -1,0 +1,47 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostPointerReceiverSimple01
+
+type Foo struct {
+    field int
+}
+
+ghost
+decreases
+preserves acc(p)
+func GhostFunc(p *Foo) {
+    gp := &Foo{ 42 }
+    gp.bar1()
+
+    p.bar2()
+    (*p).bar3()
+    (*gp).bar3()
+}
+
+ghost
+decreases
+preserves acc(r)
+func (r gpointer[Foo]) bar1() int {
+    r.field = 0
+    return r.field
+}
+
+decreases
+preserves acc(r)
+func (r *Foo) bar2() int {
+    r.field = 0
+    return r.field
+}
+
+ghost
+decreases
+func (r Foo) bar3() int {
+    r.field = 42
+    return r.field
+}
+
+func (r Foo) bar4() int {
+    r.field = 42
+    return r.field
+}

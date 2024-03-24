@@ -1,0 +1,32 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostPointerReceiverFail01
+
+type Foo struct {
+    field int
+}
+
+ghost
+decreases
+func GhostFunc() {
+    p := &Foo{ 42 }
+    p.bar1()
+    //:: ExpectedOutput(type_error)
+    p.bar2() // bar2 is not defined on a ghost pointer
+}
+
+decreases
+//:: ExpectedOutput(type_error)
+func (r gpointer[Foo]) bar1() int { // ghostpointer is only allowed for ghost methods
+    r.field = 0
+    return 42
+}
+
+ghost
+decreases
+func (r *Foo) bar2() int {
+    //:: ExpectedOutput(type_error)
+    r.field = 0 // fails since we're trying to modify actual memory
+    return r.field
+}

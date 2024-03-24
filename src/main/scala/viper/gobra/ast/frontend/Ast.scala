@@ -731,19 +731,19 @@ case class PEmbeddedDecl(typ: PEmbeddedType, id: PIdnDef) extends PActualStructC
   require(id.name == typ.name)
 }
 
-sealed trait PMethodRecvType extends PActualType { // TODO: will have to be removed for packages
+sealed trait PMethodRecvType extends PType { // TODO: will have to be removed for packages
   def typ: PNamedOperand
 }
 
-case class PMethodReceiveName(typ: PNamedOperand) extends PMethodRecvType
+case class PMethodReceiveName(typ: PNamedOperand) extends PMethodRecvType with PActualType
 
 trait PMethodReceivePointer extends PMethodRecvType {
   def typ: PNamedOperand
 }
 
-case class PMethodReceiveActualPointer(typ: PNamedOperand) extends PMethodReceivePointer
+case class PMethodReceiveActualPointer(typ: PNamedOperand) extends PMethodReceivePointer with PActualType
 
-case class PMethodReceiveGhostPointer(typ: PNamedOperand) extends PMethodReceivePointer with PGhostNode
+case class PMethodReceiveGhostPointer(typ: PNamedOperand) extends PMethodReceivePointer with PGhostType
 
 // TODO: Named type is not allowed to be an interface
 

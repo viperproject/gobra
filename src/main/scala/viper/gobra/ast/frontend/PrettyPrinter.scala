@@ -641,10 +641,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           ssep(pspec map showInterfaceClause, line)
       )
     case PMethodReceiveName(t) => showType(t)
-    case r: PMethodReceivePointer => r match {
-      case PMethodReceiveActualPointer(t) => "*" <> showType(t)
-      case PMethodReceiveGhostPointer(t) => "gpointer" <> brackets(showType(t))
-    }
+    case PMethodReceiveActualPointer(t) => "*" <> showType(t)
   }
 
   def showGhostType(typ : PGhostType) : Doc = typ match {
@@ -660,6 +657,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         ssep((funcs ++ axioms) map showMisc, line)
       )
     case PAdtType(clauses) => "adt" <> block(ssep(clauses map showMisc, line))
+    case PMethodReceiveGhostPointer(t) => "gpointer" <> brackets(showType(t))
   }
 
   def showStructClause(c: PStructClause): Doc = c match {

@@ -6,4 +6,4 @@
 
 package viper.gobra.util
 
-case class BackendAnnotation(key: String, value: String)
+case class BackendAnnotation(key: String, values: Vector[String])

@@ -11,7 +11,7 @@ import viper.silver.{ast => vpr}
 object VprInfo {
   def maybeAttachOpaque(info: vpr.Info, isOpaque: Boolean): vpr.Info = {
     if (isOpaque) {
-      attachAnnotation(info, "opaque")
+      attachBackendAnnotation(info, "opaque")
     } else {
       info
     }
@@ -19,29 +19,29 @@ object VprInfo {
 
   def maybeAttachReveal(info: vpr.Info, reveal: Boolean): vpr.Info = {
     if (reveal) {
-      attachAnnotation(info, "reveal")
+      attachBackendAnnotation(info, "reveal")
     } else {
       info
     }
   }
 
-  private def attachAnnotation(info: vpr.Info, key: String, values: String*) : vpr.Info = {
+  private def attachBackendAnnotation(info: vpr.Info, key: String, values: String*) : vpr.Info = {
     val annotation = vpr.AnnotationInfo(Map(key -> values))
     vpr.ConsInfo(annotation, info)
   }
 
-  private def annotationToInfo(a: BackendAnnotation): vpr.AnnotationInfo = {
-    vpr.AnnotationInfo(Map(a.key -> Seq(a.value)))
+  private def backendAnnotationToInfo(a: BackendAnnotation): vpr.AnnotationInfo = {
+    vpr.AnnotationInfo(Map(a.key -> a.values))
   }
 
-  private def attachAnnotation(a: BackendAnnotation, info: vpr.Info): vpr.Info = {
-    val modeAnnotation = annotationToInfo(a)
+  private def attachBackendAnnotation(a: BackendAnnotation, info: vpr.Info): vpr.Info = {
+    val modeAnnotation = backendAnnotationToInfo(a)
     vpr.ConsInfo(modeAnnotation, info)
   }
 
   def attachAnnotations(as: Vector[BackendAnnotation], info: vpr.Info): vpr.Info =
     as match {
       case Vector() => info
-      case _ => attachAnnotations(as.tail, attachAnnotation(as.head, info))
+      case _ => attachAnnotations(as.tail, attachBackendAnnotation(as.head, info))
     }
 }

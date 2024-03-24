@@ -4,44 +4,44 @@
 package pkg
 
 // Example in functions with disjunctive aliasing
-#backend[exhaleMode(0)]
 requires acc(x) && acc(y)
 requires x == z || y == z
 //:: ExpectedOutput(postcondition_error:permission_error)
 ensures  acc(z)
+#backend[exhaleMode(0)]
 func f_greedy(x, y, z *int) { }
 
-#backend[exhaleMode(1)]
 requires acc(x) && acc(y)
 requires x == z || y == z
 ensures  acc(z)
+#backend[exhaleMode(1)]
 func f_mce(x, y, z *int) { }
 
 // Example in outline blocks
-#backend[exhaleMode(0)]
 requires acc(x) && acc(y)
 requires x == z || y == z
 ensures  acc(z)
+#backend[exhaleMode(0)]
 func g1(x, y, z *int) {
-    #backend[exhaleMode(1)]
     requires acc(x) && acc(y)
     requires x == z || y == z
     ensures  acc(z)
+    #backend[exhaleMode(1)]
     outline(
     assert true
     )
 }
 
-#backend[exhaleMode(1), moreJoins()]
 requires acc(x) && acc(y)
 requires x == z || y == z
 ensures  acc(z)
+#backend[exhaleMode(1), moreJoins()]
 func g2(x, y, z *int) {
-    #backend[exhaleMode(0)]
     requires acc(x) && acc(y)
     requires x == z || y == z
     //:: ExpectedOutput(postcondition_error:permission_error)
     ensures  acc(z)
+    #backend[exhaleMode(0)]
     outline(
     assert true
     )
@@ -50,20 +50,19 @@ func g2(x, y, z *int) {
 // closures
 func m1(x, y, z *int) {
     foo := 
-        #backend[exhaleMode(0)]
         requires acc(x) && acc(y)
         requires x == z || y == z
         //:: ExpectedOutput(postcondition_error:permission_error)
         ensures  acc(z)
+        #backend[exhaleMode(0)]
         func bar(x, y, z *int) { }
 }
 
 func m2(x, y, z *int) {
-
     foo := 
-        #backend[exhaleMode(1)]
         requires acc(x) && acc(y)
         requires x == z || y == z
         ensures  acc(z)
+        #backend[exhaleMode(1), bogusAnnotation(1, 2, 3, 4)]
         func bar(x, y, z *int) { }
 }

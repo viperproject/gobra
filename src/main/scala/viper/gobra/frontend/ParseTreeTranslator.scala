@@ -874,14 +874,15 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitSpecification(ctx: GobraParser.SpecificationContext): PFunctionSpec = {
     // Get the backend options if available
     val annotations = {
-      val maybeAnnotations = ctx.backendAnnotation()
-      if (maybeAnnotations != null) {
-        val maybeAnnotationList = maybeAnnotations.backendAnnotationList()
-        if (maybeAnnotationList != null)
-          maybeAnnotationList.singleBackendAnnotation().asScala.map(visitSingleBackendAnnotation).toVector
-        else
-          Vector.empty
-      } else
+      if (has(ctx.backendAnnotation()) && has(ctx.backendAnnotation().backendAnnotationList()))
+        ctx
+          .backendAnnotation()
+          .backendAnnotationList()
+          .singleBackendAnnotation()
+          .asScala
+          .map(visitSingleBackendAnnotation)
+          .toVector
+      else
         Vector.empty
     }
     // Group the specifications by keyword
@@ -934,19 +935,27 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitSingleBackendAnnotation(ctx: SingleBackendAnnotationContext): PBackendAnnotation = {
-    visitChildren(ctx) match {
-      case Vector(key, "(", value, ")") =>
-        PBackendAnnotation(key.toString, value.toString).at(ctx)
-      case Vector(key, "(", ")") =>
-        PBackendAnnotation(key.toString, "").at(ctx)
-      case _ =>
-        unexpected(ctx)
-    }
+    val key = visit(ctx.backendAnnotationEntry).toString
+    val values =
+      if (has(ctx.listOfValues())) {
+        ctx
+        .listOfValues()
+        .backendAnnotationEntry()
+        .asScala
+        .view.map(ctx => visit(ctx).toString)
+        .toVector
+      } else {
+        Vector.empty
+      }
+    PBackendAnnotation(key, values).at(ctx)
   }
 
-  def visitBackendAnnotationEntry(ctx: Backend_annotation_entryContext): String = {
+  /*
+  override def visitBackendAnnotationEntry(ctx: BackendAnnotationEntryContext): String = {
     visit(ctx).toString
   }
+
+   */
 
   //region Implementation proofs
   /**

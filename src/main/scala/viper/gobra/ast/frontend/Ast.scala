@@ -887,7 +887,7 @@ case class PFunctionSpec(
                           isOpaque: Boolean = false,
                       ) extends PSpecification
 
-case class PBackendAnnotation(key: String, value: String) extends PGhostMisc
+case class PBackendAnnotation(key: String, values: Vector[String]) extends PGhostMisc
 
 case class PBodyParameterInfo(
                                /**

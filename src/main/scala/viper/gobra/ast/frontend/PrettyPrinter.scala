@@ -145,14 +145,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showSpec(spec: PSpecification): Doc = spec match {
     case PFunctionSpec(pres, preserves, posts, measures, backendAnnotations, isPure, isTrusted, isOpaque) =>
-      showBackendAnnotations(backendAnnotations) <> line <>
       (if (isPure) showPure else emptyDoc) <>
       (if (isOpaque) showOpaque else emptyDoc) <>
       (if (isTrusted) showTrusted else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
-        hcat(preserves map (showPreserves(_) <> line)) <>
-        hcat(posts map (showPost(_) <> line)) <>
-        hcat(measures map (showTerminationMeasure(_) <> line))
+      hcat(preserves map (showPreserves(_) <> line)) <>
+      hcat(posts map (showPost(_) <> line)) <>
+      hcat(measures map (showTerminationMeasure(_) <> line)) <>
+      showBackendAnnotations(backendAnnotations) <> line
 
     case PLoopSpec(inv, measure) =>
       hcat(inv map (showInv(_) <> line)) <> opt(measure)(showTerminationMeasure) <> line
@@ -693,7 +693,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showLabel(id: PLabelNode): Doc = id.name
 
   def showBackendAnnotation(annotation: PBackendAnnotation): Doc =
-    annotation.key <> parens(annotation.value)
+    annotation.key <> parens(showList(annotation.values)(d => d))
 
   def showBackendAnnotations(annotations: Vector[PBackendAnnotation]): Doc =
     "#backend" <> brackets(showList(annotations)(showBackendAnnotation))

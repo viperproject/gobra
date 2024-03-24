@@ -160,7 +160,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
           case e => Violation.violation(s"expected a method signature of an interface, but got $e")
         }
       }
-    case PBackendAnnotation(_, _) => noMessages
+    case _: PBackendAnnotation => noMessages
   }
 
   private[typing] def ghostMiscType(misc: PGhostMisc): Type = misc match {

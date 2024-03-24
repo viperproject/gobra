@@ -23,7 +23,7 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case POptionType(elem) => isType(elem).out
     case PGhostPointerType(elem) => isType(elem).out
     case n: PGhostSliceType => isType(n.elem).out
-    case n: PMethodReceivePointer => isType(n.typ).out
+    case PMethodReceiveGhostPointer(t) => isType(t).out
 
     case _: PDomainType => noMessages
     case n: PAdtType => n match {

@@ -147,7 +147,7 @@ sealed trait MethodMember extends MethodLikeMember {
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
   def terminationMeasures: Vector[TerminationMeasure]
-  def backendAnnotations: Vector[BackendAnnotation] = Vector()
+  def backendAnnotations: Vector[BackendAnnotation]
 }
 
 sealed trait FunctionLikeMember extends Member {
@@ -160,7 +160,7 @@ sealed trait FunctionLikeMemberOrLit extends Node {
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
   def terminationMeasures: Vector[TerminationMeasure]
-  def backendAnnotations: Vector[BackendAnnotation] = Vector()
+  def backendAnnotations: Vector[BackendAnnotation]
 }
 
 sealed trait FunctionMember extends FunctionLikeMember with FunctionLikeMemberOrLit
@@ -187,7 +187,7 @@ case class Method(
                  override val pres: Vector[Assertion],
                  override val posts: Vector[Assertion],
                  override val terminationMeasures: Vector[TerminationMeasure],
-                 override val backendAnnotations: Vector[BackendAnnotation] = Vector(),
+                 override val backendAnnotations: Vector[BackendAnnotation],
                  body: Option[MethodBody]
                  )(val info: Source.Parser.Info) extends Member with MethodMember
 
@@ -199,7 +199,7 @@ case class PureMethod(
                        override val pres: Vector[Assertion],
                        override val posts: Vector[Assertion],
                        override val terminationMeasures: Vector[TerminationMeasure],
-                       override val backendAnnotations: Vector[BackendAnnotation] = Vector(),
+                       override val backendAnnotations: Vector[BackendAnnotation],
                        body: Option[Expr],
                        isOpaque: Boolean
                      )(val info: Source.Parser.Info) extends Member with MethodMember {
@@ -257,7 +257,7 @@ case class PureFunction(
                          override val pres: Vector[Assertion],
                          override val posts: Vector[Assertion],
                          override val terminationMeasures: Vector[TerminationMeasure],
-                         override val backendAnnotations: Vector[BackendAnnotation] = Vector(),
+                         override val backendAnnotations: Vector[BackendAnnotation],
                          body: Option[Expr],
                          isOpaque: Boolean
                        )(val info: Source.Parser.Info) extends Member with FunctionMember {
@@ -457,7 +457,7 @@ case class Outline(
                     pres: Vector[Assertion],
                     posts: Vector[Assertion],
                     terminationMeasures: Vector[TerminationMeasure],
-                    val backendAnnotations: Vector[BackendAnnotation] = Vector(),
+                    val backendAnnotations: Vector[BackendAnnotation],
                     body: Stmt,
                     trusted: Boolean,
                   )(val info: Source.Parser.Info) extends Stmt
@@ -1121,7 +1121,7 @@ case class FunctionLit(
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
                      override val terminationMeasures: Vector[TerminationMeasure],
-                     override val backendAnnotations: Vector[BackendAnnotation] = Vector(),
+                     override val backendAnnotations: Vector[BackendAnnotation],
                      body: Option[MethodBody]
                    )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
@@ -1135,7 +1135,7 @@ case class PureFunctionLit(
                          override val pres: Vector[Assertion],
                          override val posts: Vector[Assertion],
                          override val terminationMeasures: Vector[TerminationMeasure],
-                         override val backendAnnotations: Vector[BackendAnnotation] = Vector(),
+                         override val backendAnnotations: Vector[BackendAnnotation],
                          body: Option[Expr]
                        )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)

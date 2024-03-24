@@ -950,13 +950,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     PBackendAnnotation(key, values).at(ctx)
   }
 
-  /*
-  override def visitBackendAnnotationEntry(ctx: BackendAnnotationEntryContext): String = {
-    visit(ctx).toString
-  }
-
-   */
-
   //region Implementation proofs
   /**
     * {@inheritDoc  }

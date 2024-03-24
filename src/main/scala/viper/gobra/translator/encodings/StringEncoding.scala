@@ -302,6 +302,7 @@ class StringEncoding extends LeafTypeEncoding {
         pres = Vector(pre),
         posts = Vector(),
         terminationMeasures = Vector(in.WildcardMeasure(None)(info)),
+        backendAnnotations = Vector.empty,
         body = None,
         isOpaque = false
       )(info)

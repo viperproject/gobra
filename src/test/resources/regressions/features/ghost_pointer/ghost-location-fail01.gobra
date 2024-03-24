@@ -10,7 +10,7 @@ requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i])
 func SliceInGhostCode(p []int) {
     gp := p
 
-    // both `p` and `gp` are slices that are located in actual memory
+    // both `p` and `gp` are slices that are located in actual memory, thus writing in ghost code is forbidden
     //:: ExpectedOutput(type_error)
     p[0] = 42
     //:: ExpectedOutput(type_error)
@@ -33,10 +33,8 @@ requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i])
 func SliceInActualCode(p []int) {
     gp := p
 
-    // both `p` and `gp` are slices that are located in actual memory
-    //:: ExpectedOutput(type_error)
+    // both `p` and `gp` are slices that are located in actual memory, thus writing in actual code is permitted
     p[0] = 42
-    //:: ExpectedOutput(type_error)
     gp[0] = 42
 }
 

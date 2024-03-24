@@ -8,7 +8,7 @@ package viper.gobra.translator.encodings.arrays
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.Source
+import viper.gobra.reporting.{LoadError, InsufficientPermissionError, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
@@ -230,7 +230,11 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val (pos, info, errT) = loc.vprMeta
       for {
         arg <- ctx.reference(loc)
-      } yield conversionFunc(Vector(arg), cptParam(len, t)(ctx))(pos, info, errT)(ctx)
+        res <- funcAppPrecondition(
+          conversionFunc(Vector(arg), cptParam(len, t)(ctx))(pos, info, errT)(ctx),
+          { case (info, _) => LoadError(info) dueTo InsufficientPermissionError(info) }
+        )
+      } yield res
   }
 
   /**

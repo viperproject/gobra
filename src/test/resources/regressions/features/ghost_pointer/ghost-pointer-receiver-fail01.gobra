@@ -16,8 +16,9 @@ func GhostFunc() {
     p.bar2() // bar2 is not defined on a ghost pointer
 }
 
-decreases
+// note that the type error refers to the receiver but is (for technical reasons) located at the beginning of the function declaration
 //:: ExpectedOutput(type_error)
+decreases
 func (r gpointer[Foo]) bar1() int { // ghostpointer is only allowed for ghost methods
     r.field = 0
     return 42

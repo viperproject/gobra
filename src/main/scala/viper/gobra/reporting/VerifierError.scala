@@ -161,6 +161,11 @@ case class CallError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "Call might fail"
 }
 
+case class LoadError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "load_error"
+  override def localMessage: String = "Reading might fail"
+}
+
 case class PostconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "postcondition_error"
   override def localMessage: String = "Postcondition might not hold"

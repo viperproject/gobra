@@ -160,6 +160,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
           case e => Violation.violation(s"expected a method signature of an interface, but got $e")
         }
       }
+    case _: PBackendAnnotation => noMessages
   }
 
   private[typing] def ghostMiscType(misc: PGhostMisc): Type = misc match {
@@ -205,6 +206,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PMethodImplementationProof => UnknownType
     case _: PImplementationProofPredicateAlias => UnknownType
+    case _: PBackendAnnotation => UnknownType
   }
 
   private[typing] def ghostMemberType(typeMember: GhostTypeMember): Type = typeMember match {
@@ -219,7 +221,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, isPure, _, isOpaque) =>
+    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _, isPure, _, isOpaque) =>
       pres.flatMap(assignableToSpec) ++ preserves.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
       preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
       pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++

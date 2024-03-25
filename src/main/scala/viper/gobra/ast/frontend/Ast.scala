@@ -877,14 +877,17 @@ case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PEx
 sealed trait PSpecification extends PGhostNode
 
 case class PFunctionSpec(
-                      pres: Vector[PExpression],
-                      preserves: Vector[PExpression],
-                      posts: Vector[PExpression],
-                      terminationMeasures: Vector[PTerminationMeasure],
-                      isPure: Boolean = false,
-                      isTrusted: Boolean = false,
-                      isOpaque: Boolean = false,
+                          pres: Vector[PExpression],
+                          preserves: Vector[PExpression],
+                          posts: Vector[PExpression],
+                          terminationMeasures: Vector[PTerminationMeasure],
+                          backendAnnotations: Vector[PBackendAnnotation],
+                          isPure: Boolean = false,
+                          isTrusted: Boolean = false,
+                          isOpaque: Boolean = false,
                       ) extends PSpecification
+
+case class PBackendAnnotation(key: String, values: Vector[String]) extends PGhostMisc
 
 case class PBodyParameterInfo(
                                /**

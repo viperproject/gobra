@@ -21,7 +21,7 @@ import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
-import viper.gobra.util.{Constants, DesugarWriter, GobraExecutionContext, Violation}
+import viper.gobra.util.{BackendAnnotation, Constants, DesugarWriter, GobraExecutionContext, Violation}
 
 import java.util.concurrent.atomic.AtomicLong
 import scala.annotation.{tailrec, unused}
@@ -564,6 +564,10 @@ object Desugar extends LazyLogging {
       typeD(DeclaredT(decl, info), Addressability.Exclusive)(meta(decl, info))
     }
 
+    def desugarBackendAnnotations(annotations: Vector[PBackendAnnotation]): Vector[BackendAnnotation] = {
+      annotations map { case PBackendAnnotation(key, value) => BackendAnnotation(key, value) }
+    }
+
     def functionD(decl: PFunctionDecl): in.FunctionMember =
       if (decl.spec.isPure) pureFunctionD(decl) else {
 
@@ -572,7 +576,7 @@ object Desugar extends LazyLogging {
       val functionInfo = functionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)))
 
       in.Function(name, functionInfo.args, functionInfo.results, functionInfo.pres, functionInfo.posts,
-        functionInfo.terminationMeasures, functionInfo.body)(fsrc)
+        functionInfo.terminationMeasures, functionInfo.backendAnnotations, functionInfo.body)(fsrc)
     }
 
     private case class FunctionInfo(args: Vector[in.Parameter.In],
@@ -581,6 +585,7 @@ object Desugar extends LazyLogging {
                                     pres: Vector[in.Assertion],
                                     posts: Vector[in.Assertion],
                                     terminationMeasures: Vector[in.TerminationMeasure],
+                                    backendAnnotations: Vector[BackendAnnotation],
                                     body: Option[in.MethodBody])
 
     private def functionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext): FunctionInfo = {
@@ -693,7 +698,8 @@ object Desugar extends LazyLogging {
         in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
-      FunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasures, bodyOpt)
+      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
+      FunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasures, annotations, bodyOpt)
     }
 
     def pureFunctionD(decl: PFunctionDecl): in.PureFunction = {
@@ -701,7 +707,8 @@ object Desugar extends LazyLogging {
       val fsrc = meta(decl, info)
       val funcInfo = pureFunctionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)), info)
 
-      in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body, funcInfo.isOpaque)(fsrc)
+      in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres,
+        funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body, funcInfo.isOpaque)(fsrc)
     }
 
     private case class PureFunctionInfo(args: Vector[in.Parameter.In],
@@ -710,6 +717,7 @@ object Desugar extends LazyLogging {
                                         pres: Vector[in.Assertion],
                                         posts: Vector[in.Assertion],
                                         terminationMeasures: Vector[in.TerminationMeasure],
+                                        backendAnnotations: Vector[BackendAnnotation],
                                         body: Option[in.Expr],
                                         isOpaque: Boolean)
 
@@ -769,8 +777,9 @@ object Desugar extends LazyLogging {
           }
           implicitConversion(res.typ, returns.head.typ, res)
       }
+      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
 
-      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, bodyOpt, isOpaque)
+      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque)
     }
 
 
@@ -883,7 +892,9 @@ object Desugar extends LazyLogging {
         in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
-      in.Method(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
+      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
+
+      in.Method(recv, name, args, returns, pres, posts, terminationMeasure, annotations, bodyOpt)(fsrc)
     }
 
     def pureMethodD(decl: PMethodDecl): in.PureMethod = {
@@ -937,7 +948,8 @@ object Desugar extends LazyLogging {
           }
           implicitConversion(res.typ, returns.head.typ, res)
       }
-      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt, isOpaque)(fsrc)
+      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
+      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque)(fsrc)
     }
 
     def fpredicateD(decl: PFPredicateDecl): in.FPredicate = {
@@ -1850,11 +1862,12 @@ object Desugar extends LazyLogging {
             val pres = (n.spec.pres ++ n.spec.preserves) map preconditionD(ctx, info)
             val posts = (n.spec.preserves ++ n.spec.posts) map postconditionD(ctx, info)
             val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
+            val annotations = desugarBackendAnnotations(n.spec.backendAnnotations)
 
             if (!n.spec.isTrusted) {
               for {
                 body <- seqn(stmtD(ctx, info)(n.body))
-              } yield in.Outline(name, pres, posts, terminationMeasures, body, trusted = false)(src)
+              } yield in.Outline(name, pres, posts, terminationMeasures, annotations, body, trusted = false)(src)
             } else {
               val declared = info.freeDeclared(n).map(localVarContextFreeD(_, info))
               // The dummy body preserves the reads and writes of the real body that target free variables.
@@ -1879,7 +1892,7 @@ object Desugar extends LazyLogging {
               for {
                 // since the body of an outline is not a separate scope, we have to preserve variable declarations.
                 _ <- declare(declared:_*)
-              } yield in.Outline(name, pres, posts, terminationMeasures, dummyBody, trusted = true)(src)
+              } yield in.Outline(name, pres, posts, terminationMeasures, annotations, dummyBody, trusted = true)(src)
             }
 
 
@@ -2990,13 +3003,13 @@ object Desugar extends LazyLogging {
       val funcInfo = functionMemberOrLitD(lit.decl, meta(lit, info), ctx)
       val src = meta(lit, info)
       val name = functionLitProxyD(lit, info)
-      in.FunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(src)
+      in.FunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body)(src)
     }
 
     def pureFunctionLitD(ctx: FunctionContext, info: TypeInfo)(lit: PFunctionLit): in.PureFunctionLit = {
       val funcInfo = pureFunctionMemberOrLitD(lit.decl, meta(lit, info), ctx, info)
       val name = functionLitProxyD(lit, info)
-      in.PureFunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit, info))
+      in.PureFunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body)(meta(lit, info))
     }
 
     def capturedVarD(v: PIdnNode): (in.Parameter.In, in.LocalVar) = {
@@ -3281,12 +3294,13 @@ object Desugar extends LazyLogging {
           val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx, info)
           val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx, info)
           val terminationMeasures = sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx, info)).res
+          val annotations = desugarBackendAnnotations(m.spec.backendAnnotations)
           val isOpaque = m.spec.isOpaque
 
           val mem = if (m.spec.isPure) {
-            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, None, isOpaque)(src)
+            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, annotations, None, isOpaque)(src)
           } else {
-            in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
+            in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, annotations, None)(src)
           }
           definedMethods += (proxy -> mem)
           AdditionalMembers.addMember(mem)
@@ -3536,6 +3550,7 @@ object Desugar extends LazyLogging {
           a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(ImportPreNotEstablished))
         },
         terminationMeasures = Vector.empty,
+        backendAnnotations = Vector.empty,
         body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
       )(src)
     }
@@ -3570,6 +3585,7 @@ object Desugar extends LazyLogging {
           pres = mainPkgPosts,
           posts = mainFuncPreD,
           terminationMeasures = Vector.empty,
+          backendAnnotations = Vector.empty,
           body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
         )(src)
       }
@@ -3607,6 +3623,7 @@ object Desugar extends LazyLogging {
         posts = progPosts,
         // in our verification approach, the initialization code must be proven to terminate
         terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)),
+        backendAnnotations = Vector.empty,
         body = Some(
           in.MethodBody(
             decls = Vector(),

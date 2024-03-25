@@ -6,7 +6,8 @@
 
 package viper.gobra.translator.library.outlines
 
-import viper.gobra.translator.util.ViperUtil
+import viper.gobra.translator.util.{ViperUtil, VprInfo}
+import viper.gobra.util.BackendAnnotation
 import viper.silver.{ast => vpr}
 
 class OutlinesImpl extends Outlines {
@@ -56,6 +57,7 @@ class OutlinesImpl extends Outlines {
                         name: String,
                         pres: Vector[vpr.Exp],
                         posts: Vector[vpr.Exp],
+                        annotations: Vector[BackendAnnotation],
                         body: vpr.Stmt,
                         trusted: Boolean,
                       )(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.Stmt = {
@@ -94,6 +96,8 @@ class OutlinesImpl extends Outlines {
         replacedArguments
       }
 
+      val annotatedInfo = VprInfo.attachAnnotations(annotations, info)
+
       vpr.Method(
         name = name,
         formalArgs = formals map ViperUtil.toVarDecl,
@@ -101,7 +105,7 @@ class OutlinesImpl extends Outlines {
         pres = actualPres,
         posts = actualPosts,
         body = actualBody,
-      )(pos, info, errT)
+      )(pos, annotatedInfo, errT)
     }
 
     vpr.MethodCall(methodName = name, args = arguments, targets = results)(pos, info, errT)
@@ -116,6 +120,7 @@ class OutlinesImpl extends Outlines {
                           name: String,
                           pres: Vector[vpr.Exp],
                           posts: Vector[vpr.Exp],
+                          annotations: Vector[BackendAnnotation],
                           arguments: Vector[vpr.LocalVar],
                           modifies:  Vector[vpr.LocalVar],
                         )(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.Stmt = {
@@ -128,6 +133,8 @@ class OutlinesImpl extends Outlines {
         case lold: vpr.LabelledOld => vpr.Old(lold.exp)(lold.pos, lold.info, lold.errT)
       })
 
+      val annotatedInfo = VprInfo.attachAnnotations(annotations, info)
+
       vpr.Method(
         name = name,
         formalArgs = arguments map ViperUtil.toVarDecl,
@@ -135,7 +142,7 @@ class OutlinesImpl extends Outlines {
         pres = pres,
         posts = actualPosts,
         body = None,
-      )(pos, info, errT)
+      )(pos, annotatedInfo, errT)
     }
 
     vpr.MethodCall(methodName = name, args = arguments, targets = results)(pos, info, errT)

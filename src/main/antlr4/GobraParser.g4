@@ -25,7 +25,6 @@ stmtOnly: statement EOF;
 
 typeOnly: type_ EOF;
 
-
 // Identifier lists with added addressability modifiers
 maybeAddressableIdentifierList: maybeAddressableIdentifier (COMMA maybeAddressableIdentifier)*;
 
@@ -162,8 +161,15 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 // Specifications
 
 specification returns[boolean trusted = false, boolean pure = false, boolean opaque = false;]:
-  ((specStatement | OPAQUE {$opaque = true;} | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? // Non-greedily match PURE to avoid missing eos errors.
+  // Non-greedily match PURE to avoid missing eos errors.
+  ((specStatement | OPAQUE {$opaque = true;} | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? backendAnnotation?
   ;
+
+backendAnnotationEntry: ~('('|')'|',')+;
+listOfValues: backendAnnotationEntry (COMMA backendAnnotationEntry)*;
+singleBackendAnnotation: backendAnnotationEntry L_PAREN listOfValues? R_PAREN;
+backendAnnotationList: singleBackendAnnotation (COMMA singleBackendAnnotation)*;
+backendAnnotation: BACKEND L_BRACKET backendAnnotationList? R_BRACKET eos;
 
 specStatement
   : kind=PRE assertion

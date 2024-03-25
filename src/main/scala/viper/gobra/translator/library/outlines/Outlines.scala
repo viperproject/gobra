@@ -7,6 +7,7 @@
 package viper.gobra.translator.library.outlines
 
 import viper.gobra.translator.library.Generator
+import viper.gobra.util.BackendAnnotation
 import viper.silver.{ast => vpr}
 
 trait Outlines extends Generator {
@@ -19,6 +20,7 @@ trait Outlines extends Generator {
                name: String,
                pres: Vector[vpr.Exp],
                posts: Vector[vpr.Exp],
+               annotations: Vector[BackendAnnotation],
                body: vpr.Stmt,
                trusted: Boolean,
              )(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.Stmt
@@ -32,6 +34,7 @@ trait Outlines extends Generator {
                name: String,
                pres: Vector[vpr.Exp],
                posts: Vector[vpr.Exp],
+               annotations: Vector[BackendAnnotation],
                arguments: Vector[vpr.LocalVar],
                modifies:  Vector[vpr.LocalVar],
              )(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.Stmt

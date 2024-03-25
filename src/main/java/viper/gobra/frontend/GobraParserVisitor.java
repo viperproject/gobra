@@ -333,6 +333,36 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitSpecification(GobraParser.SpecificationContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#backendAnnotationEntry}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBackendAnnotationEntry(GobraParser.BackendAnnotationEntryContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#listOfValues}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitListOfValues(GobraParser.ListOfValuesContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#singleBackendAnnotation}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleBackendAnnotation(GobraParser.SingleBackendAnnotationContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#backendAnnotationList}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBackendAnnotationList(GobraParser.BackendAnnotationListContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#backendAnnotation}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBackendAnnotation(GobraParser.BackendAnnotationContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#specStatement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

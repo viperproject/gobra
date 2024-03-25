@@ -209,7 +209,7 @@ protected class ClosureSpecsEncoder {
     val satisfiesSpec = in.ExprAssertion(in.ClosureImplements(result, in.ClosureSpec(func, Map.empty)(info))(info))(info)
     val (args, captAssertions) = capturedArgsAndAssertions(ctx)(result, captured(ctx)(func), info)
     val notNil = in.ExprAssertion(in.UneqCmp(result, in.NilLit(genericFuncType)(info))(info))(info)
-    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions :+ notNil, Vector.empty, None, false)(memberOrLit(ctx)(func).info)
+    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions :+ notNil, Vector.empty, Vector.empty, None, false)(memberOrLit(ctx)(func).info)
     ctx.defaultEncoding.pureFunction(getter)(ctx)
   }
 
@@ -287,26 +287,27 @@ protected class ClosureSpecsEncoder {
       )(spec.info)) else None
     val args = Vector(closurePar) ++ captArgs ++ func.args
     val pres = implementsAssertion.toVector ++ fromClosureGetter ++ func.pres
+    val annotations = func.backendAnnotations
 
     // Store the origin of the spec; if the first precondition fails, we use this to recognise and transform the error message
     implementAssertionSpecOriginToStr += spec.info.origin.get -> spec.info.tag
 
     func match {
       case _: in.Function =>
-        val m = in.Function(proxy, args, func.results, pres, func.posts, func.terminationMeasures, None)(spec.info)
+        val m = in.Function(proxy, args, func.results, pres, func.posts, func.terminationMeasures, annotations, None)(spec.info)
         ctx.defaultEncoding.function(m)(ctx)
       case lit: in.FunctionLit =>
         val body = if (spec.params.isEmpty) lit.body else None
-        val func = in.Function(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, body)(lit.info)
+        val func = in.Function(proxy, args, lit.results, pres, lit.posts, lit.terminationMeasures, annotations, body)(lit.info)
         ctx.defaultEncoding.function(func)(ctx)
       case f: in.PureFunction =>
         val posts = func.posts ++ assertionFromPureFunctionBody(f.body, f.results.head)
-        val m = in.PureFunction(proxy, args, f.results, pres, posts, f.terminationMeasures, None, f.isOpaque)(spec.info)
+        val m = in.PureFunction(proxy, args, f.results, pres, posts, f.terminationMeasures, annotations, None, f.isOpaque)(spec.info)
         ctx.defaultEncoding.pureFunction(m)(ctx)
       case lit: in.PureFunctionLit =>
         val body = if (spec.params.isEmpty) lit.body else None
         val posts = lit.posts ++ (if (spec.params.isEmpty) Vector.empty else assertionFromPureFunctionBody(lit.body, lit.results.head).toVector)
-        val func = in.PureFunction(proxy, args, lit.results, pres, posts, lit.terminationMeasures, body, false)(lit.info)
+        val func = in.PureFunction(proxy, args, lit.results, pres, posts, lit.terminationMeasures, annotations, body, false)(lit.info)
         ctx.defaultEncoding.pureFunction(func)(ctx)
     }
   }

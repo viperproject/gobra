@@ -17,6 +17,7 @@ import scalaz.Scalaz.futureInstance
 import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, InternalTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
+import viper.gobra.backend.ViperBackends.{CarbonBackend, SiliconBackend}
 import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
 import viper.gobra.frontend.Parser.ParseResult
 import viper.gobra.frontend.info.{Info, TypeInfo}
@@ -26,7 +27,11 @@ import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silicon.BuildInfo
+import viper.silver.ast.pretty.FastPrettyPrinter
+import viper.silver.utility.ManualProgramSubmitter
 import viper.silver.{ast => vpr}
+import viper.silver.ast.pretty.FastPrettyPrinter
+import viper.silver.utility.ManualProgramSubmitter
 
 import java.time.format.DateTimeFormatter
 import java.time.LocalTime
@@ -50,6 +55,8 @@ object GoVerifier {
 }
 
 trait GoVerifier extends StrictLogging {
+
+  protected var submitters: Map[String, ManualProgramSubmitter] = Map()
 
   def name: String = {
     this.getClass.getSimpleName
@@ -82,9 +89,18 @@ trait GoVerifier extends StrictLogging {
       }
     })
 
+    val viperBackendName: String = config.backend match {
+      case CarbonBackend => "Carbon"
+      case SiliconBackend => "Silicon"
+    }
+
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
     config.packageInfoInputMap.keys.foreach(pkgInfo => {
       val pkgId = pkgInfo.id
+
+      //adds a submitter for this package to submitters if config.submitForEvaluation is set, key is pkgId
+      createSubmitter(config.submitForEvaluation, pkgId, viperBackendName)
+
       logger.info(s"Verifying package $pkgId [${LocalTime.now().format(timeFormatter)}]")
       val future = verify(pkgInfo, config.copy(reporter = statsCollector, taskName = pkgId))(executor)
         .map(result => {
@@ -94,6 +110,12 @@ trait GoVerifier extends StrictLogging {
           val warnings = statsCollector.getMessagesAboutDependencies(pkgId, config)
           warningCount += warnings.size
           warnings.foreach(w => logger.debug(w))
+
+          submitters.get(pkgId).foreach(s => {
+            s.setSuccess(result == VerifierResult.Success)
+            s.submit()}
+          )
+          submitters = submitters.removed(pkgId)
 
           result match {
             case VerifierResult.Success => logger.info(s"$name found no errors")
@@ -143,6 +165,13 @@ trait GoVerifier extends StrictLogging {
     if (allErrors.isEmpty) VerifierResult.Success else VerifierResult.Failure(allErrors)
   }
 
+  private def createSubmitter(allowSubmission: Boolean, id: String, verifier: String): Unit = {
+    if (allowSubmission) {
+      val submitter = new ManualProgramSubmitter(true, "", "Gobra", verifier, Array())
+      submitters = submitters + (id -> submitter)
+    }
+  }
+
   protected[this] def verify(pkgInfo: PackageInfo, config: Config)(implicit executor: GobraExecutionContext): Future[VerifierResult]
 }
 
@@ -162,6 +191,10 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       program <- performInternalTransformations(finalConfig, pkgInfo, program)
       viperTask <- performViperEncoding(finalConfig, pkgInfo, program)
     } yield (viperTask, finalConfig)
+
+    submitters.get(pkgInfo.id).foreach(s => task.bimap(
+      _ => s.setAllowSubmission(false), //don't submit since no viper program could be produced
+      { case (job, _) => s.setProgram(FastPrettyPrinter.pretty(job.program)) }))
 
     task.foldM({
       case Vector() => Future(VerifierResult.Success)

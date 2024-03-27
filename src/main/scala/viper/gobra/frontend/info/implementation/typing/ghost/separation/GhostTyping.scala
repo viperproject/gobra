@@ -142,7 +142,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
           val isGhostField = ghostIdClassification(s.id)
           (typ(s.base), isGhostField) match {
             case (_, true) => isGhost // ghost fields are always ghost memory
-            case (tb: Type.PointerT, _) => ghost(tb.isInstanceOf[Type.GhostPointerT]) // (implicitly) dereferencing a ghost pointer leads to a ghost heap location
+            case (tb: Type.PointerT, _) => ghost(tb.isInstanceOf[Type.GhostPointerT]) // (implicitly) dereferencing a field of a ghost pointer leads to a ghost heap location
             case _ => ghostLocationTyping(s.base) // assignee is on the stack, recurse to find out if it's a ghost or actual variable
           }
         case Some(g: ap.GlobalVariable) => ghost(g.symb.ghost)

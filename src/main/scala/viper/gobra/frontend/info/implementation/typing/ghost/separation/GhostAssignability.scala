@@ -118,7 +118,7 @@ trait GhostAssignability {
 
   // handles the case of assignments in ghost code
   private def ghostAssigneeAssignmentMsgInGhostCode(left: PAssignee): Messages =
-    error(left, s"ghost error: only ghost locations can be assigned to in ghost code}", !ghostLocationClassification(left))
+    error(left, s"ghost error: only ghost locations can be assigned to in ghost code", !ghostLocationClassification(left))
 
   /** conservative ghost separation assignment check */
   private[separation] def ghostAssignableToId(exprs: PExpression*)(lefts: PIdnNode*): Messages =

@@ -3017,6 +3017,8 @@ object Desugar extends LazyLogging {
       // Both will have type Pointer(typeOf(v))
       val src: Meta = meta(v, info)
       val refAlias = nm.refAlias(idName(v, info), info.scope(v), info)
+      // If `v` is a ghost variable, we consider `param` a ghost pointer. 
+      // However, we can use ActualPointer here since there is a single internal pointer type only.
       val param = in.Parameter.In(refAlias, typeD(ActualPointerT(info.typ(v)), Addressability.inParameter)(src))(src)
       val localVar = in.LocalVar(nm.alias(refAlias, info.scope(v), info), param.typ)(src)
       (param, localVar)

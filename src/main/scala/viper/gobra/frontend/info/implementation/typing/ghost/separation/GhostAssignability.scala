@@ -167,12 +167,14 @@ trait GhostAssignability {
       case p: ap.Function => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
       case p: ap.Closure => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
       case p: ap.ReceivedMethod => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
-      case p: ap.MethodExpr => GhostType.ghostTuple(false +: argTyping(p.symb.args, p.symb.ghost, p.symb.context).toTuple)
+      // first argument is the receiver which inherits its ghostness from the method's ghostness
+      case p: ap.MethodExpr => GhostType.ghostTuple(p.symb.ghost +: argTyping(p.symb.args, p.symb.ghost, p.symb.context).toTuple)
       case _: ap.PredicateKind => GhostType.isGhost
       case _: ap.DomainFunction => GhostType.isGhost
       case ap.BuiltInFunction(_, symb) => argGhostTyping(symb.tag, call.args.map(typ))
       case ap.BuiltInReceivedMethod(recv, _, _, symb) => argGhostTyping(symb.tag, Vector(typ(recv)))
-      case ap.BuiltInMethodExpr(typ, _, _, symb) => GhostType.ghostTuple(false +: argGhostTyping(symb.tag, Vector(typeSymbType(typ))).toTuple)
+      // first argument is the receiver which inherits its ghostness from the method's ghostness
+      case ap.BuiltInMethodExpr(typ, _, _, symb) => GhostType.ghostTuple(symb.ghost +: argGhostTyping(symb.tag, Vector(typeSymbType(typ))).toTuple)
       case p: ap.ImplicitlyReceivedInterfaceMethod => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
       case _ => GhostType.notGhost // conservative choice
     }

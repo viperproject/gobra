@@ -86,7 +86,7 @@ trait MemberResolution { this: TypeInfoImpl =>
     def go(pastDeref: Boolean): Type => AdvancedMemberSet[AdtMember] = attr[Type, AdvancedMemberSet[AdtMember]] {
 
       case DeclaredT(decl, context) => go(pastDeref)(context.symbType(decl.right)).surface
-      case ActualPointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
+      case PointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
 
       case t: AdtT =>
         val clauseMemberSets = t.adtDecl.clauses.map(adtClauseMemberSet(_, t.decl, t.adtDecl, t.context))
@@ -225,7 +225,7 @@ trait MemberResolution { this: TypeInfoImpl =>
     def go(pastDeref: Boolean): Type => AdvancedMemberSet[M] = attr[Type, AdvancedMemberSet[M]] {
 
       case DeclaredT(decl, context) => go(pastDeref)(context.symbType(decl.right)).surface
-      case ActualPointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
+      case PointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
 
       case s: StructT =>
         AdvancedMemberSet.union(s.decl.embedded map { e =>
@@ -246,7 +246,8 @@ trait MemberResolution { this: TypeInfoImpl =>
   private val pastPromotionsMethodSuffix: Type => AdvancedMemberSet[TypeMember] =
     attr[Type, AdvancedMemberSet[TypeMember]] {
       case t: InterfaceT => interfaceMethodSet(t)
-      case pt@ActualPointerT(t) => receiverSet(pt) union receiverSet(t).ref
+      case pt@PointerT(t) => receiverSet(pt) union receiverSet(t).ref
+      // we do not add `receiverSet(GhostPointerT(t)).deref` since this would result in implicitly assuming that the receiver points to the ghost heap, which is not guaranteed:
       case t => receiverSet(t) union receiverSet(ActualPointerT(t)).deref
     }
 
@@ -254,7 +255,7 @@ trait MemberResolution { this: TypeInfoImpl =>
     attr[Type, AdvancedMemberSet[TypeMember]] {
       case Single(t) =>
         pastPromotions(pastPromotionsMethodSuffix)(t) union (t match {
-          case pt@ ActualPointerT(st) => receiverSet(pt) union receiverSet(st).ref
+          case pt@ PointerT(st) => receiverSet(pt) union receiverSet(st).ref
           case _ => receiverSet(t)
         })
       case _ => AdvancedMemberSet.empty
@@ -264,7 +265,8 @@ trait MemberResolution { this: TypeInfoImpl =>
     attr[Type, AdvancedMemberSet[TypeMember]] {
       case Single(t) =>
         pastPromotions(pastPromotionsMethodSuffix)(t) union (t match {
-          case pt@ ActualPointerT(st) => receiverSet(pt) union receiverSet(st).ref
+          case pt@ PointerT(st) => receiverSet(pt) union receiverSet(st).ref
+          // we do not add `receiverSet(GhostPointerT(t)).deref` since this would result in implicitly assuming that the receiver points to the ghost heap, which is not guaranteed:
           case _ => receiverSet(t) union receiverSet(ActualPointerT(t)).deref
         })
       case _ => AdvancedMemberSet.empty
@@ -317,7 +319,7 @@ trait MemberResolution { this: TypeInfoImpl =>
   private def getMethodReceiverContext(t: Type): ExternalTypeInfo = {
     Single.unapply(t) match {
       case Some(ct: ContextualType) => ct.context
-      case Some(p: ActualPointerT) => getMethodReceiverContext(p.elem)
+      case Some(p: PointerT) => getMethodReceiverContext(p.elem)
       case _ => this
     }
   }

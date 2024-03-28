@@ -131,7 +131,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     createGhostTyping[PExpression] {
       case PNamedOperand(id) => ghost(ghostIdClassification(id))
       case e: PDeref => resolve(e) match {
-        case Some(ap.Deref(base)) => exprType(base) match {
+        case Some(ap.Deref(base)) => underlyingType(exprType(base)) match {
           case _: Type.GhostPointerT => isGhost
           case _ => notGhost
         }
@@ -140,7 +140,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       case e: PDot => resolve(e) match {
         case Some(s: ap.FieldSelection) =>
           val isGhostField = ghostIdClassification(s.id)
-          (typ(s.base), isGhostField) match {
+          (underlyingType(typ(s.base)), isGhostField) match {
             case (_, true) => isGhost // ghost fields are always ghost memory
             case (tb: Type.PointerT, _) => ghost(tb.isInstanceOf[Type.GhostPointerT]) // (implicitly) dereferencing a field of a ghost pointer leads to a ghost heap location
             case _ => ghostLocationTyping(s.base) // assignee is on the stack, recurse to find out if it's a ghost or actual variable

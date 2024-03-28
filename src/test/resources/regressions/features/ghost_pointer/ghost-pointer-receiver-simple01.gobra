@@ -12,36 +12,55 @@ decreases
 preserves acc(p)
 func GhostFunc(p *Foo) {
     gp := &Foo{ 42 }
-    gp.bar1()
+    gp.GhostPointerReceiver()
 
-    p.bar2()
-    (*p).bar3()
-    (*gp).bar3()
+    (*p).GhostNonPointerReceiver()
+    // p is implicitly dereferenced:
+    p.GhostNonPointerReceiver()
+    (*gp).GhostNonPointerReceiver()
+    // gp is implicitly dereferenced:
+    x := gp.GhostNonPointerReceiver()
+}
+
+decreases
+preserves acc(p)
+func ActualFunc(p *Foo) {
+    p.ActualPointerReceiver()
+    (*p).GhostNonPointerReceiver()
+    // *p is implicitly referenced:
+    (*p).ActualPointerReceiver()
+    // p is implicitly dereferenced:
+    p.ActualNonPointerReceiver()
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
 }
 
 ghost
 decreases
 preserves acc(r)
-func (r gpointer[Foo]) bar1() int {
+func (r gpointer[Foo]) GhostPointerReceiver() int {
     r.field = 0
     return r.field
 }
 
 decreases
 preserves acc(r)
-func (r *Foo) bar2() int {
+func (r *Foo) ActualPointerReceiver() int {
     r.field = 0
     return r.field
 }
 
 ghost
 decreases
-func (r Foo) bar3() int {
+func (r Foo) GhostNonPointerReceiver() int {
     r.field = 42
     return r.field
 }
 
-func (r Foo) bar4() int {
+decreases
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures r.field == 42
+func (r Foo) ActualNonPointerReceiver() int {
     r.field = 42
     return r.field
 }

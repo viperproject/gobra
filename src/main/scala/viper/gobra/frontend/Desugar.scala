@@ -1914,6 +1914,8 @@ object Desugar extends LazyLogging {
               case t => violation(s"Type $t not supported as a range expression")
             }
 
+          case p: PClosureImplProof => closureImplProofD(ctx)(p)
+
           case _ => ???
         }
       }
@@ -4108,7 +4110,6 @@ object Desugar extends LazyLogging {
             case w: in.MagicWand => in.ApplyWand(w)(src)
             case e => Violation.violation(s"Expected a magic wand, but got $e")
           }
-        case p: PClosureImplProof => closureImplProofD(ctx)(p)
         case PExplicitGhostStatement(actual) => stmtD(ctx, info)(actual)
 
         case PMatchStatement(exp, clauses, strict) =>

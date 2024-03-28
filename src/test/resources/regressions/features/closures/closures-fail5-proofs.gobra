@@ -66,8 +66,7 @@ func test4() {
 
     //:: ExpectedOutput(type_error)
     proof cl implements pspec {
-        //:: ExpectedOutput(type_error)
-        x = 2 // assignment in ghost code to a non-ghost variable
+        x = 2
         y = cl1(x) as id1
     }
 }

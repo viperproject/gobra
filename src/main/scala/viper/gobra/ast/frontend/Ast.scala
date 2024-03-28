@@ -465,7 +465,9 @@ case class PClosureSpecInstance(func: PNameOrDot, params: Vector[PKeyedElement])
 
 case class PClosureImplements(closure: PExpression, spec: PClosureSpecInstance) extends PGhostExpression
 
-case class PClosureImplProof(impl: PClosureImplements, block: PBlock) extends PGhostStatement with PScope
+case class PClosureImplProof(impl: PClosureImplements, block: PBlock) extends PActualStatement with PScope with PProofAnnotation {
+  override def nonGhostChildren: Vector[PBlock] = Vector(block)
+}
 
 case class PInvoke(base: PExpressionOrType, args: Vector[PExpression], spec: Option[PClosureSpecInstance], reveal: Boolean = false) extends PActualExpression {
   require(base.isInstanceOf[PExpression] || spec.isEmpty) // `base` is a type for conversions only, for which `spec` is empty
@@ -938,7 +940,9 @@ case class PImplementationProof(
                                  subT: PType, superT: PType,
                                  alias: Vector[PImplementationProofPredicateAlias],
                                  memberProofs: Vector[PMethodImplementationProof]
-                               ) extends PGhostMember
+                               ) extends PActualMember with PProofAnnotation {
+  override def nonGhostChildren: Vector[PNode] = memberProofs
+}
 
 case class PMethodImplementationProof(
                                        id: PIdnUse, // references the method definition of the super type
@@ -947,7 +951,9 @@ case class PMethodImplementationProof(
                                        result: PResult,
                                        isPure: Boolean,
                                        body: Option[(PBodyParameterInfo, PBlock)]
-                                     ) extends PGhostMisc with PScope with PCodeRootWithResult with PWithBody
+                                     ) extends PActualMisc with PScope with PCodeRootWithResult with PWithBody with PProofAnnotation {
+  override def nonGhostChildren: Vector[PNode] = Vector(receiver, result) ++ args ++ body.map(_._2).toVector
+}
 
 case class PImplementationProofPredicateAlias(left: PIdnUse, right: PNameOrDot) extends PGhostMisc
 

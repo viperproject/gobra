@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue420
+
+func foo() int {
+    ghost bar := true
+    var baz int
+    ghost if bar {
+        //:: ExpectedOutput(type_error)
+        baz = 1
+    } else {
+        //:: ExpectedOutput(type_error)
+        baz = 0
+    }
+    return baz
+}

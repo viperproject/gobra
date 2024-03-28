@@ -1,0 +1,149 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostPointerReceiverFail01
+
+type Foo struct {
+    field int
+}
+
+decreases
+func ActualFunc() {
+    p := &Foo{ 42 }
+
+    p.ActualPointerReceiver()
+    (*p).ActualPointerReceiver()
+    (*Foo).ActualPointerReceiver(p)
+    //:: ExpectedOutput(type_error)
+    (Foo).ActualPointerReceiver(p)
+
+    //:: ExpectedOutput(type_error)
+    p.GhostPointerReceiver() // fails because method expects a ghost pointer receiver
+    //:: ExpectedOutput(type_error)
+    (*p).GhostPointerReceiver() // fails because method expects a ghost pointer receiver
+    //:: ExpectedOutput(type_error)
+    (*Foo).GhostPointerReceiver(p) // fails because method expects a ghost pointer receiver
+    //:: ExpectedOutput(type_error)
+    (Foo).GhostPointerReceiver(p) // fails because method expects a ghost pointer receiver
+    // since `gpointer[Foo]` is a ghost type literal instead of a type literal, we currently do not support parsing the following line:
+    // (gpointer[Foo]).GhostPointerReceiver(p)
+
+    p.ActualNonPointerReceiver()
+    (*p).ActualNonPointerReceiver()
+    (*Foo).ActualNonPointerReceiver(p)
+    //:: ExpectedOutput(type_error)
+    (Foo).ActualNonPointerReceiver(p)
+    (Foo).ActualNonPointerReceiver(*p)
+
+    p.GhostNonPointerReceiver() // p is implicitly dereferenced
+    (*p).GhostNonPointerReceiver()
+    (*Foo).GhostNonPointerReceiver(p)
+    //:: ExpectedOutput(type_error)
+    (Foo).GhostNonPointerReceiver(p)
+    (Foo).GhostNonPointerReceiver(*p)
+}
+
+ghost
+decreases
+requires acc(p)
+func GhostFunc(p *Foo) {
+    gp := &Foo{ 42 }
+
+    //:: ExpectedOutput(type_error)
+    p.ActualPointerReceiver() // actual calls not permitted in ghost code
+    //:: ExpectedOutput(type_error)
+    (*p).ActualPointerReceiver() // actual calls not permitted in ghost code
+    //:: ExpectedOutput(type_error)
+    (*Foo).ActualPointerReceiver(p) // actual calls not permitted in ghost code & p being ghost is not assignable to a non-ghost receiver
+    //:: ExpectedOutput(type_error)
+    (Foo).ActualPointerReceiver(p) // actual calls not permitted in ghost code
+
+    //:: ExpectedOutput(type_error)
+    p.GhostPointerReceiver() // fails because method expects a ghost pointer receiver
+    gp.GhostPointerReceiver()
+    //:: ExpectedOutput(type_error)
+    (*p).GhostPointerReceiver() // fails because method expects a ghost pointer receiver
+    //:: ExpectedOutput(type_error)
+    (*gp).GhostPointerReceiver() // fails because we do not add `gpointer[T]` receivers to method set of T
+    //:: ExpectedOutput(type_error)
+    (*Foo).GhostPointerReceiver(p) // fails because method expects a ghost pointer receiver
+    //:: ExpectedOutput(type_error)
+    (*Foo).GhostPointerReceiver(gp) // fails because `gpointer[T]` receivers are not part of the method set of *T
+    //:: ExpectedOutput(type_error)
+    (Foo).GhostPointerReceiver(p) // fails because method expects a ghost pointer receiver
+    //:: ExpectedOutput(type_error)
+    (Foo).GhostPointerReceiver(gp) // fails because we do not add `gpointer[T]` receivers to method set of T
+    // since `gpointer[Foo]` is a ghost type literal instead of a type literal, we currently do not support parsing the following line:
+    // (gpointer[Foo]).GhostPointerReceiver(p)
+
+    //:: ExpectedOutput(type_error)
+    p.ActualNonPointerReceiver() // actual calls not permitted in ghost code
+    //:: ExpectedOutput(type_error)
+    (*p).ActualNonPointerReceiver() // actual calls not permitted in ghost code
+    //:: ExpectedOutput(type_error)
+    (*Foo).ActualNonPointerReceiver(p) // actual calls not permitted in ghost code
+    //:: ExpectedOutput(type_error)
+    (Foo).ActualNonPointerReceiver(p) // actual calls not permitted in ghost code
+    //:: ExpectedOutput(type_error)
+    (Foo).ActualNonPointerReceiver(*p) // actual calls not permitted in ghost code
+
+    p.GhostNonPointerReceiver() // p is implicitly dereferenced
+    gp.GhostNonPointerReceiver() // gp is implicitly dereferenced
+    (*p).GhostNonPointerReceiver()
+    (*gp).GhostNonPointerReceiver()
+    (*Foo).GhostNonPointerReceiver(p)
+    //:: ExpectedOutput(type_error)
+    (*Foo).GhostNonPointerReceiver(gp) // gp is not of type *Foo
+    //:: ExpectedOutput(type_error)
+    (*Foo).GhostNonPointerReceiver(*gp) // ghost Foo is not assignable to *Foo
+    //:: ExpectedOutput(type_error)
+    (Foo).GhostNonPointerReceiver(p) // *Foo is not assignable to Foo
+    //:: ExpectedOutput(type_error)
+    (Foo).GhostNonPointerReceiver(gp) // gpointer[Foo] is not assignable to Foo
+    (Foo).GhostNonPointerReceiver(*p)
+    (Foo).GhostNonPointerReceiver(*gp)
+}
+
+ghost
+decreases
+preserves acc(r)
+func (r gpointer[Foo]) GhostPointerReceiver() int {
+    r.field = 0
+    return r.field
+}
+
+decreases
+preserves acc(r)
+func (r *Foo) ActualPointerReceiver() int {
+    r.field = 0
+    return r.field
+}
+
+ghost
+decreases
+func (r Foo) GhostNonPointerReceiver() int {
+    r.field = 42
+    return r.field
+}
+
+decreases
+func (r Foo) ActualNonPointerReceiver() int {
+    r.field = 42
+    return r.field
+}
+
+decreases
+preserves acc(r)
+//:: ExpectedOutput(type_error)
+func (r gpointer[Foo]) ActualGhostPointerReceiver() int { // ghostpointer is only allowed for ghost methods
+    r.field = 0
+    return r.field
+}
+
+ghost
+decreases
+func (r *Foo) GhostActualPointerReceiver() int {
+    //:: ExpectedOutput(type_error)
+    r.field = 0 // fails since we're trying to modify actual memory
+    return r.field
+}

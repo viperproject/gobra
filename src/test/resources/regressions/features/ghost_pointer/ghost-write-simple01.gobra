@@ -1,0 +1,36 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostWriteSimple01
+
+// x is a pointer to a location on the ghost heap
+// thus, writing in ghost code is forbidden as effects
+// are observable (via aliasing).
+
+ghost
+decreases
+requires acc(x)
+func ghostWriteFunc(x gpointer[int]) {
+    *x = 42
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}
+
+decreases
+requires acc(x)
+func actualWriteFunc(ghost x gpointer[int]) {
+    *x = 42
+}
+
+ghost
+decreases
+requires acc(x)
+func ghostReadFunc(x gpointer[int]) int {
+    return *x
+}
+
+decreases
+requires acc(x)
+func actualReadFunc(ghost x gpointer[int]) (ghost res int) {
+    return *x
+}

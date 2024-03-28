@@ -1,0 +1,56 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostArraySimple01
+
+ghost
+decreases
+func GhostFunc() (x [5]int) {
+    x = [5]int{ 0, 1, 2, 3, 4 }
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+    return
+}
+
+ghost
+decreases
+ensures acc(x) && acc(y)
+func GhostFunc2() (x gpointer[[5]int], y gpointer[[5]int]) {
+    arr@ := [5]int{ 0, 1, 2, 3, 4 }
+    x = &arr
+    y = &[5]int{ 0, 1, 2, 3, 4 }
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+    return
+}
+
+ghost
+decreases
+requires acc(p)
+func GhostArrayAssign(p *[5]int) {
+    x := GhostFunc()
+    y, z := GhostFunc2()
+    x[2] = 42
+    // y[3] = 42
+    (*z)[4] = 42
+}
+
+
+decreases
+ensures acc(x) && acc(y)
+func ActualFunc2() (x *[5]int, y *[5]int) {
+    arr@ := [5]int{ 0, 1, 2, 3, 4 }
+    x = &arr
+    y = &[5]int{ 0, 1, 2, 3, 4 }
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+    return
+}
+
+decreases
+requires acc(p)
+func ActualArrayAssign(p *[5]int) {
+    y, z := ActualFunc2()
+    // y[3] = 42
+    (*z)[4] = 42
+}

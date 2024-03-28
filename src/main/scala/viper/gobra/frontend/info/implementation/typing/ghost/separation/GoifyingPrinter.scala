@@ -233,6 +233,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     case n: PProofAnnotation => n match {
       case n: POutline =>
         showSpec(n.spec) <> specComment <> "outline (" <> line <> showStmt(n.body) <> line <>  specComment <> ")" <> line
+      case PClosureImplProof(impl, PBlock(stmts)) => blockSpecComment("proof" <+> showExpr(impl) <> block(showStmtList(stmts)))
     }
 
     case _ => super.showStmt(stmt)

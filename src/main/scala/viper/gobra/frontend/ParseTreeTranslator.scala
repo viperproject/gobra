@@ -504,6 +504,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
+    * {@inheritDoc }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitGhostPointerType(ctx: GhostPointerTypeContext): PGhostPointerType = {
+    val typ = visitNode[PType](ctx.elementType().type_())
+    PGhostPointerType(typ).at(ctx)
+  }
+
+  /**
     * {@inheritDoc  }
     *
     * <p>The default implementation returns the result of calling
@@ -914,7 +925,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitReceiver(ctx: ReceiverContext): PReceiver = {
     val recvType = visitNode[PType](ctx.type_()) match {
       case t : PNamedOperand => PMethodReceiveName(t).at(t)
-      case PDeref(t : PNamedOperand) => PMethodReceivePointer(t).at(t)
+      case PDeref(t: PNamedOperand) => PMethodReceiveActualPointer(t).at(t)
+      case PGhostPointerType(t: PNamedOperand) => PMethodReceiveGhostPointer(t).at(t)
       case f => fail(ctx.type_(), s"Expected declared type or pointer to declared type but got: $f.")
     }
 

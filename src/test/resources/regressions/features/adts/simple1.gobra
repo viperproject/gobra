@@ -1,7 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package pkg;
+package pkg
 
 type tree adt{
   leaf{ value int }
@@ -17,7 +17,7 @@ func test1() {
 }
 
 func test2(x tree) {
-  var y int
+  ghost var y int
   match x {
     case node{leaf{5}, _}: y = 4
     case _: y = 3

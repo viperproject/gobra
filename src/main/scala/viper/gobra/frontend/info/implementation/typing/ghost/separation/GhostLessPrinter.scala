@@ -70,6 +70,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
 
     case n: PProofAnnotation => n match {
       case n: POutline => showStmt(n.body)
+      case _: PClosureImplProof => ghostToken
     }
 
     case s if classifier.isStmtGhost(s) => ghostToken

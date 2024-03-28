@@ -1,0 +1,41 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostArrayRangeFail01
+
+ghost
+decreases
+requires acc(p[0]) && acc(p[1])
+func GhostArrayRange(p [2]*int) {
+	invariant acc(p[0])
+	invariant acc(p[1])
+	invariant 0 <= i && i <= len(p)
+	decreases len(p) - i0
+	for i, j := range p with i0 {
+		assert j != nil
+		v := *j
+		v = *p[i]
+		// assignment is not possible
+		//:: ExpectedOutput(type_error)
+		*j = 42
+	}
+}
+
+// ranging over a pointer or ghost pointer to an array is not yet supported:
+ghost
+func GhostPtrArrayRange() {
+    arr@ := [2]int{ 0, 1 }
+    p := &arr
+    var elem int
+    //:: ExpectedOutput(type_error)
+    for elem = range(p) with i0 {}
+}
+
+ghost
+func ActualPtrArrayRange() {
+    arr@ := [2]int{ 0, 1 }
+    p := &arr
+    var elem int
+    //:: ExpectedOutput(type_error)
+    for elem = range(p) with i0 {}
+}

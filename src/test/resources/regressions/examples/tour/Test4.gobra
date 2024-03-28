@@ -8,6 +8,7 @@ type Point struct {
   y int;
 };
 
+decreases
 requires acc(&p.x);
 pure func (p *Point) getX1() int {
   return p.x;

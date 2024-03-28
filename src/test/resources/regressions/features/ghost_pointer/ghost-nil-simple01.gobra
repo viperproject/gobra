@@ -1,0 +1,25 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostNilSimple01
+
+ghost
+decreases
+func GhostFunc(a *int) {
+    a = nil
+    var b gpointer[int]
+    b = nil
+    b = new(int)
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}
+
+decreases
+func ActualFunc(ghost b gpointer[int]) {
+    var a *int = nil
+    a = new(int)
+    b = nil
+    ghost b = new(int)
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}

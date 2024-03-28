@@ -68,7 +68,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case PClosureDecl(args, res, _, _)  => FunctionT(args.map(typ), miscType(res))
 
     case PEmbeddedName(t) => typeSymbType(t)
-    case PEmbeddedPointer(t) => PointerT(typeSymbType(t))
+    case PEmbeddedPointer(t) => ActualPointerT(typeSymbType(t))
 
     case l: PLiteralValue => expectedMiscType(l)
     case l: PKeyedElement => miscType(l.exp)

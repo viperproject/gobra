@@ -20,7 +20,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
   private[separation] lazy val ghostMemberClassification: PMember => Boolean =
     attr[PMember, Boolean] {
       case _: PGhostMember => true
-      case m if enclosingGhostContext(m) => true
+      case m if isEnclosingGhost(m) => true
       case _ => false
     }
 
@@ -45,7 +45,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
     attr[PStatement, Boolean] {
       case _: PGhostStatement => true
-      case s if enclosingGhostContext(s) => true
+      case s if isEnclosingGhost(s) => true
       case PAssignment(_, left) => left.forall(ghostExprClassification)
       case PAssignmentWithOp(_, _, left) => ghostExprClassification(left)
       case PShortVarDecl(right, left, _) => varDeclClassification(left, right)
@@ -80,6 +80,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       case PNamedOperand(id) => ghost(ghostIdClassification(id))
 
       case _: PFunctionLit => notGhost
+      case e: PCompositeLit if isEnclosingGhost(e) => isGhost // struct literals occurring in ghost code are treated as ghost no matter whether the type is ghost or not
 
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(_: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
@@ -119,6 +120,44 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     }
   }
 
+  /** returns true iff expression refers to a ghost location (ghost heap or local ghost variable) */
+  private[separation] lazy val ghostLocationClassification: PExpression => Boolean =
+    createGhostClassification[PExpression](e => ghostLocationTyping(e).isGhost)
+
+  /** returns ghost typing of the location that expression represents */
+  private[separation] lazy val ghostLocationTyping: PExpression => GhostType = {
+    import GhostType._
+
+    createGhostTyping[PExpression] {
+      case PNamedOperand(id) => ghost(ghostIdClassification(id))
+      case e: PDeref => resolve(e) match {
+        case Some(ap.Deref(base)) => underlyingType(exprType(base)) match {
+          case _: Type.GhostPointerT => isGhost
+          case _ => notGhost
+        }
+        case _ => Violation.violation(s"type-checker should only permit PDeref assignees that have the Deref pattern")
+      }
+      case e: PDot => resolve(e) match {
+        case Some(s: ap.FieldSelection) =>
+          val isGhostField = ghostIdClassification(s.id)
+          (underlyingType(typ(s.base)), isGhostField) match {
+            case (_, true) => isGhost // ghost fields are always ghost memory
+            case (tb: Type.PointerT, _) => ghost(tb.isInstanceOf[Type.GhostPointerT]) // (implicitly) dereferencing a field of a ghost pointer leads to a ghost heap location
+            case _ => ghostLocationTyping(s.base) // assignee is on the stack, recurse to find out if it's a ghost or actual variable
+          }
+        case Some(g: ap.GlobalVariable) => ghost(g.symb.ghost)
+        case _ => Violation.violation(s"type-checker should only permit PDot assignees that are either field or global variable accesses")
+      }
+      case PIndexedExp(base, _) => underlyingType(typ(base)) match {
+        case t if !isPointerType(t) => ghostLocationTyping(base) // assignee is on the stack, recurse to find out if it's a ghost or actual variable
+        case _: Type.GhostPointerT | _: Type.GhostSliceT => isGhost // (implicitly) dereferencing a ghost pointer leads to a ghost heap location
+        case _ => notGhost
+      }
+
+      case e => ghostExprTyping(e)
+    }
+  }
+
   /** returns true iff type is classified as ghost */
   private[separation] lazy val ghostTypeClassification: PType => Boolean = createGhostClassification[PType]{
     case _: PGhostType => true // TODO: This check seems insufficient to me in the long run. What if a type definition is ghost?
@@ -146,10 +185,6 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     case _: PActualParameter => false
     case _: PExplicitGhostParameter => true
   }
-
-  /** returns true iff node is contained in ghost code */
-  private[separation] def enclosingGhostContext(n: PNode): Boolean =
-    isEnclosingExplicitGhost(n) || isEnclosingDomain(n)
 
   /** returns true iff node does not contain ghost expression or id that is not contained in another statement */
   private[separation] lazy val noGhostPropagationFromChildren: PNode => Boolean =
@@ -201,6 +236,9 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
   override def isParamGhost(param: PParameter): Boolean =
     ghostParameterClassification(param)
+
+  override def isGhostLocation(expr: PExpression): Boolean =
+    ghostLocationClassification(expr)
 
   override def isStructClauseGhost(clause: PStructClause): Boolean = clause match {
     case _: PActualStructClause => false

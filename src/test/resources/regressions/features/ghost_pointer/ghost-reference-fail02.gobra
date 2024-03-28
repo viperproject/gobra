@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostReferenceFail02
+
+type S struct {
+    field int
+}
+
+func ActualFunc() {
+    x@ := S{ 42 }
+    ghost var p *S = &x
+
+    // the following writes fail as it's ghost code but assigning to an actual heap location:
+    //:: ExpectedOutput(type_error)
+    ghost (*p).field = 42
+    //:: ExpectedOutput(type_error)
+    ghost p.field = 42
+}
+
+ghost
+decreases
+requires acc(p)
+func GhostFunc(p *S) {
+    // the following writes fail as it's ghost code but assigning to an actual heap location:
+    //:: ExpectedOutput(type_error)
+    (*p).field = 42
+    //:: ExpectedOutput(type_error)
+    p.field = 42
+}

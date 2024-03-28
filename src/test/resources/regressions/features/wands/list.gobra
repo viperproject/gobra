@@ -18,7 +18,6 @@ pure func elems(start *List) (res seq[int]) {
 	return unfolding start.Mem() in (start.next == nil? seq[int]{start.val} : (seq[int]{start.val} ++ elems(start.next)))
 }
 
-ghost
 requires l1.Mem() && l2.Mem() && l2 != nil
 ensures  l1.Mem() && elems(l1) == old(elems(l1) ++ elems(l2))
 func (l1 *List) Append(l2 *List) {

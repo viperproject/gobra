@@ -362,12 +362,14 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         Seq(vpr.Trigger(Seq(trigger))()),
         vpr.Implies(boundaryCondition(vIdx.localVar, t.len)(src), idxEq)()
       )()
+      val terminationMeasure =
+        synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
 
       vpr.Function(
         name = s"${Names.arrayDefaultFunc}_${t.serialize}",
         formalArgs = Seq.empty,
         typ = vResType,
-        pres = Seq.empty,
+        pres = Seq(terminationMeasure),
         posts = Vector(lenEq, arrayEq),
         body = None
       )()

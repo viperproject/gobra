@@ -226,6 +226,7 @@ class SequenceEncoding extends LeafTypeEncoding {
     *   requires 0 <= n
     *   ensures |result| == n
     *   ensures forall i : Int :: { result[i] } 0 <= i < n ==> result[i] == dfltVal(`T`)
+    *   decreases _
     * }}}
     */
   private val emptySeqFunc: FunctionGenerator[in.Type] = new FunctionGenerator[in.Type] {

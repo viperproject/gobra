@@ -340,6 +340,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * function arrayDefault(): ([n]T)°
     *   ensures len(result) == n
     *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> [result[idx] == dflt(T)]
+    *   decreases _
     * */
   private val exDfltFunc: FunctionGenerator[ComponentParameter] = new FunctionGenerator[ComponentParameter]{
     def genFunction(t: ComponentParameter)(ctx: Context): vpr.Function = {

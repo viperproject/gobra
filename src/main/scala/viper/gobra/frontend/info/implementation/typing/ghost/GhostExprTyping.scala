@@ -97,11 +97,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       permWellDef ++ expWellDef
 
-    case n: PPredicateAccess => resolve(n.pred) match {
-      case Some(_: ap.PredicateCall) => noMessages
-      case Some(_: ap.PredExprInstance) => noMessages
-      case _ => error(n, s"expected reference, dereference, field selection, or predicate expression instance, but got ${n.pred}")
-    }
+    case n: PPredicateAccess =>
+      val predWellDef = resolve(n.pred) match {
+        case Some(_: ap.PredicateCall) => noMessages
+        case Some(_: ap.PredExprInstance) => noMessages
+        case _ => error(n, s"expected reference, dereference, field selection, or predicate expression instance, but got ${n.pred}")
+      }
+      predWellDef ++ error(n, "Cannot reveal a predicate access.", n.pred.reveal)
 
     case PTypeOf(e) => isExpr(e).out
     case PTypeExpr(t) => isType(t).out
@@ -208,11 +210,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t => error(op, s"expected a sequence, multiset or option type, but got $t")
         }
         case PMapKeys(exp) => underlyingType(exprType(exp)) match {
-          case _: MathMapT | _: MapT => isExpr(exp).out
+          case Single(_: MathMapT | _: MapT) => isExpr(exp).out
           case t => error(expr, s"expected a map, but got $t")
         }
         case PMapValues(exp) => underlyingType(exprType(exp)) match {
-          case _: MathMapT | _: MapT => isExpr(exp).out
+          case Single(_: MathMapT | _: MapT) => isExpr(exp).out
           case t => error(expr, s"expected a map, but got $t")
         }
       }
@@ -265,7 +267,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PGhostEquals | _: PGhostUnequals => BooleanT
 
     case POptionNone(t) => OptionT(typeSymbType(t))
-    case POptionSome(e) => OptionT(exprType(e))
+    case POptionSome(e) =>
+      val et = exprType(e)
+      et match {
+        case Single(t) => OptionT(t)
+        case t => violation(s"expected a single type, but got $t")
+      }
+
     case POptionGet(e) => exprType(e) match {
       case OptionT(t) => t
       case t => violation(s"expected an option type, but got $t")
@@ -313,13 +321,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t => violation(s"expected a sequence, set, multiset or option type, but got $t")
         }
         case PMapKeys(exp) => underlyingType(exprType(exp)) match {
-          case t: MathMapT => SetT(t.key)
-          case t: MapT => SetT(t.key)
+          case Single(t: MathMapT) => SetT(t.key)
+          case Single(t: MapT) => SetT(t.key)
           case t => violation(s"expected a map, but got $t")
         }
         case PMapValues(exp) => underlyingType(exprType(exp)) match {
-          case t: MathMapT => SetT(t.elem)
-          case t: MapT => SetT(t.elem)
+          case Single(t: MathMapT) => SetT(t.elem)
+          case Single(t: MapT) => SetT(t.elem)
           case t => violation(s"expected a map, but got $t")
         }
       }
@@ -556,7 +564,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     expr match {
       case PDot(base, _) => goEorT(base)
-      case PInvoke(base, args, None) => {
+      case PInvoke(base, args, None, _) => {
         val res1 = goEorT(base)
         val res2 = combineTriggerResults(args.map(validTriggerPattern))
         combineTriggerResults(res1, res2)

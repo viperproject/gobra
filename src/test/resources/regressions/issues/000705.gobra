@@ -1,0 +1,75 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000705
+
+// adapted from Viper tutorial on magic wands
+
+type ListEntry struct {
+    next *ListEntry
+    value int
+}
+
+pred (l *ListEntry) List() {
+    acc(l) && (l.next != nil ==> l.next.List())
+}
+
+ghost
+requires acc(l.List(), _)
+pure func (l *ListEntry) Elems() (res seq[int]) {
+    return unfolding acc(l.List(), _) in (
+        l.next == nil ? seq[int]{ l.value } :
+            seq[int]{ l.value } ++ l.next.Elems())
+}
+
+requires l1.List() && l2.List() && l2 != nil
+ensures  l1.List() && l1.Elems() == old(l1.Elems() ++ l2.Elems())
+func (l1 *ListEntry) append(l2 *ListEntry) {
+    unfold l1.List()
+    if l1.next == nil {
+        l1.next = l2
+        fold l1.List()
+    } else {
+        tmp := l1.next
+        index := 1
+
+        package tmp.List() --* (l1.List() && l1.Elems() == old(l1.Elems()[:index]) ++ old[#lhs](tmp.Elems())) {
+            fold l1.List()
+        }
+
+        newTmp, newIndex := l1.appendSubroutine(tmp, old(l1.Elems()))
+
+        unfold newTmp.List()
+        newTmp.next = l2
+        fold newTmp.List()
+        apply newTmp.List() --* (l1.List() && l1.Elems() == old(l1.Elems()[:newIndex]) ++ old[#lhs](newTmp.Elems()))
+    }
+}
+
+requires tmp.List() && /*acc(l1) && l1.next == tmp &&*/ tmp.Elems() == elems[1:]
+requires tmp.List() --* (l1.List() && l1.Elems() == elems[:1] ++ old[#lhs](tmp.Elems()))
+ensures 0 <= newIndex
+ensures newTmp.List() && newTmp.Elems() == elems[newIndex:]
+ensures unfolding newTmp.List() in newTmp.next == nil
+ensures newTmp.List() --* (l1.List() && l1.Elems() == elems[:newIndex] ++ old[#lhs](newTmp.Elems()))
+func (l1 *ListEntry) appendSubroutine(tmp *ListEntry, ghost elems seq[int]) (newTmp *ListEntry, newIndex int) {
+    index := 1
+
+    invariant 0 <= index
+    invariant tmp.List() && tmp.Elems() == elems[index:]
+    invariant tmp.List() --* (l1.List() && l1.Elems() == elems[:index] ++ old[#lhs](tmp.Elems()))
+    for unfolding tmp.List() in tmp.next != nil {
+        unfold tmp.List()
+        prev := tmp
+        tmp = tmp.next
+        index = index + 1
+        package tmp.List() --* (l1.List() && l1.Elems() == elems[:index] ++ old[#lhs](tmp.Elems())) {
+            fold prev.List()
+            apply prev.List() --* (l1.List() && l1.Elems() == elems[:index-1] ++ old[#lhs](prev.Elems()))
+        }
+    }
+
+    newTmp = tmp
+    newIndex = index
+    return
+}

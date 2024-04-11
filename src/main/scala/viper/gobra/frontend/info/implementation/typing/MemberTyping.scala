@@ -22,9 +22,16 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualMember(member: PActualMember): Messages = member match {
     case n: PFunctionDecl =>
-      wellDefVariadicArgs(n.args) ++ wellDefIfPureFunction(n) ++ wellDefIfInitBlock(n) ++ wellDefIfMain(n)
+      wellDefVariadicArgs(n.args) ++
+        wellDefIfPureFunction(n) ++
+        wellDefIfInitBlock(n) ++
+        wellDefIfMain(n) ++
+        wellFoundedIfNeeded(n)
     case m: PMethodDecl =>
-      wellDefVariadicArgs(m.args) ++ isReceiverType.errors(miscType(m.receiver))(member) ++ wellDefIfPureMethod(m)
+      wellDefVariadicArgs(m.args) ++
+        isReceiverType.errors(miscType(m.receiver))(member) ++
+        wellDefIfPureMethod(m) ++
+        wellFoundedIfNeeded(m)
     case b: PConstDecl =>
       b.specs.flatMap(wellDefConstSpec)
     case g: PVarDecl if isGlobalVarDeclaration(g) =>

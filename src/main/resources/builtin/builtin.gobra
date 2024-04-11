@@ -11,21 +11,26 @@ package builtin
 type any = interface{}
 
 type error interface {
+	// To allow for recursive implementations of the
+	// following methods, we use ErrorMem() as the
+	// termination measure.
 	pred ErrorMem()
 
 	ghost
-	requires acc(ErrorMem(), _)
-	decreases
+	requires  acc(ErrorMem(), _)
+	decreases ErrorMem()
 	pure IsDuplicableMem() bool
 
 	ghost
 	preserves ErrorMem()
-	ensures   IsDuplicableMem() ==> ErrorMem() 
-	decreases
+	ensures   IsDuplicableMem() == old(IsDuplicableMem())
+	ensures   IsDuplicableMem() ==> ErrorMem()
+	decreases ErrorMem()
 	Duplicate()
 
 	preserves ErrorMem()
-	decreases
+	ensures   IsDuplicableMem() == old(IsDuplicableMem())
+	decreases ErrorMem()
 	Error() string
 }
 

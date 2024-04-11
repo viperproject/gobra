@@ -13,6 +13,10 @@ import viper.server.core.ViperCoreServer
 import viper.silicon.decider.Z3ProverAPI
 import viper.server.vsi.DefaultVerificationServerStart
 
+import java.nio.file.{Files, Paths}
+import scala.io.Source
+import scala.util.Using
+
 trait ViperBackend {
   def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperVerifier
 }
@@ -29,7 +33,16 @@ object ViperBackends {
         options ++= Vector("--conditionalizePermissions")
       }
       if (config.z3APIMode) {
-        options = options ++ Vector(s"--prover=${Z3ProverAPI.name}")
+        options ++= Vector(s"--prover=${Z3ProverAPI.name}")
+      }
+      if (config.disableNL) {
+        options ++= Vector(s"--disableNL")
+      }
+      if (config.unsafeWildcardOptimization) {
+        options ++= Vector(s"--unsafeWildcardOptimization")
+      }
+      if (config.enableMoreJoins) {
+        options ++= Vector(s"--moreJoins")
       }
       val mceSiliconOpt = config.mceMode match {
         case MCE.Disabled => "0"
@@ -37,6 +50,9 @@ object ViperBackends {
         case MCE.OnDemand => "2"
       }
       options ++= Vector(s"--exhaleMode=$mceSiliconOpt")
+      // Gobra seems to be much slower with the new silicon axiomatization of collections.
+      // For now, we stick to the old one.
+      options ++= Vector("--useOldAxiomatization")
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }
@@ -44,6 +60,20 @@ object ViperBackends {
         options ++= Vector("--parallelizeBranches")
       }
       options ++= exePaths
+      if (config.disableSetAxiomatization) {
+        // Since resources are stored within the .jar archive, we cannot
+        // directly pass the axiom file to Silicon.
+        val tmpPath = Paths.get("gobra_tmp")
+        val axiomTmpPath = tmpPath.resolve("noaxioms_sets.vpr")
+        val axiom: Source = Source.fromResource("noaxioms/sets.vpr")
+
+        Files.createDirectories(tmpPath)
+        Using(axiom) { source =>
+          Files.write(axiomTmpPath, source.mkString.getBytes)
+        }
+
+        options ++= Vector("--setAxiomatizationFile", axiomTmpPath.toString())
+      }
 
       new Silicon(options)
     }
@@ -107,6 +137,21 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
+      // Gobra seems to be much slower with the new silicon axiomatization of collections.
+      // For now, we stick to the old one.
+      options ++= Vector("--useOldAxiomatization")
+      if (config.z3APIMode) {
+        options ++= Vector(s"--prover=${Z3ProverAPI.name}")
+      }
+      if (config.disableNL) {
+        options ++= Vector(s"--disableNL")
+      }
+      if (config.unsafeWildcardOptimization) {
+        options ++= Vector(s"--unsafeWildcardOptimization")
+      }
+      if (config.enableMoreJoins) {
+        options ++= Vector(s"--moreJoins")
+      }
       val mceSiliconOpt = config.mceMode match {
         case MCE.Disabled => "0"
         case MCE.Enabled  => "1"

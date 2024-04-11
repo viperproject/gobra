@@ -21,7 +21,7 @@ import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
-import viper.gobra.util.{Constants, DesugarWriter, GobraExecutionContext, Violation}
+import viper.gobra.util.{BackendAnnotation, Constants, DesugarWriter, GobraExecutionContext, Violation}
 
 import java.util.concurrent.atomic.AtomicLong
 import scala.annotation.{tailrec, unused}
@@ -564,6 +564,10 @@ object Desugar extends LazyLogging {
       typeD(DeclaredT(decl, info), Addressability.Exclusive)(meta(decl, info))
     }
 
+    def desugarBackendAnnotations(annotations: Vector[PBackendAnnotation]): Vector[BackendAnnotation] = {
+      annotations map { case PBackendAnnotation(key, value) => BackendAnnotation(key, value) }
+    }
+
     def functionD(decl: PFunctionDecl): in.FunctionMember =
       if (decl.spec.isPure) pureFunctionD(decl) else {
 
@@ -572,7 +576,7 @@ object Desugar extends LazyLogging {
       val functionInfo = functionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)))
 
       in.Function(name, functionInfo.args, functionInfo.results, functionInfo.pres, functionInfo.posts,
-        functionInfo.terminationMeasures, functionInfo.body)(fsrc)
+        functionInfo.terminationMeasures, functionInfo.backendAnnotations, functionInfo.body)(fsrc)
     }
 
     private case class FunctionInfo(args: Vector[in.Parameter.In],
@@ -581,6 +585,7 @@ object Desugar extends LazyLogging {
                                     pres: Vector[in.Assertion],
                                     posts: Vector[in.Assertion],
                                     terminationMeasures: Vector[in.TerminationMeasure],
+                                    backendAnnotations: Vector[BackendAnnotation],
                                     body: Option[in.MethodBody])
 
     private def functionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext): FunctionInfo = {
@@ -693,7 +698,8 @@ object Desugar extends LazyLogging {
         in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
-      FunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasures, bodyOpt)
+      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
+      FunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasures, annotations, bodyOpt)
     }
 
     def pureFunctionD(decl: PFunctionDecl): in.PureFunction = {
@@ -701,7 +707,8 @@ object Desugar extends LazyLogging {
       val fsrc = meta(decl, info)
       val funcInfo = pureFunctionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)), info)
 
-      in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(fsrc)
+      in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres,
+        funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body, funcInfo.isOpaque)(fsrc)
     }
 
     private case class PureFunctionInfo(args: Vector[in.Parameter.In],
@@ -710,7 +717,9 @@ object Desugar extends LazyLogging {
                                         pres: Vector[in.Assertion],
                                         posts: Vector[in.Assertion],
                                         terminationMeasures: Vector[in.TerminationMeasure],
-                                        body: Option[in.Expr])
+                                        backendAnnotations: Vector[BackendAnnotation],
+                                        body: Option[in.Expr],
+                                        isOpaque: Boolean)
 
 
     private def pureFunctionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext, info: TypeInfo): PureFunctionInfo = {
@@ -756,6 +765,8 @@ object Desugar extends LazyLogging {
       val posts = decl.spec.posts map postconditionD(ctx, info)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
 
+      val isOpaque = decl.spec.isOpaque
+
       val capturedWithAliases = (captured.map { v => in.Ref(localVarD(outerCtx, info)(v))(meta(v, info)) } zip capturedPar)
 
       val bodyOpt = decl.body.map {
@@ -766,8 +777,9 @@ object Desugar extends LazyLogging {
           }
           implicitConversion(res.typ, returns.head.typ, res)
       }
+      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
 
-      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, bodyOpt)
+      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque)
     }
 
 
@@ -880,7 +892,9 @@ object Desugar extends LazyLogging {
         in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
       }
 
-      in.Method(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
+      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
+
+      in.Method(recv, name, args, returns, pres, posts, terminationMeasure, annotations, bodyOpt)(fsrc)
     }
 
     def pureMethodD(decl: PMethodDecl): in.PureMethod = {
@@ -924,6 +938,8 @@ object Desugar extends LazyLogging {
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(ctx, info)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
 
+      val isOpaque = decl.spec.isOpaque
+
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
           val res = b.nonEmptyStmts match {
@@ -932,8 +948,8 @@ object Desugar extends LazyLogging {
           }
           implicitConversion(res.typ, returns.head.typ, res)
       }
-
-      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
+      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
+      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque)(fsrc)
     }
 
     def fpredicateD(decl: PFPredicateDecl): in.FPredicate = {
@@ -1846,11 +1862,12 @@ object Desugar extends LazyLogging {
             val pres = (n.spec.pres ++ n.spec.preserves) map preconditionD(ctx, info)
             val posts = (n.spec.preserves ++ n.spec.posts) map postconditionD(ctx, info)
             val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
+            val annotations = desugarBackendAnnotations(n.spec.backendAnnotations)
 
             if (!n.spec.isTrusted) {
               for {
                 body <- seqn(stmtD(ctx, info)(n.body))
-              } yield in.Outline(name, pres, posts, terminationMeasures, body, trusted = false)(src)
+              } yield in.Outline(name, pres, posts, terminationMeasures, annotations, body, trusted = false)(src)
             } else {
               val declared = info.freeDeclared(n).map(localVarContextFreeD(_, info))
               // The dummy body preserves the reads and writes of the real body that target free variables.
@@ -1875,7 +1892,7 @@ object Desugar extends LazyLogging {
               for {
                 // since the body of an outline is not a separate scope, we have to preserve variable declarations.
                 _ <- declare(declared:_*)
-              } yield in.Outline(name, pres, posts, terminationMeasures, dummyBody, trusted = true)(src)
+              } yield in.Outline(name, pres, posts, terminationMeasures, annotations, dummyBody, trusted = true)(src)
             }
 
 
@@ -2096,11 +2113,11 @@ object Desugar extends LazyLogging {
         case _ => in.FunctionCall(targets, getFunctionProxy(func, args), args)(src)
       }
 
-      def pureFunctionCall(func: ap.FunctionKind, args: Vector[in.Expr], spec: Option[in.ClosureSpec], resT: in.Type): in.Expr = spec match {
+      def pureFunctionCall(func: ap.FunctionKind, args: Vector[in.Expr], spec: Option[in.ClosureSpec], resT: in.Type, reveal: Boolean): in.Expr = spec match {
         case Some(spec) =>
           val funcObject = in.FunctionObject(getFunctionProxy(func, args), typeD(info.typ(func.id), Addressability.rValue)(src))(src)
           in.PureClosureCall(funcObject, args, spec, resT)(src)
-        case _ => in.PureFunctionCall(getFunctionProxy(func, args), args, resT)(src)
+        case _ => in.PureFunctionCall(getFunctionProxy(func, args), args, resT, reveal)(src)
       }
 
       def getMethodProxy(f: ap.FunctionKind, recv: in.Expr, args: Vector[in.Expr]): in.MethodProxy = f match {
@@ -2121,7 +2138,7 @@ object Desugar extends LazyLogging {
         case _ => in.MethodCall(targets, recv, meth, args)(src)
       }
 
-      def pureMethodCall(recv: in.Expr, meth: in.MethodProxy, args: Vector[in.Expr], spec: Option[in.ClosureSpec], resT: in.Type): in.Expr = spec match {
+      def pureMethodCall(recv: in.Expr, meth: in.MethodProxy, args: Vector[in.Expr], spec: Option[in.ClosureSpec], resT: in.Type, reveal: Boolean): in.Expr = spec match {
         case Some(spec) =>
           val resType = resT match {
             case in.TupleT(ts, _) => ts
@@ -2129,7 +2146,7 @@ object Desugar extends LazyLogging {
           }
           val methObject = in.MethodObject(recv, meth, in.FunctionT(args.map(_.typ), resType, Addressability.rValue))(src)
           in.PureClosureCall(methObject, args, spec, resT)(src)
-        case _ => in.PureMethodCall(recv, meth, args, resT)(src)
+        case _ => in.PureMethodCall(recv, meth, args, resT, reveal)(src)
       }
 
       def convertArgs(args: Vector[in.Expr]): Vector[in.Expr] = {
@@ -2194,11 +2211,12 @@ object Desugar extends LazyLogging {
         case base: ap.FunctionKind => base match {
           case _: ap.Function | _: ap.BuiltInFunction =>
             if (isPure) {
+
               for {
                 args <- dArgs
                 convertedArgs = convertArgs(args)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Right(pureFunctionCall(base, convertedArgs, spec, resT))
+              } yield Right(pureFunctionCall(base, convertedArgs, spec, resT, expr.reveal))
             } else {
               for {
                 args <- dArgs
@@ -2218,7 +2236,7 @@ object Desugar extends LazyLogging {
                 proxy = methodProxy(iim.id, iim.symb.context.getTypeInfo)
                 recvType = typeD(iim.symb.itfType, Addressability.receiver)(src)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Right(pureMethodCall(implicitThisD(recvType)(src), proxy, args, spec, resT))
+              } yield Right(pureMethodCall(implicitThisD(recvType)(src), proxy, args, spec, resT, expr.reveal))
             } else {
               for {
                 args <- dArgs
@@ -2263,7 +2281,7 @@ object Desugar extends LazyLogging {
                 convertedArgs = convertArgs(args)
                 mproxy = getMethodProxy(base, recv, convertedArgs)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Right(pureMethodCall(recv, mproxy, convertedArgs, spec, resT))
+              } yield Right(pureMethodCall(recv, mproxy, convertedArgs, spec, resT, expr.reveal))
             } else {
               for {
                 (recv, args) <- dRecvWithArgs
@@ -2638,8 +2656,53 @@ object Desugar extends LazyLogging {
               for {l <- go(left); r <- go(right)} yield in.AtLeastCmp(l, r)(src)
             }
 
-          case PAnd(left, right) => for {l <- go(left); r <- go(right)} yield in.And(l, r)(src)
-          case POr(left, right) => for {l <- go(left); r <- go(right)} yield in.Or(l, r)(src)
+          case PAnd(left, right) =>
+            val isPure = info.isPureExpression(expr)
+            if (isPure) {
+              // in this case, the generated expression will already be short-circuiting
+              for { l <- go(left); r <- go(right) } yield in.And(l, r)(src)
+            } else {
+              // here, we implement short-circuiting manually, as we need to be careful about
+              // when the side-effectful operations may run
+              for {
+                l <- go(left)
+                  rightW = go(right)
+                  res = freshExclusiveVar(in.BoolT(Addressability.Exclusive), expr, info)(src)
+                  fstAssign = singleAss(in.Assignee.Var(res), l)(src)
+                  sndAssign = singleAss(in.Assignee.Var(res), rightW.res)(src)
+                  condStmt = in.If(
+                    l,
+                    in.Block(rightW.decls, rightW.stmts :+ sndAssign)(src),
+                    in.Block(Vector.empty, Vector.empty)(src),
+                  )(src)
+                  _ <- declaredExclusiveVar(res)
+                  _ <- write(fstAssign, condStmt)
+              } yield res
+            }
+
+          case POr(left, right) =>
+            val isPure = info.isPureExpression(expr)
+            if (isPure) {
+              // in this case, the generated expression will already be short-circuiting
+              for {l <- go(left); r <- go(right)} yield in.Or(l, r)(src)
+            } else {
+              // here, we implement short-circuiting manually, as we need to be careful about
+              // when the side-effectful operations may run
+              for {
+                l <- go(left)
+                rightW = go(right)
+                res = freshExclusiveVar(in.BoolT(Addressability.Exclusive), expr, info)(src)
+                fstAssign = singleAss(in.Assignee.Var(res), l)(src)
+                sndAssign = singleAss(in.Assignee.Var(res), rightW.res)(src)
+                condStmt = in.If(
+                  l,
+                  in.Block(Vector.empty, Vector.empty)(src),
+                  in.Block(rightW.decls, rightW.stmts :+ sndAssign)(src),
+                )(src)
+                _ <- declaredExclusiveVar(res)
+                _ <- write(fstAssign, condStmt)
+              } yield res
+            }
 
           case PAdd(left, right) => for {l <- go(left); r <- go(right)} yield in.Add(l, r)(src)
           case PSub(left, right) => for {l <- go(left); r <- go(right)} yield in.Sub(l, r)(src)
@@ -2940,13 +3003,13 @@ object Desugar extends LazyLogging {
       val funcInfo = functionMemberOrLitD(lit.decl, meta(lit, info), ctx)
       val src = meta(lit, info)
       val name = functionLitProxyD(lit, info)
-      in.FunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(src)
+      in.FunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body)(src)
     }
 
     def pureFunctionLitD(ctx: FunctionContext, info: TypeInfo)(lit: PFunctionLit): in.PureFunctionLit = {
       val funcInfo = pureFunctionMemberOrLitD(lit.decl, meta(lit, info), ctx, info)
       val name = functionLitProxyD(lit, info)
-      in.PureFunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.body)(meta(lit, info))
+      in.PureFunctionLit(name, funcInfo.args, funcInfo.captured, funcInfo.results, funcInfo.pres, funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body)(meta(lit, info))
     }
 
     def capturedVarD(v: PIdnNode): (in.Parameter.In, in.LocalVar) = {
@@ -3244,11 +3307,13 @@ object Desugar extends LazyLogging {
           val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx, info)
           val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx, info)
           val terminationMeasures = sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx, info)).res
+          val annotations = desugarBackendAnnotations(m.spec.backendAnnotations)
+          val isOpaque = m.spec.isOpaque
 
           val mem = if (m.spec.isPure) {
-            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
+            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, annotations, None, isOpaque)(src)
           } else {
-            in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
+            in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, annotations, None)(src)
           }
           definedMethods += (proxy -> mem)
           AdditionalMembers.addMember(mem)
@@ -3498,6 +3563,7 @@ object Desugar extends LazyLogging {
           a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(ImportPreNotEstablished))
         },
         terminationMeasures = Vector.empty,
+        backendAnnotations = Vector.empty,
         body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
       )(src)
     }
@@ -3532,6 +3598,7 @@ object Desugar extends LazyLogging {
           pres = mainPkgPosts,
           posts = mainFuncPreD,
           terminationMeasures = Vector.empty,
+          backendAnnotations = Vector.empty,
           body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
         )(src)
       }
@@ -3569,6 +3636,7 @@ object Desugar extends LazyLogging {
         posts = progPosts,
         // in our verification approach, the initialization code must be proven to terminate
         terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)),
+        backendAnnotations = Vector.empty,
         body = Some(
           in.MethodBody(
             decls = Vector(),
@@ -4549,10 +4617,10 @@ object Desugar extends LazyLogging {
 
         case n: PInvoke =>
           // a predicate invocation corresponds to a predicate access with full permissions
-          // register the full permission AST node in the position manager such that its meta information
+          // register the full permission AST node in `info`'s position manager such that its meta information
           // is retrievable in predicateCallD
           val perm = PFullPerm()
-          pom.positions.dupPos(n, perm)
+          info.tree.root.positions.positions.dupPos(n, perm)
           predicateCallD(ctx, info)(n, perm)
 
         case PForall(vars, triggers, body) =>

@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func main() {
+	x@ := 0
+	// Closure cannot be made opaque
+	//:: ExpectedOutput(type_error)
+	c := preserves acc(&x)
+		 ensures x == old(x) + n && m == x
+		 opaque
+		 pure func f(n int) (m int) {
+			x += n;
+			return x
+		 }
+}

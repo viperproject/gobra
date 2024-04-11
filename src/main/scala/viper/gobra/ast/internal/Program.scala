@@ -18,7 +18,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
-import viper.gobra.util.{Decimal, NumBase, TypeBounds, Violation}
+import viper.gobra.util.{BackendAnnotation, Decimal, NumBase, TypeBounds, Violation}
 import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation.violation
 
@@ -147,6 +147,7 @@ sealed trait MethodMember extends MethodLikeMember {
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
   def terminationMeasures: Vector[TerminationMeasure]
+  def backendAnnotations: Vector[BackendAnnotation]
 }
 
 sealed trait FunctionLikeMember extends Member {
@@ -159,6 +160,7 @@ sealed trait FunctionLikeMemberOrLit extends Node {
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
   def terminationMeasures: Vector[TerminationMeasure]
+  def backendAnnotations: Vector[BackendAnnotation]
 }
 
 sealed trait FunctionMember extends FunctionLikeMember with FunctionLikeMemberOrLit
@@ -185,6 +187,7 @@ case class Method(
                  override val pres: Vector[Assertion],
                  override val posts: Vector[Assertion],
                  override val terminationMeasures: Vector[TerminationMeasure],
+                 override val backendAnnotations: Vector[BackendAnnotation],
                  body: Option[MethodBody]
                  )(val info: Source.Parser.Info) extends Member with MethodMember
 
@@ -196,7 +199,9 @@ case class PureMethod(
                        override val pres: Vector[Assertion],
                        override val posts: Vector[Assertion],
                        override val terminationMeasures: Vector[TerminationMeasure],
-                       body: Option[Expr]
+                       override val backendAnnotations: Vector[BackendAnnotation],
+                       body: Option[Expr],
+                       isOpaque: Boolean
                      )(val info: Source.Parser.Info) extends Member with MethodMember {
   require(results.size <= 1)
 }
@@ -241,6 +246,7 @@ case class Function(
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
                      override val terminationMeasures: Vector[TerminationMeasure],
+                     override val backendAnnotations: Vector[BackendAnnotation],
                      body: Option[MethodBody]
                    )(val info: Source.Parser.Info) extends Member with FunctionMember
 
@@ -251,7 +257,9 @@ case class PureFunction(
                          override val pres: Vector[Assertion],
                          override val posts: Vector[Assertion],
                          override val terminationMeasures: Vector[TerminationMeasure],
-                         body: Option[Expr]
+                         override val backendAnnotations: Vector[BackendAnnotation],
+                         body: Option[Expr],
+                         isOpaque: Boolean
                        )(val info: Source.Parser.Info) extends Member with FunctionMember {
   require(results.size <= 1)
 }
@@ -449,6 +457,7 @@ case class Outline(
                     pres: Vector[Assertion],
                     posts: Vector[Assertion],
                     terminationMeasures: Vector[TerminationMeasure],
+                    val backendAnnotations: Vector[BackendAnnotation],
                     body: Stmt,
                     trusted: Boolean,
                   )(val info: Source.Parser.Info) extends Stmt
@@ -933,8 +942,8 @@ case class MapValues(exp : Expr, expUnderlyingType: Type)(val info : Source.Pars
   }
 }
 
-case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
-case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
+case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
+case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
 case class PureClosureCall(closure: Expr, args: Vector[Expr], spec: ClosureSpec, typ: Type)(val info: Source.Parser.Info) extends Expr
 case class DomainFunctionCall(func: DomainFuncProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 
@@ -1120,6 +1129,7 @@ case class FunctionLit(
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
                      override val terminationMeasures: Vector[TerminationMeasure],
+                     override val backendAnnotations: Vector[BackendAnnotation],
                      body: Option[MethodBody]
                    )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
@@ -1133,6 +1143,7 @@ case class PureFunctionLit(
                          override val pres: Vector[Assertion],
                          override val posts: Vector[Assertion],
                          override val terminationMeasures: Vector[TerminationMeasure],
+                         override val backendAnnotations: Vector[BackendAnnotation],
                          body: Option[Expr]
                        )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)

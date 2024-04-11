@@ -160,6 +160,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
           case e => Violation.violation(s"expected a method signature of an interface, but got $e")
         }
       }
+    case _: PBackendAnnotation => noMessages
   }
 
   private[typing] def ghostMiscType(misc: PGhostMisc): Type = misc match {
@@ -205,6 +206,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PMethodImplementationProof => UnknownType
     case _: PImplementationProofPredicateAlias => UnknownType
+    case _: PBackendAnnotation => UnknownType
   }
 
   private[typing] def ghostMemberType(typeMember: GhostTypeMember): Type = typeMember match {
@@ -219,7 +221,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _, _) =>
+    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _, isPure, _, isOpaque) =>
       pres.flatMap(assignableToSpec) ++ preserves.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
       preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
       pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
@@ -228,7 +230,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       // can only have one non-conditional clause
       error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
       // measures must have the same type
-      error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures))
+      error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures)) ++
+      error(n, "Opaque can only be used in combination with pure.", isOpaque && !isPure)
 
     case n@ PLoopSpec(invariants, terminationMeasure) =>
       invariants.flatMap(assignableToSpec) ++ terminationMeasure.toVector.flatMap(wellDefTerminationMeasure) ++
@@ -283,6 +286,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def illegalPreconditionNode(n: PNode): Messages = {
     n match {
+      case PLabeledOld(PLabelUse(PLabelNode.lhsLabel), _) => noMessages
       case n@ (_: POld | _: PLabeledOld) => message(n, s"old not permitted in precondition")
       case n@ (_: PBefore) => message(n, s"old not permitted in precondition")
       case _ => noMessages

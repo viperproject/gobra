@@ -29,50 +29,55 @@ object LoggerDefaults {
 }
 
 object ConfigDefaults {
-  lazy val DefaultModuleName: String = ""
+  val DefaultModuleName: String = ""
   lazy val DefaultProjectRoot: File = new File("").getAbsoluteFile // current working directory
-  lazy val DefaultIncludePackages: List[String] = List.empty
-  lazy val DefaultExcludePackages: List[String] = List.empty
-  lazy val DefaultIncludeDirs: List[File] = List.empty
+  val DefaultIncludePackages: List[String] = List.empty
+  val DefaultExcludePackages: List[String] = List.empty
+  val DefaultIncludeDirs: List[File] = List.empty
   lazy val DefaultReporter: GobraReporter = StdIOReporter()
-  lazy val DefaultBackend: ViperBackend = ViperBackends.SiliconBackend
-  lazy val DefaultIsolate: List[(Path, List[Int])] = List.empty
-  lazy val DefaultChoppingUpperBound: Int = 1
-  lazy val DefaultPackageTimeout: Duration = Duration.Inf
-  lazy val DefaultZ3Exe: Option[String] = None
-  lazy val DefaultBoogieExe: Option[String] = None
-  lazy val DefaultLogLevel: Level = LoggerDefaults.DefaultLevel
-  lazy val DefaultCacheFile: Option[File] = None
-  lazy val DefaultParseOnly: Boolean = false
-  lazy val DefaultStopAfterEncoding: Boolean = false
-  lazy val DefaultCheckOverflows: Boolean = false
-  lazy val DefaultCheckConsistency: Boolean = false
-  lazy val DefaultShouldChop: Boolean = false
+  val DefaultBackend: ViperBackend = ViperBackends.SiliconBackend
+  val DefaultIsolate: List[(Path, List[Int])] = List.empty
+  val DefaultChoppingUpperBound: Int = 1
+  val DefaultPackageTimeout: Duration = Duration.Inf
+  val DefaultZ3Exe: Option[String] = None
+  val DefaultBoogieExe: Option[String] = None
+  val DefaultLogLevel: Level = LoggerDefaults.DefaultLevel
+  val DefaultCacheFile: Option[File] = None
+  val DefaultParseOnly: Boolean = false
+  val DefaultStopAfterEncoding: Boolean = false
+  val DefaultCheckOverflows: Boolean = false
+  val DefaultCheckConsistency: Boolean = false
+  val DefaultShouldChop: Boolean = false
   // The go language specification states that int and uint variables can have either 32bit or 64, as long
   // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
   // 64 bit otherwise.
-  lazy val DefaultInt32bit: Boolean = false
+  val DefaultInt32bit: Boolean = false
   // the following option is currently not controllable via CLI as it is meaningless without a constantly
   // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
-  lazy val DefaultCacheParserAndTypeChecker: Boolean = false
+  val DefaultCacheParserAndTypeChecker: Boolean = false
   // this option introduces a mode where Gobra only considers files with a specific annotation ("// +gobra").
   // this is useful when verifying large packages where some files might use some unsupported feature of Gobra,
   // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
   // to verify.
-  lazy val DefaultOnlyFilesWithHeader: Boolean = false
+  val DefaultOnlyFilesWithHeader: Boolean = false
   lazy val DefaultGobraDirectory: Path = Path.of(".gobra")
-  lazy val DefaultTaskName: String = "gobra-task"
-  lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
-  lazy val DefaultParallelizeBranches: Boolean = false
-  lazy val DefaultConditionalizePermissions: Boolean = false
-  lazy val DefaultZ3APIMode: Boolean = false
-  lazy val DefaultMCEMode: MCE.Mode = MCE.Enabled
-  lazy val DefaultHyperMode: Hyper.Mode = Hyper.Enabled
+  val DefaultTaskName: String = "gobra-task"
+  val DefaultAssumeInjectivityOnInhale: Boolean = true
+  val DefaultParallelizeBranches: Boolean = false
+  val DefaultConditionalizePermissions: Boolean = false
+  val DefaultZ3APIMode: Boolean = false
+  val DefaultDisableNL: Boolean = false
+  val DefaultMCEMode: MCE.Mode = MCE.Enabled
+  val DefaultHyperMode: Hyper.Mode = Hyper.Enabled
   lazy val DefaultEnableLazyImports: Boolean = false
-  lazy val DefaultNoVerify: Boolean = false
-  lazy val DefaultNoStreamErrors: Boolean = false
-  lazy val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
-  lazy val DefaultRequireTriggers: Boolean = false
+  val DefaultNoVerify: Boolean = false
+  val DefaultNoStreamErrors: Boolean = false
+  val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
+  val DefaultRequireTriggers: Boolean = false
+  val DefaultDisableSetAxiomatization: Boolean = false
+  val DefaultDisableCheckTerminationPureFns: Boolean = false
+  val DefaultUnsafeWildcardOptimization: Boolean = false
+  val DefaultEnableMoreJoins: Boolean = false
 }
 
 // More-complete exhale modes
@@ -138,6 +143,7 @@ case class Config(
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                    conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
                    z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
+                   disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                    mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                    hyperMode: Hyper.Mode = ConfigDefaults.DefaultHyperMode,
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
@@ -146,6 +152,11 @@ case class Config(
                    parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                    // when enabled, all quantifiers without triggers are rejected
                    requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
+                   disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
+                   disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
+                   unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
+                   enableMoreJoins: Boolean = ConfigDefaults.DefaultEnableMoreJoins,
+
 ) {
 
   def merge(other: Config): Config = {
@@ -189,13 +200,18 @@ case class Config(
       parallelizeBranches = parallelizeBranches,
       conditionalizePermissions = conditionalizePermissions,
       z3APIMode = z3APIMode || other.z3APIMode,
+      disableNL = disableNL || other.disableNL,
       mceMode = mceMode,
       hyperMode = hyperMode,
       enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
       noStreamErrors = noStreamErrors || other.noStreamErrors,
       parseAndTypeCheckMode = parseAndTypeCheckMode,
-      requireTriggers = requireTriggers || other.requireTriggers
+      requireTriggers = requireTriggers || other.requireTriggers,
+      disableSetAxiomatization = disableSetAxiomatization || other.disableSetAxiomatization,
+      disableCheckTerminationPureFns = disableCheckTerminationPureFns || other.disableCheckTerminationPureFns,
+      unsafeWildcardOptimization = unsafeWildcardOptimization && other.unsafeWildcardOptimization,
+      enableMoreJoins = enableMoreJoins || other.enableMoreJoins,
     )
   }
 
@@ -243,6 +259,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
                       conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
                       z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
+                      disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                       hyperMode: Hyper.Mode = ConfigDefaults.DefaultHyperMode,
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
@@ -250,6 +267,10 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                       requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
+                      disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
+                      disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
+                      unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
+                      enableMoreJoins: Boolean = ConfigDefaults.DefaultEnableMoreJoins,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -301,6 +322,7 @@ trait RawConfig {
     parallelizeBranches = baseConfig.parallelizeBranches,
     conditionalizePermissions = baseConfig.conditionalizePermissions,
     z3APIMode = baseConfig.z3APIMode,
+    disableNL = baseConfig.disableNL,
     mceMode = baseConfig.mceMode,
     hyperMode = baseConfig.hyperMode,
     enableLazyImports = baseConfig.enableLazyImports,
@@ -308,6 +330,10 @@ trait RawConfig {
     noStreamErrors = baseConfig.noStreamErrors,
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
     requireTriggers = baseConfig.requireTriggers,
+    disableSetAxiomatization = baseConfig.disableSetAxiomatization,
+    disableCheckTerminationPureFns = baseConfig.disableCheckTerminationPureFns,
+    unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
+    enableMoreJoins = baseConfig.enableMoreJoins,
   )
 }
 
@@ -573,6 +599,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = None,
     noshort = true
   )
+
   lazy val packageTimeoutDuration: Duration = packageTimeout.toOption match {
     case Some(d) => Duration(d)
     case _ => Duration.Inf
@@ -658,6 +685,26 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val disableNL: ScallopOption[Boolean] = opt[Boolean](
+    name = "disableNL",
+    descr = "Disable non-linear integer arithmetics. Non compatible with Carbon",
+    default = Some(ConfigDefaults.DefaultDisableNL),
+    noshort = true,
+  )
+
+  val unsafeWildcardOptimization: ScallopOption[Boolean] = opt[Boolean]("unsafeWildcardOptimization",
+    descr = "Simplify wildcard terms in a way that might be unsafe. Only use this if you know what you are doing! See Silicon PR #756 for details.",
+    default = Some(false),
+    noshort = true
+  )
+
+  val enableMoreJoins: ScallopOption[Boolean] = opt[Boolean](
+    name = "moreJoins",
+    descr = "Enable more joins using a more complete implementation of state merging.",
+    default = Some(false),
+    noshort = true
+  )
+
   val mceMode: ScallopOption[MCE.Mode] = {
     val on = "on"
     val off = "off"
@@ -716,6 +763,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val disableCheckTerminationPureFns: ScallopOption[Boolean] = opt[Boolean](
+    name = "disablePureFunctsTerminationRequirement",
+    descr = "Do not enforce that all pure functions must have termination measures",
+    default = Some(ConfigDefaults.DefaultDisableCheckTerminationPureFns),
+    noshort = true,
+  )
+
   val parseAndTypeCheckMode: ScallopOption[TaskManagerMode] = choice(
     name = "parseAndTypeCheckMode",
     choices = Seq("LAZY", "SEQUENTIAL", "PARALLEL"),
@@ -729,6 +783,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     case _ => ConfigDefaults.DefaultParseAndTypeCheckMode
   }
 
+  val disableSetAxiomatization: ScallopOption[Boolean] = opt[Boolean](
+    name = "disableSetAxiomatization",
+    descr = s"Disables set axiomatization in Silicon.",
+    default = Some(ConfigDefaults.DefaultDisableSetAxiomatization),
+    noshort = true,
+  )
   /**
     * Exception handling
     */
@@ -791,6 +851,44 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       Left("The flag --mceMode can only be used with Silicon or ViperServer with Silicon")
     } else {
       Right(())
+    }
+  }
+
+  addValidation {
+    val unsafeWildcardOptSupplied = unsafeWildcardOptimization.isSupplied
+    if (unsafeWildcardOptSupplied  && !isSiliconBasedBackend) {
+      Left("The flag --unsafeWildcardOptimization can only be used with Silicon or ViperServer with Silicon")
+    } else {
+      Right(())
+    }
+  }
+
+  addValidation {
+    val enableMoreJoinsOptSupplied = enableMoreJoins.isSupplied
+    if (enableMoreJoinsOptSupplied  && !isSiliconBasedBackend) {
+      Left("The flag --moreJoins can only be used with Silicon or ViperServer with Silicon")
+    } else {
+      Right(())
+    }
+  }
+
+  // `disableSetAxiomatization` can only be provided when using a silicon-based backend
+  // since, at the time of writing, we rely on Silicon's setAxiomatizationFile for the
+  // implementation
+  addValidation {
+    val disableSetAxiomatizationOn = disableSetAxiomatization.toOption.contains(true)
+    if (disableSetAxiomatizationOn && !isSiliconBasedBackend) {
+      Left("The selected backend does not support --disableSetAxiomatization.")
+    } else {
+      Right(())
+    }
+  }
+
+  addValidation {
+    if (!disableNL.toOption.contains(true) || isSiliconBasedBackend) {
+      Right(())
+    } else {
+      Left("--disableNL is not compatible with Carbon")
     }
   }
 
@@ -881,6 +979,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parallelizeBranches = parallelizeBranches(),
     conditionalizePermissions = conditionalizePermissions(),
     z3APIMode = z3APIMode(),
+    disableNL = disableNL(),
     mceMode = mceMode(),
     hyperMode = hyperMode(),
     enableLazyImports = enableLazyImports(),
@@ -888,5 +987,9 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noStreamErrors = noStreamErrors(),
     parseAndTypeCheckMode = parseAndTypeCheckMode(),
     requireTriggers = requireTriggers(),
+    disableSetAxiomatization = disableSetAxiomatization(),
+    disableCheckTerminationPureFns = disableCheckTerminationPureFns(),
+    unsafeWildcardOptimization = unsafeWildcardOptimization(),
+    enableMoreJoins = enableMoreJoins(),
   )
 }

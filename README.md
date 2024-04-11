@@ -67,6 +67,11 @@ are two workarounds:
     Note however that the debugger must be running/listening as otherwise the JVM will emit a connection 
     refused error.
 
+## Projects verified with Gobra
+- [VerifiedSCION](https://github.com/viperproject/VerifiedSCION)
+- [Security of protocol implementations via refinement w.r.t. a Tamarin model](https://github.com/viperproject/protocol-verification-refinement). In particular, implementations of the signed Diffie-Hellman and WireGuard protocols have been verified.
+- [Security of protocol implementations verified entirely within Gobra](https://github.com/viperproject/SecurityProtocolImplementations). In particular, implementations of the Needham-Schroeder-Lowe, signed Diffie-Hellman, and WireGuard protocols have been verified.
+
 ## Licensing
 Most Gobra sources are licensed under the Mozilla Public License Version 2.0.
 The [LICENSE](./LICENSE) lists the exceptions to this rule.

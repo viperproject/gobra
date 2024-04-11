@@ -425,7 +425,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitMethodSpec(ctx: GobraParser.MethodSpecContext): PMethodSig = {
     val ghost = has(ctx.GHOST())
-    val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty).at(ctx)
+    val spec = if (ctx.specification() != null)
+      visitSpecification(ctx.specification())
+    else
+      PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty, Vector.empty).at(ctx)
     // The name of each explicitly specified method must be unique and not blank.
     val id = idnDef.get(ctx.IDENTIFIER())
     val args = visitNode[Vector[Vector[PParameter]]](ctx.parameters())
@@ -869,6 +872,19 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     *
     * */
   override def visitSpecification(ctx: GobraParser.SpecificationContext): PFunctionSpec = {
+    // Get the backend options if available
+    val annotations = {
+      if (has(ctx.backendAnnotation()) && has(ctx.backendAnnotation().backendAnnotationList()))
+        ctx
+          .backendAnnotation()
+          .backendAnnotationList()
+          .singleBackendAnnotation()
+          .asScala
+          .map(visitSingleBackendAnnotation)
+          .toVector
+      else
+        Vector.empty
+    }
     // Group the specifications by keyword
     val groups = ctx.specStatement().asScala.view.groupBy(_.kind.getType)
     // Get the respective groups
@@ -877,7 +893,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val posts = groups.getOrElse(GobraParser.POST, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
     val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).toVector.map(s => visitTerminationMeasure(s.terminationMeasure()))
 
-    PFunctionSpec(pres, preserves, posts, terms, isPure = ctx.pure, isTrusted = ctx.trusted)
+    PFunctionSpec(
+      pres,
+      preserves,
+      posts,
+      terms,
+      annotations,
+      isPure = ctx.pure,
+      isTrusted = ctx.trusted,
+      isOpaque = ctx.opaque
+    )
   }
 
   /**
@@ -909,6 +934,21 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case Vector("ghost", decl : Vector[PGhostifiableMember] @unchecked) => decl.map(PExplicitGhostMember(_).at(ctx))
   }
 
+  override def visitSingleBackendAnnotation(ctx: SingleBackendAnnotationContext): PBackendAnnotation = {
+    val key = visit(ctx.backendAnnotationEntry).toString
+    val values =
+      if (has(ctx.listOfValues())) {
+        ctx
+        .listOfValues()
+        .backendAnnotationEntry()
+        .asScala
+        .view.map(ctx => visit(ctx).toString)
+        .toVector
+      } else {
+        Vector.empty
+      }
+    PBackendAnnotation(key, values).at(ctx)
+  }
 
   //region Implementation proofs
   /**
@@ -1223,6 +1263,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   override def visitInvokePrimaryExpr(ctx: InvokePrimaryExprContext): AnyRef = super.visitInvokePrimaryExpr(ctx) match {
     case Vector(pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args, None)
+  }
+
+  override def visitRevealInvokePrimaryExpr(ctx: RevealInvokePrimaryExprContext): AnyRef = super.visitRevealInvokePrimaryExpr(ctx) match {
+    case Vector(_, pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args, None, true)
   }
 
   override def visitInvokePrimaryExprWithSpec(ctx: InvokePrimaryExprWithSpecContext): AnyRef = super.visitInvokePrimaryExprWithSpec(ctx) match {

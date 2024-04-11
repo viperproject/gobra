@@ -25,7 +25,6 @@ stmtOnly: statement EOF;
 
 typeOnly: type_ EOF;
 
-
 // Identifier lists with added addressability modifiers
 maybeAddressableIdentifierList: maybeAddressableIdentifier (COMMA maybeAddressableIdentifier)*;
 
@@ -167,9 +166,16 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 
 // Specifications
 
-specification returns[boolean trusted = false, boolean pure = false;]:
-  ((specStatement | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? // Non-greedily match PURE to avoid missing eos errors.
+specification returns[boolean trusted = false, boolean pure = false, boolean opaque = false;]:
+  // Non-greedily match PURE to avoid missing eos errors.
+  ((specStatement | OPAQUE {$opaque = true;} | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? backendAnnotation?
   ;
+
+backendAnnotationEntry: ~('('|')'|',')+;
+listOfValues: backendAnnotationEntry (COMMA backendAnnotationEntry)*;
+singleBackendAnnotation: backendAnnotationEntry L_PAREN listOfValues? R_PAREN;
+backendAnnotationList: singleBackendAnnotation (COMMA singleBackendAnnotation)*;
+backendAnnotation: BACKEND L_BRACKET backendAnnotationList? R_BRACKET eos;
 
 specStatement
   : kind=PRE assertion
@@ -232,11 +238,11 @@ new_: NEW L_PAREN type_ R_PAREN;
 
 // Added specifications and parameter info
 
-specMember: specification (functionDecl[$specification.trusted, $specification.pure] | methodDecl[$specification.trusted, $specification.pure]);
+specMember: specification (functionDecl[$specification.trusted, $specification.pure, $specification.opaque] | methodDecl[$specification.trusted, $specification.pure, $specification.opaque]);
 
-functionDecl[boolean trusted, boolean pure]:  FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
+functionDecl[boolean trusted, boolean pure, boolean opaque]:  FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
 
-methodDecl[boolean trusted, boolean pure]: FUNC receiver IDENTIFIER (signature blockWithBodyParameterInfo?);
+methodDecl[boolean trusted, boolean pure, boolean opaque]: FUNC receiver IDENTIFIER (signature blockWithBodyParameterInfo?);
 
 
 
@@ -382,7 +388,9 @@ primaryExpr:
   | primaryExpr slice_ #slicePrimaryExpr
   | primaryExpr seqUpdExp #seqUpdPrimaryExpr
   | primaryExpr typeAssertion #typeAssertionPrimaryExpr
+  // "REVEAL? primaryExpr arguments" doesn't work due to mutual left recursion
   | primaryExpr arguments #invokePrimaryExpr
+  | REVEAL primaryExpr arguments #revealInvokePrimaryExpr
   | primaryExpr arguments AS closureSpecInstance #invokePrimaryExprWithSpec
   | primaryExpr predConstructArgs #predConstrPrimaryExpr
   | call_op=(

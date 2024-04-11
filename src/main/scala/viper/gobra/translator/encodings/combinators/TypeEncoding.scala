@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.ast.internal.theory.Comparability
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
-import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, NoPermissionToRangeExpressionError, Source}
+import viper.gobra.reporting.{AssignmentError, DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, NoPermissionToRangeExpressionError, Source}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.library.Generator
 import viper.gobra.translator.context.Context
@@ -175,7 +175,7 @@ trait TypeEncoding extends Generator {
         for {
           footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
           eq <- ctx.equal(loc, rhs)(src)
-          _ <- write(vpr.Exhale(footprint)(pos, info, errT))
+          _ <- exhaleWithDefaultReason(footprint, AssignmentError)
           inhale = vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT)
         } yield inhale
       )

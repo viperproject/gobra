@@ -16,10 +16,12 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.FunctionGenerator
+import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeLevel._
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.TypeBounds
 import viper.silver.{ast => vpr}
+import viper.silver.plugin.standard.termination
 
 import scala.annotation.unused
 
@@ -181,6 +183,7 @@ class StringEncoding extends LeafTypeEncoding {
     *     requires l <= h
     *     requires h <= len(s)
     *     ensures strLen(s) == h - l
+    *     decreases _
     * where s is a string id and l and r are the lower and upper bounds of the slice
     */
   private val strSliceName: String = "strSlice"
@@ -197,7 +200,8 @@ class StringEncoding extends LeafTypeEncoding {
       pres = Seq(
         vpr.LeCmp(vpr.IntLit(0)(), argL.localVar)(),
         vpr.LeCmp(argL.localVar, argH.localVar)(),
-        vpr.LeCmp(argH.localVar, vpr.DomainFuncApp(lenFunc, Seq(argS.localVar), Map.empty)())()
+        vpr.LeCmp(argH.localVar, vpr.DomainFuncApp(lenFunc, Seq(argS.localVar), Map.empty)())(),
+        synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate"),
       ),
       posts = Seq(
         vpr.EqCmp(
@@ -298,7 +302,9 @@ class StringEncoding extends LeafTypeEncoding {
         pres = Vector(pre),
         posts = Vector(),
         terminationMeasures = Vector(in.WildcardMeasure(None)(info)),
-        body = None
+        backendAnnotations = Vector.empty,
+        body = None,
+        isOpaque = false
       )(info)
       val translatedFunc = ctx.function(func)
       translatedFunc.res

@@ -161,6 +161,11 @@ case class CallError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "Call might fail"
 }
 
+case class LoadError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "load_error"
+  override def localMessage: String = "Reading might fail"
+}
+
 case class PostconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "postcondition_error"
   override def localMessage: String = "Postcondition might not hold"
@@ -340,7 +345,7 @@ case class ChannelReceiveError(info: Source.Verifier.Info) extends VerificationE
 
 case class ChannelSendError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "send_error"
-  override def localMessage: String = s"The receive expression ${info.trySrc[PSendStmt](" ")}might fail"
+  override def localMessage: String = s"The send expression ${info.trySrc[PSendStmt](" ")}might fail"
 }
 
 case class FunctionTerminationError(info: Source.Verifier.Info) extends VerificationError {

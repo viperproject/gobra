@@ -41,9 +41,7 @@ object ViperBackends {
       if (config.unsafeWildcardOptimization) {
         options ++= Vector(s"--unsafeWildcardOptimization")
       }
-      if (config.enableMoreJoins) {
-        options ++= Vector(s"--moreJoins")
-      }
+      options ++= Vector(s"--moreJoins=${config.moreJoins.viperValue}")
       val mceSiliconOpt = config.mceMode match {
         case MCE.Disabled => "0"
         case MCE.Enabled  => "1"
@@ -149,9 +147,7 @@ object ViperBackends {
       if (config.unsafeWildcardOptimization) {
         options ++= Vector(s"--unsafeWildcardOptimization")
       }
-      if (config.enableMoreJoins) {
-        options ++= Vector(s"--moreJoins")
-      }
+      options ++= Vector(s"--moreJoins=${config.moreJoins.viperValue}")
       val mceSiliconOpt = config.mceMode match {
         case MCE.Disabled => "0"
         case MCE.Enabled  => "1"

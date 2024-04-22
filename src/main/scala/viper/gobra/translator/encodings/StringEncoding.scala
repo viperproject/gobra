@@ -91,9 +91,10 @@ class StringEncoding extends LeafTypeEncoding {
     *   [
     *     var s []byte
     *     inhale forall i Int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
-    *     inhale (len(s) == 0) == (len(str) == 0)
+    *     inhale len(s) == len(str) // (*)
     *     target = s
     *   ]
+    * Note that (*) is correct because the len() function returns the number of bytes in a string.
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
 
@@ -119,14 +120,8 @@ class StringEncoding extends LeafTypeEncoding {
         )(conv.info)
         val post2 = in.ExprAssertion(
           in.EqCmp(
-            in.EqCmp(
-              in.Length(slice)(conv.info),
-              in.IntLit(0)(conv.info),
-            )(conv.info),
-            in.EqCmp(
-              in.Length(e)(conv.info),
-              in.IntLit(0)(conv.info),
-            )(conv.info)
+            in.Length(slice)(conv.info),
+            in.Length(e)(conv.info),
           )(conv.info)
         )(conv.info)
 
@@ -289,9 +284,10 @@ class StringEncoding extends LeafTypeEncoding {
 
   /** Generates the function
     *   requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i], _)
-    *   ensures  (0 == len(s)) == (0 == len(res))
+    *   ensures  len(s) == len(res) // (*)
     *   decreases _
     *   pure func byteSliceToStrFunc(s []byte) (res string)
+    * Note that (*) is correct because the function len() returns the number of bytes in a string.
     */
   private val byteSliceToStrFuncName: String = "byteSliceToStrFunc"
   private val byteSliceToStrFuncGenerator: FunctionGenerator[Unit] = new FunctionGenerator[Unit] {
@@ -312,14 +308,8 @@ class StringEncoding extends LeafTypeEncoding {
       )(info)
       val post = in.ExprAssertion(
         in.EqCmp(
-          in.EqCmp(
-            in.Length(param)(info),
-            in.IntLit(0)(info),
-          )(info),
-          in.EqCmp(
-            in.Length(res)(info),
-            in.IntLit(0)(info),
-          )(info)
+          in.Length(param)(info),
+          in.Length(res)(info),
         )(info)
       )(info)
 

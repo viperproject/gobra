@@ -2,6 +2,9 @@
 // http://creativecommons.org/publicdomain/zero/1.0/
 package list
 
+// this testcase demonstrates (in comparison to list.gobra) how `Append` can be made ghost. Since this function
+// modifies state, this testcase requires the use of ghost pointers and ghost fields.
+
 type List struct {
 	val int
 	ghost next gpointer[List]

@@ -125,7 +125,7 @@ class StructEncoding extends TypeEncoding {
     * [lhs: T == rhs: T] -> [lhs] == [rhs]
     * [lhs: *T° == rhs: *T] -> [lhs] == [rhs]
     *
-    * [(lhs: Struct{F}) == rhs: Struct{_}] -> AND f in F: [lhs.f == rhs.f]
+    * [(lhs: Struct{F}) == rhs: Struct{_}] -> AND f in F: [lhs.f == rhs.f] (NOTE: f ranges over actual & ghost fields since `equal` corresponds to ghost comparison)
     * // According to the Go spec, pointers to distinct zero-sized data may or may not be equal. Thus:
     * [(x: *Struct{}°) == x: *Struct{}] -> true
     * [(lhs: *Struct{}°) == rhs: *Struct{}] -> unknown()
@@ -153,6 +153,26 @@ class StructEncoding extends TypeEncoding {
           vRhs <- ctx.expression(rhs)
         } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
       }
+  }
+
+  /**
+    * Encodes equal operation with go semantics
+    *
+    * [(lhs: Struct{F}) == rhs: Struct{_}] -> AND f in actual(F): [lhs.f == rhs.f] (NOTE: f ranges only over actual fields since `goEqual` corresponds to actual comparison)
+    */
+  override def goEqual(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
+    case (lhs :: ctx.Struct(lhsFs), rhs :: ctx.Struct(rhsFs), src) =>
+      val (pos, info, errT) = src.vprMeta
+      val actualFieldFilter: in.FieldRef => Boolean = fr => !fr.field.ghost
+      pure(
+        for {
+          x <- bind(lhs)(ctx)
+          y <- bind(rhs)(ctx)
+          lhsFAccs = fieldAccesses(x, lhsFs).filter(actualFieldFilter)
+          rhsFAccs = fieldAccesses(y, rhsFs).filter(actualFieldFilter)
+          equalFields <- sequence((lhsFAccs zip rhsFAccs).map { case (lhsFA, rhsFA) => ctx.equal(lhsFA, rhsFA)(src) })
+        } yield VU.bigAnd(equalFields)(pos, info, errT)
+      )(ctx)
   }
 
   /**

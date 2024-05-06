@@ -11,6 +11,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages
 import scala.collection.immutable.ListMap
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field}
 import viper.gobra.frontend.info.base.Type.{StructT, _}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.UnderlyingType
@@ -55,7 +56,8 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PPredType => noMessages // well definedness implied by well definedness of children
 
     case n@ PMapType(key, elem) => isType(key).out ++ isType(elem).out ++
-      error(n, s"map key $key is not comparable", !comparableType(typeSymbType(key)))
+      error(n, s"map key $key is not comparable", !comparableType(typeSymbType(key))) ++
+      error(n, s"map key $key cannot contain ghost fields", isStructTypeWithGhostFields(typeSymbType(key)))
 
     case t: PStructType =>
       t.embedded.flatMap(e => isNotPointerTypePE.errors(e.typ)(e)) ++
@@ -73,6 +75,19 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       }
 
     case t: PExpressionAndType => wellDefExprAndType(t).out ++ isType(t).out
+  }
+
+  def isStructTypeWithGhostFields(t: Type): Boolean = t match {
+    case Single(st) => underlyingType(st) match {
+      case t: StructT =>
+        structMemberSet(t).collect {
+          case (_, f: Field) => f.ghost
+          case (_, e: Embbed) => isStructTypeWithGhostFields(e.context.typ(e.decl.typ))
+        }.exists(identity)
+
+      case _ => false
+    }
+    case _ => false
   }
 
   lazy val typeSymbType: Typing[PType] = {
@@ -164,17 +179,19 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private def structSymbType(t: PStructType): Type = {
-    def makeFields(x: PFieldDecls): ListMap[String, (Boolean, Type)] = {
-      x.fields.foldLeft(ListMap[String, (Boolean, Type)]()) { case (prev, f) => prev + (f.id.name -> (true, typeSymbType(f.typ))) }
-    }
-    def makeEmbedded(x: PEmbeddedDecl): ListMap[String, (Boolean, Type)] =
-      ListMap[String, (Boolean, Type)](x.id.name -> (false, miscType(x.typ)))
+    def infoFromFieldDecl(f: PFieldDecl, isGhost: Boolean): StructFieldT = StructFieldT(typeSymbType(f.typ), isGhost)
 
-    val clauses = t.clauses.foldLeft(ListMap[String, (Boolean, Type)]()) {
-      case (prev, x: PFieldDecls) => prev ++ makeFields(x)
-      case (prev, PExplicitGhostStructClause(x: PFieldDecls)) => prev ++ makeFields(x)
-      case (prev, x: PEmbeddedDecl) => prev ++ makeEmbedded(x)
-      case (prev, PExplicitGhostStructClause(x: PEmbeddedDecl)) => prev ++ makeEmbedded(x)
+    def makeFields(x: PFieldDecls, isGhost: Boolean): ListMap[String, StructClauseT] = {
+      x.fields.foldLeft(ListMap[String, StructClauseT]()) { case (prev, f) => prev + (f.id.name -> infoFromFieldDecl(f, isGhost)) }
+    }
+    def makeEmbedded(x: PEmbeddedDecl, isGhost: Boolean): ListMap[String, StructClauseT] =
+      ListMap(x.id.name -> StructEmbeddedT(miscType(x.typ), isGhost))
+
+    val clauses = t.clauses.foldLeft(ListMap[String, StructClauseT]()) {
+      case (prev, x: PFieldDecls) => prev ++ makeFields(x, isGhost = false)
+      case (prev, PExplicitGhostStructClause(x: PFieldDecls)) => prev ++ makeFields(x, isGhost = true)
+      case (prev, x: PEmbeddedDecl) => prev ++ makeEmbedded(x, isGhost = false)
+      case (prev, PExplicitGhostStructClause(x: PEmbeddedDecl)) => prev ++ makeEmbedded(x, isGhost = true)
     }
     StructT(clauses, t, this)
   }

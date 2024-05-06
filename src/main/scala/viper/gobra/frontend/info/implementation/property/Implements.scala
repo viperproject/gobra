@@ -89,9 +89,10 @@ trait Implements { this: TypeInfoImpl =>
     case _ => failedProp(s"$r is not an interface")
   }
 
-  /** Returns true if the type is supported for interfaces. All finite types are supported. */
+  /** Returns true if the type is supported for interfaces. All finite types are supported except for structs with ghost fields. */
   def supportedSortForInterfaces(t: Type): PropertyResult = {
-    failedProp(s"The type $t is not supported for interface", !isIdentityPreservingType(t))
+    failedProp(s"The type $t is not supported for interface", !isIdentityPreservingType(t)) and
+    failedProp(s"Structs containing ghost fields are not supported for interface", isStructTypeWithGhostFields(t))
   }
 
   /** Returns whether values of type 't' satisfy that [x] == [y] in Viper implies x == y in Gobra. */
@@ -104,7 +105,7 @@ trait Implements { this: TypeInfoImpl =>
         case Type.NilType | Type.BooleanT | _: Type.IntT | Type.StringT => true
         case ut: Type.PointerT => go(ut.elem)
         case ut: Type.StructT =>
-          ut.clauses.forall{ case (_, (_, fieldType)) => go(fieldType) }
+          ut.clauses.forall{ case (_, info) => go(info.typ) }
         case ut: Type.ArrayT => go(ut.elem)
         case _: Type.SliceT => true
         case _: Type.MapT => true

@@ -1,0 +1,121 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// tests that (1) a struct without ghost fields, (2) a pointer to a struct without ghost fields, and (3) a pointer to
+// a struct with ghost fields can be put under an interface
+
+package GhostFieldInterfaceSimple01
+
+type SomeIntf interface {
+    pred Mem()
+
+    decreases
+    requires acc(Mem(), _)
+    pure Get() int
+
+    ghost
+    decreases
+    requires acc(Mem(), _)
+    pure Get2() int
+}
+
+decreases
+requires s != nil && acc(s.Mem(), _)
+pure func callee(s SomeIntf) int {
+    return s.Get()
+}
+
+
+// ----- Testcase 1
+type Testcase1Struct struct {
+    actualField int
+}
+
+pred (s Testcase1Struct) Mem() {
+    true
+}
+
+decreases
+pure func (s Testcase1Struct) Get() int {
+    return s.actualField
+}
+
+ghost
+decreases
+pure func (s Testcase1Struct) Get2() int {
+    return 0
+}
+
+func testcase1() {
+    s := Testcase1Struct{ 42 }
+    fold s.Mem()
+    callee(s)
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}
+
+
+// ----- Testcase 2
+type Testcase2Struct struct {
+    actualField int
+}
+
+pred (s *Testcase2Struct) Mem() {
+    acc(s)
+}
+
+decreases
+requires acc(s.Mem(), _)
+pure func (s *Testcase2Struct) Get() int {
+    return unfolding acc(s.Mem(), _) in s.actualField
+}
+
+ghost
+decreases
+pure func (s *Testcase2Struct) Get2() int {
+    return 0
+}
+
+func testcase2() {
+    s := &Testcase2Struct{ 42 }
+    fold s.Mem()
+    callee(s)
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}
+
+
+// ----- Testcase 3
+type Testcase3Struct struct {
+    actualField int
+    ghost ghostField int
+}
+
+pred (s *Testcase3Struct) Mem() {
+    acc(s)
+}
+
+decreases
+requires acc(s.Mem(), _)
+pure func (s *Testcase3Struct) Get() int {
+    return unfolding acc(s.Mem(), _) in s.actualField
+}
+
+ghost
+decreases
+requires acc(s.Mem(), _)
+pure func (s *Testcase3Struct) Get2() int {
+    return unfolding acc(s.Mem(), _) in s.ghostField
+}
+
+func testcase3() {
+    s := &Testcase3Struct{ 42, 101 }
+    fold s.Mem()
+    callee(s)
+    assert s.Get2() == 101
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}

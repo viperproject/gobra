@@ -1,0 +1,59 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+package list
+
+type List struct {
+	val int
+	ghost next gpointer[List]
+}
+
+pred (start gpointer[List]) Mem() {
+  acc(&start.val) && acc(&start.next) &&
+	(start.next != nil ==> start.next.Mem())
+}
+
+ghost
+decreases start.Mem()
+requires start.Mem()
+pure func elems(start gpointer[List]) (res seq[int]) {
+	return unfolding start.Mem() in (start.next == nil? seq[int]{start.val} : (seq[int]{start.val} ++ elems(start.next)))
+}
+
+ghost
+decreases
+requires l1.Mem() && l2.Mem() && l2 != nil
+ensures  l1.Mem() && elems(l1) == old(elems(l1) ++ elems(l2))
+func (l1 gpointer[List]) Append(l2 gpointer[List]) {
+	unfold l1.Mem()
+	if l1.next == nil {
+		l1.next = l2
+		fold l1.Mem()
+	} else {
+		var tmp gpointer[List] = l1.next
+		index := 1
+		assert tmp.Mem()
+
+		package tmp.Mem() --* (l1.Mem() && elems(l1) == old((elems(l1))[:index] ++ old[#lhs](elems(tmp)))) {
+			fold l1.Mem()
+		}
+
+		invariant tmp.Mem() --* (l1.Mem() && elems(l1) == old((elems(l1))[:index] ++ old[#lhs](elems(tmp))))
+		invariant index >= 0
+		invariant tmp.Mem() && elems(tmp) == old(elems(l1))[index:]
+		decreases tmp.Mem()
+		for (unfolding tmp.Mem() in tmp.next != nil) {
+			unfold tmp.Mem()
+			prev := tmp
+			tmp = tmp.next
+			index = index + 1
+			package tmp.Mem() --* (l1.Mem() && elems(l1) == old((elems(l1))[:index] ++ old[#lhs](elems(tmp)))) {
+				fold prev.Mem()
+				apply prev.Mem() --* (l1.Mem() && elems(l1) == old((elems(l1))[:index-1] ++ old[#lhs](elems(prev))))
+			}  
+		}
+		unfold tmp.Mem()
+		tmp.next = l2
+		fold tmp.Mem()
+		apply tmp.Mem() --* (l1.Mem() && elems(l1) == old((elems(l1))[:index] ++ old[#lhs](elems(tmp))))
+	}
+}

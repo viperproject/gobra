@@ -160,7 +160,7 @@ class StructEncoding extends TypeEncoding {
     *
     * [(lhs: Struct{F}) == rhs: Struct{_}] -> AND f in actual(F): [lhs.f == rhs.f] (NOTE: f ranges only over actual fields since `goEqual` corresponds to actual comparison)
     */
-  override def goEqual(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
+  override def goEqual(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = default(super.goEqual(ctx)) {
     case (lhs :: ctx.Struct(lhsFs), rhs :: ctx.Struct(rhsFs), src) =>
       val (pos, info, errT) = src.vprMeta
       val actualFieldFilter: in.FieldRef => Boolean = fr => !fr.field.ghost

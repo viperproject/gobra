@@ -321,6 +321,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitGhostPointerType(GobraParser.GhostPointerTypeContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#fieldDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFieldDecl(GobraParser.FieldDeclContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#sqType}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -1350,12 +1356,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitStructType(GobraParser.StructTypeContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#fieldDecl}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitFieldDecl(GobraParser.FieldDeclContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#string_}.
 	 * @param ctx the parse tree

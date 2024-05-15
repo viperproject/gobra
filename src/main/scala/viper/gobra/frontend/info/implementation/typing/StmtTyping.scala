@@ -346,7 +346,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     val expectedResults = result.outs.flatMap(nameFromParam).map(t => PNamedOperand(PIdnUse(t)))
 
     def isExpectedAssignment(ass: PAssignment): Boolean = ass match {
-      case PAssignment(Vector(i: PInvoke), left) if isExpectedCall(i) && expectedResults == left => true
+      case PAssignment(Vector(i: PInvoke), left) => isExpectedCall(i) && expectedResults == left
       case _ => false
     }
 

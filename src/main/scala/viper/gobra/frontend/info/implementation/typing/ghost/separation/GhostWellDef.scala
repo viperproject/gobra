@@ -144,7 +144,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       if (isEnclosingGhost(e)) {
         Violation.violation(exprType(e).isInstanceOf[GhostPointerT], s"Cannot allocate non-ghost memory in ghost code.")
       } else {
-        Violation.violation(exprType(e).isInstanceOf[ActualPointerT], s"All memory allocated within actual code must be located on the actual heap")
+        Violation.violation(exprType(e).isInstanceOf[ActualPointerT], s"Cannot allocate ghost memory in non-ghost code.")
       }
       noMessages
 

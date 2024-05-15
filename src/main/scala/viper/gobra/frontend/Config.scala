@@ -76,7 +76,7 @@ object ConfigDefaults {
   val DefaultDisableSetAxiomatization: Boolean = false
   val DefaultDisableCheckTerminationPureFns: Boolean = false
   val DefaultUnsafeWildcardOptimization: Boolean = false
-  val DefaultEnableMoreJoins: Boolean = false
+  val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
 }
 
 // More-complete exhale modes
@@ -87,6 +87,31 @@ object MCE {
   // More information can be found in https://github.com/viperproject/silicon/pull/682.
   object OnDemand extends Mode
   object Enabled extends Mode
+}
+
+object MoreJoins {
+  sealed trait Mode {
+    // Option number used by Viper, as described in
+    // https://github.com/viperproject/silicon/pull/823
+    def viperValue: Int
+  }
+  object Disabled extends Mode {
+    override val viperValue = 0
+  }
+  object Impure extends Mode {
+    override val viperValue = 1
+  }
+  object All extends Mode {
+    override val viperValue = 2
+  }
+
+  def merge(m1: Mode, m2: Mode): Mode = {
+    (m1, m2) match  {
+      case (All, _) | (_, All) => All
+      case (Impure, _) | (_, Impure) => Impure
+      case _ => Disabled
+    }
+  }
 }
 
 case class Config(
@@ -146,7 +171,7 @@ case class Config(
                    disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
                    disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                    unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
-                   enableMoreJoins: Boolean = ConfigDefaults.DefaultEnableMoreJoins,
+                   moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
 
 ) {
 
@@ -201,7 +226,7 @@ case class Config(
       disableSetAxiomatization = disableSetAxiomatization || other.disableSetAxiomatization,
       disableCheckTerminationPureFns = disableCheckTerminationPureFns || other.disableCheckTerminationPureFns,
       unsafeWildcardOptimization = unsafeWildcardOptimization && other.unsafeWildcardOptimization,
-      enableMoreJoins = enableMoreJoins || other.enableMoreJoins,
+      moreJoins = MoreJoins.merge(moreJoins, other.moreJoins),
     )
   }
 
@@ -259,7 +284,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
                       disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                       unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
-                      enableMoreJoins: Boolean = ConfigDefaults.DefaultEnableMoreJoins,
+                      moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -321,7 +346,7 @@ trait RawConfig {
     disableSetAxiomatization = baseConfig.disableSetAxiomatization,
     disableCheckTerminationPureFns = baseConfig.disableCheckTerminationPureFns,
     unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
-    enableMoreJoins = baseConfig.enableMoreJoins,
+    moreJoins = baseConfig.moreJoins,
   )
 }
 
@@ -686,12 +711,23 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
-  val enableMoreJoins: ScallopOption[Boolean] = opt[Boolean](
-    name = "moreJoins",
-    descr = "Enable more joins using a more complete implementation of state merging.",
-    default = Some(false),
-    noshort = true
-  )
+  val moreJoins: ScallopOption[MoreJoins.Mode] = {
+    val all = "all"
+    val impure = "impure"
+    val off = "off"
+    choice(
+      choices = Seq("all", "impure", "off"),
+      name = "moreJoins",
+      descr = s"Specifies if silicon should be run with more joins completely enabled ($all), disabled ($off), or only for impure conditionals ($impure).",
+      default = Some(off),
+      noshort = true
+    ).map {
+      case `all` => MoreJoins.All
+      case `off` => MoreJoins.Disabled
+      case `impure` => MoreJoins.Impure
+      case s => Violation.violation(s"Unexpected mode for moreJoins: $s")
+    }
+  }
 
   val mceMode: ScallopOption[MCE.Mode] = {
     val on = "on"
@@ -840,8 +876,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   }
 
   addValidation {
-    val enableMoreJoinsOptSupplied = enableMoreJoins.isSupplied
-    if (enableMoreJoinsOptSupplied  && !isSiliconBasedBackend) {
+    val moreJoinsOptSupplied = moreJoins.isSupplied
+    if (moreJoinsOptSupplied  && !isSiliconBasedBackend) {
       Left("The flag --moreJoins can only be used with Silicon or ViperServer with Silicon")
     } else {
       Right(())
@@ -965,6 +1001,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     disableSetAxiomatization = disableSetAxiomatization(),
     disableCheckTerminationPureFns = disableCheckTerminationPureFns(),
     unsafeWildcardOptimization = unsafeWildcardOptimization(),
-    enableMoreJoins = enableMoreJoins(),
+    moreJoins = moreJoins(),
   )
 }

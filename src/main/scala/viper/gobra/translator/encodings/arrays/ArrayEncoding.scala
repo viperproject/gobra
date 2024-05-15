@@ -340,6 +340,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * function arrayDefault(): ([n]T)°
     *   ensures len(result) == n
     *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> [result[idx] == dflt(T)]
+    *   decreases _
     * */
   private val exDfltFunc: FunctionGenerator[ComponentParameter] = new FunctionGenerator[ComponentParameter]{
     def genFunction(t: ComponentParameter)(ctx: Context): vpr.Function = {
@@ -362,12 +363,14 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         Seq(vpr.Trigger(Seq(trigger))()),
         vpr.Implies(boundaryCondition(vIdx.localVar, t.len)(src), idxEq)()
       )()
+      val terminationMeasure =
+        synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
 
       vpr.Function(
         name = s"${Names.arrayDefaultFunc}_${t.serialize}",
         formalArgs = Seq.empty,
         typ = vResType,
-        pres = Seq.empty,
+        pres = Seq(terminationMeasure),
         posts = Vector(lenEq, arrayEq),
         body = None
       )()

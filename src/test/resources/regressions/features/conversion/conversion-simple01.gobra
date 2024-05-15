@@ -5,3 +5,15 @@ package main
 
 ensures res == int64(i)
 func to64(i int8) (res int64)
+
+func stringToByteSlConversion() {
+	key := []byte("dummy key xxxxxx")
+	assert acc(&key[0])
+	assert len(key) > 0
+}
+
+func byteSlToStringConversion() {
+	keyBytes := []byte{'a', 'b', 'c'}
+	key := string(keyBytes)
+	assert 0 < len(key)
+}

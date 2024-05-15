@@ -17,6 +17,7 @@ import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
+import viper.silver.plugin.standard.termination
 import viper.silver.{ast => vpr}
 
 class SequenceEncoding extends LeafTypeEncoding {
@@ -225,6 +226,7 @@ class SequenceEncoding extends LeafTypeEncoding {
     *   requires 0 <= n
     *   ensures |result| == n
     *   ensures forall i : Int :: { result[i] } 0 <= i < n ==> result[i] == dfltVal(`T`)
+    *   decreases _
     * }}}
     */
   private val emptySeqFunc: FunctionGenerator[in.Type] = new FunctionGenerator[in.Type] {
@@ -245,6 +247,7 @@ class SequenceEncoding extends LeafTypeEncoding {
 
       // preconditions
       val pre1 = synthesized(vpr.LeCmp(vpr.IntLit(0)(), nDecl.localVar))("Sequence length might be negative")
+      val pre2 = synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
 
       // postconditions
       val post1 = vpr.EqCmp(vResultLength, nDecl.localVar)()
@@ -262,7 +265,7 @@ class SequenceEncoding extends LeafTypeEncoding {
         name = s"${Names.emptySequenceFunc}_${Names.serializeType(t)}",
         formalArgs = Vector(nDecl),
         typ = vResultType,
-        pres = Vector(pre1),
+        pres = Vector(pre1, pre2),
         posts = Vector(post1, post2),
         body = None
       )()

@@ -466,8 +466,14 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case n: PIsComparable => asExpr(n.exp).forall(go)
 
       case PCompositeLit(typ, _) => typ match {
-        case _: PArrayType | _: PImplicitSizeArrayType => !strong
-        case _ => true
+        case _: PImplicitSizeArrayType => true
+        case t: PType => underlyingTypeP(t) match {
+          case Some(ut) => ut match {
+            case _: PSliceType | _: PMapType => false
+            case _ => true
+          }
+          case None => false
+        }
       }
 
       case POptionNone(_) => true

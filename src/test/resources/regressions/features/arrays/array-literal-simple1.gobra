@@ -60,3 +60,10 @@ func test10() {
   assert [4]int { 0, 1, 42, 8 }[2] == 42
   assert forall i int :: 0 <= i && i < 4 ==> ([4]int { 0, 2, 4, 6 })[i] == i + i
 }
+
+pure
+decreases
+func test11() [3]int {
+    // pure functions may contain array literals
+    return [3]int{}
+}

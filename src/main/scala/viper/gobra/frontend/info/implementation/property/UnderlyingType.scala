@@ -44,11 +44,13 @@ trait UnderlyingType { this: TypeInfoImpl =>
           case value : PType => Some(value, this)
           case _ => None
         }
+        case st.AdtClause(_, typeDecl, _) => Some((typeDecl.right, this))
         case _ => None // type not defined
       }
       case PDot(_, id) => entity(id) match {
         case st.NamedType(decl, _, ctx) => inCtx(ctx, decl.right)
         case st.TypeAlias(decl, _, ctx) => inCtx(ctx, decl.right)
+        case st.AdtClause(_, typeDecl, _) => Some((typeDecl.right, this))
         case _ => None // type not defined
       }
       case t => Some((t, this))

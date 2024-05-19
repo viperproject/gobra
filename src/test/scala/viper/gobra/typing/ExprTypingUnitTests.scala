@@ -2843,7 +2843,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert (frontend.wellDefExpr(expr)().valid)
   }
 
-  test("TypeChecker: should not let an array literal be classified as pure") {
+  test("TypeChecker: should classify an array literal containing only integer literals as pure") {
     val expr = PLiteral.array(
       PBoolType(),
       Vector(PIntLit(1), PIntLit(2))

@@ -469,7 +469,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case _: PImplicitSizeArrayType => true
         case t: PType => underlyingTypeP(t) match {
           case Some(ut) => ut match {
-            case _: PSliceType | _: PMapType => false
+            case _: PSliceType | _: PGhostSliceType | _: PMapType => false
             case _ => true
           }
           case None => false

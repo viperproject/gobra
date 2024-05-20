@@ -689,7 +689,7 @@ case class PImplicitSizeArrayType(elem: PType) extends PLiteralType
 
 case class PSliceType(elem: PType) extends PTypeLit with PLiteralType
 
-case class PVariadicType(elem: PType) extends PTypeLit with PLiteralType
+case class PVariadicType(elem: PType) extends PTypeLit
 
 case class PMapType(key: PType, elem: PType) extends PTypeLit with PLiteralType
 

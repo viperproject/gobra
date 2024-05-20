@@ -2849,7 +2849,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       Vector(PIntLit(1), PIntLit(2))
     )
 
-    assert (!frontend.isPureExpr(expr)())
+    assert (frontend.isPureExpr(expr)())
   }
 
   test("TypeChecker: should not let a simple array literal be classified as ghost if its inner type isn't ghost") {

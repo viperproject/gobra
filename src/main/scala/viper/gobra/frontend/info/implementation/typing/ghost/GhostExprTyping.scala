@@ -468,10 +468,22 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PCompositeLit(typ, _) => typ match {
         case _: PImplicitSizeArrayType => true
         case t: PType => underlyingTypeP(t) match {
-          case Some(ut) => ut match {
-            case _: PSliceType | _: PGhostSliceType | _: PMapType => false
-            case _ => true
+          case Some(ut: PType with PLiteralType) => ut match {
+            case g: PGhostLiteralType => g match {
+              case _: PGhostSliceType => false
+              case _: PAdtType | _: PDomainType | _: PMathematicalMapType |
+                _: PMultisetType | _: POptionType | _: PSequenceType | _: PSetType => true
+            }
+            case _: PArrayType | _: PStructType => true
+            case _: PMapType | _: PSliceType => false
+            case d@(_: PDot | _: PNamedOperand) =>
+              // underlyingTypeP should never return any of these types
+              violation(s"Unexpected underlying type $d")
           }
+          case Some(d) =>
+            // the type system should already have rejected composite literals whose underlying type is not a valid
+            // literal type.
+            violation(s"Unexpected underlying type $d")
           case None => false
         }
       }

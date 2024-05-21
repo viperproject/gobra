@@ -158,9 +158,9 @@ ghostSliceType: GHOST L_BRACKET R_BRACKET elementType;
 ghostPointerType: GPOINTER L_BRACKET elementType R_BRACKET;
 
 // copy of `fieldDecl` from GoParser.g4 extended with an optional `GHOST` modifier for fields and embedded fields:
-fieldDecl: (
-		GHOST? identifierList type_
-		| GHOST? embeddedField
+fieldDecl: GHOST? (
+		identifierList type_
+		| embeddedField
 	) tag = string_?;
 
 sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)

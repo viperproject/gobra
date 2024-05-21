@@ -301,16 +301,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitFieldDecl(ctx: FieldDeclContext): PStructClause = {
-    if (ctx.embeddedField() != null) {
+    val ghost = has(ctx.GHOST())
+    val actualDecl = if (ctx.embeddedField() != null) {
       val et = visitNode[PEmbeddedType](ctx.embeddedField())
       PEmbeddedDecl(et, PIdnDef(et.name).at(et))
     } else {
-      val ghost = has(ctx.GHOST())
       val goIdnDefList(ids) = visitIdentifierList(ctx.identifierList())
       val t = visitNode[PType](ctx.type_())
-      val fieldDecls = PFieldDecls(ids map (id => PFieldDecl(id, t.copy).at(id)))
-      if (ghost) PExplicitGhostStructClause(fieldDecls).at(ctx) else fieldDecls
+      PFieldDecls(ids map (id => PFieldDecl(id, t.copy).at(id)))
     }
+    if (ghost) PExplicitGhostStructClause(actualDecl).at(ctx) else actualDecl
   }
 
   /**

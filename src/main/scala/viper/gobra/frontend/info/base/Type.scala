@@ -99,14 +99,15 @@ object Type {
     case object Send extends ChannelModus("chan<-")
   }
 
-  trait StructClauseT extends Type {
+  trait StructClauseT {
     def typ: Type
     def isGhost: Boolean
+    override lazy val toString: String = typ.toString
   }
 
-  case class StructFieldT(typ: Type, isGhost: Boolean) extends PrettyType(s"$typ") with StructClauseT
+  case class StructFieldT(typ: Type, isGhost: Boolean) extends StructClauseT
 
-  case class StructEmbeddedT(typ: Type, isGhost: Boolean) extends PrettyType(s"$typ") with StructClauseT
+  case class StructEmbeddedT(typ: Type, isGhost: Boolean) extends StructClauseT
 
   case class StructT(clauses: ListMap[String, StructClauseT], decl: PStructType, context: ExternalTypeInfo) extends ContextualType {
     lazy val fieldsAndEmbedded: ListMap[String, Type] = clauses.map(extractTyp)

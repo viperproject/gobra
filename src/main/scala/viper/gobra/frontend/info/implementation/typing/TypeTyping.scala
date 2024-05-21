@@ -82,7 +82,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       case t: StructT =>
         structMemberSet(t).collect {
           case (_, f: Field) => f.ghost
-          case (_, e: Embbed) => isStructTypeWithGhostFields(e.context.typ(e.decl.typ))
+          case (_, e: Embbed) => e.ghost || isStructTypeWithGhostFields(e.context.typ(e.decl.typ))
         }.exists(identity)
 
       case _ => false

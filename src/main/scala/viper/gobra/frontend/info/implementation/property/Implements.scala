@@ -92,6 +92,11 @@ trait Implements { this: TypeInfoImpl =>
   /** Returns true if the type is supported for interfaces. All finite types are supported except for structs with ghost fields. */
   def supportedSortForInterfaces(t: Type): PropertyResult = {
     failedProp(s"The type $t is not supported for interface", !isIdentityPreservingType(t)) and
+    // the following restriction is in place because Go considers two struct values under an interface to be equal if
+    // they agree on their struct fields. I.e., for `type S struct { val int, ghost gval int }`, `any(S{0, 0}) == any(S{0, 42})` holds
+    // in Go (after erasing the ghost fields). While we could extend the interface encoding to permit structs with ghost fields
+    // to implement an interface, we currently reject such cases. However, note that we already support a _pointer_ to a struct with
+    // ghost fields implementing an interface.
     failedProp(s"Structs containing ghost fields are not supported for interface", isStructTypeWithGhostFields(t))
   }
 

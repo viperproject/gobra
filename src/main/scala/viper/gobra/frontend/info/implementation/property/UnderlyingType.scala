@@ -19,6 +19,10 @@ trait UnderlyingType { this: TypeInfoImpl =>
     def unapply(t: Type): Option[Type] = Some(underlyingType(t))
   }
 
+  object UnderlyingPType {
+    def unapply(t: PType): Option[PType] = underlyingTypeP(t)
+  }
+
   lazy val underlyingType: Type => Type =
     attr[Type, Type] {
       case Single(DeclaredT(t: PTypeDecl, context: ExternalTypeInfo)) => underlyingType(context.symbType(t.right))

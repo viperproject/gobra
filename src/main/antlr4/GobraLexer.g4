@@ -59,6 +59,7 @@ SET         : 'set'-> mode(NLSEMI);
 MSET        : 'mset'-> mode(NLSEMI);
 DICT        : 'dict'-> mode(NLSEMI);
 OPT         : 'option'-> mode(NLSEMI);
+GPOINTER    : 'gpointer'-> mode(NLSEMI);
 LEN         : 'len'-> mode(NLSEMI);
 NEW         : 'new'-> mode(NLSEMI);
 MAKE        : 'make'-> mode(NLSEMI);

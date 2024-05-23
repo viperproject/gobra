@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostFieldsFail01
+
+type Test struct {
+    IntField int
+    PIntField *int
+    // since gpointer is a ghost type, it can only be used as a type for a ghost instead of actual struct field
+    //:: ExpectedOutput(type_error)
+    GPIntField gpointer[int]
+}

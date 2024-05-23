@@ -731,13 +731,19 @@ case class PEmbeddedDecl(typ: PEmbeddedType, id: PIdnDef) extends PActualStructC
   require(id.name == typ.name)
 }
 
-sealed trait PMethodRecvType extends PActualType { // TODO: will have to be removed for packages
+sealed trait PMethodRecvType extends PType { // TODO: will have to be removed for packages
   def typ: PNamedOperand
 }
 
-case class PMethodReceiveName(typ: PNamedOperand) extends PMethodRecvType
+case class PMethodReceiveName(typ: PNamedOperand) extends PMethodRecvType with PActualType
 
-case class PMethodReceivePointer(typ: PNamedOperand) extends PMethodRecvType
+trait PMethodReceivePointer extends PMethodRecvType {
+  def typ: PNamedOperand
+}
+
+case class PMethodReceiveActualPointer(typ: PNamedOperand) extends PMethodReceivePointer with PActualType
+
+case class PMethodReceiveGhostPointer(typ: PNamedOperand) extends PMethodReceivePointer with PGhostType
 
 // TODO: Named type is not allowed to be an interface
 
@@ -1249,6 +1255,9 @@ case class PMathematicalMapType(keys: PType, values: PType) extends PGhostLitera
 
 /** The type of option types. */
 case class POptionType(elem : PType) extends PGhostLiteralType
+
+/** The type of ghost pointers */
+case class PGhostPointerType(elem: PType) extends PGhostLiteralType
 
 /** The type of ADT types */
 case class PAdtType(clauses: Vector[PAdtClause]) extends PGhostLiteralType with PUnorderedScope

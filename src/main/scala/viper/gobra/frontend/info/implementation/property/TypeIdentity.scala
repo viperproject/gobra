@@ -51,7 +51,8 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
         lm.keySet.forall(k => rm.get(k).exists(m => identicalTypes(memberType(m), memberType(lm(k))))) &&
           rm.keySet.forall(k => lm.get(k).exists(m => identicalTypes(memberType(m), memberType(rm(k)))))
 
-      case (PointerT(l), PointerT(r)) => identicalTypes(l, r)
+      case (ActualPointerT(l), ActualPointerT(r)) => identicalTypes(l, r)
+      case (GhostPointerT(l), GhostPointerT(r)) => identicalTypes(l, r)
 
       case (SortT, SortT) => true
 

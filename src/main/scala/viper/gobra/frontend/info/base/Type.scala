@@ -74,7 +74,17 @@ object Type {
 
   case class MapT(key: Type, elem: Type) extends PrettyType(s"map[$key]$elem")
 
-  case class PointerT(elem: Type) extends PrettyType(s"*$elem")
+  sealed trait PointerT {
+    val elem: Type
+  }
+
+  object PointerT {
+    def unapply(arg: PointerT): Option[Type] = Some(arg.elem)
+  }
+
+  case class ActualPointerT(elem: Type) extends PrettyType(s"*$elem") with PointerT
+
+  case class GhostPointerT(elem: Type) extends PrettyType(s"gpointer[$elem]") with PointerT with GhostType
 
   case class ChannelT(elem: Type, mod: ChannelModus) extends PrettyType(s"$mod $elem")
 

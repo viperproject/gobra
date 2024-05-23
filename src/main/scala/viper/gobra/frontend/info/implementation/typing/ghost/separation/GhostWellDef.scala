@@ -150,7 +150,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
     case e: PMake => (e, isEnclosingGhost(e)) match {
       case (PMake(_: PGhostSliceType, _), true)  => noMessages
-      case (_, true) => error(e, "Allocating memory within ghost code is forbidden")
+      case (_, true) => error(e, "Allocating memory with make within ghost code is forbidden")
       case (PMake(_, args), false) => error(
         e,
         "ghost error: make expressions may not contain ghost expressions",

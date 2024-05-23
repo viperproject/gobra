@@ -80,10 +80,11 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
   def isStructTypeWithGhostFields(t: Type): Boolean = t match {
     case Single(st) => underlyingType(st) match {
       case t: StructT =>
-        structMemberSet(t).collect {
-          case (_, f: Field) => f.ghost
-          case (_, e: Embbed) => e.ghost || isStructTypeWithGhostFields(e.context.typ(e.decl.typ))
-        }.exists(identity)
+        structMemberSet(t).exists {
+          case (_, (f: Field, _)) => f.ghost || isStructTypeWithGhostFields(f.context.symbType(f.decl.typ))
+          case (_, (e: Embbed, _)) => e.ghost || isStructTypeWithGhostFields(e.context.typ(e.decl.typ))
+          case _ => false
+        }
 
       case _ => false
     }

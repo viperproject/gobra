@@ -89,18 +89,12 @@ trait Implements { this: TypeInfoImpl =>
     case _ => failedProp(s"$r is not an interface")
   }
 
-  /** Returns true if the type is supported for interfaces. All finite types are supported except for structs with ghost fields. */
+  /** Returns true if the type is supported for interfaces. All finite types are supported. */
   def supportedSortForInterfaces(t: Type): PropertyResult = {
-    failedProp(s"The type $t is not supported for interface", !isIdentityPreservingType(t)) and
-    // the following restriction is in place because Go considers two struct values under an interface to be equal if
-    // they agree on their struct fields. I.e., for `type S struct { val int, ghost gval int }`, `any(S{0, 0}) == any(S{0, 42})` holds
-    // in Go (after erasing the ghost fields). While we could extend the interface encoding to permit structs with ghost fields
-    // to implement an interface, we currently reject such cases. However, note that we already support a _pointer_ to a struct with
-    // ghost fields implementing an interface.
-    failedProp(s"Structs containing ghost fields are not supported for interface", isStructTypeWithGhostFields(t))
+    failedProp(s"The type $t is not supported for interface", !isIdentityPreservingType(t))
   }
 
-  /** Returns whether values of type 't' satisfy that [x] == [y] in Viper implies x == y in Gobra. */
+  /** Returns whether values of type 't' satisfy that [x] == [y] in Viper (using `TypeEncoding.equal`) <==> x == y in Go (using Go equality). */
   private def isIdentityPreservingType(t: Type, encounteredTypes: Set[Type] = Set.empty): Boolean = {
     if (encounteredTypes contains t) {
       true
@@ -110,7 +104,9 @@ trait Implements { this: TypeInfoImpl =>
         case Type.NilType | Type.BooleanT | _: Type.IntT | Type.StringT => true
         case ut: Type.PointerT => go(ut.elem)
         case ut: Type.StructT =>
-          ut.clauses.forall{ case (_, info) => go(info.typ) }
+          // a struct with ghost fields or ghost embeddings is not identity preserving.
+          // E.g., for `type S struct { val int, ghost gval int }`, `S{0, 0} == S{0, 42}` holds in Go (after erasing the ghost fields).
+          ut.clauses.forall{ case (_, info) => !info.isGhost && go(info.typ) }
         case ut: Type.ArrayT => go(ut.elem)
         case _: Type.SliceT => true
         case _: Type.MapT => true

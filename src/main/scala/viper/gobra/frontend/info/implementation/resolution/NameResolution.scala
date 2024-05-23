@@ -144,10 +144,9 @@ trait NameResolution {
       case _ => violation("PIdnUnk always has a parent")
     }
 
-  // technically, `isGhostDef` should consider for implementation proofs whether the method getting implemented is ghost or not.
-  // however, we treat all implementation proofs as non-ghost and ignore whether an implementation proof is related to a
-  // ghost or actual method because the implementation proof is syntactically restricted and can only call the implemented
-  // method and/or fold and unfold the interface's predicate.
+  // `isGhostDef` returns true if a node is part of ghost code. However, implementation proofs are considered being
+  // non-ghost, independently of whether they are for a ghost or non-ghost method. Thus, implementation proofs for ghost
+  // and non-ghost methods are type-checked in the same way, which is unproblematic due to their syntactic restrictions.
   private[resolution] lazy val isGhostDef: PNode => Boolean = n => isEnclosingGhost(n)
 
   private[resolution] def serialize(id: PIdnNode): String = id.name

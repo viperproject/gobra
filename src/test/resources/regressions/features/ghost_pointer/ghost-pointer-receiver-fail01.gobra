@@ -135,7 +135,14 @@ func (r Foo) ActualNonPointerReceiver() int {
 decreases
 preserves acc(r)
 //:: ExpectedOutput(type_error)
-func (r gpointer[Foo]) ActualGhostPointerReceiver() int { // ghostpointer is only allowed for ghost methods
+func (r gpointer[Foo]) ActualGhostPointerReceiver() int { // a receiver of type ghostpointer is only allowed for ghost methods
+    r.field = 0
+    return r.field
+}
+
+decreases
+preserves acc(r)
+func ActualMethodWithGhostPointerParam(ghost r gpointer[Foo]) (ghost res int) { // actual methods can take a ghostpointer as a ghost parameter
     r.field = 0
     return r.field
 }

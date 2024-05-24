@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
-import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec, MethodSpec}
+import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec}
 import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, BooleanT, DeclaredT, FunctionT, PredT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -90,76 +90,6 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         case _ => violation("Encountered ill-formed program AST")
       }
 
-    case n: PMethodImplementationProof =>
-      val validPureCheck = wellDefIfPureMethodImplementationProof(n)
-      if (validPureCheck.nonEmpty) validPureCheck
-      else {
-        entity(n.id) match {
-          case spec: MethodSpec =>
-            // check that the signatures match
-            val matchingSignature = {
-              val implSig = FunctionT(n.args map miscType, miscType(n.result))
-              val specSig = memberType(spec)
-              failedProp(
-                s"implementation proof and interface member have a different signature (should be '$specSig', but is $implSig nad ${implSig == specSig})",
-                cond = !identicalTypes(implSig, specSig)
-              )
-            }
-            // check that pure annotations match
-            val matchingPure = failedProp(
-              s"The pure annotation does not match with the pure annotation of the interface member",
-              cond = n.isPure != spec.isPure
-            )
-            // check that the receiver has the method
-            val receiverHasMethod = failedProp(
-              s"The type ${n.receiver.typ} does not have member ${n.id}",
-              cond = tryMethodLikeLookup(miscType(n.receiver), n.id).isEmpty
-            )
-            // check that the body has the right shape
-            val rightShape = {
-              n.body match {
-                case None => failedProp("A method in an implementation proof must not be abstract")
-                case Some((_, block)) =>
-
-                  val expectedReceiverOpt = n.receiver match {
-                    case _: PUnnamedParameter => None
-                    case p: PNamedParameter => Some(PNamedOperand(PIdnUse(p.id.name)))
-                    case PExplicitGhostParameter(_: PUnnamedParameter) => None
-                    case PExplicitGhostParameter(p: PNamedParameter) => Some(PNamedOperand(PIdnUse(p.id.name)))
-                  }
-
-                  val expectedArgs = n.args.flatMap {
-                    case p: PNamedParameter => Some(PNamedOperand(PIdnUse(p.id.name)))
-                    case PExplicitGhostParameter(p: PNamedParameter) => Some(PNamedOperand(PIdnUse(p.id.name)))
-                    case _ => None
-                  }
-
-                  if (expectedReceiverOpt.isEmpty || expectedArgs.size != n.args.size) {
-                    failedProp("Receiver and arguments must be named so that they can be used in a call")
-                  } else {
-                    val expectedReceiver = expectedReceiverOpt.getOrElse(violation(""))
-                    val expectedInvoke = PInvoke(PDot(expectedReceiver, n.id), expectedArgs, None)
-
-                    if (n.isPure) {
-                      block.nonEmptyStmts match {
-                        case Vector(PReturn(Vector(ret))) =>
-                          pureImplementationProofHasRightShape(ret, _ == expectedInvoke, expectedInvoke.toString)
-
-                        case _ => successProp // already checked before
-                      }
-                    } else {
-                      implementationProofBodyHasRightShape(block, _ == expectedInvoke, expectedInvoke.toString, n.result)
-                    }
-                  }
-              }
-            }
-
-            (matchingSignature and matchingPure and receiverHasMethod and rightShape)
-              .asReason(n, "invalid method of an implementation proof")
-
-          case e => Violation.violation(s"expected a method signature of an interface, but got $e")
-        }
-      }
     case _: PBackendAnnotation => noMessages
   }
 
@@ -204,7 +134,6 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PMatchExpCase => UnknownType
     case _: PMatchExpDefault => UnknownType
 
-    case _: PMethodImplementationProof => UnknownType
     case _: PImplementationProofPredicateAlias => UnknownType
     case _: PBackendAnnotation => UnknownType
   }

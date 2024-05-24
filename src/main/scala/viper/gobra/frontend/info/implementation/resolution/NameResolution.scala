@@ -144,7 +144,10 @@ trait NameResolution {
       case _ => violation("PIdnUnk always has a parent")
     }
 
-  private[resolution] lazy val isGhostDef: PNode => Boolean = isEnclosingGhost
+  // `isGhostDef` returns true if a node is part of ghost code. However, implementation proofs are considered being
+  // non-ghost, independently of whether they are for a ghost or non-ghost method. Thus, implementation proofs for ghost
+  // and non-ghost methods are type-checked in the same way, which is unproblematic due to their syntactic restrictions.
+  private[resolution] lazy val isGhostDef: PNode => Boolean = n => isEnclosingGhost(n)
 
   private[resolution] def serialize(id: PIdnNode): String = id.name
 
@@ -260,11 +263,13 @@ trait NameResolution {
         case d: PFunctionDecl => Vector(d.id)
         case d: PTypeDecl => Vector(d.left) ++ leakingIdentifier(d.right)
         case d: PMethodDecl => Vector(d.id)
+        case _: PImplementationProof => Vector.empty
       }
-      case PExplicitGhostMember(a) => packageLevelDefinitions(a)
-      case p: PMPredicateDecl => Vector(p.id)
-      case p: PFPredicateDecl => Vector(p.id)
-      case _: PImplementationProof => Vector.empty
+      case g: PGhostMember => g match {
+        case PExplicitGhostMember(a) => packageLevelDefinitions(a)
+        case p: PMPredicateDecl => Vector(p.id)
+        case p: PFPredicateDecl => Vector(p.id)
+      }
     }
   }
 

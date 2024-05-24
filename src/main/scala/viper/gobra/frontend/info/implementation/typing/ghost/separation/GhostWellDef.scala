@@ -11,7 +11,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.SymbolTable.{Closure, Function, Regular, SingleLocalVariable}
-import viper.gobra.frontend.info.base.Type.GhostPointerT
+import viper.gobra.frontend.info.base.Type.{ActualPointerT, GhostPointerT}
 import viper.gobra.util.Violation
 import viper.gobra.util.Violation.violation
 
@@ -102,15 +102,6 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
   private def exprGhostSeparation(expr: PExpression): Messages = expr match {
     case _: PGhostExpression => noMessages
-    case e if isEnclosingGhost(e) =>
-      e match {
-        case PMake(_: PGhostSliceType, _) => noMessages
-        case _: PMake => error(e, "Allocating memory within ghost code is forbidden")
-        case _: PNew =>
-          Violation.violation(exprType(e).isInstanceOf[GhostPointerT], s"All memory allocated within ghost code must be located on the ghost heap")
-          noMessages
-        case _ => noMessages
-      }
 
     case _: PDot
        | _: PDeref
@@ -134,24 +125,38 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
     case n@ ( // these are just suggestions for now. We will have to adapt then, when we decide on proper ghost separation rules.
       _: PReceive
-      ) => error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
+      ) => error(n, "ghost error: Found ghost child expression, but expected none", !isEnclosingGhost(n) && !noGhostPropagationFromChildren(n))
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(_: ap.Conversion)) => noMessages
-      case (Left(_), Some(call: ap.FunctionCall)) => ghostAssignableToCallExpr(call)
+      case (Left(_), Some(call: ap.FunctionCall)) =>
+        error(n, "ghost error: Found call to non-ghost impure function in ghost code",
+          // call must be in a ghost context and callee must be actual and impure
+          isEnclosingGhost(n) && !calleeGhostTyping(call).isGhost && isPureExpr(n).nonEmpty) ++
+          ghostAssignableToCallExpr(call)
       case (Left(_), Some(call: ap.ClosureCall)) => ghostAssignableToClosureCall(call)
       case (Left(_), Some(_: ap.PredicateCall)) => noMessages
       case (Left(_), Some(_: ap.PredExprInstance)) => noMessages
       case _ => violation("expected conversion, function call, or predicate call")
     }
 
-    case _: PNew => noMessages
+    case e: PNew =>
+      if (isEnclosingGhost(e)) {
+        Violation.violation(exprType(e).isInstanceOf[GhostPointerT], s"Cannot allocate non-ghost memory in ghost code.")
+      } else {
+        Violation.violation(exprType(e).isInstanceOf[ActualPointerT], s"Cannot allocate ghost memory in non-ghost code.")
+      }
+      noMessages
 
-    case n@PMake(_, args) => error(
-      n,
-      "ghost error: make expressions may not contain ghost expressions",
-      args exists (x => !noGhostPropagationFromChildren(x))
-    )
+    case e: PMake => (e, isEnclosingGhost(e)) match {
+      case (PMake(_: PGhostSliceType, _), true)  => noMessages
+      case (_, true) => error(e, "Allocating memory with make within ghost code is forbidden")
+      case (PMake(_, args), false) => error(
+        e,
+        "ghost error: make expressions may not contain ghost expressions",
+        args exists (x => !noGhostPropagationFromChildren(x))
+      )
+    }
   }
 
   private def typeGhostSeparation(typ: PType): Messages = typ match {

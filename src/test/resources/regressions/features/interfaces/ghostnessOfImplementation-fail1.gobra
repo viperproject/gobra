@@ -1,0 +1,65 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// this test makes sure that a method's implementation has the same ghostness as specified in the interface
+
+package pkg
+
+type itfWithActualMethod interface {
+    decreases
+    actualMethod() int
+}
+
+type itfWithActualPureMethod interface {
+    decreases
+    pure actualPureMethod() int
+}
+
+type itfWithGhostMethod interface {
+    ghost
+    decreases
+    ghostMethod() int
+}
+
+type itfWithGhostPureMethod interface {
+    ghost
+    decreases
+    pure ghostPureMethod() int
+}
+
+type someImplementation struct {
+    value int
+}
+
+// checks that `someImplementation` is indeed considered an implementation of each interface, i.e., that the ghost
+// attribute in the interface and implementation is correctly handled.
+//:: ExpectedOutput(type_error)
+*someImplementation implements itfWithActualMethod
+//:: ExpectedOutput(type_error)
+*someImplementation implements itfWithActualPureMethod
+//:: ExpectedOutput(type_error)
+*someImplementation implements itfWithGhostMethod
+//:: ExpectedOutput(type_error)
+*someImplementation implements itfWithGhostPureMethod
+
+ghost
+decreases
+func (impl *someImplementation) actualMethod() int {
+    return 42
+}
+
+ghost
+decreases
+pure func (impl *someImplementation) actualPureMethod() int {
+    return 42
+}
+
+decreases
+func (impl *someImplementation) ghostMethod() int {
+    return 42
+}
+
+decreases
+pure func (impl *someImplementation) ghostPureMethod() int {
+    return 42
+}

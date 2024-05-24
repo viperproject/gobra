@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// tests that ghost types cannot be used for actual fields
+
+package GhostFieldGhostTypeFail01
+
+type Test struct {
+    //:: ExpectedOutput(type_error)
+    actualField mset[int]
+    ghost ghostField int
+}

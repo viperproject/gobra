@@ -42,7 +42,11 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
 
       case (StructT(clausesL, _, contextL), StructT(clausesR, _, contextR)) =>
         contextL == contextR && clausesL.size == clausesR.size && clausesL.zip(clausesR).forall {
-          case (lm, rm) => lm._1 == rm._1 && lm._2._1 == rm._2._1 && identicalTypes(lm._2._2, rm._2._2)
+          case ((lId, lc), (rId, rc)) => lId == rId && identicalTypes(lc.typ, rc.typ) && ((lc, rc) match {
+            case (_: StructFieldT, _: StructFieldT) => true
+            case (_: StructEmbeddedT, _: StructEmbeddedT) => true
+            case _ => false
+          })
         }
 
       case (l: InterfaceT, r: InterfaceT) =>

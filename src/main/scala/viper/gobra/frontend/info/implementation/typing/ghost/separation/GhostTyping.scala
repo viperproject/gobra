@@ -12,6 +12,7 @@ import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
+import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.util.Violation
 
 trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
@@ -140,8 +141,12 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       case e: PDot => resolve(e) match {
         case Some(s: ap.FieldSelection) =>
           val isGhostField = ghostIdClassification(s.id)
-          (underlyingType(typ(s.base)), isGhostField) match {
-            case (_, true) => isGhost // ghost fields are always ghost memory
+          val isGhostEmbedding = s.path.exists {
+            case MemberPath.Next(decl) => decl.ghost
+            case _ => false
+          }
+          (underlyingType(typ(s.base)), isGhostField || isGhostEmbedding) match {
+            case (_, true) => isGhost // ghost fields and ghost embeddings are always ghost memory
             case (tb: Type.PointerT, _) => ghost(tb.isInstanceOf[Type.GhostPointerT]) // (implicitly) dereferencing a field of a ghost pointer leads to a ghost heap location
             case _ => ghostLocationTyping(s.base) // assignee is on the stack, recurse to find out if it's a ghost or actual variable
           }

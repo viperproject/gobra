@@ -8,7 +8,8 @@ func test() {
   x1  := 5
   x2@ := 5
 
-  ghost L:
+  // an empty block is inserted such that the assignments are not treated being part of the ghost labeled statement
+  ghost L: {}
 
   x1 = 8
   x2 = 8

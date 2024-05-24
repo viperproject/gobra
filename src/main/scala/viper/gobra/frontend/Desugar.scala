@@ -1914,6 +1914,8 @@ object Desugar extends LazyLogging {
               case t => violation(s"Type $t not supported as a range expression")
             }
 
+          case p: PClosureImplProof => closureImplProofD(ctx)(p)
+
           case _ => ???
         }
       }
@@ -2936,7 +2938,7 @@ object Desugar extends LazyLogging {
         case MemberPath.Deref => in.Deref(e, underlyingType(e.typ))(pinfo)
         case MemberPath.Ref => in.Ref(e)(pinfo)
         case MemberPath.Next(g) =>
-          in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(e.typ.addressability), g.context)(pinfo))(pinfo)
+          in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(e.typ.addressability), g.ghost, g.context)(pinfo))(pinfo)
         case _: MemberPath.EmbeddedInterface => e
       }}
     }
@@ -2992,7 +2994,7 @@ object Desugar extends LazyLogging {
         case PIntLit(v, base)  => single(in.IntLit(v, base = base))
         case PBoolLit(b) => single(in.BoolLit(b))
         case PStringLit(s) => single(in.StringLit(s))
-        case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.PointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
+        case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.ActualPointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
         case f: PFunctionLit => registerFunctionLit(ctx, info)(f)
         case c: PCompositeLit => compositeLitD(ctx, info)(c)
         case _ => ???
@@ -3017,7 +3019,9 @@ object Desugar extends LazyLogging {
       // Both will have type Pointer(typeOf(v))
       val src: Meta = meta(v, info)
       val refAlias = nm.refAlias(idName(v, info), info.scope(v), info)
-      val param = in.Parameter.In(refAlias, typeD(PointerT(info.typ(v)), Addressability.inParameter)(src))(src)
+      // If `v` is a ghost variable, we consider `param` a ghost pointer. 
+      // However, we can use ActualPointer here since there is a single internal pointer type only.
+      val param = in.Parameter.In(refAlias, typeD(ActualPointerT(info.typ(v)), Addressability.inParameter)(src))(src)
       val localVar = in.LocalVar(nm.alias(refAlias, info.scope(v), info), param.typ)(src)
       (param, localVar)
     }
@@ -3767,7 +3771,7 @@ object Desugar extends LazyLogging {
         in.MapT(keysD, valuesD, addrMod)
       case Type.GhostSliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
       case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
-      case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
+      case Type.PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
       case Type.ChannelT(elem, _) => in.ChannelT(typeD(elem, Addressability.channelElement)(src), addrMod)
       case Type.SequenceT(elem) => in.SequenceT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.SetT(elem) => in.SetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
@@ -4021,36 +4025,36 @@ object Desugar extends LazyLogging {
 
     def structD(struct: StructT, addrMod: Addressability)(src: Meta): Vector[in.Field] =
       struct.clauses.map {
-        case (name, (true, typ)) => fieldDeclD((name, typ), Addressability.field(addrMod), struct)(src)
-        case (name, (false, typ)) => embeddedDeclD((name, typ), Addressability.field(addrMod), struct)(src)
+        case (name, t: StructFieldT) => fieldDeclD((name, t), Addressability.field(addrMod), struct)(src)
+        case (name, t: StructEmbeddedT) => embeddedDeclD((name, t), Addressability.field(addrMod), struct)(src)
       }.toVector
 
     def structMemberD(m: st.StructMember, addrMod: Addressability)(src: Meta): in.Field = m match {
-      case st.Field(decl, _, context) => fieldDeclD(decl, addrMod, context)(src)
-      case st.Embbed(decl, _, context) => embeddedDeclD(decl, addrMod, context)(src)
+      case st.Field(decl, isGhost, context) => fieldDeclD(decl, addrMod, isGhost, context)(src)
+      case st.Embbed(decl, isGhost, context) => embeddedDeclD(decl, addrMod, isGhost, context)(src)
     }
 
-    def embeddedDeclD(embedded: (String, Type), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
+    def embeddedDeclD(embedded: (String, StructEmbeddedT), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(embedded._1, struct)
-      val td = typeD(embedded._2, fieldAddrMod)(src)
-      in.Field(idname, td, ghost = false)(src) // TODO: fix ghost attribute
+      val td = typeD(embedded._2.typ, fieldAddrMod)(src)
+      in.Field(idname, td, ghost = embedded._2.isGhost)(src)
     }
 
-    def embeddedDeclD(decl: PEmbeddedDecl, addrMod: Addressability, context: ExternalTypeInfo)(src: Meta): in.Field = {
+    def embeddedDeclD(decl: PEmbeddedDecl, addrMod: Addressability, isGhost: Boolean, context: ExternalTypeInfo)(src: Meta): in.Field = {
       val struct = context.struct(decl)
-      val embedded: (String, Type) = (decl.id.name, context.typ(decl.typ))
+      val embedded: (String, StructEmbeddedT) = (decl.id.name, StructEmbeddedT(context.typ(decl.typ), isGhost))
       embeddedDeclD(embedded, addrMod, struct.get)(src)
     }
 
-    def fieldDeclD(field: (String, Type), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
+    def fieldDeclD(field: (String, StructFieldT), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(field._1, struct)
-      val td = typeD(field._2, fieldAddrMod)(src)
-      in.Field(idname, td, ghost = false)(src) // TODO: fix ghost attribute
+      val td = typeD(field._2.typ, fieldAddrMod)(src)
+      in.Field(idname, td, ghost = field._2.isGhost)(src)
     }
 
-    def fieldDeclD(decl: PFieldDecl, addrMod: Addressability, context: ExternalTypeInfo)(src: Meta): in.Field = {
+    def fieldDeclD(decl: PFieldDecl, addrMod: Addressability, isGhost: Boolean, context: ExternalTypeInfo)(src: Meta): in.Field = {
       val struct = context.struct(decl)
-      val field: (String, Type) = (decl.id.name, context.symbType(decl.typ))
+      val field: (String, StructFieldT) = (decl.id.name, StructFieldT(context.symbType(decl.typ), isGhost))
       fieldDeclD(field, addrMod, struct.get)(src)
     }
 
@@ -4106,7 +4110,6 @@ object Desugar extends LazyLogging {
             case w: in.MagicWand => in.ApplyWand(w)(src)
             case e => Violation.violation(s"Expected a magic wand, but got $e")
           }
-        case p: PClosureImplProof => closureImplProofD(ctx)(p)
         case PExplicitGhostStatement(actual) => stmtD(ctx, info)(actual)
 
         case PMatchStatement(exp, clauses, strict) =>
@@ -4931,7 +4934,7 @@ object Desugar extends LazyLogging {
       topLevelName(s"$METHODSPEC_PREFIX${interface(t)}")(n, context)
     def method  (n: String, t: PMethodRecvType, context: ExternalTypeInfo): String = t match {
       case PMethodReceiveName(typ)    => topLevelName(s"$METHOD_PREFIX${typ.name}")(n, context)
-      case PMethodReceivePointer(typ) => topLevelName(s"P$METHOD_PREFIX${typ.name}")(n, context)
+      case r: PMethodReceivePointer => topLevelName(s"P$METHOD_PREFIX${r.typ.name}")(n, context)
     }
     private def stringifyType(typ: in.Type): String = Names.serializeType(typ)
     def builtInMember(tag: BuiltInMemberTag, dependantTypes: Vector[in.Type]): String = {

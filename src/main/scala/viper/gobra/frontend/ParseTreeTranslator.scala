@@ -301,7 +301,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitFieldDecl(ctx: FieldDeclContext): PStructClause = {
-    if (ctx.embeddedField() != null) {
+    val ghost = has(ctx.GHOST())
+    val actualDecl = if (ctx.embeddedField() != null) {
       val et = visitNode[PEmbeddedType](ctx.embeddedField())
       PEmbeddedDecl(et, PIdnDef(et.name).at(et))
     } else {
@@ -309,6 +310,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       val t = visitNode[PType](ctx.type_())
       PFieldDecls(ids map (id => PFieldDecl(id, t.copy).at(id)))
     }
+    if (ghost) PExplicitGhostStructClause(actualDecl).at(ctx) else actualDecl
   }
 
   /**
@@ -501,6 +503,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitGhostSliceType(ctx: GhostSliceTypeContext): PGhostSliceType = {
     val typ = visitNode[PType](ctx.elementType().type_())
     PGhostSliceType(typ).at(ctx)
+  }
+
+  /**
+    * {@inheritDoc }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitGhostPointerType(ctx: GhostPointerTypeContext): PGhostPointerType = {
+    val typ = visitNode[PType](ctx.elementType().type_())
+    PGhostPointerType(typ).at(ctx)
   }
 
   /**
@@ -914,7 +927,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitReceiver(ctx: ReceiverContext): PReceiver = {
     val recvType = visitNode[PType](ctx.type_()) match {
       case t : PNamedOperand => PMethodReceiveName(t).at(t)
-      case PDeref(t : PNamedOperand) => PMethodReceivePointer(t).at(t)
+      case PDeref(t: PNamedOperand) => PMethodReceiveActualPointer(t).at(t)
+      case PGhostPointerType(t: PNamedOperand) => PMethodReceiveGhostPointer(t).at(t)
       case f => fail(ctx.type_(), s"Expected declared type or pointer to declared type but got: $f.")
     }
 

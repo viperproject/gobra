@@ -13,15 +13,19 @@ func test2(b bool) {
   assert mset(some(b)) == mset[bool] { b }
 }
 
+ghost
+decreases
 requires opt != none[int]
 ensures set(opt) == set[int] { get(opt) }
 func lemma_set_some(ghost opt option[int]) {
 }
 
+ghost
+decreases
 requires set(opt) == set[int] { }
 ensures opt == none[int]
 func lemma_set_empty(ghost opt option[int]) {
-  ghost if (opt != none[int]) {
+  if (opt != none[int]) {
     lemma_set_some(opt)
   }
 }

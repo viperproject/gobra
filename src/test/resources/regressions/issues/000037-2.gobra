@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+ghost
+decreases x
+pure func more(x int) int {
+  return x <= 0 ? 1 : more(x - 2) + 3
+}
+
+ghost /* lemma */
+decreases x
+ensures x < more(x)
+func increasing(x int)
+
+// returning b (a ghost variable) is not allowed as this is an actual function
+//:: ExpectedOutput(type_error)
+func exampleLemmaUse(a int) int {
+  increasing(a)
+  b := more(a)
+  c := more(b)
+  if a < 1000 {
+    increasing(more(a))
+    assert 2 <= c - a
+  }
+  assert 2 <= c - a || 200 <= a
+  return b
+}

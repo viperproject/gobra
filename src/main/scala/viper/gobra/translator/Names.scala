@@ -85,7 +85,7 @@ object Names {
   }
 
   def serializeFields(fields: Vector[in.Field]): String = {
-    val serializedFields = fields.map(f => s"${f.name}_${serializeType(f.typ)}").mkString("_")
+    val serializedFields = fields.map(f => s"${f.name}_${serializeType(f.typ)}_${if (f.ghost) "g" else "a"}").mkString("_")
     // we use a dollar sign to mark the beginning and end of the type list to avoid that `Tuple(Tuple(X), Y)` and `Tuple(Tuple(X, Y))` map to the same name:
     s"$$$serializedFields$$"
   }

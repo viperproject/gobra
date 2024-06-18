@@ -449,12 +449,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
        |  ${GoVerifier.name} -r <optional project root> <optional include and exclude package names> [OPTIONS]
        |
        | Mode 1 (-i):
-       |  The first way interprets the list of files as one package that should be verified.
+       |  The first mode takes a list of files that must belong to the same package.
+       |  Files belonging to the same package but missing in the list are not considered for type-checking and verification.
        |  Optionally, positional information can be provided for each file, e.g. <path to file>@42,111, such that only
        |  members at these positions will be verified.
        |
        | Mode 2 (-p):
-       |  Interprets each provided directory as a directory storing files belonging to a single package.
+       |  ${GoVerifier.name} verifies all `.${PackageResolver.gobraExtension}` and `.${PackageResolver.goExtension}` files in the provided directories,
+       |  while treating files in the same directory as belonging to the same package.
        |  Verifies these packages. The project root (by default the current working directory) is used to derive a
        |  unique package identifier, since package names might not be unique.
        |

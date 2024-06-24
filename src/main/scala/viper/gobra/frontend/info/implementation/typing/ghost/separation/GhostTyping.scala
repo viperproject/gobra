@@ -184,7 +184,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
         case sp: ap.Symbolic => sp.symb.ghost
         case ap.PointerType(base) => isTypeGhost(base)
       }
-      case _ => Violation.violation(s"expected a type but got $t")
+      case _ => false
     }
   }
 

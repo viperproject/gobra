@@ -315,6 +315,30 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.testProg(input, expected)
   }
 
+  test("Ghost Erasure: ghost types should be erased") {
+    val input =
+      s"""
+         |package pkg
+         |type Struct struct {
+         |    f int
+         |    ghost g int
+         |}
+         |ghost type GhostStruct struct {
+         |    f int
+         |}
+         |ghost type GhostIntDef int
+         |ghost type GhostIntAlias = int
+         |""".stripMargin
+    val expected =
+      s"""
+         |package pkg
+         |type Struct struct {
+         |    f int
+         |}
+         |""".stripMargin
+    frontend.testProg(input, expected)
+  }
+
   /* ** Stubs, mocks, and other test setup  */
 
   class TestFrontend {

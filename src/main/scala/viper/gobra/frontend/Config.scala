@@ -443,8 +443,32 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   )
 
   banner(
-    s""" Usage: ${GoVerifier.name} -i <input-files> [OPTIONS] OR
-       |  ${GoVerifier.name} -p <directory> [OPTIONS]
+    s""" ${GoVerifier.name} supports three modes for specifying input files that should be verified:
+       |  ${GoVerifier.name} -i <input-files> [OPTIONS] OR
+       |  ${GoVerifier.name} -p <directories> <optional project root> [OPTIONS] OR
+       |  ${GoVerifier.name} -r <optional project root> <optional include and exclude package names> [OPTIONS]
+       |
+       | Mode 1 (-i):
+       |  The first mode takes a list of files that must belong to the same package.
+       |  Files belonging to the same package but missing in the list are not considered for type-checking and verification.
+       |  Optionally, positional information can be provided for each file, e.g. <path to file>@42,111, such that only
+       |  members at these positions will be verified.
+       |
+       | Mode 2 (-p):
+       |  ${GoVerifier.name} verifies all `.${PackageResolver.gobraExtension}` and `.${PackageResolver.goExtension}` files in the provided directories,
+       |  while treating files in the same directory as belonging to the same package.
+       |  Verifies these packages. The project root (by default the current working directory) is used to derive a
+       |  unique package identifier, since package names might not be unique.
+       |
+       | Mode 3 (-r):
+       |  Transitively locates source files in subdirectories relative to the project root (by default the current
+       |  working directory) and groups them to packages based on the relative path and package name.
+       |  --includePackages <package names> and --excludePackages <package names> can be used to allow-
+       |  or block-list packages.
+       |
+       | Note that --include <directories> is unrelated to the modes above and controls how ${GoVerifier.name} resolves
+       | package imports.
+       |
        |
        | Options:
        |""".stripMargin
@@ -763,14 +787,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val noVerify: ScallopOption[Boolean] = opt[Boolean](
     name = "noVerify",
-    descr = s"Skip the verification step performed after encoding the Gobra program into Viper.",
+    descr = s"Skip the verification step performed after encoding the ${GoVerifier.name} program into Viper.",
     default = Some(ConfigDefaults.DefaultNoVerify),
     noshort = true,
   )
 
   val noStreamErrors: ScallopOption[Boolean] = opt[Boolean](
     name = "noStreamErrors",
-    descr = "Do not stream errors produced by Gobra but instead print them all organized by package in the end.",
+    descr = s"Do not stream errors produced by ${GoVerifier.name} but instead print them all organized by package in the end.",
     default = Some(ConfigDefaults.DefaultNoStreamErrors),
     noshort = true,
   )

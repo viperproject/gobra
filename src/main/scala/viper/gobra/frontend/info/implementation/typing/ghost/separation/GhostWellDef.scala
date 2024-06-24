@@ -31,11 +31,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
   }{ n => isWellDefined(n) && children(n).forall(selfWellGhostSeparated) }
 
   private def memberGhostSeparation(member: PMember): Messages = member match {
-    case m: PExplicitGhostMember => m.actual match {
-      case _: PTypeDecl => error(m, "ghost types are currently not supported") // TODO
-      case _ => noMessages
-    }
-
+    case _: PExplicitGhostMember => noMessages
     case _: PGhostMember => noMessages
 
     case n : PVarDecl => n.typ match {

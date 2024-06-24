@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Closure, MultiLocalVariable, Regular, SingleLocalVariable}
+import viper.gobra.frontend.info.base.SymbolTable.{Closure, MultiLocalVariable, NamedType, Regular, SingleLocalVariable, TypeAlias}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -164,11 +164,28 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
   }
 
   /** returns true iff type is classified as ghost */
-  private[separation] lazy val ghostTypeClassification: PType => Boolean = createGhostClassification[PType]{
-    case _: PGhostType => true // TODO: This check seems insufficient to me in the long run. What if a type definition is ghost?
-    case PArrayType(_, t) => isTypeGhost(t)
-    case PSliceType(t) => isTypeGhost(t)
-    case _ => false
+  private[separation] lazy val ghostTypeClassification: PType => Boolean = createGhostClassification[PType] {
+    case _: PGhostType => true
+    case _: PBoolType | _: PIntegerType | _: PFloatType | _: PStringType | _: PFunctionType | _: PInterfaceType => false
+    case PArrayType(_, elem) => isTypeGhost(elem)
+    case PSliceType(elem) => isTypeGhost(elem)
+    case PMapType(key, elem) => isTypeGhost(key) && isTypeGhost(elem)
+    case t: PChannelType => isTypeGhost(t.elem)
+    case t: PMethodRecvType => isTypeGhost(t.typ)
+    case t: PTypeDecl => entity(t.left) match {
+      case nt: NamedType => nt.ghost
+      case at: TypeAlias => at.ghost
+      case _ => false
+    }
+    case t: PStructType => isEnclosingGhost(t)
+    case PVariadicType(elem) => isTypeGhost(elem)
+    case t @ (_: PNamedOperand | _: PDeref | _: PDot) => resolve(t) match {
+      case Some(tp: ap.Type) => tp match {
+        case sp: ap.Symbolic => sp.symb.ghost
+        case ap.PointerType(base) => isTypeGhost(base)
+      }
+      case _ => Violation.violation(s"expected a type but got $t")
+    }
   }
 
   /** returns true iff identifier is classified as ghost */

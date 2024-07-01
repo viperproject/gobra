@@ -12,6 +12,7 @@ import viper.silver
 import viper.silver.ast.Not
 import viper.silver.verifier.{AbstractVerificationError, errors => vprerr, reasons => vprrea}
 import viper.silver.plugin.standard.termination
+import viper.silver.plugin.standard.{refute => vprrefute}
 
 object DefaultErrorBackTranslator {
 
@@ -40,6 +41,8 @@ object DefaultErrorBackTranslator {
         InsufficientPermissionError(info)
       case vprrea.AssertionFalse(CertainSource(info)) =>
         AssertionFalseError(info)
+      case vprrefute.RefutationTrue(CertainSource(info)) =>
+        RefutationTrueError(info)
       case vprrea.AssertionFalse(CertainSynthesized(info)) =>
         SynthesizedAssertionFalseReason(info)
       case vprrea.SeqIndexExceedsLength(CertainSource(node), CertainSource(index)) =>
@@ -122,6 +125,8 @@ class DefaultErrorBackTranslator(
         ForLoopError(info) dueTo translate(reason)
       case vprerr.AssertFailed(CertainSource(info), reason, _) =>
         AssertError(info) dueTo translate(reason)
+      case vprrefute.RefuteFailed(CertainSource(info), reason, _) =>
+        RefuteError(info) dueTo translate(reason)
       case vprerr.PostconditionViolated(CertainSource(info), _, reason, _) =>
         PostconditionError(info) dueTo translate(reason)
       case vprerr.FoldFailed(CertainSource(info), reason, _) =>

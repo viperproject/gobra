@@ -12,6 +12,8 @@ import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, ChoppedProgressMessage}
 import viper.gobra.util.{ChopperUtil, GobraExecutionContext}
 import viper.silver
+import viper.silver.ast.Program
+import viper.silver.plugin.standard.refute.RefutePlugin
 import viper.silver.verifier.VerificationResult
 import viper.silver.{ast => vpr}
 
@@ -78,22 +80,31 @@ object BackendVerifier {
       }
     }
 
-    verificationResults.map(convertVerificationResult(_, task.backtrack))
+    verificationResults.map(convertVerificationResult(task.program, _, task.backtrack))
   }
 
   /**
     * Takes a Viper VerificationResult and converts it to a Gobra Result using the provided backtracking information
     */
-  def convertVerificationResult(result: VerificationResult, backTrackInfo: BackTrackInfo): Result = result match {
-    case silver.verifier.Success => Success
-    case failure: silver.verifier.Failure =>
-      val (verificationError, otherError) = failure.errors
-        .partition(_.isInstanceOf[silver.verifier.VerificationError])
-        .asInstanceOf[(Seq[silver.verifier.VerificationError], Seq[silver.verifier.AbstractError])]
+  def convertVerificationResult(result: VerificationResult, backTrackInfo: BackTrackInfo): Result =
+    result match {
+      case silver.verifier.Success => Success
+      case failure: silver.verifier.Failure =>
+        val (verificationError, otherError) = failure.errors
+          .partition(_.isInstanceOf[silver.verifier.VerificationError])
+          .asInstanceOf[(Seq[silver.verifier.VerificationError], Seq[silver.verifier.AbstractError])]
 
-      checkAbstractViperErrors(otherError)
+        checkAbstractViperErrors(otherError)
 
-      Failure(verificationError.toVector, backTrackInfo)
+        Failure(verificationError.toVector, backTrackInfo)
+    }
+
+
+  def convertVerificationResult(program: Program, result: VerificationResult, backTrackInfo: BackTrackInfo): Result = {
+    val refutePlugin = new RefutePlugin(null, null, null, null)
+    val transformedResult = refutePlugin.mapVerificationResult(program, result)
+
+    convertVerificationResult(transformedResult, backTrackInfo)
   }
 
   @scala.annotation.elidable(scala.annotation.elidable.ASSERTION)

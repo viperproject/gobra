@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000777
+
+ghost
+requires i >= 0
+decreases i
+func h(i int) (res int) {
+    //:: ExpectedOutput(type_error)
+    return i == 0 ? 0 : h(i - 1)
+}

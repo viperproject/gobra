@@ -14,13 +14,7 @@ import viper.silver.{ast => vpr}
 
 class RefuteTransformer extends ViperTransformer {
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
-    for {
-      transformedProg <- executeTerminationPlugin(task)
-    } yield transformedProg
-  }
-
-  private def executeTerminationPlugin(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
-    def applyPlugin(plugin: SilverPlugin, prog : vpr.Program): Either[Seq[AbstractError], vpr.Program] = {
+    def applyPlugin(plugin: SilverPlugin, prog: vpr.Program): Either[Seq[AbstractError], vpr.Program] = {
       val transformedProgram = plugin.beforeVerify(prog)
       if (plugin.errors.isEmpty) {
         Right(transformedProgram)

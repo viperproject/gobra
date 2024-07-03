@@ -11,10 +11,7 @@ import viper.gobra.ast.frontend.{PReceive, PSendStmt}
 import viper.gobra.reporting.Source.Verifier
 import viper.gobra.util.Constants
 import viper.gobra.util.Violation.violation
-import viper.silver.ast.{FalseLit, SourcePosition}
-import viper.silver.plugin.standard.refute.{Refute, RefuteError, RefuteErrorReason}
-import viper.silver.plugin.standard.smoke.SmokeDetectionInfo
-import viper.silver.verifier.{ErrorMessage, ErrorReason, errors, reasons}
+import viper.silver.ast.{SourcePosition}
 
 sealed trait VerifierError {
   def position: Option[SourcePosition]

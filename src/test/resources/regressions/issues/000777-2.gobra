@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000777
+
+ghost
+requires i > 0
+decreases i
+pure func h(i int) (res int)
+
+ghost
+requires 0 <= i
+decreases
+func test(i int) {
+    x := i == 0 ? 0 : h(i)
+}

@@ -44,7 +44,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // check that `cond` is of type bool
         assignableTo.errors(exprType(cond), BooleanT)(expr) ++
         // check that `thn` and `els` have a common type
-        mergeableTypes.errors(exprType(thn), exprType(els))(expr)
+        mergeableTypes.errors(exprType(thn), exprType(els))(expr) ++
+        // check that all subexpressions are pure.
+        isPureExpr(cond) ++ isWeaklyPureExpr(thn) ++ isWeaklyPureExpr(els)
 
     case n@PForall(vars, triggers, body) =>
       // check whether all triggers are valid and consistent

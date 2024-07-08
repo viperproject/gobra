@@ -1,0 +1,50 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package refutation
+
+func f() {
+    refute false
+}
+
+requires x > 0
+func g(x int) {
+    refute x < 0
+}
+
+func h(x *int) {
+    refute acc(x)
+}
+
+func i(cond bool) {
+    x := 0
+
+    if (cond) {
+        x := 1
+    }
+
+    refute x == 1
+}
+
+decreases
+pure
+func falseFunc() bool {
+    return false
+}
+
+func clientFalseFunc() {
+    refute falseFunc()
+}
+
+ensures res == x + 1
+decreases
+pure
+func inc(x int) (res int) {
+    return x + 1
+}
+
+func clientInc() {
+    x := 0
+    y := inc(x)
+    refute y != 1
+}

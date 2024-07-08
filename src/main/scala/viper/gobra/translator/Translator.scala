@@ -13,7 +13,7 @@ import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.reporting.{ConsistencyError, GeneratedViperMessage, TransformerFailureMessage, VerifierError}
 import viper.gobra.translator.context.DfltTranslatorConfig
 import viper.gobra.translator.encodings.programs.ProgramsImpl
-import viper.gobra.translator.transformers.{AssumeTransformer, RefuteTransformer, TerminationDomainTransformer, ViperTransformer}
+import viper.gobra.translator.transformers.{AssumeTransformer, TerminationDomainTransformer, ViperTransformer}
 import viper.gobra.util.Violation
 import viper.silver.ast.{AbstractSourcePosition, SourcePosition}
 import viper.silver.ast.pretty.FastPrettyPrinter
@@ -38,8 +38,7 @@ object Translator {
 
     val transformers: Seq[ViperTransformer] = Seq(
       new AssumeTransformer,
-      new TerminationDomainTransformer,
-      new RefuteTransformer
+      new TerminationDomainTransformer
     )
 
     val transformedTask = transformers.foldLeft[Either[Vector[VerifierError], BackendVerifier.Task]](Right(task)) {

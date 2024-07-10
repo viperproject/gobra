@@ -185,7 +185,7 @@ case class RefuteError(info: Source.Verifier.Info) extends VerificationError {
 
   override def localId: String = "refute_error"
 
-  override def localMessage: String = "Refute statement failed. Assertion holds in all cases or could not be reached"
+  override def localMessage: String = "Refute statement failed. Assertion is either unreachable or it always holds."
 }
 
 case class ExhaleError(info: Source.Verifier.Info) extends VerificationError {

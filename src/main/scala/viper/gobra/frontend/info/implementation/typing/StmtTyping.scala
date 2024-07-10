@@ -382,7 +382,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     def validStatements(stmts: Vector[PStatement]): PropertyResult =
       PropertyResult.bigAnd(stmts.map {
-        case _: PUnfold | _: PFold | _: PAssert | _: PEmptyStmt => successProp
+        case _: PUnfold | _: PFold | _: PAssert | _: PRefute | _: PEmptyStmt => successProp
         case _: PAssume | _: PInhale | _: PExhale => failedProp("Assume, inhale, and exhale are forbidden in implementation proofs")
 
         case b: PBlock => validStatements(b.nonEmptyStmts)

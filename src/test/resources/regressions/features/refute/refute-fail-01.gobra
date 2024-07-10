@@ -4,21 +4,21 @@
 package refutation
 
 func f() {
-    //:: ExpectedOutput(type_error)
+	//:: ExpectedOutput(type_error)
 	refute 3
 }
 
 func g() {
-    x@ := 0
+	x@ := 0
 	//:: ExpectedOutput(type_error)
 	refute &x
 }
 
 func nonPureFunc() bool {
-    return true
+	return true
 }
 
 func h() {
-    //:: ExpectedOutput(type_error)
-    refute nonPureFunc()
+	//:: ExpectedOutput(type_error)
+	refute nonPureFunc()
 }

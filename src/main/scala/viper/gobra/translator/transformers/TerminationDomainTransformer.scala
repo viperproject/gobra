@@ -18,10 +18,9 @@ import viper.silver.reporter.{NoopReporter, Reporter}
 import viper.silver.plugin.standard.predicateinstance.PredicateInstancePlugin
 import viper.silver.verifier.AbstractError
 
-// Maybe this class can be removed at some point because the functionality is in principle available in Viper itself.
-// However, in Viper, at the moment the plugin transformations encapsulated in this class are done at a stage before
-// Gobra starts interacting with the backend verifier, which is why we have to do them manually here and
-// cannot remove the class yet.
+// This class should be removed in the future because Viper already implements inference of
+// imports for termination domains. However, at the moment, Viper performs the inference in
+// `beforeVerify`, which is already too late.
 class TerminationDomainTransformer extends ViperTransformer {
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {

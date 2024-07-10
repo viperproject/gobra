@@ -314,7 +314,7 @@ protected class ClosureSpecsEncoder {
 
   private var implementAssertionSpecOriginToStr: Map[Source.AbstractOrigin, String] = Map.empty
   private def doesNotImplementSpecErr(callNode: vpr.Node with vpr.Positioned, closureStr: String): ErrorTransformer = {
-    case e@vprerr.PreconditionInCallFalse(Source(info), reasons.AssertionFalse(Source(assInfo)), _) if (e causedBy callNode) && implementAssertionSpecOriginToStr.contains(assInfo.origin) =>
+    case e@vprerr.PreconditionInCallFalse(Source(info), reasons.AssertionFalse(Source(assInfo)), _) if e causedBy callNode && implementAssertionSpecOriginToStr.contains(assInfo.origin) =>
       PreconditionError(info).dueTo(SpecNotImplementedByClosure(info, closureStr, implementAssertionSpecOriginToStr(assInfo.origin)))
     case e@vprerr.PreconditionInAppFalse(Source(info), reasons.AssertionFalse(Source(assInfo)), _) if (e causedBy callNode) && implementAssertionSpecOriginToStr.contains(assInfo.origin) =>
       PreconditionError(info).dueTo(SpecNotImplementedByClosure(info, closureStr, implementAssertionSpecOriginToStr(assInfo.origin)))

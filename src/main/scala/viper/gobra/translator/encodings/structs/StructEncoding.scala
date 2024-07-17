@@ -275,7 +275,7 @@ class StructEncoding extends TypeEncoding {
 
   private def indexOfField(fs: Vector[in.Field], f: in.Field): Int = {
     val idx = fs.indexOf(f)
-    Violation.violation(idx >= 0, s"$idx, ${f.typ.addressability}, ${fs.map(_.typ.addressability)} - Did not find field $f in $fs")
+    Violation.violation(idx >= 0, s"$idx, ${f.typ.addressability}, ${fs.map(_.typ.addressability)}, ${f.ghost}, ${fs.map(_.ghost)} - Did not find field $f in $fs")
     idx
   }
 

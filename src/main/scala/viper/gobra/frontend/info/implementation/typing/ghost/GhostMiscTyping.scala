@@ -9,8 +9,8 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
-import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec, MethodSpec}
-import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, FunctionT, PredT, Type, UnknownType}
+import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec}
+import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, BooleanT, DeclaredT, FunctionT, PredT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -22,7 +22,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefGhostMisc(misc: PGhostMisc) = misc match {
     case c@PClosureSpecInstance(id, _) => resolve(id) match {
       case Some(ap.Function(_, f)) => wellDefClosureSpecInstanceParams(c, f.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
-      case Some(ap.Closure(_, l)) => if (c.params.isEmpty || capturedVariables(l.lit.decl).isEmpty)
+      case Some(ap.Closure(_, l)) => if (c.params.isEmpty || capturedLocalVariables(l.lit.decl).isEmpty)
         wellDefClosureSpecInstanceParams(c, l.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
         else error(c, s"function literal ${l.lit.id.get} captures variables, so it cannot be used to derive a parametrized spec instance")
       case _ => error(id, s"identifier $id does not identify a user-defined function or function literal")
@@ -49,6 +49,25 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       error(f, s"Uninterpreted functions must have exactly one return argument", f.result.outs.size != 1) ++
         nonVariadicArguments(f.args)
 
+    case _: PAdtClause => noMessages
+
+    case m: PMatchPattern => m match {
+      case PMatchAdt(clause, fields) => symbType(clause) match {
+        case t: AdtClauseT =>
+          val fieldTypes = fields.map(typ)
+          val clauseFieldTypes = t.fields.map(_._2)
+          error(m, s"Expected ${clauseFieldTypes.size} patterns, but got ${fieldTypes.size}", clauseFieldTypes.size != fieldTypes.size) ++
+            fieldTypes.zip(clauseFieldTypes).flatMap(a => assignableTo.errors(a)(m))
+        case _ => violation("Pattern matching only works on ADT Literals")
+      }
+      case PMatchValue(lit) => isPureExpr(lit)
+      case _ => noMessages
+    }
+
+    case _: PMatchStmtCase => noMessages
+    case _: PMatchExpCase => noMessages
+    case _: PMatchExpDefault => noMessages
+
     case n: PImplementationProofPredicateAlias =>
       n match {
         case tree.parent(ip: PImplementationProof) =>
@@ -71,76 +90,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         case _ => violation("Encountered ill-formed program AST")
       }
 
-    case n: PMethodImplementationProof =>
-      val validPureCheck = wellDefIfPureMethodImplementationProof(n)
-      if (validPureCheck.nonEmpty) validPureCheck
-      else {
-        entity(n.id) match {
-          case spec: MethodSpec =>
-            // check that the signatures match
-            val matchingSignature = {
-              val implSig = FunctionT(n.args map miscType, miscType(n.result))
-              val specSig = memberType(spec)
-              failedProp(
-                s"implementation proof and interface member have a different signature (should be '$specSig', but is $implSig nad ${implSig == specSig})",
-                cond = !identicalTypes(implSig, specSig)
-              )
-            }
-            // check that pure annotations match
-            val matchingPure = failedProp(
-              s"The pure annotation does not match with the pure annotation of the interface member",
-              cond = n.isPure != spec.isPure
-            )
-            // check that the receiver has the method
-            val receiverHasMethod = failedProp(
-              s"The type ${n.receiver.typ} does not have member ${n.id}",
-              cond = tryMethodLikeLookup(miscType(n.receiver), n.id).isEmpty
-            )
-            // check that the body has the right shape
-            val rightShape = {
-              n.body match {
-                case None => failedProp("A method in an implementation proof must not be abstract")
-                case Some((_, block)) =>
-
-                  val expectedReceiverOpt = n.receiver match {
-                    case _: PUnnamedParameter => None
-                    case p: PNamedParameter => Some(PNamedOperand(PIdnUse(p.id.name)))
-                    case PExplicitGhostParameter(_: PUnnamedParameter) => None
-                    case PExplicitGhostParameter(p: PNamedParameter) => Some(PNamedOperand(PIdnUse(p.id.name)))
-                  }
-
-                  val expectedArgs = n.args.flatMap {
-                    case p: PNamedParameter => Some(PNamedOperand(PIdnUse(p.id.name)))
-                    case PExplicitGhostParameter(p: PNamedParameter) => Some(PNamedOperand(PIdnUse(p.id.name)))
-                    case _ => None
-                  }
-
-                  if (expectedReceiverOpt.isEmpty || expectedArgs.size != n.args.size) {
-                    failedProp("Receiver and arguments must be named so that they can be used in a call")
-                  } else {
-                    val expectedReceiver = expectedReceiverOpt.getOrElse(violation(""))
-                    val expectedInvoke = PInvoke(PDot(expectedReceiver, n.id), expectedArgs, None)
-
-                    if (n.isPure) {
-                      block.nonEmptyStmts match {
-                        case Vector(PReturn(Vector(ret))) =>
-                          pureImplementationProofHasRightShape(ret, _ == expectedInvoke, expectedInvoke.toString)
-
-                        case _ => successProp // already checked before
-                      }
-                    } else {
-                      implementationProofBodyHasRightShape(block, _ == expectedInvoke, expectedInvoke.toString, n.result)
-                    }
-                  }
-              }
-            }
-
-            (matchingSignature and matchingPure and receiverHasMethod and rightShape)
-              .asReason(n, "invalid method of an implementation proof")
-
-          case e => Violation.violation(s"expected a method signature of an interface, but got $e")
-        }
-      }
+    case _: PBackendAnnotation => noMessages
   }
 
   private[typing] def ghostMiscType(misc: PGhostMisc): Type = misc match {
@@ -168,19 +118,39 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case PFPredBase(id) => idType(id)
     }
     case _: PDomainAxiom | _: PDomainFunction => UnknownType
-    case _: PMethodImplementationProof => UnknownType
+
+    case _: PAdtClause => UnknownType
+    case exp: PMatchPattern => exp match {
+      case PMatchBindVar(idn) => idType(idn)
+      case PMatchAdt(clause, _) =>
+        symbType(clause) match {
+          case t: AdtClauseT => t.declaredType
+          case t => t
+        }
+      case PMatchValue(lit) => typ(lit)
+      case w: PMatchWildcard => wildcardMatchType(w)
+    }
+    case _: PMatchStmtCase => UnknownType
+    case _: PMatchExpCase => UnknownType
+    case _: PMatchExpDefault => UnknownType
+
     case _: PImplementationProofPredicateAlias => UnknownType
+    case _: PBackendAnnotation => UnknownType
   }
 
   private[typing] def ghostMemberType(typeMember: GhostTypeMember): Type = typeMember match {
     case MPredicateImpl(decl, ctx) => FunctionT(decl.args map ctx.typ, AssertionT)
     case MPredicateSpec(decl, _, ctx) => FunctionT(decl.args map ctx.typ, AssertionT)
     case _: SymbolTable.GhostStructMember => ???
+    case dest: SymbolTable.AdtDestructor => dest.context.symbType(dest.decl.typ)
+    case _: SymbolTable.AdtDiscriminator => BooleanT
+    case const: SymbolTable.AdtClause => DeclaredT(const.typeDecl, const.context)
     case BuiltInMPredicate(tag, _, _) => typ(tag)
+    case f: SymbolTable.DomainFunction => FunctionT(f.args map f.context.typ, f.context.typ(f.result))
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _, _) =>
+    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _, isPure, _, isOpaque) =>
       pres.flatMap(assignableToSpec) ++ preserves.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
       preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
       pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
@@ -189,7 +159,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       // can only have one non-conditional clause
       error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
       // measures must have the same type
-      error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures))
+      error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures)) ++
+      error(n, "Opaque can only be used in combination with pure.", isOpaque && !isPure)
 
     case n@ PLoopSpec(invariants, terminationMeasure) =>
       invariants.flatMap(assignableToSpec) ++ terminationMeasure.toVector.flatMap(wellDefTerminationMeasure) ++
@@ -244,9 +215,33 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def illegalPreconditionNode(n: PNode): Messages = {
     n match {
+      case PLabeledOld(PLabelUse(PLabelNode.lhsLabel), _) => noMessages
       case n@ (_: POld | _: PLabeledOld) => message(n, s"old not permitted in precondition")
       case n@ (_: PBefore) => message(n, s"old not permitted in precondition")
       case _ => noMessages
+    }
+  }
+
+  /** Returns the type matched by the wildcard `w`. */
+  private def wildcardMatchType(w: PMatchWildcard): Type = {
+    w match {
+      case tree.parent(p) => p match {
+        case PMatchAdt(c, fields) =>
+          val index = fields indexWhere {
+            w eq _
+          }
+          val adtClauseT = underlyingType(typeSymbType(c)).asInstanceOf[AdtClauseT]
+          if (index < adtClauseT.fields.size) {
+            adtClauseT.typeAt(index)
+          } else UnknownType // Error is found when PMatchADT is checked higher up the ADT
+
+        case tree.parent.pair(_: PMatchExpCase, m: PMatchExp) => exprType(m.exp)
+        case tree.parent.pair(_: PMatchStmtCase, m: PMatchStatement) => exprType(m.exp)
+
+        case _ => Violation.violation("Found wildcard with unexpected root in wildcardMatchType")
+      }
+
+      case _ => Violation.violation(s"Did not find root for wildcard in wildcardMatchType")
     }
   }
 }

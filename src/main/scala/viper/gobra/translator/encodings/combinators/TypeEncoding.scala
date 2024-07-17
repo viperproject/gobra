@@ -10,7 +10,8 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.ast.internal.theory.Comparability
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
-import viper.gobra.reporting.{AssignmentError, DefaultErrorBackTranslator, DerefError, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, NoPermissionToRangeExpressionError, Source}
+//  import viper.gobra.reporting.{AssignmentError, DefaultErrorBackTranslator, DerefError, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, NoPermissionToRangeExpressionError, Source}
+import viper.gobra.reporting.{AssignmentError, DefaultErrorBackTranslator, LoadError, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, NoPermissionToRangeExpressionError, Source}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.library.Generator
 import viper.gobra.translator.context.Context
@@ -127,6 +128,27 @@ trait TypeEncoding extends Generator {
   }
 
   /**
+    * Returns the allocation code for a declared location with the scope of a body.
+    * The initialization code has to guarantee that all permissions for the declared variables are owned afterwards
+    *
+    * The default implements:
+    * Allocate[loc: T°] -> EmptyStmt
+    * Allocate[loc: T@] -> inhale Footprint[loc]; assume [&loc != nil(*T)]
+    */
+  def allocate(ctx: Context): in.Location ==> CodeWriter[vpr.Stmt] = {
+    case loc :: t / Exclusive if typ(ctx).isDefinedAt(t) =>
+      val (pos, info, errT) = loc.vprMeta
+      unit(vpr.Seqn(Seq(), Seq())(pos, info, errT))
+
+    case loc :: t / Shared if typ(ctx).isDefinedAt(t) =>
+      val (pos, info, errT) = loc.vprMeta
+      for {
+        footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
+        eq <- ctx.equal(in.Ref(loc)(loc.info), in.NilLit(in.PointerT(t, Exclusive))(loc.info))(loc)
+      } yield vpr.Inhale(vpr.And(footprint, vpr.Not(eq)(pos, info, errT))(pos, info, errT))(pos, info, errT)
+  }
+
+  /**
     * Encodes an assignment.
     * The first and second argument is the left-hand side and right-hand side, respectively.
     *
@@ -196,7 +218,7 @@ trait TypeEncoding extends Generator {
     * To avoid conflicts with other encodings, an encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
     * (2) shared expression of type T
-    * The default implements exclusive variables and constants with [[variable]] and [[globalVar]], respectively.
+    * The default implements exclusive local variables and constants with [[variable]] and [[Fixpoint::get]], respectively.
     * Furthermore, the default implements
     * [T(e: T)] -> [e]
     * [loc: T@ if sizeOf(T) == 0] -> assert [&loc != nil: *T°]; [dflt(T°)]
@@ -204,6 +226,14 @@ trait TypeEncoding extends Generator {
   def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     case v: in.GlobalConst if typ(ctx) isDefinedAt v.typ => unit(ctx.fixpoint.get(v)(ctx))
     case (v: in.BodyVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar)
+    case (v: in.GlobalVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) =>
+      val (pos, info, errT) = v.vprMeta
+      val typ = ctx.typ(v.typ)
+      val vprExpr = vpr.FuncApp(
+        funcname = v.name.uniqueName,
+        args = Seq.empty
+      )(pos, info, typ, errT)
+      unit(vprExpr)
     case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) => ctx.expression(expr)
     case (loc: in.Location) :: (t@ctx.ZeroSize()) / Shared if typ(ctx).isDefinedAt(t) =>
       for {
@@ -211,6 +241,13 @@ trait TypeEncoding extends Generator {
         checked <- checkNotNil(loc, dflt)(ctx)
       } yield checked
   }
+
+  /**
+    * Encodes expressions when they occur as the top-level expression in a trigger.
+    * The default implements an encoding for predicate instances and defers the
+    * encoding of all expressions to the expression encoding.
+    */
+  def triggerExpr(@unused ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
   /**
     * Encodes assertions.
@@ -296,7 +333,21 @@ trait TypeEncoding extends Generator {
     }
   }
 
-
+  /**
+    * Encodes an expression such that substitution is possible.
+    * For an expression `e` and a context `K`, the encoding of K[e] is semantically equal to K[x] with x := Value[e].
+    *
+    * Value[ e: T° ] = [e]
+    * Value[ loc: T@ ] = R[loc]
+    *
+    * */
+  final def value(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+    val liftedResult: in.Expr => Option[CodeWriter[vpr.Exp]] = {
+      case (l: in.Location) :: _ / Shared => reference(ctx).lift(l)
+      case e => finalExpression(ctx).lift(e)
+    }
+    liftedResult.unlift
+  }
 
   /**
     * Encodes the permissions for all addresses of a shared type,
@@ -428,10 +479,6 @@ trait TypeEncoding extends Generator {
     val (pos, info, errT) = src.vprMeta
     node(pos, info, errT)(ctx)
   }
-
-  /** Adds simple (source) information to a node without source information. */
-  protected def synthesized[T](node: (vpr.Position, vpr.Info, vpr.ErrorTrafo) => T)(comment: String): T =
-    node(vpr.NoPosition, vpr.SimpleInfo(Seq(comment)), vpr.NoTrafos)
 }
 
 object TypeEncoding {
@@ -449,7 +496,7 @@ object TypeEncoding {
     else {
       for {
         cond <- checkNotNil(loc)(ctx)
-        checked <- cl.assertWithDefaultReason(cond, res, DerefError)(ctx)
+        checked <- cl.assertWithDefaultReason(cond, res, LoadError)(ctx)
       } yield checked
     }
   }

@@ -216,7 +216,7 @@ class BuiltInEncoding extends Encoding {
         val pres: Vector[in.Assertion] = Vector(
           in.Access(isChannelInst, in.WildcardPerm(src))(src),
         )
-        in.PureMethod(recvParam, x.name, Vector(), Vector(kParam), pres, Vector(), Vector(), None)(src)
+        in.PureMethod(recvParam, x.name, Vector.empty, Vector(kParam), pres, Vector.empty, Vector.empty, Vector.empty, None, false)(src)
 
       case (tag: ChannelInvariantMethodTag, recv: in.ChannelT) =>
         /**
@@ -242,7 +242,7 @@ class BuiltInEncoding extends Encoding {
         val pres: Vector[in.Assertion] = Vector(
           in.Access(chanPredicate, in.WildcardPerm(src))(src)
         )
-        in.PureMethod(recvParam, x.name, Vector(), Vector(resParam), pres, Vector(), Vector(), None)(src)
+        in.PureMethod(recvParam, x.name, Vector.empty, Vector(resParam), pres, Vector.empty, Vector.empty, Vector.empty, None, false)(src)
 
       case (InitChannelMethodTag, recv: in.ChannelT) =>
         /**
@@ -297,7 +297,7 @@ class BuiltInEncoding extends Encoding {
           in.ExprAssertion(sendChannelInvEq)(src),
           in.ExprAssertion(recvChannelInvEq)(src),
         )
-        in.Method(recvParam, x.name, Vector(aParam, bParam), Vector(), pres, posts, Vector(in.WildcardMeasure(None)(src)), None)(src)
+        in.Method(recvParam, x.name, Vector(aParam, bParam), Vector.empty, pres, posts, Vector(in.WildcardMeasure(None)(src)), Vector.empty, None)(src)
 
       case (CreateDebtChannelMethodTag, recv: in.ChannelT) =>
         /**
@@ -327,7 +327,7 @@ class BuiltInEncoding extends Encoding {
           in.Access(closureDebtInst, in.FullPerm(src))(src),
           in.Access(tokenInst, in.FullPerm(src))(src),
         )
-        in.Method(recvParam, x.name, Vector(dividendParam, divisorParam /* permissionAmountParam */, predicateParam), Vector(), pres, posts, Vector(), None)(src)
+        in.Method(recvParam, x.name, Vector(dividendParam, divisorParam /* permissionAmountParam */, predicateParam), Vector.empty, pres, posts, Vector.empty, Vector.empty, None)(src)
 
       case (RedeemChannelMethodTag, recv: in.ChannelT) =>
         /**
@@ -350,7 +350,7 @@ class BuiltInEncoding extends Encoding {
           in.Access(closedInst, in.FullPerm(src))(src),
           in.Access(in.Accessible.PredExpr(in.PredExprInstance(predicateParam, Vector())(src)), in.FullPerm(src))(src)
         )
-        in.Method(recvParam, x.name, Vector(predicateParam), Vector(), pres, posts, Vector(), None)(src)
+        in.Method(recvParam, x.name, Vector(predicateParam), Vector.empty, pres, posts, Vector.empty, Vector.empty, None)(src)
 
       case (tag, recv) => violation(s"no method generation defined for tag $tag and receiver $recv")
     }
@@ -379,7 +379,7 @@ class BuiltInEncoding extends Encoding {
 
     def accessSlice(sliceExpr: in.Expr, perm: in.Expr): in.Assertion =
       quantify(
-        trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(sliceExpr, i, sliceExpr.typ)(src)))(src)) },
+        trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(sliceExpr, i, sliceExpr.typ)(src))(src)))(src)) },
         range = { i => inRange(i, in.IntLit(0)(src), in.Length(sliceExpr)(src)) },
         body = { i => in.Access(in.Accessible.Address(in.IndexedExp(sliceExpr, i, sliceExpr.typ)(src)), perm)(src) }
       )
@@ -424,7 +424,7 @@ class BuiltInEncoding extends Encoding {
           in.Access(closedInst, in.FullPerm(src))(src)
         )
 
-        in.Function(x.name, args, Vector(), pres, posts, Vector(), None)(src)
+        in.Function(x.name, args, Vector.empty, pres, posts, Vector.empty, Vector.empty, None)(src)
 
       /* João, 18/08/2021:
        *  The spec for `append` currently does not allow the first and second non-ghost arguments to be the same. The go
@@ -436,13 +436,13 @@ class BuiltInEncoding extends Encoding {
       case (AppendFunctionTag, Vector(_: in.PermissionT, dst, _)) =>
         /**
           * requires p > 0
-          * requires forall i int :: { dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i])
-          * requires forall i int :: { src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
+          * requires forall i int :: { &dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i])
+          * requires forall i int :: { &src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
           * ensures len(res) == len(dst) + len(src)
-          * ensures forall i int :: { res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
-          * ensures forall i int :: { src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
-          * ensures forall i int :: { res[i] } 0 <= i && i < len(dst) ==> res[i] == old(dst[i])
-          * ensures forall i int :: { res[i] } len(dst) <= i && i < len(res) ==> res[i] == src[i - len(dst)]
+          * ensures forall i int :: { &res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
+          * ensures forall i int :: { &src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
+          * ensures forall i int :: { &res[i] } 0 <= i && i < len(dst) ==> res[i] === old(dst[i])
+          * ensures forall i int :: { &res[i] } len(dst) <= i && i < len(res) ==> res[i] === src[i - len(dst)]
           */
         val elemType = ctx.underlyingType(dst) match {
           case t: in.SliceT => t.elems.withAddressability(Addressability.sliceLookup)
@@ -477,42 +477,44 @@ class BuiltInEncoding extends Encoding {
         val postRes = accessSlice(resultParam, in.FullPerm(src))
         val postVariadic = accessSlice(variadicParam, pParam)
         val postCmpSlice = quantify(
-          trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(resultParam, i, sliceType)(src)))(src)) },
+          trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(resultParam, i, sliceType)(src))(src)))(src)) },
           range = { inRange(_, in.IntLit(0)(src), in.Length(sliceParam)(src)) },
           body = {
             i => in.ExprAssertion(
-              in.EqCmp(in.IndexedExp(resultParam, i, sliceType)(src), in.Old(in.IndexedExp(sliceParam, i, sliceType)(src), elemType)(src))(src)
+              in.GhostEqCmp(
+                in.IndexedExp(resultParam, i, sliceType)(src),
+                in.Old(in.IndexedExp(sliceParam, i, sliceType)(src), elemType)(src)
+              )(src)
             )(src)
           }
         )
         val postCmpVariadic = quantify(
-          trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(resultParam, i, sliceType)(src)))(src)) },
+          trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(resultParam, i, sliceType)(src))(src)))(src)) },
           range = { inRange(_,  in.Length(sliceParam)(src), in.Length(resultParam)(src)) },
           body = { i =>
             in.ExprAssertion(
-              in.EqCmp(
+              in.GhostEqCmp(
                 in.IndexedExp(resultParam, i, sliceType)(src),
                 in.IndexedExp(variadicParam, in.Sub(i, in.Length(sliceParam)(src))(src), sliceType)(src),
               )(src)
             )(src)
           }
         )
-
         val posts: Vector[in.Assertion] = Vector(postLen, postRes, postVariadic, postCmpSlice, postCmpVariadic)
 
-        in.Function(x.name, args, results, pres, posts, Vector(in.WildcardMeasure(None)(src)), None)(src)
+        in.Function(x.name, args, results, pres, posts, Vector(in.WildcardMeasure(None)(src)), Vector.empty, None)(src)
 
       case (CopyFunctionTag, Vector(t1, t2, _)) =>
         /**
           * requires 0 < p
-          * requires forall i int :: { dst[i] } (0 <= i && i < len(dst)) ==> acc(&dst[i], write)
-          * requires forall i int :: { src[i] } (0 <= i && i < len(src)) ==> acc(&src[i], p)
+          * requires forall i int :: { &dst[i] } (0 <= i && i < len(dst)) ==> acc(&dst[i], write)
+          * requires forall i int :: { &src[i] } (0 <= i && i < len(src)) ==> acc(&src[i], p)
           * ensures len(dst) <= len(src) ==> res == len(dst)
           * ensures len(src) < len(dst) ==> res == len(src)
-          * ensures forall i int :: { dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i], write)
-          * ensures forall i int :: { src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
-          * ensures forall i int :: { dst[i] } (0 <= i && i < len(src) && i < len(dst)) ==> dst[i] == old(src[i])
-          * ensures forall i int :: { dst[i] } (len(src) <= i && i < len(dst)) ==> dst[i] == old(dst[i])
+          * ensures forall i int :: { &dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i], write)
+          * ensures forall i int :: { &src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
+          * ensures forall i int :: { &dst[i] } (0 <= i && i < len(src) && i < len(dst)) ==> dst[i] === old(src[i])
+          * ensures forall i int :: { &dst[i] } (len(src) <= i && i < len(dst)) ==> dst[i] === old(dst[i])
           * func copy(dst, src []int, ghost p perm) (res int)
           */
 
@@ -542,14 +544,16 @@ class BuiltInEncoding extends Encoding {
         // preconditions
         val pPre = in.ExprAssertion(in.LessCmp(in.NoPerm(src), pParam)(src))(src)
         val preDst = quantify(
-          trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)))(src)) },
+          trigger = { i =>
+            Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(dstParam, i, dstUnderlyingType)(src))(src)))(src))
+          },
           range = { i => inRange(i, in.IntLit(0)(src), in.Length(dstParam)(src)) },
           body = { i =>
             in.Access(in.Accessible.Address(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)), in.FullPerm(src))(src)
           }
         )
         val preSrc = quantify(
-          trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(srcParam, i, srcUnderlyingType)(src)))(src)) },
+          trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(srcParam, i, srcUnderlyingType)(src))(src)))(src)) },
           range = { i => inRange(i, in.IntLit(0)(src), in.Length(srcParam)(src)) },
           body = { i => in.Access(in.Accessible.Address(in.IndexedExp(srcParam, i, srcUnderlyingType)(src)), pParam)(src) }
         )
@@ -571,7 +575,7 @@ class BuiltInEncoding extends Encoding {
         val postDst = preDst
         val postSrc = preSrc
         val postUpdate = quantify(
-          trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)))(src)) },
+          trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(dstParam, i, dstUnderlyingType)(src))(src)))(src)) },
           range = { i =>
             in.And(
               inRange(i, in.IntLit(0)(src), in.Length(srcParam)(src)),
@@ -580,7 +584,7 @@ class BuiltInEncoding extends Encoding {
           },
           body = { i =>
             in.ExprAssertion(
-              in.EqCmp(
+              in.GhostEqCmp(
                 in.IndexedExp(dstParam, i, dstUnderlyingType)(src),
                 in.Old(in.IndexedExp(srcParam, i, srcUnderlyingType)(src), srcUnderlyingType.elems)(src)
               )(src)
@@ -588,11 +592,11 @@ class BuiltInEncoding extends Encoding {
           }
         )
         val postSame = quantify(
-          trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)))(src)) },
+          trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(dstParam, i, dstUnderlyingType)(src))(src)))(src)) },
           range = { i => inRange(i, in.Length(srcParam)(src), in.Length(dstParam)(src)) },
           body = { i =>
             in.ExprAssertion(
-              in.EqCmp(
+              in.GhostEqCmp(
                 in.IndexedExp(dstParam, i, dstUnderlyingType)(src),
                 in.Old(in.IndexedExp(dstParam, i, dstUnderlyingType)(src), dstUnderlyingType.elems)(src)
               )(src)
@@ -602,7 +606,7 @@ class BuiltInEncoding extends Encoding {
 
         val posts = Vector(postRes1, postRes2, postDst, postSrc, postUpdate, postSame)
 
-        in.Function(x.name, args, results, pres, posts, Vector(in.WildcardMeasure(None)(src)), None)(src)
+        in.Function(x.name, args, results, pres, posts, Vector(in.WildcardMeasure(None)(src)), Vector.empty, None)(src)
 
       case (tag, args) => violation(s"no function generation defined for tag $tag and arguments $args")
     }
@@ -676,6 +680,6 @@ class BuiltInEncoding extends Encoding {
     */
   private def builtInPureMethodCall(tag: BuiltInMethodTag, recv: in.Expr, args: Vector[in.Expr], retType: in.Type)(src: Source.Parser.Info)(ctx: Context): in.PureMethodCall = {
     val method = getOrGenerateMethod(tag, recv.typ, args.map(_.typ))(src)(ctx)
-    in.PureMethodCall(recv, method, args, retType)(src)
+    in.PureMethodCall(recv, method, args, retType, false)(src)
   }
 }

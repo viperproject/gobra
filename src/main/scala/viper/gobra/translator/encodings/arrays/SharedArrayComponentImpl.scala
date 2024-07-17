@@ -15,7 +15,9 @@ import viper.gobra.translator.context.Context
 import viper.gobra.translator.library.embeddings.EmbeddingComponent
 import viper.gobra.translator.Names
 import viper.gobra.translator.util.FunctionGenerator
+import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeLevel.pure
+import viper.silver.plugin.standard.termination
 
 class SharedArrayComponentImpl extends SharedArrayComponent {
 
@@ -48,7 +50,7 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
         name = s"${Names.arrayNilFunc}_${t.serialize}",
         formalArgs = Seq.empty,
         typ = vResType,
-        pres = Seq.empty,
+        pres = Seq(synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")),
         posts = Vector(vpr.EqCmp(ctx.array.len(vpr.Result(vResType)())(), vpr.IntLit(1)())(), forall),
         body = None
       )()

@@ -742,7 +742,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val itfSymb = ctx.lookup(p.superProxy).asInstanceOf[in.PureMethod]
     val vItfFun = ctx.defaultEncoding.pureMethod(itfSymb)(ctx).res
 
-    val body = p.body.getOrElse(in.PureMethodCall(p.receiver, p.subProxy, p.args, p.results.head.typ)(p.info))
+    val body = p.body.getOrElse(in.PureMethodCall(p.receiver, p.subProxy, p.args, p.results.head.typ, false)(p.info))
 
     val pureMethodDummy = ctx.defaultEncoding.pureMethod(in.PureMethod(
       receiver = p.receiver,
@@ -752,7 +752,9 @@ class InterfaceEncoding extends LeafTypeEncoding {
       pres = Vector.empty,
       posts = Vector.empty,
       terminationMeasures = Vector.empty,
-      body = Some(body)
+      backendAnnotations = Vector.empty,
+      body = Some(body),
+      isOpaque = false
     )(p.info))(ctx)
 
     val pres = vItfFun.pres.map { pre =>
@@ -796,6 +798,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       pres = Vector.empty,
       posts = Vector.empty,
       terminationMeasures = Vector.empty,
+      backendAnnotations = Vector.empty,
       body = Some(body)
     )(p.info))(ctx)
 

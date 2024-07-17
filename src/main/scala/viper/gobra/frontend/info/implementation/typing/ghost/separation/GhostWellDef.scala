@@ -11,6 +11,8 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.SymbolTable.{Closure, Function, Regular, SingleLocalVariable}
+import viper.gobra.frontend.info.base.Type.{ActualPointerT, GhostPointerT}
+import viper.gobra.util.Violation
 import viper.gobra.util.Violation.violation
 
 trait GhostWellDef { this: TypeInfoImpl =>
@@ -38,11 +40,14 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
     case n : PVarDecl => n.typ match {
       case Some(typ) => error(n, s"ghost error: expected an actual type but found $typ",
-        isTypeGhost(typ) && !enclosingGhostContext(n))
+        isTypeGhost(typ) && !isEnclosingGhost(n))
       case None => noMessages
     }
 
-    case m if enclosingGhostContext(m) => noMessages
+    case m if isEnclosingGhost(m) => noMessages
+
+    case m: PMethodDecl => error(m, "ghost error: expected an actual receiver type",
+      isTypeGhost(m.receiver.typ) && !isEnclosingGhost(m))
 
     case _ => noMessages
   }
@@ -50,8 +55,11 @@ trait GhostWellDef { this: TypeInfoImpl =>
   private def stmtGhostSeparation(stmt: PStatement): Messages = stmt match {
     case p: PClosureImplProof => provenSpecMatchesInGhostnessWithCall(p)
 
+    case PAssignment(right, left) => ghostAssignableToAssignee(right: _*)(left: _*)
+    case PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
+
     case _: PGhostStatement => noMessages
-    case s if enclosingGhostContext(s) => noMessages
+    case s if isEnclosingGhost(s) => noMessages
 
     case stmt @ PForStmt(pre, cond, post, _, body) => {
       // NOTE the loop specification *is* allowed to contain ghost constructs; the rest isn't
@@ -84,9 +92,6 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PDeferStmt
       ) => error(n, "ghost error: Found ghost child expression but expected none", !noGhostPropagationFromChildren(n))
 
-    case PAssignment(right, left) => ghostAssignableToAssignee(right: _*)(left: _*)
-    case PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
-
     case PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
 
     case n@ PReturn(right) =>
@@ -97,12 +102,6 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
   private def exprGhostSeparation(expr: PExpression): Messages = expr match {
     case _: PGhostExpression => noMessages
-    case e if enclosingGhostContext(e) =>
-      e match {
-        case PMake(_: PGhostSliceType, _) => noMessages
-        case _: PMake | _: PNew | PReference(_: PCompositeLit) => error(e, "Allocating memory within ghost code is forbidden")
-        case _ => noMessages
-      }
 
     case _: PDot
        | _: PDeref
@@ -126,31 +125,45 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
     case n@ ( // these are just suggestions for now. We will have to adapt then, when we decide on proper ghost separation rules.
       _: PReceive
-      ) => error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
+      ) => error(n, "ghost error: Found ghost child expression, but expected none", !isEnclosingGhost(n) && !noGhostPropagationFromChildren(n))
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
-      case (Right(_), Some(_: ap.Conversion)) =>  error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
-      case (Left(_), Some(call: ap.FunctionCall)) => ghostAssignableToCallExpr(call)
+      case (Right(_), Some(_: ap.Conversion)) => noMessages
+      case (Left(_), Some(call: ap.FunctionCall)) =>
+        error(n, "ghost error: Found call to non-ghost impure function in ghost code",
+          // call must be in a ghost context and callee must be actual and impure
+          isEnclosingGhost(n) && !calleeGhostTyping(call).isGhost && isPureExpr(n).nonEmpty) ++
+          ghostAssignableToCallExpr(call)
       case (Left(_), Some(call: ap.ClosureCall)) => ghostAssignableToClosureCall(call)
       case (Left(_), Some(_: ap.PredicateCall)) => noMessages
       case (Left(_), Some(_: ap.PredExprInstance)) => noMessages
       case _ => violation("expected conversion, function call, or predicate call")
     }
 
-    case _: PNew => noMessages
+    case e: PNew =>
+      if (isEnclosingGhost(e)) {
+        Violation.violation(exprType(e).isInstanceOf[GhostPointerT], s"Cannot allocate non-ghost memory in ghost code.")
+      } else {
+        Violation.violation(exprType(e).isInstanceOf[ActualPointerT], s"Cannot allocate ghost memory in non-ghost code.")
+      }
+      noMessages
 
-    case n@PMake(_, args) => error(
-      n,
-      "ghost error: make expressions may not contain ghost expressions",
-      args exists (x => !noGhostPropagationFromChildren(x))
-    )
+    case e: PMake => (e, isEnclosingGhost(e)) match {
+      case (PMake(_: PGhostSliceType, _), true)  => noMessages
+      case (_, true) => error(e, "Allocating memory with make within ghost code is forbidden")
+      case (PMake(_, args), false) => error(
+        e,
+        "ghost error: make expressions may not contain ghost expressions",
+        args exists (x => !noGhostPropagationFromChildren(x))
+      )
+    }
   }
 
   private def typeGhostSeparation(typ: PType): Messages = typ match {
     case _: PGhostType => noMessages
     case n: PStructType => n.fields.flatMap(f => {
       error(f, s"ghost error: expected an actual type but found ${f.typ}",
-        isTypeGhost(f.typ) && !enclosingGhostContext(f))
+        isTypeGhost(f.typ) && !isEnclosingGhost(f))
     })
     case _: PInterfaceType => noMessages
     case n: PType => error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
@@ -181,7 +194,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
   private def miscGhostSeparation(misc : PMisc) : Messages = misc match {
     case _: PGhostMisc => noMessages
     case p: PActualParameter => error(p, s"ghost error: expected an actual type but found ${p.typ}",
-      isTypeGhost(p.typ) && !enclosingGhostContext(p))
+      isTypeGhost(p.typ) && !isEnclosingGhost(p))
     case _ => noMessages
   }
 }

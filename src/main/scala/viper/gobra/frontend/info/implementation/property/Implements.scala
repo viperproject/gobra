@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.ast.frontend.{PExplicitGhostStructClause, PInterfaceType, PTypeDef, AstPattern => ap}
+import viper.gobra.ast.frontend.{PInterfaceType, PTypeDef, AstPattern => ap}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, Method}
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.base.Type.{GhostCollectionType, NilType, Type}
@@ -94,7 +94,7 @@ trait Implements { this: TypeInfoImpl =>
     failedProp(s"The type $t is not supported for interface", !isIdentityPreservingType(t))
   }
 
-  /** Returns whether values of type 't' satisfy that [x] == [y] in Viper implies x == y in Gobra. */
+  /** Returns whether values of type 't' satisfy that [x] == [y] in Viper (using `TypeEncoding.equal`) <==> x == y in Go (using Go equality). */
   private def isIdentityPreservingType(t: Type, encounteredTypes: Set[Type] = Set.empty): Boolean = {
     if (encounteredTypes contains t) {
       true
@@ -104,12 +104,15 @@ trait Implements { this: TypeInfoImpl =>
         case Type.NilType | Type.BooleanT | _: Type.IntT | Type.StringT => true
         case ut: Type.PointerT => go(ut.elem)
         case ut: Type.StructT =>
-          ut.decl.clauses.forall(!_.isInstanceOf[PExplicitGhostStructClause]) &&
-            ut.clauses.forall{ case (_, (_, fieldType)) => go(fieldType) }
+          // a struct with ghost fields or ghost embeddings is not identity preserving.
+          // E.g., for `type S struct { val int, ghost gval int }`, `S{0, 0} == S{0, 42}` holds in Go (after erasing the ghost fields).
+          ut.clauses.forall{ case (_, info) => !info.isGhost && go(info.typ) }
         case ut: Type.ArrayT => go(ut.elem)
         case _: Type.SliceT => true
         case _: Type.MapT => true
         case ut: Type.OptionT => go(ut.elem)
+        case ut: Type.AdtT =>
+          ut.clauses.forall(_.fields.forall(f => go(f._2)))
         case ut: GhostCollectionType => go(ut.elem)
         case _: Type.InterfaceT => true
         case _ => false

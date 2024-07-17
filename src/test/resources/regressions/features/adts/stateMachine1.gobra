@@ -1,0 +1,189 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package adts
+
+type State adt {
+    Modified{}
+    Shared{}
+    Invalid{}
+}
+
+type ProcessorSignal adt {
+    PrWr{}
+    PrRd{}
+}
+
+type BusSignal adt {
+    BusRd{}
+    BusRdX{}
+    BusUpgr{}
+    NoSig{}
+}
+
+type BusOpt adt {
+    Some {
+        sig BusSignal
+    }
+
+    None{}
+}
+
+type Machine struct {
+    current int
+}
+
+pred (m *Machine) isMachine() {
+    acc(m) && m.current >= 0 && m.current < 3
+}
+
+ghost
+requires m.isMachine()
+pure func (m *Machine) stateOfMachine() State {
+    return unfolding m.isMachine() in (
+        match m.current {
+            case 0: Invalid{}
+            case 1: Shared{}
+            case 2: Modified{}
+        })
+}
+
+ghost
+requires i >= -1 && i <= 2
+pure func busSigToAdt(i int) BusSignal {
+    return (match i {
+        case -1: NoSig{}
+        case 0: BusRd{}
+        case 1: BusRdX{}
+        case 2: BusUpgr{}
+    })
+}
+
+
+ghost
+requires i >= 0 && i <= 1
+pure func prSigToAdt(i int) ProcessorSignal {
+    return (match i {
+        case 0: PrRd{}
+        case 1: PrWr{}
+    })
+}
+
+
+requires m.isMachine()
+requires signal >= 0 && signal <= 1
+ensures res.isMachine()
+ensures addtionalSignal >= -1 && addtionalSignal <= 2
+ensures (old((m.stateOfMachine())) == Invalid{}) ==> (match prSigToAdt(signal) {
+    case PrWr{}: ((res.stateOfMachine()).isModified && (busSigToAdt(addtionalSignal)).isBusRdX)
+    case PrRd{}: ((res.stateOfMachine()).isShared && (busSigToAdt(addtionalSignal)).isBusRd)})
+ensures (old((m.stateOfMachine())) == Modified{}) ==> (res.stateOfMachine()).isModified && (busSigToAdt(addtionalSignal)).isNoSig
+ensures (old((m.stateOfMachine())) == Shared{}) ==> (match prSigToAdt(signal) {
+    case PrWr{}: ((res.stateOfMachine()).isModified && (busSigToAdt(addtionalSignal)).isBusUpgr)
+    case PrRd{}: ((res.stateOfMachine()).isShared && (busSigToAdt(addtionalSignal)).isNoSig)})
+func (m *Machine) transitionProcessorSignal(signal int) (res *Machine, addtionalSignal int) {
+    addtionalSignal = -1
+    unfold m.isMachine()
+    if m.current == 0 {
+        if signal == 0 {
+            m.current = 1
+            addtionalSignal = 0
+        } else {
+            m.current = 2
+            addtionalSignal = 1
+        }
+    } else if m.current == 2 {
+        m.current = 2
+    } else {
+        if signal == 1 {
+            m.current = 2
+            addtionalSignal = 2
+        } else {
+            m.current = 1
+        }
+    }
+    res = m
+    fold res.isMachine()
+}
+
+
+requires m.isMachine()
+requires signal >= 0 && signal <= 2
+requires (m.stateOfMachine()).isModified ==> !((busSigToAdt(signal)).isBusUpgr)
+ensures res.isMachine()
+ensures old((m.stateOfMachine()).isModified) == flushed
+ensures match old((m.stateOfMachine())) {
+    case Invalid{}: (res.stateOfMachine()).isInvalid
+    case Shared{}: match (busSigToAdt(signal)) {
+        case BusRd{}: (res.stateOfMachine()).isShared
+        default: (res.stateOfMachine()).isInvalid
+    }
+    case Modified{}: match (busSigToAdt(signal)) {
+        case BusRd{}: (res.stateOfMachine()).isShared
+        case BusRdX{}: (res.stateOfMachine()).isInvalid
+    }
+}
+func (m *Machine) transitionBusSignal(signal int) (res *Machine, flushed bool) {
+    flushed = false
+    unfold m.isMachine()
+    if m.current == 0 {
+        m.current = 0
+    } else if m.current == 1 {
+        if signal == 1 || signal == 2 {
+            m.current = 0
+        } else {
+            m.current = 1
+        }
+    } else {
+        flushed = true
+        if signal == 0 {
+            m.current = 1
+        } else if signal == 1 {
+            m.current = 0
+        }
+    }
+
+    res = m
+    fold res.isMachine()
+}
+
+
+func client() {
+    p1 := &Machine{0}
+    p2 := &Machine{0}
+
+    fold p1.isMachine()
+    fold p2.isMachine()
+
+    var addtionalSignal int
+    var flushed bool
+
+    p1, addtionalSignal = p1.transitionProcessorSignal(0)
+    if (addtionalSignal != -1) {
+        p2, flushed = p2.transitionBusSignal(addtionalSignal)
+    }
+
+    assert (p1.stateOfMachine()).isShared && (p2.stateOfMachine()).isInvalid && !flushed
+
+    p2, addtionalSignal = p2.transitionProcessorSignal(0)
+    if (addtionalSignal != -1) {
+        p1, flushed = p1.transitionBusSignal(addtionalSignal)
+    }
+
+    assert (p1.stateOfMachine()).isShared && (p2.stateOfMachine()).isShared && !flushed
+
+    p1, addtionalSignal = p1.transitionProcessorSignal(1)
+    if (addtionalSignal != -1) {
+        p2, flushed = p2.transitionBusSignal(addtionalSignal)
+    }
+
+    assert (p1.stateOfMachine()).isModified && (p2.stateOfMachine()).isInvalid && !flushed
+
+    p2, addtionalSignal = p2.transitionProcessorSignal(1)
+    if (addtionalSignal != -1) {
+        p1, flushed = p1.transitionBusSignal(addtionalSignal)
+    }
+
+    assert (p1.stateOfMachine()).isInvalid && (p2.stateOfMachine()).isModified && flushed
+
+}

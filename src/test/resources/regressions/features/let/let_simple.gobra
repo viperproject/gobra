@@ -1,0 +1,44 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+ghost
+pure func f(x int) int {
+	return let y,z := x + 1,x+2 in let y := y + x in y + z
+}
+
+ghost
+ensures res == 3 * x + 3
+func g(x int) (res int) {
+	return f(x)
+}
+
+
+type A struct {
+	x *int
+}
+
+pred (a *A) Mem() {
+	acc(&a.x) && acc(a.x)
+}
+
+requires a.Mem()
+ensures a.Mem()
+ensures let y := unfolding a.Mem() in *(a.x) in y > 0 && y < 4 && y != 2
+func (a *A) g(x int) {
+	unfold a.Mem()
+	*a.x = 3
+	fold a.Mem()
+}
+
+pred Q(x int) {
+	true
+}
+
+requires acc(x)
+requires Q(y)
+func impureLets(x *int, y int) {
+	assert let z := y in Q(z)
+	assert let z := x in acc(z)
+}

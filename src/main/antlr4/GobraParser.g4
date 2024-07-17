@@ -25,7 +25,6 @@ stmtOnly: statement EOF;
 
 typeOnly: type_ EOF;
 
-
 // Identifier lists with added addressability modifiers
 maybeAddressableIdentifierList: maybeAddressableIdentifier (COMMA maybeAddressableIdentifier)*;
 
@@ -38,6 +37,10 @@ sourceFile:
   (initPost eos)* packageClause eos (importDecl eos)* (
     (specMember | declaration | ghostMember) eos
   )* EOF;
+
+// `preamble` is a second entry point allowing us to parse only the top of a source.
+// That's also why we don not enforce EOF at the end.
+preamble: (initPost eos)* packageClause eos (importDecl eos)*;
 
 initPost: INIT_POST expression;
 
@@ -57,7 +60,8 @@ ghostMember: implementationProof
 ghostStatement:
   GHOST statement  #explicitGhostStatement
   | fold_stmt=(FOLD | UNFOLD) predicateAccess #foldStatement
-  | kind=(ASSUME | ASSERT | INHALE | EXHALE) expression #proofStatement
+  | kind=(ASSUME | ASSERT | REFUTE | INHALE | EXHALE) expression #proofStatement
+  | matchStmt #matchStmt_
   ;
 
 // Auxiliary statements
@@ -81,7 +85,9 @@ ghostPrimaryExpr: range
   | before
   | sConversion
   | optionNone | optionSome | optionGet
-  | permission;
+  | permission
+  | matchExpr
+  ;
 
 permission: WRITEPERM | NOPERM;
 
@@ -125,6 +131,9 @@ access: ACCESS L_PAREN expression (COMMA expression)? R_PAREN;
 
 range: kind=(SEQ | SET | MSET) L_BRACKET expression DOT_DOT expression R_BRACKET;
 
+matchExpr: MATCH expression L_CURLY (matchExprClause eos)* R_CURLY;
+matchExprClause: matchCase COLON expression;
+
 // Added directly to primaryExpr
 seqUpdExp: L_BRACKET (seqUpdClause (COMMA seqUpdClause)*) R_BRACKET;
 
@@ -132,22 +141,43 @@ seqUpdClause: expression ASSIGN expression;
 
 // Ghost Type Literals
 
-ghostTypeLit: sqType | ghostSliceType | domainType;
+ghostTypeLit: sqType | ghostSliceType | ghostPointerType | domainType | adtType;
 
 domainType: DOM L_CURLY (domainClause eos)* R_CURLY;
 
 domainClause: FUNC IDENTIFIER signature | AXIOM L_CURLY expression eos R_CURLY;
 
+adtType: ADT L_CURLY (adtClause eos)* R_CURLY;
+
+adtClause: IDENTIFIER L_CURLY (adtFieldDecl eos)* R_CURLY;
+
+adtFieldDecl: identifierList? type_;
+
 ghostSliceType: GHOST L_BRACKET R_BRACKET elementType;
+
+ghostPointerType: GPOINTER L_BRACKET elementType R_BRACKET;
+
+// copy of `fieldDecl` from GoParser.g4 extended with an optional `GHOST` modifier for fields and embedded fields:
+fieldDecl: GHOST? (
+		identifierList type_
+		| embeddedField
+	) tag = string_?;
 
 sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
     | kind=DICT L_BRACKET type_ R_BRACKET type_;
 
 // Specifications
 
-specification returns[boolean trusted = false, boolean pure = false;]:
-  ((specStatement | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? // Non-greedily match PURE to avoid missing eos errors.
+specification returns[boolean trusted = false, boolean pure = false, boolean opaque = false;]:
+  // Non-greedily match PURE to avoid missing eos errors.
+  ((specStatement | OPAQUE {$opaque = true;} | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? backendAnnotation?
   ;
+
+backendAnnotationEntry: ~('('|')'|',')+;
+listOfValues: backendAnnotationEntry (COMMA backendAnnotationEntry)*;
+singleBackendAnnotation: backendAnnotationEntry L_PAREN listOfValues? R_PAREN;
+backendAnnotationList: singleBackendAnnotation (COMMA singleBackendAnnotation)*;
+backendAnnotation: BACKEND L_BRACKET backendAnnotationList? R_BRACKET eos;
 
 specStatement
   : kind=PRE assertion
@@ -160,6 +190,18 @@ terminationMeasure: expressionList? (IF expression)?;
 assertion:
   | expression
   ;
+
+matchStmt: MATCH expression L_CURLY matchStmtClause* R_CURLY;
+matchStmtClause: matchCase COLON statementList?;
+
+matchCase: CASE matchPattern | DEFAULT;
+matchPattern
+  : QMARK IDENTIFIER #matchPatternBind
+  | literalType L_CURLY (matchPatternList COMMA?)? R_CURLY #matchPatternComposite
+  | expression #matchPatternValue
+  ;
+
+matchPatternList: matchPattern (COMMA matchPattern)*;
 
 blockWithBodyParameterInfo: L_CURLY (SHARE identifierList eos)? statementList? R_CURLY;
 
@@ -198,11 +240,11 @@ new_: NEW L_PAREN type_ R_PAREN;
 
 // Added specifications and parameter info
 
-specMember: specification (functionDecl[$specification.trusted, $specification.pure] | methodDecl[$specification.trusted, $specification.pure]);
+specMember: specification (functionDecl[$specification.trusted, $specification.pure, $specification.opaque] | methodDecl[$specification.trusted, $specification.pure, $specification.opaque]);
 
-functionDecl[boolean trusted, boolean pure]:  FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
+functionDecl[boolean trusted, boolean pure, boolean opaque]:  FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
 
-methodDecl[boolean trusted, boolean pure]: FUNC receiver IDENTIFIER (signature blockWithBodyParameterInfo?);
+methodDecl[boolean trusted, boolean pure, boolean opaque]: FUNC receiver IDENTIFIER (signature blockWithBodyParameterInfo?);
 
 
 
@@ -284,6 +326,7 @@ expression:
   |<assoc=right> expression IMPLIES expression #implication
   |<assoc=right> expression QMARK expression COLON expression #ternaryExpr
   | UNFOLDING predicateAccess IN expression #unfolding
+  | LET shortVarDecl IN expression #let
   | (FORALL | EXISTS) boundVariables COLON COLON triggers expression #quantification
   ;
 
@@ -347,7 +390,9 @@ primaryExpr:
   | primaryExpr slice_ #slicePrimaryExpr
   | primaryExpr seqUpdExp #seqUpdPrimaryExpr
   | primaryExpr typeAssertion #typeAssertionPrimaryExpr
+  // "REVEAL? primaryExpr arguments" doesn't work due to mutual left recursion
   | primaryExpr arguments #invokePrimaryExpr
+  | REVEAL primaryExpr arguments #revealInvokePrimaryExpr
   | primaryExpr arguments AS closureSpecInstance #invokePrimaryExprWithSpec
   | primaryExpr predConstructArgs #predConstrPrimaryExpr
   | call_op=(
@@ -434,3 +479,10 @@ assign_op: ass_op=(
     | AMPERSAND
     | BIT_CLEAR
   )? ASSIGN;
+
+// Add permission argument to range
+
+rangeClause: (
+		expressionList ASSIGN
+		| maybeAddressableIdentifierList DECLARE_ASSIGN
+	)? RANGE expression (WITH IDENTIFIER?)?;

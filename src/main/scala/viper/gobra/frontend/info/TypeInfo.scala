@@ -15,8 +15,6 @@ import viper.gobra.theory.Addressability
 
 trait TypeInfo extends ExternalTypeInfo {
 
-  def context: Info.Context
-
   def typOfExprOrType(expr: PExpressionOrType): Type
   def addressability(expr: PExpression): Addressability
   def addressableVar(id: PIdnNode): Addressability
@@ -26,6 +24,7 @@ trait TypeInfo extends ExternalTypeInfo {
   def regular(n: PIdnNode): Regular
 
   def isDef(n: PIdnUnk): Boolean
+  def isEffectfulConversion(c: AstPattern.Conversion): Boolean
 
   def resolve(n: PExpressionOrType): Option[AstPattern.Pattern]
   def exprOrType(n: PExpressionOrType): Either[PExpression, PType]
@@ -42,7 +41,7 @@ trait TypeInfo extends ExternalTypeInfo {
   def freeModified(n: PNode): Vector[PIdnNode]
   def freeDeclared(n: PNode): Vector[PIdnNode]
 
-  def capturedVariables(decl: PClosureDecl): Vector[PIdnNode]
+  def capturedLocalVariables(decl: PClosureDecl): Vector[PIdnNode]
 
   def evalBool(exp: PExpression): Boolean
   def evalInt(exp: PExpression): BigInt

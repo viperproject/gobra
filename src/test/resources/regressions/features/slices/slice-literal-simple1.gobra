@@ -11,15 +11,17 @@ func test1() {
 }
 
 func test2() {
-	s@ := [][]int{[]int{1}, []int{2}}
+  s@ := [][]int{[]int{1}, []int{2}}
   assert len(s) == 2
 }
 
 func test3() {
-  assert len([]int { 1, 2, 3 }) == 3
-  assert cap([]int { 4, 5 }[:]) == 2
-  assert len([]int { 1, 2, 3 }[:2]) == 2
-  assert cap([]int { 4, 5 }[1:]) == 1
+  oneTwoThree := []int { 1, 2, 3 }
+  fourFive := []int { 4, 5 }
+  assert len(oneTwoThree) == 3
+  assert cap(fourFive[:]) == 2
+  assert len(oneTwoThree[:2]) == 2
+  assert cap(fourFive[1:]) == 1
 }
 
 func test4() {

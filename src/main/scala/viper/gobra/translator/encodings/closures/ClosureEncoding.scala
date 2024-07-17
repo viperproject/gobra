@@ -9,7 +9,7 @@ package viper.gobra.translator.encodings.closures
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting
-import viper.gobra.reporting.BackTranslator.ErrorTransformer
+import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
 import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
@@ -85,6 +85,8 @@ class ClosureEncoding extends LeafTypeEncoding {
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = default(super.statement(ctx)) {
     case c: in.ClosureCall => specs.closureCall(c)(ctx)
 
+    case c: in.GoClosureCall => specs.goClosureCall(c)(ctx)
+
     case p: in.SpecImplementationProof =>
       specImplementationProof(p)(ctx)
   }
@@ -135,6 +137,7 @@ class ClosureEncoding extends LeafTypeEncoding {
     * inhale closureImplements$[spec]([closure], [params])
     */
   private def specImplementationProof(proof: in.SpecImplementationProof)(ctx: Context): CodeWriter[vpr.Stmt] = {
+    val (exhalePos, _, _) = proof.vprMeta
     val inhalePres = cl.seqns(proof.pres map (a => for {
           ass <- ctx.assertion(a)
         } yield vpr.Inhale(ass)()))
@@ -143,11 +146,10 @@ class ClosureEncoding extends LeafTypeEncoding {
         rest <- acc
         ass <- ctx.assertion (a)
       } yield vpr.And(rest, ass) ())
-    } yield vpr.Exhale(assertions)()
+    } yield vpr.Exhale(assertions)(exhalePos)
 
-    def isSubnode(sub: vpr.Node, n: vpr.Node): Boolean = (sub eq n) || n.subnodes.exists(n => isSubnode(sub, n))
     def failedExhale: ErrorTransformer = {
-      case errors.ExhaleFailed(offendingNode, reason, _) if isSubnode(offendingNode, exhalePosts.res) =>
+      case e@errors.ExhaleFailed(_, reason, _) if e causedBy exhalePosts.res =>
         val info = proof.vprMeta._2.asInstanceOf[Source.Verifier.Info]
         reason match {
           case reason: reasons.AssertionFalse => reporting.SpecImplementationPostconditionError(info, proof.spec.info.tag)

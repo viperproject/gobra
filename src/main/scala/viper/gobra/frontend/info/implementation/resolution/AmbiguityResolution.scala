@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.resolution
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
-import viper.gobra.frontend.info.base.Type.{ImportT, PredT, FunctionT}
+import viper.gobra.frontend.info.base.Type.{AdtT, FunctionT, ImportT, PredT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation.violation
 
@@ -30,8 +30,8 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         exprOrType(n.base)
           .fold(
             _ => Left(n),
-            symbType(_) match { // check if base is a package qualifier and id points to a type
-              case _: ImportT if pointsToType(n.id) => Right(n)
+            baseType => underlyingType(symbType(baseType)) match { // check if base is a package qualifier and id points to a type
+              case _: ImportT | _: AdtT if pointsToType(n.id) => Right(n)
               case _ => Left(n)
             })
 
@@ -50,6 +50,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
 
     case n: PNamedOperand =>
       entity(n.id) match {
+        case s: st.Import => Some(ap.Import(n.id, s))
         case s: st.NamedType => Some(ap.NamedType(n.id, s))
         case s: st.Variable => s match {
           case g: st.GlobalVariable => Some(ap.GlobalVariable(n.id, g))
@@ -83,17 +84,19 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case (Left(base), Some((s: st.StructMember, path))) => Some(ap.FieldSelection(base, n.id, path, s))
         case (Left(base), Some((s: st.Method, path))) => Some(ap.ReceivedMethod(base, n.id, path, s))
         case (Left(base), Some((s: st.MPredicate, path))) => Some(ap.ReceivedPredicate(base, n.id, path, s))
+        case (Left(base), Some((s: st.AdtMember, _))) => Some(ap.AdtField(base, n.id, s))
 
         case (Right(base), Some((s: st.Method, path))) => Some(ap.MethodExpr(base, n.id, path, s))
         case (Right(base), Some((s: st.MPredicate, path))) => Some(ap.PredicateExpr(base, n.id, path, s))
 
-        // imported members
+        // imported members (also via adt)
         case (Right(_), Some((s: st.ActualTypeEntity, _))) => Some(ap.NamedType(n.id, s))
         case (Right(_), Some((s: st.Constant, _))) => Some(ap.Constant(n.id, s))
         case (Right(_), Some((s: st.GlobalVariable, _))) => Some(ap.GlobalVariable(n.id, s))
         case (Right(_), Some((s: st.Function, _))) => Some(ap.Function(n.id, s))
         case (Right(_), Some((s: st.FPredicate, _))) => Some(ap.Predicate(n.id, s))
         case (Right(_), Some((s: st.DomainFunction, _))) => Some(ap.DomainFunction(n.id, s))
+        case (Right(_), Some((s: st.AdtClause, _))) => Some(ap.AdtClause(n.id, s))
 
         // built-in members
         case (Left(base), Some((s: st.BuiltInMethod, path))) => Some(ap.BuiltInReceivedMethod(base, n.id, path, s))

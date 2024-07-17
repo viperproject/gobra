@@ -41,7 +41,7 @@ object Addressability {
   /** Addressability modifier. Expressions of exclusive type cannot be aliased. */
   case object Exclusive extends Addressability {
     override val isShared: Boolean = false
-    override val pretty: String = "."
+    override val pretty: String = "°"
   }
 
 
@@ -93,7 +93,7 @@ object Addressability {
 
   val boundVariable: Addressability = rValue
   val constant: Addressability = rValue
-  val globalVariable: Addressability = sharedVariable
+  val wildcard: Addressability = rValue
 
   val dereference: Addressability = pointerBase
   def fieldLookup(receiver: Addressability): Addressability = field(receiver)
@@ -119,6 +119,7 @@ object Addressability {
   val mathDataStructureLookup: Addressability = mathDataStructureElement
 
   def unfolding(bodyAddressability: Addressability): Addressability = bodyAddressability
+  def let(bodyAddressability: Addressability): Addressability = bodyAddressability
   val old: Addressability = rValue
   val make: Addressability = Exclusive
   val exprInAcc: Addressability = Exclusive

@@ -10,6 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.util.VprInfo
 import viper.silver.{ast => vpr}
 
 class DefaultPureMethodEncoding extends Encoding {
@@ -26,6 +27,7 @@ class DefaultPureMethodEncoding extends Encoding {
     require(meth.results.size == 1)
 
     val (pos, info, errT) = meth.vprMeta
+    val infoWithOpaque = VprInfo.maybeAttachOpaque(info, meth.isOpaque)
 
     val vRecv = ctx.variable(meth.receiver)
     val vRecvPres = ctx.varPrecondition(meth.receiver).toVector
@@ -55,6 +57,8 @@ class DefaultPureMethodEncoding extends Encoding {
         )(ctx)
       })
 
+      annotatedInfo = VprInfo.attachAnnotations(meth.backendAnnotations, infoWithOpaque)
+
       function = vpr.Function(
         name = meth.name.uniqueName,
         formalArgs = vRecv +: vArgs,
@@ -62,7 +66,7 @@ class DefaultPureMethodEncoding extends Encoding {
         pres = pres ++ measures,
         posts = posts,
         body = body
-      )(pos, info, errT)
+      )(pos, annotatedInfo, errT)
 
     } yield function
   }
@@ -71,6 +75,7 @@ class DefaultPureMethodEncoding extends Encoding {
     require(func.results.size == 1)
 
     val (pos, info, errT) = func.vprMeta
+    val infoWithOpaque = VprInfo.maybeAttachOpaque(info, func.isOpaque)
 
     val vArgs = func.args.map(ctx.variable)
     val vArgPres = func.args.flatMap(ctx.varPrecondition)
@@ -97,6 +102,8 @@ class DefaultPureMethodEncoding extends Encoding {
         )(ctx)
       })
 
+      annotatedInfo = VprInfo.attachAnnotations(func.backendAnnotations, infoWithOpaque)
+
       function = vpr.Function(
         name = func.name.name,
         formalArgs = vArgs,
@@ -104,7 +111,7 @@ class DefaultPureMethodEncoding extends Encoding {
         pres = pres ++ measures,
         posts = posts,
         body = body
-      )(pos, info, errT)
+      )(pos, annotatedInfo, errT)
 
     } yield function
   }

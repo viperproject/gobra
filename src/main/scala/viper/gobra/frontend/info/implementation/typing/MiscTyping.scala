@@ -24,9 +24,9 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualMisc(misc: PActualMisc): Messages = misc match {
 
-    case n@PRange(exp) => isExpr(exp).out ++ (underlyingType(exprType(exp)) match {
-      case _: ArrayT | PointerT(_: ArrayT) | _: SliceT | _: GhostSliceT |
-           _: MapT | ChannelT(_, ChannelModus.Recv | ChannelModus.Bi) => noMessages
+    case n@PRange(exp, _) => isExpr(exp).out ++ (underlyingType(exprType(exp)) match {
+      case _: ArrayT | PointerT(_: ArrayT) | _: SliceT | _: GhostSliceT | _: MapT |
+          ChannelT(_, ChannelModus.Recv | ChannelModus.Bi) => noMessages
       case t => message(n, s"type error: got $t but expected rangeable type")
     })
 
@@ -41,6 +41,77 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PLiteralValue | _: PKeyedElement | _: PCompositeVal => noMessages // these are checked at the level of the composite literal
 
     case _: PClosureDecl => noMessages // checks are done at the PFunctionLit level
+
+    case n: PMethodImplementationProof =>
+      val validPureCheck = wellDefIfPureMethodImplementationProof(n)
+      if (validPureCheck.nonEmpty) validPureCheck
+      else {
+        entity(n.id) match {
+          case spec: MethodSpec =>
+            // check that the signatures match
+            val matchingSignature = {
+              val implSig = FunctionT(n.args map miscType, miscType(n.result))
+              val specSig = memberType(spec)
+              failedProp(
+                s"implementation proof and interface member have a different signature (should be '$specSig', but is $implSig nad ${implSig == specSig})",
+                cond = !identicalTypes(implSig, specSig)
+              )
+            }
+            // check that pure annotations match
+            val matchingPure = failedProp(
+              s"The pure annotation does not match with the pure annotation of the interface member",
+              cond = n.isPure != spec.isPure
+            )
+            // check that the receiver has the method
+            val receiverHasMethod = failedProp(
+              s"The type ${n.receiver.typ} does not have member ${n.id}",
+              cond = tryMethodLikeLookup(miscType(n.receiver), n.id).isEmpty
+            )
+            // check that the body has the right shape
+            val rightShape = {
+              n.body match {
+                case None => failedProp("A method in an implementation proof must not be abstract")
+                case Some((_, block)) =>
+
+                  val expectedReceiverOpt = n.receiver match {
+                    case _: PUnnamedParameter => None
+                    case p: PNamedParameter => Some(PNamedOperand(PIdnUse(p.id.name)))
+                    case PExplicitGhostParameter(_: PUnnamedParameter) => None
+                    case PExplicitGhostParameter(p: PNamedParameter) => Some(PNamedOperand(PIdnUse(p.id.name)))
+                  }
+
+                  val expectedArgs = n.args.flatMap {
+                    case p: PNamedParameter => Some(PNamedOperand(PIdnUse(p.id.name)))
+                    case PExplicitGhostParameter(p: PNamedParameter) => Some(PNamedOperand(PIdnUse(p.id.name)))
+                    case _ => None
+                  }
+
+                  if (expectedReceiverOpt.isEmpty || expectedArgs.size != n.args.size) {
+                    failedProp("Receiver and arguments must be named so that they can be used in a call")
+                  } else {
+                    val expectedReceiver = expectedReceiverOpt.getOrElse(violation(""))
+                    val expectedInvoke = PInvoke(PDot(expectedReceiver, n.id), expectedArgs, None)
+
+                    if (n.isPure) {
+                      block.nonEmptyStmts match {
+                        case Vector(PReturn(Vector(ret))) =>
+                          pureImplementationProofHasRightShape(ret, _ == expectedInvoke, expectedInvoke.toString)
+
+                        case _ => successProp // already checked before
+                      }
+                    } else {
+                      implementationProofBodyHasRightShape(block, _ == expectedInvoke, expectedInvoke.toString, n.result)
+                    }
+                  }
+              }
+            }
+
+            (matchingSignature and matchingPure and receiverHasMethod and rightShape)
+              .asReason(n, "invalid method of an implementation proof")
+
+          case e => Violation.violation(s"expected a method signature of an interface, but got $e")
+        }
+      }
   }
 
   lazy val miscType: Typing[PMisc] = createTyping {
@@ -50,7 +121,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def actualMiscType(misc: PActualMisc): Type = misc match {
 
-    case PRange(exp) => underlyingType(exprType(exp)) match {
+    case PRange(exp, _) => underlyingType(exprType(exp)) match {
       case ArrayT(_, elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
       case PointerT(ArrayT(_, elem)) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
       case SliceT(elem) => InternalSingleMulti(IntT(config.typeBounds.Int), InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
@@ -68,12 +139,14 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case PClosureDecl(args, res, _, _)  => FunctionT(args.map(typ), miscType(res))
 
     case PEmbeddedName(t) => typeSymbType(t)
-    case PEmbeddedPointer(t) => PointerT(typeSymbType(t))
+    case PEmbeddedPointer(t) => ActualPointerT(typeSymbType(t))
 
     case l: PLiteralValue => expectedMiscType(l)
     case l: PKeyedElement => miscType(l.exp)
     case l: PExpCompositeVal => exprType(l.exp)
     case l: PLitCompositeVal => expectedMiscType(l)
+
+    case _: PMethodImplementationProof => UnknownType
   }
 
   lazy val expectedMiscType: PShortCircuitMisc => Type =

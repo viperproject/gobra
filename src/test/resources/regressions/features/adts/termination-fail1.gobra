@@ -1,0 +1,41 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type tree adt{
+	leaf{ value int }
+	node{ left, right tree }
+}
+
+ghost
+pure
+decreases // cause: wrong termination measure
+func leafCount(t tree) int {
+	return match t {
+		case leaf{_}: 1
+		//:: ExpectedOutput(pure_function_termination_error)
+		case node{?l, ?r}: leafCount(l) + leafCount(r)
+	}
+}
+
+type list adt {
+	Empty{}
+
+	Cons{
+		head any
+		tail list
+	}
+}
+
+ghost
+decreases len(l)
+func length(l list) int {
+	match l {
+		case Empty{}:
+			return 0
+		case Cons{_, ?t}:
+			//:: ExpectedOutput(function_termination_error)
+			return 1 + length(l) // cause: pass l to length instead of t
+	}
+}

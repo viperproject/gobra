@@ -9,6 +9,7 @@ package viper.gobra.frontend.info.implementation
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.PackageResolver.AbstractImport
 import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.frontend.info.base.SymbolTable.{Regular, TypeMember, UnknownEntity, lookup}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
@@ -18,8 +19,9 @@ import viper.gobra.frontend.info.implementation.typing._
 import viper.gobra.frontend.info.implementation.typing.ghost._
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostSeparation
 import viper.gobra.frontend.info.{ExternalTypeInfo, Info, TypeInfo}
+import viper.gobra.reporting.VerifierError
 
-class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context, val isMainContext: Boolean = false)(val config: Config) extends Attribution with TypeInfo with ExternalTypeInfo
+class TypeInfoImpl(final val tree: Info.GoTree, final val dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], val isMainContext: Boolean = false)(val config: Config) extends Attribution with TypeInfo with ExternalTypeInfo
 
   with NameResolution
   with LabelResolution
@@ -87,6 +89,8 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   override def enclosingFunction(n: PNode): Option[PFunctionDecl] = tryEnclosingFunction(n)
 
+  override def enclosingFunctionOrMethod(n: PNode): Option[PFunctionOrMethodDecl] = tryEnclosingFunctionOrMethod(n)
+
   override def enclosingLabeledLoopNode(label: PLabelUse, n: PNode) : Option[PGeneralForStmt] = enclosingLabeledLoop(label, n).toOption
 
   override def enclosingLoopNode(n: PNode) : Option[PGeneralForStmt] = enclosingLoopUntilOutline(n).toOption
@@ -148,4 +152,16 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
   override def getTypeInfo: TypeInfo = this
 
   override def isPureExpression(expr: PExpression): Boolean = isPureExpr(expr).isEmpty
+
+  def getTransitiveTypeInfos(includeThis: Boolean = true): Set[ExternalTypeInfo] = {
+    val directTypeInfos = dependentTypeInfo
+      .map { case (_, resultFn) => resultFn() }
+      .collect { case Right(info) => info }
+      .toSet
+    // note that we call `getTransitiveTypeInfos` recursively with including the parameter in the results (which
+    // corresponds to the parameter's default value)
+    val dependentTypeInfos = directTypeInfos.flatMap(directTypeInfo => directTypeInfo.getTransitiveTypeInfos())
+    if (includeThis) dependentTypeInfos + this
+    else dependentTypeInfos
+  }
 }

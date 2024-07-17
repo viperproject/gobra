@@ -6,6 +6,6 @@ package pkg
 func foo_arr() {
 	x := [4]uint{1, 2, 3, 4}
 	//:: ExpectedOutput(type_error)
-	for i, j, k := range x {
+	for i, j, k := range x with i0 {
 	}
 }

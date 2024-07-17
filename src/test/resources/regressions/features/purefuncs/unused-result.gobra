@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// checks that pure functions are correctly encoded even if there result is not used
+
+package functions
+
+requires false
+pure func foo() bool {
+    return true
+}
+
+func test1() {
+    //:: ExpectedOutput(precondition_error)
+    res := foo()
+    assert res
+}
+
+func test2() {
+    //:: ExpectedOutput(precondition_error)
+    foo()
+}

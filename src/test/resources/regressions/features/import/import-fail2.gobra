@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I ./)
+
+import (
+    // note that package `parse_error` contains a parser error so the qualifier cannot be resolved
+    //:: ExpectedOutput(type_error)
+    "parse_error"
+)

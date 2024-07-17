@@ -29,9 +29,20 @@ object Source {
   case object ReceiverNotNilCheckAnnotation extends Annotation
   case object ImportPreNotEstablished extends Annotation
   case object MainPreNotEstablished extends Annotation
+  case object LoopInvariantNotEstablishedAnnotation extends Annotation
   case class NoPermissionToRangeExpressionAnnotation() extends Annotation
-  case class RangeVariableMightNotExistAnnotation(rangeExpr: String) extends Annotation
+  case class InsufficientPermissionToRangeExpressionAnnotation() extends Annotation
   case class AutoImplProofAnnotation(subT: String, superT: String) extends Annotation
+  class OverwriteErrorAnnotation(
+                                  newError: VerificationError => VerificationError,
+                                  attachReasons: Boolean = true
+                                ) extends Annotation {
+    def apply(err: VerificationError): VerificationError = {
+      if (attachReasons) {
+        err.reasons.foldLeft(newError(err)){ case (err, reason) => err dueTo reason }
+      } else newError(err)
+    }
+  }
 
   object Parser {
 

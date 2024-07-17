@@ -62,6 +62,7 @@ object Names {
     case in.ArrayT(len, elemT, addr) => s"Array$len${serializeType(elemT)}${serializeAddressability(addr)}"
     case in.SliceT(elemT, addr) => s"Slice${serializeType(elemT)}${serializeAddressability(addr)}"
     case in.MapT(keyT, valueT, addr) => s"Map${serializeType(keyT)}_${serializeType(valueT)}_${serializeAddressability(addr)}"
+    case in.MathMapT(keyT, valueT, addr) => s"Dict${serializeType(keyT)}_${serializeType(valueT)}_${serializeAddressability(addr)}"
     case in.SequenceT(elemT, addr) => s"Sequence${serializeType(elemT)}${serializeAddressability(addr)}"
     case in.SetT(elemT, addr) => s"Set${serializeType(elemT)}${serializeAddressability(addr)}"
     case in.MultisetT(elemT, addr) => s"Multiset${serializeType(elemT)}${serializeAddressability(addr)}"
@@ -84,7 +85,7 @@ object Names {
   }
 
   def serializeFields(fields: Vector[in.Field]): String = {
-    val serializedFields = fields.map(f => s"${f.name}_${serializeType(f.typ)}").mkString("_")
+    val serializedFields = fields.map(f => s"${f.name}_${serializeType(f.typ)}_${if (f.ghost) "g" else "a"}").mkString("_")
     // we use a dollar sign to mark the beginning and end of the type list to avoid that `Tuple(Tuple(X), Y)` and `Tuple(Tuple(X, Y))` map to the same name:
     s"$$$serializedFields$$"
   }
@@ -165,6 +166,13 @@ object Names {
 
   // domain
   def dfltDomainValue(domainName: String): String = s"dflt$domainName"
+
+  // adt
+  def dfltAdtValue(adtName: String): String = s"${adtName}_dflt"
+  def tagAdtFunction(adtName: String): String = s"${adtName}_tag"
+  def destructorAdtName(adtName: String, argumentName: String) = s"${adtName}_$argumentName"
+  def constructorAdtName(adtName: String, clause: String) = s"${adtName}_$clause"
+  def adtClauseTagFunction(adtName: String, clause: String): String = s"${adtName}_${clause}_tag"
 
   // unknown values
   def unknownValuesDomain: String = "UnknownValueDomain"

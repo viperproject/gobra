@@ -1,0 +1,96 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package adts
+
+type tree adt {
+
+    Node {
+        val int
+        left, right tree
+    }
+
+    Leaf {
+        leafVal int
+    }
+
+    EmptyLeaf {
+
+    }
+
+}
+
+type list adt {
+
+    Cons {
+        head int
+        tail list
+    }
+
+    Nil {
+
+    }
+
+}
+
+type expression adt {
+
+    Add {
+        lA, rA expression
+    }
+
+    Mul {
+        lM, rM expression
+    }
+
+    Lit {
+        val int
+    }
+}
+
+func testTree(){
+    var t tree = Node{1, Node{2, EmptyLeaf{}, EmptyLeaf{}}, Node{3, Leaf{4}, EmptyLeaf{}}}
+
+    assert t.val == 1
+    assert t.isNode
+    assert t.left.isNode
+    assert t.left.val == 2
+    assert t.left.left.isEmptyLeaf
+    assert t.left.right.isEmptyLeaf
+    assert t.right.isNode
+    assert t.right.val == 3
+    assert t.right.left.isLeaf
+    assert t.right.left.leafVal == 4
+
+}
+
+func testList() {
+    var l list = Cons{1, Cons{2, Cons{3, Cons{4, Nil{}}}}}
+
+    assert l.head == 1
+    assert l.isCons
+    assert l.tail.head == 2
+    assert l.tail.isCons
+    assert l.tail.tail.head == 3
+    assert l.tail.tail.isCons
+    assert l.tail.tail.tail.head == 4
+    assert l.tail.tail.tail.isCons
+    assert l.tail.tail.tail.tail.isNil
+    assert !l.isNil
+    assert !l.tail.tail.tail.tail.isCons
+}
+
+func testExpression() {
+    var e expression = Add{Mul{Lit{2}, Lit{3}}, Add{Lit{4}, Lit{20}}}
+
+    assert e.lA.lM.val == 2
+    assert e.isAdd
+    assert !e.isMul
+    assert !e.isLit
+    assert e.lA.rM.isLit
+    assert !e.lA.rM.isAdd
+    assert e.lA.rM.val == 3
+    assert e.rA.lA.val == 4
+    assert !e.rA.lA.isMul
+    assert e.rA.rA.val != 21
+}

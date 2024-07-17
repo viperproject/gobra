@@ -1,0 +1,59 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# Copyright (c) 2011-2022 ETH Zurich.
+
+name: Update Submodules
+
+on:
+  workflow_dispatch: # allow to manually trigger this workflow
+  schedule:
+    - cron: '0 6 1 * *' # run on the first day of each month at 06:00 UTC
+
+jobs:
+  # Update the submodules and create a PR if there are any changes
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Get current commits
+        run: |
+          echo "PREV_VIPERSERVER_REF=$(git -C viperserver rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Update ViperServer submodule
+        run: git checkout master && git pull
+        working-directory: viperserver
+
+      - name: Get new commits
+        run: |
+          echo "CUR_VIPERSERVER_REF=$(git -C viperserver rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Open a pull request
+        id: pr
+        uses: peter-evans/create-pull-request@v6
+        if: env.PREV_VIPERSERVER_REF != env.CUR_VIPERSERVER_REF
+        with:
+          # Use viper-admin's token to workaround a restriction of GitHub.
+          # See: https://github.com/peter-evans/create-pull-request/issues/48
+          token: ${{ secrets.VIPER_ADMIN_TOKEN }}
+          commit-message: Updates submodules
+          title: Update Submodules
+          branch: auto-update-submodules
+          delete-branch: true
+          labels: |
+            automated pr
+          body: |
+            * Updates ViperServer from `${{ env.PREV_VIPERSERVER_REF }}` to `${{ env.CUR_VIPERSERVER_REF }}`.
+
+      # - name: Enable auto-merge of PR
+      #   uses: peter-evans/create-or-update-comment@v2
+      #   if: env.PREV_VIPERSERVER_REF != env.CUR_VIPERSERVER_REF
+      #   with:
+      #     token: ${{ secrets.VIPER_ADMIN_TOKEN }}
+      #     issue-number: ${{ steps.pr.outputs.pull-request-number }}
+      #     body: bors merge

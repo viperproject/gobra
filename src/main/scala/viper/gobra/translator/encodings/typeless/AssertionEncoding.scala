@@ -14,6 +14,7 @@ import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.{ast => vpr}
+import viper.silver.plugin.standard.{refute => vprrefute}
 
 class AssertionEncoding extends Encoding {
 
@@ -54,11 +55,24 @@ class AssertionEncoding extends Encoding {
         case Seq() => newExists
         case errors => Violation.violation(s"invalid trigger pattern (${errors.head.readableMessage})")
       }
+
+    case let: in.PureLet =>
+      for {
+        exp <- ctx.expression(let.in)
+        l = ctx.variable(let.left)
+        r <- ctx.expression(let.right)
+      } yield withSrc(vpr.Let(l, r, exp), let)
   }
 
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
     case n@ in.SepAnd(l, r) => for {vl <- ctx.assertion(l); vr <- ctx.assertion(r)} yield withSrc(vpr.And(vl, vr), n)
     case in.ExprAssertion(e) => ctx.expression(e)
+    case n@ in.Let(left, right, op) =>
+      for {
+        exp <- ctx.assertion(op)
+        r <- ctx.expression(right)
+        l = ctx.variable(left)
+      } yield withSrc(vpr.Let(l, r, exp), n)
     case n@ in.MagicWand(l, r) => for {vl <- ctx.assertion(l); vr <- ctx.assertion(r)} yield withSrc(vpr.MagicWand(vl, vr), n)
     case n@ in.Implication(l, r) => for {vl <- ctx.expression(l); vr <- ctx.assertion(r)} yield withSrc(vpr.Implies(vl, vr), n)
 
@@ -67,7 +81,7 @@ class AssertionEncoding extends Encoding {
       val (pos, info, errT) = n.vprMeta
       for {
         newTriggers <- sequence(triggers map (trigger(_)(ctx)))
-        newBody <- ctx.assertion(body)
+        newBody <- pure(ctx.assertion(body))(ctx)
         newForall = vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT)
         desugaredForall = vpr.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(newForall)
         triggeredForall = desugaredForall.map(_.autoTrigger)
@@ -77,6 +91,7 @@ class AssertionEncoding extends Encoding {
 
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     case n@ in.Assert(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Assert(v), n)
+    case n@ in.Refute(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vprrefute.Refute(v), n)
     case n@ in.Assume(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Assume(v), n) // Assumes are later rewritten
     case n@ in.Inhale(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Inhale(v), n)
     case n@ in.Exhale(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Exhale(v), n)
@@ -99,18 +114,8 @@ class AssertionEncoding extends Encoding {
 
   def trigger(trigger: in.Trigger)(ctx: Context) : CodeWriter[vpr.Trigger] = {
     val (pos, info, errT) = trigger.vprMeta
-    for { expr <- sequence(trigger.exprs map (triggerExpr(_)(ctx))) }
+    for { expr <- sequence(trigger.exprs map ctx.triggerExpr)}
       yield vpr.Trigger(expr)(pos, info, errT)
-  }
-
-  def triggerExpr(expr: in.TriggerExpr)(ctx: Context): CodeWriter[vpr.Exp] = expr match {
-    // use predicate access encoding but then take just the predicate access, i.e. remove `acc` and the permission amount:
-    case in.Accessible.Predicate(op) =>
-      for {
-        v <- ctx.assertion(in.Access(in.Accessible.Predicate(op), in.FullPerm(op.info))(op.info))
-        pap = v.asInstanceOf[vpr.PredicateAccessPredicate]
-      } yield pap.loc
-    case e: in.Expr => ctx.expression(e)
   }
 
   def quantifier(vars: Vector[in.BoundVar], triggers: Vector[in.Trigger], body: in.Expr)(ctx: Context) : CodeWriter[(Seq[vpr.LocalVarDecl], Seq[vpr.Trigger], vpr.Exp)] = {

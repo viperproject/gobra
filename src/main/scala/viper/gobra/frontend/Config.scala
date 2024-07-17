@@ -16,52 +16,102 @@ import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
+import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential, TaskManagerMode}
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
-import viper.gobra.util.{TypeBounds, Violation}
+import viper.gobra.util.{TaskManagerMode, TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
 import scala.concurrent.duration.Duration
+import scala.util.matching.Regex
 
 object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
 }
 
 object ConfigDefaults {
-  lazy val DefaultModuleName: String = ""
+  val DefaultModuleName: String = ""
   lazy val DefaultProjectRoot: File = new File("").getAbsoluteFile // current working directory
-  lazy val DefaultIncludePackages: List[String] = List.empty
-  lazy val DefaultExcludePackages: List[String] = List.empty
-  lazy val DefaultIncludeDirs: List[File] = List.empty
+  val DefaultIncludePackages: List[String] = List.empty
+  val DefaultExcludePackages: List[String] = List.empty
+  val DefaultIncludeDirs: List[File] = List.empty
   lazy val DefaultReporter: GobraReporter = StdIOReporter()
-  lazy val DefaultBackend: ViperBackend = ViperBackends.SiliconBackend
-  lazy val DefaultIsolate: List[(Path, List[Int])] = List.empty
-  lazy val DefaultChoppingUpperBound: Int = 1
-  lazy val DefaultPackageTimeout: Duration = Duration.Inf
-  lazy val DefaultZ3Exe: Option[String] = None
-  lazy val DefaultBoogieExe: Option[String] = None
-  lazy val DefaultLogLevel: Level = LoggerDefaults.DefaultLevel
-  lazy val DefaultCacheFile: Option[File] = None
-  lazy val DefaultParseOnly: Boolean = false
-  lazy val DefaultCheckOverflows: Boolean = false
-  lazy val DefaultCheckConsistency: Boolean = false
-  lazy val DefaultShouldChop: Boolean = false
+  val DefaultBackend: ViperBackend = ViperBackends.SiliconBackend
+  val DefaultIsolate: List[(Path, List[Int])] = List.empty
+  val DefaultChoppingUpperBound: Int = 1
+  val DefaultPackageTimeout: Duration = Duration.Inf
+  val DefaultZ3Exe: Option[String] = None
+  val DefaultBoogieExe: Option[String] = None
+  val DefaultLogLevel: Level = LoggerDefaults.DefaultLevel
+  val DefaultCacheFile: Option[File] = None
+  val DefaultParseOnly: Boolean = false
+  val DefaultStopAfterEncoding: Boolean = false
+  val DefaultCheckOverflows: Boolean = false
+  val DefaultCheckConsistency: Boolean = false
+  val DefaultShouldChop: Boolean = false
   // The go language specification states that int and uint variables can have either 32bit or 64, as long
   // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
   // 64 bit otherwise.
-  lazy val DefaultInt32bit: Boolean = false
+  val DefaultInt32bit: Boolean = false
   // the following option is currently not controllable via CLI as it is meaningless without a constantly
   // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
-  lazy val DefaultCacheParser: Boolean = false
+  val DefaultCacheParserAndTypeChecker: Boolean = false
   // this option introduces a mode where Gobra only considers files with a specific annotation ("// +gobra").
   // this is useful when verifying large packages where some files might use some unsupported feature of Gobra,
   // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
   // to verify.
-  lazy val DefaultOnlyFilesWithHeader: Boolean = false
+  val DefaultOnlyFilesWithHeader: Boolean = false
   lazy val DefaultGobraDirectory: Path = Path.of(".gobra")
-  lazy val DefaultTaskName: String = "gobra-task"
-  lazy val DefaultAssumeInjectivityOnInhale: Boolean = true
-  lazy val DefaultParallelizeBranches: Boolean = false
-  lazy val DefaultDisableMoreCompleteExhale: Boolean = false
+  val DefaultTaskName: String = "gobra-task"
+  val DefaultAssumeInjectivityOnInhale: Boolean = true
+  val DefaultParallelizeBranches: Boolean = false
+  val DefaultConditionalizePermissions: Boolean = false
+  val DefaultZ3APIMode: Boolean = false
+  val DefaultDisableNL: Boolean = false
+  val DefaultMCEMode: MCE.Mode = MCE.Enabled
+  val DefaultEnableLazyImports: Boolean = false
+  val DefaultNoVerify: Boolean = false
+  val DefaultNoStreamErrors: Boolean = false
+  val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
+  val DefaultRequireTriggers: Boolean = false
+  val DefaultDisableSetAxiomatization: Boolean = false
+  val DefaultDisableCheckTerminationPureFns: Boolean = false
+  val DefaultUnsafeWildcardOptimization: Boolean = false
+  val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
+}
+
+// More-complete exhale modes
+object MCE {
+  sealed trait Mode
+  object Disabled extends Mode
+  // When running in `OnDemand`, mce will only be enabled when silicon retries a query.
+  // More information can be found in https://github.com/viperproject/silicon/pull/682.
+  object OnDemand extends Mode
+  object Enabled extends Mode
+}
+
+object MoreJoins {
+  sealed trait Mode {
+    // Option number used by Viper, as described in
+    // https://github.com/viperproject/silicon/pull/823
+    def viperValue: Int
+  }
+  object Disabled extends Mode {
+    override val viperValue = 0
+  }
+  object Impure extends Mode {
+    override val viperValue = 1
+  }
+  object All extends Mode {
+    override val viperValue = 2
+  }
+
+  def merge(m1: Mode, m2: Mode): Mode = {
+    (m1, m2) match  {
+      case (All, _) | (_, All) => All
+      case (Impure, _) | (_, Impure) => Impure
+      case _ => Disabled
+    }
+  }
 }
 
 case class Config(
@@ -97,7 +147,7 @@ case class Config(
                    int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
                    // the following option is currently not controllable via CLI as it is meaningless without a constantly
                    // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
-                   cacheParser: Boolean = ConfigDefaults.DefaultCacheParser,
+                   cacheParserAndTypeChecker: Boolean = ConfigDefaults.DefaultCacheParserAndTypeChecker,
                    // this option introduces a mode where Gobra only considers files with a specific annotation ("// +gobra").
                    // this is useful when verifying large packages where some files might use some unsupported feature of Gobra,
                    // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
@@ -108,7 +158,21 @@ case class Config(
                    // if enabled, and if the chosen backend is either SILICON or VSWITHSILICON,
                    // branches will be verified in parallel
                    parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
-                   disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
+                   conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
+                   z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
+                   disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
+                   mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
+                   enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
+                   noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
+                   noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
+                   parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
+                   // when enabled, all quantifiers without triggers are rejected
+                   requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
+                   disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
+                   disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
+                   unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
+                   moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
+
 ) {
 
   def merge(other: Config): Config = {
@@ -146,10 +210,23 @@ case class Config(
       shouldVerify = shouldVerify,
       int32bit = int32bit || other.int32bit,
       checkConsistency = checkConsistency || other.checkConsistency,
+      cacheParserAndTypeChecker = cacheParserAndTypeChecker || other.cacheParserAndTypeChecker,
       onlyFilesWithHeader = onlyFilesWithHeader || other.onlyFilesWithHeader,
       assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale,
       parallelizeBranches = parallelizeBranches,
-      disableMoreCompleteExhale = disableMoreCompleteExhale,
+      conditionalizePermissions = conditionalizePermissions,
+      z3APIMode = z3APIMode || other.z3APIMode,
+      disableNL = disableNL || other.disableNL,
+      mceMode = mceMode,
+      enableLazyImports = enableLazyImports || other.enableLazyImports,
+      noVerify = noVerify || other.noVerify,
+      noStreamErrors = noStreamErrors || other.noStreamErrors,
+      parseAndTypeCheckMode = parseAndTypeCheckMode,
+      requireTriggers = requireTriggers || other.requireTriggers,
+      disableSetAxiomatization = disableSetAxiomatization || other.disableSetAxiomatization,
+      disableCheckTerminationPureFns = disableCheckTerminationPureFns || other.disableCheckTerminationPureFns,
+      unsafeWildcardOptimization = unsafeWildcardOptimization && other.unsafeWildcardOptimization,
+      moreJoins = MoreJoins.merge(moreJoins, other.moreJoins),
     )
   }
 
@@ -163,10 +240,13 @@ case class Config(
 
 object Config {
   // the header signals that a file should be considered when running on "header-only" mode
-  val header = """\/\/\s*\+gobra""".r
+  val header: Regex = """\/\/\s*\+gobra""".r
   val prettyPrintedHeader = "// +gobra"
   require(header.matches(prettyPrintedHeader))
   def sourceHasHeader(s: Source): Boolean = header.findFirstIn(s.content).nonEmpty
+
+  val enableLazyImportOptionName = "enableLazyImport"
+  val enableLazyImportOptionPrettyPrinted = s"--$enableLazyImportOptionName"
 }
 
 // have a look at `Config` to see an inline description of some of these parameters
@@ -184,20 +264,33 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       logLevel: Level = ConfigDefaults.DefaultLogLevel,
                       cacheFile: Option[Path] = ConfigDefaults.DefaultCacheFile.map(_.toPath),
                       shouldParseOnly: Boolean = ConfigDefaults.DefaultParseOnly,
+                      stopAfterEncoding: Boolean = ConfigDefaults.DefaultStopAfterEncoding,
                       checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
                       checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
                       int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
-                      cacheParser: Boolean = ConfigDefaults.DefaultCacheParser,
+                      cacheParserAndTypeChecker: Boolean = ConfigDefaults.DefaultCacheParserAndTypeChecker,
                       onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
                       assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
                       parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
-                      disableMoreCompleteExhale: Boolean = ConfigDefaults.DefaultDisableMoreCompleteExhale,
+                      conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
+                      z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
+                      disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
+                      mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
+                      enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
+                      noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
+                      noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
+                      parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
+                      requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
+                      disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
+                      disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
+                      unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
+                      moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
   def shouldDesugar: Boolean = shouldTypeCheck
   def shouldViperEncode: Boolean = shouldDesugar
-  def shouldVerify: Boolean = shouldViperEncode
+  def shouldVerify: Boolean = shouldViperEncode && !stopAfterEncoding
   def shouldChop: Boolean = choppingUpperBound > 1 || isolated.exists(_.nonEmpty)
   lazy val isolated: Option[Vector[SourcePosition]] = {
     val positions = isolate.flatMap{ case (path, idxs) => idxs.map(idx => SourcePosition(path, idx, 0)) }
@@ -237,11 +330,23 @@ trait RawConfig {
     shouldVerify = baseConfig.shouldVerify,
     shouldChop = baseConfig.shouldChop,
     int32bit = baseConfig.int32bit,
-    cacheParser = baseConfig.cacheParser,
+    cacheParserAndTypeChecker = baseConfig.cacheParserAndTypeChecker,
     onlyFilesWithHeader = baseConfig.onlyFilesWithHeader,
     assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,
     parallelizeBranches = baseConfig.parallelizeBranches,
-    disableMoreCompleteExhale = baseConfig.disableMoreCompleteExhale,
+    conditionalizePermissions = baseConfig.conditionalizePermissions,
+    z3APIMode = baseConfig.z3APIMode,
+    disableNL = baseConfig.disableNL,
+    mceMode = baseConfig.mceMode,
+    enableLazyImports = baseConfig.enableLazyImports,
+    noVerify = baseConfig.noVerify,
+    noStreamErrors = baseConfig.noStreamErrors,
+    parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
+    requireTriggers = baseConfig.requireTriggers,
+    disableSetAxiomatization = baseConfig.disableSetAxiomatization,
+    disableCheckTerminationPureFns = baseConfig.disableCheckTerminationPureFns,
+    unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
+    moreJoins = baseConfig.moreJoins,
   )
 }
 
@@ -338,8 +443,32 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   )
 
   banner(
-    s""" Usage: ${GoVerifier.name} -i <input-files> [OPTIONS] OR
-       |  ${GoVerifier.name} -p <directory> [OPTIONS]
+    s""" ${GoVerifier.name} supports three modes for specifying input files that should be verified:
+       |  ${GoVerifier.name} -i <input-files> [OPTIONS] OR
+       |  ${GoVerifier.name} -p <directories> <optional project root> [OPTIONS] OR
+       |  ${GoVerifier.name} -r <optional project root> <optional include and exclude package names> [OPTIONS]
+       |
+       | Mode 1 (-i):
+       |  The first mode takes a list of files that must belong to the same package.
+       |  Files belonging to the same package but missing in the list are not considered for type-checking and verification.
+       |  Optionally, positional information can be provided for each file, e.g. <path to file>@42,111, such that only
+       |  members at these positions will be verified.
+       |
+       | Mode 2 (-p):
+       |  ${GoVerifier.name} verifies all `.${PackageResolver.gobraExtension}` and `.${PackageResolver.goExtension}` files in the provided directories,
+       |  while treating files in the same directory as belonging to the same package.
+       |  Verifies these packages. The project root (by default the current working directory) is used to derive a
+       |  unique package identifier, since package names might not be unique.
+       |
+       | Mode 3 (-r):
+       |  Transitively locates source files in subdirectories relative to the project root (by default the current
+       |  working directory) and groups them to packages based on the relative path and package name.
+       |  --includePackages <package names> and --excludePackages <package names> can be used to allow-
+       |  or block-list packages.
+       |
+       | Note that --include <directories> is unrelated to the modes above and controls how ${GoVerifier.name} resolves
+       | package imports.
+       |
        |
        | Options:
        |""".stripMargin
@@ -507,6 +636,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = None,
     noshort = true
   )
+
   lazy val packageTimeoutDuration: Duration = packageTimeout.toOption match {
     case Some(d) => Duration(d)
     case _ => Duration.Inf
@@ -576,13 +706,125 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
-  val disableMoreCompleteExhale: ScallopOption[Boolean] = opt[Boolean](
-    name = "disableMoreCompleteExhale",
-    descr = "Disables the flag --enableMoreCompleteExhale passed by default to Silicon",
-    default = Some(ConfigDefaults.DefaultDisableMoreCompleteExhale),
+  val conditionalizePermissions: ScallopOption[Boolean] = opt[Boolean](
+    name = "conditionalizePermissions",
+    descr = "Experimental: if enabled, and if the chosen backend is either SILICON or VSWITHSILICON, silicon will try " +
+      "to reduce the number of symbolic execution paths by conditionalising permission expressions. " +
+      "E.g. \"b ==> acc(x.f, p)\" is rewritten to \"acc(x.f, b ? p : none)\".",
+    default = Some(ConfigDefaults.DefaultConditionalizePermissions),
+    short = 'c',
+  )
+
+  val z3APIMode: ScallopOption[Boolean] = opt[Boolean](
+    name = "z3APIMode",
+    descr = "When the backend is either SILICON or VSWITHSILICON, silicon will use Z3 via API.",
+    default = Some(ConfigDefaults.DefaultZ3APIMode),
     noshort = true,
   )
 
+  val disableNL: ScallopOption[Boolean] = opt[Boolean](
+    name = "disableNL",
+    descr = "Disable non-linear integer arithmetics. Non compatible with Carbon",
+    default = Some(ConfigDefaults.DefaultDisableNL),
+    noshort = true,
+  )
+
+  val unsafeWildcardOptimization: ScallopOption[Boolean] = opt[Boolean]("unsafeWildcardOptimization",
+    descr = "Simplify wildcard terms in a way that might be unsafe. Only use this if you know what you are doing! See Silicon PR #756 for details.",
+    default = Some(false),
+    noshort = true
+  )
+
+  val moreJoins: ScallopOption[MoreJoins.Mode] = {
+    val all = "all"
+    val impure = "impure"
+    val off = "off"
+    choice(
+      choices = Seq("all", "impure", "off"),
+      name = "moreJoins",
+      descr = s"Specifies if silicon should be run with more joins completely enabled ($all), disabled ($off), or only for impure conditionals ($impure).",
+      default = Some(off),
+      noshort = true
+    ).map {
+      case `all` => MoreJoins.All
+      case `off` => MoreJoins.Disabled
+      case `impure` => MoreJoins.Impure
+      case s => Violation.violation(s"Unexpected mode for moreJoins: $s")
+    }
+  }
+
+  val mceMode: ScallopOption[MCE.Mode] = {
+    val on = "on"
+    val off = "off"
+    val od = "od"
+    choice(
+      choices = Seq("on", "off", "od"),
+      name = "mceMode",
+      descr = s"Specifies if silicon should be run with more complete exhale enabled ($on), disabled ($off), or enabled on demand ($od).",
+      default = Some(on),
+      noshort = true
+    ).map{
+      case `on` => MCE.Enabled
+      case `off` => MCE.Disabled
+      case `od` => MCE.OnDemand
+      case s => Violation.violation(s"Unexpected mode for more complete exhale: $s")
+    }
+  }
+
+  val enableLazyImports: ScallopOption[Boolean] = opt[Boolean](
+    name = Config.enableLazyImportOptionName,
+    descr = s"Enforces that ${GoVerifier.name} parses depending packages only when necessary. Note that this disables certain language features such as global variables.",
+    default = Some(ConfigDefaults.DefaultEnableLazyImports),
+    noshort = true,
+  )
+
+  val requireTriggers: ScallopOption[Boolean] = opt[Boolean](
+    name = "requireTriggers",
+    descr = s"Enforces that all quantifiers have a user-provided trigger.",
+    default = Some(ConfigDefaults.DefaultRequireTriggers),
+    noshort = true,
+  )
+
+  val noVerify: ScallopOption[Boolean] = opt[Boolean](
+    name = "noVerify",
+    descr = s"Skip the verification step performed after encoding the ${GoVerifier.name} program into Viper.",
+    default = Some(ConfigDefaults.DefaultNoVerify),
+    noshort = true,
+  )
+
+  val noStreamErrors: ScallopOption[Boolean] = opt[Boolean](
+    name = "noStreamErrors",
+    descr = s"Do not stream errors produced by ${GoVerifier.name} but instead print them all organized by package in the end.",
+    default = Some(ConfigDefaults.DefaultNoStreamErrors),
+    noshort = true,
+  )
+
+  val disableCheckTerminationPureFns: ScallopOption[Boolean] = opt[Boolean](
+    name = "disablePureFunctsTerminationRequirement",
+    descr = "Do not enforce that all pure functions must have termination measures",
+    default = Some(ConfigDefaults.DefaultDisableCheckTerminationPureFns),
+    noshort = true,
+  )
+
+  val parseAndTypeCheckMode: ScallopOption[TaskManagerMode] = choice(
+    name = "parseAndTypeCheckMode",
+    choices = Seq("LAZY", "SEQUENTIAL", "PARALLEL"),
+    descr = "Specifies the mode in which parsing and type-checking is performed.",
+    default = Some("PARALLEL"),
+    noshort = true
+  ).map {
+    case "LAZY" => Lazy
+    case "SEQUENTIAL" => Sequential
+    case "PARALLEL" => Parallel
+    case _ => ConfigDefaults.DefaultParseAndTypeCheckMode
+  }
+
+  val disableSetAxiomatization: ScallopOption[Boolean] = opt[Boolean](
+    name = "disableSetAxiomatization",
+    descr = s"Disables set axiomatization in Silicon.",
+    default = Some(ConfigDefaults.DefaultDisableSetAxiomatization),
+    noshort = true,
+  )
   /**
     * Exception handling
     */
@@ -620,13 +862,69 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     }
   }
 
-  // `disableMoreCompleteExhale` can only be enabled when using a silicon-based backend
   addValidation {
-    val disableMoreCompleteExh = disableMoreCompleteExhale.toOption.contains(true)
-    if (disableMoreCompleteExh && !isSiliconBasedBackend) {
-      Left("The flag --disableMoreCompleteExhale can only be used with Silicon and ViperServer with Silicon")
+    val conditionalizePermissionsOn = conditionalizePermissions.toOption.contains(true)
+    if (conditionalizePermissionsOn && !isSiliconBasedBackend) {
+      Left("The selected backend does not support --conditionalizePermissions.")
     } else {
       Right(())
+    }
+  }
+
+  addValidation {
+    val z3APIModeOn = z3APIMode.toOption.contains(true)
+    if (z3APIModeOn && !isSiliconBasedBackend) {
+      Left("The selected backend does not support --z3APIMode.")
+    } else {
+      Right(())
+    }
+  }
+
+  // `mceMode` can only be provided when using a silicon-based backend
+  addValidation {
+    val mceModeSupplied = mceMode.isSupplied
+    if (mceModeSupplied && !isSiliconBasedBackend) {
+      Left("The flag --mceMode can only be used with Silicon or ViperServer with Silicon")
+    } else {
+      Right(())
+    }
+  }
+
+  addValidation {
+    val unsafeWildcardOptSupplied = unsafeWildcardOptimization.isSupplied
+    if (unsafeWildcardOptSupplied  && !isSiliconBasedBackend) {
+      Left("The flag --unsafeWildcardOptimization can only be used with Silicon or ViperServer with Silicon")
+    } else {
+      Right(())
+    }
+  }
+
+  addValidation {
+    val moreJoinsOptSupplied = moreJoins.isSupplied
+    if (moreJoinsOptSupplied  && !isSiliconBasedBackend) {
+      Left("The flag --moreJoins can only be used with Silicon or ViperServer with Silicon")
+    } else {
+      Right(())
+    }
+  }
+  
+  // `disableSetAxiomatization` can only be provided when using a silicon-based backend
+  // since, at the time of writing, we rely on Silicon's setAxiomatizationFile for the
+  // implementation
+  addValidation {
+    val disableSetAxiomatizationOn = disableSetAxiomatization.toOption.contains(true)
+    if (disableSetAxiomatizationOn && !isSiliconBasedBackend) {
+      Left("The selected backend does not support --disableSetAxiomatization.")
+    } else {
+      Right(())
+    }
+  }
+
+  addValidation {
+    if (!disableNL.toOption.contains(true) || isSiliconBasedBackend) {
+      Right(())      
+    } else {
+      Left("--disableNL is not compatible with Carbon")
     }
   }
 
@@ -692,12 +990,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     moduleName = module(),
     includeDirs = includeDirs,
     reporter = FileWriterReporter(
-      unparse = unparse(),
-      eraseGhost = eraseGhost(),
-      goify = goify(),
-      debug = debug(),
-      printInternal = printInternal(),
-      printVpr = printVpr()),
+        unparse = unparse(),
+        eraseGhost = eraseGhost(),
+        goify = goify(),
+        debug = debug(),
+        printInternal = printInternal(),
+        printVpr = printVpr(),
+        streamErrs = !noStreamErrors()),
     backend = backend(),
     isolate = isolate,
     choppingUpperBound = chopUpperBound(),
@@ -710,10 +1009,22 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     checkOverflows = checkOverflows(),
     checkConsistency = checkConsistency(),
     int32bit = int32Bit(),
-    cacheParser = false, // caching does not make sense when using the CLI. Thus, we simply set it to `false`
+    cacheParserAndTypeChecker = false, // caching does not make sense when using the CLI. Thus, we simply set it to `false`
     onlyFilesWithHeader = onlyFilesWithHeader(),
     assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
     parallelizeBranches = parallelizeBranches(),
-    disableMoreCompleteExhale = disableMoreCompleteExhale(),
+    conditionalizePermissions = conditionalizePermissions(),
+    z3APIMode = z3APIMode(),
+    disableNL = disableNL(),
+    mceMode = mceMode(),
+    enableLazyImports = enableLazyImports(),
+    noVerify = noVerify(),
+    noStreamErrors = noStreamErrors(),
+    parseAndTypeCheckMode = parseAndTypeCheckMode(),
+    requireTriggers = requireTriggers(),
+    disableSetAxiomatization = disableSetAxiomatization(),
+    disableCheckTerminationPureFns = disableCheckTerminationPureFns(),
+    unsafeWildcardOptimization = unsafeWildcardOptimization(),
+    moreJoins = moreJoins(),
   )
 }

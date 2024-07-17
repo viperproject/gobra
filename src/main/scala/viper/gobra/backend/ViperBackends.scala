@@ -6,10 +6,16 @@
 
 package viper.gobra.backend
 
-import viper.gobra.frontend.Config
+import viper.gobra.frontend.{Config, MCE}
 import viper.gobra.util.GobraExecutionContext
 import viper.server.ViperConfig
 import viper.server.core.ViperCoreServer
+import viper.silicon.decider.Z3ProverAPI
+import viper.server.vsi.DefaultVerificationServerStart
+
+import java.nio.file.{Files, Paths}
+import scala.io.Source
+import scala.util.Using
 
 trait ViperBackend {
   def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperVerifier
@@ -23,9 +29,28 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
-      if (!config.disableMoreCompleteExhale) {
-        options ++= Vector("--enableMoreCompleteExhale")
+      if (config.conditionalizePermissions) {
+        options ++= Vector("--conditionalizePermissions")
       }
+      if (config.z3APIMode) {
+        options ++= Vector(s"--prover=${Z3ProverAPI.name}")
+      }
+      if (config.disableNL) {
+        options ++= Vector(s"--disableNL")
+      }
+      if (config.unsafeWildcardOptimization) {
+        options ++= Vector(s"--unsafeWildcardOptimization")
+      }
+      options ++= Vector(s"--moreJoins=${config.moreJoins.viperValue}")
+      val mceSiliconOpt = config.mceMode match {
+        case MCE.Disabled => "0"
+        case MCE.Enabled  => "1"
+        case MCE.OnDemand => "2"
+      }
+      options ++= Vector(s"--exhaleMode=$mceSiliconOpt")
+      // Gobra seems to be much slower with the new silicon axiomatization of collections.
+      // For now, we stick to the old one.
+      options ++= Vector("--useOldAxiomatization")
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }
@@ -33,6 +58,20 @@ object ViperBackends {
         options ++= Vector("--parallelizeBranches")
       }
       options ++= exePaths
+      if (config.disableSetAxiomatization) {
+        // Since resources are stored within the .jar archive, we cannot
+        // directly pass the axiom file to Silicon.
+        val tmpPath = Paths.get("gobra_tmp")
+        val axiomTmpPath = tmpPath.resolve("noaxioms_sets.vpr")
+        val axiom: Source = Source.fromResource("noaxioms/sets.vpr")
+
+        Files.createDirectories(tmpPath)
+        Using(axiom) { source =>
+          Files.write(axiomTmpPath, source.mkString.getBytes)
+        }
+
+        options ++= Vector("--setAxiomatizationFile", axiomTmpPath.toString())
+      }
 
       new Silicon(options)
     }
@@ -74,12 +113,12 @@ object ViperBackends {
     /** returns an existing ViperCoreServer instance or otherwise creates a new one */
     protected def getOrCreateServer(config: Config)(executionContext: GobraExecutionContext): ViperCoreServer = {
       server.getOrElse({
-        var serverConfig = List("--logLevel", config.logLevel.levelStr)
+        var serverConfig = List("--disablePlugins", "--logLevel", config.logLevel.levelStr)
         if(config.cacheFile.isDefined) {
           serverConfig = serverConfig.appendedAll(List("--cacheFile", config.cacheFile.get.toString))
         }
 
-        val createdServer = new ViperCoreServer(new ViperConfig(serverConfig))(executionContext)
+        val createdServer = new ViperCoreServer(new ViperConfig(serverConfig))(executionContext) with DefaultVerificationServerStart
         // store server for next time:
         server = Some(createdServer)
         createdServer
@@ -96,14 +135,33 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
-      if (!config.disableMoreCompleteExhale) {
-        options ++= Vector("--enableMoreCompleteExhale")
+      // Gobra seems to be much slower with the new silicon axiomatization of collections.
+      // For now, we stick to the old one.
+      options ++= Vector("--useOldAxiomatization")
+      if (config.z3APIMode) {
+        options ++= Vector(s"--prover=${Z3ProverAPI.name}")
       }
+      if (config.disableNL) {
+        options ++= Vector(s"--disableNL")
+      }
+      if (config.unsafeWildcardOptimization) {
+        options ++= Vector(s"--unsafeWildcardOptimization")
+      }
+      options ++= Vector(s"--moreJoins=${config.moreJoins.viperValue}")
+      val mceSiliconOpt = config.mceMode match {
+        case MCE.Disabled => "0"
+        case MCE.Enabled  => "1"
+        case MCE.OnDemand => "2"
+      }
+      options ++= Vector(s"--exhaleMode=$mceSiliconOpt")
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }
       if (config.parallelizeBranches) {
         options ++= Vector("--parallelizeBranches")
+      }
+      if (config.conditionalizePermissions) {
+        options ++= Vector("--conditionalizePermissions")
       }
       options ++= exePaths
       ViperServerConfig.ConfigWithSilicon(options.toList)

@@ -8,7 +8,7 @@ package viper.gobra.translator.encodings.arrays
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.Source
+import viper.gobra.reporting.{LoadError, InsufficientPermissionError, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
@@ -17,8 +17,10 @@ import viper.gobra.translator.encodings.combinators.TypeEncoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.library.embeddings.EmbeddingParameter
 import viper.gobra.translator.util.FunctionGenerator
+import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
+import viper.silver.plugin.standard.termination
 import viper.silver.{ast => vpr}
 
 import scala.annotation.unused
@@ -201,7 +203,11 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val (pos, info, errT) = loc.vprMeta
       for {
         arg <- ctx.reference(loc)
-      } yield conversionFunc(Vector(arg), cptParam(len, t)(ctx))(pos, info, errT)(ctx)
+        res <- funcAppPrecondition(
+          conversionFunc(Vector(arg), cptParam(len, t)(ctx))(pos, info, errT)(ctx),
+          { case (info, _) => LoadError(info) dueTo InsufficientPermissionError(info) }
+        )
+      } yield res
   }
 
   /**
@@ -297,7 +303,10 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         name = s"${Names.arrayConversionFunc}_${t.serialize}",
         formalArgs = Vector(variable(ctx)(x)),
         typ = vResultType,
-        pres = Vector(pure(addressFootprint(ctx)(x, in.WildcardPerm(info)))(ctx).res),
+        pres = Vector(
+          pure(addressFootprint(ctx)(x, in.WildcardPerm(info)))(ctx).res,
+          synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
+        ),
         posts = Vector(post),
         body = None
       )()
@@ -310,6 +319,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * function arrayDefault(): ([n]T)°
     *   ensures len(result) == n
     *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> [result[idx] == dflt(T)]
+    *   decreases _
     * */
   private val exDfltFunc: FunctionGenerator[ComponentParameter] = new FunctionGenerator[ComponentParameter]{
     def genFunction(t: ComponentParameter)(ctx: Context): vpr.Function = {
@@ -332,12 +342,14 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         Seq(vpr.Trigger(Seq(trigger))()),
         vpr.Implies(boundaryCondition(vIdx.localVar, t.len)(src), idxEq)()
       )()
+      val terminationMeasure =
+        synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
 
       vpr.Function(
         name = s"${Names.arrayDefaultFunc}_${t.serialize}",
         formalArgs = Seq.empty,
         typ = vResType,
-        pres = Seq.empty,
+        pres = Seq(terminationMeasure),
         posts = Vector(lenEq, arrayEq),
         body = None
       )()

@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+type IntType int
+
+// Cannot make non-pure method opaque
+//:: ExpectedOutput(type_error)
+opaque
+func (x IntType) negateCorrectSpec() (ret IntType) {
+	return -x
+}

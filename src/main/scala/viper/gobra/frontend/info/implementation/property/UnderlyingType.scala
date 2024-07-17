@@ -15,6 +15,14 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait UnderlyingType { this: TypeInfoImpl =>
 
+  object UnderlyingType {
+    def unapply(t: Type): Option[Type] = Some(underlyingType(t))
+  }
+
+  object UnderlyingPType {
+    def unapply(t: PType): Option[PType] = underlyingTypeP(t)
+  }
+
   lazy val underlyingType: Type => Type =
     attr[Type, Type] {
       case Single(DeclaredT(t: PTypeDecl, context: ExternalTypeInfo)) => underlyingType(context.symbType(t.right))
@@ -40,11 +48,13 @@ trait UnderlyingType { this: TypeInfoImpl =>
           case value : PType => Some(value, this)
           case _ => None
         }
+        case st.AdtClause(_, typeDecl, _) => Some((typeDecl.right, this))
         case _ => None // type not defined
       }
       case PDot(_, id) => entity(id) match {
         case st.NamedType(decl, _, ctx) => inCtx(ctx, decl.right)
         case st.TypeAlias(decl, _, ctx) => inCtx(ctx, decl.right)
+        case st.AdtClause(_, typeDecl, _) => Some((typeDecl.right, this))
         case _ => None // type not defined
       }
       case t => Some((t, this))

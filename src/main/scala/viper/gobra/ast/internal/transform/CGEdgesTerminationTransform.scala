@@ -102,7 +102,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                       stmts = assumeFalse +: optCallsToImpls
                     )(src)
                   }
-                  val newMember = in.Method(m.receiver, m.name, m.args, m.results, m.pres, m.posts, m.terminationMeasures, Some(newBody.toMethodBody))(src)
+                  val newMember = in.Method(m.receiver, m.name, m.args, m.results, m.pres, m.posts, m.terminationMeasures, Vector.empty, Some(newBody.toMethodBody))(src)
                   methodsToRemove += m
                   methodsToAdd += newMember
                   definedMethodsDelta += proxy -> newMember
@@ -156,7 +156,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   // new body to check termination
                   val terminationCheckBody = {
                     val returnType = m.results.head.typ
-                    val fallbackProxyCall = in.PureMethodCall(m.receiver, fallbackProxy, m.args, returnType)(src)
+                    val fallbackProxyCall = in.PureMethodCall(m.receiver, fallbackProxy, m.args, returnType, false)(src)
                     val implProxies: Vector[(in.Type, in.MemberProxy)] = implementations.toVector.flatMap{ impl =>
                       table.lookup(impl, proxy.name).map(implProxy => (impl, implProxy))
                     }
@@ -166,7 +166,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                           case implProxy: in.MethodProxy if !subT.isInstanceOf[in.InterfaceT] =>
                             in.Conditional(
                               in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(subT)(src))(src),
-                              in.PureMethodCall(in.TypeAssertion(m.receiver, subT)(src), implProxy, m.args, returnType)(src),
+                              in.PureMethodCall(in.TypeAssertion(m.receiver, subT)(src), implProxy, m.args, returnType, false)(src),
                               accum,
                               returnType
                             )(src)

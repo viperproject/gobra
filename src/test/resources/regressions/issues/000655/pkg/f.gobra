@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type List adt {
+	Cons {
+		head int
+		tail List
+	}
+
+	Nil {}
+}
+
+type Tree adt {
+    Leaf{}
+    Branch{ Left, Right Tree }
+}
+
+func Leaf() {
+}
+

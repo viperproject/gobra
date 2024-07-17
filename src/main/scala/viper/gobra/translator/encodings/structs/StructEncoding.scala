@@ -14,6 +14,7 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.TypeEncoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.FunctionGenerator
+import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
@@ -76,7 +77,10 @@ class StructEncoding extends TypeEncoding {
     */
   override def initialization(ctx: Context): in.Location ==> CodeWriter[vpr.Stmt] = {
     case l :: ctx.Struct(fs) =>
-      seqns(fieldAccesses(l, fs).map(x => ctx.initialization(x)))
+      for {
+        x <- bind(l)(ctx)
+        res <- seqns(fieldAccesses(x, fs).map(x => ctx.initialization(x)))
+      } yield res
   }
 
   /**
@@ -102,9 +106,13 @@ class StructEncoding extends TypeEncoding {
       ctx.assignment(in.Assignee(fa.recv), in.StructUpdate(fa.recv, fa.field, rhs)(src.info))(src)
 
     case (in.Assignee(lhs :: ctx.NoZeroSize(ctx.Struct(lhsFs)) / Shared), rhs :: ctx.Struct(rhsFs), src) =>
-      val lhsFAs = fieldAccesses(lhs, lhsFs).map(in.Assignee.Field)
-      val rhsFAs = fieldAccesses(rhs, rhsFs)
-      seqns((lhsFAs zip rhsFAs).map{ case (lhsFA, rhsFA) => ctx.assignment(lhsFA, rhsFA)(src) })
+      for {
+        x <- bind(lhs)(ctx)
+        y <- bind(rhs)(ctx)
+        lhsFAs = fieldAccesses(x, lhsFs).map(in.Assignee.Field)
+        rhsFAs = fieldAccesses(y, rhsFs)
+        res <- seqns((lhsFAs zip rhsFAs).map { case (lhsFA, rhsFA) => ctx.assignment(lhsFA, rhsFA)(src) })
+      } yield res
   }
 
   /**
@@ -126,6 +134,39 @@ class StructEncoding extends TypeEncoding {
       val equalFields = sequence((lhsFAccs zip rhsFAccs).map{ case (lhsFA, rhsFA) => ctx.equal(lhsFA, rhsFA)(src) })
       val (pos, info, errT) = src.vprMeta
       equalFields.map(VU.bigAnd(_)(pos, info, errT))
+  }
+
+  /**
+    * Encodes equal operation with go semantics
+    *
+    * [(lhs: Struct{F}) == rhs: Struct{_}] -> AND f in actual(F): [lhs.f == rhs.f] (NOTE: f ranges only over actual fields since `goEqual` corresponds to actual comparison)
+    */
+  override def goEqual(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = default(super.goEqual(ctx))(structEqual(ctx, useGoEquality = true))
+
+  /**
+    * Encodes equality of two struct values under consideration of either the Go or Gobra/ghost semantics
+    *
+    * useGoEquality:
+    * [(lhs: Struct{F}) == rhs: Struct{_}] -> AND f in actual(F): [lhs.f == rhs.f] (NOTE: f ranges only over actual fields)
+    *
+    * !useGoEquality:
+    * [(lhs: Struct{F}) == rhs: Struct{_}] -> AND f in F: [lhs.f == rhs.f] (NOTE: f ranges over actual & ghost fields)
+    */
+  private def structEqual(ctx: Context, useGoEquality: Boolean): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
+    case (lhs :: ctx.Struct(lhsFs), rhs :: ctx.Struct(rhsFs), src) =>
+      val (pos, info, errT) = src.vprMeta
+      // keep all fields if we are NOT using Go's equality. Otherwise, only keep actual fields:
+      val fieldFilter: in.FieldRef => Boolean = fr => !useGoEquality || !fr.field.ghost
+      val equalFn = (l: in.Expr, r: in.Expr) => if (useGoEquality) ctx.goEqual(l, r)(src) else ctx.equal(l, r)(src)
+      pure(
+        for {
+          x <- bind(lhs)(ctx)
+          y <- bind(rhs)(ctx)
+          lhsFAccs = fieldAccesses(x, lhsFs).filter(fieldFilter)
+          rhsFAccs = fieldAccesses(y, rhsFs).filter(fieldFilter)
+          equalFields <- sequence((lhsFAccs zip rhsFAccs).map { case (lhsFA, rhsFA) => equalFn(lhsFA, rhsFA) })
+        } yield VU.bigAnd(equalFields)(pos, info, errT)
+      )(ctx)
   }
 
   /**
@@ -212,13 +253,16 @@ class StructEncoding extends TypeEncoding {
       super.isComparable(ctx)(exp).map{ _ =>
         // if executed, then for all fields f, isComb[exp.f] != Left(false)
         val (pos, info, errT) = exp.vprMeta
-        // fields that are not ghost and with dynamic comparability
-        val fsAccs = fieldAccesses(exp, fs.filter(f => !f.ghost))
-        val fsComp = fsAccs map ctx.isComparable
-        // Left(true) can be removed.
-        for {
-          args <- sequence(fsComp collect { case Right(e) => e })
-        } yield VU.bigAnd(args)(pos, info, errT)
+        pure(
+          for {
+            x <- bind(exp)(ctx)
+            // fields that are not ghost and with dynamic comparability
+            fsAccs = fieldAccesses(x, fs.filter(f => !f.ghost))
+            fsComp = fsAccs map ctx.isComparable
+            // Left(true) can be removed.
+            args <- sequence(fsComp collect { case Right(e) => e })
+          } yield VU.bigAnd(args)(pos, info, errT)
+        )(ctx)
       }
   }
 

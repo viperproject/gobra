@@ -29,12 +29,44 @@ class GobrafyUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.gobrafy(input, expected)
   }
 
+  test("function with ghost args (post Go 1.19)") {
+    val input =
+      """
+        |// @ ghost-parameters: b int, c int
+        |// @ requires a >= 0 && b >= 0
+        |func foo(a int) {}
+        |""".stripMargin
+    val expected =
+      """
+        |requires a >= 0 && b >= 0
+        |func foo(a int, ghost b int, ghost c int) {}
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
   test("function with ghost results") {
     val input =
       """
         |//@ ghost-results: b int, c int
         |//@ requires a >= 0
         |//@ ensures a == b && b == c
+        |func foo(a int) {}
+        |""".stripMargin
+    val expected =
+      """
+        |requires a >= 0
+        |ensures a == b && b == c
+        |func foo(a int) (ghost b int, ghost c int) {}
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
+  test("function with ghost results (post Go 1.19)") {
+    val input =
+      """
+        |// @ ghost-results: b int, c int
+        |// @ requires a >= 0
+        |// @ ensures a == b && b == c
         |func foo(a int) {}
         |""".stripMargin
     val expected =
@@ -58,6 +90,36 @@ class GobrafyUnitTests extends AnyFunSuite with Matchers with Inside {
         |
         |  //@ requires mem() && hasNext()
         |  //@ ensures mem()
+        |  next() interface{}
+        |}""".stripMargin
+    val expected =
+      """
+        |type stream interface {
+        |  pred mem()
+        |
+        |  requires acc(mem(), 1/2)
+        |  pure
+        |  hasNext() bool
+        |
+        |  requires mem() && hasNext()
+        |  ensures mem()
+        |  next() interface{}
+        |}""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
+  test("pure interface function should stay pure (post Go 1.19)") {
+    val input =
+      """
+        |type stream interface {
+        |  // @ pred mem()
+        |
+        |  // @ requires acc(mem(), 1/2)
+        |  // @ pure
+        |  hasNext() bool
+        |
+        |  // @ requires mem() && hasNext()
+        |  // @ ensures mem()
         |  next() interface{}
         |}""".stripMargin
     val expected =
@@ -126,10 +188,72 @@ class GobrafyUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.gobrafy(input, expected)
   }
 
+  test("pure interface function should stay pure even with provided implementation (post Go 1.19)") {
+    val input =
+      """
+        |package presentation
+        |
+        |type stream interface {
+        | // @ pred mem()
+        |
+        | // @ requires acc(mem(), 1/2)
+        | // @ pure
+        | hasNext() bool
+        |}
+        |
+        |/** Implementation **/
+        |
+        |type counter struct{ f, max int }
+        |
+        |// @ requires acc(x, 1/2)
+        |// @ pure
+        |func (x *counter) hasNext() bool {
+        |	return x.f < x.max
+        |}
+        |
+        |""".stripMargin
+    val expected =
+      """
+        |package presentation
+        |
+        |type stream interface {
+        | pred mem()
+        |
+        | requires acc(mem(), 1/2)
+        | pure
+        | hasNext() bool
+        |}
+        |
+        |/** Implementation **/
+        |
+        |type counter struct{ f, max int }
+        |
+        |requires acc(x, 1/2)
+        |pure
+        |func (x *counter) hasNext() bool {
+        |	return x.f < x.max
+        |}
+        |
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
   test("assignment with ghost variables") {
     val input =
       """
         |a, b, c = d, e, f //@ with: g, h = i, j
+        |""".stripMargin
+    val expected =
+      """
+        |a, b, c, g, h = d, e, f, i, j
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
+  test("assignment with ghost variables (post Go 1.19)") {
+    val input =
+      """
+        |a, b, c = d, e, f // @ with: g, h = i, j
         |""".stripMargin
     val expected =
       """
@@ -150,10 +274,34 @@ class GobrafyUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.gobrafy(input, expected)
   }
 
-  test("short variable declaration with ghost variables and addressability") {
+  test("short variable declaration with ghost variables (post Go 1.19)") {
+    val input =
+      """
+        |a, b, c := d, e, f // @ with: g, h := i, j
+        |""".stripMargin
+    val expected =
+      """
+        |a, b, c, g, h := d, e, f, i, j
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
+    test("short variable declaration with ghost variables and addressability") {
     val input =
       """
         |a, b, c := d, e, f //@ with: g, h := i, j; addressable: b, g
+        |""".stripMargin
+    val expected =
+      """
+        |a, b@, c, g@, h := d, e, f, i, j
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
+  test("short variable declaration with ghost variables and addressability (post Go 1.19)") {
+    val input =
+      """
+        |a, b, c := d, e, f // @ with: g, h := i, j; addressable: b, g
         |""".stripMargin
     val expected =
       """
@@ -174,6 +322,19 @@ class GobrafyUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.gobrafy(input, expected)
   }
 
+  test("ghost return mixed (post Go 1.19)") {
+    val input =
+      """
+        |return a, b // @ with: c, d
+        |""".stripMargin
+    val expected =
+      """
+        |return a, b, c, d
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
+
   test("ghost return only actual") {
     val input =
       """
@@ -186,10 +347,34 @@ class GobrafyUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.gobrafy(input, expected)
   }
 
+  test("ghost return only actual (post Go 1.19)") {
+    val input =
+      """
+        |return a, b // @ with:
+        |""".stripMargin
+    val expected =
+      """
+        |return a, b
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
   test("ghost return only ghost") {
     val input =
       """
         |return //@ with: a, b
+        |""".stripMargin
+    val expected =
+      """
+        |return a, b
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
+  test("ghost return only ghost (post Go 1.19)") {
+    val input =
+      """
+        |return // @ with: a, b
         |""".stripMargin
     val expected =
       """
@@ -212,11 +397,42 @@ class GobrafyUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.gobrafy(input, expected)
   }
 
+  test("call with only actual arguments (post Go 1.19)") {
+    val input = {
+      // also testing with the now supported "/* @" annotation, even though Go does not enforce it
+      """
+        |foo(a, b) /* @ with: @ */
+        |foo(c, d) // @ with:
+        |""".stripMargin
+    }
+    val expected =
+      """
+        |foo(a, b)
+        |foo(c, d)
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
   test("call with only ghost arguments") {
     val input =
       """
         |foo() //@ with: a, b
         |foo() /*@ with: c, d @*/
+        |""".stripMargin
+    val expected =
+      """
+        |foo(a, b)
+        |foo(c, d)
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
+  test("call with only ghost arguments (post Go 1.19)") {
+    // also testing with the now supported "/* @" annotation, even though Go does not enforce it
+    val input =
+      """
+        |foo() // @ with: a, b
+        |foo() /* @ with: c, d @ */
         |""".stripMargin
     val expected =
       """
@@ -240,6 +456,21 @@ class GobrafyUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.gobrafy(input, expected)
   }
 
+  test("call with mix arguments (post Go 1.19)") {
+    // also testing with the now supported "/* @" annotation, even though Go does not enforce it
+    val input =
+      """
+        |foo(a, b) /* @ with: c, d @ */
+        |foo(e, f) // @ with: g, h
+        |""".stripMargin
+    val expected =
+      """
+        |foo(a, b, c, d)
+        |foo(e, f, g, h)
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
   test("call with spec, with only actual arguments") {
     val input =
       """
@@ -248,6 +479,27 @@ class GobrafyUnitTests extends AnyFunSuite with Matchers with Inside {
         |cl(c, d) /*@ as foo{1, 2} @*//*@ with: @*/
         |cl(c, d) /*@ as foo{x: 1, y: 2} @*//*@ with: @*/
         |cl(e, f) /*@ as foo{} @*///@ with:
+        |""".stripMargin
+    val expected =
+      """
+        |cl(a, b)  as foo{}
+        |cl(c, d) as foo{}
+        |cl(c, d) as foo{1, 2}
+        |cl(c, d) as foo{x: 1, y: 2}
+        |cl(e, f) as foo{}
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
+  test("call with spec, with only actual arguments (post Go 1.19)") {
+    // also testing with the now supported "/* @" annotation, even though Go does not enforce it
+    val input =
+      """
+        |cl(a, b) /* @ as foo{}@ */
+        |cl(c, d) /* @ as foo{} @ *//* @ with: @ */
+        |cl(c, d) /* @ as foo{1, 2} @ *//* @ with: @ */
+        |cl(c, d) /* @ as foo{x: 1, y: 2} @ *//* @ with: @ */
+        |cl(e, f) /* @ as foo{} @ */// @ with:
         |""".stripMargin
     val expected =
       """
@@ -278,6 +530,24 @@ class GobrafyUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.gobrafy(input, expected)
   }
 
+  test("call with spec, with only ghost arguments (post Go 1.19)") {
+    val input =
+      """
+        |cl() /* @ as foo{} @ *//* @ with: a, b @ */
+        |cl() /* @ as foo{} @ */// @ with: c, d
+        |cl() /* @ as foo{1, 2} @ */// @ with: c, d
+        |cl() /* @ as foo{x: 1, y: 2} @ */// @ with: c, d
+        |""".stripMargin
+    val expected =
+      """
+        |cl(a, b) as foo{}
+        |cl(c, d) as foo{}
+        |cl(c, d) as foo{1, 2}
+        |cl(c, d) as foo{x: 1, y: 2}
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
   test("call with spec, with mixed arguments") {
     val input =
       """
@@ -292,10 +562,36 @@ class GobrafyUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.gobrafy(input, expected)
   }
 
+  test("call with spec, with mixed arguments (post Go 1.19) ") {
+    val input =
+      """
+        |cl(a, b) /* @ as foo{} @ *//* @ with: c, d @ */
+        |cl(e, f) /* @ as foo{} @ */// @ with: g, h
+        |""".stripMargin
+    val expected =
+      """
+        |cl(a, b, c, d) as foo{}
+        |cl(e, f, g, h) as foo{}
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
   test("unfolding predicate instance") {
     val input =
       """
         |v := /*@ unfolding: list(n) @*/ n.val
+        |""".stripMargin
+    val expected =
+      """
+        |v := unfolding list(n) in n.val
+        |""".stripMargin
+    frontend.gobrafy(input, expected)
+  }
+
+  test("unfolding predicate instance (post Go 1.19)") {
+    val input =
+      """
+        |v := /* @ unfolding: list(n) @ */ n.val
         |""".stripMargin
     val expected =
       """

@@ -3,8 +3,8 @@
 
 package main
 
-import "net"
-
-// Should fail, package net does not contain member DoesNotExist
+// Rejected, as this conversion is side-effectful, as thus
+// it is not a pure expression.
 //:: ExpectedOutput(type_error)
-func closePacketConn(conn net.DoesNotExist) error
+ensures res === []byte(s)
+func to64(s string) (res []byte)

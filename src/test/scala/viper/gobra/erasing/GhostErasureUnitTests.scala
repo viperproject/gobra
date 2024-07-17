@@ -18,7 +18,6 @@ import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostLes
 
 class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
-
   test("Ghost Erasure: variable declaration should not have a trailing equal sign") {
     // var value int
     val decl = PVarDecl(Some(PIntType()), Vector(), Vector(PIdnDef("value")), Vector(false))
@@ -328,7 +327,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         PIdnDef("foo"),
         inArgs.map(_._1),
         PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), Vector(), Vector.empty),
+        PFunctionSpec(Vector(), Vector(), Vector(), Vector.empty, Vector.empty),
         Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
       ))
     )
@@ -342,9 +341,8 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         new PackageInfo("pkg", "pkg", false)
       )
       val tree = new Info.GoTree(pkg)
-      val context = new Info.Context()
-      val config = Config()
-      val info = new TypeInfoImpl(tree, context)(config)
+      val config = Config(disableCheckTerminationPureFns = true)
+      val info = new TypeInfoImpl(tree, Map.empty)(config)
       info.errors match {
         case Vector(msgs) => fail(s"Type-checking failed: $msgs")
         case _ =>

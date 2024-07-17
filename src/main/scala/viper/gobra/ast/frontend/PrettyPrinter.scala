@@ -24,6 +24,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def show(node: PNode): Doc = node match {
     case n: PPackage => showPackage(n)
     case n: PProgram => showProgram(n)
+    case n: PPreamble => showPreamble(n)
     case n: PPackageClause => showPackageClause(n)
     case n: PImport => showImport(n)
     case n: PMember => showMember(n)
@@ -61,11 +62,21 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showProgram(p: PProgram): Doc = p match {
     case PProgram(packageClause, progPosts, imports, declarations) =>
-      vcat(progPosts.map("initEnsures" <+> showExpr(_))) <>
-        showPackageClause(packageClause) <> line <> line <>
-        ssep(imports map showImport, line) <> line <>
+      showPreamble(packageClause, progPosts, imports) <>
         ssep(declarations map showMember, line <> line) <> line
   }
+
+  // preamble
+
+  def showPreamble(p: PPreamble): Doc = p match {
+    case PPreamble(packageClause, progPosts, imports, _) =>
+      showPreamble(packageClause, progPosts, imports)
+  }
+
+  private def showPreamble(packageClause: PPackageClause, progPosts: Vector[PExpression], imports: Vector[PImport]): Doc =
+    vcat(progPosts.map("initEnsures" <+> showExpr(_))) <>
+      showPackageClause(packageClause) <> line <> line <>
+      ssep(imports map showImport, line) <> line
 
   // package
 
@@ -101,6 +112,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMethodDecl(id, rec, args, res, spec, body) =>
         showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
         opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
+      case ip: PImplementationProof =>
+        showType(ip.subT) <+> "implements" <+> showType(ip.superT) <> (
+          if (ip.alias.isEmpty && ip.memberProofs.isEmpty) emptyDoc
+          else block(ssep(ip.alias map showMisc, line) <> line <> ssep(ip.memberProofs map showMisc, line))
+          )
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
@@ -108,15 +124,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
       case PMPredicateDecl(id, recv, args, body) =>
         "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
-      case ip: PImplementationProof =>
-        showType(ip.subT) <+> "implements" <+> showType(ip.superT) <> (
-            if (ip.alias.isEmpty && ip.memberProofs.isEmpty) emptyDoc
-            else block(ssep(ip.alias map showMisc, line) <> line <> ssep(ip.memberProofs map showMisc, line))
-          )
     }
   }
 
   def showPure: Doc = "pure" <> line
+  def showOpaque: Doc = "opaque" <> line
   def showTrusted: Doc = "trusted" <> line
   def showPre(pre: PExpression): Doc = "requires" <+> showExpr(pre)
   def showPreserves(preserves: PExpression): Doc = "preserves" <+> showExpr(preserves)
@@ -132,13 +144,15 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, measures, isPure, isTrusted) =>
+    case PFunctionSpec(pres, preserves, posts, measures, backendAnnotations, isPure, isTrusted, isOpaque) =>
       (if (isPure) showPure else emptyDoc) <>
+      (if (isOpaque) showOpaque else emptyDoc) <>
       (if (isTrusted) showTrusted else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
-        hcat(preserves map (showPreserves(_) <> line)) <>
-        hcat(posts map (showPost(_) <> line)) <>
-        hcat(measures map (showTerminationMeasure(_) <> line))
+      hcat(preserves map (showPreserves(_) <> line)) <>
+      hcat(posts map (showPost(_) <> line)) <>
+      hcat(measures map (showTerminationMeasure(_) <> line)) <>
+      showBackendAnnotations(backendAnnotations) <> line
 
     case PLoopSpec(inv, measure) =>
       hcat(inv map (showInv(_) <> line)) <> opt(measure)(showTerminationMeasure) <> line
@@ -245,8 +259,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       })
       case PAssForRange(range, ass, spec, body) =>
         showSpec(spec) <> "for" <+> showExprList(ass) <+> "=" <+> showRange(range) <+> block(showStmt(body))
-      case PShortForRange(range, shorts, spec, body) =>
-        showSpec(spec) <> "for" <+> showIdList(shorts) <+> ":=" <+> showRange(range) <+> block(showStmt(body))
+      case PShortForRange(range, shorts, addressable, spec, body) =>
+        showSpec(spec) <> "for" <+> showList(shorts zip addressable){ case (l, a) => showAddressable(a, l) } <+> ":=" <+> showRange(range) <+> block(showStmt(body))
       case PGoStmt(exp) => "go" <+> showExpr(exp)
       case PSelectStmt(send, rec, aRec, sRec, dflt) =>
         "select" <+> block(
@@ -265,10 +279,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PBlock(stmts) => block(showStmtList(stmts))
       case PSeq(stmts) => showStmtList(stmts)
       case POutline(body, spec) => showSpec(spec) <> "outline" <> parens(nest(line <> showStmt(body)) <> line)
+      case PClosureImplProof(impl, PBlock(stmts)) => "proof" <+> showExpr(impl) <> block(showStmtList(stmts))
     }
     case statement: PGhostStatement => statement match {
       case PExplicitGhostStatement(actual) => "ghost" <+> showStmt(actual)
       case PAssert(exp) => "assert" <+> showExpr(exp)
+      case PRefute(exp) => "refute" <+> showExpr(exp)
       case PAssume(exp) => "assume" <+> showExpr(exp)
       case PExhale(exp) => "exhale" <+> showExpr(exp)
       case PInhale(exp) => "inhale" <+> showExpr(exp)
@@ -276,7 +292,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PFold(exp) => "fold" <+> showExpr(exp)
       case PPackageWand(wand, blockOpt) => "package" <+> showExpr(wand) <+> opt(blockOpt)(showStmt)
       case PApplyWand(wand) => "apply" <+> showExpr(wand)
-      case PClosureImplProof(impl, PBlock(stmts)) => "proof" <+> showExpr(impl) <> block(showStmtList(stmts))
+      case PMatchStatement(exp, clauses, _) => "match" <+>
+        showExpr(exp) <+> block(ssep(clauses map showMatchClauseStatement, line))
     }
   }
 
@@ -324,7 +341,24 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       "case" <+> showIdList(shorts) <+> "=" <+> showExpr(recv) <> ":" <> showNestedStmtList(body.stmts)
   }
 
-  def showRange(n: PRange): Doc = "range" <+> showExpr(n.exp)
+  def showRange(n: PRange): Doc = n.enumerated match {
+    case _: PWildcard => "range" <+> showExpr(n.exp)
+    case _ => "range" <+> showExpr(n.exp) <+> "with" <+> showId(n.enumerated)
+  }
+
+  def showMatchClauseStatement(n: PMatchStmtCase): Doc = "case" <+> showMatchPattern(n.pattern) <> ":" <+> nest(line <> ssep(n.stmt map showStmt, line))
+
+  def showMatchPattern(exp: PMatchPattern): Doc = exp match {
+    case PMatchWildcard() => "_"
+    case PMatchBindVar(idn) => showId(idn)
+    case PMatchAdt(clause, fields) => showType(clause) <> "{" <> ssep(fields map showMatchPattern, ", ") <> "}"
+    case PMatchValue(lit) => "`" <> showExpr(lit) <> "`"
+  }
+
+  def showMatchExpClause(c: PMatchExpClause): Doc = c match {
+    case PMatchExpDefault(_) => "default:"
+    case PMatchExpCase(pattern, _) => "case" <+> showMatchPattern(pattern) <> ":"
+  }
 
   // expressions
 
@@ -423,7 +457,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
       case lit: PFunctionLit => showFunctionLit(lit)
-      case PInvoke(base, args, spec) => showExprOrType(base) <> parens(showExprList(args)) <> opt(spec)(s => emptyDoc <+> "as" <+> showMisc(s))
+      case PInvoke(base, args, spec, reveal) =>
+        val revealDoc: Doc = if (reveal) "reveal" else emptyDoc
+        revealDoc <+> showExprOrType(base) <> parens(showExprList(args)) <> opt(spec)(s => emptyDoc <+> "as" <+> showMisc(s))
       case PIndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
 
       case PSliceExp(base, low, high, cap) => {
@@ -474,6 +510,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PGhostEquals(l, r) => showExpr(l) <+> "===" <+> showExpr(r)
       case PGhostUnequals(l, r) => showExpr(l) <+> "!==" <+> showExpr(r)
       case POld(e) => "old" <> parens(showExpr(e))
+      case PLet(ass, op) => "let" <+> showStmt(ass) <+> "in" <+> showExpr(op)
       case PLabeledOld(l, e) => "old" <> brackets(l.name) <> parens(showExpr(e))
       case PBefore(e) => "before" <> parens(showExpr(e))
       case PConditional(cond, thn, els) => showSubExpr(expr, cond) <> "?" <> showSubExpr(expr, thn) <> ":" <> showSubExpr(expr, els)
@@ -499,6 +536,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case POptionNone(t) => "none" <> brackets(showType(t))
       case POptionSome(e) => "some" <> parens(showExpr(e))
       case POptionGet(e) => "get" <> parens(showExpr(e))
+
+      case PMatchExp(exp, clauses) => "match" <+> showExpr(exp) <+> block(
+        ssep(clauses map { c => showMatchExpClause(c) <+> showExpr(c.exp) }, line))
 
       case expr : PGhostCollectionExp => expr match {
         case PIn(left, right) => showSubExpr(expr, left) <+> "in" <+> showSubExpr(expr, right)
@@ -603,7 +643,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           ssep(pspec map showInterfaceClause, line)
       )
     case PMethodReceiveName(t) => showType(t)
-    case PMethodReceivePointer(t) => "*" <> showType(t)
+    case PMethodReceiveActualPointer(t) => "*" <> showType(t)
   }
 
   def showGhostType(typ : PGhostType) : Doc = typ match {
@@ -612,11 +652,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PMultisetType(elem) => "mset" <> brackets(showType(elem))
     case PMathematicalMapType(keys, values) => "dict" <> brackets(showType(keys)) <> showType(values)
     case POptionType(elem) => "option" <> brackets(showType(elem))
+    case PGhostPointerType(elem) => "gpointer" <> brackets(showType(elem))
     case PGhostSliceType(elem) => "ghost" <+> brackets(emptyDoc) <> showType(elem)
     case PDomainType(funcs, axioms) =>
       "domain" <+> block(
         ssep((funcs ++ axioms) map showMisc, line)
       )
+    case PAdtType(clauses) => "adt" <> block(ssep(clauses map showMisc, line))
+    case PMethodReceiveGhostPointer(t) => "gpointer" <> brackets(showType(t))
   }
 
   def showStructClause(c: PStructClause): Doc = c match {
@@ -652,18 +695,30 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showLabel(id: PLabelNode): Doc = id.name
 
+  def showBackendAnnotation(annotation: PBackendAnnotation): Doc =
+    annotation.key <> parens(showList(annotation.values)(d => d))
+
+  def showBackendAnnotations(annotations: Vector[PBackendAnnotation]): Doc =
+    "#backend" <> brackets(showList(annotations)(showBackendAnnotation))
+
   // misc
 
   def showMisc(id: PMisc): Doc = id match {
-    case n: PRange => showRange(n)
-    case receiver: PReceiver => showReceiver(receiver)
-    case result: PResult => showResult(result)
-    case embeddedType: PEmbeddedType => showEmbeddedType(embeddedType)
-    case parameter: PParameter => showParameter(parameter)
-    case literalValue: PLiteralValue => showLiteralValue(literalValue)
-    case keyedElement: PKeyedElement => showKeyedElement(keyedElement)
-    case compositeVal: PCompositeVal => showCompositeVal(compositeVal)
-    case closureDecl: PClosureDecl => showFunctionLit(PFunctionLit(None, closureDecl))
+    case misc: PActualMisc => misc match {
+      case n: PRange => showRange(n)
+      case receiver: PReceiver => showReceiver(receiver)
+      case result: PResult => showResult(result)
+      case embeddedType: PEmbeddedType => showEmbeddedType(embeddedType)
+      case parameter: PParameter => showParameter(parameter)
+      case literalValue: PLiteralValue => showLiteralValue(literalValue)
+      case keyedElement: PKeyedElement => showKeyedElement(keyedElement)
+      case compositeVal: PCompositeVal => showCompositeVal(compositeVal)
+      case closureDecl: PClosureDecl => showFunctionLit(PFunctionLit(None, closureDecl))
+      case mip: PMethodImplementationProof =>
+        (if (mip.isPure) "pure ": Doc else emptyDoc) <>
+          parens(showParameter(mip.receiver)) <+> showId(mip.id) <> parens(showParameterList(mip.args)) <> showResult(mip.result) <>
+          opt(mip.body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
+    }
     case misc: PGhostMisc => misc match {
       case s: PClosureSpecInstance => showExprOrType(s.func) <> braces(ssep(s.params map showMisc, comma <> space))
       case PFPredBase(id) => showId(id)
@@ -674,12 +729,19 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PDomainFunction(id, args, res) =>
         "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
       case PDomainAxiom(exp) => "axiom" <+> block(showExpr(exp))
-      case mip: PMethodImplementationProof =>
-        (if (mip.isPure) "pure ": Doc else emptyDoc) <>
-          parens(showParameter(mip.receiver)) <+> showId(mip.id) <> parens(showParameterList(mip.args)) <> showResult(mip.result) <>
-          opt(mip.body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
       case ipa: PImplementationProofPredicateAlias =>
         "pred" <+> showId(ipa.left) <+> ":=" <+> showExprOrType(ipa.right)
+      case PAdtClause(id, args) =>
+        showId(id) <+> block(
+          ssep(args map (decl => {
+            val fields = decl.fields
+            showIdList(fields map (_.id)) <+> showType(fields.head.typ)
+          }), line))
+      case clause: PMatchStmtCase => showMatchClauseStatement(clause)
+      case expr: PMatchPattern => showMatchPattern(expr)
+      case c: PMatchExpDefault => showMatchExpClause(c)
+      case c: PMatchExpCase => showMatchExpClause(c)
+      case a: PBackendAnnotation => showBackendAnnotation(a)
     }
   }
 
@@ -700,6 +762,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
         showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
       case PMethodDecl(id, rec, args, res, spec, _) =>
         showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
+      case ip: PImplementationProof =>
+        showType(ip.subT) <+> "implements" <+> showType(ip.superT)
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
@@ -707,8 +771,6 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
         "pred" <+> showId(id) <> parens(showParameterList(args))
       case PMPredicateDecl(id, recv, args, _) =>
         "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args))
-      case ip: PImplementationProof =>
-        showType(ip.subT) <+> "implements" <+> showType(ip.superT)
     }
   }
 

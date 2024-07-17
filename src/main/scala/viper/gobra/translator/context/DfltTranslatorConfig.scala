@@ -9,13 +9,14 @@ package viper.gobra.translator.context
 import viper.gobra.ast.internal.GlobalVarDecl
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.encodings._
+import viper.gobra.translator.encodings.adts.AdtEncoding
 import viper.gobra.translator.encodings.arrays.ArrayEncoding
 import viper.gobra.translator.encodings.channels.ChannelEncoding
 import viper.gobra.translator.encodings.closures.ClosureEncoding
 import viper.gobra.translator.encodings.combinators.{DefaultEncoding, FinalTypeEncoding, SafeTypeEncodingCombiner, TypeEncoding}
 import viper.gobra.translator.encodings.interfaces.InterfaceEncoding
 import viper.gobra.translator.encodings.maps.{MapEncoding, MathematicalMapEncoding}
-import viper.gobra.translator.encodings.defaults.{DefaultGlobalVarEncoding, DefaultMethodEncoding, DefaultPredicateEncoding, DefaultPureMethodEncoding}
+import viper.gobra.translator.encodings.defaults.{DefaultGlobalVarEncoding, DefaultMethodEncoding, DefaultPredicateEncoding, DefaultPureMethodEncoding, DefaultTriggerExprEncoding}
 import viper.gobra.translator.encodings.options.OptionEncoding
 import viper.gobra.translator.encodings.preds.PredEncoding
 import viper.gobra.translator.encodings.sequences.SequenceEncoding
@@ -60,19 +61,20 @@ class DfltTranslatorConfig(
   val pureMethodEncoding = new DefaultPureMethodEncoding
   val predicateEncoding = new DefaultPredicateEncoding
   val globalVarEncoding = new DefaultGlobalVarEncoding
+  val triggerExprEncoding = new DefaultTriggerExprEncoding
 
   val typeEncoding: TypeEncoding = new FinalTypeEncoding(
     new SafeTypeEncodingCombiner(Vector(
       new BoolEncoding, new IntEncoding, new PermissionEncoding,
       new PointerEncoding, new StructEncoding, arrayEncoding, new ClosureEncoding, new InterfaceEncoding,
-      new SequenceEncoding, new SetEncoding, new OptionEncoding, new DomainEncoding,
+      new SequenceEncoding, new SetEncoding, new OptionEncoding, new DomainEncoding, new AdtEncoding,
       new SliceEncoding(arrayEncoding), new PredEncoding, new ChannelEncoding, new StringEncoding,
       new MapEncoding, new MathematicalMapEncoding, new FloatEncoding,
       new AssertionEncoding, new CallEncoding, new MemoryEncoding, new ControlEncoding,
       new TerminationEncoding, new BuiltInEncoding, new OutlineEncoding, new DeferEncoding,
       new GlobalEncoding, new Comments,
     ), Vector(
-      methodEncoding, pureMethodEncoding, predicateEncoding, globalVarEncoding
+      methodEncoding, pureMethodEncoding, predicateEncoding, globalVarEncoding, triggerExprEncoding
     ))
   )
 

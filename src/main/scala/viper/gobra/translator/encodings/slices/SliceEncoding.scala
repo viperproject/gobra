@@ -17,6 +17,7 @@ import viper.gobra.translator.encodings.arrays.SharedArrayEmbedding
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.FunctionGenerator
+import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.silver.verifier.{errors => err}
@@ -193,23 +194,25 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         )
 
       case lit: in.NewSliceLit =>
+        val (pos, info, errT) = lit.vprMeta
         val litA = lit.asArrayLit
         val tmp = in.LocalVar(ctx.freshNames.next(), litA.typ.withAddressability(Addressability.pointerBase))(lit.info)
         val tmpT = ctx.variable(tmp)
         val underlyingTyp = underlyingType(lit.typ)(ctx)
         for {
-          initT <- ctx.initialization(tmp)
-          assignT <- ctx.assignment(in.Assignee.Var(tmp), litA)(lit)
           _ <- local(tmpT)
+          initT <- ctx.allocation(tmp)
           _ <- write(initT)
-          _ <- write(assignT)
+          eq <- ctx.equal(tmp, litA)(lit)
+          inhale = vpr.Inhale(eq)(pos, info, errT)
+          _ <- write(inhale)
           ass <- ctx.assignment(
             in.Assignee.Var(lit.target),
             in.Slice(tmp, in.IntLit(0)(lit.info), in.IntLit(litA.length)(lit.info), None, underlyingTyp)(lit.info)
           )(lit)
         } yield ass
+      }
     }
-  }
 
   /**
     * Obtains permission to all cells of a slice
@@ -339,6 +342,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     *   ensures soffset(result) == offset
     *   ensures slen(result) == len
     *   ensures scap(result) == cap
+    *   dereases _
     * }}}
     */
   private val constructGenerator : FunctionGenerator[vpr.Type] = new FunctionGenerator[vpr.Type] {
@@ -354,6 +358,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val pre2 = synthesized(vpr.LeCmp(vpr.IntLit(0)(), lenDecl.localVar))("Slice length might be negative")
       val pre3 = synthesized(vpr.LeCmp(lenDecl.localVar, capDecl.localVar))("Slice length might exceed capacity")
       val pre4 = synthesized(vpr.LeCmp(vpr.Add(offsetDecl.localVar, capDecl.localVar)(), ctx.array.len(aDecl.localVar)()))("Slice capacity might exceed the capacity of the underlying array")
+      val pre5 = synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
 
       // postconditions
       val result = vpr.Result(ctx.slice.typ(typ))()
@@ -366,7 +371,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         s"${Names.sliceConstruct}_${Names.serializeType(typ)}",
         Seq(aDecl, offsetDecl, lenDecl, capDecl),
         ctx.slice.typ(typ),
-        Seq(pre1, pre2, pre3, pre4),
+        Seq(pre1, pre2, pre3, pre4, pre5),
         Seq(post1, post2, post3, post4),
         None
       )()
@@ -506,6 +511,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     *   ensures slen(result) == j - i
     *   ensures scap(result) == alen(a) - i
     *   ensures sarray(result) == a
+    *   decreases _
     * {
     *   sfullSliceFromArray(a, i, j, alen(a))
     * }
@@ -522,6 +528,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val pre1 = synthesized(vpr.LeCmp(vpr.IntLit(0)(), iDecl.localVar))("The low bound of the slice might be negative")
       val pre2 = synthesized(vpr.LeCmp(iDecl.localVar, jDecl.localVar))("The low bound of the slice might exceed the high bound")
       val pre3 = synthesized(vpr.LeCmp(jDecl.localVar, ctx.array.len(aDecl.localVar)()))("The high bound of the slice might exceed the array capacity")
+      val pre4 = synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
 
       // postconditions
       val result = vpr.Result(ctx.slice.typ(typ))()
@@ -542,7 +549,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         s"${Names.sliceFromArray}_${Names.serializeType(typ)}",
         Seq(aDecl, iDecl, jDecl),
         ctx.slice.typ(typ),
-        Seq(pre1, pre2, pre3),
+        Seq(pre1, pre2, pre3, pre4),
         Seq(post1, post2, post3, post4),
         if (generateFunctionBodies) Some(body) else None
       )()

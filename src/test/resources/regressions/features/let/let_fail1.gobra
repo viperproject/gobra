@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pure func f(x *int) bool {
+	//:: ExpectedOutput(type_error)
+	return let y := *x in &y == x
+}
+
+pure func g1(x *int) int {
+	//:: ExpectedOutput(type_error)
+	return let y := h(x) in y
+}
+
+pure func g2(x *int) int {
+	//:: ExpectedOutput(type_error)
+	return let y := x in h(y)
+}
+
+pure func g3(x *int) int {
+	//:: ExpectedOutput(type_error)
+	return let y, z := 1, h(x) in y
+}
+
+func h(x *int) int {
+	*x += 1
+	return *x
+}

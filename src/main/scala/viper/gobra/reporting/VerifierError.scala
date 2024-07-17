@@ -11,7 +11,7 @@ import viper.gobra.ast.frontend.{PReceive, PSendStmt}
 import viper.gobra.reporting.Source.Verifier
 import viper.gobra.util.Constants
 import viper.gobra.util.Violation.violation
-import viper.silver.ast.SourcePosition
+import viper.silver.ast.{SourcePosition}
 
 sealed trait VerifierError {
   def position: Option[SourcePosition]
@@ -56,9 +56,13 @@ case class DiamondError(message: String) extends VerifierError {
   val id = "diamond_error"
 }
 
-case class TimeoutError(message: String) extends  VerifierError {
+case class TimeoutError(message: String) extends VerifierError {
   val position: Option[SourcePosition] = None
   val id = "timeout_error"
+}
+
+case class ConsistencyError(message: String, position: Option[SourcePosition]) extends VerifierError {
+  val id = "consistency_error"
 }
 
 sealed trait VerificationError extends VerifierError {
@@ -157,9 +161,9 @@ case class CallError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "Call might fail"
 }
 
-case class DerefError(info: Source.Verifier.Info) extends VerificationError {
-  override def localId: String = "dereference_error"
-  override def localMessage: String = "Dereference might fail"
+case class LoadError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "load_error"
+  override def localMessage: String = "Reading might fail"
 }
 
 case class PostconditionError(info: Source.Verifier.Info) extends VerificationError {
@@ -175,6 +179,13 @@ case class PreconditionError(info: Source.Verifier.Info) extends VerificationErr
 case class AssertError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "assert_error"
   override def localMessage: String = "Assert might fail"
+}
+
+case class RefuteError(info: Source.Verifier.Info) extends VerificationError {
+
+  override def localId: String = "refute_error"
+
+  override def localMessage: String = "Refute statement failed. Assertion is either unreachable or it always holds."
 }
 
 case class ExhaleError(info: Source.Verifier.Info) extends VerificationError {
@@ -284,6 +295,11 @@ case class ChannelMakePreconditionError(info: Source.Verifier.Info) extends Veri
   override def localMessage: String = s"The provided length to ${info.origin.tag.trim} might be negative"
 }
 
+case class MatchError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "match_error"
+  override def localMessage: String = s"The patterns might not match the expression"
+}
+
 case class RangeVariableMightNotExistError(info: Source.Verifier.Info)(rangeExpr: String) extends VerificationError {
   override def localId: String = "range_variable_might_not_exist"
   override def localMessage: String = s"Length of range expression '$rangeExpr' might be 0"
@@ -291,7 +307,12 @@ case class RangeVariableMightNotExistError(info: Source.Verifier.Info)(rangeExpr
 
 case class NoPermissionToRangeExpressionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "no_permission_to_range_expression"
-  override def localMessage: String = s"Might not have read permissions to range expression"
+  override def localMessage: String = s"Might not have read permission to range expression"
+}
+
+case class InsufficientPermissionToRangeExpressionError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "insufficient_permission_to_range_expression"
+  override def localMessage: String = s"Range expression should be immutable inside the loop body"
 }
 
 case class MapMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
@@ -331,7 +352,7 @@ case class ChannelReceiveError(info: Source.Verifier.Info) extends VerificationE
 
 case class ChannelSendError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "send_error"
-  override def localMessage: String = s"The receive expression ${info.trySrc[PSendStmt](" ")}might fail"
+  override def localMessage: String = s"The send expression ${info.trySrc[PSendStmt](" ")}might fail"
 }
 
 case class FunctionTerminationError(info: Source.Verifier.Info) extends VerificationError {
@@ -380,6 +401,13 @@ case class InsufficientPermissionFromTagError(tag: String) extends VerificationE
 case class AssertionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "assertion_error"
   override def message: String = s"Assertion ${info.origin.tag.trim} might not hold."
+}
+
+case class RefutationTrueError(info: Source.Verifier.Info) extends VerificationErrorReason {
+
+  override def id: String = "refutation_true_error"
+
+  override def message: String = s"Assertion ${info.origin.tag.trim} definitely holds."
 }
 
 case class SeqIndexExceedsLengthError(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {

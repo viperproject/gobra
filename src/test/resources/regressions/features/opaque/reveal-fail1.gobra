@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+decreases
+pure func A() int {
+	return 42
+}
+
+func B() {
+	// Cannot reveal non-opaque function
+	//:: ExpectedOutput(type_error)
+	a := reveal A()
+}

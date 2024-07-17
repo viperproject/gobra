@@ -8,7 +8,6 @@ package viper.gobra.reporting
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Paths
-
 import ch.qos.logback.classic.Level
 import com.typesafe.scalalogging.Logger
 import org.apache.commons.io.FileUtils
@@ -41,24 +40,46 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
                               goify: Boolean = false,
                               debug: Boolean = false,
                               printInternal: Boolean = false,
-                              printVpr: Boolean = false) extends GobraReporter {
+                              printVpr: Boolean = false,
+                              streamErrs: Boolean = true) extends GobraReporter {
 
   lazy val logger: Logger =
     Logger(LoggerFactory.getLogger(getClass.getName))
 
   override def report(msg: GobraMessage): Unit = msg match {
-    case ParsedInputMessage(input, program) if unparse => write(input, "unparsed", program().formatted)
-    case TypeCheckSuccessMessage(inputs, _, _, _, erasedGhostCode, goifiedGhostCode) =>
+    case PreprocessedInputMessage(WithoutBuiltinSources(input), content) if unparse => write(input, "gobrafied", content())
+    case ParsedInputMessage(WithoutBuiltinSources(input), program) if unparse => write(input, "unparsed", program().formatted)
+    case TypeCheckSuccessMessage(WithoutBuiltinSources(inputs), _, _, _, erasedGhostCode, goifiedGhostCode) =>
       if (eraseGhost) write(inputs, "ghostLess", erasedGhostCode())
       if (goify) write(inputs, "go", goifiedGhostCode())
-    case TypeCheckDebugMessage(inputs, _, debugTypeInfo) if debug => write(inputs, "debugType", debugTypeInfo())
-    case DesugaredMessage(inputs, internal) if printInternal => write(inputs, "internal", internal().formatted)
-    case AppliedInternalTransformsMessage(inputs, internal) if printInternal => write(inputs, "internal", internal().formatted)
-    case m@GeneratedViperMessage(_, inputs, _, _) if printVpr => write(inputs, "vpr", m.vprAstFormatted)
+    case TypeCheckDebugMessage(WithoutBuiltinSources(inputs), _, debugTypeInfo) if debug => write(inputs, "debugType", debugTypeInfo())
+    case DesugaredMessage(WithoutBuiltinSources(inputs), internal) if printInternal => write(inputs, "internal", internal().formatted)
+    case AppliedInternalTransformsMessage(WithoutBuiltinSources(inputs), internal) if printInternal => write(inputs, "internal", internal().formatted)
+    case m@GeneratedViperMessage(_, WithoutBuiltinSources(inputs), _, _) if printVpr => write(inputs, "vpr", m.vprAstFormatted)
     case m: ChoppedViperMessage if printVpr => write(m.inputs, s"chopped${m.idx}.vpr", m.vprAstFormatted)
     case m: ChoppedProgressMessage => logger.info(m.toString)
     case CopyrightReport(text) => println(text)
+    // Stream errors here
+    case m:GobraEntityFailureMessage if streamErrs => m.result match {
+      case VerifierResult.Failure(errors) => errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
+      case _ => // ignore
+    }
+    case m:ParserErrorMessage if streamErrs => m.result.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
+    case m:TypeCheckFailureMessage if streamErrs => m.result.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
+    case m:TransformerFailureMessage if streamErrs => m.result.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
     case _ => // ignore
+  }
+
+  private object WithoutBuiltinSources {
+    // the reporter generates files with different extensions in the same place as the original file.
+    // unfortunately, for the builtin resources, we do not generate a suitable path for the output files (these
+    // paths in particular are typically for a path for which a regular use does not have permissions).
+    val builtinSourcesNames = Seq("/builtin/builtin.gobra")
+    def unapply(s: String): Option[String] = if (builtinSourcesNames contains s) None else Some(s)
+    def unapply(s: Vector[String]): Option[Vector[String]] = {
+      val diff = s filterNot builtinSourcesNames.contains
+      if (diff.isEmpty) None else Some(diff)
+    }
   }
 
   private def write(inputs: Vector[String], fileExt: String, content: String): Unit = {

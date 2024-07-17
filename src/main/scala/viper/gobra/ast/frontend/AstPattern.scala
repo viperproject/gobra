@@ -20,8 +20,10 @@ object AstPattern {
 
   sealed trait Type extends Pattern
 
+  case class Import(id: PIdnUse, symb: st.Import) extends Type with Symbolic
   case class NamedType(id: PIdnUse, symb: st.ActualTypeEntity) extends Type with Symbolic
   case class PointerType(base: PType) extends Type
+  case class AdtClause(id: PIdnUse, symb: st.AdtClause) extends Type with Symbolic
 
   case class BuiltInType(id: PIdnUse, symb: st.BuiltInType) extends Type with Symbolic
 
@@ -32,6 +34,7 @@ object AstPattern {
   case class GlobalVariable(id: PIdnUse, symb: st.GlobalVariable) extends Expr with Symbolic
   case class Deref(base: PExpression) extends Expr
   case class FieldSelection(base: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.StructMember) extends Expr with Symbolic
+  case class AdtField(base: PExpression, id: PIdnUse, symb: st.AdtMember) extends Expr with Symbolic
   case class Conversion(typ: PType, arg: PExpression) extends Expr
 
   sealed trait FunctionLikeCall extends Expr {

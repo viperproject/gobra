@@ -72,6 +72,7 @@ object SymbolTable extends Environments[Entity] {
     override val args: Vector[PParameter] = decl.args
     override val result: PResult = decl.result
     def isPure: Boolean = decl.spec.isPure
+    def isOpaque: Boolean = decl.spec.isOpaque
   }
 
   case class Closure(lit: PFunctionLit, ghost: Boolean, context: ExternalTypeInfo) extends ActualDataEntity with WithArguments with WithResult {
@@ -110,13 +111,13 @@ object SymbolTable extends Environments[Entity] {
                             expOpt: Option[PExpression],
                             typOpt: Option[PType],
                             ghost: Boolean,
+                            override val addressable: Boolean,
                             isSingleModeDecl: Boolean,
                             context: ExternalTypeInfo
                            ) extends ActualVariable {
     require(expOpt.isDefined || typOpt.isDefined)
     require(0 <= idx && idx < decl.left.length)
     override def rep: PNode = decl
-    override def addressable: Boolean = true
     def id: PDefLikeId = decl.left(idx)
   }
 
@@ -139,6 +140,11 @@ object SymbolTable extends Environments[Entity] {
     override def toString: String = decl.binder.fold("unknown")(_.toString)
   }
   case class RangeVariable(idx: Int, exp: PRange, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+    override def rep: PNode = exp
+  }
+
+  case class RangeEnumerateVariable(exp: PRange, ghost: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+    override def addressable: Boolean = false
     override def rep: PNode = exp
   }
 
@@ -185,6 +191,7 @@ object SymbolTable extends Environments[Entity] {
     override def isPure: Boolean = decl.spec.isPure
     override val args: Vector[PParameter] = decl.args
     override val result: PResult = decl.result
+    def isOpaque: Boolean = decl.spec.isOpaque
   }
 
   case class MethodSpec(spec: PMethodSig, itfDef: PInterfaceType, ghost: Boolean, context: ExternalTypeInfo) extends Method {
@@ -244,12 +251,43 @@ object SymbolTable extends Environments[Entity] {
 
   sealed trait GhostStructMember extends StructMember with GhostTypeMember
 
-  case class DomainFunction(decl: PDomainFunction, domain: PDomainType, context: ExternalTypeInfo) extends GhostRegular with WithArguments with WithResult {
+  case class DomainFunction(decl: PDomainFunction, domain: PDomainType, context: ExternalTypeInfo) extends GhostTypeMember with WithArguments with WithResult {
     override def rep: PNode = decl
     override val args: Vector[PParameter] = decl.args
     override val result: PResult = decl.result
   }
 
+  case class MatchVariable(decl: PMatchBindVar, p: PNode, context: ExternalTypeInfo) extends GhostVariable {
+    override def rep: PNode = decl
+
+    override def addressable: Boolean = false
+  }
+
+  case class AdtClause(decl: PAdtClause, typeDecl: PTypeDef, context: ExternalTypeInfo) extends GhostTypeMember with TypeEntity {
+    require(typeDecl.right.isInstanceOf[PAdtType])
+
+    override def rep: PNode = decl
+
+    val adtDecl: PAdtType = typeDecl.right.asInstanceOf[PAdtType]
+    def getName: String = decl.id.name
+    val fields: Vector[PFieldDecl] = decl.args.flatMap(f => f.fields)
+  }
+
+  sealed trait AdtMember extends GhostTypeMember {
+    def getName: String
+  }
+
+  case class AdtDestructor(decl: PFieldDecl, typeDecl: PTypeDef, adtType: PAdtType, context: ExternalTypeInfo) extends AdtMember {
+    override def rep: PNode = decl
+
+    override def getName: String = decl.id.name
+  }
+
+  case class AdtDiscriminator(decl: PAdtClause, typeDecl: PTypeDef, adtType: PAdtType, context: ExternalTypeInfo) extends AdtMember {
+    override def rep: PNode = decl
+
+    override def getName: String = s"is${decl.id.name}"
+  }
 
   /**
     * entities for built-in members

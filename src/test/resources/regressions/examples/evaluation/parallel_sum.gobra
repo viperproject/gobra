@@ -106,7 +106,7 @@ func sumExtensional(ghost a []int, ghost b ghost []int) {
 	}
 }
 
-pred locHasVal(loc *int, val int) {
+pred locHasVal(loc gpointer[int], val int) {
 	acc(loc, 1/2) && *loc == val
 }
 

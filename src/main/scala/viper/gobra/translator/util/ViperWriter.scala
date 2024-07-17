@@ -8,6 +8,7 @@ package viper.gobra.translator.util
 
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, ReasonTransformer, RichErrorMessage}
 import viper.silver.{ast => vpr}
+import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.{DefaultErrorBackTranslator, Source, VerificationError}
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.{ViperUtil => vu}
@@ -60,8 +61,8 @@ object ViperWriter {
     def container(data: Vector[DataKind]): DataContainer[K] = {
       val (own, other) = data.foldLeft[(Vector[K], Vector[DataKind])]((Vector.empty, Vector.empty)){
         case ((ow, ot), e) => ownKind(e) match {
-          case None    => (ow, e +: ot)
-          case Some(k) => (k +: ow, ot)
+          case None    => (ow, ot :+ e)
+          case Some(k) => (ow :+ k, ot)
         }
       }
 
@@ -366,11 +367,55 @@ object ViperWriter {
     def bind(lhs: vpr.LocalVar, rhs: vpr.Exp): Writer[Unit] =
       create(Vector(Binding(lhs, rhs)), ())
 
+    /**
+      * Can be used in expressions.
+      * When using this method in the encoding of expressions,
+      * make sure to use [[pure]] to avoid that the generated let bindings leave the context.
+      * */
+    def bind(r: vpr.Exp)(ctx: Context): CodeWriter[vpr.LocalVar] = {
+      val z = vpr.LocalVar(ctx.freshNames.next(), r.typ)(r.pos, r.info, r.errT)
+      for {
+        _ <- local(vu.toVarDecl(z))
+        _ <- bind(z, r)
+      } yield z
+    }
+
+    /**
+      * Can be used in expressions.
+      * When using this method in the encoding of expressions,
+      * make sure to use [[pure]] to avoid that the generated let bindings leave the context.
+      * */
+    def bind(e: in.Expr)(ctx: Context): CodeWriter[in.LocalVar] = {
+      val src = e.info
+      val z = in.LocalVar(ctx.freshNames.next(), e.typ)(src)
+      val vprZ = ctx.variable(z)
+      for {
+        rhs <- ctx.value(e)
+        _ <- local(vprZ)
+        _ <- bind(vprZ.localVar, rhs)
+      } yield z
+    }
+
     /* Can be used in expressions. */
     def assert(cond: vpr.Exp, exp: vpr.Exp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError)(ctx: Context): Writer[vpr.Exp] = {
       // In the future, this might do something more sophisticated
-      val (res, errT) = ctx.condition.assert(cond, exp, reasonT)
-      errorT(errT).map(_ => res)
+      cond match {
+        case vpr.TrueLit() =>
+          unit(exp)
+        case _ =>
+          val (res, errT) = ctx.condition.assert(cond, exp, reasonT)
+          errorT(errT).map(_ => res)
+      }
+    }
+
+    /* Can be used in expressions. */
+    def funcAppPrecondition(call: vpr.FuncApp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError): Writer[vpr.Exp] = {
+      for {
+        _ <- errorT({
+          case e@vprerr.PreconditionInAppFalse(Source(info), reason, _) if e causedBy call =>
+            reasonT(info, reason)
+        })
+      } yield call
     }
 
     /* Can be used in expressions. */
@@ -447,15 +492,6 @@ object ViperWriter {
     /* Collects data. */
     def collect(collectibles: Collectible*): Writer[Unit] =
       create(collectibles.toVector, ())
-
-    /* Can be used in expressions. */
-    def copyResult(r: vpr.Exp)(ctx: Context): CodeWriter[vpr.LocalVar] = {
-      val z = vpr.LocalVar(ctx.freshNames.next(), r.typ)(r.pos, r.info, r.errT)
-      for {
-        _ <- local(vu.toVarDecl(z))
-        _ <- bind(z, r)
-      } yield z
-    }
   }
 
   type CodeWriter[+R] = CodeLevel.Writer[R]

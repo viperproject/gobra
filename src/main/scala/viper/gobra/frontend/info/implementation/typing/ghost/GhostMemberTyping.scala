@@ -7,11 +7,12 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
+import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMember, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
+import viper.gobra.util.Violation
 
 trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -25,41 +26,25 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       body.fold(noMessages)(assignableToSpec) ++
         isReceiverType.errors(miscType(receiver))(member) ++
         nonVariadicArguments(args)
+  }
 
-    case ip: PImplementationProof =>
-      val subType = symbType(ip.subT)
-      val superType = symbType(ip.superT)
-
-      val syntaxImplementsMsgs = syntaxImplements(subType, superType).asReason(ip, s"${ip.subT} does not implement the interface ${ip.superT}")
-      if (syntaxImplementsMsgs.nonEmpty) syntaxImplementsMsgs
-      else {
-        addDemandedImplements(subType, superType)
-
-        {
-          val badReceiverTypes = ip.memberProofs.map(m => miscType(m.receiver))
-            .filter(t => !identicalTypes(t, subType))
-          error(ip, s"The receiver of all methods included in the implementation proof must be $subType, " +
-            s"but encountered: ${badReceiverTypes.distinct.mkString(", ")}", cond = badReceiverTypes.nonEmpty)
-        } ++ {
-          val superPredNames = memberSet(superType).collect{ case (n, m: MPredicateSpec) => (n, m) }
-          val allPredicatesDefined = PropertyResult.bigAnd(superPredNames.map{ case (name, symb) =>
-            val valid = tryMethodLikeLookup(subType, PIdnUse(name)).isDefined ||
-              ip.alias.exists(al => al.left.name == name)
-            failedProp({
-              val argTypes = symb.args map symb.context.typ
-
-              s"predicate $name is not defined for type $subType. " +
-                s"Either declare a predicate 'pred ($subType) $name(${argTypes.mkString(", ")})' " +
-                s"or declare a predicate 'pred p($subType${if (argTypes.isEmpty) "" else ", "}${argTypes.mkString(", ")})' with some name p and add 'pred $name := p' to the implementation proof."
-            }, !valid)
-          })
-          allPredicatesDefined.asReason(ip, "Some predicate definitions are missing")
-        }
-      }
+  private[typing] def wellFoundedIfNeeded(member: PMember): Messages = {
+    val spec = member match {
+      case m: PMethodDecl => m.spec
+      case f: PFunctionDecl => f.spec
+      case _ => Violation.violation("Unexpected member type")
+    }
+    val hasMeasureIfNeeded =
+      if (spec.isPure || isEnclosingGhost(member))
+        config.disableCheckTerminationPureFns || spec.terminationMeasures.nonEmpty
+      else
+        true
+    val needsMeasureError =
+      error(member, "All pure or ghost functions and methods must have termination measures, but none was found for this member.", !hasMeasureIfNeeded)
+    needsMeasureError
   }
 
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
-
     if (member.spec.isPure) {
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
@@ -95,7 +80,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  private[ghost] def isPureBlock(block: PBlock): Messages = {
+  private[typing] def isPureBlock(block: PBlock): Messages = {
     block.nonEmptyStmts match {
       case Vector(PReturn(Vector(ret))) => isPureExpr(ret)
       case b => error(block, s"For now, the body of a pure block is expected to be a single return with a pure expression, got $b instead")
@@ -129,16 +114,18 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   def wellImplementationProofs: Either[Messages, Vector[(Type, InterfaceT, MethodImpl, MethodSpec)]] = {
     // the main context reports missing implementation proof for all packages (i.e. all packages that have been parsed & typechecked so far)
     if (isMainContext) {
+      // we not only collect the type information for directly imported packages but for all transitively imported ones:
+      val typeInfos = getTransitiveTypeInfos()
       val allRequiredImplements = {
-        val foundRequired = localRequiredImplements ++ context.getContexts.flatMap(_.localRequiredImplements)
-        val foundGuaranteed = localGuaranteedImplements ++ context.getContexts.flatMap(_.localGuaranteedImplements)
+        val foundRequired = typeInfos.flatMap(_.localRequiredImplements)
+        val foundGuaranteed = typeInfos.flatMap(_.localGuaranteedImplements)
         foundRequired diff foundGuaranteed
       }
       if (allRequiredImplements.nonEmpty) {
         // For every required implementation, check that there is at most one proof
         // and if not all predicates are defined, then check that there is a proof.
 
-        val providedImplProofs = localImplementationProofs ++ context.getContexts.flatMap(_.localImplementationProofs)
+        val providedImplProofs = typeInfos.flatMap(_.localImplementationProofs)
         val groupedProofs = allRequiredImplements.toVector.map{ case (impl, itf) =>
           (impl, itf, providedImplProofs.collect{ case (`impl`, `itf`, alias, proofs) => (alias, proofs) })
         }

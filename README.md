@@ -45,6 +45,33 @@ More information about the available options in Gobra can be found by running `r
 ### Running the Tests
 In the `gobra` directory, run the command `sbt test`.
 
+### Debugging
+By default, Gobra runs in sbt on a forked JVM. This means that simply attaching a debugger to sbt will not work. There
+are two workarounds:
+
+- Run Gobra in a non-forked JVM by first running `set fork := false` in sbt. This will allow you to attach a debugger to
+  sbt normally. However, for unknown reasons, this causes issues with class resolution in the Viper backend, so actually
+  only the parsing can really be debugged.
+- Attach the debugger to the forked JVM.
+  - Create a debug configuration in IntelliJ and specify to `Attach to remote JVM`, set `localhost` as host, and 
+     a port (e.g. 5005).
+  - Run `set javaOptions += "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005"`
+     in sbt (use any port you like, just make sure to use the same one in the debugger). Now, the forked JVM can be
+    debugged instead of the sbt JVM. This requires starting the debugger again every time a new VM is created,
+    e.g. for every `run`.
+- Let the debugger listen to the forked JVM.
+  - Create a debug configuration in IntelliJ and specify to `Listen to remote JVM`, enable auto restart, set
+    `localhost` as host, and a port (e.g. 5005).
+  - Run `set javaOptions += "-agentlib:jdwp=transport=dt_socket,server=n,address=localhost:5005,suspend=y"` in sbt.
+    Thanks to auto restart, the debugger keeps listening even when the JVM is restarted, e.g. for every `run`.
+    Note however that the debugger must be running/listening as otherwise the JVM will emit a connection 
+    refused error.
+
+## Projects verified with Gobra
+- [VerifiedSCION](https://github.com/viperproject/VerifiedSCION)
+- [Security of protocol implementations via refinement w.r.t. a Tamarin model](https://github.com/viperproject/protocol-verification-refinement). In particular, implementations of the signed Diffie-Hellman and WireGuard protocols have been verified.
+- [Security of protocol implementations verified entirely within Gobra](https://github.com/viperproject/SecurityProtocolImplementations). In particular, implementations of the Needham-Schroeder-Lowe, signed Diffie-Hellman, and WireGuard protocols have been verified.
+
 ## Licensing
 Most Gobra sources are licensed under the Mozilla Public License Version 2.0.
 The [LICENSE](./LICENSE) lists the exceptions to this rule.

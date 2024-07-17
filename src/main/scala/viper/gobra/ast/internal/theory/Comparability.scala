@@ -58,6 +58,8 @@ object Comparability {
     case TypeHead.MathMapHD => Kind.Recursive
     case TypeHead.OptionHD => Kind.Recursive
     case _: TypeHead.TupleHD => Kind.Recursive
+    case _: TypeHead.AdtHD => Kind.Comparable
+    case _: TypeHead.AdtClauseHD => Kind.Comparable
     case _: TypeHead.PredHD => Kind.Comparable
   }
 

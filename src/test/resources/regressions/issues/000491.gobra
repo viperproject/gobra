@@ -9,65 +9,65 @@ type A struct {
 
 func test1() {
 	var x *A
-	//:: ExpectedOutput(dereference_error:receiver_is_nil_error)
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
 	var y *A = &(*x)
 }
 
 func test2() {
 	var x *[3]int
-	//:: ExpectedOutput(dereference_error:receiver_is_nil_error)
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
 	var y []int = (*x)[:]
 }
 
 requires x != nil
 func test3(x *struct{}) {
-  v := *x
+	v := *x
 
-  //:: ExpectedOutput(assert_error:assertion_error)
-  assert false
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert false
 }
 
 requires x != nil
 func test4(x *[0]int) {
-  v := *x
+	v := *x
 
-  //:: ExpectedOutput(assert_error:assertion_error)
-  assert false
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert false
 }
 
 func test5(x *struct{}) {
-  //:: ExpectedOutput(dereference_error:receiver_is_nil_error)
-  v := *x
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	v := *x
 }
 
 func test6(x *[0]int) {
-  //:: ExpectedOutput(dereference_error:receiver_is_nil_error)
-  v := *x
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	v := *x
 }
 
 func test7(x, y *struct{}) {
-  //:: ExpectedOutput(assert_error:assertion_error)
-  assert x == y
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x == y
 }
 
 func test8(x, y *[0]int) {
-  //:: ExpectedOutput(assert_error:assertion_error)
-  assert x == y
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x == y
 }
 
 func test9(x *struct{}) {
-  //:: ExpectedOutput(assignment_error:receiver_is_nil_error)
-  *x = struct{}{}
+	//:: ExpectedOutput(assignment_error:receiver_is_nil_error)
+	*x = struct{}{}
 }
 
 func test10(x *[0]int) {
-  //:: ExpectedOutput(assignment_error:receiver_is_nil_error)
-  *x = [0]int{}
+	//:: ExpectedOutput(assignment_error:receiver_is_nil_error)
+	*x = [0]int{}
 }
 
 func test11() {
-  var x *[10]int
+	var x *[10]int
 
-  //:: ExpectedOutput(dereference_error:receiver_is_nil_error)
-  assert len(*x) == 10
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	assert len(*x) == 10
 }

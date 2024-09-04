@@ -262,9 +262,18 @@ class InterfaceEncoding extends LeafTypeEncoding {
       case n@ in.Access(in.Accessible.Predicate(in.MPredicateAccess(recv, p, args)), perm) if hasFamily(p)(ctx) =>
         val (pos, info, errT) = n.vprMeta
         for {
+          vRecv <- mpredicateRecv(recv, p)(ctx)
           instance <- mpredicateInstance(recv, p, args)(n)(ctx)
           perm <- goE(perm)
-        } yield vpr.PredicateAccessPredicate(instance, perm)(pos, info, errT): vpr.Exp
+        } yield {
+          vpr.And(
+            vpr.NeCmp(
+              vRecv,
+              utils.nilInterface()(pos, info, errT)(ctx)
+            )(pos, info, errT),
+            vpr.PredicateAccessPredicate(instance, perm)(pos, info, errT),
+          )(pos, info, errT)
+        }
 
       case n@ in.Access(in.Accessible.Predicate(in.FPredicateAccess(p, args)), perm) if hasFamily(p)(ctx) =>
         val (pos, info, errT) = n.vprMeta
@@ -638,10 +647,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
   }
   private var predicateFamilyTupleRes: Option[(Map[in.PredicateProxy, Int], Map[Int, SortedSet[in.PredicateProxy]], Map[Int, (String, Vector[in.Type])])] = None
 
-
-  private def mpredicateInstance(recv: in.Expr, proxy: in.MPredicateProxy, args: Vector[in.Expr])(src: in.Node)(ctx: Context): CodeWriter[vpr.PredicateAccess] = {
-    val (pos, info, errT) = src.vprMeta
-    val id = familyID(proxy)(ctx).getOrElse(Violation.violation("expected dynamic predicate"))
+  private def mpredicateRecv(recv: in.Expr, proxy: in.MPredicateProxy)(ctx: Context): CodeWriter[vpr.Exp] = {
+    val (pos, info, errT) = recv.vprMeta
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
     for {
@@ -650,6 +657,16 @@ class InterfaceEncoding extends LeafTypeEncoding {
         val typ = types.typeToExpr(recv.typ)(pos, info, errT)(ctx)
         boxInterface(dynValue, typ)(pos, info, errT)(ctx)
       } else dynValue
+    } yield vRecv
+  }
+
+  private def mpredicateInstance(recv: in.Expr, proxy: in.MPredicateProxy, args: Vector[in.Expr])(src: in.Node)(ctx: Context): CodeWriter[vpr.PredicateAccess] = {
+    val (pos, info, errT) = src.vprMeta
+    val id = familyID(proxy)(ctx).getOrElse(Violation.violation("expected dynamic predicate"))
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
+
+    for {
+      vRecv <- mpredicateRecv(recv, proxy)(ctx)
       vArgs <- sequence(args map goE)
     } yield vpr.PredicateAccess(vRecv +: vArgs, predicateName = genPredicateName(id))(pos, info, errT)
   }

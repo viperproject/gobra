@@ -102,10 +102,25 @@ class DefaultPredicateEncoding extends Encoding {
       val (pos, info, errT) = acc.vprMeta
       for {
         vRecv <- ctx.expression(op.recv)
+        proxy = op.pred
+        recvTyp = ctx.lookup(proxy).receiver.typ
+        isItf = recvTyp.isInstanceOf[in.InterfaceT]
         vArgs <- cl.sequence(op.args map ctx.expression)
         pacc = vpr.PredicateAccess(vRecv +: vArgs, op.pred.uniqueName)(pos, info, errT)
         vPerm <- ctx.expression(perm)
-      } yield vpr.PredicateAccessPredicate(pacc, vPerm)(pos, info, errT)
+        predAcc = vpr.PredicateAccessPredicate(pacc, vPerm)(pos, info, errT)
+        // TODO: not good enough, should not always be evaluated?; ensure it is pure
+        dflt <- expression(ctx)(in.DfltVal(recvTyp)(op.info))
+        res = if (isItf)
+          vpr.And(
+            vpr.NeCmp(
+              vRecv,
+              dflt,
+            )(pos, info, errT),
+            predAcc
+          )(pos, info, errT)
+        else predAcc
+      } yield res
   }
 
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {

@@ -12,7 +12,7 @@ import viper.silver.verifier._
 
 
 case class SIFTerminationChannelCheckFailed(offendingNode: ErrorNode, reason: ErrorReason,
-                                            override val cached: Boolean = false) extends AbstractVerificationError {
+                                            override val cached: Boolean = false) extends ExtensionAbstractVerificationError {
   val id: String = "termination_channel_check.failed"
   val text: String = "Termination channel might exist."
   override def withNode(offendingNode: ErrorNode = this.offendingNode): ErrorMessage =
@@ -21,7 +21,7 @@ case class SIFTerminationChannelCheckFailed(offendingNode: ErrorNode, reason: Er
   override def withReason(r: ErrorReason): AbstractVerificationError = SIFTerminationChannelCheckFailed(offendingNode, r)
 }
 
-case class SIFFoldNotLow(offendingNode: Fold) extends AbstractErrorReason {
+case class SIFFoldNotLow(offendingNode: Fold) extends ExtensionAbstractErrorReason {
   val id: String = "sif.fold"
   val readableMessage: String = s"The low parts of predicate ${offendingNode.acc.loc.predicateName} might not hold."
 
@@ -29,7 +29,7 @@ case class SIFFoldNotLow(offendingNode: Fold) extends AbstractErrorReason {
     SIFFoldNotLow(offendingNode.asInstanceOf[Fold])
 }
 
-case class SIFUnfoldNotLow(offendingNode: Unfold) extends AbstractErrorReason {
+case class SIFUnfoldNotLow(offendingNode: Unfold) extends ExtensionAbstractErrorReason {
   val id: String = "sif.unfold"
   val readableMessage: String = s"The low parts of predicate ${offendingNode.acc.loc.predicateName} might not hold."
 
@@ -37,7 +37,7 @@ case class SIFUnfoldNotLow(offendingNode: Unfold) extends AbstractErrorReason {
     SIFUnfoldNotLow(offendingNode.asInstanceOf[Unfold])
 }
 
-case class SIFTermCondNotLow(offendingNode: SIFTerminatesExp) extends AbstractErrorReason {
+case class SIFTermCondNotLow(offendingNode: SIFTerminatesExp) extends ExtensionAbstractErrorReason {
   val id: String = "sif_termination.condition_not_low"
   val readableMessage: String = s"Termination condition ${offendingNode.cond} might not be low."
 
@@ -45,7 +45,7 @@ case class SIFTermCondNotLow(offendingNode: SIFTerminatesExp) extends AbstractEr
     SIFTermCondNotLow(offendingNode.asInstanceOf[SIFTerminatesExp])
 }
 
-case class SIFTermCondLowEvent(offendingNode: SIFTerminatesExp) extends AbstractErrorReason {
+case class SIFTermCondLowEvent(offendingNode: SIFTerminatesExp) extends ExtensionAbstractErrorReason {
   val id: String = "sif_termination.not_lowevent"
   val readableMessage: String =
     s"Termination condition ${offendingNode.cond} evaluating to false might not imply both executions don't terminate."
@@ -54,7 +54,7 @@ case class SIFTermCondLowEvent(offendingNode: SIFTerminatesExp) extends Abstract
     SIFTermCondLowEvent(offendingNode.asInstanceOf[SIFTerminatesExp])
 }
 
-case class SIFTermCondNotTight(offendingNode: SIFTerminatesExp) extends AbstractErrorReason {
+case class SIFTermCondNotTight(offendingNode: SIFTerminatesExp) extends ExtensionAbstractErrorReason {
   val id: String = "sif_termination.condition_not_tight"
   val readableMessage: String = s"Termination condition ${offendingNode.cond} might not be tight."
 

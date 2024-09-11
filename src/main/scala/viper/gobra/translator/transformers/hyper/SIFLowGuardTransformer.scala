@@ -131,11 +131,32 @@ trait SIFLowGuardTransformer {
     f.copy(name = ctx.rename(f.name))(f.pos, f.info, f.errT)
   }
 
-  def domain(d: Domain, @unused ctx: Context): Vector[Member] = Vector(d)
+  def domain(d: Domain, ctx: Context): Vector[Member] = {
+    val relationalTriggers = d.functions.filter(f => isRelationalTrigger(f.name)).map { f =>
+      val formalArgs = f.formalArgs.zipWithIndex.map{
+        case (v: LocalVarDecl, _) => v
+        case (v: UnnamedLocalVarDecl, idx) => LocalVarDecl(s"""v$idx""", v.typ)(v.pos, v.info, v.errT)
+      }
+
+      val newFormalArgs = formalArgs.map(runLocalVarDecl(_, ctx.major)) ++ formalArgs.map(runLocalVarDecl(_, ctx.minor))
+      DomainFunc(ctx.predicateFunctionName(f.name), newFormalArgs, Bool)(f.pos,f.info,d.name,f.errT)
+    }
+
+    val relationalAxioms = d.axioms.filter(ax => isRelational(ax.exp, ctx)).map {
+      case ax: NamedDomainAxiom => ax.copy(exp = assertion(ax.exp, ctx))(ax.pos, ax.info, ax.domainName, ax.errT)
+      case ax: AnonymousDomainAxiom => ax.copy(exp = assertion(ax.exp, ctx))(ax.pos, ax.info, ax.domainName, ax.errT)
+    }
+
+    Vector(d.copy(
+      functions = d.functions ++ relationalTriggers,
+      axioms = d.axioms ++ relationalAxioms,
+    )(d.pos,d.info,d.errT))
+  }
 
   def directlyRelational(e: Exp): Boolean = {
     e.exists {
       case _: SIFLowExp => true
+      case f: DomainFuncApp => isRelationalTrigger(f.funcname)
       case _ => false
     }
   }
@@ -143,6 +164,7 @@ trait SIFLowGuardTransformer {
   def isRelational(e: Exp, ctx: Context): Boolean = {
     e.exists {
       case _: SIFLowExp => true
+      case f: DomainFuncApp => isRelationalTrigger(f.funcname)
       case p: PredicateAccess => ctx.isRelationalPredicate(p.predicateName)
       case _ => false
     }
@@ -184,6 +206,13 @@ trait SIFLowGuardTransformer {
         case l: SIFLowExp => comparison(l, ctx)
         case l: SIFLowEventExp => TrueLit()(l.pos, l.info, l.errT)
 
+        case a: DomainFuncApp =>
+          assert(isRelationalTrigger(a.funcname), s"Expected relational trigger, but got $a.")
+          a.copy(
+            funcname = ctx.predicateFunctionName(a.funcname),
+            args = a.args.map(runExp(_, ctx.major)) ++ a.args.map(runExp(_, ctx.minor)),
+          )(a.pos, a.info, a.typ, a.domainName, a.errT)
+
         case p: PredicateAccess =>
           assert(isPositive)
           And(positiveUnary(p), predicateAccess(p.predicateName, p.args, ctx)(p.pos, p.info, p.errT))(p.pos, p.info, p.errT)
@@ -194,8 +223,7 @@ trait SIFLowGuardTransformer {
         case f: Forall =>
           Forall(
             variables = f.variables.map(runLocalVarDecl(_, ctx.major)) ++ f.variables.map(runLocalVarDecl(_, ctx.minor)),
-            triggers = f.triggers.map(t => Trigger(t.exps.map(runExp(_, ctx.major)))(t.pos, t.info, t.errT)) ++
-              f.triggers.map(t => Trigger(t.exps.map(runExp(_, ctx.minor)))(t.pos, t.info, t.errT)),
+            triggers = f.triggers.flatMap(trigger(_, ctx)),
             exp = go(f.exp, isPositive),
           )(f.pos, f.info, f.errT).autoTrigger
 
@@ -217,7 +245,13 @@ trait SIFLowGuardTransformer {
     Simplifier.simplify(go(e, isPositive = true))
   }
 
-
+  def trigger(t: Trigger, ctx: Context): Vector[Trigger] = {
+    def triggerExp(e: Exp): Vector[Exp] = {
+      if (isRelational(e, ctx)) Vector(assertion(e, ctx))
+      else Vector(runExp(e, ctx.major), runExp(e, ctx.minor))
+    }
+    Vector(Trigger(t.exps.flatMap(triggerExp))(t.pos,t.info,t.errT))
+  }
 
   def predicateAccess(p: String, args: Seq[Exp], ctx: Context)(pos: Position, info: Info, errT: ErrorTrafo): FuncApp = {
     FuncApp(
@@ -450,6 +484,8 @@ trait SIFLowGuardTransformer {
     case s: Seqn => s
     case s => Seqn(Seq(s), Seq.empty)(s.pos, s.info, s.errT)
   }
+
+  def isRelationalTrigger(s: String): Boolean = s.startsWith("rel_")
 }
 
 trait Context {

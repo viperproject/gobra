@@ -19,7 +19,7 @@ import viper.gobra.util.Violation
 trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefProgram: WellDefinedness[PProgram] = createWellDef {
-    case PProgram(_, posts, imports, members) =>
+    case p@PProgram(_, posts, imports, members) =>
       if (config.enableLazyImports) {
         posts.flatMap(post => message(post, s"Init postconditions are not allowed when executing ${GoVerifier.name} with ${Config.enableLazyImportOptionPrettyPrinted}"))
       } else {
@@ -42,9 +42,13 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
         //       assume that the ids are well-defined.
         val idsOkMsgs = sortedByPosDecls.flatMap(d => d.left).flatMap(l => wellDefID(l).out)
         if (idsOkMsgs.isEmpty) {
-          globalDeclSatisfiesDepOrder(sortedByPosDecls) ++
-            hasOldExpression(posts) ++
-            hasOldExpression(imports.flatMap(_.importPres))
+          val globalDeclsInRightOrder = globalDeclSatisfiesDepOrder(sortedByPosDecls)
+          globalDeclsInRightOrder ++ (if (config.enableModularInit) {
+            error(p, s"Init-postconditions are not allowed when using the flag ${Config.enableModularInitOptionNamePrettyPrinted}", posts.nonEmpty) ++
+              error(p, s"Import-preconditions are not allowed when using the flag ${Config.enableModularInitOptionNamePrettyPrinted}", imports.flatMap(_.importPres).nonEmpty)
+          } else {
+            hasOldExpression(posts) ++ hasOldExpression(imports.flatMap(_.importPres))
+          })
         } else {
           idsOkMsgs
         }

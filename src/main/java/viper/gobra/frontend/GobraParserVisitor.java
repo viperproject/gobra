@@ -1,4 +1,4 @@
-// Generated from src/main/antlr4/GobraParser.g4 by ANTLR 4.13.1
+// Generated from /Users/joao/code/gobra/src/main/antlr4/GobraParser.g4 by ANTLR 4.13.1
 package viper.gobra.frontend;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -64,6 +64,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitImportPre(GobraParser.ImportPreContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#pkgInvariant}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPkgInvariant(GobraParser.PkgInvariantContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#importSpec}.
 	 * @param ctx the parse tree

@@ -85,6 +85,8 @@ WRITEPERM   : 'writePerm' -> mode(NLSEMI);
 NOPERM      : 'noPerm' -> mode(NLSEMI);
 TRUSTED     : 'trusted' -> mode(NLSEMI);
 OUTLINE     : 'outline';
+DUPLICABLE  : 'duplicable';
+PKG_INV     : 'pkgInvariant';
 INIT_POST   : 'initEnsures';
 IMPORT_PRE  : 'importRequires';
 PROOF       : 'proof';

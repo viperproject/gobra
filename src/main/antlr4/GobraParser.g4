@@ -32,9 +32,8 @@ maybeAddressableIdentifierList: maybeAddressableIdentifier (COMMA maybeAddressab
 maybeAddressableIdentifier: IDENTIFIER ADDR_MOD?;
 
 // Ghost members
-
 sourceFile:
-  (initPost eos)* packageClause eos (importDecl eos)* (
+  ((initPost eos) | (pkgInvariant eos))* packageClause eos (importDecl eos)* (
     (specMember | declaration | ghostMember) eos
   )* EOF;
 
@@ -45,6 +44,8 @@ preamble: (initPost eos)* packageClause eos (importDecl eos)*;
 initPost: INIT_POST expression;
 
 importPre: IMPORT_PRE expression;
+
+pkgInvariant: DUPLICABLE? PKG_INV assertion;
 
 importSpec: (importPre eos)* alias = (DOT | IDENTIFIER)? importPath;
 

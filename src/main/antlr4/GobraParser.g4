@@ -33,13 +33,13 @@ maybeAddressableIdentifier: IDENTIFIER ADDR_MOD?;
 
 // Ghost members
 sourceFile:
-  ((initPost eos) | (pkgInvariant eos))* packageClause eos (importDecl eos)* (
+   (pkgInvariant eos)* (initPost eos)* packageClause eos (importDecl eos)* (
     (specMember | declaration | ghostMember) eos
   )* EOF;
 
 // `preamble` is a second entry point allowing us to parse only the top of a source.
 // That's also why we don not enforce EOF at the end.
-preamble: (initPost eos)* packageClause eos (importDecl eos)*;
+preamble: (pkgInvariant eos)* (initPost eos)* packageClause eos (importDecl eos)*;
 
 initPost: INIT_POST expression;
 
@@ -63,6 +63,7 @@ ghostStatement:
   | fold_stmt=(FOLD | UNFOLD) predicateAccess #foldStatement
   | kind=(ASSUME | ASSERT | REFUTE | INHALE | EXHALE) expression #proofStatement
   | matchStmt #matchStmt_
+  | OPEN_DUP_SINV (IDENTIFIER) #pkgInvStatement
   ;
 
 // Auxiliary statements

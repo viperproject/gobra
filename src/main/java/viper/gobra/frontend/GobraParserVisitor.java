@@ -117,6 +117,13 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitMatchStmt_(GobraParser.MatchStmt_Context ctx);
 	/**
+	 * Visit a parse tree produced by the {@code pkgInvStatement}
+	 * labeled alternative in {@link GobraParser#ghostStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPkgInvStatement(GobraParser.PkgInvStatementContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#auxiliaryStatement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

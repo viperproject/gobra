@@ -137,6 +137,13 @@ public class GobraParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> imple
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
+	@Override public T visitPkgInvStatement(GobraParser.PkgInvStatementContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
 	@Override public T visitAuxiliaryStatement(GobraParser.AuxiliaryStatementContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}

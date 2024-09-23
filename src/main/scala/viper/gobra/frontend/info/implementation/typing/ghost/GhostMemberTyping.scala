@@ -49,7 +49,8 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
-        nonVariadicArguments(member.args)
+        nonVariadicArguments(member.args) ++
+        error(member, "Pure functions cannot be annotated with 'mayInit'.", member.spec.mayBeUsedInInit)
     } else noMessages
   }
 
@@ -64,7 +65,8 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
-        nonVariadicArguments(member.args)
+        nonVariadicArguments(member.args) ++
+        error(member, "Pure functions cannot be annotated with 'mayInit'.", member.spec.mayBeUsedInInit)
     } else noMessages
   }
 

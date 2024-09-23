@@ -8,7 +8,6 @@ package viper.gobra.frontend
 
 import com.typesafe.scalalogging.LazyLogging
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
-import viper.gobra.ast.internal.{MethodBody, MethodBodySeqn}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.frontend.Source.TransformableSource
@@ -3506,7 +3505,7 @@ object Desugar extends LazyLogging {
         posts = Vector(assertion, assertion),
         terminationMeasures = Vector.empty,
         backendAnnotations = Vector.empty,
-        body = Some(MethodBody.empty(src))
+        body = Some(in.MethodBody.empty(src))
       )(src)
     }
 
@@ -4150,17 +4149,15 @@ object Desugar extends LazyLogging {
             case _ => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
           }
         case POpenDupPkgInv(pkgId) =>
+          // TODO: drop the `pkgId` param, and skip this check. openDupPkgInv should only
+          // open the current package's invariant.
           val currPkgName = info.pkgName.name
           val thisPkg = info.tree.root
           val ppkg = pkgId match {
             case `currPkgName` =>
               thisPkg
             case _ =>
-              // TODO: explain this hack - we require the full path, getting the pkg
-              // from its qualifier is very hard because the desugarer does not know which
-              // PProgram it is currently looking at
-              // thisPkg.programs.flatMap(_.imports).filter(_.importPath == pkgId)
-            ???
+              Violation.violation("Cannot use the openDupPkgInv statement to open the invariant of other packages. Use a ghost method instead.")
           }
           val dupInvs = initSpecs.get.dupPkgInvsOfPackage(ppkg)
           val inhales = dupInvs.map(i => in.Inhale(i)(src))

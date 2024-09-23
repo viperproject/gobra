@@ -430,7 +430,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val spec = if (ctx.specification() != null)
       visitSpecification(ctx.specification())
     else
-      PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty, Vector.empty).at(ctx)
+      PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty, Vector.empty, mayBeUsedInInit = false).at(ctx) // TODO: drop
     // The name of each explicitly specified method must be unique and not blank.
     val id = idnDef.get(ctx.IDENTIFIER())
     val args = visitNode[Vector[Vector[PParameter]]](ctx.parameters())
@@ -914,7 +914,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       annotations,
       isPure = ctx.pure,
       isTrusted = ctx.trusted,
-      isOpaque = ctx.opaque
+      isOpaque = ctx.opaque,
+      mayBeUsedInInit = ctx.mayInit,
     )
   }
 

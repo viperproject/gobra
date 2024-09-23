@@ -24,8 +24,17 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case PFold(acc) => wellDefFoldable(acc)
     case PUnfold(acc) => wellDefFoldable(acc)
     case POpenDupPkgInv(_) =>
-      //TODO: add check that if it is '_', we are in a non-init fn
-      noMessages
+      // TODO: do the same for opening non-dup invs
+      tryEnclosingFunctionOrMethod(stmt) match {
+        case Some(m) =>
+          val occursInInitMember = m match {
+            case f: PFunctionDecl if f.id.name == "init" || f.spec.mayBeUsedInInit => true
+            case m: PMethodDecl if m.spec.mayBeUsedInInit => true
+            case _ => false
+          }
+          error(stmt, "Trying to open the package invariant in a function that may execute during initialization is not allowed.", occursInInitMember)
+        case _ => noMessages
+      }
     case n@PPackageWand(wand, optBlock) => assignableToSpec(wand) ++
       error(n, "ghost error: expected ghostifiable statement", !optBlock.forall(_.isInstanceOf[PGhostifiableStatement]))
     case PApplyWand(wand) => assignableToSpec(wand)

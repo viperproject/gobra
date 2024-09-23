@@ -252,11 +252,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             argWithinBounds
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
-          val isOpaque = c.callee match {
+          val (isOpaque, isMayInit, isImported) = c.callee match {
             case base: ap.Symbolic => base.symb match {
-              case f: st.Function => f.isOpaque
-              case m: st.MethodImpl => m.isOpaque
-              case _ => false
+              case f: st.Function => (f.isOpaque, f.decl.spec.mayBeUsedInInit, f.context != this)
+              case m: st.MethodImpl => (m.isOpaque, m.decl.spec.mayBeUsedInInit, m.context != this)
+              case _ => (false, true, false) // TODO: check defaults
             }
           }
           val onlyRevealOpaqueFunc =
@@ -273,7 +273,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n, s"type error: got $t but expected function type or AbstractType")
           }
-          onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs
+          val mayInitSeparation = error(n, "Function called from 'mayInit' context is not 'mayInit'.", !isImported && (isEnclosingMayInit(n) && !isMayInit))
+          onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation
 
         case (Left(_), Some(_: ap.ClosureCall)) =>
           error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a closure call.", n.reveal) ++ wellDefCallWithSpec(n)

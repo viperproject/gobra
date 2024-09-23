@@ -898,6 +898,7 @@ case class PFunctionSpec(
                           isPure: Boolean = false,
                           isTrusted: Boolean = false,
                           isOpaque: Boolean = false,
+                          mayBeUsedInInit: Boolean,
                       ) extends PSpecification
 
 case class PBackendAnnotation(key: String, values: Vector[String]) extends PGhostMisc

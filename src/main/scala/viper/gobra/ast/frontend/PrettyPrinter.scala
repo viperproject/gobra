@@ -137,6 +137,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showPure: Doc = "pure" <> line
   def showOpaque: Doc = "opaque" <> line
   def showTrusted: Doc = "trusted" <> line
+  def showMayInit: Doc = "mayInit" <> line
   def showPre(pre: PExpression): Doc = "requires" <+> showExpr(pre)
   def showPreserves(preserves: PExpression): Doc = "preserves" <+> showExpr(preserves)
   def showPost(post: PExpression): Doc = "ensures" <+> showExpr(post)
@@ -151,10 +152,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, measures, backendAnnotations, isPure, isTrusted, isOpaque) =>
+    case PFunctionSpec(pres, preserves, posts, measures, backendAnnotations, isPure, isTrusted, isOpaque, mayInit) =>
       (if (isPure) showPure else emptyDoc) <>
       (if (isOpaque) showOpaque else emptyDoc) <>
       (if (isTrusted) showTrusted else emptyDoc) <>
+      (if (mayInit) showMayInit else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
       hcat(preserves map (showPreserves(_) <> line)) <>
       hcat(posts map (showPost(_) <> line)) <>

@@ -19,9 +19,10 @@ import viper.gobra.util.Violation
 trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefProgram: WellDefinedness[PProgram] = createWellDef {
-    case p@PProgram(_, posts, imports, members) =>
+    case p@PProgram(_, posts, staticInvs, imports, members) =>
       if (config.enableLazyImports) {
-        posts.flatMap(post => message(post, s"Init postconditions are not allowed when executing ${GoVerifier.name} with ${Config.enableLazyImportOptionPrettyPrinted}"))
+        posts.flatMap(post => message(post, s"Init postconditions are not allowed when executing ${GoVerifier.name} with ${Config.enableLazyImportOptionPrettyPrinted}")) ++
+        staticInvs.flatMap(inv => message(inv, s"Package invariants are not allowed when executing ${GoVerifier.name} with ${Config.enableLazyImportOptionPrettyPrinted}"))
       } else {
         // Obtains global variable declarations sorted by the order in which they appear in the file
         val sortedByPosDecls: Vector[PVarDecl] = {
@@ -43,12 +44,15 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
         val idsOkMsgs = sortedByPosDecls.flatMap(d => d.left).flatMap(l => wellDefID(l).out)
         if (idsOkMsgs.isEmpty) {
           val globalDeclsInRightOrder = globalDeclSatisfiesDepOrder(sortedByPosDecls)
-          globalDeclsInRightOrder ++ (if (config.enableModularInit) {
-            error(p, s"Init-postconditions are not allowed when using the flag ${Config.enableModularInitOptionNamePrettyPrinted}", posts.nonEmpty) ++
-              error(p, s"Import-preconditions are not allowed when using the flag ${Config.enableModularInitOptionNamePrettyPrinted}", imports.flatMap(_.importPres).nonEmpty)
-          } else {
-            hasOldExpression(posts) ++ hasOldExpression(imports.flatMap(_.importPres))
-          })
+          val usedFeaturesAreCompatibleWithCfg = {
+            error(p, s"Init-postconditions are not allowed when using the flag ${Config.enableModularInitOptionNamePrettyPrinted}", posts.nonEmpty && config.enableModularInit) ++
+              error(p, s"Import-preconditions are not allowed when using the flag ${Config.enableModularInitOptionNamePrettyPrinted}", imports.flatMap(_.importPres).nonEmpty && config.enableModularInit) ++
+              error(p, s"Package invariants are ONLY allowed when using the flag ${Config.enableModularInitOptionNamePrettyPrinted}", staticInvs.nonEmpty && !config.enableModularInit)
+          }
+          val noOldExprs = hasOldExpression(posts) ++
+            hasOldExpression(imports.flatMap(_.importPres)) ++
+            hasOldExpression(staticInvs.map(_.inv))
+          globalDeclsInRightOrder ++ usedFeaturesAreCompatibleWithCfg ++ noOldExprs
         } else {
           idsOkMsgs
         }

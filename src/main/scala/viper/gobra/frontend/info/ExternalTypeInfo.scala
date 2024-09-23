@@ -124,4 +124,8 @@ trait ExternalTypeInfo {
 
   /** returns all global variables declared in the same package as 'n' on which the declaration of 'n' depends */
   def samePkgDepsOfGlobalVar(n: SymbolTable.GlobalVariable): Vector[SymbolTable.GlobalVariable]
+
+  // def dupPkgInvariants(): Vector[PExpression]
+
+  // def nonDupPkgInvariants(): Vector[PExpression]
 }

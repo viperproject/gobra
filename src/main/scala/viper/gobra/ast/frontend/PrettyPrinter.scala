@@ -61,22 +61,29 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // program
 
   def showProgram(p: PProgram): Doc = p match {
-    case PProgram(packageClause, progPosts, imports, declarations) =>
-      showPreamble(packageClause, progPosts, imports) <>
+    case PProgram(packageClause, progPosts, staticInvs, imports, declarations) =>
+      showPreamble(packageClause, progPosts, staticInvs, imports) <>
         ssep(declarations map showMember, line <> line) <> line
   }
 
   // preamble
 
   def showPreamble(p: PPreamble): Doc = p match {
-    case PPreamble(packageClause, progPosts, imports, _) =>
-      showPreamble(packageClause, progPosts, imports)
+    case PPreamble(packageClause, progPosts, staticInvs, imports, _) =>
+      showPreamble(packageClause, progPosts, staticInvs, imports)
   }
 
-  private def showPreamble(packageClause: PPackageClause, progPosts: Vector[PExpression], imports: Vector[PImport]): Doc =
+  private def showPreamble(packageClause: PPackageClause, progPosts: Vector[PExpression], staticInvs: Vector[PPkgInvariant], imports: Vector[PImport]): Doc =
     vcat(progPosts.map("initEnsures" <+> showExpr(_))) <>
+      vcat(staticInvs.map(showPkgInvariant)) <>
       showPackageClause(packageClause) <> line <> line <>
       ssep(imports map showImport, line) <> line
+
+  private def showPkgInvariant(inv: PPkgInvariant): Doc = {
+    val dup: Doc = if (inv.duplicable) "dup" else emptyDoc
+    val expr = showExpr(inv.inv)
+    dup <+> "pkgInvariant" <+> expr
+  }
 
   // package
 

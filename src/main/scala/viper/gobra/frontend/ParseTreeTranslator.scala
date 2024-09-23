@@ -2180,6 +2180,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case Vector("unfold", predAcc : PPredicateAccess) => PUnfold(predAcc)
   }
 
+  override def visitPkgInvStatement(ctx: PkgInvStatementContext): POpenDupPkgInv = {
+    val id: String = ctx.IDENTIFIER().getText
+    println(s"ID: $id")
+    POpenDupPkgInv(id).at(ctx)
+  }
+
   /**
     * Visits the production
     * kind=(ASSUME | ASSERT | INHALE | EXHALE) expression
@@ -2250,20 +2256,21 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitSourceFile(ctx: GobraParser.SourceFileContext): PProgram = {
     val packageClause: PPackageClause = visitNode(ctx.packageClause())
     val initPosts: Vector[PExpression] = visitListNode[PExpression](ctx.initPost())
+    val staticInvs: Vector[PPkgInvariant] = visitListNode[PPkgInvariant](ctx.pkgInvariant())
     val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
-
     // Don't parse functions/methods if the identifier is blank
     val members = visitListNode[PMember](ctx.specMember())
     val ghostMembers = ctx.ghostMember().asScala.flatMap(visitNode[Vector[PGhostMember]])
     val decls = ctx.declaration().asScala.toVector.flatMap(visitDeclaration(_).asInstanceOf[Vector[PDeclaration]])
-    PProgram(packageClause, initPosts, importDecls, members ++ decls ++ ghostMembers).at(ctx)
+    PProgram(packageClause, initPosts, staticInvs, importDecls, members ++ decls ++ ghostMembers).at(ctx)
   }
 
   override def visitPreamble(ctx: GobraParser.PreambleContext): PPreamble = {
     val packageClause: PPackageClause = visitNode(ctx.packageClause())
     val initPosts: Vector[PExpression] = visitListNode[PExpression](ctx.initPost())
+    val staticInvs: Vector[PPkgInvariant] = visitListNode[PPkgInvariant](ctx.pkgInvariant())
     val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
-    PPreamble(packageClause, initPosts, importDecls, pom).at(ctx)
+    PPreamble(packageClause, initPosts, staticInvs, importDecls, pom).at(ctx)
   }
 
   /**
@@ -2272,6 +2279,18 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @return the positioned PPackageclause
     */
   override def visitInitPost(ctx: InitPostContext): PExpression = visitNode[PExpression](ctx.expression())
+
+  /**
+   * Visits a pkgInvariant
+   *
+   * @param ctx the parse tree
+   * @return the positioned PPkgInvariant
+   */
+  override def visitPkgInvariant(ctx: PkgInvariantContext): PPkgInvariant = {
+    val dup = ctx.DUPLICABLE() != null
+    val inv = visitNode[PExpression](ctx.assertion())
+    PPkgInvariant(inv, dup).at(ctx)
+  }
 
   /**
     * Visists an import precondition

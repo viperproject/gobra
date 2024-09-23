@@ -229,7 +229,7 @@ case class Config(
       disableCheckTerminationPureFns = disableCheckTerminationPureFns || other.disableCheckTerminationPureFns,
       unsafeWildcardOptimization = unsafeWildcardOptimization && other.unsafeWildcardOptimization,
       moreJoins = MoreJoins.merge(moreJoins, other.moreJoins),
-      enableModularInit = enableModularInit && other.enableModularInit,
+      enableModularInit = enableModularInit || other.enableModularInit,
     )
   }
 

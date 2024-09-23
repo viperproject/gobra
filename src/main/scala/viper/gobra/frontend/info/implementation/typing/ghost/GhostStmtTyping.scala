@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing.ghost
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend.{PClosureImplProof, AstPattern => ap, _}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -23,6 +23,9 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case PInhale(exp) => assignableToSpec(exp)
     case PFold(acc) => wellDefFoldable(acc)
     case PUnfold(acc) => wellDefFoldable(acc)
+    case POpenDupPkgInv(_) =>
+      //TODO: add check that if it is '_', we are in a non-init fn
+      noMessages
     case n@PPackageWand(wand, optBlock) => assignableToSpec(wand) ++
       error(n, "ghost error: expected ghostifiable statement", !optBlock.forall(_.isInstanceOf[PGhostifiableStatement]))
     case PApplyWand(wand) => assignableToSpec(wand)

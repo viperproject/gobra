@@ -335,6 +335,12 @@ case class MethodBody(
                        postprocessing: Vector[Stmt] = Vector.empty,
                      )(val info: Source.Parser.Info) extends Stmt
 
+object MethodBody {
+  def empty(info: Source.Parser.Info): MethodBody = {
+    MethodBody(Vector.empty, MethodBodySeqn(Vector.empty)(info), Vector.empty)(info)
+  }
+}
+
 /**
   * This node serves as a target of encoding extensions. See [[viper.gobra.translator.encodings.combinators.TypeEncoding.Extension]]
   * Return statements jump exactly to the end of the encoding of this statement.

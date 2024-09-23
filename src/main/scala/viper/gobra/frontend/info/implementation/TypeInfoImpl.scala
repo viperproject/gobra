@@ -164,4 +164,6 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val dependentTypeInfo: Map
     if (includeThis) dependentTypeInfos + this
     else dependentTypeInfos
   }
+
+  //override def dupPkgInvariants(): Vector[PExpression] = ???
 }

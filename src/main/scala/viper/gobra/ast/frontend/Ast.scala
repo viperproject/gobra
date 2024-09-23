@@ -56,6 +56,8 @@ case class PProgram(
                      // init postconditions describe the state and resources right
                      // after this program is initialized
                      initPosts: Vector[PExpression],
+                     // TODO: doc
+                     staticInvs: Vector[PPkgInvariant],
                      imports: Vector[PImport],
                      declarations: Vector[PMember]
                    ) extends PNode with PUnorderedScope // imports are in program scopes
@@ -66,10 +68,13 @@ case class PPreamble(
                       // init postconditions describe the state and resources right
                       // after this program is initialized
                       initPosts: Vector[PExpression],
+                      // TODO: doc
+                      staticInvs: Vector[PPkgInvariant],
                       imports: Vector[PImport],
                       positions: PositionManager,
                     ) extends PNode with PUnorderedScope
 
+case class PPkgInvariant(inv: PExpression, duplicable: Boolean) extends PNode
 
 class PositionManager(val positions: Positions) extends Messaging(positions) {
 
@@ -980,6 +985,8 @@ case class PInhale(exp: PExpression) extends PGhostStatement
 case class PFold(exp: PPredicateAccess) extends PGhostStatement with PDeferrable
 
 case class PUnfold(exp: PPredicateAccess) extends PGhostStatement with PDeferrable
+
+case class POpenDupPkgInv(id: String) extends PGhostStatement with PDeferrable
 
 case class PPackageWand(wand: PMagicWand, proofScript: Option[PBlock]) extends PGhostStatement
 

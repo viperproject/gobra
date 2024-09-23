@@ -461,7 +461,7 @@ object Parser extends LazyLogging {
         // note that the resolveImports strategy could be embedded in e.g. a logfail strategy to report a
         // failed strategy application
         val updatedImports = rewrite(topdown(attempt(resolveImports)))(prog.imports)
-        PProgram(prog.packageClause, prog.initPosts, updatedImports, prog.declarations).at(prog)
+        PProgram(prog.packageClause, prog.initPosts, prog.staticInvs, updatedImports, prog.declarations).at(prog)
       })
       // create a new package node with the updated programs
       val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg)
@@ -509,7 +509,7 @@ object Parser extends LazyLogging {
         // apply the replaceTerminationMeasuresForFunctionsAndMethods to declarations until the strategy has succeeded
         // (i.e. has reached PMember nodes) and stop then
         val updatedDecls = rewrite(alltd(replaceTerminationMeasuresForFunctionsAndMethods))(prog.declarations)
-        PProgram(prog.packageClause, prog.initPosts, prog.imports, updatedDecls).at(prog)
+        PProgram(prog.packageClause, prog.initPosts, prog.staticInvs, prog.imports, updatedDecls).at(prog)
       })
       // create a new package node with the updated programs
       Right(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg))

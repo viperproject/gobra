@@ -2182,9 +2182,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitPkgInvStatement(ctx: PkgInvStatementContext): POpenDupPkgInv = {
-    val id: String = ctx.IDENTIFIER().getText
-    println(s"ID: $id")
-    POpenDupPkgInv(id).at(ctx)
+    POpenDupPkgInv().at(ctx)
   }
 
   /**

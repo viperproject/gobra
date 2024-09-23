@@ -987,7 +987,7 @@ case class PFold(exp: PPredicateAccess) extends PGhostStatement with PDeferrable
 
 case class PUnfold(exp: PPredicateAccess) extends PGhostStatement with PDeferrable
 
-case class POpenDupPkgInv(id: String) extends PGhostStatement with PDeferrable
+case class POpenDupPkgInv() extends PGhostStatement with PDeferrable
 
 case class PPackageWand(wand: PMagicWand, proofScript: Option[PBlock]) extends PGhostStatement
 

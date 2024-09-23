@@ -4148,17 +4148,11 @@ object Desugar extends LazyLogging {
             } yield in.PredExprUnfold(predExpInstance.base.asInstanceOf[in.PredicateConstructor], args, access.p)(src)
             case _ => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
           }
-        case POpenDupPkgInv(pkgId) =>
-          // TODO: drop the `pkgId` param, and skip this check. openDupPkgInv should only
+        case POpenDupPkgInv() =>
           // open the current package's invariant.
-          val currPkgName = info.pkgName.name
-          val thisPkg = info.tree.root
-          val ppkg = pkgId match {
-            case `currPkgName` =>
-              thisPkg
-            case _ =>
-              Violation.violation("Cannot use the openDupPkgInv statement to open the invariant of other packages. Use a ghost method instead.")
-          }
+          val ppkg = info.tree.root
+          // TODO: the following map is unnecessary, we only need to keep track of the invariants in this package,
+          //  maybe simplify code
           val dupInvs = initSpecs.get.dupPkgInvsOfPackage(ppkg)
           val inhales = dupInvs.map(i => in.Inhale(i)(src))
           val block = in.Block(Vector.empty, inhales)(src)

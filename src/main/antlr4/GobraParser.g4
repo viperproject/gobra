@@ -63,7 +63,7 @@ ghostStatement:
   | fold_stmt=(FOLD | UNFOLD) predicateAccess #foldStatement
   | kind=(ASSUME | ASSERT | REFUTE | INHALE | EXHALE) expression #proofStatement
   | matchStmt #matchStmt_
-  | OPEN_DUP_SINV (IDENTIFIER) #pkgInvStatement
+  | OPEN_DUP_SINV #pkgInvStatement
   ;
 
 // Auxiliary statements

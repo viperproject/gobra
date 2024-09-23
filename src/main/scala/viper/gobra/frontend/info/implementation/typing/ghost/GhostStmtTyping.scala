@@ -23,7 +23,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case PInhale(exp) => assignableToSpec(exp)
     case PFold(acc) => wellDefFoldable(acc)
     case PUnfold(acc) => wellDefFoldable(acc)
-    case POpenDupPkgInv(_) =>
+    case POpenDupPkgInv() =>
       // TODO: do the same for opening non-dup invs
       tryEnclosingFunctionOrMethod(stmt) match {
         case Some(m) =>

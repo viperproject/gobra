@@ -54,6 +54,18 @@ object Desugar extends LazyLogging {
       val mainDesugaringStartMs = System.currentTimeMillis()
       // desugar the main package, i.e. the package on which verification is performed:
       val mainDesugarer = new Desugarer(pkg.positions, info, Some(importsCollector))
+
+      // register non-dup invariants of all direct imports and of the current package
+      info.getDirectlyImportedTypeInfos().foreach { i =>
+        val pkg = i.getTypeInfo.tree.originalRoot
+        val nonDupInvs = pkg.programs
+          .flatMap(_.staticInvs)
+          .filter(!_.duplicable)
+          .map(_.inv)
+          .map(mainDesugarer.specificationD(mainDesugarer.FunctionContext.empty(), i.getTypeInfo)(_))
+        importsCollector.addSelfOrImportedPkgInvariant(pkg, nonDupInvs)
+      }
+
       // registers main package to generate proof obligations for its init code
       mainDesugarer.registerMainPackage(pkg, importsCollector)(config)
       val res = (mainDesugarer, mainDesugarer.packageD(pkg))
@@ -61,6 +73,7 @@ object Desugar extends LazyLogging {
         val durationS = f"${(System.currentTimeMillis() - mainDesugaringStartMs) / 1000f}%.1f"
         s"desugaring package ${info.pkgInfo.id} done, took ${durationS}s"
       }
+
       res
     }
 
@@ -3478,7 +3491,8 @@ object Desugar extends LazyLogging {
           .map(genCheckAssertionIsDup)
           .foreach(AdditionalMembers.addMember)
 
-        // TODO: add static tokens to main's pre
+        val mainFuncObligations = generateMainFuncObligationsModular(mainPkg, specCollector)
+        mainFuncObligations.foreach(AdditionalMembers.addMember)
       } else {
         // check that the postconditions of every package are enough to satisfy all of their imports' preconditions
         val src = meta(mainPkg, info)
@@ -3487,7 +3501,7 @@ object Desugar extends LazyLogging {
           AdditionalMembers.addMember(checkPkgImports)
         }
         // proof obligations for function main
-        val mainFuncObligations = generateMainFuncObligations(mainPkg, specCollector)
+        val mainFuncObligations = generateMainFuncObligationsNonModular(mainPkg, specCollector)
         mainFuncObligations.foreach(AdditionalMembers.addMember)
       }
     }
@@ -3576,7 +3590,7 @@ object Desugar extends LazyLogging {
         val dDups = dups.map(goA)
         val dNonDups = nonDups.map(goA)
         val _ = dNonDups
-        specCollector.addDupPkgInv(pkg, dDups)
+        specCollector.addDupPkgInvCurrentPkg(dDups)
       }
     }
 
@@ -3616,7 +3630,7 @@ object Desugar extends LazyLogging {
       *                      have been registered in `specCollector` before calling this method
       * @return
       */
-    def generateMainFuncObligations(mainPkg: PPackage, specCollector: PackageInitSpecCollector): Option[in.Function] = {
+    def generateMainFuncObligationsNonModular(mainPkg: PPackage, specCollector: PackageInitSpecCollector): Option[in.Function] = {
       val mainFuncOpt = mainPkg.declarations.collectFirst{
         case f: PFunctionDecl if f.id.name == Constants.MAIN_FUNC_NAME => f
       }
@@ -3625,6 +3639,31 @@ object Desugar extends LazyLogging {
         val mainPkgPosts = specCollector.postsOfPackage(mainPkg)
         val mainFuncPre  = mainFunc.spec.pres ++ mainFunc.spec.preserves
         val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty(), info)).map{ a =>
+          a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(MainPreNotEstablished))
+        }
+        val funcProxy = in.FunctionProxy(nm.mainFuncProofObligation(info))(src)
+        in.Function(
+          name = funcProxy,
+          args = Vector.empty,
+          results = Vector.empty,
+          pres = mainPkgPosts,
+          posts = mainFuncPreD,
+          terminationMeasures = Vector.empty,
+          backendAnnotations = Vector.empty,
+          body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
+        )(src)
+      }
+    }
+
+    def generateMainFuncObligationsModular(mainPkg: PPackage, specCollector: PackageInitSpecCollector): Option[in.Function] = {
+      val mainFuncOpt = mainPkg.declarations.collectFirst {
+        case f: PFunctionDecl if f.id.name == Constants.MAIN_FUNC_NAME => f
+      }
+      mainFuncOpt.map { mainFunc =>
+        val src = meta(mainFunc, info)
+        val mainPkgPosts = specCollector.getNonDupInvariants()
+        val mainFuncPre = mainFunc.spec.pres ++ mainFunc.spec.preserves
+        val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty(), info)).map { a =>
           a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(MainPreNotEstablished))
         }
         val funcProxy = in.FunctionProxy(nm.mainFuncProofObligation(info))(src)
@@ -4150,10 +4189,7 @@ object Desugar extends LazyLogging {
           }
         case POpenDupPkgInv() =>
           // open the current package's invariant.
-          val ppkg = info.tree.root
-          // TODO: the following map is unnecessary, we only need to keep track of the invariants in this package,
-          //  maybe simplify code
-          val dupInvs = initSpecs.get.dupPkgInvsOfPackage(ppkg)
+          val dupInvs = initSpecs.get.dupPkgInvsOfCurrentPackage()
           val inhales = dupInvs.map(i => in.Inhale(i)(src))
           val block = in.Block(Vector.empty, inhales)(src)
           unit(block)
@@ -5166,7 +5202,9 @@ object Desugar extends LazyLogging {
     // pairs of a package X and the postconditions of a program of X (one entry in the list per program of X)
     private var packagePostconditions: Vector[(PPackage, Vector[in.Assertion])] = Vector.empty
     // TODO: DOC
-    private var dupPackageInvariants: Vector[(PPackage, Vector[in.Assertion])] = Vector.empty
+    private var dupPackageInvariantsCurrentPackage: Vector[in.Assertion] = Vector.empty
+
+    private var nonDupInvariantsOfSelfOrImportedPackages: Map[PPackage, Vector[in.Assertion]] = Map.empty
 
     def addImportPres(pkg: PPackage, desugaredImportPre: Vector[in.Assertion]): Unit = {
       importPreconditions :+= (pkg, desugaredImportPre)
@@ -5184,12 +5222,21 @@ object Desugar extends LazyLogging {
       packagePostconditions.filter(_._1.info.id == pkg.info.id).flatMap(_._2)
     }
 
-    def addDupPkgInv(pkg: PPackage, desugaredInvs: Vector[in.Assertion]) = {
-      dupPackageInvariants :+= (pkg, desugaredInvs)
+    def addDupPkgInvCurrentPkg(desugaredInvs: Vector[in.Assertion]) = {
+      dupPackageInvariantsCurrentPackage = desugaredInvs
     }
 
-    def dupPkgInvsOfPackage(pkg: PPackage): Vector[in.Assertion] = {
-      dupPackageInvariants.filter(_._1.info.id == pkg.info.id).flatMap(_._2)
+    def dupPkgInvsOfCurrentPackage(): Vector[in.Assertion] = {
+      dupPackageInvariantsCurrentPackage
+    }
+
+    def addSelfOrImportedPkgInvariant(pkg: PPackage, desugaredInvs: Vector[in.Assertion]) = {
+      val curr = nonDupInvariantsOfSelfOrImportedPackages.getOrElse(pkg, Vector.empty)
+      nonDupInvariantsOfSelfOrImportedPackages = nonDupInvariantsOfSelfOrImportedPackages.updated(pkg, curr ++ desugaredInvs)
+    }
+
+    def getNonDupInvariants(): Vector[in.Assertion] = {
+      nonDupInvariantsOfSelfOrImportedPackages.values.flatten.toVector
     }
 
     def registeredPackages(): Vector[PPackage] = {

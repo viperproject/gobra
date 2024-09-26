@@ -45,10 +45,8 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
         //       assume that the ids are well-defined.
         val idsOkMsgs = g.left.flatMap(l => wellDefID(l).out)
         if (idsOkMsgs.isEmpty) {
-          val isGhost = isEnclosingGhost(g)
           g.right.flatMap(isExpr(_).out) ++
             declarableTo.errors(g.right map exprType, g.typ map typeSymbType, g.left map idType)(g) ++
-            error(g, s"Currently, global variables cannot be made ghost", isGhost) ++
             acyclicGlobalDeclaration.errors(g)(g)
         } else {
           idsOkMsgs

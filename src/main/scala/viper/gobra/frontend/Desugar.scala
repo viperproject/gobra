@@ -58,6 +58,7 @@ object Desugar extends LazyLogging {
       // register non-dup invariants of all direct imports and of the current package
       info.getDirectlyImportedTypeInfos().foreach { i =>
         val pkg = i.getTypeInfo.tree.originalRoot
+        importsCollector.registerCurrentPackage(pkg)
         val nonDupInvs = pkg.programs
           .flatMap(_.staticInvs)
           .filter(!_.duplicable)
@@ -3470,9 +3471,7 @@ object Desugar extends LazyLogging {
       // postconditions in the type checker, which means that we do not have to generate an init proof.
       registerPackage(mainPkg, specCollector, generateInitProof = !config.enableLazyImports)(config)
 
-      // TODO: register maping from names from paths to PPkg in specCollector:
       mainPkg.programs.map(_.imports)
-
 
       if (config.enableLazyImports) {
         // early return to not add any proof obligations because we have made sure in the type checker that
@@ -3538,7 +3537,7 @@ object Desugar extends LazyLogging {
       // Each entry in `pGlobalDecls` contains the declarations of a file in `pkg` sorted by the order in which they
       // appear in the program.
       val pGlobalDecls: Vector[Vector[PVarDecl]] = pkg.programs.map{ p =>
-        val unsortedDecls = p.declarations.collect{ case d: PVarDecl => d }
+        val unsortedDecls = p.declarations.collect{ case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
         // TODO: this is currently fine, given that we currently require global variable declarations to come after
         //       the declarations of all of the dependencies of the declared variables. This should be changed when
         //       we lift this restriction.
@@ -3661,7 +3660,7 @@ object Desugar extends LazyLogging {
       }
       mainFuncOpt.map { mainFunc =>
         val src = meta(mainFunc, info)
-        val mainPkgPosts = specCollector.getNonDupInvariants()
+        val mainPkgPosts = specCollector.getNonDupInvariantsSelfOrImportedPkgs()
         val mainFuncPre = mainFunc.spec.pres ++ mainFunc.spec.preserves
         val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty(), info)).map { a =>
           a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(MainPreNotEstablished))
@@ -3707,15 +3706,20 @@ object Desugar extends LazyLogging {
       val progPosts: Vector[in.Assertion] = p.initPosts.map(specificationD(FunctionContext.empty(), info)(_))
       val pkgInvariants: Vector[in.Assertion] =
         p.staticInvs.map{i => specificationD(FunctionContext.empty(), info)(i.inv)}
+      val pkgInvariantsImportedPackages: Vector[in.Assertion] =
+        initSpecs match {
+          case Some(initSpecs) => initSpecs.getNonDupInvariantsImportedPkgs()
+          case None => Vector.empty
+        }
 
       in.Function(
         name = funcProxy,
         args = Vector(),
         results = Vector(),
         // inhales all preconditions in the imports of the current file
-        pres = progPres,
+        pres = progPres ++ pkgInvariantsImportedPackages, // TODO: doc
         // exhales all package postconditions and pkg invariants from the current file
-        posts = progPosts ++ pkgInvariants,
+        posts = progPosts ++ pkgInvariantsImportedPackages ++ pkgInvariants, // TODO: doc
         // in our verification approach, the initialization code must be proven to terminate
         terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)),
         backendAnnotations = Vector.empty,
@@ -5206,6 +5210,8 @@ object Desugar extends LazyLogging {
 
     private var nonDupInvariantsOfSelfOrImportedPackages: Map[PPackage, Vector[in.Assertion]] = Map.empty
 
+    private var currPkg: Option[PPackage] = None
+
     def addImportPres(pkg: PPackage, desugaredImportPre: Vector[in.Assertion]): Unit = {
       importPreconditions :+= (pkg, desugaredImportPre)
     }
@@ -5235,8 +5241,16 @@ object Desugar extends LazyLogging {
       nonDupInvariantsOfSelfOrImportedPackages = nonDupInvariantsOfSelfOrImportedPackages.updated(pkg, curr ++ desugaredInvs)
     }
 
-    def getNonDupInvariants(): Vector[in.Assertion] = {
+    def getNonDupInvariantsSelfOrImportedPkgs(): Vector[in.Assertion] = {
       nonDupInvariantsOfSelfOrImportedPackages.values.flatten.toVector
+    }
+
+    def getNonDupInvariantsImportedPkgs(): Vector[in.Assertion] = {
+      (nonDupInvariantsOfSelfOrImportedPackages - currPkg.get).values.flatten.toVector
+    }
+
+    def registerCurrentPackage(pkg: PPackage) = {
+      currPkg = Some(pkg)
     }
 
     def registeredPackages(): Vector[PPackage] = {

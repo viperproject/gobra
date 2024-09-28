@@ -4069,7 +4069,6 @@ object Desugar extends LazyLogging {
 
       stmt match {
         case PAssert(exp) => for {e <- goA(exp)} yield in.Assert(e)(src)
-        case PRefute(exp) => for {e <- goA(exp)} yield in.Refute(e)(src)
         case PAssume(exp) => for {e <- goA(exp)} yield in.Assume(e)(src)
         case PInhale(exp) => for {e <- goA(exp)} yield in.Inhale(e)(src)
         case PExhale(exp) => for {e <- goA(exp)} yield in.Exhale(e)(src)

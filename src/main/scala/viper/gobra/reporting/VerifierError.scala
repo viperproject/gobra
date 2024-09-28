@@ -11,7 +11,7 @@ import viper.gobra.ast.frontend.{PReceive, PSendStmt}
 import viper.gobra.reporting.Source.Verifier
 import viper.gobra.util.Constants
 import viper.gobra.util.Violation.violation
-import viper.silver.ast.{SourcePosition}
+import viper.silver.ast.SourcePosition
 
 sealed trait VerifierError {
   def position: Option[SourcePosition]
@@ -179,13 +179,6 @@ case class PreconditionError(info: Source.Verifier.Info) extends VerificationErr
 case class AssertError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "assert_error"
   override def localMessage: String = "Assert might fail"
-}
-
-case class RefuteError(info: Source.Verifier.Info) extends VerificationError {
-
-  override def localId: String = "refute_error"
-
-  override def localMessage: String = "Refute statement failed. Assertion is either unreachable or it always holds."
 }
 
 case class ExhaleError(info: Source.Verifier.Info) extends VerificationError {
@@ -401,13 +394,6 @@ case class InsufficientPermissionFromTagError(tag: String) extends VerificationE
 case class AssertionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "assertion_error"
   override def message: String = s"Assertion ${info.origin.tag.trim} might not hold."
-}
-
-case class RefutationTrueError(info: Source.Verifier.Info) extends VerificationErrorReason {
-
-  override def id: String = "refutation_true_error"
-
-  override def message: String = s"Assertion ${info.origin.tag.trim} definitely holds."
 }
 
 case class SeqIndexExceedsLengthError(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {

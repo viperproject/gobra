@@ -59,6 +59,7 @@ case class PProgram(
                      // TODO: doc
                      staticInvs: Vector[PPkgInvariant],
                      imports: Vector[PImport],
+                     friends: Vector[PFriendPkgDecl],
                      declarations: Vector[PMember]
                    ) extends PNode with PUnorderedScope // imports are in program scopes
 
@@ -71,6 +72,7 @@ case class PPreamble(
                       // TODO: doc
                       staticInvs: Vector[PPkgInvariant],
                       imports: Vector[PImport],
+                      friends: Vector[PFriendPkgDecl],
                       positions: PositionManager,
                     ) extends PNode with PUnorderedScope
 
@@ -128,6 +130,8 @@ case class PImplicitQualifiedImport(importPath: String, importPres: Vector[PExpr
 }
 
 case class PUnqualifiedImport(importPath: String, importPres: Vector[PExpression]) extends PImport
+
+case class PFriendPkgDecl(path: String, assertion: PExpression) extends PNode
 
 sealed trait PGhostifiable extends PNode
 

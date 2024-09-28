@@ -51,6 +51,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
     case n: PTerminationMeasure => showTerminationMeasure(n)
     case n: PPkgInvariant => showPkgInvariant(n)
+    case n: PFriendPkgDecl => showFriend(n)
     case PPos(_) => emptyDoc
   }
 
@@ -62,22 +63,29 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // program
 
   def showProgram(p: PProgram): Doc = p match {
-    case PProgram(packageClause, progPosts, staticInvs, imports, declarations) =>
-      showPreamble(packageClause, progPosts, staticInvs, imports) <>
+    case PProgram(packageClause, progPosts, staticInvs, imports, friends, declarations) =>
+      showPreamble(packageClause, progPosts, staticInvs, imports, friends) <>
         ssep(declarations map showMember, line <> line) <> line
   }
 
   // preamble
 
   def showPreamble(p: PPreamble): Doc = p match {
-    case PPreamble(packageClause, progPosts, staticInvs, imports, _) =>
-      showPreamble(packageClause, progPosts, staticInvs, imports)
+    case PPreamble(packageClause, progPosts, staticInvs, imports, friends, _) =>
+      showPreamble(packageClause, progPosts, staticInvs, imports, friends)
   }
 
-  private def showPreamble(packageClause: PPackageClause, progPosts: Vector[PExpression], staticInvs: Vector[PPkgInvariant], imports: Vector[PImport]): Doc =
+  private def showPreamble(
+                            packageClause: PPackageClause,
+                            progPosts: Vector[PExpression],
+                            staticInvs: Vector[PPkgInvariant],
+                            imports: Vector[PImport],
+                            friends: Vector[PFriendPkgDecl]
+                          ): Doc =
     vcat(progPosts.map("initEnsures" <+> showExpr(_))) <>
       vcat(staticInvs.map(showPkgInvariant)) <>
       showPackageClause(packageClause) <> line <> line <>
+      ssep(friends map showFriend, line) <> line <>
       ssep(imports map showImport, line) <> line
 
   private def showPkgInvariant(inv: PPkgInvariant): Doc = {
@@ -105,6 +113,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PUnqualifiedImport(pkg, pres) =>
         showPres(pres) <> line <> "import" <+> "." <+> pkg
     }
+  }
+
+  // friend pkgs
+  def showFriend(decl: PFriendPkgDecl): Doc = {
+    "friendPkg" <+> decl.path <+> showExpr(decl.assertion)
   }
 
   // members

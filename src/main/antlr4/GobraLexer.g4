@@ -98,3 +98,4 @@ OPAQUE      : 'opaque' -> mode(NLSEMI);
 MAYINIT     : 'mayInit' -> mode(NLSEMI);
 REVEAL      : 'reveal';
 BACKEND     : '#backend';
+FRIENDPKG   : 'friendPkg';

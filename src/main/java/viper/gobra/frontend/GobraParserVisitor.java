@@ -41,6 +41,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitMaybeAddressableIdentifier(GobraParser.MaybeAddressableIdentifierContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#friendPkgDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFriendPkgDecl(GobraParser.FriendPkgDeclContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#sourceFile}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

@@ -19,7 +19,7 @@ import viper.gobra.util.Violation
 trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefProgram: WellDefinedness[PProgram] = createWellDef {
-    case p@PProgram(_, posts, staticInvs, imports, members) =>
+    case p@PProgram(_, posts, staticInvs, imports, _, members) =>
       if (config.enableLazyImports) {
         posts.flatMap(post => message(post, s"Init postconditions are not allowed when executing ${GoVerifier.name} with ${Config.enableLazyImportOptionPrettyPrinted}")) ++
         staticInvs.flatMap(inv => message(inv, s"Package invariants are not allowed when executing ${GoVerifier.name} with ${Config.enableLazyImportOptionPrettyPrinted}"))

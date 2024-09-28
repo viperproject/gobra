@@ -10,7 +10,7 @@ import com.typesafe.scalalogging.LazyLogging
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.PackageResolver.RegularImport
-import viper.gobra.frontend.Source.TransformableSource
+import viper.gobra.frontend.Source.{TransformableSource, uniquePath}
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
@@ -23,6 +23,7 @@ import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
 import viper.gobra.util.{BackendAnnotation, Constants, DesugarWriter, GobraExecutionContext, Violation}
 
+import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicLong
 import scala.annotation.{tailrec, unused}
 import scala.collection.{Iterable, SortedSet}
@@ -3556,7 +3557,7 @@ object Desugar extends LazyLogging {
       if (generateInitProof) {
         // Check that the initialization code satisfies the contract of every file in the package.
         val fileInitTranslations: Vector[in.Function] = pkg.programs.zip(globalDecls).map {
-          case (p, sortedDecls) => checkProgramInitContract(p)(sortedDecls)
+          case (p, sortedDecls) => checkProgramInitContract(p)(sortedDecls)(config)
         }
         fileInitTranslations.foreach(AdditionalMembers.addMember)
       }
@@ -3698,19 +3699,42 @@ object Desugar extends LazyLogging {
       * @param p
       * @return
       */
-    def checkProgramInitContract(p: PProgram)(sortedGlobVarDecls: Vector[in.GlobalVarDecl]): in.Function = {
+    def checkProgramInitContract(p: PProgram)(sortedGlobVarDecls: Vector[in.GlobalVarDecl])(config: Config): in.Function = {
       // all errors found during init are reported in the package clause of the file
       val src = meta(p.packageClause, info)
       val funcProxy = in.FunctionProxy(nm.programInit(p, info))(src)
       val progPres: Vector[in.Assertion] = p.imports.flatMap(_.importPres).map(specificationD(FunctionContext.empty(), info)(_))
       val progPosts: Vector[in.Assertion] = p.initPosts.map(specificationD(FunctionContext.empty(), info)(_))
-      val pkgInvariants: Vector[in.Assertion] =
-        p.staticInvs.map{i => specificationD(FunctionContext.empty(), info)(i.inv)}
+      val pkgInvariants: Vector[in.Assertion] = p.staticInvs.map{i => specificationD(FunctionContext.empty(), info)(i.inv)}
+      // val friendPkgAssertions: Vector[in.Assertion] = p.friends.map{i => specificationD(FunctionContext.empty(), info)(i.assertion)}
       val pkgInvariantsImportedPackages: Vector[in.Assertion] =
         initSpecs match {
           case Some(initSpecs) => initSpecs.getNonDupInvariantsImportedPkgs()
           case None => Vector.empty
         }
+
+      // TODO: the following is only sound while there is a single init function per-package, otherwise, we might have
+      //  multiple blocks inhaling the "same" resource. The solution to this is to adopt preconditions for init functions
+      //  and introduce a proof obligation that all package invariants of imported packages (together with
+      //  the friendPkg declarations destined at the current package) imply the conjunction of all init preconditions.
+
+      val currPkg = info.tree.originalRoot
+      val uniquePathPkg = currPkg.info.id
+      // val resourcesFromFriendPkgs: Vector[in.Assertion] = Vector.empty
+
+      println(s"unique: ${currPkg.info.id}")
+      val resourcesFromFriendPkgs = info.getDirectlyImportedTypeInfos(false).flatMap { pp =>
+        val pkg = pp.getTypeInfo.tree.originalRoot
+        pkg.programs.flatMap(_.friends).filter{ i: PFriendPkgDecl =>
+          // Check if the import path corresponds to current package
+          val unique = uniquePath(Paths.get(i.path), config.projectRoot)
+          println(s"Unique from friend: $unique")
+          unique == uniquePathPkg
+        }.map(_.assertion).map(specificationD(FunctionContext.empty(), info)(_))
+      }
+
+      println(s"resources: $resourcesFromFriendPkgs")
+
 
       in.Function(
         name = funcProxy,
@@ -3719,7 +3743,7 @@ object Desugar extends LazyLogging {
         // inhales all preconditions in the imports of the current file
         pres = progPres ++ pkgInvariantsImportedPackages, // TODO: doc
         // exhales all package postconditions and pkg invariants from the current file
-        posts = progPosts ++ pkgInvariantsImportedPackages ++ pkgInvariants, // TODO: doc
+        posts = progPosts ++ pkgInvariantsImportedPackages ++ pkgInvariants ++ resourcesFromFriendPkgs, // TODO: doc
         // in our verification approach, the initialization code must be proven to terminate
         terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)),
         backendAnnotations = Vector.empty,

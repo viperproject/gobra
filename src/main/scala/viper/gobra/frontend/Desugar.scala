@@ -9,7 +9,7 @@ package viper.gobra.frontend
 import com.typesafe.scalalogging.LazyLogging
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
-import viper.gobra.frontend.PackageResolver.RegularImport
+import viper.gobra.frontend.PackageResolver.{AbstractImport, RegularImport}
 import viper.gobra.frontend.Source.{TransformableSource, uniquePath}
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.base.Type._
@@ -34,6 +34,10 @@ import scala.reflect.ClassTag
 // `LazyLogging` provides us with access to `logger` to emit log messages
 object Desugar extends LazyLogging {
 
+  // TODO: recently, the desugarer was changed to desugar imported packages in parallel. This has caused race conditions
+  //   in the checker for static initialization, which was written with the assumption that the desugaring is sequential
+  //   prior to the change to the desugarer. This has caused one of the tests to fail non-deterministically.
+  //   Given that we don't benefit from parallelism here, I will revert this back to sequential code.
   def desugar(config: Config, info: viper.gobra.frontend.info.TypeInfo)(implicit executionContext: GobraExecutionContext): in.Program = {
     val pkg = info.tree.root
     val importsCollector = new PackageInitSpecCollector
@@ -3591,6 +3595,15 @@ object Desugar extends LazyLogging {
         val dNonDups = nonDups.map(goA)
         val _ = dNonDups
         specCollector.addDupPkgInvCurrentPkg(dDups)
+
+        // collect friend packages
+        pkg.programs.flatMap(_.friends).map{ i =>
+          val absPkg = PackageResolver.AbstractPackage(PackageResolver.RegularImport(i.path))(config)
+          val assertion = specificationD(FunctionContext.empty(), info)(i.assertion)
+          (absPkg, assertion)
+        }.groupBy(_._1).foreach { case (pkg, resources) =>
+          specCollector.addResourcesFromFriends(pkg, resources.map(_._2))
+        }
       }
     }
 
@@ -3719,31 +3732,18 @@ object Desugar extends LazyLogging {
       //  the friendPkg declarations destined at the current package) imply the conjunction of all init preconditions.
 
       val currPkg = info.tree.originalRoot
-      val uniquePathPkg = currPkg.info.id
-      // val resourcesFromFriendPkgs: Vector[in.Assertion] = Vector.empty
-
-      println(s"unique: ${currPkg.info.id}")
-      val resourcesFromFriendPkgs = info.getDirectlyImportedTypeInfos(false).flatMap { pp =>
-        val pkg = pp.getTypeInfo.tree.originalRoot
-        pkg.programs.flatMap(_.friends).filter{ i: PFriendPkgDecl =>
-          // Check if the import path corresponds to current package
-          val unique = uniquePath(Paths.get(i.path), config.projectRoot)
-          println(s"Unique from friend: $unique")
-          unique == uniquePathPkg
-        }.map(_.assertion).map(specificationD(FunctionContext.empty(), info)(_))
-      }
-
-      println(s"resources: $resourcesFromFriendPkgs")
-
+      val uniquePathPkg = currPkg.info.uniquePath
+      val absPkg = PackageResolver.RegularPackage(uniquePathPkg)
+      val resourcesFromFriendPkgs = initSpecs.get.getResourcesForPkg(uniquePathPkg)
 
       in.Function(
         name = funcProxy,
         args = Vector(),
         results = Vector(),
         // inhales all preconditions in the imports of the current file
-        pres = progPres ++ pkgInvariantsImportedPackages, // TODO: doc
+        pres = progPres ++ pkgInvariantsImportedPackages ++ resourcesFromFriendPkgs, // TODO: doc
         // exhales all package postconditions and pkg invariants from the current file
-        posts = progPosts ++ pkgInvariantsImportedPackages ++ pkgInvariants ++ resourcesFromFriendPkgs, // TODO: doc
+        posts = progPosts ++ pkgInvariantsImportedPackages ++ pkgInvariants, // TODO: doc
         // in our verification approach, the initialization code must be proven to terminate
         terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)),
         backendAnnotations = Vector.empty,
@@ -5236,6 +5236,8 @@ object Desugar extends LazyLogging {
 
     private var currPkg: Option[PPackage] = None
 
+    private var resourcesFromFriends: Map[PackageResolver.AbstractPackage, Vector[in.Assertion]] = Map.empty
+
     def addImportPres(pkg: PPackage, desugaredImportPre: Vector[in.Assertion]): Unit = {
       importPreconditions :+= (pkg, desugaredImportPre)
     }
@@ -5281,5 +5283,19 @@ object Desugar extends LazyLogging {
       // the domain of package posts should have all registered packages
       packagePostconditions.map(_._1).distinct
     }
+
+    def addResourcesFromFriends(pkg: PackageResolver.AbstractPackage, res: Vector[in.Assertion]) = {
+      resourcesFromFriends += pkg -> res
+    }
+
+    // def getResourcesForPkg(): Map[PackageResolver.AbstractPackage, Vector[in.Assertion]] = resourcesFromFriends
+    def getResourcesForPkg(uniquePkgId: String): Vector[in.Assertion] = {
+      resourcesFromFriends.find{
+        case (PackageResolver.RegularPackage(idFriend), _) => uniquePkgId == idFriend
+        case _ => false
+      }.map(_._2).getOrElse(Vector.empty)
+    }
+
+
   }
 }

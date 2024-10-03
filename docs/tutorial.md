@@ -228,7 +228,7 @@ Below, we show two clients of `incr`. The function`client1` allocates a `pair` p
 ```go
 func client1() {
   p := &pair{1,2}
-  p.sumPair(42)
+  p.incr(42)
   assert p.left == 43
 }
 ```
@@ -238,7 +238,7 @@ Similar to `client1`, `client2` allocates a `pair` pointer, as well. However, th
 ```go
 func client2() {
   x@ := pair{1,2} // if taking the reference of a variable should be possible, then add @
-  (&x).sumPair(42)
+  (&x).incr(42)
   assert x.left == 43
 }
 ```

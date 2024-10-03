@@ -1,0 +1,33 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// checks that fields of a ghost struct type as treated as ghost fields
+
+package GhostNamedTypeFail01
+
+ghost type GhostStruct struct {
+    f int
+}
+
+ghost type GhostIntDef int
+ghost type GhostIntAlias = int
+
+func foo(ghost s GhostStruct) {
+    s.f = 42
+    //:: ExpectedOutput(type_error)
+    identity(s.f)
+}
+
+func identity(input int) int {
+    return input
+}
+
+//:: ExpectedOutput(type_error)
+func bar1(i GhostIntDef) { // i must be a ghost parameter
+    i = 42
+}
+
+//:: ExpectedOutput(type_error)
+func bar2(i GhostIntAlias) { // i must be a ghost parameter
+    i = 42
+}

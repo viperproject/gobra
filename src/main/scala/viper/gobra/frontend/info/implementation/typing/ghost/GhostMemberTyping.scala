@@ -66,7 +66,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
         nonVariadicArguments(member.args) ++
-        error(member, "Pure functions cannot be annotated with 'mayInit'.", member.spec.mayBeUsedInInit)
+        error(member, "Pure functions do not need to be annotated with 'mayInit'.", member.spec.mayBeUsedInInit)
     } else noMessages
   }
 

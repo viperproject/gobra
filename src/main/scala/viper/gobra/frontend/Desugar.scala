@@ -3703,6 +3703,7 @@ object Desugar extends LazyLogging {
       * - execute all inits in the current file in the order they appear
       * - exhale all post-conditions of the file
       * - exhale all package-invariants of the file
+      * - exhale all friend clauses
       * Note 1: these operations enforce non-interference between two different files in the same program. Thus,
       * it is ok to check the initialization of a package by separately checking the initialization of each of
       * its programs.
@@ -3719,7 +3720,7 @@ object Desugar extends LazyLogging {
       val progPres: Vector[in.Assertion] = p.imports.flatMap(_.importPres).map(specificationD(FunctionContext.empty(), info)(_))
       val progPosts: Vector[in.Assertion] = p.initPosts.map(specificationD(FunctionContext.empty(), info)(_))
       val pkgInvariants: Vector[in.Assertion] = p.staticInvs.map{i => specificationD(FunctionContext.empty(), info)(i.inv)}
-      // val friendPkgAssertions: Vector[in.Assertion] = p.friends.map{i => specificationD(FunctionContext.empty(), info)(i.assertion)}
+      val resourcesForFriends: Vector[in.Assertion] = p.friends.map{i => specificationD(FunctionContext.empty(), info)(i.assertion)}
       val pkgInvariantsImportedPackages: Vector[in.Assertion] =
         initSpecs match {
           case Some(initSpecs) => initSpecs.getNonDupInvariantsImportedPkgs()
@@ -3743,7 +3744,7 @@ object Desugar extends LazyLogging {
         // inhales all preconditions in the imports of the current file
         pres = progPres ++ pkgInvariantsImportedPackages ++ resourcesFromFriendPkgs, // TODO: doc
         // exhales all package postconditions and pkg invariants from the current file
-        posts = progPosts ++ pkgInvariantsImportedPackages ++ pkgInvariants, // TODO: doc
+        posts = progPosts ++ pkgInvariantsImportedPackages ++ pkgInvariants ++ resourcesForFriends, // TODO: doc
         // in our verification approach, the initialization code must be proven to terminate
         terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)),
         backendAnnotations = Vector.empty,

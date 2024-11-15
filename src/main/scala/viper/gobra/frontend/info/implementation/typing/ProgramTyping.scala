@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.util.Entity
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message}
 import viper.gobra.GoVerifier
-import viper.gobra.ast.frontend.{PExpression, POld, PPackage, PProgram, PVarDecl}
+import viper.gobra.ast.frontend.{PExplicitGhostMember, PExpression, POld, PPackage, PProgram, PVarDecl}
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -26,7 +26,7 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
       } else {
         // Obtains global variable declarations sorted by the order in which they appear in the file
         val sortedByPosDecls: Vector[PVarDecl] = {
-          val unsortedDecls: Vector[PVarDecl] = members.collect{ case d: PVarDecl => d }
+          val unsortedDecls: Vector[PVarDecl] = members.collect{ case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
           // we require a package to be able to obtain position information
           val pkgOpt: Option[PPackage] = unsortedDecls.headOption.flatMap(tryEnclosingPackage)
           // sort declarations by the order in which they appear in the program

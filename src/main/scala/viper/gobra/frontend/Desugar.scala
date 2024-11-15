@@ -43,7 +43,7 @@ object Desugar extends LazyLogging {
     val importsCollector = new PackageInitSpecCollector
 
     val importedDesugaringDurationMs = new AtomicLong(0)
-    val importedProgramsFuts = info.getTransitiveTypeInfos(includeThis = false).toSeq.map { tI => Future {
+    val importedPrograms = info.getTransitiveTypeInfos(includeThis = false).toSeq.map { tI =>
       val importedDesugaringStartMs = System.currentTimeMillis()
       val typeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
@@ -53,9 +53,9 @@ object Desugar extends LazyLogging {
       val res = (d, d.packageD(importedPackage))
       importedDesugaringDurationMs.addAndGet(System.currentTimeMillis() - importedDesugaringStartMs)
       res
-    }}
+    }
 
-    val mainPackageFut = Future {
+    val mainPackage = {
       val mainDesugaringStartMs = System.currentTimeMillis()
       // desugar the main package, i.e. the package on which verification is performed:
       val mainDesugarer = new Desugarer(pkg.positions, info, Some(importsCollector))
@@ -84,11 +84,7 @@ object Desugar extends LazyLogging {
       res
     }
 
-    // we place `mainPackageFut` at index 0
-    val allPackagesFut = Future.sequence(mainPackageFut +: importedProgramsFuts)
-    val futResults = Await.result(allPackagesFut, Duration.Inf)
-    val (mainDesugarer, mainProgram) = futResults.head
-    val importedPrograms = futResults.tail
+    val (mainDesugarer, mainProgram) = mainPackage
     logger.trace {
       val importedDurationS = f"${importedDesugaringDurationMs.get() / 1000f}%.1f"
       s"desugaring imported packages done, took ${importedDurationS}s"
@@ -5292,12 +5288,11 @@ object Desugar extends LazyLogging {
 
     // def getResourcesForPkg(): Map[PackageResolver.AbstractPackage, Vector[in.Assertion]] = resourcesFromFriends
     def getResourcesForPkg(uniquePkgId: String): Vector[in.Assertion] = {
-      resourcesFromFriends.find{
-        case (PackageResolver.RegularPackage(idFriend), _) => uniquePkgId == idFriend
+      resourcesFromFriends.find {
+        case (PackageResolver.RegularPackage(idFriend), _) =>
+          uniquePkgId == idFriend
         case _ => false
       }.map(_._2).getOrElse(Vector.empty)
     }
-
-
   }
 }

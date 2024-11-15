@@ -73,6 +73,7 @@ object Desugar extends LazyLogging {
       }
 
       // registers main package to generate proof obligations for its init code
+      importsCollector.registerCurrentPackage(pkg)
       mainDesugarer.registerMainPackage(pkg, importsCollector)(config)
       val res = (mainDesugarer, mainDesugarer.packageD(pkg))
       logger.trace {

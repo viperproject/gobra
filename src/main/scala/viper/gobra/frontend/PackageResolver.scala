@@ -55,10 +55,12 @@ object PackageResolver {
         case imp: RegularImport =>
           getLookupPath(imp)(config) match {
             case Left(_) => NoPackage(imp)
-            case Right(inputResource) =>
+            case Right(fileResource: FileResource) =>
               try {
-                RegularPackage(Source.uniquePath(inputResource.path, config.projectRoot).toString)
+                RegularPackage(Source.uniquePath(fileResource.path.toAbsolutePath, config.projectRoot).toString)
               } catch { case _: Throwable => NoPackage(imp) }
+            case Right(jarResource: JarResource) =>
+              RegularPackage(jarResource.path.normalize().toString)
           }
       }
     }

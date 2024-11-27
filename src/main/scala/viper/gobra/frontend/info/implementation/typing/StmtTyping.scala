@@ -105,7 +105,12 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       if (firstChecks.isEmpty) latterChecks else firstChecks
 
-    case n@PForStmt(_, cond, _, _, _) => isExpr(cond).out ++ comparableTypes.errors(exprType(cond), BooleanT)(n)
+    case n@PForStmt(_, cond, _, spec, _) =>
+      val isGhost = isEnclosingGhost(n)
+      val noTerminationMeasureMsg = "Loop occurring in ghost context does not have a termination measure"
+      isExpr(cond).out ++
+        comparableTypes.errors(exprType(cond), BooleanT)(n) ++
+        error(n, noTerminationMeasureMsg, isGhost && spec.terminationMeasure.isEmpty)
 
     case PShortForRange(range, shorts, _, _, _) =>
       underlyingType(exprType(range.exp)) match {

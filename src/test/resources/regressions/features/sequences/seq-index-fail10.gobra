@@ -6,8 +6,8 @@ package pkg
 requires 0 < len(xs)
 func foo(ghost xs seq[bool]) {
   ghost {
-    //:: ExpectedOutput(for_loop_error:seq_index_exceeds_length_error)
     decreases
+    //:: ExpectedOutput(for_loop_error:seq_index_exceeds_length_error)
     for ;xs[42]; { break }
   }
 }

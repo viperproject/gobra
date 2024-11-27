@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
@@ -107,9 +107,10 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PForStmt(_, cond, _, spec, _) =>
       val isGhost = isEnclosingGhost(n)
+      val noTerminationMeasureMsg = "Loop occurring in ghost context does not have a termination measure"
       isExpr(cond).out ++
         comparableTypes.errors(exprType(cond), BooleanT)(n) ++
-        error(n, s"Loop occurring in ghost context does not have a termination measure", isGhost && spec.terminationMeasure.isEmpty)
+        error(n, noTerminationMeasureMsg, isGhost && spec.terminationMeasure.isEmpty)
 
     case PShortForRange(range, shorts, _, _, _) =>
       underlyingType(exprType(range.exp)) match {

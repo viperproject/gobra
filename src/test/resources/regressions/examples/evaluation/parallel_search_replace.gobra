@@ -127,6 +127,7 @@ func SearchReplace(s []int, x, y int) {
     invariant forall j int :: 0 <= j &&
       j < (i == len(seqs) ? len(s) : i * workRange) ==>
       acc(&s[j]) && s[j] == (s0[j] == x ? y : s0[j])
+    decreases len(pseqs) - i
     for i := 0; i != len(pseqs); i++ {
       unfold sync.InjEval(pseqs[i],i)
       low := i * workRange

@@ -43,12 +43,12 @@ object TypeBounds {
   }
 
   sealed trait Signed extends BoundedIntegerKind {
-    override lazy val upper: BigInt = BigInt(pow(2, nbits-1).toLong - 1)
-    override lazy val lower: BigInt = BigInt(-pow(2, nbits-1).toLong)
+    override lazy val upper: BigInt = BigInt(2).pow(nbits-1) - 1
+    override lazy val lower: BigInt = -BigInt(2).pow(nbits-1)
   }
 
   sealed trait Unsigned extends BoundedIntegerKind {
-    override lazy val upper: BigInt = BigInt(pow(2, nbits).toLong - 1)
+    override lazy val upper: BigInt = BigInt(2).pow(nbits) - 1
     override lazy val lower: BigInt = BigInt(0)
   }
 

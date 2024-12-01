@@ -53,9 +53,6 @@ case class PPackage(
 
 case class PProgram(
                      packageClause: PPackageClause,
-                     // init postconditions describe the state and resources right
-                     // after this program is initialized
-                     initPosts: Vector[PExpression],
                      // TODO: doc
                      staticInvs: Vector[PPkgInvariant],
                      imports: Vector[PImport],
@@ -66,9 +63,6 @@ case class PProgram(
 
 case class PPreamble(
                       packageClause: PPackageClause,
-                      // init postconditions describe the state and resources right
-                      // after this program is initialized
-                      initPosts: Vector[PExpression],
                       // TODO: doc
                       staticInvs: Vector[PPkgInvariant],
                       imports: Vector[PImport],
@@ -978,8 +972,6 @@ sealed trait PGhostStatement extends PStatement with PGhostNode
 case class PExplicitGhostStatement(actual: PStatement) extends PGhostStatement with PGhostifier[PStatement]
 
 case class PAssert(exp: PExpression) extends PGhostStatement
-
-case class PRefute(exp: PExpression) extends PGhostStatement
 
 case class PAssume(exp: PExpression) extends PGhostStatement
 

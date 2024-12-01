@@ -438,7 +438,6 @@ case class Defer(stmt: Deferrable)(val info: Source.Parser.Info) extends Stmt
 case class Return()(val info: Source.Parser.Info) extends Stmt
 
 case class Assert(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
-case class Refute(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Assume(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Inhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Exhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt

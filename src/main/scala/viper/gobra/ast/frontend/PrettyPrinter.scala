@@ -63,27 +63,25 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // program
 
   def showProgram(p: PProgram): Doc = p match {
-    case PProgram(packageClause, progPosts, staticInvs, imports, friends, declarations) =>
-      showPreamble(packageClause, progPosts, staticInvs, imports, friends) <>
+    case PProgram(packageClause, /*progPosts,*/ staticInvs, imports, friends, declarations) =>
+      showPreamble(packageClause, /*progPosts,*/ staticInvs, imports, friends) <>
         ssep(declarations map showMember, line <> line) <> line
   }
 
   // preamble
 
   def showPreamble(p: PPreamble): Doc = p match {
-    case PPreamble(packageClause, progPosts, staticInvs, imports, friends, _) =>
-      showPreamble(packageClause, progPosts, staticInvs, imports, friends)
+    case PPreamble(packageClause, staticInvs, imports, friends, _) =>
+      showPreamble(packageClause, staticInvs, imports, friends)
   }
 
   private def showPreamble(
                             packageClause: PPackageClause,
-                            progPosts: Vector[PExpression],
                             staticInvs: Vector[PPkgInvariant],
                             imports: Vector[PImport],
                             friends: Vector[PFriendPkgDecl]
                           ): Doc =
-    vcat(progPosts.map("initEnsures" <+> showExpr(_))) <>
-      vcat(staticInvs.map(showPkgInvariant)) <>
+    vcat(staticInvs.map(showPkgInvariant)) <>
       showPackageClause(packageClause) <> line <> line <>
       ssep(friends map showFriend, line) <> line <>
       ssep(imports map showImport, line) <> line
@@ -307,7 +305,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case statement: PGhostStatement => statement match {
       case PExplicitGhostStatement(actual) => "ghost" <+> showStmt(actual)
       case PAssert(exp) => "assert" <+> showExpr(exp)
-      case PRefute(exp) => "refute" <+> showExpr(exp)
       case PAssume(exp) => "assume" <+> showExpr(exp)
       case PExhale(exp) => "exhale" <+> showExpr(exp)
       case PInhale(exp) => "inhale" <+> showExpr(exp)

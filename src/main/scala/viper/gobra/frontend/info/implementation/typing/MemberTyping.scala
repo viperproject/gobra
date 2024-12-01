@@ -36,21 +36,17 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case b: PConstDecl =>
       b.specs.flatMap(wellDefConstSpec)
     case g: PVarDecl if isGlobalVarDeclaration(g) =>
-      if (config.enableLazyImports) {
-        error(g, s"Global variables are not allowed when executing ${GoVerifier.name} with ${Config.enableLazyImportOptionPrettyPrinted}")
+      // HACK: without this explicit check, Gobra does not find repeated declarations
+      //       of global variables. This has to do with the changes introduced in PR #186.
+      //       We need this check nonetheless because the checks performed in the "true" branch
+      //       assume that the ids are well-defined.
+      val idsOkMsgs = g.left.flatMap(l => wellDefID(l).out)
+      if (idsOkMsgs.isEmpty) {
+        g.right.flatMap(isExpr(_).out) ++
+          declarableTo.errors(g.right map exprType, g.typ map typeSymbType, g.left map idType)(g) ++
+          acyclicGlobalDeclaration.errors(g)(g)
       } else {
-        // HACK: without this explicit check, Gobra does not find repeated declarations
-        //       of global variables. This has to do with the changes introduced in PR #186.
-        //       We need this check nonetheless because the checks performed in the "true" branch
-        //       assume that the ids are well-defined.
-        val idsOkMsgs = g.left.flatMap(l => wellDefID(l).out)
-        if (idsOkMsgs.isEmpty) {
-          g.right.flatMap(isExpr(_).out) ++
-            declarableTo.errors(g.right map exprType, g.typ map typeSymbType, g.left map idType)(g) ++
-            acyclicGlobalDeclaration.errors(g)(g)
-        } else {
-          idsOkMsgs
-        }
+        idsOkMsgs
       }
     case s: PActualStatement =>
       wellDefStmt(s).out
@@ -111,9 +107,7 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def wellDefIfInitBlock(n: PFunctionDecl): Messages = {
     val isInitFunc = n.id.name == Constants.INIT_FUNC_NAME
-    if (isInitFunc && config.enableLazyImports) {
-      error(n, s"Init functions are not supported when executing ${GoVerifier.name} with ${Config.enableLazyImportOptionPrettyPrinted}")
-    } else if (isInitFunc) {
+    if (isInitFunc) {
       val errorMsgEmptySpec =
         s"Currently, ${Constants.INIT_FUNC_NAME} blocks cannot have specification. Instead, use package postconditions and import preconditions."
       val errorMsgNoInOut = s"func ${Constants.INIT_FUNC_NAME} must have no arguments and no return values"

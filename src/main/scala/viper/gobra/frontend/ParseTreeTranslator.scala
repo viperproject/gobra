@@ -2199,7 +2199,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitProofStatement(ctx: ProofStatementContext): PGhostStatement = super.visitProofStatement(ctx) match {
     case Vector(kind : String, expr : PExpression) => kind match {
       case "assert" => PAssert(expr)
-      case "refute" => PRefute(expr)
       case "assume" => PAssume(expr)
       case "inhale" => PInhale(expr)
       case "exhale" => PExhale(expr)
@@ -2262,6 +2261,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitSourceFile(ctx: GobraParser.SourceFileContext): PProgram = {
     val packageClause: PPackageClause = visitNode(ctx.packageClause())
     val initPosts: Vector[PExpression] = visitListNode[PExpression](ctx.initPost())
+    if (initPosts.nonEmpty) {
+      violation(s"initEnsures clauses are no longer supported after Gobra PR #797.")
+    }
     val staticInvs: Vector[PPkgInvariant] = visitListNode[PPkgInvariant](ctx.pkgInvariant())
     val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
     val friendPkgs: Vector[PFriendPkgDecl] = visitListNode[PFriendPkgDecl](ctx.friendPkgDecl())
@@ -2270,16 +2272,19 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val members = visitListNode[PMember](ctx.specMember())
     val ghostMembers = ctx.ghostMember().asScala.flatMap(visitNode[Vector[PGhostMember]])
     val decls = ctx.declaration().asScala.toVector.flatMap(visitDeclaration(_).asInstanceOf[Vector[PDeclaration]])
-    PProgram(packageClause, initPosts, staticInvs, importDecls, friendPkgs, members ++ decls ++ ghostMembers).at(ctx)
+    PProgram(packageClause, /* initPosts, */ staticInvs, importDecls, friendPkgs, members ++ decls ++ ghostMembers).at(ctx)
   }
 
   override def visitPreamble(ctx: GobraParser.PreambleContext): PPreamble = {
     val packageClause: PPackageClause = visitNode(ctx.packageClause())
     val initPosts: Vector[PExpression] = visitListNode[PExpression](ctx.initPost())
+    if (initPosts.nonEmpty) {
+      violation(s"initEnsures clauses are no longer supported after Gobra PR #797.")
+    }
     val staticInvs: Vector[PPkgInvariant] = visitListNode[PPkgInvariant](ctx.pkgInvariant())
     val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
     val friendPkgs: Vector[PFriendPkgDecl] = visitListNode[PFriendPkgDecl](ctx.friendPkgDecl())
-    PPreamble(packageClause, initPosts, staticInvs, importDecls, friendPkgs, pom).at(ctx)
+    PPreamble(packageClause, staticInvs, importDecls, friendPkgs, pom).at(ctx)
   }
 
   /**

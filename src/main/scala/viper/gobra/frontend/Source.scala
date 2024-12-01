@@ -74,8 +74,24 @@ object Source {
     /**
      * A unique identifier for packages
      */
-    val path = uniquePath(TransformableSource(src).toPath.getParent, projectRoot).toString
-    new PackageInfo(path, packageName, isBuiltIn)
+   // TODO: make sure this still works
+   // <<<<<<< HEAD
+   // val path = uniquePath(TransformableSource(src).toPath.getParent, projectRoot).toString
+   // new PackageInfo(path, packageName, isBuiltIn)
+   // =======
+    val packageId: String = {
+      val prefix = uniquePath(TransformableSource(src).toPath.toAbsolutePath.getParent, projectRoot).toString
+      if(prefix.nonEmpty) {
+        // The - is enough to unambiguously separate the prefix from the package name, since it can't occur in the package name
+        // per Go's spec (https://go.dev/ref/spec#Package_clause)
+        prefix + " - " + packageName
+      } else {
+        // Fallback case if the prefix is empty, for example if the directory of a FileSource is in the current directory
+        packageName
+      }
+    }
+    new PackageInfo(packageId, packageName, isBuiltIn)
+    //>>>>>>> master
   }
 
   /**

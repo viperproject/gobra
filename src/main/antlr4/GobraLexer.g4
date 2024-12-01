@@ -20,7 +20,6 @@ DECIMAL_FLOAT_LIT      : DECIMALS ('.'{_input.LA(1) != '.'}? DECIMALS? EXPONENT?
 TRUE        : 'true' -> mode(NLSEMI);
 FALSE       : 'false' -> mode(NLSEMI);
 ASSERT      : 'assert';
-REFUTE      : 'refute';
 ASSUME      : 'assume';
 INHALE      : 'inhale';
 EXHALE      : 'exhale';

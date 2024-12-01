@@ -19,43 +19,36 @@ import viper.gobra.util.Violation
 trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefProgram: WellDefinedness[PProgram] = createWellDef {
-    case p@PProgram(_, posts, staticInvs, imports, _, members) =>
-      if (config.enableLazyImports) {
-        posts.flatMap(post => message(post, s"Init postconditions are not allowed when executing ${GoVerifier.name} with ${Config.enableLazyImportOptionPrettyPrinted}")) ++
-        staticInvs.flatMap(inv => message(inv, s"Package invariants are not allowed when executing ${GoVerifier.name} with ${Config.enableLazyImportOptionPrettyPrinted}"))
+    case p@PProgram(_, staticInvs, imports, _, members) =>
+      // Obtains global variable declarations sorted by the order in which they appear in the file
+      val sortedByPosDecls: Vector[PVarDecl] = {
+        val unsortedDecls: Vector[PVarDecl] = members.collect{ case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
+        // we require a package to be able to obtain position information
+        val pkgOpt: Option[PPackage] = unsortedDecls.headOption.flatMap(tryEnclosingPackage)
+        // sort declarations by the order in which they appear in the program
+        unsortedDecls.sortBy{ decl =>
+          pkgOpt.get.positions.positions.getStart(decl) match {
+            case Some(pos) => (pos.line, pos.column)
+            case _ => Violation.violation(s"Could not find position information of $decl.")
+          }
+        }
+      }
+      // HACK: without this explicit check, Gobra does not find repeated declarations
+      //       of global variables. This has to do with the changes introduced in PR #186.
+      //       We need this check nonetheless because the checks performed in the "true" branch
+      //       assume that the ids are well-defined.
+      val idsOkMsgs = sortedByPosDecls.flatMap(d => d.left).flatMap(l => wellDefID(l).out)
+      if (idsOkMsgs.isEmpty) {
+        val globalDeclsInRightOrder = globalDeclSatisfiesDepOrder(sortedByPosDecls)
+        val usedFeaturesAreCompatibleWithCfg = {
+            error(p, s"Import-preconditions are not allowed when using the flag ${Config.enableModularInitOptionNamePrettyPrinted}", imports.flatMap(_.importPres).nonEmpty && config.enableModularInit)
+        }
+        val noOldExprs =
+          hasOldExpression(imports.flatMap(_.importPres)) ++
+          hasOldExpression(staticInvs.map(_.inv))
+        globalDeclsInRightOrder ++ usedFeaturesAreCompatibleWithCfg ++ noOldExprs
       } else {
-        // Obtains global variable declarations sorted by the order in which they appear in the file
-        val sortedByPosDecls: Vector[PVarDecl] = {
-          val unsortedDecls: Vector[PVarDecl] = members.collect{ case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
-          // we require a package to be able to obtain position information
-          val pkgOpt: Option[PPackage] = unsortedDecls.headOption.flatMap(tryEnclosingPackage)
-          // sort declarations by the order in which they appear in the program
-          unsortedDecls.sortBy{ decl =>
-            pkgOpt.get.positions.positions.getStart(decl) match {
-              case Some(pos) => (pos.line, pos.column)
-              case _ => Violation.violation(s"Could not find position information of $decl.")
-            }
-          }
-        }
-        // HACK: without this explicit check, Gobra does not find repeated declarations
-        //       of global variables. This has to do with the changes introduced in PR #186.
-        //       We need this check nonetheless because the checks performed in the "true" branch
-        //       assume that the ids are well-defined.
-        val idsOkMsgs = sortedByPosDecls.flatMap(d => d.left).flatMap(l => wellDefID(l).out)
-        if (idsOkMsgs.isEmpty) {
-          val globalDeclsInRightOrder = globalDeclSatisfiesDepOrder(sortedByPosDecls)
-          val usedFeaturesAreCompatibleWithCfg = {
-            error(p, s"Init-postconditions are not allowed when using the flag ${Config.enableModularInitOptionNamePrettyPrinted}", posts.nonEmpty && config.enableModularInit) ++
-              error(p, s"Import-preconditions are not allowed when using the flag ${Config.enableModularInitOptionNamePrettyPrinted}", imports.flatMap(_.importPres).nonEmpty && config.enableModularInit) ++
-              error(p, s"Package invariants are ONLY allowed when using the flag ${Config.enableModularInitOptionNamePrettyPrinted}", staticInvs.nonEmpty && !config.enableModularInit)
-          }
-          val noOldExprs = hasOldExpression(posts) ++
-            hasOldExpression(imports.flatMap(_.importPres)) ++
-            hasOldExpression(staticInvs.map(_.inv))
-          globalDeclsInRightOrder ++ usedFeaturesAreCompatibleWithCfg ++ noOldExprs
-        } else {
-          idsOkMsgs
-        }
+        idsOkMsgs
       }
   }
 

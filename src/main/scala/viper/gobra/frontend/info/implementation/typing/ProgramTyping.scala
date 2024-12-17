@@ -40,13 +40,10 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
       val idsOkMsgs = sortedByPosDecls.flatMap(d => d.left).flatMap(l => wellDefID(l).out)
       if (idsOkMsgs.isEmpty) {
         val globalDeclsInRightOrder = globalDeclSatisfiesDepOrder(sortedByPosDecls)
-        val usedFeaturesAreCompatibleWithCfg = {
-            error(p, s"Import-preconditions are not allowed when using the flag ${Config.enableModularInitOptionNamePrettyPrinted}", imports.flatMap(_.importPres).nonEmpty && config.enableModularInit)
-        }
         val noOldExprs =
           hasOldExpression(imports.flatMap(_.importPres)) ++
           hasOldExpression(staticInvs.map(_.inv))
-        globalDeclsInRightOrder ++ usedFeaturesAreCompatibleWithCfg ++ noOldExprs
+        globalDeclsInRightOrder ++ noOldExprs
       } else {
         idsOkMsgs
       }

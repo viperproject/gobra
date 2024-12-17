@@ -78,7 +78,6 @@ object ConfigDefaults {
   val DefaultDisableCheckTerminationPureFns: Boolean = false
   val DefaultUnsafeWildcardOptimization: Boolean = false
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
-  val DefaultEnableModularInit: Boolean = false
 }
 
 // More-complete exhale modes
@@ -173,7 +172,6 @@ case class Config(
                    disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                    unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
-                   enableModularInit: Boolean = ConfigDefaults.DefaultEnableModularInit,
 
 ) {
 
@@ -228,7 +226,6 @@ case class Config(
       disableCheckTerminationPureFns = disableCheckTerminationPureFns || other.disableCheckTerminationPureFns,
       unsafeWildcardOptimization = unsafeWildcardOptimization && other.unsafeWildcardOptimization,
       moreJoins = MoreJoins.merge(moreJoins, other.moreJoins),
-      enableModularInit = enableModularInit || other.enableModularInit,
     )
   }
 
@@ -249,9 +246,6 @@ object Config {
 
   val enableLazyImportOptionName = "enableLazyImport"
   val enableLazyImportOptionPrettyPrinted = s"--$enableLazyImportOptionName"
-
-  val enableModularInitOptionName = "enableModularInit"
-  val enableModularInitOptionNamePrettyPrinted = s"--$enableModularInitOptionName"
 }
 
 // have a look at `Config` to see an inline description of some of these parameters
@@ -289,8 +283,6 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                       unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
-                     // TODO: drop
-                      enableModularInit: Boolean = ConfigDefaults.DefaultEnableModularInit,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -352,7 +344,6 @@ trait RawConfig {
     disableCheckTerminationPureFns = baseConfig.disableCheckTerminationPureFns,
     unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
     moreJoins = baseConfig.moreJoins,
-    enableModularInit = baseConfig.enableModularInit,
   )
 }
 
@@ -784,14 +775,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
-  // TODO: drop
-  val enableModularInit: ScallopOption[Boolean] = opt[Boolean](
-    name = Config.enableModularInitOptionName,
-    descr = s"Use the modular algorithms for checking the correctness of static initializers.",
-    default = Some(ConfigDefaults.DefaultEnableModularInit),
-    noshort = true,
-  )
-
   val requireTriggers: ScallopOption[Boolean] = opt[Boolean](
     name = "requireTriggers",
     descr = s"Enforces that all quantifiers have a user-provided trigger.",
@@ -1048,6 +1031,5 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     disableCheckTerminationPureFns = disableCheckTerminationPureFns(),
     unsafeWildcardOptimization = unsafeWildcardOptimization(),
     moreJoins = moreJoins(),
-    enableModularInit = enableModularInit(),
   )
 }

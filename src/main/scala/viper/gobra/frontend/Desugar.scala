@@ -9,7 +9,7 @@ package viper.gobra.frontend
 import com.typesafe.scalalogging.LazyLogging
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
-import viper.gobra.frontend.PackageResolver.{AbstractImport, RegularImport}
+import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.frontend.Source.{TransformableSource, uniquePath}
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.base.Type._
@@ -3459,34 +3459,36 @@ object Desugar extends LazyLogging {
     var implementationProofPredicateAliases: Map[(in.Type, in.InterfaceT, String), in.FPredicateProxy] = Map.empty
 
     /**
-      * Generates proof obligations for the initialization of the package under verification.
+      * Generates proof obligations for the initialization code of the package under verification.
+      * Following Gobra's methodology, we do not check that the initialization code for imported packages
+      * establishes their package invariants. Instead, this is assumed. This is analogous to what we do for
+      * contracts of functions from imported packages.
+      *
       * @param mainPkg package under verification
       * @param specCollector info about the init specifications of imported packages. All imported packages should
       *                      have been registered in `specCollector` before calling this method
       * @param config
       */
     def registerMainPackage(mainPkg: PPackage, specCollector: PackageInitSpecCollector)(config: Config): Unit = {
-      // As for imported methods, imported packages are not checked to satisfy their specification. In particular,
-      // Gobra does not check that the package postconditions are established by the initialization code. Instead,
-      // this is assumed. We only generate the proof obligations for the initialization code in the main package.
-      // Note that `config.enableLazyImports` disables init blocks, global variables, import preconditions, and init
-      // postconditions in the type checker, which means that we do not have to generate an init proof.
       registerPackage(mainPkg, specCollector, generateInitProof = true)(config)
 
       mainPkg.programs.map(_.imports)
 
-      // if (config.enableModularInit) {
-        // Check that all duplicable static invariants are actually duplicable.
-        mainPkg.programs
-          .flatMap(_.staticInvs)
-          .filter(_.duplicable)
-          .map(_.inv)
-          .map(genCheckAssertionIsDup)
-          .foreach(AdditionalMembers.addMember)
+      // Check that all duplicable static invariants are actually duplicable.
+      mainPkg.programs
+        .flatMap(_.staticInvs)
+        .filter(_.duplicable)
+        .map(_.inv)
+        .map(genCheckAssertionIsDup)
+        .foreach(AdditionalMembers.addMember)
 
-        val mainFuncObligations = generateMainFuncObligationsModular(mainPkg, specCollector)
-        mainFuncObligations.foreach(AdditionalMembers.addMember)
+      // TODO: check that import preconditions are established
+
+      // proof obligations for function main
+      val mainFuncObligations = generateMainFuncProofObligation(mainPkg, specCollector)
+      mainFuncObligations.foreach(AdditionalMembers.addMember)
       /*
+      // if (config.enableModularInit) {
       } else {
         // check that the postconditions of every package are enough to satisfy all of their imports' preconditions
         val src = meta(mainPkg, info)
@@ -3494,14 +3496,11 @@ object Desugar extends LazyLogging {
           val checkPkgImports = checkPkgImportObligations(pkg, specCollector)(src)
           AdditionalMembers.addMember(checkPkgImports)
         }
-        // proof obligations for function main
-        val mainFuncObligations = generateMainFuncObligationsNonModular(mainPkg, specCollector)
-        mainFuncObligations.foreach(AdditionalMembers.addMember)
       }
       */
     }
 
-    // TODO: doc
+    // Check whether an expression e is self-framming and duplicable
     def genCheckAssertionIsDup(e: PExpression): in.Function = {
       val src = meta(e, info)
       val assertion = specificationD(FunctionContext.empty(), info)(e)
@@ -3557,51 +3556,41 @@ object Desugar extends LazyLogging {
         fileInitTranslations.foreach(AdditionalMembers.addMember)
       }
 
-      // TODO: update doc
-      // The following registers all import-preconditions and init-postconditions.
-      // This only needs to be done if we are using the non-modular encoding for
-      // static-init. For the modular encoding, all necessary information will be
-      // obtained from the main package.
-      if (!config.enableModularInit) {
-        // TODO: drop
-        // Collect and register all import-preconditions
-        pkg.imports.foreach { imp => {
-          val importedPackage = RegularImport(imp.importPath)
-          Violation.violation(info.dependentTypeInfo.contains(importedPackage), s"Desugarer expects to have acess to the type information of all imported packages but could not find $importedPackage")
-          // TODO: drop?
-          info.dependentTypeInfo(importedPackage)() match {
-            case Right(tI) =>
-              val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
-              Violation.violation(true, s"Import precondition found despite running with ${Config.enableLazyImportOptionPrettyPrinted}")
-              specCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
-            case e => Violation.violation(false, s"Unexpected value found $e while importing ${imp.importPath} - type information is assumed to be available for all packages when Gobra is executed with lazy imports disabled")
-          }
-        }}
-
-        // Collect and register all postconditions of all PPrograms (i.e., files) in pkg
-        // val pkgPost = pkg.programs.flatMap(_.initPosts).map(specificationD(FunctionContext.empty(), info))
-        // specCollector.addPackagePosts(pkg, pkgPost)
-      } else {
-        val partitionFunc = (inv: PPkgInvariant) => if (inv.duplicable) Left(inv.inv) else Right(inv.inv)
-        val (dups, nonDups) = pkg.programs.flatMap(_.staticInvs).partitionMap(partitionFunc)
-        val goA = specificationD(FunctionContext.empty(), info)(_)
-        val dDups = dups.map(goA)
-        val dNonDups = nonDups.map(goA)
-        val _ = dNonDups
-        specCollector.addDupPkgInvCurrentPkg(dDups)
-
-        // collect friend packages
-        pkg.programs.flatMap(_.friends).map{ i =>
-          val absPkg = PackageResolver.AbstractPackage(PackageResolver.RegularImport(i.path))(config)
-          val assertion = specificationD(FunctionContext.empty(), info)(i.assertion)
-          (absPkg, assertion)
-        }.groupBy(_._1).foreach { case (pkg, resources) =>
-          specCollector.addResourcesFromFriends(pkg, resources.map(_._2))
+      // Register all import-preconditions
+      pkg.imports.foreach { imp => {
+        val importedPackage = RegularImport(imp.importPath)
+        info.dependentTypeInfo(importedPackage)() match {
+          case Right(tI) =>
+            val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
+            specCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
+          case _ =>
+            val errorMsgTypeInfoNotFound =
+              s"Desugarer expects to have acess to the type information of all imported packages but could not find $importedPackage"
+            Violation.violation(errorMsgTypeInfoNotFound)
         }
+      }}
+
+      // collect package invariants
+      val partitionFunc = (inv: PPkgInvariant) => if (inv.duplicable) Left(inv.inv) else Right(inv.inv)
+      val (dups, nonDups) = pkg.programs.flatMap(_.staticInvs).partitionMap(partitionFunc)
+      val goA = specificationD(FunctionContext.empty(), info)(_)
+      val dDups = dups.map(goA)
+      val dNonDups = nonDups.map(goA)
+      val _ = dNonDups
+      specCollector.addDupPkgInvCurrentPkg(dDups)
+
+      // collect friend packages
+      pkg.programs.flatMap(_.friends).map{ i =>
+        val absPkg = PackageResolver.AbstractPackage(PackageResolver.RegularImport(i.path))(config)
+        val assertion = specificationD(FunctionContext.empty(), info)(i.assertion)
+        (absPkg, assertion)
+      }.groupBy(_._1).foreach { case (pkg, resources) =>
+        specCollector.addResourcesFromFriends(pkg, resources.map(_._2))
       }
     }
 
     /**
+      * TODO: reimplement
       * Checks that the postconditions of package `pkg` imply the conjunction of all imports' preconditions (that import
       * package `pkg`)
       * @param pkg
@@ -3628,45 +3617,16 @@ object Desugar extends LazyLogging {
     }
 
     /**
-      * Generate proof obligations for the main function, if it exists in `mainPkg`.
-      * To that end, we just check that the init post-conditions of the current package imply the main function's
-      * precondition. A more complete approach would be to iterate through all packages,
-      * following the order of the dependencies, and exhale its import-preconditions and then inhale its
-      * package postconditions, until we reach the main package. Afterward, we could exhale main's precondition.
-      * @param mainPkg package under verification
-      * @param specCollector info about the init specifications of imported packages. All imported packages should
-      *                      have been registered in `specCollector` before calling this method
-      * @return
-      */
-      /*
-    def generateMainFuncObligationsNonModular(mainPkg: PPackage, specCollector: PackageInitSpecCollector): Option[in.Function] = {
-      val mainFuncOpt = mainPkg.declarations.collectFirst{
-        case f: PFunctionDecl if f.id.name == Constants.MAIN_FUNC_NAME => f
-      }
-      mainFuncOpt.map{ mainFunc =>
-        val src = meta(mainFunc, info)
-        val mainPkgPosts = specCollector.postsOfPackage(mainPkg)
-        val mainFuncPre  = mainFunc.spec.pres ++ mainFunc.spec.preserves
-        val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty(), info)).map{ a =>
-          a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(MainPreNotEstablished))
-        }
-        val funcProxy = in.FunctionProxy(nm.mainFuncProofObligation(info))(src)
-        in.Function(
-          name = funcProxy,
-          args = Vector.empty,
-          results = Vector.empty,
-          pres = mainPkgPosts,
-          posts = mainFuncPreD,
-          terminationMeasures = Vector.empty,
-          backendAnnotations = Vector.empty,
-          body = Some(in.MethodBody(Vector.empty, in.MethodBodySeqn(Vector.empty)(src), Vector.empty)(src)),
-        )(src)
-      }
-    }
-
-       */
-
-    def generateMainFuncObligationsModular(mainPkg: PPackage, specCollector: PackageInitSpecCollector): Option[in.Function] = {
+     * Generates proof obligations for the main function, if it exists in the `mainPkg`.
+     * To that end, we check that the package invariants of the current package and all imported packages
+     * imply the main function's precondition.
+     *
+     * @param mainPkg       package under verification
+     * @param specCollector info about the init specifications of imported packages. All imported packages should
+     *                      have been registered in `specCollector` before calling this method
+     * @return
+     */
+    def generateMainFuncProofObligation(mainPkg: PPackage, specCollector: PackageInitSpecCollector): Option[in.Function] = {
       val mainFuncOpt = mainPkg.declarations.collectFirst {
         case f: PFunctionDecl if f.id.name == Constants.MAIN_FUNC_NAME => f
       }

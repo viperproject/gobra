@@ -88,6 +88,8 @@ DUPLICABLE  : 'dup';
 PKG_INV     : 'pkgInvariant';
 OPEN_DUP_SINV : 'openDupPkgInv' -> mode(NLSEMI);
 INIT_POST   : 'initEnsures';
+INIT_PRE    : 'initRequires';
+// The following is deprecated and meant to be replaced by INIT_PRE
 IMPORT_PRE  : 'importRequires';
 PROOF       : 'proof';
 GHOST_EQUALS     : '===';

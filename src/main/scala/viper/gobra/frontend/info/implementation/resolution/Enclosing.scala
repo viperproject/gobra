@@ -84,11 +84,30 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val tryEnclosingOutline: PNode => Option[POutline] =
     down[Option[POutline]](None) { case x: POutline => Some(x) }
 
+  lazy val tryEnclosingGlobalVarDeclaration: PNode => Option[PVarDecl] =
+    down[Option[PVarDecl]](None) {
+      case x: PVarDecl if isGlobalVarDeclaration(x) => Some(x)
+      case x: PVarDecl => tryEnclosingGlobalVarDeclaration(x)
+    }
+
   lazy val isEnclosingExplicitGhost: PNode => Boolean =
     down(false){ case _: PGhostifier[_] => true }
 
   lazy val isEnclosingGhost: PNode => Boolean =
     down(false){ case _: PGhostifier[_] | _: PGhostNode => true }
+
+  def isEnclosingMayInit(n: PNode): Boolean = {
+    val cond1 = tryEnclosingFunctionOrMethod(n) match {
+      case Some(f: PFunctionDecl) => f.id.name == "init" || f.spec.mayBeUsedInInit
+      case Some(m: PMethodDecl) => m.spec.mayBeUsedInInit
+      case _ => false // TODO: change dflt?
+    }
+    val cond2 = tryEnclosingGlobalVarDeclaration(n) match {
+      case Some(_) => true
+      case _ => false
+    }
+    cond1 || cond2
+  }
 
   lazy val isEnclosingDomain: PNode => Boolean =
     down(false){ case _: PDomainType => true }

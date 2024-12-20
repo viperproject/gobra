@@ -77,6 +77,7 @@ func ParallelSum(s []int) (res int) {
 		invariant forall j int :: 0 <= j && j < n ==> acc(&s[j], 1/2)
 		invariant forall j int :: 0 <= j && j < n ==> tokens[j] == locHasVal!<&seenSlice[j],s[j]!>
 		invariant forall j int :: 0 <= j && j < n ==> (j < i ? acc(&seenSlice[j], 1/2) && seenSlice[j] == s[j] : sync.InjEval(tokens[j], j))
+		decreases n - i
 		for i:=0; i < n; i++ {
 			unfold sync.InjEval(tokens[i], i)
 			unfold locHasVal!<&seenSlice[i],s[i]!>()
@@ -105,7 +106,7 @@ func sumExtensional(ghost a []int, ghost b ghost []int) {
 	}
 }
 
-pred locHasVal(loc *int, val int) {
+pred locHasVal(loc gpointer[int], val int) {
 	acc(loc, 1/2) && *loc == val
 }
 

@@ -65,7 +65,7 @@ object Source {
      * A unique identifier for packages
      */
     val packageId: String = {
-      val prefix = uniquePath(TransformableSource(src).toPath.getParent, projectRoot).toString
+      val prefix = uniquePath(TransformableSource(src).toPath.toAbsolutePath.getParent, projectRoot).toString
       if(prefix.nonEmpty) {
         // The - is enough to unambiguously separate the prefix from the package name, since it can't occur in the package name
         // per Go's spec (https://go.dev/ref/spec#Package_clause)

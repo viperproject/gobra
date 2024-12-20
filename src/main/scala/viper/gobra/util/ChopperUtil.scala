@@ -91,6 +91,7 @@ object ChopperUtil {
         method          = get("method_body",      dfltConf.method),
         methodSpec      = get("method_spec",      dfltConf.methodSpec),
         function        = get("function_body",    dfltConf.function),
+        functionSig     = get("function_spec",    dfltConf.function),
         predicate       = get("predicate_body",   dfltConf.predicate),
         predicateSig    = get("predicate_spec",   dfltConf.predicateSig),
         field           = get("field",            dfltConf.field),

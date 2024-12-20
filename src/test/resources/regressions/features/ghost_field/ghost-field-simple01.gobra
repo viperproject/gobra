@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostFieldSimple01
+
+type Test struct {
+    actualField int
+    ghost ghostField int
+}
+
+func foo() {
+    t := Test{0, 42}
+    assert t.ghostField == 42
+}

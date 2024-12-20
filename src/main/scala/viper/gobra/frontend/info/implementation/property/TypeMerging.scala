@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.internal.{Float32T, Float64T}
-import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, ChannelT, GhostSliceT, IntT, InternalTupleT, MapT, MultisetT, PermissionT, PointerT, SequenceT, SetT, Single, SliceT, Type}
+import viper.gobra.frontend.info.base.Type.{ActualPointerT, ArrayT, AssertionT, BooleanT, ChannelT, GhostPointerT, GhostSliceT, IntT, InternalTupleT, MapT, MultisetT, PermissionT, SequenceT, SetT, Single, SliceT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
@@ -45,7 +45,8 @@ trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
             k <- typeMerge(k1, k2)
             v <- typeMerge(v1, v2)
           } yield MapT(k, v)
-          case (PointerT(l), PointerT(r)) => typeMerge(l, r) map PointerT
+          case (ActualPointerT(l), ActualPointerT(r)) => typeMerge(l, r) map ActualPointerT
+          case (GhostPointerT(l), GhostPointerT(r)) => typeMerge(l, r) map GhostPointerT
           case (ChannelT(l, mod1), ChannelT(r, mod2)) if mod1 == mod2 => typeMerge(l, r) map (ChannelT(_, mod1))
           case _ => None
         }

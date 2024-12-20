@@ -44,7 +44,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // check that `cond` is of type bool
         assignableTo.errors(exprType(cond), BooleanT)(expr) ++
         // check that `thn` and `els` have a common type
-        mergeableTypes.errors(exprType(thn), exprType(els))(expr)
+        mergeableTypes.errors(exprType(thn), exprType(els))(expr) ++
+        // check that all subexpressions are pure.
+        isPureExpr(cond) ++ isWeaklyPureExpr(thn) ++ isWeaklyPureExpr(els)
 
     case n@PForall(vars, triggers, body) =>
       // check whether all triggers are valid and consistent
@@ -466,8 +468,23 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case n: PIsComparable => asExpr(n.exp).forall(go)
 
       case PCompositeLit(typ, _) => typ match {
-        case _: PArrayType | _: PImplicitSizeArrayType => !strong
-        case _ => true
+        case _: PImplicitSizeArrayType => true
+        case UnderlyingPType(t: PLiteralType) => t match {
+          case g: PGhostLiteralType => g match {
+            case _: PGhostSliceType => false
+            case _: PAdtType | _: PDomainType | _: PMathematicalMapType |
+              _: PMultisetType | _: POptionType | _: PSequenceType | _: PSetType => true
+          }
+          case _: PArrayType | _: PStructType => true
+          case _: PMapType | _: PSliceType => false
+          case d@(_: PDot | _: PNamedOperand) =>
+            // UnderlyingPType should never return any of these types
+            violation(s"Unexpected underlying type $d")
+        }
+        case t =>
+          // the type system should already have rejected composite literals whose underlying type is not a valid
+          // literal type.
+          violation(s"Unexpected literal type $t")
       }
 
       case POptionNone(_) => true

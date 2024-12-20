@@ -74,7 +74,17 @@ object Type {
 
   case class MapT(key: Type, elem: Type) extends PrettyType(s"map[$key]$elem")
 
-  case class PointerT(elem: Type) extends PrettyType(s"*$elem")
+  sealed trait PointerT {
+    val elem: Type
+  }
+
+  object PointerT {
+    def unapply(arg: PointerT): Option[Type] = Some(arg.elem)
+  }
+
+  case class ActualPointerT(elem: Type) extends PrettyType(s"*$elem") with PointerT
+
+  case class GhostPointerT(elem: Type) extends PrettyType(s"gpointer[$elem]") with PointerT with GhostType
 
   case class ChannelT(elem: Type, mod: ChannelModus) extends PrettyType(s"$mod $elem")
 
@@ -89,15 +99,30 @@ object Type {
     case object Send extends ChannelModus("chan<-")
   }
 
-  case class StructT(clauses: ListMap[String, (Boolean, Type)], decl: PStructType, context: ExternalTypeInfo) extends ContextualType {
-    lazy val fieldsAndEmbedded: ListMap[String, Type] = clauses.map(removeFieldIndicator)
-    lazy val fields: ListMap[String, Type] = clauses.filter(isField).map(removeFieldIndicator)
-    lazy val embedded: ListMap[String, Type] = clauses.filterNot(isField).map(removeFieldIndicator)
-    private def isField(clause: (String, (Boolean, Type))): Boolean = clause._2._1
-    private def removeFieldIndicator(clause: (String, (Boolean, Type))): (String, Type) = (clause._1, clause._2._2)
+  trait StructClauseT {
+    def typ: Type
+    def isGhost: Boolean
+    override lazy val toString: String = typ.toString
+  }
+
+  case class StructFieldT(typ: Type, isGhost: Boolean) extends StructClauseT
+
+  case class StructEmbeddedT(typ: Type, isGhost: Boolean) extends StructClauseT
+
+  case class StructT(clauses: ListMap[String, StructClauseT], decl: PStructType, context: ExternalTypeInfo) extends ContextualType {
+    lazy val fieldsAndEmbedded: ListMap[String, Type] = clauses.map(extractTyp)
+    lazy val fields: ListMap[String, Type] = clauses.filter(isField).map(extractTyp)
+    lazy val embedded: ListMap[String, Type] = clauses.filterNot(isField).map(extractTyp)
+
+    private def isField(clause: (String, StructClauseT)): Boolean = clause._2 match {
+      case _: StructFieldT => true
+      case _ => false
+    }
+
+    private def extractTyp(clause: (String, StructClauseT)): (String, Type) = (clause._1, clause._2.typ)
 
     override lazy val toString: String = {
-      val fields = clauses.map{ case (n, (_, t)) => s"$n: $t" }
+      val fields = clauses.map { case (n, i) => s"$n: $i" }
       s"struct{ ${fields.mkString("; ")}}"
     }
   }

@@ -85,12 +85,15 @@ trait GhostAssignability {
     (argTyping, resTyping)
   }
 
-  /** conservative ghost separation assignment check */
+  /** conservative ghost separation assignment check for assignment in actual and ghost code */
   private[separation] def ghostAssignableToAssignee(exprs: PExpression*)(lefts: PAssignee*): Messages =
     generalGhostAssignableTo(ghostExprResultTyping)(ghostAssigneeAssignmentMsg)(exprs: _*)(lefts: _*)
 
+  private def ghostAssigneeAssignmentMsg(isRightGhost: Boolean, left: PAssignee): Messages =
+    if (isEnclosingGhost(left)) ghostAssigneeAssignmentMsgInGhostCode(left) else ghostAssigneeAssignmentMsgInActualCode(isRightGhost, left)
 
-  private def ghostAssigneeAssignmentMsg(isRightGhost: Boolean, left: PAssignee): Messages = left match {
+  // handles the case of assignments in actual code
+  private def ghostAssigneeAssignmentMsgInActualCode(isRightGhost: Boolean, left: PAssignee): Messages = left match {
 
     case _: PDeref => // *x := e ~ !ghost(e)
       error(left, "ghost error: ghost cannot be assigned to pointer", isRightGhost)
@@ -103,16 +106,19 @@ trait GhostAssignability {
       error(left, "ghost error: ghost cannot be assigned to non-ghost", isRightGhost && !ghostIdClassification(id))
 
     case n: PDot => exprOrType(n.base) match {
-      case Left(base) => // x.f := e ~ (ghost(x) || ghost(e)) ==> ghost(f)
-        error(left, "ghost error: ghost cannot be assigned to non-ghost field", isRightGhost && !ghostIdClassification(n.id)) ++
-          error(left, "ghost error: cannot assign to non-ghost field of ghost reference", ghostExprResultClassification(base) && !ghostIdClassification(n.id))
+      case Left(_) => // x.f := e ~ ghost(e) ==> ghostassignee(x.f)
+        error(left, "ghost error: ghost cannot be assigned to non-ghost location", isRightGhost && !ghostLocationClassification(left))
       case _ if resolve(n).exists(_.isInstanceOf[ap.GlobalVariable]) =>
         error(left, "ghost error: ghost cannot be assigned to a global variable", isRightGhost)
       case _ => error(left, "ghost error: selections on types are not assignable")
-  }
+    }
 
     case PBlankIdentifier() => noMessages
   }
+
+  // handles the case of assignments in ghost code
+  private def ghostAssigneeAssignmentMsgInGhostCode(left: PAssignee): Messages =
+    error(left, s"ghost error: only ghost locations can be assigned to in ghost code", !ghostLocationClassification(left))
 
   /** conservative ghost separation assignment check */
   private[separation] def ghostAssignableToId(exprs: PExpression*)(lefts: PIdnNode*): Messages =
@@ -161,12 +167,14 @@ trait GhostAssignability {
       case p: ap.Function => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
       case p: ap.Closure => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
       case p: ap.ReceivedMethod => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
-      case p: ap.MethodExpr => GhostType.ghostTuple(false +: argTyping(p.symb.args, p.symb.ghost, p.symb.context).toTuple)
+      // first argument is the receiver which inherits its ghostness from the method's ghostness
+      case p: ap.MethodExpr => GhostType.ghostTuple(p.symb.ghost +: argTyping(p.symb.args, p.symb.ghost, p.symb.context).toTuple)
       case _: ap.PredicateKind => GhostType.isGhost
       case _: ap.DomainFunction => GhostType.isGhost
       case ap.BuiltInFunction(_, symb) => argGhostTyping(symb.tag, call.args.map(typ))
       case ap.BuiltInReceivedMethod(recv, _, _, symb) => argGhostTyping(symb.tag, Vector(typ(recv)))
-      case ap.BuiltInMethodExpr(typ, _, _, symb) => GhostType.ghostTuple(false +: argGhostTyping(symb.tag, Vector(typeSymbType(typ))).toTuple)
+      // first argument is the receiver which inherits its ghostness from the method's ghostness
+      case ap.BuiltInMethodExpr(typ, _, _, symb) => GhostType.ghostTuple(symb.ghost +: argGhostTyping(symb.tag, Vector(typeSymbType(typ))).toTuple)
       case p: ap.ImplicitlyReceivedInterfaceMethod => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
       case _ => GhostType.notGhost // conservative choice
     }

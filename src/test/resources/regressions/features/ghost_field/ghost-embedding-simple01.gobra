@@ -1,0 +1,49 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// tests that Gobra correctly treats ghost embeddings and embeddings with ghost fields
+
+package GhostEmbeddingSimple01
+
+type Embedded struct {
+    actualEmbeddedField int
+    ghost ghostEmbeddedField int
+}
+
+type TestWithActualEmbedding struct {
+    Embedded
+    actualField2 int
+    ghost ghostField2 int
+}
+
+type TestWithGhostEmbedding struct {
+    ghost Embedded
+    actualField2 int
+    ghost ghostField2 int
+}
+
+ghost
+decreases
+preserves acc(s)
+func foo(s *TestWithActualEmbedding) {
+    // writing to an actual field is forbidden in ghost code but writing to fields treated as ghost is fine
+    s.ghostEmbeddedField = 42
+    s.ghostField2 = 42
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}
+
+ghost
+decreases
+preserves acc(s)
+func foo2(s *TestWithGhostEmbedding) {
+    // writing to an actual field is forbidden in ghost code but writing to fields treated as ghost is fine
+
+    s.actualEmbeddedField = 42 // this is fine as it's a ghost embedding
+    s.ghostEmbeddedField = 42
+    s.ghostField2 = 42
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}

@@ -29,6 +29,7 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
+      options ++= Vector("--respectFunctionPrePermAmounts")
       if (config.conditionalizePermissions) {
         options ++= Vector("--conditionalizePermissions")
       }
@@ -84,6 +85,7 @@ object ViperBackends {
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }
+      options ++= Vector("--respectFunctionPrePermAmounts")
       options ++= exePaths
 
       new Carbon(options)
@@ -135,6 +137,7 @@ object ViperBackends {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
+      options ++= Vector("--respectFunctionPrePermAmounts")
       // Gobra seems to be much slower with the new silicon axiomatization of collections.
       // For now, we stick to the old one.
       options ++= Vector("--useOldAxiomatization")
@@ -172,6 +175,7 @@ object ViperBackends {
     override def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig = {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
+      options ++= Vector("--respectFunctionPrePermAmounts")
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }

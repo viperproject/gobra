@@ -36,7 +36,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualType(typ: PActualType): Messages = typ match {
 
-    case _: PBoolType | _: PIntegerType | _: PFloatType | _: PStringType | _: PPermissionType => noMessages
+    case _: PBoolType | _: PIntegerType | _: PFloatType | _: PStringType => noMessages
 
     case n @ PArrayType(len, t) => isType(t).out ++ {
       intConstantEval(len) match {
@@ -53,7 +53,6 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PMethodReceiveName => isType(n.typ).out
     case n: PMethodReceivePointer => isType(n.typ).out
     case _: PFunctionType => noMessages // parameters and result is implied by well definedness of children
-    case _: PPredType => noMessages // well definedness implied by well definedness of children
 
     case n@ PMapType(key, elem) => isType(key).out ++ isType(elem).out ++
       error(n, s"map key $key is not comparable", !comparableType(typeSymbType(key))) ++
@@ -123,7 +122,6 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case PFloat32() => Float32T
     case PFloat64() => Float64T
     case PStringType() => StringT
-    case PPermissionType() => PermissionT
 
     case PArrayType(len, elem) =>
       val lenOpt = intConstantEval(len)
@@ -149,8 +147,6 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case PMethodReceiveActualPointer(t) => ActualPointerT(typeSymbType(t))
 
     case PFunctionType(args, r) => FunctionT(args map miscType, miscType(r))
-
-    case PPredType(args) => PredT(args map typeSymbType)
 
     case t: PInterfaceType =>
       val res = InterfaceT(t, this)
@@ -188,10 +184,11 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     def makeEmbedded(x: PEmbeddedDecl, isGhost: Boolean): ListMap[String, StructClauseT] =
       ListMap(x.id.name -> StructEmbeddedT(miscType(x.typ), isGhost))
 
+    val isStructTypeGhost = isEnclosingGhost(t)
     val clauses = t.clauses.foldLeft(ListMap[String, StructClauseT]()) {
-      case (prev, x: PFieldDecls) => prev ++ makeFields(x, isGhost = false)
+      case (prev, x: PFieldDecls) => prev ++ makeFields(x, isGhost = isStructTypeGhost)
       case (prev, PExplicitGhostStructClause(x: PFieldDecls)) => prev ++ makeFields(x, isGhost = true)
-      case (prev, x: PEmbeddedDecl) => prev ++ makeEmbedded(x, isGhost = false)
+      case (prev, x: PEmbeddedDecl) => prev ++ makeEmbedded(x, isGhost = isStructTypeGhost)
       case (prev, PExplicitGhostStructClause(x: PEmbeddedDecl)) => prev ++ makeEmbedded(x, isGhost = true)
     }
     StructT(clauses, t, this)

@@ -247,7 +247,8 @@ trait MemberResolution { this: TypeInfoImpl =>
     attr[Type, AdvancedMemberSet[TypeMember]] {
       case t: InterfaceT => interfaceMethodSet(t)
       case pt@PointerT(t) => receiverSet(pt) union receiverSet(t).ref
-      case t => receiverSet(t) union receiverSet(PointerT(t)).deref
+      // we do not add `receiverSet(GhostPointerT(t)).deref` since this would result in implicitly assuming that the receiver points to the ghost heap, which is not guaranteed:
+      case t => receiverSet(t) union receiverSet(ActualPointerT(t)).deref
     }
 
   val nonAddressableMethodSet: Type => AdvancedMemberSet[TypeMember] =
@@ -265,7 +266,8 @@ trait MemberResolution { this: TypeInfoImpl =>
       case Single(t) =>
         pastPromotions(pastPromotionsMethodSuffix)(t) union (t match {
           case pt@ PointerT(st) => receiverSet(pt) union receiverSet(st).ref
-          case _ => receiverSet(t) union receiverSet(PointerT(t)).deref
+          // we do not add `receiverSet(GhostPointerT(t)).deref` since this would result in implicitly assuming that the receiver points to the ghost heap, which is not guaranteed:
+          case _ => receiverSet(t) union receiverSet(ActualPointerT(t)).deref
         })
       case _ => AdvancedMemberSet.empty
     }

@@ -1,0 +1,38 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// tests that Gobra correctly rejects Go maps that use a struct with ghost fields as a key because two structs that
+// are equal modulo their ghost fields would map to the same map entry. However, we could extend the encoding to support
+// such map key types.
+
+package GhostFieldMapFail01
+
+type TestWithoutGhostFields struct {
+    actualField int
+}
+
+type TestWithGhostFields struct {
+    actualField int
+    ghost ghostField int
+}
+
+func foo() {
+    var m1 map[TestWithoutGhostFields]int
+    m2 := make(map[TestWithoutGhostFields]int)
+
+    //:: ExpectedOutput(type_error)
+    var m3 map[TestWithGhostFields]int
+    //:: ExpectedOutput(type_error)
+    m4 := make(map[TestWithGhostFields]int)
+}
+
+// however, it's fine to use structs with ghost fields as a value type:
+func bar() {
+    var m1 map[int]TestWithoutGhostFields
+    m2 := make(map[int]TestWithoutGhostFields)
+    m2[0] = TestWithoutGhostFields{ 42 }
+
+    var m3 map[int]TestWithGhostFields
+    m4 := make(map[int]TestWithGhostFields)
+    m4[42] = TestWithGhostFields{ 0, 42 }
+}

@@ -30,3 +30,12 @@ func test4() {
 	//:: ExpectedOutput(type_error)
 	_ = map[int]int {1: 2, 1: 3}
 }
+
+// error: expected pure expression without permissions, but got map[int]int { }
+pure
+decreases
+func test5() map[int]int {
+    // pure functions may NOT contain map literals
+    //:: ExpectedOutput(type_error)
+    return map[int]int{}
+}

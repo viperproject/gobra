@@ -65,6 +65,9 @@ class AdvancedMemberSet[M <: TypeMember] private(
   def forall(f: (String, (M, Vector[MemberPath])) => Boolean): Boolean =
     internal.forall{ case (s, (m, p, _)) => f(s, (m,p)) }
 
+  def exists(f: (String, (M, Vector[MemberPath])) => Boolean): Boolean =
+    internal.exists{ case (s, (m, p, _)) => f(s, (m,p)) }
+
   def map[T](f: (String, (M, Vector[MemberPath])) => T): Vector[T] = internal.map {
     case (s, (m, p, _)) => f(s, (m,p))
   }.toVector

@@ -77,7 +77,7 @@ object ConfigDefaults {
   val DefaultDisableSetAxiomatization: Boolean = false
   val DefaultDisableCheckTerminationPureFns: Boolean = false
   val DefaultUnsafeWildcardOptimization: Boolean = false
-  val DefaultEnableMoreJoins: Boolean = false
+  val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
 }
 
 // More-complete exhale modes
@@ -95,6 +95,34 @@ object Hyper {
   object Enabled extends Mode
   object Disabled extends Mode
   object NoMajor extends Mode
+}
+
+object MoreJoins {
+  sealed trait Mode {
+    // Option number used by Viper, as described in
+    // https://github.com/viperproject/silicon/pull/823
+    def viperValue: Int
+  }
+
+  object Disabled extends Mode {
+    override val viperValue = 0
+  }
+
+  object Impure extends Mode {
+    override val viperValue = 1
+  }
+
+  object All extends Mode {
+    override val viperValue = 2
+  }
+
+  def merge(m1: Mode, m2: Mode): Mode = {
+    (m1, m2) match {
+      case (All, _) | (_, All) => All
+      case (Impure, _) | (_, Impure) => Impure
+      case _ => Disabled
+    }
+  }
 }
 
 case class Config(
@@ -155,7 +183,7 @@ case class Config(
                    disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
                    disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                    unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
-                   enableMoreJoins: Boolean = ConfigDefaults.DefaultEnableMoreJoins,
+                   moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
 
 ) {
 
@@ -211,7 +239,7 @@ case class Config(
       disableSetAxiomatization = disableSetAxiomatization || other.disableSetAxiomatization,
       disableCheckTerminationPureFns = disableCheckTerminationPureFns || other.disableCheckTerminationPureFns,
       unsafeWildcardOptimization = unsafeWildcardOptimization && other.unsafeWildcardOptimization,
-      enableMoreJoins = enableMoreJoins || other.enableMoreJoins,
+      moreJoins = MoreJoins.merge(moreJoins, other.moreJoins),
     )
   }
 
@@ -270,7 +298,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
                       disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                       unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
-                      enableMoreJoins: Boolean = ConfigDefaults.DefaultEnableMoreJoins,
+                      moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -333,7 +361,7 @@ trait RawConfig {
     disableSetAxiomatization = baseConfig.disableSetAxiomatization,
     disableCheckTerminationPureFns = baseConfig.disableCheckTerminationPureFns,
     unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
-    enableMoreJoins = baseConfig.enableMoreJoins,
+    moreJoins = baseConfig.moreJoins,
   )
 }
 
@@ -430,8 +458,32 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   )
 
   banner(
-    s""" Usage: ${GoVerifier.name} -i <input-files> [OPTIONS] OR
-       |  ${GoVerifier.name} -p <directory> [OPTIONS]
+    s""" ${GoVerifier.name} supports three modes for specifying input files that should be verified:
+       |  ${GoVerifier.name} -i <input-files> [OPTIONS] OR
+       |  ${GoVerifier.name} -p <directories> <optional project root> [OPTIONS] OR
+       |  ${GoVerifier.name} -r <optional project root> <optional include and exclude package names> [OPTIONS]
+       |
+       | Mode 1 (-i):
+       |  The first mode takes a list of files that must belong to the same package.
+       |  Files belonging to the same package but missing in the list are not considered for type-checking and verification.
+       |  Optionally, positional information can be provided for each file, e.g. <path to file>@42,111, such that only
+       |  members at these positions will be verified.
+       |
+       | Mode 2 (-p):
+       |  ${GoVerifier.name} verifies all `.${PackageResolver.gobraExtension}` and `.${PackageResolver.goExtension}` files in the provided directories,
+       |  while treating files in the same directory as belonging to the same package.
+       |  Verifies these packages. The project root (by default the current working directory) is used to derive a
+       |  unique package identifier, since package names might not be unique.
+       |
+       | Mode 3 (-r):
+       |  Transitively locates source files in subdirectories relative to the project root (by default the current
+       |  working directory) and groups them to packages based on the relative path and package name.
+       |  --includePackages <package names> and --excludePackages <package names> can be used to allow-
+       |  or block-list packages.
+       |
+       | Note that --include <directories> is unrelated to the modes above and controls how ${GoVerifier.name} resolves
+       | package imports.
+       |
        |
        | Options:
        |""".stripMargin
@@ -698,12 +750,23 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
-  val enableMoreJoins: ScallopOption[Boolean] = opt[Boolean](
-    name = "moreJoins",
-    descr = "Enable more joins using a more complete implementation of state merging.",
-    default = Some(false),
-    noshort = true
-  )
+  val moreJoins: ScallopOption[MoreJoins.Mode] = {
+    val all = "all"
+    val impure = "impure"
+    val off = "off"
+    choice(
+      choices = Seq("all", "impure", "off"),
+      name = "moreJoins",
+      descr = s"Specifies if silicon should be run with more joins completely enabled ($all), disabled ($off), or only for impure conditionals ($impure).",
+      default = Some(off),
+      noshort = true
+    ).map {
+      case `all` => MoreJoins.All
+      case `off` => MoreJoins.Disabled
+      case `impure` => MoreJoins.Impure
+      case s => Violation.violation(s"Unexpected mode for moreJoins: $s")
+    }
+  }
 
   val mceMode: ScallopOption[MCE.Mode] = {
     val on = "on"
@@ -751,14 +814,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val noVerify: ScallopOption[Boolean] = opt[Boolean](
     name = "noVerify",
-    descr = s"Skip the verification step performed after encoding the Gobra program into Viper.",
+    descr = s"Skip the verification step performed after encoding the ${GoVerifier.name} program into Viper.",
     default = Some(ConfigDefaults.DefaultNoVerify),
     noshort = true,
   )
 
   val noStreamErrors: ScallopOption[Boolean] = opt[Boolean](
     name = "noStreamErrors",
-    descr = "Do not stream errors produced by Gobra but instead print them all organized by package in the end.",
+    descr = s"Do not stream errors produced by ${GoVerifier.name} but instead print them all organized by package in the end.",
     default = Some(ConfigDefaults.DefaultNoStreamErrors),
     noshort = true,
   )
@@ -864,8 +927,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   }
 
   addValidation {
-    val enableMoreJoinsOptSupplied = enableMoreJoins.isSupplied
-    if (enableMoreJoinsOptSupplied  && !isSiliconBasedBackend) {
+    val moreJoinsOptSupplied = moreJoins.isSupplied
+    if (moreJoinsOptSupplied  && !isSiliconBasedBackend) {
       Left("The flag --moreJoins can only be used with Silicon or ViperServer with Silicon")
     } else {
       Right(())
@@ -990,6 +1053,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     disableSetAxiomatization = disableSetAxiomatization(),
     disableCheckTerminationPureFns = disableCheckTerminationPureFns(),
     unsafeWildcardOptimization = unsafeWildcardOptimization(),
-    enableMoreJoins = enableMoreJoins(),
+    moreJoins = moreJoins(),
   )
 }

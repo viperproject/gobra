@@ -92,8 +92,8 @@ trait SIFLowGuardTransformer {
           val relBody = assertionToRelational(body, ctx)
           val majorAccess = runPredicateAccess(p.name, args, ctx.major)(body.pos, body.info, body.errT)
           val minorAccess = runPredicateAccess(p.name, args, ctx.minor)(body.pos, body.info, body.errT)
-          val majorAccessPredicate = PredicateAccessPredicate(majorAccess, WildcardPerm()(body.pos, body.info, body.errT))(body.pos, body.info, body.errT)
-          val minorAccessPredicate = PredicateAccessPredicate(minorAccess, WildcardPerm()(body.pos, body.info, body.errT))(body.pos, body.info, body.errT)
+          val majorAccessPredicate = PredicateAccessPredicate(majorAccess, Some(WildcardPerm()(body.pos, body.info, body.errT)))(body.pos, body.info, body.errT)
+          val minorAccessPredicate = PredicateAccessPredicate(minorAccess, Some(WildcardPerm()(body.pos, body.info, body.errT)))(body.pos, body.info, body.errT)
 
           val func = Function(
             name = ctx.predicateFunctionName(p.name),

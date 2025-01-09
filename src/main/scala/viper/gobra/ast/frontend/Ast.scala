@@ -465,7 +465,9 @@ case class PClosureSpecInstance(func: PNameOrDot, params: Vector[PKeyedElement])
 
 case class PClosureImplements(closure: PExpression, spec: PClosureSpecInstance) extends PGhostExpression
 
-case class PClosureImplProof(impl: PClosureImplements, block: PBlock) extends PGhostStatement with PScope
+case class PClosureImplProof(impl: PClosureImplements, block: PBlock) extends PActualStatement with PScope with PProofAnnotation {
+  override def nonGhostChildren: Vector[PBlock] = Vector(block)
+}
 
 case class PInvoke(base: PExpressionOrType, args: Vector[PExpression], spec: Option[PClosureSpecInstance], reveal: Boolean = false) extends PActualExpression {
   require(base.isInstanceOf[PExpression] || spec.isEmpty) // `base` is a type for conversions only, for which `spec` is empty
@@ -689,7 +691,7 @@ case class PImplicitSizeArrayType(elem: PType) extends PLiteralType
 
 case class PSliceType(elem: PType) extends PTypeLit with PLiteralType
 
-case class PVariadicType(elem: PType) extends PTypeLit with PLiteralType
+case class PVariadicType(elem: PType) extends PTypeLit
 
 case class PMapType(key: PType, elem: PType) extends PTypeLit with PLiteralType
 
@@ -731,13 +733,19 @@ case class PEmbeddedDecl(typ: PEmbeddedType, id: PIdnDef) extends PActualStructC
   require(id.name == typ.name)
 }
 
-sealed trait PMethodRecvType extends PActualType { // TODO: will have to be removed for packages
+sealed trait PMethodRecvType extends PType { // TODO: will have to be removed for packages
   def typ: PNamedOperand
 }
 
-case class PMethodReceiveName(typ: PNamedOperand) extends PMethodRecvType
+case class PMethodReceiveName(typ: PNamedOperand) extends PMethodRecvType with PActualType
 
-case class PMethodReceivePointer(typ: PNamedOperand) extends PMethodRecvType
+trait PMethodReceivePointer extends PMethodRecvType {
+  def typ: PNamedOperand
+}
+
+case class PMethodReceiveActualPointer(typ: PNamedOperand) extends PMethodReceivePointer with PActualType
+
+case class PMethodReceiveGhostPointer(typ: PNamedOperand) extends PMethodReceivePointer with PGhostType
 
 // TODO: Named type is not allowed to be an interface
 
@@ -932,7 +940,9 @@ case class PImplementationProof(
                                  subT: PType, superT: PType,
                                  alias: Vector[PImplementationProofPredicateAlias],
                                  memberProofs: Vector[PMethodImplementationProof]
-                               ) extends PGhostMember
+                               ) extends PActualMember with PProofAnnotation {
+  override def nonGhostChildren: Vector[PNode] = memberProofs
+}
 
 case class PMethodImplementationProof(
                                        id: PIdnUse, // references the method definition of the super type
@@ -941,7 +951,9 @@ case class PMethodImplementationProof(
                                        result: PResult,
                                        isPure: Boolean,
                                        body: Option[(PBodyParameterInfo, PBlock)]
-                                     ) extends PGhostMisc with PScope with PCodeRootWithResult with PWithBody
+                                     ) extends PActualMisc with PScope with PCodeRootWithResult with PWithBody with PProofAnnotation {
+  override def nonGhostChildren: Vector[PNode] = Vector(receiver, result) ++ args ++ body.map(_._2).toVector
+}
 
 case class PImplementationProofPredicateAlias(left: PIdnUse, right: PNameOrDot) extends PGhostMisc
 
@@ -1253,6 +1265,9 @@ case class PMathematicalMapType(keys: PType, values: PType) extends PGhostLitera
 
 /** The type of option types. */
 case class POptionType(elem : PType) extends PGhostLiteralType
+
+/** The type of ghost pointers */
+case class PGhostPointerType(elem: PType) extends PGhostLiteralType
 
 /** The type of ADT types */
 case class PAdtType(clauses: Vector[PAdtClause]) extends PGhostLiteralType with PUnorderedScope

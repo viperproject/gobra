@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostFieldFail01
+
+type Test struct {
+    actualField int
+    ghost ghostField int
+}
+
+func foo() {
+    t := &Test{0, 42}
+    GhostFunc(t)
+}
+
+ghost
+decreases
+preserves acc(t)
+func GhostFunc(t *Test) {
+    t.ghostField = 42
+    //:: ExpectedOutput(type_error)
+    t.actualField = 42
+}

@@ -9,8 +9,6 @@ package viper.gobra.util
 import viper.gobra.util.TypeBounds.{Byte, DefaultInt, DefaultUInt, IntegerKind, Rune, SignedInteger16, SignedInteger32, SignedInteger64, SignedInteger8, UIntPtr, UnboundedInteger, UnsignedInteger16, UnsignedInteger32, UnsignedInteger64, UnsignedInteger8}
 import viper.gobra.util.Violation.violation
 
-import scala.math.pow
-
 /**
   * Defines the integer type bounds for an execution of Gobra
   */
@@ -43,12 +41,12 @@ object TypeBounds {
   }
 
   sealed trait Signed extends BoundedIntegerKind {
-    override lazy val upper: BigInt = BigInt(pow(2, nbits-1).toLong - 1)
-    override lazy val lower: BigInt = BigInt(-pow(2, nbits-1).toLong)
+    override lazy val upper: BigInt = BigInt(2).pow(nbits-1) - 1
+    override lazy val lower: BigInt = -BigInt(2).pow(nbits-1)
   }
 
   sealed trait Unsigned extends BoundedIntegerKind {
-    override lazy val upper: BigInt = BigInt(pow(2, nbits).toLong - 1)
+    override lazy val upper: BigInt = BigInt(2).pow(nbits) - 1
     override lazy val lower: BigInt = BigInt(0)
   }
 

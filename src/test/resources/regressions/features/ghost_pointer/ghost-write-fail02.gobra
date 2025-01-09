@@ -1,0 +1,39 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostWriteFail02
+
+// this testcase checks that an actual method cannot be called within ghost code as this method might modify
+// non-ghost memory.
+
+decreases
+requires acc(x)
+func foo(x *int) {
+  *x = 0
+}
+
+ghost
+decreases
+requires acc(x)
+func bar(x *int) {
+  // the following two calls are type-checked in the same way as we are already in a ghost context.
+  // each call technically results in two type errors, i.e., (1) calling a non-ghost method in a ghost context and
+  // (2) assigning a ghost variable `x` to a non-ghost parameter.
+
+  //:: ExpectedOutput(type_error)
+  ghost foo(x)
+
+  //:: ExpectedOutput(type_error)
+  foo(x)
+}
+
+decreases
+requires acc(x)
+func bar2(x *int) {
+  // the following call fails because we call a non-ghost method in a ghost context:
+  //:: ExpectedOutput(type_error)
+  ghost foo(x)
+
+  // this is fine since we are in a non-ghost context:
+  foo(x)
+}

@@ -4,7 +4,8 @@
 package pkg
 
 func issue () {
-  assert []int{4: 20, 1: 10}[2] == 0
+  s := []int{4: 20, 1: 10}
+  assert s[2] == 0
 }
 
 func extra1() {

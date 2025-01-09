@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assumption
+
+type person struct {
+	name string
+	age  int
+}
+
+func f() {
+	p := &person{name: "Pereira", age: 12}
+	assume acc(p) // impure assume does not lead to contradiction
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert false
+}
+
+func g() {
+	p := &person{name: "Pereira", age: 12}
+	inhale acc(p) // inhale leads to contradiction
+	assert false
+}

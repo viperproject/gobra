@@ -42,7 +42,11 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
 
       case (StructT(clausesL, _, contextL), StructT(clausesR, _, contextR)) =>
         contextL == contextR && clausesL.size == clausesR.size && clausesL.zip(clausesR).forall {
-          case (lm, rm) => lm._1 == rm._1 && lm._2._1 == rm._2._1 && identicalTypes(lm._2._2, rm._2._2)
+          case ((lId, lc), (rId, rc)) => lId == rId && identicalTypes(lc.typ, rc.typ) && ((lc, rc) match {
+            case (_: StructFieldT, _: StructFieldT) => true
+            case (_: StructEmbeddedT, _: StructEmbeddedT) => true
+            case _ => false
+          })
         }
 
       case (l: InterfaceT, r: InterfaceT) =>
@@ -51,7 +55,8 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
         lm.keySet.forall(k => rm.get(k).exists(m => identicalTypes(memberType(m), memberType(lm(k))))) &&
           rm.keySet.forall(k => lm.get(k).exists(m => identicalTypes(memberType(m), memberType(rm(k)))))
 
-      case (PointerT(l), PointerT(r)) => identicalTypes(l, r)
+      case (ActualPointerT(l), ActualPointerT(r)) => identicalTypes(l, r)
+      case (GhostPointerT(l), GhostPointerT(r)) => identicalTypes(l, r)
 
       case (SortT, SortT) => true
 

@@ -1,0 +1,43 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// tests that Gobra correctly excludes ghost fields of nested structs when comparing structs using the standard Go comparison
+
+package GhostFieldComparisonSimple02
+
+type Test struct {
+    n NestedStruct
+}
+
+type NestedStruct struct {
+    actualField int
+    ghost ghostField int
+}
+
+decreases
+func foo() {
+    t1 := Test{NestedStruct{0, 0}}
+    t2 := Test{NestedStruct{0, 42}}
+    t3 := Test{NestedStruct{0, 42}}
+    assert t1 == t2 // actual comparison, i.e., ghost fields are ignored
+    assert t2 === t3 // ghost comparison
+    assert t1 !== t2 // ghost comparison
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}
+
+// behavior is the same independent of ghost/actual context
+ghost
+decreases
+func ghostFoo() {
+    t1 := Test{NestedStruct{0, 0}}
+    t2 := Test{NestedStruct{0, 42}}
+    t3 := Test{NestedStruct{0, 42}}
+    assert t1 == t2 // actual comparison, i.e., ghost fields are ignored
+    assert t2 === t3 // ghost comparison
+    assert t1 !== t2 // ghost comparison
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}

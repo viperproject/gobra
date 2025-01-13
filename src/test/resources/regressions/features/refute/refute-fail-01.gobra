@@ -1,0 +1,24 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package refutation
+
+func f() {
+	//:: ExpectedOutput(type_error)
+	refute 3
+}
+
+func g() {
+	x@ := 0
+	//:: ExpectedOutput(type_error)
+	refute &x
+}
+
+func nonPureFunc() bool {
+	return true
+}
+
+func h() {
+	//:: ExpectedOutput(type_error)
+	refute nonPureFunc()
+}

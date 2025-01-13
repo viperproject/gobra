@@ -19,19 +19,19 @@ class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
     Future {
-      val backend: silicon.Silicon = silicon.Silicon.fromPartialCommandLineArguments(commandLineArguments, reporter)
+      val siliconApi: silicon.SiliconFrontendAPI = new silicon.SiliconFrontendAPI(reporter)
       
       val startTime = System.currentTimeMillis()
       try {
-        backend.start()
-        val result = backend.verify(program)
-        backend.stop()
+        siliconApi.initialize(commandLineArguments)
+        val result = siliconApi.verify(program)
+        siliconApi.stop()
 
         result match {
           case Success =>
-            reporter report OverallSuccessMessage(backend.name, System.currentTimeMillis() - startTime)
+            reporter report OverallSuccessMessage(siliconApi.verifier.name, System.currentTimeMillis() - startTime)
           case f@Failure(_) =>
-            reporter report OverallFailureMessage(backend.name, System.currentTimeMillis() - startTime, f)
+            reporter report OverallFailureMessage(siliconApi.verifier.name, System.currentTimeMillis() - startTime, f)
         }
 
         result

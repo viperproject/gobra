@@ -1,0 +1,40 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package refutation
+
+func f() {
+	//:: ExpectedOutput(refute_error:refutation_true_error)
+	refute true
+}
+
+func g() {
+	assume false
+	//:: ExpectedOutput(refute_error:refutation_true_error)
+	refute false
+}
+
+requires x > 0
+func h(x int) {
+	//:: ExpectedOutput(refute_error:refutation_true_error)
+	refute x > 0
+}
+
+requires acc(x)
+func i(x *int) {
+	//:: ExpectedOutput(refute_error:refutation_true_error)
+	refute acc(x)
+}
+
+ensures res == x + 1
+pure
+func inc(x int) (res int) {
+	return x + 1
+}
+
+func clientInc() {
+	x := 0
+	y := inc(x)
+	//:: ExpectedOutput(refute_error:refutation_true_error)
+	refute y == 1
+}

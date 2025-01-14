@@ -113,6 +113,7 @@ trait Implements { this: TypeInfoImpl =>
         case ut: Type.OptionT => go(ut.elem)
         case ut: Type.AdtT =>
           ut.clauses.forall(_.fields.forall(f => go(f._2)))
+        case _: Type.DomainT => true
         case ut: GhostCollectionType => go(ut.elem)
         case _: Type.InterfaceT => true
         case _ => false

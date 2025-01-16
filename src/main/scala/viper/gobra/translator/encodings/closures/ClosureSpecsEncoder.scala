@@ -8,7 +8,7 @@ package viper.gobra.translator.encodings.closures
 
 import viper.gobra.ast.internal.FunctionLikeMemberOrLit
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.BackTranslator.ErrorTransformer
+import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
 import viper.gobra.reporting.{GoCallPreconditionReason, PreconditionError, Source, SpecNotImplementedByClosure}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
@@ -313,10 +313,10 @@ protected class ClosureSpecsEncoder {
   }
 
   private var implementAssertionSpecOriginToStr: Map[Source.AbstractOrigin, String] = Map.empty
-  private def doesNotImplementSpecErr(callNode: vpr.Node, closureStr: String): ErrorTransformer = {
-    case vprerr.PreconditionInCallFalse(node@Source(info), reasons.AssertionFalse(Source(assInfo)), _) if (callNode eq node) && implementAssertionSpecOriginToStr.contains(assInfo.origin) =>
+  private def doesNotImplementSpecErr(callNode: vpr.Node with vpr.Positioned, closureStr: String): ErrorTransformer = {
+    case e@vprerr.PreconditionInCallFalse(Source(info), reasons.AssertionFalse(Source(assInfo)), _) if (e causedBy callNode) && implementAssertionSpecOriginToStr.contains(assInfo.origin) =>
       PreconditionError(info).dueTo(SpecNotImplementedByClosure(info, closureStr, implementAssertionSpecOriginToStr(assInfo.origin)))
-    case vprerr.PreconditionInAppFalse(node@Source(info), reasons.AssertionFalse(Source(assInfo)), _) if (callNode eq node) && implementAssertionSpecOriginToStr.contains(assInfo.origin) =>
+    case e@vprerr.PreconditionInAppFalse(Source(info), reasons.AssertionFalse(Source(assInfo)), _) if (e causedBy callNode) && implementAssertionSpecOriginToStr.contains(assInfo.origin) =>
       PreconditionError(info).dueTo(SpecNotImplementedByClosure(info, closureStr, implementAssertionSpecOriginToStr(assInfo.origin)))
   }
 

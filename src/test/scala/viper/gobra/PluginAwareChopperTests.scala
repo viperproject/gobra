@@ -12,11 +12,20 @@ import org.scalatest.matchers.should.Matchers
 import viper.gobra.util.PluginAwareChopper
 import viper.silver.ast
 import viper.silver.ast.utility.chopper.Penalty
+import viper.silver.plugin.standard.termination.DecreasesTuple
 
 class PluginAwareChopperTests extends AnyFunSuite with Matchers with Inside {
   test("Domains ending in 'WellFoundedOrder' are kept in chopped programs") {
     val intVarDecl = ast.LocalVarDecl("i", ast.Int)()
-    val function = ast.Function("functionA", Seq(intVarDecl), ast.Bool, Seq.empty, Seq.empty, None)()
+    val decreasesClause = DecreasesTuple(Seq(intVarDecl.localVar))()
+    val function = ast.Function(
+      "functionA",
+      Seq(intVarDecl),
+      ast.Bool,
+      Seq(decreasesClause),
+      Seq.empty,
+      None,
+    )()
     val domainName = "IntWellFoundedOrder"
     val decreasingFn = ast.DomainFunc(
       "decreasing",

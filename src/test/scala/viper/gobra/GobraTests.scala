@@ -52,7 +52,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
     Config(
       logLevel = Level.INFO,
       reporter = StringifyReporter,
-      packageInfoInputMap = Map(Source.getPackageInfo(source, Path.of("")) -> Vector(source)),
+      packageInfoInputMap = Map(Source.getPackageInfoOrCrash(source, Path.of("")) -> Vector(source)),
       checkConsistency = true,
       cacheParserAndTypeChecker = cacheParserAndTypeChecker,
       z3Exe = z3Exe,

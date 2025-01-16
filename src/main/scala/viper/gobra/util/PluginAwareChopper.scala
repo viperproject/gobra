@@ -8,10 +8,19 @@ package viper.gobra.util
 
 import viper.silver.ast.utility.chopper.{ChopperLike, Cut, Edges, SCC, Vertices, ViperGraphs}
 
-// Chopper with computation of dependencies extended to support the termination plugin and other plugins
-// used by Gobra.
+/**
+  * Chopper with support for plugins used by Gobra, in particular Viper's termination plugin.
+  */
 object PluginAwareChopper extends ChopperLike with ViperGraphs with PluginAwareEdges with Vertices with Cut with SCC
 
+/**
+  * Extends the chopper's dependency computation to add artificial dependencies for domains ending in 'WellFoundedOrder',
+  * their axioms, and subexpressions.
+  * These artificial dependencies ensure that these axioms are retained by the chopper, which is necessary
+  * to ensure successful verification of the chopped program because these axioms define well-founded orders
+  * via "bounded" and "decreasing" functions. Without these artificial dependencies, the chopper would remove
+  * these axioms as the decreases measures do not explicitly depend on, i.e., call these domain functions.
+  */
 trait PluginAwareEdges extends Edges {
   this: Vertices =>
 

@@ -14,7 +14,7 @@ import viper.silver.ast
 import viper.silver.ast.utility.chopper.Penalty
 
 class PluginAwareChopperTests extends AnyFunSuite with Matchers with Inside {
-  test("Domains ending in WellFoundedOrders are kept in chopped programs") {
+  test("Domains ending in 'WellFoundedOrder' are kept in chopped programs") {
     val intVarDecl = ast.LocalVarDecl("i", ast.Int)()
     val function = ast.Function("functionA", Seq(intVarDecl), ast.Bool, Seq.empty, Seq.empty, None)()
     val domainName = "IntWellFoundedOrder"

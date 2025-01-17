@@ -54,7 +54,7 @@ object Source {
   def getPackageInfo(src: Source, projectRoot: Path): Either[Vector[VerifierError], PackageInfo] = {
     for {
       packageName <- PackageResolver.getPackageClause(src: Source).toRight({
-        val pos = Some(SourcePosition(src.toPath, 0, 0))
+        val pos = Some(SourcePosition(src.toPath, 1, 1))
         Vector(ParserError("Missing package clause", pos))
       })
       isBuiltIn = src match {

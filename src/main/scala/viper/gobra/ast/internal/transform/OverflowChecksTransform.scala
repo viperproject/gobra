@@ -135,7 +135,7 @@ object OverflowChecksTransform extends InternalTransform {
       Seqn(genOverflowChecksExprs(Vector(base, idx)) :+ m)(m.info)
 
     // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added
-    case x@(_: Inhale | _: Exhale | _: Assert | _: Refute | _: Assume
+    case x@(_: Inhale | _: Exhale | _: Assert | _: Assume
             | _: Return | _: Fold | _: Unfold | _: PredExprFold | _: PredExprUnfold | _: Outline
             | _: SafeTypeAssertion | _: SafeReceive | _: Label | _: Initialization | _: PatternMatchStmt) => x
 

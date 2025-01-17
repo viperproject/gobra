@@ -2187,7 +2187,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitProofStatement(ctx: ProofStatementContext): PGhostStatement = super.visitProofStatement(ctx) match {
     case Vector(kind : String, expr : PExpression) => kind match {
       case "assert" => PAssert(expr)
-      case "refute" => PRefute(expr)
       case "assume" => PAssume(expr)
       case "inhale" => PInhale(expr)
       case "exhale" => PExhale(expr)

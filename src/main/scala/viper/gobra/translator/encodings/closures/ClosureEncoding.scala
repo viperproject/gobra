@@ -9,7 +9,7 @@ package viper.gobra.translator.encodings.closures
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting
-import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
+import viper.gobra.reporting.BackTranslator.ErrorTransformer
 import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
@@ -137,7 +137,6 @@ class ClosureEncoding extends LeafTypeEncoding {
     * inhale closureImplements$[spec]([closure], [params])
     */
   private def specImplementationProof(proof: in.SpecImplementationProof)(ctx: Context): CodeWriter[vpr.Stmt] = {
-    val (exhalePos, _, _) = proof.vprMeta
     val inhalePres = cl.seqns(proof.pres map (a => for {
           ass <- ctx.assertion(a)
         } yield vpr.Inhale(ass)()))
@@ -146,10 +145,11 @@ class ClosureEncoding extends LeafTypeEncoding {
         rest <- acc
         ass <- ctx.assertion (a)
       } yield vpr.And(rest, ass) ())
-    } yield vpr.Exhale(assertions)(exhalePos)
+    } yield vpr.Exhale(assertions)()
 
+    def isSubnode(sub: vpr.Node, n: vpr.Node): Boolean = (sub eq n) || n.subnodes.exists(n => isSubnode(sub, n))
     def failedExhale: ErrorTransformer = {
-      case e@errors.ExhaleFailed(_, reason, _) if e causedBy exhalePosts.res =>
+      case errors.ExhaleFailed(offendingNode, reason, _) if isSubnode(offendingNode, exhalePosts.res) =>
         val info = proof.vprMeta._2.asInstanceOf[Source.Verifier.Info]
         reason match {
           case reason: reasons.AssertionFalse => reporting.SpecImplementationPostconditionError(info, proof.spec.info.tag)

@@ -60,7 +60,7 @@ ghostMember: implementationProof
 ghostStatement:
   GHOST statement  #explicitGhostStatement
   | fold_stmt=(FOLD | UNFOLD) predicateAccess #foldStatement
-  | kind=(ASSUME | ASSERT | REFUTE | INHALE | EXHALE) expression #proofStatement
+  | kind=(ASSUME | ASSERT | INHALE | EXHALE) expression #proofStatement
   | matchStmt #matchStmt_
   ;
 

@@ -18,12 +18,16 @@ import viper.silver.reporter.{NoopReporter, Reporter}
 import viper.silver.plugin.standard.predicateinstance.PredicateInstancePlugin
 import viper.silver.verifier.AbstractError
 
-// This class should be removed in the future because Viper already implements inference of
-// imports for termination domains. However, at the moment, Viper performs the inference in
-// `beforeVerify`, which is already too late.
-class TerminationDomainTransformer extends ViperTransformer {
+class TerminationTransformer extends ViperTransformer {
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
+    for {
+      progWithDecreasesDomains <- addDecreasesDomains(task)
+      transformedProg <- executeTerminationPlugin(progWithDecreasesDomains)
+    } yield transformedProg
+  }
+
+  private def addDecreasesDomains(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
     // constructs a separate Viper program (as a string) that should be parsed
     // after parsing this separate Viper program, the resulting AST is combined with `task`
 
@@ -55,8 +59,8 @@ class TerminationDomainTransformer extends ViperTransformer {
     // we need at least `declarationImport` if there is any tuple decreases measure. However, we do not need to import
     // this file if we already import any other file with the domain for a particular type
     val imports = if (importsForMeasureTypes.nonEmpty) importsForMeasureTypes
-    else if (containsTerminationChecks) Seq(declarationImport)
-    else Seq.empty
+      else if (containsTerminationChecks) Seq(declarationImport)
+      else Seq.empty
     // if `allImport` is in the list of files that should be imported, we can ignore all others and instead only import
     // `allImport`
     val importsAll = imports.contains(allImport)
@@ -89,6 +93,25 @@ class TerminationDomainTransformer extends ViperTransformer {
       prog.extensions ++ other.extensions,
     )(prog.pos, prog.info, prog.errT)
     task.copy(program = newProg)
+  }
+
+  private def executeTerminationPlugin(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
+    def applyPlugin(plugin: SilverPlugin, prog : vpr.Program): Either[Seq[AbstractError], vpr.Program] = {
+      val transformedProgram = plugin.beforeVerify(prog)
+      if (plugin.errors.isEmpty) {
+        Right(transformedProgram)
+      } else {
+        Left(plugin.errors)
+      }
+    }
+
+    val terminationPlugin = new TerminationPlugin(null, null, null, null)
+    val predInstancePlugin = new PredicateInstancePlugin(null, null, null, null)
+
+    for {
+      transformedProgram <- applyPlugin(terminationPlugin, task.program)
+      programWithoutPredicateInstances <- applyPlugin(predInstancePlugin, transformedProgram)
+    } yield task.copy(program = programWithoutPredicateInstances)
   }
 
   /**

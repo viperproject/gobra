@@ -7,7 +7,6 @@
 package viper.gobra.backend
 
 import viper.carbon
-import viper.carbon.CarbonFrontendAPI
 import viper.gobra.util.GobraExecutionContext
 import viper.silver.ast.Program
 import viper.silver.reporter._
@@ -21,18 +20,19 @@ class Carbon(commandLineArguments: Seq[String]) extends ViperVerifier {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
     Future {
-      val carbonApi: carbon.CarbonFrontendAPI = new CarbonFrontendAPI(reporter)
+      val backend: carbon.CarbonVerifier = carbon.CarbonVerifier(reporter, List("startedBy" -> s"Unit test ${this.getClass.getSimpleName}"))
+      backend.parseCommandLine(commandLineArguments ++ Seq("--ignoreFile", "dummy.sil"))
 
       val startTime = System.currentTimeMillis()
-      carbonApi.initialize(commandLineArguments ++ Seq("--ignoreFile", "dummy.sil"))
-      val result = carbonApi.verify(program)
-      carbonApi.stop()
+      backend.start()
+      val result = backend.verify(program)
+      backend.stop()
 
       result match {
         case Success =>
-          reporter report OverallSuccessMessage(carbonApi.verifier.name, System.currentTimeMillis() - startTime)
+          reporter report OverallSuccessMessage(backend.name, System.currentTimeMillis() - startTime)
         case f@Failure(_) =>
-          reporter report OverallFailureMessage(carbonApi.verifier.name, System.currentTimeMillis() - startTime, f)
+          reporter report OverallFailureMessage(backend.name, System.currentTimeMillis() - startTime, f)
       }
 
       result

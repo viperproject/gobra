@@ -17,7 +17,6 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefGhostStmt(stmt: PGhostStatement): Messages = stmt match {
     case n@PExplicitGhostStatement(s) => error(n, "ghost error: expected ghostifiable statement", !s.isInstanceOf[PGhostifiableStatement])
     case PAssert(exp) => assignableToSpec(exp)
-    case PRefute(exp) => assignableToSpec(exp)
     case PExhale(exp) => assignableToSpec(exp)
     case PAssume(exp) => assignableToSpec(exp)
     case PInhale(exp) => assignableToSpec(exp)

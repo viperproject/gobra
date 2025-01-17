@@ -59,11 +59,6 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
       // termination checks in functions are currently disabled in the tests. This can be enabled in the future,
       // but requires some work to add termination measures all over the test suite.
       disableCheckTerminationPureFns = true,
-      // for the time being, we run the tests against the old semantics for fractional perms in pure function
-      // preconditions, as most tests were still written with the old semantics in mind. Furthermore, it is still
-      // more important to guarantee that there are no regressions in the old behaviour, as our pre-existing verified
-      // codebases use those semantics. In the future, we should deprecate the old semantics and change this to false.
-      respectFunctionPrePermAmounts = true,
     )
 
   override def runTests(testName: Option[String], args: Args): Status = {

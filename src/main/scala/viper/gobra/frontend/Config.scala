@@ -77,7 +77,10 @@ object ConfigDefaults {
   val DefaultDisableCheckTerminationPureFns: Boolean = false
   val DefaultUnsafeWildcardOptimization: Boolean = false
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
-  val DefaultRespectFunctionPrePermAmounts: Boolean = false
+  // TODO: for the time being, we use the old semantics for fractional perms in pure function preconditions,
+  //   as our pre-existing verified codebases use those semantics. In the future, after we have ported our most
+  //   important case studies to the new semantics, we should deprecate the old one and change this default to false.
+  val DefaultRespectFunctionPrePermAmounts: Boolean = true
 }
 
 // More-complete exhale modes

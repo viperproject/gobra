@@ -77,6 +77,7 @@ object ConfigDefaults {
   val DefaultDisableCheckTerminationPureFns: Boolean = false
   val DefaultUnsafeWildcardOptimization: Boolean = false
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
+  val DefaultRespectFunctionPrePermAmounts: Boolean = false
 }
 
 // More-complete exhale modes
@@ -172,7 +173,7 @@ case class Config(
                    disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                    unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
-
+                   respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
 ) {
 
   def merge(other: Config): Config = {
@@ -227,6 +228,7 @@ case class Config(
       disableCheckTerminationPureFns = disableCheckTerminationPureFns || other.disableCheckTerminationPureFns,
       unsafeWildcardOptimization = unsafeWildcardOptimization && other.unsafeWildcardOptimization,
       moreJoins = MoreJoins.merge(moreJoins, other.moreJoins),
+      respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || other.respectFunctionPrePermAmounts,
     )
   }
 
@@ -285,6 +287,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                       unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
+                      respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -347,6 +350,7 @@ trait RawConfig {
     disableCheckTerminationPureFns = baseConfig.disableCheckTerminationPureFns,
     unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
     moreJoins = baseConfig.moreJoins,
+    respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
   )
 }
 
@@ -771,6 +775,15 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     }
   }
 
+  val respectFunctionPrePermAmounts: ScallopOption[Boolean] = opt[Boolean](
+    name = "respectFunctionPrePermAmounts",
+    descr = s"Respects precise permission amounts in function preconditions instead of only checking read access, as done in older versions of Gobra." +
+      "This option should be used for verifying legacy projects written with the old interpretation of fractional permissions." +
+      "New projects are encouraged to not use this flag.",
+    default = Some(ConfigDefaults.DefaultRespectFunctionPrePermAmounts),
+    noshort = true,
+  )
+
   val enableLazyImports: ScallopOption[Boolean] = opt[Boolean](
     name = Config.enableLazyImportOptionName,
     descr = s"Enforces that ${GoVerifier.name} parses depending packages only when necessary. Note that this disables certain language features such as global variables.",
@@ -1026,5 +1039,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     disableCheckTerminationPureFns = disableCheckTerminationPureFns(),
     unsafeWildcardOptimization = unsafeWildcardOptimization(),
     moreJoins = moreJoins(),
+    respectFunctionPrePermAmounts = respectFunctionPrePermAmounts(),
   )
 }

@@ -19,7 +19,7 @@ import viper.gobra.frontend.Parser.{ParseResult, ParseSuccessResult}
 import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.{GhostLessPrinter, GoifyingPrinter}
-import viper.gobra.reporting.{CyclicImportError, ParserError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
+import viper.gobra.reporting.{CyclicImportError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
 import viper.gobra.util.{GobraExecutionContext, Job, TaskManager, Violation}
 
 import java.security.MessageDigest

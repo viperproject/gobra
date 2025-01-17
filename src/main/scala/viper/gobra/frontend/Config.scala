@@ -782,7 +782,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = "respectFunctionPrePermAmounts",
     descrYes = s"Respects precise permission amounts in pure function preconditions instead of only checking read access, as done in older versions of Gobra." +
       "This option should be used for verifying legacy projects written with the old interpretation of fractional permissions." +
-      "New projects are encouraged to not use this flag.",
+      "New projects are encouraged to set this flag to false.",
     descrNo = s"Use the default interpretation for fractional permissions in pure function preconditions.",
     default = Some(ConfigDefaults.DefaultRespectFunctionPrePermAmounts),
     noshort = true,

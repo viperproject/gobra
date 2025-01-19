@@ -41,6 +41,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitMaybeAddressableIdentifier(GobraParser.MaybeAddressableIdentifierContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#friendPkgDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFriendPkgDecl(GobraParser.FriendPkgDeclContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#sourceFile}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -64,6 +70,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitImportPre(GobraParser.ImportPreContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#pkgInvariant}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPkgInvariant(GobraParser.PkgInvariantContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#importSpec}.
 	 * @param ctx the parse tree
@@ -110,6 +122,13 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitMatchStmt_(GobraParser.MatchStmt_Context ctx);
+	/**
+	 * Visit a parse tree produced by the {@code pkgInvStatement}
+	 * labeled alternative in {@link GobraParser#ghostStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPkgInvStatement(GobraParser.PkgInvStatementContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#auxiliaryStatement}.
 	 * @param ctx the parse tree

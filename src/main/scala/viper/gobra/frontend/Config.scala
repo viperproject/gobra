@@ -14,6 +14,7 @@ import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import org.rogach.scallop.{ScallopConf, ScallopOption, singleArgConverter}
 import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
+import viper.gobra.frontend.Config.enableLazyImportOptionPrettyPrinted
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
 import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential, TaskManagerMode}
@@ -166,7 +167,6 @@ case class Config(
                    z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
                    disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                    mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
-                   enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                    parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
@@ -222,7 +222,6 @@ case class Config(
       z3APIMode = z3APIMode || other.z3APIMode,
       disableNL = disableNL || other.disableNL,
       mceMode = mceMode,
-      enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
       noStreamErrors = noStreamErrors || other.noStreamErrors,
       parseAndTypeCheckMode = parseAndTypeCheckMode,
@@ -281,7 +280,6 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
                       disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
-                      enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
@@ -344,7 +342,6 @@ trait RawConfig {
     z3APIMode = baseConfig.z3APIMode,
     disableNL = baseConfig.disableNL,
     mceMode = baseConfig.mceMode,
-    enableLazyImports = baseConfig.enableLazyImports,
     noVerify = baseConfig.noVerify,
     noStreamErrors = baseConfig.noStreamErrors,
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
@@ -869,6 +866,15 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     case _ => false
   }
 
+  addValidation {
+    val lazyImportsOn = enableLazyImports.toOption.contains(true)
+    if (lazyImportsOn) {
+      Left(s"The flag $enableLazyImportOptionPrettyPrinted was removed in Gobra's PR #797.")
+    } else {
+      Right(())
+    }
+  }
+
   // `parallelizeBranches` requires a backend that supports branch parallelization (i.e., a silicon-based backend)
   addValidation {
     val parallelizeBranchesOn = parallelizeBranches.toOption.contains(true)
@@ -1034,7 +1040,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     z3APIMode = z3APIMode(),
     disableNL = disableNL(),
     mceMode = mceMode(),
-    enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),
     noStreamErrors = noStreamErrors(),
     parseAndTypeCheckMode = parseAndTypeCheckMode(),

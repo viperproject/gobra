@@ -10,7 +10,7 @@ import com.typesafe.scalalogging.LazyLogging
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.PackageResolver.RegularImport
-import viper.gobra.frontend.Source.TransformableSource
+import viper.gobra.frontend.Source.{TransformableSource, uniquePath}
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
@@ -23,6 +23,7 @@ import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
 import viper.gobra.util.{BackendAnnotation, Constants, DesugarWriter, GobraExecutionContext, Violation}
 
+import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicLong
 import scala.annotation.{tailrec, unused}
 import scala.collection.{Iterable, SortedSet}
@@ -33,42 +34,57 @@ import scala.reflect.ClassTag
 // `LazyLogging` provides us with access to `logger` to emit log messages
 object Desugar extends LazyLogging {
 
+  // TODO: recently, the desugarer was changed to desugar imported packages in parallel. This has caused race conditions
+  //   in the checker for static initialization, which was written with the assumption that the desugaring is sequential
+  //   prior to the change to the desugarer. This has caused one of the tests to fail non-deterministically.
+  //   Given that we don't benefit from parallelism here, I will revert this back to sequential code.
   def desugar(config: Config, info: viper.gobra.frontend.info.TypeInfo)(implicit executionContext: GobraExecutionContext): in.Program = {
     val pkg = info.tree.root
     val importsCollector = new PackageInitSpecCollector
 
     val importedDesugaringDurationMs = new AtomicLong(0)
-    val importedProgramsFuts = info.getTransitiveTypeInfos(includeThis = false).toSeq.map { tI => Future {
+    val importedPrograms = info.getTransitiveTypeInfos(includeThis = false).toSeq.map { tI =>
       val importedDesugaringStartMs = System.currentTimeMillis()
       val typeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
-      val d = new Desugarer(importedPackage.positions, typeInfo)
-      // registers a package to generate proof obligations for its init code
+      val d = new Desugarer(importedPackage.positions, typeInfo, None)
+      // registers a package to generate proof obligations for its init code.
       d.registerPackage(importedPackage, importsCollector)(config)
       val res = (d, d.packageD(importedPackage))
       importedDesugaringDurationMs.addAndGet(System.currentTimeMillis() - importedDesugaringStartMs)
       res
-    }}
+    }
 
-    val mainPackageFut = Future {
+    val mainPackage = {
       val mainDesugaringStartMs = System.currentTimeMillis()
       // desugar the main package, i.e. the package on which verification is performed:
-      val mainDesugarer = new Desugarer(pkg.positions, info)
+      val mainDesugarer = new Desugarer(pkg.positions, info, Some(importsCollector))
+
+      // register non-dup invariants of all direct imports and of the current package
+      info.getDirectlyImportedTypeInfos().foreach { i =>
+        val pkg = i.getTypeInfo.tree.originalRoot
+        importsCollector.registerCurrentPackage(pkg)
+        val nonDupInvs = pkg.programs
+          .flatMap(_.staticInvs)
+          .filter(!_.duplicable)
+          .map(_.inv)
+          .map(mainDesugarer.specificationD(mainDesugarer.FunctionContext.empty(), i.getTypeInfo)(_))
+        importsCollector.addSelfOrImportedPkgInvariant(pkg, nonDupInvs)
+      }
+
       // registers main package to generate proof obligations for its init code
+      importsCollector.registerCurrentPackage(pkg)
       mainDesugarer.registerMainPackage(pkg, importsCollector)(config)
       val res = (mainDesugarer, mainDesugarer.packageD(pkg))
       logger.trace {
         val durationS = f"${(System.currentTimeMillis() - mainDesugaringStartMs) / 1000f}%.1f"
         s"desugaring package ${info.pkgInfo.id} done, took ${durationS}s"
       }
+
       res
     }
 
-    // we place `mainPackageFut` at index 0
-    val allPackagesFut = Future.sequence(mainPackageFut +: importedProgramsFuts)
-    val futResults = Await.result(allPackagesFut, Duration.Inf)
-    val (mainDesugarer, mainProgram) = futResults.head
-    val importedPrograms = futResults.tail
+    val (mainDesugarer, mainProgram) = mainPackage
     logger.trace {
       val importedDurationS = f"${importedDesugaringDurationMs.get() / 1000f}%.1f"
       s"desugaring imported packages done, took ${importedDurationS}s"
@@ -186,7 +202,7 @@ object Desugar extends LazyLogging {
     }
   }
 
-  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo) {
+  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo, initSpecs: Option[PackageInitSpecCollector]) {
 
     // TODO: clean initialization
 
@@ -3443,38 +3459,62 @@ object Desugar extends LazyLogging {
     var implementationProofPredicateAliases: Map[(in.Type, in.InterfaceT, String), in.FPredicateProxy] = Map.empty
 
     /**
-      * Generates proof obligations for the initialization of the package under verification.
+      * Generates proof obligations for the initialization code of the package under verification.
+      * Following Gobra's methodology, we do not check that the initialization code for imported packages
+      * establishes their package invariants. Instead, this is assumed. This is analogous to what we do for
+      * contracts of functions from imported packages.
+      *
       * @param mainPkg package under verification
       * @param specCollector info about the init specifications of imported packages. All imported packages should
       *                      have been registered in `specCollector` before calling this method
       * @param config
       */
     def registerMainPackage(mainPkg: PPackage, specCollector: PackageInitSpecCollector)(config: Config): Unit = {
-      // As for imported methods, imported packages are not checked to satisfy their specification. In particular,
-      // Gobra does not check that the package postconditions are established by the initialization code. Instead,
-      // this is assumed. We only generate the proof obligations for the initialization code in the main package.
-      // Note that `config.enableLazyImports` disables init blocks, global variables, import preconditions, and init
-      // postconditions in the type checker, which means that we do not have to generate an init proof.
-      registerPackage(mainPkg, specCollector, generateInitProof = !config.enableLazyImports)(config)
+      registerPackage(mainPkg, specCollector, generateInitProof = true)(config)
 
-      if (config.enableLazyImports) {
-        // early return to not add any proof obligations because we have made sure in the type checker that
-        // there aren't any global variables, init blocks, init postconditions, and import preconditions (in the
-        // packages that have been parsed). Note that packages that have been skipped because of the laziness might
-        // still contain such features.
-        return
-      }
+      mainPkg.programs.map(_.imports)
 
-      // check that the postconditions of every package are enough to satisfy all of their imports' preconditions
-      val src = meta(mainPkg, info)
-      specCollector.registeredPackages().foreach{ pkg =>
-        val checkPkgImports = checkPkgImportObligations(pkg, specCollector)(src)
-        AdditionalMembers.addMember(checkPkgImports)
-      }
+      // Check that all duplicable static invariants are actually duplicable.
+      mainPkg.programs
+        .flatMap(_.staticInvs)
+        .filter(_.duplicable)
+        .map(_.inv)
+        .map(genCheckAssertionIsDup)
+        .foreach(AdditionalMembers.addMember)
+
+      // TODO: check that import preconditions are established
 
       // proof obligations for function main
-      val mainFuncObligations = generateMainFuncObligations(mainPkg, specCollector)
+      val mainFuncObligations = generateMainFuncProofObligation(mainPkg, specCollector)
       mainFuncObligations.foreach(AdditionalMembers.addMember)
+      /*
+      // if (config.enableModularInit) {
+      } else {
+        // check that the postconditions of every package are enough to satisfy all of their imports' preconditions
+        val src = meta(mainPkg, info)
+        specCollector.registeredPackages().foreach { pkg =>
+          val checkPkgImports = checkPkgImportObligations(pkg, specCollector)(src)
+          AdditionalMembers.addMember(checkPkgImports)
+        }
+      }
+      */
+    }
+
+    // Check whether an expression e is self-framming and duplicable
+    def genCheckAssertionIsDup(e: PExpression): in.Function = {
+      val src = meta(e, info)
+      val assertion = specificationD(FunctionContext.empty(), info)(e)
+      val funcProxy = in.FunctionProxy(nm.dupPkgInv())(src)
+      in.Function(
+        name = funcProxy,
+        args = Vector.empty,
+        results = Vector.empty,
+        pres = Vector(assertion),
+        posts = Vector(assertion, assertion),
+        terminationMeasures = Vector.empty,
+        backendAnnotations = Vector.empty,
+        body = Some(in.MethodBody.empty(src))
+      )(src)
     }
 
     /**
@@ -3492,7 +3532,7 @@ object Desugar extends LazyLogging {
       // Each entry in `pGlobalDecls` contains the declarations of a file in `pkg` sorted by the order in which they
       // appear in the program.
       val pGlobalDecls: Vector[Vector[PVarDecl]] = pkg.programs.map{ p =>
-        val unsortedDecls = p.declarations.collect{ case d: PVarDecl => d }
+        val unsortedDecls = p.declarations.collect{ case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
         // TODO: this is currently fine, given that we currently require global variable declarations to come after
         //       the declarations of all of the dependencies of the declared variables. This should be changed when
         //       we lift this restriction.
@@ -3511,30 +3551,46 @@ object Desugar extends LazyLogging {
       if (generateInitProof) {
         // Check that the initialization code satisfies the contract of every file in the package.
         val fileInitTranslations: Vector[in.Function] = pkg.programs.zip(globalDecls).map {
-          case (p, sortedDecls) => checkProgramInitContract(p)(sortedDecls)
+          case (p, sortedDecls) => checkProgramInitContract(p)(sortedDecls)(config)
         }
         fileInitTranslations.foreach(AdditionalMembers.addMember)
       }
 
-      // Collect and register all import-preconditions
-      pkg.imports.foreach{ imp => {
+      // Register all import-preconditions
+      pkg.imports.foreach { imp => {
         val importedPackage = RegularImport(imp.importPath)
-        Violation.violation(info.dependentTypeInfo.contains(importedPackage), s"Desugarer expects to have acess to the type information of all imported packages but could not find $importedPackage")
         info.dependentTypeInfo(importedPackage)() match {
           case Right(tI) =>
             val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
-            Violation.violation(!config.enableLazyImports || desugaredPre.isEmpty, s"Import precondition found despite running with ${Config.enableLazyImportOptionPrettyPrinted}")
             specCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
-          case e => Violation.violation(config.enableLazyImports, s"Unexpected value found $e while importing ${imp.importPath} - type information is assumed to be available for all packages when Gobra is executed with lazy imports disabled")
+          case _ =>
+            val errorMsgTypeInfoNotFound =
+              s"Desugarer expects to have acess to the type information of all imported packages but could not find $importedPackage"
+            Violation.violation(errorMsgTypeInfoNotFound)
         }
       }}
 
-      // Collect and register all postconditions of all PPrograms (i.e., files) in pkg
-      val pkgPost = pkg.programs.flatMap(_.initPosts).map(specificationD(FunctionContext.empty(), info))
-      specCollector.addPackagePosts(pkg, pkgPost)
+      // collect package invariants
+      val partitionFunc = (inv: PPkgInvariant) => if (inv.duplicable) Left(inv.inv) else Right(inv.inv)
+      val (dups, nonDups) = pkg.programs.flatMap(_.staticInvs).partitionMap(partitionFunc)
+      val goA = specificationD(FunctionContext.empty(), info)(_)
+      val dDups = dups.map(goA)
+      val dNonDups = nonDups.map(goA)
+      val _ = dNonDups
+      specCollector.addDupPkgInvCurrentPkg(dDups)
+
+      // collect friend packages
+      pkg.programs.flatMap(_.friends).map{ i =>
+        val absPkg = PackageResolver.AbstractPackage(PackageResolver.RegularImport(i.path))(config)
+        val assertion = specificationD(FunctionContext.empty(), info)(i.assertion)
+        (absPkg, assertion)
+      }.groupBy(_._1).foreach { case (pkg, resources) =>
+        specCollector.addResourcesFromFriends(pkg, resources.map(_._2))
+      }
     }
 
     /**
+      * TODO: reimplement
       * Checks that the postconditions of package `pkg` imply the conjunction of all imports' preconditions (that import
       * package `pkg`)
       * @param pkg
@@ -3549,7 +3605,8 @@ object Desugar extends LazyLogging {
         name = funcProxy,
         args = Vector.empty,
         results = Vector.empty,
-        pres = specCollector.postsOfPackage(pkg),
+        // pres = specCollector.postsOfPackage(pkg),
+        pres = Vector.empty,
         posts = specCollector.presImportsOfPackage(pkg).map{ a =>
           a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(ImportPreNotEstablished))
         },
@@ -3560,25 +3617,24 @@ object Desugar extends LazyLogging {
     }
 
     /**
-      * Generate proof obligations for the main function, if it exists in `mainPkg`.
-      * To that end, we just check that the init post-conditions of the current package imply the main function's
-      * precondition. A more complete approach would be to iterate through all packages,
-      * following the order of the dependencies, and exhale its import-preconditions and then inhale its
-      * package postconditions, until we reach the main package. Afterward, we could exhale main's precondition.
-      * @param mainPkg package under verification
-      * @param specCollector info about the init specifications of imported packages. All imported packages should
-      *                      have been registered in `specCollector` before calling this method
-      * @return
-      */
-    def generateMainFuncObligations(mainPkg: PPackage, specCollector: PackageInitSpecCollector): Option[in.Function] = {
-      val mainFuncOpt = mainPkg.declarations.collectFirst{
+     * Generates proof obligations for the main function, if it exists in the `mainPkg`.
+     * To that end, we check that the package invariants of the current package and all imported packages
+     * imply the main function's precondition.
+     *
+     * @param mainPkg       package under verification
+     * @param specCollector info about the init specifications of imported packages. All imported packages should
+     *                      have been registered in `specCollector` before calling this method
+     * @return
+     */
+    def generateMainFuncProofObligation(mainPkg: PPackage, specCollector: PackageInitSpecCollector): Option[in.Function] = {
+      val mainFuncOpt = mainPkg.declarations.collectFirst {
         case f: PFunctionDecl if f.id.name == Constants.MAIN_FUNC_NAME => f
       }
-      mainFuncOpt.map{ mainFunc =>
+      mainFuncOpt.map { mainFunc =>
         val src = meta(mainFunc, info)
-        val mainPkgPosts = specCollector.postsOfPackage(mainPkg)
-        val mainFuncPre  = mainFunc.spec.pres ++ mainFunc.spec.preserves
-        val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty(), info)).map{ a =>
+        val mainPkgPosts = specCollector.getNonDupInvariantsSelfOrImportedPkgs()
+        val mainFuncPre = mainFunc.spec.pres ++ mainFunc.spec.preserves
+        val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty(), info)).map { a =>
           a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(MainPreNotEstablished))
         }
         val funcProxy = in.FunctionProxy(nm.mainFuncProofObligation(info))(src)
@@ -3604,27 +3660,50 @@ object Desugar extends LazyLogging {
       *   as long as dependency order is respected.
       * - execute all inits in the current file in the order they appear
       * - exhale all post-conditions of the file
-      * Notice that these operations enforce non-interference between two different files in the same program. Thus,
+      * - exhale all package-invariants of the file
+      * - exhale all friend clauses
+      * Note 1: these operations enforce non-interference between two different files in the same program. Thus,
       * it is ok to check the initialization of a package by separately checking the initialization of each of
       * its programs.
+      * Note 2: if the flag `enableModularInit` is true, there will be no import preconditions and init postconditions.
+      * If it is false, there will be no package invariants. Thus, this method works for both the modular and
+      * non-modular termination checks.
       * @param p
       * @return
       */
-    def checkProgramInitContract(p: PProgram)(sortedGlobVarDecls: Vector[in.GlobalVarDecl]): in.Function = {
+    def checkProgramInitContract(p: PProgram)(sortedGlobVarDecls: Vector[in.GlobalVarDecl])(config: Config): in.Function = {
       // all errors found during init are reported in the package clause of the file
       val src = meta(p.packageClause, info)
       val funcProxy = in.FunctionProxy(nm.programInit(p, info))(src)
       val progPres: Vector[in.Assertion] = p.imports.flatMap(_.importPres).map(specificationD(FunctionContext.empty(), info)(_))
-      val progPosts: Vector[in.Assertion] = p.initPosts.map(specificationD(FunctionContext.empty(), info)(_))
+      // val progPosts: Vector[in.Assertion] = p.initPosts.map(specificationD(FunctionContext.empty(), info)(_))
+      val progPosts: Vector[in.Assertion] = Vector.empty // p.initPosts.map(specificationD(FunctionContext.empty(), info)(_))
+      val pkgInvariants: Vector[in.Assertion] = p.staticInvs.map{i => specificationD(FunctionContext.empty(), info)(i.inv)}
+      val resourcesForFriends: Vector[in.Assertion] = p.friends.map{i => specificationD(FunctionContext.empty(), info)(i.assertion)}
+      val pkgInvariantsImportedPackages: Vector[in.Assertion] =
+        initSpecs match {
+          case Some(initSpecs) => initSpecs.getNonDupInvariantsImportedPkgs()
+          case None => Vector.empty
+        }
+
+      // TODO: the following is only sound while there is a single init function per-package, otherwise, we might have
+      //  multiple blocks inhaling the "same" resource. The solution to this is to adopt preconditions for init functions
+      //  and introduce a proof obligation that all package invariants of imported packages (together with
+      //  the friendPkg declarations destined at the current package) imply the conjunction of all init preconditions.
+
+      val currPkg = info.tree.originalRoot
+      val uniquePathPkg = currPkg.info.uniquePath
+      val absPkg = PackageResolver.RegularPackage(uniquePathPkg)
+      val resourcesFromFriendPkgs = initSpecs.get.getResourcesForPkg(uniquePathPkg)
 
       in.Function(
         name = funcProxy,
         args = Vector(),
         results = Vector(),
         // inhales all preconditions in the imports of the current file
-        pres = progPres,
-        // exhales all package postconditions in the current file
-        posts = progPosts,
+        pres = progPres ++ pkgInvariantsImportedPackages ++ resourcesFromFriendPkgs, // TODO: doc
+        // exhales all package postconditions and pkg invariants from the current file
+        posts = progPosts ++ pkgInvariantsImportedPackages ++ pkgInvariants ++ resourcesForFriends, // TODO: doc
         // in our verification approach, the initialization code must be proven to terminate
         terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)),
         backendAnnotations = Vector.empty,
@@ -4096,6 +4175,12 @@ object Desugar extends LazyLogging {
             } yield in.PredExprUnfold(predExpInstance.base.asInstanceOf[in.PredicateConstructor], args, access.p)(src)
             case _ => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
           }
+        case POpenDupPkgInv() =>
+          // open the current package's invariant.
+          val dupInvs = initSpecs.get.dupPkgInvsOfCurrentPackage()
+          val inhales = dupInvs.map(i => in.Inhale(i)(src))
+          val block = in.Block(Vector.empty, inhales)(src)
+          unit(block)
         case PPackageWand(wand, blockOpt) =>
           for {
             w <- goA(wand)
@@ -4854,6 +4939,7 @@ object Desugar extends LazyLogging {
     private val PROGRAM_INIT_CODE_PREFIX = "$INIT"
     private val PACKAGE_IMPORT_OBLIGATIONS_PREFIX = "$IMPORTS"
     private val MAIN_FUNC_OBLIGATIONS_PREFIX = "$CHECKMAIN"
+    private val CHECK_PKG_INV_IS_DUP = "$IS_DUP"
     private val INTERFACE_PREFIX = "Y"
     private val DOMAIN_PREFIX = "D"
     private val ADT_PREFIX = "ADT"
@@ -4879,6 +4965,8 @@ object Desugar extends LazyLogging {
       * Currently, it is used for variables, in and out parameters, and receivers.
       */
     private var scopeMap: Map[PScope, Int] = Map.empty
+
+    private var dupInvCounter = 0
 
     private def maybeRegister(s: PScope, ctx: ExternalTypeInfo): Unit = {
       if (!(scopeMap contains s)) {
@@ -4921,6 +5009,10 @@ object Desugar extends LazyLogging {
       // a package id might contain invalid symbols
       val hashedId = Names.hash(p.info.id)
       topLevelName(hashedId)(PACKAGE_IMPORT_OBLIGATIONS_PREFIX, context)
+    }
+    def dupPkgInv(): String = {
+      dupInvCounter += 1
+      s"$CHECK_PKG_INV_IS_DUP$dupInvCounter"
     }
     def mainFuncProofObligation(context: ExternalTypeInfo): String =
       topLevelName(MAIN_FUNC_OBLIGATIONS_PREFIX)(Constants.MAIN_FUNC_NAME, context)
@@ -5095,8 +5187,16 @@ object Desugar extends LazyLogging {
   private class PackageInitSpecCollector {
     // pairs of package X and the preconditions on an import of X (one entry in the list per import of X)
     private var importPreconditions: Vector[(PPackage, Vector[in.Assertion])] = Vector.empty
-    // pairs of a package X and the postconditions of a program of X (one entry in the list per program of X)
-    private var packagePostconditions: Vector[(PPackage, Vector[in.Assertion])] = Vector.empty
+    // // pairs of a package X and the postconditions of a program of X (one entry in the list per program of X)
+    // private var packagePostconditions: Vector[(PPackage, Vector[in.Assertion])] = Vector.empty
+    // TODO: DOC
+    private var dupPackageInvariantsCurrentPackage: Vector[in.Assertion] = Vector.empty
+
+    private var nonDupInvariantsOfSelfOrImportedPackages: Map[PPackage, Vector[in.Assertion]] = Map.empty
+
+    private var currPkg: Option[PPackage] = None
+
+    private var resourcesFromFriends: Map[PackageResolver.AbstractPackage, Vector[in.Assertion]] = Map.empty
 
     def addImportPres(pkg: PPackage, desugaredImportPre: Vector[in.Assertion]): Unit = {
       importPreconditions :+= (pkg, desugaredImportPre)
@@ -5106,17 +5206,55 @@ object Desugar extends LazyLogging {
       importPreconditions.filter(_._1.info.id == pkg.info.id).flatMap(_._2)
     }
 
-    def addPackagePosts(pkg: PPackage, desugaredPosts: Vector[in.Assertion]): Unit = {
-      packagePostconditions :+= (pkg, desugaredPosts)
+    //def addPackagePosts(pkg: PPackage, desugaredPosts: Vector[in.Assertion]): Unit = {
+    //  packagePostconditions :+= (pkg, desugaredPosts)
+    //}
+
+    // def postsOfPackage(pkg: PPackage): Vector[in.Assertion] = {
+    //  packagePostconditions.filter(_._1.info.id == pkg.info.id).flatMap(_._2)
+    //}
+
+    def addDupPkgInvCurrentPkg(desugaredInvs: Vector[in.Assertion]) = {
+      dupPackageInvariantsCurrentPackage = desugaredInvs
     }
 
-    def postsOfPackage(pkg: PPackage): Vector[in.Assertion] = {
-      packagePostconditions.filter(_._1.info.id == pkg.info.id).flatMap(_._2)
+    def dupPkgInvsOfCurrentPackage(): Vector[in.Assertion] = {
+      dupPackageInvariantsCurrentPackage
     }
 
-    def registeredPackages(): Vector[PPackage] = {
-      // the domain of package posts should have all registered packages
-      packagePostconditions.map(_._1).distinct
+    def addSelfOrImportedPkgInvariant(pkg: PPackage, desugaredInvs: Vector[in.Assertion]) = {
+      val curr = nonDupInvariantsOfSelfOrImportedPackages.getOrElse(pkg, Vector.empty)
+      nonDupInvariantsOfSelfOrImportedPackages = nonDupInvariantsOfSelfOrImportedPackages.updated(pkg, curr ++ desugaredInvs)
+    }
+
+    def getNonDupInvariantsSelfOrImportedPkgs(): Vector[in.Assertion] = {
+      nonDupInvariantsOfSelfOrImportedPackages.values.flatten.toVector
+    }
+
+    def getNonDupInvariantsImportedPkgs(): Vector[in.Assertion] = {
+      (nonDupInvariantsOfSelfOrImportedPackages - currPkg.get).values.flatten.toVector
+    }
+
+    def registerCurrentPackage(pkg: PPackage) = {
+      currPkg = Some(pkg)
+    }
+
+    //def registeredPackages(): Vector[PPackage] = {
+    //  // the domain of package posts should have all registered packages
+    //  packagePostconditions.map(_._1).distinct
+    //}
+
+    def addResourcesFromFriends(pkg: PackageResolver.AbstractPackage, res: Vector[in.Assertion]) = {
+      resourcesFromFriends += pkg -> res
+    }
+
+    // def getResourcesForPkg(): Map[PackageResolver.AbstractPackage, Vector[in.Assertion]] = resourcesFromFriends
+    def getResourcesForPkg(uniquePkgId: String): Vector[in.Assertion] = {
+      resourcesFromFriends.find {
+        case (PackageResolver.RegularPackage(idFriend), _) =>
+          uniquePkgId == idFriend
+        case _ => false
+      }.map(_._2).getOrElse(Vector.empty)
     }
   }
 }

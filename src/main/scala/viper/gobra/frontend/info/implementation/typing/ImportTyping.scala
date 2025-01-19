@@ -16,17 +16,13 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 trait ImportTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefImport: WellDefinedness[PImport] = createWellDef { imp =>
-    (if (config.enableLazyImports) {
-      imp.importPres.flatMap(importPre => message(importPre, s"Import preconditions are not allowed when executing ${GoVerifier.name} with ${Config.enableLazyImportOptionPrettyPrinted}"))
-    } else {
-      forceNonLazyImport(imp.importPath, imp)
-      noMessages
-    }) ++ (imp match {
+    forceNonLazyImport(imp.importPath, imp)
+    imp match {
       case _: PExplicitQualifiedImport => noMessages
       case _: PUnqualifiedImport => noMessages
       // this case should never occur as these nodes should get converted in the parse postprocessing step
       case n: PImplicitQualifiedImport => message(n, s"Explicit qualifier could not be derived")
-    })
+    }
   }
 
   // This method forces a package to be processed non-lazily - every import can cause side effects,
@@ -34,6 +30,7 @@ trait ImportTyping extends BaseTyping { this: TypeInfoImpl =>
   // If this method is not called, a package is only processed if there are accesses to any member
   // declared in the package. This method is a quick solution that avoids larger refactorings
   // in the type-checker to perform imports non-lazily.
+  // TODO: check if we can make this lazy
   private def forceNonLazyImport(importPath: String, errNode: PNode): Unit = {
     val abstractImport = RegularImport(importPath)
     getTypeChecker(abstractImport, errNode)

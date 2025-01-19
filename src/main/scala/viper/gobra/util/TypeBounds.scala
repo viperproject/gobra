@@ -9,8 +9,6 @@ package viper.gobra.util
 import viper.gobra.util.TypeBounds.{Byte, DefaultInt, DefaultUInt, IntegerKind, Rune, SignedInteger16, SignedInteger32, SignedInteger64, SignedInteger8, UIntPtr, UnboundedInteger, UnsignedInteger16, UnsignedInteger32, UnsignedInteger64, UnsignedInteger8}
 import viper.gobra.util.Violation.violation
 
-import scala.math.pow
-
 /**
   * Defines the integer type bounds for an execution of Gobra
   */

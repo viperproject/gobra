@@ -264,14 +264,14 @@ class InterfaceEncoding extends LeafTypeEncoding {
         for {
           instance <- mpredicateInstance(recv, p, args)(n)(ctx)
           perm <- goE(perm)
-        } yield vpr.PredicateAccessPredicate(instance, perm)(pos, info, errT): vpr.Exp
+        } yield vpr.PredicateAccessPredicate(instance, Some(perm))(pos, info, errT): vpr.Exp
 
       case n@ in.Access(in.Accessible.Predicate(in.FPredicateAccess(p, args)), perm) if hasFamily(p)(ctx) =>
         val (pos, info, errT) = n.vprMeta
         for {
           instance <- fpredicateInstance(p, args)(n)(ctx)
           perm <- goE(perm)
-        } yield vpr.PredicateAccessPredicate(instance, perm)(pos, info, errT): vpr.Exp
+        } yield vpr.PredicateAccessPredicate(instance, Some(perm))(pos, info, errT): vpr.Exp
     }
   }
 
@@ -561,7 +561,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         val default = {
           vpr.PredicateAccessPredicate(
             vpr.PredicateAccess(recv +: args, defaultPredicate.name)(),
-            vpr.FullPerm()()
+            Some(vpr.FullPerm()())
           )()
 
         }

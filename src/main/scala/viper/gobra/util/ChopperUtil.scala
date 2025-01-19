@@ -25,7 +25,7 @@ object ChopperUtil {
   def computeChoppedPrograms(task: Task, pkgInfo: PackageInfo)(config: Config): Vector[vpr.Program] = {
 
 
-    val programs = chopper.Chopper.chop(task.program)(
+    val programs = PluginAwareChopper.chop(task.program)(
       selection = computeIsolateMap(config, pkgInfo),
       bound = Some(config.choppingUpperBound),
       penalty = getPenalty

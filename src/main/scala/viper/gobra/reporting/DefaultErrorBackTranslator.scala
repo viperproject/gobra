@@ -12,6 +12,7 @@ import viper.silver
 import viper.silver.ast.Not
 import viper.silver.verifier.{AbstractVerificationError, errors => vprerr, reasons => vprrea}
 import viper.silver.plugin.standard.termination
+import viper.silver.plugin.standard.{refute => vprrefute}
 
 object DefaultErrorBackTranslator {
 
@@ -19,7 +20,9 @@ object DefaultErrorBackTranslator {
                                 viperError: viper.silver.verifier.VerificationError,
                                 transformer: BackTranslator.ErrorTransformer
                               ): VerificationError = {
-    val gobraError = transformer.lift.apply(viperError).getOrElse{ UncaughtError(viperError) }
+    val gobraError = transformer.lift.apply(viperError).getOrElse {
+      UncaughtError(viperError)
+    }
     if (viperError.cached) gobraError.cached = true
     gobraError
   }
@@ -28,7 +31,9 @@ object DefaultErrorBackTranslator {
                                 viperReason: silver.verifier.ErrorReason,
                                 transformer: BackTranslator.ReasonTransformer
                               ): VerificationErrorReason = {
-    transformer.lift.apply(viperReason).getOrElse{ UncaughtReason(viperReason) }
+    transformer.lift.apply(viperReason).getOrElse {
+      UncaughtReason(viperReason)
+    }
   }
 
   def defaultTranslate(viperReason: silver.verifier.ErrorReason): VerificationErrorReason =
@@ -40,6 +45,8 @@ object DefaultErrorBackTranslator {
         InsufficientPermissionError(info)
       case vprrea.AssertionFalse(CertainSource(info)) =>
         AssertionFalseError(info)
+      case vprrefute.RefutationTrue(CertainSource(info)) =>
+        RefutationTrueError(info)
       case vprrea.AssertionFalse(CertainSynthesized(info)) =>
         SynthesizedAssertionFalseReason(info)
       case vprrea.SeqIndexExceedsLength(CertainSource(node), CertainSource(index)) =>
@@ -122,6 +129,8 @@ class DefaultErrorBackTranslator(
         ForLoopError(info) dueTo translate(reason)
       case vprerr.AssertFailed(CertainSource(info), reason, _) =>
         AssertError(info) dueTo translate(reason)
+      case vprrefute.RefuteFailed(CertainSource(info), reason, _) =>
+        RefuteError(info) dueTo translate(reason)
       case vprerr.PostconditionViolated(CertainSource(info), _, reason, _) =>
         PostconditionError(info) dueTo translate(reason)
       case vprerr.FoldFailed(CertainSource(info), reason, _) =>
@@ -153,35 +162,35 @@ class DefaultErrorBackTranslator(
         IfError(info) dueTo translate(reason)
       case vprerr.IfFailed(CertainSource(info), reason, _) =>
         IfError(info) dueTo translate(reason)
-       case termination.FunctionTerminationError(Source(info) , reason, _) =>
-         FunctionTerminationError(info) dueTo translate(reason)
-       case termination.MethodTerminationError(Source(info), reason, _) =>
-         MethodTerminationError(info) dueTo translate(reason)
-       case termination.LoopTerminationError(Source(info), reason, _) =>
-         LoopTerminationError(info) dueTo translate(reason)
+      case termination.FunctionTerminationError(Source(info), reason, _) =>
+        FunctionTerminationError(info) dueTo translate(reason)
+      case termination.MethodTerminationError(Source(info), reason, _) =>
+        MethodTerminationError(info) dueTo translate(reason)
+      case termination.LoopTerminationError(Source(info), reason, _) =>
+        LoopTerminationError(info) dueTo translate(reason)
     }
 
     val transformAnnotatedError: VerificationError => VerificationError = x => x.info match {
       case _ / (an: OverwriteErrorAnnotation) => an(x)
 
       case _ / OverflowCheckAnnotation =>
-        x.reasons.foldLeft(OverflowError(x.info): VerificationError){ case (err, reason) => err dueTo reason }
+        x.reasons.foldLeft(OverflowError(x.info): VerificationError) { case (err, reason) => err dueTo reason }
 
       case _ / AutoImplProofAnnotation(subT, superT) =>
         GeneratedImplementationProofError(subT, superT, x)
 
       case _ / MainPreNotEstablished =>
-        x.reasons.foldLeft(MainPreconditionNotEstablished(x.info): VerificationError){
+        x.reasons.foldLeft(MainPreconditionNotEstablished(x.info): VerificationError) {
           case (err, reason) => err dueTo reason
         }
 
       case _ / ImportPreNotEstablished =>
-        x.reasons.foldLeft(ImportPreconditionNotEstablished(x.info): VerificationError){
+        x.reasons.foldLeft(ImportPreconditionNotEstablished(x.info): VerificationError) {
           case (err, reason) => err dueTo reason
         }
 
       case _ / InsufficientPermissionToRangeExpressionAnnotation() =>
-        x.reasons.foldLeft(InsufficientPermissionToRangeExpressionError(x.info): VerificationError){ case (err, reason) => err dueTo reason }
+        x.reasons.foldLeft(InsufficientPermissionToRangeExpressionError(x.info): VerificationError) { case (err, reason) => err dueTo reason }
 
       case _ / LoopInvariantNotEstablishedAnnotation =>
         x.reasons.foldLeft(LoopInvariantEstablishmentError(x.info): VerificationError) { case (err, reason) => err dueTo reason }
@@ -192,11 +201,11 @@ class DefaultErrorBackTranslator(
     errorMapper.andThen(transformAnnotatedError)
   }
 
-  private val errorTransformer = backtrack.errorT.foldRight(defaultErrorTransformer){
+  private val errorTransformer = backtrack.errorT.foldRight(defaultErrorTransformer) {
     case (l, r) => l orElse r
   }
 
-  private val reasonTransformer = backtrack.reasonT.foldRight(DefaultErrorBackTranslator.defaultReasonTransformer){
+  private val reasonTransformer = backtrack.reasonT.foldRight(DefaultErrorBackTranslator.defaultReasonTransformer) {
     case (l, r) => l orElse r
   }
 

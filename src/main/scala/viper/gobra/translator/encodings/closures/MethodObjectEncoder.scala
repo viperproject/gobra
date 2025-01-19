@@ -7,7 +7,7 @@
 package viper.gobra.translator.encodings.closures
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.BackTranslator.ErrorTransformer
+import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
 import viper.gobra.reporting.{InterfaceReceiverIsNilReason, MethodObjectGetterPreconditionError, Source}
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
@@ -102,7 +102,7 @@ class MethodObjectEncoder(domain: ClosureDomainEncoder) {
     in.MethodProxy(s"${Names.closureGetter}$$${meth.name}", s"${Names.closureGetter}$$${meth.uniqueName}")(meth.info)
 
   private def receiverNilErr(m: in.MethodObject, call: vpr.Exp): ErrorTransformer = {
-    case vprerr.PreconditionInAppFalse(offendingNode, _, _) if call eq offendingNode =>
+    case e@vprerr.PreconditionInAppFalse(_, _, _) if e causedBy call=>
       val info = m.vprMeta._2.asInstanceOf[Source.Verifier.Info]
       val recvInfo = m.recv.vprMeta._2.asInstanceOf[Source.Verifier.Info]
       MethodObjectGetterPreconditionError(info).dueTo(InterfaceReceiverIsNilReason(recvInfo))

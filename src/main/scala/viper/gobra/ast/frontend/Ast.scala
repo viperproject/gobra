@@ -53,8 +53,7 @@ case class PPackage(
 
 case class PProgram(
                      packageClause: PPackageClause,
-                     // TODO: doc
-                     staticInvs: Vector[PPkgInvariant],
+                     pkgInvariants: Vector[PPkgInvariant],
                      imports: Vector[PImport],
                      friends: Vector[PFriendPkgDecl],
                      declarations: Vector[PMember]
@@ -63,8 +62,7 @@ case class PProgram(
 
 case class PPreamble(
                       packageClause: PPackageClause,
-                      // TODO: doc
-                      staticInvs: Vector[PPkgInvariant],
+                      pkgInvariants: Vector[PPkgInvariant],
                       imports: Vector[PImport],
                       friends: Vector[PFriendPkgDecl],
                       positions: PositionManager,

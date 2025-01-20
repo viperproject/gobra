@@ -24,7 +24,6 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case PFold(acc) => wellDefFoldable(acc)
     case PUnfold(acc) => wellDefFoldable(acc)
     case POpenDupPkgInv() =>
-      // TODO: do the same for opening non-dup invs
       tryEnclosingFunctionOrMethod(stmt) match {
         case Some(m) =>
           val occursInInitMember = m match {

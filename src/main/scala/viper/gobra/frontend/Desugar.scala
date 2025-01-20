@@ -65,7 +65,7 @@ object Desugar extends LazyLogging {
         val pkg = i.getTypeInfo.tree.originalRoot
         importsCollector.registerCurrentPackage(pkg)
         val nonDupInvs = pkg.programs
-          .flatMap(_.staticInvs)
+          .flatMap(_.pkgInvariants)
           .filter(!_.duplicable)
           .map(_.inv)
           .map(mainDesugarer.specificationD(mainDesugarer.FunctionContext.empty(), i.getTypeInfo)(_))
@@ -3476,7 +3476,7 @@ object Desugar extends LazyLogging {
 
       // Check that all duplicable static invariants are actually duplicable.
       mainPkg.programs
-        .flatMap(_.staticInvs)
+        .flatMap(_.pkgInvariants)
         .filter(_.duplicable)
         .map(_.inv)
         .map(genCheckAssertionIsDup)
@@ -3572,7 +3572,7 @@ object Desugar extends LazyLogging {
 
       // collect package invariants
       val partitionFunc = (inv: PPkgInvariant) => if (inv.duplicable) Left(inv.inv) else Right(inv.inv)
-      val (dups, nonDups) = pkg.programs.flatMap(_.staticInvs).partitionMap(partitionFunc)
+      val (dups, nonDups) = pkg.programs.flatMap(_.pkgInvariants).partitionMap(partitionFunc)
       val goA = specificationD(FunctionContext.empty(), info)(_)
       val dDups = dups.map(goA)
       val dNonDups = nonDups.map(goA)
@@ -3678,7 +3678,7 @@ object Desugar extends LazyLogging {
       val progPres: Vector[in.Assertion] = p.imports.flatMap(_.importPres).map(specificationD(FunctionContext.empty(), info)(_))
       // val progPosts: Vector[in.Assertion] = p.initPosts.map(specificationD(FunctionContext.empty(), info)(_))
       val progPosts: Vector[in.Assertion] = Vector.empty // p.initPosts.map(specificationD(FunctionContext.empty(), info)(_))
-      val pkgInvariants: Vector[in.Assertion] = p.staticInvs.map{i => specificationD(FunctionContext.empty(), info)(i.inv)}
+      val pkgInvariants: Vector[in.Assertion] = p.pkgInvariants.map{ i => specificationD(FunctionContext.empty(), info)(i.inv)}
       val resourcesForFriends: Vector[in.Assertion] = p.friends.map{i => specificationD(FunctionContext.empty(), info)(i.assertion)}
       val pkgInvariantsImportedPackages: Vector[in.Assertion] =
         initSpecs match {

@@ -63,25 +63,25 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // program
 
   def showProgram(p: PProgram): Doc = p match {
-    case PProgram(packageClause, /*progPosts,*/ staticInvs, imports, friends, declarations) =>
-      showPreamble(packageClause, /*progPosts,*/ staticInvs, imports, friends) <>
+    case PProgram(packageClause, pkgInvs, imports, friends, declarations) =>
+      showPreamble(packageClause, pkgInvs, imports, friends) <>
         ssep(declarations map showMember, line <> line) <> line
   }
 
   // preamble
 
   def showPreamble(p: PPreamble): Doc = p match {
-    case PPreamble(packageClause, staticInvs, imports, friends, _) =>
-      showPreamble(packageClause, staticInvs, imports, friends)
+    case PPreamble(packageClause, pkgInvs, imports, friends, _) =>
+      showPreamble(packageClause, pkgInvs, imports, friends)
   }
 
   private def showPreamble(
                             packageClause: PPackageClause,
-                            staticInvs: Vector[PPkgInvariant],
+                            pkgInvs: Vector[PPkgInvariant],
                             imports: Vector[PImport],
                             friends: Vector[PFriendPkgDecl]
                           ): Doc =
-    vcat(staticInvs.map(showPkgInvariant)) <>
+    vcat(pkgInvs.map(showPkgInvariant)) <>
       showPackageClause(packageClause) <> line <> line <>
       ssep(friends map showFriend, line) <> line <>
       ssep(imports map showImport, line) <> line

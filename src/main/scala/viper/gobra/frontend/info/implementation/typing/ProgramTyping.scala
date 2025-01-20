@@ -19,7 +19,7 @@ import viper.gobra.util.Violation
 trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefProgram: WellDefinedness[PProgram] = createWellDef {
-    case p@PProgram(_, staticInvs, imports, _, members) =>
+    case PProgram(_, staticInvs, imports, _, members) =>
       // Obtains global variable declarations sorted by the order in which they appear in the file
       val sortedByPosDecls: Vector[PVarDecl] = {
         val unsortedDecls: Vector[PVarDecl] = members.collect{ case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }

@@ -1,10 +1,6 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-// This should actually be PR #810 (not "issue"), but the TestAnnotationParser
-// cannot be easily extended to match against "pr" instead of issue below.
-//:: IgnoreFile(/gobra/issue/810/)
-
 package main
 
 // ##(-I ./)

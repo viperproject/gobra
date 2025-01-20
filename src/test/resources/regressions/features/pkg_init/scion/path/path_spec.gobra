@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package path
+
+// ##(-I ../../)
+
+import "monotonicset"
+
+pred PkgInv() {
+	acc(&registeredPaths) &&
+	registeredKeys.Inv()  &&
+	(forall i uint16 :: 0 <= i && i < maxPathType ==>
+		registeredPaths[i].inUse == registeredKeys.FContains(i))
+}
+
+ghost
+decreases
+pure func RegisteredTypes() monotonicset.BoundedMonotonicSet {
+	return registeredKeys
+}

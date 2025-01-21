@@ -248,7 +248,7 @@ case class Config(
       TypeBounds(Int = TypeBounds.IntWith64Bit, UInt = TypeBounds.UIntWith64Bit)
     }
 
-  lazy val backendOrDefault: ViperBackend = backend.getOrElse(ConfigDefaults.DefaultBackend)
+  val backendOrDefault: ViperBackend = backend.getOrElse(ConfigDefaults.DefaultBackend)
 }
 
 object Config {
@@ -871,8 +871,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   conflicts(input, List(projectRoot, inclPackages, exclPackages))
   conflicts(directory, List(inclPackages, exclPackages))
 
-  // must be lazy to guarantee that this value is computed only during the CLI options validation and not before.
-  lazy val isSiliconBasedBackend = backend.toOption.getOrElse(ConfigDefaults.DefaultBackend) match {
+  // must be a function or lazy to guarantee that this value is computed only during the CLI options validation and not before.
+  private def isSiliconBasedBackend = backend.toOption.getOrElse(ConfigDefaults.DefaultBackend) match {
     case ViperBackends.SiliconBackend | _: ViperBackends.ViperServerWithSilicon => true
     case _ => false
   }

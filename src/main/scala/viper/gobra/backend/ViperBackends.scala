@@ -180,7 +180,7 @@ object ViperBackends {
   case class ViperServerWithCarbon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) {
     override def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig = {
       var options: Vector[String] = Vector.empty
-      options ++= Vector("--logLevel", "ERROR")
+      // options ++= Vector("--logLevel", "ERROR")
       if (config.respectFunctionPrePermAmounts) {
         options ++= Vector("--respectFunctionPrePermAmounts")
       }

@@ -33,8 +33,8 @@ import scala.concurrent.Future
 object Parser extends LazyLogging {
 
   type ParseSuccessResult = (Vector[Source], PPackage)
-  type ParseResult = Either[Vector[VerifierError], ParseSuccessResult]
-  type ImportToPkgInfoOrErrorMap = Vector[(AbstractPackage, Either[Vector[VerifierError], (Vector[Source], PackageInfo)])]
+  type ParseResult = Either[Vector[ParserError], ParseSuccessResult]
+  type ImportToPkgInfoOrErrorMap = Vector[(AbstractPackage, Either[Vector[ParserError], (Vector[Source], PackageInfo)])]
   type PreprocessedSources = Vector[Source]
 
   class ParseManager(config: Config)(implicit executor: GobraExecutionContext) extends LazyLogging {
@@ -153,7 +153,7 @@ object Parser extends LazyLogging {
       lazy val specOnly: Boolean = true
     }
 
-    private case class ParseFailureJob(errs: Vector[VerifierError]) extends Job[PreprocessedSources, ParseResult] {
+    private case class ParseFailureJob(errs: Vector[ParserError]) extends Job[PreprocessedSources, ParseResult] {
       override protected def sequentialPrecompute(): PreprocessedSources =
         Vector.empty
       override protected def compute(precomputationResult: PreprocessedSources): ParseResult =

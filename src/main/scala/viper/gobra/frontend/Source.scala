@@ -9,7 +9,7 @@ package viper.gobra.frontend
 import java.io.Reader
 import java.nio.file.{Files, Path, Paths}
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Source, StringSource}
-import viper.gobra.reporting.{ParserError, VerifierError}
+import viper.gobra.reporting.ParserError
 import viper.gobra.util.Violation
 import viper.silver.ast.SourcePosition
 
@@ -51,7 +51,7 @@ object Source {
   /**
    * Returns an object containing information about the package a source belongs to.
    */
-  def getPackageInfo(src: Source, projectRoot: Path): Either[Vector[VerifierError], PackageInfo] = {
+  def getPackageInfo(src: Source, projectRoot: Path): Either[Vector[ParserError], PackageInfo] = {
     for {
       packageName <- PackageResolver.getPackageClause(src: Source).toRight({
         val pos = Some(SourcePosition(src.toPath, 1, 1))

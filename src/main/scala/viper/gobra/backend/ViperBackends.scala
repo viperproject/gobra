@@ -119,7 +119,7 @@ object ViperBackends {
     /** returns an existing ViperCoreServer instance or otherwise creates a new one */
     protected def getOrCreateServer(config: Config)(executionContext: GobraExecutionContext): ViperCoreServer = {
       server.getOrElse({
-        var serverConfig = List("--disablePlugins", "--logLevel", config.logLevel.levelStr)
+        var serverConfig = List("--logLevel", config.logLevel.levelStr)
         if(config.cacheFile.isDefined) {
           serverConfig = serverConfig.appendedAll(List("--cacheFile", config.cacheFile.get.toString))
         }

@@ -1,0 +1,10 @@
+package vswithcarbon
+
+// ##(--backend VSWITHCARBON)
+
+// tests whether the carbon backend in connection with ViperServer is operational
+
+func foo() {
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false;
+}

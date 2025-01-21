@@ -1,0 +1,10 @@
+package silicon
+
+// ##(--backend SILICON)
+
+// tests whether the silicon backend is operational
+
+func foo() {
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false;
+}

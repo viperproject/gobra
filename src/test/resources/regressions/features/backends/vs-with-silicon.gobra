@@ -1,0 +1,10 @@
+package vswithsilicon
+
+// ##(--backend VSWITHSILICON)
+
+// tests whether the silicon backend in connection with ViperServer is operational
+
+func foo() {
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false;
+}

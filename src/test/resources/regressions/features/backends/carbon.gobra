@@ -1,0 +1,10 @@
+package carbon
+
+// ##(--backend CARBON)
+
+// tests whether the carbon backend is operational
+
+func foo() {
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false;
+}

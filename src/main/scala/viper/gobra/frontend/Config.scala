@@ -401,9 +401,11 @@ case class PackageModeConfig(projectRoot: Path = ConfigDefaults.DefaultProjectRo
         pkgInfo <- getPackageInfo(sources.head, projectRoot)
       } yield pkgInfo -> sources
     }.partitionMap(identity)
-    for {
-      mappings <- if (errors.nonEmpty) Left(errors.flatten) else Right(mappings)
-    } yield createConfig(mappings.toMap)
+    if (errors.nonEmpty) {
+        Left(errors.flatten)
+    } else {
+        Right(createConfig(mappings.toMap))
+    }
   }
 }
 

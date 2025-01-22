@@ -52,15 +52,16 @@ object Source {
    * Returns an object containing information about the package a source belongs to.
    */
   def getPackageInfo(src: Source, projectRoot: Path): Either[Vector[ParserError], PackageInfo] = {
+    val isBuiltIn = src match {
+      case FromFileSource(_, _, builtin) => builtin
+      case _ => false
+    }
+    val packageNameOrError = PackageResolver.getPackageClause(src).toRight({
+      val pos = Some(SourcePosition(src.toPath, 1, 1))
+      Vector(ParserError("Missing package clause", pos))
+    })
     for {
-      packageName <- PackageResolver.getPackageClause(src: Source).toRight({
-        val pos = Some(SourcePosition(src.toPath, 1, 1))
-        Vector(ParserError("Missing package clause", pos))
-      })
-      isBuiltIn = src match {
-        case FromFileSource(_, _, builtin) => builtin
-        case _ => false
-      }
+      packageName <- packageNameOrError
       /** A unique identifier for packages */
       packageId = {
         val prefix = uniquePath(TransformableSource(src).toPath.toAbsolutePath.getParent, projectRoot).toString

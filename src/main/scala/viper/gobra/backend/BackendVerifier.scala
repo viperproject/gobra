@@ -41,14 +41,14 @@ object BackendVerifier {
       case _ =>
     }
 
-    (config.backend, config.boogieExe) match {
+    (config.backendOrDefault, config.boogieExe) match {
       case (Carbon, Some(boogieExe)) =>
         exePaths ++= Vector("--boogieExe", boogieExe)
       case _ =>
     }
 
     val verificationResults: Future[VerificationResult] =  {
-      val verifier = config.backend.create(exePaths, config)
+      val verifier = config.backendOrDefault.create(exePaths, config)
       val reporter = BacktranslatingReporter(config.reporter, task.backtrack, config)
 
       if (!config.shouldChop) {

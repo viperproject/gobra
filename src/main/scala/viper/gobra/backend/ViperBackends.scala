@@ -119,7 +119,7 @@ object ViperBackends {
     /** returns an existing ViperCoreServer instance or otherwise creates a new one */
     protected def getOrCreateServer(config: Config)(executionContext: GobraExecutionContext): ViperCoreServer = {
       server.getOrElse({
-        var serverConfig = List("--disablePlugins", "--logLevel", config.logLevel.levelStr)
+        var serverConfig = List("--logLevel", config.logLevel.levelStr)
         if(config.cacheFile.isDefined) {
           serverConfig = serverConfig.appendedAll(List("--cacheFile", config.cacheFile.get.toString))
         }
@@ -180,7 +180,7 @@ object ViperBackends {
   case class ViperServerWithCarbon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) {
     override def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig = {
       var options: Vector[String] = Vector.empty
-      options ++= Vector("--logLevel", "ERROR")
+      // options ++= Vector("--logLevel", "ERROR")
       if (config.respectFunctionPrePermAmounts) {
         options ++= Vector("--respectFunctionPrePermAmounts")
       }

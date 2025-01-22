@@ -129,7 +129,8 @@ case class Config(
                    includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
                    projectRoot: Path = ConfigDefaults.DefaultProjectRoot.toPath,
                    reporter: GobraReporter = ConfigDefaults.DefaultReporter,
-                   backend: ViperBackend = ConfigDefaults.DefaultBackend,
+                   // `None` indicates that no backend has been specified and instructs Gobra to use the default backend
+                   backend: Option[ViperBackend] = None,
                    isolate: Option[Vector[SourcePosition]] = None,
                    choppingUpperBound: Int = ConfigDefaults.DefaultChoppingUpperBound,
                    packageTimeout: Duration = ConfigDefaults.DefaultPackageTimeout,
@@ -194,7 +195,12 @@ case class Config(
       projectRoot = projectRoot,
       includeDirs = (includeDirs ++ other.includeDirs).distinct,
       reporter = reporter,
-      backend = backend,
+      backend = (backend, other.backend) match {
+        case (l, None) => l
+        case (None, r) => r
+        case (l, r) if l == r => l
+        case (Some(l), Some(r)) => Violation.violation(s"Unable to merge differing backends from in-file configuration options, got $l and $r")
+      },
       isolate = (isolate, other.isolate) match {
         case (None, r) => r
         case (l, None) => l
@@ -241,6 +247,8 @@ case class Config(
     } else {
       TypeBounds(Int = TypeBounds.IntWith64Bit, UInt = TypeBounds.UIntWith64Bit)
     }
+
+  val backendOrDefault: ViperBackend = backend.getOrElse(ConfigDefaults.DefaultBackend)
 }
 
 object Config {
@@ -259,7 +267,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       moduleName: String = ConfigDefaults.DefaultModuleName,
                       includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
                       reporter: GobraReporter = ConfigDefaults.DefaultReporter,
-                      backend: ViperBackend = ConfigDefaults.DefaultBackend,
+                      backend: Option[ViperBackend] = None,
                       // list of pairs of file and line numbers. Indicates which lines of files should be isolated.
                       isolate: List[(Path, List[Int])] = ConfigDefaults.DefaultIsolate,
                       choppingUpperBound: Int = ConfigDefaults.DefaultChoppingUpperBound,
@@ -564,7 +572,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     choices = Seq("SILICON", "CARBON", "VSWITHSILICON", "VSWITHCARBON"),
     name = "backend",
     descr = "Specifies the used Viper backend. The default is SILICON.",
-    default = Some("SILICON"),
+    default = None,
     noshort = true
   ).map{
     case "SILICON" => ViperBackends.SiliconBackend
@@ -863,9 +871,9 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   conflicts(input, List(projectRoot, inclPackages, exclPackages))
   conflicts(directory, List(inclPackages, exclPackages))
 
-  // must be lazy to guarantee that this value is computed only during the CLI options validation and not before.
-  lazy val isSiliconBasedBackend = backend.toOption match {
-    case Some(ViperBackends.SiliconBackend | _: ViperBackends.ViperServerWithSilicon) => true
+  // must be a function or lazy to guarantee that this value is computed only during the CLI options validation and not before.
+  private def isSiliconBasedBackend = backend.toOption.getOrElse(ConfigDefaults.DefaultBackend) match {
+    case ViperBackends.SiliconBackend | _: ViperBackends.ViperServerWithSilicon => true
     case _ => false
   }
 
@@ -1014,7 +1022,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
         printInternal = printInternal(),
         printVpr = printVpr(),
         streamErrs = !noStreamErrors()),
-    backend = backend(),
+    backend = backend.toOption,
     isolate = isolate,
     choppingUpperBound = chopUpperBound(),
     packageTimeout = packageTimeoutDuration,

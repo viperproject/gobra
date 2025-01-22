@@ -92,6 +92,8 @@ object MCE {
 
 object Hyper {
   sealed trait Mode
+  /** uses more complete encoding that does not enforce low guards for control flow */
+  object EnabledExtended extends Mode
   object Enabled extends Mode
   object Disabled extends Mode
   object NoMajor extends Mode
@@ -255,6 +257,8 @@ case class Config(
     } else {
       TypeBounds(Int = TypeBounds.IntWith64Bit, UInt = TypeBounds.UIntWith64Bit)
     }
+
+  val hyperModeOrDefault: Hyper.Mode = hyperMode.getOrElse(ConfigDefaults.DefaultHyperMode)
 }
 
 object Config {
@@ -794,12 +798,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val hyperMode: ScallopOption[Hyper.Mode] = choice(
     name = "hyperMode",
-    choices = Seq("on", "off", "noMajor"),
-    descr = "Specifies whether hyper properties should be verified (on), not verified (off), or whether the major checks should be skipped (noMajor).",
+    choices = Seq("on", "extended", "off", "noMajor"),
+    descr = "Specifies whether hyper properties should be verified while enforcing low control flow (on), with support for non-low control flow (extended), not verified (off), or whether the major checks should be skipped (noMajor).",
     default = None,
     noshort = true
   ).map {
     case "on" => Hyper.Enabled
+    case "extended" => Hyper.EnabledExtended
     case "off" => Hyper.Disabled
     case "noMajor" => Hyper.NoMajor
   }

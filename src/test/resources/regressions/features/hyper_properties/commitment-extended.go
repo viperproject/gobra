@@ -1,7 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-// ##(--hyperMode on)
+// ##(--hyperMode extended)
 
 package commitment
 
@@ -15,9 +15,8 @@ func verify(hash int, value int) (res bool) {
 // @ requires low(hash)
 // @ ensures  res ==> low(value)
 func verifyWithBranching(hash int, value int) (res bool) {
-    // the following if statement fails because the condition is not-low
-    // however, this limitation could be lifted by a more complicated encoding
-    //:: ExpectedOutput(assert_error:assertion_error)
+    // the following if statement succeeds because we enabled the extended
+    // SIF encoding that allows branching on non-low conditions
     if hash != computeHash(value) {
         return false
     }

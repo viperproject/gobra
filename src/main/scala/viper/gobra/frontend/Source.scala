@@ -78,7 +78,7 @@ object Source {
 
   /**
     * Forcefully tries to create a package info or throws an runtime exception.
-    * Only use for unit tests
+    * Only used for unit tests
     */
   def getPackageInfoOrCrash(src: Source, projectRoot: Path): PackageInfo = {
     Source.getPackageInfo(src, projectRoot).fold(

@@ -64,8 +64,8 @@ class GobraParserTests extends AbstractGobraTests with BeforeAndAfterAll {
         info(s"Time required: $elapsedMilis ms")
 
         result match {
-          case Success => Vector.empty
-          case Failure(errors) => errors map GobraTestOuput
+          case Success(_) => Vector.empty
+          case Failure(errors, _) => errors map GobraTestOuput
         }
       }
     }

@@ -6,6 +6,8 @@
 
 package viper.gobra.reporting
 
+import org.bitbucket.inkytonik.kiama.util.Severities
+import org.bitbucket.inkytonik.kiama.util.Severities.Severity
 import viper.gobra.ast.frontend
 import viper.gobra.ast.frontend.{PReceive, PSendStmt}
 import viper.gobra.reporting.Source.Verifier
@@ -13,7 +15,8 @@ import viper.gobra.util.Constants
 import viper.gobra.util.Violation.violation
 import viper.silver.ast.{SourcePosition}
 
-sealed trait VerifierError {
+sealed trait VerifierMessage {
+  def severity: Severity
   def position: Option[SourcePosition]
   def message: String
   def id: String
@@ -26,6 +29,18 @@ sealed trait VerifierError {
   override def toString: String = formattedMessage
 
   var cached: Boolean = false
+}
+
+sealed trait VerifierWarning extends VerifierMessage {
+  override def severity: Severity = Severities.Warning
+}
+
+case class TypeWarning(message: String, position: Option[SourcePosition]) extends VerifierWarning {
+  val id = "type_warning"
+}
+
+sealed trait VerifierError extends VerifierMessage {
+  override def severity: Severity = Severities.Error
 }
 
 case class NotFoundError(message: String) extends VerifierError {

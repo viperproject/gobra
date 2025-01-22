@@ -85,9 +85,9 @@ class GobraPackageTests extends GobraTests {
         info(s"Time required: $elapsedMilis ms")
 
         equalConfigs(parsedConfig.get, config) ++ (result match {
-          case Success => Vector.empty
-          case Failure(errors) => errors map GobraTestOuput
-        })
+          case Success(warnings) => warnings
+          case Failure(errors, warnings) => errors ++ warnings
+        }).map(GobraTestOuput)
       }
     }
 

@@ -15,7 +15,7 @@ import viper.silver.ast.SourcePosition
 import viper.silver.ast.utility.chopper
 import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.reporting.ChoppedViperMessage
-import viper.gobra.backend.BackendVerifier.Task
+import viper.gobra.backend.Task
 
 object ChopperUtil {
 

@@ -20,7 +20,9 @@ import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, MemberContext, PreambleContext, SourceFileContext, StmtOnlyContext, TypeOnlyContext}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, RegularImport, RegularPackage}
-import viper.gobra.util.{GobraExecutionContext, Job, TaskManager, Violation}
+import viper.gobra.frontend.ParserUtils.ParseResult
+import viper.gobra.util.VerifierPhase.{ErrorsAndWarnings, PhaseResult, Warnings}
+import viper.gobra.util.{GobraExecutionContext, Job, TaskManager, VerifierPhaseNonFinal, Violation}
 import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable.ListBuffer
@@ -28,12 +30,17 @@ import java.security.MessageDigest
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 import scala.concurrent.Future
 
-
-// `LazyLogging` provides us with access to `logger` to emit log messages
-object Parser extends LazyLogging {
-
+object ParserUtils {
   type ParseSuccessResult = (Vector[Source], PPackage)
   type ParseResult = Either[Vector[ParserError], ParseSuccessResult]
+}
+
+
+// `LazyLogging` provides us with access to `logger` to emit log messages
+object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractPackage, ParseResult]] with LazyLogging {
+
+  override val name: String = "Parser"
+
   type ImportToPkgInfoOrErrorMap = Vector[(AbstractPackage, Either[Vector[ParserError], (Vector[Source], PackageInfo)])]
   type PreprocessedSources = Vector[Source]
 
@@ -179,13 +186,18 @@ object Parser extends LazyLogging {
     *
     */
 
-  def parse(config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Map[AbstractPackage, ParseResult]] = {
+  /**
+    * returns `Left(...)` if parsing of the package identified by `pkgInfo` failed. Note that `Right(...)` does not imply
+    * that all imported packages have been parsed successfully (this is only checked during type-checking)
+    */
+  override protected def execute(input: (Config, PackageInfo))(implicit executor: GobraExecutionContext): PhaseResult[Map[AbstractPackage, ParseResult]] = {
+    val (config, pkgInfo) = input
     val parseManager = new ParseManager(config)
     parseManager.parse(pkgInfo)
-    val res: Future[Either[Vector[VerifierError], Map[AbstractPackage, ParseResult]]] = for {
+    val res: Future[Either[ErrorsAndWarnings, (Map[AbstractPackage, ParseResult], Warnings)]] = for {
       results <- parseManager.getResults
       res = results.get(RegularPackage(pkgInfo.id)) match {
-        case Some(Right(_)) => Right(results)
+        case Some(Right(_)) => Right(results, Vector.empty)
         case Some(Left(errs)) => Left(errs)
         case _ => Violation.violation(s"No parse result for package '$pkgInfo' found")
       }

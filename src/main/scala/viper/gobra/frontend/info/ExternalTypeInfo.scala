@@ -8,20 +8,19 @@ package viper.gobra.frontend.info
 
 import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PFunctionDecl, PFunctionOrMethodDecl, PGeneralForStmt, PIdnNode, PIdnUse, PKeyedElement, PLabelUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
 import viper.gobra.frontend.PackageInfo
-import viper.gobra.frontend.PackageResolver.AbstractImport
+import viper.gobra.frontend.info.Info.DependentTypeInfo
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMemberTag
 import viper.gobra.frontend.info.base.Type.{AbstractType, InterfaceT, StructT, Type}
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
-import viper.gobra.reporting.VerifierError
 
 trait ExternalTypeInfo {
 
   def pkgName: PPkgDef
   def pkgInfo: PackageInfo
-  def dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]]
+  def dependentTypeInfo: DependentTypeInfo
 
   /** returns this (unless disabled via parameter) and the type information of directly and transitively dependent packages */
   def getTransitiveTypeInfos(includeThis: Boolean = true): Set[ExternalTypeInfo]

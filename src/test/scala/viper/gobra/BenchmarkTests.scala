@@ -13,7 +13,8 @@ import org.scalatest.{ConfigMap, DoNotDiscover}
 import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
 import viper.gobra.frontend.{Config, PackageResolver, ScallopGobraConfig}
-import viper.gobra.reporting.{NoopReporter, VerifierError, VerifierResult}
+import viper.gobra.reporting.{NoopReporter, VerifierError, VerifierMessage, VerifierResult, VerifierWarning}
+import viper.gobra.util.VerifierPhase.{ErrorsAndWarnings, PhaseResult, Warnings}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext, Violation}
 import viper.silver.ast.{NoPosition, Position}
 import viper.silver.frontend.Frontend
@@ -90,8 +91,9 @@ trait BenchmarkTests extends StatisticalTestSuite {
     override def result: vpr.VerificationResult = {
       // transform Gobra errors back to vpr.AbstractError such that the benchmarking framework automatically handles them
       gobraResult match {
-        case VerifierResult.Success => vpr.Success
-        case VerifierResult.Failure(errors) => vpr.Failure(errors.map(GobraTestError))
+        case VerifierResult.Success(Vector()) => vpr.Success
+        case VerifierResult.Success(warnings) => vpr.Failure(warnings.map(GobraTestWarning))
+        case VerifierResult.Failure(errors, warnings) => vpr.Failure(errors.map(GobraTestError) ++ warnings.map(GobraTestWarning))
       }
     }
 
@@ -108,6 +110,53 @@ trait BenchmarkTests extends StatisticalTestSuite {
       def phase: Phase
       def phases: Seq[Phase]
       def reset(): Unit
+    }
+
+    case class InitialPhase[S](name: String, fn: () => PhaseResult[S]) extends Step[(S, Warnings), ErrorsAndWarnings] {
+      var res: Option[Either[ErrorsAndWarnings, (S, Warnings)]] = None
+      override val phase: Phase = Phase(name, () => {
+        res = Some(Await.result(fn().toEither, Duration(timeoutSec, TimeUnit.SECONDS)))
+      })
+      override def phases: Seq[Phase] = Seq(phase)
+      override def reset(): Unit =
+        res = None
+    }
+
+    case class NextPhaseNonFinal[R, S](name: String, prevStep: Step[(R, Warnings), ErrorsAndWarnings], fn: R => PhaseResult[S]) extends Step[(S, Warnings), ErrorsAndWarnings] {
+      var res: Option[Either[ErrorsAndWarnings, (S, Warnings)]] = None
+      override val phase: Phase = Phase(name, () => {
+        assert(prevStep.res.isDefined)
+        res = prevStep.res match {
+          case Some(Right((prevRes, prevWarnings))) => {
+            val result = Await.result(fn(prevRes).toEither, Duration(timeoutSec, TimeUnit.SECONDS))
+            Some(result.map { case (newRes, newWarnings) => (newRes, prevWarnings ++ newWarnings) }) // propagate warnings
+          }
+          case Some(Left(errs)) => Some(Left(errs)) // propagate errors
+        }
+      })
+      override def phases: Seq[Phase] = prevStep.phases :+ phase
+      override def reset(): Unit = {
+        prevStep.reset()
+        res = None
+      }
+    }
+
+    case class NextPhaseFinal[R](name: String, prevStep: Step[(R, Warnings), ErrorsAndWarnings], fn: (R, Warnings) => Future[VerifierResult]) extends Step[VerifierResult, Unit] {
+      var res: Option[Either[Unit, VerifierResult]] = None
+      override val phase: Phase = Phase(name, () => {
+        assert(prevStep.res.isDefined)
+        res = prevStep.res match {
+          case Some(Right((prevRes, prevWarnings))) =>
+            val result = Await.result(fn(prevRes, prevWarnings), Duration(timeoutSec, TimeUnit.SECONDS))
+            Some(Right(result))
+          case Some(Left(errs)) => Some(Left(errs)) // propagate errors
+        }
+      })
+      override def phases: Seq[Phase] = prevStep.phases :+ phase
+      override def reset(): Unit = {
+        prevStep.reset()
+        res = None
+      }
     }
 
     case class InitialStep[E, O](name: String, fn: () => Either[E, O]) extends Step[O, E] {
@@ -140,9 +189,10 @@ trait BenchmarkTests extends StatisticalTestSuite {
         }
       })
       override def phases: Seq[Phase] = prevStep.phases :+ phase
-      override def reset(): Unit =
+      override def reset(): Unit = {
         prevStep.reset()
-      res = None
+        res = None
+      }
     }
 
     case class NextStepEitherT[I, E, O](name: String, prevStep: Step[I, E], fn: I => EitherT[E, Future, O]) extends Step[O, E] {
@@ -155,20 +205,26 @@ trait BenchmarkTests extends StatisticalTestSuite {
         }
       })
       override def phases: Seq[Phase] = prevStep.phases :+ phase
-      override def reset(): Unit =
+      override def reset(): Unit = {
         prevStep.reset()
-      res = None
+        res = None
+      }
     }
 
-    case class GobraTestError(error: VerifierError) extends vpr.AbstractError {
+    trait GobraTestMessage extends vpr.AbstractError {
+      val message: VerifierMessage
+
       /** The position where the error occured. */
-      override def pos: Position = error.position.getOrElse(NoPosition)
+      override def pos: Position = message.position.getOrElse(NoPosition)
 
       /** A short and unique identifier for this error. */
-      override def fullId: String = error.id
+      override def fullId: String = message.id
 
       /** A readable message describing the error. */
-      override def readableMessage: String = error.formattedMessage
+      override def readableMessage: String = message.formattedMessage
     }
+
+    case class GobraTestError(override val message: VerifierError) extends GobraTestMessage
+    case class GobraTestWarning(override val message: VerifierWarning) extends GobraTestMessage
   }
 }

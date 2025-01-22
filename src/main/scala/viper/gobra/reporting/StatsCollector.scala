@@ -176,14 +176,14 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
 
     msg match {
       // Capture typeInfo once it's available
-      case TypeCheckSuccessMessage(_, taskName, typeInfo, _,_,_) => typeInfos.put(taskName, typeInfo.apply())
+      case m: TypeCheckSuccessMessage => typeInfos.put(m.taskName, m.typeInfo.apply())
       // Free up unneeded space, once a task is finished
       case VerificationTaskFinishedMessage(taskName) => typeInfos.remove(taskName)
       // Store every viperMember with an info attached to see, which ones didn't verify on an unexpected shutdown
-      case GeneratedViperMessage(taskName, _, vprAst, _) =>
-        vprAst().members
-          .filter(m => m.info.isInstanceOf[Source.Verifier.Info] && isRelevantInfo(m.info.asInstanceOf[Source.Verifier.Info]))
-          .foreach(m => addViperMember(taskName, m, m.info.asInstanceOf[Source.Verifier.Info], 0, cached = false, verified = false, success = true))
+      case m: GeneratedViperMessage =>
+        m.vprAst().members
+          .filter(member => member.info.isInstanceOf[Source.Verifier.Info] && isRelevantInfo(member.info.asInstanceOf[Source.Verifier.Info]))
+          .foreach(member => addViperMember(m.taskName, member, member.info.asInstanceOf[Source.Verifier.Info], 0, cached = false, verified = false, success = true))
       case GobraEntitySuccessMessage(taskName, _, e, info, time, cached) if isRelevantInfo(info) =>
         addViperMember(taskName, e, info, time, cached, verified = true, success = true)
       case GobraEntityFailureMessage(taskName, _, e, info, _, time, cached) if isRelevantInfo(info) =>

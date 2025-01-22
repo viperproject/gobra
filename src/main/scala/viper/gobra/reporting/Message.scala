@@ -39,20 +39,21 @@ case class VerificationTaskFinishedMessage(taskName: String) extends GobraMessag
   override def toString: String = s"verification_task_finished(taskName=$taskName)"
 }
 
-case class GobraOverallSuccessMessage(verifier: String) extends GobraVerificationResultMessage {
+case class GobraOverallSuccessMessage(verifier: String, result: VerifierResult.Success) extends GobraVerificationResultMessage {
   override val name: String = s"overall_success_message"
-  val result: VerifierResult = Success
 
   override def toString: String = s"overall_success_message(" +
-    s"verifier=$verifier)"
+    s"verifier=$verifier, "+
+    s"warnings=${result.warnings.toString})"
 }
 
-case class GobraOverallFailureMessage(verifier: String, result: VerifierResult) extends GobraVerificationResultMessage {
+case class GobraOverallFailureMessage(verifier: String, result: VerifierResult.Failure) extends GobraVerificationResultMessage {
   override val name: String = s"overall_failure_message"
 
   override def toString: String = s"overall_failure_message(" +
     s"verifier=$verifier, " +
-    s"failure=${result.toString})"
+    s"warnings=${result.warnings.toString}, " +
+    s"failure=${result.errors.toString})"
 }
 
 sealed trait GobraEntityResultMessage extends GobraVerificationResultMessage {
@@ -63,7 +64,7 @@ sealed trait GobraEntityResultMessage extends GobraVerificationResultMessage {
 
 case class GobraEntitySuccessMessage(taskName: String, verifier: String, entity: vpr.Member, concerning: Source.Verifier.Info, time: Time, cached: Boolean) extends GobraEntityResultMessage {
   override val name: String = s"entity_success_message"
-  val result: VerifierResult = Success
+  val result: VerifierResult = Success(Vector.empty)
 
   override def toString: String = s"entity_success_message(" +
     s"taskName=$taskName, " +
@@ -119,21 +120,23 @@ sealed trait TypeCheckMessage extends GobraMessage {
     s"files=$inputs)"
 }
 
-case class TypeCheckSuccessMessage(inputs: Vector[String], taskName: String, typeInfo: () => TypeInfo, ast: () => PPackage, erasedGhostCode: () => String, goifiedGhostCode: () => String) extends TypeCheckMessage {
+case class TypeCheckSuccessMessage(inputs: Vector[String], taskName: String, typeInfo: () => TypeInfo, ast: () => PPackage, erasedGhostCode: () => String, goifiedGhostCode: () => String, warnings: Vector[VerifierWarning]) extends TypeCheckMessage {
   override val name: String = s"type_check_success_message"
 
   override def toString: String = s"type_check_success_message(" +
     s"taskName=$taskName, " +
-    s"files=$inputs)"
+    s"files=$inputs, " +
+    s"warnings=${warnings.map(_.toString).mkString(",")})"
 }
 
-case class TypeCheckFailureMessage(inputs: Vector[String], packageName: PPkg, ast: () => PPackage, result: Vector[VerifierError]) extends TypeCheckMessage {
+case class TypeCheckFailureMessage(inputs: Vector[String], packageName: PPkg, ast: () => PPackage, errors: Vector[VerifierError], warnings: Vector[VerifierWarning]) extends TypeCheckMessage {
   override val name: String = s"type_check_failure_message"
 
   override def toString: String = s"type_check_failure_message(" +
     s"files=$inputs, " +
     s"package=$packageName, " +
-    s"failures=${result.map(_.toString).mkString(",")})"
+    s"errors=${errors.map(_.toString).mkString(",")}, " +
+    s"warnings=${warnings.map(_.toString).mkString(",")})"
 }
 
 case class TypeCheckDebugMessage(inputs: Vector[String], ast: () => PPackage, debugTypeInfo: () => String) extends TypeCheckMessage {

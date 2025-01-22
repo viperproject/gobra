@@ -7,6 +7,8 @@
 package viper.gobra.frontend
 
 import com.typesafe.scalalogging.LazyLogging
+import scalaz.EitherT
+import scalaz.Scalaz.futureInstance
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.PackageResolver.RegularImport
@@ -20,8 +22,9 @@ import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstabl
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
+import viper.gobra.util.VerifierPhase.PhaseResult
 import viper.gobra.util.Violation.violation
-import viper.gobra.util.{BackendAnnotation, Constants, DesugarWriter, GobraExecutionContext, Violation}
+import viper.gobra.util.{BackendAnnotation, Constants, DesugarWriter, GobraExecutionContext, VerifierPhaseNonFinal, Violation}
 
 import java.util.concurrent.atomic.AtomicLong
 import scala.annotation.{tailrec, unused}
@@ -31,9 +34,12 @@ import scala.concurrent.{Await, Future}
 import scala.reflect.ClassTag
 
 // `LazyLogging` provides us with access to `logger` to emit log messages
-object Desugar extends LazyLogging {
+object Desugar extends VerifierPhaseNonFinal[(Config, viper.gobra.frontend.info.TypeInfo), in.Program] with LazyLogging {
 
-  def desugar(config: Config, info: viper.gobra.frontend.info.TypeInfo)(implicit executionContext: GobraExecutionContext): in.Program = {
+  override val name: String = "Desugaring"
+
+  override protected def execute(input: (Config, viper.gobra.frontend.info.TypeInfo))(implicit executionContext: GobraExecutionContext): PhaseResult[in.Program] = {
+    val (config, info) = input
     val pkg = info.tree.root
     val importsCollector = new PackageInitSpecCollector
 
@@ -77,7 +83,7 @@ object Desugar extends LazyLogging {
     // combine all desugared results into one Viper program:
     val internalProgram = combine(mainDesugarer, mainProgram, importedPrograms)
     config.reporter report DesugaredMessage(config.packageInfoInputMap(pkg.info).map(_.name), () => internalProgram)
-    internalProgram
+    EitherT.right(internalProgram, Vector.empty)
   }
 
   private def combine(mainDesugarer: Desugarer, mainProgram: in.Program, imported: Iterable[(Desugarer, in.Program)]): in.Program = {
@@ -3524,7 +3530,7 @@ object Desugar extends LazyLogging {
           case Right(tI) =>
             val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
             Violation.violation(!config.enableLazyImports || desugaredPre.isEmpty, s"Import precondition found despite running with ${Config.enableLazyImportOptionPrettyPrinted}")
-            specCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
+            specCollector.addImportPres(tI._1.getTypeInfo.tree.originalRoot, desugaredPre)
           case e => Violation.violation(config.enableLazyImports, s"Unexpected value found $e while importing ${imp.importPath} - type information is assumed to be available for all packages when Gobra is executed with lazy imports disabled")
         }
       }}

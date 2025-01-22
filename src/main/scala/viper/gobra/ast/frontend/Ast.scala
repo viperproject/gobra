@@ -12,7 +12,7 @@ import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.Source.TransformableSource
-import viper.gobra.reporting.VerifierError
+import viper.gobra.reporting.VerifierMessage
 import viper.gobra.util.{Decimal, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
@@ -73,7 +73,7 @@ case class PPreamble(
 
 class PositionManager(val positions: Positions) extends Messaging(positions) {
 
-  def translate[E <: VerifierError](
+  def translate[E <: VerifierMessage](
                                      messages: Messages,
                                      errorFactory: (String, Option[SourcePosition]) => E
                                    ): Vector[E] = {
@@ -537,9 +537,11 @@ sealed trait PBinaryExp[L <: PExpressionOrType, R <: PExpressionOrType] extends 
   def right: R
 }
 
-case class PEquals(left: PExpressionOrType, right: PExpressionOrType) extends PBinaryExp[PExpressionOrType, PExpressionOrType]
+sealed trait PActualEquality extends PBinaryExp[PExpressionOrType, PExpressionOrType]
 
-case class PUnequals(left: PExpressionOrType, right: PExpressionOrType) extends PBinaryExp[PExpressionOrType, PExpressionOrType]
+case class PEquals(left: PExpressionOrType, right: PExpressionOrType) extends PActualEquality
+
+case class PUnequals(left: PExpressionOrType, right: PExpressionOrType) extends PActualEquality
 
 case class PGhostEquals(left: PExpression, right: PExpression) extends PBinaryGhostExp
 

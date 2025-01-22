@@ -7,13 +7,14 @@
 package viper.gobra.frontend.info.implementation
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, collectMessages, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Severities
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type}
 
 trait Errors { this: TypeInfoImpl =>
 
-  lazy val (errors: Messages, missingImplProofs: Vector[(Type, InterfaceT, MethodImpl, MethodSpec)]) =
+  lazy val (messages: Messages, missingImplProofs: Vector[(Type, InterfaceT, MethodImpl, MethodSpec)]) =
     {
       val partialRes = collectMessages(tree) { case m: PNode =>
 
@@ -46,4 +47,6 @@ trait Errors { this: TypeInfoImpl =>
         }
       } else (partialRes, Vector.empty)
     }
+
+  lazy val (warnings, errors) = messages.partition(_.severity == Severities.Warning)
 }

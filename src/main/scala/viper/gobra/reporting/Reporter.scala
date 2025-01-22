@@ -49,7 +49,8 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
   override def report(msg: GobraMessage): Unit = msg match {
     case PreprocessedInputMessage(WithoutBuiltinSources(input), content) if unparse => write(input, "gobrafied", content())
     case ParsedInputMessage(WithoutBuiltinSources(input), program) if unparse => write(input, "unparsed", program().formatted)
-    case TypeCheckSuccessMessage(WithoutBuiltinSources(inputs), _, _, _, erasedGhostCode, goifiedGhostCode) =>
+    case TypeCheckSuccessMessage(WithoutBuiltinSources(inputs), _, _, _, erasedGhostCode, goifiedGhostCode, warnings) =>
+      warnings.foreach(warning => logger.warn(s"Warning at: ${warning.formattedMessage}"))
       if (eraseGhost) write(inputs, "ghostLess", erasedGhostCode())
       if (goify) write(inputs, "go", goifiedGhostCode())
     case TypeCheckDebugMessage(WithoutBuiltinSources(inputs), _, debugTypeInfo) if debug => write(inputs, "debugType", debugTypeInfo())
@@ -61,11 +62,15 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
     case CopyrightReport(text) => println(text)
     // Stream errors here
     case m:GobraEntityFailureMessage if streamErrs => m.result match {
-      case VerifierResult.Failure(errors) => errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
+      case VerifierResult.Failure(errors, warnings) =>
+        warnings.foreach(warning => logger.error(s"Warning at: ${warning.formattedMessage}"))
+        errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
       case _ => // ignore
     }
     case m:ParserErrorMessage if streamErrs => m.result.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
-    case m:TypeCheckFailureMessage if streamErrs => m.result.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
+    case m:TypeCheckFailureMessage if streamErrs =>
+      m.warnings.foreach(warning => logger.warn(s"Warning at: ${warning.formattedMessage}"))
+      m.errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
     case m:TransformerFailureMessage if streamErrs => m.result.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
     case _ => // ignore
   }

@@ -5,8 +5,9 @@
 // Copyright (c) 2011-2020 ETH Zurich.
 
 package viper.gobra.reporting
-import viper.gobra.backend.BackendVerifier
+import viper.gobra.backend.{Failure, Result, Success}
 import viper.gobra.frontend.Config
+import viper.gobra.util.VerifierPhase.Warnings
 import viper.silver.{ast => vpr}
 import viper.silver
 
@@ -27,11 +28,11 @@ object BackTranslator {
   type ErrorTransformer = PartialFunction[silver.verifier.VerificationError, VerificationError]
   type ReasonTransformer = PartialFunction[silver.verifier.ErrorReason, VerificationErrorReason]
 
-  def backTranslate(result: BackendVerifier.Result)(@unused config: Config): VerifierResult = result match {
-    case BackendVerifier.Success => VerifierResult.Success
-    case BackendVerifier.Failure(errors, backtrack) =>
+  def backTranslate(result: Result, warningsFromPreviousPhases: Warnings)(@unused config: Config): VerifierResult = result match {
+    case Success => VerifierResult.Success(warningsFromPreviousPhases)
+    case Failure(errors, backtrack) =>
       val errorTranslator = new DefaultErrorBackTranslator(backtrack)
-      VerifierResult.Failure(errors map errorTranslator.translate)
+      VerifierResult.Failure(errors map errorTranslator.translate, warningsFromPreviousPhases)
   }
 
   implicit class RichErrorMessage(error: silver.verifier.ErrorMessage) {

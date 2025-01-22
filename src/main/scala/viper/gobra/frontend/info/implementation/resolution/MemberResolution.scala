@@ -455,6 +455,10 @@ trait MemberResolution { this: TypeInfoImpl =>
     }
 
     Violation.violation(dependentTypeInfo.contains(importTarget), s"Expected that package ${tree.root.info.id} has access to the type information of package $importTarget")
-    dependentTypeInfo(importTarget)().left.map(createImportError)
+    dependentTypeInfo(importTarget)()
+      .fold(errorsAndWarnings => {
+          val errors = errorsAndWarnings.collect { case e: VerifierError => e }
+          Left(createImportError(errors))
+      }, { case (info, _) => Right(info) }) // we ignore warnings of imported package
   }
 }

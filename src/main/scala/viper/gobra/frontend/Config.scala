@@ -173,7 +173,8 @@ case class Config(
                    z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
                    disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                    mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
-                   hyperMode: Hyper.Mode = ConfigDefaults.DefaultHyperMode,
+                   // `None` indicates that no mode has been specified and instructs Gobra to use the default hyper mode
+                   hyperMode: Option[Hyper.Mode] = None,
                    enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
@@ -230,7 +231,12 @@ case class Config(
       z3APIMode = z3APIMode || other.z3APIMode,
       disableNL = disableNL || other.disableNL,
       mceMode = mceMode,
-      hyperMode = hyperMode,
+      hyperMode = (hyperMode, other.hyperMode) match {
+        case (l, None) => l
+        case (None, r) => r
+        case (l, r) if l == r => l
+        case (Some(l), Some(r)) => Violation.violation(s"Unable to merge differing hyper modes from in-file configuration options, got $l and $r")
+      },
       enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
       noStreamErrors = noStreamErrors || other.noStreamErrors,
@@ -289,7 +295,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
                       disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
-                      hyperMode: Hyper.Mode = ConfigDefaults.DefaultHyperMode,
+                      hyperMode: Option[Hyper.Mode] = None,
                       enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
@@ -790,7 +796,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = "hyperMode",
     choices = Seq("on", "off", "noMajor"),
     descr = "Specifies whether hyper properties should be verified (on), not verified (off), or whether the major checks should be skipped (noMajor).",
-    default = Some("on"),
+    default = None,
     noshort = true
   ).map {
     case "on" => Hyper.Enabled
@@ -1044,7 +1050,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     z3APIMode = z3APIMode(),
     disableNL = disableNL(),
     mceMode = mceMode(),
-    hyperMode = hyperMode(),
+    hyperMode = hyperMode.toOption,
     enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),
     noStreamErrors = noStreamErrors(),

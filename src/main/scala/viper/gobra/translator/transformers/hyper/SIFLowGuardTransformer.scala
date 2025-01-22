@@ -1,7 +1,7 @@
 package viper.gobra.translator.transformers.hyper
 
 import viper.gobra.backend.BackendVerifier
-import viper.gobra.frontend.{Config, Hyper}
+import viper.gobra.frontend.{Config, ConfigDefaults, Hyper}
 import viper.gobra.reporting.Source
 import viper.gobra.translator.transformers.ViperTransformer
 import viper.silver.ast._
@@ -560,7 +560,7 @@ class SIFLowGuardTransformerImpl(config: Config) extends SIFLowGuardTransformer 
   }
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
-    config.hyperMode match {
+    config.hyperMode.getOrElse(ConfigDefaults.DefaultHyperMode) match {
       case Hyper.Enabled =>
         Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program), noMinor = false), task.backtrack))
 

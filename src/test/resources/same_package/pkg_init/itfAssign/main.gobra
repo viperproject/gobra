@@ -61,8 +61,8 @@ decreases
 func initFun2() {
 	// for the same reason, this cast
 	// must be rejected
-	// var i = defs.I(T{})
-	// i.F()
+	var i = defs.I(T{})
+	i.F()
 }
 
 mayInit

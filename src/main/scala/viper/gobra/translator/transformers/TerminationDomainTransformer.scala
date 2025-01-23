@@ -5,18 +5,17 @@
 // Copyright (c) 2011-2021 ETH Zurich.
 
 package viper.gobra.translator.transformers
-import java.nio.file.Path
 import viper.gobra.backend.BackendVerifier
 import viper.silicon.Silicon
 import viper.silver.ast.utility.FileLoader
-import viper.silver.{ast => vpr}
 import viper.silver.frontend.{DefaultStates, ViperAstProvider}
-import viper.silver.plugin.SilverPlugin
 import viper.silver.plugin.standard.predicateinstance.PredicateInstance.PredicateInstanceDomainName
-import viper.silver.plugin.standard.termination.{DecreasesTuple, TerminationPlugin}
+import viper.silver.plugin.standard.termination.DecreasesTuple
 import viper.silver.reporter.{NoopReporter, Reporter}
-import viper.silver.plugin.standard.predicateinstance.PredicateInstancePlugin
 import viper.silver.verifier.AbstractError
+import viper.silver.{ast => vpr}
+
+import java.nio.file.Path
 
 // This class should be removed in the future because Viper already implements inference of
 // imports for termination domains. However, at the moment, Viper performs the inference in

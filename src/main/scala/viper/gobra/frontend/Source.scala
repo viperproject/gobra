@@ -27,7 +27,17 @@ import scala.io.BufferedSource
  * @param name the name of the package, does not have to be unique
  * @param isBuiltIn a flag indicating, if the package comes from within Gobra
  */
-class PackageInfo(val id: String, val name: String, val isBuiltIn: Boolean) {
+class PackageInfo(val uniquePath: String, val name: String, val isBuiltIn: Boolean) {
+  val id: String = {
+    if (uniquePath.nonEmpty) {
+      // The - is enough to unambiguously separate the prefix from the package name, since it can't occur in the package name
+      // per Go's spec (https://go.dev/ref/spec#Package_clause)
+      uniquePath + " - " + name
+    } else {
+      // Fallback case if the prefix is empty, for example if the directory of a FileSource is in the current directory
+      name
+    }
+  }
 
   /**
    * Unique id of the package to use in Viper member names.
@@ -56,6 +66,35 @@ object Source {
       case FromFileSource(_, _, builtin) => builtin
       case _ => false
     }
+    /*
+<<<<<<< HEAD
+
+    val packageName: String = PackageResolver.getPackageClause(src: Source)
+      .getOrElse(Violation.violation("Missing package clause in " + src.name))
+
+    /**
+     * A unique identifier for packages
+     */
+   // TODO: make sure this still works
+   // <<<<<<< HEAD
+   // val path = uniquePath(TransformableSource(src).toPath.getParent, projectRoot).toString
+   // new PackageInfo(path, packageName, isBuiltIn)
+   // =======
+    val packageId: String = {
+      val prefix = uniquePath(TransformableSource(src).toPath.toAbsolutePath.getParent, projectRoot).toString
+      if(prefix.nonEmpty) {
+        // The - is enough to unambiguously separate the prefix from the package name, since it can't occur in the package name
+        // per Go's spec (https://go.dev/ref/spec#Package_clause)
+        prefix + " - " + packageName
+      } else {
+        // Fallback case if the prefix is empty, for example if the directory of a FileSource is in the current directory
+        packageName
+      }
+    }
+    new PackageInfo(packageId, packageName, isBuiltIn)
+    //>>>>>>> master
+=======
+     */
     val packageNameOrError = PackageResolver.getPackageClause(src).toRight({
       val pos = Some(SourcePosition(src.toPath, 1, 1))
       Vector(ParserError("Missing package clause", pos))

@@ -18,7 +18,7 @@ import viper.gobra.frontend.Config.enableLazyImportOptionPrettyPrinted
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
 import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential, TaskManagerMode}
-import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
+import viper.gobra.reporting.{ConfigError, FileWriterReporter, GobraReporter, StdIOReporter, VerifierError}
 import viper.gobra.util.{TaskManagerMode, TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
@@ -130,7 +130,8 @@ case class Config(
                    includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
                    projectRoot: Path = ConfigDefaults.DefaultProjectRoot.toPath,
                    reporter: GobraReporter = ConfigDefaults.DefaultReporter,
-                   backend: ViperBackend = ConfigDefaults.DefaultBackend,
+                   // `None` indicates that no backend has been specified and instructs Gobra to use the default backend
+                   backend: Option[ViperBackend] = None,
                    isolate: Option[Vector[SourcePosition]] = None,
                    choppingUpperBound: Int = ConfigDefaults.DefaultChoppingUpperBound,
                    packageTimeout: Duration = ConfigDefaults.DefaultPackageTimeout,
@@ -194,7 +195,12 @@ case class Config(
       projectRoot = projectRoot,
       includeDirs = (includeDirs ++ other.includeDirs).distinct,
       reporter = reporter,
-      backend = backend,
+      backend = (backend, other.backend) match {
+        case (l, None) => l
+        case (None, r) => r
+        case (l, r) if l == r => l
+        case (Some(l), Some(r)) => Violation.violation(s"Unable to merge differing backends from in-file configuration options, got $l and $r")
+      },
       isolate = (isolate, other.isolate) match {
         case (None, r) => r
         case (l, None) => l
@@ -240,6 +246,8 @@ case class Config(
     } else {
       TypeBounds(Int = TypeBounds.IntWith64Bit, UInt = TypeBounds.UIntWith64Bit)
     }
+
+  val backendOrDefault: ViperBackend = backend.getOrElse(ConfigDefaults.DefaultBackend)
 }
 
 object Config {
@@ -258,7 +266,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       moduleName: String = ConfigDefaults.DefaultModuleName,
                       includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
                       reporter: GobraReporter = ConfigDefaults.DefaultReporter,
-                      backend: ViperBackend = ConfigDefaults.DefaultBackend,
+                      backend: Option[ViperBackend] = None,
                       // list of pairs of file and line numbers. Indicates which lines of files should be isolated.
                       isolate: List[(Path, List[Int])] = ConfigDefaults.DefaultIsolate,
                       choppingUpperBound: Int = ConfigDefaults.DefaultChoppingUpperBound,
@@ -307,8 +315,8 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
 }
 
 trait RawConfig {
-  /** converts a RawConfig to an actual `Config` for Gobra. Returns Left with an error message if validation fails. */
-  def config: Either[String, Config]
+  /** converts a RawConfig to an actual `Config` for Gobra. Returns Left if validation fails. */
+  def config: Either[Vector[VerifierError], Config]
   protected def baseConfig: BaseConfig
 
   protected def createConfig(packageInfoInputMap: Map[PackageInfo, Vector[Source]]): Config = Config(
@@ -359,20 +367,22 @@ trait RawConfig {
   * This is for example used when parsing in-file configs.
   */
 case class NoInputModeConfig(baseConfig: BaseConfig) extends RawConfig {
-  override lazy val config: Either[String, Config] = Right(createConfig(Map.empty))
+  override lazy val config: Either[Vector[VerifierError], Config] = Right(createConfig(Map.empty))
 }
 
 case class FileModeConfig(inputFiles: Vector[Path], baseConfig: BaseConfig) extends RawConfig {
-  override lazy val config: Either[String, Config] = {
+  override lazy val config: Either[Vector[VerifierError], Config] = {
     val sources = inputFiles.map(path => FileSource(path.toString))
-    if (sources.isEmpty) Left(s"no input files have been provided")
+    if (sources.isEmpty) Left(Vector(ConfigError(s"no input files have been provided")))
     else {
       // we do not check whether the provided files all belong to the same package
       // instead, we trust the programmer that she knows what she's doing.
       // If they do not belong to the same package, Gobra will report an error after parsing.
       // we simply use the first source's package info to create a single map entry:
-      val packageInfoInputMap = Map(getPackageInfo(sources.head, inputFiles.head) -> sources)
-      Right(createConfig(packageInfoInputMap))
+      for {
+        pkgInfo <- getPackageInfo(sources.head, inputFiles.head)
+        packageInfoInputMap = Map(pkgInfo -> sources)
+      } yield createConfig(packageInfoInputMap)
     }
   }
 }
@@ -391,19 +401,23 @@ trait PackageAndRecursiveModeConfig extends RawConfig {
 
 case class PackageModeConfig(projectRoot: Path = ConfigDefaults.DefaultProjectRoot.toPath,
                              inputDirectories: Vector[Path], baseConfig: BaseConfig) extends PackageAndRecursiveModeConfig {
-  override lazy val config: Either[String, Config] = {
+  override lazy val config: Either[Vector[VerifierError], Config] = {
     val (errors, mappings) = inputDirectories.map { directory =>
       val sources = getSources(directory, recursive = false, onlyFilesWithHeader = baseConfig.onlyFilesWithHeader)
       // we do not check whether the provided files all belong to the same package
       // instead, we trust the programmer that she knows what she's doing.
       // If they do not belong to the same package, Gobra will report an error after parsing.
       // we simply use the first source's package info to create a single map entry:
-      if (sources.isEmpty) Left(s"no sources found in directory ${directory}")
-      else Right((getPackageInfo(sources.head, projectRoot), sources))
+      if (sources.isEmpty) Left(Vector(ConfigError(s"no sources found in directory $directory")))
+      else for {
+        pkgInfo <- getPackageInfo(sources.head, projectRoot)
+      } yield pkgInfo -> sources
     }.partitionMap(identity)
-    if (errors.length == 1) Left(errors.head)
-    else if (errors.nonEmpty) Left(s"multiple errors have been found while localizing sources: ${errors.mkString(", ")}")
-    else Right(createConfig(mappings.toMap))
+    if (errors.nonEmpty) {
+        Left(errors.flatten)
+    } else {
+        Right(createConfig(mappings.toMap))
+    }
   }
 }
 
@@ -411,18 +425,25 @@ case class RecursiveModeConfig(projectRoot: Path = ConfigDefaults.DefaultProject
                                includePackages: List[String] = ConfigDefaults.DefaultIncludePackages,
                                excludePackages: List[String] = ConfigDefaults.DefaultExcludePackages,
                                baseConfig: BaseConfig) extends PackageAndRecursiveModeConfig {
-  override lazy val config: Either[String, Config] = {
-    val pkgMap = getSources(projectRoot, recursive = true, onlyFilesWithHeader = baseConfig.onlyFilesWithHeader)
-      .groupBy(source => getPackageInfo(source, projectRoot))
-      // filter packages:
-      .filter { case (pkgInfo, _) => (includePackages.isEmpty || includePackages.contains(pkgInfo.name)) && !excludePackages.contains(pkgInfo.name) }
-      // filter packages with zero source files:
-      .filter { case (_, pkgFiles) => pkgFiles.nonEmpty }
-    if (pkgMap.isEmpty) {
-      Left(s"No packages have been found that should be verified")
-    } else {
-      Right(createConfig(pkgMap))
-    }
+  override lazy val config: Either[Vector[VerifierError], Config] = {
+    val sources = getSources(projectRoot, recursive = true, onlyFilesWithHeader = baseConfig.onlyFilesWithHeader)
+    val (errors, pkgInfos) = sources.map(source => {
+      for {
+        pkgInfo <- getPackageInfo(source, projectRoot)
+      } yield source -> pkgInfo
+    }).partitionMap(identity)
+    for {
+      pkgInfos <- if (errors.nonEmpty) Left(errors.flatten) else Right(pkgInfos)
+      pkgMap = pkgInfos
+        .groupBy { case (_, pkgInfo) => pkgInfo }
+        // we no longer need `pkgInfo` for the values:
+        .transform { case (_, values) => values.map(_._1) }
+        // filter packages:
+        .filter { case (pkgInfo, _) => (includePackages.isEmpty || includePackages.contains(pkgInfo.name)) && !excludePackages.contains(pkgInfo.name) }
+        // filter packages with zero source files:
+        .filter { case (_, pkgFiles) => pkgFiles.nonEmpty }
+      nonEmptyPkgMap <- if (pkgMap.isEmpty) Left(Vector(ConfigError(s"No packages have been found that should be verified"))) else Right(pkgMap)
+    } yield createConfig(nonEmptyPkgMap)
   }
 }
 
@@ -561,7 +582,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     choices = Seq("SILICON", "CARBON", "VSWITHSILICON", "VSWITHCARBON"),
     name = "backend",
     descr = "Specifies the used Viper backend. The default is SILICON.",
-    default = Some("SILICON"),
+    default = None,
     noshort = true
   ).map{
     case "SILICON" => ViperBackends.SiliconBackend
@@ -860,9 +881,9 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   conflicts(input, List(projectRoot, inclPackages, exclPackages))
   conflicts(directory, List(inclPackages, exclPackages))
 
-  // must be lazy to guarantee that this value is computed only during the CLI options validation and not before.
-  lazy val isSiliconBasedBackend = backend.toOption match {
-    case Some(ViperBackends.SiliconBackend | _: ViperBackends.ViperServerWithSilicon) => true
+  // must be a function or lazy to guarantee that this value is computed only during the CLI options validation and not before.
+  private def isSiliconBasedBackend = backend.toOption.getOrElse(ConfigDefaults.DefaultBackend) match {
+    case ViperBackends.SiliconBackend | _: ViperBackends.ViperServerWithSilicon => true
     case _ => false
   }
 
@@ -966,7 +987,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   verify()
 
-  lazy val config: Either[String, Config] = rawConfig.config
+  lazy val config: Either[Vector[VerifierError], Config] = rawConfig.config
 
   // note that we use `recursive.isSupplied` instead of `recursive.toOption` because it defaults to `Some(false)` if it
   // was not provided by the user. Specifying a different default value does not seem to be respected.
@@ -1020,7 +1041,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
         printInternal = printInternal(),
         printVpr = printVpr(),
         streamErrs = !noStreamErrors()),
-    backend = backend(),
+    backend = backend.toOption,
     isolate = isolate,
     choppingUpperBound = chopUpperBound(),
     packageTimeout = packageTimeoutDuration,

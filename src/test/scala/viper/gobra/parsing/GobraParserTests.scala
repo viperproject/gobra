@@ -49,12 +49,12 @@ class GobraParserTests extends AbstractGobraTests with BeforeAndAfterAll {
 
       override def run(input: AnnotatedTestInput): Seq[AbstractOutput] = {
 
-        val source = FromFileSource(input.file);
+        val source = FromFileSource(input.file)
 
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,
-          packageInfoInputMap = Map(Source.getPackageInfo(source, Path.of("")) -> Vector(source)),
+          packageInfoInputMap = Map(Source.getPackageInfoOrCrash(source, Path.of("")) -> Vector(source)),
           z3Exe = z3Exe,
           shouldTypeCheck = false
         )

@@ -229,7 +229,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
       case in.IntT(_, kind) => in.IntTExpr(kind)(src)
       case in.StringT(_) => in.StringTExpr()(src)
       case in.PermissionT(_) => in.PermTExpr()(src)
-      case in.ArrayT(length, elems, _) => in.ArrayTExpr(in.IntLit(length)(src), typeAsExpr(elems)(src))(src)
+      case in.ArrayT(length, elems, _) => in.ArrayTExpr(length, typeAsExpr(elems)(src))(src)
       case in.SliceT(elems, _) => in.SliceTExpr(typeAsExpr(elems)(src))(src)
       case in.MapT(keys, values, _) => in.MapTExpr(typeAsExpr(keys)(src), typeAsExpr(values)(src))(src)
       case in.SequenceT(t, _) => in.SequenceTExpr(typeAsExpr(t)(src))(src)

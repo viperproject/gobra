@@ -6,16 +6,15 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, checkUse, error, message, noMessages}
-
-import scala.collection.immutable.ListMap
-import viper.gobra.ast.frontend._
-import viper.gobra.ast.frontend.{AstPattern => ap}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
+import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field}
-import viper.gobra.frontend.info.base.Type.{StructT, _}
+import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.UnderlyingType
+
+import scala.collection.immutable.ListMap
 
 trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 

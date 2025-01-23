@@ -313,6 +313,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PFold(exp) => "fold" <+> showExpr(exp)
       case PPackageWand(wand, blockOpt) => "package" <+> showExpr(wand) <+> opt(blockOpt)(showStmt)
       case PApplyWand(wand) => "apply" <+> showExpr(wand)
+      case POpenDupPkgInv() => "openDupPkgInv"
       case PMatchStatement(exp, clauses, _) => "match" <+>
         showExpr(exp) <+> block(ssep(clauses map showMatchClauseStatement, line))
     }

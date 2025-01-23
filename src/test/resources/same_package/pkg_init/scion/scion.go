@@ -16,10 +16,10 @@ package scion
 // side effects that would not happen otherwise.
 import (
 	// @ "monotonicset"
-	// @ initRequires path.PkgInv()
-	// @ initRequires path.RegisteredTypes().DoesNotContain(1) &&
+	// @ importRequires path.PkgInv()
+	// @ importRequires path.RegisteredTypes().DoesNotContain(1) &&
 	// @ 	path.RegisteredTypes().DoesNotContain(2)
-	// @ initRequires false
+	//  importRequires false // TODO: check and then drop
 	// @ "scion/path"
 	"scion/path/onehop"
 	"scion/path/scion"

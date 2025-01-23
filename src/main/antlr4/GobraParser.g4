@@ -45,7 +45,7 @@ preamble: (pkgInvariant eos)* (initPost eos)* packageClause eos (friendPkgDecl e
 
 initPost: INIT_POST expression;
 
-importPre: (IMPORT_PRE | INIT_PRE) expression;
+importPre: IMPORT_PRE expression;
 
 pkgInvariant: DUPLICABLE? PKG_INV assertion;
 

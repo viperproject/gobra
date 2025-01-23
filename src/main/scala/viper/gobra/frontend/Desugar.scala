@@ -49,6 +49,7 @@ object Desugar extends LazyLogging {
       val importedPackage = typeInfo.tree.originalRoot
       val d = new Desugarer(importedPackage.positions, typeInfo, None)
       // registers a package to generate proof obligations for its init code.
+      // TODO: drop
       d.registerPackage(importedPackage, importsCollector)(config)
       val res = (d, d.packageD(importedPackage))
       importedDesugaringDurationMs.addAndGet(System.currentTimeMillis() - importedDesugaringStartMs)
@@ -427,6 +428,8 @@ object Desugar extends LazyLogging {
       * desugared or skipped
       */
     def packageD(p: PPackage, shouldDesugar: PMember => Boolean = _ => true): in.Program = {
+      // TODO: call here fn 'registerPkgInitInfo', drop registerPkg and registerPkgMain fns
+      // TODO: then, if it is main package (pass a flag as a param), call fn 'generateInitProofObligations'
       val consideredDecls = p.declarations.collect { case m@NoGhost(x: PMember) if shouldDesugar(x) => m }
       val dMembers = consideredDecls.flatMap{
         case NoGhost(_: PVarDecl) =>

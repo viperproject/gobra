@@ -92,9 +92,6 @@ trait Enclosing { this: TypeInfoImpl =>
         tryEnclosingGlobalVarDeclaration(parent)
     }
 
-  lazy val isEnclosingExplicitGhost: PNode => Boolean =
-    down(false){ case _: PGhostifier[_] => true }
-
   lazy val isEnclosingGhost: PNode => Boolean =
     down(false){ case _: PGhostifier[_] | _: PGhostNode => true }
 
@@ -111,14 +108,8 @@ trait Enclosing { this: TypeInfoImpl =>
     cond1 || cond2
   }
 
-  lazy val isEnclosingDomain: PNode => Boolean =
-    down(false){ case _: PDomainType => true }
-
   def isGlobalVarDeclaration(n: PVarDecl): Boolean =
     enclosingCodeRoot(n).isInstanceOf[PPackage]
-
-  lazy val enclosingInterface: PNode => PInterfaceType =
-    down((_: PNode) => violation("Node does not root in an interface definition")) { case x: PInterfaceType => x }
 
   lazy val tryEnclosingFunctionLit: PNode => Option[PFunctionLit] =
     down[Option[PFunctionLit]](None) { case x: PFunctionLit => Some(x) }

@@ -13,11 +13,11 @@ trait Convertibility extends BaseProperty { this: TypeInfoImpl =>
 
   // TODO: check where convertibility and where assignability is required.
 
-  lazy val convertibleTo: Property[(Type, Type)] = createFlatProperty[(Type, Type)] {
-    case (left, right) => s"$left is not convertible to $right"
+  lazy val convertibleTo: Property[(Type, Type, Boolean)] = createFlatProperty[(Type, Type, Boolean)] {
+    case (left, right, _) => s"$left is not convertible to $right"
   } {
-    case (Single(lst), Single(rst)) => (lst, rst) match {
-      case (left, right) if assignableTo(left, right) => true
+    case (Single(lst), Single(rst), mayInit) => (lst, rst) match {
+      case (left, right) if assignableTo(left, right, mayInit) => true
       case (IntT(_), Float32T) => true
       case (IntT(_), Float64T) => true
       case (Float32T, IntT(_)) => true

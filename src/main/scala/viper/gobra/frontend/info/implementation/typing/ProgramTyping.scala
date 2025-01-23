@@ -7,10 +7,8 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Entity
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message}
-import viper.gobra.GoVerifier
-import viper.gobra.ast.frontend.{PExplicitGhostMember, PExpression, POld, PPackage, PProgram, PVarDecl}
-import viper.gobra.frontend.Config
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
+import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}

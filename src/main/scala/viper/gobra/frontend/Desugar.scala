@@ -204,8 +204,6 @@ object Desugar extends LazyLogging {
 
   private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo, initSpecs: Option[PackageInitSpecCollector]) {
 
-    // TODO: clean initialization
-
     type Meta = Source.Parser.Info
 
     import viper.gobra.util.Violation._
@@ -213,8 +211,6 @@ object Desugar extends LazyLogging {
     val desugarWriter = new DesugarWriter
     import desugarWriter._
     type Writer[+R] = desugarWriter.Writer[R]
-
-//    def complete[X <: in.Stmt](w: Agg[X]): in.Stmt = {val (xs, x) = w.run; in.Seqn(xs :+ x)(x.info)}
 
 
     private val nm = new NameManager

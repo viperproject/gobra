@@ -16,7 +16,7 @@ trait Comparability extends BaseProperty { this: TypeInfoImpl =>
     case (left, right) => s"$left is not comparable with $right"
   } {
     case (Single(left), Single(right)) =>
-      (assignableTo(left, right) || assignableTo(right, left)) && ((left, right) match {
+      (assignableTo(left, right, false) || assignableTo(right, left, false)) && ((left, right) match {
         case (l, r) if comparableType(l) && comparableType(r) => true
         case (NilType, r) if isPointerType(r) => true
         case (l, NilType) if isPointerType(l) => true
@@ -28,7 +28,7 @@ trait Comparability extends BaseProperty { this: TypeInfoImpl =>
   lazy val ghostComparableTypes: Property[(Type, Type)] = createFlatProperty[(Type, Type)] {
     case (left, right) => s"$left is not comparable in ghost with $right"
   } {
-    case (Single(left), Single(right)) => assignableTo(left, right) || assignableTo(right, left)
+    case (Single(left), Single(right)) => assignableTo(left, right, false) || assignableTo(right, left, false)
     case _ => false
   }
 

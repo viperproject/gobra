@@ -7,11 +7,10 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.GoVerifier
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.base.SymbolTable.MPredicateSpec
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.Constants
 
 trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
@@ -41,9 +40,13 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
       //       We need this check nonetheless because the checks performed in the "true" branch
       //       assume that the ids are well-defined.
       val idsOkMsgs = g.left.flatMap(l => wellDefID(l).out)
+      // TODO: doc this, pattern var _ T = ...
+      val mayBeSpecialCase = g.left.forall(_.isInstanceOf[PWildcard]) &&
+        StrictAssignMode(left = g.left.size, right = g.right.size) == AssignMode.Single &&
+        g.typ.nonEmpty
       if (idsOkMsgs.isEmpty) {
         g.right.flatMap(isExpr(_).out) ++
-          declarableTo.errors(g.right map exprType, g.typ map typeSymbType, g.left map idType)(g) ++
+          declarableTo.errors(g.right map exprType, g.typ map typeSymbType, g.left map idType, !mayBeSpecialCase)(g) ++
           acyclicGlobalDeclaration.errors(g)(g)
       } else {
         idsOkMsgs
@@ -92,8 +95,8 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
       // between two types, which is less precise. Because of this limitation, and with the goal of handling
       // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
       // expressions that are not accepted by the compiler.
-      !(multiAssignableTo(spec.left.map(typ), spec.right.map(typ)) ||
-        multiAssignableTo(spec.left.map(n => underlyingType(typ(n))), spec.right.map(typ)))
+      !(multiAssignableTo(spec.left.map(typ), spec.right.map(typ), true) || // TODO: check
+        multiAssignableTo(spec.left.map(n => underlyingType(typ(n))), spec.right.map(typ), true)) // TODO: check
     )
     lazy val constExprMsgs = spec.right.flatMap(wellDefIfConstExpr)
     // helps producing less redundant error messages

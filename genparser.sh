@@ -39,5 +39,11 @@ java -jar "$ANTLR4_PATH" "$SCRIPT_DIR"/src/main/antlr4/GobraLexer.g4 -package vi
 echo -e "${GREEN}Generating the parser:${RESET}"
 java -jar "$ANTLR4_PATH" "$SCRIPT_DIR"/src/main/antlr4/GobraParser.g4 -package viper.gobra.frontend -visitor -no-listener || { echo -e "${RED}Error while generating the parser.${RESET}"; exit 3; }
 
+echo -e "${GREEN}Making path in comments relative:${RESET}"
+sed -i '' 's/\/\/ Generated from .*src\/main\/antlr4\/GobraLexer\.g4/\/\/ Generated from src\/main\/antlr4\/GobraLexer\.g4/g' "$SCRIPT_DIR"/src/main/antlr4/GobraLexer.java
+sed -i '' 's/\/\/ Generated from .*src\/main\/antlr4\/GobraParser\.g4/\/\/ Generated from src\/main\/antlr4\/GobraParser\.g4/g' "$SCRIPT_DIR"/src/main/antlr4/GobraParser.java
+sed -i '' 's/\/\/ Generated from .*src\/main\/antlr4\/GobraParser\.g4/\/\/ Generated from src\/main\/antlr4\/GobraParser\.g4/g' "$SCRIPT_DIR"/src/main/antlr4/GobraParserBaseVisitor.java
+sed -i '' 's/\/\/ Generated from .*src\/main\/antlr4\/GobraParser\.g4/\/\/ Generated from src\/main\/antlr4\/GobraParser\.g4/g' "$SCRIPT_DIR"/src/main/antlr4/GobraParserVisitor.java
+
 echo -e "${GREEN}Moving the generated files:${RESET}"
 mv -v "$SCRIPT_DIR"/src/main/antlr4/*.java "$SCRIPT_DIR"/src/main/java/viper/gobra/frontend/

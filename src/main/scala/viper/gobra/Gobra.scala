@@ -228,7 +228,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       }
     })
     val (errors, inFileConfigs) = inFileEitherConfigs.partitionMap(identity)
-    if (errors.nonEmpty) Left(errors.map(ConfigError))
+    if (errors.nonEmpty) Left(errors.flatten)
     else {
       // start with original config `config` and merge in every in file config:
       val mergedConfig = inFileConfigs.flatten.foldLeft(config) {
@@ -353,8 +353,8 @@ object GobraRunner extends GobraFrontend with StrictLogging {
       val scallopGobraConfig = new ScallopGobraConfig(args.toSeq)
       val config = scallopGobraConfig.config
       exitCode = config match {
-        case Left(validationError) =>
-          logger.error(validationError)
+        case Left(errors) =>
+          errors.foreach(err => logger.error(err.formattedMessage))
           1
         case Right(config) =>
           // Print copyright report

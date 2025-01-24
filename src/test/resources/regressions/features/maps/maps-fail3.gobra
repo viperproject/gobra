@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package mapsfail3
+
+// tests that neither structs with ghost fields, ghost structs, nor other ghost types can serve as a map's key
+
+type ActualStruct struct {
+    ghost f int
+}
+
+ghost type GhostStruct struct {
+    f int
+}
+
+//:: ExpectedOutput(type_error)
+func test1(m map[ActualStruct]int) int {
+	return 42
+}
+
+//:: ExpectedOutput(type_error)
+func test2(m map[GhostStruct]int) int {
+	return 42
+}
+
+//:: ExpectedOutput(type_error)
+func test3(m map[seq[int]]int) int {
+	return 42
+}

@@ -56,7 +56,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@ PMapType(key, elem) => isType(key).out ++ isType(elem).out ++
       error(n, s"map key $key is not comparable", !comparableType(typeSymbType(key))) ++
-      error(n, s"map key $key cannot contain ghost fields", isStructTypeWithGhostFields(typeSymbType(key)))
+      error(n, s"map key $key can neither be a ghost struct nor contain ghost fields", isStructTypeWithGhostFields(typeSymbType(key)))
 
     case t: PStructType =>
       t.embedded.flatMap(e => isNotPointerTypePE.errors(e.typ)(e)) ++
@@ -191,7 +191,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       case (prev, x: PEmbeddedDecl) => prev ++ makeEmbedded(x, isGhost = isStructTypeGhost)
       case (prev, PExplicitGhostStructClause(x: PEmbeddedDecl)) => prev ++ makeEmbedded(x, isGhost = true)
     }
-    StructT(clauses, t, this)
+    StructT(clauses, isGhost = isStructTypeGhost, t, this)
   }
 
   /**

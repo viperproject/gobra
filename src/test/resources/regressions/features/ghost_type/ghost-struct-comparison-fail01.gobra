@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostStructComparison01
+
+// a ghost struct cannot be compared to an actual struct
+
+ghost type GhostStruct struct {
+    f int
+}
+
+type ActualStruct struct {
+    ghost f int
+}
+
+func foo(x ActualStruct, ghost y GhostStruct) {
+    //:: ExpectedOutput(type_error)
+    assert x == y
+    //:: ExpectedOutput(type_error)
+    assert x === y
+}

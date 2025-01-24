@@ -16,6 +16,7 @@ import viper.gobra.util.Violation
 trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
 
   private[typing] def wellDefGhostType(typ : PGhostType) : Messages = typ match {
+    case _: PPermissionType => noMessages
     case PSequenceType(elem) => isType(elem).out
     case PSetType(elem) => isType(elem).out
     case PMultisetType(elem) => isType(elem).out
@@ -33,9 +34,11 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
 
       case _ => error(n, "Adt types are only allowed within type declarations.")
     }
+    case _: PPredType => noMessages // well definedness implied by well definedness of children
   }
 
   private[typing] def ghostTypeSymbType(typ : PGhostType) : Type = typ match {
+    case PPermissionType() => PermissionT
     case PSequenceType(elem) => SequenceT(typeSymbType(elem))
     case PSetType(elem) => SetT(typeSymbType(elem))
     case PMultisetType(elem) => MultisetT(typeSymbType(elem))
@@ -46,6 +49,7 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case PMethodReceiveGhostPointer(t) => GhostPointerT(typeSymbType(t))
     case t: PDomainType => DomainT(t, this)
     case a: PAdtType => adtSymbType(a)
+    case PPredType(args) => PredT(args map typeSymbType)
   }
 
   /** Requires that the parent of a is PTypeDef. */

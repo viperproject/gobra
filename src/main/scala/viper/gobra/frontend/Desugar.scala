@@ -3783,7 +3783,7 @@ object Desugar extends LazyLogging {
 
       case t: Type.StructT =>
         val inFields: Vector[in.Field] = structD(t, addrMod)(src)
-        registerType(in.StructT(inFields, addrMod))
+        registerType(in.StructT(inFields, ghost = t.isGhost, addrMod))
 
       case t: Type.AdtT =>
         val adtName = nm.adt(t.declaredType)

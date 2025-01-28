@@ -287,7 +287,8 @@ class MapEncoding extends LeafTypeEncoding {
             vpr.Inhale(
               vpr.FieldAccessPredicate(
                 vpr.FieldAccess(vRes.localVar, underlyingMapField(ctx)(lit.keys, lit.values))(pos, info, errT),
-                vpr.FullPerm()(pos, info, errT))(pos, info, errT))(pos, info, errT))
+                Some(vpr.FullPerm()(pos, info, errT))
+              )(pos, info, errT))(pos, info, errT))
           // inhale getCorrespondingMap(res) == underlyingMap; recall that underlyingMap == ExplicitMap(mapletList)
           _ <- write(vpr.Inhale(vpr.EqCmp(underlyingMap, correspondingMap)(pos, info, errT))(pos, info, errT))
           ass <- ctx.assignment(in.Assignee.Var(lit.target), res)(lit)
@@ -339,7 +340,10 @@ class MapEncoding extends LeafTypeEncoding {
         for {
           vE <- goE(exp)
           vP <- goE(perm)
-        } yield vpr.FieldAccessPredicate(vpr.FieldAccess(vE, underlyingMapField(ctx)(keys, values))(pos, info, errT), vP)(pos, info, errT)
+        } yield vpr.FieldAccessPredicate(
+          vpr.FieldAccess(vE, underlyingMapField(ctx)(keys, values))(pos, info, errT),
+          Some(vP)
+        )(pos, info, errT)
     }
   }
 

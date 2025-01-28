@@ -34,7 +34,7 @@ import scala.concurrent.{Await, Future, TimeoutException}
 
 object GoVerifier {
 
-  val copyright = "(c) Copyright ETH Zurich 2012 - 2022"
+  val copyright = "(c) Copyright ETH Zurich 2012 - 2024"
 
   val name = "Gobra"
 
@@ -219,12 +219,12 @@ class Gobra extends GoVerifier with GoIdeVerifier {
           inFileConfig <- new ScallopGobraConfig(args, isInputOptional = true, skipIncludeDirChecks = true).config
           resolvedConfig = inFileConfig.copy(includeDirs = inFileConfig.includeDirs.map(
             // it's important to convert includeDir to a string first as `path` might be a ZipPath and `includeDir` might not
-            includeDir => Paths.get(input.name).getParent.resolve(includeDir.toString)))
+            includeDir => Paths.get(input.name).toAbsolutePath.getParent.resolve(includeDir.toString)))
         } yield Some(resolvedConfig)
       }
     })
     val (errors, inFileConfigs) = inFileEitherConfigs.partitionMap(identity)
-    if (errors.nonEmpty) Left(errors.map(ConfigError))
+    if (errors.nonEmpty) Left(errors.flatten)
     else {
       // start with original config `config` and merge in every in file config:
       val mergedConfig = inFileConfigs.flatten.foldLeft(config) {
@@ -349,8 +349,8 @@ object GobraRunner extends GobraFrontend with StrictLogging {
       val scallopGobraConfig = new ScallopGobraConfig(args.toSeq)
       val config = scallopGobraConfig.config
       exitCode = config match {
-        case Left(validationError) =>
-          logger.error(validationError)
+        case Left(errors) =>
+          errors.foreach(err => logger.error(err.formattedMessage))
           1
         case Right(config) =>
           // Print copyright report

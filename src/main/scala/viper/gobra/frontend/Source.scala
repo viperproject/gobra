@@ -8,12 +8,12 @@ package viper.gobra.frontend
 
 import java.io.Reader
 import java.nio.file.{Files, Path, Paths}
-
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Source, StringSource}
+import viper.gobra.reporting.ParserError
 import viper.gobra.util.Violation
 import viper.silver.ast.SourcePosition
-import java.util.Objects
 
+import java.util.Objects
 import viper.gobra.translator.Names
 
 import scala.io.BufferedSource
@@ -51,31 +51,40 @@ object Source {
   /**
    * Returns an object containing information about the package a source belongs to.
    */
-  def getPackageInfo(src: Source, projectRoot: Path): PackageInfo = {
-
-    val isBuiltIn: Boolean = src match {
+  def getPackageInfo(src: Source, projectRoot: Path): Either[Vector[ParserError], PackageInfo] = {
+    val isBuiltIn = src match {
       case FromFileSource(_, _, builtin) => builtin
       case _ => false
     }
-
-    val packageName: String = PackageResolver.getPackageClause(src: Source)
-      .getOrElse(Violation.violation("Missing package clause in " + src.name))
-
-    /**
-     * A unique identifier for packages
-     */
-    val packageId: String = {
-      val prefix = uniquePath(TransformableSource(src).toPath.getParent, projectRoot).toString
-      if(prefix.nonEmpty) {
-        // The - is enough to unambiguously separate the prefix from the package name, since it can't occur in the package name
-        // per Go's spec (https://go.dev/ref/spec#Package_clause)
-        prefix + " - " + packageName
-      } else {
-        // Fallback case if the prefix is empty, for example if the directory of a FileSource is in the current directory
-        packageName
+    val packageNameOrError = PackageResolver.getPackageClause(src).toRight({
+      val pos = Some(SourcePosition(src.toPath, 1, 1))
+      Vector(ParserError("Missing package clause", pos))
+    })
+    for {
+      packageName <- packageNameOrError
+      /** A unique identifier for packages */
+      packageId = {
+        val prefix = uniquePath(TransformableSource(src).toPath.toAbsolutePath.getParent, projectRoot).toString
+        if(prefix.nonEmpty) {
+          // The - is enough to unambiguously separate the prefix from the package name, since it can't occur in the package name
+          // per Go's spec (https://go.dev/ref/spec#Package_clause)
+          prefix + " - " + packageName
+        } else {
+          // Fallback case if the prefix is empty, for example if the directory of a FileSource is in the current directory
+          packageName
+        }
       }
-    }
-    new PackageInfo(packageId, packageName, isBuiltIn)
+    } yield new PackageInfo(packageId, packageName, isBuiltIn)
+  }
+
+  /**
+    * Forcefully tries to create a package info or throws an runtime exception.
+    * Only used for unit tests
+    */
+  def getPackageInfoOrCrash(src: Source, projectRoot: Path): PackageInfo = {
+    Source.getPackageInfo(src, projectRoot).fold(
+      errs => Violation.violation(s"Creating package info failed: ${errs.map(_.formattedMessage).mkString(", ")}"),
+      identity)
   }
 
   /**

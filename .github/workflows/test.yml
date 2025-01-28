@@ -76,7 +76,7 @@ jobs:
       - name: Build image up to including stage 'build'
         id: image-build
         # note that the action's name is misleading: this step does NOT push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           load: true # make the built image available in docker (locally)
@@ -191,7 +191,7 @@ jobs:
           path: sync/pidstat.txt
 
       - name: Build entire image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           load: true # make the built image available in docker (locally)
@@ -236,7 +236,7 @@ jobs:
 
       - name: Push entire image
         if: env.SHOULD_DEPLOY == 'true'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: workflow-container/Dockerfile

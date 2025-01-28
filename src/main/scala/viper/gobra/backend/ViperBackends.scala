@@ -51,6 +51,9 @@ object ViperBackends {
       // Gobra seems to be much slower with the new silicon axiomatization of collections.
       // For now, we stick to the old one.
       options ++= Vector("--useOldAxiomatization")
+      if (config.respectFunctionPrePermAmounts) {
+        options ++= Vector("--respectFunctionPrePermAmounts")
+      }
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }
@@ -81,6 +84,9 @@ object ViperBackends {
     def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): Carbon = {
       var options: Vector[String] = Vector.empty
       // options ++= Vector("--logLevel", "ERROR")
+      if (config.respectFunctionPrePermAmounts) {
+        options ++= Vector("--respectFunctionPrePermAmounts")
+      }
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }
@@ -113,7 +119,7 @@ object ViperBackends {
     /** returns an existing ViperCoreServer instance or otherwise creates a new one */
     protected def getOrCreateServer(config: Config)(executionContext: GobraExecutionContext): ViperCoreServer = {
       server.getOrElse({
-        var serverConfig = List("--disablePlugins", "--logLevel", config.logLevel.levelStr)
+        var serverConfig = List("--logLevel", config.logLevel.levelStr)
         if(config.cacheFile.isDefined) {
           serverConfig = serverConfig.appendedAll(List("--cacheFile", config.cacheFile.get.toString))
         }
@@ -154,6 +160,9 @@ object ViperBackends {
         case MCE.OnDemand => "2"
       }
       options ++= Vector(s"--exhaleMode=$mceSiliconOpt")
+      if (config.respectFunctionPrePermAmounts) {
+        options ++= Vector("--respectFunctionPrePermAmounts")
+      }
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }
@@ -171,7 +180,10 @@ object ViperBackends {
   case class ViperServerWithCarbon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) {
     override def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig = {
       var options: Vector[String] = Vector.empty
-      options ++= Vector("--logLevel", "ERROR")
+      // options ++= Vector("--logLevel", "ERROR")
+      if (config.respectFunctionPrePermAmounts) {
+        options ++= Vector("--respectFunctionPrePermAmounts")
+      }
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
       }

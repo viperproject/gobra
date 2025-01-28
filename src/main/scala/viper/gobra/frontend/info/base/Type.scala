@@ -122,8 +122,8 @@ object Type {
     private def extractTyp(clause: (String, StructClauseT)): (String, Type) = (clause._1, clause._2.typ)
 
     override lazy val toString: String = {
-      val fields = clauses.map { case (n, i) => s"$n: $i" }
-      s"struct{ ${fields.mkString("; ")}}"
+      val fields = clauses.map { case (n, i) => s"${if (i.isGhost) "ghost " else ""}$n $i" }
+      s"${if (isGhost) "ghost " else ""}struct{ ${fields.mkString("; ")} }"
     }
   }
 

@@ -472,6 +472,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case _: PGhostSliceType => false
             case _: PAdtType | _: PDomainType | _: PMathematicalMapType |
               _: PMultisetType | _: POptionType | _: PSequenceType | _: PSetType => true
+            case _: PExplicitGhostStructType => true
           }
           case _: PArrayType | _: PStructType => true
           case _: PMapType | _: PSliceType => false

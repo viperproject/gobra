@@ -5,17 +5,45 @@ package GhostStructComparison01
 
 // a ghost struct cannot be compared to an actual struct
 
-ghost type GhostStruct struct {
+ghost type GhostStructDef struct {
     f int
 }
 
-type ActualStruct struct {
+type ActualStructDef struct {
     ghost f int
 }
 
-func foo(x ActualStruct, ghost y GhostStruct) {
+func foo(x ActualStructDef, ghost y GhostStructDef) {
     //:: ExpectedOutput(type_error)
-    assert x == y
+    assert x == y // fails because x and y are different types
     //:: ExpectedOutput(type_error)
-    assert x === y
+    assert x === y // fails because x and y are different types
+}
+
+ghost type GhostStructAlias = struct {
+    f int
+}
+
+type ActualStructAlias = struct {
+    f int
+}
+
+ghost
+decreases
+func bar(x ActualStructAlias, y GhostStructAlias) bool {
+    // type-checks because x and y have the same underlying type
+    return x == y && x === y
+}
+
+type ActualStructAliasWithGhostField = struct {
+    ghost f int
+}
+
+ghost
+decreases
+func bar2(x ActualStructAliasWithGhostField, y GhostStructAlias) {
+    //:: ExpectedOutput(type_error)
+    assert x == y // fails because the underlying types of x and y are different
+    //:: ExpectedOutput(type_error)
+    assert x === y // fails because the underlying types of x and y are different
 }

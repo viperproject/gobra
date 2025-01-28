@@ -40,6 +40,9 @@ trait GhostWellDef { this: TypeInfoImpl =>
       case None => noMessages
     }
 
+    case n: PTypeDecl => error(n, s"ghost error: expected an actual type but found ${n.right}",
+      isTypeGhost(n.right) && !isEnclosingGhost(n))
+
     case m if isEnclosingGhost(m) => noMessages
 
     case m: PMethodDecl => error(m, "ghost error: expected an actual receiver type",

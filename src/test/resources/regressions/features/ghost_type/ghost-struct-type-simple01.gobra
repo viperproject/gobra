@@ -1,0 +1,55 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostStructTypeSimple01
+
+// This testcase test valid combinations of ghost / actual type def and actual / ghost underlying types.
+// Invalid combinations are in `ghost-struct-type-fail01.gobra`
+
+type ActualNamedActualStruct struct {
+    ValueA int
+}
+
+// invalid
+// type ActualNamedGhostStruct ghost struct {
+//     Value int
+// }
+
+ghost type GhostNamedActualStruct struct {
+    ValueB int
+}
+
+ghost type GhostNamedGhostStruct ghost struct {
+    ValueC int
+}
+
+decreases
+func actualFn(a ActualNamedActualStruct, ghost b GhostNamedActualStruct, ghost c GhostNamedGhostStruct) {
+    a.ValueA = 42
+    assert a.ValueA == 42
+
+    b.ValueB = 42
+    assert b.ValueB == 42
+
+    c.ValueC = 42
+    assert c.ValueC == 42
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}
+
+ghost
+decreases
+func ghostFn(a ActualNamedActualStruct, b GhostNamedActualStruct, c GhostNamedGhostStruct) {
+    a.ValueA = 42
+    assert a.ValueA == 42
+
+    b.ValueB = 42
+    assert b.ValueB == 42
+
+    c.ValueC = 42
+    assert c.ValueC == 42
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}

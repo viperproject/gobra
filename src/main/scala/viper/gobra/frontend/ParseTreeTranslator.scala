@@ -517,6 +517,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
+    * {@inheritDoc }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitGhostStructType(ctx: GhostStructTypeContext): PExplicitGhostStructType = {
+    val actual = visitNode[PStructType](ctx.structType())
+    PExplicitGhostStructType(actual).at(ctx)
+  }
+
+  /**
     * {@inheritDoc  }
     *
     * <p>The default implementation returns the result of calling
@@ -848,7 +859,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       (for (expr <- ctx.expression().asScala.toVector) yield visitNode[PExpression](expr)).at(ctx)
   }
 
-  override def visitSpecMember(ctx: SpecMemberContext): AnyRef = super.visitSpecMember(ctx) match {
+  override def visitSpecMember(ctx: SpecMemberContext): PFunctionOrMethodDecl = super.visitSpecMember(ctx) match {
     case Vector(spec : PFunctionSpec, (id: PIdnDef, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
       => PFunctionDecl(id, args, result, spec, body)
     case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))

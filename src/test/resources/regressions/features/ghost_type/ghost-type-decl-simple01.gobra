@@ -1,0 +1,32 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostTypeDeclSimple01
+
+type ActualIntDef int
+ghost type GhostIntDef int
+type ActualIntAlias = int
+ghost type GhostIntAlias = int
+
+decreases
+func actualFn(a ActualIntDef, ghost b GhostIntDef, c ActualIntAlias, ghost d GhostIntAlias) {
+    a = 42
+    b = 42
+    c = 42
+    d = 42
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}
+
+ghost
+decreases
+func ghostFn(a ActualIntDef, b GhostIntDef, c ActualIntAlias, d GhostIntAlias) {
+    a = 42
+    b = 42
+    c = 42
+    d = 42
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}

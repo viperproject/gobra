@@ -23,6 +23,7 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case PMathematicalMapType(key, value) => isType(key).out ++ isType(value).out
     case POptionType(elem) => isType(elem).out
     case PGhostPointerType(elem) => isType(elem).out
+    case PExplicitGhostStructType(actual) => wellDefStructType(actual, isGhost = true)
     case n: PGhostSliceType => isType(n.elem).out
     case PMethodReceiveGhostPointer(t) => isType(t).out
 
@@ -45,6 +46,7 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case PMathematicalMapType(keys, values) => MathMapT(typeSymbType(keys), typeSymbType(values))
     case POptionType(elem) => OptionT(typeSymbType(elem))
     case PGhostPointerType(elem) => GhostPointerT(typeSymbType(elem))
+    case PExplicitGhostStructType(actual) => structSymbType(actual, isGhost = true)
     case PGhostSliceType(elem) => GhostSliceT(typeSymbType(elem))
     case PMethodReceiveGhostPointer(t) => GhostPointerT(typeSymbType(t))
     case t: PDomainType => DomainT(t, this)

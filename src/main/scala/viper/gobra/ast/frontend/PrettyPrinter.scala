@@ -651,6 +651,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PMathematicalMapType(keys, values) => "dict" <> brackets(showType(keys)) <> showType(values)
     case POptionType(elem) => "option" <> brackets(showType(elem))
     case PGhostPointerType(elem) => "gpointer" <> brackets(showType(elem))
+    case PExplicitGhostStructType(actual) => "ghost" <+> showType(actual)
     case PGhostSliceType(elem) => "ghost" <+> brackets(emptyDoc) <> showType(elem)
     case PDomainType(funcs, axioms) =>
       "domain" <+> block(

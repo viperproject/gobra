@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostStructTypeFail01
+
+// tests that one cannot create an actual type declaration with an underlying ghost type
+
+//:: ExpectedOutput(type_error)
+type ActualNamedGhostStructDef ghost struct {
+    Value int
+}
+
+//:: ExpectedOutput(type_error)
+type ActualNamedGhostStructAlias = ghost struct {
+    Value int
+}
+
+//:: ExpectedOutput(type_error)
+type ActualSetDef set[int]
+
+//:: ExpectedOutput(type_error)
+type ActualSetAlias = set[int]

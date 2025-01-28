@@ -1265,6 +1265,8 @@ case class POptionType(elem : PType) extends PGhostLiteralType
 /** The type of ghost pointers */
 case class PGhostPointerType(elem: PType) extends PGhostLiteralType
 
+case class PExplicitGhostStructType(actual: PStructType) extends PGhostLiteralType with PGhostifier[PStructType]
+
 /** The type of ADT types */
 case class PAdtType(clauses: Vector[PAdtClause]) extends PGhostLiteralType with PUnorderedScope
 

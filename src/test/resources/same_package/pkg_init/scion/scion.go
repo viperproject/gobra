@@ -19,7 +19,6 @@ import (
 	// @ importRequires path.PkgInv()
 	// @ importRequires path.RegisteredTypes().DoesNotContain(1) &&
 	// @ 	path.RegisteredTypes().DoesNotContain(2)
-	// importRequires false // TODO: check and then drop
 	// @ "scion/path"
 	"scion/path/onehop"
 	"scion/path/scion"
@@ -33,5 +32,4 @@ import (
 func init() {
 	scion.RegisterPath()
 	onehop.RegisterPath()
-	//  assert false
 }

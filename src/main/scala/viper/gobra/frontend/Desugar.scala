@@ -16,7 +16,7 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, MainPreNotEstablished}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, MainPreNotEstablished}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
@@ -3466,14 +3466,13 @@ object Desugar extends LazyLogging {
 
       // Check that all import preconditions of imported packages are implied by those packages'
       // friend clauses.
-      val currPkgUniqId = mainPkg.info.uniquePath
       val resourcesToPkg = initSpecs.getImportsFromMainPkg()
       resourcesToPkg.foreach{ case (pkg, resources) =>
         val src = meta(mainPkg, info)
-        val importObligationsOpt = checkPkgImportObligations(mainPkg, pkg, resources, initSpecs)(src)
+        val annotatedSrc = src.createAnnotatedInfo(ImportPreNotEstablished)
+        val importObligationsOpt = checkPkgImportObligations(mainPkg, pkg, resources, initSpecs)(annotatedSrc)
         importObligationsOpt.foreach(AdditionalMembers.addMember)
       }
-
 
       // if the main function is present, check its proof obligations
       val mainFuncObligations = generateMainFuncProofObligation(mainPkg, initSpecs)

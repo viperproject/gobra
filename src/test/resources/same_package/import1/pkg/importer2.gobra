@@ -1,8 +1,9 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package main
+package pkg
 
-// ##(-I ./)
-importRequires acc(&bar.A) && acc(&bar.B)
+// ##(-I ../)
+
+importRequires acc(&bar.C)
 import "bar"

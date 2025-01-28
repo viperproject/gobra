@@ -102,8 +102,9 @@ object Source {
     for {
       packageName <- packageNameOrError
       /** A unique identifier for packages */
+      prefix = uniquePath(TransformableSource(src).toPath.toAbsolutePath.getParent, projectRoot).toString
+      /*
       packageId = {
-        val prefix = uniquePath(TransformableSource(src).toPath.toAbsolutePath.getParent, projectRoot).toString
         if(prefix.nonEmpty) {
           // The - is enough to unambiguously separate the prefix from the package name, since it can't occur in the package name
           // per Go's spec (https://go.dev/ref/spec#Package_clause)
@@ -113,7 +114,9 @@ object Source {
           packageName
         }
       }
-    } yield new PackageInfo(packageId, packageName, isBuiltIn)
+
+       */
+    } yield new PackageInfo(prefix, packageName, isBuiltIn)
   }
 
   /**

@@ -23,8 +23,6 @@ trait ExternalTypeInfo {
   def pkgInfo: PackageInfo
   def dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]]
 
-  def getDirectlyImportedTypeInfos(includeThis: Boolean = true): Set[ExternalTypeInfo]
-
   /** returns this (unless disabled via parameter) and the type information of directly and transitively dependent packages */
   def getTransitiveTypeInfos(includeThis: Boolean = true): Set[ExternalTypeInfo]
 

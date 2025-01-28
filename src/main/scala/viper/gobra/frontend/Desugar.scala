@@ -3466,36 +3466,9 @@ object Desugar extends LazyLogging {
 
       // Check that all import preconditions of imported packages are implied by those packages'
       // friend clauses.
-      val currPkgUniqId = mainPkg.info.uniquePath // TODO maybe replace by id
+      val currPkgUniqId = mainPkg.info.uniquePath
       val resourcesToPkg = initSpecs.getImportsFromMainPkg()
       resourcesToPkg.foreach{ case (pkg, resources) =>
-        /*
-        val src = meta(mainPkg, info) // TODO: improve location
-        val pres = initSpecs.getFriendResourcesFromSrc(pkg).filter {
-          case (PackageResolver.RegularPackage(id), _) =>
-            println(s"id: $id")
-            id == currPkgUniqId
-          case _ => false
-        }.map(_._2)
-        println(s"pres: $pres")
-        println(resourcesToPkg.values)
-        val posts = resources
-        if (pres.nonEmpty || posts.nonEmpty) {
-          // as an optimization, only generate methods for imports that introduce
-          // proof obligations
-          val checkFn = in.Function(
-            name = in.FunctionProxy(nm.packageImports(pkg, info))(src),
-            args = Vector.empty,
-            results = Vector.empty,
-            pres = pres,
-            posts = posts,
-            terminationMeasures = Vector.empty,
-            backendAnnotations = Vector.empty,
-            body = Some(in.MethodBody.empty(src))
-          )(src)
-          AdditionalMembers.addMember(checkFn)
-        }
-         */
         val src = meta(mainPkg, info)
         val importObligationsOpt = checkPkgImportObligations(mainPkg, pkg, resources, initSpecs)(src)
         importObligationsOpt.foreach(AdditionalMembers.addMember)
@@ -3545,13 +3518,11 @@ object Desugar extends LazyLogging {
     }
 
     /**
-      * TODO: edit
-      * Generates the members that correspond to the global variables declared in `pkg` and registers info in
-      * `specCollector` about all import preconditions and all package postconditions in all files of `pkg`.
-      * @param pkg
-      * @param initSpecs
-      * @param generateInitProof true if the proof obligations for the package's initialization code
-      *                          should be generated
+      * Collects all necessary information necessary to generate the proof obligations related to the initialization
+      * code of the package under initialization. This should be called by all packages that the main package imports.
+      * @param pkg Package to register
+      * @param initSpecs Collector of all necessary meta-data
+      * @param isImportedPkg true iff the proof obligations for the package's initialization code should be generated
       * @param config
       */
     def registerPkgInitData(pkg: PPackage, initSpecs: PackageInitSpecCollector, isImportedPkg: Boolean)(config: Config): Unit = {
@@ -3597,11 +3568,12 @@ object Desugar extends LazyLogging {
 
 
     /**
-      * TODO: reimplement
-      * Checks that the postconditions of package `pkg` imply the conjunction of all imports' preconditions (that import
-      * package `pkg`)
-      * @param pkg
-      * @param initSpecs
+      * Checks that the friend clauses of package `pkg` imply the conjunction of all imports' preconditions of `pkg`
+      * in the package under verification.
+      * @param mainPkg package under verification
+      * @param importedPackage package containing friend clauses
+      * @param importPresOfImportedPackage init preconditions to the package `importedPackage` from the `mainPkg`
+      * @param initSpecs collector of init specs
       * @param src
       * @return
       */
@@ -3610,7 +3582,7 @@ object Desugar extends LazyLogging {
                                   importPresOfImportedPackage: Vector[in.Assertion],
                                   initSpecs: PackageInitSpecCollector)
                                  (src: Source.Parser.Single): Option[in.Function] = {
-      val currPkgUniqId = mainPkg.info.uniquePath // TODO maybe replace by id
+      val currPkgUniqId = mainPkg.info.uniquePath
       val pres = initSpecs.getFriendResourcesFromSrc(importedPackage).filter {
         case (PackageResolver.RegularPackage(id), _) =>
           id == currPkgUniqId
@@ -3641,7 +3613,7 @@ object Desugar extends LazyLogging {
      * To that end, we check that the package invariants of the current package and all imported packages
      * imply the main function's precondition.
      *
-     * @param mainPkg       package under verification
+     * @param mainPkg package under verification
      * @param initSpecs info about the init specifications of imported packages. All imported packages should
      *                      have been registered in `specCollector` before calling this method
      * @return
@@ -3652,7 +3624,6 @@ object Desugar extends LazyLogging {
       }
       mainFuncOpt.map { mainFunc =>
         val src = meta(mainFunc, info)
-        // val mainPkgPosts = specCollector.getNonDupInvariantsSelfOrImportedPkgs()
         val mainPkgPosts = initSpecs.getNonDupPkgInvariants().values.flatten.toVector
         val mainFuncPre = mainFunc.spec.pres ++ mainFunc.spec.preserves
         val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty(), info)).map { a =>
@@ -3673,7 +3644,6 @@ object Desugar extends LazyLogging {
     }
 
     /**
-      * TODO: adapt
       * Generates the proof obligation for the init code in `p`. The proof obligations for the init of `p` are
       * encoded as a method that performs the following operations, in order:
       * - inhale all preconditions of the imports in the file
@@ -3681,28 +3651,19 @@ object Desugar extends LazyLogging {
       * - execute the operations on the LHS of the declarations by declaration order,
       *   as long as dependency order is respected.
       * - execute all inits in the current file in the order they appear
-      * - exhale all post-conditions of the file
       * - exhale all package-invariants of the file
       * - exhale all friend clauses
       * Note 1: these operations enforce non-interference between two different files in the same program. Thus,
       * it is ok to check the initialization of a package by separately checking the initialization of each of
       * its programs.
-      * Note 2: if the flag `enableModularInit` is true, there will be no import preconditions and init postconditions.
-      * If it is false, there will be no package invariants. Thus, this method works for both the modular and
-      * non-modular termination checks.
-      * @param p
-      * @return
       */
     def checkProgramInitContract(p: PProgram)(sortedGlobVarDecls: Vector[in.GlobalVarDecl]): in.Function = {
       // all errors found during init are reported in the package clause of the file
       val src = meta(p.packageClause, info)
       val funcProxy = in.FunctionProxy(nm.programInit(p, info))(src)
       val progPres: Vector[in.Assertion] = p.imports.flatMap(_.importPres).map(specificationD(FunctionContext.empty(), info)(_))
-      // val progPosts: Vector[in.Assertion] = p.initPosts.map(specificationD(FunctionContext.empty(), info)(_))
-      val progPosts: Vector[in.Assertion] = Vector.empty // p.initPosts.map(specificationD(FunctionContext.empty(), info)(_))
       val pkgInvariants: Vector[in.Assertion] = p.pkgInvariants.map{ i => specificationD(FunctionContext.empty(), info)(i.inv)}
       val resourcesForFriends: Vector[in.Assertion] = p.friends.map{i => specificationD(FunctionContext.empty(), info)(i.assertion)}
-      // val pkgInvariantsImportedPackages: Vector[in.Assertion] = initSpecs.getNonDupInvariantsImportedPkgs()
       val currPkg = info.tree.originalRoot
       val pkgInvariantsImportedPackages: Vector[in.Assertion] =
         initSpecs.getNonDupPkgInvariants().filter{ case (k, _) => k != currPkg }.values.flatten.toVector
@@ -3715,10 +3676,10 @@ object Desugar extends LazyLogging {
         name = funcProxy,
         args = Vector(),
         results = Vector(),
-        // inhales all preconditions in the imports of the current file
-        pres = progPres ++ pkgInvariantsImportedPackages ++ resourcesFromFriendPkgs, // TODO: doc
-        // exhales all package postconditions and pkg invariants from the current file
-        posts = progPosts ++ pkgInvariantsImportedPackages ++ pkgInvariants ++ resourcesForFriends, // TODO: doc
+        // inhales all import preconditions of the current file all invariants of imported packages
+        pres = progPres ++ pkgInvariantsImportedPackages ++ resourcesFromFriendPkgs,
+        // exhales all package invariants from the current file and all resources for friends
+        posts = pkgInvariantsImportedPackages ++ pkgInvariants ++ resourcesForFriends,
         // in our verification approach, the initialization code must be proven to terminate
         terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)),
         backendAnnotations = Vector.empty,
@@ -4192,7 +4153,6 @@ object Desugar extends LazyLogging {
           }
         case POpenDupPkgInv() =>
           // open the current package's invariant.
-          // val dupInvs = initSpecs.dupPkgInvsOfCurrentPackage()
           val currPkg = info.tree.originalRoot
           val dupInvs = initSpecs.getDupPkgInvariants().get(currPkg).get
           val inhales = dupInvs.map(i => in.Inhale(i)(src))
@@ -5219,7 +5179,6 @@ object Desugar extends LazyLogging {
     def getNonDupPkgInvariants(): Map[PPackage, Vector[in.Assertion]] = nonDupPkgInvs
     def getDupPkgInvariants(): Map[PPackage, Vector[in.Assertion]] = dupPkgInvs
 
-    // OLD
     // pairs of package X and the preconditions on an import of X (one entry in the list per import of X)
     private var importPreconditions: Vector[(PPackage, Vector[in.Assertion])] = Vector.empty
 

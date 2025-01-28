@@ -153,17 +153,6 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val dependentTypeInfo: Map
 
   override def isPureExpression(expr: PExpression): Boolean = isPureExpr(expr).isEmpty
 
-  override def getDirectlyImportedTypeInfos(includeThis: Boolean = true): Set[ExternalTypeInfo] = {
-    val directInfos = dependentTypeInfo
-      .map { case (_, resultFn) => resultFn() }
-      .collect { case Right(info) => info }
-      .toSet
-    if (includeThis)
-      directInfos + this
-    else
-      directInfos
-  }
-
   override def getTransitiveTypeInfos(includeThis: Boolean = true): Set[ExternalTypeInfo] = {
     val directTypeInfos = dependentTypeInfo
       .map { case (_, resultFn) => resultFn() }
@@ -175,6 +164,4 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val dependentTypeInfo: Map
     if (includeThis) dependentTypeInfos + this
     else dependentTypeInfos
   }
-
-  //override def dupPkgInvariants(): Vector[PExpression] = ???
 }

@@ -4,10 +4,10 @@
 package GhostStructTypeSimple01
 
 // This testcase test valid combinations of ghost / actual type def and actual / ghost underlying types.
-// Invalid combinations are in `ghost-struct-type-fail01.gobra`
+// Combinations that are invalid are in `ghost-struct-type-fail01.gobra`
 
 type ActualNamedActualStruct struct {
-    ValueA int
+    Value int
 }
 
 // invalid
@@ -15,24 +15,22 @@ type ActualNamedActualStruct struct {
 //     Value int
 // }
 
-ghost type GhostNamedActualStruct struct {
-    ValueB int
-}
+// invalid
+// ghost type GhostNamedActualStruct struct {
+//     Value int
+// }
 
 ghost type GhostNamedGhostStruct ghost struct {
-    ValueC int
+    Value int
 }
 
 decreases
-func actualFn(a ActualNamedActualStruct, ghost b GhostNamedActualStruct, ghost c GhostNamedGhostStruct) {
-    a.ValueA = 42
-    assert a.ValueA == 42
+func actualFn(a ActualNamedActualStruct, ghost b GhostNamedGhostStruct) {
+    a.Value = 42
+    assert a.Value == 42
 
-    b.ValueB = 42
-    assert b.ValueB == 42
-
-    c.ValueC = 42
-    assert c.ValueC == 42
+    b.Value = 42
+    assert b.Value == 42
 
     //:: ExpectedOutput(assert_error:assertion_error)
     assert false
@@ -40,15 +38,12 @@ func actualFn(a ActualNamedActualStruct, ghost b GhostNamedActualStruct, ghost c
 
 ghost
 decreases
-func ghostFn(a ActualNamedActualStruct, b GhostNamedActualStruct, c GhostNamedGhostStruct) {
-    a.ValueA = 42
-    assert a.ValueA == 42
+func ghostFn(a ActualNamedActualStruct, b GhostNamedGhostStruct) {
+    a.Value = 42
+    assert a.Value == 42
 
-    b.ValueB = 42
-    assert b.ValueB == 42
-
-    c.ValueC = 42
-    assert c.ValueC == 42
+    b.Value = 42
+    assert b.Value == 42
 
     //:: ExpectedOutput(assert_error:assertion_error)
     assert false

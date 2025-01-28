@@ -40,8 +40,11 @@ trait GhostWellDef { this: TypeInfoImpl =>
       case None => noMessages
     }
 
-    case n: PTypeDecl => error(n, s"ghost error: expected an actual type but found ${n.right}",
-      isTypeGhost(n.right) && !isEnclosingGhost(n))
+    case n: PTypeDecl =>
+      error(n, s"ghost error: expected an actual type but found ${n.right}", isTypeGhost(n.right) && !isEnclosingGhost(n)) ++
+      // to avoid confusion about how equality works for this type declaration, we require that the type declaration
+      // is ghost iff its RHS is a ghost type:
+      error(n, s"ghost error: expected a ghost type but found ${n.right}", !isTypeGhost(n.right) && isEnclosingGhost(n))
 
     case m if isEnclosingGhost(m) => noMessages
 

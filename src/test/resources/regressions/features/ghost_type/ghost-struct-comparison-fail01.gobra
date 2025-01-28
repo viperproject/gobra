@@ -5,7 +5,7 @@ package GhostStructComparison01
 
 // a ghost struct cannot be compared to an actual struct
 
-ghost type GhostStructDef struct {
+ghost type GhostStructDef ghost struct {
     f int
 }
 
@@ -20,7 +20,7 @@ func foo(x ActualStructDef, ghost y GhostStructDef) {
     assert x === y // fails because x and y are different types
 }
 
-ghost type GhostStructAlias = struct {
+ghost type GhostStructAlias = ghost struct {
     f int
 }
 
@@ -30,7 +30,7 @@ type ActualStructAlias = struct {
 
 ghost
 decreases
-func bar(x ActualStructAlias, y GhostStructAlias) bool {
+func bar(x ActualStructAlias, y struct { f int }) bool {
     // type-checks because x and y have the same underlying type
     return x == y && x === y
 }

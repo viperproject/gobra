@@ -5,7 +5,7 @@ package GhostStructComparison01
 
 // when comparing ghost structs, ghost equality should be used. I.e., `==` behaves like `===`.
 
-ghost type GhostStruct struct {
+ghost type GhostStruct ghost struct {
     f int
 }
 

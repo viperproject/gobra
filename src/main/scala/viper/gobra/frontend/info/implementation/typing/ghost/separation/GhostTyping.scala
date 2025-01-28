@@ -177,7 +177,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       case at: TypeAlias => at.ghost
       case _ => false
     }
-    case t: PStructType => isEnclosingGhost(t)
+    case _: PStructType => false // `PExplicitGhostStructType` is already captured by the `PGhostType` case above
     case PVariadicType(elem) => isTypeGhost(elem)
     case t @ (_: PNamedOperand | _: PDeref | _: PDot) => resolve(t) match {
       case Some(tp: ap.Type) => tp match {

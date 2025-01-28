@@ -1,21 +1,13 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package GhostTypeDeclFail01
+package GhostTypeDeclSimple03
 
 //:: ExpectedOutput(type_error)
 ghost type GhostIntDef int // int is not a ghost type
 //:: ExpectedOutput(type_error)
 ghost type GhostIntAlias = int // int is not a ghost type
-ghost type GhostSetDef set[int]
-ghost type GhostSetAlias = set[int]
-
 //:: ExpectedOutput(type_error)
-func bar1(i GhostSetDef) { // i must be a ghost parameter
-
-}
-
+type SetDef set[int] // set[int] is not an actual type
 //:: ExpectedOutput(type_error)
-func bar2(i GhostSetAlias) { // i must be a ghost parameter
-
-}
+type SetAlias = set[int] // set[int] is not an actual type

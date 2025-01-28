@@ -9,7 +9,7 @@ type ActualStruct struct {
     ghost f int
 }
 
-ghost type GhostStruct struct {
+ghost type GhostStruct ghost struct {
     f int
 }
 

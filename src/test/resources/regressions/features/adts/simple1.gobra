@@ -3,7 +3,7 @@
 
 package pkg
 
-type tree adt{
+ghost type tree adt{
   leaf{ value int }
   node{ left, right tree }
 }
@@ -16,7 +16,7 @@ func test1() {
   assert y.isleaf
 }
 
-func test2(x tree) {
+func test2(ghost x tree) {
   ghost var y int
   match x {
     case node{leaf{5}, _}: y = 4

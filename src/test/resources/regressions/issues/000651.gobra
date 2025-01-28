@@ -3,7 +3,7 @@
 
 package test
 
-type A adt {
+ghost type A adt {
 	A_ {
 		a uint
 		b set[int]

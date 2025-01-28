@@ -16,12 +16,14 @@ import viper.gobra.util.Violation
 trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
 
   private[typing] def wellDefGhostType(typ : PGhostType) : Messages = typ match {
+    case _: PPermissionType => noMessages
     case PSequenceType(elem) => isType(elem).out
     case PSetType(elem) => isType(elem).out
     case PMultisetType(elem) => isType(elem).out
     case PMathematicalMapType(key, value) => isType(key).out ++ isType(value).out
     case POptionType(elem) => isType(elem).out
     case PGhostPointerType(elem) => isType(elem).out
+    case PExplicitGhostStructType(actual) => wellDefStructType(actual, isGhost = true)
     case n: PGhostSliceType => isType(n.elem).out
     case PMethodReceiveGhostPointer(t) => isType(t).out
 
@@ -33,19 +35,23 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
 
       case _ => error(n, "Adt types are only allowed within type declarations.")
     }
+    case _: PPredType => noMessages // well definedness implied by well definedness of children
   }
 
   private[typing] def ghostTypeSymbType(typ : PGhostType) : Type = typ match {
+    case PPermissionType() => PermissionT
     case PSequenceType(elem) => SequenceT(typeSymbType(elem))
     case PSetType(elem) => SetT(typeSymbType(elem))
     case PMultisetType(elem) => MultisetT(typeSymbType(elem))
     case PMathematicalMapType(keys, values) => MathMapT(typeSymbType(keys), typeSymbType(values))
     case POptionType(elem) => OptionT(typeSymbType(elem))
     case PGhostPointerType(elem) => GhostPointerT(typeSymbType(elem))
+    case PExplicitGhostStructType(actual) => structSymbType(actual, isGhost = true)
     case PGhostSliceType(elem) => GhostSliceT(typeSymbType(elem))
     case PMethodReceiveGhostPointer(t) => GhostPointerT(typeSymbType(t))
     case t: PDomainType => DomainT(t, this)
     case a: PAdtType => adtSymbType(a)
+    case PPredType(args) => PredT(args map typeSymbType)
   }
 
   /** Requires that the parent of a is PTypeDef. */

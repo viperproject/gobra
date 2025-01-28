@@ -3,7 +3,7 @@
 
 package adts
 
-type tree adt {
+ghost type tree adt {
 
     Node {
         val int
@@ -20,7 +20,7 @@ type tree adt {
 
 }
 
-type list adt {
+ghost type list adt {
 
     Cons {
         head int
@@ -33,7 +33,7 @@ type list adt {
 
 }
 
-type expression adt {
+ghost type expression adt {
 
     Add {
         lA, rA expression
@@ -49,7 +49,7 @@ type expression adt {
 }
 
 func testTree(){
-    var t tree = Node{1, Node{2, EmptyLeaf{}, EmptyLeaf{}}, Node{3, Leaf{4}, EmptyLeaf{}}}
+    ghost var t tree = Node{1, Node{2, EmptyLeaf{}, EmptyLeaf{}}, Node{3, Leaf{4}, EmptyLeaf{}}}
 
     assert t.val == 1
     assert t.isNode
@@ -65,7 +65,7 @@ func testTree(){
 }
 
 func testList() {
-    var l list = Cons{1, Cons{2, Cons{3, Cons{4, Nil{}}}}}
+    ghost var l list = Cons{1, Cons{2, Cons{3, Cons{4, Nil{}}}}}
 
     assert l.head == 1
     assert l.isCons
@@ -81,7 +81,7 @@ func testList() {
 }
 
 func testExpression() {
-    var e expression = Add{Mul{Lit{2}, Lit{3}}, Add{Lit{4}, Lit{20}}}
+    ghost var e expression = Add{Mul{Lit{2}, Lit{3}}, Add{Lit{4}, Lit{20}}}
 
     assert e.lA.lM.val == 2
     assert e.isAdd

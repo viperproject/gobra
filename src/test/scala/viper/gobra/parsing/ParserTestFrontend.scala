@@ -8,7 +8,7 @@ package viper.gobra.parsing
 
 import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
 import org.scalatest.Assertions.fail
-import viper.gobra.ast.frontend.{PExpression, PImport, PMember, PProgram, PStatement, PType}
+import viper.gobra.ast.frontend.{PExpression, PFunctionOrMethodDecl, PGhostMember, PImport, PMember, PProgram, PStatement, PType}
 import viper.gobra.frontend.Parser
 import viper.gobra.reporting.ParserError
 
@@ -34,6 +34,7 @@ class ParserTestFrontend {
   def parseType(source : String) : Either[Vector[ParserError], PType] = parse(source, Parser.parseType)
   def parseTypeOrFail(source : String) : PType = parseOrFail(source, Parser.parseType)
   def parseImportDecl(source: String): Vector[PImport] = parseOrFail(source, Parser.parseImportDecl)
-  def parseFunctionDecl(source: String, specOnly: Boolean = false): PMember = parseOrFail(source, (s: Source) => Parser.parseFunction(s, specOnly = specOnly))
-
+  def parseSpecMemberOrFail(source: String, specOnly: Boolean = false): PFunctionOrMethodDecl = parseOrFail(source, (s: Source) => Parser.parseSpecMember(s, specOnly = specOnly))
+  def parseGhostMembers(source: String, specOnly: Boolean = false): Either[Vector[ParserError], Vector[PGhostMember]] = parse(source, (s: Source) => Parser.parseGhostMembers(s, specOnly = specOnly))
+  def parseGhostMembersOrFail(source: String, specOnly: Boolean = false): Vector[PGhostMember] = parseOrFail(source, (s: Source) => Parser.parseGhostMembers(s, specOnly = specOnly))
 }

@@ -7,6 +7,7 @@ package test
 import "pkg"
 
 ghost
+decreases len(x)
 pure func foo(x pkg.List) bool {
   return match x {
     case pkg.Nil{}: true
@@ -16,6 +17,7 @@ pure func foo(x pkg.List) bool {
 }
 
 ghost
+decreases
 func foo2() {
     var x pkg.Tree = pkg.Branch{}
     y := pkg.Branch{Left: x}
@@ -24,7 +26,6 @@ func foo2() {
 
 /*
 // should work in the future:
-
 ghost
 pure func foo3(x pkg.Tree) bool {
   return match x {

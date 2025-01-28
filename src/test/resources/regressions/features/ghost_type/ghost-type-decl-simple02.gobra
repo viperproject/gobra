@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostTypeDeclSimple02
+
+// tests that ghost type declarations can be used as ghost parameters
+
+ghost type SetDef set[int]
+
+ghost type SetAlias = set[int]
+
+ghost
+decreases
+func ghostFn2(a SetDef, b SetAlias) {
+    a = set[int]{ 42 }
+    assert a == set[int]{ 42 }
+
+    b = set[int]{ 42 }
+    assert b == set[int]{ 42 }
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}

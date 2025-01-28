@@ -109,7 +109,7 @@ object Type {
 
   case class StructEmbeddedT(typ: Type, isGhost: Boolean) extends StructClauseT
 
-  case class StructT(clauses: ListMap[String, StructClauseT], decl: PStructType, context: ExternalTypeInfo) extends ContextualType {
+  case class StructT(clauses: ListMap[String, StructClauseT], isGhost: Boolean, decl: PStructType, context: ExternalTypeInfo) extends ContextualType {
     lazy val fieldsAndEmbedded: ListMap[String, Type] = clauses.map(extractTyp)
     lazy val fields: ListMap[String, Type] = clauses.filter(isField).map(extractTyp)
     lazy val embedded: ListMap[String, Type] = clauses.filterNot(isField).map(extractTyp)
@@ -122,8 +122,8 @@ object Type {
     private def extractTyp(clause: (String, StructClauseT)): (String, Type) = (clause._1, clause._2.typ)
 
     override lazy val toString: String = {
-      val fields = clauses.map { case (n, i) => s"$n: $i" }
-      s"struct{ ${fields.mkString("; ")}}"
+      val fields = clauses.map { case (n, i) => s"${if (i.isGhost) "ghost " else ""}$n $i" }
+      s"${if (isGhost) "ghost " else ""}struct{ ${fields.mkString("; ")} }"
     }
   }
 

@@ -17,7 +17,7 @@ import viper.gobra.util.Violation
 trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefProgram: WellDefinedness[PProgram] = createWellDef {
-    case PProgram(_, staticInvs, imports, _, members) =>
+    case PProgram(_, pkgInvs, _, friends, members) =>
       // Obtains global variable declarations sorted by the order in which they appear in the file
       val sortedByPosDecls: Vector[PVarDecl] = {
         val unsortedDecls: Vector[PVarDecl] = members.collect{ case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
@@ -39,8 +39,8 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
       if (idsOkMsgs.isEmpty) {
         val globalDeclsInRightOrder = globalDeclSatisfiesDepOrder(sortedByPosDecls)
         val noOldExprs =
-          hasOldExpression(imports.flatMap(_.importPres)) ++
-          hasOldExpression(staticInvs.map(_.inv))
+          hasOldExpression(pkgInvs.map(_.inv)) ++
+            hasOldExpression(friends.map(_.assertion))
         globalDeclsInRightOrder ++ noOldExprs
       } else {
         idsOkMsgs
@@ -90,10 +90,10 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  private def hasOldExpression(posts: Vector[PExpression]): Messages = {
+  private[typing] def hasOldExpression(posts: Vector[PExpression]): Messages = {
     posts.flatMap{n =>
       val hasOld = allChildren(n).exists(_.isInstanceOf[POld])
-      error(n, "'old' expressions cannot occur in init-postconditions and import-preconditions", hasOld)
+      error(n, "'old' expressions cannot occur in import-preconditions, friend clause assertions, and package invariants", hasOld)
     }
   }
 }

@@ -1,7 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-initEnsures acc(&A) && acc(&B) && acc(&C, 1/2)
+pkgInvariant acc(&A) && acc(&B) && acc(&C, 1/2)
 package pkg
 
 importRequires true
@@ -20,9 +20,11 @@ var B@, C@ = f()
 var _ = g()
 var D@ struct{}
 
+mayInit
 decreases
 func f() (int, bool)
 
+mayInit
 decreases
 func g() interface{}
 

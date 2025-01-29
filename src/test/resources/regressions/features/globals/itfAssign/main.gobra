@@ -4,6 +4,9 @@
 package main
 
 // ##(-I ./)
+
+//:: ExpectedOutput(type_error)
+importRequires old(1) == 1
 import "defs"
 
 type T struct{}

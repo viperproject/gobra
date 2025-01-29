@@ -26,5 +26,4 @@ ghost
 //:: ExpectedOutput(type_error)
 func init() {}
 
-//:: ExpectedOutput(type_error)
 ghost var C int

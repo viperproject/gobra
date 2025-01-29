@@ -35,12 +35,13 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case n@PVarDecl(typ, right, left, _) =>
+      val mayInit = isEnclosingMayInit(n)
       if (isGlobalVarDeclaration(n)) {
         // in this case, the checks occur in MemberTyping
         noMessages
       } else {
         right.flatMap(isExpr(_).out) ++
-          declarableTo.errors(right map exprType, typ map typeSymbType, left map idType, false)(n)
+          declarableTo.errors(right map exprType, typ map typeSymbType, left map idType, mayInit)(n)
       }
 
     case n: PTypeDecl => isType(n.right).out ++ (n.right match {

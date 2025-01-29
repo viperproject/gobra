@@ -21,13 +21,14 @@ import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
-import viper.gobra.util.{BackendAnnotation, Constants, DesugarWriter, GobraExecutionContext, Violation}
+import viper.gobra.util.{BackendAnnotation, Computation, Constants, DesugarWriter, GobraExecutionContext, Violation}
 
 import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicLong
 import scala.annotation.{tailrec, unused}
 import scala.collection.{Iterable, SortedSet}
 import scala.reflect.ClassTag
+
 
 // `LazyLogging` provides us with access to `logger` to emit log messages
 object Desugar extends LazyLogging {
@@ -3498,22 +3499,25 @@ object Desugar extends LazyLogging {
     // Desugar all declarations of globals in `pkg` to generate the members that correspond to the global variables.
     // Each entry in `pGlobalDecls` contains the declarations of a file in `pkg` sorted by the order in which they
     // appear in the program.
-    private def sortedGlobalVariableDecls(pkg: PPackage): Vector[Vector[in.GlobalVarDecl]] = {
-      val pGlobalDecls: Vector[Vector[PVarDecl]] = pkg.programs.map { p =>
-        val unsortedDecls = p.declarations.collect { case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
-        // TODO: this is currently fine, given that we currently require global variable declarations to come after
-        //       the declarations of all of the dependencies of the declared variables. This should be changed when
-        //       we lift this restriction.
-        unsortedDecls.sortBy { decl =>
-          pom.positions.getStart(decl) match {
-            case Some(pos) => (pos.line, pos.column)
-            case None => violation(s"Could not find the position information of node $decl.")
+    private val sortedGlobalVariableDecls: PPackage => Vector[Vector[in.GlobalVarDecl]] =
+      Computation.cachedComputation { pkg =>
+        // the following may only be called once per package, otherwise wildcard identifiers may be desugared multiple
+        // times, leading to different names being generated on different occasions.
+        val pGlobalDecls: Vector[Vector[PVarDecl]] = pkg.programs.map { p =>
+          val unsortedDecls = p.declarations.collect { case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
+          // TODO: this is currently fine, given that we currently require global variable declarations to come after
+          //       the declarations of all of the dependencies of the declared variables. This should be changed when
+          //       we lift this restriction.
+          unsortedDecls.sortBy { decl =>
+            pom.positions.getStart(decl) match {
+              case Some(pos) => (pos.line, pos.column)
+              case None => violation(s"Could not find the position information of node $decl.")
+            }
           }
         }
+        // sorted desugared declarations
+        pGlobalDecls.map(_.map(globalVarDeclD))
       }
-      // sorted desugared declarations
-      pGlobalDecls.map(_.map(globalVarDeclD))
-    }
 
     /**
       * Collects all necessary information necessary to generate the proof obligations related to the initialization

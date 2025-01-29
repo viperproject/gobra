@@ -1,0 +1,81 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I ./)
+import "defs"
+
+type T struct{}
+
+decreases
+func (t T) F() {
+	openDupPkgInv
+}
+
+decreases
+func (t T) Error() string
+
+// The following is allowed, as this pattern is often used in practice to check
+// if the type of the value on the rhs is a subtype of the type of the LHS
+var _ defs.I = (*T)(nil)
+
+/* HERE
+// The following is disallowed, as we may use this to get access to a variable of type
+// defs.I and, through a call, assume an invariant that does not hold yet
+//:: ExpectedOutput(type_error)
+var A defs.I = (*T)(nil)
+//:: ExpectedOutput(type_error)
+var B = defs.I((*T)(nil))
+
+
+
+type ItfPkg interface {
+	decreases
+	F()
+}
+
+
+
+HERE */
+
+mayInit
+decreases
+func initFun1() {
+	// this assignment is disallowed, otherwise
+	// one may use it to open an invariant that
+	// does not yet hold.
+	//:: ExpectedOutput(type_error)
+	var i defs.I = T{}
+}
+
+/*HERE
+mayInit
+ensures false
+decreases
+func initFun2() {
+	// this assignment is disallowed, otherwise
+	// one may use it to open an invariant that
+	// does not yet hold.
+	//:: ExpectedOutput(type_error)
+	var i = defs.I(T{})
+}
+
+mayInit
+decreases
+func initFun3() {
+	var i ItfPkg = T{}
+	// This call is disallowed, otherwise we may call an interface method
+	// that depends on the invariants established upon initialization.
+	//:: ExpectedOutput(type_error)
+	i.F()
+}
+
+mayInit
+decreases
+func initFun4() {
+	// May not open package invariants on a function that may be called during init
+	//:: ExpectedOutput(type_error)
+	openDupPkgInv
+}
+HERE */

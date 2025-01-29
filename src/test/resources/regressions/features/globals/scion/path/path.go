@@ -3,7 +3,7 @@
 
 package path
 
-// ##(-I ../../)
+// ##(-I ../)
 
 // This approach is sound, assuming that the paths below are unique per a package.
 // This assumption is not problematic, and is similar to the assumption we make for
@@ -13,6 +13,23 @@ package path
 // @ 	RegisteredTypes().DoesNotContain(2)
 
 // @ import "monotonicset"
+
+/*@
+
+pred PkgInv() {
+	acc(&registeredPaths) &&
+	registeredKeys.Inv()  &&
+	(forall i uint16 :: 0 <= i && i < maxPathType ==>
+		registeredPaths[i].inUse == registeredKeys.FContains(i))
+}
+
+ghost
+decreases
+pure func RegisteredTypes() monotonicset.BoundedMonotonicSet {
+	return registeredKeys
+}
+
+@*/
 
 const maxPathType = 256
 

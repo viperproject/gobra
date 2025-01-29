@@ -7,7 +7,7 @@
 
 package scion
 
-// ##(-I ..)
+// ##(-I .)
 
 // Example inspired by how PathTypes are registered in the SCION border router.
 // Based on https://github.com/viperproject/VerifiedSCION/tree/master/pkg/slayers/scion.go
@@ -19,9 +19,9 @@ import (
 	// @ importRequires path.PkgInv()
 	// @ importRequires path.RegisteredTypes().DoesNotContain(1) &&
 	// @ 	path.RegisteredTypes().DoesNotContain(2)
-	// @ "scion/path"
-	"scion/path/onehop"
-	"scion/path/scion"
+	// @ "path"
+	"path/onehop"
+	"path/scion"
 )
 
 // We should introduce preconditions and postconditions to this function to guarantee that

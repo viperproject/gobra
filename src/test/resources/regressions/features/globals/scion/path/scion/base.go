@@ -1,13 +1,13 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package onehop
+package scion
 
-// ##(-I ../../..)
+// ##(-I ../../)
 
-import "scion/path"
+import "path"
 
-const PathType path.Type = 2
+const PathType path.Type = 1
 
 // @ requires  path.RegisteredTypes().DoesNotContain(uint16(PathType))
 // @ preserves path.PkgInv()
@@ -16,7 +16,7 @@ const PathType path.Type = 2
 func RegisterPath() {
 	tmp := path.Metadata{
 		Type: PathType,
-		Desc: "OneHop",
+		Desc: "SCION",
 	}
 	path.RegisterPath(tmp)
 }

@@ -20,7 +20,6 @@ func (t T) Error() string
 // if the type of the value on the rhs is a subtype of the type of the LHS
 var _ defs.I = (*T)(nil)
 
-/* HERE
 // The following is disallowed, as we may use this to get access to a variable of type
 // defs.I and, through a call, assume an invariant that does not hold yet
 //:: ExpectedOutput(type_error)
@@ -28,16 +27,10 @@ var A defs.I = (*T)(nil)
 //:: ExpectedOutput(type_error)
 var B = defs.I((*T)(nil))
 
-
-
 type ItfPkg interface {
 	decreases
 	F()
 }
-
-
-
-HERE */
 
 mayInit
 decreases
@@ -49,7 +42,6 @@ func initFun1() {
 	var i defs.I = T{}
 }
 
-/*HERE
 mayInit
 ensures false
 decreases
@@ -78,4 +70,3 @@ func initFun4() {
 	//:: ExpectedOutput(type_error)
 	openDupPkgInv
 }
-HERE */

@@ -12,6 +12,7 @@ func init() {
 	assert false
 }
 
+mayInit
 ensures res == 1
 decreases
 func test() (res int) {

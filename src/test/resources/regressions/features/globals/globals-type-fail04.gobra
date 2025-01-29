@@ -13,6 +13,7 @@ type T interface {
     f() int
 }
 
+mayInit
 func newT() T
 
 // calls to dynamically-bound methods are not allowed

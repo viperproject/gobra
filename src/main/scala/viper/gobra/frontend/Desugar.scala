@@ -23,6 +23,7 @@ import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
 import viper.gobra.util.{BackendAnnotation, Constants, DesugarWriter, GobraExecutionContext, Violation}
 
+import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicLong
 import scala.annotation.{tailrec, unused}
 import scala.collection.{Iterable, SortedSet}
@@ -404,10 +405,8 @@ object Desugar extends LazyLogging {
       */
     def packageD(p: PPackage, isImportedPkg: Boolean, shouldDesugar: PMember => Boolean = _ => true)(config: Config): in.Program = {
       // registers a package to generate proof obligations for its init code.
-      registerPkgInitData(p, initSpecs, isImportedPkg)(config)
-      if (!isImportedPkg) {
-        generatePkgInitProofObligations(p, initSpecs)
-      }
+      registerPkgInitData(p, initSpecs, isImportedPkg)
+      if (!isImportedPkg) { generatePkgInitProofObligations(p, initSpecs) }
 
       val consideredDecls = p.declarations.collect { case m@NoGhost(x: PMember) if shouldDesugar(x) => m }
       val dMembers = consideredDecls.flatMap{
@@ -3524,7 +3523,7 @@ object Desugar extends LazyLogging {
       * @param isImportedPkg true iff the proof obligations for the package's initialization code should be generated
       * @param config
       */
-    def registerPkgInitData(pkg: PPackage, initSpecs: PackageInitSpecCollector, isImportedPkg: Boolean)(config: Config): Unit = {
+    def registerPkgInitData(pkg: PPackage, initSpecs: PackageInitSpecCollector, isImportedPkg: Boolean): Unit = {
       // register all global variable declarations
       val globalDecls = sortedGlobalVariableDecls(pkg)
       globalDecls.flatten.foreach(AdditionalMembers.addMember)
@@ -3555,16 +3554,17 @@ object Desugar extends LazyLogging {
       }
       initSpecs.registerPkgInvariants(pkg, pkgInvs)
 
+      val fullPathOfPkg = pkg.info.uniquePath
+
       // collect friend package clauses
       pkg.programs.flatMap(_.friends).map{ i =>
-        val absPkg = PackageResolver.AbstractPackage(PackageResolver.RegularImport(i.path))(config)
+        val fullPathFriend = Paths.get(fullPathOfPkg).resolve(i.path).normalize()
         val assertion = specificationD(FunctionContext.empty(), info)(i.assertion)
-        (absPkg, assertion)
+        (fullPathFriend, assertion)
       }.foreach { case (absPkg, resource) =>
-        initSpecs.registerResourcesForFriends(pkg, absPkg, resource)
+        initSpecs.registerResourcesForFriends(pkg, absPkg.toString, resource)
       }
     }
-
 
     /**
       * Checks that the friend clauses of package `pkg` imply the conjunction of all imports' preconditions of `pkg`
@@ -3583,8 +3583,7 @@ object Desugar extends LazyLogging {
                                  (src: Source.Parser.Single): Option[in.Function] = {
       val currPkgUniqId = mainPkg.info.uniquePath
       val pres = initSpecs.getFriendResourcesFromSrc(importedPackage).filter {
-        case (PackageResolver.RegularPackage(id), _) =>
-          id == currPkgUniqId
+        case (path, _) => path == currPkgUniqId
         case _ => false
       }.map(_._2)
       val posts = importPresOfImportedPackage
@@ -5191,20 +5190,22 @@ object Desugar extends LazyLogging {
       l.map{ case (k,v) => (k, v.flatten)}
     }
 
-    // vector of triples (src, dst, resources)
-    private var friendClauses: Vector[(PPackage, PackageResolver.AbstractPackage, in.Assertion)] = Vector.empty
+    type FullPathFromRootToPkg = String
 
-    def registerResourcesForFriends(src: PPackage, dst: PackageResolver.AbstractPackage, res: in.Assertion) = {
+    // vector of triples (src, dst, resources)
+    private var friendClauses: Vector[(PPackage, FullPathFromRootToPkg, in.Assertion)] = Vector.empty
+
+    def registerResourcesForFriends(src: PPackage, dst: FullPathFromRootToPkg, res: in.Assertion) = {
       friendClauses :+= (src, dst, res)
     }
 
-    def getFriendResourcesFromSrc(pkg: PPackage): Vector[(PackageResolver.AbstractPackage, in.Assertion)] = {
+    def getFriendResourcesFromSrc(pkg: PPackage): Vector[(FullPathFromRootToPkg, in.Assertion)] = {
       friendClauses.filter(_._1 == pkg).map(e => (e._2, e._3))
     }
 
-    def getFriendResourcesForDst(uniquePkgId: String): Vector[(PPackage, in.Assertion)] = {
+    def getFriendResourcesForDst(uniquePkgPath: String): Vector[(PPackage, in.Assertion)] = {
       friendClauses.filter {
-        case (_, PackageResolver.RegularPackage(idFriend), _) => uniquePkgId == idFriend
+        case (_, pathFriend, _) => uniquePkgPath == pathFriend
         case _ => false
       }.map(e => (e._1, e._3))
     }

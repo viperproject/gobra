@@ -8,8 +8,8 @@ package path
 // This approach is sound, assuming that the paths below are unique per a package.
 // This assumption is not problematic, and is similar to the assumption we make for
 // imports.
-// @ friendPkg "scion" PkgInv()
-// @ friendPkg "scion" RegisteredTypes().DoesNotContain(1) &&
+// @ friendPkg "../" PkgInv()
+// @ friendPkg "../" RegisteredTypes().DoesNotContain(1) &&
 // @ 	RegisteredTypes().DoesNotContain(2)
 
 // @ import "monotonicset"

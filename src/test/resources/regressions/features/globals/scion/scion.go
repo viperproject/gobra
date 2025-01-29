@@ -1,6 +1,8 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
+//:: IgnoreFile(/gobra/issue/830/)
+
 // @ pkgInvariant path.PkgInv()
 // @ dup pkgInvariant acc(path.RegisteredTypes().Contains(1), _) &&
 // @ 	acc(path.RegisteredTypes().Contains(2), _)

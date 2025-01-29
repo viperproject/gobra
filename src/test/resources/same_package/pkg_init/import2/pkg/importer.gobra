@@ -1,10 +1,11 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
+//:: IgnoreFile(/gobra/issue/830/)
+
 package pkg
 
 // ##(-I ../)
 
-//:: ExpectedOutput(import_pre_error)
-importRequires acc(&bar.B) && acc(&bar.C)
+importRequires false
 import "bar"

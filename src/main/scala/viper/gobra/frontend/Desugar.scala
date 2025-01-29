@@ -45,7 +45,7 @@ object Desugar extends LazyLogging {
       val typeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
       val d = new Desugarer(importedPackage.positions, typeInfo, packageInitCollector)
-      val res = (d, d.packageD(importedPackage, true)(config))
+      val res = (d, d.packageD(importedPackage, true))
       importedDesugaringDurationMs.addAndGet(System.currentTimeMillis() - importedDesugaringStartMs)
       res
     }
@@ -54,7 +54,7 @@ object Desugar extends LazyLogging {
       val mainDesugaringStartMs = System.currentTimeMillis()
       // desugar the main package, i.e. the package on which verification is performed:
       val mainDesugarer = new Desugarer(pkg.positions, info, packageInitCollector)
-      val res = (mainDesugarer, mainDesugarer.packageD(pkg, false)(config))
+      val res = (mainDesugarer, mainDesugarer.packageD(pkg, false))
       logger.trace {
         val durationS = f"${(System.currentTimeMillis() - mainDesugaringStartMs) / 1000f}%.1f"
         s"desugaring package ${info.pkgInfo.id} done, took ${durationS}s"
@@ -404,7 +404,7 @@ object Desugar extends LazyLogging {
       * Desugars a package with an optional `shouldDesugar` function indicating whether a particular member should be
       * desugared or skipped
       */
-    def packageD(p: PPackage, isImportedPkg: Boolean, shouldDesugar: PMember => Boolean = _ => true)(config: Config): in.Program = {
+    def packageD(p: PPackage, isImportedPkg: Boolean, shouldDesugar: PMember => Boolean = _ => true): in.Program = {
       // registers a package to generate proof obligations for its init code.
       registerPkgInitData(p, initSpecs, isImportedPkg)
       if (!isImportedPkg) { generatePkgInitProofObligations(p, initSpecs) }
@@ -3588,7 +3588,6 @@ object Desugar extends LazyLogging {
       val currPkgUniqId = mainPkg.info.uniquePath
       val pres = initSpecs.getFriendResourcesFromSrc(importedPackage).filter {
         case (path, _) => path == currPkgUniqId
-        case _ => false
       }.map(_._2)
       val posts = importPresOfImportedPackage
       if (pres.nonEmpty || posts.nonEmpty) {
@@ -3599,7 +3598,7 @@ object Desugar extends LazyLogging {
           args = Vector.empty,
           results = Vector.empty,
           pres = pres,
-          posts = posts,
+          posts = posts.map(_.withInfo(src)),
           terminationMeasures = Vector.empty,
           backendAnnotations = Vector.empty,
           body = Some(in.MethodBody.empty(src))
@@ -3671,7 +3670,6 @@ object Desugar extends LazyLogging {
         initSpecs.getNonDupPkgInvariants().filter{ case (k, _) => k != currPkg }.values.flatten.toVector
 
       val uniquePathPkg = currPkg.info.uniquePath
-      // val absPkg = PackageResolver.RegularPackage(uniquePathPkg)
       val resourcesFromFriendPkgs = initSpecs.getFriendResourcesForDst(uniquePathPkg).map(_._2)
 
       in.Function(

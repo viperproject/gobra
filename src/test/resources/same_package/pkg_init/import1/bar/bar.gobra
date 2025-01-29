@@ -5,7 +5,7 @@ package bar
 
 // ##(-I ../)
 
-friendPkg "../pkg" acc(&A) && acc(&B) && acc(&C)
+friendPkg "../../pkg" acc(&A) && acc(&B) && acc(&C)
 
 var A@ int = 1
 var B@ int = 2

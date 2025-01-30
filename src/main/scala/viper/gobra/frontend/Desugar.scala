@@ -3654,7 +3654,7 @@ object Desugar extends LazyLogging {
       * - execute all inits in the current file in the order they appear
       * - exhale all package-invariants of the file
       * - exhale all friend clauses
-      * Note 1: these operations enforce non-interference between two different files in the same program. Thus,
+      * Note: these operations enforce non-interference between two different files in the same program. Thus,
       * it is ok to check the initialization of a package by separately checking the initialization of each of
       * its programs.
       */
@@ -5162,11 +5162,11 @@ object Desugar extends LazyLogging {
     * and the friend clauses.
     */
   private class PackageInitSpecCollector {
-    // New
     private var nonDupPkgInvs: Map[PPackage, Vector[in.Assertion]] = Map.empty
     private var dupPkgInvs: Map[PPackage, Vector[in.Assertion]] = Map.empty
 
-    // the bool here stands for whether the assertion is dup
+    // Register the invariants of pkg. Each invariant is accompanied by a bool that
+    // is true iff the invariants are meant to be duplicable
     def registerPkgInvariants(pkg: PPackage, dInvs: Vector[(in.Assertion, Boolean)]) = {
       assert(!nonDupPkgInvs.contains(pkg) && !dupPkgInvs.contains(pkg))
       val (dups, nonDups) = dInvs.partitionMap { inv =>
@@ -5182,11 +5182,12 @@ object Desugar extends LazyLogging {
     // pairs of package X and the preconditions on an import of X (one entry in the list per import of X)
     private var importPreconditions: Vector[(PPackage, Vector[in.Assertion])] = Vector.empty
 
-    def registerImportPresFromMainPkg(pkg: PPackage, desugaredImportPre: Vector[in.Assertion]): Unit = {
-      importPreconditions :+= (pkg, desugaredImportPre)
+    // Register that the package under verification imports package pkg with import preconditions desugaredImportPres.
+    def registerImportPresFromMainPkg(pkg: PPackage, desugaredImportPres: Vector[in.Assertion]): Unit = {
+      importPreconditions :+= (pkg, desugaredImportPres)
     }
 
-    // TODO: doc
+    // Get all imports from the package under verification and its import preconditions
     def getImportsFromMainPkg(): Map[PPackage, Vector[in.Assertion]] = {
       val l = importPreconditions.groupMap(_._1)(_._2)
       l.map{ case (k,v) => (k, v.flatten)}
@@ -5197,14 +5198,17 @@ object Desugar extends LazyLogging {
     // vector of triples (src, dst, resources)
     private var friendClauses: Vector[(PPackage, FullPathFromRootToPkg, in.Assertion)] = Vector.empty
 
+    // Register that package src registered the path `dst` as a friend with resource res.
     def registerResourcesForFriends(src: PPackage, dst: FullPathFromRootToPkg, res: in.Assertion) = {
       friendClauses :+= (src, dst, res)
     }
 
+    // Get all friend clauses registered in package pkg.
     def getFriendResourcesFromSrc(pkg: PPackage): Vector[(FullPathFromRootToPkg, in.Assertion)] = {
       friendClauses.filter(_._1 == pkg).map(e => (e._2, e._3))
     }
 
+    // Get all resources from friends destined to path `dst`.
     def getFriendResourcesForDst(uniquePkgPath: String): Vector[(PPackage, in.Assertion)] = {
       friendClauses.filter {
         case (_, pathFriend, _) => uniquePkgPath == pathFriend

@@ -3712,17 +3712,24 @@ object Desugar extends LazyLogging {
                 *   var B = 2
                 */
               val declarationsInOrder: Vector[in.Stmt] = sortedGlobVarDecls.flatMap{ _.declStmts }
+
               // execute all inits in the order they occur
               // TODO: at the moment, there exists at most one init, but this should change in the future
               val initBlocks = p.declarations.collect{
                 case x: PFunctionDecl if x.id.name == Constants.INIT_FUNC_NAME => x
               }
               violation(initBlocks.length <= 1, "at most one init block is supported right now")
+
+              // This must be done after the variable declarations, as at this point other files may run their own
+              // variable declarations that may assume the invariants of imported packages.
+              val exhaleInhaleImportedPkgsInvs = pkgInvariantsImportedPackages.map(in.Exhale(_)(src)) ++
+                pkgInvariantsImportedPackages.map(in.Inhale(_)(src))
+
               val initCode: Vector[in.Stmt] =
                 initBlocks.flatMap(b => b.body.toVector.map(_._2).map(blockD(FunctionContext.empty(), info)))
 
               // body of the generated method
-              initDeclaredGlobs ++ declarationsInOrder ++ initCode
+              initDeclaredGlobs ++ declarationsInOrder ++ exhaleInhaleImportedPkgsInvs ++ initCode
             }(src)
           )(src)
         )

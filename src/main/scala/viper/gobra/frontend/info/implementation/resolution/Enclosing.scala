@@ -99,7 +99,7 @@ trait Enclosing { this: TypeInfoImpl =>
     val cond1 = tryEnclosingFunctionOrMethod(n) match {
       case Some(f: PFunctionDecl) => f.id.name == "init" || f.spec.mayBeUsedInInit
       case Some(m: PMethodDecl) => m.spec.mayBeUsedInInit
-      case _ => false // TODO: change dflt?
+      case _ => false
     }
     val cond2 = tryEnclosingGlobalVarDeclaration(n) match {
       case Some(_) => true

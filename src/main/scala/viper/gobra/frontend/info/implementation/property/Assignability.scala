@@ -14,7 +14,6 @@ import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
 
 trait Assignability extends BaseProperty { this: TypeInfoImpl =>
-
   lazy val declarableTo: Property[(Vector[Type], Option[Type], Vector[Type], Boolean)] =
     createProperty[(Vector[Type], Option[Type], Vector[Type], Boolean)] {
       case (right, None, left, mayInit) => multiAssignableTo.result(right, left, mayInit)
@@ -34,7 +33,11 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case _ => false
   }
 
-  // todo: doc
+  // To guarantee that no dynamically dispatched methods that may depend on invariants of the package
+  // under initialization are called, we disallow assigning a value of a type defined in the current
+  // package to a variable of an interface type defined in an exported package. This allows us to call,
+  // without restriction, any interface methods with receiver types defined in imported packages during
+  // initialization of a package.
   private lazy val assignableToIfInit: Property[(Type, Type)] = createProperty[(Type, Type)] {
     case (targetType, srcType) =>
       if (isLocallyDefinedContextualType(targetType) && isImportedContextualType(srcType)) {
@@ -94,6 +97,10 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       }
   }
 
+  // The notion of assignability depends on the context where the assignments are performed.
+  // In particular, in code that may execute during package initialization, some assignments
+  // to interface types are disallowed to guarantee that interface methods that assume the invariant
+  // of the package under initialization are never called.
   lazy val assignableTo: Property[(Type, Type, Boolean)] = createFlatPropertyWithReason[(Type, Type, Boolean)] {
     case (right, left, _) => s"$right is not assignable to $left"
   } {

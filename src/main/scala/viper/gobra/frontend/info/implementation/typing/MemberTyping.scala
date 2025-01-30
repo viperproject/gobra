@@ -40,7 +40,11 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
       //       We need this check nonetheless because the checks performed in the "true" branch
       //       assume that the ids are well-defined.
       val idsOkMsgs = g.left.flatMap(l => wellDefID(l).out)
-      // TODO: doc this, pattern var _ T = ...
+      // A common pattern that appears in some codebases is to have global assignments like the following
+      //   var _ pkg.I = T{}
+      // or similar. The purpose is to assert, at compile time, that T is a subtype of pkg.I. To allow for
+      // these patterns, we introduce a special case when the lhs contains only wildcards. This is fine,
+      // because we will not be able to use the expression on the rhs as a receiver to a method call.
       val mayBeSpecialCase = g.left.forall(_.isInstanceOf[PWildcard]) &&
         StrictAssignMode(left = g.left.size, right = g.right.size) == AssignMode.Single &&
         g.typ.nonEmpty
@@ -88,6 +92,7 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def wellDefConstSpec(spec: PConstSpec): Messages = {
     val hasInitExpr = error(spec, s"missing init expr for ${spec.left}", spec.right.isEmpty)
+    val mayInit = isEnclosingMayInit(spec)
     lazy val canAssignInitExpr = error(
       spec,
       s"${spec.right} cannot be assigned to ${spec.left}",
@@ -95,8 +100,8 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
       // between two types, which is less precise. Because of this limitation, and with the goal of handling
       // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
       // expressions that are not accepted by the compiler.
-      !(multiAssignableTo(spec.left.map(typ), spec.right.map(typ), true) || // TODO: check
-        multiAssignableTo(spec.left.map(n => underlyingType(typ(n))), spec.right.map(typ), true)) // TODO: check
+      !(multiAssignableTo(spec.left.map(typ), spec.right.map(typ), mayInit) ||
+        multiAssignableTo(spec.left.map(n => underlyingType(typ(n))), spec.right.map(typ), mayInit))
     )
     lazy val constExprMsgs = spec.right.flatMap(wellDefIfConstExpr)
     // helps producing less redundant error messages

@@ -8,7 +8,6 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{message, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait ImportTyping extends BaseTyping { this: TypeInfoImpl =>

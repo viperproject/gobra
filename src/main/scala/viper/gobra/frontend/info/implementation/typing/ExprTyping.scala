@@ -238,8 +238,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         f.id.fold(noMessages)(id => wellDefID(id).out) ++
         error(f, "Opaque function literals are not yet supported.", f.spec.isOpaque)
 
-    // TODO: disable calls to closures within mayInit functions
-    // TODO: disable calls to itfc methods were the interface is defined in the current pkg in mayInit code
     case n: PInvoke =>
       val mayInit = isEnclosingMayInit(n)
       val (l, r) = (exprOrType(n.base), resolve(n))
@@ -261,10 +259,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               case f: st.Function => (f.isOpaque, f.decl.spec.mayBeUsedInInit, f.context != this, f.isPure)
               case m: st.MethodImpl =>
                 (m.isOpaque, m.decl.spec.mayBeUsedInInit, m.context != this, m.isPure)
-              case _ => (false, true, false, false) // TODO: check defaults
+              case _ => (false, true, false, false)
             }
           }
-          // TODO: doc
+          // We disallow calling interface methods whose receiver type is an interface declared in the current package
+          // in initialization code, as it may be dispatched to a method that assumes the current package's invariant.
           val cannotCallItfIfInit = c.callee match {
             case base: ap.ReceivedMethod =>
               val typeRecv = typ(base.recv)

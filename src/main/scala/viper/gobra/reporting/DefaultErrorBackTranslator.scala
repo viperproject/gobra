@@ -11,6 +11,7 @@ import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
 import viper.silver.verifier.{AbstractVerificationError, errors => vprerr, reasons => vprrea}
+import viper.silver.plugin.standard.predicateinstance
 import viper.silver.plugin.standard.termination
 import viper.silver.plugin.standard.{refute => vprrefute}
 
@@ -162,6 +163,8 @@ class DefaultErrorBackTranslator(
         IfError(info) dueTo translate(reason)
       case vprerr.IfFailed(CertainSource(info), reason, _) =>
         IfError(info) dueTo translate(reason)
+      case predicateinstance.PredicateInstanceNoAccess(Source(info), reason, _) =>
+        PredicateInstanceNoAccessError(info) dueTo translate(reason)
       case termination.FunctionTerminationError(Source(info), reason, _) =>
         FunctionTerminationError(info) dueTo translate(reason)
       case termination.MethodTerminationError(Source(info), reason, _) =>

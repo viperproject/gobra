@@ -355,6 +355,11 @@ case class ChannelSendError(info: Source.Verifier.Info) extends VerificationErro
   override def localMessage: String = s"The send expression ${info.trySrc[PSendStmt](" ")}might fail"
 }
 
+case class PredicateInstanceNoAccessError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "predicate_instance_no_access_error"
+  override def localMessage: String = "Accessing predicate instance might fail"
+}
+
 case class FunctionTerminationError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "pure_function_termination_error"
   override def localMessage: String = s"Pure function might not terminate"

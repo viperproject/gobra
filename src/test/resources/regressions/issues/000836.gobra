@@ -11,6 +11,5 @@ func test1() {
 
 func test2() {
 	var x interface{} = int(1)
-	//:: ExpectedOutput(type_error)
 	assert typeOf(x) == type[int]
 }

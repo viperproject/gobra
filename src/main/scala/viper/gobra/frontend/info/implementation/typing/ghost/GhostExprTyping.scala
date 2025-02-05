@@ -107,7 +107,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       predWellDef ++ error(n, "Cannot reveal a predicate access.", n.pred.reveal)
 
-    case PTypeOf(e) => isExpr(e).out
+    case PTypeOf(e) =>
+      val isExp = isExpr(e).out
+      if (isExp.isEmpty) {
+        val typ = underlyingType(exprType(e))
+        error(e, s"typeOf expects an argument of an interface type, but got $e instead.", !typ.isInstanceOf[InterfaceT])
+      } else
+        isExp
     case PTypeExpr(t) => isType(t).out
     case n@ PIsComparable(e) => typOfExprOrType(e) match {
       case t if isInterfaceType(t) => noMessages

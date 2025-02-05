@@ -49,7 +49,8 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
-        nonVariadicArguments(member.args)
+        nonVariadicArguments(member.args) ++
+        member.spec.posts.flatMap(hasOldExpression)
     } else noMessages
   }
 

@@ -15,6 +15,7 @@ logger.log
 *.interp
 /gen/
 /.gobra/
+gobra_tmp/
 
 .bloop/
 .metals/

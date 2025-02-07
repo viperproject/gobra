@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue815
+
+type cell struct {
+	value int
+}
+
+pure
+requires acc(c)
+//:: ExpectedOutput(type_error)
+ensures r == old(c.value)
+decreases
+func read(c *cell) (r int) {
+	return c.value
+}

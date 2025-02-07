@@ -76,7 +76,7 @@ object ViperBackends {
         options ++= Vector("--setAxiomatizationFile", axiomTmpPath.toString())
       }
 
-      new Silicon(options)
+      new Silicon(config, options)
     }
   }
 

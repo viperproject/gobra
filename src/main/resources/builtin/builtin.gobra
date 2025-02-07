@@ -18,19 +18,16 @@ type error interface {
 
 	ghost
 	requires  acc(ErrorMem(), _)
-	decreases ErrorMem()
 	pure IsDuplicableMem() bool
 
 	ghost
 	preserves ErrorMem()
 	ensures   IsDuplicableMem() == old(IsDuplicableMem())
 	ensures   IsDuplicableMem() ==> ErrorMem()
-	decreases ErrorMem()
 	Duplicate()
 
 	preserves ErrorMem()
 	ensures   IsDuplicableMem() == old(IsDuplicableMem())
-	decreases ErrorMem()
 	Error() string
 }
 

@@ -6,21 +6,24 @@
 
 package viper.gobra.backend
 
+import viper.gobra.frontend.Config
 import viper.gobra.util.GobraExecutionContext
 import viper.silicon
 import viper.silver.ast.Program
 import viper.silver.reporter._
 import viper.silver.verifier.{Failure, Success, VerificationResult}
+
 import scala.concurrent.Future
 
-class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
+class Silicon(config: Config, commandLineArguments: Seq[String]) extends ViperVerifier {
 
   override def verify(programID: String, reporter: Reporter, program: Program)(executor: GobraExecutionContext): Future[VerificationResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
     Future {
-      val siliconApi: silicon.SiliconFrontendAPI = new silicon.SiliconFrontendAPI(reporter)
-      
+      //val siliconApi: silicon.SiliconFrontendAPI = new silicon.SiliconFrontendAPI(reporter)
+      val siliconApi: silicon.SiliconFrontendAPI = new SiliconSIFFrontendAPI(config, reporter)
+
       val startTime = System.currentTimeMillis()
       try {
         siliconApi.initialize(commandLineArguments)

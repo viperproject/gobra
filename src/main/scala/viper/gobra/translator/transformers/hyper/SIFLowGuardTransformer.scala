@@ -579,3 +579,23 @@ class SIFLowGuardTransformerImpl(config: Config) extends SIFLowGuardTransformer 
 
   }
 }
+
+// TODO: put somewhere else
+case object SIFLowGuardTransformerHelper {
+  def onlyMajor(p: Program): String => Boolean = {
+    def nameBased(n: String): Boolean = n match {
+      case n if n.endsWith("termination_proof") => true
+      case _ => false
+    }
+
+    val annotationBased = p.members.flatMap { m =>
+      Source.unapply(m).flatMap { code =>
+        if (code.origin.tag.contains("#[MAJOR]")) Some(m.name)
+        else None
+      }
+    }.toSet
+
+    (x: String) => nameBased(x) || annotationBased.contains(x)
+  }
+}
+

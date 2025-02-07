@@ -37,13 +37,14 @@ object Translator {
     val programTranslator = new ProgramsImpl()
     val task = programTranslator.translate(program)(translationConfig)
 
+    // TODO: replace this by plugin
     val sifTransformer =
       if (config.hyperModeOrDefault == Hyper.EnabledExtended) new SIFTransformer
       else new SIFLowGuardTransformerImpl(config)
     val transformers: Seq[ViperTransformer] = Seq(
       new AssumeTransformer,
       new TerminationDomainTransformer,
-      sifTransformer,
+      // sifTransformer,
     )
 
     val transformedTask = transformers.foldLeft[Either[Vector[VerifierError], BackendVerifier.Task]](Right(task)) {

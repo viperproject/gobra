@@ -6,9 +6,9 @@ package types
 type TSlice []int
 type TArray [2]int
 type TMap map[int]string
-type TSeq seq[int]
-type TSet set[int]
-type TMSet mset[int]
+ghost type TSeq seq[int]
+ghost type TSet set[int]
+ghost type TMSet mset[int]
 // Cannot parse a dict type in a type declaration
 // type TDict dict[int]int
 

@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostTypeDeclSimple03
+
+//:: ExpectedOutput(type_error)
+ghost type GhostIntDef int // int is not a ghost type
+//:: ExpectedOutput(type_error)
+ghost type GhostIntAlias = int // int is not a ghost type
+//:: ExpectedOutput(type_error)
+type SetDef set[int] // set[int] is not an actual type
+//:: ExpectedOutput(type_error)
+type SetAlias = set[int] // set[int] is not an actual type

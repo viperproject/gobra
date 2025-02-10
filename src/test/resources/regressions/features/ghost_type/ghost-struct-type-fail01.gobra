@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostStructTypeFail01
+
+// tests the invalid combinations compared to `ghost-struct-type-simple01.gobra`
+
+//:: ExpectedOutput(type_error)
+type ActualNamedGhostStruct ghost struct { // actual type definition with ghost type is not allowed
+    Value int
+}
+
+//:: ExpectedOutput(type_error)
+type ActualAliasGhostStruct = ghost struct { // actual type definition with ghost type is not allowed
+    Value int
+}
+
+//:: ExpectedOutput(type_error)
+ghost type GhostNamedActualStruct struct { // ghost type definition with actual type is not allowed
+    Value int
+}
+
+//:: ExpectedOutput(type_error)
+ghost type GhostAliasActualStruct = struct { // ghost type definition with actual type is not allowed
+    Value int
+}

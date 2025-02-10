@@ -31,11 +31,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
   }{ n => isWellDefined(n) && children(n).forall(selfWellGhostSeparated) }
 
   private def memberGhostSeparation(member: PMember): Messages = member match {
-    case m: PExplicitGhostMember => m.actual match {
-      case _: PTypeDecl => error(m, "ghost types are currently not supported") // TODO
-      case _ => noMessages
-    }
-
+    case _: PExplicitGhostMember => noMessages
     case _: PGhostMember => noMessages
 
     case n : PVarDecl => n.typ match {
@@ -43,6 +39,12 @@ trait GhostWellDef { this: TypeInfoImpl =>
         isTypeGhost(typ) && !isEnclosingGhost(n))
       case None => noMessages
     }
+
+    case n: PTypeDecl =>
+      error(n, s"ghost error: expected an actual type but found ${n.right}", isTypeGhost(n.right) && !isEnclosingGhost(n)) ++
+      // to avoid confusion about how equality works for this type declaration, we require that the type declaration
+      // is ghost iff its RHS is a ghost type:
+      error(n, s"ghost error: expected a ghost type but found ${n.right}", !isTypeGhost(n.right) && isEnclosingGhost(n))
 
     case m if isEnclosingGhost(m) => noMessages
 

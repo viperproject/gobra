@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostStructComparisonFail02
+
+// tests that a ghost struct literal is not comparable to an actual struct literal
+
+ensures res == ghost struct {Number int}{Number: 42}
+func foo() (ghost res ghost struct {Number int})
+
+func main() {
+    res1 := foo()
+    //:: ExpectedOutput(type_error)
+    assert res1 == struct {Number int}{42}
+    res2 := foo()
+    //:: ExpectedOutput(type_error)
+    assert res2 == struct {Number int;}{42}
+    res3 := foo()
+    assert res3 == ghost struct {Number int}{42}
+    res4 := foo()
+    assert res4 == ghost struct {Number int;}{42}
+}

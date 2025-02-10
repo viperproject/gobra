@@ -3,7 +3,7 @@
 
 package adts
 
-type tree adt {
+ghost type tree adt {
     Node {
         val int
         left, right tree
@@ -11,7 +11,7 @@ type tree adt {
     Leaf{}
 }
 
-type list adt {
+ghost type list adt {
     Cons {
         head int
         tail list
@@ -20,11 +20,15 @@ type list adt {
 }
 
 ghost
+decreases
 ensures a > b ==> a == res
 ensures a <= b ==> b == res
-pure func max (a, b int) (res int)
+pure func max (a, b int) (res int) {
+    return a > b ? a : b
+}
 
 ghost
+decreases len(t)
 pure func depth(t tree) (res int) {
     return match t {
         case Node{_, ?l, ?r}: 1 + max(depth(l), depth(r))
@@ -33,6 +37,7 @@ pure func depth(t tree) (res int) {
 }
 
 ghost
+decreases len(t)
 pure func count(t tree) (res int) {
     return match t {
         case Node{_, ?l, ?r}: 1 + count(l) + count(r)
@@ -42,6 +47,7 @@ pure func count(t tree) (res int) {
 
 
 ghost
+decreases len(t)
 ensures count(t) >= 0 && depth(t) >= 0
 ensures count(t) >= depth(t)
 func proof1(t tree) {
@@ -54,6 +60,7 @@ func proof1(t tree) {
 
 
 ghost
+decreases len(l1)
 pure func concat(l1, l2 list) list {
     return match l1 {
         case Nil{}: l2
@@ -67,6 +74,7 @@ pred allNatrual(xs list) {
 }
 
 ghost
+decreases n
 requires n >= 0
 pure func rep(n, v int) list {
     return match n {
@@ -77,6 +85,7 @@ pure func rep(n, v int) list {
 
 
 ghost
+decreases allNatrual(xs)
 requires allNatrual(xs)
 pure func dec(xs list) list {
     return match xs {
@@ -90,6 +99,7 @@ pure func dec(xs list) list {
 }
 
 ghost
+decreases len(xs)
 pure func srclen(xs list) int {
     return match xs {
         case Nil{}: 0
@@ -99,6 +109,7 @@ pure func srclen(xs list) int {
 }
 
 ghost
+decreases len(xs)
 pure func length(xs list) int {
     return match xs {
         case Nil{}: 0
@@ -107,14 +118,17 @@ pure func length(xs list) int {
 }
 
 ghost
+decreases
 ensures forall xs, ys list :: {length(concat(xs, ys))} length(concat(xs, ys)) == length(xs) + length(ys)
 func lemma1()
 
 ghost
+decreases
 ensures forall x, y int :: {length(rep(x,y))} x >= 0 ==> length(rep(x, y)) == x
 func lemma2()
 
 ghost
+decreases len(xs)
 requires allNatrual(xs)
 ensures allNatrual(xs)
 ensures length(dec(xs)) == srclen(xs)
@@ -132,4 +146,3 @@ func proof2 (xs list) {
             fold allNatrual(xs);
     }
 }
-

@@ -193,7 +193,7 @@ Furthermore, `pure` functions must terminate. Thus, we add a `decreases` keyword
 
 ## Total Correctness
 
-By default, Gobra proves partial correctness, i.e., if a function terminates then its postcondition provably holds.
+By default, Gobra proves partial correctness, i.e., if a function terminates then its postcondition holds.
 To prove total correctness, a so-called termination measure must be provided.
 A termination measure is an assertion that is bounded from below and decreases in each iteration or recursive call, allowing Gobra to prove that a function or loop provably termination.
 Such a termination measure can be provided using the `decreases` keyword as shown in the following for the `sum` example:

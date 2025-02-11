@@ -4,24 +4,24 @@
 package tutorial
 
 type stream interface {
-  pred mem()
+	pred mem()
 
-  decreases
-  requires acc(mem(), 1/2)
-  pure hasNext() bool
+	decreases
+	requires acc(mem(), 1/2)
+	pure hasNext() bool
 
-  requires mem() && hasNext()
-  ensures  mem()
-  next() interface{}
+	requires mem() && hasNext()
+	ensures  mem()
+	next() interface{}
 }
 
 // implementation
 type counter struct{ f, max int }
 
-decreases
 requires acc(x, 1/2)
+decreases
 pure func (x *counter) hasNext() bool {
-  return x.f < x.max
+	return x.f < x.max
 }
 
 requires acc(&x.f) && acc(&x.max, 1/2)
@@ -29,30 +29,30 @@ requires x.hasNext()
 ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 
 ensures  typeOf(y) == type[int] && y.(int) == old(x.f)
 func (x *counter) next() (y interface{}) {
-  y = x.f
-  x.f += 1
-  return
+	y = x.f
+	x.f += 1
+	return
 }
 
 // implementation proof
 pred (x *counter) mem() { acc(x) }
 
 (*counter) implements stream {
-  pure (x *counter) hasNext() bool {
-    return unfolding acc(x.mem(), 1/2) in x.hasNext()
-  }
+	pure (x *counter) hasNext() bool {
+		return unfolding acc(x.mem(), 1/2) in x.hasNext()
+	}
 
-  (x *counter) next() (res interface{}) {
-    unfold x.mem()
-    res = x.next()
-    fold x.mem()
-  }
+	(x *counter) next() (res interface{}) {
+		unfold x.mem()
+		res = x.next()
+		fold x.mem()
+	}
 }
 
 // client code
 func client() {
-  x := &counter{0, 50}
-  var y stream = x
-  fold y.mem()
-  var z interface{} = y.next()
+	x := &counter{0, 50}
+	var y stream = x
+	fold y.mem()
+	var z interface{} = y.next()
 }

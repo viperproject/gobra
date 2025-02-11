@@ -8,15 +8,15 @@ package main
 import "counterImpl"
 
 type stream interface {
-  pred mem()
+	pred mem()
 
-  decreases
-  requires acc(mem(), 1/2)
-  pure hasNext() bool
+	requires acc(mem(), 1/2)
+	decreases
+	pure hasNext() bool
 
-  requires mem() && hasNext()
-  ensures  mem()
-  next() interface{}
+	requires mem() && hasNext()
+	ensures  mem()
+	next() interface{}
 }
 
 // implementation proof
@@ -24,24 +24,24 @@ pred counterMem(x *counterImpl.counter) { acc(x) }
 
 (*counterImpl.counter) implements stream {
 
-  pred mem := counterMem
+	pred mem := counterMem
 
-  pure (x *counterImpl.counter) hasNext() bool {
-    return unfolding acc(counterMem(x), 1/2) in x.hasNext()
-  }
+	pure (x *counterImpl.counter) hasNext() bool {
+		return unfolding acc(counterMem(x), 1/2) in x.hasNext()
+	}
 
-  (x *counterImpl.counter) next() (res interface{}) {
-    unfold counterMem(x)
-    res = x.next()
-    fold counterMem(x)
-  }
+	(x *counterImpl.counter) next() (res interface{}) {
+		unfold counterMem(x)
+		res = x.next()
+		fold counterMem(x)
+	}
 }
 
 
 // client code
 func client() {
-  x := &counterImpl.counter{0, 50}
-  var y stream = x
-  fold y.mem()
-  var z interface{} = y.next()
+	x := &counterImpl.counter{0, 50}
+	var y stream = x
+	fold y.mem()
+	var z interface{} = y.next()
 }

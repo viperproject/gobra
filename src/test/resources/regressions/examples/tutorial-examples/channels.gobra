@@ -4,7 +4,7 @@
 package tutorial
 
 pred sendInvariant(v *int) {
-  acc(v) && *v > 0
+	acc(v) && *v > 0
 }
 
 requires acc(c.SendChannel(), 1/2)
@@ -14,35 +14,35 @@ requires c.SendGotPerm() == PredTrue!<!>
 requires c.RecvGivenPerm() == PredTrue!<!>
 requires c.RecvGotPerm() == sendInvariant!<_!>
 func incChannel(c chan *int) {
-  fold PredTrue!<!>()
-  res, ok := <- c
-  if (ok) {
-    unfold sendInvariant!<_!>(res)
-    // we now have write access after unfolding the invariant:
-    *res = *res + 1
-    // fold the invariant and send pointer and permission back:
-    fold sendInvariant!<_!>(res)
-    c <- res
-  }
+	fold PredTrue!<!>()
+	res, ok := <- c
+	if (ok) {
+		unfold sendInvariant!<_!>(res)
+		// we now have write access after unfolding the invariant:
+		*res = *res + 1
+		// fold the invariant and send pointer and permission back:
+		fold sendInvariant!<_!>(res)
+		c <- res
+	}
 }
 
 func clientChannel() {
-  var c@ = make(chan *int)
+	var c@ = make(chan *int)
 
-  var x@ int = 42
-  var p *int = &x
-  c.Init(sendInvariant!<_!>, PredTrue!<!>)
-  go incChannel(c)
-  assert *p == 42
-  fold sendInvariant!<_!>(p)
-  c <- p
+	var x@ int = 42
+	var p *int = &x
+	c.Init(sendInvariant!<_!>, PredTrue!<!>)
+	go incChannel(c)
+	assert *p == 42
+	fold sendInvariant!<_!>(p)
+	c <- p
 
-  fold PredTrue!<!>()
-  res, ok := <- c
-  if (ok) {
-    unfold sendInvariant!<_!>(res)
-    assert *res > 0
-    // we have regained write access:
-    *res = 1
-  }
+	fold PredTrue!<!>()
+	res, ok := <- c
+	if (ok) {
+		unfold sendInvariant!<_!>(res)
+		assert *res > 0
+		// we have regained write access:
+		*res = 1
+	}
 }

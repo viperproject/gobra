@@ -4,17 +4,17 @@
 package tutorial
 
 type node struct {
-  value interface{}
-  next *node
+	value interface{}
+	next *node
 }
 
 pred list(ptr *node) {
-  acc(&ptr.value) && isComparable(ptr.value) && acc(&ptr.next) && 
-  (ptr.next != nil ==> list(ptr.next))
+	acc(&ptr.value) && isComparable(ptr.value) && acc(&ptr.next) && 
+	(ptr.next != nil ==> list(ptr.next))
 }
 
-decreases list(ptr)
 requires  list(ptr)
+decreases list(ptr)
 pure func contains(ptr *node, value interface{}) bool {
-  return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
+	return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
 }

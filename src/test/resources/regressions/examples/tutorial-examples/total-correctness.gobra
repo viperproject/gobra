@@ -3,17 +3,17 @@
 
 package tutorial
 
-decreases
 requires 0 <= n // precondition
 ensures  sum == n * (n+1)/2 // postcondition
+decreases
 func sum(n int) (sum int) {
-  sum = 0
+	sum = 0
 
-  invariant 0 <= i && i <= n + 1
-  invariant sum == i * (i-1)/2
-  decreases n - i
-  for i := 0; i <= n; i++ {
-    sum += i
-  }
-  return sum
+	invariant 0 <= i && i <= n + 1
+	invariant sum == i * (i-1)/2
+	decreases n - i
+	for i := 0; i <= n; i++ {
+		sum += i
+	}
+	return sum
 }

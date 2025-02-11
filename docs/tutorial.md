@@ -46,7 +46,7 @@ requires ... // preconditions
 ensures  ... // postconditions 
 trusted      // trusted flag (optional)
 func min(xs []int) int {
-  ... // function body (optional)
+    ... // function body (optional)
 }
 ```
 
@@ -55,7 +55,7 @@ requires ... // preconditions
 ensures  ... // postconditions 
 trusted      // trusted flag (optional)
 func (xs *list) contains(value int) bool {
-  ... // method body (optional)
+    ... // method body (optional)
 }
 ```
 - Functions and methods can be annotated with pre and postconditions. If omitted, they default to `true`.
@@ -67,7 +67,7 @@ func (xs *list) contains(value int) bool {
 
 ```go
 pred listPermissions(xs *list) {
-  ... // an assertion parameterized in the arguments (optional)
+    ... // an assertion parameterized in the arguments (optional)
 }
 ```
 
@@ -79,7 +79,7 @@ pred listPermissions(xs *list) {
 
 ```go
 type pair struct {
-  left, right int
+    left, right int
 }
 ```
 
@@ -101,7 +101,7 @@ const minScore int = 10 // typed constant
 
 ```go
 (*counter) implements stream {
-  ...
+    ...
 }
 ```
 
@@ -125,14 +125,14 @@ package tutorial
 
 
 func sum(n int) (sum int) {
-  sum = 0
+    sum = 0
 
 
 
-  for i := 0; i <= n; i++ {
-    sum += i
-  }
-  return sum
+    for i := 0; i <= n; i++ {
+        sum += i
+    }
+    return sum
 }
 ```
 
@@ -145,14 +145,14 @@ package tutorial
 requires 0 <= n // precondition
 ensures  sum == n * (n+1)/2 // postcondition
 func sum(n int) (sum int) {
-  sum = 0
+	sum = 0
 
-  invariant 0 <= i && i <= n + 1 
-  invariant sum == i * (i-1)/2
-  for i := 0; i <= n; i++ {
-    sum += i
-  }
-  return sum
+	invariant 0 <= i && i <= n + 1 
+	invariant sum == i * (i-1)/2
+	for i := 0; i <= n; i++ {
+		sum += i
+	}
+	return sum
 }
 ```
 
@@ -169,21 +169,21 @@ When a function or method does not have side-effects, such as modifying heap-all
 ```go (test/resources/regressions/tutorial-examples/basic-annotations.gobra)
 package tutorial
 
-decreases
 ensures res == (n % 2 == 0)
+decreases
 pure func isEven(n int) (res bool) {
-  return n % 2 == 0
+	return n % 2 == 0
 }
 
 ensures isEven(n) ==> res == n / 2
 ensures !isEven(n) ==> res == n / 2 + 1
 func halfRoundedUp(n int) (res int) {
-  if isEven(n) {
-    res = n / 2
-  } else {
-    res = n / 2 + 1
-  }
-  return res
+	if isEven(n) {
+		res = n / 2
+	} else {
+		res = n / 2 + 1
+	}
+	return res
 }
 ```
 
@@ -195,25 +195,27 @@ Furthermore, `pure` functions must terminate. Thus, we add a `decreases` keyword
 
 By default, Gobra proves partial correctness, i.e., if a function terminates then its postcondition provably holds.
 To prove total correctness, a so-called termination measure must be provided.
-A termination measure is an assertion that is bounded from below and decreases in each iteration or recursive call, allowing Gobra to prove that a function or loop provably termination.
-Such a termination measure can be provided using the `decreases` keyword as shown in the following for the `sum` example:
+A termination measure is an expression whose type has a well-founded order.
+Gobra proves that a termination measure decreases in each iteration or recursive call, which implies that a function or loop terminates.
+Such a termination measure can be provided using the `decreases` keyword as shown in the following for the `sum` example.
+While it does not matter whether a termination measure syntactically precedes preconditions or succeeds postconditions, we recommend the latter.
 
 ```go (test/resources/regressions/tutorial-examples/total-correctness.gobra)
 package tutorial
 
-decreases
 requires 0 <= n // precondition
 ensures  sum == n * (n+1)/2 // postcondition
+decreases
 func sum(n int) (sum int) {
-  sum = 0
+	sum = 0
 
-  invariant 0 <= i && i <= n + 1
-  invariant sum == i * (i-1)/2
-  decreases n - i
-  for i := 0; i <= n; i++ {
-    sum += i
-  }
-  return sum
+	invariant 0 <= i && i <= n + 1
+	invariant sum == i * (i-1)/2
+	decreases n - i
+	for i := 0; i <= n; i++ {
+		sum += i
+	}
+	return sum
 }
 ```
 
@@ -243,7 +245,7 @@ The following code snippet declares a type `pair`, consisting of two integer fie
 package tutorial
 
 type pair struct {
-  left, right int
+	left, right int
 }
 
 // incr requires permission to modify both fields
@@ -252,8 +254,8 @@ ensures  acc(&x.left) && acc(&x.right)
 ensures  x.left == old(x.left) + n
 ensures  x.right == old(x.right) + n
 func (x *pair) incr(n int) {
-  x.left += n
-  x.right += n
+	x.left += n
+	x.right += n
 }
 ```
 
@@ -266,9 +268,9 @@ Below, we show two clients of `incr`. The function`client1` allocates a `pair` p
 
 ```go (test/resources/regressions/tutorial-examples/permissions.gobra)
 func client1() {
-  p := &pair{1,2}
-  p.incr(42)
-  assert p.left == 43
+	p := &pair{1,2}
+	p.incr(42)
+	assert p.left == 43
 }
 ```
 
@@ -276,9 +278,9 @@ Similar to `client1`, `client2` allocates a `pair` pointer, as well. However, th
 
 ```go (test/resources/regressions/tutorial-examples/permissions.gobra)
 func client2() {
-  x@ := pair{1,2} // if taking the reference of a variable should be possible, then add @
-  (&x).incr(42)
-  assert x.left == 43
+	x@ := pair{1,2} // if taking the reference of a variable should be possible, then add @
+	(&x).incr(42)
+	assert x.left == 43
 }
 ```
 
@@ -301,13 +303,13 @@ requires forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
 ensures  forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
 ensures  forall k int :: 0 <= k && k < len(s) ==> s[k] == old(s[k]) + n
 func addToSlice(s []int, n int) {
-  invariant 0 <= i && i <= len(s)
-  invariant forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
-  invariant forall k int :: i <= k && k < len(s) ==> s[k] == old(s[k])
-  invariant forall k int :: 0 <= k && k < i ==> s[k] == old(s[k]) + n
-  for i := 0; i < len(s); i += 1 {
-    s[i] = s[i] + n
-  }
+	invariant 0 <= i && i <= len(s)
+	invariant forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
+	invariant forall k int :: i <= k && k < len(s) ==> s[k] == old(s[k])
+	invariant forall k int :: 0 <= k && k < i ==> s[k] == old(s[k]) + n
+	for i := 0; i < len(s); i += 1 {
+		s[i] = s[i] + n
+	}
 }
 ```
 
@@ -317,10 +319,10 @@ The function below is a client of the `addToSlice` function. The `make` call all
 
 ```go
 func addToSliceClient() {
-  s := make([]int, 10)
-  assert forall i int :: 0 <= i && i < 10 ==> s[i] == 0
-  addToSlice(s, 10)
-  assert forall i int :: 0 <= i && i < 10 ==> s[i] == 10
+	s := make([]int, 10)
+	assert forall i int :: 0 <= i && i < 10 ==> s[i] == 0
+	addToSlice(s, 10)
+	assert forall i int :: 0 <= i && i < 10 ==> s[i] == 10
 }
 ```
 
@@ -335,12 +337,12 @@ The following snippet defines a type `node`, representing a node of a linked lis
 package tutorial
 
 type node struct {
-  value int
-  next *node
+	value int
+	next *node
 }
 
 pred list(ptr *node) {
-  acc(&ptr.value) && acc(&ptr.next) && (ptr.next != nil ==> list(ptr.next))
+	acc(&ptr.value) && acc(&ptr.next) && (ptr.next != nil ==> list(ptr.next))
 }
 ```
 
@@ -350,8 +352,8 @@ Predicate instances can occur in function specifications. In Gobra, predicates a
 requires list(ptr)
 ensures  list(ptr)
 func testPredFail(ptr * node) {
-  assert list(ptr) // succeeds
-  // assert acc(&ptr.value) && acc(&ptr.next) // fails if uncommented
+	assert list(ptr) // succeeds
+	// assert acc(&ptr.value) && acc(&ptr.next) // fails if uncommented
 }
 ```
 
@@ -361,20 +363,20 @@ To make the snippet verify, Gobra requires an additional `unfold` annotation, te
 requires list(ptr)
 ensures  list(ptr)
 func testPred(ptr * node) {
-  assert list(ptr)
-  unfold list(ptr) // exchanges list(ptr) with its body
-  assert acc(&ptr.value) && acc(&ptr.next) // succeeds
-  fold list(ptr)   // folding back the predicate for the postcondition
+	assert list(ptr)
+	unfold list(ptr) // exchanges list(ptr) with its body
+	assert acc(&ptr.value) && acc(&ptr.next) // succeeds
+	fold list(ptr)   // folding back the predicate for the postcondition
 }
 ```
 
 In cases where statements are not allowed (e.g., specifications and bodies of pure functions), we use `unfolding` expressions, which temporarily unfold and fold a predicate instance. For instance, in the body of the `header` function below, the only way to acquire access to `ptr.value` is by `unfolding list(ptr)`.
 
 ```go (test/resources/regressions/tutorial-examples/predicate.gobra)
-decreases
 requires list(ptr)
+decreases
 pure func head(ptr *node) int {
-  return unfolding list(ptr) in ptr.value
+	return unfolding list(ptr) in ptr.value
 }
 ```
 
@@ -386,7 +388,7 @@ requires p > 0
 requires acc(list(ptr), p)
 decreases acc(list(ptr), p)
 pure func (ptr *node) contains(value int, ghost p perm) bool {
-  return unfolding acc(list(ptr), p) in ptr.value == value || (ptr.next != nil && ptr.next.contains(value, p))
+	return unfolding acc(list(ptr), p) in ptr.value == value || (ptr.next != nil && ptr.next.contains(value, p))
 }
 ```
 
@@ -396,7 +398,7 @@ Often, in particular for pure functions, we do not care about the exact permissi
 requires acc(list(ptr), _)
 decreases acc(list(ptr), _)
 pure func (ptr *node) contains2(value int) bool {
-  return unfolding acc(list(ptr), _) in ptr.value == value || (ptr.next != nil && ptr.next.contains2(value))
+	return unfolding acc(list(ptr), _) in ptr.value == value || (ptr.next != nil && ptr.next.contains2(value))
 }
 ```
 
@@ -415,15 +417,15 @@ ensures  forall k int :: 0 <= k && k < len(s) ==> acc(&s[k], 1/2)
 ensures  isContained ==> 0 <= idx && idx < len(s) && s[idx] == x
 func contains(s []int, x int) (isContained bool, ghost idx int) {
 
-  invariant 0 <= i && i <= len(s)
-  invariant forall k int :: 0 <= k && k < len(s) ==> acc(&s[k], 1/4)
-  for i := 0; i < len(s); i += 1 {
-    if s[i] == x {
-      return true, i
-    }
-  }
+	invariant 0 <= i && i <= len(s)
+	invariant forall k int :: 0 <= k && k < len(s) ==> acc(&s[k], 1/4)
+	for i := 0; i < len(s); i += 1 {
+		if s[i] == x {
+			return true, i
+		}
+	}
 
-  return false, 0
+	return false, 0
 }
 ```
 
@@ -431,13 +433,13 @@ Apart from the ghost in and out-parameters, Gobra offers additional ghost constr
 
 ```go (test/resources/regressions/tutorial-examples/ghost-code.gobra)
 ghost
-decreases len(s)
 requires forall j int :: 0 <= j && j < len(s) ==> acc(&s[j],_)
-ensures len(res) == len(s)
-ensures forall j int :: {s[j]} {res[j]} 0 <= j && j < len(s) ==> s[j] == res[j]
+ensures  len(res) == len(s)
+ensures  forall j int :: {s[j]} {res[j]} 0 <= j && j < len(s) ==> s[j] == res[j]
+decreases len(s)
 pure func toSeq(s []int) (res seq[int]) {
-  return (len(s) == 0 ? seq[int]{} :
-    toSeq(s[:len(s)-1]) ++ seq[int]{s[len(s) - 1]})
+	return (len(s) == 0 ? seq[int]{} :
+		toSeq(s[:len(s)-1]) ++ seq[int]{s[len(s) - 1]})
 }
 ```
 
@@ -482,15 +484,15 @@ type stream interface {
 package tutorial
 
 type stream interface {
-  pred mem()
+	pred mem()
 
-  decreases
-  requires acc(mem(), 1/2)
-  pure hasNext() bool
+	decreases
+	requires acc(mem(), 1/2)
+	pure hasNext() bool
 
-  requires mem() && hasNext()
-  ensures  mem()
-  next() interface{}
+	requires mem() && hasNext()
+	ensures  mem()
+	next() interface{}
 }
 ```
 
@@ -504,10 +506,10 @@ The following snippet illustrates an implementation of the `stream` interface. T
 // implementation
 type counter struct{ f, max int }
 
-decreases
 requires acc(x, 1/2)
+decreases
 pure func (x *counter) hasNext() bool {
-  return x.f < x.max
+	return x.f < x.max
 }
 
 requires acc(&x.f) && acc(&x.max, 1/2)
@@ -515,9 +517,9 @@ requires x.hasNext()
 ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 
 ensures  typeOf(y) == type[int] && y.(int) == old(x.f)
 func (x *counter) next() (y interface{}) {
-  y = x.f
-  x.f += 1
-  return
+	y = x.f
+	x.f += 1
+	return
 }
 ```
 
@@ -529,15 +531,15 @@ Before a value of type `*counter` can be assigned to the `stream` interface, one
 pred (x *counter) mem() { acc(x) }
 
 (*counter) implements stream {
-  pure (x *counter) hasNext() bool {
-    return unfolding acc(x.mem(), 1/2) in x.hasNext()
-  }
+	pure (x *counter) hasNext() bool {
+		return unfolding acc(x.mem(), 1/2) in x.hasNext()
+	}
 
-  (x *counter) next() (res interface{}) {
-    unfold x.mem()
-    res = x.next()
-    fold x.mem()
-  }
+	(x *counter) next() (res interface{}) {
+		unfold x.mem()
+		res = x.next()
+		fold x.mem()
+	}
 }
 ```
 
@@ -548,10 +550,10 @@ The snippet below shows a small client that instantiates a `*counter`, assigns i
 ```go (test/resources/regressions/tutorial-examples/interfaces.gobra)
 // client code
 func client() {
-  x := &counter{0, 50}
-  var y stream = x
-  fold y.mem()
-  var z interface{} = y.next()
+	x := &counter{0, 50}
+	var y stream = x
+	fold y.mem()
+	var z interface{} = y.next()
 }
 ```
 
@@ -566,19 +568,19 @@ In Go, comparing two interfaces can cause a runtime panic. This happens if both 
 package tutorial
 
 type node struct {
-  value interface{}
-  next *node
+	value interface{}
+	next *node
 }
 
 pred list(ptr *node) {
-  acc(&ptr.value) && isComparable(ptr.value) && acc(&ptr.next) && 
-  (ptr.next != nil ==> list(ptr.next))
+	acc(&ptr.value) && isComparable(ptr.value) && acc(&ptr.next) && 
+	(ptr.next != nil ==> list(ptr.next))
 }
 
-decreases list(ptr)
 requires  list(ptr)
+decreases list(ptr)
 pure func contains(ptr *node, value interface{}) bool {
-  return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
+	return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
 }
 ```
 
@@ -592,14 +594,14 @@ package tutorial
 requires acc(x)
 ensures acc(x)
 func inc(x *int) {
-  *x = *x + 1
+	*x = *x + 1
 }
 
 func concurrentInc() {
-  x@ := 1
-  go inc(&x)
-  // fails when uncommented with a permission error due to a race condition
-  // go inc(&x)
+	x@ := 1
+	go inc(&x)
+	// fails when uncommented with a permission error due to a race condition
+	// go inc(&x)
 }
 ```
 
@@ -628,17 +630,17 @@ package tutorial
 import "sync"
 
 pred mutexInvariant(x *int) {
-  acc(x)
+	acc(x)
 }
 
 requires acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant!<x!>
 ensures  acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant!<x!>
 func safeInc(pmutex *sync.Mutex, x *int) {
-  pmutex.Lock()
-  unfold mutexInvariant!<x!>()
-  *x = *x + 1
-  fold mutexInvariant!<x!>()
-  pmutex.Unlock()
+	pmutex.Lock()
+	unfold mutexInvariant!<x!>()
+	*x = *x + 1
+	fold mutexInvariant!<x!>()
+	pmutex.Unlock()
 }
 ```
 > **Note:** At this point in time, using semicolons is mandatory to terminate lines that end with the `!<` `!>` delimiters like in the pre and postcondition of `safeInc`. This is a known limitation of our current parser and it will be fixed when we adopt the `{` `}` delimeters for predicate constructors. 
@@ -647,12 +649,12 @@ The snippet below shows a client. First, `mutex` is allocated and the invariant 
 
 ```go (test/resources/regressions/tutorial-examples/mutex.gobra)
 func client() {
-  x@ := 0
-  mutex@ := sync.Mutex{}
-  fold mutexInvariant!<&x!>()
-  (&mutex).SetInv(mutexInvariant!<&x!>)
-  go safeInc(&mutex, &x)
-  go safeInc(&mutex, &x)
+	x@ := 0
+	mutex@ := sync.Mutex{}
+	fold mutexInvariant!<&x!>()
+	(&mutex).SetInv(mutexInvariant!<&x!>)
+	go safeInc(&mutex, &x)
+	go safeInc(&mutex, &x)
 }
 ```
 
@@ -670,7 +672,7 @@ The body of `incChannel` starts by folding `PredTrue!<!>()` to be able to receiv
 package tutorial
 
 pred sendInvariant(v *int) {
-  acc(v) && *v > 0
+	acc(v) && *v > 0
 }
 
 requires acc(c.SendChannel(), 1/2)
@@ -680,16 +682,16 @@ requires c.SendGotPerm() == PredTrue!<!>
 requires c.RecvGivenPerm() == PredTrue!<!>
 requires c.RecvGotPerm() == sendInvariant!<_!>
 func incChannel(c chan *int) {
-  fold PredTrue!<!>()
-  res, ok := <- c
-  if (ok) {
-    unfold sendInvariant!<_!>(res)
-    // we now have write access after unfolding the invariant:
-    *res = *res + 1
-    // fold the invariant and send pointer and permission back:
-    fold sendInvariant!<_!>(res)
-    c <- res
-  }
+	fold PredTrue!<!>()
+	res, ok := <- c
+	if (ok) {
+		unfold sendInvariant!<_!>(res)
+		// we now have write access after unfolding the invariant:
+		*res = *res + 1
+		// fold the invariant and send pointer and permission back:
+		fold sendInvariant!<_!>(res)
+		c <- res
+	}
 }
 ```
 
@@ -697,24 +699,24 @@ The next snippet shows a client. In the body, a channel `c` is created and initi
 
 ```go (test/resources/regressions/tutorial-examples/channels.gobra)
 func clientChannel() {
-  var c@ = make(chan *int)
+	var c@ = make(chan *int)
 
-  var x@ int = 42
-  var p *int = &x
-  c.Init(sendInvariant!<_!>, PredTrue!<!>)
-  go incChannel(c)
-  assert *p == 42
-  fold sendInvariant!<_!>(p)
-  c <- p
+	var x@ int = 42
+	var p *int = &x
+	c.Init(sendInvariant!<_!>, PredTrue!<!>)
+	go incChannel(c)
+	assert *p == 42
+	fold sendInvariant!<_!>(p)
+	c <- p
 
-  fold PredTrue!<!>()
-  res, ok := <- c
-  if (ok) {
-    unfold sendInvariant!<_!>(res)
-    assert *res > 0
-    // we have regained write access:
-    *res = 1
-  }
+	fold PredTrue!<!>()
+	res, ok := <- c
+	if (ok) {
+		unfold sendInvariant!<_!>(res)
+		assert *res > 0
+		// we have regained write access:
+		*res = 1
+	}
 }
 ```
 

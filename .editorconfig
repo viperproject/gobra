@@ -1,0 +1,6 @@
+# Any copyright is dedicated to the Public Domain.
+# http://creativecommons.org/publicdomain/zero/1.0/
+
+# set indentation style for GitHub
+indent_style = tab
+indent_size = 4

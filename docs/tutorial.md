@@ -1,3 +1,13 @@
+<html>
+    <!-- set tab size to 2 as GitHub otherwise uses 8 -->
+    <style>
+        html {
+            tab-size: 2;
+        }
+    </style>
+</html>
+
+
 # A Tutorial on Gobra
 
 ## Introduction

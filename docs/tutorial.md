@@ -415,15 +415,15 @@ ensures  forall k int :: 0 <= k && k < len(s) ==> acc(&s[k], 1/2)
 ensures  isContained ==> 0 <= idx && idx < len(s) && s[idx] == x
 func contains(s []int, x int) (isContained bool, ghost idx int) {
 
-    invariant 0 <= i && i <= len(s)
-	invariant forall k int :: 0 <= k && k < len(s) ==> acc(&s[k], 1/4)
-	for i := 0; i < len(s); i += 1 {
-		if s[i] == x {
-			return true, i
-		}
-	}
+  invariant 0 <= i && i <= len(s)
+  invariant forall k int :: 0 <= k && k < len(s) ==> acc(&s[k], 1/4)
+  for i := 0; i < len(s); i += 1 {
+    if s[i] == x {
+      return true, i
+    }
+  }
 
-	return false, 0
+  return false, 0
 }
 ```
 
@@ -436,8 +436,8 @@ requires forall j int :: 0 <= j && j < len(s) ==> acc(&s[j],_)
 ensures len(res) == len(s)
 ensures forall j int :: {s[j]} {res[j]} 0 <= j && j < len(s) ==> s[j] == res[j]
 pure func toSeq(s []int) (res seq[int]) {
-	return (len(s) == 0 ? seq[int]{} : 
-		toSeq(s[:len(s)-1]) ++ seq[int]{s[len(s) - 1]})
+  return (len(s) == 0 ? seq[int]{} :
+    toSeq(s[:len(s)-1]) ++ seq[int]{s[len(s) - 1]})
 }
 ```
 

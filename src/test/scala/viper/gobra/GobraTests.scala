@@ -48,7 +48,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
     inputs = inputs :+ source
   }
 
-  private def getConfig(source: Source): Config =
+  protected def getConfig(source: Source): Config =
     Config(
       logLevel = Level.INFO,
       reporter = StringifyReporter,

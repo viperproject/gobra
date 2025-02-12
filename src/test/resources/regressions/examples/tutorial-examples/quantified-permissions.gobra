@@ -4,8 +4,8 @@
 package tutorial
 
 requires forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
-ensures forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
-ensures forall k int :: 0 <= k && k < len(s) ==> s[k] == old(s[k]) + n
+ensures  forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
+ensures  forall k int :: 0 <= k && k < len(s) ==> s[k] == old(s[k]) + n
 func addToSlice(s []int, n int) {
 	invariant 0 <= i && i <= len(s)
 	invariant forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])

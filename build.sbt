@@ -15,7 +15,7 @@ lazy val genParser = taskKey[Unit]("Generate Gobra's parser")
 genParser := {
   val res: Int = ("./genparser.sh --download" !) // parentheses are not optional despite what IntelliJ suggests
   if (res != 0) {
-    throw new RuntimeException(s"genparser.sh exited with the non-zero exit code $res")
+    sys.error(s"genparser.sh exited with the non-zero exit code $res")
   }
 }
 

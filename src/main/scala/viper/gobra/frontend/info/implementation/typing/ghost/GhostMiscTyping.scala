@@ -155,6 +155,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
       pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
       terminationMeasures.flatMap(wellDefTerminationMeasure) ++
+      presFreeOfOld(n.pres) ++
+      postsFreeOfOldIfPure(n.posts, isPure) ++
       // if has conditional clause, all clauses must be conditional
       // can only have one non-conditional clause
       error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
@@ -167,12 +169,36 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         error(n, "Termination measures of loops cannot be conditional.", terminationMeasure.exists(isConditional))
   }
 
+  private[typing] def hasOldExpression(n: PExpression): Boolean =
+    (n +: allChildren(n)).exists{ e => e.isInstanceOf[POld] || e.isInstanceOf[PLabeledOld]}
+
+  private def presFreeOfOld(pres: Vector[PExpression]): Messages = {
+    pres.flatMap { pre =>
+      error(pre, "old(_) expressions cannot occur in preconditions of functions and methods.", hasOldExpression(pre))
+    }
+  }
+
+  private def postsFreeOfOldIfPure(posts: Vector[PExpression], isPure: Boolean): Messages = {
+    if (isPure)
+      posts.flatMap { post =>
+        error(post, "old(_) expressions cannot occur in postconditions of pure functions.", hasOldExpression(post))
+      }
+    else
+      noMessages
+  }
+
   private def wellDefTerminationMeasure(measure: PTerminationMeasure): Messages = measure match {
     case PTupleTerminationMeasure(tuple, cond) =>
       tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p)) ++
-        cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p))
+        cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p)) ++
+        (tuple ++ cond).flatMap { expr =>
+          error(expr, "old(_) expressions cannot occur in termination measures.", hasOldExpression(expr))
+        }
     case PWildcardMeasure(cond) =>
-      cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p))
+      cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p)) ++
+        cond.map { expr =>
+          error(expr, "old(_) expressions cannot occur in termination measures.", hasOldExpression(expr))
+        }.getOrElse(noMessages)
   }
 
   private def wellDefClosureSpecInstanceParams(c: PClosureSpecInstance, fArgs: Vector[(PParameter, Type)]): Messages = c match {

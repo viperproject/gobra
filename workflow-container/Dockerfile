@@ -48,6 +48,7 @@ ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true
 # Setup Gobra
 WORKDIR /build/gobra/
 COPY build.sbt /build/gobra/
+COPY genparser.sh /build/gobra/
 COPY project /build/gobra/project
 COPY conf /build/gobra/conf
 COPY src /build/gobra/src

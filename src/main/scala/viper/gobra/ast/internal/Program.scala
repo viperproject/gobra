@@ -515,7 +515,7 @@ case class Access(e: Accessible, p: Expr)(val info: Source.Parser.Info) extends 
 sealed trait TerminationMeasure extends Assertion
 case class WildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure
 case class TupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure {
-  require(tuple.forall(x => x.isInstanceOf[Expr] || x.isInstanceOf[PredicateAccess]), s"Unexpected tuple $tuple")
+  require(tuple.forall(x => x.isInstanceOf[Expr] || x.isInstanceOf[Access]), s"Unexpected tuple $tuple")
 }
 
 sealed trait Accessible extends Node {

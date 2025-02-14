@@ -12,5 +12,6 @@ func inc(x *int) {
 func concurrentInc() {
 	x@ := 1
 	go inc(&x)
-	// go inc(&x) // fails if uncommented, permission error due to a race condition
+	// fails when uncommented with a permission error due to a race condition
+	// go inc(&x)
 }

@@ -7,6 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, noMessages}
+import viper.gobra.ast.frontend.PLabelNode.lhsLabel
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec}
@@ -169,19 +170,24 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         error(n, "Termination measures of loops cannot be conditional.", terminationMeasure.exists(isConditional))
   }
 
-  private[typing] def hasOldExpression(n: PExpression): Boolean =
-    (n +: allChildren(n)).exists{ e => e.isInstanceOf[POld] || e.isInstanceOf[PLabeledOld]}
+  private[typing] def hasOldExpressionExceptValidWand(n: PExpression): Boolean =
+    (n +: allChildren(n)).exists {
+      case _: POld => true
+      case o: PLabeledOld if o.label.name == lhsLabel => !isEnclosingMagicWand(o)
+      case _: PLabeledOld => true
+      case _ => false
+    }
 
   private def presFreeOfOld(pres: Vector[PExpression]): Messages = {
     pres.flatMap { pre =>
-      error(pre, "old(_) expressions cannot occur in preconditions of functions and methods.", hasOldExpression(pre))
+      error(pre, "old(_) expressions cannot occur in preconditions of functions and methods.", hasOldExpressionExceptValidWand(pre))
     }
   }
 
   private def postsFreeOfOldIfPure(posts: Vector[PExpression], isPure: Boolean): Messages = {
     if (isPure)
       posts.flatMap { post =>
-        error(post, "old(_) expressions cannot occur in postconditions of pure functions.", hasOldExpression(post))
+        error(post, "old(_) expressions cannot occur in postconditions of pure functions.", hasOldExpressionExceptValidWand(post))
       }
     else
       noMessages
@@ -192,12 +198,12 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p)) ++
         cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p)) ++
         (tuple ++ cond).flatMap { expr =>
-          error(expr, "old(_) expressions cannot occur in termination measures.", hasOldExpression(expr))
+          error(expr, "old(_) expressions cannot occur in termination measures.", hasOldExpressionExceptValidWand(expr))
         }
     case PWildcardMeasure(cond) =>
       cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p)) ++
         cond.map { expr =>
-          error(expr, "old(_) expressions cannot occur in termination measures.", hasOldExpression(expr))
+          error(expr, "old(_) expressions cannot occur in termination measures.", hasOldExpressionExceptValidWand(expr))
         }.getOrElse(noMessages)
   }
 

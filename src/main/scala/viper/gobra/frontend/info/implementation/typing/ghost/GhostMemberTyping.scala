@@ -87,7 +87,6 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-
   private def isPurePostcondition(spec: PFunctionSpec): Messages = (spec.posts ++ spec.preserves) flatMap isPureExpr
 
   private[typing] def nonVariadicArguments(args: Vector[PParameter]): Messages = args.flatMap {

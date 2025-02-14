@@ -7,6 +7,8 @@
 
 # This script generates a new parser from the antlr4 files stored in this repository.
 # This script MUST NOT be run from a symlink.
+# '--download' can optionally be passed as a parameter to download ANTLR and automatically create the config file
+# if a config file does not exist yet.
 
 ##### Constants #####
 RED='\033[0;31m'
@@ -18,8 +20,17 @@ RESET='\033[0m'
 # https://stackoverflow.com/questions/24112727/relative-paths-based-on-file-location-instead-of-current-working-directory
 SCRIPT_DIR=$( cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1; pwd -P )
 
-##### Configure if it is the first execution #####
 CONFIGFILE="$SCRIPT_DIR/genparser.config"
+
+##### Download and configure ANTLR if config file does not exist yet #####
+if ! test -f "$CONFIGFILE" && [ "$1" = "--download" ]; then
+  mkdir -p "$SCRIPT_DIR/.genparser"
+  DESTINATION="$SCRIPT_DIR/.genparser/antlr-4.13.1-complete.jar"
+  curl --fail --show-error -L "https://www.antlr.org/download/antlr-4.13.1-complete.jar" --output "$DESTINATION"
+  echo "$DESTINATION" > "$CONFIGFILE"
+fi
+
+##### Configure if it is the first execution #####
 if ! test -f "$CONFIGFILE"; then
   echo -e "What is the ${RED}ABSOLUTE${RESET} path to the antlr4 .jar file?"
   read -r ANSWER

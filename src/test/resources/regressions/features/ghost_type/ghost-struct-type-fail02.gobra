@@ -3,7 +3,7 @@
 
 package GhostStructTypeFail02
 
-// checks that fields of a ghost struct type as treated as ghost fields
+// checks that fields of a ghost struct type are treated as ghost fields
 
 ghost type GhostStruct ghost struct {
     f int

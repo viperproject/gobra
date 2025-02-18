@@ -157,7 +157,7 @@ class StructEncoding extends TypeEncoding {
 
       // if lhs is a ghost struct (_not_ an actual struct contains just ghost fields) then we use ghost equality
       val isGhostStructComparison = hasGhostStructType(lhs)
-      require(isGhostStructComparison == hasGhostStructType(rhs), "type-system should enforce that the struct types involved in a comparison agree on their ghostness")
+      require(isGhostStructComparison == hasGhostStructType(rhs), "operands of equality operation do not agree on their ghostness")
       structEqual(ctx, useGoEquality = !isGhostStructComparison)(lhs, rhs, src)
   }
 

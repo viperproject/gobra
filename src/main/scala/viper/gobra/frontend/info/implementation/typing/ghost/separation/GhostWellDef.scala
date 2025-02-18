@@ -43,7 +43,9 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case n: PTypeDecl =>
       error(n, s"ghost error: expected an actual type but found ${n.right}", isTypeGhost(n.right) && !isEnclosingGhost(n)) ++
       // to avoid confusion about how equality works for this type declaration, we require that the type declaration
-      // is ghost iff its RHS is a ghost type:
+      // is ghost iff its RHS is a ghost type.
+      // An alternative implementation could permit all types on the RHS for which the definition of `===` matches `==`.
+      // This alternative would permit, e.g., a ghost type definition with `int` on the RHS.
       error(n, s"ghost error: expected a ghost type but found ${n.right}", !isTypeGhost(n.right) && isEnclosingGhost(n))
 
     case m if isEnclosingGhost(m) => noMessages

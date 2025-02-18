@@ -58,7 +58,10 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       error(n, s"map key $key is not comparable", !comparableType(typeSymbType(key))) ++
       error(n, s"map key $key can neither be a ghost struct nor contain ghost fields", isStructTypeWithGhostFields(typeSymbType(key)))
 
-    case t: PStructType => wellDefStructType(t, isGhost = false)
+    case t: PStructType => t match {
+      case tree.parent(_: PExplicitGhostStructType) => noMessages // this case is handled in `wellDefGhostType`
+      case _ => wellDefStructType(t, isGhost = false)
+    }
 
     case t: PInterfaceType =>
       val isRecursiveInterface = error(t, "invalid recursive interface", cyclicInterfaceDef(t))
@@ -72,11 +75,20 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case t: PExpressionAndType => wellDefExprAndType(t).out ++ isType(t).out
   }
 
-  private[typing] def wellDefStructType(t: PStructType, isGhost: Boolean): Messages =
+  private[typing] def wellDefStructType(t: PStructType, isGhost: Boolean): Messages = {
+    val noGhostEmbeddings: Messages = {
+      val firstGhostEmbedding: Option[PExplicitGhostStructClause] = t.clauses.collectFirst {
+        case n@PExplicitGhostStructClause(_: PEmbeddedDecl) => n
+      }
+      firstGhostEmbedding.fold(noMessages)(error(_, "embeddings cannot be ghost in a non-ghost struct", !isGhost))
+    }
+
     t.embedded.flatMap(e => isNotPointerTypePE.errors(e.typ)(e)) ++
+      noGhostEmbeddings ++
       t.fields.flatMap(f => isType(f.typ).out ++ isNotPointerTypeP.errors(f.typ)(f)) ++
       structMemberSet(structSymbType(t, isGhost = isGhost)).errors(t) ++ addressableMethodSet(structSymbType(t, isGhost = isGhost)).errors(t) ++
       error(t, "invalid recursive struct", cyclicStructDef(t))
+  }
 
   def isStructTypeWithGhostFields(t: Type): Boolean = t match {
     case Single(st) => underlyingType(st) match {

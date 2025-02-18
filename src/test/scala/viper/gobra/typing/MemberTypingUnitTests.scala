@@ -41,7 +41,6 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Typing: a ghost struct type declaration is not ghost") {
     // syntax: "type MyStruct ghost struct { Value int }"
-    // note that according to our ParserUnitTests, our parser currently rejects this input
     val idnDef = PIdnDef("MyStruct")
     val typ = PTypeDef(PExplicitGhostStructType(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Value"), PIntType())))))), idnDef)
     frontend.symbolTableEntry(typ)(idnDef) should matchPattern {

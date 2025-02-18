@@ -172,7 +172,7 @@ sealed trait PFunctionOrClosureDecl extends PScope {
   def body: Option[(PBodyParameterInfo, PBlock)]
 }
 
-sealed trait PFunctionOrMethodDecl extends PNode with PScope {
+sealed trait PFunctionOrMethodDecl extends PActualMember with PScope {
   def id: PIdnDef
 }
 
@@ -182,7 +182,7 @@ case class PFunctionDecl(
                           result: PResult,
                           spec: PFunctionSpec,
                           body: Option[(PBodyParameterInfo, PBlock)]
-                        ) extends PFunctionOrClosureDecl with PActualMember with PCodeRootWithResult with PWithBody with PGhostifiableMember with PFunctionOrMethodDecl
+                        ) extends PFunctionOrClosureDecl with PFunctionOrMethodDecl with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
 case class PMethodDecl(
                         id: PIdnDef,
@@ -191,7 +191,7 @@ case class PMethodDecl(
                         result: PResult,
                         spec: PFunctionSpec,
                         body: Option[(PBodyParameterInfo, PBlock)]
-                      ) extends PActualMember with PDependentDef with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember with PFunctionOrMethodDecl
+                      ) extends PFunctionOrMethodDecl with PDependentDef with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
 sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration {
 

@@ -35,7 +35,7 @@ maybeAddressableIdentifier: IDENTIFIER ADDR_MOD?;
 
 sourceFile:
   (initPost eos)* packageClause eos (importDecl eos)* (
-    (specMember | declaration | ghostMember) eos
+    member eos
   )* EOF;
 
 // `preamble` is a second entry point allowing us to parse only the top of a source.
@@ -49,6 +49,8 @@ importPre: IMPORT_PRE expression;
 importSpec: (importPre eos)* alias = (DOT | IDENTIFIER)? importPath;
 
 importDecl: (importPre eos)* (IMPORT importSpec | IMPORT L_PAREN (importSpec eos)* R_PAREN);
+
+member: specMember | declaration | ghostMember;
 
 ghostMember: implementationProof
   | fpredicateDecl

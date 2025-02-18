@@ -168,7 +168,8 @@ trait GhostWellDef { this: TypeInfoImpl =>
         isTypeGhost(f.typ) && !isEnclosingGhost(f))
     })
     case _: PInterfaceType => noMessages
-    case n: PType => error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
+    case n: PType => error(n, "ghost error: Found ghost child expression, but expected none",
+      !isEnclosingGhost(n) && !noGhostPropagationFromChildren(n))
   }
 
   private lazy val idGhostSeparation: WellDefinedness[PIdnNode] = createWellDefWithValidityMessages {

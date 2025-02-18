@@ -11,13 +11,12 @@ ghost
 decreases
 func foo1(x X)
 
-/* since ADTs are ghost, we cannot use them as receivers
+// ADTs can also be used as receivers:
 ghost
 decreases
 func (x X) bar1()
-*/
 
 func client() {
   foo1(C{})
-  // C{}.bar1()
+  C{}.bar1()
 }

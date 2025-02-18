@@ -5,6 +5,8 @@
 #
 # Copyright (c) 2011-2022 ETH Zurich.
 
+set -e
+
 # This script generates a new parser from the antlr4 files stored in this repository.
 # This script MUST NOT be run from a symlink.
 # '--download' can optionally be passed as a parameter to download ANTLR and automatically create the config file
@@ -20,11 +22,13 @@ RESET='\033[0m'
 # https://stackoverflow.com/questions/24112727/relative-paths-based-on-file-location-instead-of-current-working-directory
 SCRIPT_DIR=$( cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1; pwd -P )
 
+mkdir -p "$SCRIPT_DIR/.genparser"
+
 CONFIGFILE="$SCRIPT_DIR/genparser.config"
+HASHFILE="$SCRIPT_DIR/.genparser/md5sums.txt"
 
 ##### Download and configure ANTLR if config file does not exist yet #####
 if ! test -f "$CONFIGFILE" && [ "$1" = "--download" ]; then
-  mkdir -p "$SCRIPT_DIR/.genparser"
   DESTINATION="$SCRIPT_DIR/.genparser/antlr-4.13.1-complete.jar"
   curl --fail --show-error -L "https://www.antlr.org/download/antlr-4.13.1-complete.jar" --output "$DESTINATION"
   echo "$DESTINATION" > "$CONFIGFILE"
@@ -44,6 +48,12 @@ if ! test -f "$ANTLR4_PATH"; then
   exit 2
 fi
 
+##### Check whether parser generation is necessary #####
+if test -f "$HASHFILE" && md5sum -c "$HASHFILE" --status; then
+  echo "No changes detected in the antlr4 files. Skipping parser generation."
+  exit 0
+fi
+
 echo -e "${GREEN}Generating the lexer:${RESET}"
 java -jar "$ANTLR4_PATH" "$SCRIPT_DIR"/src/main/antlr4/GobraLexer.g4 -package viper.gobra.frontend || { echo -e "${RED}Error while generating the lexer.${RESET}"; exit 3; }
 
@@ -52,3 +62,7 @@ java -jar "$ANTLR4_PATH" "$SCRIPT_DIR"/src/main/antlr4/GobraParser.g4 -package v
 
 echo -e "${GREEN}Moving the generated files:${RESET}"
 mv -v "$SCRIPT_DIR"/src/main/antlr4/*.java "$SCRIPT_DIR"/src/main/java/viper/gobra/frontend/
+
+##### Create hash file #####
+# Since parser generation was successful, let's keep track of the hashes for all files on which parser generates depends
+md5sum "$ANTLR4_PATH" "$SCRIPT_DIR"/src/main/antlr4/* > "$HASHFILE"

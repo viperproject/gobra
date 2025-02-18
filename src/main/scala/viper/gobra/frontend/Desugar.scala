@@ -4526,10 +4526,16 @@ object Desugar extends LazyLogging {
 
       def goE(expr: PExpression): Writer[in.Node] = expr match {
         case p: PInvoke => info.resolve(p) match {
-          case Some(x: ap.PredicateCall) => predicateCallAccD(ctx, info)(x)(src)
+          case Some(x: ap.PredicateCall) =>
+            // we turn a `PredicateAccess` into an `Access` to unify this case
+            // with desugaring a PAccess:
+            for {
+              pa <- predicateCallAccD(ctx, info)(x)(src)
+            } yield in.Access(in.Accessible.Predicate(pa), in.FullPerm(pa.info))(pa.info)
           case Some(_: ap.FunctionCall) => exprD(ctx, info)(p)
           case _ => violation(s"Unexpected expression $expr")
         }
+        case p: PAccess => assertionD(ctx, info)(p)
         case _ => exprD(ctx, info)(expr)
       }
 

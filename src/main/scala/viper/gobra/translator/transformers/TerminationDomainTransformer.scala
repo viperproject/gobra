@@ -11,11 +11,9 @@ import viper.silicon.Silicon
 import viper.silver.ast.utility.FileLoader
 import viper.silver.{ast => vpr}
 import viper.silver.frontend.{DefaultStates, ViperAstProvider}
-import viper.silver.plugin.SilverPlugin
 import viper.silver.plugin.standard.predicateinstance.PredicateInstance.PredicateInstanceDomainName
-import viper.silver.plugin.standard.termination.{DecreasesTuple, TerminationPlugin}
+import viper.silver.plugin.standard.termination.DecreasesTuple
 import viper.silver.reporter.{NoopReporter, Reporter}
-import viper.silver.plugin.standard.predicateinstance.PredicateInstancePlugin
 import viper.silver.verifier.AbstractError
 
 // This class should be removed in the future because Viper already implements inference of

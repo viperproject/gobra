@@ -333,7 +333,14 @@ object Info extends LazyLogging {
     // I.e., we report a NotFound error if there is one or alternatively propagate `errs`:
     val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
     notFoundErr.map(e => message(errNode, e.message))
-      .getOrElse(message(errNode, s"Package '$importTarget' contains errors: $errs"))
+      .getOrElse {
+        val indentation = " " * 4
+        val formattedImportedErrs = errs.map(err =>
+          // indent each line of the formatted error by `indentation`:
+          err.formattedMessage.linesWithSeparators.map(l => s"$indentation$l").mkString
+        ).mkString("\n")
+        message(errNode, s"Package '$importTarget' contains errors:\n$formattedImportedErrs")
+      }
   }
 
   private def getErasedGhostCode(pkg: PPackage, info: TypeInfoImpl): String = {

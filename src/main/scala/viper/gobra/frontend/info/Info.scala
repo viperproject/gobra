@@ -19,7 +19,7 @@ import viper.gobra.frontend.Parser.{ParseResult, ParseSuccessResult}
 import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.{GhostLessPrinter, GoifyingPrinter}
-import viper.gobra.reporting.{CyclicImportError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
+import viper.gobra.reporting.{CyclicImportError, NotFoundError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
 import viper.gobra.util.{GobraExecutionContext, Job, TaskManager, Violation}
 
 import java.security.MessageDigest
@@ -31,8 +31,9 @@ import scala.concurrent.Future
 object Info extends LazyLogging {
 
   type GoTree = Tree[PNode, PPackage]
-  type TypeCheckResult = Either[Vector[VerifierError], TypeInfo with ExternalTypeInfo]
-  type DependentTypeInfo = Map[AbstractImport, () => TypeCheckResult] // values are functions such that laziness is possible
+  type TypeCheckSuccessResult = TypeInfo with ExternalTypeInfo
+  type TypeCheckResult = Either[Vector[VerifierError], TypeCheckSuccessResult]
+  type DependentTypeInfo = Map[AbstractImport, TypeCheckResult]
 
   trait GetParseResult {
     def parseResults: Map[AbstractPackage, ParseSuccessResult]
@@ -119,9 +120,9 @@ object Info extends LazyLogging {
     * Therefore, package management is centralized.
     */
   class Context(val config: Config, val parseResults: Map[AbstractPackage, ParseSuccessResult])(implicit executor: GobraExecutionContext) extends GetParseResult {
-    private val typeCheckManager = new TaskManager[AbstractPackage, (Vector[Source], PPackage, Vector[AbstractImport]), () => TypeCheckResult](config.parseAndTypeCheckMode)
+    private val typeCheckManager = new TaskManager[AbstractPackage, (Vector[Source], PPackage, Vector[AbstractImport]), TypeCheckResult](config.parseAndTypeCheckMode)
 
-    var tyeCheckDurationMs = new AtomicLong(0L)
+    var typeCheckDurationMs = new AtomicLong(0L)
 
     /**
       * This job creates type-check jobs for all packages imported by the specified package as part of the sequential
@@ -131,7 +132,7 @@ object Info extends LazyLogging {
       * computed in `Sequential` and `Parallel` modes, the result is lazily computed on the first closure call in `Lazy`
       * mode.
       */
-    private case class TypeCheckJob(abstractPackage: AbstractPackage, isMainContext: Boolean = false) extends Job[(Vector[Source], PPackage, Vector[AbstractImport]), () => TypeCheckResult] {
+    private case class TypeCheckJob(abstractPackage: AbstractPackage, isMainContext: Boolean = false) extends Job[(Vector[Source], PPackage, Vector[AbstractImport]), TypeCheckResult] {
       override def toString: String = s"TypeCheckJob for $abstractPackage"
 
       protected override def sequentialPrecompute(): (Vector[Source], PPackage, Vector[AbstractImport]) = {
@@ -148,19 +149,23 @@ object Info extends LazyLogging {
         (sources, ast, dependencies)
       }
 
-      protected def compute(precomputationResult: (Vector[Source], PPackage, Vector[AbstractImport])): () => TypeCheckResult = {
+      protected def compute(precomputationResult: (Vector[Source], PPackage, Vector[AbstractImport])): TypeCheckResult = {
         val (sources, ast, dependencies) = precomputationResult
-        val dependentTypeInfo = dependencies.map(importTarget => {
+        val dependentResults = dependencies.map(importTarget => {
           val dependentPackage = AbstractPackage(importTarget)(config)
           (importTarget, typeCheckManager.getResultBlocking(dependentPackage))
         })
-        config.parseAndTypeCheckMode match {
-          case Sequential | Parallel =>
-            val res = typeCheck(sources, ast, dependentTypeInfo.toMap)
-            () => res
+        val typeCheckMode = config.parseAndTypeCheckMode match {
           case Lazy =>
-            lazy val res = typeCheck(sources, ast, dependentTypeInfo.toMap)
-            () => res
+            logger.info(s"Lazy type-checking is no longer supported, and, thus, is performed sequentially")
+            Sequential
+          case m => m
+        }
+        typeCheckMode match {
+          case Sequential | Parallel =>
+            typeCheck(sources, ast, dependentResults.toMap)
+          case Lazy =>
+            Violation.violation("lazy type-checking is no longer supported")
         }
       }
 
@@ -173,9 +178,9 @@ object Info extends LazyLogging {
           s"type-checking ${pkg.info.id} done (took ${durationS}s with ${res.map(info => info.tree.nodes.length.toString).getOrElse("_")} nodes)"
         }
         if (isLazy) {
-          tyeCheckDurationMs.getAndUpdate(prev => Math.max(prev, System.currentTimeMillis() - startMs))
+          typeCheckDurationMs.getAndUpdate(prev => Math.max(prev, System.currentTimeMillis() - startMs))
         } else {
-          tyeCheckDurationMs.addAndGet(System.currentTimeMillis() - startMs)
+          typeCheckDurationMs.addAndGet(System.currentTimeMillis() - startMs)
         }
         res
       }
@@ -184,7 +189,6 @@ object Info extends LazyLogging {
     def typeCheck(pkg: AbstractPackage): Future[TypeCheckResult] = {
       typeCheckManager.addIfAbsent(pkg, TypeCheckJob(pkg, isMainContext = true))
       typeCheckManager.getResult(pkg)
-        .map(resFn => resFn())
     }
   }
 
@@ -209,8 +213,8 @@ object Info extends LazyLogging {
       }
       _ = logger.debug {
         val typeCheckingEndMs = System.currentTimeMillis()
-        val sumDurationS = f"${context.tyeCheckDurationMs.get() / 1000f}%.1f"
-        val overheadMs = (typeCheckingEndMs - typeCheckingStartMs) - context.tyeCheckDurationMs.get()
+        val sumDurationS = f"${context.typeCheckDurationMs.get() / 1000f}%.1f"
+        val overheadMs = (typeCheckingEndMs - typeCheckingStartMs) - context.typeCheckDurationMs.get()
         val overheadS = f"${overheadMs / 1000f}%.1f"
         s"type-checking individual packages took ${sumDurationS}s. Overhead for tasks is thus ${overheadS}s (${(100f * overheadMs / (typeCheckingEndMs - typeCheckingStartMs)).toInt}%)"
       }
@@ -220,13 +224,13 @@ object Info extends LazyLogging {
   type TypeInfoCacheKey = String
   private val typeInfoCache: ConcurrentMap[TypeInfoCacheKey, TypeInfoImpl] = new ConcurrentHashMap()
 
-  private def getCacheKey(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean, config: Config): TypeInfoCacheKey = {
+  private def getCacheKey(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, ExternalTypeInfo], isMainContext: Boolean, config: Config): TypeInfoCacheKey = {
     // the cache key only depends on config's `typeBounds`, `int32bit`, and `enableLazyImport`
     val pkgKey = pkg.hashCode().toString
     // the computed key must be deterministic!
     val dependentTypeInfoKey = dependentTypeInfo
       .toVector
-      .map { case (pkg, fn) => pkg.hashCode().toString ++ fn().hashCode().toString }
+      .map { case (pkg, info) => pkg.hashCode().toString ++ info.hashCode().toString }
       .sorted
       .mkString("")
     val isMainContextKey = if (isMainContext) "1" else "0"
@@ -248,48 +252,89 @@ object Info extends LazyLogging {
     typeInfoCache.clear()
   }
 
-  def checkSources(sources: Vector[Source], pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean = false)(config: Config): TypeCheckResult = {
+  def checkSources(sources: Vector[Source], pkg: PPackage, dependentTypeInfo: DependentTypeInfo, isMainContext: Boolean = false)(config: Config): TypeCheckResult = {
     var cacheHit: Boolean = true
-    def getTypeInfo(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean, config: Config): TypeInfoImpl = {
+    def getTypeInfo(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, ExternalTypeInfo], isMainContext: Boolean, config: Config): TypeInfoImpl = {
       cacheHit = false
       val tree = new GoTree(pkg)
       new TypeInfoImpl(tree, dependentTypeInfo, isMainContext)(config: Config)
     }
 
-    def getTypeInfoCached(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]], isMainContext: Boolean, config: Config): TypeInfoImpl = {
+    def getTypeInfoCached(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, ExternalTypeInfo], isMainContext: Boolean, config: Config): TypeInfoImpl = {
       typeInfoCache.computeIfAbsent(getCacheKey(pkg, dependentTypeInfo, isMainContext, config), _ => getTypeInfo(pkg, dependentTypeInfo, isMainContext, config))
     }
 
-    val checkFn = if (config.cacheParserAndTypeChecker) { getTypeInfoCached _ } else { getTypeInfo _ }
-    val info = checkFn(pkg, dependentTypeInfo, isMainContext, config)
-    if (!cacheHit && config.cacheParserAndTypeChecker) {
-      logger.trace(s"No cache hit for type info for ${pkg.info.id}")
+    // we type-check this package only if all imported packages got type-checked successfully
+    val (failedDependents, successfulDependents) = dependentTypeInfo.partitionMap {
+      case (importTarget, res) => res.fold(errs => Left(importTarget, errs), info => Right(importTarget, info))
     }
 
+    val sourceNames = sources.map(_.name)
     val startTimeMs = System.currentTimeMillis()
-    val errors = info.errors
+    val messagesOrInfo = if (failedDependents.isEmpty) {
+      val checkFn = if (config.cacheParserAndTypeChecker) { getTypeInfoCached _ } else { getTypeInfo _ }
+      val info = checkFn(pkg, successfulDependents.toMap, isMainContext, config)
+      if (!cacheHit && config.cacheParserAndTypeChecker) {
+        logger.trace(s"No cache hit for type info for ${pkg.info.id}")
+      }
+
+      config.reporter report TypeCheckDebugMessage(sourceNames, () => pkg, () => getDebugInfo(pkg, info))
+
+      val messages = info.errors
+      if (messages.isEmpty) Right(info) else Left(messages)
+    } else {
+      val messages = failedDependents.flatMap {
+        case (importTarget, errs) =>
+          val importNode: PNode = importTarget match {
+            case BuiltInImport =>
+              // since built-in imports by definition do not have a corresponding import clause, we simply pick
+              // one of the package clauses to attach the error to:
+              pkg.packageClause
+            case RegularImport(importPath) =>
+              // a package might import `importTarget` multiple times, e.g., in every file of the package
+              // we (randomly) pick on of the import nodes to report the error to avoid reporting `errs` multiple times
+              pkg.imports.collectFirst {
+                case importNode if importNode.importPath == importPath => importNode
+              }.getOrElse(Violation.violation(s"could not find import node for import path $importPath"))
+          }
+          createImportError(importTarget, errs, importNode)
+      }.toVector
+      Left(messages)
+    }
+
     logger.trace {
       val durationS = f"${(System.currentTimeMillis() - startTimeMs) / 1000f}%.1f"
       s"computing errors for ${pkg.info.id} done, took ${durationS}s"
     }
 
-    val sourceNames = sources.map(_.name)
-    // use `sources` instead of `context.inputs` for reporting such that the message is correctly attributed in case of imports
-    config.reporter report TypeCheckDebugMessage(sourceNames, () => pkg, () => getDebugInfo(pkg, info))
-    if (errors.isEmpty) {
-      config.reporter report TypeCheckSuccessMessage(sourceNames, config.taskName, () => info, () => pkg, () => getErasedGhostCode(pkg, info), () => getGoifiedGhostCode(pkg, info))
-      Right(info)
-    } else {
-      // remove duplicates as errors related to imported packages might occur multiple times
-      // consider this: each error in an imported package is converted to an error at the import node with
-      // message 'Package <pkg name> contains errors'. If the imported package contains 2 errors then only a single error
-      // should be reported at the import node instead of two.
-      // however, the duplicate removal should happen after translation so that the error position is correctly
-      // taken into account for the equality check.
-      val typeErrors = pkg.positions.translate(errors, TypeError).distinct
-      config.reporter report TypeCheckFailureMessage(sourceNames, pkg.packageClause.id.name, () => pkg, typeErrors)
-      Left(typeErrors)
-    }
+    messagesOrInfo.fold(
+      messages => {
+        // remove duplicates as errors related to imported packages might occur multiple times
+        // consider this: each error in an imported package is converted to an error at the import node with
+        // message 'Package <pkg name> contains errors'. If the imported package contains 2 errors then only a single error
+        // should be reported at the import node instead of two.
+        // however, the duplicate removal should happen after translation so that the error position is correctly
+        // taken into account for the equality check.
+        val typeErrors = pkg.positions.translate(messages, TypeError).distinct
+        config.reporter report TypeCheckFailureMessage(sourceNames, pkg.packageClause.id.name, () => pkg, typeErrors)
+        Left(typeErrors)
+      },
+      info => {
+        config.reporter report TypeCheckSuccessMessage(sourceNames, config.taskName, () => info, () => pkg, () => getErasedGhostCode(pkg, info), () => getGoifiedGhostCode(pkg, info))
+        Right(info)
+      }
+    )
+  }
+
+  private def createImportError(importTarget: AbstractImport, errs: Vector[VerifierError], errNode: PNode): Messages = {
+    // create an error message located at the import statement to indicate errors in the imported package
+    // we distinguish between regular errors and packages whose source files could not be found (note that cyclic
+    // errors are handled before type-checking)
+    val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
+    // alternativeErr is a function to compute the message only when needed
+    val alternativeErr = () => message(errNode, s"Package '$importTarget' contains errors: $errs")
+    notFoundErr.map(e => message(errNode, e.message))
+      .getOrElse(alternativeErr())
   }
 
   private def getErasedGhostCode(pkg: PPackage, info: TypeInfoImpl): String = {

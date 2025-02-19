@@ -122,14 +122,32 @@ trait GhostAssignability {
 
   /** conservative ghost separation assignment check */
   private[separation] def ghostAssignableToId(exprs: PExpression*)(lefts: PIdnNode*): Messages =
-    generalGhostAssignableTo(ghostExprResultTyping)(dfltGhostAssignableMsg(ghostIdClassification))(exprs: _*)(lefts: _*)
+    generalGhostAssignableTo(ghostExprResultTyping)(dfltGhostAssignableMsg[PIdnNode](wellGhostSeparated)(ghostIdClassification))(exprs: _*)(lefts: _*)
 
   /** conservative ghost separation assignment check */
-  private[separation] def ghostAssignableToParam(exprs: PExpression*)(lefts: PParameter*): Messages =
-    generalGhostAssignableTo(ghostExprResultTyping)(dfltGhostAssignableMsg(ghostParameterClassification))(exprs: _*)(lefts: _*)
+  private[separation] def ghostAssignableToParam(exprs: PExpression*)(lefts: PParameter*): Messages = {
+    generalGhostAssignableTo(ghostExprResultTyping)(dfltGhostAssignableMsg[PParameter](wellGhostSeparated)(ghostParameterClassification))(exprs: _*)(lefts: _*)
+  }
 
-  private def dfltGhostAssignableMsg[L <: PNode](ghost: L => Boolean): (Boolean, L) => Messages = {
-    case (g, l) => error(l, "ghost error: ghost cannot be assigned to non-ghost", g && !ghost(l))
+  /**
+    * default factory for producing messages that a ghost right-hand side cannot be assigned to a non-ghost left-hand side
+    * @param pre well-definedness condition for a left-hand side that must hold before `ghost` might be invoked
+    * @param ghost classifier whether a left-hand side is ghost
+    * @tparam L type of the left-hand sides
+    * @return
+    */
+  private def dfltGhostAssignableMsg[L <: PNode](pre: WellDefinedness[L])(ghost: L => Boolean): (Boolean, L) => Messages = {
+    case (g, l) =>
+      val lhsMsgs = pre(l).out
+      if (lhsMsgs.isEmpty) {
+        // `l` is well-defined
+        error(l, "ghost error: ghost cannot be assigned to non-ghost", g && !ghost(l))
+      } else {
+        // We return the well-definedness messages of 'l' even though these messages should already
+        // get reported when visiting 'l' in the AST.
+        // This ensures that we do not miss them and deduplication will remove duplicate messages
+        lhsMsgs
+      }
   }
 
   private def generalGhostAssignableTo[R, L](typing: R => GhostType)(msg: (Boolean, L) => Messages)(rights: R*)(lefts: L*): Messages =

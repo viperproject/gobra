@@ -699,7 +699,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     annotation.key <> parens(showList(annotation.values)(d => d))
 
   def showBackendAnnotations(annotations: Vector[PBackendAnnotation]): Doc =
-    "#backend" <> brackets(showList(annotations)(showBackendAnnotation))
+    if (annotations.isEmpty) emptyDoc
+    else "#backend" <> brackets(showList(annotations)(showBackendAnnotation))
 
   // misc
 

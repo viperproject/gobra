@@ -3,6 +3,8 @@
 
 package GhostTypeDeclSimple01
 
+// checks that assignments work irrespective of actual / ghost parameters being type definitions or aliases
+
 type ActualIntDef int
 type ActualIntAlias = int
 

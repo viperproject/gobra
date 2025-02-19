@@ -330,11 +330,10 @@ object Info extends LazyLogging {
     // create an error message located at the import statement to indicate errors in the imported package
     // we distinguish between regular errors and packages whose source files could not be found (note that cyclic
     // errors are handled before type-checking)
+    // I.e., we report a NotFound error if there is one or alternatively propagate `errs`:
     val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
-    // alternativeErr is a function to compute the message only when needed
-    val alternativeErr = () => message(errNode, s"Package '$importTarget' contains errors: $errs")
     notFoundErr.map(e => message(errNode, e.message))
-      .getOrElse(alternativeErr())
+      .getOrElse(message(errNode, s"Package '$importTarget' contains errors: $errs"))
   }
 
   private def getErasedGhostCode(pkg: PPackage, info: TypeInfoImpl): String = {

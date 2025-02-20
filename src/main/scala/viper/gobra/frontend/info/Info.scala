@@ -309,13 +309,7 @@ object Info extends LazyLogging {
 
     messagesOrInfo.fold(
       messages => {
-        // remove duplicates as errors related to imported packages might occur multiple times
-        // consider this: each error in an imported package is converted to an error at the import node with
-        // message 'Package <pkg name> contains errors'. If the imported package contains 2 errors then only a single error
-        // should be reported at the import node instead of two.
-        // however, the duplicate removal should happen after translation so that the error position is correctly
-        // taken into account for the equality check.
-        val typeErrors = pkg.positions.translate(messages, TypeError).distinct
+        val typeErrors = pkg.positions.translate(messages, TypeError)
         config.reporter report TypeCheckFailureMessage(sourceNames, pkg.packageClause.id.name, () => pkg, typeErrors)
         Left(typeErrors)
       },

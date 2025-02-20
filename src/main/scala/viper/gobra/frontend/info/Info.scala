@@ -309,7 +309,12 @@ object Info extends LazyLogging {
 
     messagesOrInfo.fold(
       messages => {
-        val typeErrors = pkg.positions.translate(messages, TypeError)
+        // the type checker sometimes produces duplicate errors, which we remove here (e.g., when type checking
+        // a program with duplicate identifiers such as `globals/globals-type-fail04.gobra`).
+        // duplicate removal should happen after translation so that the error position is correctly
+        // taken into account for the equality check.
+        // issue #857 keeps track that we should eventually get rid of `distinct` here.
+        val typeErrors = pkg.positions.translate(messages, TypeError).distinct
         config.reporter report TypeCheckFailureMessage(sourceNames, pkg.packageClause.id.name, () => pkg, typeErrors)
         Left(typeErrors)
       },

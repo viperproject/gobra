@@ -486,7 +486,7 @@ trait NameResolution {
     }
     case PDot(base: PNamedOperand, id) => symbTableLookup(base.id) match {
       case pkg: Import =>
-        tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl) match {
+        tryPackageLookup(RegularImport(pkg.decl.importPath), id) match {
           case Some((f: Function, _)) => Some(f)
           case _ => None
         }

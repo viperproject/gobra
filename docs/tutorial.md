@@ -500,7 +500,7 @@ type stream interface {
 </tr>
 </table>
 
-The following snippet illustrates an implementation of the `stream` interface. The function `typeOf` returns the dynamic type of an interface. The type assertion `y.(int)` requires that the interface `y` has the dynamic type `int` and returns the dynamic value of the interface. Note that without a preceding `typeOf(y) == int` the type assertion fails.
+The following snippet illustrates an implementation of the `stream` interface. The function `typeOf` returns the dynamic type of an interface. The type assertion `y.(int)` requires that the interface `y` has the dynamic type `int` and returns the dynamic value of the interface. Note that without a preceding `typeOf(y) == type[int]` the type assertion fails.
 
 ```go (test/resources/regressions/tutorial-examples/interfaces.gobra)
 // implementation

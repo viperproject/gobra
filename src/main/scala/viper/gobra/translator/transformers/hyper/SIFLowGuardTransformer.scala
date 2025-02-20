@@ -12,6 +12,8 @@ import viper.gobra.reporting.Source
 import viper.gobra.translator.transformers.ViperTransformer
 import viper.silver.ast._
 import viper.silver.ast.utility.Simplifier
+import viper.silver.plugin.standard.predicateinstance.PredicateInstance
+import viper.silver.plugin.standard.termination.{DecreasesClause, DecreasesTuple, DecreasesWildcard}
 import viper.silver.verifier.AbstractError
 
 import scala.annotation.{tailrec, unused}
@@ -176,6 +178,7 @@ trait SIFLowGuardTransformer {
     }
   }
 
+  // TODO (joao): do sth similar for functions
   def relationalPredicates(p: Program): String => Boolean = {
     val (directlyRelationalPredicates, other) = p.predicates.partition(_.body.exists(directlyRelational))
 
@@ -197,7 +200,35 @@ trait SIFLowGuardTransformer {
 
 
   def assertion(e: Exp, ctx: Context): Exp = {
-    def positiveUnary(e: Exp): Exp = And(runExp(e, ctx.major), runExp(e, ctx.minor))(e.pos, e.info, e.errT)
+    def positiveUnary(e: Exp): Exp = {
+      e match {
+        case d: DecreasesClause =>
+          d match {
+            case t: DecreasesTuple =>
+              val tupleMajor = t.tupleExpressions.map(runExp(_, ctx.major))
+              val tupleMinor = t.tupleExpressions.map(runExp(_, ctx.minor))
+              val condMajor = t.condition.map(runExp(_, ctx.major))
+              val condMinor = t.condition.map(runExp(_, ctx.minor))
+              val newTuple = tupleMajor ++ tupleMinor
+              val newCond = for {
+                c1 <- condMajor
+                c2 <- condMinor
+              } yield Or(c1, c2)(c1.pos, c1.info, c1.errT)
+              DecreasesTuple(newTuple, newCond)(d.pos, d.info, d.errT)
+            case w: DecreasesWildcard =>
+              val condMajor = w.condition.map(runExp(_, ctx.major))
+              val condMinor = w.condition.map(runExp(_, ctx.minor))
+              val newCond = for {
+                c1 <- condMajor
+                c2 <- condMinor
+              } yield Or(c1, c2)(c1.pos, c1.info, c1.errT)
+              DecreasesWildcard(newCond)(d.pos, d.info, d.errT)
+            case d => d
+          }
+        case _ =>
+          And(runExp(e, ctx.major), runExp(e, ctx.minor))(e.pos, e.info, e.errT)
+      }
+    }
     assertionWithPositiveUnary(e, ctx, positiveUnary)
   }
 
@@ -270,6 +301,10 @@ trait SIFLowGuardTransformer {
     PredicateAccess(args = args.map(runExp(_, ctx)), predicateName = ctx.rename(p))(pos, info, errT)
   }
 
+  def runPredicateInstance(p: String, args: Seq[Exp], ctx: RunContext)(pos: Position, info: Info, errT: ErrorTrafo): PredicateInstance = {
+    PredicateInstance(args = args.map(runExp(_, ctx)), p = ctx.rename(p))(pos, info, errT)
+  }
+
   def comparison(l: SIFLowExp, ctx: Context): Exp = {
     EqCmp(runExp(l.exp, ctx.major), runExp(l.exp, ctx.minor))(l.pos, l.info, l.errT)
   }
@@ -297,6 +332,7 @@ trait SIFLowGuardTransformer {
       case f: Field => runField(f, ctx)
       case f: FuncApp => f.copy(funcname = ctx.rename(f.funcname), args = f.args.map(go))(f.pos, f.info, f.typ, f.errT)
       case p: PredicateAccess => runPredicateAccess(p.predicateName, p.args, ctx)(p.pos, p.info, p.errT)
+      case p: PredicateInstance => runPredicateInstance(p.p, p.args, ctx)(p.pos, p.info, p.errT)
       case l: SIFLowExp => TrueLit()(l.pos, l.info, l.errT)
       case l: SIFLowEventExp => TrueLit()(l.pos, l.info, l.errT)
     }

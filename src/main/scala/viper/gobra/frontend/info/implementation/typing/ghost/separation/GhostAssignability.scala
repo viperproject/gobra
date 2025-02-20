@@ -138,15 +138,13 @@ trait GhostAssignability {
     */
   private def dfltGhostAssignableMsg[L <: PNode](pre: WellDefinedness[L])(ghost: L => Boolean): (Boolean, L) => Messages = {
     case (g, l) =>
-      val lhsMsgs = pre(l).out
-      if (lhsMsgs.isEmpty) {
+      if (pre(l).valid) {
         // `l` is well-defined
         error(l, "ghost error: ghost cannot be assigned to non-ghost", g && !ghost(l))
       } else {
-        // We return the well-definedness messages of 'l' even though these messages should already
-        // get reported when visiting 'l' in the AST.
-        // This ensures that we do not miss them and deduplication will remove duplicate messages
-        lhsMsgs
+        // we skip all dependent checks as `l` is not well-defined.
+        // we assume that the corresponding messages about `l` non-well-definedness are reported when visiting `l` in the AST.
+        noMessages
       }
   }
 

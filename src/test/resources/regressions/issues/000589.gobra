@@ -3,7 +3,7 @@
 
 package pkg
 
-type list adt {
+ghost type list adt {
 	Empty{}
 
 	Cons{

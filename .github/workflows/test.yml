@@ -208,7 +208,7 @@ jobs:
         run: |
           docker run \
             ${{ env.IMAGE_TAG }} \
-            -i tutorial-examples/basicAnnotations.gobra
+            -i tutorial-examples/basic-annotations.gobra
 
       - name: Decide whether image should be deployed or not
         run: |

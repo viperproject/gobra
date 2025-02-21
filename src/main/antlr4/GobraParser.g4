@@ -35,8 +35,8 @@ friendPkgDecl: FRIENDPKG importPath assertion;
 
 // Ghost members
 sourceFile:
-   (pkgInvariant eos)* (initPost eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)* (
-    (specMember | declaration | ghostMember) eos
+  (pkgInvariant eos)* (initPost eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)* (
+    member eos
   )* EOF;
 
 // `preamble` is a second entry point allowing us to parse only the top of a source.
@@ -52,6 +52,8 @@ pkgInvariant: DUPLICABLE? PKG_INV assertion;
 importSpec: (importPre eos)* alias = (DOT | IDENTIFIER)? importPath;
 
 importDecl: (importPre eos)* (IMPORT importSpec | IMPORT L_PAREN (importSpec eos)* R_PAREN);
+
+member: specMember | declaration | ghostMember;
 
 ghostMember: implementationProof
   | fpredicateDecl
@@ -145,7 +147,7 @@ seqUpdClause: expression ASSIGN expression;
 
 // Ghost Type Literals
 
-ghostTypeLit: sqType | ghostSliceType | ghostPointerType | domainType | adtType;
+ghostTypeLit: sqType | ghostSliceType | ghostPointerType | ghostStructType | domainType | adtType;
 
 domainType: DOM L_CURLY (domainClause eos)* R_CURLY;
 
@@ -160,6 +162,8 @@ adtFieldDecl: identifierList? type_;
 ghostSliceType: GHOST L_BRACKET R_BRACKET elementType;
 
 ghostPointerType: GPOINTER L_BRACKET elementType R_BRACKET;
+
+ghostStructType: GHOST structType;
 
 // copy of `fieldDecl` from GoParser.g4 extended with an optional `GHOST` modifier for fields and embedded fields:
 fieldDecl: GHOST? (

@@ -21,9 +21,10 @@ func contains(s []int, x int) (isContained bool, ghost idx int) {
 
 ghost
 requires forall j int :: 0 <= j && j < len(s) ==> acc(&s[j],_)
-ensures len(res) == len(s)
-ensures forall j int :: {s[j]} {res[j]} 0 <= j && j < len(s) ==> s[j] == res[j]
+ensures  len(res) == len(s)
+ensures  forall j int :: {s[j]} {res[j]} 0 <= j && j < len(s) ==> s[j] == res[j]
+decreases len(s)
 pure func toSeq(s []int) (res seq[int]) {
-	return (len(s) == 0 ? seq[int]{} : 
+	return (len(s) == 0 ? seq[int]{} :
 		toSeq(s[:len(s)-1]) ++ seq[int]{s[len(s) - 1]})
 }

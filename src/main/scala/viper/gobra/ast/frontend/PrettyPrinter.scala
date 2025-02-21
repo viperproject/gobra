@@ -628,7 +628,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PNamedOperand(id) => showId(id)
     case PBoolType() => "bool"
     case PStringType() => "string"
-    case PPermissionType() => "perm"
     case PIntType() => "int"
     case PInt8Type() => "int8"
     case PInt16Type() => "int16"
@@ -657,7 +656,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
     case PStructType(clauses) => "struct" <+> block(ssep(clauses map showStructClause, line))
     case PFunctionType(args, result) => "func" <> parens(showParameterList(args)) <> showResult(result)
-    case PPredType(args) => "pred" <> parens(showTypeList(args))
     case PInterfaceType(embedded, mspec, pspec) =>
       "interface" <+> block(
         ssep(embedded map showInterfaceClause, line) <>
@@ -669,12 +667,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showGhostType(typ : PGhostType) : Doc = typ match {
+    case PPermissionType() => "perm"
     case PSequenceType(elem) => "seq" <> brackets(showType(elem))
     case PSetType(elem) => "set" <> brackets(showType(elem))
     case PMultisetType(elem) => "mset" <> brackets(showType(elem))
     case PMathematicalMapType(keys, values) => "dict" <> brackets(showType(keys)) <> showType(values)
     case POptionType(elem) => "option" <> brackets(showType(elem))
     case PGhostPointerType(elem) => "gpointer" <> brackets(showType(elem))
+    case PExplicitGhostStructType(actual) => "ghost" <+> showType(actual)
     case PGhostSliceType(elem) => "ghost" <+> brackets(emptyDoc) <> showType(elem)
     case PDomainType(funcs, axioms) =>
       "domain" <+> block(
@@ -682,6 +682,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       )
     case PAdtType(clauses) => "adt" <> block(ssep(clauses map showMisc, line))
     case PMethodReceiveGhostPointer(t) => "gpointer" <> brackets(showType(t))
+    case PPredType(args) => "pred" <> parens(showTypeList(args))
   }
 
   def showStructClause(c: PStructClause): Doc = c match {
@@ -721,7 +722,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     annotation.key <> parens(showList(annotation.values)(d => d))
 
   def showBackendAnnotations(annotations: Vector[PBackendAnnotation]): Doc =
-    "#backend" <> brackets(showList(annotations)(showBackendAnnotation))
+    if (annotations.isEmpty) emptyDoc
+    else "#backend" <> brackets(showList(annotations)(showBackendAnnotation))
 
   // misc
 

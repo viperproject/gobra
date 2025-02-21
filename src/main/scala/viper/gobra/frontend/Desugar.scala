@@ -3537,16 +3537,10 @@ object Desugar extends LazyLogging {
       if (!isImportedPkg) {
         pkg.imports.foreach { imp =>
           val importedPackage = RegularImport(imp.importPath)
-          info.dependentTypeInfo(importedPackage)() match {
-            case Right(tI) =>
-              val importedPkg = tI.getTypeInfo.tree.originalRoot
-              val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
-              initSpecs.registerImportPresFromMainPkg(importedPkg, desugaredPre)
-            case _ =>
-              val errorMsgTypeInfoNotFound =
-                s"Desugarer expects to have acess to the type information of all imported packages but could not find $importedPackage"
-              Violation.violation(errorMsgTypeInfoNotFound)
-          }
+          val tI = info.dependentTypeInfo(importedPackage)
+          val importedPkg = tI.getTypeInfo.tree.originalRoot
+          val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
+          initSpecs.registerImportPresFromMainPkg(importedPkg, desugaredPre)
         }
       }
 
@@ -3845,7 +3839,7 @@ object Desugar extends LazyLogging {
 
       case t: Type.StructT =>
         val inFields: Vector[in.Field] = structD(t, addrMod)(src)
-        registerType(in.StructT(inFields, addrMod))
+        registerType(in.StructT(inFields, ghost = t.isGhost, addrMod))
 
       case t: Type.AdtT =>
         val adtName = nm.adt(t.declaredType)
@@ -4595,10 +4589,16 @@ object Desugar extends LazyLogging {
 
       def goE(expr: PExpression): Writer[in.Node] = expr match {
         case p: PInvoke => info.resolve(p) match {
-          case Some(x: ap.PredicateCall) => predicateCallAccD(ctx, info)(x)(src)
+          case Some(x: ap.PredicateCall) =>
+            // we turn a `PredicateAccess` into an `Access` to unify this case
+            // with desugaring a PAccess:
+            for {
+              pa <- predicateCallAccD(ctx, info)(x)(src)
+            } yield in.Access(in.Accessible.Predicate(pa), in.FullPerm(pa.info))(pa.info)
           case Some(_: ap.FunctionCall) => exprD(ctx, info)(p)
           case _ => violation(s"Unexpected expression $expr")
         }
+        case p: PAccess => assertionD(ctx, info)(p)
         case _ => exprD(ctx, info)(expr)
       }
 

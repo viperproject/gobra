@@ -69,8 +69,14 @@ trait NameResolution {
             // therefore, we do not use `isGhost` but `spec.isGhost`:
             MethodSpec(spec, tdef, spec.isGhost, this)
 
-          case decl: PFieldDecl => Field(decl, isGhost, this)
-          case decl: PEmbeddedDecl => Embbed(decl, isGhost, this)
+          case tree.parent.pair(decl: PFieldDecl, tree.parent.pair(_: PFieldDecls, _: PExplicitGhostStructClause)) =>
+            // this field declaration has an explicit ghost modifier
+            Field(decl, ghost = true, this)
+          case decl: PFieldDecl => Field(decl, ghost = false, this)
+          case tree.parent.pair(decl: PEmbeddedDecl, _: PExplicitGhostStructClause) =>
+            // this embedded declaration has an explicit ghost modifier
+            Embbed(decl, ghost = true, this)
+          case decl: PEmbeddedDecl => Embbed(decl, ghost = false, this)
 
           case tree.parent.pair(decl: PNamedParameter, _: PResult) => OutParameter(decl, isGhost, canParameterBeUsedAsShared(decl), this)
           case decl: PNamedParameter => InParameter(decl, isGhost, canParameterBeUsedAsShared(decl), this)
@@ -480,7 +486,7 @@ trait NameResolution {
     }
     case PDot(base: PNamedOperand, id) => symbTableLookup(base.id) match {
       case pkg: Import =>
-        tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl) match {
+        tryPackageLookup(RegularImport(pkg.decl.importPath), id) match {
           case Some((f: Function, _)) => Some(f)
           case _ => None
         }

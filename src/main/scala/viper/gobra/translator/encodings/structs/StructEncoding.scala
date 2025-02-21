@@ -148,7 +148,18 @@ class StructEncoding extends TypeEncoding {
     *
     * [(lhs: Struct{F}) == rhs: Struct{_}] -> AND f in actual(F): [lhs.f == rhs.f] (NOTE: f ranges only over actual fields since `goEqual` corresponds to actual comparison)
     */
-  override def goEqual(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = default(super.goEqual(ctx))(structEqual(ctx, useGoEquality = true))
+  override def goEqual(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = default(super.goEqual(ctx)) {
+    case (lhs :: ctx.Struct(_), rhs :: ctx.Struct(_), src) =>
+      def hasGhostStructType(e: in.Expr): Boolean = underlyingType(e.typ)(ctx) match {
+        case t: in.StructT => t.ghost
+        case _ => false
+      }
+
+      // if lhs is a ghost struct (_not_ an actual struct contains just ghost fields) then we use ghost equality
+      val isGhostStructComparison = hasGhostStructType(lhs)
+      require(isGhostStructComparison == hasGhostStructType(rhs), "operands of equality operation do not agree on their ghostness")
+      structEqual(ctx, useGoEquality = !isGhostStructComparison)(lhs, rhs, src)
+  }
 
   /**
     * Encodes equality of two struct values under consideration of either the Go or Gobra/ghost semantics
@@ -275,7 +286,7 @@ class StructEncoding extends TypeEncoding {
 
   private def indexOfField(fs: Vector[in.Field], f: in.Field): Int = {
     val idx = fs.indexOf(f)
-    Violation.violation(idx >= 0, s"$idx, ${f.typ.addressability}, ${fs.map(_.typ.addressability)} - Did not find field $f in $fs")
+    Violation.violation(idx >= 0, s"$idx, ${f.typ.addressability}, ${fs.map(_.typ.addressability)}, ${f.ghost}, ${fs.map(_.ghost)} - Did not find field $f in $fs")
     idx
   }
 
@@ -287,7 +298,7 @@ class StructEncoding extends TypeEncoding {
     */
   private val shDfltFunc: FunctionGenerator[Vector[in.Field]] = new FunctionGenerator[Vector[in.Field]] {
     override def genFunction(fs: Vector[in.Field])(ctx: Context): vpr.Function = {
-      val resType = in.StructT(fs, Shared)
+      val resType = in.StructT(fs, ghost = false, Shared) // ghostness does not matter as the resulting Viper type is the same
       val vResType = typ(ctx)(resType)
       val src = in.DfltVal(resType)(Source.Parser.Internal)
       // variable name does not matter because it is turned into a vpr.Result

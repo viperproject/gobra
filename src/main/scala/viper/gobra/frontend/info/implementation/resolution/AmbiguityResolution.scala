@@ -51,7 +51,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
     case n: PNamedOperand =>
       entity(n.id) match {
         case s: st.Import => Some(ap.Import(n.id, s))
-        case s: st.NamedType => Some(ap.NamedType(n.id, s))
+        case s: st.ActualTypeEntity => Some(ap.NamedType(n.id, s))
         case s: st.Variable => s match {
           case g: st.GlobalVariable => Some(ap.GlobalVariable(n.id, g))
           case _ => Some(ap.LocalVariable(n.id, s))

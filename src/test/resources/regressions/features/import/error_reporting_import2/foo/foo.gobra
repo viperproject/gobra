@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package foo
+
+decreases
+//:: ExpectedOutput(type_error)
+func ErroneousFunction() mset[int] { // invalid as an _actual_ function cannot return a _ghost_ type
+    return mset[int]{ 42 }
+}

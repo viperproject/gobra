@@ -6,6 +6,7 @@ package tutorial
 type stream interface {
 	pred mem()
 
+	decreases
 	requires acc(mem(), 1/2)
 	pure hasNext() bool
 
@@ -18,6 +19,7 @@ type stream interface {
 type counter struct{ f, max int }
 
 requires acc(x, 1/2)
+decreases
 pure func (x *counter) hasNext() bool {
 	return x.f < x.max
 }

@@ -54,7 +54,6 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val dependentTypeInfo: Dep
   with Addressability
   with TypeIdentity
   with PointsTo
-  with Equality
   with Executability
   with ConstantEvaluation
   with Implements

@@ -3,25 +3,25 @@
 
 package adts
 
-type State adt {
+ghost type State adt {
     Modified{}
     Shared{}
     Invalid{}
 }
 
-type ProcessorSignal adt {
+ghost type ProcessorSignal adt {
     PrWr{}
     PrRd{}
 }
 
-type BusSignal adt {
+ghost type BusSignal adt {
     BusRd{}
     BusRdX{}
     BusUpgr{}
     NoSig{}
 }
 
-type BusOpt adt {
+ghost type BusOpt adt {
     Some {
         sig BusSignal
     }
@@ -38,6 +38,7 @@ pred (m *Machine) isMachine() {
 }
 
 ghost
+decreases
 requires m.isMachine()
 pure func (m *Machine) stateOfMachine() State {
     return unfolding m.isMachine() in (
@@ -49,6 +50,7 @@ pure func (m *Machine) stateOfMachine() State {
 }
 
 ghost
+decreases
 requires i >= -1 && i <= 2
 pure func busSigToAdt(i int) BusSignal {
     return (match i {
@@ -61,6 +63,7 @@ pure func busSigToAdt(i int) BusSignal {
 
 
 ghost
+decreases
 requires i >= 0 && i <= 1
 pure func prSigToAdt(i int) ProcessorSignal {
     return (match i {

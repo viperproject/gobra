@@ -172,7 +172,7 @@ sealed trait PFunctionOrClosureDecl extends PScope {
   def body: Option[(PBodyParameterInfo, PBlock)]
 }
 
-sealed trait PFunctionOrMethodDecl extends PNode with PScope {
+sealed trait PFunctionOrMethodDecl extends PActualMember with PScope {
   def id: PIdnDef
 }
 
@@ -182,7 +182,7 @@ case class PFunctionDecl(
                           result: PResult,
                           spec: PFunctionSpec,
                           body: Option[(PBodyParameterInfo, PBlock)]
-                        ) extends PFunctionOrClosureDecl with PActualMember with PCodeRootWithResult with PWithBody with PGhostifiableMember with PFunctionOrMethodDecl
+                        ) extends PFunctionOrClosureDecl with PFunctionOrMethodDecl with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
 case class PMethodDecl(
                         id: PIdnDef,
@@ -191,7 +191,7 @@ case class PMethodDecl(
                         result: PResult,
                         spec: PFunctionSpec,
                         body: Option[(PBodyParameterInfo, PBlock)]
-                      ) extends PActualMember with PDependentDef with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember with PFunctionOrMethodDecl
+                      ) extends PFunctionOrMethodDecl with PDependentDef with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
 sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration {
 
@@ -628,7 +628,7 @@ sealed trait PLiteralType extends PNode
   * Represents a named type in Go.
   * @see [[https://go.dev/ref/spec#TypeName]]
   **/
-sealed trait PTypeName extends PActualType {
+sealed trait PTypeName extends PType {
   def id : PUseLikeId
   val name: String = id.name
 }
@@ -651,33 +651,37 @@ object PUnqualifiedTypeName {
   *
   * @param name The identifier associated with this type
   */
-sealed abstract class PPredeclaredType(override val name: String) extends PUnqualifiedTypeName with PUseLikeId {
+sealed abstract class PActualPredeclaredType(override val name: String) extends PUnqualifiedTypeName with PUseLikeId with PActualType {
   override def id: PUseLikeId = this
 }
 
-case class PBoolType() extends PPredeclaredType("bool")
-case class PStringType() extends PPredeclaredType("string")
-case class PPermissionType() extends PPredeclaredType("perm")
+sealed abstract class PGhostPredeclaredType(override val name: String) extends PUnqualifiedTypeName with PUseLikeId with PGhostType {
+  override def id: PUseLikeId = this
+}
+
+case class PBoolType() extends PActualPredeclaredType("bool")
+case class PStringType() extends PActualPredeclaredType("string")
+case class PPermissionType() extends PGhostPredeclaredType("perm")
 
 sealed trait PIntegerType extends PType
-case class PIntType() extends PPredeclaredType("int") with PIntegerType
-case class PInt8Type() extends PPredeclaredType("int8") with PIntegerType
-case class PInt16Type() extends PPredeclaredType("int16") with PIntegerType
-case class PInt32Type() extends PPredeclaredType("int32") with PIntegerType
-case class PInt64Type() extends PPredeclaredType("int64") with PIntegerType
-case class PRune() extends PPredeclaredType("rune") with PIntegerType
+case class PIntType() extends PActualPredeclaredType("int") with PIntegerType
+case class PInt8Type() extends PActualPredeclaredType("int8") with PIntegerType
+case class PInt16Type() extends PActualPredeclaredType("int16") with PIntegerType
+case class PInt32Type() extends PActualPredeclaredType("int32") with PIntegerType
+case class PInt64Type() extends PActualPredeclaredType("int64") with PIntegerType
+case class PRune() extends PActualPredeclaredType("rune") with PIntegerType
 
-case class PUIntType() extends PPredeclaredType("uint") with PIntegerType
-case class PUInt8Type() extends PPredeclaredType("uint8") with PIntegerType
-case class PUInt16Type() extends PPredeclaredType("uint16") with PIntegerType
-case class PUInt32Type() extends PPredeclaredType("uint32") with PIntegerType
-case class PUInt64Type() extends PPredeclaredType("uint64") with PIntegerType
-case class PByte() extends PPredeclaredType("byte") with PIntegerType
-case class PUIntPtr() extends PPredeclaredType("uintptr") with PIntegerType
+case class PUIntType() extends PActualPredeclaredType("uint") with PIntegerType
+case class PUInt8Type() extends PActualPredeclaredType("uint8") with PIntegerType
+case class PUInt16Type() extends PActualPredeclaredType("uint16") with PIntegerType
+case class PUInt32Type() extends PActualPredeclaredType("uint32") with PIntegerType
+case class PUInt64Type() extends PActualPredeclaredType("uint64") with PIntegerType
+case class PByte() extends PActualPredeclaredType("byte") with PIntegerType
+case class PUIntPtr() extends PActualPredeclaredType("uintptr") with PIntegerType
 
 sealed trait PFloatType extends PType
-case class PFloat32() extends PPredeclaredType("float32") with PFloatType
-case class PFloat64() extends PPredeclaredType("float64") with PFloatType
+case class PFloat32() extends PActualPredeclaredType("float32") with PFloatType
+case class PFloat64() extends PActualPredeclaredType("float64") with PFloatType
 
 // TODO: add more types
 
@@ -739,9 +743,7 @@ sealed trait PMethodRecvType extends PType { // TODO: will have to be removed fo
 
 case class PMethodReceiveName(typ: PNamedOperand) extends PMethodRecvType with PActualType
 
-trait PMethodReceivePointer extends PMethodRecvType {
-  def typ: PNamedOperand
-}
+trait PMethodReceivePointer extends PMethodRecvType
 
 case class PMethodReceiveActualPointer(typ: PNamedOperand) extends PMethodReceivePointer with PActualType
 
@@ -751,8 +753,6 @@ case class PMethodReceiveGhostPointer(typ: PNamedOperand) extends PMethodReceive
 
 
 case class PFunctionType(args: Vector[PParameter], result: PResult) extends PTypeLit with PScope
-
-case class PPredType(args: Vector[PType]) extends PTypeLit
 
 case class PInterfaceType(
                            embedded: Vector[PInterfaceName],
@@ -1267,6 +1267,8 @@ case class POptionType(elem : PType) extends PGhostLiteralType
 /** The type of ghost pointers */
 case class PGhostPointerType(elem: PType) extends PGhostLiteralType
 
+case class PExplicitGhostStructType(actual: PStructType) extends PGhostLiteralType with PGhostifier[PStructType]
+
 /** The type of ADT types */
 case class PAdtType(clauses: Vector[PAdtClause]) extends PGhostLiteralType with PUnorderedScope
 
@@ -1284,6 +1286,8 @@ case class PDomainFunction(id: PIdnDef,
                                  ) extends PGhostMisc with PScope with PCodeRoot with PDomainClause
 
 case class PDomainAxiom(exp: PExpression) extends PGhostMisc with PScope with PCodeRoot with PDomainClause
+
+case class PPredType(args: Vector[PType]) extends PGhostLiteralType
 
 
 /**

@@ -18,7 +18,7 @@ import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
-import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, PreambleContext, SourceFileContext, SpecMemberContext, StmtOnlyContext, TypeOnlyContext}
+import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, MemberContext, PreambleContext, SourceFileContext, StmtOnlyContext, TypeOnlyContext}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, RegularImport, RegularPackage}
 import viper.gobra.util.{GobraExecutionContext, Job, TaskManager, Violation}
 import viper.silver.ast.SourcePosition
@@ -372,11 +372,11 @@ object Parser extends LazyLogging {
     parser.parse(parser.sourceFile())
   }
 
-  def parseFunction(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], PMember] = {
+  def parseMember(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], Vector[PMember]] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new SyntaxAnalyzer[SpecMemberContext, PMember](source, ListBuffer.empty[ParserError], pom, specOnly)
-    parser.parse(parser.specMember())
+    val parser = new SyntaxAnalyzer[MemberContext, Vector[PMember]](source, ListBuffer.empty[ParserError], pom, specOnly)
+    parser.parse(parser.member())
   }
 
   def parseStmt(source: Source): Either[Vector[ParserError], PStatement] = {

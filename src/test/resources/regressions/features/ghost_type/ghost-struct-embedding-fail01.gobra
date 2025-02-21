@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostStructEmbeddingFail01
+
+type T1 struct {
+    val int
+}
+
+func (t T1) F() int {
+    return 42
+}
+
+type T struct {
+    //:: ExpectedOutput(type_error)
+    ghost T1 // ghost embedding; this is currently disallowed to fix the issue outlined in `test` below
+}
+
+ghost type GhostT ghost struct {
+    ghost T1 // ghost embedding; this is okay as GhostT is a ghost struct
+}
+
+func test(t T) {
+    //:: ExpectedOutput(type_error)
+    t.F() // this should be rejected by Gobra, because the fact that T has a method F() comes from a ghost embedding, and we are in actual code
+}

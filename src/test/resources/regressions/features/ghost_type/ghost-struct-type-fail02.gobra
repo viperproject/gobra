@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostStructTypeFail02
+
+// checks that fields of a ghost struct type are treated as ghost fields
+
+ghost type GhostStruct ghost struct {
+    f int
+}
+
+func foo(ghost s GhostStruct) int {
+    s.f = 42
+    //:: ExpectedOutput(type_error)
+    checkThatArgIsActual(s.f)
+}
+
+func checkThatArgIsActual(input int) int {
+    return input
+}

@@ -3533,13 +3533,10 @@ object Desugar extends LazyLogging {
       pkg.imports.foreach{ imp => {
         val importedPackage = RegularImport(imp.importPath)
         Violation.violation(info.dependentTypeInfo.contains(importedPackage), s"Desugarer expects to have acess to the type information of all imported packages but could not find $importedPackage")
-        info.dependentTypeInfo(importedPackage)() match {
-          case Right(tI) =>
-            val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
-            Violation.violation(!config.enableLazyImports || desugaredPre.isEmpty, s"Import precondition found despite running with ${Config.enableLazyImportOptionPrettyPrinted}")
-            specCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
-          case e => Violation.violation(config.enableLazyImports, s"Unexpected value found $e while importing ${imp.importPath} - type information is assumed to be available for all packages when Gobra is executed with lazy imports disabled")
-        }
+        val tI = info.dependentTypeInfo(importedPackage)
+        val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
+        Violation.violation(!config.enableLazyImports || desugaredPre.isEmpty, s"Import precondition found despite running with ${Config.enableLazyImportOptionPrettyPrinted}")
+        specCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
       }}
 
       // Collect and register all postconditions of all PPrograms (i.e., files) in pkg
@@ -3796,7 +3793,7 @@ object Desugar extends LazyLogging {
 
       case t: Type.StructT =>
         val inFields: Vector[in.Field] = structD(t, addrMod)(src)
-        registerType(in.StructT(inFields, addrMod))
+        registerType(in.StructT(inFields, ghost = t.isGhost, addrMod))
 
       case t: Type.AdtT =>
         val adtName = nm.adt(t.declaredType)

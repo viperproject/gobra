@@ -885,8 +885,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   }
 
   addValidation {
-    val lazyImportsOn = enableLazyImports.toOption.contains(true)
-    if (lazyImportsOn) {
+    val lazyImportsSet = enableLazyImports.toOption.nonEmpty
+    if (lazyImportsSet) {
       Left(s"The flag $enableLazyImportOptionPrettyPrinted was removed in Gobra's PR #797.")
     } else {
       Right(())

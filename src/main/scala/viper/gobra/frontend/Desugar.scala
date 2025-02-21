@@ -45,7 +45,7 @@ object Desugar extends LazyLogging {
       val typeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
       val d = new Desugarer(importedPackage.positions, typeInfo, packageInitCollector)
-      val res = (d, d.packageD(importedPackage, true))
+      val res = (d, d.packageD(importedPackage, isImportedPkg  = true))
       importedDesugaringDurationMs.addAndGet(System.currentTimeMillis() - importedDesugaringStartMs)
       res
     }
@@ -54,7 +54,7 @@ object Desugar extends LazyLogging {
       val mainDesugaringStartMs = System.currentTimeMillis()
       // desugar the main package, i.e. the package on which verification is performed:
       val mainDesugarer = new Desugarer(pkg.positions, info, packageInitCollector)
-      val res = (mainDesugarer, mainDesugarer.packageD(pkg, false))
+      val res = (mainDesugarer, mainDesugarer.packageD(pkg, isImportedPkg = false))
       logger.trace {
         val durationS = f"${(System.currentTimeMillis() - mainDesugaringStartMs) / 1000f}%.1f"
         s"desugaring package ${info.pkgInfo.id} done, took ${durationS}s"
@@ -3439,12 +3439,12 @@ object Desugar extends LazyLogging {
     /**
       * Generates proof obligations for the initialization code of the package under verification.
       * Following Gobra's methodology, we do not check that the initialization code for imported packages
-      * establishes their package invariants. Instead, this is assumed. This is analogous to what we do for
-      * contracts of functions from imported packages.
+      * establishes their package invariants. Analogously to imported functions, we prove that these package
+      * invariants are established when verifying the imported packages. Thus, we can assume them here.
       *
       * @param mainPkg package under verification
       * @param initSpecs info about the init specifications of imported packages. All imported packages should
-      *                  have been registered in `specCollector` before calling this method
+      *                  have been registered in `initSpecs` before calling this method
       */
     def generatePkgInitProofObligations(mainPkg: PPackage, initSpecs: PackageInitSpecCollector): Unit = {
       mainPkg.programs.map(_.imports)
@@ -3484,6 +3484,13 @@ object Desugar extends LazyLogging {
       val src = meta(e, info)
       val assertion = specificationD(FunctionContext.empty(), info)(e)
       val funcProxy = in.FunctionProxy(nm.dupPkgInv())(src)
+      /**
+        * [ e ] ->
+        * requires e
+        * ensures e
+        * ensures e
+        * func dupPkgInv() {}
+        */
       in.Function(
         name = funcProxy,
         args = Vector.empty,
@@ -3565,8 +3572,8 @@ object Desugar extends LazyLogging {
     }
 
     /**
-      * Checks that the friend clauses of package `pkg` imply the conjunction of all imports' preconditions of `pkg`
-      * in the package under verification.
+      * Checks that the friend clauses of package `importedPackage` imply the conjunction of all imports' preconditions
+      * of this package in the package under verification, namely `mainPkg`.
       * @param mainPkg package under verification
       * @param importedPackage package containing friend clauses
       * @param importPresOfImportedPackage init preconditions to the package `importedPackage` from the `mainPkg`
@@ -3625,6 +3632,11 @@ object Desugar extends LazyLogging {
           a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(MainPreNotEstablished))
         }
         val funcProxy = in.FunctionProxy(nm.mainFuncProofObligation(info))(src)
+        /**
+          * requires mainPkgPosts // postconditions established by initialization
+          * ensures  mainFuncPreD // desugarer preconditions of the main function
+          * func mainFuncProofObligation() {}
+          */
         in.Function(
           name = funcProxy,
           args = Vector.empty,
@@ -3643,14 +3655,14 @@ object Desugar extends LazyLogging {
       * encoded as a method that performs the following operations, in order:
       * - inhale all preconditions of the imports in the file
       * - initialize all global variables
-      * - execute the operations on the LHS of the declarations by declaration order,
+      * - execute the operations on the RHS of the declarations by declaration order,
       *   as long as dependency order is respected.
       * - execute all inits in the current file in the order they appear
       * - exhale all package-invariants of the file
       * - exhale all friend clauses
-      * Note: these operations enforce non-interference between two different files in the same program. Thus,
-      * it is ok to check the initialization of a package by separately checking the initialization of each of
-      * its programs.
+      * Note: these operations enforce non-interference between two files belonging to the same package.
+      * Thus, it is ok to check the initialization of a package by separately checking the initialization of each of
+      * its files.
       */
     def checkProgramInitContract(p: PProgram)(sortedGlobVarDecls: Vector[in.GlobalVarDecl]): in.Function = {
       // all errors found during init are reported in the package clause of the file
@@ -5215,7 +5227,7 @@ object Desugar extends LazyLogging {
       friendClauses.filter(_._1 == pkg).map(e => (e._2, e._3))
     }
 
-    // Get all resources from friends destined to path `dst`.
+    // Get all resources from friends destined to path `uniquePkgPath `.
     def getFriendResourcesForDst(uniquePkgPath: String): Vector[(PPackage, in.Assertion)] = {
       friendClauses.filter {
         case (_, pathFriend, _) => uniquePkgPath == pathFriend

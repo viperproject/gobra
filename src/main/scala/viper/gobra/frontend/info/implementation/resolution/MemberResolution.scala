@@ -432,8 +432,9 @@ trait MemberResolution { this: TypeInfoImpl =>
   /** lookup `id` in package `importTarget` */
   def tryPackageLookup(importTarget: AbstractImport, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
     Violation.violation(dependentTypeInfo.contains(importTarget), s"Expected that package ${tree.root.info.id} has access to the type information of package $importTarget")
-    val foreignTypeChecker = dependentTypeInfo(importTarget)
-    val foreignPkgResult = foreignTypeChecker.externalRegular(id)
+    val foreignTypeCheckerAndWarnings = dependentTypeInfo(importTarget)
+    val foreignPkgResult = foreignTypeCheckerAndWarnings.externalRegular(id)
+    // warnings of imported packages are ignored
     foreignPkgResult.flatMap(m => Some((m, Vector())))
   }
 }

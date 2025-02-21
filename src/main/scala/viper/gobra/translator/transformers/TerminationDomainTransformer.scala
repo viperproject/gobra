@@ -6,7 +6,7 @@
 
 package viper.gobra.translator.transformers
 import java.nio.file.Path
-import viper.gobra.backend.BackendVerifier
+import viper.gobra.backend.Task
 import viper.silicon.Silicon
 import viper.silver.ast.utility.FileLoader
 import viper.silver.{ast => vpr}
@@ -21,7 +21,7 @@ import viper.silver.verifier.AbstractError
 // `beforeVerify`, which is already too late.
 class TerminationDomainTransformer extends ViperTransformer {
 
-  override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
+  override def transform(task: Task): Either[Seq[AbstractError], Task] = {
     // constructs a separate Viper program (as a string) that should be parsed
     // after parsing this separate Viper program, the resulting AST is combined with `task`
 
@@ -76,7 +76,7 @@ class TerminationDomainTransformer extends ViperTransformer {
     }
   }
 
-  private def combine(task: BackendVerifier.Task, other: vpr.Program): BackendVerifier.Task = {
+  private def combine(task: Task, other: vpr.Program): Task = {
     val prog = task.program
     val newProg = vpr.Program(
       prog.domains ++ other.domains,

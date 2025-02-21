@@ -7,7 +7,7 @@
 package viper.gobra.translator.encodings.programs
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.backend.BackendVerifier
+import viper.gobra.backend.Task
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.gobra.translator.context.{CollectorImpl, Context, ContextImpl, TranslatorConfig}
 import viper.gobra.translator.util.ViperWriter.MemberWriter
@@ -17,7 +17,7 @@ class ProgramsImpl extends Programs {
 
   import viper.gobra.translator.util.ViperWriter.MemberLevel._
 
-  override def translate(program: in.Program)(conf: TranslatorConfig): BackendVerifier.Task = {
+  override def translate(program: in.Program)(conf: TranslatorConfig): Task = {
 
     val (pos, info, errT) = program.vprMeta
 
@@ -63,7 +63,7 @@ class ProgramsImpl extends Programs {
 
     val backTrackInfo = BackTrackInfo(error.errorT, error.reasonT)
 
-    BackendVerifier.Task(
+    Task(
       program = prog,
       backtrack = backTrackInfo
     )

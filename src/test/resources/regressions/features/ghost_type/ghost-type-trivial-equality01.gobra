@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostTypeTrivialEquality01
+
+ghost type GhostStruct struct {
+    f int
+}
+
+func foo(ghost x, y GhostStruct) {
+    //:: ExpectedOutput(type_warning)
+    assert x == y
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert x === y
+}

@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Contributed by Patricia Firlejczyk based on one of the examples
+// not suitable for initialization-time irrelevance reported in
+// https://dl.acm.org/doi/10.1145/3622844
+
+package stdNamesAlt
+
+// ##(-I ..)
+
+pred StdNamesAltInv() { 	
+    acc(&anyRef._start, _) && acc(&anyRef._length, _) && anyRef._start == 0 &&
+    acc(&array._start, _) && acc(&array._length, _) && array._start == 0 &&
+    acc(&list._start, _) && acc(&list._length, _) && list._start == 0
+}

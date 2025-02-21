@@ -152,7 +152,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val dependentTypeInfo: Map
 
   override def isPureExpression(expr: PExpression): Boolean = isPureExpr(expr).isEmpty
 
-  def getTransitiveTypeInfos(includeThis: Boolean = true): Set[ExternalTypeInfo] = {
+  override def getTransitiveTypeInfos(includeThis: Boolean = true): Set[ExternalTypeInfo] = {
     val directTypeInfos = dependentTypeInfo.values.toSet
     // note that we call `getTransitiveTypeInfos` recursively with including the parameter in the results (which
     // corresponds to the parameter's default value)

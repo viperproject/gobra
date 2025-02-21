@@ -44,12 +44,16 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     needsMeasureError
   }
 
+  private def pureFunctionsDoNotNeedMayInitMsg = "Pure functions and methods cannot open package invariants," +
+    "and thus, they must not be annotated with 'mayInit'."
+
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
     if (member.spec.isPure) {
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
-        nonVariadicArguments(member.args)
+        nonVariadicArguments(member.args) ++
+        error(member, pureFunctionsDoNotNeedMayInitMsg, member.spec.mayBeUsedInInit)
     } else noMessages
   }
 
@@ -64,7 +68,8 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
-        nonVariadicArguments(member.args)
+        nonVariadicArguments(member.args) ++
+        error(member, pureFunctionsDoNotNeedMayInitMsg, member.spec.mayBeUsedInInit)
     } else noMessages
   }
 

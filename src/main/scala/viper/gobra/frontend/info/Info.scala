@@ -294,7 +294,7 @@ object Info extends VerifierPhaseNonFinal[(Config, PackageInfo, Map[AbstractPack
         case (importTarget, errsAndWarnings) => createImportMessages(pkg, importTarget, errsAndWarnings)
       }.toVector
       convertToTypeErrorsAndWarnings(pkg, dependentMsgs)
-        .map(Violation.violation("a failed dependent should always result in an error in the importing package"))
+        .map(_ => Violation.violation("a failed dependent should always result in an error in the importing package"))
     }
 
     logger.trace {

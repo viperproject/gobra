@@ -3,13 +3,16 @@
 
 package GhostTypeTrivialEquality01
 
-ghost type GhostStruct struct {
+ghost type GhostStruct ghost struct {
     f int
 }
 
-func foo(ghost x, y GhostStruct) {
-    //:: ExpectedOutput(type_warning)
-    assert x == y
+func foo1(ghost x, y GhostStruct) {
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert x == y // this equality check is not trivial but matches the semantics of `===`
+}
+
+func foo2(ghost x, y GhostStruct) {
     //:: ExpectedOutput(assert_error:assertion_error)
     assert x === y
 }

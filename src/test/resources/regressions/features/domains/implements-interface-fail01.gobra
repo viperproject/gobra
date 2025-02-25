@@ -23,14 +23,24 @@ ghost type intPair domain {
 // the following clause should be permitted by the type-checker:
 intPair implements any
 
-func test() {
+func test() (res bool) {
     x := pair(1,2)
     //:: ExpectedOutput(type_error)
-    assert equal(x, x) // fails as `equal` is actual
+    tmp := equalImpure(x, x) // cannot assign ghost argument to a non-ghost parameter
+    assert equalPure(x, x) // fine as we allow calling pure functions with ghost arguments by implicitly treating the callee as being ghost
+    //:: ExpectedOutput(type_error)
+    res = equalPure(x, x) // cannot assign implicitly ghost result to a non-ghost variable
+    return
 }
 
 decreases
 requires isComparable(a)
-pure func equal(a, b any) bool {
+func equalImpure(a, b any) bool {
+    return a == b
+}
+
+decreases
+requires isComparable(a)
+pure func equalPure(a, b any) bool {
     return a == b
 }

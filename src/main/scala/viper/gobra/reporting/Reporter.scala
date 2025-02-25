@@ -67,8 +67,14 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
         errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
       case _ => // ignore
     }
-    case m:ParserErrorMessage if streamErrs => m.result.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
-    case m:TypeCheckFailureMessage if streamErrs =>
+    case m: ParserSuccessMessage if streamErrs =>
+      m.warnings.foreach(warning => logger.warn(s"Warning at: ${warning.formattedMessage}"))
+    case m: ParserFailureMessage if streamErrs =>
+      m.warnings.foreach(warning => logger.warn(s"Warning at: ${warning.formattedMessage}"))
+      m.errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
+    case m: TypeCheckSuccessMessage if streamErrs =>
+      m.warnings.foreach(warning => logger.warn(s"Warning at: ${warning.formattedMessage}"))
+    case m: TypeCheckFailureMessage if streamErrs =>
       m.warnings.foreach(warning => logger.warn(s"Warning at: ${warning.formattedMessage}"))
       m.errors.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))
     case m:TransformerFailureMessage if streamErrs => m.result.foreach(err => logger.error(s"Error at: ${err.formattedMessage}"))

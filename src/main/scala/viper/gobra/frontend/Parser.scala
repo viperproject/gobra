@@ -11,7 +11,7 @@ import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Stra
 import org.bitbucket.inkytonik.kiama.util.{Positions, Source}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{error, message}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.Source.{FromFileSource, TransformableSource, getPackageInfo}
+import viper.gobra.frontend.Source.{TransformableSource, getPackageInfo}
 import viper.gobra.reporting.{Source => _, _}
 import org.antlr.v4.runtime.{CharStreams, CommonTokenStream, DefaultErrorStrategy, ParserRuleContext}
 import org.antlr.v4.runtime.atn.PredictionMode
@@ -21,8 +21,8 @@ import scalaz.Scalaz.futureInstance
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, MemberContext, PreambleContext, SourceFileContext, StmtOnlyContext, TypeOnlyContext}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, RegularImport, RegularPackage}
 import viper.gobra.frontend.ParserUtils.ParseResult
-import viper.gobra.util.VerifierPhase.{ErrorsAndWarnings, PhaseResult, Warnings}
-import viper.gobra.util.{GobraExecutionContext, Job, TaskManager, VerifierPhaseNonFinal, Violation}
+import viper.gobra.util.VerifierPhase.PhaseResult
+import viper.gobra.util.{GobraExecutionContext, Job, TaskManager, VerifierPhase, VerifierPhaseNonFinal, Violation}
 import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable.ListBuffer
@@ -31,8 +31,8 @@ import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 import scala.concurrent.Future
 
 object ParserUtils {
-  type ParseSuccessResult = (Vector[Source], PPackage)
-  type ParseResult = Either[Vector[ParserError], ParseSuccessResult]
+  type ParseSuccessResult = (Vector[Source], PPackage, Vector[ParserWarning])
+  type ParseResult = Either[Vector[ParserMessage], ParseSuccessResult]
 }
 
 
@@ -41,8 +41,13 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
 
   override val name: String = "Parser"
 
-  type ImportToPkgInfoOrErrorMap = Vector[(AbstractPackage, Either[Vector[ParserError], (Vector[Source], PackageInfo)])]
+  private type ParserErrorsAndWarnings = Vector[ParserMessage]
+  private type ParserWarnings = Vector[ParserWarning]
+  type ImportToPkgInfoOrErrorMap = Vector[(AbstractPackage, Either[ParserErrorsAndWarnings, (Vector[Source], PackageInfo)])]
   type PreprocessedSources = Vector[Source]
+  private type PreambleResult = Either[ParserErrorsAndWarnings, (PPreamble, ParserWarnings)]
+  private type ProgramResult = Either[ParserErrorsAndWarnings, (PProgram, ParserWarnings)]
+  private type PackageResult = Either[ParserErrorsAndWarnings, (PPackage, ParserWarnings)]
 
   class ParseManager(config: Config)(implicit executor: GobraExecutionContext) extends LazyLogging {
     private val manager = new TaskManager[AbstractPackage, PreprocessedSources, ParseResult](config.parseAndTypeCheckMode)
@@ -63,18 +68,13 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
       protected def getImports(importNodes: Vector[PImport], pom: PositionManager): ImportToPkgInfoOrErrorMap = {
         val explicitImports: Vector[(AbstractImport, ImportErrorFactory)] = importNodes
           .map(importNode => {
-            val importErrorFactory: ImportErrorFactory = (errMsg: String) => {
-              val err = pom.translate(message(importNode, errMsg), ParserError)
-              err
-            }
+            val importErrorFactory: ImportErrorFactory = (errMsg: String) =>
+              pom.translate(message(importNode, errMsg), ParserError)
             (RegularImport(importNode.importPath), importErrorFactory)
           })
         val imports = if (pkgInfo.isBuiltIn) { explicitImports } else {
-          val builtInImportErrorFactory: ImportErrorFactory = (errMsg: String) => {
-            val err = Vector(ParserError(errMsg, None))
-            config.reporter report ParserErrorMessage(err.head.position.get.file, err)
-            err
-          }
+          val builtInImportErrorFactory: ImportErrorFactory = (errMsg: String) =>
+            Vector(ParserError(errMsg, None))
           val builtInImportTuple = (BuiltInImport, builtInImportErrorFactory)
           explicitImports :+ builtInImportTuple
         }
@@ -107,11 +107,13 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
       var preambleParsingDurationMs: Long = 0
 
       private def getImportsForPackage(preprocessedSources: Vector[Source]): ImportToPkgInfoOrErrorMap = {
-        val preambles = preprocessedSources
+        val preamblesAndWarnings = preprocessedSources
           .map(preprocessedSource => processPreamble(preprocessedSource)(config))
           // we ignore imports in files that cannot be parsed:
           .collect { case Right(p) => p }
-        preambles.flatMap(preamble => getImports(preamble.imports, preamble.positions))
+        preamblesAndWarnings.flatMap {
+          case (preamble, _) => getImports(preamble.imports, preamble.positions)
+        }
       }
 
       protected override def sequentialPrecompute(): PreprocessedSources = {
@@ -136,15 +138,16 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
         // introduce additional synchronization
         val startMs = System.currentTimeMillis()
         for {
-          parsedProgram <- Parser.process(preprocessedSources, pkgInfo, specOnly = specOnly)(config)
-          postprocessedProgram <- Parser.postprocess(Right((preprocessedSources, parsedProgram)), specOnly = specOnly)(config)
+          processResult <- Parser.process(preprocessedSources, pkgInfo, specOnly = specOnly)(config)
+          (parsedProgram, warnings) = processResult
+          postprocessedProgram <- Parser.postprocess(Right((preprocessedSources, parsedProgram, warnings)), specOnly = specOnly)(config)
           _ = logger.trace {
             val parsingDurationMs = System.currentTimeMillis() - startMs
             val parsingDurationS = f"${parsingDurationMs / 1000f}%.1f"
             val preambleParsingRatio = f"${100f * preambleParsingDurationMs / parsingDurationMs}%.1f"
             s"parsing ${pkgInfo.id} done (took ${parsingDurationS}s; parsing preamble overhead is ${preambleParsingRatio}%)"
           }
-        } yield (pkgSources, postprocessedProgram._2) // we use `pkgSources` as the preprocessing of sources should be transparent from the outside
+        } yield (pkgSources, postprocessedProgram._2, postprocessedProgram._3) // we use `pkgSources` as the preprocessing of sources should be transparent from the outside
       }
     }
 
@@ -160,7 +163,7 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
       lazy val specOnly: Boolean = true
     }
 
-    private case class ParseFailureJob(errs: Vector[ParserError]) extends Job[PreprocessedSources, ParseResult] {
+    private case class ParseFailureJob(errs: ParserErrorsAndWarnings) extends Job[PreprocessedSources, ParseResult] {
       override protected def sequentialPrecompute(): PreprocessedSources =
         Vector.empty
       override protected def compute(precomputationResult: PreprocessedSources): ParseResult =
@@ -194,15 +197,31 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
     val (config, pkgInfo) = input
     val parseManager = new ParseManager(config)
     parseManager.parse(pkgInfo)
-    val res: Future[Either[ErrorsAndWarnings, (Map[AbstractPackage, ParseResult], Warnings)]] = for {
+    val res: Future[Either[ParserErrorsAndWarnings, (Map[AbstractPackage, ParseResult], ParserWarnings)]] = for {
       results <- parseManager.getResults
       res = results.get(RegularPackage(pkgInfo.id)) match {
-        case Some(Right(_)) => Right(results, Vector.empty)
-        case Some(Left(errs)) => Left(errs)
+        case Some(Right(pkgRes)) =>
+          report(config, pkgRes._3)
+          Right(results, pkgRes._3)
+        case Some(Left(errs)) =>
+          report(config, errs)
+          Left(errs)
         case _ => Violation.violation(s"No parse result for package '$pkgInfo' found")
       }
     } yield res
     EitherT.fromEither(res)
+  }
+
+  private def report(config: Config, errorsAndWarnings: ParserErrorsAndWarnings): Unit = {
+    val groupedErrorsAndWarnings = errorsAndWarnings.groupBy{ _.position.get.file }
+    groupedErrorsAndWarnings.foreach { case (p, pErrorsAndWarnings) =>
+      val (pErrors, pWarnings) = VerifierPhase.splitErrorsAndWarnings(pErrorsAndWarnings)
+      if (pErrors.isEmpty) {
+        config.reporter report ParserSuccessMessage(p, pWarnings)
+      } else {
+        config.reporter report ParserFailureMessage(p, pErrors, pWarnings)
+      }
+    }
   }
 
   private def preprocess(input: Vector[Source])(config: Config): Vector[Source] = {
@@ -215,8 +234,8 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
     * Parses a source's preamble containing all (file-level) imports; This function expects that the input has already
     * been preprocessed
     */
-  private def processPreamble(preprocessedSource: Source)(config: Config): Either[Vector[ParserError], PPreamble] = {
-    def parseSource(preprocessedSource: Source): Either[Vector[ParserError], PPreamble] = {
+  private def processPreamble(preprocessedSource: Source)(config: Config): PreambleResult = {
+    def parseSource(preprocessedSource: Source): PreambleResult = {
       val positions = new Positions
       val pom = new PositionManager(positions)
       val parser = new SyntaxAnalyzer[PreambleContext, PPreamble](preprocessedSource, ListBuffer.empty[ParserError], pom, specOnly = true)
@@ -224,15 +243,15 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
     }
 
     var cacheHit: Boolean = true
-    def parseSourceCached(preprocessedSource: Source): Either[Vector[ParserError], PPreamble] = {
-      def parseAndStore(): Either[Vector[ParserError], PPreamble] = {
+    def parseSourceCached(preprocessedSource: Source): PreambleResult = {
+      def parseAndStore(): PreambleResult = {
         cacheHit = false
         parseSource(preprocessedSource)
       }
 
       val res = preambleCache.computeIfAbsent(getPreambleCacheKey(preprocessedSource), _ => parseAndStore())
       if (!cacheHit) {
-        logger.trace(s"No cache hit for ${res.map(_.packageClause.id.name)}'s preamble")
+        logger.trace(s"No cache hit for ${res.map(_._1.packageClause.id.name)}'s preamble")
       }
       res
     }
@@ -240,33 +259,40 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
     if (config.cacheParserAndTypeChecker) parseSourceCached(preprocessedSource) else parseSource(preprocessedSource)
   }
 
-  private def process(preprocessedInputs: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): Either[Vector[ParserError], PPackage] = {
+  private def process(preprocessedInputs: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): PackageResult = {
     parseSources(preprocessedInputs, pkgInfo, specOnly = specOnly)(config)
   }
 
-  private def postprocess(processResult: Either[Vector[ParserError], (Vector[Source], PPackage)], specOnly: Boolean)(config: Config): Either[Vector[ParserError], (Vector[Source], PPackage)] = {
+  private def postprocess(processResult: Either[ParserErrorsAndWarnings, (Vector[Source], PPackage, ParserWarnings)], specOnly: Boolean)(config: Config): Either[ParserErrorsAndWarnings, (Vector[Source], PPackage, ParserWarnings)] = {
     for {
       successfulProcessResult <- processResult
-      (preprocessedInputs, parseAst) = successfulProcessResult
+      (preprocessedInputs, parseAst, parseWarnings) = successfulProcessResult
       postprocessors = Seq(
         new ImportPostprocessor(parseAst.positions.positions),
         new TerminationMeasurePostprocessor(parseAst.positions.positions, specOnly = specOnly),
       )
-      postprocessedAst <- postprocessors.foldLeft[Either[Vector[ParserError], PPackage]](Right(parseAst)) {
-        case (Right(ast), postprocessor) => postprocessor.postprocess(ast)(config)
+      postprocessedAst <- postprocessors.foldLeft[Either[ParserErrorsAndWarnings, (PPackage, ParserWarnings)]](Right(parseAst, parseWarnings)) {
+        case (Right((ast, warnings)), postprocessor) => addWarnings(postprocessor.postprocess(ast)(config), warnings)
         case (e, _) => e
       }
-    } yield (preprocessedInputs, postprocessedAst)
+    } yield (preprocessedInputs, postprocessedAst._1, postprocessedAst._2)
+  }
+
+  private def addWarnings(result: PackageResult, warnings: ParserWarnings): PackageResult = {
+    result.fold(
+      errorsAndWarnings => Left(errorsAndWarnings ++ warnings),
+      pkgAndWarnings => Right(pkgAndWarnings._1, pkgAndWarnings._2 ++ warnings)
+    )
   }
 
   type SourceCacheKey = String
   // cache maps a key (obtained by hashing file path and file content) to the parse result
-  private val preambleCache: ConcurrentMap[SourceCacheKey, Either[Vector[ParserError], PPreamble]] = new ConcurrentHashMap()
+  private val preambleCache: ConcurrentMap[SourceCacheKey, PreambleResult] = new ConcurrentHashMap()
   type PackageCacheKey = String
   // we cache entire packages and not individual files (i.e. PProgram) as this saves us from copying over positional information
   // from one to the other position manager. Also, this transformation of copying positional information results in
   // differen PPackage instances that is problematic for caching type-check results.
-  private val packageCache: ConcurrentMap[PackageCacheKey, Either[Vector[ParserError], PPackage]] = new ConcurrentHashMap()
+  private val packageCache: ConcurrentMap[PackageCacheKey, PackageResult] = new ConcurrentHashMap()
 
   /** computes the key for caching the preamble of a particular source. This takes the name and the source's content into account */
   private def getPreambleCacheKey(source: Source): SourceCacheKey = {
@@ -289,8 +315,8 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
     packageCache.clear()
   }
 
-  private def parseSources(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): Either[Vector[ParserError], PPackage] = {
-    def parseSourcesCached(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): Either[Vector[ParserError], PPackage] = {
+  private def parseSources(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): PackageResult = {
+    def parseSourcesCached(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): PackageResult = {
       var cacheHit: Boolean = true
       val res = packageCache.computeIfAbsent(getPackageCacheKey(sources, pkgInfo, specOnly), _ => {
         cacheHit = false
@@ -307,18 +333,18 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
   }
 
   /** parses a package not taking the package cache but only the program cache into account */
-  private def parseSourcesUncached(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): Either[Vector[ParserError], PPackage] = {
+  private def parseSourcesUncached(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): PackageResult = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     lazy val rewriter = new PRewriter(pom.positions)
 
-    def parseSource(source: Source): Either[Vector[ParserError], PProgram] = {
+    def parseSource(source: Source): ProgramResult = {
       val errors = ListBuffer.empty[ParserError]
       val parser = new SyntaxAnalyzer[SourceFileContext, PProgram](source, errors, pom, specOnly)
       parser.parse(parser.sourceFile) match {
-        case Right(ast) =>
+        case r@Right((ast, _)) =>
           config.reporter report ParsedInputMessage(source.name, () => ast)
-          Right(ast)
+          r
         case Left(errors) =>
           val (positionedErrors, nonpos) = errors.partition(_.position.nonEmpty)
           // Non-positioned errors imply some unexpected problems within the parser. We can't continue.
@@ -327,12 +353,16 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
       }
     }
 
-    def isErrorFree(parserResults: Vector[Either[Vector[ParserError], PProgram]]): Either[Vector[ParserError], Vector[PProgram]] = {
-      val (errors, programs) = parserResults.partitionMap(identity)
-      if (errors.isEmpty) Right(programs) else Left(errors.flatten)
+    def isErrorFree(parserResults: Vector[ProgramResult]): Either[ParserErrorsAndWarnings, (Vector[PProgram], ParserWarnings)] = {
+      val (errorsAndWarnings, programsAndWarnings) = parserResults.partitionMap(identity)
+      if (errorsAndWarnings.isEmpty) Right(programsAndWarnings.foldLeft[(Vector[PProgram], ParserWarnings)]((Vector.empty, Vector.empty)) {
+        case ((prevProgs, prevWarnings), (prog, warnings)) => (prevProgs :+ prog, prevWarnings ++ warnings)
+      })
+      else Left(errorsAndWarnings.flatten)
     }
 
-    def checkPackageInfo(programs: Vector[PProgram]): Either[Vector[ParserError], Vector[PProgram]] = {
+    def checkPackageInfo(programsAndWarnings: (Vector[PProgram], ParserWarnings)): Either[ParserErrorsAndWarnings, (Vector[PProgram], ParserWarnings)] = {
+      val (programs, warnings) = programsAndWarnings
       require(programs.nonEmpty)
       val differingPkgNameMsgs = programs.flatMap(p =>
         error(
@@ -342,77 +372,70 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
       )
 
       if (differingPkgNameMsgs.isEmpty) {
-        Right(programs)
+        Right(programs, warnings)
       } else {
-        Left(pom.translate(differingPkgNameMsgs, ParserError))
+        Left(pom.translate(differingPkgNameMsgs, ParserError) ++ warnings)
       }
     }
 
-    def makePackage(programs: Vector[PProgram]): Either[Vector[ParserError], PPackage] = {
+    def makePackage(programsAndWarnings: (Vector[PProgram], ParserWarnings)): PackageResult = {
+      val (programs, warnings) = programsAndWarnings
       val clause = rewriter.deepclone(programs.head.packageClause)
 
       val parsedPackage = PPackage(clause, programs, pom, pkgInfo)
 
       // The package parse tree node gets the position of the package clause:
       pom.positions.dupPos(clause, parsedPackage)
-      Right(parsedPackage)
+      Right(parsedPackage, warnings)
     }
 
     val parsedPrograms = sources.map(parseSource)
 
-    val res = for {
+    for {
       // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
       // of the same package has failed or users have entered an invalid collection of inputs
-      programs <- isErrorFree(parsedPrograms)
-      programs <- checkPackageInfo(programs)
-      pkg <- makePackage(programs)
+      programsAndWarnings <- isErrorFree(parsedPrograms)
+      programsAndWarnings <- checkPackageInfo(programsAndWarnings)
+      pkg <- makePackage(programsAndWarnings)
     } yield pkg
-    // report potential errors:
-    res.left.foreach(errors => {
-      val groupedErrors = errors.groupBy{ _.position.get.file }
-      groupedErrors.foreach { case (p, pErrors) =>
-        config.reporter report ParserErrorMessage(p, pErrors)
-      }
-    })
-    res
   }
 
-  def parseProgram(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], PProgram] = {
+  def parseProgram(source: Source, specOnly: Boolean = false): ProgramResult = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parser = new SyntaxAnalyzer[SourceFileContext, PProgram](source, ListBuffer.empty[ParserError], pom, specOnly)
     parser.parse(parser.sourceFile())
   }
 
-  def parseMember(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], Vector[PMember]] = {
+  def parseMember(source: Source, specOnly: Boolean = false): Either[ParserErrorsAndWarnings, (Vector[PMember], ParserWarnings)] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parser = new SyntaxAnalyzer[MemberContext, Vector[PMember]](source, ListBuffer.empty[ParserError], pom, specOnly)
     parser.parse(parser.member())
   }
 
-  def parseStmt(source: Source): Either[Vector[ParserError], PStatement] = {
+  def parseStmt(source: Source): Either[ParserErrorsAndWarnings, (PStatement, ParserWarnings)] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parser = new SyntaxAnalyzer[StmtOnlyContext, PStatement](source, ListBuffer.empty[ParserError], pom, false)
     parser.parse(parser.stmtOnly())
   }
 
-  def parseExpr(source: Source): Either[Vector[ParserError], PExpression] = {
+  def parseExpr(source: Source): Either[ParserErrorsAndWarnings, (PExpression, ParserWarnings)] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parser = new SyntaxAnalyzer[ExprOnlyContext, PExpression](source, ListBuffer.empty[ParserError], pom, false)
     parser.parse(parser.exprOnly())
   }
 
-  def parseImportDecl(source: Source): Either[Vector[ParserError], Vector[PImport]] = {
+  def parseImportDecl(source: Source): Either[ParserErrorsAndWarnings, (Vector[PImport], ParserWarnings)] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parser = new SyntaxAnalyzer[ImportDeclContext, Vector[PImport]](source, ListBuffer.empty[ParserError], pom, false)
     parser.parse(parser.importDecl())
   }
 
-  def parseType(source : Source) : Either[Vector[ParserError], PType] = {
+  def parseType(source : Source) : Either[ParserErrorsAndWarnings, (PType, ParserWarnings)] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parser = new SyntaxAnalyzer[TypeOnlyContext, PType](source, ListBuffer.empty[ParserError], pom, false)
@@ -428,18 +451,18 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
       }
     }
 
-    def postprocess(pkg: PPackage)(config: Config): Either[Vector[ParserError], PPackage]
+    def postprocess(pkg: PPackage)(config: Config): PackageResult
   }
 
   private class ImportPostprocessor(override val positions: Positions) extends Postprocessor {
     /**
       * Replaces all PQualifiedWoQualifierImport by PQualifiedImport nodes
       */
-    def postprocess(pkg: PPackage)(config: Config): Either[Vector[ParserError], PPackage] = {
+    def postprocess(pkg: PPackage)(config: Config): PackageResult = {
       def createError(n: PImplicitQualifiedImport, errorMsg: String): Vector[ParserError] = {
         val err = pkg.positions.translate(message(n,
           s"Explicit qualifier could not be derived (reason: '$errorMsg')"), ParserError)
-        config.reporter report ParserErrorMessage(err.head.position.get.file, err)
+        config.reporter report ParserFailureMessage(err.head.position.get.file, err, warnings = Vector.empty)
         err
       }
 
@@ -477,7 +500,7 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
       // create a new package node with the updated programs
       val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg)
       // check whether an error has occurred
-      if (failedNodes.isEmpty) Right(updatedPkg)
+      if (failedNodes.isEmpty) Right(updatedPkg, Vector.empty)
       else Left(failedNodes)
     }
   }
@@ -494,11 +517,11 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
       * Note that we do not transform the body of pure functions and pure methods (e.g. by turning the body into a
       * postcondition) because this would result in a matching loop for recursive functions.
       */
-    def postprocess(pkg: PPackage)(config: Config): Either[Vector[ParserError], PPackage] = {
-      if (specOnly) replaceTerminationMeasures(pkg) else Right(pkg)
+    def postprocess(pkg: PPackage)(config: Config): PackageResult = {
+      if (specOnly) replaceTerminationMeasures(pkg) else Right(pkg, Vector.empty)
     }
 
-    private def replaceTerminationMeasures(pkg: PPackage): Either[Vector[ParserError], PPackage] = {
+    private def replaceTerminationMeasures(pkg: PPackage): PackageResult = {
       def replace(spec: PFunctionSpec): PFunctionSpec = {
         val replacedMeasures = spec.terminationMeasures.map {
           case n@PTupleTerminationMeasure(_, cond) => PWildcardMeasure(cond).at(n)
@@ -523,12 +546,12 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
         PProgram(prog.packageClause, prog.initPosts, prog.imports, updatedDecls).at(prog)
       })
       // create a new package node with the updated programs
-      Right(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg))
+      Right(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg), Vector.empty)
     }
   }
 
   private class SyntaxAnalyzer[Rule <: ParserRuleContext, Node <: AnyRef](tokens: CommonTokenStream, source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean = false) extends GobraParser(tokens){
-
+    private type ParseResult = Either[ParserErrorsAndWarnings, (Node, ParserWarnings)]
 
     def this(source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean) = {
       this({
@@ -581,7 +604,7 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
       res
     }
 
-    def parse(rule : => Rule): Either[Vector[ParserError], Node] = {
+    def parse(rule : => Rule): ParseResult = {
       val tree = try rule
       catch {
         case _: AmbiguityException => parse_LL(rule, overrideErrors = true) // Resolve `<IDENTIFIER> { }` ambiguities in switch/if-statements/closure-proofs
@@ -592,31 +615,16 @@ object Parser extends VerifierPhaseNonFinal[(Config, PackageInfo), Map[AbstractP
         val translator = new ParseTreeTranslator(pom, source, specOnly)
         val parseAst : Node = try translator.translate(tree)
           catch {
-            case e: TranslationFailure =>
-              val pos = source match {
-                case fileSource: FromFileSource => Some(SourcePosition(fileSource.path , e.cause.startPos.line, e.cause.endPos.column))
-                case _ => None
-              }
-              return Left(Vector(ParserError(e.getMessage + " " + e.getStackTrace.toVector(1), pos)))
-            case e: UnsupportedOperatorException =>
-              val pos = source match {
-                case fileSource: FromFileSource => Some(SourcePosition(fileSource.path, e.cause.startPos.line, e.cause.endPos.column))
-                case _ => None
-              }
-              return Left(Vector(ParserError(e.getMessage + " " + e.getStackTrace.toVector(0), pos)))
+            case e: TranslationException =>
+              return Left(Vector(e.toMessage(source)))
             case e: Throwable =>
-              val pos = source match {
-                case fileSource: FromFileSource => Some(SourcePosition(fileSource.path, 0, 0))
-                case _ => None
-              }
-              return Left(Vector(ParserError(e.getMessage + " " + e.getStackTrace.take(4).mkString("Array(", ", ", ")"), pos)))
+              val pos = Some(SourcePosition(source.toPath, 0, 0))
+              val errors = Vector(ParserError(e.getMessage + " " + e.getStackTrace.take(4).mkString("Array(", ", ", ")"), pos))
+              return Left(errors)
           }
 
-        // TODO : Add support for non-critical warnings in the verification process instead of printing them to stdout
-        if (translator.warnings.nonEmpty){
-          println(translator.warnings.mkString("Warnings: [", "\n" , " ]"))
-        }
-        Right(parseAst)
+        val warnings = translator.warnings.map(_.toMessage(source)).toVector
+        Right(parseAst, warnings)
       } else {
         Left(errors.toVector)
       }

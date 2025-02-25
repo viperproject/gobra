@@ -35,10 +35,6 @@ sealed trait VerifierWarning extends VerifierMessage {
   override def severity: Severity = Severities.Warning
 }
 
-case class TypeWarning(message: String, position: Option[SourcePosition]) extends VerifierWarning {
-  val id = "type_warning"
-}
-
 sealed trait VerifierError extends VerifierMessage {
   override def severity: Severity = Severities.Error
 }
@@ -53,11 +49,23 @@ case class ConfigError(message: String) extends VerifierError {
   val id = "config_error"
 }
 
-case class ParserError(message: String, position: Option[SourcePosition]) extends VerifierError {
+sealed trait ParserMessage extends VerifierMessage
+
+case class ParserWarning(message: String, position: Option[SourcePosition]) extends ParserMessage with VerifierWarning {
+  val id = "parser_warning"
+}
+
+case class ParserError(message: String, position: Option[SourcePosition]) extends ParserMessage with VerifierError {
   val id = "parser_error"
 }
 
-case class TypeError(message: String, position: Option[SourcePosition]) extends VerifierError {
+sealed trait TypeMessage extends VerifierMessage
+
+case class TypeWarning(message: String, position: Option[SourcePosition]) extends TypeMessage with VerifierWarning {
+  val id = "type_warning"
+}
+
+case class TypeError(message: String, position: Option[SourcePosition]) extends TypeMessage with VerifierError {
   val id = "type_error"
 }
 

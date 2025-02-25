@@ -19,7 +19,7 @@ import viper.gobra.frontend.ParserUtils.{ParseResult, ParseSuccessResult}
 import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.{GhostLessPrinter, GoifyingPrinter}
-import viper.gobra.reporting.{CyclicImportError, NotFoundError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, TypeWarning, VerifierError}
+import viper.gobra.reporting.{CyclicImportError, NotFoundError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, TypeMessage, TypeWarning}
 import viper.gobra.util.VerifierPhase.{ErrorsAndWarnings, PhaseResult, Warnings}
 import viper.gobra.util.{GobraExecutionContext, Job, TaskManager, VerifierPhase, VerifierPhaseNonFinal, Violation}
 
@@ -34,9 +34,9 @@ object Info extends VerifierPhaseNonFinal[(Config, PackageInfo, Map[AbstractPack
   override val name: String = "Type-checking"
 
   type GoTree = Tree[PNode, PPackage]
-  type TypeCheckSuccessResult = (TypeInfo with ExternalTypeInfo, Warnings)
-  type TypeCheckResult = Either[ErrorsAndWarnings, TypeCheckSuccessResult]
-  type DependentTypeCheckResult = Map[AbstractImport, TypeCheckResult]
+  private type TypeCheckSuccessResult = (TypeInfo with ExternalTypeInfo, Vector[TypeWarning])
+  private type TypeCheckResult = Either[Vector[TypeMessage], TypeCheckSuccessResult]
+  private type DependentTypeCheckResult = Map[AbstractImport, TypeCheckResult]
   type DependentTypeInfo = Map[AbstractImport, ExternalTypeInfo]
 
   trait GetParseResult {
@@ -61,7 +61,7 @@ object Info extends VerifierPhaseNonFinal[(Config, PackageInfo, Map[AbstractPack
     def check(abstractPackage: AbstractPackage): Either[ErrorsAndWarnings, Map[AbstractPackage, ParseSuccessResult]] = {
       for {
         parseResult <- getParseResult(abstractPackage)
-        (_, ast) = parseResult
+        (_, ast, _) = parseResult
         perImportResult = ast.imports.map(importNode => {
           val res = getImportErrors(RegularImport(importNode.importPath))
             .left
@@ -82,12 +82,12 @@ object Info extends VerifierPhaseNonFinal[(Config, PackageInfo, Map[AbstractPack
     /**
       * returns all parser errors and cyclic errors transitively found in imported packages
       */
-    private def getImportErrors(importTarget: AbstractImport): Either[Vector[VerifierError], Unit] = {
+    private def getImportErrors(importTarget: AbstractImport): Either[ErrorsAndWarnings, Unit] = {
       parserPendingPackages = parserPendingPackages :+ importTarget
       val abstractPackage = AbstractPackage(importTarget)(config)
       val res = for {
         parseResult <- getParseResult(abstractPackage)
-        (_, ast) = parseResult
+        (_, ast, _) = parseResult
         perImportResult = ast.imports.map(importNode => {
           val directlyImportedTarget = RegularImport(importNode.importPath)
           if (parserPendingPackages.contains(directlyImportedTarget)) {
@@ -106,13 +106,14 @@ object Info extends VerifierPhaseNonFinal[(Config, PackageInfo, Map[AbstractPack
       res
     }
 
-    private def createImportError(importNode: PImport, errorsInImportedPackage: Vector[VerifierError]): Messages = {
-      val (cyclicErrors, nonCyclicErrors) = errorsInImportedPackage.partitionMap {
+    private def createImportError(importNode: PImport, errorsAndWarningsInImportedPackage: ErrorsAndWarnings): Messages = {
+      val (cyclicErrors, others) = errorsAndWarningsInImportedPackage.partitionMap {
         case cyclicErr: CyclicImportError => Left(cyclicErr)
         case e => Right(e)
       }
       if (cyclicErrors.isEmpty) {
-        message(importNode, s"Package contains ${nonCyclicErrors.length} error(s): ${nonCyclicErrors.map(_.message).mkString(", ")}")
+        val (errors, warnings) = VerifierPhase.splitErrorsAndWarnings(others)
+        message(importNode, s"Package contains ${errors.length} error(s) and ${warnings.length} warning(s): ${(errors ++ warnings).map(_.message).mkString(", ")}")
       } else {
         cyclicErrors.flatMap(cycle => message(importNode, cycle.message))
       }
@@ -140,7 +141,7 @@ object Info extends VerifierPhaseNonFinal[(Config, PackageInfo, Map[AbstractPack
       override def toString: String = s"TypeCheckJob for $abstractPackage"
 
       protected override def sequentialPrecompute(): (Vector[Source], PPackage, Vector[AbstractImport]) = {
-        val (sources, ast) = getParseResult(abstractPackage)
+        val (sources, ast, _) = getParseResult(abstractPackage)
         val importTargets = ast.imports.map(importNode => RegularImport(importNode.importPath))
         val isBuiltIn = abstractPackage == BuiltInPackage
         val dependencies = if (isBuiltIn) importTargets else BuiltInImport +: importTargets
@@ -205,13 +206,15 @@ object Info extends VerifierPhaseNonFinal[(Config, PackageInfo, Map[AbstractPack
       // check whether there are any import cycles:
       cycleResult <- EitherT.fromEither(Future.successful(new CycleChecker(config, parseResults).check(abstractPackage)))
         .leftMap(errorsAndWarnings => {
-          val (sources, pkg) = parseResult
+          val (sources, pkg, _) = parseResult
           reportTypeCheckFailure(config, sources, pkg, errorsAndWarnings)
           errorsAndWarnings
         })
       typeCheckingStartMs = System.currentTimeMillis()
       context = new Context(config, cycleResult)
-      typeInfo <- EitherT.fromEither(context.typeCheck(abstractPackage))
+      // the following type annotation is necessary to overcome an incompleteness of Scala's type checker:
+      typeCheckRes: Future[Either[ErrorsAndWarnings, (TypeInfo, Warnings)]] = context.typeCheck(abstractPackage)
+      typeInfo <- EitherT.fromEither(typeCheckRes)
       _ = logger.debug {
         val typeCheckingEndMs = System.currentTimeMillis()
         val sumDurationS = f"${context.typeCheckDurationMs.get() / 1000f}%.1f"
@@ -351,7 +354,7 @@ object Info extends VerifierPhaseNonFinal[(Config, PackageInfo, Map[AbstractPack
     }
   }
 
-  private def convertToTypeErrorsAndWarnings(pkg: PPackage, msgs: Messages): Either[ErrorsAndWarnings, Warnings] = {
+  private def convertToTypeErrorsAndWarnings(pkg: PPackage, msgs: Messages): Either[Vector[TypeMessage], Vector[TypeWarning]] = {
     val (warningMsgs, errorMsgs) = msgs.partition(_.severity == Severities.Warning)
 
     // the type checker sometimes produces duplicate errors, which we remove here (e.g., when type checking

@@ -103,12 +103,21 @@ case class ParsedInputMessage(input: String, ast: () => PProgram) extends GobraM
     s"file=$input)"
 }
 
-case class ParserErrorMessage(input: Path, result: Vector[ParserError]) extends GobraMessage {
-  override val name: String = s"parser_error_message"
+case class ParserSuccessMessage(input: Path, warnings: Vector[ParserWarning]) extends GobraMessage {
+  override val name: String = s"parser_success_message"
 
-  override def toString: String = s"parser_error_message(" +
-    s"file=$input), " +
-    s"errors=${result.map(_.toString).mkString(",")})"
+  override def toString: String = s"parser_success_message(" +
+    s"file=$input, " +
+    s"warnings=${warnings.map(_.toString).mkString(",")})"
+}
+
+case class ParserFailureMessage(input: Path, errors: Vector[ParserError], warnings: Vector[ParserWarning]) extends GobraMessage {
+  override val name: String = s"parser_failure_message"
+
+  override def toString: String = s"parser_failure_message(" +
+    s"file=$input, " +
+    s"errors=${errors.map(_.toString).mkString(",")}, " +
+    s"warnings=${warnings.map(_.toString).mkString(",")})"
 }
 
 sealed trait TypeCheckMessage extends GobraMessage {

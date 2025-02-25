@@ -20,26 +20,13 @@ trait GhostAssignability {
 
   /** checks that ghost arguments are not assigned to non-ghost arguments  */
   private[separation] def ghostAssignableToCallExpr(call: ap.FunctionCall): Messages = {
-
-    val isPure = call.callee match {
-      case p: ap.Function => p.symb.isPure
-      case p: ap.Closure => p.symb.isPure
-      case p: ap.MethodExpr => p.symb.isPure
-      case p: ap.ReceivedMethod => p.symb.isPure
-      case p: ap.BuiltInFunction => p.symb.isPure
-      case p: ap.BuiltInMethodExpr => p.symb.isPure
-      case p: ap.BuiltInReceivedMethod => p.symb.isPure
-      case p: ap.ImplicitlyReceivedInterfaceMethod => p.symb.isPure
-      case _: ap.DomainFunction => true
-      case _ => false
-    }
-    if (isPure) {return noMessages}
-
     val argTyping = calleeArgGhostTyping(call).toTuple
-    generalGhostAssignableTo[PExpression, Boolean](ghostExprResultTyping){
-      case (g, l) => error(call.callee.id, "ghost error: ghost cannot be assigned to non-ghost", g && !l)
-    }(call.args: _*)(argTyping: _*)
+    argsAssignable(call, argTyping)
   }
+
+  private def argsAssignable(call: ap.FunctionCall, argTyping: Vector[Boolean]): Messages = generalGhostAssignableTo[PExpression, Boolean](ghostExprResultTyping){
+    case (g, l) => error(call.callee.id, "ghost error: ghost cannot be assigned to non-ghost", g && !l)
+  }(call.args: _*)(argTyping: _*)
 
   /** checks that ghost arguments are not assigned to non-ghost arguments in a call with spec  */
   private[separation] def ghostAssignableToClosureCall(call: ap.ClosureCall): Messages = {
@@ -125,9 +112,8 @@ trait GhostAssignability {
     generalGhostAssignableTo(ghostExprResultTyping)(dfltGhostAssignableMsg[PIdnNode](wellGhostSeparated)(ghostIdClassification))(exprs: _*)(lefts: _*)
 
   /** conservative ghost separation assignment check */
-  private[separation] def ghostAssignableToParam(exprs: PExpression*)(lefts: PParameter*): Messages = {
+  private[separation] def ghostAssignableToParam(exprs: PExpression*)(lefts: PParameter*): Messages =
     generalGhostAssignableTo(ghostExprResultTyping)(dfltGhostAssignableMsg[PParameter](wellGhostSeparated)(ghostParameterClassification))(exprs: _*)(lefts: _*)
-  }
 
   /**
     * default factory for producing messages that a ghost right-hand side cannot be assigned to a non-ghost left-hand side
@@ -175,6 +161,20 @@ trait GhostAssignability {
 
   /** ghost type of the arguments of a callee */
   private[separation] def calleeArgGhostTyping(call: ap.FunctionCall): GhostType = {
+    val explicitGhostType = explicitCalleeArgGhostTyping(call)
+    val isImplicitlyGhost = isCallImplicitlyGhost(call)
+    // preserve the amount of entries in `explicitGhostType` but set the all to true
+    // if the call is implicitly ghost. In case there are no entries (i.e., it's not ghost),
+    // simply return `isGhost`:
+    if (isImplicitlyGhost && explicitGhostType.toTuple.isEmpty) {
+      GhostType.isGhost
+    } else if (isImplicitlyGhost) {
+      GhostType.ghostTuple(explicitGhostType.toTuple.map(_ => true))
+    } else explicitGhostType
+  }
+
+  /** ghost type of the arguments of a callee based on explicit annotations of the parameter or callee */
+  private def explicitCalleeArgGhostTyping(call: ap.FunctionCall): GhostType = {
     // a parameter of a ghost member is ghost (even if such a explicit declaration is missing)
     def argTyping(args: Vector[PParameter], isMemberGhost: Boolean, context: ExternalTypeInfo): GhostType =
       GhostType.ghostTuple(args.map(p => isMemberGhost || context.isParamGhost(p)))
@@ -197,23 +197,26 @@ trait GhostAssignability {
   }
 
   /* ghost type of the callee itself (not considering its arguments or results) */
-  private[separation] def calleeGhostTyping(call: ap.FunctionCall): GhostType = call.callee match {
-    case p: ap.Function => ghost(p.symb.ghost)
-    case p: ap.ReceivedMethod => ghost(p.symb.ghost)
-    case p: ap.MethodExpr => ghost(p.symb.ghost)
-    case _: ap.PredicateKind => GhostType.isGhost
-    case _: ap.DomainFunction => GhostType.isGhost
-    case p: ap.BuiltInFunction => ghost(p.symb.ghost)
-    case p: ap.BuiltInReceivedMethod => ghost(p.symb.ghost)
-    case p: ap.BuiltInMethodExpr => ghost(p.symb.ghost)
-    case _ => GhostType.isGhost // conservative choice
+  private[separation] def calleeGhostTyping(call: ap.FunctionCall): GhostType = {
+    val isExplicitlyGhost = call.callee match {
+      case p: ap.Function => p.symb.ghost
+      case p: ap.ReceivedMethod => p.symb.ghost
+      case p: ap.MethodExpr => p.symb.ghost
+      case _: ap.PredicateKind => true
+      case _: ap.DomainFunction => true
+      case p: ap.BuiltInFunction => p.symb.ghost
+      case p: ap.BuiltInReceivedMethod => p.symb.ghost
+      case p: ap.BuiltInMethodExpr => p.symb.ghost
+      case _ => true // conservative choice
+    }
+    ghost(isExplicitlyGhost || isCallImplicitlyGhost(call))
   }
 
   /** ghost type of the result of a callee */
   private[separation] def calleeReturnGhostTyping(call: ap.FunctionCall): GhostType = {
     // a result of a ghost member is ghost (even if such a explicit declaration is missing)
     def resultTyping(result: PResult, isMemberGhost: Boolean, context: ExternalTypeInfo): GhostType = {
-      GhostType.ghostTuple(result.outs.map(p => isMemberGhost || context.isParamGhost(p)))
+      GhostType.ghostTuple(result.outs.map(p => isMemberGhost || context.isParamGhost(p) || isCallImplicitlyGhost(call)))
     }
 
     call.callee match {
@@ -228,6 +231,33 @@ trait GhostAssignability {
       case p: ap.ImplicitlyReceivedInterfaceMethod => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
       case _ => GhostType.isGhost // conservative choice
     }
+  }
+
+  /** returns true if `call` should be treated as being ghost because it is not explicitly
+    * annotated as being ghost _and_ one of the arguments is ghost even though the corresponding
+    * parameter is not explicitly annotated as being ghost.
+    */
+  private def isCallImplicitlyGhost(call: ap.FunctionCall): Boolean = {
+    val isPure = call.callee match {
+      case p: ap.Function => p.symb.isPure
+      case p: ap.Closure => p.symb.isPure
+      case p: ap.MethodExpr => p.symb.isPure
+      case p: ap.ReceivedMethod => p.symb.isPure
+      case p: ap.BuiltInFunction => p.symb.isPure
+      case p: ap.BuiltInMethodExpr => p.symb.isPure
+      case p: ap.BuiltInReceivedMethod => p.symb.isPure
+      case p: ap.ImplicitlyReceivedInterfaceMethod => p.symb.isPure
+      case _: ap.DomainFunction => true
+      case _ => false
+    }
+
+    // we only do this special treatment for calls to pure functions as the call
+    // can be erased without losing any side-effects. Furthermore, we have to do
+    // this implicit treatment only if assignability of arguments to parameters
+    // would otherwise fail:
+    val argTyping = explicitCalleeArgGhostTyping(call).toTuple
+    val assignable = argsAssignable(call, argTyping)
+    isPure && assignable.nonEmpty
   }
 
   /* If a closure is not ghost, the arguments and results of all the specs it can be called with must have

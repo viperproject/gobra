@@ -563,10 +563,12 @@ case class PureLet(left: LocalVar, right: Expr, in: Expr)(val info: Source.Parse
 
 case class Let(left: LocalVar, right: Expr, in: Assertion)(val info: Source.Parser.Info) extends Assertion
 
-case class Old(operand: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
+case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = operand.typ.withAddressability(Addressability.rValue)
+}
 
 case class LabeledOld(label: LabelProxy, operand: Expr)(val info: Source.Parser.Info) extends Expr {
-  override val typ: Type = operand.typ
+  override val typ: Type = operand.typ.withAddressability(Addressability.rValue)
 }
 
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr

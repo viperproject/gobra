@@ -169,7 +169,7 @@ trait GhostAssignability {
     if (isImplicitlyGhost && explicitGhostType.toTuple.isEmpty) {
       GhostType.isGhost
     } else if (isImplicitlyGhost) {
-      GhostType.ghostTuple(explicitGhostType.toTuple.map(_ => true))
+      GhostType.ghostTuple(Seq.fill(explicitGhostType.length)(true).toVector)
     } else explicitGhostType
   }
 
@@ -198,17 +198,7 @@ trait GhostAssignability {
 
   /* ghost type of the callee itself (not considering its arguments or results) */
   private[separation] def calleeGhostTyping(call: ap.FunctionCall): GhostType = {
-    val isExplicitlyGhost = call.callee match {
-      case p: ap.Function => p.symb.ghost
-      case p: ap.ReceivedMethod => p.symb.ghost
-      case p: ap.MethodExpr => p.symb.ghost
-      case _: ap.PredicateKind => true
-      case _: ap.DomainFunction => true
-      case p: ap.BuiltInFunction => p.symb.ghost
-      case p: ap.BuiltInReceivedMethod => p.symb.ghost
-      case p: ap.BuiltInMethodExpr => p.symb.ghost
-      case _ => true // conservative choice
-    }
+    val isExplicitlyGhost = call.callee.ghost
     ghost(isExplicitlyGhost || isCallImplicitlyGhost(call))
   }
 
@@ -238,26 +228,13 @@ trait GhostAssignability {
     * parameter is not explicitly annotated as being ghost.
     */
   private def isCallImplicitlyGhost(call: ap.FunctionCall): Boolean = {
-    val isPure = call.callee match {
-      case p: ap.Function => p.symb.isPure
-      case p: ap.Closure => p.symb.isPure
-      case p: ap.MethodExpr => p.symb.isPure
-      case p: ap.ReceivedMethod => p.symb.isPure
-      case p: ap.BuiltInFunction => p.symb.isPure
-      case p: ap.BuiltInMethodExpr => p.symb.isPure
-      case p: ap.BuiltInReceivedMethod => p.symb.isPure
-      case p: ap.ImplicitlyReceivedInterfaceMethod => p.symb.isPure
-      case _: ap.DomainFunction => true
-      case _ => false
-    }
-
     // we only do this special treatment for calls to pure functions as the call
     // can be erased without losing any side-effects. Furthermore, we have to do
     // this implicit treatment only if assignability of arguments to parameters
     // would otherwise fail:
     val argTyping = explicitCalleeArgGhostTyping(call).toTuple
     val assignable = argsAssignable(call, argTyping)
-    isPure && assignable.nonEmpty
+    call.callee.isPure && assignable.nonEmpty
   }
 
   /* If a closure is not ghost, the arguments and results of all the specs it can be called with must have

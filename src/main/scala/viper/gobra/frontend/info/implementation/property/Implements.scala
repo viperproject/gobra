@@ -99,7 +99,7 @@ trait Implements { this: TypeInfoImpl =>
     if (encounteredTypes contains t) {
       true
     } else {
-      def go(t: Type): Boolean = isIdentityPreservingType(t, encounteredTypes + t)
+      def go(subT: Type): Boolean = isIdentityPreservingType(subT, encounteredTypes + t)
       underlyingType(t) match {
         case Type.NilType | Type.BooleanT | _: Type.IntT | Type.StringT => true
         case ut: Type.PointerT => go(ut.elem)
@@ -113,7 +113,13 @@ trait Implements { this: TypeInfoImpl =>
         case ut: Type.OptionT => go(ut.elem)
         case ut: Type.AdtT =>
           ut.clauses.forall(_.fields.forall(f => go(f._2)))
-        case _: Type.DomainT => true
+        case ut: Type.DomainT =>
+          // check that all types (besides `ut` itself) occurring as input or output parameter types are identity preserving
+          val inAndOutParams = ut.decl.funcs.flatMap(f => f.args ++ f.result.outs)
+          inAndOutParams
+            .map(param => typ(param))
+            .filter(_ != ut) // ignore the domain itself
+            .forall(typ => go(typ))
         case ut: GhostCollectionType => go(ut.elem)
         case _: Type.InterfaceT => true
         case _ => false

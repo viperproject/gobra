@@ -31,7 +31,7 @@ trait SharedStructComponent extends Generator {
     * All permissions involved in the conversion should be returned by [[addressFootprint]].
     *
     * The default implementation is:
-    * Convert[loc: Struct{F}@] -> create_ex_struct( R[loc.f] | f in F )
+    * Convert[loc: Struct{F}@] -> create_ex_struct( [loc.f] | f in F )
     */
   def convertToExclusive(loc: in.Location)(ctx: Context, ex: ExclusiveStructComponent): CodeWriter[vpr.Exp] = {
     loc match {
@@ -54,7 +54,6 @@ trait SharedStructComponent extends Generator {
     * i.e. all permissions involved in converting the shared location to an exclusive value ([[convertToExclusive]]).
     * An encoding for type T should be defined at all shared locations of type T.
     *
-    * The default implementation is:
     * Footprint[loc: Struct{F}@] -> AND f in F: Footprint[loc.f]
     */
   def addressFootprint(loc: in.Location, perm: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {

@@ -4369,7 +4369,7 @@ object Desugar extends LazyLogging {
       val typ = typeD(info.typ(expr), info.addressability(expr))(src)
 
       expr match {
-        case POld(op) => for {o <- go(op)} yield in.Old(o, typ)(src)
+        case POld(op) => for {o <- go(op)} yield in.Old(o)(src)
         case PLabeledOld(l, op) => for {o <- go(op)} yield in.LabeledOld(labelProxy(l), o)(src)
         case PBefore(op) => for {o <- go(op)} yield in.LabeledOld(in.LabelProxy("before")(src), o)(src)
         case PConditional(cond, thn, els) =>  for {

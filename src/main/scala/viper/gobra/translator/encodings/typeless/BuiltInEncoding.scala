@@ -483,7 +483,7 @@ class BuiltInEncoding extends Encoding {
             i => in.ExprAssertion(
               in.GhostEqCmp(
                 in.IndexedExp(resultParam, i, sliceType)(src),
-                in.Old(in.IndexedExp(sliceParam, i, sliceType)(src), elemType)(src)
+                in.Old(in.IndexedExp(sliceParam, i, sliceType)(src))(src)
               )(src)
             )(src)
           }
@@ -586,7 +586,7 @@ class BuiltInEncoding extends Encoding {
             in.ExprAssertion(
               in.GhostEqCmp(
                 in.IndexedExp(dstParam, i, dstUnderlyingType)(src),
-                in.Old(in.IndexedExp(srcParam, i, srcUnderlyingType)(src), srcUnderlyingType.elems)(src)
+                in.Old(in.IndexedExp(srcParam, i, srcUnderlyingType)(src))(src)
               )(src)
             )(src)
           }
@@ -598,7 +598,7 @@ class BuiltInEncoding extends Encoding {
             in.ExprAssertion(
               in.GhostEqCmp(
                 in.IndexedExp(dstParam, i, dstUnderlyingType)(src),
-                in.Old(in.IndexedExp(dstParam, i, dstUnderlyingType)(src), dstUnderlyingType.elems)(src)
+                in.Old(in.IndexedExp(dstParam, i, dstUnderlyingType)(src))(src)
               )(src)
             )(src)
           }

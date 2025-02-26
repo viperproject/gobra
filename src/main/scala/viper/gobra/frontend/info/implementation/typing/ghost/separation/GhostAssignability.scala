@@ -163,7 +163,7 @@ trait GhostAssignability {
   private[separation] def calleeArgGhostTyping(call: ap.FunctionCall): GhostType = {
     val explicitGhostType = explicitCalleeArgGhostTyping(call)
     val isImplicitlyGhost = isCallImplicitlyGhost(call)
-    // preserve the amount of entries in `explicitGhostType` but set the all to true
+    // preserve the amount of entries in `explicitGhostType` but set all to true
     // if the call is implicitly ghost. In case there are no entries (i.e., it's not ghost),
     // simply return `isGhost`:
     if (isImplicitlyGhost && explicitGhostType.toTuple.isEmpty) {

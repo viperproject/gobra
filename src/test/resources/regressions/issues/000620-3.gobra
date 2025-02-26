@@ -3,12 +3,8 @@
 
 package main
 
-type MyStruct struct {
-    x int
-}
-
 func test() {
-    myStruct @ := MyStruct{42}
+    myInt @ := 42
     l:
-    assert myStruct == old[l](myStruct)
+    assert myInt == old[l](myInt)
 }

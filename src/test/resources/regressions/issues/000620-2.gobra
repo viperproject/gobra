@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type MyStruct struct {
+    x int
+}
+
+
+func test() {
+    myStruct @ := MyStruct{42}
+    l:
+    assert myStruct == old[l](myStruct)
+}

@@ -72,7 +72,12 @@ class IntEncoding extends LeafTypeEncoding {
       case e@ in.Add(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Add(vl, vr), e)
       case e@ in.Sub(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Sub(vl, vr), e)
       case e@ in.Mul(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mul(vl, vr), e)
-      case e@ in.Mod(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mod(vl, vr), e)
+      case e@ in.Mod(l, r) :: ctx.Int() => for {
+        vl <- goE(l)
+        vr <- goE(r)
+        // r = x - (x/y) * y
+        r = withSrc(vpr.Sub(vl, withSrc(vpr.Mul(withSrc(vpr.Div(vl, vr), e), vr), e)), e)
+      } yield r
       case e@ in.Div(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Div(vl, vr), e)
 
       case e@ in.BitAnd(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseAnd, Seq(vl, vr)), e)

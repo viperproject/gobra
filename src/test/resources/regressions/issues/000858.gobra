@@ -1,0 +1,36 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package p
+
+func t0() {
+	n := 5 % 3
+	assert n == 2
+
+	d := 5 / 3
+	assert d == 1
+}
+
+func t1() {
+	n := (-5) % 3
+	assert n == -2
+
+	d := (-5) / 3
+	assert d == -1
+}
+
+func t2() {
+	n := 5 % (-3)
+	assert n == 2
+
+	d := 5 / (-3)
+	assert d == -1
+}
+
+func t3() {
+	n := (-5) % (-3)
+	assert n == (-2)
+
+	d := (-5) / (-3)
+	assert d == 1
+}

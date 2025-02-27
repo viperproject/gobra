@@ -96,9 +96,7 @@ trait GoVerifier extends StrictLogging {
           warnings.foreach(w => logger.debug(w))
 
           result match {
-            case VerifierResult.Success =>
-              logger.info(s"$name found no errors")
-              Sound.playSuccess()
+            case VerifierResult.Success => logger.info(s"$name found no errors")
 
             case VerifierResult.Failure(errors) =>
               logger.error(s"$name has found ${errors.length} error(s) in package $pkgId")
@@ -106,7 +104,6 @@ trait GoVerifier extends StrictLogging {
                 errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
               }
               allVerifierErrors = allVerifierErrors ++ errors
-              Sound.playFailure()
           }
         })(executor)
       try {

@@ -79,6 +79,7 @@ object ConfigDefaults {
   val DefaultUnsafeWildcardOptimization: Boolean = false
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
   val DefaultRespectFunctionPrePermAmounts: Boolean = false
+  val DefaultEnableExperimentalFriendClauses: Boolean = false
 }
 
 // More-complete exhale modes
@@ -175,6 +176,7 @@ case class Config(
                    unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
+                   enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
 ) {
 
   def merge(other: Config): Config = {
@@ -234,6 +236,7 @@ case class Config(
       unsafeWildcardOptimization = unsafeWildcardOptimization && other.unsafeWildcardOptimization,
       moreJoins = MoreJoins.merge(moreJoins, other.moreJoins),
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || other.respectFunctionPrePermAmounts,
+      enableExperimentalFriendClauses = enableExperimentalFriendClauses || other.enableExperimentalFriendClauses,
     )
   }
 
@@ -294,6 +297,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
+                      enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -356,6 +360,7 @@ trait RawConfig {
     unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
     moreJoins = baseConfig.moreJoins,
     respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
+    enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
   )
 }
 
@@ -857,6 +862,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = Some(ConfigDefaults.DefaultDisableSetAxiomatization),
     noshort = true,
   )
+
+  val enableExperimentalFriendClauses: ScallopOption[Boolean] = opt[Boolean](
+    name = "experimentalFriendClauses",
+    descr = s"Enables the use of 'friendPkg' clauses (experimental).",
+    default = Some(ConfigDefaults.DefaultEnableExperimentalFriendClauses),
+    noshort = true,
+  )
   /**
     * Exception handling
     */
@@ -885,7 +897,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   }
 
   addValidation {
-    val lazyImportsSet = enableLazyImports.toOption.nonEmpty
+    val lazyImportsSet = enableLazyImports.toOption.contains(true)
     if (lazyImportsSet) {
       Left(s"The flag $enableLazyImportOptionPrettyPrinted was removed in Gobra's PR #797.")
     } else {
@@ -1067,5 +1079,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     unsafeWildcardOptimization = unsafeWildcardOptimization(),
     moreJoins = moreJoins(),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts(),
+    enableExperimentalFriendClauses = enableExperimentalFriendClauses(),
   )
 }

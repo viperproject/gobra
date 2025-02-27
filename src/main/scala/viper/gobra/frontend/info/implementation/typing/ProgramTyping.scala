@@ -17,7 +17,13 @@ import viper.gobra.util.Violation
 trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefProgram: WellDefinedness[PProgram] = createWellDef {
-    case PProgram(_, pkgInvs, _, friends, members) =>
+    case PProgram(_, _, initPosts, _, _, _) if initPosts.nonEmpty =>
+      error(initPosts.head, "'initEnsures' clauses are now deprecated." +
+        " Consider using 'pkgInvariant' clauses instead.")
+    case PProgram(_, _, _, _, friends, _) if !config.enableExperimentalFriendClauses && friends.nonEmpty =>
+      error(friends.head, "Usage of experimental 'friendPkg' clauses is disallowed by default. " +
+        "Pass the flag --experimentalFriendClauses to allow it. This feature may change in the future.")
+    case PProgram(_, pkgInvs, _, _, friends, members) =>
       // Obtains global variable declarations sorted by the order in which they appear in the file
       val sortedByPosDecls: Vector[PVarDecl] = {
         val unsortedDecls: Vector[PVarDecl] = members.collect{ case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }

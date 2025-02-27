@@ -85,6 +85,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         Vector(),
         Vector(),
         Vector(),
+        Vector(),
         members
       )
       (prog, idnUse.map(_ => idnDefX))

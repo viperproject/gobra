@@ -67,8 +67,8 @@ object Source {
     for {
       packageName <- packageNameOrError
       /** A unique identifier for packages */
-      prefix = uniquePath(TransformableSource(src).toPath.toAbsolutePath.getParent, projectRoot).toString
-    } yield new PackageInfo(prefix, packageName, isBuiltIn)
+      pkgPath = uniquePath(TransformableSource(src).toPath.toAbsolutePath.getParent, projectRoot).toString
+    } yield new PackageInfo(pkgPath, packageName, isBuiltIn)
   }
 
   /**

@@ -102,7 +102,7 @@ trait Implements { this: TypeInfoImpl =>
       def go(subT: Type): Boolean = isIdentityPreservingType(subT, encounteredTypes + t)
       underlyingType(t) match {
         case Type.NilType | Type.BooleanT | _: Type.IntT | Type.StringT => true
-        case ut: Type.PointerT => go(ut.elem)
+        case _: Type.PointerT => true
         case ut: Type.StructT =>
           // a struct with ghost fields or ghost embeddings is not identity preserving.
           // E.g., for `type S struct { val int, ghost gval int }`, `S{0, 0} == S{0, 42}` holds in Go (after erasing the ghost fields).

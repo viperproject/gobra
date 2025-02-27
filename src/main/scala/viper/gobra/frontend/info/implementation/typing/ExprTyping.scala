@@ -289,7 +289,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n.base, s"type error: got $t but expected function type or AbstractType")
           }
-          val mayInitSeparation = error(n, "Function called from 'mayInit' context is not 'mayInit'.", !isImported && (isEnclosingMayInit(n) && !(isMayInit || isPure)))
+          // Pure functions may always be called from 'mayInit' methods, as they are not allowed to assume the
+          // package invariants.
+          val mayInitSeparation = error(n, "Function called from 'mayInit' context is not 'mayInit'.",
+            !isImported && isEnclosingMayInit(n) && !(isMayInit || isPure))
           cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation
 
         case (Left(_), Some(_: ap.ClosureCall)) =>

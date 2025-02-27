@@ -16,6 +16,9 @@ trait Comparability extends BaseProperty { this: TypeInfoImpl =>
     case (left, right) => s"$left is not comparable with $right"
   } {
     case (Single(left), Single(right)) =>
+      // The property that two types are comparable does not depend on whether we are in ghost code or not,
+      // unlike assignability. Thus, we explicitly pass 'false' in the calls to 'assignableTo' below to avoid
+      // having to pass 'mayInit' everywhere as a parameter.
       (assignableTo(left, right, false) || assignableTo(right, left, false)) && ((left, right) match {
         case (l, r) if comparableType(l) && comparableType(r) => true
         case (NilType, r) if isPointerType(r) => true
@@ -28,7 +31,11 @@ trait Comparability extends BaseProperty { this: TypeInfoImpl =>
   lazy val ghostComparableTypes: Property[(Type, Type)] = createFlatProperty[(Type, Type)] {
     case (left, right) => s"$left is not comparable in ghost with $right"
   } {
-    case (Single(left), Single(right)) => assignableTo(left, right, false) || assignableTo(right, left, false)
+    case (Single(left), Single(right)) =>
+      // The property that two types are comparable does not depend on whether we are in ghost code or not,
+      // unlike assignability. Thus, we explicitly pass 'false' in the calls to 'assignableTo' below to avoid
+      // having to pass 'mayInit' everywhere as a parameter.
+      assignableTo(left, right, false) || assignableTo(right, left, false)
     case _ => false
   }
 

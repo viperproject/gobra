@@ -95,16 +95,15 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val isEnclosingGhost: PNode => Boolean =
     down(false){ case _: PGhostifier[_] | _: PGhostNode => true }
 
+  // Returns true iff n occurs in an init() function, or a function marked with
+  // 'mayInit' or in the rhs of a global variable declaration.
   def isEnclosingMayInit(n: PNode): Boolean = {
     val cond1 = tryEnclosingFunctionOrMethod(n) match {
       case Some(f: PFunctionDecl) => f.id.name == "init" || f.spec.mayBeUsedInInit
       case Some(m: PMethodDecl) => m.spec.mayBeUsedInInit
       case _ => false
     }
-    val cond2 = tryEnclosingGlobalVarDeclaration(n) match {
-      case Some(_) => true
-      case _ => false
-    }
+    val cond2 = tryEnclosingGlobalVarDeclaration(n).isDefined
     cond1 || cond2
   }
 

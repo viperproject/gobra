@@ -31,7 +31,6 @@ class PackageInfo(val uniquePath: String, val name: String, val isBuiltIn: Boole
   // The - is enough to unambiguously separate the prefix from the package name, since it can't occur in the package name
   // per Go's spec (https://go.dev/ref/spec#Package_clause)
   val id: String = uniquePath + " - " + name
-  }
 
   /**
    * Unique id of the package to use in Viper member names.

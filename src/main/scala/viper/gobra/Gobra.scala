@@ -24,7 +24,7 @@ import viper.gobra.frontend.{Config, Desugar, PackageInfo, Parser, ScallopGobraC
 import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
-import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext, Sound}
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silicon.BuildInfo
 import viper.silver.{ast => vpr}
 

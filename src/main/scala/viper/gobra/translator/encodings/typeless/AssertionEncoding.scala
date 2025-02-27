@@ -22,7 +22,7 @@ class AssertionEncoding extends Encoding {
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
-    case n@ in.Old(op, _) => for { o <- ctx.expression(op)} yield withSrc(vpr.Old(o), n)
+    case n@ in.Old(op) => for { o <- ctx.expression(op)} yield withSrc(vpr.Old(o), n)
     case n@ in.LabeledOld(l, op) => for {o <- ctx.expression(op)} yield withSrc(vpr.LabelledOld(o, l.name), n)
 
     case n@ in.Negation(op) => for{o <- ctx.expression(op)} yield withSrc(vpr.Not(o), n)

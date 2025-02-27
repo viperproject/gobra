@@ -527,7 +527,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case PCapacity(op) => isExpr(op).out ++ {
-      exprType(op) match {
+      underlyingType(exprType(op)) match {
         case _: ArrayT | _: SliceT | _: GhostSliceT => noMessages
         case typ => error(op, s"expected an array or slice type, but got $typ")
       }

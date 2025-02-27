@@ -2773,7 +2773,7 @@ object Desugar extends LazyLogging {
             dop <- go(op)
           } yield dop match {
             case dop : in.ArrayLit => in.IntLit(dop.length)(src)
-            case _ => dop.typ match {
+            case _ => underlyingType(dop.typ) match {
               case _: in.ArrayT => in.Length(dop)(src)
               case _: in.SliceT => in.Capacity(dop)(src)
               case t => violation(s"expected an array or slice type, but got $t")
@@ -4292,7 +4292,7 @@ object Desugar extends LazyLogging {
       val typ = typeD(info.typ(expr), info.addressability(expr))(src)
 
       expr match {
-        case POld(op) => for {o <- go(op)} yield in.Old(o, typ)(src)
+        case POld(op) => for {o <- go(op)} yield in.Old(o)(src)
         case PLabeledOld(l, op) => for {o <- go(op)} yield in.LabeledOld(labelProxy(l), o)(src)
         case PBefore(op) => for {o <- go(op)} yield in.LabeledOld(in.LabelProxy("before")(src), o)(src)
         case PConditional(cond, thn, els) =>  for {

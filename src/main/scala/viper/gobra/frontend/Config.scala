@@ -14,7 +14,6 @@ import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import org.rogach.scallop.{ScallopConf, ScallopOption, singleArgConverter}
 import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
-import viper.gobra.frontend.Config.enableLazyImportOptionPrettyPrinted
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
 import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential, TaskManagerMode}
@@ -899,7 +898,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   addValidation {
     val lazyImportsSet = enableLazyImports.toOption.contains(true)
     if (lazyImportsSet) {
-      Left(s"The flag $enableLazyImportOptionPrettyPrinted was removed in Gobra's PR #797.")
+      Left(s"The flag ${Config.enableLazyImportOptionPrettyPrinted} was removed in Gobra's PR #797.")
     } else {
       Right(())
     }

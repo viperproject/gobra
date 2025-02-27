@@ -83,7 +83,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
                             imports: Vector[PImport],
                             friends: Vector[PFriendPkgDecl]
                           ): Doc =
-    vcat(pkgInvs.map(showPkgInvariant)) <>
+    vcat(pkgInvs.map(showPkgInvariant)) <> line <>
       showPackageClause(packageClause) <> line <> line <>
       ssep(friends map showFriend, line) <> line <>
       ssep(imports map showImport, line) <> line

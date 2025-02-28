@@ -11,7 +11,6 @@ package viper.gobra.reporting
 sealed trait VerifierResult
 
 object VerifierResult {
-
-  case object Success extends VerifierResult
-  case class Failure(errors: Vector[VerifierError]) extends VerifierResult
+  case class Success(warnings: Vector[VerifierWarning]) extends VerifierResult
+  case class Failure(errors: Vector[VerifierError], warnings: Vector[VerifierWarning]) extends VerifierResult
 }

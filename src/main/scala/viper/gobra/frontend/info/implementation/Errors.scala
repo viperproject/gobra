@@ -13,7 +13,7 @@ import viper.gobra.frontend.info.base.Type.{InterfaceT, Type}
 
 trait Errors { this: TypeInfoImpl =>
 
-  lazy val (errors: Messages, missingImplProofs: Vector[(Type, InterfaceT, MethodImpl, MethodSpec)]) =
+  lazy val (messages: Messages, missingImplProofs: Vector[(Type, InterfaceT, MethodImpl, MethodSpec)]) =
     {
       val partialRes = collectMessages(tree) { case m: PNode =>
 

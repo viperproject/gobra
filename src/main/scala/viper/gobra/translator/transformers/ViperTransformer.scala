@@ -6,7 +6,7 @@
 
 package viper.gobra.translator.transformers
 
-import viper.gobra.backend.BackendVerifier.Task
+import viper.gobra.backend.Task
 import viper.silver.verifier.AbstractError
 
 /**

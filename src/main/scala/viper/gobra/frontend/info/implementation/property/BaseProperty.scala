@@ -7,6 +7,7 @@
 package viper.gobra.frontend.info.implementation.property
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Severities
 import viper.gobra.ast.frontend.PNode
 
 trait BaseProperty {
@@ -19,6 +20,15 @@ trait BaseProperty {
         if (msgs.isEmpty) ""
         else if (msgs.size == 1) msgs.head
         else "multiple errors:" + msgs.mkString(s"${newLine}error: ", s"${newLine}error: ", "")
+      )
+    )
+
+    def asWarning(src: PNode): Messages = opt.fold(noMessages)(msgs =>
+      message(src,
+        if (msgs.isEmpty) ""
+        else if (msgs.size == 1) msgs.head
+        else "multiple warnings:" + msgs.mkString(s"${newLine}warning: ", s"${newLine}warning: ", ""),
+        Severities.Warning
       )
     )
 
@@ -83,6 +93,8 @@ trait BaseProperty {
     def result(n: A): PropertyResult = gen(n)
 
     def errors(n: A)(src: PNode): Messages = result(n).asError(src)
+
+    def warnings(n: A)(src: PNode): Messages = result(n).asWarning(src)
 
     override def apply(n: A): Boolean = result(n).holds
 

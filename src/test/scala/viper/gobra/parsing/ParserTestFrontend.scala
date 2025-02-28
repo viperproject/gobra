@@ -10,15 +10,18 @@ import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
 import org.scalatest.Assertions.fail
 import viper.gobra.ast.frontend.{PExpression, PImport, PMember, PProgram, PStatement, PType}
 import viper.gobra.frontend.Parser
-import viper.gobra.reporting.ParserError
+import viper.gobra.reporting.{ParserError, ParserMessage, ParserWarning}
 
 import scala.reflect.ClassTag
 
 class ParserTestFrontend {
-  private def parse[T: ClassTag](source: String, parser: Source => Either[Vector[ParserError], T]) : Either[Vector[ParserError], T] =
-    parser(StringSource(source))
+  private def parse[T: ClassTag](source: String, parser: Source => Either[Vector[ParserMessage], (T, Vector[ParserWarning])]) : Either[Vector[ParserError], T] =
+    parser(StringSource(source)).fold(
+      messages => Left(messages.collect { case e: ParserError => e }),
+      { case (ast, _) => Right(ast) }
+    )
 
-  private def parseOrFail[T: ClassTag](source: String, parser: Source => Either[Vector[ParserError], T]): T = {
+  private def parseOrFail[T: ClassTag](source: String, parser: Source => Either[Vector[ParserMessage], (T, Vector[ParserWarning])]): T = {
     parse(source, parser) match {
       case Right(ast) => ast
       case Left(messages) => fail(s"Parsing failed: $messages")

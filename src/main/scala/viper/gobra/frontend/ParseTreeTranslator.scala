@@ -14,8 +14,11 @@ import viper.gobra.ast.frontend._
 import viper.gobra.util.{Binary, Hexadecimal, Octal}
 import viper.gobra.frontend.GobraParser._
 import viper.gobra.frontend.Parser.PRewriter
+import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.frontend.TranslationHelpers._
+import viper.gobra.reporting.{ParserError, ParserMessage, ParserWarning}
 import viper.gobra.util.Violation.violation
+import viper.silver.ast.{HasLineColumn, LineColumnPosition, SourcePosition}
 
 import scala.StringContext.InvalidEscapeException
 import scala.annotation.unused
@@ -2505,11 +2508,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   //region Error reporting and positioning
 
-  private def fail(cause : NamedPositionable, msg : String = "") = {
+  private def fail(cause: NamedPositionable, msg: String = ""): Nothing = {
     throw TranslationFailure(cause, msg)
   }
 
-  private def unexpected(ctx: ParserRuleContext) = {
+  private def unexpected(ctx: ParserRuleContext): Nothing = {
     violation(s"could not translate '${ctx.getText}', got unexpected production '${visitChildren(ctx)}'")
   }
 
@@ -2581,17 +2584,42 @@ trait Named {
 
 // Any object that can be assigned a start and end in a source is positionable
 trait Positionable {
-  val startPos : Position
-  val endPos : Position
-  val startFinish : (Position, Position) = (startPos, endPos)
+  val startPos: Position
+  val endPos: Position
+  val startFinish: (Position, Position) = (startPos, endPos)
+  def start: HasLineColumn = LineColumnPosition(startPos.line, startPos.column)
+  def end: HasLineColumn = LineColumnPosition(endPos.line, endPos.column)
 }
 
 // This trait is used for error messages, here we need both a position and a name.
 sealed trait NamedPositionable extends Named with Positionable
 
+sealed trait TranslationMessage {
+  def toMessage(source: Source): ParserMessage
+}
 
-class TranslationException(@unused cause: NamedPositionable, msg : String) extends Exception(msg)
+abstract class TranslationException(message: String) extends Exception(message) with TranslationMessage {
+  def cause: NamedPositionable
+}
 
-case class TranslationFailure(cause: NamedPositionable, msg : String = "") extends TranslationException(cause, s"Translation of ${cause.name} ${cause.text} failed${if (msg.nonEmpty) ": " + msg else "."}")
-case class TranslationWarning(cause: NamedPositionable, msg : String = "") extends TranslationException(cause, s"Warning in ${cause.name} ${cause.text}${if (msg.nonEmpty) ": " + msg else "."}")
-case class UnsupportedOperatorException(cause: NamedPositionable, typ : String, msg : String = "") extends TranslationException(cause, s"Unsupported $typ operation: ${cause.text}.")
+case class TranslationFailure(cause: NamedPositionable, details: String = "") extends TranslationException(s"Translation of ${cause.name} ${cause.text} failed${if (details.nonEmpty) ": " + details else "."}") {
+  override def toMessage(source: Source): ParserError = {
+    val pos = Some(SourcePosition(source.toPath, cause.start, cause.end))
+    ParserError(s"$getMessage ${getStackTrace.toVector(1)}", pos)
+  }
+}
+
+case class TranslationWarning(cause: NamedPositionable, details: String = "") extends TranslationMessage {
+  val message = s"Warning in ${cause.name} ${cause.text}${if (details.nonEmpty) ": " + details else "."}"
+  override def toMessage(source: Source): ParserWarning = {
+    val pos = Some(SourcePosition(source.toPath, cause.start, cause.end))
+    ParserWarning(s"$message", pos)
+  }
+}
+
+case class UnsupportedOperatorException(cause: NamedPositionable, typ: String, msg: String = "") extends TranslationException(s"Unsupported $typ operation: ${cause.text}.") {
+  override def toMessage(source: Source): ParserError = {
+    val pos = Some(SourcePosition(source.toPath, cause.start, cause.end))
+    ParserError(s"$getMessage ${getStackTrace.toVector(0)}", pos)
+  }
+}

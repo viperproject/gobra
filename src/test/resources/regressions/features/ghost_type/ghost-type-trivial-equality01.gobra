@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostTypeTrivialEquality01
+
+ghost type GhostStruct ghost struct {
+    f int
+}
+
+func foo1(ghost x, y GhostStruct) {
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert x == y // this equality check is not trivial but matches the semantics of `===`
+}
+
+func foo2(ghost x, y GhostStruct) {
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert x === y
+}

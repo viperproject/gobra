@@ -10,7 +10,7 @@ package stdNamesAlt
 // ##(-I ..)
 
 pred StdNamesAltInv() { 	
-    acc(&anyRef._start, _) && acc(&anyRef._length, _) && anyRef._start == 0 &&
-    acc(&array._start, _) && acc(&array._length, _) && array._start == 0 &&
-    acc(&list._start, _) && acc(&list._length, _) && list._start == 0
+    acc(anyRef, _) && anyRef._start == 0 &&
+    acc(array, _) && array._start == 0 &&
+    acc(list, _) && list._start == 0
 }

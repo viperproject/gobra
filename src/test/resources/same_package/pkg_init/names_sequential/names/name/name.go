@@ -20,7 +20,7 @@ func init() {
 	// @ fold NameInv()
 }
 
-// @ ensures	acc(&res._length) && acc(&res._start)
+// @ ensures	acc(res)
 // @ ensures	res._length == length && res._start == start
 // @ decreases
 func New(start int, length int) (res *Name) {

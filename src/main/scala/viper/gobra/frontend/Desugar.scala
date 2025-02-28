@@ -3594,6 +3594,12 @@ object Desugar extends LazyLogging {
       if (pres.nonEmpty || posts.nonEmpty) {
         // as an optimization, only generate methods for imports that introduce
         // proof obligations
+        /**
+          * ->
+          * requires pres // resources provided by friend
+          * ensures posts // conjunction of all import preconditions of `importedPackage` in `mainPkg`
+          * func packageImports<importedPackage>() {}
+          */
         val checkFn = in.Function(
           name = in.FunctionProxy(nm.packageImports(importedPackage, info))(src),
           args = Vector.empty,

@@ -73,7 +73,7 @@ pred listPermissions(xs *list) {
 
 - Not part of the Go language and declared with the keyword `pred`.
 - Typically used to abstract over assertions and to specify the shape of recursive data structures.
-- See the [section on predicates](#predicates) for details.
+- See the [section on predicates](#first-class-predicates) for details.
 
 #### Type Definitions
 

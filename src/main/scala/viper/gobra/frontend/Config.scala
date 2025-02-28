@@ -68,7 +68,7 @@ object ConfigDefaults {
   val DefaultZ3APIMode: Boolean = false
   val DefaultDisableNL: Boolean = false
   val DefaultMCEMode: MCE.Mode = MCE.Enabled
-  val DefaultHyperMode: Hyper.Mode = Hyper.Enabled
+  val DefaultHyperMode: Hyper.Mode = Hyper.Disabled
   lazy val DefaultEnableLazyImports: Boolean = false
   val DefaultNoVerify: Boolean = false
   val DefaultNoStreamErrors: Boolean = false

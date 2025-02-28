@@ -14,7 +14,7 @@ import viper.silver.ast._
 import viper.silver.ast.utility.Simplifier
 import viper.silver.plugin.standard.predicateinstance.PredicateInstance
 import viper.silver.plugin.standard.termination.{DecreasesClause, DecreasesTuple, DecreasesWildcard}
-import viper.silver.verifier.AbstractError
+import viper.silver.verifier.{AbstractError, ConsistencyError}
 
 import scala.annotation.{tailrec, unused}
 
@@ -482,11 +482,18 @@ trait SIFLowGuardTransformer {
     else Seqn(Seq.empty, Seq.empty)(s.pos, s.info, s.errT)
   }
 
-  def removeLow[N <: Node](n: N): N = {
-    n.transform{
-      case n: SIFLowExp => TrueLit()(n.pos, n.info, n.errT)
-      case n: SIFLowEventExp => TrueLit()(n.pos, n.info, n.errT)
+  def removeLow[N <: Node](n: N): Either[Seq[AbstractError], N] = {
+    var errs: Seq[AbstractError] = Seq.empty
+    val transformedN = n.transform{
+      case n: SIFLowExp =>
+        errs = errs :+ ConsistencyError(s"Low expression found: ${n.exp}", n.pos)
+        TrueLit()(n.pos, n.info, n.errT)
+      case n: SIFLowEventExp =>
+        errs = errs :+ ConsistencyError(s"Low event expression found", n.pos)
+        TrueLit()(n.pos, n.info, n.errT)
     }
+    if (errs.isEmpty) Right(transformedN)
+    else Left(errs)
   }
 
   def newContext(
@@ -607,7 +614,7 @@ class SIFLowGuardTransformerImpl(config: Config) extends SIFLowGuardTransformer 
         Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program), noMinor = false), task.backtrack))
 
       case Hyper.Disabled =>
-        Right(BackendVerifier.Task(removeLow(task.program), task.backtrack))
+        removeLow(task.program).map(BackendVerifier.Task(_, task.backtrack))
 
       case Hyper.NoMajor =>
         Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program), noMinor = true), task.backtrack))

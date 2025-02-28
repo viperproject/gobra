@@ -127,7 +127,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           rec,
           getActualParams(args),
           getActualResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty, mayBeUsedInInit = false), // TODO: delete
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty),
           body
         )
       )
@@ -139,7 +139,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           id,
           getActualParams(args),
           getActualResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty, mayBeUsedInInit = false), // TODO: delete
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty),
           body
         )
       )

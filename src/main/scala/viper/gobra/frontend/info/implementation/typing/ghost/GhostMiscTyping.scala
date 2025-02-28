@@ -180,7 +180,11 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case PClosureSpecInstance(fName, ps) if ps.size > fArgs.size =>
       error(c, s"spec instance $c has too many parameters (more than the arguments of function $fName)")
     case spec: PClosureSpecInstance if spec.paramKeys.isEmpty =>
-      (spec.paramExprs zip fArgs) flatMap { case (exp, a) => assignableTo.errors((exprType(exp), a._2, false))(exp) }
+      (spec.paramExprs zip fArgs) flatMap { case (exp, a) =>
+        // we disallow calling closures from initialization code. Thus, it is safe to use the more permissive notion
+        // of assignability here (where mayInit = false).
+        assignableTo.errors((exprType(exp), a._2, false))(exp)
+      }
     case spec@PClosureSpecInstance(fName, ps) if spec.paramKeys.size == ps.size =>
       val argsTypeMap = fArgs.collect {
         case (PNamedParameter(id, _), t) => id.name -> t
@@ -191,7 +195,10 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       }._2
       val wellDefIfCanAssignParams = (spec.paramKeys zip spec.paramExprs zip ps) flatMap {
         case ((k, exp), p) => argsTypeMap.get(k) match {
-          case Some(t: Type) => assignableTo.errors((exprType(exp), t, false))(exp)
+          case Some(t: Type) =>
+            // we disallow calling closures from initialization code. Thus, it is safe to use the more permissive notion
+            // of assignability here (where mayInit = false).
+            assignableTo.errors((exprType(exp), t, false))(exp)
           case _ => error(p.key.get, s"could not find argument $k in the function $fName")
       }}
       wellDefIfNoDuplicateParams ++ wellDefIfCanAssignParams ++ c.paramExprs.flatMap(exp => isPureExpr(exp))

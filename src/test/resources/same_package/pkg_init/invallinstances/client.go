@@ -10,7 +10,7 @@ package invallinstances
 // in Peter's paper (https://link.springer.com/chapter/10.1007/11526841_4)
 // with the Client class. Interestingly, the proof annotations for the allocator
 // (New) in this version and in the version from Peter are very similar even
-// though one is based in ownership types and the other is based in SL/IDF.
+// though one is based on ownership types and the other is based on SL/IDF.
 
 var ids /*@@@*/ int
 

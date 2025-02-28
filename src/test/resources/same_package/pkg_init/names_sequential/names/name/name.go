@@ -2,8 +2,8 @@
 // http://creativecommons.org/publicdomain/zero/1.0/
 
 // Contributed by Patricia Firlejczyk based on one of the examples
-// not suitable for initialization-time irrelevance reported in
-// https://dl.acm.org/doi/10.1145/3622844
+// that do not satisfy Initialization-time Irrelevance as defined in
+// this paper: https://dl.acm.org/doi/10.1145/3622844
 
 // @ pkgInvariant NameInv()
 

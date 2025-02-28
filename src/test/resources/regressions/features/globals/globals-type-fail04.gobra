@@ -26,4 +26,5 @@ ghost
 //:: ExpectedOutput(type_error)
 func init() {}
 
+// Ghost global variables are accepted
 ghost var C int

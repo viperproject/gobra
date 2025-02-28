@@ -1,6 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
+// Old expressions are disallowed in pkg invariants
 //:: ExpectedOutput(type_error)
 pkgInvariant old(1) == 1
 package pkg

@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{error, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -20,6 +20,9 @@ trait ImportTyping extends BaseTyping { this: TypeInfoImpl =>
       case n: PImplicitQualifiedImport => message(n, s"Explicit qualifier could not be derived")
     }
     val preHasOldExps = hasOldExpression(imp.importPres)
-    qualifierMsgs ++ preHasOldExps
+    val importPresAllowed = error(imp, "Import preconditions are disallowed by default." +
+      "Pass the flag --experimentalFriendClauses to allow it. This feature may change in the future.",
+      !config.enableExperimentalFriendClauses && imp.importPres.nonEmpty)
+    qualifierMsgs ++ preHasOldExps ++ importPresAllowed
   }
 }

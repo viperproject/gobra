@@ -3688,14 +3688,17 @@ object Desugar extends LazyLogging {
       val pkgInvariants: Vector[in.Assertion] = p.pkgInvariants.map{ i => specificationD(FunctionContext.empty(), info)(i.inv)}
       val resourcesForFriends: Vector[in.Assertion] = p.friends.map{i => specificationD(FunctionContext.empty(), info)(i.assertion)}
       val currPkg = info.tree.originalRoot
-      val pkgInvariantsImportedPackages: Vector[in.Assertion] =
-        initSpecs.getNonDupPkgInvariants().filter{ case (k, _) => k != currPkg }.values.flatten.toVector
+      val pkgInvariantsImportedPackages: Vector[in.Assertion] = {
+        val directlyImportedPkgs = info.dependentTypeInfo.values.map(_.getTypeInfo.tree.root).toSet
+        initSpecs.getNonDupPkgInvariants().filter{
+          case (k, _) => directlyImportedPkgs.contains(k)
+        }.values.flatten.toVector
+      }
 
       /**
         * [ p ] ->
         * requires progPres // import preconditions
         * requires pkgInvariantsImportedPackages // package invariants of imported packages
-        * requires resourcesFromFriendPkgs // resources sent to this package from imported packages that declared this package as a friend
         * ensures  pkgInvariantsImportedPackages // return package invariants of imported packages
         * ensures  pkgInvariants // package invariants of this file
         * ensures  resourcesForFriends // resources for friends of this file
@@ -3724,7 +3727,8 @@ object Desugar extends LazyLogging {
             decls = Vector(),
             postprocessing = Vector(),
             seqn = in.MethodBodySeqn{
-              // init all global variables declared in the file (not all declarations in the package!)
+              // Init all global variables declared in the file (not all declarations in the package!).
+              // This inhales permissions to the all global variables declared in the current file.
               val initDeclaredGlobs: Vector[in.Initialization] = sortedGlobVarDecls.flatMap(_.left).filter {
                 // do not initialize Exclusive variables to avoid unsoundnesses with the assumptions.
                 // TODO(another optimization) do not generate initialization code for variables with RHS.
@@ -3732,8 +3736,8 @@ object Desugar extends LazyLogging {
               }.map{ gVar =>
                 in.Initialization(gVar)(gVar.info)
               }
-              // execute the declaration statements for variables in order of declaration, while satisfying the
-              // dependency relation
+              // execute the rhs of all variable declarations of the current file in the order in which they are
+              // declared, while satisfying the dependency relation
               /**
                 * TODO: Correctly order the variable declarations once the restriction to provide declarations in order
                 *       is lifted

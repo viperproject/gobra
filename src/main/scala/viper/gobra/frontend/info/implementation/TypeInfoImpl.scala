@@ -20,7 +20,7 @@ import viper.gobra.frontend.info.implementation.typing.ghost._
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostSeparation
 import viper.gobra.frontend.info.{ExternalTypeInfo, Info, TypeInfo}
 
-class TypeInfoImpl(final val tree: Info.GoTree, final val dependentTypeInfo: Map[AbstractImport, ExternalTypeInfo], val isMainContext: Boolean = false)(val config: Config) extends Attribution with TypeInfo with ExternalTypeInfo
+class TypeInfoImpl(final val tree: Info.GoTree, override final val dependentTypeInfo: Map[AbstractImport, ExternalTypeInfo], val isMainContext: Boolean = false)(val config: Config) extends Attribution with TypeInfo with ExternalTypeInfo
 
   with NameResolution
   with LabelResolution

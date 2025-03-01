@@ -3,7 +3,7 @@
 
 package main
 
-// ##(-I ./)
+// ##(-I ./ --experimentalFriendClauses)
 
 //:: ExpectedOutput(type_error)
 importRequires old(1) == 1

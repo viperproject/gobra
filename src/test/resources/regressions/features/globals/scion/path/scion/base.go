@@ -3,7 +3,7 @@
 
 package scion
 
-// ##(-I ../../)
+// ##(-I ../../ --experimentalFriendClauses)
 
 import "path"
 

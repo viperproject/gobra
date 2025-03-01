@@ -3,6 +3,8 @@
 
 package test
 
+// ##(--experimentalFriendClauses)
+
 var f@ int = 1
 var g int = test()
 

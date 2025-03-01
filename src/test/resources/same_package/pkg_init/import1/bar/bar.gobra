@@ -3,7 +3,7 @@
 
 package bar
 
-// ##(-I ../)
+// ##(-I ../ --experimentalFriendClauses)
 
 friendPkg "../../pkg" acc(&A) && acc(&B) && acc(&C)
 

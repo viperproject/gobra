@@ -5,7 +5,7 @@
 
 package pkg
 
-// ##(-I ../)
+// ##(-I ../ --experimentalFriendClauses)
 
 importRequires acc(&bar.A) && acc(&bar.B)
 import "bar"

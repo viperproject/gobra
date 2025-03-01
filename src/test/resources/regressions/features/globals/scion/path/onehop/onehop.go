@@ -3,7 +3,7 @@
 
 package onehop
 
-// ##(-I ../../)
+// ##(-I ../../ --experimentalFriendClauses)
 
 import "path"
 

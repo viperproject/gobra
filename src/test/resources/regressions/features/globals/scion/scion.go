@@ -9,7 +9,7 @@
 
 package scion
 
-// ##(-I .)
+// ##(-I . --experimentalFriendClauses)
 
 // Example inspired by how PathTypes are registered in the SCION border router.
 // Based on https://github.com/viperproject/VerifiedSCION/tree/master/pkg/slayers/scion.go

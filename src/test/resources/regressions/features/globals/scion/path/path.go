@@ -3,7 +3,7 @@
 
 package path
 
-// ##(-I ../)
+// ##(-I ../ --experimentalFriendClauses)
 
 // This approach is sound, assuming that the paths below are unique per package.
 // This assumption is not problematic, and is similar to the assumption we make for

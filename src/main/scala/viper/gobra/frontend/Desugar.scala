@@ -3642,14 +3642,14 @@ object Desugar extends LazyLogging {
       }
       mainFuncOpt.map { mainFunc =>
         val src = meta(mainFunc, info)
-        val mainPkgPosts = initSpecs.getNonDupPkgInvariants().values.flatten.toVector
+        val mainPkgInitPosts = initSpecs.getNonDupPkgInvariants().values.flatten.toVector
         val mainFuncPre = mainFunc.spec.pres ++ mainFunc.spec.preserves
         val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty(), info)).map { a =>
           a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(MainPreNotEstablished))
         }
         val funcProxy = in.FunctionProxy(nm.mainFuncProofObligation(info))(src)
         /**
-          * requires mainPkgPosts // postconditions established by initialization
+          * requires mainPkgInitPosts // postconditions established by initialization
           * ensures  mainFuncPreD // desugarer preconditions of the main function
           * func mainFuncProofObligation() {}
           */
@@ -3657,7 +3657,7 @@ object Desugar extends LazyLogging {
           name = funcProxy,
           args = Vector.empty,
           results = Vector.empty,
-          pres = mainPkgPosts,
+          pres = mainPkgInitPosts,
           posts = mainFuncPreD,
           terminationMeasures = Vector.empty,
           backendAnnotations = Vector.empty,
@@ -3691,15 +3691,12 @@ object Desugar extends LazyLogging {
       val pkgInvariantsImportedPackages: Vector[in.Assertion] =
         initSpecs.getNonDupPkgInvariants().filter{ case (k, _) => k != currPkg }.values.flatten.toVector
 
-      val uniquePathPkg = currPkg.info.uniquePath
-      val resourcesFromFriendPkgs = initSpecs.getFriendResourcesForDst(uniquePathPkg).map(_._2)
-
       in.Function(
         name = funcProxy,
         args = Vector(),
         results = Vector(),
         // inhales all import preconditions of the current file all invariants of imported packages
-        pres = progPres ++ pkgInvariantsImportedPackages ++ resourcesFromFriendPkgs,
+        pres = progPres ++ pkgInvariantsImportedPackages,
         // exhales all package invariants from the current file and all resources for friends
         posts = pkgInvariantsImportedPackages ++ pkgInvariants ++ resourcesForFriends,
         // in our verification approach, the initialization code must be proven to terminate

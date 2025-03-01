@@ -16,7 +16,7 @@ import (
 var x /*@@@*/ int = valX()
 
 // I am not super happy with having implicit free preconditions (which are sound) for
-// this function (it is incosistent with the design of main, where we
+// this function (it is inconsistent with the design of main, where we
 // must provide the preconditions for main). Nonetheless, having to provide
 // a spec (including termination measures) for this function is a bit excessive.
 // An alternative would be to change the encoding for main.

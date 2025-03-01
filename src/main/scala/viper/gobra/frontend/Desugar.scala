@@ -3691,6 +3691,23 @@ object Desugar extends LazyLogging {
       val pkgInvariantsImportedPackages: Vector[in.Assertion] =
         initSpecs.getNonDupPkgInvariants().filter{ case (k, _) => k != currPkg }.values.flatten.toVector
 
+      /**
+        * [ p ] ->
+        * requires progPres // import preconditions
+        * requires pkgInvariantsImportedPackages // package invariants of imported packages
+        * requires resourcesFromFriendPkgs // resources sent to this package from imported packages that declared this package as a friend
+        * ensures  pkgInvariantsImportedPackages // return package invariants of imported packages
+        * ensures  pkgInvariants // package invariants of this file
+        * ensures  resourcesForFriends // resources for friends of this file
+        * decreases
+        * func programInit() {
+        *   // declare shared global variables of this file
+        *   // initialize these variables
+        *   // exhale package invariants of imported packages
+        *   // inhale package invariants of imported packages
+        *   // body of all init functions in this file
+        * }
+        */
       in.Function(
         name = funcProxy,
         args = Vector(),

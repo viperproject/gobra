@@ -23,7 +23,8 @@ ghost type intPair domain {
 intPair implements any
 
 func test() {
-    x := pair(1,2)
+    ghost var x any
+    x = pair(1,2)
     assert equal(x, x) // succeeds as `equal` is ghost
     //:: ExpectedOutput(assert_error:assertion_error)
     assert false

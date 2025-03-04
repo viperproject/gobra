@@ -1,9 +1,10 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-// this testcase checks whether a domain can implement a non-empty interface
+// this testcase checks that a domain cannot implement an interface containing actual functions by defining ghost
+// methods (complementing `implements-interface-simple02.gobra`).
 
-package ImplementsInterfaceSimple02
+package ImplementsInterfaceFail04
 
 ghost type intPair domain {
     func fst(intPair) int
@@ -20,15 +21,13 @@ ghost type intPair domain {
 }
 
 type Equality interface {
-    ghost
     pure hash() int
 
-    ghost
     isEqual(other Equality) bool
 }
 
-// the following clause should be permitted by the type-checker as intPair implements the interface:
-intPair implements Equality
+//:: ExpectedOutput(type_error)
+intPair implements Equality // fails as the ghostness of the implementation does not match the interface
 
 ghost
 decreases
@@ -40,15 +39,15 @@ ghost
 decreases
 func (i intPair) isEqual(other Equality) bool {
     if typeOf(other) == intPair {
-        return fst(i) == fst(other.(intPair)) && snd(i) == snd(other.(intPair))
+        //:: ExpectedOutput(type_error)
+        return fst(i) == fst(other.(intPair)) && snd(i) == snd(other.(intPair)) // `other` cannot be cast to `intPair`
     }
     return false
 }
 
 func test() {
-    ghost var x Equality
-    x = pair(1,2)
+    var x Equality
+    //:: ExpectedOutput(type_error)
+    x = pair(1,2) // `pair` does not implement `Equality`
     assert x.hash() == 42
-    //:: ExpectedOutput(assert_error:assertion_error)
-    assert false
 }

@@ -7,6 +7,8 @@ package pkg
 importRequires true
 import "fmt"
 
+// ##(--experimentalFriendClauses)
+
 import (
 	importRequires true
 	importRequires true

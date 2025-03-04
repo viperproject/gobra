@@ -11,6 +11,7 @@ import org.scalatest.exceptions.TestFailedException
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import viper.gobra.ast.frontend._
+import viper.gobra.reporting.ParserError
 import viper.gobra.util.{Decimal, Hexadecimal}
 
 class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
@@ -2719,6 +2720,12 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: should be able to parse a ghost struct ghost type declaration") {
     frontend.parseMemberOrFail("ghost type MyStruct ghost struct { Value int }") should matchPattern {
       case Vector(PExplicitGhostMember(PTypeDef(PExplicitGhostStructType(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Value"), PIntType())))))), PIdnDef("MyStruct")))) =>
+    }
+  }
+
+  test("Parser: should point out that 'proof' is a reserved word") {
+    frontend.parseMember("func test(proof ProofType)") should matchPattern {
+      case Left(Vector(ParserError(msg, _))) if msg contains "Unexpected reserved word proof" =>
     }
   }
 }

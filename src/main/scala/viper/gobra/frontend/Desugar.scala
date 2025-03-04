@@ -2773,7 +2773,7 @@ object Desugar extends LazyLogging {
             dop <- go(op)
           } yield dop match {
             case dop : in.ArrayLit => in.IntLit(dop.length)(src)
-            case _ => dop.typ match {
+            case _ => underlyingType(dop.typ) match {
               case _: in.ArrayT => in.Length(dop)(src)
               case _: in.SliceT => in.Capacity(dop)(src)
               case t => violation(s"expected an array or slice type, but got $t")

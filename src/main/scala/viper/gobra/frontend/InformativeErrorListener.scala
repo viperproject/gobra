@@ -21,6 +21,19 @@ import scala.collection.mutable.ListBuffer
 class InformativeErrorListener(val messages: ListBuffer[ParserError], val source: Source) extends BaseErrorListener {
 
   /**
+    * First token that Gobra introduces that is not present in Go.
+    * First refers to the order of token declarations in GobraLexer.g4
+    * as this order is preserved by ANTLR4 when generating GobraParser.java
+    */
+  private val FIRST_GOBRA_TOKEN = GobraParser.TRUE
+  /**
+    * Last token that Gobra introduces that is not present in Go.
+    * Last refers to the order of token declarations in GobraLexer.g4
+    * this order is preserved by ANTLR4 when generating GobraParser.java
+    */
+  private val LAST_GOBRA_TOKEN = GobraParser.FRIENDPKG
+
+  /**
     *
     * @param recognizer The recognizer that encountered the error
     * @param offendingSymbol The symbol that caused the error
@@ -314,5 +327,5 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
   }
 
   // All tokens reserved by gobra, but not by Go
-  val new_reserved = IntervalSet.of(GobraParser.TRUE, GobraParser.TRUSTED)
+  val new_reserved = IntervalSet.of(FIRST_GOBRA_TOKEN, LAST_GOBRA_TOKEN)
 }

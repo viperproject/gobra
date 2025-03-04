@@ -339,6 +339,36 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.testProg(input, expected)
   }
 
+  test("Ghost Erasure: ghost calls to non-ghost pure functions should be erased") {
+    // this corresponds to the program in "issues/000861-3.gobra"
+    val input =
+      s"""
+         |package pkg
+         |func test() (ghost res bool) {
+         |    ghost var x = 42
+         |    ghost var y = 0
+         |    tmp := isEqual(x, y)
+         |    res = tmp
+         |    return
+         |}
+         |decreases
+         |pure func isEqual(x, y int) bool {
+         |    return x == y
+         |}
+         |""".stripMargin
+    val expected =
+      s"""
+         |package pkg
+         |func test() {
+         |  return
+         |}
+         |func isEqual(x, y int) bool {
+         |  return x == y
+         |}
+         |""".stripMargin
+    frontend.testProg(input, expected)
+  }
+
   /* ** Stubs, mocks, and other test setup  */
 
   class TestFrontend {

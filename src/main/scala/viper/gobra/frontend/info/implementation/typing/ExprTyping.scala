@@ -420,7 +420,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case (bt, lt, ht, ct) => error(n, s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
       })
 
-    case n@PTypeAssertion(base, typ) =>
+    case PTypeAssertion(base, typ) =>
       isExpr(base).out ++ isType(typ).out ++ {
         val baseT = exprType(base)
         underlyingType(baseT) match {
@@ -431,14 +431,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
 
-    case n@PReceive(e) => isExpr(e).out ++ (exprType(e) match {
+    case PReceive(e) => isExpr(e).out ++ (exprType(e) match {
       case ChannelT(_, ChannelModus.Bi | ChannelModus.Recv) => noMessages
       case t => error(e, s"expected receive-permitting channel but got $t")
     })
 
-    case n@PReference(e) => isExpr(e).out ++ effAddressable.errors(e)(e)
+    case PReference(e) => isExpr(e).out ++ effAddressable.errors(e)(e)
 
-    case n@PNegation(e) => isExpr(e).out ++ assignableTo.errors(exprType(e), BooleanT)(e)
+    case PNegation(e) => isExpr(e).out ++ assignableTo.errors(exprType(e), BooleanT)(e)
 
     case n: PBinaryExp[_,_] =>
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {

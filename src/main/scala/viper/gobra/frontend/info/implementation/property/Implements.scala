@@ -117,7 +117,7 @@ trait Implements { this: TypeInfoImpl =>
           // check that all types (besides `ut` itself) occurring as input or output parameter types are identity preserving
           val inAndOutParams = ut.decl.funcs.flatMap(f => f.args ++ f.result.outs)
           inAndOutParams
-            .map(param => typ(param))
+            .map(param => ut.context.typ(param))
             .filter(_ != ut) // ignore the domain itself
             .forall(typ => go(typ))
         case ut: GhostCollectionType => go(ut.elem)

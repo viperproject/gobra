@@ -89,10 +89,10 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
         }
       case e: PBinaryExp[_,_] =>
         def aux(l: PExpression, r: PExpression)(f: BigInt => BigInt => BigInt): Option[BigInt] =
-          (intConstantEval(l), intConstantEval(r)) match {
-            case (Some(a), Some(b)) => Some(f(a)(b))
-            case _ => None
-          }
+          for {
+            a <- intConstantEval(l)
+            b <- intConstantEval(r)
+          } yield f(a)(b)
 
         for {
           l <- asExpr(e.left)

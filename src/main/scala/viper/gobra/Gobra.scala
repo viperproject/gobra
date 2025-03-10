@@ -6,31 +6,26 @@
 
 package viper.gobra
 
-import ch.qos.logback.classic.Logger
-import scalaz.EitherT
-
 import java.nio.file.Paths
-import java.util.concurrent.ExecutionException
-import com.typesafe.scalalogging.StrictLogging
-import org.slf4j.LoggerFactory
-import scalaz.Scalaz.futureInstance
-import viper.gobra.ast.internal.Program
-import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, InternalTransform, OverflowChecksTransform}
-import viper.gobra.backend.BackendVerifier
-import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
-import viper.gobra.frontend.Parser.ParseResult
-import viper.gobra.frontend.info.{Info, TypeInfo}
-import viper.gobra.frontend.{Config, Desugar, PackageInfo, Parser, ScallopGobraConfig}
-import viper.gobra.reporting._
-import viper.gobra.translator.Translator
-import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
-import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
-import viper.silicon.BuildInfo
-import viper.silver.{ast => vpr}
-
 import java.time.format.DateTimeFormatter
 import java.time.LocalTime
 import scala.concurrent.{Await, Future, TimeoutException}
+import com.typesafe.scalalogging.StrictLogging
+import org.slf4j.LoggerFactory
+import ch.qos.logback.classic.Logger
+import scalaz.EitherT
+import scalaz.Scalaz.futureInstance
+import viper.gobra.ast.internal.transform.Transformations
+import viper.gobra.backend.{BackendVerifier, Task}
+import viper.gobra.frontend.info.Info
+import viper.gobra.frontend.{Config, Desugar, PackageInfo, Parser, ScallopGobraConfig}
+import viper.gobra.reporting._
+import viper.gobra.translator.Translator
+import viper.gobra.util.VerifierPhase.{ErrorsAndWarnings, PhaseResult, Warnings}
+import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext, VerifierPhase, VerifierPhaseNonFinal}
+import viper.silicon.BuildInfo
+import viper.silver.{ast => vpr}
 
 object GoVerifier {
 
@@ -62,9 +57,10 @@ trait GoVerifier extends StrictLogging {
    */
   def verifyAllPackages(config: Config)(executor: GobraExecutionContext): VerifierResult = {
     val statsCollector = StatsCollector(config.reporter)
-    var warningCount: Int = 0
-    var allVerifierErrors: Vector[VerifierError] = Vector()
-    var allTimeoutErrors: Vector[TimeoutError] = Vector()
+    var dependencyWarningCount: Int = 0
+    var allVerifierErrors: Vector[VerifierError] = Vector.empty
+    var allTimeoutErrors: Vector[TimeoutError] = Vector.empty
+    var allVerifierWarnings: Vector[VerifierWarning] = Vector.empty
 
     // write report to file on shutdown, this makes sure a report is produced even if a run is shutdown
     // by some signal.
@@ -91,13 +87,27 @@ trait GoVerifier extends StrictLogging {
           // report that verification of this package has finished in order that `statsCollector` can free space by getting rid of this package's typeInfo
           statsCollector.report(VerificationTaskFinishedMessage(pkgId))
 
-          val warnings = statsCollector.getMessagesAboutDependencies(pkgId, config)
-          warningCount += warnings.size
-          warnings.foreach(w => logger.debug(w))
+          val dependencyWarnings = statsCollector.getMessagesAboutDependencies(pkgId, config)
+          dependencyWarningCount += dependencyWarnings.size
+          dependencyWarnings.foreach(w => logger.debug(w))
+
+          def handleWarnings(warnings: Vector[VerifierWarning]): Unit = {
+            logger.warn(s"$name has found ${warnings.length} warning(s) in package $pkgId")
+            if (config.noStreamErrors) {
+              warnings.foreach(warning => logger.warn(s"\t${warning.formattedMessage}"))
+            }
+            allVerifierWarnings = allVerifierWarnings ++ warnings
+          }
 
           result match {
-            case VerifierResult.Success => logger.info(s"$name found no errors")
-            case VerifierResult.Failure(errors) =>
+            case VerifierResult.Success(warnings) =>
+              if (warnings.isEmpty) {
+                logger.info(s"$name found no errors")
+              } else {
+                handleWarnings(warnings)
+              }
+            case VerifierResult.Failure(errors, warnings) =>
+              if (warnings.nonEmpty) handleWarnings(warnings)
               logger.error(s"$name has found ${errors.length} error(s) in package $pkgId")
               if (config.noStreamErrors) {
                 errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
@@ -124,79 +134,74 @@ trait GoVerifier extends StrictLogging {
     }
 
     // Print general statistics
-    logger.debug(s"Gobra has found ${statsCollector.getNumberOfVerifiableMembers} methods and functions" )
+    logger.debug(s"$name has found ${statsCollector.getNumberOfVerifiableMembers} methods and functions" )
     logger.debug(s"${statsCollector.getNumberOfSpecifiedMembers} have specification")
     logger.debug(s"${statsCollector.getNumberOfSpecifiedMembersWithAssumptions} are assumed to be satisfied")
 
     // Print warnings
-    if(warningCount > 0) {
-      logger.info(s"$name has found $warningCount warning(s)")
+    if(dependencyWarningCount > 0) {
+      logger.warn(s"$name has found $dependencyWarningCount warning(s)")
     }
 
     // Print errors
-    logger.info(s"$name has found ${allVerifierErrors.size} error(s)")
+    logger.error(s"$name has found ${allVerifierErrors.size} error(s)")
     if(allTimeoutErrors.nonEmpty) {
-      logger.info(s"The verification of ${allTimeoutErrors.size} members timed out")
+      logger.error(s"The verification of ${allTimeoutErrors.size} members timed out")
     }
 
     val allErrors = allVerifierErrors ++ allTimeoutErrors
-    if (allErrors.isEmpty) VerifierResult.Success else VerifierResult.Failure(allErrors)
+    if (allErrors.isEmpty) VerifierResult.Success(allVerifierWarnings) else VerifierResult.Failure(allErrors, allVerifierWarnings)
   }
 
   protected[this] def verify(pkgInfo: PackageInfo, config: Config)(implicit executor: GobraExecutionContext): Future[VerifierResult]
 }
 
 trait GoIdeVerifier {
-  protected[this] def verifyAst(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult]
+  protected[this] def verifyAst(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(implicit executor: GobraExecutionContext): Future[VerifierResult]
 }
 
 class Gobra extends GoVerifier with GoIdeVerifier {
 
   override def verify(pkgInfo: PackageInfo, config: Config)(implicit executor: GobraExecutionContext): Future[VerifierResult] = {
-    val task = for {
-      finalConfig <- EitherT.fromEither(Future.successful(getAndMergeInFileConfig(config, pkgInfo)))
+    val phases = for {
+      // while IntelliJ seems to be able to do the next 2 statements in one, the Scala compiler complains
+      configRes <- FileConfigMerger.perform((config, pkgInfo), logTiming = false)
+      (finalConfig, configWarnings) = configRes
       _ = setLogLevel(finalConfig)
-      parseResults <- performParsing(finalConfig, pkgInfo)
-      typeInfo <- performTypeChecking(finalConfig, pkgInfo, parseResults)
-      program <- performDesugaring(finalConfig, typeInfo)
-      program <- performInternalTransformations(finalConfig, pkgInfo, program)
-      viperTask <- performViperEncoding(finalConfig, pkgInfo, program)
-    } yield (viperTask, finalConfig)
+      parseRes <- Parser.perform((finalConfig, pkgInfo), finalConfig.shouldParse)
+      (parseResults, parseWarnings) = parseRes
+      typeRes <- Info.perform((finalConfig, pkgInfo, parseResults), finalConfig.shouldTypeCheck)
+      (typeInfo, typeWarnings) = typeRes
+      desugarRes <- Desugar.perform((finalConfig, typeInfo), config.shouldDesugar)
+      (program, desugarWarnings) = desugarRes
+      transformRes <- Transformations.perform((finalConfig, pkgInfo, program))
+      (program, transformWarnings) = transformRes
+      encodingRes <- Translator.perform((finalConfig, pkgInfo, program), config.shouldViperEncode)
+      (viperTask, encodingWarnings) = encodingRes
+      warnings = configWarnings ++ parseWarnings ++ typeWarnings ++ desugarWarnings ++ transformWarnings ++ encodingWarnings
+    } yield BackendVerifier.perform((finalConfig, pkgInfo, viperTask, warnings), config.shouldVerify)
 
-    task.foldM({
-      case Vector() => Future(VerifierResult.Success)
-      case errors => Future(VerifierResult.Failure(errors))
-    }, {
-      case (job, finalConfig) => performVerification(finalConfig, pkgInfo, job.program,  job.backtrack)
-    })
+    phases.foldM(errorsAndWarnings => {
+      val (errors, warnings) = VerifierPhase.splitErrorsAndWarnings(errorsAndWarnings)
+      if (errors.isEmpty) Future.successful(VerifierResult.Success(warnings))
+      else Future.successful(VerifierResult.Failure(errors, warnings))
+    }, identity)
   }
 
-  override def verifyAst(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {
-    // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
-    implicit val _executor: GobraExecutionContext = executor
-    val viperTask = BackendVerifier.Task(ast, backtrack)
-    performVerification(config, pkgInfo, viperTask)
-      .map(BackTranslator.backTranslate(_)(config))
-      .recoverWith {
-        case e: ExecutionException if isKnownZ3Bug(e) =>
-          // The Z3 instance died. This is a known issue that is caused by a Z3 bug.
-          Future.failed(new KnownZ3BugException("Encountered a known Z3 bug. Please, execute the file again."))
-      }
+  override def verifyAst(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(implicit executor: GobraExecutionContext): Future[VerifierResult] = {
+    val task = Task(ast, backtrack)
+    BackendVerifier.perform((config, pkgInfo, task, Vector.empty), config.shouldVerify)
   }
 
-  @scala.annotation.tailrec
-  private def isKnownZ3Bug(e: ExecutionException): Boolean = {
-    def causedByFile(st: Array[StackTraceElement], filename: String): Boolean = {
-      if (st.isEmpty) false
-      else st.head.getFileName == filename
-    }
-
-    e.getCause match {
-      case c: ExecutionException => isKnownZ3Bug(c) // follow nested exception
-      case npe: NullPointerException if causedByFile(npe.getStackTrace, "Z3ProverStdIO.scala") => true
-      case _ => false
-    }
+  private def setLogLevel(config: Config): Unit = {
+    LoggerFactory.getLogger(GoVerifier.rootLogger)
+      .asInstanceOf[Logger]
+      .setLevel(config.logLevel)
   }
+}
+
+object FileConfigMerger extends VerifierPhaseNonFinal[(Config, PackageInfo), Config] {
+  override val name: String = "Configuration merging"
 
   private val inFileConfigRegex = """##\((.*)\)""".r
 
@@ -205,7 +210,38 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * These in-file command options get combined for all files and passed to ScallopGobraConfig.
     * The current config merged with the newly created config is then returned
     */
-  def getAndMergeInFileConfig(config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], Config] = {
+  override protected def execute(input: (Config, PackageInfo))(implicit executor: GobraExecutionContext): PhaseResult[Config] = {
+    val (config, pkgInfo) = input
+    val inFileEitherConfigs = config.packageInfoInputMap(pkgInfo).map(input => {
+      val content = input.content
+      val configs = for (m <- inFileConfigRegex.findAllMatchIn(content)) yield m.group(1)
+      if (configs.isEmpty) {
+        Right(None)
+      } else {
+        // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
+        val args = configs.flatMap(configString => configString.split(" ")).toList
+        // skip include dir checks as the include should only be parsed and is not resolved yet based on the current directory
+        for {
+          inFileConfig <- new ScallopGobraConfig(args, isInputOptional = true, skipIncludeDirChecks = true).config
+          resolvedConfig = inFileConfig.copy(includeDirs = inFileConfig.includeDirs.map(
+            // it's important to convert includeDir to a string first as `path` might be a ZipPath and `includeDir` might not
+            includeDir => Paths.get(input.name).getParent.resolve(includeDir.toString)))
+        } yield Some(resolvedConfig)
+      }
+    })
+    val (nestedErrs, inFileConfigs) = inFileEitherConfigs.partitionMap(identity)
+    val errors = nestedErrs.flatten
+    if (errors.nonEmpty) EitherT.left(errors)
+    else {
+      // start with original config `config` and merge in every in file config:
+      val mergedConfig = inFileConfigs.flatten.foldLeft(config) {
+        case (oldConfig, fileConfig) => oldConfig.merge(fileConfig)
+      }
+      EitherT.right((mergedConfig, Vector.empty))
+    }
+  }
+
+  def mergeInFileConfig(config: Config, pkgInfo: PackageInfo): Either[ErrorsAndWarnings, (Config, Warnings)] = {
     val inFileEitherConfigs = config.packageInfoInputMap(pkgInfo).map(input => {
       val content = input.content
       val configs = for (m <- inFileConfigRegex.findAllMatchIn(content)) yield m.group(1)
@@ -230,107 +266,10 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       val mergedConfig = inFileConfigs.flatten.foldLeft(config) {
         case (oldConfig, fileConfig) => oldConfig.merge(fileConfig)
       }
-      Right(mergedConfig)
-    }
-  }
-
-  private def setLogLevel(config: Config): Unit = {
-    LoggerFactory.getLogger(GoVerifier.rootLogger)
-      .asInstanceOf[Logger]
-      .setLevel(config.logLevel)
-  }
-
-  // returns `Left(...)` if parsing of the package identified by `pkgInfo` failed. Note that `Right(...)` does not imply
-  // that all imported packages have been parsed successfully (this is only checked during type-checking)
-  private def performParsing(config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Map[AbstractPackage, ParseResult]] = {
-    if (config.shouldParse) {
-      val startMs = System.currentTimeMillis()
-      val res = Parser.parse(config, pkgInfo)
-      logger.debug {
-        val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
-        s"parser phase done, took ${durationS}s"
-      }
-      res
-    } else {
-      EitherT.left(Vector.empty)
-    }
-  }
-
-  private def performTypeChecking(config: Config, pkgInfo: PackageInfo, parseResults: Map[AbstractPackage, ParseResult])(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, TypeInfo] = {
-    if (config.shouldTypeCheck) {
-      Info.check(config, RegularPackage(pkgInfo.id), parseResults)
-    } else {
-      EitherT.left(Vector.empty)
-    }
-  }
-
-  private def performDesugaring(config: Config, typeInfo: TypeInfo)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Program] = {
-    if (config.shouldDesugar) {
-      val startMs = System.currentTimeMillis()
-      val res = EitherT.right[Vector[VerifierError], Future, Program](Desugar.desugar(config, typeInfo)(executor))
-      logger.debug {
-        val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
-        s"desugaring done, took ${durationS}s"
-      }
-      res
-    } else {
-      EitherT.left(Vector.empty)
-    }
-  }
-
-  /**
-    * Applies transformations to programs in the internal language. Currently, only adds overflow checks but it can
-    * be easily extended to perform more transformations
-    */
-  private def performInternalTransformations(config: Config, pkgInfo: PackageInfo, program: Program)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Program] = {
-    // constant propagation does not cause duplication of verification errors caused
-    // by overflow checks (if enabled) because all overflows in constant declarations 
-    // can be found by the well-formedness checks.
-    val startMs = System.currentTimeMillis()
-    var transformations: Vector[InternalTransform] = Vector(CGEdgesTerminationTransform, ConstantPropagation)
-    if (config.checkOverflows) {
-      transformations :+= OverflowChecksTransform
-    }
-    val result = transformations.foldLeft(program)((prog, transf) => transf.transform(prog))
-    logger.debug {
-      val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
-      s"internal transformations done, took ${durationS}s"
-    }
-    config.reporter.report(AppliedInternalTransformsMessage(config.packageInfoInputMap(pkgInfo).map(_.name), () => result))
-    EitherT.right(result)
-  }
-
-  private def performViperEncoding(config: Config, pkgInfo: PackageInfo, program: Program)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, BackendVerifier.Task] = {
-    if (config.shouldViperEncode) {
-      val startMs = System.currentTimeMillis()
-      val res = EitherT.fromEither[Future, Vector[VerifierError], BackendVerifier.Task](Future.successful(Translator.translate(program, pkgInfo)(config)))
-      logger.debug {
-        val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
-        s"Viper encoding done, took ${durationS}s"
-      }
-      res
-    } else {
-      EitherT.left(Vector.empty)
-    }
-  }
-
-  private def performVerification(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(implicit executor: GobraExecutionContext): Future[VerifierResult] = {
-    if (config.noVerify) {
-      Future(VerifierResult.Success)(executor)
-    } else {
-      verifyAst(config, pkgInfo, ast, backtrack)(executor)
-    }
-  }
-
-  private def performVerification(config: Config, pkgInfo: PackageInfo, viperTask: BackendVerifier.Task)(implicit executor: GobraExecutionContext): Future[BackendVerifier.Result] = {
-    if (config.shouldVerify) {
-      BackendVerifier.verify(viperTask, pkgInfo)(config)
-    } else {
-      Future(BackendVerifier.Success)
+      Right((mergedConfig, Vector.empty))
     }
   }
 }
-
 
 
 class GobraFrontend {
@@ -356,7 +295,7 @@ object GobraRunner extends GobraFrontend with StrictLogging {
           // Print copyright report
           config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
           verifier.verifyAllPackages(config)(executor) match {
-            case VerifierResult.Failure(_) => 1
+            case _: VerifierResult.Failure => 1
             case _ => 0
           }
       }

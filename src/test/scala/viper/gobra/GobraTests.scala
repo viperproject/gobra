@@ -11,12 +11,11 @@ import ch.qos.logback.classic.Level
 import org.bitbucket.inkytonik.kiama.util.Source
 import org.scalatest.{Args, BeforeAndAfterAll, Status}
 import scalaz.Scalaz.futureInstance
-import viper.gobra.frontend.PackageResolver.RegularPackage
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.{Config, PackageResolver, Parser, Source}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
-import viper.gobra.reporting.{GobraMessage, GobraReporter, VerifierError}
+import viper.gobra.reporting.{GobraMessage, GobraReporter, VerifierMessage}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
@@ -68,9 +67,9 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
         val config = getConfig(source)
         val pkgInfo = config.packageInfoInputMap.keys.head
         val fut = for {
-          parseResult <- Parser.parse(config, pkgInfo)
-          pkg = RegularPackage(pkgInfo.id)
-          typeCheckResult <- Info.check(config, pkg, parseResult)
+          parseRes <- Parser.perform((config, pkgInfo))
+          (parseResult, _) = parseRes
+          typeCheckResult <- Info.perform((config, pkgInfo, parseResult))
         } yield typeCheckResult
         fut.toEither
       })
@@ -99,10 +98,10 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
 
         info(s"Time required: $elapsedMilis ms")
 
-        result match {
-          case Success => Vector.empty
-          case Failure(errors) => errors map GobraTestOuput
-        }
+        (result match {
+          case Success(warnings) => warnings
+          case Failure(errors, warnings) => errors ++ warnings
+        }).map(GobraTestOuput)
       }
     }
 
@@ -116,12 +115,12 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
     */
   override def systemsUnderTest: Seq[SystemUnderTest] = Vector(gobraInstanceUnderTest)
 
-  case class GobraTestOuput(error: VerifierError) extends AbstractOutput {
+  case class GobraTestOuput(message: VerifierMessage) extends AbstractOutput {
     /** Whether the output belongs to the given line in the given file. */
-    override def isSameLine(file: Path, lineNr: Int): Boolean = error.position.exists(_.line == lineNr)
+    override def isSameLine(file: Path, lineNr: Int): Boolean = message.position.exists(_.line == lineNr)
 
     /** A short and unique identifier for this output. */
-    override def fullId: String = error.id
+    override def fullId: String = message.id
   }
 
   case object StringifyReporter extends GobraReporter {

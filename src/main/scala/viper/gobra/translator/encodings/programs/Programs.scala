@@ -6,10 +6,10 @@
 
 package viper.gobra.translator.encodings.programs
 
-import viper.gobra.backend.BackendVerifier
 import viper.gobra.ast.{internal => in}
+import viper.gobra.backend.Task
 import viper.gobra.translator.context.TranslatorConfig
 
 trait Programs {
-  def translate(program: in.Program)(conf: TranslatorConfig): BackendVerifier.Task
+  def translate(program: in.Program)(conf: TranslatorConfig): Task
 }

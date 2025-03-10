@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.PackageResolver.AbstractImport
+import viper.gobra.frontend.info.Info.DependentTypeInfo
 import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.frontend.info.base.SymbolTable.{Regular, TypeMember, UnknownEntity, lookup}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
@@ -20,7 +20,7 @@ import viper.gobra.frontend.info.implementation.typing.ghost._
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostSeparation
 import viper.gobra.frontend.info.{ExternalTypeInfo, Info, TypeInfo}
 
-class TypeInfoImpl(final val tree: Info.GoTree, final val dependentTypeInfo: Map[AbstractImport, ExternalTypeInfo], val isMainContext: Boolean = false)(val config: Config) extends Attribution with TypeInfo with ExternalTypeInfo
+class TypeInfoImpl(final val tree: Info.GoTree, final val dependentTypeInfo: DependentTypeInfo, val isMainContext: Boolean = false)(val config: Config) extends Attribution with TypeInfo
 
   with NameResolution
   with LabelResolution
@@ -156,7 +156,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val dependentTypeInfo: Map
     val directTypeInfos = dependentTypeInfo.values.toSet
     // note that we call `getTransitiveTypeInfos` recursively with including the parameter in the results (which
     // corresponds to the parameter's default value)
-    val dependentTypeInfos = directTypeInfos.flatMap(directTypeInfo => directTypeInfo.getTransitiveTypeInfos())
+    val dependentTypeInfos = directTypeInfos.flatMap(_.getTransitiveTypeInfos())
     if (includeThis) dependentTypeInfos + this
     else dependentTypeInfos
   }

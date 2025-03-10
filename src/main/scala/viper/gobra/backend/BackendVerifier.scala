@@ -6,32 +6,51 @@
 
 package viper.gobra.backend
 
+import java.util.concurrent.ExecutionException
+import scala.concurrent.Future
 import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon}
 import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
-import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, ChoppedProgressMessage}
-import viper.gobra.util.{ChopperUtil, GobraExecutionContext}
+import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, ChoppedProgressMessage, VerifierResult}
+import viper.gobra.util.VerifierPhase.Warnings
+import viper.gobra.util.Violation.KnownZ3BugException
+import viper.gobra.util.{ChopperUtil, GobraExecutionContext, VerifierPhaseFinal}
 import viper.silver
 import viper.silver.verifier.VerificationResult
 import viper.silver.{ast => vpr}
 
-import scala.concurrent.Future
 
-object BackendVerifier {
+case class Task(program: vpr.Program,
+                backtrack: BackTranslator.BackTrackInfo)
 
-  case class Task(
-                   program: vpr.Program,
-                   backtrack: BackTranslator.BackTrackInfo
-                 )
+sealed trait Result
+case object Success extends Result
+case class Failure(errors: Vector[silver.verifier.VerificationError],
+                   backtrack: BackTranslator.BackTrackInfo) extends Result
 
-  sealed trait Result
-  case object Success extends Result
-  case class Failure(
-                    errors: Vector[silver.verifier.VerificationError],
-                    backtrack: BackTranslator.BackTrackInfo
-                    ) extends Result
+object BackendVerifier extends VerifierPhaseFinal[(Config, PackageInfo, Task, Warnings)] {
 
-  def verify(task: Task, pkgInfo: PackageInfo)(config: Config)(implicit executor: GobraExecutionContext): Future[Result] = {
+  override val name: String = "Verification with backend"
+
+  /**
+    * Warnings correspond to warnings that occurred in phases prior to this phase.
+    * This is used to correctly report them via GobraMessages
+    */
+  override protected def execute(input: (Config, PackageInfo, Task, Warnings))(implicit executor: GobraExecutionContext): Future[VerifierResult] = {
+    val (config, pkgInfo, task, warningsFromPreviousPhases) = input
+    verify(task, pkgInfo, warningsFromPreviousPhases)(config)
+      .map(BackTranslator.backTranslate(_, warningsFromPreviousPhases)(config))
+      .recoverWith {
+        case e: ExecutionException if isKnownZ3Bug(e) =>
+          // The Z3 instance died. This is a known issue that is caused by a Z3 bug.
+          Future.failed(new KnownZ3BugException("Encountered a known Z3 bug. Please, execute the file again."))
+      }
+  }
+
+  override protected def resultIfNotPerformed(input: (Config, PackageInfo, Task, Warnings))(implicit executor: GobraExecutionContext): Future[VerifierResult] =
+    Future.successful(VerifierResult.Success(input._4))
+
+  private def verify(task: Task, pkgInfo: PackageInfo, warnings: Warnings)(config: Config)(implicit executor: GobraExecutionContext): Future[Result] = {
 
     var exePaths: Vector[String] = Vector.empty
 
@@ -49,7 +68,7 @@ object BackendVerifier {
 
     val verificationResults: Future[VerificationResult] =  {
       val verifier = config.backendOrDefault.create(exePaths, config)
-      val reporter = BacktranslatingReporter(config.reporter, task.backtrack, config)
+      val reporter = BacktranslatingReporter(config.reporter, task.backtrack, config, warnings)
 
       if (!config.shouldChop) {
         verifier.verify(config.taskName, reporter, task.program)(executor)
@@ -79,6 +98,20 @@ object BackendVerifier {
     }
 
     verificationResults.map(convertVerificationResult(_, task.backtrack))
+  }
+
+  @scala.annotation.tailrec
+  private def isKnownZ3Bug(e: ExecutionException): Boolean = {
+    def causedByFile(st: Array[StackTraceElement], filename: String): Boolean = {
+      if (st.isEmpty) false
+      else st.head.getFileName == filename
+    }
+
+    e.getCause match {
+      case c: ExecutionException => isKnownZ3Bug(c) // follow nested exception
+      case npe: NullPointerException if causedByFile(npe.getStackTrace, "Z3ProverStdIO.scala") => true
+      case _ => false
+    }
   }
 
   /**

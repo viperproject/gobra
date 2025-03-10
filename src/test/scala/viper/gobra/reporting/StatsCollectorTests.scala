@@ -62,8 +62,8 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
       // It's hard to test this further, since there isn't much information about viper or gobra members available
       // inside of the VerifierError class
       result match {
-        case VerifierResult.Success => assert(statsCollector.memberMap.values.flatMap(_.viperMembers.values).forall(_.success))
-        case VerifierResult.Failure(_) => assert(statsCollector.memberMap.values.flatMap(_.viperMembers.values).exists(!_.success))
+        case _: VerifierResult.Success => assert(statsCollector.memberMap.values.flatMap(_.viperMembers.values).forall(_.success))
+        case _: VerifierResult.Failure => assert(statsCollector.memberMap.values.flatMap(_.viperMembers.values).exists(!_.success))
       }
     })
   }
@@ -76,8 +76,8 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
       val results = runAndCheck(config.copy(reporter = statsCollector, taskName = pkgInfo.id), statsCollector, pkgInfo)
 
       results match {
-        case VerifierResult.Success => assert(statsCollector.memberMap.values.flatMap(_.viperMembers.values).count(!_.success) == errorCount)
-        case VerifierResult.Failure(_) =>
+        case _: VerifierResult.Success => assert(statsCollector.memberMap.values.flatMap(_.viperMembers.values).count(!_.success) == errorCount)
+        case _: VerifierResult.Failure =>
           val newErrors = statsCollector.memberMap.values.flatMap(_.viperMembers.values).count(!_.success)
           assert(newErrors > errorCount)
           errorCount = newErrors

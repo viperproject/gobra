@@ -8,19 +8,17 @@ package viper.gobra
 
 import java.nio.file.Path
 import org.scalatest.DoNotDiscover
-import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
 import viper.gobra.ast.internal.Program
-import viper.gobra.ast.internal.transform.OverflowChecksTransform
-import viper.gobra.backend.BackendVerifier
-import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
-import viper.gobra.frontend.Parser.ParseResult
+import viper.gobra.ast.internal.transform.Transformations
+import viper.gobra.backend.{BackendVerifier, Task}
+import viper.gobra.frontend.PackageResolver.AbstractPackage
+import viper.gobra.frontend.ParserUtils.ParseResult
 import viper.gobra.frontend.info.{Info, TypeInfo}
-import viper.gobra.frontend.{Desugar, Parser}
-import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, VerifierError, VerifierResult}
+import viper.gobra.frontend.{Config, Desugar, PackageInfo, Parser}
+import viper.gobra.reporting.VerifierResult
 import viper.gobra.translator.Translator
-
-import scala.concurrent.Future
+import viper.gobra.util.VerifierPhase.{PhaseResult, Warnings}
 
 /**
   * Tool for benchmarking Gobra's performance split into its individual steps (wrapped as a ScalaTest).
@@ -88,71 +86,55 @@ class DetailedBenchmarkTests extends BenchmarkTests {
   class DetailedGobraFrontend extends GobraFrontendForTesting {
     val gobra: Gobra = new Gobra // we only need the instance for merging in-file configs
 
+    private def getPkgInfo(config: Config): PackageInfo = {
+      assert(config.packageInfoInputMap.size == 1)
+      config.packageInfoInputMap.keys.head
+    }
+
     override def reset(files: Seq[Path]): Unit = {
       // call to super creates a "base" config that stores the files
+      // however, we will merge the "base" config with in-file config options in the initial phase
       super.reset(files)
-      // however, as we will directly invoke the individual steps of Gobra, we have to manually merge in-file configs
+    }
+
+    private val configMerging = InitialPhase(FileConfigMerger.name, () => {
+      // as we will directly invoke the individual steps of Gobra, we have to manually merge in-file configs
       // such that the Gobra programs show the same behavior as when invoking `Gobra.verify`:
       assert(config.isDefined)
       val c = config.get
-      assert(c.packageInfoInputMap.size == 1)
-      val pkgInfo = c.packageInfoInputMap.keys.head
-      config = gobra.getAndMergeInFileConfig(c, pkgInfo).toOption
+      FileConfigMerger.perform((c, getPkgInfo(c)))
+    })
+
+    private val parsing = NextPhaseNonFinal[Config, (Config, Map[AbstractPackage, ParseResult])](Parser.name, configMerging, (config: Config) =>
+      addConfig(Parser.perform((config, getPkgInfo(config))), config))
+
+    private def addConfig[S](res: PhaseResult[S], config: Config): PhaseResult[(Config, S)] = {
+      res.map(res => ((config, res._1), res._2))
     }
 
-    private val parsing = InitialStepEitherT("parsing", () => {
-      assert(config.isDefined)
-      val c = config.get
-      assert(c.packageInfoInputMap.size == 1)
-      val pkgInfo = c.packageInfoInputMap.keys.head
-      Parser.parse(c, pkgInfo)(executor)
+    private val typeChecking = NextPhaseNonFinal(Info.name, parsing, (input: (Config, Map[AbstractPackage, ParseResult])) => {
+      val (config, parseResults) = input
+      addConfig(Info.perform((config, getPkgInfo(config), parseResults)), config)
     })
 
-    private val typeChecking = NextStepEitherT("type-checking", parsing, (parseResults: Map[AbstractPackage, ParseResult]) => {
-        assert(config.isDefined)
-        val c = config.get
-        assert(c.packageInfoInputMap.size == 1)
-        val pkgInfo = c.packageInfoInputMap.keys.head
-        Info.check(c, RegularPackage(pkgInfo.id), parseResults)(executor)
-      })
-
-    private val desugaring: NextStep[TypeInfo, Vector[VerifierError], Program] =
-      NextStep("desugaring", typeChecking, { case (typeInfo: TypeInfo) =>
-        assert(config.isDefined)
-        val c = config.get
-        Right(Desugar.desugar(c, typeInfo)(executor))
-      })
-
-    private val internalTransforming = NextStep("internal transforming", desugaring, (program: Program) => {
-      assert(config.isDefined)
-      val c = config.get
-      assert(c.packageInfoInputMap.size == 1)
-      val pkgInfo = c.packageInfoInputMap.keys.head
-      if (c.checkOverflows) {
-        val result = OverflowChecksTransform.transform(program)
-        c.reporter report AppliedInternalTransformsMessage(c.packageInfoInputMap(pkgInfo).map(_.name), () => result)
-        Right(result)
-      } else {
-        Right(program)
-      }
+    private val desugaring = NextPhaseNonFinal(Desugar.name, typeChecking, (input: (Config, TypeInfo)) => {
+      val (config, typeInfo) = input
+      addConfig(Desugar.perform((config, typeInfo)), config)
     })
 
-    private val encoding = NextStep("Viper encoding", internalTransforming, (program: Program) => {
-      assert(config.isDefined)
-      val c = config.get
-      assert(c.packageInfoInputMap.size == 1)
-      val pkgInfo = c.packageInfoInputMap.keys.head
-      Translator.translate(program, pkgInfo)(c)
+    private val internalTransforming = NextPhaseNonFinal(Transformations.name, desugaring, (input: (Config, Program)) => {
+      val (config, program) = input
+      addConfig(Transformations.perform((config, getPkgInfo(config), program)), config)
     })
 
-    private val verifying = NextStepEitherT("Viper verification", encoding, (viperTask: BackendVerifier.Task) => {
-      assert(config.isDefined)
-      val c = config.get
-      assert(c.packageInfoInputMap.size == 1)
-      val pkgInfo = c.packageInfoInputMap.keys.head
-      val resultFuture: Future[Either[Vector[VerifierError], VerifierResult]] = BackendVerifier.verify(viperTask, pkgInfo)(c)
-        .map(res => Right(BackTranslator.backTranslate(res)(c)))
-      EitherT.fromEither(resultFuture)
+    private val encoding = NextPhaseNonFinal(Translator.name, internalTransforming, (input: (Config, Program)) => {
+      val (config, program) = input
+      addConfig(Translator.perform((config, getPkgInfo(config), program)), config)
+    })
+
+    private val verifying = NextPhaseFinal(BackendVerifier.name, encoding, (input: (Config, Task), warnings: Warnings) => {
+      val (config, task) = input
+      BackendVerifier.perform((config, getPkgInfo(config), task, warnings))
     })
 
     private val lastStep = verifying
@@ -168,9 +150,8 @@ class DetailedBenchmarkTests extends BenchmarkTests {
     }
 
     override def gobraResult: VerifierResult = lastStep.res match {
-      case Some(Left(Vector())) => VerifierResult.Success
-      case Some(Left(errors))   => VerifierResult.Failure(errors)
       case Some(Right(result))  => result
+      case _ => ??? // this case should never occur
     }
   }
 }

@@ -7,7 +7,10 @@ package sync
 // Definition according to https://github.com/golang/go/blob/master/src/sync/waitgroup.go
 type WaitGroup struct {
 	// noCopy noCopy
-	state1 [3]uint32
+	// state1 [3]uint32
+	state1_0 uint32
+	state1_1 uint32
+	state1_2 uint32
 }
 
 pred (wg *WaitGroup) WaitGroupP()

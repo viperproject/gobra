@@ -484,15 +484,27 @@ trait SIFLowGuardTransformer {
   }
 
   def removeLow[N <: Node](n: N): Either[Seq[AbstractError], N] = {
-    var errs: Seq[AbstractError] = Seq.empty
-    val transformedN = n.transform{
-      case n: SIFLowExp =>
-        errs = errs :+ ConsistencyError(s"Low expression found: ${n.exp}", n.pos)
-        TrueLit()(n.pos, n.info, n.errT)
-      case n: SIFLowEventExp =>
-        errs = errs :+ ConsistencyError(s"Low event expression found", n.pos)
-        TrueLit()(n.pos, n.info, n.errT)
+    def memberHasProofObligations(m: Member): Boolean = m match {
+      case m: Method => m.body.nonEmpty
+      case m: Function => m.body.nonEmpty
+      case _ => true // conservative choice
     }
+
+    var errs: Seq[AbstractError] = Seq.empty
+
+    def removeNodeAndReportErrorIfProofObligationsChange(n: ExtensionExp, optMember: Option[Member], message: String): (Node, Option[Member]) = {
+      if (optMember.forall(memberHasProofObligations)) {
+        errs = errs :+ ConsistencyError(message, n.pos)
+      }
+      (TrueLit()(n.pos, n.info, n.errT), optMember)
+    }
+    val transformedN = n.transformWithContext[Option[Member]]({
+      case (m: Member, _) => (m, Some(m)) // keep node unchanged and propagate `m` as context
+      case (n: SIFLowExp, optMember) =>
+        removeNodeAndReportErrorIfProofObligationsChange(n, optMember, s"Low expression found: ${n.exp}")
+      case (n: SIFLowEventExp, optMember) =>
+        removeNodeAndReportErrorIfProofObligationsChange(n, optMember, s"Low context expression found")
+    }, None)
     if (errs.isEmpty) Right(transformedN)
     else Left(errs)
   }

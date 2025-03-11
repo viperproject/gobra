@@ -16,7 +16,7 @@ package mwe1
 // cf. running-example/policy/actions.gobra
 
 // Definition of I/O actions (abstract, for trace).
-type Action adt {
+ghost type Action adt {
 	RecvIO{int}
 	SendIO{int}
 	// NOTE: I have left out `p` (cf. paper) for now
@@ -56,7 +56,7 @@ pure func (a Action) Output() int {
 type ClassificationSpec interface {
 	ghost
 	decreases
-	pure Classification(Action) Specification
+	pure Classification(ghost Action) (ghost s Specification)
 }
 
 // Gives universal access to the trace.
@@ -65,23 +65,23 @@ ghost
 decreases
 pure func History() *Trace
 
-type Trace adt {
+ghost type Trace adt {
 	Empty{}
 	Snoc{Trace;Action}  // Snoc: reverse cons
 }
 
-type Specification adt {
+ghost type Specification adt {
 	Spec{Observation;Observation}
 }
 
-type Observation adt {
+ghost type Observation adt {
 	Value{int}
 	None{}
 	Some{Observation}
 	Tuple{Observation;Observation}
 }
 
-type ObservationTrace adt {
+ghost type ObservationTrace adt {
 	EmptyObs{}
 	SnocObs{
 		InitObs ObservationTrace
@@ -166,14 +166,14 @@ type IODSpec interface {
 	// (content of) the action (in particular, not on the sensitivity).
 	ghost 
 	decreases
-	pure Guard(state, Action) bool
+	pure Guard(state, ghost Action) bool
 
 	ghost 
 	decreases
-	pure Update(state, Action) state
+	pure Update(state, ghost Action) state
 }
 
-type Restriction domain {
+ghost type Restriction domain {
 	func Reaches(IODSpec, Trace, state) bool
 
 	axiom {
@@ -251,7 +251,7 @@ pure func MAC(int, int) int
 // TODO: in the future, we should probably check this after every I/O action instead?
 // In the original example, I think this is done via the shared invariant.
 preserves acc(History()) && acc(s) && low(Pre(DefaultClassification{}, *History())) && Reaches(MWE1{}, *History(), *s)
-func authenticate(ghost s *state) {
+func authenticate(s *state) {
 	// NOTE: forgetting the calls to either of `Declassify` and `LowPost`
 	// would result in a verification error *in the postcondition* (and not in
 	// the call to send), as here, compliance to the classification spec is 
@@ -260,7 +260,7 @@ func authenticate(ghost s *state) {
 
 	m := Recv()
 	LowPost(DefaultClassification{})
-	ghost s.lastMsg = m
+	s.lastMsg = m
 
 	t := MAC(s.key, m)
 

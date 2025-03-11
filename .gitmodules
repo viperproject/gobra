@@ -1,3 +1,6 @@
 [submodule "viperserver"]
 	path = viperserver
 	url = https://github.com/viperproject/viperserver
+[submodule "silver-sif-extension"]
+	path = silver-sif-extension
+	url = https://github.com/viperproject/silver-sif-extension.git

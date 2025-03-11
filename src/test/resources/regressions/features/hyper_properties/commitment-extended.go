@@ -29,7 +29,7 @@ func verifyWithBranching(hash int, value int) (res bool) {
 func computeHash(input int) (res int)
 
 /* @
-type HashFunction domain {
+ghost type HashFunction domain {
     func hashFn(int) int
     func invFn(int) int
 

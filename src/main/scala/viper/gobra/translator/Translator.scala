@@ -13,7 +13,7 @@ import viper.gobra.frontend.{Config, Hyper, PackageInfo}
 import viper.gobra.reporting.{ConsistencyError, GeneratedViperMessage, TransformerFailureMessage, VerifierError}
 import viper.gobra.translator.context.DfltTranslatorConfig
 import viper.gobra.translator.encodings.programs.ProgramsImpl
-import viper.gobra.translator.transformers.hyper.{SIFLowGuardTransformerImpl, SIFTransformer}
+import viper.gobra.translator.transformers.hyper.SIFLowGuardTransformerImpl
 import viper.gobra.translator.transformers.{AssumeTransformer, TerminationDomainTransformer, ViperTransformer}
 import viper.gobra.util.Violation
 import viper.silver.ast.{AbstractSourcePosition, SourcePosition}
@@ -37,14 +37,14 @@ object Translator {
     val programTranslator = new ProgramsImpl()
     val task = programTranslator.translate(program)(translationConfig)
 
+    // for hyper mode `EnabledExtended`, we use Viper's SIF plugin instead
     val sifTransformer =
-      if (config.hyperModeOrDefault == Hyper.EnabledExtended) new SIFTransformer
-      else new SIFLowGuardTransformerImpl(config)
+      if (config.hyperModeOrDefault == Hyper.EnabledExtended) Seq.empty
+      else Seq(new SIFLowGuardTransformerImpl(config))
     val transformers: Seq[ViperTransformer] = Seq(
       new AssumeTransformer,
       new TerminationDomainTransformer,
-      sifTransformer,
-    )
+    ) ++ sifTransformer
 
     val transformedTask = transformers.foldLeft[Either[Vector[VerifierError], BackendVerifier.Task]](Right(task)) {
       case (Right(t), transformer) => transformer.transform(t).left.map(createConsistencyErrors)

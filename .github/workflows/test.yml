@@ -69,9 +69,6 @@ jobs:
             # use latest tag for default branch and with highest priority (1000 is the highest default priority for the other types):
             type=raw,value=latest,priority=1100,enable={{is_default_branch}}
 
-      - name: Get first tag
-        run: echo "IMAGE_TAG=$(echo "${{ steps.image-metadata.outputs.tags }}" | head -1)" >> $GITHUB_ENV
-
       - name: Build image up to including stage 'build'
         id: image-build
         # note that the action's name is misleading: this step does NOT push
@@ -119,9 +116,12 @@ jobs:
           path: /tmp/${{ env.FINAL_IMAGE_FILENAME }}
           retention-days: 1
 
+      - name: Get first tag
+        run: echo "IMAGE_TAG=$(echo "${{ steps.image-metadata.outputs.tags }}" | head -1)" >> $GITHUB_ENV
+
       - name: Set job output
         id: output_step
-        run: echo "IMAGE_TAG=${{ steps.image-metadata.outputs.tags }}" >> $GITHUB_OUTPUT
+        run: echo "IMAGE_TAG=${{ env.IMAGE_TAG }}" >> $GITHUB_OUTPUT
 
 
   run-all-tests:

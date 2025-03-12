@@ -142,10 +142,10 @@ jobs:
           REGRESSION_SUBFOLDERS=$(ls src/test/resources/regressions)
           MATRIX_ENTRIES=''
           for SUBFOLDER in $REGRESSION_SUBFOLDERS; do
-            MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"GobraTests - regressions/$SUBFOLDER\", \"sbt-command\": \"set javaOptions += \\\"-DGOBRATESTS_REGRESSIONS_DIR=regressions/$SUBFOLDER\\\";  testOnly * -- -n viper.gobra.tags.GobraTestsTag\"},"
+            MATRIX_ENTRIES=$'$MATRIX_ENTRIES {"name": "GobraTests - regressions/$SUBFOLDER", "sbt-command": "set javaOptions += \\\"-DGOBRATESTS_REGRESSIONS_DIR=regressions/$SUBFOLDER\\\";  testOnly * -- -n viper.gobra.tags.GobraTestsTag"},'
           done
           # add an entry for all other non-GobraTests tests:
-          MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"All other tests\", \"sbt-command\": \"testOnly * -- -l viper.gobra.tags.GobraTestsTag\"},"
+          MATRIX_ENTRIES=$'$MATRIX_ENTRIES {"name": "All other tests", "sbt-command": "testOnly * -- -l viper.gobra.tags.GobraTestsTag"},'
           echo "$MATRIX_ENTRIES"
           echo "matrix={\"include\": [$MATRIX_ENTRIES]}" >> $GITHUB_OUTPUT
 
@@ -190,7 +190,7 @@ jobs:
           docker run \
             --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync \
             ${{ needs.build-container.outputs.IMAGE_TAG }} \
-            /bin/sh -c "SBTCOMMAND='${{ matrix.sbt-command }}'; $(cat .github/test-and-measure-ram.sh)"
+            /bin/sh -c $'SBTCOMMAND=\'${{ matrix.sbt-command }}\'; $(cat .github/test-and-measure-ram.sh)'
 
       - name: Get max RAM usage by Java and Z3
         if: ${{ always() }}

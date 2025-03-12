@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--hyperMode on)
+
+package pkg
+
+pred /*#[MAJOR]*/ p(x int) {
+x == 1
+}
+
+pred /*#[MAJOR]*/ q(x int)
+
+requires p(x)
+ensures q(x)
+func /*#[MAJOR]*/ m(x int)
+
+func test() {
+    x := 1
+    fold p(x)
+    m(x)
+    assume low(x)
+}

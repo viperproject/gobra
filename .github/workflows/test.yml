@@ -127,7 +127,7 @@ jobs:
 
 
   run-all-tests:
-    name: $${{ matrix.name }}
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     needs: build-container
     env:
@@ -179,7 +179,7 @@ jobs:
           docker run \
             --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync \
             ${{ needs.build-container.outputs.IMAGE_TAG }} \
-            /bin/sh -c "SBTCOMMAND=${{ matrix.sbt-command }}; $(cat .github/test-and-measure-ram.sh)"
+            /bin/sh -c "SBTCOMMAND='${{ matrix.sbt-command }}'; $(cat .github/test-and-measure-ram.sh)"
 
       - name: Get max RAM usage by Java and Z3
         if: ${{ always() }}

@@ -22,9 +22,19 @@ import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, Sy
 import viper.silver.utility.TimingUtils
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 
+import java.lang.annotation.{ElementType, Retention, RetentionPolicy, Target}
+import scala.annotation.StaticAnnotation
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
 
+@org.scalatest.TagAnnotation
+@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.METHOD, ElementType.TYPE))
+class GobraTestsTag extends StaticAnnotation
+
+// tag this class with `GobraTestsTag` such that we can run all except this test class
+// (if necessary) by executing `sbt "testOnly * -- -l viper.gobra.GobraTestsTag"`
+@GobraTestsTag
 class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
 
   val regressionsPropertyName = "GOBRATESTS_REGRESSIONS_DIR"

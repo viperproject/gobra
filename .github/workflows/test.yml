@@ -165,6 +165,8 @@ jobs:
       NOTICE_LEVEL: "info"
       WARNING_LEVEL: "warning"
       FAILURE_LEVEL: "error"
+      # we do the context expansion here to avoid escaping problems below as explained in https://stackoverflow.com/a/77924154/1990080
+      SBT_COMMAND: ${{ matrix.sbt-command }}
     strategy:
       # tests should not be stopped when they fail on one of the OSes:
       fail-fast: false
@@ -187,12 +189,13 @@ jobs:
         run: |
           # create a directory to sync with the docker container and to store the created pidstats
           mkdir -p $PWD/sync
-          echo ${{ matrix.sbt-command }}
-          echo ${{ needs.prepare-matrix.outputs.matrix }}
+          echo "${{ matrix.sbt-command }}"
+          echo "$SBT_COMMAND"
+          echo "${{ needs.prepare-matrix.outputs.matrix }}"
           docker run \
             --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync \
             ${{ needs.build-container.outputs.IMAGE_TAG }} \
-            /bin/sh -c $'SBTCOMMAND=\'${{ matrix.sbt-command }}\'; $(cat .github/test-and-measure-ram.sh)'
+            /bin/sh -c $'SBTCOMMAND=\'$SBT_COMMAND\'; $(cat .github/test-and-measure-ram.sh)'
 
       - name: Get max RAM usage by Java and Z3
         if: ${{ always() }}

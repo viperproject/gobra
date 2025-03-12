@@ -78,6 +78,7 @@ object ConfigDefaults {
   val DefaultUnsafeWildcardOptimization: Boolean = false
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
   val DefaultRespectFunctionPrePermAmounts: Boolean = false
+  val DefaultEnableExperimentalFriendClauses: Boolean = false
 }
 
 // More-complete exhale modes
@@ -164,7 +165,6 @@ case class Config(
                    z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
                    disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                    mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
-                   enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                    parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
@@ -175,6 +175,7 @@ case class Config(
                    unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
+                   enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
 ) {
 
   def merge(other: Config): Config = {
@@ -225,7 +226,6 @@ case class Config(
       z3APIMode = z3APIMode || other.z3APIMode,
       disableNL = disableNL || other.disableNL,
       mceMode = mceMode,
-      enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
       noStreamErrors = noStreamErrors || other.noStreamErrors,
       parseAndTypeCheckMode = parseAndTypeCheckMode,
@@ -235,6 +235,7 @@ case class Config(
       unsafeWildcardOptimization = unsafeWildcardOptimization && other.unsafeWildcardOptimization,
       moreJoins = MoreJoins.merge(moreJoins, other.moreJoins),
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || other.respectFunctionPrePermAmounts,
+      enableExperimentalFriendClauses = enableExperimentalFriendClauses || other.enableExperimentalFriendClauses,
     )
   }
 
@@ -286,7 +287,6 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
                       disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
-                      enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
@@ -296,6 +296,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
+                      enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -349,7 +350,6 @@ trait RawConfig {
     z3APIMode = baseConfig.z3APIMode,
     disableNL = baseConfig.disableNL,
     mceMode = baseConfig.mceMode,
-    enableLazyImports = baseConfig.enableLazyImports,
     noVerify = baseConfig.noVerify,
     noStreamErrors = baseConfig.noStreamErrors,
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
@@ -359,6 +359,7 @@ trait RawConfig {
     unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
     moreJoins = baseConfig.moreJoins,
     respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
+    enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
   )
 }
 
@@ -860,6 +861,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = Some(ConfigDefaults.DefaultDisableSetAxiomatization),
     noshort = true,
   )
+
+  val enableExperimentalFriendClauses: ScallopOption[Boolean] = opt[Boolean](
+    name = "experimentalFriendClauses",
+    descr = s"Enables the use of 'friendPkg' clauses (experimental).",
+    default = Some(ConfigDefaults.DefaultEnableExperimentalFriendClauses),
+    noshort = true,
+  )
   /**
     * Exception handling
     */
@@ -885,6 +893,15 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   private def isSiliconBasedBackend = backend.toOption.getOrElse(ConfigDefaults.DefaultBackend) match {
     case ViperBackends.SiliconBackend | _: ViperBackends.ViperServerWithSilicon => true
     case _ => false
+  }
+
+  addValidation {
+    val lazyImportsSet = enableLazyImports.toOption.contains(true)
+    if (lazyImportsSet) {
+      Left(s"The flag ${Config.enableLazyImportOptionPrettyPrinted} was removed in Gobra's PR #797.")
+    } else {
+      Right(())
+    }
   }
 
   // `parallelizeBranches` requires a backend that supports branch parallelization (i.e., a silicon-based backend)
@@ -1052,7 +1069,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     z3APIMode = z3APIMode(),
     disableNL = disableNL(),
     mceMode = mceMode(),
-    enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),
     noStreamErrors = noStreamErrors(),
     parseAndTypeCheckMode = parseAndTypeCheckMode(),
@@ -1062,5 +1078,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     unsafeWildcardOptimization = unsafeWildcardOptimization(),
     moreJoins = moreJoins(),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts(),
+    enableExperimentalFriendClauses = enableExperimentalFriendClauses(),
   )
 }

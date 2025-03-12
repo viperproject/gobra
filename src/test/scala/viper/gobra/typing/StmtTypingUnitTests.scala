@@ -62,6 +62,8 @@ class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         PPackageClause(PPkgDef("pkg")),
         Vector(),
         Vector(),
+        Vector(),
+        Vector(),
         Vector(PFunctionDecl(
           PIdnDef("foo"),
           inArgs.map(_._1),

@@ -27,7 +27,10 @@ import scala.io.BufferedSource
  * @param name the name of the package, does not have to be unique
  * @param isBuiltIn a flag indicating, if the package comes from within Gobra
  */
-class PackageInfo(val id: String, val name: String, val isBuiltIn: Boolean) {
+class PackageInfo(val uniquePath: String, val name: String, val isBuiltIn: Boolean) {
+  // The - is enough to unambiguously separate the prefix from the package name, since it can't occur in the package name
+  // per Go's spec (https://go.dev/ref/spec#Package_clause)
+  val id: String = uniquePath + " - " + name
 
   /**
    * Unique id of the package to use in Viper member names.
@@ -63,18 +66,8 @@ object Source {
     for {
       packageName <- packageNameOrError
       /** A unique identifier for packages */
-      packageId = {
-        val prefix = uniquePath(TransformableSource(src).toPath.toAbsolutePath.getParent, projectRoot).toString
-        if(prefix.nonEmpty) {
-          // The - is enough to unambiguously separate the prefix from the package name, since it can't occur in the package name
-          // per Go's spec (https://go.dev/ref/spec#Package_clause)
-          prefix + " - " + packageName
-        } else {
-          // Fallback case if the prefix is empty, for example if the directory of a FileSource is in the current directory
-          packageName
-        }
-      }
-    } yield new PackageInfo(packageId, packageName, isBuiltIn)
+      pkgPath = uniquePath(TransformableSource(src).toPath.toAbsolutePath.getParent, projectRoot).toString
+    } yield new PackageInfo(pkgPath, packageName, isBuiltIn)
   }
 
   /**

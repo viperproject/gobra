@@ -193,9 +193,10 @@ jobs:
           echo "$SBT_COMMAND"
           echo "${{ needs.prepare-matrix.outputs.matrix }}"
           docker run \
+            -e SBTCOMMAND="$SBT_COMMAND" \
             --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync \
             ${{ needs.build-container.outputs.IMAGE_TAG }} \
-            /bin/sh -c $'SBTCOMMAND=\'$SBT_COMMAND\'; $(cat .github/test-and-measure-ram.sh)'
+            /bin/sh -c '$(cat .github/test-and-measure-ram.sh)'
 
       - name: Get max RAM usage by Java and Z3
         if: ${{ always() }}

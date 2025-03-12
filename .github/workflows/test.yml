@@ -149,6 +149,9 @@ jobs:
           echo "$MATRIX_ENTRIES"
           echo "matrix={\"include\": [$MATRIX_ENTRIES]}" >> $GITHUB_OUTPUT
 
+      - name: Test matrix
+        run: echo "${{ fromJson(steps.set-matrix.outputs.matrix) }}"
+
 
   run-all-tests:
     name: ${{ matrix.name }}

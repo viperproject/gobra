@@ -147,7 +147,6 @@ jobs:
           # add an entry for all other non-GobraTests tests:
           MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"All other tests\", \"sbt-command\": \"testOnly * -- -l viper.gobra.GobraTestsTag\"},"
           echo "matrix={\"include\": [$MATRIX_ENTRIES]}" >> $GITHUB_OUTPUT
-        working-directory: gobra-ide/client
 
 
   run-all-tests:

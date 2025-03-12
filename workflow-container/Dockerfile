@@ -4,7 +4,7 @@
 #
 # Copyright (c) 2011-2021 ETH Zurich.
 
-FROM openjdk:11.0.12-slim as build
+FROM openjdk:11.0.12-slim AS build
 
 WORKDIR /build
 
@@ -32,7 +32,7 @@ RUN curl -L $Z3_URL --output /z3.zip && \
     cp /z3/$Z3_BIN /usr/bin/ && \
     rm -r /z3
 
-ENV Z3_EXE /usr/bin/z3
+ENV Z3_EXE=/usr/bin/z3
 
 # Download Boogie
 ENV BOOGIE_URL="https://github.com/viperproject/boogie-builder/releases/download/bae82d3a7b383161/boogie-linux.zip"
@@ -73,7 +73,7 @@ ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true
 
 # copy downloaded & unzipped z3
 COPY --from=build /usr/bin/z3 /usr/bin/
-ENV Z3_EXE /usr/bin/z3
+ENV Z3_EXE=/usr/bin/z3
 
 WORKDIR /gobra
 COPY --from=build /build/gobra/target/scala-2.13/gobra.jar .

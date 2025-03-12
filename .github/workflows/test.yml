@@ -127,6 +127,7 @@ jobs:
 
 
   run-all-tests:
+    name: $${{ matrix.name }}
     runs-on: ubuntu-latest
     needs: build-container
     env:
@@ -137,6 +138,26 @@ jobs:
       NOTICE_LEVEL: "info"
       WARNING_LEVEL: "warning"
       FAILURE_LEVEL: "error"
+    strategy:
+      # tests should not be stopped when they fail on one of the OSes:
+      fail-fast: false
+      matrix:
+        name:
+          [
+            "GobraTests - regressions/examples",
+            "GobraTests - regressions/features",
+            "GobraTests - regressions/issues",
+            "All other tests"
+          ]
+        include:
+          - name: "GobraTests - regressions/examples"
+            sbt-command: 'set javaOptions += "-DGOBRATESTS_REGRESSIONS_DIR=regressions/examples";  testOnly * -- -n viper.gobra.GobraTestsTag'
+          - name: "GobraTests - regressions/features"
+            sbt-command: 'set javaOptions += "-DGOBRATESTS_REGRESSIONS_DIR=regressions/features";  testOnly * -- -n viper.gobra.GobraTestsTag'
+          - name: "GobraTests - regressions/issues"
+            sbt-command: 'set javaOptions += "-DGOBRATESTS_REGRESSIONS_DIR=regressions/issues";  testOnly * -- -n viper.gobra.GobraTestsTag'
+          - name: "All other tests"
+            sbt-command: 'testOnly * -- -l viper.gobra.GobraTestsTag'
     steps:
       # we only need .github/test-and-measure-ram.sh. Thus, we do not checkout the submodules
       - name: Checkout Gobra
@@ -158,7 +179,7 @@ jobs:
           docker run \
             --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync \
             ${{ needs.build-container.outputs.IMAGE_TAG }} \
-            /bin/sh -c "$(cat .github/test-and-measure-ram.sh)"
+            /bin/sh -c "SBTCOMMAND=${{ matrix.sbt-command }}; $(cat .github/test-and-measure-ram.sh)"
 
       - name: Get max RAM usage by Java and Z3
         if: ${{ always() }}

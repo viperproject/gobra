@@ -10,9 +10,15 @@ on:
   push: # run this workflow on every push
   pull_request: # run this workflow on every pull_request
 
+env:
+  BUILD_IMAGE_WORKFLOW_ARTIFACT_NAME: gobra-build-image
+  BUILD_IMAGE_FILENAME: build-image.tar
+  FINAL_IMAGE_WORKFLOW_ARTIFACT_NAME: gobra-final-image
+  FINAL_IMAGE_FILENAME: final-image.tar
+
+
 jobs:
-  # there is a single job to avoid copying the built docker image from one job to the other
-  build-test-deploy-container:
+  build-container:
     runs-on: ubuntu-latest
     env:
       IMAGE_ID: ghcr.io/${{ github.repository_owner }}/gobra
@@ -24,13 +30,6 @@ jobs:
         org.opencontainers.image.revision=${{ github.sha }}
         org.opencontainers.image.licenses=MPL-2.0
         org.opencontainers.image.description=Gobra image for revision ${{ github.sha }} built by workflow run ${{ github.run_id }}
-      CONCLUSION_SUCCESS: "success"
-      CONCLUSION_FAILURE: "failure"
-      # Output levels according to severity.
-      # They identify the kinds of annotations to be printed by Github.
-      NOTICE_LEVEL: "info"
-      WARNING_LEVEL: "warning"
-      FAILURE_LEVEL: "error"
     steps:
       - name: Checkout Gobra
         uses: actions/checkout@v6
@@ -89,6 +88,62 @@ jobs:
           # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
           cache-to: type=gha, scope=${{ github.workflow }}
+          outputs: type=docker,dest=/tmp/${{ env.BUILD_IMAGE_FILENAME }}
+
+      - name: Upload build image
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BUILD_IMAGE_WORKFLOW_ARTIFACT_NAME }}
+          path: /tmp/${{ env.BUILD_IMAGE_FILENAME }}
+          retention-days: 1
+
+      - name: Build entire image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true # make the built image available in docker (locally)
+          file: workflow-container/Dockerfile
+          tags: ${{ steps.image-metadata.outputs.tags }}
+          labels: ${{ steps.image-metadata.outputs.labels }}
+          push: false
+          provenance: false # without this, GH displays 2 architecture (unknown/unknown) and omits labels
+          # use GitHub cache:
+          cache-from: type=gha, scope=${{ github.workflow }}
+          cache-to: type=gha, scope=${{ github.workflow }}
+          outputs: type=docker,dest=/tmp/${{ env.FINAL_IMAGE_FILENAME }}
+
+      - name: Upload final image
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.FINAL_IMAGE_WORKFLOW_ARTIFACT_NAME }}
+          path: /tmp/${{ env.FINAL_IMAGE_FILENAME }}
+          retention-days: 1
+
+      - name: Set job output
+        id: output_step
+        run: echo "IMAGE_TAG=${{ steps.image-metadata.outputs.tags }}" >> $GITHUB_OUTPUT
+
+
+  run-all-tests:
+    runs-on: ubuntu-latest
+    needs: build-container
+    env:
+      CONCLUSION_SUCCESS: "success"
+      CONCLUSION_FAILURE: "failure"
+      # Output levels according to severity.
+      # They identify the kinds of annotations to be printed by Github.
+      NOTICE_LEVEL: "info"
+      WARNING_LEVEL: "warning"
+      FAILURE_LEVEL: "error"
+    steps:
+      - name: Download build image
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.BUILD_IMAGE_WORKFLOW_ARTIFACT_NAME }}
+          path: /tmp
+
+      - name: Load image
+        run: docker load --input /tmp/${{ env.BUILD_IMAGE_FILENAME }}
 
       - name: Execute all tests
         run: |
@@ -96,7 +151,7 @@ jobs:
           mkdir -p $PWD/sync
           docker run \
             --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync \
-            ${{ env.IMAGE_TAG }} \
+            ${{ needs.build-container.outputs.IMAGE_TAG }} \
             /bin/sh -c "$(cat .github/test-and-measure-ram.sh)"
 
       - name: Get max RAM usage by Java and Z3
@@ -190,26 +245,31 @@ jobs:
           name: pidstat.txt
           path: sync/pidstat.txt
 
-      - name: Build entire image
-        uses: docker/build-push-action@v6
+
+  test-final-container:
+    runs-on: ubuntu-latest
+    needs: build-container
+    steps:
+      - name: Download final image
+        uses: actions/download-artifact@v4
         with:
-          context: .
-          load: true # make the built image available in docker (locally)
-          file: workflow-container/Dockerfile
-          tags: ${{ steps.image-metadata.outputs.tags }}
-          labels: ${{ steps.image-metadata.outputs.labels }}
-          push: false
-          provenance: false # without this, GH displays 2 architecture (unknown/unknown) and omits labels
-          # use GitHub cache:
-          cache-from: type=gha, scope=${{ github.workflow }}
-          cache-to: type=gha, scope=${{ github.workflow }}
+          name: ${{ env.FINAL_IMAGE_WORKFLOW_ARTIFACT_NAME }}
+          path: /tmp
+
+      - name: Load image
+        run: docker load --input /tmp/${{ env.FINAL_IMAGE_FILENAME }}
 
       - name: Test final container by verifying a file
         run: |
           docker run \
-            ${{ env.IMAGE_TAG }} \
+            ${{ needs.build-container.outputs.IMAGE_TAG }} \
             -i tutorial-examples/basic-annotations.gobra
 
+
+  deploy-container:
+    runs-on: ubuntu-latest
+    needs: [build-container, run-all-tests, test-final-container]
+    steps:
       - name: Decide whether image should be deployed or not
         run: |
           # note that these GitHub expressions return the value '1' for 'true' (as opposed to bash)
@@ -226,6 +286,17 @@ jobs:
           fi
           echo "SHOULD_DEPLOY=$SHOULD_DEPLOY" >> $GITHUB_ENV
 
+      - name: Download final image
+        if: env.SHOULD_DEPLOY == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.FINAL_IMAGE_WORKFLOW_ARTIFACT_NAME }}
+          path: /tmp
+
+      - name: Load image
+        if: env.SHOULD_DEPLOY == 'true'
+        run: docker load --input /tmp/${{ env.FINAL_IMAGE_FILENAME }}
+
       - name: Login to Github Packages
         if: env.SHOULD_DEPLOY == 'true'
         uses: docker/login-action@v3
@@ -234,16 +305,5 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push entire image
-        if: env.SHOULD_DEPLOY == 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: workflow-container/Dockerfile
-          tags: ${{ steps.image-metadata.outputs.tags }}
-          labels: ${{ steps.image-metadata.outputs.labels }}
-          push: true
-          provenance: false # without this, GH displays 2 architecture (unknown/unknown) and omits labels
-          # use GitHub cache:
-          cache-from: type=gha, scope=${{ github.workflow }}
-          cache-to: type=gha, scope=${{ github.workflow }}
+      - name: Push image
+        run: docker push ${{ needs.build-container.outputs.IMAGE_TAG }}

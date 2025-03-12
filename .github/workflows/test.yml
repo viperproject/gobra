@@ -146,6 +146,7 @@ jobs:
           done
           # add an entry for all other non-GobraTests tests:
           MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"All other tests\", \"sbt-command\": \"testOnly * -- -l viper.gobra.GobraTestsTag\"},"
+          echo "$MATRIX_ENTRIES"
           echo "matrix={\"include\": [$MATRIX_ENTRIES]}" >> $GITHUB_OUTPUT
 
 

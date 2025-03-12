@@ -138,6 +138,10 @@ jobs:
       WARNING_LEVEL: "warning"
       FAILURE_LEVEL: "error"
     steps:
+      # we only need .github/test-and-measure-ram.sh. Thus, we do not checkout the submodules
+      - name: Checkout Gobra
+        uses: actions/checkout@v4
+
       - name: Download build image
         uses: actions/download-artifact@v4
         with:
@@ -308,4 +312,5 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push image
+        if: env.SHOULD_DEPLOY == 'true'
         run: docker push ${{ needs.build-container.outputs.IMAGE_TAG }}

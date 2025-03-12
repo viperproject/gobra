@@ -20,6 +20,8 @@ env:
 jobs:
   build-container:
     runs-on: ubuntu-latest
+    outputs:
+      IMAGE_TAG: ${{ steps.output_step.outputs.IMAGE_TAG }}
     env:
       IMAGE_ID: ghcr.io/${{ github.repository_owner }}/gobra
       # image labels are new-line separated key value pairs (according to https://specs.opencontainers.org/image-spec/annotations/):

@@ -126,6 +126,30 @@ jobs:
         run: echo "IMAGE_TAG=${{ env.IMAGE_TAG }}" >> $GITHUB_OUTPUT
 
 
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout Gobra
+        uses: actions/checkout@v4
+        # we do not need any submodules here as we need the folders containing our test cases
+
+      - id: set-matrix
+        run: |
+          # find subfolders of `regressions` and use those as a natural split of the GobraTests
+          # store these subfolders as a JSON array:
+          REGRESSION_SUBFOLDERS=$(ls src/test/resources/regressions | jq -R . | jq -s --compact-output)
+          MATRIX_ENTRIES=''
+          for SUBFOLDER in $REGRESSION_SUBFOLDERS; do
+            MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"GobraTests - regressions/$SUBFOLDER\", \"sbt-command\": \"set javaOptions += \"-DGOBRATESTS_REGRESSIONS_DIR=regressions/$SUBFOLDER\";  testOnly * -- -n viper.gobra.GobraTestsTag\"},"
+          done
+          # add an entry for all other non-GobraTests tests:
+          MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"All other tests\", \"sbt-command\": \"testOnly * -- -l viper.gobra.GobraTestsTag\"},"
+          echo "matrix={\"include\": [$MATRIX_ENTRIES]}" >> $GITHUB_OUTPUT
+        working-directory: gobra-ide/client
+
+
   run-all-tests:
     name: ${{ matrix.name }}
     runs-on: ubuntu-latest
@@ -141,23 +165,7 @@ jobs:
     strategy:
       # tests should not be stopped when they fail on one of the OSes:
       fail-fast: false
-      matrix:
-        name:
-          [
-            "GobraTests - regressions/examples",
-            "GobraTests - regressions/features",
-            "GobraTests - regressions/issues",
-            "All other tests"
-          ]
-        include:
-          - name: "GobraTests - regressions/examples"
-            sbt-command: 'set javaOptions += \"-DGOBRATESTS_REGRESSIONS_DIR=regressions/examples\";  testOnly * -- -n viper.gobra.GobraTestsTag'
-          - name: "GobraTests - regressions/features"
-            sbt-command: 'set javaOptions += \"-DGOBRATESTS_REGRESSIONS_DIR=regressions/features\";  testOnly * -- -n viper.gobra.GobraTestsTag'
-          - name: "GobraTests - regressions/issues"
-            sbt-command: 'set javaOptions += \"-DGOBRATESTS_REGRESSIONS_DIR=regressions/issues\";  testOnly * -- -n viper.gobra.GobraTestsTag'
-          - name: "All other tests"
-            sbt-command: 'testOnly * -- -l viper.gobra.GobraTestsTag'
+      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
     steps:
       # we only need .github/test-and-measure-ram.sh. Thus, we do not checkout the submodules
       - name: Checkout Gobra

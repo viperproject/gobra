@@ -151,11 +151,11 @@ jobs:
           ]
         include:
           - name: "GobraTests - regressions/examples"
-            sbt-command: 'set javaOptions += "-DGOBRATESTS_REGRESSIONS_DIR=regressions/examples";  testOnly * -- -n viper.gobra.GobraTestsTag'
+            sbt-command: 'set javaOptions += \"-DGOBRATESTS_REGRESSIONS_DIR=regressions/examples\";  testOnly * -- -n viper.gobra.GobraTestsTag'
           - name: "GobraTests - regressions/features"
-            sbt-command: 'set javaOptions += "-DGOBRATESTS_REGRESSIONS_DIR=regressions/features";  testOnly * -- -n viper.gobra.GobraTestsTag'
+            sbt-command: 'set javaOptions += \"-DGOBRATESTS_REGRESSIONS_DIR=regressions/features\";  testOnly * -- -n viper.gobra.GobraTestsTag'
           - name: "GobraTests - regressions/issues"
-            sbt-command: 'set javaOptions += "-DGOBRATESTS_REGRESSIONS_DIR=regressions/issues";  testOnly * -- -n viper.gobra.GobraTestsTag'
+            sbt-command: 'set javaOptions += \"-DGOBRATESTS_REGRESSIONS_DIR=regressions/issues\";  testOnly * -- -n viper.gobra.GobraTestsTag'
           - name: "All other tests"
             sbt-command: 'testOnly * -- -l viper.gobra.GobraTestsTag'
     steps:

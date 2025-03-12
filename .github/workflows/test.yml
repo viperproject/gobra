@@ -139,7 +139,7 @@ jobs:
         run: |
           # find subfolders of `regressions` and use those as a natural split of the GobraTests
           # store these subfolders as a JSON array:
-          REGRESSION_SUBFOLDERS=$(ls src/test/resources/regressions | jq -R . | jq -s --compact-output)
+          REGRESSION_SUBFOLDERS=$(ls src/test/resources/regressions)
           MATRIX_ENTRIES=''
           for SUBFOLDER in $REGRESSION_SUBFOLDERS; do
             MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"GobraTests - regressions/$SUBFOLDER\", \"sbt-command\": \"set javaOptions += \"-DGOBRATESTS_REGRESSIONS_DIR=regressions/$SUBFOLDER\";  testOnly * -- -n viper.gobra.GobraTestsTag\"},"

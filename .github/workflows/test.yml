@@ -152,7 +152,7 @@ jobs:
   run-all-tests:
     name: ${{ matrix.name }}
     runs-on: ubuntu-latest
-    needs: build-container
+    needs: [build-container, prepare-matrix]
     env:
       CONCLUSION_SUCCESS: "success"
       CONCLUSION_FAILURE: "failure"

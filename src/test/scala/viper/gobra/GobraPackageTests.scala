@@ -6,8 +6,7 @@
 
 package viper.gobra
 
-import java.io.File
-import java.nio.file.Path
+import java.nio.file.{Files, Path}
 import ch.qos.logback.classic.Level
 import org.bitbucket.inkytonik.kiama.util.Source
 import org.rogach.scallop.exceptions.ValidationFailure
@@ -21,6 +20,7 @@ import viper.silver.utility.TimingUtils
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
+import scala.jdk.CollectionConverters.IterableHasAsScala
 
 class GobraPackageTests extends GobraTests {
   val samePackagePropertyName    = "GOBRATESTS_SAME_PACKAGE_DIR"
@@ -33,19 +33,21 @@ class GobraPackageTests extends GobraTests {
 
   override val testDirectories: Seq[String] = Vector(samePackageDir, builtinStubDir, stubPackagesDir)
 
-  override def buildTestInput(file: Path, prefix: String): DefaultAnnotatedTestInput = {
+  override def buildTestInput(path: Path, prefix: String): DefaultAnnotatedTestInput = {
+    def listDirectory(path: Path): Vector[Path] = Files.newDirectoryStream(path).asScala.toVector
+    def isFile(path: Path): Boolean = Files.isRegularFile(path)
+
     // get package clause of file and collect all other files belonging to this package:
     val input = for {
-      pkgName <- getPackageClause(file.toFile)
-      currentDir = file.getParent.toFile
-      samePkgFiles = currentDir.listFiles
-        .filter(_.isFile)
-        .map(f => (f, getPackageClause(f)))
+      pkgName <- getPackageClause(path)
+      currentDir = path.getParent
+      samePkgFiles = listDirectory(currentDir)
+        .filter(isFile)
+        .map(p => (p, getPackageClause(p)))
         .filter { case (_, Some(clause)) if clause == pkgName => true }
-        .map { case (f, _) => f.toPath }
+        .map { case (p, _) => p }
         .sortBy(_.toString)
-        .toSeq
-    } yield DefaultTestInput(s"$prefix/$pkgName (${file.getFileName.toString})", prefix, samePkgFiles, Seq())
+    } yield DefaultTestInput(s"$prefix/$pkgName (${path.getFileName.toString})", prefix, samePkgFiles, Seq())
     GobraAnnotatedTestInput(input.get)
   }
 
@@ -60,9 +62,9 @@ class GobraPackageTests extends GobraTests {
         val parsedConfig = for {
           config <- createConfig(Array(
             "--logLevel", "INFO",
-            "--directory", currentDir.toFile.getPath,
-            "--projectRoot", currentDir.toFile.getPath, // otherwise, it assumes Gobra's root directory as the project root
-            "-I", currentDir.toFile.getPath,
+            "--directory", currentDir.toString,
+            "--projectRoot", currentDir.toString, // otherwise, it assumes Gobra's root directory as the project root
+            "-I", currentDir.toString,
             // termination checks in functions are currently disabled in the tests. This can be enabled in the future,
             // but requires some work to add termination measures all over the test suite.
             "--disablePureFunctsTerminationRequirement",
@@ -93,10 +95,12 @@ class GobraPackageTests extends GobraTests {
 
   private lazy val pkgClauseRegex = """(?:\/\/.*|\/\*(?:.|\n)*\*\/|package(?:\s|\n)+([a-zA-Z_][a-zA-Z0-9_]*))""".r
 
-  private def getPackageClause(file: File): Option[String] = {
-    val bufferedSource = scala.io.Source.fromFile(file)
+  private def getPackageClause(path: Path): Option[String] = {
+    val input = Files.newInputStream(path)
+    val bufferedSource = scala.io.Source.fromInputStream(input)
     val content = bufferedSource.mkString
     bufferedSource.close()
+    input.close()
     // TODO is there a way to perform the regex lazily on the file's content?
     pkgClauseRegex
       .findAllMatchIn(content)

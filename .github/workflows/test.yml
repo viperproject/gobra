@@ -141,11 +141,14 @@ jobs:
           # store these subfolders as a JSON array:
           REGRESSION_SUBFOLDERS=$(ls src/test/resources/regressions)
           MATRIX_ENTRIES=''
+          # note that the paths need to be relative to the root of the repository to ensure that
+          # the tests use the resources from the repository as opposed to those that are embedded
+          # in the JAR file.
           for SUBFOLDER in $REGRESSION_SUBFOLDERS; do
-            MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"GobraTests - regressions/$SUBFOLDER\", \"test-env-vars\": \"-DGOBRATESTS_REGRESSIONS_DIR=regressions/$SUBFOLDER\", \"test-args\": \"-n viper.gobra.tags.GobraTestsTag\", \"pidstat-filename\": \"pidstat-GobraTests-$SUBFOLDER.txt\"},"
+            MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"GobraTests - regressions/$SUBFOLDER\", \"test-env-vars\": \"-DGOBRATESTS_REGRESSIONS_DIR=src/test/regressions/$SUBFOLDER\", \"test-args\": \"-n viper.gobra.tags.GobraTestsTag\", \"pidstat-filename\": \"pidstat-GobraTests-$SUBFOLDER.txt\"},"
           done
           # add an entry for all other non-GobraTests tests:
-          MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"All other tests\", \"test-env-vars\": \"\", \"test-args\": \"-l viper.gobra.tags.GobraTestsTag\", \"pidstat-filename\": \"pidstat-OtherTests.txt\"},"
+          MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"All other tests\", \"test-env-vars\": \"-DGOBRATESTS_SAME_PACKAGE_DIR=src/test/resources/same_package\", \"test-args\": \"-l viper.gobra.tags.GobraTestsTag\", \"pidstat-filename\": \"pidstat-OtherTests.txt\"},"
           # print matrix for debugging purposes:
           echo "matrix={\"include\": [$MATRIX_ENTRIES]}"
           echo "matrix={\"include\": [$MATRIX_ENTRIES]}" >> $GITHUB_OUTPUT

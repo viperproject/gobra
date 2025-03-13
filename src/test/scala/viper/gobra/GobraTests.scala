@@ -9,7 +9,7 @@ package viper.gobra
 import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import org.bitbucket.inkytonik.kiama.util.Source
-import org.scalatest.{Args, BeforeAndAfterAll, Status, Tag}
+import org.scalatest.{Args, BeforeAndAfterAll, Status}
 import scalaz.Scalaz.futureInstance
 import viper.gobra.frontend.PackageResolver.RegularPackage
 import viper.gobra.frontend.Source.FromFileSource

@@ -142,10 +142,10 @@ jobs:
           REGRESSION_SUBFOLDERS=$(ls src/test/resources/regressions)
           MATRIX_ENTRIES=''
           for SUBFOLDER in $REGRESSION_SUBFOLDERS; do
-            MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"GobraTests - regressions/$SUBFOLDER\", \"sbt-command\": \"set javaOptions += \\\"-DGOBRATESTS_REGRESSIONS_DIR=regressions/$SUBFOLDER\\\";  testOnly * -- -n viper.gobra.tags.GobraTestsTag\", \"pidstat-filename\": \"pidstat-GobraTests-$SUBFOLDER.txt\"},"
+            MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"GobraTests - regressions/$SUBFOLDER\", \"test-env-vars\": \"-DGOBRATESTS_REGRESSIONS_DIR=regressions/$SUBFOLDER\", \"test-args\": \"-n viper.gobra.tags.GobraTestsTag\", \"pidstat-filename\": \"pidstat-GobraTests-$SUBFOLDER.txt\"},"
           done
           # add an entry for all other non-GobraTests tests:
-          MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"All other tests\", \"sbt-command\": \"testOnly * -- -l viper.gobra.tags.GobraTestsTag\", \"pidstat-filename\": \"pidstat-OtherTests.txt\"},"
+          MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"All other tests\", \"test-env-vars\": \"\", \"test-args\": \"-l viper.gobra.tags.GobraTestsTag\", \"pidstat-filename\": \"pidstat-OtherTests.txt\"},"
           # print matrix for debugging purposes:
           echo "matrix={\"include\": [$MATRIX_ENTRIES]}"
           echo "matrix={\"include\": [$MATRIX_ENTRIES]}" >> $GITHUB_OUTPUT
@@ -163,8 +163,6 @@ jobs:
       NOTICE_LEVEL: "info"
       WARNING_LEVEL: "warning"
       FAILURE_LEVEL: "error"
-      # we do the context expansion here to avoid escaping problems below as explained in https://stackoverflow.com/a/77924154/1990080
-      SBT_COMMAND: ${{ matrix.sbt-command }}
     strategy:
       # tests should not be stopped when they fail on one of the OSes:
       fail-fast: false
@@ -188,7 +186,8 @@ jobs:
           # create a directory to sync with the docker container and to store the created pidstats
           mkdir -p $PWD/sync
           docker run \
-            -e SBTCOMMAND="$SBT_COMMAND" \
+            -e TEST_ENV_VARS="${{ matrix.test-env-vars }}" \
+            -e TEST_ARGS="${{ matrix.test-args }}" \
             --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync \
             ${{ needs.build-container.outputs.IMAGE_TAG }} \
             /bin/sh -c "$(cat .github/test-and-measure-ram.sh)"

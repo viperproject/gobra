@@ -57,6 +57,9 @@ COPY viperserver /build/gobra/viperserver
 
 RUN sbt assembly
 
+# also create `gobra-test.jar` for running tests without SBT:
+RUN sbt test:assembly
+
 
 # a second build stage starts here that is based of a fresh image.
 # note that only stuff explicitly copied from "build" will be present.

@@ -187,7 +187,7 @@ jobs:
           # create a directory to sync with the docker container and to store the created pidstats
           mkdir -p $PWD/sync
           docker run \
-            -e SBTCOMMAND="${{ matrix.sbt-command }}" \
+            -e SBTCOMMAND="$SBT_COMMAND" \
             --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync \
             ${{ needs.build-container.outputs.IMAGE_TAG }} \
             /bin/sh -c "$(cat .github/test-and-measure-ram.sh)"

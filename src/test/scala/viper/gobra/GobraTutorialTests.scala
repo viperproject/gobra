@@ -14,7 +14,12 @@ import java.nio.file.Path
 
 /** tests the tutorial examples with (mostly) default settings to ensure that they run, e.g., in VSCode */
 class GobraTutorialTests extends GobraTests {
-  override val testDirectories: Seq[String] = Vector("regressions/examples/tutorial-examples")
+
+  val tutorialExamplesPropertyName = "GOBRATESTS_TUTORIAL_EXAMPLES_DIR"
+
+  val tutorialExamplesDir: String = System.getProperty(tutorialExamplesPropertyName, "regressions/examples/tutorial-examples")
+
+  override val testDirectories: Seq[String] = Vector(tutorialExamplesDir)
 
   protected override def getConfig(source: Source): Config =
     Config(

@@ -148,7 +148,7 @@ jobs:
             MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"GobraTests - regressions/$SUBFOLDER\", \"test-env-vars\": \"-DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions/$SUBFOLDER\", \"test-args\": \"-n viper.gobra.tags.GobraTestsTag\", \"pidstat-filename\": \"pidstat-GobraTests-$SUBFOLDER.txt\"},"
           done
           # add an entry for all other non-GobraTests tests:
-          MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"All other tests\", \"test-env-vars\": \"-DGOBRATESTS_SAME_PACKAGE_DIR=src/test/resources/same_package -DGOBRATESTS_BUILTIN_PACKAGES_DIR=src/main/resources/builtin -DGOBRATESTS_STUB_PACKAGES_DIR=src/main/resources/stubs\", \"test-args\": \"-l viper.gobra.tags.GobraTestsTag\", \"pidstat-filename\": \"pidstat-OtherTests.txt\"},"
+          MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"All other tests\", \"test-env-vars\": \"-DGOBRATESTS_SAME_PACKAGE_DIR=src/test/resources/same_package -DGOBRATESTS_BUILTIN_PACKAGES_DIR=src/main/resources/builtin -DGOBRATESTS_STUB_PACKAGES_DIR=src/main/resources/stubs -DGOBRATESTS_TUTORIAL_EXAMPLES_DIR=src/test/resources/regressions/examples/tutorial-examples\", \"test-args\": \"-l viper.gobra.tags.GobraTestsTag\", \"pidstat-filename\": \"pidstat-OtherTests.txt\"},"
           # print matrix for debugging purposes:
           echo "matrix={\"include\": [$MATRIX_ENTRIES]}"
           echo "matrix={\"include\": [$MATRIX_ENTRIES]}" >> $GITHUB_OUTPUT

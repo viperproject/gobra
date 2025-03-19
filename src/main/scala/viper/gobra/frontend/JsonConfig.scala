@@ -95,7 +95,7 @@ case class VerificationJobCfg(
                                project_root: Option[String] = None,
                                recursive: Option[Boolean] = None, // TODO: why would a package specify recursion?
                                require_triggers: Option[Boolean] = None,
-                               other: Option[List[String]] = None, // TODO: what is this?
+                               other: Option[List[String]] = None,
                              ) extends GobraJsonConfig with Resolvable {
   type R = VerificationJobCfg
 

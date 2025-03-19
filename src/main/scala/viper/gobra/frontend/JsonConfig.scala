@@ -2,7 +2,8 @@ package viper.gobra.frontend
 
 import viper.gobra.reporting.{ConfigError, VerifierError}
 
-import java.nio.file.Path
+import java.io.File
+import java.nio.file.{Files, Path}
 import scala.reflect.ClassTag
 
 /** wrapper around `ViperBackend` as json4s fails to directly parse a `ViperBackend`
@@ -34,8 +35,9 @@ object ViperBackendJsonConverter extends CliEnumConverter.CliEnum[ViperBackendJs
 }
 
 trait Resolvable {
+  type R <: Resolvable // allows us to give a tight return type to `resolvePaths`:
   /** resolves all relative paths in relation to `basePath` */
-  def resolvePaths(basePath: Path): Resolvable
+  def resolvePaths(basePath: Path): R
 
   protected def resolveOptPath(basePath: Path, path: Option[String]): Option[String] = {
     path.map(resolvePath(basePath, _))
@@ -51,6 +53,8 @@ case class GobraModuleCfg(
                         installation_cfg: Option[GobraInstallCfg],
                         default_job_cfg: Option[VerificationJobCfg],
                       ) extends GobraJsonConfig with Resolvable {
+  type R = GobraModuleCfg
+
   override def resolvePaths(basePath: Path): GobraModuleCfg =
     GobraModuleCfg(
       installation_cfg = installation_cfg.map(_.resolvePaths(basePath)),
@@ -63,6 +67,8 @@ case class GobraInstallCfg(
                             jvm_options: Option[List[String]] = None,
                             z3_path: Option[String] = None,
                           ) extends Resolvable {
+  type R = GobraInstallCfg
+
   def copy(jar_path: Option[String] = this.jar_path,
            jvm_options: Option[List[String]] = this.jvm_options,
            z3_path: Option[String] = this.z3_path): GobraInstallCfg =
@@ -96,6 +102,8 @@ case class VerificationJobCfg(
                                require_triggers: Option[Boolean] = None,
                                other: Option[List[String]] = None, // TODO: what is this?
                              ) extends GobraJsonConfig with Resolvable {
+  type R = VerificationJobCfg
+
   def copy(assume_injectivity_inhale: Option[Boolean] = this.assume_injectivity_inhale,
            backend: Option[ViperBackendJson.Backend] = this.backend,
            check_consistency: Option[Boolean] = this.check_consistency,
@@ -142,12 +150,18 @@ case object GobraJsonConfigHandler {
     * NOTE: provide the generic parameter `C` to avoid runtime errors even if
     * the compiler seems to infer it
     */
-  def fromJson[C <: GobraJsonConfig](json: String)(implicit mf: Manifest[C]): Either[Vector[VerifierError], C] = {
-    try {
-      Right(Serialization.read(json)(serializers, mf))
-    } catch {
-      case e: Exception =>
-        Left(Vector(ConfigError(s"Failed to parse JSON file: ${e.getMessage}")))
+  def fromJson[C <: GobraJsonConfig with Resolvable](file: File)(implicit mf: Manifest[C]): Either[Vector[VerifierError], C#R] = {
+    if (file.exists() && file.isFile) {
+      val fileContent = Files.readString(file.toPath)
+      try {
+        val c = Serialization.read(fileContent)(serializers, mf)
+        Right(c.resolvePaths(file.getParentFile.toPath))
+      } catch {
+        case e: Exception =>
+          Left(Vector(ConfigError(s"Failed to parse JSON file: ${e.getMessage}")))
+      }
+    } else {
+      Left(Vector(ConfigError(s"JSON configuration file does not exist: ${file.getAbsoluteFile.toString}")))
     }
   }
 

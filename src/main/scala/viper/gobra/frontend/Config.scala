@@ -7,7 +7,7 @@
 package viper.gobra.frontend
 
 import java.io.File
-import java.nio.file.{Files, Path, Paths}
+import java.nio.file.{Path, Paths}
 import ch.qos.logback.classic.Level
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
@@ -526,16 +526,14 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
       } else {
         new File(configFile, VerificationJobConfigFilename)
       }
-      val jobConfig = if (jobConfigFile.exists() && jobConfigFile.isFile) {
-        val fileContent = Files.readString(jobConfigFile.toPath)
+      if (jobConfigFile.exists() && jobConfigFile.isFile) {
         // provide the generic type argument to avoid weird runtime errors even though the
         // pretends to not need it!
         GobraJsonConfigHandler
-          .fromJson[VerificationJobCfg](fileContent)
+          .fromJson[VerificationJobCfg](jobConfigFile)
       } else {
         Right(VerificationJobCfg())
       }
-      jobConfig.map(_.resolvePaths(jobConfigFile.getParentFile.toPath))
     } else {
       Left(Vector(ConfigError(s"The provided config path does not exist: ${configFile.getAbsoluteFile.toString}")))
     }
@@ -555,12 +553,10 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
     }
     moduleConfigFile match {
       case Some(file) =>
-        val fileContent = Files.readString(file.toPath)
         // provide the generic type argument to avoid weird runtime errors even though the
         // pretends to not need it!
         GobraJsonConfigHandler
-          .fromJson[GobraModuleCfg](fileContent)
-          .map(_.resolvePaths(file.getParentFile.toPath))
+          .fromJson[GobraModuleCfg](file)
       case None =>
         Left(Vector(ConfigError(s"Could not find module configuration file $ModuleConfigFilename in the directory or a parent directory of ${configFile.getAbsoluteFile.toString}")))
     }

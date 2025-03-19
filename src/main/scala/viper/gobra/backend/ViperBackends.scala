@@ -6,7 +6,7 @@
 
 package viper.gobra.backend
 
-import viper.gobra.frontend.{Config, MCE}
+import viper.gobra.frontend.{CliEnumConverter, Config, MCE}
 import viper.gobra.util.GobraExecutionContext
 import viper.server.ViperConfig
 import viper.server.core.ViperCoreServer
@@ -17,13 +17,15 @@ import java.nio.file.{Files, Paths}
 import scala.io.Source
 import scala.util.Using
 
-trait ViperBackend {
+trait ViperBackend extends CliEnumConverter.EnumCase {
   def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperVerifier
 }
 
 object ViperBackends {
 
   object SiliconBackend extends ViperBackend {
+    override val value: String = "SILICON"
+
     def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): Silicon = {
 
       var options: Vector[String] = Vector.empty
@@ -81,6 +83,8 @@ object ViperBackends {
   }
 
   object CarbonBackend extends ViperBackend {
+    override val value: String = "CARBON"
+
     def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): Carbon = {
       var options: Vector[String] = Vector.empty
       // options ++= Vector("--logLevel", "ERROR")
@@ -137,6 +141,8 @@ object ViperBackends {
   }
 
   case class ViperServerWithSilicon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) {
+    override val value: String = "VSWITHSILICON"
+
     override def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig = {
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
@@ -178,6 +184,8 @@ object ViperBackends {
   }
 
   case class ViperServerWithCarbon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) {
+    override val value: String = "VSWITHCARBON"
+
     override def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig = {
       var options: Vector[String] = Vector.empty
       // options ++= Vector("--logLevel", "ERROR")

@@ -4,8 +4,13 @@
 // we overwrite the default job configuration such that
 // overflows are not checked in the following program.
 
+package pkg2
+
 import "pkg1"
 
-func UncheckedOverflow(i int) int {
-    return i + pkg1.GetLargeNumber()
+func UncheckedOverflow(i int) (res int) {
+    res = i + pkg1.GetLargeNumber()
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+    return
 }

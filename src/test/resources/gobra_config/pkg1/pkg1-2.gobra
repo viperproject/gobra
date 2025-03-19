@@ -3,6 +3,7 @@
 
 package pkg1
 
+decreases
 pure func GetLargeNumber() int {
     return 1000000000
 }

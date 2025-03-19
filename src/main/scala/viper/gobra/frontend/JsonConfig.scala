@@ -69,11 +69,6 @@ case class GobraInstallCfg(
                           ) extends Resolvable {
   type R = GobraInstallCfg
 
-  def copy(jar_path: Option[String] = this.jar_path,
-           jvm_options: Option[List[String]] = this.jvm_options,
-           z3_path: Option[String] = this.z3_path): GobraInstallCfg =
-    GobraInstallCfg(jar_path, jvm_options, z3_path)
-
   /** resolves all relative paths in relation to `basePath` */
   override def resolvePaths(basePath: Path): GobraInstallCfg =
     copy(
@@ -103,29 +98,6 @@ case class VerificationJobCfg(
                                other: Option[List[String]] = None, // TODO: what is this?
                              ) extends GobraJsonConfig with Resolvable {
   type R = VerificationJobCfg
-
-  def copy(assume_injectivity_inhale: Option[Boolean] = this.assume_injectivity_inhale,
-           backend: Option[ViperBackendJson.Backend] = this.backend,
-           check_consistency: Option[Boolean] = this.check_consistency,
-           overflow: Option[Boolean] = this.overflow,
-           conditionalize_permissions: Option[Boolean] = this.conditionalize_permissions,
-           only_files_with_header: Option[Boolean] = this.only_files_with_header,
-           includes: Option[List[String]] = this.includes,
-           input_files: Option[List[String]] = this.input_files,
-           mce_mode: Option[MCE.Mode] = this.mce_mode,
-           module: Option[String] = this.module,
-           more_joins: Option[MoreJoins.Mode] = this.more_joins,
-           pkg_path: Option[String] = this.pkg_path,
-           parallelize_branches: Option[Boolean] = this.parallelize_branches,
-           print_vpr: Option[Boolean] = this.print_vpr,
-           project_root: Option[String] = this.project_root,
-           recursive: Option[Boolean] = this.recursive,
-           require_triggers: Option[Boolean] = this.require_triggers,
-           other: Option[List[String]] = this.other): VerificationJobCfg =
-    VerificationJobCfg(
-      assume_injectivity_inhale, backend, check_consistency, overflow, conditionalize_permissions,
-      only_files_with_header, includes, input_files, mce_mode, module, more_joins, pkg_path,
-      parallelize_branches, print_vpr, project_root, recursive, require_triggers, other)
 
   /** resolves all relative paths in relation to `basePath` */
   override def resolvePaths(basePath: Path): VerificationJobCfg =

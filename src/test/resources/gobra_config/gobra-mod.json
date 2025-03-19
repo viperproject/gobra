@@ -1,0 +1,8 @@
+{
+  "default_job_cfg":{
+    "check_consistency": true,
+    "overflow": true,
+    "require_triggers": true,
+    "project_root": "."
+  }
+}

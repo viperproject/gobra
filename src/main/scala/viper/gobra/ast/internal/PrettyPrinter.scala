@@ -569,7 +569,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PermTExpr() => "perm"
     case PointerTExpr(elem) => "*" <> showExpr(elem)
     case StructTExpr(fs) => "struct" <> braces(showList(fs)(f => f._1 <> ":" <+> showExpr(f._2)))
-    case ArrayTExpr(len, elem) => brackets(showExpr(len)) <> showExpr(elem)
+    case ArrayTExpr(len, elem) => brackets(len.toString()) <> showExpr(elem)
     case SliceTExpr(elem) => brackets(emptyDoc) <> showExpr(elem)
     case MapTExpr(key, elem) => "map" <> brackets(showExpr(key) <> comma <+> showExpr(elem))
     case SequenceTExpr(elem) => "seq" <> brackets(showExpr(elem))
@@ -583,6 +583,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))
     case Deref(exp, _) => "*" <> showExpr(exp)
+    case UncheckedRef(ref, _) => "&" <> showAddressable(ref)
     case Ref(ref, _) => "&" <> showAddressable(ref)
     case FieldRef(recv, field) => showExpr(recv) <> "."  <> field.name
     case StructUpdate(base, field, newVal) => showExpr(base) <> brackets(showField(field) <+> ":=" <+> showExpr(newVal))

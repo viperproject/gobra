@@ -22,25 +22,25 @@ import viper.gobra.translator.library.tuples.Tuples
 import viper.gobra.translator.library.unknowns.UnknownValues
 import viper.silver.ast.LocalVarDecl
 
-case class ContextImpl(
-                        field: Fields,
-                        array: Arrays,
-                        seqToSet: SeqToSet,
-                        seqToMultiset: SeqToMultiset,
-                        seqMultiplicity: SeqMultiplicity,
-                        option: Options,
-                        optionToSeq: OptionToSeq,
-                        slice: Slices,
-                        fixpoint: Fixpoint,
-                        tuple: Tuples,
-                        equality: Equality,
-                        condition: Conditions,
-                        unknownValue: UnknownValues,
-                        typeEncoding: TypeEncoding,
-                        defaultEncoding: DefaultEncoding,
-                        table: LookupTable,
-                        initialFreshCounterValue: Int = 0
-                      ) extends Context {
+class ContextImpl(
+                   override val field: Fields,
+                   override val array: Arrays,
+                   override val seqToSet: SeqToSet,
+                   override val seqToMultiset: SeqToMultiset,
+                   override val seqMultiplicity: SeqMultiplicity,
+                   override val option: Options,
+                   override val optionToSeq: OptionToSeq,
+                   override val slice: Slices,
+                   override val fixpoint: Fixpoint,
+                   override val tuple: Tuples,
+                   override val equality: Equality,
+                   override val condition: Conditions,
+                   override val unknownValue: UnknownValues,
+                   override val typeEncoding: TypeEncoding,
+                   override val defaultEncoding: DefaultEncoding,
+                   override val table: LookupTable,
+                   override val internalFreshNames: Context.FreshNameIterator = ContextImpl.FreshNameIteratorImpl(0),
+                 ) extends Context {
 
   def this(conf: TranslatorConfig, table: LookupTable) = {
     this(
@@ -64,24 +64,24 @@ case class ContextImpl(
   }
 
   /** copy constructor */
-  override def :=(
-                   fieldN: Fields = field,
-                   arrayN: Arrays = array,
-                   seqToSetN: SeqToSet = seqToSet,
-                   seqToMultisetN: SeqToMultiset = seqToMultiset,
-                   seqMultiplicityN: SeqMultiplicity = seqMultiplicity,
-                   optionN: Options = option,
-                   optionToSeqN: OptionToSeq = optionToSeq,
-                   sliceN: Slices = slice,
-                   fixpointN: Fixpoint = fixpoint,
-                   tupleN: Tuples = tuple,
-                   equalityN: Equality = equality,
-                   conditionN: Conditions = condition,
-                   unknownValueN: UnknownValues = unknownValue,
-                   typeEncodingN: TypeEncoding = typeEncoding,
-                   defaultEncodingN: DefaultEncoding = defaultEncoding,
-                   initialFreshCounterValueN: Int = internalFreshNames.getValue
-                 ): Context = copy(
+  override def update(
+                   fieldN: Fields,
+                   arrayN: Arrays,
+                   seqToSetN: SeqToSet,
+                   seqToMultisetN: SeqToMultiset,
+                   seqMultiplicityN: SeqMultiplicity,
+                   optionN: Options,
+                   optionToSeqN: OptionToSeq,
+                   sliceN: Slices,
+                   fixpointN: Fixpoint,
+                   tupleN: Tuples,
+                   equalityN: Equality,
+                   conditionN: Conditions,
+                   unknownValueN: UnknownValues,
+                   typeEncodingN: TypeEncoding,
+                   defaultEncodingN: DefaultEncoding,
+                   initialFreshCounterValueN: Option[Int],
+                 ): Context = new ContextImpl(
     fieldN,
     arrayN,
     seqToSetN,
@@ -97,14 +97,19 @@ case class ContextImpl(
     unknownValueN,
     typeEncodingN,
     defaultEncodingN,
-    initialFreshCounterValue = initialFreshCounterValueN
+    table,
+    initialFreshCounterValueN match {
+      case None => internalFreshNames
+      case Some(n) => ContextImpl.FreshNameIteratorImpl(n)
+    },
   )
 
   override def addVars(vars: LocalVarDecl*): Context = this
 
-  override val internalFreshNames: FreshNameIteratorImpl = FreshNameIteratorImpl(initialFreshCounterValue)
+}
 
-  case class FreshNameIteratorImpl(private val initialValue: Int) extends FreshNameIterator {
+object ContextImpl {
+  case class FreshNameIteratorImpl(private val initialValue: Int) extends Context.FreshNameIterator {
     private var currentValue: Int = initialValue
 
     override def hasNext: Boolean = true
@@ -117,5 +122,4 @@ case class ContextImpl(
 
     override def getValue: Int = currentValue
   }
-
 }

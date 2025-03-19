@@ -109,14 +109,8 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     *
     * [lhs: [n]T == rhs: [n]T] -> let x = lhs, y = rhs in Forall idx :: {trigger} 0 <= idx < n ==> [ x[idx] == y[idx] ]
     *     where trigger = array_get(x, idx, n), array_get(y, idx, n)
-    *
-    * // According to the Go spec, pointers to distinct zero-sized data may or may not be equal. Thus:
-    * [x: *[0]T° == x: *[0]T] -> true
-    * [lhs: *[0]T° == rhs: *[0]T] -> [rhs] == [nil] ? [lhs] == [rhs] : unknown()
-    *
-    * [lhs: *[n]T° == rhs: *[n]T] -> [lhs] == [rhs]
     */
-  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
+  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = default(super.equal(ctx)){
     case (lhs :: ctx.Array(len, _), rhs :: ctx.Array(len2, _), src) if len == len2 =>
       for {
         (x, xTrigger) <- copyArray(lhs)(ctx)
@@ -126,27 +120,6 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         body = (idx: in.BoundVar) => ctx.equal(in.IndexedExp(x, idx, typLhs)(src.info), in.IndexedExp(y, idx, typRhs)(src.info))(src)
         res <- boundedQuant(len, idx => xTrigger(idx) ++ yTrigger(idx), body)(src)(ctx)
       } yield res
-
-    case (lhs :: ctx.*(ctx.Array(len, _)) / Exclusive, rhs :: ctx.*(ctx.Array(len2, _)), src) if len == len2 =>
-      if (len == 0) {
-        val (pos, info, errT) = src.vprMeta
-        if (lhs == rhs) unit(vpr.TrueLit()(pos, info ,errT))
-        else {
-          for {
-            vLhs <- ctx.expression(lhs)
-            vRhs <- ctx.expression(rhs)
-            vNil <- ctx.expression(in.NilLit(rhs.typ)(src.info))
-            eq1 = vpr.EqCmp(vRhs, vNil)(pos, info, errT)
-            eq2 = vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
-            vUnk = ctx.unknownValue.unkownValue(vpr.Bool)(pos, info ,errT)
-          } yield vpr.CondExp(eq1, eq2, vUnk)(pos, info, errT)
-        }
-      } else {
-        for {
-          vLhs <- ctx.expression(lhs)
-          vRhs <- ctx.expression(rhs)
-        } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
-      }
   }
 
   /**
@@ -168,7 +141,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * R[ mset(e: [n]T) ] -> seqToMultiset(ex_array_toSeq([e]))
     * R[ x in (e: [n]T) ] -> [x] in ex_array_toSeq([e])
     * R[ x # (e: [n]T) ] -> [x] # ex_array_toSeq([e])
-    * R[ loc: ([n]T)@ ] -> arrayConversion(L[loc])
+    * R[ loc: ([n]T)@ ] -> arrayConversion(Ref[loc]) // assert [&loc != nil] if [n]T has size zero
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
     case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx, _)) :: _ / Exclusive =>
@@ -198,7 +171,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     case n@ in.Length(e :: ctx.Array(len, t) / m) =>
       m match {
         case Exclusive => ctx.expression(e).map(ex.length(_, cptParam(len, t)(ctx))(n)(ctx))
-        case Shared => ctx.reference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
+        case Shared => ctx.safeReference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
       }
 
     case n@ in.SequenceConversion(e :: ctx.Array(len, t) / Exclusive) =>
@@ -226,7 +199,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         vE <- ctx.expression(e)
       } yield ctx.seqMultiplicity.create(vX, ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT)
 
-    case (loc: in.Location) :: ctx.Array(len, t) / Shared =>
+    case (loc: in.Location) :: ctx.NoZeroSize(ctx.Array(len, t)) / Shared =>
       val (pos, info, errT) = loc.vprMeta
       for {
         arg <- ctx.reference(loc)
@@ -258,12 +231,15 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * i.e. all permissions involved in converting the shared location to an exclusive r-value.
     * An encoding for type T should be defined at all shared locations of type T.
     *
+    * The default implements:
+    * Footprint[loc: T@ if sizeOf(T) == 0] -> [&loc != nil: *T°]
+    *
     * Footprint[loc: [n]T] -> forall idx :: {trigger} 0 <= idx < n ==> Footprint[ loc[idx] ]
     *   where trigger = sh_array_get(Ref[loc], idx, n)
     *
     * We do not use let because (at the moment) Viper does not accept quantified permissions with let expressions.
     */
-  override def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = {
+  override def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = super.addressFootprint(ctx).orElse {
     case (loc :: ctx.Array(len, t) / Shared, perm) =>
       val (pos, info, errT) = loc.vprMeta
       val typ = underlyingType(loc.typ)(ctx)
@@ -309,13 +285,16 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * */
   private val conversionFunc: FunctionGenerator[ComponentParameter] = new FunctionGenerator[ComponentParameter]{
     def genFunction(t: ComponentParameter)(ctx: Context): vpr.Function = {
+      val info = Source.Parser.Internal
+
       val argType = t.arrayT(Shared)
       // variable name does not matter because it is the only argument
-      val x = in.LocalVar("x", argType)(Source.Parser.Internal)
+      val x = in.LocalVar("x", argType)(info)
+
       val resultType = argType.withAddressability(Exclusive)
       val vResultType = typ(ctx)(resultType)
       // variable name does not matter because it is turned into a vpr.Result
-      val resultVar = in.LocalVar("res", resultType)(Source.Parser.Internal)
+      val resultVar = in.LocalVar("res", resultType)(info)
       val post = pure(equal(ctx)(x, resultVar, x))(ctx).res
         // replace resultVar with vpr.Result
         .transform{ case v: vpr.LocalVar if v.name == resultVar.id => vpr.Result(vResultType)() }
@@ -325,7 +304,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         formalArgs = Vector(variable(ctx)(x)),
         typ = vResultType,
         pres = Vector(
-          pure(addressFootprint(ctx)(x, in.WildcardPerm(Source.Parser.Internal)))(ctx).res,
+          pure(addressFootprint(ctx)(x, in.WildcardPerm(info)))(ctx).res,
           synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
         ),
         posts = Vector(post),

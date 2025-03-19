@@ -6,8 +6,7 @@
 package termination
 
 type Func interface {
-    //:: ExpectedOutput(pure_function_termination_error)
-    //:: ExpectedOutput(postcondition_error:assertion_error)
+	//:: ExpectedOutput(pure_function_termination_error)
 	pure
 	decreases n
 	requires a != nil

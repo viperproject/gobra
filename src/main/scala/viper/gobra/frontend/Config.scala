@@ -13,7 +13,6 @@ import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import org.rogach.scallop.{ScallopConf, ScallopOption, singleArgConverter}
 import viper.gobra.backend.{ViperBackend, ViperBackends}
-import viper.gobra.frontend.{ViperBackend => FrontendViperBackend}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
@@ -84,14 +83,36 @@ object ConfigDefaults {
   val DefaultEnableExperimentalFriendClauses: Boolean = false
 }
 
+object CliEnumConverter {
+  trait EnumCase {
+    def value: String
+  }
+
+  /** trait for an enum value to configure parsing and serialization of this enum */
+  trait CliEnum[E <: EnumCase] {
+    def values: List[E]
+    def convert(s: String): E = values.find(_.value == s).getOrElse(Violation.violation(s"Unexpected value: $s"))
+  }
+}
+
 // More-complete exhale modes
 object MCE {
-  sealed trait Mode
-  object Disabled extends Mode
+  sealed trait Mode extends CliEnumConverter.EnumCase
+  object Disabled extends Mode {
+    override val value: String = "off"
+  }
   // When running in `OnDemand`, mce will only be enabled when silicon retries a query.
   // More information can be found in https://github.com/viperproject/silicon/pull/682.
-  object OnDemand extends Mode
-  object Enabled extends Mode
+  object OnDemand extends Mode {
+    override val value: String = "od"
+  }
+  object Enabled extends Mode {
+    override val value: String = "on"
+  }
+}
+object MCEConverter extends CliEnumConverter.CliEnum[MCE.Mode] {
+  import MCE._
+  override def values: List[MCE.Mode] = List(Enabled, OnDemand, Disabled)
 }
 
 object Hyper {
@@ -104,21 +125,24 @@ object Hyper {
 }
 
 object MoreJoins {
-  sealed trait Mode {
+  sealed trait Mode extends CliEnumConverter.EnumCase {
     // Option number used by Viper, as described in
     // https://github.com/viperproject/silicon/pull/823
     def viperValue: Int
   }
 
   object Disabled extends Mode {
+    override val value: String = "off"
     override val viperValue = 0
   }
 
   object Impure extends Mode {
+    override val value: String = "impure"
     override val viperValue = 1
   }
 
   object All extends Mode {
+    override val value: String = "all"
     override val viperValue = 2
   }
 
@@ -130,6 +154,17 @@ object MoreJoins {
     }
   }
 }
+object MoreJoinsConverter extends CliEnumConverter.CliEnum[MoreJoins.Mode] {
+  import MoreJoins._
+  override def values: List[MoreJoins.Mode] = List(All, Impure, Disabled)
+}
+
+object ViperBackendConverter extends CliEnumConverter.CliEnum[ViperBackend] {
+  import viper.gobra.backend.ViperBackends._
+  override def values: List[ViperBackend] = List(
+    SiliconBackend, CarbonBackend, ViperServerWithSilicon(), ViperServerWithCarbon())
+}
+
 
 case class Config(
                    gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobraDirectory,
@@ -479,15 +514,30 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
   // In the same or some parent directory, there's an additional configuration
   // file listing settings that are common to the entire module.
 
+  private val VerificationJobConfigFilename = "gobra.json"
   private val ModuleConfigFilename = "gobra-mod.json"
 
   /** The verification job config is optional */
   private lazy val verificationJobConfig: Either[Vector[VerifierError], VerificationJobCfg] = {
-    if (configFile.exists() && configFile.isFile) {
-      val fileContent = Files.readString(configFile.toPath)
-      GobraJsonConfigHandler.fromJson(fileContent)
+    // either `configFile` points to the config file itself or to a directory containing one:
+    if (configFile.exists()) {
+      val jobConfigFile = if (configFile.isFile) {
+        configFile
+      } else {
+        new File(configFile, VerificationJobConfigFilename)
+      }
+      val jobConfig = if (jobConfigFile.exists() && jobConfigFile.isFile) {
+        val fileContent = Files.readString(jobConfigFile.toPath)
+        // provide the generic type argument to avoid weird runtime errors even though the
+        // pretends to not need it!
+        GobraJsonConfigHandler
+          .fromJson[VerificationJobCfg](fileContent)
+      } else {
+        Right(VerificationJobCfg())
+      }
+      jobConfig.map(_.resolvePaths(jobConfigFile.getParentFile.toPath))
     } else {
-      Right(VerificationJobCfg())
+      Left(Vector(ConfigError(s"The provided config path does not exist: ${configFile.getAbsoluteFile.toString}")))
     }
   }
 
@@ -506,7 +556,11 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
     moduleConfigFile match {
       case Some(file) =>
         val fileContent = Files.readString(file.toPath)
-        GobraJsonConfigHandler.fromJson(fileContent)
+        // provide the generic type argument to avoid weird runtime errors even though the
+        // pretends to not need it!
+        GobraJsonConfigHandler
+          .fromJson[GobraModuleCfg](fileContent)
+          .map(_.resolvePaths(file.getParentFile.toPath))
       case None =>
         Left(Vector(ConfigError(s"Could not find module configuration file $ModuleConfigFilename in the directory or a parent directory of ${configFile.getAbsoluteFile.toString}")))
     }
@@ -549,79 +603,74 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
                                    job_cfg: VerificationJobCfg
                                  )
 
-  private def convertBackend(b: FrontendViperBackend): ViperBackend = b match {
-    case Silicon => ViperBackends.SiliconBackend
-    case Carbon => ViperBackends.CarbonBackend
-    case SiliconViperServer => ViperBackends.ViperServerWithSilicon()
-    case CarbonViperServer => ViperBackends.ViperServerWithCarbon()
-  }
-
-  private def convertMceMode(m: MceMode): MCE.Mode = m match {
-    case MceOn => MCE.Enabled
-    case MceOd => MCE.OnDemand
-    case MceOff => MCE.Disabled
-  }
-
-  private def convertMoreJoins(m: MoreJoins): MoreJoins.Mode = m match {
-    case MoreJoinsAll => MoreJoins.All
-    case MoreJoinsImpure => MoreJoins.Impure
-    case MoreJoinsOff => MoreJoins.Disabled
-  }
-
-  override protected def baseConfig: BaseConfig = mergedConfig.map(c => BaseConfig(
-    gobraDirectory = ConfigDefaults.DefaultGobraDirectory,
-    moduleName = c.job_cfg.module.getOrElse(ConfigDefaults.DefaultModuleName),
-    includeDirs = c.job_cfg.includes.map(_.toVector.map(Paths.get(_))).getOrElse(ConfigDefaults.DefaultIncludeDirs),
-    reporter = ConfigDefaults.DefaultReporter,
-    backend = c.job_cfg.backend.map(convertBackend).orElse(ConfigDefaults.DefaultBackend),
-    isolate = ConfigDefaults.DefaultIsolate,
-    choppingUpperBound = ConfigDefaults.DefaultChoppingUpperBound,
-    packageTimeout = ConfigDefaults.DefaultPackageTimeout,
-    z3Exe = c.installation_cfg.z3_path.orElse(ConfigDefaults.DefaultZ3Exe),
-    boogieExe = ConfigDefaults.DefaultBoogieExe,
-    logLevel = ConfigDefaults.DefaultLogLevel,
-    cacheFile = ConfigDefaults.DefaultCacheFile.map(_.toPath),
-    shouldParseOnly = ConfigDefaults.DefaultParseOnly,
-    stopAfterEncoding = ConfigDefaults.DefaultStopAfterEncoding,
-    checkOverflows = c.job_cfg.overflow.getOrElse(ConfigDefaults.DefaultCheckOverflows),
-    checkConsistency = c.job_cfg.check_consistency.getOrElse(ConfigDefaults.DefaultCheckConsistency),
-    int32bit = ConfigDefaults.DefaultInt32bit,
-    cacheParserAndTypeChecker = ConfigDefaults.DefaultCacheParserAndTypeChecker,
-    onlyFilesWithHeader = c.job_cfg.only_files_with_header.getOrElse(ConfigDefaults.DefaultOnlyFilesWithHeader),
-    assumeInjectivityOnInhale = c.job_cfg.assume_injectivity_inhale.getOrElse(ConfigDefaults.DefaultAssumeInjectivityOnInhale),
-    parallelizeBranches = c.job_cfg.parallelize_branches.getOrElse(ConfigDefaults.DefaultParallelizeBranches),
-    conditionalizePermissions = c.job_cfg.conditionalize_permissions.getOrElse(ConfigDefaults.DefaultConditionalizePermissions),
-    z3APIMode = ConfigDefaults.DefaultZ3APIMode,
-    disableNL = ConfigDefaults.DefaultDisableNL,
-    mceMode = c.job_cfg.mce_mode.map(convertMceMode).getOrElse(ConfigDefaults.DefaultMCEMode),
-    enableLazyImports = ConfigDefaults.DefaultEnableLazyImports,
-    noVerify = ConfigDefaults.DefaultNoVerify,
-    noStreamErrors = ConfigDefaults.DefaultNoStreamErrors,
-    parseAndTypeCheckMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
-    requireTriggers = c.job_cfg.require_triggers.getOrElse(ConfigDefaults.DefaultRequireTriggers),
-    disableSetAxiomatization = ConfigDefaults.DefaultDisableSetAxiomatization,
-    disableCheckTerminationPureFns = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
-    unsafeWildcardOptimization = ConfigDefaults.DefaultUnsafeWildcardOptimization,
-    moreJoins = c.job_cfg.more_joins.map(convertMoreJoins).getOrElse(ConfigDefaults.DefaultMoreJoins),
-    respectFunctionPrePermAmounts = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
-  )).getOrElse(BaseConfig())
+  override protected def baseConfig: BaseConfig = mergedConfig.map(c => {
+    val logLevel: Level = ConfigDefaults.DefaultLogLevel
+    val debug: Boolean = Level.DEBUG.isGreaterOrEqual(logLevel)
+    BaseConfig(
+      gobraDirectory = ConfigDefaults.DefaultGobraDirectory,
+      moduleName = c.job_cfg.module.getOrElse(ConfigDefaults.DefaultModuleName),
+      includeDirs = c.job_cfg.includes.map(_.map(Paths.get(_))).getOrElse(ConfigDefaults.DefaultIncludeDirs.map(_.toPath)).toVector,
+      reporter = FileWriterReporter(
+        unparse = debug,
+        eraseGhost = false,
+        goify = false,
+        debug = debug,
+        printInternal = debug,
+        printVpr = c.job_cfg.print_vpr.getOrElse(debug),
+        streamErrs = !ConfigDefaults.DefaultNoStreamErrors),
+      backend = c.job_cfg.backend.map(_.underlying),
+      isolate = ConfigDefaults.DefaultIsolate,
+      choppingUpperBound = ConfigDefaults.DefaultChoppingUpperBound,
+      packageTimeout = ConfigDefaults.DefaultPackageTimeout,
+      z3Exe = c.installation_cfg.z3_path.orElse(ConfigDefaults.DefaultZ3Exe),
+      boogieExe = ConfigDefaults.DefaultBoogieExe,
+      logLevel = logLevel,
+      cacheFile = ConfigDefaults.DefaultCacheFile.map(_.toPath),
+      shouldParseOnly = ConfigDefaults.DefaultParseOnly,
+      stopAfterEncoding = ConfigDefaults.DefaultStopAfterEncoding,
+      checkOverflows = c.job_cfg.overflow.getOrElse(ConfigDefaults.DefaultCheckOverflows),
+      checkConsistency = c.job_cfg.check_consistency.getOrElse(ConfigDefaults.DefaultCheckConsistency),
+      int32bit = ConfigDefaults.DefaultInt32bit,
+      cacheParserAndTypeChecker = ConfigDefaults.DefaultCacheParserAndTypeChecker,
+      onlyFilesWithHeader = c.job_cfg.only_files_with_header.getOrElse(ConfigDefaults.DefaultOnlyFilesWithHeader),
+      assumeInjectivityOnInhale = c.job_cfg.assume_injectivity_inhale.getOrElse(ConfigDefaults.DefaultAssumeInjectivityOnInhale),
+      parallelizeBranches = c.job_cfg.parallelize_branches.getOrElse(ConfigDefaults.DefaultParallelizeBranches),
+      conditionalizePermissions = c.job_cfg.conditionalize_permissions.getOrElse(ConfigDefaults.DefaultConditionalizePermissions),
+      z3APIMode = ConfigDefaults.DefaultZ3APIMode,
+      disableNL = ConfigDefaults.DefaultDisableNL,
+      mceMode = c.job_cfg.mce_mode.getOrElse(ConfigDefaults.DefaultMCEMode),
+      enableLazyImports = ConfigDefaults.DefaultEnableLazyImports,
+      noVerify = ConfigDefaults.DefaultNoVerify,
+      noStreamErrors = ConfigDefaults.DefaultNoStreamErrors,
+      parseAndTypeCheckMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
+      requireTriggers = c.job_cfg.require_triggers.getOrElse(ConfigDefaults.DefaultRequireTriggers),
+      disableSetAxiomatization = ConfigDefaults.DefaultDisableSetAxiomatization,
+      disableCheckTerminationPureFns = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
+      unsafeWildcardOptimization = ConfigDefaults.DefaultUnsafeWildcardOptimization,
+      moreJoins = c.job_cfg.more_joins.getOrElse(ConfigDefaults.DefaultMoreJoins),
+      respectFunctionPrePermAmounts = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
+    )
+  }).getOrElse(BaseConfig())
 
   override lazy val config: Either[Vector[VerifierError], Config] = {
     mergedConfig.flatMap(c => {
       (c.job_cfg.input_files, c.job_cfg.recursive) match {
-        case (Some(inputFiles), None) => FileModeConfig(inputFiles.map(Paths.get(_)).toVector, baseConfig).config
-        case (None, Some(false)) => PackageModeConfig(
-            projectRoot = c.job_cfg.project_root.map(Paths.get(_)).getOrElse(ConfigDefaults.DefaultProjectRoot.toPath),
-            inputDirectories = c.job_cfg.includes.map(_.map(Paths.get(_))).getOrElse(ConfigDefaults.DefaultIncludeDirs.map(_.toPath)).toVector,
-            baseConfig = baseConfig,
-          ).config
+        case (Some(inputFiles), _) => FileModeConfig(inputFiles.map(Paths.get(_)).toVector, baseConfig).config
         case (None, Some(true)) => RecursiveModeConfig(
             projectRoot = c.job_cfg.project_root.map(Paths.get(_)).getOrElse(ConfigDefaults.DefaultProjectRoot.toPath),
             includePackages = c.job_cfg.includes.getOrElse(ConfigDefaults.DefaultIncludePackages),
             excludePackages = ConfigDefaults.DefaultExcludePackages,
             baseConfig = baseConfig,
           ).config
-        case (_, _) => Left(Vector(ConfigError("Invalid configuration: either input_files or recursive must be set")))
+        case (None, _) =>
+          // we use the provide `configFile` (which either points to a directory or a config file) to
+          // determine which package to verify
+          val pathToDirectory = (if (configFile.isDirectory) configFile else configFile.getParentFile).toPath
+          PackageModeConfig(
+            projectRoot = c.job_cfg.project_root.map(Paths.get(_)).getOrElse(ConfigDefaults.DefaultProjectRoot.toPath),
+            inputDirectories = Vector(pathToDirectory),
+            baseConfig = baseConfig,
+          ).config
       }
     })
   }
@@ -721,7 +770,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   val configFile:  ScallopOption[File] = opt[File](
     name = "config",
     descr = "Reads all configuration options from the provided JSON file. Any other CLI option will be ignored.",
-    short = 'c'
+    noshort = true
   )
 
   val projectRoot: ScallopOption[File] = opt[File](
@@ -767,18 +816,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
 
   val backend: ScallopOption[ViperBackend] = choice(
-    choices = Seq("SILICON", "CARBON", "VSWITHSILICON", "VSWITHCARBON"),
+    choices = ViperBackendConverter.values.map(_.value),
     name = "backend",
-    descr = "Specifies the used Viper backend. The default is SILICON.",
+    descr = s"Specifies the used Viper backend. The default is ${ConfigDefaults.DefaultBackend.value}.",
     default = None,
     noshort = true
-  ).map{
-    case "SILICON" => ViperBackends.SiliconBackend
-    case "CARBON" => ViperBackends.CarbonBackend
-    case "VSWITHSILICON" => ViperBackends.ViperServerWithSilicon()
-    case "VSWITHCARBON" => ViperBackends.ViperServerWithCarbon()
-    case s => Violation.violation(s"Unexpected backend option $s")
-  }
+  ).map(ViperBackendConverter.convert)
 
   val debug: ScallopOption[Boolean] = opt[Boolean](
     name = "debug",
@@ -949,39 +992,23 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   )
 
   val moreJoins: ScallopOption[MoreJoins.Mode] = {
-    val all = "all"
-    val impure = "impure"
-    val off = "off"
     choice(
-      choices = Seq("all", "impure", "off"),
+      choices = MoreJoinsConverter.values.map(_.value),
       name = "moreJoins",
-      descr = s"Specifies if silicon should be run with more joins completely enabled ($all), disabled ($off), or only for impure conditionals ($impure).",
-      default = Some(off),
+      descr = s"Specifies if silicon should be run with more joins completely enabled (${MoreJoins.All.value}), disabled (${MoreJoins.Disabled.value}), or only for impure conditionals (${MoreJoins.Impure.value}).",
+      default = Some(ConfigDefaults.DefaultMoreJoins.value),
       noshort = true
-    ).map {
-      case `all` => MoreJoins.All
-      case `off` => MoreJoins.Disabled
-      case `impure` => MoreJoins.Impure
-      case s => Violation.violation(s"Unexpected mode for moreJoins: $s")
-    }
+    ).map(MoreJoinsConverter.convert)
   }
 
   val mceMode: ScallopOption[MCE.Mode] = {
-    val on = "on"
-    val off = "off"
-    val od = "od"
     choice(
-      choices = Seq("on", "off", "od"),
+      choices = MCEConverter.values.map(_.value),
       name = "mceMode",
-      descr = s"Specifies if silicon should be run with more complete exhale enabled ($on), disabled ($off), or enabled on demand ($od).",
-      default = Some(on),
+      descr = s"Specifies if silicon should be run with more complete exhale enabled (${MCE.Enabled.value}), disabled (${MCE.Disabled.value}), or enabled on demand (${MCE.OnDemand.value}).",
+      default = Some(ConfigDefaults.DefaultMCEMode.value),
       noshort = true
-    ).map{
-      case `on` => MCE.Enabled
-      case `off` => MCE.Disabled
-      case `od` => MCE.OnDemand
-      case s => Violation.violation(s"Unexpected mode for more complete exhale: $s")
-    }
+    ).map(MCEConverter.convert)
   }
 
   val respectFunctionPrePermAmounts: ScallopOption[Boolean] = toggle(
@@ -1186,8 +1213,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   validateFilesIsFile(cutInput)
   validateFilesExist(directory)
   validateFilesIsDirectory(directory)
-  validateFileExists(configFile)
-  validateFileIsFile(configFile)
+  validateFileExists(configFile) // either points to a directory containing a package or a config file
   validateFileExists(projectRoot)
   validateFileIsDirectory(projectRoot)
   if (!skipIncludeDirChecks) {

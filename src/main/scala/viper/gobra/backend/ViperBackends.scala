@@ -6,7 +6,7 @@
 
 package viper.gobra.backend
 
-import viper.gobra.frontend.{Config, Hyper, MCE}
+import viper.gobra.frontend.{CliEnumConverter, Config, Hyper, MCE}
 import viper.gobra.util.GobraExecutionContext
 import viper.server.ViperConfig
 import viper.server.core.ViperCoreServer
@@ -18,7 +18,7 @@ import java.nio.file.{Files, Paths}
 import scala.io.Source
 import scala.util.Using
 
-trait ViperBackend {
+trait ViperBackend extends CliEnumConverter.EnumCase {
   def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperVerifier
 
   protected def buildOptions(exePaths: Vector[String], config: Config): Vector[String] = {

@@ -1,8 +1,9 @@
 {
-  "default_job_cfg":{
+  "default_job_cfg": {
     "check_consistency": true,
     "overflow": true,
     "require_triggers": true,
-    "project_root": "."
+    "project_root": ".",
+    "includes": ["."]
   }
 }

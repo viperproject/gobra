@@ -22,6 +22,7 @@ import viper.gobra.util.{TaskManagerMode, TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
 import scala.concurrent.duration.Duration
+import scala.util.Right
 import scala.util.matching.Regex
 
 object LoggerDefaults {
@@ -317,6 +318,24 @@ object Config {
 
   val enableLazyImportOptionName = "enableLazyImport"
   val enableLazyImportOptionPrettyPrinted = s"--$enableLazyImportOptionName"
+
+  /**
+    * Parses `args` as CLI options and resolves potential `includeDirs` to `resolveTo` if it's not None.
+    * Inputs in `configString` are optional.
+    */
+  def parseCliArgs(args: List[String], resolveTo: Option[Path]): Either[Vector[VerifierError], Config] = {
+    /** skip checks if we resolve include dirs */
+    val skipIncludeDirChecks = resolveTo.isDefined
+    for {
+      config <- new ScallopGobraConfig(args, isInputOptional = true, skipIncludeDirChecks = skipIncludeDirChecks).config
+      resolvedConfig = resolveTo match {
+        case None => config
+        case Some(p) => config.copy(includeDirs = config.includeDirs.map(
+          // it's important to convert includeDir to a string first as `path` might be a ZipPath and `includeDir` might not
+          includeDir => p.toAbsolutePath.resolve(includeDir.toString)))
+      }
+    } yield resolvedConfig
+  }
 }
 
 // have a look at `Config` to see an inline description of some of these parameters
@@ -589,7 +608,8 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
         project_root = mergeField(_.project_root),
         recursive = mergeField(_.recursive),
         require_triggers = mergeField(_.require_triggers),
-        other = mergeField(_.other),
+        // we merge by combining the default and job-specific `other` fields:
+        other = Some(jobCfg.other.getOrElse(List.empty) ++ moduleCfg.default_job_cfg.flatMap(_.other).getOrElse(List.empty)),
       )
     ))
   }
@@ -599,6 +619,7 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
                                    job_cfg: VerificationJobCfg
                                  )
 
+  /** `other` field is not considered for creating the base config */
   override protected def baseConfig: BaseConfig = mergedConfig.map(c => {
     val logLevel: Level = ConfigDefaults.DefaultLogLevel
     val debug: Boolean = Level.DEBUG.isGreaterOrEqual(logLevel)
@@ -649,26 +670,37 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
   }).getOrElse(BaseConfig())
 
   override lazy val config: Either[Vector[VerifierError], Config] = {
-    mergedConfig.flatMap(c => {
-      (c.job_cfg.input_files, c.job_cfg.recursive) match {
+    for {
+      mergedConfig <- mergedConfig
+      config <- (mergedConfig.job_cfg.input_files, mergedConfig.job_cfg.recursive) match {
         case (Some(inputFiles), _) => FileModeConfig(inputFiles.map(Paths.get(_)).toVector, baseConfig).config
         case (None, Some(true)) => RecursiveModeConfig(
-            projectRoot = c.job_cfg.project_root.map(Paths.get(_)).getOrElse(ConfigDefaults.DefaultProjectRoot.toPath),
-            includePackages = c.job_cfg.includes.getOrElse(ConfigDefaults.DefaultIncludePackages),
-            excludePackages = ConfigDefaults.DefaultExcludePackages,
-            baseConfig = baseConfig,
-          ).config
+          projectRoot = mergedConfig.job_cfg.project_root.map(Paths.get(_)).getOrElse(ConfigDefaults.DefaultProjectRoot.toPath),
+          includePackages = mergedConfig.job_cfg.includes.getOrElse(ConfigDefaults.DefaultIncludePackages),
+          excludePackages = ConfigDefaults.DefaultExcludePackages,
+          baseConfig = baseConfig,
+        ).config
         case (None, _) =>
           // we use the provide `configFile` (which either points to a directory or a config file) to
           // determine which package to verify
           val pathToDirectory = (if (configFile.isDirectory) configFile else configFile.getParentFile).toPath
           PackageModeConfig(
-            projectRoot = c.job_cfg.project_root.map(Paths.get(_)).getOrElse(ConfigDefaults.DefaultProjectRoot.toPath),
+            projectRoot = mergedConfig.job_cfg.project_root.map(Paths.get(_)).getOrElse(ConfigDefaults.DefaultProjectRoot.toPath),
             inputDirectories = Vector(pathToDirectory),
             baseConfig = baseConfig,
           ).config
       }
-    })
+      otherArgs = mergedConfig.job_cfg.other.getOrElse(List.empty)
+      otherConfig <- if (otherArgs.isEmpty) Right(None)
+        else {
+          // at this point, we do not know anymore from which config file these arguments come from.
+          // Thus, we do not resolve potential paths.
+          Config.parseCliArgs(otherArgs, None).map(Some(_))
+        }
+    } yield otherConfig match {
+      case None => config
+      case Some(o) => config.merge(o)
+    }
   }
 }
 

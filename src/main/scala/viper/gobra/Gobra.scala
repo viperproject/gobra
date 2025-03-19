@@ -229,14 +229,8 @@ class Gobra extends GoVerifier with GoIdeVerifier {
         Right(None)
       } else {
         // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
-        val args = configs.flatMap(configString => configString.split(" ")).toList
-        // skip include dir checks as the include should only be parsed and is not resolved yet based on the current directory
-        for {
-          inFileConfig <- new ScallopGobraConfig(args, isInputOptional = true, skipIncludeDirChecks = true).config
-          resolvedConfig = inFileConfig.copy(includeDirs = inFileConfig.includeDirs.map(
-            // it's important to convert includeDir to a string first as `path` might be a ZipPath and `includeDir` might not
-            includeDir => Paths.get(input.name).toAbsolutePath.getParent.resolve(includeDir.toString)))
-        } yield Some(resolvedConfig)
+        val configString = configs.flatMap(_.split(" ")).toList
+        Config.parseCliArgs(configString, Some(Paths.get(input.name).getParent)).map(Some(_))
       }
     })
     val (errors, inFileConfigs) = inFileEitherConfigs.partitionMap(identity)

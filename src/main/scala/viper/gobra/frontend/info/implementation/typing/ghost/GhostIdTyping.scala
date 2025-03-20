@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.noMessages
 import viper.gobra.ast.frontend.{PExpression, PFieldDecl, PIdnNode, PMatchAdt}
 import viper.gobra.frontend.info.base.SymbolTable.{AdtClause, AdtDestructor, AdtDiscriminator, BoundVariable, BuiltInFPredicate, BuiltInMPredicate, DomainFunction, GhostRegular, MatchVariable, Predicate}
-import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, FunctionT, Type}
+import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, FunctionT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation.violation
 
@@ -46,8 +46,13 @@ trait GhostIdTyping { this: TypeInfoImpl =>
 
     case MatchVariable(decl, p, context) => p match {
       case PMatchAdt(clause, fields) =>
-        val clauseT = context.symbType(clause).asInstanceOf[AdtClauseT]
-        clauseT.typeAt(fields.indexOf(decl))
+        val clauseT = context.symbType(clause)
+        clauseT match {
+          case clauseT: AdtClauseT => clauseT.typeAt(fields.indexOf(decl))
+          // the following case is possible, e.g., if the clause is not well-defined
+          // and, thus, `clauseT` is `UnknownType`:
+          case _ => UnknownType
+        }
 
       case e: PExpression => context.typ(e)
       case _ => violation("untypeable")

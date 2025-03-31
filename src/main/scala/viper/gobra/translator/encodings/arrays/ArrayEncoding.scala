@@ -163,6 +163,10 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * R[ arrayLit(E) ] -> create_ex_array( [e] | e in E )
     * R[ len(e: [n]T@°) ] -> ex_array_length([e])
     * R[ len(e: [n]T@) ] -> sh_array_length(Ref[e])
+    * R[ len(e: *[n]T) ] -> sh_array_length(Ref[*e])
+    * R[ cap(e: [n]T@°) ] -> ex_array_length([e])
+    * R[ cap(e: [n]T@) ] -> sh_array_length(Ref[e])
+    * R[ cap(e: *[n]T) ] -> sh_array_length(Ref[*e])
     * R[ seq(e: [n]T) ] -> ex_array_toSeq([e])
     * R[ set(e: [n]T) ] -> seqToSet(ex_array_toSeq([e]))
     * R[ mset(e: [n]T) ] -> seqToMultiset(ex_array_toSeq([e]))
@@ -201,17 +205,17 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         case Shared => ctx.reference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
       }
 
-    case n@in.Capacity(e :: ctx.Array(len, t) / m) =>
-      m match {
-        case Exclusive => ctx.expression(e).map(ex.length(_, cptParam(len, t)(ctx))(n)(ctx))
-        case Shared => ctx.reference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
-      }
-
     case in.Length(exp :: ctx.*(t: in.ArrayT)) =>
       val expInfo = exp.info
       val derefExp = in.Deref(exp, in.PointerT(t, t.addressability))(expInfo)
       val newLenExpr = in.Length(derefExp)(expInfo)
       expression(ctx)(newLenExpr)
+
+    case n@in.Capacity(e :: ctx.Array(len, t) / m) =>
+      m match {
+        case Exclusive => ctx.expression(e).map(ex.length(_, cptParam(len, t)(ctx))(n)(ctx))
+        case Shared => ctx.reference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
+      }
 
     case in.Capacity(exp :: ctx.*(t: in.ArrayT)) =>
       val expInfo = exp.info

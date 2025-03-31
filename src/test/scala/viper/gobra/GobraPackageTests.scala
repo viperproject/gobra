@@ -16,6 +16,7 @@ import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, PackageInfo, ScallopGobraConfig, Source}
 import viper.gobra.reporting.{NoopReporter, ParserError}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
+import viper.gobra.util.DefaultGobraExecutionContext
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, DefaultAnnotatedTestInput, DefaultTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 
@@ -80,14 +81,20 @@ class GobraPackageTests extends GobraTests {
           z3Exe = z3Exe
         )
 
+        val executor = new DefaultGobraExecutionContext()
+        val gobraInstance = new Gobra()
         val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(pkgInfo, config)(executor), Duration.Inf))
 
         info(s"Time required: $elapsedMilis ms")
 
-        equalConfigs(parsedConfig.get, config) ++ (result match {
+        val res = equalConfigs(parsedConfig.get, config) ++ (result match {
           case Success => Vector.empty
           case Failure(errors) => errors map GobraTestOuput
         })
+
+        executor.terminateAndAssertInexistanceOfTimeout()
+
+        res
       }
     }
 

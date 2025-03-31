@@ -797,7 +797,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val configFile:  ScallopOption[File] = opt[File](
     name = "config",
-    descr = "Reads all configuration options from the provided JSON file. Any other CLI option will be ignored.",
+    descr = "Reads all configuration options from the provided JSON file.",
     noshort = true
   )
 
@@ -1143,6 +1143,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   // Thus, we restrict their use:
   conflicts(input, List(projectRoot, inclPackages, exclPackages))
   conflicts(directory, List(inclPackages, exclPackages))
+  // to check that no further config options get provided when using `configFile`, we have to use reflection to obtain
+  // all ScallopOptions as Scallop does not seem to provide any built-in functionality to achieve the same:
+  val allOptions = getClass.getDeclaredFields
+    .map(_.get(this)) // get field value
+    .collect { case o: ScallopOption[_] => o } // filter by ScallopOption
+  conflicts(configFile, allOptions.toList.filterNot(_ == configFile))
 
   // must be a function or lazy to guarantee that this value is computed only during the CLI options validation and not before.
   private def isSiliconBasedBackend = backend.toOption.getOrElse(ConfigDefaults.DefaultBackend) match {

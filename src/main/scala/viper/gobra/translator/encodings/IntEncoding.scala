@@ -31,6 +31,8 @@ class IntEncoding extends LeafTypeEncoding {
   private var isUsedLeftShift: Boolean = false
   private var isUsedRightShift: Boolean = false
   private var isUsedBitNeg: Boolean = false
+  private var isUsedGoIntDiv: Boolean = false
+  private var isUsedGoIntMod: Boolean = false
 
   /**
     * Translates a type into a Viper type.
@@ -72,14 +74,16 @@ class IntEncoding extends LeafTypeEncoding {
       case e@ in.Add(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Add(vl, vr), e)
       case e@ in.Sub(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Sub(vl, vr), e)
       case e@ in.Mul(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mul(vl, vr), e)
-      case e@ in.Mod(l, r) :: ctx.Int() => for {
-        vl <- goE(l)
-        vr <- goE(r)
-        // r = x - (x/y) * y
-        r = withSrc(vpr.Sub(vl, withSrc(vpr.Mul(withSrc(vpr.Div(vl, vr), e), vr), e)), e)
-      } yield r
-      case e@ in.Div(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Div(vl, vr), e)
-
+      case e@ in.Mod(l, r) :: ctx.Int() =>
+        // We currently implement our own modulo algorithm to mimic what Go does. The default modulo implementation in
+        // Viper does not match Go's semantics. Check https://github.com/viperproject/gobra/issues/858 and
+        // https://github.com/viperproject/silver/issues/297
+        for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(goIntMod, Seq(vl, vr)), e)
+      case e@ in.Div(l, r) :: ctx.Int() =>
+        // We currently implement our own division algorithm to mimic what Go does. The default division implementation in
+        // Viper does not match Go's semantics. Check https://github.com/viperproject/gobra/issues/858 and
+        // https://github.com/viperproject/silver/issues/297
+        for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(goIntDiv, Seq(vl, vr)), e)
       case e@ in.BitAnd(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseAnd, Seq(vl, vr)), e)
       case e@ in.BitOr(l, r)  :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseOr,  Seq(vl, vr)), e)
       case e@ in.BitXor(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseXor, Seq(vl, vr)), e)
@@ -98,6 +102,8 @@ class IntEncoding extends LeafTypeEncoding {
     if(isUsedLeftShift) { addMemberFn(shiftLeft) }
     if(isUsedRightShift) { addMemberFn(shiftRight) }
     if(isUsedBitNeg) { addMemberFn(bitwiseNegation) }
+    if(isUsedGoIntMod) { addMemberFn(goIntMod) }
+    if(isUsedGoIntDiv) { addMemberFn(goIntDiv) }
   }
 
   /* Bitwise Operations */
@@ -188,6 +194,57 @@ class IntEncoding extends LeafTypeEncoding {
       pres = Seq(termination.DecreasesWildcard(None)()),
       posts = Seq.empty,
       body = None
+    )()
+  }
+
+  private lazy val goIntDiv: vpr.Function = {
+    isUsedGoIntDiv = true
+    val lDecl = vpr.LocalVarDecl("l", vpr.Int)()
+    val rDecl = vpr.LocalVarDecl("r", vpr.Int)()
+    val l = lDecl.localVar
+    val r = rDecl.localVar
+    val zero = vpr.IntLit(0)()
+    val rNotZero = vpr.NeCmp(r, zero)()
+    vpr.Function(
+      name = Names.intDiv,
+      formalArgs = Seq(lDecl, rDecl),
+      typ = vpr.Int,
+      pres = Seq(rNotZero, termination.DecreasesWildcard(None)()),
+      posts = Seq.empty,
+      body = Some(
+        // 0 <= l ? l \ r : -((-l) \ r)
+        vpr.CondExp(
+          cond = vpr.LeCmp(zero, l)(),
+          thn = vpr.Div(l, r)(),
+          els = vpr.Minus(vpr.Div(vpr.Minus(l)(), r)())()
+        )()
+      )
+    )()
+  }
+
+  private lazy val goIntMod: vpr.Function = {
+    isUsedGoIntMod = true
+    val lDecl = vpr.LocalVarDecl("l", vpr.Int)()
+    val rDecl = vpr.LocalVarDecl("r", vpr.Int)()
+    val l = lDecl.localVar
+    val r = rDecl.localVar
+    val zero = vpr.IntLit(0)()
+    val absR = vpr.CondExp(cond = vpr.LeCmp(zero, r)(), thn = r, els = vpr.Minus(r)())()
+    val rNotZero = vpr.NeCmp(r, zero)()
+    vpr.Function(
+      name = Names.intMod,
+      formalArgs = Seq(lDecl, rDecl),
+      typ = vpr.Int,
+      pres = Seq(rNotZero, termination.DecreasesWildcard(None)()),
+      posts = Seq.empty,
+      body = Some(
+        // (0 <= l || l % r == 0) ? l % r : (l % r - abs(r))
+        vpr.CondExp(
+          cond = vpr.Or(left = vpr.LeCmp(zero, l)(), right = vpr.EqCmp(vpr.Mod(l, r)(), zero)())(),
+          thn = vpr.Mod(l, r)(),
+          els = vpr.Sub(vpr.Mod(l, r)(), absR)()
+        )()
+      )
     )()
   }
 }

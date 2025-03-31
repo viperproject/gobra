@@ -2762,20 +2762,9 @@ object Desugar extends LazyLogging {
             case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }
 
-          case PLength(op) => for {
-            dop <- go(op)
-          } yield dop match {
-            case dop : in.ArrayLit => in.IntLit(dop.length)(src)
-            case dop : in.SequenceLit => in.IntLit(dop.length)(src)
-            case _ => in.Length(dop)(src)
-          }
+          case PLength(op) => go(op).map(in.Length(_)(src))
 
-          case PCapacity(op) => for {
-            dop <- go(op)
-          } yield dop match {
-            case dop : in.ArrayLit => in.IntLit(dop.length)(src)
-            case _ => in.Capacity(dop)(src)
-          }
+          case PCapacity(op) => go(op).map(in.Capacity(_)(src))
 
           case g: PGhostExpression => ghostExprD(ctx, info)(g)
 

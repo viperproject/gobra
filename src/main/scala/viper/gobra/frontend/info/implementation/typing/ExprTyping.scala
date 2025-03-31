@@ -527,7 +527,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT | _: MathMapT => noMessages
         case ActualPointerT(_: ArrayT)  =>
           // Go allows getting the length of a pointer to an array, but it does not allow obtaining the
-          // length of a pointer of a type T whose underlying slice is an array.
+          // length of a pointer to type T whose underlying type is an array.
           noMessages
         case _: SequenceT | _: SetT | _: MultisetT | _: AdtT => isPureExpr(op)
         case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
@@ -538,9 +538,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       underlyingType(exprType(op)) match {
         case _: ArrayT | _: SliceT | _: GhostSliceT => noMessages
         case ActualPointerT(_: ArrayT)  =>
-          // Go allows getting the capacity of a pointer to an array, but it does not allow obtaining the
-          // capacity of a pointer of a type T whose underlying slice is an array.
-        noMessages
+          // Go allows getting the length of a pointer to an array, but it does not allow obtaining the
+          // length of a pointer to type T whose underlying type is an array.
+          noMessages
         case typ => error(op, s"expected an array or slice type, but got $typ")
       }
     }

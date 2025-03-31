@@ -391,14 +391,18 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
 
         case (ActualPointerT(ArrayT(l, _)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) =>  // without ghost slices, slicing a ghost pointer is not allowed.
-          val (lowOpt, highOpt, capOpt) = (low map intConstantEval, high map intConstantEval, cap map intConstantEval)
-          error(low, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => i >= 0 && i < l))) ++
-            error(high, s"index $high is out of bounds", !highOpt.forall(_.forall(i => i >= 0 && i < l))) ++
-            error(cap, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => i >= 0 && i <= l)))
+          val (lowOpt, highOpt, capOpt) = (low flatMap  intConstantEval, high flatMap intConstantEval, cap flatMap intConstantEval)
+          error(low, s"index $low is out of bounds", !lowOpt.forall(i => i >= 0 && i < l)) ++
+            error(high, s"index $high is out of bounds", !highOpt.forall(i => i >= 0 && i < l)) ++
+            error(cap, s"index $cap is out of bounds", !capOpt.forall(i => i >= 0 && i <= l))
 
         case (_: SliceT | _: GhostSliceT, None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => //noMessages
-          val lowOpt = low.map(intConstantEval)
-          error(low, s"index $low is negative", !lowOpt.forall(_.forall(i => 0 <= i)))
+          val lowOpt = low.flatMap(intConstantEval)
+          val highOpt = high.flatMap(intConstantEval)
+          val lowHighOpt = lowOpt.zip(highOpt)
+          error(low, s"index $low is negative", lowOpt.forall(i => 0 > i)) ++
+            error(high, s"index $high is negative", highOpt.forall(i => 0 > i)) ++
+            error(high, s"invalid slice indices: ${highOpt.get} > ${lowOpt.get}", lowHighOpt.forall { case (l, h) => l > h })
 
         case (StringT, None | Some(IntT(_)), None | Some(IntT(_)), None) =>
           // slice expressions of string type cannot have a third argument
@@ -521,6 +525,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PLength(op) => isExpr(op).out ++ {
       underlyingType(exprType(op)) match {
         case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT | _: MathMapT => noMessages
+        case ActualPointerT(_: ArrayT)  =>
+          // Go allows getting the length of a pointer to an array, but it does not allow obtaining the
+          // length of a pointer of a type T whose underlying slice is an array.
+          noMessages
         case _: SequenceT | _: SetT | _: MultisetT | _: AdtT => isPureExpr(op)
         case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
       }
@@ -529,6 +537,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PCapacity(op) => isExpr(op).out ++ {
       underlyingType(exprType(op)) match {
         case _: ArrayT | _: SliceT | _: GhostSliceT => noMessages
+        case ActualPointerT(_: ArrayT)  =>
+          // Go allows getting the capacity of a pointer to an array, but it does not allow obtaining the
+          // capacity of a pointer of a type T whose underlying slice is an array.
+        noMessages
         case typ => error(op, s"expected an array or slice type, but got $typ")
       }
     }
@@ -1079,6 +1091,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def typeOfPLength(expr: PLength): Type =
     underlyingType(exprType(expr.exp)) match {
       case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT => INT_TYPE
+      case ActualPointerT(_: ArrayT) => INT_TYPE
       case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT | _: AdtT => UNTYPED_INT_CONST
       case t => violation(s"unexpected argument ${expr.exp} of type $t passed to len")
     }

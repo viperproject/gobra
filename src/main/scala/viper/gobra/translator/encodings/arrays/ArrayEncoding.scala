@@ -201,6 +201,24 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         case Shared => ctx.reference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
       }
 
+    case n@in.Capacity(e :: ctx.Array(len, t) / m) =>
+      m match {
+        case Exclusive => ctx.expression(e).map(ex.length(_, cptParam(len, t)(ctx))(n)(ctx))
+        case Shared => ctx.reference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
+      }
+
+    case in.Length(exp :: ctx.*(t: in.ArrayT)) =>
+      val expInfo = exp.info
+      val derefExp = in.Deref(exp, in.PointerT(t, t.addressability))(expInfo)
+      val newLenExpr = in.Length(derefExp)(expInfo)
+      expression(ctx)(newLenExpr)
+
+    case in.Capacity(exp :: ctx.*(t: in.ArrayT)) =>
+      val expInfo = exp.info
+      val derefExp = in.Deref(exp, in.PointerT(t, t.addressability))(expInfo)
+      val newLenExpr = in.Capacity(derefExp)(expInfo)
+      expression(ctx)(newLenExpr)
+
     case n@ in.SequenceConversion(e :: ctx.Array(len, t) / Exclusive) =>
       ctx.expression(e).map(vE => ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))
 
@@ -244,11 +262,18 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * Super implements shared variables with [[variable]].
     *
     * Ref[ (e: [n]T)[idx] ] -> sh_array_get(Ref[e], [idx], n)
+    * Ref[ (e: *[n]T)[idx] ] -> sh_array_get(Ref[*e], [idx], n)
     */
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
     case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx, _)) :: _ / Shared =>
       for {
         vBase <- ctx.reference(base.asInstanceOf[in.Location])
+        vIdx <- ctx.expression(idx)
+      } yield sh.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
+    case loc@in.IndexedExp(base :: ctx.*(in.ArrayT(len, t, _)), idx, ptrT) =>
+      val derefBase = in.Deref(base, ptrT)(base.info)
+      for {
+        vBase <- ctx.reference(derefBase.asInstanceOf[in.Location])
         vIdx <- ctx.expression(idx)
       } yield sh.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
   }

@@ -400,9 +400,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val lowOpt = low.flatMap(intConstantEval)
           val highOpt = high.flatMap(intConstantEval)
           val lowHighOpt = lowOpt.zip(highOpt)
-          error(low, s"index $low is negative", lowOpt.forall(i => 0 > i)) ++
-            error(high, s"index $high is negative", highOpt.forall(i => 0 > i)) ++
-            error(high, s"invalid slice indices: ${highOpt.get} > ${lowOpt.get}", lowHighOpt.forall { case (l, h) => l > h })
+          error(low, s"index $low is negative", lowOpt.exists(i => 0 > i)) ++
+            error(high, s"index $high is negative", highOpt.exists(i => 0 > i)) ++
+            error(high, s"invalid slice indices: $high > $low", lowHighOpt.exists { case (l, h) => l > h })
 
         case (StringT, None | Some(IntT(_)), None | Some(IntT(_)), None) =>
           // slice expressions of string type cannot have a third argument

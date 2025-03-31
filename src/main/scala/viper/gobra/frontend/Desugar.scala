@@ -2744,12 +2744,13 @@ object Desugar extends LazyLogging {
                 val drop = in.SequenceDrop(dbase, lo)(src)
                 in.SequenceTake(drop, sub)(src)
             }
-            case baseT @ (_: in.ArrayT | _: in.SliceT) => (dlow, dhigh) match {
-              case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), dcap, baseT)(src)
-              case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), dcap, baseT)(src)
-              case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap, baseT)(src)
-              case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap, baseT)(src)
-            }
+            case baseT @ (_: in.ArrayT | _: in.SliceT | in.PointerT(_: in.ArrayT, _)) =>
+              (dlow, dhigh) match {
+                case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), dcap, baseT)(src)
+                case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), dcap, baseT)(src)
+                case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap, baseT)(src)
+                case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap, baseT)(src)
+              }
             case baseT: in.StringT =>
               Violation.violation(dcap.isEmpty, s"expected dcap to be None when slicing strings, but got $dcap instead")
               (dlow, dhigh) match {
@@ -2761,24 +2762,9 @@ object Desugar extends LazyLogging {
             case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }
 
-          case PLength(op) => for {
-            dop <- go(op)
-          } yield dop match {
-            case dop : in.ArrayLit => in.IntLit(dop.length)(src)
-            case dop : in.SequenceLit => in.IntLit(dop.length)(src)
-            case _ => in.Length(dop)(src)
-          }
+          case PLength(op) => go(op).map(in.Length(_)(src))
 
-          case PCapacity(op) => for {
-            dop <- go(op)
-          } yield dop match {
-            case dop : in.ArrayLit => in.IntLit(dop.length)(src)
-            case _ => underlyingType(dop.typ) match {
-              case _: in.ArrayT => in.Length(dop)(src)
-              case _: in.SliceT => in.Capacity(dop)(src)
-              case t => violation(s"expected an array or slice type, but got $t")
-            }
-          }
+          case PCapacity(op) => go(op).map(in.Capacity(_)(src))
 
           case g: PGhostExpression => ghostExprD(ctx, info)(g)
 

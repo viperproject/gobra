@@ -12,6 +12,7 @@ import ch.qos.logback.classic.Level
 import org.bitbucket.inkytonik.kiama.util.Source
 import org.rogach.scallop.exceptions.ValidationFailure
 import org.rogach.scallop.throwError
+import org.scalatest.Tag
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, PackageInfo, ScallopGobraConfig, Source}
 import viper.gobra.reporting.{NoopReporter, ParserError}
@@ -46,7 +47,8 @@ class GobraPackageTests extends GobraTests {
         .map { case (f, _) => f.toPath }
         .sortBy(_.toString)
         .toSeq
-    } yield DefaultTestInput(s"$prefix/$pkgName (${file.getFileName.toString})", prefix, samePkgFiles, Seq())
+      tags = Seq(Tag(pkgName), Tag(currentDir.getPath))
+    } yield DefaultTestInput(s"$prefix/$pkgName (${file.getFileName.toString})", prefix, samePkgFiles, tags)
     GobraAnnotatedTestInput(input.get)
   }
 

@@ -9,19 +9,19 @@ package viper.gobra
 import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import org.bitbucket.inkytonik.kiama.util.Source
-import org.scalatest.{BeforeAndAfterAll, ParallelTestExecution}
+import org.scalatest.ParallelTestExecution
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, PackageResolver, Source}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.gobra.reporting.{GobraMessage, GobraReporter, VerifierError}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
-import viper.gobra.util.DefaultGobraExecutionContext
+import viper.gobra.util.Violation
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
-class GobraTests extends AbstractGobraTests with BeforeAndAfterAll with ParallelTestExecution {
+class GobraTests extends AbstractGobraTests with ParallelTestExecution {
 
   // Note that caching parse and type-check results is incompatible with ParallelTestExecution as each test case is run
   // in its own instance of this class.
@@ -54,24 +54,27 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll with Parallel
       override val projectInfo: ProjectInfo = new ProjectInfo(List("Gobra"))
 
       override def run(input: AnnotatedTestInput): Seq[AbstractOutput] = {
+        input match {
+          case i: GobraAnnotatedTestInput => run(i)
+          case _ => Violation.violation("unexpected test input type")
+        }
+      }
+
+      def run(input: GobraAnnotatedTestInput): Seq[AbstractOutput] = {
 
         val source = FromFileSource(input.file)
         val config = getConfig(source)
         val pkgInfo = config.packageInfoInputMap.keys.head
-        val executor = new DefaultGobraExecutionContext()
-        val gobraInstance = new Gobra()
+        val executor = input.prerequisites._2
+        val gobraInstance = input.prerequisites._1
         val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(pkgInfo, config)(executor), Duration.Inf))
 
         info(s"Time required: $elapsedMilis ms")
 
-        val res = result match {
+        result match {
           case Success => Vector.empty
           case Failure(errors) => errors map GobraTestOuput
         }
-
-        executor.terminateAndAssertInexistanceOfTimeout()
-
-        res
       }
     }
 

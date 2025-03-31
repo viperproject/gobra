@@ -17,8 +17,8 @@ import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, PackageInfo, ScallopGobraConfig, Source}
 import viper.gobra.reporting.{NoopReporter, ParserError}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
-import viper.gobra.util.DefaultGobraExecutionContext
-import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, DefaultAnnotatedTestInput, DefaultTestInput, ProjectInfo, SystemUnderTest}
+import viper.gobra.util.Violation
+import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, DefaultTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 
 import scala.concurrent.Await
@@ -35,7 +35,7 @@ class GobraPackageTests extends GobraTests {
 
   override val testDirectories: Seq[String] = Vector(samePackageDir, builtinStubDir, stubPackagesDir)
 
-  override def buildTestInput(file: Path, prefix: String): DefaultAnnotatedTestInput = {
+  override def buildTestInput(file: Path, prefix: String): GobraAnnotatedTestInput = {
     // get package clause of file and collect all other files belonging to this package:
     val input = for {
       pkgName <- getPackageClause(file.toFile)
@@ -49,7 +49,7 @@ class GobraPackageTests extends GobraTests {
         .toSeq
       tags = Seq(Tag(pkgName), Tag(currentDir.getPath))
     } yield DefaultTestInput(s"$prefix/$pkgName (${file.getFileName.toString})", prefix, samePkgFiles, tags)
-    GobraAnnotatedTestInput(input.get)
+    GobraAnnotatedTestInput(input.get, prerequisites())
   }
 
   override val gobraInstanceUnderTest: SystemUnderTest =
@@ -58,6 +58,13 @@ class GobraPackageTests extends GobraTests {
       override val projectInfo: ProjectInfo = new ProjectInfo(List("Gobra"))
 
       override def run(input: AnnotatedTestInput): Seq[AbstractOutput] = {
+        input match {
+          case i: GobraAnnotatedTestInput => run(i)
+          case _ => Violation.violation("unexpected test input type")
+        }
+      }
+
+      def run(input: GobraAnnotatedTestInput): Seq[AbstractOutput] = {
         // test scallop parsing by giving package name and testing whether the same set of files is created
         val currentDir = input.file.getParent
         val parsedConfig = for {
@@ -83,20 +90,16 @@ class GobraPackageTests extends GobraTests {
           z3Exe = z3Exe
         )
 
-        val executor = new DefaultGobraExecutionContext()
-        val gobraInstance = new Gobra()
+        val executor = input.prerequisites._2
+        val gobraInstance = input.prerequisites._1
         val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(pkgInfo, config)(executor), Duration.Inf))
 
         info(s"Time required: $elapsedMilis ms")
 
-        val res = equalConfigs(parsedConfig.get, config) ++ (result match {
+        equalConfigs(parsedConfig.get, config) ++ (result match {
           case Success => Vector.empty
           case Failure(errors) => errors map GobraTestOuput
         })
-
-        executor.terminateAndAssertInexistanceOfTimeout()
-
-        res
       }
     }
 

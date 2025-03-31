@@ -733,6 +733,7 @@ case class Capacity(exp : Expr)(val info : Source.Parser.Info) extends Expr {
 case class IndexedExp(base : Expr, index : Expr, baseUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr with Location {
   override val typ : Type = baseUnderlyingType match {
     case t: ArrayT => t.elems
+    case PointerT(t: ArrayT, _) => t.elems
     case t: SequenceT => t.t
     case t: SliceT => t.elems
     case t: MapT => t.values
@@ -1175,6 +1176,7 @@ case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr], baseU
   override def typ : Type = baseUnderlyingType match {
     case t: ArrayT => SliceT(t.elems, Addressability.sliceElement)
     case _: SliceT | _: StringT => base.typ
+    case PointerT(t: ArrayT, _) => SliceT(t.elems, Addressability.sliceElement)
     case t => Violation.violation(s"expected an array, slice or string type, but got $t")
   }
 }

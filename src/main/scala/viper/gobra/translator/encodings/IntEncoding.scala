@@ -197,6 +197,15 @@ class IntEncoding extends LeafTypeEncoding {
     )()
   }
 
+  /**
+   * Generates the following viper function that captures the semantics of the '/' operator in Go:
+   *   function goIntDiv(l: Int, r: Int): Int
+   *     requires r != 0
+   *     decreases _
+   *   {
+   *     (0 <= l ? l \ r : -(-l \ r))
+   *   }
+   */
   private lazy val goIntDiv: vpr.Function = {
     isUsedGoIntDiv = true
     val lDecl = vpr.LocalVarDecl("l", vpr.Int)()
@@ -222,6 +231,15 @@ class IntEncoding extends LeafTypeEncoding {
     )()
   }
 
+  /**
+   * Generates the following viper function that captures the semantics of the '%' operator in Go:
+   *   function goIntMod(l: Int, r: Int): Int
+   *     requires r != 0
+   *     decreases _
+   *   {
+   *     (0 <= l || l % r == 0 ? l % r : l % r - (0 <= r ? r : -r))
+   *   }
+   */
   private lazy val goIntMod: vpr.Function = {
     isUsedGoIntMod = true
     val lDecl = vpr.LocalVarDecl("l", vpr.Int)()

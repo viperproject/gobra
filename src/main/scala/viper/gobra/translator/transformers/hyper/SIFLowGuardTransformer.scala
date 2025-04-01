@@ -476,6 +476,11 @@ trait SIFLowGuardTransformer {
       case v: LocalVarDecl => v.copy(name = ctx.rename(v.name))(v.pos, v.info, v.errT)
       case f: Field => runField(f, ctx)
       case e: Exp => runExp(e, ctx)
+      case p: Package =>
+        Package(
+          wand = runExp(p.wand, ctx).asInstanceOf[MagicWand],
+          proofScript = toSeqn(statement(p.proofScript, ctx)),
+        )(p.pos, p.info, p.errT)
     }
   }
 

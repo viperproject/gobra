@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// Calling closures is disallowed in pkg initialization code.
+mayInit
+func test(f func()) {
+	//:: ExpectedOutput(type_error)
+	f() as spec
+}
+
+func spec()

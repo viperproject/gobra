@@ -8,6 +8,7 @@ package viper.gobra.translator.encodings.closures
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.frontend.{Config, Hyper}
 import viper.gobra.reporting
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
 import viper.gobra.reporting.Source
@@ -21,7 +22,7 @@ import viper.silver.plugin.standard.termination
 import viper.silver.verifier.{errors, reasons}
 import viper.silver.{ast => vpr}
 
-class ClosureEncoding extends LeafTypeEncoding {
+class ClosureEncoding(config: Config) extends LeafTypeEncoding {
 
   import viper.gobra.translator.util.TypePatterns._
   import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl, _}
@@ -166,8 +167,10 @@ class ClosureEncoding extends LeafTypeEncoding {
     val ifNdBool = in.LocalVar(ctx.freshNames.next(), in.BoolT(Addressability.exclusiveVariable))(src)
     val numIterations = in.LocalVar(ctx.freshNames.next(), in.IntT(Addressability.exclusiveVariable))(src)
 
-    val assumeNdBoolIsLow = in.Assume(in.ExprAssertion(in.Low(ifNdBool)(src))(src))(src)
-    val assumeNumIterationsIsLow = in.Assume(in.ExprAssertion(in.Low(numIterations)(src))(src))(src)
+    val omitLowExprs = config.hyperModeOrDefault == Hyper.Disabled
+    def lowExprOrTrue(e: in.Low): in.Expr = if (omitLowExprs) in.BoolLit(b = true)(src) else e
+    val assumeNdBoolIsLow = in.Assume(in.ExprAssertion(lowExprOrTrue(in.Low(ifNdBool)(src)))(src))(src)
+    val assumeNumIterationsIsLow = in.Assume(in.ExprAssertion(lowExprOrTrue(in.Low(numIterations)(src)))(src))(src)
 
     for {
       _ <- cl.local(vpr.LocalVarDecl(ifNdBool.id, ctx.typ(ifNdBool.typ))(pos, info, errT))
@@ -184,7 +187,7 @@ class ClosureEncoding extends LeafTypeEncoding {
           exhalePosts <- exhalePosts
           decreaseNumIterations <- ctx.statement(in.SingleAss(in.Assignee(numIterations), in.Sub(numIterations, in.IntLit(1)(src))(src))(src))
           whileBody = vu.seqn(Vector(inhalePres, body, exhalePosts, decreaseNumIterations))(pos, info, errT)
-          invNumIterationsIsLow <- ctx.expression(in.Low(numIterations)(src))
+          invNumIterationsIsLow <- ctx.expression(lowExprOrTrue(in.Low(numIterations)(src)))
           terminationMeasure <- ctx.assertion(in.TupleTerminationMeasure(Vector(numIterations), None)(src))
         } yield vpr.While(numIterationsGT0, Seq(invNumIterationsIsLow, terminationMeasure), whileBody)(pos, info, errT)
         assumeFalse = vpr.Assume(vpr.FalseLit()())()

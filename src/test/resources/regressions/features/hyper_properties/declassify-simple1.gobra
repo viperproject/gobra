@@ -24,41 +24,45 @@ pred RecvPerm(ghost p Place)
 // Returns the next place after calling `Recv` from `p`.
 // Avoids using an existential quantifier.
 ghost
+requires RecvPerm(p)
 decreases
 pure func Recv_T(ghost p Place) Place
 
 // Used to refer to the received message.
 ghost
+requires RecvPerm(p)
 decreases
 pure func Recv_R(ghost p Place) int
 
 requires token(p) && RecvPerm(p)
-ensures token(next_p) && next_p == Recv_T(p)
-ensures m == Recv_R(p)
+ensures token(next_p) && next_p == old(Recv_T(p))
+ensures m == old(Recv_R(p))
 ensures low(m)
 func Recv(ghost p Place) (ghost next_p Place, m int)
 
 pred SendPerm(ghost p Place, t int)
 
 ghost
+requires SendPerm(p, t)
 decreases
 pure func Send_T(ghost p Place, t int) Place
 
 requires token(p) && SendPerm(p, t)
 requires low(t)
-ensures token(next_p) && next_p == Send_T(p, t)
+ensures token(next_p) && next_p == old(Send_T(p, t))
 func Send(ghost p Place, t int) (ghost next_p Place)
 
 pred DeclassifyPerm(ghost p Place, tag int, t int)
 
 ghost
+requires DeclassifyPerm(p, tag, t)
 decreases
 pure func Declassify_T(ghost p Place, tag int, t int) Place
 
 ghost
 requires token(p) && DeclassifyPerm(p, tag, t)
 requires low(tag)
-ensures token(next_p) && next_p == Declassify_T(p, tag, t)
+ensures token(next_p) && next_p == old(Declassify_T(p, tag, t))
 ensures low(t)
 decreases
 func Declassify(ghost p Place, tag int, t int) (ghost next_p Place)

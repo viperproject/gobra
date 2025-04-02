@@ -1,8 +1,8 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-// This testcase checks contains a program that is verified against a simple declassification policy.
-// This is inspired on the case studies from the paper "Verifiable Security Policies for Distributed Systems"
+// This testcase contains a program that is verified against a simple declassification policy.
+// This is inspired by case studies from the paper "Verifiable Security Policies for Distributed Systems"
 // with the original syntax suggested in the paper.
 
 // ##(--hyperMode on)
@@ -195,15 +195,15 @@ type state struct {
 // Our I/O spec. The state is the private key and the most recently received message.
 type MWE1 struct {}
 
-// We allow send, recv to happen at any point.
+// We allow send and recv to happen at any point.
 // Declassify can only be called on a MAC tag of the most recently received message
 // generated with the private key.
 ghost
 decreases
 pure func (MWE1) Guard(s state, a Action) bool {
 	return match a {
-		// NOTE: This makes our IOD spec well-formed, as what is allowed to be
-		// declassified is now deterministic in the previous I/O actions.
+		// NOTE: This makes our IOD spec well-formed, as the previous I/O action
+		// determinizes what is allowed to be declassified.
 		case DeclassifyIO{?t}: t == MAC(s.key, s.lastMsg)
 		case _: true
 	}

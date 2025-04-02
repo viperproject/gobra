@@ -2,9 +2,16 @@
 // http://creativecommons.org/publicdomain/zero/1.0/
 
 // This testcase checks contains a program that is verified against a simple declassification policy.
-// This is inspired on the case studies from the paper "Verifiable Security Policies for Distributed Systems".
+// This is inspired on the case studies from the paper "Verifiable Security Policies for Distributed Systems",
+// but we use a style that is more common in Gobra implementing protocols as separation logic resources.
 
 // ##(--hyperMode on)
+
+// Protocol:
+// 0. The key K is already given.
+// 1. We receive a message M over the network.
+// 2. We compute a "MAC tag" of M using K.
+// 3. We send the computed tag over the network.
 
 package sif
 
@@ -102,7 +109,7 @@ func wrongKeyTest(key int, ghost p0 Place) {
 }
 
 requires token(p0) && Proto(p0, key)
-func brokenAuthenticate2(key int, ghost p0 Place) {
+func sendWrongMsgTest(key int, ghost p0 Place) {
 	unfold Proto(p0, key)
 	p1, m1 := Recv(p0)
 	// sending a message other than the mac if the previously

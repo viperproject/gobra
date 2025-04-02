@@ -189,4 +189,6 @@ object Names {
   def shiftLeft: String = "intShiftLeft"
   def shiftRight: String = "intShiftRight"
   def bitwiseNeg: String = "intBitwiseNeg"
+  def intDiv: String = "goIntDiv"
+  def intMod: String = "goIntMod"
 }

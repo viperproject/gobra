@@ -268,6 +268,7 @@ trait SIFLowGuardTransformer {
         case a: And => And(go(a.left, isPositive), go(a.right, isPositive))(a.pos, a.info, a.errT)
         case i: Implies => Implies(go(i.left, !isPositive), go(i.right, isPositive))(i.pos, i.info, i.errT)
         case c: CondExp => CondExp(go(c.cond, !isPositive), go(c.thn, isPositive), go(c.els, isPositive))(c.pos, c.info, c.errT)
+        case e: EqCmp => EqCmp(go(e.left, isPositive), go(e.right, isPositive))(e.pos, e.info, e.errT)
 
         case u: Unfolding =>
           Unfolding(runExp(u.acc, ctx.major).asInstanceOf[PredicateAccessPredicate],
@@ -475,6 +476,11 @@ trait SIFLowGuardTransformer {
       case v: LocalVarDecl => v.copy(name = ctx.rename(v.name))(v.pos, v.info, v.errT)
       case f: Field => runField(f, ctx)
       case e: Exp => runExp(e, ctx)
+      case p: Package =>
+        Package(
+          wand = runExp(p.wand, ctx).asInstanceOf[MagicWand],
+          proofScript = toSeqn(statement(p.proofScript, ctx)),
+        )(p.pos, p.info, p.errT)
     }
   }
 

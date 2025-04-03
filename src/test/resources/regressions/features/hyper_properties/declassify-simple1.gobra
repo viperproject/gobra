@@ -2,8 +2,8 @@
 // http://creativecommons.org/publicdomain/zero/1.0/
 
 // This testcase checks contains a program that is verified against a simple declassification policy.
-// This is inspired on the case studies from the paper "Verifiable Security Policies for Distributed Systems",
-// but we use a style that is more common in Gobra implementing protocols as separation logic resources.
+// This is inspired by case studies from the paper "Verifiable Security Policies for Distributed Systems",
+// but we use a style that is more common in Gobra implementing protocols as separation logic resources in the style of I/O separation logic.
 
 // ##(--hyperMode on)
 

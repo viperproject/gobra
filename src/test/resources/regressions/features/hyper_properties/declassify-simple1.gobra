@@ -103,9 +103,9 @@ func wrongKeyTest(key int, ghost p0 Place) {
 	for {
 		unfold Proto(p0, key)
 		p1, m1 := Recv(p0)
+		t := MAC(key, 0)
 		// declassifying with the wrong key causes an error
 		//:: ExpectedOutput(precondition_error)
-		t := MAC(key, 0)
 		ghost p2 := Declassify(p1, m1, t)
 		p0 = Send(p2, t)
 		assert Proto(p0, key)

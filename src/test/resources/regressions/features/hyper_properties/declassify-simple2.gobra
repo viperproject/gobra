@@ -272,9 +272,9 @@ func declMissingTest(s *state) {
 		ghost s.lastMsg = m
 		t := MAC(s.key, m)
 		// message not declassified
+		Send(t)
 		//:: ExpectedOutput(precondition_error)
 		ghost LowPost(DefaultClassification{})
-		Send(t)
 	}
 }
 
@@ -287,8 +287,9 @@ func declMissingLowPost(s *state) {
 		ghost s.lastMsg = m
 		t := MAC(s.key, m)
 		ghost Declassify(t)
-		// call to lowpost missing
-		//:: ExpectedOutput(precondition_error)
+		// call to lowpost missing here
 		Send(t)
+		//:: ExpectedOutput(precondition_error)
+		ghost LowPost(DefaultClassification{})
 	}
 }

@@ -6,7 +6,6 @@
 
 package viper.gobra.frontend
 
-import java.io.{Closeable, InputStream}
 import java.nio.file.{FileSystem, FileSystemAlreadyExistsException, FileSystems, Files, Path, Paths}
 import java.util.Collections
 import org.apache.commons.io.FilenameUtils
@@ -16,7 +15,7 @@ import viper.gobra.ast.frontend.PImplicitQualifiedImport
 import viper.gobra.frontend.Source.FromFileSource
 
 import scala.io.BufferedSource
-import scala.util.Properties
+import scala.util.{Properties, Using}
 import scala.jdk.CollectionConverters._
 
 object PackageResolver {
@@ -78,8 +77,6 @@ object PackageResolver {
     for {
       resources <- resolve(importTarget)(config)
       sources = resources.map(r => ResolveSourcesResult(r.asSource(), r.builtin))
-      // we do no longer need the resources, so we close them:
-      _ = resources.foreach(_.close())
     } yield sources
   }
 
@@ -97,12 +94,7 @@ object PackageResolver {
       sourceFiles = getSourceFiles(pkgDir, onlyFilesWithHeader = config.onlyFilesWithHeader)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
-      // in case of error, iterate over all resources and close them
       _ <- checkPackageClauses(sourceFiles, importTarget)
-        .left.map(err => {
-          sourceFiles.foreach(_.close())
-          err
-        })
     } yield sourceFiles
   }
 
@@ -126,8 +118,6 @@ object PackageResolver {
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
       pkgName <- checkPackageClauses(sourceFiles, importTarget)
-      // close all files as we do not need them anymore:
-      _ = sourceFiles.foreach(_.close())
     } yield pkgName
   }
 
@@ -190,11 +180,6 @@ object PackageResolver {
         val packageDirs = resources.map(_.resolve(moduleImportPath))
         // take first one that exists:
         val pkgDirOpt = packageDirs.collectFirst { case p if p.exists() => p }
-        // close all resources that we no longer need:
-        (resources ++ packageDirs).foreach {
-          case resource if !pkgDirOpt.contains(resource) => resource.close()
-          case _ =>
-        }
         pkgDirOpt.toRight(s"No existing directory found for import path '$importPath'")
     }
   }
@@ -237,7 +222,7 @@ object PackageResolver {
   def getSourceFiles(input: InputResource, recursive: Boolean = false, onlyFilesWithHeader: Boolean = false): Vector[InputResource] = {
     // get content of directory if it's a directory, otherwise just return the file itself
     val dirContentOrInput = if (Files.isDirectory(input.path)) { input.listContent() } else { Vector(input) }
-    val res = dirContentOrInput
+    dirContentOrInput
       .flatMap { resource =>
         if (recursive && Files.isDirectory(resource.path)) {
           getSourceFiles(resource, recursive = recursive, onlyFilesWithHeader = onlyFilesWithHeader)
@@ -256,12 +241,6 @@ object PackageResolver {
           Vector()
         }
       }
-    // close all resource that are no longer needed:
-    (dirContentOrInput.toSet + input).foreach({
-      case resource if !res.contains(resource) => resource.close()
-      case _ =>
-    })
-    res
   }
 
   /**
@@ -316,7 +295,7 @@ object PackageResolver {
       .collectFirst { case m if m.group(1) != null => m.group(1) }
   }
 
-  trait InputResource extends Closeable {
+  trait InputResource {
     val path: Path
     val builtin: Boolean
 
@@ -324,29 +303,17 @@ object PackageResolver {
 
     def exists(): Boolean = Files.exists(path)
 
-    private var stream: Option[InputStream] = None
-    /**
-      * stream has to be closed after use either by calling `close` on the resource or directly on the stream.
-      * In case the resource (if applicable incl. its file system) is continued to be used but the stream is no
-      * longer needed, it is recommended to directly call `close` on the stream as soon as possible and call `close`
-      * on the resource when it is no longer needed.
-      */
-    def asStream(): InputStream = {
-      val inputStream = Files.newInputStream(path)
-      stream = Some(inputStream)
-      inputStream
+    protected def content(): String = {
+      // Using.Manager ensures that the streams get closed at the end of the block
+      Using.Manager { use =>
+        val fr = use(Files.newInputStream(path))
+        val br = use(new BufferedSource(fr))
+        br.mkString
+      }.get
     }
 
     /** returns files that are part of this directory */
     def listContent(): Vector[InputResource]
-
-    /** closes stream and filesystem (if applicable) */
-    override def close(): Unit = stream match {
-      case Some(s) =>
-        s.close()
-        stream = None
-      case _ =>
-    }
 
     def asSource(): Source
   }
@@ -374,10 +341,7 @@ object PackageResolver {
     override val path: Path = filesystem.getPath(pathString)
 
     override def asSource(): FromFileSource = {
-      val bufferedSource = new BufferedSource(asStream())
-      val content = bufferedSource.mkString
-      bufferedSource.close()
-      FromFileSource(path, content, builtin)
+      FromFileSource(path, content(), builtin)
     }
   }
 }

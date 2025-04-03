@@ -33,7 +33,7 @@ object Translator {
     }).toVector
 
   def translate(program: Program, pkgInfo: PackageInfo)(config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
-    val translationConfig = new DfltTranslatorConfig()
+    val translationConfig = new DfltTranslatorConfig()(config)
     val programTranslator = new ProgramsImpl()
     val task = programTranslator.translate(program)(translationConfig)
 

@@ -9,7 +9,6 @@ package viper.gobra
 import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import org.bitbucket.inkytonik.kiama.util.Source
-import org.scalatest.ParallelTestExecution
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, PackageResolver, Source}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
@@ -21,7 +20,7 @@ import viper.gobra.util.Violation
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
-class GobraTests extends AbstractGobraTests with ParallelTestExecution {
+class GobraTests extends AbstractGobraTests /* with ParallelTestExecution */ {
 
   // Note that caching parse and type-check results is incompatible with ParallelTestExecution as each test case is run
   // in its own instance of this class.

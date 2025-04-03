@@ -436,12 +436,7 @@ case class FileModeConfig(inputFiles: Vector[Path], baseConfig: BaseConfig) exte
 trait PackageAndRecursiveModeConfig extends RawConfig {
   def getSources(directory: Path, recursive: Boolean, onlyFilesWithHeader: Boolean): Vector[Source] = {
     val inputResource = FileResource(directory)
-    PackageResolver.getSourceFiles(inputResource, recursive = recursive, onlyFilesWithHeader = onlyFilesWithHeader).map { resource =>
-      val source = resource.asSource()
-      // we do not need the underlying resources anymore, thus close them:
-      resource.close()
-      source
-    }
+    PackageResolver.getSourceFiles(inputResource, recursive = recursive, onlyFilesWithHeader = onlyFilesWithHeader).map { _.asSource() }
   }
 }
 

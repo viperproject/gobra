@@ -874,15 +874,9 @@ object PGhostifier {
   * Termination Measures
   */
 
-sealed trait PTerminationMeasure extends PNode {
-  val isConditional: Boolean
-}
-case class PWildcardMeasure(cond: Option[PExpression]) extends PTerminationMeasure {
-  override val isConditional: Boolean = cond.nonEmpty
-}
-case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PExpression]) extends PTerminationMeasure {
-  override val isConditional: Boolean = cond.nonEmpty
-}
+sealed trait PTerminationMeasure extends PNode
+case class PWildcardMeasure(cond: Option[PExpression]) extends PTerminationMeasure
+case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PExpression]) extends PTerminationMeasure
 
 /**
   * Specification

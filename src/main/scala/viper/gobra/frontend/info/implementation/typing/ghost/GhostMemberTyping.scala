@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMember, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
+import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -44,12 +44,10 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     needsMeasureError
   }
 
+
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
     if (member.spec.isPure) {
-      isSingleResultArg(member) ++
-        isSinglePureReturnExpr(member) ++
-        isPurePostcondition(member.spec) ++
-        nonVariadicArguments(member.args)
+      wellDefIfPureSpec(member.spec, member.args, member.result) ++ isSinglePureReturnExpr(member)
     } else noMessages
   }
 
@@ -61,15 +59,20 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefIfPureFunction(member: PFunctionDecl): Messages = {
     if (member.spec.isPure) {
-      isSingleResultArg(member) ++
-        isSinglePureReturnExpr(member) ++
-        isPurePostcondition(member.spec) ++
-        nonVariadicArguments(member.args)
+      wellDefIfPureSpec(member.spec, member.args, member.result) ++ isSinglePureReturnExpr(member)
     } else noMessages
   }
 
-  private def isSingleResultArg(member: PCodeRootWithResult): Messages = {
-    error(member, "For now, pure methods and pure functions must have exactly one result argument", member.result.outs.size != 1)
+  // This implements checks that are common to pure functions and pure methods. Checks that are specific to either
+  // (e.g., checks that may depend on the receiver of a method) should be implemented elsewhere.
+  private[typing] def wellDefIfPureSpec(spec: PFunctionSpec, args: Vector[PParameter], result: PResult) : Messages = {
+    if (spec.isPure) {
+      isSingleResultArg(result) ++ isPurePostcondition(spec) ++ nonVariadicArguments(args)
+    } else noMessages
+  }
+
+  private def isSingleResultArg(result: PResult): Messages = {
+    error(result, "For now, pure methods and pure functions must have exactly one result argument", result.outs.size != 1)
   }
 
   private def isSinglePureReturnExpr(member: PWithBody): Messages = {
@@ -91,6 +94,28 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def nonVariadicArguments(args: Vector[PParameter]): Messages = args.flatMap {
     p: PParameter => error(p, s"Pure members cannot have variadic arguments, but got $p", p.typ.isInstanceOf[PVariadicType])
+  }
+
+  // todo: drop
+  private[typing] def isValidTerminationMeasuresForPure(spec: PFunctionSpec): Messages = {
+    // TODO: eventually, we should deprecate the flag `config.disableCheckTerminationPureFns`
+    val hasTerminationMeasureErrors =
+      error(spec, s"Pure members must have termination measures.",
+        config.disableCheckTerminationPureFns || spec.terminationMeasures.nonEmpty)
+    // Conditional termination measures are a very rarely used feature. They allow defining termination measures
+    // case-per-case. However, for functions, we need to show that all conditions provided do cover all possible
+    // inputs, otherwise the function is not proven to terminate. Implementing such a check would not be hard, but
+    // it would be more cumbersome (and in general, it would be less efficient) than this syntactic check.
+    // If this feature is requested, I am happy to implement the more complete check, but for now, I will stick to
+    // this syntactic check.
+    val hasConditionalTerminationMeasureErrors = {
+      val conditionalMeasure = spec.terminationMeasures.find(_.isConditional)
+      conditionalMeasure match {
+        case Some(n) => error(n, "Conditional termination measures are not allowed in pure members.")
+        case None => noMessages
+      }
+    }
+    hasTerminationMeasureErrors ++ hasConditionalTerminationMeasureErrors
   }
 
   override lazy val localImplementationProofs: Vector[(Type, InterfaceT, Vector[String], Vector[String])] = {

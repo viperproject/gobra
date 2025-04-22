@@ -66,7 +66,9 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case t: PInterfaceType =>
       val isRecursiveInterface = error(t, "invalid recursive interface", cyclicInterfaceDef(t))
       if (isRecursiveInterface.isEmpty) {
+        val wellDefIfPureSig = t.methSpecs.flatMap { sig => wellDefIfPureSpec(sig.spec, sig.args, sig.result, sig.isGhost) }
         addressableMethodSet(InterfaceT(t, this)).errors(t) ++
+          wellDefIfPureSig ++
           containsRedeclarations(t) // temporary check
       } else {
         isRecursiveInterface

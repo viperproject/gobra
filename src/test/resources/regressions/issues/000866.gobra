@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000866
+
+type I interface {
+    //:: ExpectedOutput(type_error)
+	decreases _
+	m()
+}

@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import org.bitbucket.inkytonik.kiama.relation.Relation
 import org.bitbucket.inkytonik.kiama.util.Entity
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, error}
+import org.bitbucket.inkytonik.kiama.util.Messaging.error
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.PackageResolver.{AbstractImport, BuiltInImport, RegularImport}
 import viper.gobra.frontend.info.base.BuiltInMemberTag
@@ -17,7 +17,6 @@ import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.reporting.{NotFoundError, VerifierError}
 import viper.gobra.util.Violation
 
 import scala.annotation.tailrec
@@ -356,7 +355,7 @@ trait MemberResolution { this: TypeInfoImpl =>
       case Right(typ) => // base is a type
         typeSymbType(typ) match {
           case pkg: ImportT =>
-            tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl)
+            tryPackageLookup(RegularImport(pkg.decl.importPath), id)
 
           case DeclaredT(PTypeDef(adt: PAdtType, _), ctx) =>
             adtConstructorSet(ctx.symbType(adt)).lookupWithPath(id.name)
@@ -399,7 +398,7 @@ trait MemberResolution { this: TypeInfoImpl =>
     }
 
   def tryUnqualifiedBuiltInPackageLookup(id: PIdnUse): Option[Entity] =
-    tryPackageLookup(BuiltInImport, id, id).map(_._1)
+    tryPackageLookup(BuiltInImport, id).map(_._1)
 
   def tryUnqualifiedRegularPackageLookup(id: PIdnUse): Entity = {
 
@@ -421,7 +420,7 @@ trait MemberResolution { this: TypeInfoImpl =>
       // consider all unqualified imports for this program (not package)
       unqualifiedImports = program.imports.collect { case ui: PUnqualifiedImport => ui }
       // perform a package lookup in each unqualifiedly imported package
-      results = unqualifiedImports.flatMap(ui => tryPackageLookup(RegularImport(ui.importPath), id, ui))
+      results = unqualifiedImports.flatMap(ui => tryPackageLookup(RegularImport(ui.importPath), id))
     } yield results
     entities match {
       case Some(Vector(elem)) => elem._1
@@ -430,31 +429,11 @@ trait MemberResolution { this: TypeInfoImpl =>
     }
   }
 
-  /** lookup `id` in package `importTarget`. `errNode` is used as offending node. */
-  def tryPackageLookup(importTarget: AbstractImport, id: PIdnUse, errNode: PNode): Option[(Entity, Vector[MemberPath])] = {
-    val foreignPkgResult = for {
-      typeChecker <- getTypeChecker(importTarget, errNode)
-      entity = typeChecker.externalRegular(id)
-    } yield entity
-    foreignPkgResult.fold(
-      msgs => Some((ErrorMsgEntity(msgs), Vector())),
-      m => m.flatMap(m => Some((m, Vector())))
-    )
-  }
-
-  def getTypeChecker(importTarget: AbstractImport, errNode: PNode): Either[Messages, ExternalTypeInfo] = {
-    def createImportError(errs: Vector[VerifierError]): Messages = {
-      // create an error message located at the import statement to indicate errors in the imported package
-      // we distinguish between regular errors and packages whose source files could not be found (note that cyclic
-      // errors are handled before type-checking)
-      val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
-      // alternativeErr is a function to compute the message only when needed
-      val alternativeErr = () => message(errNode, s"Package '$importTarget' contains errors: $errs")
-      notFoundErr.map(e => message(errNode, e.message))
-        .getOrElse(alternativeErr())
-    }
-
+  /** lookup `id` in package `importTarget` */
+  def tryPackageLookup(importTarget: AbstractImport, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
     Violation.violation(dependentTypeInfo.contains(importTarget), s"Expected that package ${tree.root.info.id} has access to the type information of package $importTarget")
-    dependentTypeInfo(importTarget)().left.map(createImportError)
+    val foreignTypeChecker = dependentTypeInfo(importTarget)
+    val foreignPkgResult = foreignTypeChecker.externalRegular(id)
+    foreignPkgResult.flatMap(m => Some((m, Vector())))
   }
 }

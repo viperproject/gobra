@@ -17,9 +17,11 @@ DECIMAL_FLOAT_LIT      : DECIMALS ('.'{_input.LA(1) != '.'}? DECIMALS? EXPONENT?
 // ->mode(NLSEMI) means line breaks directly after this token
 // emit a semicolon. (just like after identifiers, literals, ')}]' etc in base Go)
 
+// NOTE: if you prepend a new token, do not forget to update InformativeErrorListener.FIRST_GOBRA_TOKEN
 TRUE        : 'true' -> mode(NLSEMI);
 FALSE       : 'false' -> mode(NLSEMI);
 ASSERT      : 'assert';
+REFUTE      : 'refute';
 ASSUME      : 'assume';
 INHALE      : 'inhale';
 EXHALE      : 'exhale';
@@ -93,3 +95,4 @@ WITH        : 'with';
 OPAQUE      : 'opaque' -> mode(NLSEMI);
 REVEAL      : 'reveal';
 BACKEND     : '#backend';
+// NOTE: if you append a new token, do not forget to update InformativeErrorListener.LAST_GOBRA_TOKEN

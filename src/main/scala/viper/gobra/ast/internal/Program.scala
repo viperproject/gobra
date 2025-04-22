@@ -432,6 +432,7 @@ case class Defer(stmt: Deferrable)(val info: Source.Parser.Info) extends Stmt
 case class Return()(val info: Source.Parser.Info) extends Stmt
 
 case class Assert(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
+case class Refute(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Assume(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Inhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Exhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
@@ -514,7 +515,7 @@ case class Access(e: Accessible, p: Expr)(val info: Source.Parser.Info) extends 
 sealed trait TerminationMeasure extends Assertion
 case class WildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure
 case class TupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure {
-  require(tuple.forall(x => x.isInstanceOf[Expr] || x.isInstanceOf[PredicateAccess]), s"Unexpected tuple $tuple")
+  require(tuple.forall(x => x.isInstanceOf[Expr] || x.isInstanceOf[Access]), s"Unexpected tuple $tuple")
 }
 
 sealed trait Accessible extends Node {
@@ -562,10 +563,12 @@ case class PureLet(left: LocalVar, right: Expr, in: Expr)(val info: Source.Parse
 
 case class Let(left: LocalVar, right: Expr, in: Assertion)(val info: Source.Parser.Info) extends Assertion
 
-case class Old(operand: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
+case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = operand.typ.withAddressability(Addressability.rValue)
+}
 
 case class LabeledOld(label: LabelProxy, operand: Expr)(val info: Source.Parser.Info) extends Expr {
-  override val typ: Type = operand.typ
+  override val typ: Type = operand.typ.withAddressability(Addressability.rValue)
 }
 
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
@@ -730,6 +733,7 @@ case class Capacity(exp : Expr)(val info : Source.Parser.Info) extends Expr {
 case class IndexedExp(base : Expr, index : Expr, baseUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr with Location {
   override val typ : Type = baseUnderlyingType match {
     case t: ArrayT => t.elems
+    case PointerT(t: ArrayT, _) => t.elems
     case t: SequenceT => t.t
     case t: SliceT => t.elems
     case t: MapT => t.values
@@ -1172,6 +1176,7 @@ case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr], baseU
   override def typ : Type = baseUnderlyingType match {
     case t: ArrayT => SliceT(t.elems, Addressability.sliceElement)
     case _: SliceT | _: StringT => base.typ
+    case PointerT(t: ArrayT, _) => SliceT(t.elems, Addressability.sliceElement)
     case t => Violation.violation(s"expected an array, slice or string type, but got $t")
   }
 }
@@ -1386,14 +1391,6 @@ case class SliceT(elems : Type, addressability: Addressability) extends PrettyTy
   * The (composite) type of maps from type `keys` to type `values`.
   */
 case class MapT(keys: Type, values: Type, addressability: Addressability) extends PrettyType(s"map[$keys]$values") {
-  def hasGhostField(k: Type): Boolean = k match {
-    case StructT(fields, _) => fields exists (_.ghost)
-    case _ => false
-  }
-  // this check must be done here instead of at the type system level because the concrete AST does not support
-  // ghost fields yet
-  require(!hasGhostField(keys))
-  
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case MapT(otherKeys, otherValues, _) => keys.equalsWithoutMod(otherKeys) && values.equalsWithoutMod(otherValues)
     case _ => false
@@ -1512,14 +1509,14 @@ case class PredT(args: Vector[Type], addressability: Addressability) extends Pre
 
 // StructT does not have a name because equality of two StructT does not depend at all on their declaration site but
 // only on their structure, i.e. whether the fields (and addressability) are equal
-case class StructT(fields: Vector[Field], addressability: Addressability) extends PrettyType(fields.mkString("struct{", ", ", "}")) with TopType {
+case class StructT(fields: Vector[Field], ghost: Boolean, addressability: Addressability) extends PrettyType(fields.mkString(if (ghost) "ghost " else "" + "struct{", ", ", "}")) with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
-    case StructT(otherFields, _) => fields.zip(otherFields).forall{ case (l, r) => l.typ.equalsWithoutMod(r.typ) }
+    case StructT(otherFields, otherGhost, _) => ghost == otherGhost && fields.zip(otherFields).forall{ case (l, r) => l.name == r.name && l.ghost == r.ghost && l.typ.equalsWithoutMod(r.typ) }
     case _ => false
   }
 
   override def withAddressability(newAddressability: Addressability): StructT =
-    StructT(fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost)(f.info)), newAddressability)
+    StructT(fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost)(f.info)), ghost = ghost, newAddressability)
 }
 
 case class InterfaceT(name: String, addressability: Addressability) extends PrettyType(s"interface{ name is $name }") with TopType {

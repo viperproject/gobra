@@ -41,14 +41,14 @@ object BackendVerifier {
       case _ =>
     }
 
-    (config.backend, config.boogieExe) match {
+    (config.backendOrDefault, config.boogieExe) match {
       case (Carbon, Some(boogieExe)) =>
         exePaths ++= Vector("--boogieExe", boogieExe)
       case _ =>
     }
 
     val verificationResults: Future[VerificationResult] =  {
-      val verifier = config.backend.create(exePaths, config)
+      val verifier = config.backendOrDefault.create(exePaths, config)
       val reporter = BacktranslatingReporter(config.reporter, task.backtrack, config)
 
       if (!config.shouldChop) {
@@ -84,17 +84,18 @@ object BackendVerifier {
   /**
     * Takes a Viper VerificationResult and converts it to a Gobra Result using the provided backtracking information
     */
-  def convertVerificationResult(result: VerificationResult, backTrackInfo: BackTrackInfo): Result = result match {
-    case silver.verifier.Success => Success
-    case failure: silver.verifier.Failure =>
-      val (verificationError, otherError) = failure.errors
-        .partition(_.isInstanceOf[silver.verifier.VerificationError])
-        .asInstanceOf[(Seq[silver.verifier.VerificationError], Seq[silver.verifier.AbstractError])]
+  def convertVerificationResult(result: VerificationResult, backTrackInfo: BackTrackInfo): Result =
+    result match {
+      case silver.verifier.Success => Success
+      case failure: silver.verifier.Failure =>
+        val (verificationError, otherError) = failure.errors
+          .partition(_.isInstanceOf[silver.verifier.VerificationError])
+          .asInstanceOf[(Seq[silver.verifier.VerificationError], Seq[silver.verifier.AbstractError])]
 
-      checkAbstractViperErrors(otherError)
+        checkAbstractViperErrors(otherError)
 
-      Failure(verificationError.toVector, backTrackInfo)
-  }
+        Failure(verificationError.toVector, backTrackInfo)
+    }
 
   @scala.annotation.elidable(scala.annotation.elidable.ASSERTION)
   private def checkAbstractViperErrors(errors: Seq[silver.verifier.AbstractError]): Unit = {

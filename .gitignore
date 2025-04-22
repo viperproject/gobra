@@ -15,6 +15,7 @@ logger.log
 *.interp
 /gen/
 /.gobra/
+gobra_tmp/
 
 .bloop/
 .metals/
@@ -27,3 +28,10 @@ project/
 
 # genparser script
 genparser.config
+.genparser/
+
+# generated parser files
+src/main/java/viper/gobra/frontend/GobraLexer.java
+src/main/java/viper/gobra/frontend/GobraParser.java
+src/main/java/viper/gobra/frontend/GobraParserBaseVisitor.java
+src/main/java/viper/gobra/frontend/GobraParserVisitor.java

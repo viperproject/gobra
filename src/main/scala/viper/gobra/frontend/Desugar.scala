@@ -2744,12 +2744,13 @@ object Desugar extends LazyLogging {
                 val drop = in.SequenceDrop(dbase, lo)(src)
                 in.SequenceTake(drop, sub)(src)
             }
-            case baseT @ (_: in.ArrayT | _: in.SliceT) => (dlow, dhigh) match {
-              case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), dcap, baseT)(src)
-              case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), dcap, baseT)(src)
-              case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap, baseT)(src)
-              case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap, baseT)(src)
-            }
+            case baseT @ (_: in.ArrayT | _: in.SliceT | in.PointerT(_: in.ArrayT, _)) =>
+              (dlow, dhigh) match {
+                case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), dcap, baseT)(src)
+                case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), dcap, baseT)(src)
+                case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap, baseT)(src)
+                case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap, baseT)(src)
+              }
             case baseT: in.StringT =>
               Violation.violation(dcap.isEmpty, s"expected dcap to be None when slicing strings, but got $dcap instead")
               (dlow, dhigh) match {
@@ -2761,24 +2762,9 @@ object Desugar extends LazyLogging {
             case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }
 
-          case PLength(op) => for {
-            dop <- go(op)
-          } yield dop match {
-            case dop : in.ArrayLit => in.IntLit(dop.length)(src)
-            case dop : in.SequenceLit => in.IntLit(dop.length)(src)
-            case _ => in.Length(dop)(src)
-          }
+          case PLength(op) => go(op).map(in.Length(_)(src))
 
-          case PCapacity(op) => for {
-            dop <- go(op)
-          } yield dop match {
-            case dop : in.ArrayLit => in.IntLit(dop.length)(src)
-            case _ => dop.typ match {
-              case _: in.ArrayT => in.Length(dop)(src)
-              case _: in.SliceT => in.Capacity(dop)(src)
-              case t => violation(s"expected an array or slice type, but got $t")
-            }
-          }
+          case PCapacity(op) => go(op).map(in.Capacity(_)(src))
 
           case g: PGhostExpression => ghostExprD(ctx, info)(g)
 
@@ -3520,13 +3506,10 @@ object Desugar extends LazyLogging {
       pkg.imports.foreach{ imp => {
         val importedPackage = RegularImport(imp.importPath)
         Violation.violation(info.dependentTypeInfo.contains(importedPackage), s"Desugarer expects to have acess to the type information of all imported packages but could not find $importedPackage")
-        info.dependentTypeInfo(importedPackage)() match {
-          case Right(tI) =>
-            val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
-            Violation.violation(!config.enableLazyImports || desugaredPre.isEmpty, s"Import precondition found despite running with ${Config.enableLazyImportOptionPrettyPrinted}")
-            specCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
-          case e => Violation.violation(config.enableLazyImports, s"Unexpected value found $e while importing ${imp.importPath} - type information is assumed to be available for all packages when Gobra is executed with lazy imports disabled")
-        }
+        val tI = info.dependentTypeInfo(importedPackage)
+        val desugaredPre = imp.importPres.map(specificationD(FunctionContext.empty(), info))
+        Violation.violation(!config.enableLazyImports || desugaredPre.isEmpty, s"Import precondition found despite running with ${Config.enableLazyImportOptionPrettyPrinted}")
+        specCollector.addImportPres(tI.getTypeInfo.tree.originalRoot, desugaredPre)
       }}
 
       // Collect and register all postconditions of all PPrograms (i.e., files) in pkg
@@ -3783,7 +3766,7 @@ object Desugar extends LazyLogging {
 
       case t: Type.StructT =>
         val inFields: Vector[in.Field] = structD(t, addrMod)(src)
-        registerType(in.StructT(inFields, addrMod))
+        registerType(in.StructT(inFields, ghost = t.isGhost, addrMod))
 
       case t: Type.AdtT =>
         val adtName = nm.adt(t.declaredType)
@@ -4069,6 +4052,7 @@ object Desugar extends LazyLogging {
 
       stmt match {
         case PAssert(exp) => for {e <- goA(exp)} yield in.Assert(e)(src)
+        case PRefute(exp) => for {e <- goA(exp)} yield in.Refute(e)(src)
         case PAssume(exp) => for {e <- goA(exp)} yield in.Assume(e)(src)
         case PInhale(exp) => for {e <- goA(exp)} yield in.Inhale(e)(src)
         case PExhale(exp) => for {e <- goA(exp)} yield in.Exhale(e)(src)
@@ -4293,7 +4277,7 @@ object Desugar extends LazyLogging {
       val typ = typeD(info.typ(expr), info.addressability(expr))(src)
 
       expr match {
-        case POld(op) => for {o <- go(op)} yield in.Old(o, typ)(src)
+        case POld(op) => for {o <- go(op)} yield in.Old(o)(src)
         case PLabeledOld(l, op) => for {o <- go(op)} yield in.LabeledOld(labelProxy(l), o)(src)
         case PBefore(op) => for {o <- go(op)} yield in.LabeledOld(in.LabelProxy("before")(src), o)(src)
         case PConditional(cond, thn, els) =>  for {
@@ -4525,10 +4509,16 @@ object Desugar extends LazyLogging {
 
       def goE(expr: PExpression): Writer[in.Node] = expr match {
         case p: PInvoke => info.resolve(p) match {
-          case Some(x: ap.PredicateCall) => predicateCallAccD(ctx, info)(x)(src)
+          case Some(x: ap.PredicateCall) =>
+            // we turn a `PredicateAccess` into an `Access` to unify this case
+            // with desugaring a PAccess:
+            for {
+              pa <- predicateCallAccD(ctx, info)(x)(src)
+            } yield in.Access(in.Accessible.Predicate(pa), in.FullPerm(pa.info))(pa.info)
           case Some(_: ap.FunctionCall) => exprD(ctx, info)(p)
           case _ => violation(s"Unexpected expression $expr")
         }
+        case p: PAccess => assertionD(ctx, info)(p)
         case _ => exprD(ctx, info)(expr)
       }
 

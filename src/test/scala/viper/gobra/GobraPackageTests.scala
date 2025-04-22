@@ -69,7 +69,7 @@ class GobraPackageTests extends GobraTests {
           ))
         } yield config
 
-        val pkgInfo = Source.getPackageInfo(FromFileSource(input.files.head), currentDir)
+        val pkgInfo = Source.getPackageInfoOrCrash(FromFileSource(input.files.head), currentDir)
 
         val config = Config(
           logLevel = Level.INFO,

@@ -48,11 +48,11 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
     inputs = inputs :+ source
   }
 
-  private def getConfig(source: Source): Config =
+  protected def getConfig(source: Source): Config =
     Config(
       logLevel = Level.INFO,
       reporter = StringifyReporter,
-      packageInfoInputMap = Map(Source.getPackageInfo(source, Path.of("")) -> Vector(source)),
+      packageInfoInputMap = Map(Source.getPackageInfoOrCrash(source, Path.of("")) -> Vector(source)),
       checkConsistency = true,
       cacheParserAndTypeChecker = cacheParserAndTypeChecker,
       z3Exe = z3Exe,

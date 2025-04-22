@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, GlobalVariable, Variable, Wildcard}
-import viper.gobra.frontend.info.base.Type.{ArrayT, GhostSliceT, MapT, MathMapT, SequenceT, SliceT, VariadicT}
+import viper.gobra.frontend.info.base.Type.{ArrayT, GhostSliceT, MapT, MathMapT, PointerT, SequenceT, SliceT, VariadicT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
@@ -62,6 +62,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
           case _: SliceT | _: GhostSliceT => AddrMod.sliceLookup
           case _: VariadicT => AddrMod.variadicLookup
           case _: ArrayT => AddrMod.arrayLookup(addressability(base))
+          case PointerT(_: ArrayT) => AddrMod.sliceLookup
           case _: SequenceT => AddrMod.mathDataStructureLookup
           case _: MathMapT => AddrMod.mathDataStructureLookup
           case _: MapT => AddrMod.mapLookup

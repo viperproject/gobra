@@ -14,13 +14,14 @@ import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.{ast => vpr}
+import viper.silver.plugin.standard.{refute => vprrefute}
 
 class AssertionEncoding extends Encoding {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
-    case n@ in.Old(op, _) => for { o <- ctx.expression(op)} yield withSrc(vpr.Old(o), n)
+    case n@ in.Old(op) => for { o <- ctx.expression(op)} yield withSrc(vpr.Old(o), n)
     case n@ in.LabeledOld(l, op) => for {o <- ctx.expression(op)} yield withSrc(vpr.LabelledOld(o, l.name), n)
 
     case n@ in.Negation(op) => for{o <- ctx.expression(op)} yield withSrc(vpr.Not(o), n)
@@ -90,6 +91,7 @@ class AssertionEncoding extends Encoding {
 
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     case n@ in.Assert(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Assert(v), n)
+    case n@ in.Refute(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vprrefute.Refute(v), n)
     case n@ in.Assume(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Assume(v), n) // Assumes are later rewritten
     case n@ in.Inhale(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Inhale(v), n)
     case n@ in.Exhale(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Exhale(v), n)

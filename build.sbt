@@ -4,12 +4,21 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-import scala.sys.process.Process
+import scala.sys.process._
 import scala.util.Try
 
 // Import general settings from viperserver and, transitively, from carbon, silicon and silver.
 // we assume that carbon/silver and silicon/silver point to the same version of the silver repo
 lazy val server = project in file("viperserver")
+
+lazy val genParser = taskKey[Unit]("Generate Gobra's parser")
+genParser := {
+  val projectDir = baseDirectory.value
+  val res: Int = (s"${projectDir.getAbsolutePath}/genparser.sh --download" !) // parentheses are not optional despite what IntelliJ suggests
+  if (res != 0) {
+    sys.error(s"genparser.sh exited with the non-zero exit code $res")
+  }
+}
 
 // Gobra specific project settings
 lazy val gobra = (project in file("."))
@@ -43,6 +52,9 @@ lazy val gobra = (project in file("."))
     ),
 
     javacOptions := Seq("-encoding", "UTF-8"),
+
+    // overwrite `compile` task to depend on the `genParser` task such that the parser is generated first:
+    Compile / compile := (Compile / compile).dependsOn(genParser).value,
 
     // Run settings
     run / javaOptions ++= Seq(

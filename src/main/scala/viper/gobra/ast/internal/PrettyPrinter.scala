@@ -341,6 +341,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
+    case Refute(ass) => "refute" <+> showAss(ass)
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)
     case Exhale(ass) => "exhale" <+> showAss(ass)
@@ -477,7 +478,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PureLet(left, right, exp) =>
       "let" <+> showVar(left) <+> "==" <+> parens(showExpr(right)) <+> "in" <+> showExpr(exp)
 
-    case Old(op, _) => "old" <> parens(showExpr(op))
+    case Old(op) => "old" <> parens(showExpr(op))
 
     case LabeledOld(label, operand) => "old" <> brackets(showProxy(label)) <> parens(showExpr(operand))
 
@@ -791,6 +792,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
+    case Refute(ass) => "refute" <+> showAss(ass)
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)
     case Exhale(ass) => "exhale" <+> showAss(ass)

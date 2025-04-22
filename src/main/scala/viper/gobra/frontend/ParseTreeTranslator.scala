@@ -517,6 +517,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
+    * {@inheritDoc }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #   visitChildren} on {@code ctx}.</p>
+    */
+  override def visitGhostStructType(ctx: GhostStructTypeContext): PExplicitGhostStructType = {
+    val actual = visitNode[PStructType](ctx.structType())
+    PExplicitGhostStructType(actual).at(ctx)
+  }
+
+  /**
     * {@inheritDoc  }
     *
     * <p>The default implementation returns the result of calling
@@ -848,7 +859,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       (for (expr <- ctx.expression().asScala.toVector) yield visitNode[PExpression](expr)).at(ctx)
   }
 
-  override def visitSpecMember(ctx: SpecMemberContext): AnyRef = super.visitSpecMember(ctx) match {
+  override def visitSpecMember(ctx: SpecMemberContext): PFunctionOrMethodDecl = super.visitSpecMember(ctx) match {
     case Vector(spec : PFunctionSpec, (id: PIdnDef, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
       => PFunctionDecl(id, args, result, spec, body)
     case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
@@ -939,6 +950,21 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   //region Ghost members
+
+  /**
+    * Visits the rule
+    * ghostMember: implementationProof
+    *   | fpredicateDecl
+    *   | mpredicateDecl
+    *   | explicitGhostMember;
+    *
+    * @param ctx the parse tree
+    */
+  override def visitGhostMember(ctx: GhostMemberContext): Vector[PMember] = super.visitGhostMember(ctx) match {
+    case v: Vector[PMember@unchecked] => v // note: we have to resort to PMember as an implementation proof is not a PGhostMember
+    case m: PMember => Vector(m)
+  }
+
   /**
     * Visits the rule
     * explicitGhostMember: GHOST (methodDecl | functionDecl | declaration);
@@ -2187,6 +2213,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitProofStatement(ctx: ProofStatementContext): PGhostStatement = super.visitProofStatement(ctx) match {
     case Vector(kind : String, expr : PExpression) => kind match {
       case "assert" => PAssert(expr)
+      case "refute" => PRefute(expr)
       case "assume" => PAssume(expr)
       case "inhale" => PInhale(expr)
       case "exhale" => PExhale(expr)
@@ -2250,12 +2277,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val packageClause: PPackageClause = visitNode(ctx.packageClause())
     val initPosts: Vector[PExpression] = visitListNode[PExpression](ctx.initPost())
     val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
-
-    // Don't parse functions/methods if the identifier is blank
-    val members = visitListNode[PMember](ctx.specMember())
-    val ghostMembers = ctx.ghostMember().asScala.flatMap(visitNode[Vector[PGhostMember]])
-    val decls = ctx.declaration().asScala.toVector.flatMap(visitDeclaration(_).asInstanceOf[Vector[PDeclaration]])
-    PProgram(packageClause, initPosts, importDecls, members ++ decls ++ ghostMembers).at(ctx)
+    val members = ctx.member().asScala.toVector.flatMap(visitMember)
+    PProgram(packageClause, initPosts, importDecls, members).at(ctx)
   }
 
   override def visitPreamble(ctx: GobraParser.PreambleContext): PPreamble = {
@@ -2365,7 +2388,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
-
+  /**
+    * Visit the rule "member: specMember | declaration | ghostMember;"
+    *
+    * @param ctx the parse tree
+    * @return the visitor result
+    */
+  override def visitMember(ctx: GobraParser.MemberContext): Vector[PMember] = super.visitMember(ctx) match {
+    case v: Vector[PMember@unchecked] => v
+    case m: PMember => Vector(m)
+  }
   //endregion
 
 

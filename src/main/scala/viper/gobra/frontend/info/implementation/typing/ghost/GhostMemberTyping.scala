@@ -12,12 +12,15 @@ import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, M
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
-import viper.gobra.util.Violation
 
 trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostMember(member: PGhostMember): Messages = member match {
-    case PExplicitGhostMember(_) => noMessages
+    case PExplicitGhostMember(m) => m match {
+      case f: PFunctionDecl => wellFoundedIfNeeded(f.spec)
+      case m: PMethodDecl => wellFoundedIfNeeded(m.spec)
+      case _ => noMessages
+    }
 
     case PFPredicateDecl(_, args, body) =>
       body.fold(noMessages)(assignableToSpec) ++ nonVariadicArguments(args)
@@ -28,22 +31,34 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         nonVariadicArguments(args)
   }
 
-  private[typing] def wellFoundedIfNeeded(member: PMember): Messages = {
-    val spec = member match {
-      case m: PMethodDecl => m.spec
-      case f: PFunctionDecl => f.spec
-      case _ => Violation.violation("Unexpected member type")
-    }
-    val hasMeasureIfNeeded =
-      if (spec.isPure || isEnclosingGhost(member))
-        config.disableCheckTerminationPureFns || spec.terminationMeasures.nonEmpty
-      else
-        true
-    val needsMeasureError =
-      error(member, "All pure or ghost functions and methods must have termination measures, but none was found for this member.", !hasMeasureIfNeeded)
-    needsMeasureError
+  // spec must come from a ghost or pure function
+  private[typing] def wellFoundedIfNeeded(spec: PFunctionSpec): Messages = {
+    val needsMeasure = !config.disableCheckTerminationPureFns
+    if (needsMeasure) {
+      isValidMeasureForGhostOrPure(spec)
+    } else noMessages
   }
 
+  private def isValidMeasureForGhostOrPure(spec: PFunctionSpec): Messages = {
+    // TODO: eventually, we should deprecate the flag `config.disableCheckTerminationPureFns`
+    val hasTerminationMeasureErrors =
+      error(spec, s"Pure and ghost functions and methods must have termination measures.",
+        spec.terminationMeasures.isEmpty)
+    // (João) Conditional termination measures are a very rarely used feature. They allow defining termination measures
+    // case-per-case. However, for pure or ghost functions and methods, we need to show that all conditions provided
+    // do cover all possible inputs, otherwise the function is not guaranteed to terminate. Implementing such a
+    // check would not be hard, but it would be more cumbersome (and in general, less efficient) than this syntactic check.
+    // If this feature is requested, I am happy to implement the more complete check, but for now, I will stick to
+    // this syntactic check.
+    val hasConditionalTerminationMeasureErrors = {
+      val conditionalMeasure = spec.terminationMeasures.find(_.isConditional)
+      conditionalMeasure match {
+        case Some(n) => error(n, "Conditional termination measures are not allowed in pure members.")
+        case None => noMessages
+      }
+    }
+    hasTerminationMeasureErrors ++ hasConditionalTerminationMeasureErrors
+  }
 
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
     if (member.spec.isPure) {
@@ -67,7 +82,10 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   // (e.g., checks that may depend on the receiver of a method) should be implemented elsewhere.
   private[typing] def wellDefIfPureSpec(spec: PFunctionSpec, args: Vector[PParameter], result: PResult) : Messages = {
     if (spec.isPure) {
-      isSingleResultArg(result) ++ isPurePostcondition(spec) ++ nonVariadicArguments(args)
+      isSingleResultArg(result) ++
+        isPurePostcondition(spec) ++
+        nonVariadicArguments(args) ++
+        wellFoundedIfNeeded(spec)
     } else noMessages
   }
 
@@ -96,27 +114,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     p: PParameter => error(p, s"Pure members cannot have variadic arguments, but got $p", p.typ.isInstanceOf[PVariadicType])
   }
 
-  // todo: drop
-  private[typing] def isValidTerminationMeasuresForPure(spec: PFunctionSpec): Messages = {
-    // TODO: eventually, we should deprecate the flag `config.disableCheckTerminationPureFns`
-    val hasTerminationMeasureErrors =
-      error(spec, s"Pure members must have termination measures.",
-        config.disableCheckTerminationPureFns || spec.terminationMeasures.nonEmpty)
-    // Conditional termination measures are a very rarely used feature. They allow defining termination measures
-    // case-per-case. However, for functions, we need to show that all conditions provided do cover all possible
-    // inputs, otherwise the function is not proven to terminate. Implementing such a check would not be hard, but
-    // it would be more cumbersome (and in general, it would be less efficient) than this syntactic check.
-    // If this feature is requested, I am happy to implement the more complete check, but for now, I will stick to
-    // this syntactic check.
-    val hasConditionalTerminationMeasureErrors = {
-      val conditionalMeasure = spec.terminationMeasures.find(_.isConditional)
-      conditionalMeasure match {
-        case Some(n) => error(n, "Conditional termination measures are not allowed in pure members.")
-        case None => noMessages
-      }
-    }
-    hasTerminationMeasureErrors ++ hasConditionalTerminationMeasureErrors
-  }
+
 
   override lazy val localImplementationProofs: Vector[(Type, InterfaceT, Vector[String], Vector[String])] = {
     val implementationProofs = tree.root.programs.flatMap(_.declarations.collect{ case m: PImplementationProof => m})

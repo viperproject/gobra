@@ -1,18 +1,18 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package issue0008612
+package issue000841
 
-func test() (res bool) {
-    ghost var x = 42
-    ghost var y = 0
-    tmp := isEqual(x, y)
-    //:: ExpectedOutput(type_error)
-    res = tmp
-    return
+type J interface {
+	// Type error, pure function does not have termination measures.
+	//:: ExpectedOutput(type_error)
+	pure
+	// Type error, pure function cannot have variadic parameters.
+	//:: ExpectedOutput(type_error)
+	M(a ...int) int
 }
 
-decreases
-pure func isEqual(x, y int) bool {
-    return x == y
-}
+pure
+//:: ExpectedOutput(type_error)
+decreases _ if b
+func f(b bool) bool

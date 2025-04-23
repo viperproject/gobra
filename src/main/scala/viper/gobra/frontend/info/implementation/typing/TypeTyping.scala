@@ -71,7 +71,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
         val sigsWithWildcardMeasuresErrors = t.methSpecs.flatMap { sig =>
           sig.spec.terminationMeasures.flatMap {
             case w: PWildcardMeasure =>
-              error(w, s"Wildcard termination measures are not allowed in the specifications interface methods.")
+              error(w, s"Wildcard termination measures are not allowed in the specifications of interface methods.")
             case _ => noMessages
           }
         }

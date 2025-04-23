@@ -1,7 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-// This testcase checks contains a program that is verified against a simple declassification policy.
+// This testcase contains a program that is verified against a simple declassification policy.
 // This is inspired by case studies from the paper "Verifiable Security Policies for Distributed Systems",
 // but we use a style that is more common in Gobra implementing protocols as separation logic resources in the style of I/O separation logic.
 
@@ -116,7 +116,7 @@ requires token(p0) && Proto(p0, key)
 func sendWrongMsgTest(key int, ghost p0 Place) {
 	unfold Proto(p0, key)
 	p1, m1 := Recv(p0)
-	// sending a message other than the mac if the previously
+	// sending a message other than the mac of the previously
 	// received message is not allowed
 	//:: ExpectedOutput(precondition_error)
 	Send(p1, 0)

@@ -66,6 +66,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case t: PInterfaceType =>
       val isRecursiveInterface = error(t, "invalid recursive interface", cyclicInterfaceDef(t))
       if (isRecursiveInterface.isEmpty) {
+        val wellDefIfPureSig = t.methSpecs.flatMap { sig => wellDefIfPureSpec(sig.spec, sig.args, sig.result) }
         // The semantics of wildcard termination measures in interface method specifications is not clear.
         // Thus, they are rejected.
         val sigsWithWildcardMeasuresErrors = t.methSpecs.flatMap { sig =>
@@ -76,6 +77,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
           }
         }
         addressableMethodSet(InterfaceT(t, this)).errors(t) ++
+          wellDefIfPureSig ++
           sigsWithWildcardMeasuresErrors ++
           containsRedeclarations(t) // temporary check
       } else {

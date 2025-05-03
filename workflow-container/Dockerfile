@@ -54,6 +54,7 @@ COPY conf /build/gobra/conf
 COPY src /build/gobra/src
 # Copies viperserver and, transitively, all of its dependencies (carbon, silicon and silver)
 COPY viperserver /build/gobra/viperserver
+COPY silver-sif-extension /build/gobra/silver-sif-extension
 
 RUN sbt assembly
 

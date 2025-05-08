@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing.ghost
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
 import viper.gobra.ast.frontend.{PClosureImplProof, AstPattern => ap, _}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl

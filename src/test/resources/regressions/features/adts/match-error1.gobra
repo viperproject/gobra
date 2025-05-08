@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package matcherror1
+
+// this test case checks that Gobra does not crash when
+// typing a match expression if the corresponding ADT type
+// is not well-defined.
+
+ghost type Trace adt {
+    RootEntry{}
+    SendEntry{
+        //:: ExpectedOutput(type_error)
+        msg InexistentType // unknown identifier
+        prev Trace
+    }
+}
+
+ghost
+decreases _ // assume termination instead of using `len(t)`, which would cause another type error
+ensures   0 <= res
+pure func (t Trace) length() (res int) {
+    return match t {
+        case RootEntry{}: 0
+        // we need a recursive call to trigger the error in a previous version of Gobra
+        //:: ExpectedOutput(type_error)
+        case SendEntry{_, ?p}: 1 + p.length() // `length` is an unknown identifier as `Trace` is malformed
+    }
+}

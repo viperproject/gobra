@@ -142,6 +142,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case PIndexedExp(b, _) => underlyingType(exprType(b)) match {
       case _: ArrayT => assignable(b)
       case _: SliceT | _: GhostSliceT => assignable(b)
+      case PointerT(_: ArrayT) => assignable(b)
       case _: VariadicT => assignable(b)
       case _: MapT => assignable(b)
       case _: SequenceT => true

@@ -87,9 +87,6 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val tryEnclosingGlobalVarDeclaration: PNode => Option[PVarDecl] =
     down[Option[PVarDecl]](None) {
       case x: PVarDecl if isGlobalVarDeclaration(x) => Some(x)
-      case x: PVarDecl =>
-        val parent = tree.parent(x).head
-        tryEnclosingGlobalVarDeclaration(parent)
     }
 
   lazy val isEnclosingGhost: PNode => Boolean =

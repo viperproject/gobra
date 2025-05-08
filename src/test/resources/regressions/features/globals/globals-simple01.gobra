@@ -4,16 +4,9 @@
 pkgInvariant acc(&A) && acc(&B) && acc(&C, 1/2)
 package pkg
 
-// ##(--experimentalFriendClauses)
-
-importRequires true
-import "fmt"
-
 import (
-	importRequires true
-	importRequires true
 	"bytes"
-	importRequires true
+	"fmt"
 	"sync"
 )
 

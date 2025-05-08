@@ -3673,7 +3673,6 @@ object Desugar extends LazyLogging {
       val progPres: Vector[in.Assertion] = p.imports.flatMap(_.importPres).map(specificationD(FunctionContext.empty(), info)(_))
       val pkgInvariants: Vector[in.Assertion] = p.pkgInvariants.map{ i => specificationD(FunctionContext.empty(), info)(i.inv)}
       val resourcesForFriends: Vector[in.Assertion] = p.friends.map{i => specificationD(FunctionContext.empty(), info)(i.assertion)}
-      val currPkg = info.tree.originalRoot
       val pkgInvariantsImportedPackages: Vector[in.Assertion] = {
         val directlyImportedPkgs = info.dependentTypeInfo.values.map(_.getTypeInfo.tree.root).toSet
         initSpecs.getNonDupPkgInvariants().filter{

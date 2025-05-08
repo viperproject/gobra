@@ -20,7 +20,7 @@ trait ImportTyping extends BaseTyping { this: TypeInfoImpl =>
       case n: PImplicitQualifiedImport => message(n, s"Explicit qualifier could not be derived")
     }
     val preHasOldExps = hasOldExpression(imp.importPres)
-    val importPresAllowed = error(imp, "Import preconditions are disallowed by default." +
+    val importPresAllowed = error(imp, "Import preconditions are disallowed by default. " +
       "Pass the flag --experimentalFriendClauses to allow it. This feature may change in the future.",
       !config.enableExperimentalFriendClauses && imp.importPres.nonEmpty)
     qualifierMsgs ++ preHasOldExps ++ importPresAllowed

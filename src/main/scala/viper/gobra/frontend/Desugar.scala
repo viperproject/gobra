@@ -3713,7 +3713,7 @@ object Desugar extends LazyLogging {
             postprocessing = Vector(),
             seqn = in.MethodBodySeqn{
               // Init all global variables declared in the file (not all declarations in the package!).
-              // This inhales permissions to the all global variables declared in the current file.
+              // This inhales permissions to all global variables declared in the current file.
               val initDeclaredGlobs: Vector[in.Initialization] = sortedGlobVarDecls.flatMap(_.left).filter {
                 // do not initialize Exclusive variables to avoid unsoundnesses with the assumptions.
                 // TODO(another optimization) do not generate initialization code for variables with RHS.
@@ -3738,17 +3738,17 @@ object Desugar extends LazyLogging {
                 */
               val declarationsInOrder: Vector[in.Stmt] = sortedGlobVarDecls.flatMap{ _.declStmts }
 
+              // This must be done after the variable declarations, as at this point other files may run their own
+              // variable declarations that may assume the invariants of imported packages.
+              val exhaleInhaleImportedPkgsInvs = pkgInvariantsImportedPackages.map(in.Exhale(_)(src)) ++
+                pkgInvariantsImportedPackages.map(in.Inhale(_)(src))
+
               // execute all inits in the order they occur
               // TODO: at the moment, there exists at most one init, but this should change in the future
               val initBlocks = p.declarations.collect{
                 case x: PFunctionDecl if x.id.name == Constants.INIT_FUNC_NAME => x
               }
               violation(initBlocks.length <= 1, "at most one init block is supported right now")
-
-              // This must be done after the variable declarations, as at this point other files may run their own
-              // variable declarations that may assume the invariants of imported packages.
-              val exhaleInhaleImportedPkgsInvs = pkgInvariantsImportedPackages.map(in.Exhale(_)(src)) ++
-                pkgInvariantsImportedPackages.map(in.Inhale(_)(src))
 
               val initCode: Vector[in.Stmt] =
                 initBlocks.flatMap(b => b.body.toVector.map(_._2).map(blockD(FunctionContext.empty(), info)))

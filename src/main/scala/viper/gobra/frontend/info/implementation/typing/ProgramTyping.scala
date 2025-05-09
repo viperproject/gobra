@@ -12,7 +12,8 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
-import viper.gobra.util.Violation
+import viper.gobra.util.Violation.violation
+import viper.gobra.util.{Computation, Violation}
 
 trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -23,20 +24,9 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
     case PProgram(_, _, _, _, friends, _) if !config.enableExperimentalFriendClauses && friends.nonEmpty =>
       error(friends.head, "Usage of experimental 'friendPkg' clauses is disallowed by default. " +
         "Pass the flag --experimentalFriendClauses to allow it. This feature may change in the future.")
-    case PProgram(_, pkgInvs, _, _, friends, members) =>
+    case prog@PProgram(_, pkgInvs, _, _, friends, _) =>
       // Obtains global variable declarations sorted by the order in which they appear in the file
-      val sortedByPosDecls: Vector[PVarDecl] = {
-        val unsortedDecls: Vector[PVarDecl] = members.collect{ case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
-        // we require a package to be able to obtain position information
-        val pkgOpt: Option[PPackage] = unsortedDecls.headOption.flatMap(tryEnclosingPackage)
-        // sort declarations by the order in which they appear in the program
-        unsortedDecls.sortBy{ decl =>
-          pkgOpt.get.positions.positions.getStart(decl) match {
-            case Some(pos) => (pos.line, pos.column)
-            case _ => Violation.violation(s"Could not find position information of $decl.")
-          }
-        }
-      }
+      val sortedByPosDecls: Vector[PVarDecl] = globalVarDeclsSortedByPos(prog)
       // HACK: without this explicit check, Gobra does not find repeated declarations
       //       of global variables. This has to do with the changes introduced in PR #186.
       //       We need this check nonetheless because the checks performed in the "true" branch
@@ -94,6 +84,38 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
         error(decl, errorMsg, !visitedAllDeps)
       }
     }
+  }
+
+  private val globalVarDeclsSortedByPos: PProgram => Vector[PVarDecl] = {
+    val computation: PProgram  => Vector[PVarDecl] = { p =>
+        val pkg: PPackage = tryEnclosingPackage(p).get
+        // the following may only be called once per package, otherwise wildcard identifiers may be desugared multiple
+        // times, leading to different names being generated on different occasions.
+        val unsortedDecls = p.declarations.collect { case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
+        unsortedDecls.sortBy { decl =>
+          pkg.positions.positions.getStart(decl) match {
+            case Some(pos) => (pos.line, pos.column)
+            case None => violation(s"Could not find the position information of node $decl.")
+          }
+        }
+    }
+    Computation.cachedComputation(computation)
+  }
+
+  /**
+   * Mapping from a file (PProgram) to the global variable declarations in that file, ordered by the dependency order.
+   * The initialization of a variable A depends on the initialization of B if variable B occurs in the initializing
+   * expression of A.
+   */
+  override val globalVarDeclsSortedByDeps: PProgram => Vector[PVarDecl] = { p =>
+    // TODO: currently, we require that all global variable declarations are provided in the dependency order.
+    //  Thus, the results should match the list of variables produced by `globalVarDeclsSortedByPos`.
+    //  This implementation should be changed when we lift this restriction.
+    val res = globalVarDeclsSortedByPos(p)
+    // This assertion may seem redundant, given that it is also performed elsewhere during type-checking. Nonetheless,
+    // this guarantees that once the type checking algorithm is extended, we do not forget to update this function.
+    assert(globalDeclSatisfiesDepOrder(res).isEmpty)
+    res
   }
 
   private[typing] def hasOldExpression(posts: Vector[PExpression]): Messages = {

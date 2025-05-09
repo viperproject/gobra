@@ -3498,17 +3498,7 @@ object Desugar extends LazyLogging {
     private val sortedGlobalVariableDecls: PProgram => Vector[in.GlobalVarDecl] = Computation.cachedComputation { p =>
       // the following may only be called once per package, otherwise wildcard identifiers may be desugared multiple
       // times, leading to different names being generated on different occasions.
-      val unsortedDecls = p.declarations.collect { case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
-      val pGlobalDecls =
-        // TODO: this is currently fine, given that we currently require global variable declarations to come after
-        //       the declarations of all of the dependencies of the declared variables. This should be changed when
-        //       we lift this restriction.
-        unsortedDecls.sortBy { decl =>
-          pom.positions.getStart(decl) match {
-            case Some(pos) => (pos.line, pos.column)
-            case None => violation(s"Could not find the position information of node $decl.")
-          }
-        }
+      val pGlobalDecls = info.globalVarDeclsSortedByDeps(p)
       // sorted desugared declarations
       pGlobalDecls.map(globalVarDeclD)
     }

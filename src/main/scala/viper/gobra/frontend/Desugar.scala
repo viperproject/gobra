@@ -3449,7 +3449,6 @@ object Desugar extends LazyLogging {
         .foreach(AdditionalMembers.addMember)
 
       // Check that the initialization code satisfies the contract of every file in the package.
-      // val globalDecls = sortedGlobalVariableDecls(pkgUnderVerification)
       val fileInitTranslations: Vector[in.Function] = pkgUnderVerification.programs.map(checkProgramInitContract)
       fileInitTranslations.foreach(AdditionalMembers.addMember)
 

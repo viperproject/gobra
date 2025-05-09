@@ -88,12 +88,12 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private val globalVarDeclsSortedByPos: PProgram => Vector[PVarDecl] = {
     val computation: PProgram  => Vector[PVarDecl] = { p =>
-        val pkg: PPackage = tryEnclosingPackage(p).get
+        require(tree.root.programs.contains(p))
         // the following may only be called once per package, otherwise wildcard identifiers may be desugared multiple
         // times, leading to different names being generated on different occasions.
         val unsortedDecls = p.declarations.collect { case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
         unsortedDecls.sortBy { decl =>
-          pkg.positions.positions.getStart(decl) match {
+          tree.root.positions.positions.getStart(decl) match {
             case Some(pos) => (pos.line, pos.column)
             case None => violation(s"Could not find the position information of node $decl.")
           }

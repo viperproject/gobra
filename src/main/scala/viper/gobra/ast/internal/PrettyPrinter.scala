@@ -531,6 +531,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
     case MapKeys(exp, _) => "domain" <> parens(showExpr(exp))
     case MapValues(exp, _) => "range" <> parens(showExpr(exp))
+    case MapConversion(exp) => "dict" <> parens(showExpr(exp))
     case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
     case Receive(channel, _, _, _) => "<-" <+> showExpr(channel)
 

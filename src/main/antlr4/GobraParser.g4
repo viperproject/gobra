@@ -115,7 +115,7 @@ optionNone: NONE L_BRACKET type_ R_BRACKET;
 
 optionGet: GET L_PAREN expression R_PAREN;
 
-sConversion: kind=(SET | SEQ | MSET) L_PAREN expression R_PAREN;
+sConversion: kind=(SET | SEQ | MSET | DICT) L_PAREN expression R_PAREN;
 
 old: OLD (L_BRACKET oldLabelUse R_BRACKET)? L_PAREN expression R_PAREN;
 

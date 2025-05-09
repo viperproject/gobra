@@ -938,6 +938,17 @@ case class MapValues(exp : Expr, expUnderlyingType: Type)(val info : Source.Pars
   }
 }
 
+/**
+ * Represents the conversion of a value of type 'map[k]v' to a mathematical map with type 'dict[k]v'
+ */
+case class MapConversion(expr: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ : Type = expr.typ match {
+    case MapT(k, v, _) => MathMapT(k, v, Addressability.conversionResult)
+    case t => Violation.violation(s"expected a map but got $t")
+  }
+}
+
+
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
 case class PureClosureCall(closure: Expr, args: Vector[Expr], spec: ClosureSpec, typ: Type)(val info: Source.Parser.Info) extends Expr

@@ -1505,6 +1505,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       case GobraParser.SEQ => PSequenceConversion
       case GobraParser.SET => PSetConversion
       case GobraParser.MSET => PMultisetConversion
+      case GobraParser.DICT => PMathMapConversion
     }
     conversion(exp)
   }

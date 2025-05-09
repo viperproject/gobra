@@ -1219,6 +1219,8 @@ case class PMultisetConversion(exp : PExpression) extends PMultisetExp
 /* ** (Mathematical) Map expressions */
 sealed trait PMathMapExp extends PUnorderedGhostCollectionExp
 
+case class PMathMapConversion(exp : PExpression) extends PMathMapExp
+
 /**
   * Set of keys of a mathematical or actual map
   */

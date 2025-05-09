@@ -5,6 +5,7 @@
 // Signatures for the public declarations in file
 // https://github.com/golang/go/blob/master/src/errors/errors.go
 
+dup pkgInvariant ErrUnsupported != nil && acc(ErrUnsupported.ErrorMem(), _)
 package errors
 
 // New returns an error that formats as the given text.
@@ -66,4 +67,11 @@ func errUnsupported() (r error) {
     // these assignments, but that may not be worth it, as here we could solve the problem by introducing a package
     // that imports 'errors' and contains the error declarations.
     return New("unsupported operation")
+}
+
+ghost
+ensures ErrUnsupported != nil && acc(ErrUnsupported.ErrorMem(), _)
+decreases
+func EstablishErrUnsupportedMem() {
+    openDupPkgInv
 }

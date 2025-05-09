@@ -4442,6 +4442,13 @@ object Desugar extends LazyLogging {
           t = underlyingType(e.typ)
         } yield in.MapValues(e, t)(src)
 
+        case PMathMapConversion(op) => for {
+          dop <- go(op)
+        } yield dop.typ match {
+          case _: in.MapT => in.MapConversion(dop)(src)
+          case t => violation(s"expected a map type but found $t")
+        }
+
         case PClosureImplements(closure, spec) => for {
           c <- exprD(ctx, info)(closure)
         } yield in.ClosureImplements(c, closureSpecD(ctx, info)(spec))(src)

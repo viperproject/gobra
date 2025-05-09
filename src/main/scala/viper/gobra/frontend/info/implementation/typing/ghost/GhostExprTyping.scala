@@ -222,6 +222,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case Single(_: MathMapT | _: MapT) => isExpr(exp).out
           case t => error(expr, s"expected a map, but got $t")
         }
+        case PMathMapConversion(op) => underlyingType(exprType(op)) match {
+          case Single(_: MapT) => isExpr(op).out
+          case t => error(expr, s"expected a map, but got a $t")
+        }
       }
     }
 
@@ -332,6 +336,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case Single(t: MathMapT) => SetT(t.elem)
           case Single(t: MapT) => SetT(t.elem)
           case t => violation(s"expected a map, but got $t")
+        }
+        case PMathMapConversion(op) => underlyingType(exprType(op)) match {
+          case MapT(k, v) => MathMapT(k, v)
+          case t => violation(s"expected a sequence, set, multiset or option type, but got $t")
         }
       }
     }
@@ -463,6 +471,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PGhostCollectionUpdate(seq, clauses) => go(seq) && clauses.forall(isPureGhostColUpdClause)
         case PMapKeys(exp) => go(exp)
         case PMapValues(exp) => go(exp)
+        case PMathMapConversion(exp) => go(exp)
       }
 
       case _: PAccess | _: PPredicateAccess => !strong

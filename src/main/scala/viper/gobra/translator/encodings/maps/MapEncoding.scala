@@ -124,6 +124,9 @@ class MapEncoding extends LeafTypeEncoding {
             correspondingMapRange
           ), v)
         } yield res
+
+      case in.MapConversion(exp :: ctx.Map(keys, values)) =>
+        getCorrespondingMap(exp, keys, values)(ctx)
     }
   }
 

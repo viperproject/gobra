@@ -3449,10 +3449,8 @@ object Desugar extends LazyLogging {
         .foreach(AdditionalMembers.addMember)
 
       // Check that the initialization code satisfies the contract of every file in the package.
-      val globalDecls = sortedGlobalVariableDecls(pkgUnderVerification)
-      val fileInitTranslations: Vector[in.Function] = pkgUnderVerification.programs.zip(globalDecls).map {
-        case (p, sortedDecls) => checkProgramInitContract(p)(sortedDecls)
-      }
+      // val globalDecls = sortedGlobalVariableDecls(pkgUnderVerification)
+      val fileInitTranslations: Vector[in.Function] = pkgUnderVerification.programs.map(checkProgramInitContract)
       fileInitTranslations.foreach(AdditionalMembers.addMember)
 
       // Check that all import preconditions of imported packages are implied by those packages'
@@ -3497,25 +3495,23 @@ object Desugar extends LazyLogging {
     // Desugar all declarations of globals in `pkg` to generate the members that correspond to the global variables.
     // Each entry in `pGlobalDecls` contains the declarations of a file in `pkg` sorted by the order in which they
     // appear in the program.
-    private val sortedGlobalVariableDecls: PPackage => Vector[Vector[in.GlobalVarDecl]] =
-      Computation.cachedComputation { pkg =>
-        // the following may only be called once per package, otherwise wildcard identifiers may be desugared multiple
-        // times, leading to different names being generated on different occasions.
-        val pGlobalDecls: Vector[Vector[PVarDecl]] = pkg.programs.map { p =>
-          val unsortedDecls = p.declarations.collect { case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
-          // TODO: this is currently fine, given that we currently require global variable declarations to come after
-          //       the declarations of all of the dependencies of the declared variables. This should be changed when
-          //       we lift this restriction.
-          unsortedDecls.sortBy { decl =>
-            pom.positions.getStart(decl) match {
-              case Some(pos) => (pos.line, pos.column)
-              case None => violation(s"Could not find the position information of node $decl.")
-            }
+    private val sortedGlobalVariableDecls: PProgram => Vector[in.GlobalVarDecl] = Computation.cachedComputation { p =>
+      // the following may only be called once per package, otherwise wildcard identifiers may be desugared multiple
+      // times, leading to different names being generated on different occasions.
+      val unsortedDecls = p.declarations.collect { case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
+      val pGlobalDecls =
+        // TODO: this is currently fine, given that we currently require global variable declarations to come after
+        //       the declarations of all of the dependencies of the declared variables. This should be changed when
+        //       we lift this restriction.
+        unsortedDecls.sortBy { decl =>
+          pom.positions.getStart(decl) match {
+            case Some(pos) => (pos.line, pos.column)
+            case None => violation(s"Could not find the position information of node $decl.")
           }
         }
-        // sorted desugared declarations
-        pGlobalDecls.map(_.map(globalVarDeclD))
-      }
+      // sorted desugared declarations
+      pGlobalDecls.map(globalVarDeclD)
+    }
 
     /**
       * Collects all necessary information necessary to generate the proof obligations related to the initialization
@@ -3527,8 +3523,8 @@ object Desugar extends LazyLogging {
       */
     def registerPkgInitData(pkg: PPackage, initSpecs: PackageInitSpecCollector, isImportedPkg: Boolean): Unit = {
       // register all global variable declarations
-      val globalDecls = sortedGlobalVariableDecls(pkg)
-      globalDecls.flatten.foreach(AdditionalMembers.addMember)
+      val globalDecls = pkg.programs.map(sortedGlobalVariableDecls).flatten
+      globalDecls.foreach(AdditionalMembers.addMember)
 
       // Register import preconditions of the package under verification. We don't store this info for imported
       // packages because we do not check the init proof obligations for imported packages.
@@ -3666,7 +3662,8 @@ object Desugar extends LazyLogging {
       * Thus, it is ok to check the initialization of a package by separately checking the initialization of each of
       * its files.
       */
-    def checkProgramInitContract(p: PProgram)(sortedGlobVarDecls: Vector[in.GlobalVarDecl]): in.Function = {
+    def checkProgramInitContract(p: PProgram): in.Function = {
+      val sortedGlobVarDecls = sortedGlobalVariableDecls(p)
       // all errors found during init are reported in the package clause of the file
       val src = meta(p.packageClause, info)
       val funcProxy = in.FunctionProxy(nm.programInit(p, info))(src)

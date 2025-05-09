@@ -31,20 +31,23 @@ maybeAddressableIdentifierList: maybeAddressableIdentifier (COMMA maybeAddressab
 
 maybeAddressableIdentifier: IDENTIFIER ADDR_MOD?;
 
-// Ghost members
+friendPkgDecl: FRIENDPKG importPath assertion;
 
+// Ghost members
 sourceFile:
-  (initPost eos)* packageClause eos (importDecl eos)* (
+  (pkgInvariant eos)* (initPost eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)* (
     member eos
   )* EOF;
 
 // `preamble` is a second entry point allowing us to parse only the top of a source.
 // That's also why we don not enforce EOF at the end.
-preamble: (initPost eos)* packageClause eos (importDecl eos)*;
+preamble: (pkgInvariant eos)* (initPost eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)*;
 
 initPost: INIT_POST expression;
 
 importPre: IMPORT_PRE expression;
+
+pkgInvariant: DUPLICABLE? PKG_INV assertion;
 
 importSpec: (importPre eos)* alias = (DOT | IDENTIFIER)? importPath;
 
@@ -64,6 +67,7 @@ ghostStatement:
   | fold_stmt=(FOLD | UNFOLD) predicateAccess #foldStatement
   | kind=(ASSUME | ASSERT | REFUTE | INHALE | EXHALE) expression #proofStatement
   | matchStmt #matchStmt_
+  | OPEN_DUP_SINV #pkgInvStatement
   ;
 
 // Auxiliary statements
@@ -172,9 +176,9 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 
 // Specifications
 
-specification returns[boolean trusted = false, boolean pure = false, boolean opaque = false;]:
+specification returns[boolean trusted = false, boolean pure = false, boolean mayInit = false, boolean opaque = false;]:
   // Non-greedily match PURE to avoid missing eos errors.
-  ((specStatement | OPAQUE {$opaque = true;} | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? backendAnnotation?
+  ((specStatement | OPAQUE {$opaque = true;} | PURE {$pure = true;} | MAYINIT {$mayInit = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? backendAnnotation?
   ;
 
 backendAnnotationEntry: ~('('|')'|',')+;

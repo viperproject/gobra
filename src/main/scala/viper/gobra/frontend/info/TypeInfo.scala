@@ -42,4 +42,6 @@ trait TypeInfo extends ExternalTypeInfo {
   def freeDeclared(n: PNode): Vector[PIdnNode]
 
   def capturedLocalVariables(decl: PClosureDecl): Vector[PIdnNode]
+
+  val globalVarDeclsSortedByDeps: PProgram => Vector[PVarDecl]
 }

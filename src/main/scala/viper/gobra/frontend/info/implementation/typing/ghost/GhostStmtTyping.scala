@@ -23,13 +23,18 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case PInhale(exp) => assignableToSpec(exp)
     case PFold(acc) => wellDefFoldable(acc)
     case PUnfold(acc) => wellDefFoldable(acc)
+    case POpenDupPkgInv() =>
+      val occursInInitMember = isEnclosingMayInit(stmt)
+      error(stmt, "Opening the package invariant in a function that may execute during initialization is not allowed.", occursInInitMember)
     case n@PPackageWand(wand, optBlock) => assignableToSpec(wand) ++
       error(n, "ghost error: expected ghostifiable statement", !optBlock.forall(_.isInstanceOf[PGhostifiableStatement]))
     case PApplyWand(wand) => assignableToSpec(wand)
-    case PMatchStatement(exp, clauses, _) => clauses.flatMap(c => c.pattern match {
-      case p: PMatchAdt => assignableTo.errors(miscType(p), exprType(exp))(c)
-      case _ => comparableTypes.errors((miscType(c.pattern), exprType(exp)))(c)
-    }) ++ isPureExpr(exp)
+    case n@PMatchStatement(exp, clauses, _) =>
+      val mayInit = isEnclosingMayInit(n)
+      clauses.flatMap(c => c.pattern match {
+        case p: PMatchAdt => assignableTo.errors(miscType(p), exprType(exp), mayInit)(c)
+        case _ => comparableTypes.errors((miscType(c.pattern), exprType(exp)))(c)
+      }) ++ isPureExpr(exp)
   }
 
   private[typing] def wellDefFoldable(acc: PPredicateAccess): Messages = {

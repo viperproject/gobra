@@ -50,6 +50,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PInterfaceClause => showInterfaceClause(n)
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
     case n: PTerminationMeasure => showTerminationMeasure(n)
+    case n: PPkgInvariant => showPkgInvariant(n)
+    case n: PFriendPkgDecl => showFriend(n)
     case PPos(_) => emptyDoc
   }
 
@@ -61,22 +63,36 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // program
 
   def showProgram(p: PProgram): Doc = p match {
-    case PProgram(packageClause, progPosts, imports, declarations) =>
-      showPreamble(packageClause, progPosts, imports) <>
+    // initPosts not shown, they are deprecated and will soon be removed
+    case PProgram(packageClause, pkgInvs, _, imports, friends, declarations) =>
+      showPreamble(packageClause, pkgInvs, imports, friends) <>
         ssep(declarations map showMember, line <> line) <> line
   }
 
   // preamble
 
   def showPreamble(p: PPreamble): Doc = p match {
-    case PPreamble(packageClause, progPosts, imports, _) =>
-      showPreamble(packageClause, progPosts, imports)
+    // initPosts not shown, they are deprecated and will soon be removed
+    case PPreamble(packageClause, pkgInvs, _, imports, friends, _) =>
+      showPreamble(packageClause, pkgInvs, imports, friends)
   }
 
-  private def showPreamble(packageClause: PPackageClause, progPosts: Vector[PExpression], imports: Vector[PImport]): Doc =
-    vcat(progPosts.map("initEnsures" <+> showExpr(_))) <>
+  private def showPreamble(
+                            packageClause: PPackageClause,
+                            pkgInvs: Vector[PPkgInvariant],
+                            imports: Vector[PImport],
+                            friends: Vector[PFriendPkgDecl]
+                          ): Doc =
+    vcat(pkgInvs.map(showPkgInvariant)) <> line <>
       showPackageClause(packageClause) <> line <> line <>
+      ssep(friends map showFriend, line) <> line <>
       ssep(imports map showImport, line) <> line
+
+  private def showPkgInvariant(inv: PPkgInvariant): Doc = {
+    val dup: Doc = if (inv.duplicable) "dup" else emptyDoc
+    val expr = showExpr(inv.inv)
+    dup <+> "pkgInvariant" <+> expr
+  }
 
   // package
 
@@ -97,6 +113,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PUnqualifiedImport(pkg, pres) =>
         showPres(pres) <> line <> "import" <+> "." <+> pkg
     }
+  }
+
+  // friend pkgs
+  def showFriend(decl: PFriendPkgDecl): Doc = {
+    "friendPkg" <+> decl.path <+> showExpr(decl.assertion)
   }
 
   // members
@@ -130,6 +151,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showPure: Doc = "pure" <> line
   def showOpaque: Doc = "opaque" <> line
   def showTrusted: Doc = "trusted" <> line
+  def showMayInit: Doc = "mayInit" <> line
   def showPre(pre: PExpression): Doc = "requires" <+> showExpr(pre)
   def showPreserves(preserves: PExpression): Doc = "preserves" <+> showExpr(preserves)
   def showPost(post: PExpression): Doc = "ensures" <+> showExpr(post)
@@ -144,10 +166,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, measures, backendAnnotations, isPure, isTrusted, isOpaque) =>
+    case PFunctionSpec(pres, preserves, posts, measures, backendAnnotations, isPure, isTrusted, isOpaque, mayInit) =>
       (if (isPure) showPure else emptyDoc) <>
       (if (isOpaque) showOpaque else emptyDoc) <>
       (if (isTrusted) showTrusted else emptyDoc) <>
+      (if (mayInit) showMayInit else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
       hcat(preserves map (showPreserves(_) <> line)) <>
       hcat(posts map (showPost(_) <> line)) <>
@@ -292,6 +315,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PFold(exp) => "fold" <+> showExpr(exp)
       case PPackageWand(wand, blockOpt) => "package" <+> showExpr(wand) <+> opt(blockOpt)(showStmt)
       case PApplyWand(wand) => "apply" <+> showExpr(wand)
+      case POpenDupPkgInv() => "openDupPkgInv"
       case PMatchStatement(exp, clauses, _) => "match" <+>
         showExpr(exp) <+> block(ssep(clauses map showMatchClauseStatement, line))
     }

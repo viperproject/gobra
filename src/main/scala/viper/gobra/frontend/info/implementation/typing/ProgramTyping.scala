@@ -108,9 +108,10 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
    * expression of A.
    */
   override val globalVarDeclsSortedByDeps: PProgram => Vector[PVarDecl] = { p =>
-    // TODO: currently, we require that all global variable declarations are provided in the dependency order.
-    //  Thus, the results should match the list of variables produced by `globalVarDeclsSortedByPos`.
-    //  This implementation should be changed when we lift this restriction.
+    // Currently, we require that all global variable declarations are provided in the dependency order.
+    // Thus, this implementation is trivial and simply returns the global variable declarations sorted by
+    // their syntactic position. However, a dependency analysis must be performed here once we lift
+    // the restriction that global variables are declared in dependency order.
     val res = globalVarDeclsSortedByPos(p)
     // This assertion may seem redundant, given that it is also performed elsewhere during type-checking. Nonetheless,
     // this guarantees that once the type checking algorithm is extended, we do not forget to update this function.

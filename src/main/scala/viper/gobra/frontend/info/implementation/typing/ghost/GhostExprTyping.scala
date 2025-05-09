@@ -339,7 +339,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         case PMathMapConversion(op) => underlyingType(exprType(op)) match {
           case MapT(k, v) => MathMapT(k, v)
-          case t => violation(s"expected a sequence, set, multiset or option type, but got $t")
+          case t => violation(s"expected a map but got $t")
         }
       }
     }

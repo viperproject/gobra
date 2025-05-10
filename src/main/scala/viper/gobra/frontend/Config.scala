@@ -7,7 +7,7 @@
 package viper.gobra.frontend
 
 import java.io.File
-import java.nio.file.Path
+import java.nio.file.{Path, Paths}
 import ch.qos.logback.classic.Level
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
@@ -22,6 +22,7 @@ import viper.gobra.util.{TaskManagerMode, TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
 import scala.concurrent.duration.Duration
+import scala.util.Right
 import scala.util.matching.Regex
 
 object LoggerDefaults {
@@ -81,29 +82,54 @@ object ConfigDefaults {
   val DefaultEnableExperimentalFriendClauses: Boolean = false
 }
 
+object CliEnumConverter {
+  trait EnumCase {
+    def value: String
+  }
+
+  /** trait for an enum value to configure parsing and serialization of this enum */
+  trait CliEnum[E <: EnumCase] {
+    def values: List[E]
+    def convert(s: String): E = values.find(_.value == s).getOrElse(Violation.violation(s"Unexpected value: $s"))
+  }
+}
+
 // More-complete exhale modes
 object MCE {
-  sealed trait Mode
-  object Disabled extends Mode
+  sealed trait Mode extends CliEnumConverter.EnumCase
+  object Disabled extends Mode {
+    override val value: String = "off"
+  }
   // When running in `OnDemand`, mce will only be enabled when silicon retries a query.
   // More information can be found in https://github.com/viperproject/silicon/pull/682.
-  object OnDemand extends Mode
-  object Enabled extends Mode
+  object OnDemand extends Mode {
+    override val value: String = "od"
+  }
+  object Enabled extends Mode {
+    override val value: String = "on"
+  }
+}
+object MCEConverter extends CliEnumConverter.CliEnum[MCE.Mode] {
+  import MCE._
+  override def values: List[MCE.Mode] = List(Enabled, OnDemand, Disabled)
 }
 
 object MoreJoins {
-  sealed trait Mode {
+  sealed trait Mode extends CliEnumConverter.EnumCase {
     // Option number used by Viper, as described in
     // https://github.com/viperproject/silicon/pull/823
     def viperValue: Int
   }
   object Disabled extends Mode {
+    override val value: String = "off"
     override val viperValue = 0
   }
   object Impure extends Mode {
+    override val value: String = "impure"
     override val viperValue = 1
   }
   object All extends Mode {
+    override val value: String = "all"
     override val viperValue = 2
   }
 
@@ -115,6 +141,17 @@ object MoreJoins {
     }
   }
 }
+object MoreJoinsConverter extends CliEnumConverter.CliEnum[MoreJoins.Mode] {
+  import MoreJoins._
+  override def values: List[MoreJoins.Mode] = List(All, Impure, Disabled)
+}
+
+object ViperBackendConverter extends CliEnumConverter.CliEnum[ViperBackend] {
+  import viper.gobra.backend.ViperBackends._
+  override def values: List[ViperBackend] = List(
+    SiliconBackend, CarbonBackend, ViperServerWithSilicon(), ViperServerWithCarbon())
+}
+
 
 case class Config(
                    gobraDirectory: Path = ConfigDefaults.DefaultGobraDirectory,
@@ -258,6 +295,24 @@ object Config {
 
   val enableLazyImportOptionName = "enableLazyImport"
   val enableLazyImportOptionPrettyPrinted = s"--$enableLazyImportOptionName"
+
+  /**
+    * Parses `args` as CLI options and resolves potential `includeDirs` to `resolveTo` if it's not None.
+    * Inputs in `configString` are optional.
+    */
+  def parseCliArgs(args: List[String], resolveTo: Option[Path]): Either[Vector[VerifierError], Config] = {
+    /** skip checks if we resolve include dirs */
+    val skipIncludeDirChecks = resolveTo.isDefined
+    for {
+      config <- new ScallopGobraConfig(args, isInputOptional = true, skipIncludeDirChecks = skipIncludeDirChecks).config
+      resolvedConfig = resolveTo match {
+        case None => config
+        case Some(p) => config.copy(includeDirs = config.includeDirs.map(
+          // it's important to convert includeDir to a string first as `path` might be a ZipPath and `includeDir` might not
+          includeDir => p.toAbsolutePath.resolve(includeDir.toString)))
+      }
+    } yield resolvedConfig
+  }
 }
 
 // have a look at `Config` to see an inline description of some of these parameters
@@ -448,6 +503,182 @@ case class RecursiveModeConfig(projectRoot: Path = ConfigDefaults.DefaultProject
   }
 }
 
+case class ConfigFileModeConfig(configFile: File) extends RawConfig {
+  // configFile is in the directory of the package we want to verify.
+  // In the same or some parent directory, there's an additional configuration
+  // file listing settings that are common to the entire module.
+
+  private val VerificationJobConfigFilename = "gobra.json"
+  private val ModuleConfigFilename = "gobra-mod.json"
+
+  /** The verification job config is optional */
+  private lazy val verificationJobConfig: Either[Vector[VerifierError], VerificationJobCfg] = {
+    // either `configFile` points to the config file itself or to a directory containing one:
+    if (configFile.exists()) {
+      val jobConfigFile = if (configFile.isFile) {
+        configFile
+      } else {
+        new File(configFile, VerificationJobConfigFilename)
+      }
+      if (jobConfigFile.exists() && jobConfigFile.isFile) {
+        // provide the generic type argument to avoid weird runtime errors even though the
+        // pretends to not need it!
+        GobraJsonConfigHandler
+          .fromJson[VerificationJobCfg](jobConfigFile)
+      } else {
+        Right(VerificationJobCfg())
+      }
+    } else {
+      Left(Vector(ConfigError(s"The provided config path does not exist: ${configFile.getAbsoluteFile.toString}")))
+    }
+  }
+
+  private lazy val moduleConfig: Either[Vector[VerifierError], GobraModuleCfg] = {
+    var searchDirectory = if (configFile.isFile) configFile.getParentFile else configFile
+    var moduleConfigFile: Option[File] = None
+    while (searchDirectory != null) {
+      val potentialModuleConfigFile = new File(searchDirectory, ModuleConfigFilename)
+      if (potentialModuleConfigFile.exists() && potentialModuleConfigFile.isFile) {
+        moduleConfigFile = Some(potentialModuleConfigFile)
+        searchDirectory = null
+      } else {
+        searchDirectory = searchDirectory.getParentFile
+      }
+    }
+    moduleConfigFile match {
+      case Some(file) =>
+        // provide the generic type argument to avoid weird runtime errors even though the
+        // pretends to not need it!
+        GobraJsonConfigHandler
+          .fromJson[GobraModuleCfg](file)
+      case None =>
+        Left(Vector(ConfigError(s"Could not find module configuration file $ModuleConfigFilename in the directory or a parent directory of ${configFile.getAbsoluteFile.toString}")))
+    }
+  }
+
+  private lazy val mergedConfig: Either[Vector[VerifierError], MergedGobraModuleCfg] = (moduleConfig, verificationJobConfig) match {
+    case (Left(moduleErrors), Left(jobErrors)) => Left(moduleErrors ++ jobErrors)
+    case (Left(moduleErrors), _) => Left(moduleErrors)
+    case (_, Left(jobErrors)) => Left(jobErrors)
+    case (Right(moduleCfg), Right(jobCfg)) =>
+      def mergeField[T](fieldSelector: VerificationJobCfg => Option[T]): Option[T] =
+        fieldSelector(jobCfg).orElse(moduleCfg.default_job_cfg.flatMap(fieldSelector(_)))
+      Right(MergedGobraModuleCfg(
+      installation_cfg = moduleCfg.installation_cfg.getOrElse(GobraInstallCfg()),
+      job_cfg = VerificationJobCfg(
+        assume_injectivity_inhale = mergeField(_.assume_injectivity_inhale),
+        backend = mergeField(_.backend),
+        check_consistency = mergeField(_.check_consistency),
+        overflow = mergeField(_.overflow),
+        conditionalize_permissions = mergeField(_.conditionalize_permissions),
+        only_files_with_header = mergeField(_.only_files_with_header),
+        includes = mergeField(_.includes),
+        input_files = mergeField(_.input_files),
+        mce_mode = mergeField(_.mce_mode),
+        module = mergeField(_.module),
+        more_joins = mergeField(_.more_joins),
+        pkg_path = mergeField(_.pkg_path),
+        parallelize_branches = mergeField(_.parallelize_branches),
+        print_vpr = mergeField(_.print_vpr),
+        project_root = mergeField(_.project_root),
+        recursive = mergeField(_.recursive),
+        require_triggers = mergeField(_.require_triggers),
+        // we merge by combining the default and job-specific `other` fields:
+        other = Some(jobCfg.other.getOrElse(List.empty) ++ moduleCfg.default_job_cfg.flatMap(_.other).getOrElse(List.empty)),
+      )
+    ))
+  }
+
+  case class MergedGobraModuleCfg(
+                                   installation_cfg: GobraInstallCfg,
+                                   job_cfg: VerificationJobCfg
+                                 )
+
+  /** `other` field is not considered for creating the base config */
+  override protected def baseConfig: BaseConfig = mergedConfig.map(c => {
+    val logLevel: Level = ConfigDefaults.DefaultLogLevel
+    val debug: Boolean = Level.DEBUG.isGreaterOrEqual(logLevel)
+    BaseConfig(
+      gobraDirectory = ConfigDefaults.DefaultGobraDirectory,
+      moduleName = c.job_cfg.module.getOrElse(ConfigDefaults.DefaultModuleName),
+      includeDirs = c.job_cfg.includes.map(_.map(Paths.get(_))).getOrElse(ConfigDefaults.DefaultIncludeDirs.map(_.toPath)).toVector,
+      reporter = FileWriterReporter(
+        unparse = debug,
+        eraseGhost = false,
+        goify = false,
+        debug = debug,
+        printInternal = debug,
+        printVpr = c.job_cfg.print_vpr.getOrElse(debug),
+        streamErrs = !ConfigDefaults.DefaultNoStreamErrors),
+      backend = c.job_cfg.backend.map(_.underlying),
+      isolate = ConfigDefaults.DefaultIsolate,
+      choppingUpperBound = ConfigDefaults.DefaultChoppingUpperBound,
+      packageTimeout = ConfigDefaults.DefaultPackageTimeout,
+      z3Exe = c.installation_cfg.z3_path.orElse(ConfigDefaults.DefaultZ3Exe),
+      boogieExe = ConfigDefaults.DefaultBoogieExe,
+      logLevel = logLevel,
+      cacheFile = ConfigDefaults.DefaultCacheFile.map(_.toPath),
+      shouldParseOnly = ConfigDefaults.DefaultParseOnly,
+      stopAfterEncoding = ConfigDefaults.DefaultStopAfterEncoding,
+      checkOverflows = c.job_cfg.overflow.getOrElse(ConfigDefaults.DefaultCheckOverflows),
+      checkConsistency = c.job_cfg.check_consistency.getOrElse(ConfigDefaults.DefaultCheckConsistency),
+      int32bit = ConfigDefaults.DefaultInt32bit,
+      cacheParserAndTypeChecker = ConfigDefaults.DefaultCacheParserAndTypeChecker,
+      onlyFilesWithHeader = c.job_cfg.only_files_with_header.getOrElse(ConfigDefaults.DefaultOnlyFilesWithHeader),
+      assumeInjectivityOnInhale = c.job_cfg.assume_injectivity_inhale.getOrElse(ConfigDefaults.DefaultAssumeInjectivityOnInhale),
+      parallelizeBranches = c.job_cfg.parallelize_branches.getOrElse(ConfigDefaults.DefaultParallelizeBranches),
+      conditionalizePermissions = c.job_cfg.conditionalize_permissions.getOrElse(ConfigDefaults.DefaultConditionalizePermissions),
+      z3APIMode = ConfigDefaults.DefaultZ3APIMode,
+      disableNL = ConfigDefaults.DefaultDisableNL,
+      mceMode = c.job_cfg.mce_mode.getOrElse(ConfigDefaults.DefaultMCEMode),
+      enableLazyImports = ConfigDefaults.DefaultEnableLazyImports,
+      noVerify = ConfigDefaults.DefaultNoVerify,
+      noStreamErrors = ConfigDefaults.DefaultNoStreamErrors,
+      parseAndTypeCheckMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
+      requireTriggers = c.job_cfg.require_triggers.getOrElse(ConfigDefaults.DefaultRequireTriggers),
+      disableSetAxiomatization = ConfigDefaults.DefaultDisableSetAxiomatization,
+      disableCheckTerminationPureFns = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
+      unsafeWildcardOptimization = ConfigDefaults.DefaultUnsafeWildcardOptimization,
+      moreJoins = c.job_cfg.more_joins.getOrElse(ConfigDefaults.DefaultMoreJoins),
+      respectFunctionPrePermAmounts = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
+    )
+  }).getOrElse(BaseConfig())
+
+  override lazy val config: Either[Vector[VerifierError], Config] = {
+    for {
+      mergedConfig <- mergedConfig
+      config <- (mergedConfig.job_cfg.input_files, mergedConfig.job_cfg.recursive) match {
+        case (Some(inputFiles), _) => FileModeConfig(inputFiles.map(Paths.get(_)).toVector, baseConfig).config
+        case (None, Some(true)) => RecursiveModeConfig(
+          projectRoot = mergedConfig.job_cfg.project_root.map(Paths.get(_)).getOrElse(ConfigDefaults.DefaultProjectRoot.toPath),
+          includePackages = mergedConfig.job_cfg.includes.getOrElse(ConfigDefaults.DefaultIncludePackages),
+          excludePackages = ConfigDefaults.DefaultExcludePackages,
+          baseConfig = baseConfig,
+        ).config
+        case (None, _) =>
+          // we use the provide `configFile` (which either points to a directory or a config file) to
+          // determine which package to verify
+          val pathToDirectory = (if (configFile.isDirectory) configFile else configFile.getParentFile).toPath
+          PackageModeConfig(
+            projectRoot = mergedConfig.job_cfg.project_root.map(Paths.get(_)).getOrElse(ConfigDefaults.DefaultProjectRoot.toPath),
+            inputDirectories = Vector(pathToDirectory),
+            baseConfig = baseConfig,
+          ).config
+      }
+      otherArgs = mergedConfig.job_cfg.other.getOrElse(List.empty)
+      otherConfig <- if (otherArgs.isEmpty) Right(None)
+        else {
+          // at this point, we do not know anymore from which config file these arguments come from.
+          // Thus, we do not resolve potential paths.
+          Config.parseCliArgs(otherArgs, None).map(Some(_))
+        }
+    } yield otherConfig match {
+      case None => config
+      case Some(o) => config.merge(o)
+    }
+  }
+}
+
 /**
   * This represents Gobra's CLI interface.
   * The idea is to just perform the necessary validations to convert the inputs into a `RawConfig`.
@@ -495,6 +726,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
        | Note that --include <directories> is unrelated to the modes above and controls how ${GoVerifier.name} resolves
        | package imports.
        |
+       | Mode 4 (--config):
+       |  Instructs Gobra to read all configuration options from the provided JSON file.
        |
        | Options:
        |""".stripMargin
@@ -535,6 +768,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = "recursive",
     descr = "Verify nested packages recursively",
     short = 'r'
+  )
+
+  val configFile:  ScallopOption[File] = opt[File](
+    name = "config",
+    descr = "Reads all configuration options from the provided JSON file.",
+    noshort = true
   )
 
   val projectRoot: ScallopOption[File] = opt[File](
@@ -580,18 +819,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
 
   val backend: ScallopOption[ViperBackend] = choice(
-    choices = Seq("SILICON", "CARBON", "VSWITHSILICON", "VSWITHCARBON"),
+    choices = ViperBackendConverter.values.map(_.value),
     name = "backend",
-    descr = "Specifies the used Viper backend. The default is SILICON.",
+    descr = s"Specifies the used Viper backend. The default is ${ConfigDefaults.DefaultBackend.value}.",
     default = None,
     noshort = true
-  ).map{
-    case "SILICON" => ViperBackends.SiliconBackend
-    case "CARBON" => ViperBackends.CarbonBackend
-    case "VSWITHSILICON" => ViperBackends.ViperServerWithSilicon()
-    case "VSWITHCARBON" => ViperBackends.ViperServerWithCarbon()
-    case s => Violation.violation(s"Unexpected backend option $s")
-  }
+  ).map(ViperBackendConverter.convert)
 
   val debug: ScallopOption[Boolean] = opt[Boolean](
     name = "debug",
@@ -762,39 +995,23 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   )
 
   val moreJoins: ScallopOption[MoreJoins.Mode] = {
-    val all = "all"
-    val impure = "impure"
-    val off = "off"
     choice(
-      choices = Seq("all", "impure", "off"),
+      choices = MoreJoinsConverter.values.map(_.value),
       name = "moreJoins",
-      descr = s"Specifies if silicon should be run with more joins completely enabled ($all), disabled ($off), or only for impure conditionals ($impure).",
-      default = Some(off),
+      descr = s"Specifies if silicon should be run with more joins completely enabled (${MoreJoins.All.value}), disabled (${MoreJoins.Disabled.value}), or only for impure conditionals (${MoreJoins.Impure.value}).",
+      default = Some(ConfigDefaults.DefaultMoreJoins.value),
       noshort = true
-    ).map {
-      case `all` => MoreJoins.All
-      case `off` => MoreJoins.Disabled
-      case `impure` => MoreJoins.Impure
-      case s => Violation.violation(s"Unexpected mode for moreJoins: $s")
-    }
+    ).map(MoreJoinsConverter.convert)
   }
 
   val mceMode: ScallopOption[MCE.Mode] = {
-    val on = "on"
-    val off = "off"
-    val od = "od"
     choice(
-      choices = Seq("on", "off", "od"),
+      choices = MCEConverter.values.map(_.value),
       name = "mceMode",
-      descr = s"Specifies if silicon should be run with more complete exhale enabled ($on), disabled ($off), or enabled on demand ($od).",
-      default = Some(on),
+      descr = s"Specifies if silicon should be run with more complete exhale enabled (${MCE.Enabled.value}), disabled (${MCE.Disabled.value}), or enabled on demand (${MCE.OnDemand.value}).",
+      default = Some(ConfigDefaults.DefaultMCEMode.value),
       noshort = true
-    ).map{
-      case `on` => MCE.Enabled
-      case `off` => MCE.Disabled
-      case `od` => MCE.OnDemand
-      case s => Violation.violation(s"Unexpected mode for more complete exhale: $s")
-    }
+    ).map(MCEConverter.convert)
   }
 
   val respectFunctionPrePermAmounts: ScallopOption[Boolean] = toggle(
@@ -877,17 +1094,23 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   /** Argument Dependencies */
   if (isInputOptional) {
-    mutuallyExclusive(input, directory, recursive)
+    mutuallyExclusive(input, directory, recursive, configFile)
   } else {
     // either `input`, `directory` or `recursive` must be provided but not both.
     // this also checks that at least one file or directory is provided in the case of `input` and `directory`.
-    requireOne(input, directory, recursive)
+    requireOne(input, directory, recursive, configFile)
   }
 
   // `inclPackages` and `exclPackages` only make sense when `recursive` is specified, `projectRoot` can only be used in `directory` or `recursive` mode.
   // Thus, we restrict their use:
   conflicts(input, List(projectRoot, inclPackages, exclPackages))
   conflicts(directory, List(inclPackages, exclPackages))
+  // to check that no further config options get provided when using `configFile`, we have to use reflection to obtain
+  // all ScallopOptions as Scallop does not seem to provide any built-in functionality to achieve the same:
+  val allOptions = getClass.getDeclaredFields
+    .map(_.get(this)) // get field value
+    .collect { case o: ScallopOption[_] => o } // filter by ScallopOption
+  conflicts(configFile, allOptions.toList.filterNot(_ == configFile))
 
   // must be a function or lazy to guarantee that this value is computed only during the CLI options validation and not before.
   private def isSiliconBasedBackend = backend.toOption.getOrElse(ConfigDefaults.DefaultBackend) match {
@@ -986,6 +1209,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   validateFilesIsFile(cutInput)
   validateFilesExist(directory)
   validateFilesIsDirectory(directory)
+  validateFileExists(configFile) // either points to a directory containing a package or a config file
   validateFileExists(projectRoot)
   validateFileIsDirectory(projectRoot)
   if (!skipIncludeDirChecks) {
@@ -999,12 +1223,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   // note that we use `recursive.isSupplied` instead of `recursive.toOption` because it defaults to `Some(false)` if it
   // was not provided by the user. Specifying a different default value does not seem to be respected.
-  private lazy val rawConfig: RawConfig = (cutInputWithIdxs.toOption, directory.toOption, recursive.isSupplied) match {
-    case (Some(inputsWithIdxs), None, false) => fileModeConfig(inputsWithIdxs)
-    case (None, Some(dirs), false) => packageModeConfig(dirs)
-    case (None, None, true) => recursiveModeConfig()
-    case (None, None, false) =>
-      Violation.violation(isInputOptional, "the configuration mode should be one of file, package or recursive unless inputs are optional")
+  private lazy val rawConfig: RawConfig = (configFile.toOption, cutInputWithIdxs.toOption, directory.toOption, recursive.isSupplied) match {
+    case (Some(cf), _, _, _) => configFileModeConfig(cf)
+    case (None, Some(inputsWithIdxs), None, false) => fileModeConfig(inputsWithIdxs)
+    case (None, None, Some(dirs), false) => packageModeConfig(dirs)
+    case (None, None, None, true) => recursiveModeConfig()
+    case (None, None, None, false) =>
+      Violation.violation(isInputOptional, "the configuration mode should be one of file, package, recursive or config unless inputs are optional")
       noInputModeConfig()
     case _ => Violation.violation(s"multiple modes have been found, which should have been caught by input validation")
   }
@@ -1031,6 +1256,9 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     // we currently do not offer a way via CLI to pass isolate information to Gobra in the recursive mode
     baseConfig(ConfigDefaults.DefaultIsolate),
   )
+
+  private def configFileModeConfig(configFile: File): RawConfig =
+    ConfigFileModeConfig(configFile)
 
   private def noInputModeConfig(): NoInputModeConfig = NoInputModeConfig(
     // we currently do not offer a way via CLI to pass isolate information to Gobra in the recursive mode

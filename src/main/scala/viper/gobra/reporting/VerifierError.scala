@@ -505,7 +505,7 @@ case class TerminationConditionFalseError(info: Source.Verifier.Info) extends Ve
 
 case class ImplMeasureHigherThanInterfaceReason(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "term_measure_impl_higher_than_interface"
-  override def message: String = s"The termination measures of this method might exceed the termination measure of the corresponding method in interface."
+  override def message: String = s"The termination measure of this method might exceed the termination measure of the corresponding method in interface."
 }
 
 case class TupleConditionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {

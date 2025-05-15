@@ -10,6 +10,7 @@ type I interface {
 
 type S struct{}
 
+//:: ExpectedOutput(function_termination_error)
 decreases 1
 func (s *S) m() {
 	var i I = new(S)

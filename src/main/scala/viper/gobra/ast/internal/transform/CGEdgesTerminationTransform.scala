@@ -6,6 +6,9 @@
 
 package viper.gobra.ast.internal.transform
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.Source
+import viper.gobra.reporting.Source.InvalidImplTermMeasureAnnotation
+import viper.gobra.reporting.Source.Parser.Single
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation
 
@@ -38,24 +41,36 @@ object CGEdgesTerminationTransform extends InternalTransform {
             case proxy: in.MethodProxy =>
               table.lookup(proxy) match {
                 /**
-                  * Transforms the abstract methods from interface declarations into non-abstract methods containing calls
-                  * to all implementations' corresponding methods. The new body has the form
+                  * Transforms the abstract method M with parameters params from the
+                  * declaration of an interface I into a non-abstract method containing calls to all
+                  * implementations' corresponding methods. The new body has the form
                   *   {
-                  *     assume false
                   *     if typeOf(recv) == impl1 {
-                  *       call implementation method from impl1 on recv.(impl1)
+                  *       Mimpl1_TerminationWrapper(recv, params)
                   *     }
                   *     if typeOf(recv) == impl2 {
-                  *       call implementation method from impl2 on recv.(impl2)
+                  *       Mimpl2_TerminationWrapper(recv, params)
                   *     }
                   *     ...
                   *     if typeOf(recv) == implN {
-                  *       call implementation method from implN on recv.(implN)
+                  *       Mimpl3_TerminationWrapper(recv, params)
                   *     }
                   *   }
+                  *
+                  * Each method MimplI_TerminationWrapper(recv) is implemented as follows:
+                  *   method MimplI_TerminationWrapper(recv I, params)
+                  *     decreases terminationMeasure for implI.M
+                  *   {
+                  *     assume false
+                  *     // TODO
+                  *     // this call closes the loop between the method implementation
+                  *     call implementation method from implI on recv.(implI)
+                  *   }
                   */
+
+                // TODO: explain wrapper - to not report duplicated verification errors in pres
                 case m: in.Method if m.terminationMeasures.nonEmpty && m.receiver.typ == t =>
-                  // The restriction `m.receiver.typ` ensures that the member with the addtional call-graph edges
+                  // The restriction `m.receiver.typ` ensures that the member with the additional call-graph edges
                   // is only generated once, when looking at the original definition of the method (and not, for
                   // example, when looking at an embedding of the method).
 
@@ -66,15 +81,50 @@ object CGEdgesTerminationTransform extends InternalTransform {
                     table.lookup(subT, proxy.name).toVector.map {
 
                       case implProxy: in.MethodProxy if !subT.isInstanceOf[in.InterfaceT] =>
+                        val implMethod = table.lookup(implProxy).asInstanceOf[in.Method]
+                        val implTermMeasureSrc =
+                          annotateWithTerminationError(implMethod.terminationMeasures.headOption.map(_.info).getOrElse(implMethod.info))
+                        val uniqueName = "term$wrapper$" + s"${m.name.uniqueName}" + "$" + s"${implMethod.name.uniqueName}"
+                        val wrapperMethod: in.Method = in.Method(
+                          receiver = m.receiver,
+                          name = in.MethodProxy(uniqueName, uniqueName)(src),
+                          args = m.args,
+                          results = Vector.empty,
+                          pres = Vector.empty,
+                          posts = Vector.empty,
+                          // todo: explain why this termination measure comes from impl
+                          terminationMeasures = implMethod.terminationMeasures,
+                          backendAnnotations = Vector.empty,
+                          body = Some(
+                            in.MethodBody(
+                              decls = Vector.empty,
+                              seqn = in.MethodBodySeqn(
+                                Vector(
+                                  assumeFalse,
+                                  in.MethodCall(
+                                    m.results map parameterAsLocalValVar,
+                                    in.TypeAssertion(m.receiver, subT)(src),
+                                    implProxy,
+                                    m.args
+                                  )(src),
+                                )
+                              )(src),
+                              postprocessing = Vector.empty
+                            )(src)
+                          )
+                        )(src)
+                        // TODO: move this somewhere else
+                        methodsToAdd += wrapperMethod
                         // looking at a concrete implementation of the method
                         in.If(
                           in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(subT)(src))(src),
                           in.Seqn(Vector(
                             in.MethodCall(
                               m.results map parameterAsLocalValVar,
-                              in.TypeAssertion(m.receiver, subT)(src),
-                              implProxy, m.args
-                            )(src),
+                              m.receiver,
+                              wrapperMethod.name,
+                              m.args
+                            )(implTermMeasureSrc),
                             in.Return()(src)
                           ))(src),
                           in.Seqn(Vector())(src)
@@ -99,7 +149,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   val newBody = {
                     in.Block(
                       decls = Vector.empty,
-                      stmts = assumeFalse +: optCallsToImpls
+                      stmts = /* assumeFalse +: */ optCallsToImpls
                     )(src)
                   }
                   val newMember = in.Method(m.receiver, m.name, m.args, m.results, m.pres, m.posts, m.terminationMeasures, Vector.empty, Some(newBody.toMethodBody))(src)
@@ -243,6 +293,14 @@ object CGEdgesTerminationTransform extends InternalTransform {
       case in.StructT(fields: Vector[in.Field], _, _) =>
         in.StructTExpr(fields.map(field => (field.name, typeAsExpr(field.typ)(src), field.ghost)))(src)
       case _ => Violation.violation(s"no corresponding type expression matched: $t")
+    }
+  }
+
+  private def annotateWithTerminationError(info: Source.Parser.Info): Source.Parser.Info = {
+    info match {
+      case s: Single =>
+        s.createAnnotatedInfo(InvalidImplTermMeasureAnnotation())
+      case i => i
     }
   }
 }

@@ -50,16 +50,25 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   *     if typeOf(recv) == impl1 {
                   *       assume (not inhale!) precondition of method from impl1 on recv.(impl1)
                   *       call implementation method from impl1 on recv.(impl1)
+                  *       assume false // skip proof of postcondition
+                  *       // These early returns may be useful to terminate branches early,
+                  *       // instead of allowing them to go over all other if statements.
+                  *       return
                   *     }
                   *     if typeOf(recv) == impl2 {
                   *       assume (not inhale!) precondition of method from impl2 on recv.(impl2)
                   *       call implementation method from impl2 on recv.(impl2)
+                  *       assume false // skip proof of postcondition
+                  *       return
                   *     }
                   *     ...
                   *     if typeOf(recv) == implN {
                   *       assume (not inhale!) precondition of method from implN on recv.(implN)
                   *       call implementation method from implN on recv.(implN)
+                  *       assume false // skip proof of postcondition
+                  *       return
                   *     }
+                  *     assume false // skip proof of postcondition
                   *   }
                   *
                   *  The (impure) assumption of the precondition of each implementation of method m is introduced to
@@ -74,6 +83,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
 
                   // only performs transformation if method has termination measures
                   val src = m.info
+                  val assumeFalse = in.Assume(in.ExprAssertion(in.BoolLit(b = false)(src))(src))(src)
                   val optCallsToImpls = implementations.toVector.flatMap { subT: in.Type =>
                     table.lookup(subT, proxy.name).toVector.map {
 
@@ -104,6 +114,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                               implProxy,
                               m.args
                             )(annotatedSrc),
+                            assumeFalse,
                             in.Return()(src)
                           ))(src),
                           in.Seqn(Vector())(src)
@@ -125,7 +136,8 @@ object CGEdgesTerminationTransform extends InternalTransform {
 
                     }
                   }
-                  val newBody = in.Block(decls = Vector.empty, stmts = optCallsToImpls)(src)
+                  val stmts = optCallsToImpls :+ assumeFalse
+                  val newBody = in.Block(decls = Vector.empty, stmts = stmts)(src)
                   val newMember = in.Method(m.receiver, m.name, m.args, m.results, m.pres, m.posts, m.terminationMeasures, Vector.empty, Some(newBody.toMethodBody))(src)
                   methodsToRemove += m
                   methodsToAdd += newMember

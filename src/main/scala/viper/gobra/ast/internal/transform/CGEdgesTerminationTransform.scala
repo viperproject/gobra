@@ -6,6 +6,9 @@
 
 package viper.gobra.ast.internal.transform
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.Source
+import viper.gobra.reporting.Source.InvalidImplTermMeasureAnnotation
+import viper.gobra.reporting.Source.Parser.Single
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation
 
@@ -38,23 +41,31 @@ object CGEdgesTerminationTransform extends InternalTransform {
             case proxy: in.MethodProxy =>
               table.lookup(proxy) match {
                 /**
-                  * Transforms the abstract methods from interface declarations into non-abstract methods containing calls
-                  * to all implementations' corresponding methods. The new body has the form
+                  * Transforms the abstract method `m` from an interface declaration into a non-abstract method
+                  * containing calls to all implementations' corresponding methods. This transformation introduces
+                  * an edge in the call graph from the interface methods to its implementations, which allows the
+                  * termination plugin of Viper to identify non-terminating recursion caused by calling interface methods
+                  * from interface implementations. The new body has the form
                   *   {
                   *     if typeOf(recv) == impl1 {
-                  *     TODO
-                  *       assume precondition of method from impl1 on recv.(impl1) to avoid errors related to
-                  *           precondition not holding. The fact that the precondition holds should be verified in TODO
+                  *       assume (not inhale!) precondition of method from impl1 on recv.(impl1)
                   *       call implementation method from impl1 on recv.(impl1)
                   *     }
                   *     if typeOf(recv) == impl2 {
+                  *       assume (not inhale!) precondition of method from impl2 on recv.(impl2)
                   *       call implementation method from impl2 on recv.(impl2)
                   *     }
                   *     ...
                   *     if typeOf(recv) == implN {
+                  *       assume (not inhale!) precondition of method from implN on recv.(implN)
                   *       call implementation method from implN on recv.(implN)
                   *     }
                   *   }
+                  *
+                  *  The (impure) assumption of the precondition of each implementation of method m is introduced to
+                  *  avoid reporting errors that are caused by the precondition of the implementation not being implied
+                  *  by the precondition of the method specification in the interface declaration. These errors are
+                  *  already reported by the implementation proofs, and there is no need to replicate them.
                   */
                 case m: in.Method if m.terminationMeasures.nonEmpty && m.receiver.typ == t =>
                   // The restriction `m.receiver.typ` ensures that the member with the addtional call-graph edges
@@ -67,10 +78,12 @@ object CGEdgesTerminationTransform extends InternalTransform {
                     table.lookup(subT, proxy.name).toVector.map {
 
                       case implProxy: in.MethodProxy if !subT.isInstanceOf[in.InterfaceT] =>
-                        val (implMethRecv, implMethArgs, implMethPres) = table.lookup(implProxy) match {
-                          case m: in.MethodMember => (m.receiver, m.args, m.pres)
-                          case _: in.BuiltInMethod =>
-                            Violation.violation("TODO")
+                        val (implMethRecv, implMethArgs, implMethPres, implMethTerm) = table.lookup(implProxy) match {
+                          case m: in.MethodMember =>
+                            (m.receiver, m.args, m.pres, m.terminationMeasures)
+                          case m: in.BuiltInMethod =>
+                            // currently, we are not able to extract the necessary pieces of information from a BuiltInMethod
+                            Violation.violation(s"Unexpected member $m found.")
                         }
                         val substs: Map[in.Parameter.In, in.Expr] =
                           implMethArgs
@@ -78,16 +91,19 @@ object CGEdgesTerminationTransform extends InternalTransform {
                             .updated(implMethRecv, in.TypeAssertion(m.receiver, subT)(src))
                         val presToAssume = implMethPres.map(_.replace(substs))
                         val assumesImplPres = presToAssume.map[in.Stmt](in.Assume(_)(src))
+                        val annotatedSrc = annotateWithTerminationError(implMethTerm.headOption.map(_.info).getOrElse(src))
                         // looking at a concrete implementation of the method
                         in.If(
                           in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(subT)(src))(src),
                           in.Seqn(assumesImplPres ++ Vector[in.Stmt](
+                            // we annotate this method call with annotatedSrc so that termination errors are reported
+                            // at the termination measure of the method implementation.
                             in.MethodCall(
                               m.results map parameterAsLocalValVar,
                               in.TypeAssertion(m.receiver, subT)(src),
                               implProxy,
                               m.args
-                            )(src),
+                            )(annotatedSrc),
                             in.Return()(src)
                           ))(src),
                           in.Seqn(Vector())(src)
@@ -252,5 +268,10 @@ object CGEdgesTerminationTransform extends InternalTransform {
         in.StructTExpr(fields.map(field => (field.name, typeAsExpr(field.typ)(src), field.ghost)))(src)
       case _ => Violation.violation(s"no corresponding type expression matched: $t")
     }
+  }
+
+  private def annotateWithTerminationError(info: Source.Parser.Info): Source.Parser.Info = info match {
+    case s: Single => s.createAnnotatedInfo(InvalidImplTermMeasureAnnotation())
+    case i => i
   }
 }

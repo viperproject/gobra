@@ -64,8 +64,6 @@ decreases n
 func(y IsEvenImpl) isEven(n int) bool {
 	if n == 0 {
 		return true
-	} else if n == 1 {
-	    return false
 	} else {
 		var y IsOdd = IsOddImpl{}
 		return y.isOdd(n-1)
@@ -79,8 +77,6 @@ decreases n
 func (y IsOddImpl) isOdd(n int) bool {
 	if n == 0 {
 		return true
-	} else if n == 1 {
-	    return false
 	} else {
 		var y IsEven = IsEvenImpl{}
 		return y.isEven(n-1)

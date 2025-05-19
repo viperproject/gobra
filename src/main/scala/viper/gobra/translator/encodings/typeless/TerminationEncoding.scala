@@ -18,23 +18,25 @@ import viper.silver.{ast => vpr}
 class TerminationEncoding extends Encoding {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
+  import viper.silver.plugin.standard.adt
 
+  // TODO: adapt, call the right constructor
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
     case measure: in.TerminationMeasure =>
       val (pos, info, errT) = measure.vprMeta
       measure match {
-        case in.TupleTerminationMeasure(vector, cond) =>
+        case t: in.TupleTerminationMeasure =>
           for {
-            c <- option(cond map ctx.expression)
-            v <- sequence(vector.map {
+            c <- option(t.cond map ctx.expression)
+            v <- sequence(t.tuple.map {
               case e: in.Expr => ctx.expression(e)
               case p: in.Access => predicateInstance(p)(ctx)
               case _ => violation("invalid tuple measure argument")
             })
           } yield termination.DecreasesTuple(v, c)(pos, info, errT)
-        case in.WildcardMeasure(cond) =>
+        case m: in.WildcardMeasure =>
           for {
-            c <- option(cond map ctx.expression)
+            c <- option(m.cond map ctx.expression)
           } yield termination.DecreasesWildcard(c)(pos, info, errT)
       }
   }
@@ -45,5 +47,29 @@ class TerminationEncoding extends Encoding {
       v <- ctx.assertion(x)
       pap = v.asInstanceOf[vpr.PredicateAccessPredicate]
     } yield predicateinstance.PredicateInstance(pap.loc.predicateName, pap.loc.args)(pos, info, errT)
+  }
+
+  val typeVar = vpr.TypeVar("T")
+  val termPairADTType = adt.AdtType(
+    adtName = "TerminationPair",
+    partialTypVarsMap = Map(typeVar -> typeVar),
+  )(typeParameters = Seq[vpr.TypeVar](typeVar))
+  val terminationMeasureAdt = adt.Adt(
+    name = "TerminationPair",
+    constructors = Seq(
+      adt.AdtConstructor(
+        name = "TermPair",
+        formalArgs = Seq(
+          vpr.LocalVarDecl("pos1", typeVar)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos),
+          vpr.LocalVarDecl("pos2", vpr.Bool)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+        ),
+      )(vpr.NoPosition, vpr.NoInfo, termPairADTType, termPairADTType.adtName, vpr.NoTrafos)
+    ),
+    derivingInfo = Map.empty,
+  )(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+
+
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    addMemberFn(terminationMeasureAdt)
   }
 }

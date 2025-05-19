@@ -186,7 +186,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
 
                   // the fallback function is called if no comparison succeeds
                   val fallbackProxy = Names.InterfaceMethod.copy(m.name, "fallback")
-                  val fallbackTermMeasures = Vector(in.WildcardMeasure(None)(src))
+                  val fallbackTermMeasures = Vector(in.NonItfMethodWildcardMeasure(None)(src))
                   val fallbackFunction = m.copy(name = fallbackProxy, terminationMeasures = fallbackTermMeasures, body = None)(src)
 
                   // new body to check termination

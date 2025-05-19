@@ -25,7 +25,7 @@ func(x FactEvenImpl) factEven(v int) int {
 	} else if v == 1 {
 	    return 1
 	} else {
-		var y FactOddImpl = FactOddImpl{}
+		var y FactOdd = FactOddImpl{}
 		return v * y.factOdd(v-1)
 	}
 }
@@ -82,7 +82,7 @@ func (y IsOddImpl) isOdd(n int) bool {
 	} else if n == 1 {
 	    return false
 	} else {
-		var y IsEvenImpl = IsEvenImpl{}
+		var y IsEven = IsEvenImpl{}
 		return y.isEven(n-1)
 	}
 }

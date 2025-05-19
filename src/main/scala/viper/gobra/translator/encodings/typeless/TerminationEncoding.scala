@@ -77,7 +77,7 @@ class TerminationEncoding extends Encoding {
   )(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
 
   // TODO: doc
-  private val wfOrderDomain = "WellFoundedOrder"
+  private val wfOrderDomainName = "WellFoundedOrder"
   private val termDomainWFOrderName = domainName + "WellFoundedOrder"
   private val termDomainWFOrder = vpr.Domain(
     name = termDomainWFOrderName,
@@ -89,7 +89,7 @@ class TerminationEncoding extends Encoding {
           funcname = "decreasing",
           args = Seq(nonItfMethodApp, itfMethodApp),
           typVarMap = Map(vpr.TypeVar("T") -> vpr.DomainType(termDomain, Map.empty))
-        )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomain, vpr.NoTrafos)
+        )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomainName, vpr.NoTrafos)
       )(domainName = termDomainWFOrderName),
       // bounded(nonItfMethod)
       vpr.AnonymousDomainAxiom(
@@ -97,7 +97,7 @@ class TerminationEncoding extends Encoding {
           funcname = "bounded",
           args = Seq(nonItfMethodApp),
           typVarMap = Map(vpr.TypeVar("T") -> vpr.DomainType(termDomain, Map.empty))
-        )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomain, vpr.NoTrafos)
+        )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomainName, vpr.NoTrafos)
       )(domainName = termDomainWFOrderName),
       // bounded(itfMethod)
       vpr.AnonymousDomainAxiom(
@@ -105,7 +105,7 @@ class TerminationEncoding extends Encoding {
           funcname = "bounded",
           args = Seq(itfMethodApp),
           typVarMap = Map(vpr.TypeVar("T") -> vpr.DomainType(termDomain, Map.empty))
-        )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomain, vpr.NoTrafos)
+        )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomainName, vpr.NoTrafos)
       )(domainName = termDomainWFOrderName)
 
     ),

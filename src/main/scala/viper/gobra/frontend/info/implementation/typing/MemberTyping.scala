@@ -6,7 +6,8 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, warning, noMessages}
+import viper.gobra.GoVerifier
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.MPredicateSpec
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -20,13 +21,92 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case member: PGhostMember  => wellDefGhostMember(member)
   }
 
+  // Find all unnamed parameters
+  private def unnamedReturnParameters(n: PFunctionDecl): Messages = {
+    n.result.outs.collect {
+      case p: PUnnamedParameter => p
+    }.flatMap { p =>
+      warning(p,
+        s"Output parameter not constrained by the function postcondition.")
+    }
+  }
+
+  // Find all named parameters that do not appear in the postcondition
+  private def unconstrainedReturnParameters(n: PFunctionDecl): Messages = {
+    val parameterNames = n.spec.posts.flatMap {
+      allChildren(_).collect {
+        case PNamedOperand(id) => id.name
+      }
+    }
+    n.result.outs.collect {
+      case p: PNamedParameter if !parameterNames.contains(p.id.name) => p
+    }.flatMap { p =>
+      warning(p,
+        s"Output parameter '${p.id.name}' does not appear in function" +
+          s" '${n.id.name}' postcondition, and might thus be unconstrained.")
+    }
+  }
+
+  private def findReferencesOutsideOld(expr: PExpression): Vector[PNamedOperand] = expr match {
+    case POld(_) => Vector.empty
+    case PAccess(_, _) => Vector.empty
+    case p @ PNamedOperand(_) => Vector(p)
+    case _ =>
+      children(expr).collect { case e: PExpression => e }
+        .flatMap(e => findReferencesOutsideOld(e))
+  }
+
+  private def isVariableFixed(p: PExpression): Boolean = {
+    p match {
+      case o: PNamedOperand => true
+      case ...
+    }
+  }
+
+  // Find all wildcards perms in postcondition
+  private def wildcardsPerm(n: PFunctionDecl): Messages = {
+    // 1. We have a wildcard pointer access in the precond.
+    // FIXME: collect first expressions, then filter for the ones that vary over time
+    val extractId: PartialFunction[PExpression, PExpression] = {
+      // FIXME: should be conditional on whether p is fixed or not
+      case PAccess(p, PWildcardPerm()) if isVariableFixed(p) => p
+      // case PAccess(p @ PNamedOperand(_), PWildcardPerm())         => p
+      //case _ @ PAccess(PReference(p), PWildcardPerm()) => p
+      // FIXME: &s.f is PBoolLit and PDot, should I check for this?
+    }
+    // FIXME: ...
+    val presParamsWithWildcardAccess =
+      n.spec.pres.collect {
+          extractId
+      }
+    // println(paramsWithWildcardAccess.map(_.getClass.getName).mkString(", "))
+    // 2. we have the wc acc to the same pointer in the postcond.
+    val postsParamsWithWildcardAcc =
+      n.spec.posts.collect {
+        extractId
+      }.filter { p : PNamedOperand =>
+        presParamsWithWildcardAccess.map(_.id.name).contains(p.id.name)
+      }
+    // 3. there is no occurrence of x outside an old in the postcond. (occurrence: not a dereference)
+    val outSideOldOccurrencesInPost = n.spec.posts.flatMap(findReferencesOutsideOld)
+    postsParamsWithWildcardAcc.filter { p : PNamedOperand =>
+      !outSideOldOccurrencesInPost.map(_.id.name).contains(p.id.name)
+    }.flatMap { p =>
+      warning(p,
+        "Wildcard permission likely to be wrong.")
+    }
+  }
+
   private[typing] def wellDefActualMember(member: PActualMember): Messages = member match {
     case n: PFunctionDecl =>
       wellDefVariadicArgs(n.args) ++
         wellDefIfPureFunction(n) ++
         wellDefIfInitBlock(n) ++
         wellDefIfMain(n) ++
-        wellFoundedIfNeeded(n)
+        wellFoundedIfNeeded(n) ++
+        unnamedReturnParameters(n) ++
+        unconstrainedReturnParameters(n) ++
+        wildcardsPerm(n)
     case m: PMethodDecl =>
       wellDefVariadicArgs(m.args) ++
         isReceiverType.errors(miscType(m.receiver))(member) ++

@@ -88,7 +88,7 @@ class TerminationEncoding extends Encoding {
         exp = vpr.DomainFuncApp(
           funcname = "decreasing",
           args = Seq(nonItfMethodApp, itfMethodApp),
-          typVarMap = Map.empty
+          typVarMap = Map(vpr.TypeVar("T") -> vpr.DomainType(termDomain, Map.empty))
         )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomain, vpr.NoTrafos)
       )(domainName = termDomainWFOrderName),
       // bounded(nonItfMethod)
@@ -96,7 +96,7 @@ class TerminationEncoding extends Encoding {
         exp = vpr.DomainFuncApp(
           funcname = "bounded",
           args = Seq(nonItfMethodApp),
-          typVarMap = Map.empty
+          typVarMap = Map(vpr.TypeVar("T") -> vpr.DomainType(termDomain, Map.empty))
         )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomain, vpr.NoTrafos)
       )(domainName = termDomainWFOrderName),
       // bounded(itfMethod)
@@ -104,7 +104,7 @@ class TerminationEncoding extends Encoding {
         exp = vpr.DomainFuncApp(
           funcname = "bounded",
           args = Seq(itfMethodApp),
-          typVarMap = Map.empty
+          typVarMap = Map(vpr.TypeVar("T") -> vpr.DomainType(termDomain, Map.empty))
         )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomain, vpr.NoTrafos)
       )(domainName = termDomainWFOrderName)
 

@@ -12,18 +12,18 @@ import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation.violation
+import viper.silver.ast.Member
 import viper.silver.plugin.standard.{predicateinstance, termination}
 import viper.silver.{ast => vpr}
 
 class TerminationEncoding extends Encoding {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
-  import viper.silver.plugin.standard.adt
 
-  // TODO: adapt, call the right constructor
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
     case measure: in.TerminationMeasure =>
       val (pos, info, errT) = measure.vprMeta
+
       measure match {
         case t: in.TupleTerminationMeasure =>
           for {
@@ -33,7 +33,11 @@ class TerminationEncoding extends Encoding {
               case p: in.Access => predicateInstance(p)(ctx)
               case _ => violation("invalid tuple measure argument")
             })
-          } yield termination.DecreasesTuple(v, c)(pos, info, errT)
+            lastElem: vpr.Exp = measure match {
+              case _: in.ItfMethodMeasure => itfMethodApp
+              case _: in.NonItfMethodMeasure => nonItfMethodApp
+            }
+          } yield termination.DecreasesTuple(v :+ lastElem, c)(pos, info, errT)
         case m: in.WildcardMeasure =>
           for {
             c <- option(m.cond map ctx.expression)
@@ -49,27 +53,68 @@ class TerminationEncoding extends Encoding {
     } yield predicateinstance.PredicateInstance(pap.loc.predicateName, pap.loc.args)(pos, info, errT)
   }
 
-  val typeVar = vpr.TypeVar("T")
-  val termPairADTType = adt.AdtType(
-    adtName = "TerminationPair",
-    partialTypVarsMap = Map(typeVar -> typeVar),
-  )(typeParameters = Seq[vpr.TypeVar](typeVar))
-  val terminationMeasureAdt = adt.Adt(
-    name = "TerminationPair",
-    constructors = Seq(
-      adt.AdtConstructor(
-        name = "TermPair",
-        formalArgs = Seq(
-          vpr.LocalVarDecl("pos1", typeVar)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos),
-          vpr.LocalVarDecl("pos2", vpr.Bool)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
-        ),
-      )(vpr.NoPosition, vpr.NoInfo, termPairADTType, termPairADTType.adtName, vpr.NoTrafos)
-    ),
-    derivingInfo = Map.empty,
+  private val domainName = "TerminationDomain"
+  private val itfMethod = vpr.DomainFunc(
+    name = "ItfMethodMeasure",
+    formalArgs = Seq.empty,
+    typ = vpr.DomainType(domainName = domainName, partialTypVarsMap = Map.empty)(Seq.empty),
+    interpretation = None
+  )(vpr.NoPosition, vpr.NoInfo, domainName, vpr.NoTrafos)
+  private val itfMethodApp = vpr.DomainFuncApp(func = itfMethod, args = Seq.empty, typVarMap = Map.empty)()
+  private val nonItfMethod = vpr.DomainFunc(
+    name = "NonItfMethodMeasure",
+    formalArgs = Seq.empty,
+    typ = vpr.DomainType(domainName = domainName, partialTypVarsMap = Map.empty)(Seq.empty),
+    interpretation = None
+  )(vpr.NoPosition, vpr.NoInfo, domainName, vpr.NoTrafos)
+  private val nonItfMethodApp = vpr.DomainFuncApp(func = nonItfMethod, args = Seq.empty, typVarMap = Map.empty)()
+  private val termDomain = vpr.Domain(
+    name = domainName,
+    functions = Seq(itfMethod, nonItfMethod),
+    axioms = Seq.empty,
+    typVars = Seq.empty,
+    interpretations = None
   )(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
 
+  // TODO: doc
+  private val wfOrderDomain = "WellFoundedOrder"
+  private val termDomainWFOrderName = domainName + "WellFoundedOrder"
+  private val termDomainWFOrder = vpr.Domain(
+    name = termDomainWFOrderName,
+    functions = Seq.empty,
+    axioms = Seq(
+      // decreasing(nonItfMethod, itfMethod)
+      vpr.AnonymousDomainAxiom(
+        exp = vpr.DomainFuncApp(
+          funcname = "decreasing",
+          args = Seq(nonItfMethodApp, itfMethodApp),
+          typVarMap = Map.empty
+        )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomain, vpr.NoTrafos)
+      )(domainName = termDomainWFOrderName),
+      // bounded(nonItfMethod)
+      vpr.AnonymousDomainAxiom(
+        exp = vpr.DomainFuncApp(
+          funcname = "bounded",
+          args = Seq(nonItfMethodApp),
+          typVarMap = Map.empty
+        )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomain, vpr.NoTrafos)
+      )(domainName = termDomainWFOrderName),
+      // bounded(itfMethod)
+      vpr.AnonymousDomainAxiom(
+        exp = vpr.DomainFuncApp(
+          funcname = "bounded",
+          args = Seq(itfMethodApp),
+          typVarMap = Map.empty
+        )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomain, vpr.NoTrafos)
+      )(domainName = termDomainWFOrderName)
 
-  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
-    addMemberFn(terminationMeasureAdt)
+    ),
+    typVars = Seq.empty,
+    interpretations = None
+  )(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+
+  override def finalize(addMemberFn: Member => Unit): Unit = {
+    addMemberFn(termDomain)
+    addMemberFn(termDomainWFOrder)
   }
 }

@@ -230,12 +230,12 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     }
 
   private[separation] def createGhostTyping[X <: PNode](typing: X => GhostType): X => GhostType =
-    createWellDefInference[X, GhostType](wellGhostSeparated.valid)(typing)
-      .andThen(_.getOrElse(Violation.violation("ghost typing on unsafe node")))
+    x => createWellDefInference[X, GhostType](wellGhostSeparated.valid)(typing)
+      .andThen(_.getOrElse(Violation.violation(s"ghost typing on unsafe node $x")))(x)
 
   private[separation] def createGhostClassification[X <: PNode](classification: X => Boolean): X => Boolean =
-    createWellDefInference[X, Boolean](wellGhostSeparated.valid)(classification)
-      .andThen(_.getOrElse(Violation.violation("ghost classification on unsafe node")))
+    x => createWellDefInference[X, Boolean](wellGhostSeparated.valid)(classification)
+      .andThen(_.getOrElse(Violation.violation(s"ghost classification on unsafe node $x")))(x)
 
 
 

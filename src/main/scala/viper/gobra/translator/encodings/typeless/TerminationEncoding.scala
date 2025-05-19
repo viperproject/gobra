@@ -25,6 +25,36 @@ class TerminationEncoding extends Encoding {
       val (pos, info, errT) = measure.vprMeta
 
       measure match {
+        /**
+         * Tuple termination measures are translated differently, depending on whether they occur in the interface of
+         * an interface method's signature, or not. This helps dealing with concrete types that implement an interface
+         * type T with method 'm'. If the implementation of 'm' on a concrete type calls method `m` in a value with
+         * static type T, this may lead to termination errors, even though the program is safe. As an example of such
+         * a program, consider the following:
+         *
+         *  type T interface {
+         *    requires 0 <= x
+         *    decreases x
+         *    func f(x int) int
+         *  }
+         *
+         *  type Impl struct{}
+         *
+         *  requires 0 <= x
+         *  decreases x
+         *  func (i Impl) f(x int) int {
+         *    if 0 < x {
+         *      var t T = i
+         *      t.f(x - 1)
+         *    }
+         *  }
+         *
+         * At the encoding level, this leads to two mutually recursive functions with measure 'x', and a verification
+         * error in one of the calls. Introducing an extra item 'i1' and 'i2' in termination measures of the interface
+         * method and on the concrete implementation, respectively, such that 'i2' < 'i1' avoids these errors when doing
+         * so is safe. We could have opted for users to provide this measure, instead of generating it at the encoding
+         * level, but this requires knowing how the interface encoding works.
+         */
         case t: in.TupleTerminationMeasure =>
           for {
             c <- option(t.cond map ctx.expression)
@@ -53,6 +83,14 @@ class TerminationEncoding extends Encoding {
     } yield predicateinstance.PredicateInstance(pap.loc.predicateName, pap.loc.args)(pos, info, errT)
   }
 
+  /**
+   * Generates the following domains for termination measures related to interface/non-interface methods:
+   *
+   *   domain TerminationDomain {
+   *       function ItfMethodMeasure(): TerminationDomain
+   *       function NonItfMethodMeasure(): TerminationDomain
+   *   }
+   */
   private val domainName = "TerminationDomain"
   private val itfMethod = vpr.DomainFunc(
     name = "ItfMethodMeasure",
@@ -76,7 +114,24 @@ class TerminationEncoding extends Encoding {
     interpretations = None
   )(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
 
-  // TODO: doc
+  /**
+   * Generates the following domains that defines the well-founded order on termination measures related
+   * to interface/non-interface methods:
+   *
+   * domain TerminationDomainWellFoundedOrder {
+   *    axiom {
+   *        decreasing(NonItfMethodMeasure(), ItfMethodMeasure())
+   *    }
+   *
+   *    axiom {
+   *        bounded(NonItfMethodMeasure())
+   *    }
+   *
+   *    axiom {
+   *        bounded(ItfMethodMeasure())
+   *    }
+   * }
+   */
   private val wfOrderDomainName = "WellFoundedOrder"
   private val termDomainWFOrderName = domainName + "WellFoundedOrder"
   private val termDomainWFOrder = vpr.Domain(

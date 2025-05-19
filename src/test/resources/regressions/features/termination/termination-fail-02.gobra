@@ -18,7 +18,7 @@ type FuncImpl struct {}
 
 (FuncImpl) implements Func {
 	pure (f FuncImpl) fun (n int, a Func) int {
-		//:: ExpectedOutput(pure_function_termination_error)
+		// Unlike previous versions of Gobra, the termination error is no longer (also) reported here.
 		return f.fun(n, a)
 	}
 }

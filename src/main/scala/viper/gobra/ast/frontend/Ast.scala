@@ -53,23 +53,26 @@ case class PPackage(
 
 case class PProgram(
                      packageClause: PPackageClause,
-                     // init postconditions describe the state and resources right
-                     // after this program is initialized
+                     pkgInvariants: Vector[PPkgInvariant],
+                     @deprecated("Init postconditions were deprecated in PR #797 and will soon be completely removed.")
                      initPosts: Vector[PExpression],
                      imports: Vector[PImport],
+                     friends: Vector[PFriendPkgDecl],
                      declarations: Vector[PMember]
                    ) extends PNode with PUnorderedScope // imports are in program scopes
 
 
 case class PPreamble(
                       packageClause: PPackageClause,
-                      // init postconditions describe the state and resources right
-                      // after this program is initialized
+                      pkgInvariants: Vector[PPkgInvariant],
+                      @deprecated("Init postconditions were deprecated in PR #797 and will soon be completely removed.")
                       initPosts: Vector[PExpression],
                       imports: Vector[PImport],
+                      friends: Vector[PFriendPkgDecl],
                       positions: PositionManager,
                     ) extends PNode with PUnorderedScope
 
+case class PPkgInvariant(inv: PExpression, duplicable: Boolean) extends PNode
 
 class PositionManager(val positions: Positions) extends Messaging(positions) {
 
@@ -123,6 +126,8 @@ case class PImplicitQualifiedImport(importPath: String, importPres: Vector[PExpr
 }
 
 case class PUnqualifiedImport(importPath: String, importPres: Vector[PExpression]) extends PImport
+
+case class PFriendPkgDecl(path: String, assertion: PExpression) extends PNode
 
 sealed trait PGhostifiable extends PNode
 
@@ -893,6 +898,7 @@ case class PFunctionSpec(
                           isPure: Boolean = false,
                           isTrusted: Boolean = false,
                           isOpaque: Boolean = false,
+                          mayBeUsedInInit: Boolean = false,
                       ) extends PSpecification
 
 case class PBackendAnnotation(key: String, values: Vector[String]) extends PGhostMisc
@@ -980,6 +986,8 @@ case class PInhale(exp: PExpression) extends PGhostStatement
 case class PFold(exp: PPredicateAccess) extends PGhostStatement with PDeferrable
 
 case class PUnfold(exp: PPredicateAccess) extends PGhostStatement with PDeferrable
+
+case class POpenDupPkgInv() extends PGhostStatement with PDeferrable
 
 case class PPackageWand(wand: PMagicWand, proofScript: Option[PBlock]) extends PGhostStatement
 
@@ -1218,6 +1226,8 @@ case class PMultisetConversion(exp : PExpression) extends PMultisetExp
 
 /* ** (Mathematical) Map expressions */
 sealed trait PMathMapExp extends PUnorderedGhostCollectionExp
+
+case class PMathMapConversion(exp : PExpression) extends PMathMapExp
 
 /**
   * Set of keys of a mathematical or actual map

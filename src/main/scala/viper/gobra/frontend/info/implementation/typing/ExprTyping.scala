@@ -225,11 +225,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PFloatLit => ???
 
     case n@PCompositeLit(t, lit) =>
+      val mayInit = isEnclosingMayInit(n)
       val simplifiedT = t match {
         case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeSymbType(elem))
         case t: PType => typeSymbType(t)
       }
-      literalAssignableTo.errors(lit, simplifiedT)(n)
+      literalAssignableTo.errors(lit, simplifiedT, mayInit)(n)
 
     case f: PFunctionLit =>
       capturedLocalVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
@@ -237,7 +238,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         f.id.fold(noMessages)(id => wellDefID(id).out) ++
         error(f, "Opaque function literals are not yet supported.", f.spec.isOpaque)
 
-    case n: PInvoke => {
+    case n: PInvoke =>
+      val mayInit = isEnclosingMayInit(n)
       val (l, r) = (exprOrType(n.base), resolve(n))
       (l,r) match {
         case (Right(_), Some(p: ap.Conversion)) =>
@@ -247,17 +249,31 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case _ => noMessages
           }
           error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a conversion.", n.reveal) ++
-            convertibleTo.errors(exprType(p.arg), typ)(n) ++
+            convertibleTo.errors(exprType(p.arg), typ, mayInit)(n) ++
             isExpr(p.arg).out ++
             argWithinBounds
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
-          val isOpaque = c.callee match {
+          val (isOpaque, isMayInit, isImported, isPure) = c.callee match {
             case base: ap.Symbolic => base.symb match {
-              case f: st.Function => f.isOpaque
-              case m: st.MethodImpl => m.isOpaque
-              case _ => false
+              case f: st.Function => (f.isOpaque, f.decl.spec.mayBeUsedInInit, f.context != this, f.isPure)
+              case m: st.MethodImpl =>
+                (m.isOpaque, m.decl.spec.mayBeUsedInInit, m.context != this, m.isPure)
+              case _ => (false, true, false, false)
             }
+          }
+          // We disallow calling interface methods whose receiver type is an interface declared in the current package
+          // in initialization code, as it may be dispatched to a method that assumes the current package's invariant.
+          val cannotCallItfIfInit = c.callee match {
+            case base: ap.ReceivedMethod =>
+              val typeRecv = typ(base.recv)
+              val isLocallyDefinedItfType = isLocallyDefinedContextualType(typeRecv) && isInterfaceType(typeRecv)
+              if (isLocallyDefinedItfType && mayInit)
+                error(n, "Call to interface method whose receiver is of an interface type defined in this package is disallowed within code that may run during the initialization of this package.")
+              else
+                noMessages
+            case _ =>
+              noMessages
           }
           val onlyRevealOpaqueFunc =
             error(n, "Cannot reveal call to non-opaque function.", n.reveal && !isOpaque)
@@ -269,14 +285,20 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case FunctionT(args, _) => // TODO: add special assignment
               if (n.spec.nonEmpty) wellDefCallWithSpec(n)
               else if (n.args.isEmpty && args.isEmpty) noMessages
-              else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+              else multiAssignableTo.errors(n.args map exprType, args, mayInit)(n) ++ n.args.flatMap(isExpr(_).out)
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n.base, s"type error: got $t but expected function type or AbstractType")
           }
-          onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs
+          // Pure functions may always be called from 'mayInit' methods, as they are not allowed to assume the
+          // package invariants.
+          val mayInitSeparation = error(n, "Function called from 'mayInit' context is not 'mayInit'.",
+            !isImported && isEnclosingMayInit(n) && !(isMayInit || isPure))
+          cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation
 
         case (Left(_), Some(_: ap.ClosureCall)) =>
-          error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a closure call.", n.reveal) ++ wellDefCallWithSpec(n)
+          error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a closure call.", n.reveal) ++
+            wellDefCallWithSpec(n) ++
+            error(n, "Closures may not be called from code that may be executed during initialization", mayInit)
 
         case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
           val pureReceiverMsgs = p.predicate match {
@@ -293,7 +315,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val argAssignMsgs = exprType(callee) match {
             case FunctionT(args, _) => // TODO: add special assignment
               if (n.args.isEmpty && args.isEmpty) noMessages
-              else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+              else multiAssignableTo.errors(n.args map exprType, args, mayInit)(n) ++ n.args.flatMap(isExpr(_).out)
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n.base, s"type error: got $t but expected function type or AbstractType")
           }
@@ -303,18 +325,20 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val wellTypedArguments = exprType(callee) match {
             case PredT(args) =>
               if (n.args.isEmpty && args.isEmpty) noMessages
-              else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+              else multiAssignableTo.errors(n.args map exprType, args, mayInit)(n) ++ n.args.flatMap(isExpr(_).out)
             case c => Violation.violation(s"This case should be unreachable, but got $c")
           }
           error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a predicate expression instance.", n.reveal) ++ wellTypedArguments
 
         case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
       }
-    }
 
-    case PBitNegation(op) => isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST)(op)
+    case n@PBitNegation(op) =>
+      val mayInit = isEnclosingMayInit(n)
+      isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST, mayInit)(op)
 
     case n@PIndexedExp(base, index) =>
+      val mayInit = isEnclosingMayInit(n)
       isExpr(base).out ++ isExpr(index).out ++ {
         val baseType = exprType(base)
         val idxType  = exprType(index)
@@ -345,9 +369,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               // between two types, which is less precise. Because of this limitation, and with the goal of handling
               // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
               // expressions that are not accepted by the compiler.
-              val assignableToIdxType = error(index, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
+              val assignableToIdxType = error(index, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key, mayInit))
               if (assignableToIdxType.nonEmpty) {
-                error(index, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
+                error(index, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key, mayInit))
               } else {
                 assignableToIdxType
               }
@@ -357,9 +381,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               // between two types, which is less precise. Because of this limitation, and with the goal of handling
               // untyped literals, we introduce an extra condition here. This makes the type checker of Gobra accept Go
               // expressions that are not accepted by the compiler.
-              val assignableToIdxType = error(index, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key))
+              val assignableToIdxType = error(index, s"$idxType is not assignable to map key of $key", !assignableTo(idxType, key, mayInit))
               if (assignableToIdxType.nonEmpty) {
-                error(index, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key))
+                error(index, s"$underlyingIdxType is not assignable to map key of $key", !assignableTo(underlyingIdxType, key, mayInit))
               } else {
                 assignableToIdxType
               }
@@ -391,14 +415,18 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
 
         case (ActualPointerT(ArrayT(l, _)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) =>  // without ghost slices, slicing a ghost pointer is not allowed.
-          val (lowOpt, highOpt, capOpt) = (low map intConstantEval, high map intConstantEval, cap map intConstantEval)
-          error(low, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => i >= 0 && i < l))) ++
-            error(high, s"index $high is out of bounds", !highOpt.forall(_.forall(i => i >= 0 && i < l))) ++
-            error(cap, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => i >= 0 && i <= l)))
+          val (lowOpt, highOpt, capOpt) = (low flatMap  intConstantEval, high flatMap intConstantEval, cap flatMap intConstantEval)
+          error(low, s"index $low is out of bounds", !lowOpt.forall(i => i >= 0 && i < l)) ++
+            error(high, s"index $high is out of bounds", !highOpt.forall(i => i >= 0 && i < l)) ++
+            error(cap, s"index $cap is out of bounds", !capOpt.forall(i => i >= 0 && i <= l))
 
         case (_: SliceT | _: GhostSliceT, None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => //noMessages
-          val lowOpt = low.map(intConstantEval)
-          error(low, s"index $low is negative", !lowOpt.forall(_.forall(i => 0 <= i)))
+          val lowOpt = low.flatMap(intConstantEval)
+          val highOpt = high.flatMap(intConstantEval)
+          val lowHighOpt = lowOpt.zip(highOpt)
+          error(low, s"index $low is negative", lowOpt.exists(i => 0 > i)) ++
+            error(high, s"index $high is negative", highOpt.exists(i => 0 > i)) ++
+            error(high, s"invalid slice indices: $high > $low", lowHighOpt.exists { case (l, h) => l > h })
 
         case (StringT, None | Some(IntT(_)), None | Some(IntT(_)), None) =>
           // slice expressions of string type cannot have a third argument
@@ -438,29 +466,36 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PReference(e) => isExpr(e).out ++ effAddressable.errors(e)(e)
 
-    case PNegation(e) => isExpr(e).out ++ assignableTo.errors(exprType(e), BooleanT)(e)
+    case n@PNegation(e) =>
+      val mayInit = isEnclosingMayInit(n)
+      isExpr(e).out ++ assignableTo.errors(exprType(e), BooleanT, mayInit)(e)
 
     case n: PBinaryExp[_,_] =>
+        val mayInit = isEnclosingMayInit(n)
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
-          case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n.left) ++ assignableTo.errors(r, AssertionT)(n.right)
+          case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT, mayInit)(n.left) ++
+            assignableTo.errors(r, AssertionT, mayInit)(n.right)
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) => (l,r) match {
             case (StringT, StringT) => noMessages
             case (Float32T, Float32T) => noMessages
             case (Float64T, Float64T) => noMessages
             case _ if l == PermissionT || r == PermissionT =>
-              assignableTo.errors(l, PermissionT)(n.left) ++ assignableTo.errors(r, PermissionT)(n.right)
-            case _ => assignableTo.errors(l, UNTYPED_INT_CONST)(n.left) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n.right)
+              assignableTo.errors(l, PermissionT, mayInit)(n.left) ++
+                assignableTo.errors(r, PermissionT, mayInit)(n.right)
+            case _ =>
+              assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left) ++
+                assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
           }
           case (_: PAdd, StringT, StringT) => noMessages
           case (_: PAdd | _: PSub | _: PMul | _: PDiv, l, r) if Set(l, r).intersect(Set(Float32T, Float64T)).nonEmpty =>
             mergeableTypes.errors(l, r)(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r)
             if l == PermissionT || r == PermissionT || getTypeFromCtxt(n).contains(PermissionT) =>
-              assignableTo.errors(l, PermissionT)(n.left) ++ assignableTo.errors(r, PermissionT)(n.right)
+              assignableTo.errors(l, PermissionT, mayInit)(n.left) ++ assignableTo.errors(r, PermissionT, mayInit)(n.right)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear, l, r) =>
-            val lIsInteger = assignableTo.errors(l, UNTYPED_INT_CONST)(n.left)
-            val rIsInteger = assignableTo.errors(r, UNTYPED_INT_CONST)(n.right)
+            val lIsInteger = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left)
+            val rIsInteger = assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
             val typesAreMergeable = mergeableTypes.errors(l, r)(n)
             val exprWithinBounds = {
               if(typesAreMergeable.isEmpty) {
@@ -480,7 +515,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             }
             lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds
           case (_: PShiftLeft, l, r) =>
-            val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST)(n.left) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n.right)
+            val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left) ++
+              assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
             if (integerOperands.isEmpty) {
               intConstantEval(n.right.asInstanceOf[PExpression]) match {
                 case Some(v) =>
@@ -499,7 +535,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               }
             } else integerOperands
           case (_: PShiftRight, l, r) =>
-            val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST)(n.left) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n.right)
+            val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left) ++
+              assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
             if (integerOperands.isEmpty) {
               (intConstantEval(n.right.asInstanceOf[PExpression]) match {
                 case Some(v) =>
@@ -521,6 +558,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PLength(op) => isExpr(op).out ++ {
       underlyingType(exprType(op)) match {
         case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT | _: MathMapT => noMessages
+        case ActualPointerT(_: ArrayT)  =>
+          // Go allows getting the length of a pointer to an array, but it does not allow obtaining the
+          // length of a pointer to type T whose underlying type is an array.
+          noMessages
         case _: SequenceT | _: SetT | _: MultisetT | _: AdtT => isPureExpr(op)
         case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
       }
@@ -529,6 +570,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PCapacity(op) => isExpr(op).out ++ {
       underlyingType(exprType(op)) match {
         case _: ArrayT | _: SliceT | _: GhostSliceT => noMessages
+        case ActualPointerT(_: ArrayT)  =>
+          // Go allows getting the length of a pointer to an array, but it does not allow obtaining the
+          // length of a pointer to type T whose underlying type is an array.
+          noMessages
         case typ => error(op, s"expected an array or slice type, but got $typ")
       }
     }
@@ -536,8 +581,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PNew => noMessages
 
     case m@PMake(typ, args) =>
+      val mayInit = isEnclosingMayInit(m)
       args.flatMap { arg =>
-        assignableTo.errors(exprType(arg), INT_TYPE)(arg) ++
+        assignableTo.errors(exprType(arg), INT_TYPE, mayInit)(arg) ++
           error(arg, s"arguments to make must be non-negative", intConstantEval(arg).exists(_ < 0))
       } ++ (underlyingTypeP(typ) match {
         case None => violation(s"unexpected case reached: underlyingTypeP($typ) returned None")
@@ -581,6 +627,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case p@PPredConstructor(base, _) => {
+      val mayInit = isEnclosingMayInit(p)
       def wellTypedApp(base: PPredConstructorBase): Messages = miscType(base) match {
         case FunctionT(args, AssertionT) =>
           val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
@@ -589,7 +636,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           if (givenArgs.isEmpty && expectedArgs.isEmpty) {
             noMessages
           } else {
-            multiAssignableTo.errors(givenArgs map exprType, expectedArgs)(p) ++
+            multiAssignableTo.errors(givenArgs map exprType, expectedArgs, mayInit)(p) ++
               p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
           }
 
@@ -611,7 +658,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   if (givenArgs.isEmpty && args.isEmpty) {
                     noMessages
                   } else {
-                    multiAssignableTo.errors(givenArgs map exprType, args)(p) ++
+                    multiAssignableTo.errors(givenArgs map exprType, args, mayInit)(p) ++
                       p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
                   }
                 case t => error(p, s"expected function type for resolved AbstractType but got $t")
@@ -683,7 +730,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case p => violation(s"expected conversion, function call, predicate call, or predicate expression instance, but got $p")
     }
 
-    case PIndexedExp(base, index) =>
+    case i@PIndexedExp(base, index) =>
+      val mayInit = isEnclosingMayInit(i)
       val baseType = exprType(base)
       val idxType  = exprType(index)
       (underlyingType(baseType), underlyingType(idxType)) match {
@@ -694,9 +742,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (SliceT(elem), IntT(_)) => elem
           case (GhostSliceT(elem), IntT(_)) => elem
           case (VariadicT(elem), IntT(_)) => elem
-          case (MapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+          case (MapT(key, elem), underlyingIdxType) if assignableTo(idxType, key, mayInit) || assignableTo(underlyingIdxType, key, mayInit) =>
             InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
-          case (MathMapT(key, elem), underlyingIdxType) if assignableTo(idxType, key) || assignableTo(underlyingIdxType, key) =>
+          case (MathMapT(key, elem), underlyingIdxType) if assignableTo(idxType, key, mayInit) || assignableTo(underlyingIdxType, key, mayInit) =>
             InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
           case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
         }
@@ -730,9 +778,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       if (isGhostLocation(exp)) GhostPointerT(exprType(exp)) else ActualPointerT(exprType(exp))
 
     case n: PAnd => // is boolean if left and right argument are boolean, otherwise is an assertion
+      val mayInit = isEnclosingMayInit(n)
       val lt = exprType(n.left)
       val rt = exprType(n.right)
-      if (assignableTo(lt, BooleanT) && assignableTo(rt, BooleanT)) BooleanT else AssertionT
+      if (assignableTo(lt, BooleanT, mayInit) && assignableTo(rt, BooleanT, mayInit)) BooleanT else AssertionT
 
     case _: PNegation | _: PEquals | _: PUnequals | _: POr |
          _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
@@ -1058,12 +1107,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def wellDefCallWithSpec(n: PInvoke): Messages = {
+    val mayInit = isEnclosingMayInit(n)
     val base = n.base.asInstanceOf[PExpression]
     val closureMatchesSpec = wellDefIfClosureMatchesSpec(base, n.spec.get)
     val assignableArgs = (exprType(base), miscType(n.spec.get)) match {
       case (tC: FunctionT, _: FunctionT) => n.args.flatMap(isExpr(_).out) ++ (
         if (n.args.isEmpty && tC.args.isEmpty) noMessages
-        else multiAssignableTo.errors(n.args map exprType, tC.args)(base))
+        else multiAssignableTo.errors(n.args map exprType, tC.args, mayInit)(base))
       case (tC, _) => error(base, s"expected function type, but got $tC")
     }
 
@@ -1079,6 +1129,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def typeOfPLength(expr: PLength): Type =
     underlyingType(exprType(expr.exp)) match {
       case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT => INT_TYPE
+      case ActualPointerT(_: ArrayT) => INT_TYPE
       case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT | _: AdtT => UNTYPED_INT_CONST
       case t => violation(s"unexpected argument ${expr.exp} of type $t passed to len")
     }

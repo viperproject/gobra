@@ -3691,6 +3691,20 @@ object Desugar extends LazyLogging {
         val function = functionD(decl)
         val functionProxy = functionProxyD(decl, info)
         definedFunctions += functionProxy -> function
+        // PW: We now add another function, with the exact same body as the "true one", except
+        //     before every return statement we exhale all permissions we are requiring
+        //     I am not sure modifying the method in place by adding these already at this step would work in general?
+        val leakCheckDecl : PFunctionDecl = PFunctionDecl(
+          PIdnDef(decl.id.name + "_leakCheck"),
+          decl.args,
+          decl.result,
+          decl.spec,
+          decl.body
+        )
+        val leakCheckFunc = functionD(leakCheckDecl)
+        // Is this info thingy okay or should I create a new one (with createAnnotatedInfo I guess?)
+        val leakCheckFuncProxy = functionProxyD(leakCheckDecl, info)
+        definedFunctions += leakCheckFuncProxy -> leakCheckFunc
         Some(function)
       }
     }

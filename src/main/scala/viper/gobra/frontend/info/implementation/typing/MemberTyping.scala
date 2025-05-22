@@ -58,39 +58,33 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def isVariableFixed(p: PExpression): Boolean = {
     p match {
-      case o: PNamedOperand => true
-      case ...
+      case _: PNamedOperand => true
+      case _ => false
     }
   }
 
   // Find all wildcards perms in postcondition
   private def wildcardsPerm(n: PFunctionDecl): Messages = {
-    // 1. We have a wildcard pointer access in the precond.
-    // FIXME: collect first expressions, then filter for the ones that vary over time
+    // 1. We have a wildcard access in the precondition
     val extractId: PartialFunction[PExpression, PExpression] = {
-      // FIXME: should be conditional on whether p is fixed or not
       case PAccess(p, PWildcardPerm()) if isVariableFixed(p) => p
-      // case PAccess(p @ PNamedOperand(_), PWildcardPerm())         => p
-      //case _ @ PAccess(PReference(p), PWildcardPerm()) => p
       // FIXME: &s.f is PBoolLit and PDot, should I check for this?
     }
-    // FIXME: ...
     val presParamsWithWildcardAccess =
       n.spec.pres.collect {
           extractId
       }
-    // println(paramsWithWildcardAccess.map(_.getClass.getName).mkString(", "))
-    // 2. we have the wc acc to the same pointer in the postcond.
+    // 2. we have the wc acc to the same expression in the postcondition
     val postsParamsWithWildcardAcc =
       n.spec.posts.collect {
         extractId
-      }.filter { p : PNamedOperand =>
-        presParamsWithWildcardAccess.map(_.id.name).contains(p.id.name)
+      }.filter { p : PExpression  =>
+        presParamsWithWildcardAccess.contains(p)
       }
-    // 3. there is no occurrence of x outside an old in the postcond. (occurrence: not a dereference)
+    // 3. there is no occurrence of the expression outside an old in the postcond.
     val outSideOldOccurrencesInPost = n.spec.posts.flatMap(findReferencesOutsideOld)
-    postsParamsWithWildcardAcc.filter { p : PNamedOperand =>
-      !outSideOldOccurrencesInPost.map(_.id.name).contains(p.id.name)
+    postsParamsWithWildcardAcc.filter { p : PExpression =>
+      !outSideOldOccurrencesInPost.contains(p)
     }.flatMap { p =>
       warning(p,
         "Wildcard permission likely to be wrong.")

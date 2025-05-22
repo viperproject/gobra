@@ -113,7 +113,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   /**
     * Depends on which packages are loaded. Only call at the end of type checking.
-    * Either returns a set of errors caused by missing implementation proofs
+    * Either returns a set of errors caused by invalid or missing implementation proofs
     * or a set of implementation proofs that have to be generated.
     **/
   def wellImplementationProofs: Either[Messages, Vector[(Type, InterfaceT, MethodImpl, MethodSpec)]] = {
@@ -178,7 +178,6 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         if (msgs.nonEmpty) Left(msgs)
         else {
-          // missing implementation proofs
 
           val requiredImplMethAndSuperMeth = allRequiredImplements.flatMap { case (impl, itf) =>
             val superMethNames = memberSet(itf).collect { case (n, m: MethodSpec) => (n, m) }
@@ -188,17 +187,35 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
             }}
           }
 
-          val missingImplMethAndSuperMeth = requiredImplMethAndSuperMeth
-            .filter{ case (implSymb, itfSymb) => !groupedProofs2.contains((implSymb, itfSymb))}
+          // syntactically detect errors that prevent one method from implementing a spec
+          val implErrors = requiredImplMethAndSuperMeth.toVector flatMap {
+            case (mImpl, mSpec) => methodImplMightImplementSpec(mImpl, mSpec)
+          }
+          if (implErrors.nonEmpty) {
+            Left(implErrors)
+          } else {
+            // compute missing implementation proofs
+            val missingImplMethAndSuperMeth = requiredImplMethAndSuperMeth
+              .filter { case (implSymb, itfSymb) => !groupedProofs2.contains((implSymb, itfSymb)) }
 
-          Right(missingImplMethAndSuperMeth.toVector.map{ case (implSymb, itfSymb) =>
-            val impl = implSymb.context.symbType(implSymb.decl.receiver.typ)
-            val itf = itfSymb.itfType
-            (impl, itf, implSymb, itfSymb)
-          })
+            Right(missingImplMethAndSuperMeth.toVector.map { case (implSymb, itfSymb) =>
+              val impl = implSymb.context.symbType(implSymb.decl.receiver.typ)
+              val itf = itfSymb.itfType
+              (impl, itf, implSymb, itfSymb)
+            })
+          }
         }
       } else Left(noMessages)
     } else Left(noMessages)
   }
 
+  // Syntactically determine if a method implementation mImpl cannot possibly implement a specification mSpec.
+  // This is useful to provide feedback quickly, before we verify the program.
+  private def methodImplMightImplementSpec(mImpl: MethodImpl, mSpec: MethodSpec): Messages = {
+    if (mSpec.spec.spec.terminationMeasures.nonEmpty && mImpl.decl.spec.terminationMeasures.isEmpty)
+      error(mImpl.decl.spec, s"This method tries to implement a terminating interface method, " +
+        s"but it does not provide a termination measure.")
+    else
+      noMessages
+  }
 }

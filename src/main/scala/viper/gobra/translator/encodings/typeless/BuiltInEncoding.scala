@@ -297,7 +297,7 @@ class BuiltInEncoding extends Encoding {
           in.ExprAssertion(sendChannelInvEq)(src),
           in.ExprAssertion(recvChannelInvEq)(src),
         )
-        in.Method(recvParam, x.name, Vector(aParam, bParam), Vector.empty, pres, posts, Vector(in.WildcardMeasure(None)(src)), Vector.empty, None)(src)
+        in.Method(recvParam, x.name, Vector(aParam, bParam), Vector.empty, pres, posts, Vector(in.NonItfMethodWildcardMeasure(None)(src)), Vector.empty, None)(src)
 
       case (CreateDebtChannelMethodTag, recv: in.ChannelT) =>
         /**
@@ -502,7 +502,7 @@ class BuiltInEncoding extends Encoding {
         )
         val posts: Vector[in.Assertion] = Vector(postLen, postRes, postVariadic, postCmpSlice, postCmpVariadic)
 
-        in.Function(x.name, args, results, pres, posts, Vector(in.WildcardMeasure(None)(src)), Vector.empty, None)(src)
+        in.Function(x.name, args, results, pres, posts, Vector(in.NonItfMethodWildcardMeasure(None)(src)), Vector.empty, None)(src)
 
       case (CopyFunctionTag, Vector(t1, t2, _)) =>
         /**
@@ -606,7 +606,7 @@ class BuiltInEncoding extends Encoding {
 
         val posts = Vector(postRes1, postRes2, postDst, postSrc, postUpdate, postSame)
 
-        in.Function(x.name, args, results, pres, posts, Vector(in.WildcardMeasure(None)(src)), Vector.empty, None)(src)
+        in.Function(x.name, args, results, pres, posts, Vector(in.NonItfMethodWildcardMeasure(None)(src)), Vector.empty, None)(src)
 
       case (tag, args) => violation(s"no function generation defined for tag $tag and arguments $args")
     }

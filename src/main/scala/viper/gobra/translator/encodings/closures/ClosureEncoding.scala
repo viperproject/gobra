@@ -179,7 +179,7 @@ class ClosureEncoding extends LeafTypeEncoding {
           exhalePosts <- exhalePosts
           decreaseNumIterations <- ctx.statement(in.SingleAss(in.Assignee(numIterations), in.Sub(numIterations, in.IntLit(1)(src))(src))(src))
           whileBody = vu.seqn(Vector(inhalePres, body, exhalePosts, decreaseNumIterations))(pos, info, errT)
-          terminationMeasure <- ctx.assertion(in.TupleTerminationMeasure(Vector(numIterations), None)(src))
+          terminationMeasure <- ctx.assertion(in.NonItfTupleTerminationMeasure(Vector(numIterations), None)(src))
         } yield vpr.While(numIterationsGT0, Seq(terminationMeasure), whileBody)(pos, info, errT)
         assumeFalse = vpr.Assume(vpr.FalseLit()())()
         ifThen = vu.seqn(Vector(assignNumIterations, whileStmt, assumeFalse))(pos, info, errT)

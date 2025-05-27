@@ -697,8 +697,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => t
     }
     createTyping {
-      case expr: PActualExpression => handleTypeAlias(actualExprType(expr))
-      case expr: PGhostExpression => handleTypeAlias(ghostExprType(expr))
+      case expr: PActualExpression =>
+        val res = handleTypeAlias(actualExprType(expr))
+        // println(s"Type of $expr is $res")
+        res
+      case expr: PGhostExpression =>
+        val res = handleTypeAlias(ghostExprType(expr))
+        // println(s"Type of $expr is $res")
+        res
     }
   }
 
@@ -793,7 +799,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case exprNum: PNumExpression =>
       val typ = intExprType(exprNum)
-      if (typ == UNTYPED_INT_CONST) getNonInterfaceTypeFromCtxt(exprNum).getOrElse(typ) else typ
+      val resTyp = if (typ == UNTYPED_INT_CONST) getNonInterfaceTypeFromCtxt(exprNum).getOrElse(typ) else typ
+      // println(s"type found for $exprNum is $resTyp")
+      resTyp
+
 
     case n: PUnfolding => exprType(n.op)
 
@@ -867,13 +876,26 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       if (t.isInstanceOf[InterfaceT]) DEFAULT_INTEGER_TYPE else t
     }
     // handle cases where it returns a SingleMultiTuple and we only care about a single type
-    getTypeFromCtxt(expr).map(defaultTypeIfInterface) match {
+    getTypeFromCtxt(goUpWhileInNotFullyTypedExpr(expr)).map(defaultTypeIfInterface) match {
+    //getTypeFromCtxt(expr).map(defaultTypeIfInterface) match {
       case Some(t) => t match {
         case Single(t) => Some(t)
         case UnknownType => Some(UnknownType)
         case _ => violation(s"unexpected case reached $t")
       }
       case None => None
+    }
+  }
+
+  private def goUpWhileInNotFullyTypedExpr(expr: PExpression): PExpression = {
+
+    expr match {
+      case tree.parent(p) => p match {
+        case n@(_: PAdd | _: PSub | _: PMul | _: PDiv | _: PMod) =>
+          val arg = n.asInstanceOf[PExpression]
+          goUpWhileInNotFullyTypedExpr(arg)
+        case _ => expr
+      }
     }
   }
 
@@ -913,6 +935,56 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PVarDecl(typ, _, _, _) => typ map (x => typeSymbType(x))
 
         case _: PMake => Some(INT_TYPE)
+
+        /*
+        case n@(_: PLess | _: PGreater | _: PAtMost | _: PAtLeast) =>
+          // println(s"typing expr $expr found in $n")
+          val binExp = n.asInstanceOf[PBinaryExp[PExpression, PExpression]]
+          val l = binExp.left
+          val r = binExp.right
+          (l, r) match {
+            case (ln: PExpression, rn: PExpression) =>
+              val lt = intExprType(ln)
+              val rt = intExprType(rn)
+              // println(s"int type of $ln: $lt")
+              // println(s"int type of $rn: $rt")
+              val mergedt = typeMerge(lt, rt)
+              mergedt match {
+                case None => None
+                case Some(t) if t != UNTYPED_INT_CONST =>
+                  Some(t)
+                case Some(t) if t == UNTYPED_INT_CONST => Some(INT_TYPE)
+                case Some(t) => violation(s"Unexpected merged type found: $t")
+              }
+            case _ =>
+              None
+          }
+
+        case n@( _: PEquals | _: PUnequals) => {
+          // println(s"typing expr $expr found in $n")
+          val binExp = n.asInstanceOf[PBinaryExp[PExpressionOrType, PExpressionOrType]]
+          val l = binExp.left
+          val r = binExp.right
+          (l, r) match {
+            case (ln: PExpression, rn: PExpression) =>
+              val lt = intExprType(ln)
+              val rt = intExprType(rn)
+              // println(s"int type of $ln: $lt")
+              // println(s"int type of $rn: $rt")
+              val mergedt = typeMerge(lt, rt)
+              mergedt match {
+                case None => None
+                case Some(t) if t != UNTYPED_INT_CONST =>
+                  Some(t)
+                case Some(t) if t == UNTYPED_INT_CONST => Some(INT_TYPE)
+                case Some(t) => violation(s"Unexpected merged type found: $t")
+              }
+            case _ =>
+              None
+          }
+        }
+
+         */
 
         case r: PReturn =>
           val index = r.exps.indexOf(expr)
@@ -979,6 +1051,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 case PredT(fArgs) => fArgs.lift(index)
                 case t => violation(s"predicate expression instance has base $base with unsupported type $t")
               }
+
+            case Some(ap.Conversion(t, e)) =>
+              assert(expr == e)
+              Some(typeSymbType(t))
 
             case _ => None
           }
@@ -1053,7 +1129,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _ => violation("blank identifier always has a parent")
   }
 
-  private def intExprType(expr: PNumExpression): Type = {
+  private def intExprType(expr: PExpression): Type = {
     val typ = expr match {
       case _: PIntLit => UNTYPED_INT_CONST
 
@@ -1071,6 +1147,37 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             val typeRight = exprOrTypeType(bExpr.right)
             typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
         }
+
+        /*
+      case inv: PInvoke =>
+        println(s"HERE: $inv")
+        resolve(inv) match {
+          case Some(ap.Conversion(t, _)) =>
+            underlyingTypeP(t) match {
+              case Some(t: PIntegerType) =>
+                println(s"NOT KAPUT: $t")
+                t match {
+                  case PIntType() => IntT(config.typeBounds.Int)
+                  case PInt8Type() => IntT(config.typeBounds.Int8)
+                  case PInt16Type() => IntT(config.typeBounds.Int16)
+                  case PInt32Type() => IntT(config.typeBounds.Int32)
+                  case PInt64Type() => IntT(config.typeBounds.Int64)
+                  case PRune() => IntT(config.typeBounds.Rune)
+                  case PUIntType() => IntT(config.typeBounds.UInt)
+                  case PUInt8Type() => IntT(config.typeBounds.UInt8)
+                  case PUInt16Type() => IntT(config.typeBounds.UInt16)
+                  case PUInt32Type() => IntT(config.typeBounds.UInt32)
+                  case PUInt64Type() => IntT(config.typeBounds.UInt64)
+                  case PByte() => IntT(config.typeBounds.Byte)
+                  case PUIntPtr() => IntT(config.typeBounds.UIntPtr)
+                }
+                // val l = typeSymbType(t)
+                // println("KAPUT")
+                // l
+              case _ => violation(s"unexpected conversion to $t found while type-checking an integer expressions.")
+            }
+        }
+        */
 
       case e => violation(s"unexpected expression $e while type-checking integer expressions.")
     }

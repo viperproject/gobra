@@ -684,6 +684,8 @@ case class PUInt64Type() extends PActualPredeclaredType("uint64") with PIntegerT
 case class PByte() extends PActualPredeclaredType("byte") with PIntegerType
 case class PUIntPtr() extends PActualPredeclaredType("uintptr") with PIntegerType
 
+case class PGhostIntegerType() extends PGhostPredeclaredType("integer") with PIntegerType
+
 sealed trait PFloatType extends PType
 case class PFloat32() extends PActualPredeclaredType("float32") with PFloatType
 case class PFloat64() extends PActualPredeclaredType("float64") with PFloatType

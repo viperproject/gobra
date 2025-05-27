@@ -20,6 +20,7 @@ import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstabl
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
+import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation.violation
 import viper.gobra.util.{BackendAnnotation, Computation, Constants, DesugarWriter, GobraExecutionContext, Violation}
 
@@ -3834,6 +3835,7 @@ object Desugar extends LazyLogging {
       case Type.BooleanT => in.BoolT(addrMod)
       case Type.StringT => in.StringT(addrMod)
       case Type.IntT(x) => in.IntT(addrMod, x)
+      case Type.GhostIntegerT => in.IntT(addrMod, UnboundedInteger)
       case Type.Float32T => in.Float32T(addrMod)
       case Type.Float64T => in.Float64T(addrMod)
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)

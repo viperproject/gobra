@@ -70,13 +70,16 @@ trait GoVerifier extends StrictLogging {
     // by some signal.
     Runtime.getRuntime.addShutdownHook(new Thread() {
       override def run(): Unit = {
-        val statsFile = config.gobraDirectory.resolve("stats.json").toFile
-        logger.info("Writing report to " + statsFile.getPath)
-        val wroteFile = statsCollector.writeJsonReportToFile(statsFile)
-        if (!wroteFile) {
-          logger.error(s"Could not write to the file $statsFile. Check whether the permissions to the file allow writing to it.")
+        config.gobraDirectory match {
+          case Some(path) =>
+            val statsFile = path.resolve("stats.json").toFile
+            logger.info("Writing report to " + statsFile.getPath)
+            val wroteFile = statsCollector.writeJsonReportToFile(statsFile)
+            if (!wroteFile) {
+              logger.error(s"Could not write to the file $statsFile. Check whether the permissions to the file allow writing to it.")
+            }
+          case _ =>
         }
-
         // Report timeouts that were not previously reported
         statsCollector.getTimeoutErrorsForNonFinishedTasks.foreach(err => logger.error(err.formattedMessage))
       }

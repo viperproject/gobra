@@ -133,7 +133,7 @@ trait GoVerifier extends StrictLogging {
 
     // Print warnings
     if(warningCount > 0) {
-      logger.info(s"$name has found $warningCount warning(s)")
+      logger.debug(s"$name has found $warningCount warning(s)")
     }
 
     // Print errors

@@ -61,6 +61,7 @@ trait GoVerifier extends StrictLogging {
    * Additionally statistics are collected with the StatsCollector reporter class
    */
   def verifyAllPackages(config: Config)(executor: GobraExecutionContext): VerifierResult = {
+    def addPlural(n: Int): String = if (n != 1) "s" else ""
     val statsCollector = StatsCollector(config.reporter)
     var warningCount: Int = 0
     var allVerifierErrors: Vector[VerifierError] = Vector()
@@ -99,9 +100,10 @@ trait GoVerifier extends StrictLogging {
           warnings.foreach(w => logger.debug(w))
 
           result match {
-            case VerifierResult.Success => logger.info(s"$name found no errors")
+            case VerifierResult.Success =>
+              logger.info(s"$name found 0 errors in package $pkgId.")
             case VerifierResult.Failure(errors) =>
-              logger.error(s"$name has found ${errors.length} error(s) in package $pkgId")
+              logger.error(s"$name found ${errors.length} error${addPlural(errors.length)} in package $pkgId.")
               if (config.noStreamErrors) {
                 errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
               }
@@ -112,7 +114,7 @@ trait GoVerifier extends StrictLogging {
         Await.result(future, config.packageTimeout)
       } catch {
         case _: TimeoutException =>
-          logger.error(s"The verification of package $pkgId got terminated after " + config.packageTimeout.toString)
+          logger.error(s"The verification of package $pkgId timed out after " + config.packageTimeout.toString)
           statsCollector.report(VerificationTaskFinishedMessage(pkgId))
           val errors = statsCollector.getTimeoutErrors(pkgId)
           errors.foreach(err => logger.error(err.formattedMessage))
@@ -122,22 +124,30 @@ trait GoVerifier extends StrictLogging {
 
     // Print statistics for caching
     if(config.cacheFile.isDefined) {
-      logger.debug(s"Number of cacheable Viper member(s): ${statsCollector.getNumberOfCacheableViperMembers}")
-      logger.debug(s"Number of cached Viper member(s): ${statsCollector.getNumberOfCachedViperMembers}")
+      logger.debug(s"Number of cacheable Viper members: ${statsCollector.getNumberOfCacheableViperMembers}")
+      logger.debug(s"Number of cached Viper members: ${statsCollector.getNumberOfCachedViperMembers}")
     }
 
     // Print general statistics
-    logger.debug(s"Gobra has found ${statsCollector.getNumberOfVerifiableMembers} methods and functions" )
-    logger.debug(s"${statsCollector.getNumberOfSpecifiedMembers} have specification")
-    logger.debug(s"${statsCollector.getNumberOfSpecifiedMembersWithAssumptions} are assumed to be satisfied")
+    logger.debug(s"Gobra found ${statsCollector.getNumberOfVerifiableMembers} methods and functions." )
+    logger.debug{
+      val specMem = statsCollector.getNumberOfSpecifiedMembers
+      s"$specMem member${addPlural(specMem)} are explicitly specified."
+    }
+    logger.debug{
+      val memAssum = statsCollector.getNumberOfSpecifiedMembersWithAssumptions
+      s"$memAssum member${addPlural(memAssum)} contain explicit assumptions."
+    }
 
     // Print warnings
     if(warningCount > 0) {
-      logger.debug(s"$name has found $warningCount warning(s)")
+      logger.debug(s"$name reported $warningCount warning${addPlural(warningCount)}.")
     }
 
     // Print errors
-    logger.info(s"$name has found ${allVerifierErrors.size} error(s)")
+    if (config.packageInfoInputMap.size != 1) {
+      logger.info(s"$name found ${allVerifierErrors.size} error${addPlural(allVerifierErrors.size)} across all verified packages.")
+    }
     if(allTimeoutErrors.nonEmpty) {
       logger.info(s"The verification of ${allTimeoutErrors.size} members timed out")
     }
@@ -365,7 +375,7 @@ object GobraRunner extends GobraFrontend with StrictLogging {
       }
     } catch {
       case e: UglyErrorMessage =>
-        logger.error(s"${verifier.name} has found 1 error(s): ")
+        logger.error(s"${verifier.name} has found 1 error: ")
         logger.error(s"\t${e.error.formattedMessage}")
         exitCode = 1
       case e: LogicException =>

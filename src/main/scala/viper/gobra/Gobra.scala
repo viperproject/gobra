@@ -66,6 +66,7 @@ trait GoVerifier extends StrictLogging {
     var warningCount: Int = 0
     var allVerifierErrors: Vector[VerifierError] = Vector()
     var allTimeoutErrors: Vector[TimeoutError] = Vector()
+    val isVerifyingMultiplePackages = config.packageInfoInputMap.size != 1
 
     // write report to file on shutdown, this makes sure a report is produced even if a run is shutdown
     // by some signal.
@@ -99,11 +100,12 @@ trait GoVerifier extends StrictLogging {
           warningCount += warnings.size
           warnings.foreach(w => logger.debug(w))
 
+          val suffix = if (isVerifyingMultiplePackages) s" in package $pkgId" else ""
           result match {
             case VerifierResult.Success =>
-              logger.info(s"$name found 0 errors in package $pkgId.")
+              logger.info(s"$name found 0 errors$suffix.")
             case VerifierResult.Failure(errors) =>
-              logger.error(s"$name found ${errors.length} error${addPlural(errors.length)} in package $pkgId.")
+              logger.error(s"$name found ${errors.length} error${addPlural(errors.length)}$suffix.")
               if (config.noStreamErrors) {
                 errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
               }
@@ -145,7 +147,7 @@ trait GoVerifier extends StrictLogging {
     }
 
     // Print errors
-    if (config.packageInfoInputMap.size != 1) {
+    if (isVerifyingMultiplePackages) {
       logger.info(s"$name found ${allVerifierErrors.size} error${addPlural(allVerifierErrors.size)} across all verified packages.")
     }
     if(allTimeoutErrors.nonEmpty) {

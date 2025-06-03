@@ -40,6 +40,7 @@ object Type {
   case object StringT extends PrettyType("string")
 
   case class IntT(kind: TypeBounds.IntegerKind) extends PrettyType(kind.name)
+  case object GhostIntegerT extends PrettyType(s"integer") with GhostType
 
   case object Float32T extends PrettyType("float32")
   case object Float64T extends PrettyType("float64")

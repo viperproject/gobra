@@ -16,6 +16,7 @@ import viper.gobra.util.Violation
 trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
 
   private[typing] def wellDefGhostType(typ : PGhostType) : Messages = typ match {
+    case PGhostIntegerType() => noMessages
     case _: PPermissionType => noMessages
     case PSequenceType(elem) => isType(elem).out
     case PSetType(elem) => isType(elem).out
@@ -39,6 +40,7 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
   }
 
   private[typing] def ghostTypeSymbType(typ : PGhostType) : Type = typ match {
+    case PGhostIntegerType() => GhostIntegerT
     case PPermissionType() => PermissionT
     case PSequenceType(elem) => SequenceT(typeSymbType(elem))
     case PSetType(elem) => SetT(typeSymbType(elem))

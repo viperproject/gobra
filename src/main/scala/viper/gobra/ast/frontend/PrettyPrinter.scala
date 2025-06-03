@@ -670,6 +670,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showGhostType(typ : PGhostType) : Doc = typ match {
+    case PGhostIntegerType() => "integer"
     case PPermissionType() => "perm"
     case PSequenceType(elem) => "seq" <> brackets(showType(elem))
     case PSetType(elem) => "set" <> brackets(showType(elem))

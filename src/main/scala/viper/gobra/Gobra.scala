@@ -116,7 +116,7 @@ trait GoVerifier extends StrictLogging {
         Await.result(future, config.packageTimeout)
       } catch {
         case _: TimeoutException =>
-          logger.error(s"The verification of package $pkgId timed out after " + config.packageTimeout.toString)
+          logger.error(s"The verification of package $pkgId timed out after ${config.packageTimeout}.")
           statsCollector.report(VerificationTaskFinishedMessage(pkgId))
           val errors = statsCollector.getTimeoutErrors(pkgId)
           errors.foreach(err => logger.error(err.formattedMessage))
@@ -151,7 +151,7 @@ trait GoVerifier extends StrictLogging {
       logger.info(s"$name found ${allVerifierErrors.size} error${addPlural(allVerifierErrors.size)} across all verified packages.")
     }
     if(allTimeoutErrors.nonEmpty) {
-      logger.info(s"The verification of ${allTimeoutErrors.size} members timed out")
+      logger.info(s"The verification of ${allTimeoutErrors.size} member${addPlural(allTimeoutErrors.size)} timed out.")
     }
 
     val allErrors = allVerifierErrors ++ allTimeoutErrors

@@ -6,8 +6,8 @@
 
 package viper.gobra.frontend.info.base
 
-import viper.gobra.ast.frontend.{PBoolType, PByte, PFloat32, PFloat64, PInt16Type, PInt32Type, PInt64Type, PInt8Type, PIntType, PPermissionType, PRune, PStringType, PType, PUInt16Type, PUInt32Type, PUInt64Type, PUInt8Type, PUIntPtr, PUIntType}
-import viper.gobra.frontend.info.base.Type.{BooleanT, Float32T, Float64T, IntT, PermissionT, StringT, Type}
+import viper.gobra.ast.frontend.{PBoolType, PByte, PFloat32, PFloat64, PGhostIntegerType, PInt16Type, PInt32Type, PInt64Type, PInt8Type, PIntType, PPermissionType, PRune, PStringType, PType, PUInt16Type, PUInt32Type, PUInt64Type, PUInt8Type, PUIntPtr, PUIntType}
+import viper.gobra.frontend.info.base.Type.{BooleanT, Float32T, Float64T, GhostIntegerT, IntT, PermissionT, StringT, Type}
 import viper.gobra.util.TypeBounds
 
 
@@ -174,6 +174,14 @@ object BuiltInMemberTag {
     override def node: PType = PUIntPtr()
   }
 
+  case object GhostInteger extends BuiltInTypeTag {
+    override def identifier: String = "integer"
+    override def name: String = "Integer"
+    override def ghost: Boolean = true
+    override def typ: Type = GhostIntegerT
+    override def node: PType = PGhostIntegerType()
+  }
+
   case object Float32 extends BuiltInTypeTag {
     override def identifier: String = "float32"
     override def name: String = "Float32"
@@ -338,6 +346,7 @@ object BuiltInMemberTag {
     UInt32Type,
     UInt64Type,
     UIntPtr,
+    GhostInteger,
     // float types
     Float32,
     Float64,

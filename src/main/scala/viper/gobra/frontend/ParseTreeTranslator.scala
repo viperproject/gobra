@@ -244,6 +244,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       case "uint32" => PUInt32Type().at(typ)
       case "uint64" => PUInt64Type().at(typ)
       case "uintptr" => PUIntPtr().at(typ)
+      case "integer" => PGhostIntegerType().at(typ)
       case "float32" => PFloat32().at(typ)
       case "float64" => PFloat64().at(typ)
       case "bool" => PBoolType().at(typ)

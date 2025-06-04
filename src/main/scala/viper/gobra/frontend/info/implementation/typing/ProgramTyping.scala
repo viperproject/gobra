@@ -58,13 +58,17 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
     *      a check for acyclicity implemented in [[DependencyAnalysis]]).
     */
   private def globalDeclSatisfiesDepOrder(globalDeclsInPosOrder: Vector[PVarDecl]): Messages = {
-    var visitedGlobals: Set[Entity] = Set.empty[Entity]
+    var visitedGlobals: Set[st.GlobalVariable] = Set.empty
     globalDeclsInPosOrder.flatMap{ decl =>
       decl.left.zipWithIndex.flatMap{ case (id, idx) =>
         val visitedAllDeps: Boolean = regular(id) match {
           case g: st.GlobalVariable =>
+            println(s"checking result for ${g.decl.left}")
             val result = samePkgDepsOfGlobalVar(g).forall(visitedGlobals.contains)
+            println(s"same pkg deps: ${samePkgDepsOfGlobalVar(g).map(_.decl.left)}")
             visitedGlobals = visitedGlobals + g
+            println(s"visitedGlobals: ${visitedGlobals.map(_.decl.left)}")
+            println(s"result: $result")
             result
           case _: st.Wildcard if decl.right.isEmpty => true
           case _: st.Wildcard =>

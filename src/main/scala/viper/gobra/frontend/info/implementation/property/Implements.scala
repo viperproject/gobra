@@ -122,6 +122,7 @@ trait Implements { this: TypeInfoImpl =>
             .forall(typ => go(typ))
         case ut: GhostCollectionType => go(ut.elem)
         case _: Type.InterfaceT => true
+        case _: Type.FunctionT => true
         case _ => false
       }
     }

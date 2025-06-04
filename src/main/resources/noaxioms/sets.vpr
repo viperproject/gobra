@@ -1,0 +1,19 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2023 ETH Zurich.
+
+domain $Set[E] {
+  function Set_in(e: E, s: $Set[E]): Bool
+  function Set_card(s: $Set[E]): Int
+  function Set_empty(): $Set[E]
+  function Set_singleton(e: E): $Set[E]
+  function Set_unionone(s: $Set[E], e: E): $Set[E]
+  function Set_union(s1: $Set[E], s2: $Set[E]): $Set[E]
+  function Set_disjoint(s1: $Set[E], s2: $Set[E]): Bool
+  function Set_difference(s1: $Set[E], s2: $Set[E]): $Set[E]
+  function Set_intersection(s1: $Set[E], s2: $Set[E]): $Set[E]
+  function Set_subset(s1: $Set[E], s2: $Set[E]): Bool
+  function Set_equal(s1: $Set[E], s2: $Set[E]): Bool
+}

@@ -1,0 +1,46 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issues
+
+preserves acc(x)
+ensures   *x == old(*x) + 1
+ensures !res
+func incF(x *int) (res bool) {
+	*x += 1
+	return false
+}
+
+func clientAnd1() {
+	x@ := 1
+	if incF(&x) && incT(&x) {
+		assert false
+	}
+	assert x == 2
+}
+
+func clientAnd2() {
+	x@ := 1
+	if incT(&x) && incT(&x) {}
+	assert x == 3
+}
+
+preserves acc(x)
+ensures   *x == old(*x) + 1
+ensures res
+func incT(x *int) (res bool) {
+	*x += 1
+	return true
+}
+
+func clientOr1() {
+	x@ := 1
+	if incT(&x) || incT(&x) {}
+	assert x == 2
+}
+
+func clientOr2() {
+	x@ := 1
+	if incF(&x) || incT(&x) {}
+	assert x == 3
+}

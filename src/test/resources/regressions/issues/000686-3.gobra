@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+ghost type X adt {
+  A { int }
+  B { bool; bool }
+  C {}
+  D { bool; z bool }
+  E { bool; x, y bool }
+  F { q X }
+}
+
+func client() {
+    x := A{3}
+    y := C{}
+}
+

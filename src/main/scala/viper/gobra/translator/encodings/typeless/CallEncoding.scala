@@ -13,6 +13,7 @@ import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.translator.util.{ViperUtil => vu}
+import viper.gobra.translator.util.VprInfo
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
@@ -21,23 +22,27 @@ class CallEncoding extends Encoding {
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
-    case x@in.PureFunctionCall(func, args, typ) =>
+    case x@in.PureFunctionCall(func, args, typ, reveal) =>
       val (pos, info, errT) = x.vprMeta
+      val annotatedInfo = VprInfo.maybeAttachReveal(info, reveal)
+
       val resultType = ctx.typ(typ)
 
       for {
         vArgs <- sequence(args map ctx.expression)
-        app = vpr.FuncApp(func.name, vArgs)(pos, info, resultType, errT)
+        app = vpr.FuncApp(func.name, vArgs)(pos, annotatedInfo, resultType, errT)
       } yield app
 
-    case x@in.PureMethodCall(recv, meth, args, typ) =>
+    case x@in.PureMethodCall(recv, meth, args, typ, reveal) =>
       val (pos, info, errT) = x.vprMeta
+      val annotatedInfo = VprInfo.maybeAttachReveal(info, reveal)
+
       val resultType = ctx.typ(typ)
 
       for {
         vRecv <- ctx.expression(recv)
         vArgs <- sequence(args map ctx.expression)
-        app = vpr.FuncApp(meth.uniqueName, vRecv +: vArgs)(pos, info, resultType, errT)
+        app = vpr.FuncApp(meth.uniqueName, vRecv +: vArgs)(pos, annotatedInfo, resultType, errT)
       } yield app
   }
 

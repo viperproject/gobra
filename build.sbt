@@ -4,12 +4,21 @@
 //
 // Copyright (c) 2011-2020 ETH Zurich.
 
-import scala.sys.process.Process
+import scala.sys.process._
 import scala.util.Try
 
 // Import general settings from viperserver and, transitively, from carbon, silicon and silver.
 // we assume that carbon/silver and silicon/silver point to the same version of the silver repo
 lazy val server = project in file("viperserver")
+
+lazy val genParser = taskKey[Unit]("Generate Gobra's parser")
+genParser := {
+  val projectDir = baseDirectory.value
+  val res: Int = (s"${projectDir.getAbsolutePath}/genparser.sh --download" !) // parentheses are not optional despite what IntelliJ suggests
+  if (res != 0) {
+    sys.error(s"genparser.sh exited with the non-zero exit code $res")
+  }
+}
 
 // Gobra specific project settings
 lazy val gobra = (project in file("."))
@@ -34,7 +43,8 @@ lazy val gobra = (project in file("."))
     libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.9", // for SystemUtils
     libraryDependencies += "org.apache.commons" % "commons-text" % "1.9", // for escaping strings in parser preprocessor
     libraryDependencies += "commons-codec" % "commons-codec" % "1.15", // for obtaining the hex encoding of a string
-    libraryDependencies += "org.antlr" % "antlr4-runtime" % "4.9.2",
+    libraryDependencies += "org.antlr" % "antlr4-runtime" % "4.13.0",
+    libraryDependencies += "org.scalaz" %% "scalaz-core" % "7.3.7", // used for EitherT
 
     scalacOptions ++= Seq(
       "-encoding", "UTF-8", // Enforce UTF-8, instead of relying on properly set locales
@@ -42,6 +52,9 @@ lazy val gobra = (project in file("."))
     ),
 
     javacOptions := Seq("-encoding", "UTF-8"),
+
+    // overwrite `compile` task to depend on the `genParser` task such that the parser is generated first:
+    Compile / compile := (Compile / compile).dependsOn(genParser).value,
 
     // Run settings
     run / javaOptions ++= Seq(

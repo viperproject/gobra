@@ -62,11 +62,13 @@ class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         PPackageClause(PPkgDef("pkg")),
         Vector(),
         Vector(),
+        Vector(),
+        Vector(),
         Vector(PFunctionDecl(
           PIdnDef("foo"),
           inArgs.map(_._1),
           PResult(Vector()),
-          PFunctionSpec(Vector(), Vector(), Vector(), Vector(), isPure = false),
+          PFunctionSpec(Vector(), Vector(), Vector(), Vector(), Vector(), isPure = false),
           Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
         ))
       )
@@ -81,9 +83,8 @@ class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         new PackageInfo("pkg", "pkg", false)
       )
       val tree = new Info.GoTree(pkg)
-      val context = new Info.Context()
       val config = Config()
-      new TypeInfoImpl(tree, context)(config)
+      new TypeInfoImpl(tree, Map.empty)(config)
     }
 
     def wellDefStmt(stmt : PStatement)(inArgs: Vector[(PParameter, Boolean)] = Vector()) =

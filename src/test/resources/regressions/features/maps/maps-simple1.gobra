@@ -73,7 +73,8 @@ func test8() {
 	m := map[string]int { "hello": 5, "bye": 3 }
 	v, ok := m["hello"]
 	assert ok && v == 5
-	assert len(map[int]int{}) == 0
+	e := map[int]int{}
+	assert len(e) == 0
 }
 
 func test9() {
@@ -146,3 +147,11 @@ func test16() {
 requires m != nil ==> acc(m)
 requires forall s string :: { s in domain(m) } s in domain(m) ==> acc(m[s])
 func test17(m map[string]*int) {}
+
+requires m != nil ==> acc(m)
+requires forall s string :: { s in m } s in m ==> acc(m[s])
+func test18(m map[string]*int) {}
+
+requires m != nil ==> acc(m)
+requires forall i int :: { i in range(m) } i in range(m) ==> 0 < i
+func test19(m map[string]int) {}

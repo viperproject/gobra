@@ -2843,13 +2843,13 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert (frontend.wellDefExpr(expr)().valid)
   }
 
-  test("TypeChecker: should not let an array literal be classified as pure") {
+  test("TypeChecker: should classify an array literal containing only integer literals as pure") {
     val expr = PLiteral.array(
       PBoolType(),
       Vector(PIntLit(1), PIntLit(2))
     )
 
-    assert (!frontend.isPureExpr(expr)())
+    assert (frontend.isPureExpr(expr)())
   }
 
   test("TypeChecker: should not let a simple array literal be classified as ghost if its inner type isn't ghost") {
@@ -3366,12 +3366,14 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       PPackageClause(PPkgDef("pkg")),
       Vector(),
       Vector(),
+      Vector(),
+      Vector(),
       Vector(PMethodDecl(
         PIdnDef("foo"),
         PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("self")))),
         inArgs.map(_._1),
         PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), Vector(), Vector(), isPure = true),
+        PFunctionSpec(Vector(), Vector(), Vector(), Vector(), Vector(), isPure = true),
         Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
       ))
     )
@@ -3391,9 +3393,8 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         new PackageInfo("pkg", "pkg", false)
       )
       val tree = new Info.GoTree(pkg)
-      val context = new Info.Context()
       val config = Config()
-      new TypeInfoImpl(tree, context)(config)
+      new TypeInfoImpl(tree, Map.empty)(config)
     }
 
     def exprType(expr : PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector()) : Type.Type =

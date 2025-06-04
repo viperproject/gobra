@@ -8,3 +8,12 @@ package pkg
 requires s == t
 func foo(s []int, t []int) { 
 }
+
+// error: expected pure expression without permissions, but got []int { }
+pure
+decreases
+func f() []int {
+    // pure functions may NOT contain slice literals
+    //:: ExpectedOutput(type_error)
+    return []int{}
+}

@@ -11,7 +11,7 @@ import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag, BuiltInTypeTag}
 import viper.gobra.frontend.info.base.SymbolTable._
-import viper.gobra.frontend.info.base.Type.{AdtClauseT, InterfaceT, StructT}
+import viper.gobra.frontend.info.base.Type.{AdtT, InterfaceT, StructT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.Violation
@@ -69,8 +69,14 @@ trait NameResolution {
             // therefore, we do not use `isGhost` but `spec.isGhost`:
             MethodSpec(spec, tdef, spec.isGhost, this)
 
-          case decl: PFieldDecl => Field(decl, isGhost, this)
-          case decl: PEmbeddedDecl => Embbed(decl, isGhost, this)
+          case tree.parent.pair(decl: PFieldDecl, tree.parent.pair(_: PFieldDecls, _: PExplicitGhostStructClause)) =>
+            // this field declaration has an explicit ghost modifier
+            Field(decl, ghost = true, this)
+          case decl: PFieldDecl => Field(decl, ghost = false, this)
+          case tree.parent.pair(decl: PEmbeddedDecl, _: PExplicitGhostStructClause) =>
+            // this embedded declaration has an explicit ghost modifier
+            Embbed(decl, ghost = true, this)
+          case decl: PEmbeddedDecl => Embbed(decl, ghost = false, this)
 
           case tree.parent.pair(decl: PNamedParameter, _: PResult) => OutParameter(decl, isGhost, canParameterBeUsedAsShared(decl), this)
           case decl: PNamedParameter => InParameter(decl, isGhost, canParameterBeUsedAsShared(decl), this)
@@ -92,11 +98,15 @@ trait NameResolution {
 
           case tree.parent.pair(decl: PDomainFunction, domain: PDomainType) => DomainFunction(decl, domain, this)
 
-          case tree.parent.pair(decl: PAdtClause, adtDecl: PAdtType) => AdtClause(decl, adtDecl, this)
+          case tree.parent.pair(decl: PAdtClause, tree.parent(typeDecl: PTypeDef)) =>
+            AdtClause(decl, typeDecl, this)
 
-          case tree.parent.pair(decl: PMatchBindVar, adt: PMatchAdt) => MatchVariable(decl, adt, this)
           case tree.parent.pair(decl: PMatchBindVar, tree.parent.pair(_: PMatchStmtCase, matchE: PMatchStatement)) =>
-            MatchVariable(decl, matchE.exp, this)
+            MatchVariable(decl, matchE.exp, this) // match full expression of match statement
+          case tree.parent.pair(decl: PMatchBindVar, tree.parent.pair(_: PMatchExpCase, matchE: PMatchExp)) =>
+            MatchVariable(decl, matchE.exp, this) // match full expression of match expression
+          case tree.parent.pair(decl: PMatchBindVar, adt: PMatchAdt) =>
+            MatchVariable(decl, adt, this) // match part of subexpression
 
           case c => Violation.violation(s"This case should be unreachable, but got $c")
         }
@@ -140,7 +150,10 @@ trait NameResolution {
       case _ => violation("PIdnUnk always has a parent")
     }
 
-  private[resolution] lazy val isGhostDef: PNode => Boolean = isEnclosingExplicitGhost
+  // `isGhostDef` returns true if a node is part of ghost code. However, implementation proofs are considered being
+  // non-ghost, independently of whether they are for a ghost or non-ghost method. Thus, implementation proofs for ghost
+  // and non-ghost methods are type-checked in the same way, which is unproblematic due to their syntactic restrictions.
+  private[resolution] lazy val isGhostDef: PNode => Boolean = n => isEnclosingGhost(n)
 
   private[resolution] def serialize(id: PIdnNode): String = id.name
 
@@ -246,8 +259,6 @@ trait NameResolution {
   private def packageLevelDefinitions(m: PMember): Vector[PIdnDef] = {
     /* Returns identifier definitions with a package scope occurring in a type. */
     def leakingIdentifier(t: PType): Vector[PIdnDef] = t match {
-      case t: PDomainType => t.funcs.map(_.id) // domain functions
-      case t: PAdtType => t.clauses.map(_.id) // adt constructors
       case _ => Vector.empty
     }
 
@@ -258,13 +269,45 @@ trait NameResolution {
         case d: PFunctionDecl => Vector(d.id)
         case d: PTypeDecl => Vector(d.left) ++ leakingIdentifier(d.right)
         case d: PMethodDecl => Vector(d.id)
+        case _: PImplementationProof => Vector.empty
       }
-      case PExplicitGhostMember(a) => packageLevelDefinitions(a)
-      case p: PMPredicateDecl => Vector(p.id)
-      case p: PFPredicateDecl => Vector(p.id)
-      case _: PImplementationProof => Vector.empty
+      case g: PGhostMember => g match {
+        case PExplicitGhostMember(a) => packageLevelDefinitions(a)
+        case p: PMPredicateDecl => Vector(p.id)
+        case p: PFPredicateDecl => Vector(p.id)
+      }
     }
   }
+
+  /**
+    * returns the (package-level) identifiers defined by a member
+    * that have a priority lower than all other identifiers
+    */
+  @scala.annotation.tailrec
+  private def latePackageLevelDefinitions(m: PMember): Vector[PIdnDef] = {
+    /* Returns identifier definitions with a package scope occurring in a type. */
+    def leakingIdentifier(t: PType): Vector[PIdnDef] = t match {
+      case t: PDomainType => t.funcs.map(_.id) // domain functions
+      case t: PAdtType => t.clauses.map(_.id) // adt constructors
+      case _ => Vector.empty
+    }
+
+    m match {
+      case a: PActualMember => a match {
+        case d: PTypeDecl => leakingIdentifier(d.right)
+        case _ => Vector.empty
+      }
+      case PExplicitGhostMember(a) => latePackageLevelDefinitions(a)
+      case _ => Vector.empty
+    }
+  }
+
+  lazy val lateEnvironments: PPackage => Environment =
+    attr[PPackage, Environment] { p =>
+      val definitions = p.declarations flatMap latePackageLevelDefinitions
+      val entities = definitions.map(d => serialize(d) -> defEntity(d))
+      rootenv(entities: _*)
+    }
 
   /** returns whether or not identified `id` is defined at node `n`. */
   def isDefinedAt(id: PIdnNode, n: PNode): Boolean = isDefinedInScope(sequentialDefenv.in(n), serialize(id))
@@ -288,7 +331,13 @@ trait NameResolution {
       case c => Violation.violation(s"Only the root has no parent, but got $c")
     }
 
-  lazy val topLevelEnvironment: Environment = scopedDefenv(tree.originalRoot)
+  /** Symboltable imported by a package import. */
+  lazy val topLevelEnvironment: Environment = {
+    val thisPkg = tree.originalRoot
+    val base = scopedDefenv(thisPkg)
+    val late = lateEnvironments(thisPkg)
+    base ++ late
+  }
 
   lazy val entity: PIdnNode => Entity =
     attr[PIdnNode, Entity] {
@@ -318,7 +367,7 @@ trait NameResolution {
           // if the enclosing literal is a struct then id is a field
           case t: StructT => tryFieldLookup(t, id).map(_._1).getOrElse(UnknownEntity())
           // if the enclosing literal is an adt clause then id is an adt field
-          case t: AdtClauseT => tryAdtMemberLookup(t, id).map(_._1).getOrElse(UnknownEntity())
+          case t: AdtT => tryAdtMemberLookup(t, id).map(_._1).getOrElse(UnknownEntity())
           // otherwise it is just a variable
           case _ => symbTableLookup(n)
         }
@@ -381,8 +430,14 @@ trait NameResolution {
         case _ => None
       }
 
+    val level3: Level = n =>
+      tryEnclosingPackage(n) match {
+        case Some(p) => tryLookup(lateEnvironments(p), serialize(n))
+        case _ => None
+      }
+
     /** order of precedence; first level has highest precedence */
-    val levels: Seq[Level] = Seq(level0, level1, level2)
+    val levels: Seq[Level] = Seq(level0, level1, level2, level3)
 
     // returns first successfully defined entity otherwise `UnknownEntity()`
     levels.iterator.map(_(n)).find(_.isDefined).flatten.getOrElse(UnknownEntity())
@@ -431,7 +486,7 @@ trait NameResolution {
     }
     case PDot(base: PNamedOperand, id) => symbTableLookup(base.id) match {
       case pkg: Import =>
-        tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl) match {
+        tryPackageLookup(RegularImport(pkg.decl.importPath), id) match {
           case Some((f: Function, _)) => Some(f)
           case _ => None
         }

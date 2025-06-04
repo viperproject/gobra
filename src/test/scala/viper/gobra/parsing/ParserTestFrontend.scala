@@ -34,6 +34,6 @@ class ParserTestFrontend {
   def parseType(source : String) : Either[Vector[ParserError], PType] = parse(source, Parser.parseType)
   def parseTypeOrFail(source : String) : PType = parseOrFail(source, Parser.parseType)
   def parseImportDecl(source: String): Vector[PImport] = parseOrFail(source, Parser.parseImportDecl)
-  def parseFunctionDecl(source: String, specOnly: Boolean = false): PMember = parseOrFail(source, (s: Source) => Parser.parseFunction(s, specOnly = specOnly))
-
+  def parseMember(source: String, specOnly: Boolean = false): Either[Vector[ParserError], Vector[PMember]] = parse(source, (s: Source) => Parser.parseMember(s, specOnly = specOnly))
+  def parseMemberOrFail(source: String, specOnly: Boolean = false): Vector[PMember] = parseOrFail(source, (s: Source) => Parser.parseMember(s, specOnly = specOnly))
 }

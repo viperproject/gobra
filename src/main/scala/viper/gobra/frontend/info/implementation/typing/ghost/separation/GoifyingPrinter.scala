@@ -77,13 +77,16 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     * Shows the Goified version of the function / method specification
     */
   override def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, measures, isPure, isTrusted) =>
+    case PFunctionSpec(pres, preserves, posts, measures, backendAnnotations, isPure, isTrusted, isOpaque, mayInit) =>
       (if (isPure) specComment <+> showPure else emptyDoc) <>
+      (if (isOpaque) specComment <+> showOpaque else emptyDoc) <>
       (if (isTrusted) specComment <+> showTrusted else emptyDoc) <>
+      (if (mayInit) specComment <+> showMayInit else emptyDoc) <>
       hcat(pres map (p => specComment <+> showPre(p) <> line)) <>
       hcat(preserves map (p => specComment <+> showPreserves(p) <> line)) <>
       hcat(posts map (p => specComment <+> showPost(p) <> line)) <>
-      hcat(measures map (p => specComment <+> showTerminationMeasure(p) <> line))
+      hcat(measures map (p => specComment <+> showTerminationMeasure(p) <> line)) <>
+      specComment <+> showBackendAnnotations(backendAnnotations) <> line
 
     case PLoopSpec(inv, measure) =>
       hcat(inv map (p => specComment <+> showInv(p) <> line)) <>
@@ -124,7 +127,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           rec,
           getActualParams(args),
           getActualResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty),
           body
         )
       )
@@ -136,7 +139,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           id,
           getActualParams(args),
           getActualResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty),
           body
         )
       )
@@ -231,6 +234,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     case n: PProofAnnotation => n match {
       case n: POutline =>
         showSpec(n.spec) <> specComment <> "outline (" <> line <> showStmt(n.body) <> line <>  specComment <> ")" <> line
+      case PClosureImplProof(impl, PBlock(stmts)) => blockSpecComment("proof" <+> showExpr(impl) <> block(showStmtList(stmts)))
     }
 
     case _ => super.showStmt(stmt)

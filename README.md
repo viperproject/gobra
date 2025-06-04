@@ -1,6 +1,6 @@
 <img src=".github/docs/gobra.png" height="250">
 
-[![Test Status](https://github.com/viperproject/gobra/workflows/test/badge.svg?branch=master)](https://github.com/viperproject/gobra/actions?query=workflow%3Atest+branch%3Amaster)
+[![Test Status](https://github.com/viperproject/gobra/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/viperproject/gobra/actions?query=workflow%3Atest+branch%3Amaster)
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](./LICENSE)
 
 [Gobra](https://www.pm.inf.ethz.ch/research/gobra.html) is a prototype verifier for Go programs, based on the [Viper verification infrastructure](https://www.pm.inf.ethz.ch/research/viper.html).
@@ -66,6 +66,11 @@ are two workarounds:
     Thanks to auto restart, the debugger keeps listening even when the JVM is restarted, e.g. for every `run`.
     Note however that the debugger must be running/listening as otherwise the JVM will emit a connection 
     refused error.
+
+## Projects verified with Gobra
+- [VerifiedSCION](https://github.com/viperproject/VerifiedSCION)
+- [Security of protocol implementations via refinement w.r.t. a Tamarin model](https://github.com/viperproject/protocol-verification-refinement). In particular, implementations of the signed Diffie-Hellman and WireGuard protocols have been verified.
+- [Security of protocol implementations verified entirely within Gobra](https://github.com/viperproject/SecurityProtocolImplementations). In particular, implementations of the Needham-Schroeder-Lowe, signed Diffie-Hellman, and WireGuard protocols have been verified.
 
 ## Licensing
 Most Gobra sources are licensed under the Mozilla Public License Version 2.0.

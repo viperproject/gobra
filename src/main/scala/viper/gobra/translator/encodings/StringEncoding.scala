@@ -16,10 +16,12 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.FunctionGenerator
+import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeLevel._
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.TypeBounds
 import viper.silver.{ast => vpr}
+import viper.silver.plugin.standard.termination
 
 import scala.annotation.unused
 
@@ -84,20 +86,22 @@ class StringEncoding extends LeafTypeEncoding {
 
 
   /**
-    * Encodes the (effectul) conversion from a string to a []byte
+    * Encodes the (effectful) conversion from a string to a []byte
     * [ target = []byte(str) ] ->
     *   [
     *     var s []byte
     *     inhale forall i Int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+    *     inhale len(s) == len(str) // (*)
     *     target = s
     *   ]
+    * Note that (*) is correct because the len() function returns the number of bytes in a string.
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
 
     def goA(x: in.Assertion): CodeWriter[vpr.Exp] = ctx.assertion(x)
 
     default(super.statement(ctx)) {
-      case conv@in.EffectfulConversion(target, in.SliceT(in.IntT(_, TypeBounds.Byte), _), _) =>
+      case conv@in.EffectfulConversion(target, in.SliceT(in.IntT(_, TypeBounds.Byte), _), e) =>
         // the argument of type string is not used in the viper encoding. May change in the future to be able to prove more
         // interesting properties
         val (pos, info, errT) = conv.vprMeta
@@ -106,7 +110,7 @@ class StringEncoding extends LeafTypeEncoding {
         val slice = in.LocalVar(ctx.freshNames.next(), sliceT)(conv.info)
         val vprSlice = ctx.variable(slice)
         val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(conv.info)
-        val post = in.SepForall(
+        val post1 = in.SepForall(
           vars = Vector(qtfVar),
           triggers = Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(slice, qtfVar, sliceT)(conv.info))(conv.info)))(conv.info)),
           body = in.Implication(
@@ -114,12 +118,20 @@ class StringEncoding extends LeafTypeEncoding {
             in.Access(in.Accessible.Address(in.IndexedExp(slice, qtfVar, sliceT)(conv.info)), in.FullPerm(conv.info))(conv.info)
           )(conv.info)
         )(conv.info)
+        val post2 = in.ExprAssertion(
+          in.EqCmp(
+            in.Length(slice)(conv.info),
+            in.Length(e)(conv.info),
+          )(conv.info)
+        )(conv.info)
 
         seqn(
           for {
             _ <- local(vprSlice)
-            vprPost <- goA(post)
-            _ <- write(vpr.Inhale(vprPost)(pos, info, errT))
+            vprPost1 <- goA(post1)
+            _ <- write(vpr.Inhale(vprPost1)(pos, info, errT))
+            vprPost2 <- goA(post2)
+            _ <- write(vpr.Inhale(vprPost2)(pos, info, errT))
             ass <- ctx.assignment(in.Assignee.Var(target), slice)(conv)
           } yield ass
         )
@@ -181,6 +193,7 @@ class StringEncoding extends LeafTypeEncoding {
     *     requires l <= h
     *     requires h <= len(s)
     *     ensures strLen(s) == h - l
+    *     decreases _
     * where s is a string id and l and r are the lower and upper bounds of the slice
     */
   private val strSliceName: String = "strSlice"
@@ -197,7 +210,8 @@ class StringEncoding extends LeafTypeEncoding {
       pres = Seq(
         vpr.LeCmp(vpr.IntLit(0)(), argL.localVar)(),
         vpr.LeCmp(argL.localVar, argH.localVar)(),
-        vpr.LeCmp(argH.localVar, vpr.DomainFuncApp(lenFunc, Seq(argS.localVar), Map.empty)())()
+        vpr.LeCmp(argH.localVar, vpr.DomainFuncApp(lenFunc, Seq(argS.localVar), Map.empty)())(),
+        synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate"),
       ),
       posts = Seq(
         vpr.EqCmp(
@@ -270,8 +284,10 @@ class StringEncoding extends LeafTypeEncoding {
 
   /** Generates the function
     *   requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i], _)
+    *   ensures  len(s) == len(res) // (*)
     *   decreases _
-    *   pure func byteSliceToStrFunc(s []byte) string
+    *   pure func byteSliceToStrFunc(s []byte) (res string)
+    * Note that (*) is correct because the function len() returns the number of bytes in a string.
     */
   private val byteSliceToStrFuncName: String = "byteSliceToStrFunc"
   private val byteSliceToStrFuncGenerator: FunctionGenerator[Unit] = new FunctionGenerator[Unit] {
@@ -290,15 +306,23 @@ class StringEncoding extends LeafTypeEncoding {
           in.Access(in.Accessible.Address(in.IndexedExp(param, qtfVar, paramT)(info)), in.WildcardPerm(info))(info)
         )(info)
       )(info)
+      val post = in.ExprAssertion(
+        in.EqCmp(
+          in.Length(param)(info),
+          in.Length(res)(info),
+        )(info)
+      )(info)
 
       val func: in.PureFunction = in.PureFunction(
         name = in.FunctionProxy(byteSliceToStrFuncName)(info),
         args = Vector(param),
         results = Vector(res),
         pres = Vector(pre),
-        posts = Vector(),
+        posts = Vector(post),
         terminationMeasures = Vector(in.WildcardMeasure(None)(info)),
-        body = None
+        backendAnnotations = Vector.empty,
+        body = None,
+        isOpaque = false
       )(info)
       val translatedFunc = ctx.function(func)
       translatedFunc.res

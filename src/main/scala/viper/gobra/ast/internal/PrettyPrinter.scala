@@ -10,12 +10,11 @@ import org.bitbucket.inkytonik.kiama
 import org.bitbucket.inkytonik.kiama.util.Trampolines.Done
 import viper.gobra.ast.printing.PrettyPrinterCombinators
 import viper.gobra.theory.Addressability
-import viper.gobra.util.{Binary, Decimal, Hexadecimal, Octal}
+import viper.gobra.util.{BackendAnnotation, Binary, Decimal, Hexadecimal, Octal}
 import viper.silver.ast.{Position => GobraPosition}
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-import viper.gobra.util.Violation.violation
 
 trait PrettyPrinter {
   def format(node : Node): String
@@ -140,35 +139,34 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     measure match {
       case WildcardMeasure(cond) => "_" <+> showCond(cond)
       case TupleTerminationMeasure(tuple, cond) =>
-        hcat(tuple map {
-          case e: Expr => showExpr(e)
-          case n => violation(s"Unexpected node $n")
-        }) <+> showCond(cond)
+        hcat(tuple map show) <+> showCond(cond)
     }
   }
 
   def showFunction(f: Function): Doc = f match {
-    case Function(name, args, results, pres, posts, measures, body) =>
+    case Function(name, args, results, pres, posts, measures, backendAnnotations, body) =>
       "func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block(showStmt(b)))
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <> showBackendAnnotations(backendAnnotations)) <> opt(body)(b => block(showStmt(b)))
   }
 
   def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, body) =>
-      "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
+    case PureFunction(name, args, results, pres, posts, measures, backendAnnotations, body, isOpaque) =>
+      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <> "pure func"
+      funcPrefix <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <> showBackendAnnotations(backendAnnotations)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
 
   def showMethod(m: Method): Doc = m match {
-    case Method(receiver, name, args, results, pres, posts, measures, body) =>
+    case Method(receiver, name, args, results, pres, posts, measures, backendAnnotations, body) =>
       "func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block(showStmt(b)))
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <> showBackendAnnotations(backendAnnotations)) <> opt(body)(b => block(showStmt(b)))
   }
 
   def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, body) =>
-      "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
+    case PureMethod(receiver, name, args, results, pres, posts, measures, backendAnnotations, body, isOpaque) =>
+      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <> "pure func"
+      funcPrefix <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <> showBackendAnnotations(backendAnnotations)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
 
   def showMethodSubtypeProof(m: MethodSubtypeProof): Doc = m match {
@@ -222,6 +220,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showField(field: Field): Doc = updatePositionStore(field) <> (field match {
     case Field(name, typ, _) => "field" <> name <> ":" <+> showType(typ)
   })
+
+  def showBackendAnnotations(annotations: Vector[BackendAnnotation]): Doc =
+    "#backend" <> brackets(showList(annotations)(showBackendAnnotation)) <> line
+
+  def showBackendAnnotation(annotation: BackendAnnotation): Doc =
+    annotation.key <> parens(showList(annotation.values)(d => d))
 
   def showClosureSpec(spec: ClosureSpec): Doc =
     showProxy(spec.func) <> braces(ssep(spec.params.map(p => p._1.toString <> colon <> showExpr(p._2)).toSeq, comma <> space))
@@ -337,6 +341,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
+    case Refute(ass) => "refute" <+> showAss(ass)
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)
     case Exhale(ass) => "exhale" <+> showAss(ass)
@@ -353,9 +358,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(mapLookup)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
-    case Outline(_, pres, posts, measures, body, trusted) =>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
-          "outline" <> (if (trusted) emptyDoc else parens(nest(line <> showStmt(body)) <> line))
+    case Outline(_, pres, posts, measures, backendAnnotations, body, trusted) =>
+      spec(showPreconditions(pres) <>
+        showPostconditions(posts) <> showTerminationMeasures(measures) <> showBackendAnnotations(backendAnnotations)) <>
+        "outline" <> (if (trusted) emptyDoc else parens(nest(line <> showStmt(body)) <> line))
     case Continue(l, _) => "continue" <+> opt(l)(text)
     case Break(l, _) => "break" <+> opt(l)(text)
   })
@@ -417,6 +423,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showPatternMatchCaseExp(c: PatternMatchCaseExp): Doc = "case" <+> showMatchPattern(c.mExp) <> ":" <+> showExpr(c.exp)
 
+  def showPatternMatchCaseAss(c: PatternMatchCaseAss): Doc = "case" <+> showMatchPattern(c.mExp) <> ":" <+> showAss(c.ass)
+
   def showMatchPattern(expr: MatchPattern): Doc = expr match {
     case MatchBindVar(name, _) => name
     case MatchAdt(clause, expr) => clause.name <+> "{" <> ssep(expr map showMatchPattern, ",") <> "}"
@@ -428,6 +436,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showAss(a: Assertion): Doc = updatePositionStore(a) <> (a match {
     case SepAnd(left, right) => showAss(left) <+> "&&" <+> showAss(right)
     case ExprAssertion(exp) => showExpr(exp)
+    case Let(left, right, exp) =>
+      "let" <+> showVar(left) <+> "==" <+> parens(showExpr(right)) <+> "in" <+> showAss(exp)
+    case PatternMatchAss(exp, cases, default) => "match" <+> showExpr(exp) <+>
+      block(ssep(cases map showPatternMatchCaseAss, line) <> (if (default.isDefined) line <> "default:" <+> showAss(default.get) else ""))
+
     case MagicWand(left, right) => showAss(left) <+> "--*" <+> showAss(right)
     case Implication(left, right) => showExpr(left) <+> "==>" <+> showAss(right)
     case Access(e, FullPerm(_)) => "acc" <> parens(showAcc(e))
@@ -462,9 +475,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showExpr(e: Expr): Doc = updatePositionStore(e) <> (e match {
     case Unfolding(acc, exp) => "unfolding" <+> showAss(acc) <+> "in" <+> showExpr(exp)
 
-    case Let(left, right, exp) => "let" <+> showVar(left) <+> "==" <+> parens(showExpr(right)) <+> "in" <+> showExpr(exp)
+    case PureLet(left, right, exp) =>
+      "let" <+> showVar(left) <+> "==" <+> parens(showExpr(right)) <+> "in" <+> showExpr(exp)
 
-    case Old(op, _) => "old" <> parens(showExpr(op))
+    case Old(op) => "old" <> parens(showExpr(op))
 
     case LabeledOld(label, operand) => "old" <> brackets(showProxy(label)) <> parens(showExpr(operand))
 
@@ -483,9 +497,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case c: CurrentPerm => "perm" <> parens(showAcc(c.acc))
     case PermMinus(exp) => "-" <> showExpr(exp)
 
-    case PureFunctionCall(func, args, _) => func.name <> parens(showExprList(args))
+    case PureFunctionCall(func, args, _, reveal) =>
+      val revealDoc: Doc = if (reveal) "reveal" else emptyDoc
+      revealDoc <+> func.name <> parens(showExprList(args))
 
-    case PureMethodCall(recv, meth, args, _) => showExpr(recv) <> dot <> meth.name <> parens(showExprList(args))
+    case PureMethodCall(recv, meth, args, _, reveal) =>
+      val revealDoc: Doc = if (reveal) "reveal " else emptyDoc
+      revealDoc <> showExpr(recv) <> dot <> meth.name <> parens(showExprList(args))
 
     case PureClosureCall(closure, args, spec, _) => showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
 
@@ -513,6 +531,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
     case MapKeys(exp, _) => "domain" <> parens(showExpr(exp))
     case MapValues(exp, _) => "range" <> parens(showExpr(exp))
+    case MapConversion(exp) => "dict" <> parens(showExpr(exp))
     case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
     case Receive(channel, _, _, _) => "<-" <+> showExpr(channel)
 
@@ -570,7 +589,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case StructUpdate(base, field, newVal) => showExpr(base) <> brackets(showField(field) <+> ":=" <+> showExpr(newVal))
     case Negation(op) => "!" <> showExpr(op)
     case BitNeg(op) => "^" <> showExpr(op)
-    case BinaryExpr(left, op, right, _) => showExpr(left) <+> op <+> showExpr(right)
+    case BinaryExpr(left, op, right, _) => parens(showExpr(left) <+> op <+> showExpr(right))
     case lit: Lit => showLit(lit)
     case v: Var => showVar(v)
   })
@@ -597,14 +616,16 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case BoolLit(b) => if (b) "true" else "false"
     case NilLit(t) => parens("nil" <> ":" <> showType(t))
 
-    case FunctionLit(name, args, captured, results, pres, posts, measures, body) =>
+    case FunctionLit(name, args, captured, results, pres, posts, measures, backendAnnotations, body) =>
       "func" <+> showProxy(name) <> showCaptured(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+        spec(showPreconditions(pres) <> showPostconditions(posts) <>
+          showTerminationMeasures(measures) <> showBackendAnnotations(backendAnnotations)) <>
         opt(body)(b => block(showStmt(b)))
 
-    case PureFunctionLit(name, args, captured, results, pres, posts, measures, body) =>
+    case PureFunctionLit(name, args, captured, results, pres, posts, measures, backendAnnotations, body) =>
       "pure func" <+> showProxy(name)  <> showCaptured(captured) <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <> opt(body)(b => block("return" <+> showExpr(b)))
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <> showBackendAnnotations(backendAnnotations)) <>
+        opt(body)(b => block("return" <+> showExpr(b)))
 
     case ArrayLit(len, typ, elems) => {
       val lenP = brackets(len.toString)
@@ -625,7 +646,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       val entriesDoc = showList(entries){ case (x,y) => showExpr(x) <> ":" <+> showExpr(y) }
       showType(lit.typ) <+> braces(space <> entriesDoc <> (if (entries.nonEmpty) space else emptyDoc))
 
-    case AdtConstructorLit(typ, _, args) => showType(typ) <> braces(showExprList(args))
+    case lit: AdtConstructorLit => lit.clause.name <> braces(showExprList(lit.args))
   }
 
   // variables
@@ -670,27 +691,33 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
 
   override def showFunction(f: Function): Doc = f match {
-    case Function(name, args, results, pres, posts, measures, _) =>
+    case Function(name, args, results, pres, posts, measures, backendAnnotations, _) =>
       "func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
+        spec(showPreconditions(pres) <>
+          showPostconditions(posts) <> showTerminationMeasures(measures) <> showBackendAnnotations(backendAnnotations))
   }
 
   override def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, _) =>
-      "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
+    case PureFunction(name, args, results, pres, posts, measures, backendAnnotations, _, isOpaque) =>
+    val funcPrefix = if (isOpaque) "pure opaque func" else "pure func"
+      funcPrefix <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <>
+        showBackendAnnotations(backendAnnotations))
   }
 
   override def showMethod(m: Method): Doc = m match {
-    case Method(receiver, name, args, results, pres, posts, measures, _) =>
+    case Method(receiver, name, args, results, pres, posts, measures, backendAnnotations, _) =>
       "func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <>
+          showBackendAnnotations(backendAnnotations))
   }
 
   override def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, _) =>
-      "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures))
+    case PureMethod(receiver, name, args, results, pres, posts, measures, backendAnnotations, _, isOpaque) =>
+      val funcPrefix = if (isOpaque) "pure opaque func" else "pure func"
+      funcPrefix <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <>
+          showBackendAnnotations(backendAnnotations))
   }
 
   override def showFPredicate(predicate: FPredicate): Doc = predicate match {
@@ -766,6 +793,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
+    case Refute(ass) => "refute" <+> showAss(ass)
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)
     case Exhale(ass) => "exhale" <+> showAss(ass)
@@ -782,8 +810,10 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case Continue(l, _) => "continue" <+> opt(l)(text)
     case Break(l, _) => "break" <+> opt(l)(text)
-    case Outline(_, pres, posts, measures, _, _) =>
-      spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+    case Outline(_, pres, posts, measures, backendAnnotations, _, _) =>
+      spec(showPreconditions(pres) <>
+        showPostconditions(posts) <> showTerminationMeasures(measures)) <>
+        showBackendAnnotations(backendAnnotations) <>
         "outline"
   }
 }

@@ -33,6 +33,16 @@ object Source {
   case class NoPermissionToRangeExpressionAnnotation() extends Annotation
   case class InsufficientPermissionToRangeExpressionAnnotation() extends Annotation
   case class AutoImplProofAnnotation(subT: String, superT: String) extends Annotation
+  class OverwriteErrorAnnotation(
+                                  newError: VerificationError => VerificationError,
+                                  attachReasons: Boolean = true
+                                ) extends Annotation {
+    def apply(err: VerificationError): VerificationError = {
+      if (attachReasons) {
+        err.reasons.foldLeft(newError(err)){ case (err, reason) => err dueTo reason }
+      } else newError(err)
+    }
+  }
 
   object Parser {
 

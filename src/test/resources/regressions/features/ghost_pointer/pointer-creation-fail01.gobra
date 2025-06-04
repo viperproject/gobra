@@ -1,0 +1,37 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package PointerCreationFail01
+
+// Pointers created in actual code are pointers to locations on the actual heap.
+// Pointers created in ghost code are pointers to locations on the ghost heap.
+
+ghost
+decreases
+func GhostFunc() (x *int) {
+    // ghost pointer is not assignable to an actual pointer
+    //:: ExpectedOutput(type_error)
+    x = new(int)
+}
+
+decreases
+func ActualFunc() {
+    var x *int
+
+    // gpointer is a ghost type which cannot be used for actual variables:
+    //:: ExpectedOutput(type_error)
+    var y gpointer[int]
+
+    ghost var z gpointer[int]
+
+    // ghost pointer is not assignable to an actual pointer
+    //:: ExpectedOutput(type_error)
+    ghost x = new(int)
+    
+    // ghost pointer is assignable to a ghost pointer:
+    ghost z = new(int)
+
+    // actual pointer is not assignable to a ghost pointer:
+    //:: ExpectedOutput(type_error)
+    z = new(int)
+}

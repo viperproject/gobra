@@ -8,7 +8,7 @@ package viper.gobra.translator.encodings.arrays
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.Source
+import viper.gobra.reporting.{LoadError, InsufficientPermissionError, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
@@ -163,6 +163,10 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * R[ arrayLit(E) ] -> create_ex_array( [e] | e in E )
     * R[ len(e: [n]T@°) ] -> ex_array_length([e])
     * R[ len(e: [n]T@) ] -> sh_array_length(Ref[e])
+    * R[ len(e: *[n]T) ] -> sh_array_length(Ref[*e])
+    * R[ cap(e: [n]T@°) ] -> ex_array_length([e])
+    * R[ cap(e: [n]T@) ] -> sh_array_length(Ref[e])
+    * R[ cap(e: *[n]T) ] -> sh_array_length(Ref[*e])
     * R[ seq(e: [n]T) ] -> ex_array_toSeq([e])
     * R[ set(e: [n]T) ] -> seqToSet(ex_array_toSeq([e]))
     * R[ mset(e: [n]T) ] -> seqToMultiset(ex_array_toSeq([e]))
@@ -201,6 +205,24 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         case Shared => ctx.reference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
       }
 
+    case in.Length(exp :: ctx.*(t: in.ArrayT)) =>
+      val expInfo = exp.info
+      val derefExp = in.Deref(exp, in.PointerT(t, t.addressability))(expInfo)
+      val newLenExpr = in.Length(derefExp)(expInfo)
+      expression(ctx)(newLenExpr)
+
+    case n@in.Capacity(e :: ctx.Array(len, t) / m) =>
+      m match {
+        case Exclusive => ctx.expression(e).map(ex.length(_, cptParam(len, t)(ctx))(n)(ctx))
+        case Shared => ctx.reference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
+      }
+
+    case in.Capacity(exp :: ctx.*(t: in.ArrayT)) =>
+      val expInfo = exp.info
+      val derefExp = in.Deref(exp, in.PointerT(t, t.addressability))(expInfo)
+      val newLenExpr = in.Capacity(derefExp)(expInfo)
+      expression(ctx)(newLenExpr)
+
     case n@ in.SequenceConversion(e :: ctx.Array(len, t) / Exclusive) =>
       ctx.expression(e).map(vE => ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))
 
@@ -230,7 +252,11 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val (pos, info, errT) = loc.vprMeta
       for {
         arg <- ctx.reference(loc)
-      } yield conversionFunc(Vector(arg), cptParam(len, t)(ctx))(pos, info, errT)(ctx)
+        res <- funcAppPrecondition(
+          conversionFunc(Vector(arg), cptParam(len, t)(ctx))(pos, info, errT)(ctx),
+          { case (info, _) => LoadError(info) dueTo InsufficientPermissionError(info) }
+        )
+      } yield res
   }
 
   /**
@@ -240,11 +266,18 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * Super implements shared variables with [[variable]].
     *
     * Ref[ (e: [n]T)[idx] ] -> sh_array_get(Ref[e], [idx], n)
+    * Ref[ (e: *[n]T)[idx] ] -> sh_array_get(Ref[*e], [idx], n)
     */
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
     case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx, _)) :: _ / Shared =>
       for {
         vBase <- ctx.reference(base.asInstanceOf[in.Location])
+        vIdx <- ctx.expression(idx)
+      } yield sh.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
+    case loc@in.IndexedExp(base :: ctx.*(in.ArrayT(len, t, _)), idx, ptrT) =>
+      val derefBase = in.Deref(base, ptrT)(base.info)
+      for {
+        vBase <- ctx.reference(derefBase.asInstanceOf[in.Location])
         vIdx <- ctx.expression(idx)
       } yield sh.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
   }
@@ -336,6 +369,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * function arrayDefault(): ([n]T)°
     *   ensures len(result) == n
     *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> [result[idx] == dflt(T)]
+    *   decreases _
     * */
   private val exDfltFunc: FunctionGenerator[ComponentParameter] = new FunctionGenerator[ComponentParameter]{
     def genFunction(t: ComponentParameter)(ctx: Context): vpr.Function = {
@@ -358,12 +392,14 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         Seq(vpr.Trigger(Seq(trigger))()),
         vpr.Implies(boundaryCondition(vIdx.localVar, t.len)(src), idxEq)()
       )()
+      val terminationMeasure =
+        synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
 
       vpr.Function(
         name = s"${Names.arrayDefaultFunc}_${t.serialize}",
         formalArgs = Seq.empty,
         typ = vResType,
-        pres = Seq.empty,
+        pres = Seq(terminationMeasure),
         posts = Vector(lenEq, arrayEq),
         body = None
       )()

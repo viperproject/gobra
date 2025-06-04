@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.ast.internal.theory.Comparability
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
-import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, NoPermissionToRangeExpressionError, Source}
+import viper.gobra.reporting.{AssignmentError, DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, NoPermissionToRangeExpressionError, Source}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.library.Generator
 import viper.gobra.translator.context.Context
@@ -175,7 +175,7 @@ trait TypeEncoding extends Generator {
         for {
           footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
           eq <- ctx.equal(loc, rhs)(src)
-          _ <- write(vpr.Exhale(footprint)(pos, info, errT))
+          _ <- exhaleWithDefaultReason(footprint, AssignmentError)
           inhale = vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT)
         } yield inhale
       )
@@ -232,6 +232,13 @@ trait TypeEncoding extends Generator {
       unit(vprExpr)
     case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) => ctx.expression(expr)
   }
+
+  /**
+    * Encodes expressions when they occur as the top-level expression in a trigger.
+    * The default implements an encoding for predicate instances and defers the
+    * encoding of all expressions to the expression encoding.
+    */
+  def triggerExpr(@unused ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
   /**
     * Encodes assertions.

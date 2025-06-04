@@ -1,0 +1,24 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type Rectangle struct {
+    Width, Height int
+}
+
+ghost
+decreases
+pure func GetHeight(r Rectangle) (res int) {
+    return r.Height
+}
+
+func main() {
+    someActualVariable := 42
+    r := Rectangle{Width: 2, Height: 5}
+    h := GetHeight(r)
+    assert h == GetHeight(r) && h == 5
+    // h is implicitly a ghost variable. Thus, the following assignment (to a non-ghost variable) should fail:
+    //:: ExpectedOutput(type_error)
+    someActualVariable = h
+}

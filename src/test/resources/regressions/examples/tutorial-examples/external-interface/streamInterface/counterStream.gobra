@@ -11,6 +11,7 @@ type stream interface {
 	pred mem()
 
 	requires acc(mem(), 1/2)
+	decreases
 	pure hasNext() bool
 
 	requires mem() && hasNext()

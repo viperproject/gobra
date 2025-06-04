@@ -62,6 +62,7 @@ object Names {
     case in.ArrayT(len, elemT, addr) => s"Array$len${serializeType(elemT)}${serializeAddressability(addr)}"
     case in.SliceT(elemT, addr) => s"Slice${serializeType(elemT)}${serializeAddressability(addr)}"
     case in.MapT(keyT, valueT, addr) => s"Map${serializeType(keyT)}_${serializeType(valueT)}_${serializeAddressability(addr)}"
+    case in.MathMapT(keyT, valueT, addr) => s"Dict${serializeType(keyT)}_${serializeType(valueT)}_${serializeAddressability(addr)}"
     case in.SequenceT(elemT, addr) => s"Sequence${serializeType(elemT)}${serializeAddressability(addr)}"
     case in.SetT(elemT, addr) => s"Set${serializeType(elemT)}${serializeAddressability(addr)}"
     case in.MultisetT(elemT, addr) => s"Multiset${serializeType(elemT)}${serializeAddressability(addr)}"
@@ -71,7 +72,7 @@ object Names {
     // we use a dollar sign to mark the beginning and end of the type list to avoid that `Tuple(Tuple(X), Y)` and `Tuple(Tuple(X, Y))` map to the same name:
     case in.TupleT(ts, addr) => s"Tuple$$${ts.map(serializeType).mkString("")}$$${serializeAddressability(addr)}"
     case in.PredT(ts, addr) => s"Pred$$${ts.map(serializeType).mkString("")}$$${serializeAddressability(addr)}"
-    case in.StructT(fields, addr) => s"Struct${serializeFields(fields)}${serializeAddressability(addr)}"
+    case in.StructT(fields, _, addr) => s"Struct${serializeFields(fields)}${serializeAddressability(addr)}"
     case in.FunctionT(args, res, addr) => s"Func$$${args.map(serializeType).mkString("")}$$${res.map(serializeType).mkString("")}$$${serializeAddressability(addr)}"
     case in.InterfaceT(name, addr) => s"Interface$name${serializeAddressability(addr)}"
     case in.ChannelT(elemT, addr) => s"Channel${serializeType(elemT)}${serializeAddressability(addr)}"
@@ -84,7 +85,7 @@ object Names {
   }
 
   def serializeFields(fields: Vector[in.Field]): String = {
-    val serializedFields = fields.map(f => s"${f.name}_${serializeType(f.typ)}").mkString("_")
+    val serializedFields = fields.map(f => s"${f.name}_${serializeType(f.typ)}_${if (f.ghost) "g" else "a"}").mkString("_")
     // we use a dollar sign to mark the beginning and end of the type list to avoid that `Tuple(Tuple(X), Y)` and `Tuple(Tuple(X, Y))` map to the same name:
     s"$$$serializedFields$$"
   }
@@ -188,4 +189,6 @@ object Names {
   def shiftLeft: String = "intShiftLeft"
   def shiftRight: String = "intShiftRight"
   def bitwiseNeg: String = "intBitwiseNeg"
+  def intDiv: String = "goIntDiv"
+  def intMod: String = "goIntMod"
 }

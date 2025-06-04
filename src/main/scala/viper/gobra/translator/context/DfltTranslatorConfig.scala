@@ -16,7 +16,7 @@ import viper.gobra.translator.encodings.closures.ClosureEncoding
 import viper.gobra.translator.encodings.combinators.{DefaultEncoding, FinalTypeEncoding, SafeTypeEncodingCombiner, TypeEncoding}
 import viper.gobra.translator.encodings.interfaces.InterfaceEncoding
 import viper.gobra.translator.encodings.maps.{MapEncoding, MathematicalMapEncoding}
-import viper.gobra.translator.encodings.defaults.{DefaultGlobalVarEncoding, DefaultMethodEncoding, DefaultPredicateEncoding, DefaultPureMethodEncoding}
+import viper.gobra.translator.encodings.defaults.{DefaultGlobalVarEncoding, DefaultMethodEncoding, DefaultPredicateEncoding, DefaultPureMethodEncoding, DefaultTriggerExprEncoding}
 import viper.gobra.translator.encodings.options.OptionEncoding
 import viper.gobra.translator.encodings.preds.PredEncoding
 import viper.gobra.translator.encodings.sequences.SequenceEncoding
@@ -61,6 +61,7 @@ class DfltTranslatorConfig(
   val pureMethodEncoding = new DefaultPureMethodEncoding
   val predicateEncoding = new DefaultPredicateEncoding
   val globalVarEncoding = new DefaultGlobalVarEncoding
+  val triggerExprEncoding = new DefaultTriggerExprEncoding
 
   val typeEncoding: TypeEncoding = new FinalTypeEncoding(
     new SafeTypeEncodingCombiner(Vector(
@@ -73,7 +74,7 @@ class DfltTranslatorConfig(
       new TerminationEncoding, new BuiltInEncoding, new OutlineEncoding, new DeferEncoding,
       new GlobalEncoding, new Comments,
     ), Vector(
-      methodEncoding, pureMethodEncoding, predicateEncoding, globalVarEncoding
+      methodEncoding, pureMethodEncoding, predicateEncoding, globalVarEncoding, triggerExprEncoding
     ))
   )
 

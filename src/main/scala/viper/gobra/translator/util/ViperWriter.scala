@@ -61,8 +61,8 @@ object ViperWriter {
     def container(data: Vector[DataKind]): DataContainer[K] = {
       val (own, other) = data.foldLeft[(Vector[K], Vector[DataKind])]((Vector.empty, Vector.empty)){
         case ((ow, ot), e) => ownKind(e) match {
-          case None    => (ow, e +: ot)
-          case Some(k) => (k +: ow, ot)
+          case None    => (ow, ot :+ e)
+          case Some(k) => (ow :+ k, ot)
         }
       }
 
@@ -399,8 +399,23 @@ object ViperWriter {
     /* Can be used in expressions. */
     def assert(cond: vpr.Exp, exp: vpr.Exp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError)(ctx: Context): Writer[vpr.Exp] = {
       // In the future, this might do something more sophisticated
-      val (res, errT) = ctx.condition.assert(cond, exp, reasonT)
-      errorT(errT).map(_ => res)
+      cond match {
+        case vpr.TrueLit() =>
+          unit(exp)
+        case _ =>
+          val (res, errT) = ctx.condition.assert(cond, exp, reasonT)
+          errorT(errT).map(_ => res)
+      }
+    }
+
+    /* Can be used in expressions. */
+    def funcAppPrecondition(call: vpr.FuncApp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError): Writer[vpr.Exp] = {
+      for {
+        _ <- errorT({
+          case e@vprerr.PreconditionInAppFalse(Source(info), reason, _) if e causedBy call =>
+            reasonT(info, reason)
+        })
+      } yield call
     }
 
     /* Emits Viper statements. */

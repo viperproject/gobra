@@ -1,0 +1,54 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// tests that a struct with ghost fields cannot be put under an interface
+
+package GhostFieldInterfaceFail01
+
+type SomeIntf interface {
+    pred Mem()
+
+    decreases
+    requires acc(Mem(), _)
+    pure Get() int
+
+    ghost
+    decreases
+    requires acc(Mem(), _)
+    pure Get2() int
+}
+
+decreases
+requires s != nil && acc(s.Mem(), _)
+pure func callee(s SomeIntf) int {
+    return s.Get()
+}
+
+
+type TestcaseStruct struct {
+    actualField int
+    ghost ghostField int
+}
+
+pred (s TestcaseStruct) Mem() {
+    true
+}
+
+decreases
+pure func (s TestcaseStruct) Get() int {
+    return s.actualField
+}
+
+ghost
+decreases
+pure func (s TestcaseStruct) Get2() int {
+    return s.ghostField
+}
+
+func testcase() {
+    s := TestcaseStruct{ 42, 101 }
+    fold s.Mem()
+    //:: ExpectedOutput(type_error)
+    callee(s)
+    assert s.Get2() == 101
+}

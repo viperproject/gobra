@@ -28,7 +28,7 @@ class TerminationEncoding extends Encoding {
             c <- option(cond map ctx.expression)
             v <- sequence(vector.map {
               case e: in.Expr => ctx.expression(e)
-              case p: in.PredicateAccess => predicateInstance(p)(ctx)
+              case p: in.Access => predicateInstance(p)(ctx)
               case _ => violation("invalid tuple measure argument")
             })
           } yield termination.DecreasesTuple(v, c)(pos, info, errT)
@@ -39,11 +39,11 @@ class TerminationEncoding extends Encoding {
       }
   }
 
-  def predicateInstance(x: in.PredicateAccess)(ctx: Context): CodeWriter[predicateinstance.PredicateInstance] = {
+  def predicateInstance(x: in.Access)(ctx: Context): CodeWriter[predicateinstance.PredicateInstance] = {
     val (pos, info, errT) = x.vprMeta
     for {
-      v <- ctx.assertion(in.Access(in.Accessible.Predicate(x), in.FullPerm(x.info))(x.info))
+      v <- ctx.assertion(x)
       pap = v.asInstanceOf[vpr.PredicateAccessPredicate]
-    } yield predicateinstance.PredicateInstance(pap.loc.args, pap.loc.predicateName)(pos, info, errT)
+    } yield predicateinstance.PredicateInstance(pap.loc.predicateName, pap.loc.args)(pos, info, errT)
   }
 }

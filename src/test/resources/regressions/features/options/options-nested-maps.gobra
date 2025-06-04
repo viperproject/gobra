@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+ghost
+pure func bar(m dict[int]int, idx int) option[int] {
+    return idx in domain(m) ? some(m[idx]) : none[int]
+}
+
+ghost
+pure func baz(m dict[int]int, idx int) option[int] {
+    return match idx in domain(m){
+        case true:
+            some(m[idx])
+        case false:
+            none[int]
+    }
+}

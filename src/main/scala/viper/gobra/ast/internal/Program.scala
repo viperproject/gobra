@@ -18,7 +18,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
-import viper.gobra.util.{Decimal, NumBase, TypeBounds, Violation}
+import viper.gobra.util.{BackendAnnotation, Decimal, NumBase, TypeBounds, Violation}
 import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation.violation
 
@@ -147,6 +147,7 @@ sealed trait MethodMember extends MethodLikeMember {
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
   def terminationMeasures: Vector[TerminationMeasure]
+  def backendAnnotations: Vector[BackendAnnotation]
 }
 
 sealed trait FunctionLikeMember extends Member {
@@ -159,6 +160,7 @@ sealed trait FunctionLikeMemberOrLit extends Node {
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
   def terminationMeasures: Vector[TerminationMeasure]
+  def backendAnnotations: Vector[BackendAnnotation]
 }
 
 sealed trait FunctionMember extends FunctionLikeMember with FunctionLikeMemberOrLit
@@ -185,6 +187,7 @@ case class Method(
                  override val pres: Vector[Assertion],
                  override val posts: Vector[Assertion],
                  override val terminationMeasures: Vector[TerminationMeasure],
+                 override val backendAnnotations: Vector[BackendAnnotation],
                  body: Option[MethodBody]
                  )(val info: Source.Parser.Info) extends Member with MethodMember
 
@@ -196,7 +199,9 @@ case class PureMethod(
                        override val pres: Vector[Assertion],
                        override val posts: Vector[Assertion],
                        override val terminationMeasures: Vector[TerminationMeasure],
-                       body: Option[Expr]
+                       override val backendAnnotations: Vector[BackendAnnotation],
+                       body: Option[Expr],
+                       isOpaque: Boolean
                      )(val info: Source.Parser.Info) extends Member with MethodMember {
   require(results.size <= 1)
 }
@@ -241,6 +246,7 @@ case class Function(
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
                      override val terminationMeasures: Vector[TerminationMeasure],
+                     override val backendAnnotations: Vector[BackendAnnotation],
                      body: Option[MethodBody]
                    )(val info: Source.Parser.Info) extends Member with FunctionMember
 
@@ -251,7 +257,9 @@ case class PureFunction(
                          override val pres: Vector[Assertion],
                          override val posts: Vector[Assertion],
                          override val terminationMeasures: Vector[TerminationMeasure],
-                         body: Option[Expr]
+                         override val backendAnnotations: Vector[BackendAnnotation],
+                         body: Option[Expr],
+                         isOpaque: Boolean
                        )(val info: Source.Parser.Info) extends Member with FunctionMember {
   require(results.size <= 1)
 }
@@ -326,6 +334,12 @@ case class MethodBody(
                        seqn: MethodBodySeqn,
                        postprocessing: Vector[Stmt] = Vector.empty,
                      )(val info: Source.Parser.Info) extends Stmt
+
+object MethodBody {
+  def empty(info: Source.Parser.Info): MethodBody = {
+    MethodBody(Vector.empty, MethodBodySeqn(Vector.empty)(info), Vector.empty)(info)
+  }
+}
 
 /**
   * This node serves as a target of encoding extensions. See [[viper.gobra.translator.encodings.combinators.TypeEncoding.Extension]]
@@ -424,6 +438,7 @@ case class Defer(stmt: Deferrable)(val info: Source.Parser.Info) extends Stmt
 case class Return()(val info: Source.Parser.Info) extends Stmt
 
 case class Assert(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
+case class Refute(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Assume(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Inhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Exhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
@@ -449,6 +464,7 @@ case class Outline(
                     pres: Vector[Assertion],
                     posts: Vector[Assertion],
                     terminationMeasures: Vector[TerminationMeasure],
+                    val backendAnnotations: Vector[BackendAnnotation],
                     body: Stmt,
                     trusted: Boolean,
                   )(val info: Source.Parser.Info) extends Stmt
@@ -471,6 +487,10 @@ case class SafeMapLookup(resTarget: LocalVar, successTarget: LocalVar, mapLookup
 case class PatternMatchExp(exp: Expr, typ: Type, cases: Vector[PatternMatchCaseExp], default: Option[Expr])(val info: Source.Parser.Info) extends Expr
 
 case class PatternMatchCaseExp(mExp: MatchPattern, exp: Expr)(val info: Source.Parser.Info) extends Node
+
+case class PatternMatchAss(exp: Expr, cases: Vector[PatternMatchCaseAss], default: Option[Assertion])(val info: Source.Parser.Info) extends Assertion
+
+case class PatternMatchCaseAss(mExp: MatchPattern, ass: Assertion)(val info: Source.Parser.Info) extends Node
 
 case class PatternMatchStmt(exp: Expr, cases: Vector[PatternMatchCaseStmt], strict: Boolean)(val info: Source.Parser.Info) extends Stmt
 
@@ -501,7 +521,7 @@ case class Access(e: Accessible, p: Expr)(val info: Source.Parser.Info) extends 
 sealed trait TerminationMeasure extends Assertion
 case class WildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure
 case class TupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure {
-  require(tuple.forall(x => x.isInstanceOf[Expr] || x.isInstanceOf[PredicateAccess]), s"Unexpected tuple $tuple")
+  require(tuple.forall(x => x.isInstanceOf[Expr] || x.isInstanceOf[Access]), s"Unexpected tuple $tuple")
 }
 
 sealed trait Accessible extends Node {
@@ -543,14 +563,18 @@ case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extend
   require(typ.addressability == Addressability.unfolding(in.typ.addressability))
 }
 
-case class Let(left: LocalVar, right: Expr, in: Expr)(val info: Source.Parser.Info) extends Expr {
+case class PureLet(left: LocalVar, right: Expr, in: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = in.typ
 }
 
-case class Old(operand: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
+case class Let(left: LocalVar, right: Expr, in: Assertion)(val info: Source.Parser.Info) extends Assertion
+
+case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = operand.typ.withAddressability(Addressability.rValue)
+}
 
 case class LabeledOld(label: LabelProxy, operand: Expr)(val info: Source.Parser.Info) extends Expr {
-  override val typ: Type = operand.typ
+  override val typ: Type = operand.typ.withAddressability(Addressability.rValue)
 }
 
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
@@ -715,6 +739,7 @@ case class Capacity(exp : Expr)(val info : Source.Parser.Info) extends Expr {
 case class IndexedExp(base : Expr, index : Expr, baseUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr with Location {
   override val typ : Type = baseUnderlyingType match {
     case t: ArrayT => t.elems
+    case PointerT(t: ArrayT, _) => t.elems
     case t: SequenceT => t.t
     case t: SliceT => t.elems
     case t: MapT => t.values
@@ -758,11 +783,7 @@ case class RangeSequence(low : Expr, high : Expr)(val info : Source.Parser.Info)
   * The appending of two sequences represented by `left` and `right`
   * (which should be of identical types as result of type checking).
   */
-case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("++") {
-  /** Should be identical to `right.typ`. */
-  require(left.typ.isInstanceOf[SequenceT] && right.typ.isInstanceOf[SequenceT], s"expected two sequences, but got ${left.typ} and ${right.typ} (${info.origin})")
-  override val typ : Type = SequenceT(left.typ.asInstanceOf[SequenceT].t, Addressability.rValue)
-}
+case class SequenceAppend(left : Expr, right : Expr, typ: Type)(val info: Source.Parser.Info) extends BinaryExpr("++")
 
 /**
   * Denotes a ghost collection update "`col`[`left` = `right`]", which results in a
@@ -770,7 +791,6 @@ case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Inf
   * `baseUnderlyingType` is the underlyingType of `base`'s type
   */
 case class GhostCollectionUpdate(base : Expr, left : Expr, right : Expr, baseUnderlyingType: Type)(val info: Source.Parser.Info) extends Expr {
-  require(baseUnderlyingType.isInstanceOf[SequenceT] || baseUnderlyingType.isInstanceOf[MathMapT], s"expected sequence or mmap, but got ${base.typ} (${info.origin})")
   override val typ : Type = base.typ.withAddressability(Addressability.rValue)
 }
 
@@ -782,8 +802,7 @@ case class GhostCollectionUpdate(base : Expr, left : Expr, right : Expr, baseUnd
   */
 case class SequenceDrop(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
   /** Is equal to the type of `left`. */
-  require(left.typ.isInstanceOf[SequenceT])
-  override val typ : Type = SequenceT(left.typ.asInstanceOf[SequenceT].t, Addressability.rValue)
+  override val typ : Type = left.typ.withAddressability(Addressability.rValue)
 }
 
 /**
@@ -794,8 +813,7 @@ case class SequenceDrop(left : Expr, right : Expr)(val info: Source.Parser.Info)
   */
 case class SequenceTake(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
   /** Is equal to the type of `left`. */
-  require(left.typ.isInstanceOf[SequenceT])
-  override val typ : Type = SequenceT(left.typ.asInstanceOf[SequenceT].t, Addressability.rValue)
+  override val typ : Type = left.typ.withAddressability(Addressability.rValue)
 }
 
 /**
@@ -803,7 +821,7 @@ case class SequenceTake(left : Expr, right : Expr)(val info: Source.Parser.Info)
   * represented by `expr`, to a (mathematical) sequence of type 't'.
   * Here `expr` is assumed to be either a sequence or an exclusive array.
   */
-case class SequenceConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr {
+case class SequenceConversion(expr: Expr)(val info: Source.Parser.Info) extends Expr {
   override val typ : Type = expr.typ match {
     case t: SequenceT => t
     case t: ArrayT => t.sequence
@@ -819,55 +837,19 @@ case class SequenceConversion(expr : Expr)(val info: Source.Parser.Info) extends
   * Represents a (multi)set union "`left` union `right`",
   * where `left` and `right` should be (multi)sets of identical types.
   */
-case class Union(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("union") {
-  /** `left.typ` is expected to be identical to `right.typ`. */
-  require(
-    (left.typ.isInstanceOf[SetT] && right.typ.isInstanceOf[SetT])
-      || (left.typ.isInstanceOf[MultisetT] && right.typ.isInstanceOf[MultisetT]),
-    s"expected set or multiset, but got ${left.typ} and ${right.typ} (${info.origin})"
-  )
-  override val typ : Type = left.typ match {
-    case t: SetT => SetT(t.t, Addressability.rValue)
-    case t: MultisetT => MultisetT(t.t, Addressability.rValue)
-    case _ => Violation.violation("expected set or type")
-  }
-}
+case class Union(left : Expr, right : Expr, typ: Type)(val info : Source.Parser.Info) extends BinaryExpr("union")
 
 /**
   * Represents a (multi)set intersection "`left` intersection `right`",
   * where `left` and `right` should be (multi)sets of identical types.
   */
-case class Intersection(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("intersection") {
-  /** `left.typ` is expected to be identical to `right.typ`. */
-  require(
-    (left.typ.isInstanceOf[SetT] && right.typ.isInstanceOf[SetT])
-      || (left.typ.isInstanceOf[MultisetT] && right.typ.isInstanceOf[MultisetT]),
-    s"expected set or multiset, but got ${left.typ} and ${right.typ} (${info.origin})"
-  )
-  override val typ : Type = left.typ match {
-    case t: SetT => SetT(t.t, Addressability.rValue)
-    case t: MultisetT => MultisetT(t.t, Addressability.rValue)
-    case _ => Violation.violation("expected set or type")
-  }
-}
+case class Intersection(left : Expr, right : Expr, typ: Type)(val info : Source.Parser.Info) extends BinaryExpr("intersection")
 
 /**
   * Represents a (multi)set difference "`left` setminus `right`",
   * where `left` and `right` should be (multi)sets of identical types.
   */
-case class SetMinus(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("setminus") {
-  /** `left.typ` is expected to be identical to `right.typ`. */
-  require(
-    (left.typ.isInstanceOf[SetT] && right.typ.isInstanceOf[SetT])
-      || (left.typ.isInstanceOf[MultisetT] && right.typ.isInstanceOf[MultisetT]),
-    s"expected set or multiset, but got ${left.typ} and ${right.typ} (${info.origin})"
-  )
-  override val typ : Type = left.typ match {
-    case t: SetT => SetT(t.t, Addressability.rValue)
-    case t: MultisetT => MultisetT(t.t, Addressability.rValue)
-    case _ => Violation.violation("expected set or type")
-  }
-}
+case class SetMinus(left : Expr, right : Expr, typ: Type)(val info : Source.Parser.Info) extends BinaryExpr("setminus")
 
 /**
   * Represents a subset relation "`left` subset `right`", where
@@ -962,8 +944,19 @@ case class MapValues(exp : Expr, expUnderlyingType: Type)(val info : Source.Pars
   }
 }
 
-case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
-case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
+/**
+ * Represents the conversion of a value of type 'map[k]v' to a mathematical map with type 'dict[k]v'
+ */
+case class MapConversion(expr: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ : Type = expr.typ match {
+    case MapT(k, v, _) => MathMapT(k, v, Addressability.conversionResult)
+    case t => Violation.violation(s"expected a map but got $t")
+  }
+}
+
+
+case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
+case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
 case class PureClosureCall(closure: Expr, args: Vector[Expr], spec: ClosureSpec, typ: Type)(val info: Source.Parser.Info) extends Expr
 case class DomainFunctionCall(func: DomainFuncProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 
@@ -1149,6 +1142,7 @@ case class FunctionLit(
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
                      override val terminationMeasures: Vector[TerminationMeasure],
+                     override val backendAnnotations: Vector[BackendAnnotation],
                      body: Option[MethodBody]
                    )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
@@ -1162,6 +1156,7 @@ case class PureFunctionLit(
                          override val pres: Vector[Assertion],
                          override val posts: Vector[Assertion],
                          override val terminationMeasures: Vector[TerminationMeasure],
+                         override val backendAnnotations: Vector[BackendAnnotation],
                          body: Option[Expr]
                        )(val info: Source.Parser.Info) extends FunctionLitLike {
   override def typ: Type = FunctionT(args.map(_.typ), results.map(_.typ), Addressability.literal)
@@ -1198,6 +1193,7 @@ case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr], baseU
   override def typ : Type = baseUnderlyingType match {
     case t: ArrayT => SliceT(t.elems, Addressability.sliceElement)
     case _: SliceT | _: StringT => base.typ
+    case PointerT(t: ArrayT, _) => SliceT(t.elems, Addressability.sliceElement)
     case t => Violation.violation(s"expected an array, slice or string type, but got $t")
   }
 }
@@ -1412,14 +1408,6 @@ case class SliceT(elems : Type, addressability: Addressability) extends PrettyTy
   * The (composite) type of maps from type `keys` to type `values`.
   */
 case class MapT(keys: Type, values: Type, addressability: Addressability) extends PrettyType(s"map[$keys]$values") {
-  def hasGhostField(k: Type): Boolean = k match {
-    case StructT(fields, _) => fields exists (_.ghost)
-    case _ => false
-  }
-  // this check must be done here instead of at the type system level because the concrete AST does not support
-  // ghost fields yet
-  require(!hasGhostField(keys))
-  
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case MapT(otherKeys, otherValues, _) => keys.equalsWithoutMod(otherKeys) && values.equalsWithoutMod(otherValues)
     case _ => false
@@ -1538,14 +1526,14 @@ case class PredT(args: Vector[Type], addressability: Addressability) extends Pre
 
 // StructT does not have a name because equality of two StructT does not depend at all on their declaration site but
 // only on their structure, i.e. whether the fields (and addressability) are equal
-case class StructT(fields: Vector[Field], addressability: Addressability) extends PrettyType(fields.mkString("struct{", ", ", "}")) with TopType {
+case class StructT(fields: Vector[Field], ghost: Boolean, addressability: Addressability) extends PrettyType(fields.mkString(if (ghost) "ghost " else "" + "struct{", ", ", "}")) with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
-    case StructT(otherFields, _) => fields.zip(otherFields).forall{ case (l, r) => l.typ.equalsWithoutMod(r.typ) }
+    case StructT(otherFields, otherGhost, _) => ghost == otherGhost && fields.zip(otherFields).forall{ case (l, r) => l.name == r.name && l.ghost == r.ghost && l.typ.equalsWithoutMod(r.typ) }
     case _ => false
   }
 
   override def withAddressability(newAddressability: Addressability): StructT =
-    StructT(fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost)(f.info)), newAddressability)
+    StructT(fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost)(f.info)), ghost = ghost, newAddressability)
 }
 
 case class InterfaceT(name: String, addressability: Addressability) extends PrettyType(s"interface{ name is $name }") with TopType {
@@ -1570,14 +1558,16 @@ case class DomainT(name: String, addressability: Addressability) extends PrettyT
     DomainT(name, newAddressability)
 }
 
-case class AdtT(name: String, addressability: Addressability) extends PrettyType(s"adt{ name is $name }") with TopType {
+case class AdtT(name: String, definedName: String, addressability: Addressability) extends PrettyType(s"adt{ name is $name }") with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case o: AdtT => name == o.name
     case _ => false
   }
 
+  val definedType: DefinedT = DefinedT(definedName, addressability)
+
   override def withAddressability(newAddressability: Addressability): Type =
-    AdtT(name, newAddressability)
+    AdtT(name, definedName, newAddressability)
 }
 
 case class AdtClauseT(name: String, adtT: AdtT, fields: Vector[Field], addressability: Addressability) extends PrettyType(fields.mkString(s"$name{", ", ", "}")) {

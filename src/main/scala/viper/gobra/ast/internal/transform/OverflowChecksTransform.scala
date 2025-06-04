@@ -25,27 +25,27 @@ object OverflowChecksTransform extends InternalTransform {
     // adds overflow checks per statement that contains subexpressions of bounded integer type and adds assume
     /// statements at the beginning of a function or method body assuming that the value of an argument (of
     // bounded integer type) respects the bounds.
-    case f@Function(name, args, results, pres, posts, terminationMeasure, body) =>
-      Function(name, args, results, pres, posts, terminationMeasure, body map computeNewBody)(f.info)
+    case f@Function(name, args, results, pres, posts, terminationMeasure, annotations, body) =>
+      Function(name, args, results, pres, posts, terminationMeasure, annotations, body map computeNewBody)(f.info)
 
     // same as functions
-    case m@Method(receiver, name, args, results, pres, posts, terminationMeasure,body) =>
-      Method(receiver, name, args, results, pres, posts, terminationMeasure, body map computeNewBody)(m.info)
+    case m@Method(receiver, name, args, results, pres, posts, terminationMeasure, annotations, body) =>
+      Method(receiver, name, args, results, pres, posts, terminationMeasure, annotations, body map computeNewBody)(m.info)
 
     // Adds pre-conditions stating the bounds of each argument and a post-condition to check if the body expression
     // overflows
-    case f@PureFunction(name, args, results, pres, posts, terminationMeasure, body) => body match {
+    case f@PureFunction(name, args, results, pres, posts, terminationMeasure, annotations, body, isOpaque) => body match {
       case Some(expr) =>
         val newPost = posts ++ getPureBlockPosts(expr, results)
-        PureFunction(name, args, results, pres, newPost, terminationMeasure, body)(f.info)
+        PureFunction(name, args, results, pres, newPost, terminationMeasure, annotations, body, isOpaque)(f.info)
       case None => f
     }
 
     // Same as pure functions
-    case m@PureMethod(receiver, name, args, results, pres, posts, terminationMeasure, body) => body match {
+    case m@PureMethod(receiver, name, args, results, pres, posts, terminationMeasure, annotations, body, isOpaque) => body match {
       case Some(expr) =>
         val newPost = posts ++ getPureBlockPosts(expr, results)
-        PureMethod(receiver, name, args, results, pres, newPost, terminationMeasure, body)(m.info)
+        PureMethod(receiver, name, args, results, pres, newPost, terminationMeasure, annotations, body, isOpaque)(m.info)
       case None => m
     }
 
@@ -135,7 +135,7 @@ object OverflowChecksTransform extends InternalTransform {
       Seqn(genOverflowChecksExprs(Vector(base, idx)) :+ m)(m.info)
 
     // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added
-    case x@(_: Inhale | _: Exhale | _: Assert | _: Assume
+    case x@(_: Inhale | _: Exhale | _: Assert | _: Refute | _: Assume
             | _: Return | _: Fold | _: Unfold | _: PredExprFold | _: PredExprUnfold | _: Outline
             | _: SafeTypeAssertion | _: SafeReceive | _: Label | _: Initialization | _: PatternMatchStmt) => x
 

@@ -14,7 +14,8 @@ import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.util.Violation
 import viper.silver.ast.{Function, Member, Method, Predicate}
-import viper.silver.ast.utility.Chopper.{Edges, Vertex}
+import viper.silver.ast.utility.chopper.{Edges, Vertices}
+import viper.silver.ast.utility.chopper.Vertices.Vertex
 import viper.silver.reporter.Time
 
 import scala.collection.concurrent.{Map, TrieMap}
@@ -162,7 +163,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
               taskName,
               time,
               ViperNodeType.withName(viperMember.getClass.getSimpleName),
-              Edges.dependencies(viperMember).flatMap(edge => vertexToName(edge._2)).toSet,
+              EdgesImpl.dependencies(viperMember).flatMap(edge => vertexToName(edge._2)).toSet,
               success,
               cached,
               memberInfo.isImported,
@@ -192,6 +193,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     // Pass message to next reporter
     reporter.report(msg)
   }
+
+  private object EdgesImpl extends Edges with Vertices
 
   private def gobraMemberKey(pkgId: String,memberName: String, args: String): String = pkgId + "." + memberName + args
 
@@ -241,11 +244,11 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
    * for the statistics
    */
   private def vertexToName(vertex: Vertex): Option[String] = vertex match {
-    case Vertex.Method(name) => Some(name)
-    case Vertex.MethodSpec(name) => Some(name)
-    case Vertex.Function(name) => Some(name)
-    case Vertex.PredicateBody(name) => Some(name)
-    case Vertex.PredicateSig(name) => Some(name)
+    case Vertices.Method(name) => Some(name)
+    case Vertices.MethodSpec(name) => Some(name)
+    case Vertices.Function(name) => Some(name)
+    case Vertices.PredicateBody(name) => Some(name)
+    case Vertices.PredicateSig(name) => Some(name)
     case _ => None
   }
 
@@ -265,8 +268,8 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
         typeInfo
       } else {
         // Try to find the correct typeInfo for the member
-        val typeInfoOption = typeInfo.context.getContexts
-          .map(externalTypeInfo => externalTypeInfo.getTypeInfo)
+        val typeInfoOption = typeInfo.getTransitiveTypeInfos()
+          .map(_.getTypeInfo)
           .find(typeInfo => treeContains(typeInfo.tree, p))
         typeInfoOption match {
           case Some(typeInfo) => typeInfo

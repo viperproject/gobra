@@ -1,0 +1,68 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// Example in functions with disjunctive aliasing
+requires acc(x) && acc(y)
+requires x == z || y == z
+//:: ExpectedOutput(postcondition_error:permission_error)
+ensures  acc(z)
+#backend[exhaleMode(0)]
+func f_greedy(x, y, z *int) { }
+
+requires acc(x) && acc(y)
+requires x == z || y == z
+ensures  acc(z)
+#backend[exhaleMode(1)]
+func f_mce(x, y, z *int) { }
+
+// Example in outline blocks
+requires acc(x) && acc(y)
+requires x == z || y == z
+ensures  acc(z)
+#backend[exhaleMode(0)]
+func g1(x, y, z *int) {
+    requires acc(x) && acc(y)
+    requires x == z || y == z
+    ensures  acc(z)
+    #backend[exhaleMode(1)]
+    outline(
+    assert true
+    )
+}
+
+requires acc(x) && acc(y)
+requires x == z || y == z
+ensures  acc(z)
+#backend[exhaleMode(1), moreJoins()]
+func g2(x, y, z *int) {
+    requires acc(x) && acc(y)
+    requires x == z || y == z
+    //:: ExpectedOutput(postcondition_error:permission_error)
+    ensures  acc(z)
+    #backend[exhaleMode(0)]
+    outline(
+    assert true
+    )
+}
+
+// closures
+func m1(x, y, z *int) {
+    foo := 
+        requires acc(x) && acc(y)
+        requires x == z || y == z
+        //:: ExpectedOutput(postcondition_error:permission_error)
+        ensures  acc(z)
+        #backend[exhaleMode(0)]
+        func bar(x, y, z *int) { }
+}
+
+func m2(x, y, z *int) {
+    foo := 
+        requires acc(x) && acc(y)
+        requires x == z || y == z
+        ensures  acc(z)
+        #backend[exhaleMode(1), bogusAnnotation(1, 2, 3, 4)]
+        func bar(x, y, z *int) { }
+}

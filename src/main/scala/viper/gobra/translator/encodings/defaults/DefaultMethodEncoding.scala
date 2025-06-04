@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
-import viper.gobra.translator.util.{ViperUtil => vu}
+import viper.gobra.translator.util.{VprInfo, ViperUtil => vu}
 import viper.silver.ast.Method
 import viper.silver.{ast => vpr}
 
@@ -49,6 +49,8 @@ class DefaultMethodEncoding extends Encoding {
         } yield vu.seqn(Vector(init, core))(pos, info, errT)
       }})
 
+      annotatedInfo = VprInfo.attachAnnotations(x.backendAnnotations, info)
+
       method = vpr.Method(
         name = x.name.uniqueName,
         formalArgs = vRecv +: vArgs,
@@ -56,7 +58,7 @@ class DefaultMethodEncoding extends Encoding {
         pres = pres ++ measures,
         posts = posts,
         body = body
-      )(pos, info, errT)
+      )(pos, annotatedInfo, errT)
 
     } yield method
   }
@@ -86,6 +88,8 @@ class DefaultMethodEncoding extends Encoding {
         } yield vu.seqn(Vector(init, core))(pos, info, errT)
       }})
 
+      annotatedInfo = VprInfo.attachAnnotations(x.backendAnnotations, info)
+
       method = vpr.Method(
         name = x.name.name,
         formalArgs = vArgs,
@@ -93,7 +97,7 @@ class DefaultMethodEncoding extends Encoding {
         pres = pres ++ measures,
         posts = posts,
         body = body
-      )(pos, info, errT)
+      )(pos, annotatedInfo, errT)
 
     } yield method
   }

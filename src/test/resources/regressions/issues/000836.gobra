@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue836
+
+func test1() {
+	var x int
+	//:: ExpectedOutput(type_error)
+	assert typeOf(x) == type[int]
+}
+
+func test2() {
+	var x interface{} = int(1)
+	assert typeOf(x) == type[int]
+}

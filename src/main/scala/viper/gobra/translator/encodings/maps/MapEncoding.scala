@@ -60,6 +60,9 @@ class MapEncoding extends LeafTypeEncoding {
     * R[ (e: map[K]V)[idx] ] -> mapLookup([e], [idx])
     * R[ keySet(e: map[K]V) ] -> mapKeySet([e])
     * R[ valueSet(e: map[K]V) ] -> mapValueSet([e])
+    // TODO: fix the following one
+    * R[ k in (e: map[K]V) ] -> [ e ] == null? false : MapContains([ k ], getCorrespondingMap([ e ]))
+    * R[ dict(e: map[K]V) ] -> getCorrespondingMap([ e ])
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
@@ -82,6 +85,21 @@ class MapEncoding extends LeafTypeEncoding {
           key <-  goE(k)
         } yield mapLookupGenerator(Vector(base, key), (keys, values))(pos, info, errT)(ctx)
 
+      case l@in.Contains(key, exp :: ctx.Map(keys, values)) =>
+        for {
+          mapVpr <- goE(exp)
+          keyVpr <- goE(key)
+          isComp <- MapEncoding.checkKeyComparability(key)(ctx)
+          correspondingMap <- getCorrespondingMap(exp, keys, values)(ctx)
+          containsExp =
+            withSrc(vpr.CondExp(
+              withSrc(vpr.EqCmp(mapVpr, withSrc(vpr.NullLit(), l)), l),
+              withSrc(vpr.FalseLit(), l),
+              withSrc(vpr.MapContains(keyVpr, correspondingMap), l)
+            ), l)
+          checkCompAndContains <- assert(isComp, containsExp, comparabilityErrorT)(ctx)
+        } yield checkCompAndContains
+
       case k@in.MapKeys(mapExp :: ctx.Map(keys, values), _) =>
         val (pos, info, errT) = k.vprMeta
         for {
@@ -100,6 +118,52 @@ class MapEncoding extends LeafTypeEncoding {
           base <- goE(m)
           key <-  goE(k)
         } yield mapContainsGenerator(Vector(base, key), (keys, values))(pos, info, errT)(ctx)
+      case in.MapConversion(exp :: ctx.Map(keys, values)) =>
+        getCorrespondingMap(exp, keys, values)(ctx)
+    }
+  }
+
+  /**
+    * Encodes expressions when they occur as the top-level expression in a trigger.
+    * Notice that using the expression encoding for the following triggers,
+    * results in ill-formed triggers at the Viper level (e.g., because
+    * they have ternary operations).
+    *   { m[i] } -> { getCorrespondingMap([ m ])[ [ i ] ] }
+    *   { k in m } -> { [ k ] in getCorrespondingMap([ m ]) }
+    *   { k in domain(m) } -> { [ k ] in domain(getCorrespondingMap([ m ])) }
+    *   { k in range(m) } -> { [ k ] in range(getCorrespondingMap([ m ])) }
+    */
+  override def triggerExpr(ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = {
+    default(super.triggerExpr(ctx)) {
+      case l@in.IndexedExp(m :: ctx.Map(keys, values), idx, _) =>
+        for {
+          vIdx <- ctx.expression(idx)
+          correspondingMap <- getCorrespondingMap(m, keys, values)(ctx)
+          lookupRes = withSrc(vpr.MapLookup(correspondingMap, vIdx), l)
+        } yield lookupRes
+
+      case l@in.Contains(key, m :: ctx.Map(keys, values)) =>
+        for {
+          vKey <- ctx.expression(key)
+          correspondingMap <- getCorrespondingMap(m, keys, values)(ctx)
+          contains = withSrc(vpr.MapContains(vKey, correspondingMap), l)
+        } yield contains
+
+      case l@in.Contains(key, in.MapKeys(m :: ctx.Map(keys, values), _)) =>
+        for {
+          vKey <- ctx.expression(key)
+          correspondingMap <- getCorrespondingMap(m, keys, values)(ctx)
+          vDomainMap = withSrc(vpr.MapDomain(correspondingMap), l)
+          contains = withSrc(vpr.AnySetContains(vKey, vDomainMap), l)
+        } yield contains
+
+      case l@in.Contains(key, in.MapValues(m :: ctx.Map(keys, values), _)) =>
+        for {
+          vKey <- ctx.expression(key)
+          correspondingMap <- getCorrespondingMap(m, keys, values)(ctx)
+          vRangeMap = withSrc(vpr.MapRange(correspondingMap), l)
+          contains = withSrc(vpr.AnySetContains(vKey, vRangeMap), l)
+        } yield contains
     }
   }
 
@@ -193,7 +257,8 @@ class MapEncoding extends LeafTypeEncoding {
             vpr.Inhale(
               vpr.FieldAccessPredicate(
                 vpr.FieldAccess(vRes.localVar, underlyingMapField(ctx)(lit.keys, lit.values))(pos, info, errT),
-                vpr.FullPerm()(pos, info, errT))(pos, info, errT))(pos, info, errT))
+                Some(vpr.FullPerm()(pos, info, errT))
+              )(pos, info, errT))(pos, info, errT))
           // inhale getCorrespondingMap(res) == underlyingMap; recall that underlyingMap == ExplicitMap(mapletList)
           _ <- write(vpr.Inhale(vpr.EqCmp(underlyingMap, correspondingMap)(pos, info, errT))(pos, info, errT))
           ass <- ctx.assignment(in.Assignee.Var(lit.target), res)(lit)
@@ -241,7 +306,10 @@ class MapEncoding extends LeafTypeEncoding {
         for {
           vE <- goE(exp)
           vP <- goE(perm)
-        } yield vpr.FieldAccessPredicate(vpr.FieldAccess(vE, underlyingMapField(ctx)(keys, values))(pos, info, errT), vP)(pos, info, errT)
+        } yield vpr.FieldAccessPredicate(
+          vpr.FieldAccess(vE, underlyingMapField(ctx)(keys, values))(pos, info, errT),
+          Some(vP)
+        )(pos, info, errT)
     }
   }
 
@@ -314,7 +382,7 @@ class MapEncoding extends LeafTypeEncoding {
         pres = Seq(
           vpr.Implies(
             vpr.NeCmp(paramDecl.localVar, vpr.NullLit()())(),
-            vpr.FieldAccessPredicate(vpr.FieldAccess(paramDecl.localVar, field)(), vpr.WildcardPerm()())()
+            vpr.FieldAccessPredicate(vpr.FieldAccess(paramDecl.localVar, field)(), Some(vpr.WildcardPerm()()))()
           )(),
           synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
         ),
@@ -360,7 +428,7 @@ class MapEncoding extends LeafTypeEncoding {
         pres = Seq(
           vpr.Implies(
             vpr.NeCmp(paramDecl.localVar, vpr.NullLit()())(),
-            vpr.FieldAccessPredicate(vpr.FieldAccess(paramDecl.localVar, field)(), vpr.WildcardPerm()())()
+            vpr.FieldAccessPredicate(vpr.FieldAccess(paramDecl.localVar, field)(), Some(vpr.WildcardPerm()()))()
           )(),
           synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
         ),
@@ -418,7 +486,7 @@ class MapEncoding extends LeafTypeEncoding {
         pres = Seq(
           vpr.Implies(
             vpr.NeCmp(paramDecl.localVar, vpr.NullLit()())(),
-            vpr.FieldAccessPredicate(vpr.FieldAccess(paramDecl.localVar, field)(), vpr.WildcardPerm()())()
+            vpr.FieldAccessPredicate(vpr.FieldAccess(paramDecl.localVar, field)(), Some(vpr.WildcardPerm()()))()
           )(),
           synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
         ),
@@ -458,7 +526,7 @@ class MapEncoding extends LeafTypeEncoding {
         pres = Seq(
           vpr.Implies(
             vpr.NeCmp(mapParamDecl.localVar, vpr.NullLit()())(),
-            vpr.FieldAccessPredicate(vpr.FieldAccess(mapParamDecl.localVar, field)(), vpr.WildcardPerm()())()
+            vpr.FieldAccessPredicate(vpr.FieldAccess(mapParamDecl.localVar, field)(), Some(vpr.WildcardPerm()()))()
           )(),
           synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
         ),
@@ -504,7 +572,7 @@ class MapEncoding extends LeafTypeEncoding {
         pres = Seq(
           vpr.Implies(
             vpr.NeCmp(mapParamDecl.localVar, vpr.NullLit()())(),
-            vpr.FieldAccessPredicate(vpr.FieldAccess(mapParamDecl.localVar, field)(), vpr.WildcardPerm()())()
+            vpr.FieldAccessPredicate(vpr.FieldAccess(mapParamDecl.localVar, field)(), Some(vpr.WildcardPerm()()))()
           )(),
           checkIsComparable,
           synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
@@ -543,7 +611,7 @@ class MapEncoding extends LeafTypeEncoding {
       val resultT = ctx.typ(in.MapT(keyT, valT, Addressability.outParameter))
       val result = vpr.LocalVarDecl("res", resultT)()
       val underlyingField = underlyingMapField(ctx)(keyT, valT)
-      val post1 = vpr.FieldAccessPredicate(vpr.FieldAccess(result.localVar, underlyingField)(), vpr.FullPerm()())()
+      val post1 = vpr.FieldAccessPredicate(vpr.FieldAccess(result.localVar, underlyingField)(), Some(vpr.FullPerm()()))()
       val post2 = vpr.EqCmp(
         vpr.FieldAccess(result.localVar, underlyingField)(),
         vpr.EmptyMap(vprKeyT, vprValT)()
@@ -589,7 +657,7 @@ class MapEncoding extends LeafTypeEncoding {
       val valParamDecl = vpr.LocalVarDecl("v", vprValT)()
 
       val underlyingField = underlyingMapField(ctx)(keyT, valT)
-      val mapAcc = vpr.FieldAccessPredicate(vpr.FieldAccess(mapParamDecl.localVar, underlyingField)(), vpr.FullPerm()())()
+      val mapAcc = vpr.FieldAccessPredicate(vpr.FieldAccess(mapParamDecl.localVar, underlyingField)(), Some(vpr.FullPerm()()))()
       val isCompKey = pure(MapEncoding.checkKeyComparability(keyParamDeclInternal)(ctx))(ctx).res
       val newAndOldRelation = vpr.EqCmp(
         vpr.FieldAccess(mapParamDecl.localVar, underlyingField)(),

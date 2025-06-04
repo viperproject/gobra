@@ -25,27 +25,35 @@ stmtOnly: statement EOF;
 
 typeOnly: type_ EOF;
 
-
 // Identifier lists with added addressability modifiers
 maybeAddressableIdentifierList: maybeAddressableIdentifier (COMMA maybeAddressableIdentifier)*;
 
 
 maybeAddressableIdentifier: IDENTIFIER ADDR_MOD?;
 
-// Ghost members
+friendPkgDecl: FRIENDPKG importPath assertion;
 
+// Ghost members
 sourceFile:
-  (initPost eos)* packageClause eos (importDecl eos)* (
-    (specMember | declaration | ghostMember) eos
+  (pkgInvariant eos)* (initPost eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)* (
+    member eos
   )* EOF;
+
+// `preamble` is a second entry point allowing us to parse only the top of a source.
+// That's also why we don not enforce EOF at the end.
+preamble: (pkgInvariant eos)* (initPost eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)*;
 
 initPost: INIT_POST expression;
 
 importPre: IMPORT_PRE expression;
 
+pkgInvariant: DUPLICABLE? PKG_INV assertion;
+
 importSpec: (importPre eos)* alias = (DOT | IDENTIFIER)? importPath;
 
 importDecl: (importPre eos)* (IMPORT importSpec | IMPORT L_PAREN (importSpec eos)* R_PAREN);
+
+member: specMember | declaration | ghostMember;
 
 ghostMember: implementationProof
   | fpredicateDecl
@@ -57,8 +65,9 @@ ghostMember: implementationProof
 ghostStatement:
   GHOST statement  #explicitGhostStatement
   | fold_stmt=(FOLD | UNFOLD) predicateAccess #foldStatement
-  | kind=(ASSUME | ASSERT | INHALE | EXHALE) expression #proofStatement
+  | kind=(ASSUME | ASSERT | REFUTE | INHALE | EXHALE) expression #proofStatement
   | matchStmt #matchStmt_
+  | OPEN_DUP_SINV #pkgInvStatement
   ;
 
 // Auxiliary statements
@@ -110,7 +119,7 @@ optionNone: NONE L_BRACKET type_ R_BRACKET;
 
 optionGet: GET L_PAREN expression R_PAREN;
 
-sConversion: kind=(SET | SEQ | MSET) L_PAREN expression R_PAREN;
+sConversion: kind=(SET | SEQ | MSET | DICT) L_PAREN expression R_PAREN;
 
 old: OLD (L_BRACKET oldLabelUse R_BRACKET)? L_PAREN expression R_PAREN;
 
@@ -138,7 +147,7 @@ seqUpdClause: expression ASSIGN expression;
 
 // Ghost Type Literals
 
-ghostTypeLit: sqType | ghostSliceType | domainType | adtType;
+ghostTypeLit: sqType | ghostSliceType | ghostPointerType | ghostStructType | domainType | adtType;
 
 domainType: DOM L_CURLY (domainClause eos)* R_CURLY;
 
@@ -146,18 +155,37 @@ domainClause: FUNC IDENTIFIER signature | AXIOM L_CURLY expression eos R_CURLY;
 
 adtType: ADT L_CURLY (adtClause eos)* R_CURLY;
 
-adtClause: IDENTIFIER L_CURLY (fieldDecl eos)* R_CURLY;
+adtClause: IDENTIFIER L_CURLY (adtFieldDecl eos)* R_CURLY;
+
+adtFieldDecl: identifierList? type_;
 
 ghostSliceType: GHOST L_BRACKET R_BRACKET elementType;
+
+ghostPointerType: GPOINTER L_BRACKET elementType R_BRACKET;
+
+ghostStructType: GHOST structType;
+
+// copy of `fieldDecl` from GoParser.g4 extended with an optional `GHOST` modifier for fields and embedded fields:
+fieldDecl: GHOST? (
+		identifierList type_
+		| embeddedField
+	) tag = string_?;
 
 sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
     | kind=DICT L_BRACKET type_ R_BRACKET type_;
 
 // Specifications
 
-specification returns[boolean trusted = false, boolean pure = false;]:
-  ((specStatement | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? // Non-greedily match PURE to avoid missing eos errors.
+specification returns[boolean trusted = false, boolean pure = false, boolean mayInit = false, boolean opaque = false;]:
+  // Non-greedily match PURE to avoid missing eos errors.
+  ((specStatement | OPAQUE {$opaque = true;} | PURE {$pure = true;} | MAYINIT {$mayInit = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? backendAnnotation?
   ;
+
+backendAnnotationEntry: ~('('|')'|',')+;
+listOfValues: backendAnnotationEntry (COMMA backendAnnotationEntry)*;
+singleBackendAnnotation: backendAnnotationEntry L_PAREN listOfValues? R_PAREN;
+backendAnnotationList: singleBackendAnnotation (COMMA singleBackendAnnotation)*;
+backendAnnotation: BACKEND L_BRACKET backendAnnotationList? R_BRACKET eos;
 
 specStatement
   : kind=PRE assertion
@@ -220,11 +248,11 @@ new_: NEW L_PAREN type_ R_PAREN;
 
 // Added specifications and parameter info
 
-specMember: specification (functionDecl[$specification.trusted, $specification.pure] | methodDecl[$specification.trusted, $specification.pure]);
+specMember: specification (functionDecl[$specification.trusted, $specification.pure, $specification.opaque] | methodDecl[$specification.trusted, $specification.pure, $specification.opaque]);
 
-functionDecl[boolean trusted, boolean pure]:  FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
+functionDecl[boolean trusted, boolean pure, boolean opaque]:  FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
 
-methodDecl[boolean trusted, boolean pure]: FUNC receiver IDENTIFIER (signature blockWithBodyParameterInfo?);
+methodDecl[boolean trusted, boolean pure, boolean opaque]: FUNC receiver IDENTIFIER (signature blockWithBodyParameterInfo?);
 
 
 
@@ -370,7 +398,9 @@ primaryExpr:
   | primaryExpr slice_ #slicePrimaryExpr
   | primaryExpr seqUpdExp #seqUpdPrimaryExpr
   | primaryExpr typeAssertion #typeAssertionPrimaryExpr
+  // "REVEAL? primaryExpr arguments" doesn't work due to mutual left recursion
   | primaryExpr arguments #invokePrimaryExpr
+  | REVEAL primaryExpr arguments #revealInvokePrimaryExpr
   | primaryExpr arguments AS closureSpecInstance #invokePrimaryExprWithSpec
   | primaryExpr predConstructArgs #predConstrPrimaryExpr
   | call_op=(

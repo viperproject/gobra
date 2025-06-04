@@ -9,12 +9,11 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.noMessages
 import viper.gobra.ast.frontend.{PExpression, PFieldDecl, PIdnNode, PMatchAdt}
 import viper.gobra.frontend.info.base.SymbolTable.{AdtClause, AdtDestructor, AdtDiscriminator, BoundVariable, BuiltInFPredicate, BuiltInMPredicate, DomainFunction, GhostRegular, MatchVariable, Predicate}
-import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, FunctionT, Type}
+import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, FunctionT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation.violation
 
 import scala.annotation.unused
-import scala.collection.immutable.ListMap
 
 trait GhostIdTyping { this: TypeInfoImpl =>
 
@@ -41,20 +40,19 @@ trait GhostIdTyping { this: TypeInfoImpl =>
     case predicate: Predicate => FunctionT(predicate.args map predicate.context.typ, AssertionT)
     case func: DomainFunction => FunctionT(func.args map func.context.typ, func.context.typ(func.result.outs.head))
 
-    case AdtClause(decl, adtDecl, context) =>
-      AdtClauseT(
-        ListMap.from(decl.args.flatMap(_.fields).map(f => f.id.name -> context.symbType(f.typ))),
-        decl,
-        adtDecl,
-        context
-      )
+    case c: AdtClause =>
+      val fields = c.fields.map(f => f.id.name -> c.context.symbType(f.typ))
+      AdtClauseT(c.getName, fields, c.decl, c.typeDecl, c.context)
 
     case MatchVariable(decl, p, context) => p match {
       case PMatchAdt(clause, fields) =>
-        val argTypeWithIndex = context.symbType(clause).asInstanceOf[AdtClauseT].decl.args.flatMap(_.fields).map(_.typ).zipWithIndex
-        val fieldsWithIndex = fields.zipWithIndex
-        val fieldIndex = fieldsWithIndex.iterator.find(e => e._1 == decl).get._2
-        context.symbType(argTypeWithIndex.iterator.find(e => e._2 == fieldIndex).get._1)
+        val clauseT = context.symbType(clause)
+        clauseT match {
+          case clauseT: AdtClauseT => clauseT.typeAt(fields.indexOf(decl))
+          // the following case is possible, e.g., if the clause is not well-defined
+          // and, thus, `clauseT` is `UnknownType`:
+          case _ => UnknownType
+        }
 
       case e: PExpression => context.typ(e)
       case _ => violation("untypeable")

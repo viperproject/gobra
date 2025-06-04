@@ -1,0 +1,77 @@
+// Copyright 2011 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/errors/errors.go
+
+dup pkgInvariant ErrUnsupported != nil && acc(ErrUnsupported.ErrorMem(), _)
+package errors
+
+// New returns an error that formats as the given text.
+// Each call to New returns a distinct error value even if the text is identical.
+ensures err != nil && err.ErrorMem()
+decreases
+func New(text string) (err error) {
+    // this function cannot be declared with `mayInit`, as we assign an instance of an errorString (i.e., a type
+    // declared in this package) to an instance of `error`, an interface type declared in another package.
+    err = &errorString{text}
+    fold err.ErrorMem()
+    return
+}
+
+// errorString is a trivial implementation of error.
+type errorString struct {
+    s string
+}
+*errorString implements error
+
+pred (e *errorString) ErrorMem() {
+    acc(e, _)
+}
+
+ghost
+requires  acc(e.ErrorMem(), _)
+decreases
+pure func (e *errorString) IsDuplicableMem() bool {
+    return true
+}
+
+ghost
+preserves e.ErrorMem()
+ensures   e.IsDuplicableMem() == old(e.IsDuplicableMem())
+ensures   e.IsDuplicableMem() ==> e.ErrorMem()
+decreases
+func (e *errorString) Duplicate() {
+    unfold e.ErrorMem()
+    fold acc(e.ErrorMem(), 2/1)
+}
+
+preserves e.ErrorMem()
+ensures   e.IsDuplicableMem() == old(e.IsDuplicableMem())
+decreases
+func (e *errorString) Error() string {
+    return unfolding e.ErrorMem() in e.s
+}
+
+var ErrUnsupported = errUnsupported()
+
+mayInit
+trusted
+ensures r != nil && r.ErrorMem()
+decreases
+func errUnsupported() (r error) {
+    // the following would be rejected by our heuristic, as `New` is not `mayInit` (nor can it be).
+    // While our heuristic is somewhat restrictive (we could make it less so by introducing a module level analysis
+    // that checks if a method is ever called on a global variable during package initialization, and if not, allow
+    // these assignments, but that may not be worth it, as here we could solve the problem by introducing a package
+    // that imports 'errors' and contains the error declarations.
+    return New("unsupported operation")
+}
+
+ghost
+ensures ErrUnsupported != nil && acc(ErrUnsupported.ErrorMem(), _)
+decreases
+func EstablishErrUnsupportedMem() {
+    openDupPkgInv
+}

@@ -171,6 +171,7 @@ pred (op *OpError) Mem() {
 }
 
 requires acc(e.Mem(), _)
+decreases
 pure func (e *OpError) Unwrap() error { return unfolding acc(e.Mem(), _) in e.Err }
 
 requires acc(e.Mem())
@@ -271,8 +272,10 @@ type UnknownNetworkError string
 
 func (e UnknownNetworkError) Error() string   // { return "unknown network " + string(e) }
 ensures !res
+decreases
 pure func (e UnknownNetworkError) Timeout() (res bool)   { return false }
 ensures !res
+decreases
 pure func (e UnknownNetworkError) Temporary() (res bool) { return false }
 
 type InvalidAddrError string

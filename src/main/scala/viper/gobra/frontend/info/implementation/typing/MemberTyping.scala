@@ -63,20 +63,31 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
+  private def allPNodesExpr(pe: PExpression) : Seq[PNode] = {
+    allChildren(pe) ++ Vector(pe)
+  }
+
+  private def allPNodesVExpr(v: Vector[PExpression]) : Seq[PNode] = {
+    v flatMap (pe => allPNodesExpr(pe))
+  }
+
   // Find all wildcards perms in postcondition
   private def wildcardsPerm(n: PFunctionDecl): Messages = {
+    // ???: there HAS to be a better way
+    val preChildren = allPNodesVExpr(n.spec.pres)
+    val postChildren = allPNodesVExpr(n.spec.posts)
     // 1. We have a wildcard access in the precondition
-    val extractId: PartialFunction[PExpression, PExpression] = {
+    val extractId: PartialFunction[PNode, PExpression] = {
       case PAccess(p, PWildcardPerm()) if isVariableFixed(p) => p
       // FIXME: &s.f is PBoolLit and PDot, should I check for this?
     }
     val presParamsWithWildcardAccess =
-      n.spec.pres.collect {
+      preChildren.collect {
           extractId
       }
     // 2. we have the wc acc to the same expression in the postcondition
     val postsParamsWithWildcardAcc =
-      n.spec.posts.collect {
+      postChildren.collect {
         extractId
       }.filter { p : PExpression  =>
         presParamsWithWildcardAccess.contains(p)
@@ -88,6 +99,50 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
     }.flatMap { p =>
       warning(p,
         "Wildcard permission likely to be wrong.")
+    }.toVector
+  }
+
+  // Check that all preconditions' accesses and postconditions' accesses evaluate to the same value
+  private def checkAccessLeak(n: PFunctionDecl): Messages = {
+    def accessSums(children: Seq[PNode]): Map[PExpression, Double] = {
+      children.collect {
+        case PAccess(expr, perm) if !perm.isInstanceOf[PWildcardPerm] =>
+          val value = perm match {
+            case PDiv(PIntLit(x, _), PIntLit(y, _)) => x.toDouble / y.toDouble
+            case PIntLit(n, _) => n.toDouble
+            case PFullPerm() => 1.0
+            case PNoPerm() => 0.0
+          }
+          (expr, value)
+      }.groupMapReduce(_._1)(_._2)(_ + _)
+    }
+
+    val accessSumsPre: Map[PExpression, Double] = accessSums(allPNodesVExpr(n.spec.pres))
+    val accessSumsPost: Map[PExpression, Double] = accessSums(allPNodesVExpr(n.spec.posts))
+    accessSumsPre.toVector.flatMap {
+      case (expr, preValue) =>
+        accessSumsPost.get(expr) match {
+          case Some(postValue) if postValue < preValue =>
+            error(expr, s"Returned access permissions are lower than the required ones for $expr")
+          case _ => None
+        }
+    }
+  }
+
+  private def checkOlds(n: PFunctionDecl): Messages = {
+    // An expression is heap dependant if...
+    def isExprHeapDependent(expr: PExpression): Boolean = expr match {
+      // It's a reference
+      case PDeref(_) => true
+      case other =>
+        println(s"Returning false in check for heap dependency of type: ${other.getClass}")
+        false
+    }
+
+    (n.spec.pres ++ n.spec.posts).flatMap(allPNodesExpr).flatMap {
+      case e @ POld(o) if !isExprHeapDependent(o) =>
+        error(e, s"Expression inside old is not heap dependent, are you sure you need an old here?")
+      case _ => noMessages
     }
   }
 
@@ -100,7 +155,9 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
         wellFoundedIfNeeded(n) ++
         unnamedReturnParameters(n) ++
         unconstrainedReturnParameters(n) ++
-        wildcardsPerm(n)
+        wildcardsPerm(n) ++
+        checkAccessLeak(n) ++
+        checkOlds(n)
     case m: PMethodDecl =>
       wellDefVariadicArgs(m.args) ++
         isReceiverType.errors(miscType(m.receiver))(member) ++

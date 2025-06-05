@@ -7,7 +7,7 @@
 package viper.gobra.frontend
 
 import com.typesafe.scalalogging.LazyLogging
-import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
+import viper.gobra.ast.frontend.{PExpression, PParameter, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.frontend.Source.TransformableSource
@@ -424,7 +424,7 @@ object Desugar extends LazyLogging {
           Vector.empty
         case NoGhost(x: PConstDecl) => constDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
-        case NoGhost(x: PFunctionDecl) => registerFunction(x).toVector
+        case NoGhost(x: PFunctionDecl) => registerFunction(x)
         case x: PMPredicateDecl => Vector(registerMPredicate(x))
         case x: PFPredicateDecl => Vector(registerFPredicate(x))
         case x: PImplementationProof => registerImplementationProof(x); Vector.empty
@@ -3763,7 +3763,72 @@ object Desugar extends LazyLogging {
       method
     }
 
-    def registerFunction(decl: PFunctionDecl): Option[in.FunctionMember] = {
+    def generateInputUnicityCheckBody(origPres: Vector[in.Assertion],
+                                      parserInfo: Source.Parser.Single): in.MethodBody = {
+      val newBodyInhales = origPres flatMap {
+        pre => Vector(in.Inhale(pre)(parserInfo)) ++ Vector(in.Inhale(pre.transform {
+          case in.Parameter.In(id, typ) => in.Parameter.In(id + "_unicity", typ)(parserInfo)
+        })(parserInfo))
+      }
+      val newBodyRefutes = (origPres flatMap {
+        pre => pre deepCollect {
+          case in.Parameter.In(id, typ) => in.Refute(in.ExprAssertion(in.EqCmp(in.Parameter.In(id, typ)(parserInfo), in.Parameter.In(id + "_unicity", typ)(parserInfo))(parserInfo))(parserInfo))(parserInfo)
+        }
+      }).distinct
+      val newBody = in.MethodBody(
+        Vector.empty,
+        in.MethodBodySeqn(newBodyInhales ++ newBodyRefutes)(parserInfo),
+        Vector.empty
+      )(parserInfo)
+      println(newBody)
+      newBody
+    }
+
+    def generateInputUnicityCheckArgs(origArgs: Vector[in.Parameter.In],
+                                      parserInfo: Source.Parser.Single) : Vector[in.Parameter.In] = {
+      origArgs flatMap { n =>
+        val newArg = in.Parameter.In(n.id + "_unicity", n.typ)(parserInfo)
+        Vector(n, newArg)
+      }
+    }
+
+    def generateInputUnicityCheckFunc(origName : in.FunctionProxy,
+                                      origArgs: Vector[in.Parameter.In],
+                                      origPres: Vector[in.Assertion],
+                                      parserInfo: Source.Parser.Single) : in.Function =  {
+      in.Function(
+        in.FunctionProxy(origName.name)(parserInfo),
+        generateInputUnicityCheckArgs(origArgs, parserInfo),
+        Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty,
+        Some(generateInputUnicityCheckBody(origPres, parserInfo))
+      )(parserInfo)
+    }
+
+    def generateInputUnicityCheckFuncPure(origName : in.FunctionProxy,
+                                          origArgs: Vector[in.Parameter.In],
+                                          origPres: Vector[in.Assertion],
+                                          origIsOpaque: Boolean,
+                                          parserInfo: Source.Parser.Single) : in.PureFunction =  {
+      in.PureFunction(
+        in.FunctionProxy(origName.name)(parserInfo),
+        generateInputUnicityCheckArgs(origArgs, parserInfo),
+        Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty,
+        None,// TODO: fold on in.And (or maybe in.SepAnd) for inhales and refutes Some(generateInputUnicityCheckBody(origPres, parserInfo)),
+        origIsOpaque
+      )(parserInfo)
+    }
+
+    def generateInputUnicityCheck(originalFunction: in.FunctionMember, originalDecl: PFunctionDecl): in.FunctionMember = {
+      val parserInfo = meta(originalDecl, info)
+      originalFunction match {
+        case in.Function(origName, origArgs, _, origPres, _, _, _, _)
+            => generateInputUnicityCheckFunc(origName, origArgs, origPres, parserInfo)
+        case in.PureFunction(origName, origArgs, _, origPres, _, _, _, _, origIsOpaque)
+            => generateInputUnicityCheckFuncPure(origName, origArgs, origPres, origIsOpaque, parserInfo)
+      }
+    }
+
+    def registerFunction(decl: PFunctionDecl): Vector[in.FunctionMember] = {
       if (decl.id.name == Constants.INIT_FUNC_NAME) {
         /**
           *  In Go, functions named init are executed during a package initialization,
@@ -3771,26 +3836,21 @@ object Desugar extends LazyLogging {
           *  associated with init functions are generated in method [[generatePkgInitProofObligations]].
           *  As such, these functions are ignored by [[registerFunction]].
           */
-        None
+        Vector.empty
       } else {
         val function = functionD(decl)
         val functionProxy = functionProxyD(decl, info)
         definedFunctions += functionProxy -> function
-        // PW: We now add another function, with the exact same body as the "true one", except
-        //     before every return statement we exhale all permissions we are requiring
-        //     I am not sure modifying the method in place by adding these already at this step would work in general?
-        val leakCheckDecl : PFunctionDecl = PFunctionDecl(
-          PIdnDef(decl.id.name + "_leakCheck"),
-          decl.args,
-          decl.result,
-          decl.spec,
-          decl.body
-        )
-        val leakCheckFunc = functionD(leakCheckDecl)
-        // Is this info thingy okay or should I create a new one (with createAnnotatedInfo I guess?)
-        val leakCheckFuncProxy = functionProxyD(leakCheckDecl, info)
-        definedFunctions += leakCheckFuncProxy -> leakCheckFunc
-        Some(function)
+        if (decl.args.nonEmpty) {
+          // INPUT UNICITY CHECK
+          /*val leakCheckFunc = generateInputUnicityCheck(function, decl)
+          definedFunctions += functionProxy -> leakCheckFunc
+          Vector(function, leakCheckFunc)*/
+          Vector(function)
+        } else {
+          Vector(function)
+        //
+        }
       }
     }
 

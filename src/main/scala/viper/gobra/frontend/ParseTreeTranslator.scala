@@ -2003,17 +2003,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       val expr = visitNode[PExpression](ctx.rangeClause().expression()).at(ctx.rangeClause())
       // enumerated will be used no matter what, so we just make it a wildcard if it is not
       // present in the range clause
-      val enumerated = visitChildren(ctx.rangeClause()) match {
-        case Vector(_, _, "range", _, "with", i) if i.toString() == "_" => PWildcard().at(ctx.rangeClause().IDENTIFIER())
-        case Vector("range", _, "with", i) if i.toString() == "_" => PWildcard().at(ctx.rangeClause().IDENTIFIER())
-        case Vector(_, _, "range", _) | Vector("range", _) => PWildcard().at(ctx.rangeClause())
-        case _ => idnUnk.get(ctx.rangeClause().IDENTIFIER()).at(ctx.rangeClause.IDENTIFIER())
+      val (enumerated, genVisitedInvariants) = visitChildren(ctx.rangeClause()) match {
+        case Vector(_, _, "range", _, "with", i) if i.toString() == "_" => (PWildcard().at(ctx.rangeClause().IDENTIFIER()), false)
+        case Vector("range", _, "with", i) if i.toString() == "_" => (PWildcard().at(ctx.rangeClause().IDENTIFIER()), false)
+        case Vector(_, _, "range", _) | Vector("range", _) => (PWildcard().at(ctx.rangeClause()), false)
+        case _ => (idnUnk.get(ctx.rangeClause().IDENTIFIER()).at(ctx.rangeClause.IDENTIFIER()), true)
       }
       val range = PRange(expr, enumerated).at(ctx.rangeClause())
       if (has(ctx.rangeClause().DECLARE_ASSIGN())) {
         // :=
         val (idnUnkLikeList(vars), addressable) = visitMaybeAddressableIdentifierList(ctx.rangeClause().maybeAddressableIdentifierList())
-        PShortForRange(range, vars, addressable, spec, block).at(specCtx)
+        PShortForRange(range, vars, addressable, spec, block, genVisitedInvariants).at(specCtx)
       } else {
         // =
         val assignees = visitAssigneeList(ctx.rangeClause().expressionList()) match {

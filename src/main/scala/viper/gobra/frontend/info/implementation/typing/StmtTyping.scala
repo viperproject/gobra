@@ -125,7 +125,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         comparableTypes.errors(exprType(cond), BooleanT)(n) ++
         error(n, noTerminationMeasureMsg, isGhost && spec.terminationMeasure.isEmpty)
 
-    case r@PShortForRange(range, shorts, _, _, _) =>
+    case r@PShortForRange(range, shorts, _, _, _, _) =>
       val mayInit = isEnclosingMayInit(r)
       underlyingType(exprType(range.exp)) match {
         case _ : ArrayT | _ : SliceT =>

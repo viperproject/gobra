@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue808
+
+requires acc(m)
+func test(m map[int]int) {
+	invariant acc(m)
+	for k, v := range m {}
+}

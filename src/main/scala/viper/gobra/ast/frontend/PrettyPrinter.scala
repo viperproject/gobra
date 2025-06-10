@@ -282,7 +282,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       })
       case PAssForRange(range, ass, spec, body) =>
         showSpec(spec) <> "for" <+> showExprList(ass) <+> "=" <+> showRange(range) <+> block(showStmt(body))
-      case PShortForRange(range, shorts, addressable, spec, body, _) =>
+      case PShortForRange(range, shorts, addressable, spec, body) =>
         showSpec(spec) <> "for" <+> showList(shorts zip addressable){ case (l, a) => showAddressable(a, l) } <+> ":=" <+> showRange(range) <+> block(showStmt(body))
       case PGoStmt(exp) => "go" <+> showExpr(exp)
       case PSelectStmt(send, rec, aRec, sRec, dflt) =>

@@ -1382,7 +1382,7 @@ object Desugar extends LazyLogging {
         * In the case where the value variable 'v' is missing all the code annotated with [v]
         * is omitted
         */
-      def desugarMapShortRange(n: PShortForRange, range: PRange, shorts: Vector[PUnkLikeId], spec: PLoopSpec, body: PBlock, genVisitedInvariants: Boolean)(src: Source.Parser.Info): Writer[in.Stmt] = unit(block(for {
+      def desugarMapShortRange(n: PShortForRange, range: PRange, shorts: Vector[PUnkLikeId], spec: PLoopSpec, body: PBlock)(src: Source.Parser.Info): Writer[in.Stmt] = unit(block(for {
         exp <- goE(range.exp)
 
         c <- freshDeclaredExclusiveVar(exp.typ.withAddressability(Addressability.exclusiveVariable), n, info)(src)
@@ -1411,7 +1411,7 @@ object Desugar extends LazyLogging {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
-        addedInvariants = if (genVisitedInvariants) Vector(
+        addedInvariants = if (range.enumerated != PWildcard()) Vector(
           in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
           in.ExprAssertion(in.Subset(visited.op, domain)(src))(src)) else Vector()
 
@@ -1457,7 +1457,7 @@ object Desugar extends LazyLogging {
                   in.LessCmp(in.Length(visited.op)(src), in.Length(c)(src))(src),
                   dInv ++ addedInvariants, dTer, in.Block(Vector(continueLoopLabelProxy, k) ++ (if (hasValue) Vector(v) else Vector()),
                     Vector(exhalePerm, updateKeyVal, dBody, continueLoopLabel, inhalePerm, updateVisited) ++ dInvPre ++ dTerPre
-                  )(src))(src)) ++ (if (genVisitedInvariants) Vector(visitedEqDomain) else Vector()) ++ Vector(breakLoopLabel
+                  )(src))(src)) ++ (if (range.enumerated != PWildcard()) Vector(visitedEqDomain) else Vector()) ++ Vector(breakLoopLabel
               ))(src)
           )(src)))(src)
 
@@ -1900,10 +1900,10 @@ object Desugar extends LazyLogging {
 
           case n@PBreak(label) => unit(in.Break(label.map(x => x.name), nm.fetchBreakLabel(n, info))(src))
 
-          case n@PShortForRange(range, shorts, _, spec, body, genVisitedInvariants) =>
+          case n@PShortForRange(range, shorts, _, spec, body) =>
             underlyingType(info.typ(range.exp)) match {
               case _: SliceT | _: ArrayT => desugarArrSliceShortRange(n, range, shorts, spec, body)(src)
-             case _: MapT => desugarMapShortRange(n, range, shorts, spec, body, genVisitedInvariants)(src)
+             case _: MapT => desugarMapShortRange(n, range, shorts, spec, body)(src)
               case t => violation(s"Type $t not supported as a range expression")
             }
 

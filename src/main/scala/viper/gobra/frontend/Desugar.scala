@@ -1903,7 +1903,7 @@ object Desugar extends LazyLogging {
           case n@PShortForRange(range, shorts, _, spec, body) =>
             underlyingType(info.typ(range.exp)) match {
               case _: SliceT | _: ArrayT => desugarArrSliceShortRange(n, range, shorts, spec, body)(src)
-             case _: MapT => desugarMapShortRange(n, range, shorts, spec, body)(src)
+              case _: MapT => desugarMapShortRange(n, range, shorts, spec, body)(src)
               case t => violation(s"Type $t not supported as a range expression")
             }
 

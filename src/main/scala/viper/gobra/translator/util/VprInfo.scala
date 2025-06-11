@@ -25,6 +25,14 @@ object VprInfo {
     }
   }
 
+  def attachDisableAssumptionAnalysis(info: vpr.Info): vpr.Info = {
+    attachBackendAnnotation(info, "enableAssumptionAnalysis", "false")
+  }
+
+  def attachAssumptionTypeInternal(info: vpr.Info): vpr.Info = {
+    attachBackendAnnotation(info, "assumptionType", "Internal")
+  }
+
   private def attachBackendAnnotation(info: vpr.Info, key: String, values: String*) : vpr.Info = {
     val annotation = vpr.AnnotationInfo(Map(key -> values))
     vpr.ConsInfo(annotation, info)

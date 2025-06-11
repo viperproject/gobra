@@ -14,7 +14,7 @@ lazy val server = project in file("viperserver")
 lazy val genParser = taskKey[Unit]("Generate Gobra's parser")
 genParser := {
   val projectDir = baseDirectory.value
-  val res: Int = (s"${projectDir.getAbsolutePath}/genparser.sh --download" !) // parentheses are not optional despite what IntelliJ suggests
+  val res: Int = (s"C:\\Program Files\\Git\\bin\\bash.exe ${projectDir.getAbsolutePath}/genparser.sh --download" !) // parentheses are not optional despite what IntelliJ suggests
   if (res != 0) {
     sys.error(s"genparser.sh exited with the non-zero exit code $res")
   }

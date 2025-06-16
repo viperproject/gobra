@@ -1,11 +1,12 @@
 package viper.gobra.translator.transformers
 
-import viper.gobra.ast.frontend.{PAssume, PInhale}
+import viper.gobra.ast.{frontend => gobra}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.reporting.Source.Verifier
 import viper.silver.ast.utility.ViperStrategy
-import viper.silver.ast._
+import viper.silver.ast.{AbstractSourcePosition, AnnotationInfo, MakeInfoPair, NoInfo}
 import viper.silver.verifier.AbstractError
+import viper.silver.{ast => vpr}
 
 class AssumptionAnalysisAnnotationTransformer extends ViperTransformer {
 
@@ -14,25 +15,85 @@ class AssumptionAnalysisAnnotationTransformer extends ViperTransformer {
     Right(task.copy(program = programWithAnalysisAnnotation))
   }
 
-
-  private def addAssumptionAnalysisAnnotation(p: Program): Program = {
+  // existing assumption analysis annotations are preserved
+  private def addAssumptionAnalysisAnnotation(p: vpr.Program): vpr.Program = {
     ViperStrategy.Slim({
-      case aInput @ ( _: Inhale | _: Assume) =>
-        val a = aInput.asInstanceOf[Stmt]
-        val sourceInfo = a.info.getUniqueInfo[Verifier.Info]
-        if (sourceInfo.isDefined) {
-          val annotationInfo = sourceInfo.get.pnode match {
-            case _: PAssume | _: PInhale =>
-              explicitAnnotation
-            case _ =>
+      case aInput @ (_: vpr.Inhale | _: vpr.Assume) =>
+        val a = aInput.asInstanceOf[vpr.Stmt]
+        val newInfo = getNewInfo(a, a.pos, {
+            case _: gobra.PAssume | _: gobra.PInhale  =>
+              NoInfo
+            case _                                    =>
               implicitAnnotation
-          }
-          val nA = a.withMeta((a.pos, MakeInfoPair(a.info, annotationInfo), a.errT))
-          nA
-        } else {
-          a
-        }
+          }, implicitAnnotation)
+        a.withMeta((a.pos, newInfo, a.errT))
+
+      case dInput @ (_: vpr.Domain | _: vpr.Function | _: vpr.Method | _: vpr.Predicate) =>
+        val d = dInput.asInstanceOf[vpr.Member]
+        val newInfo = getNewInfo(d, d.pos, {
+          case _: gobra.PFunctionDecl | _: gobra.PMethodDecl
+            | _: gobra.PDomainType | _: gobra.PPredType
+              => NoInfo
+          case _ => disableAssumptionAnalysis
+        }, disableAssumptionAnalysis)
+        d.withMeta((d.pos, newInfo, d.errT))
+
+      case seqn: vpr.Seqn =>
+        val annotationInfo = getAnalysisInfoAnnotation(seqn, seqn.pos, {
+          case _: gobra.PAssume | _: gobra.PInhale =>
+            explicitAnnotation
+          case _ => NoInfo
+        }, NoInfo)
+        attachAnalysisInfoToSeqn(seqn, annotationInfo)
+
+      case stmt: vpr.Stmt =>
+        val newInfo = getNewInfo(stmt, stmt.pos, {
+          case _: gobra.PAssume | _: gobra.PInhale =>
+            explicitAnnotation
+          case _ => NoInfo
+        }, NoInfo)
+        stmt.withMeta((stmt.pos, newInfo, stmt.errT))
+
     }).forceCopy().execute(p)
+  }
+
+
+  private def mergeInfoOptionally(oldInfo: vpr.Info, newInfo: vpr.Info): vpr.Info = {
+    newInfo match {
+      case _: AnnotationInfo =>
+        if(oldInfo.getUniqueInfo[AnnotationInfo].isDefined) oldInfo
+        else MakeInfoPair(oldInfo, newInfo)
+      case _ => oldInfo
+    }
+  }
+
+  private def attachAnalysisInfoToSeqn(seqn: vpr.Seqn, analysisInfo: vpr.Info): vpr.Seqn = analysisInfo match {
+      case NoInfo => seqn
+      case _ => vpr.Seqn(seqn.ss.map(s => s.withMeta((s.pos, mergeInfoOptionally(s.info, analysisInfo), s.errT))),
+        seqn.scopedSeqnDeclarations)(seqn.pos, seqn.info, seqn.errT)
+    }
+
+  private def getSourceFileOpt(pos: vpr.Position): Option[String] = {
+    pos match {
+      case position: AbstractSourcePosition =>
+        Some(position.file.getFileName.toString)
+      case _ => None
+    }
+  }
+
+  private def getAnalysisInfoAnnotation(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: (gobra.PNode => vpr.Info), default: vpr.Info): vpr.Info = {
+    val sourceInfo = node.info.getUniqueInfo[Verifier.Info]
+    val sourceFileOpt = getSourceFileOpt(pos)
+    if (sourceInfo.isDefined && sourceFileOpt.exists(s => !s.equals("builtin.gobra"))) {
+      pNodeMapper(sourceInfo.get.pnode)
+    } else {
+      default
+    }
+  }
+
+  private def getNewInfo(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: (gobra.PNode => vpr.Info), default: vpr.Info): vpr.Info = {
+    val newInfo = getAnalysisInfoAnnotation(node, pos, pNodeMapper, default)
+    mergeInfoOptionally(node.info, newInfo)
   }
 
   private def explicitAnnotation: AnnotationInfo = {
@@ -41,5 +102,9 @@ class AssumptionAnalysisAnnotationTransformer extends ViperTransformer {
 
   private def implicitAnnotation: AnnotationInfo = {
     AnnotationInfo(Map(("assumptionType", List("Implicit"))))
+  }
+
+  private def disableAssumptionAnalysis: AnnotationInfo = {
+    AnnotationInfo(Map(("enableAssumptionAnalysis", List("false"))))
   }
 }

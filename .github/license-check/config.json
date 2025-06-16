@@ -6,7 +6,8 @@
       "**/*.go",
       "build.sbt",
       "src/main/resources/stubs/github.com/**/*.gobra",
-      "**/Gobra*.g4"
+      "**/Gobra*.g4",
+      "src/test/java/**/*.java"
     ],
     "exclude": [
       "carbon/**",

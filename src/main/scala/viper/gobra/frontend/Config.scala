@@ -60,7 +60,8 @@ object ConfigDefaults {
   // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
   // to verify.
   val DefaultOnlyFilesWithHeader: Boolean = false
-  lazy val DefaultGobraDirectory: Path = Path.of(".gobra")
+  // In the past, the default Gobra directory used to be Path.of(".gobra")
+  lazy val DefaultGobraDirectory: Option[Path] = None
   val DefaultTaskName: String = "gobra-task"
   val DefaultAssumeInjectivityOnInhale: Boolean = true
   val DefaultParallelizeBranches: Boolean = false
@@ -117,7 +118,7 @@ object MoreJoins {
 }
 
 case class Config(
-                   gobraDirectory: Path = ConfigDefaults.DefaultGobraDirectory,
+                   gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobraDirectory,
                    // Used as an identifier of a verification task, ideally it shouldn't change between verifications
                    // because it is used as a caching key. Additionally it should be unique when using the StatsCollector
                    taskName: String = ConfigDefaults.DefaultTaskName,
@@ -261,7 +262,7 @@ object Config {
 }
 
 // have a look at `Config` to see an inline description of some of these parameters
-case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirectory,
+case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobraDirectory,
                       moduleName: String = ConfigDefaults.DefaultModuleName,
                       includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
                       reporter: GobraReporter = ConfigDefaults.DefaultReporter,
@@ -561,7 +562,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   val gobraDirectory: ScallopOption[Path] = opt[Path](
     name = "gobraDirectory",
     descr = "Output directory for Gobra",
-    default = Some(ConfigDefaults.DefaultGobraDirectory),
+    default = ConfigDefaults.DefaultGobraDirectory,
     short = 'g'
   )(singleArgConverter(arg => Path.of(arg)))
 
@@ -1038,7 +1039,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   )
 
   private def baseConfig(isolate: List[(Path, List[Int])]): BaseConfig = BaseConfig(
-    gobraDirectory = gobraDirectory(),
+    gobraDirectory = gobraDirectory.toOption,
     moduleName = module(),
     includeDirs = includeDirs,
     reporter = FileWriterReporter(

@@ -139,7 +139,7 @@ trait GoVerifier extends StrictLogging {
     logger.debug{
       val memAssum = statsCollector.getNumberOfSpecifiedMembersWithAssumptions
       val isOrAre = if (memAssum != 1) "are" else "is"
-      s"$memAssum specified member${addPlural(memAssum)} $isOrAre trusted or abstract."
+      s"$memAssum specified member${addPlural(memAssum)} of the package under verification $isOrAre trusted or abstract."
     }
 
     // Print warnings

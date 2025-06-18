@@ -1418,9 +1418,11 @@ object Desugar extends LazyLogging {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
-        addedInvariants = Vector(
-          in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
-          in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
+        addedInvariants = if (range.enumerated != PWildcard()) // emit invariants about visited set only if we actually use a with clause and specify an identifier for it
+          Vector(
+            in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
+            in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
+          else Vector()
 
         dBody = blockD(ctx, info)(body)
 
@@ -1464,8 +1466,7 @@ object Desugar extends LazyLogging {
                   in.LessCmp(in.Length(visited.op)(src), in.Length(c)(src))(src),
                   dInv ++ addedInvariants, dTer, in.Block(Vector(continueLoopLabelProxy, k) ++ (if (hasValue) Vector(v) else Vector()),
                     Vector(exhalePerm, updateKeyVal, dBody, continueLoopLabel, inhalePerm, updateVisited) ++ dInvPre ++ dTerPre
-                  )(src))(src), visitedEqDomain, breakLoopLabel
-              ))(src)
+                  )(src))(src)) ++ (if (range.enumerated != PWildcard()) Vector(visitedEqDomain) else Vector()) ++ Vector(breakLoopLabel))(src) // emit assertions about visited set only if we actually use a with clause and specify an identifier for it
           )(src)))(src)
 
       } yield enc))

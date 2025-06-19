@@ -88,6 +88,9 @@ WRITEPERM   : 'writePerm' -> mode(NLSEMI);
 NOPERM      : 'noPerm' -> mode(NLSEMI);
 TRUSTED     : 'trusted' -> mode(NLSEMI);
 OUTLINE     : 'outline';
+DUPLICABLE  : 'dup';
+PKG_INV     : 'pkgInvariant';
+OPEN_DUP_SINV : 'openDupPkgInv' -> mode(NLSEMI);
 INIT_POST   : 'initEnsures';
 IMPORT_PRE  : 'importRequires';
 PROOF       : 'proof';
@@ -95,6 +98,8 @@ GHOST_EQUALS     : '===';
 GHOST_NOT_EQUALS : '!==';
 WITH        : 'with';
 OPAQUE      : 'opaque' -> mode(NLSEMI);
+MAYINIT     : 'mayInit' -> mode(NLSEMI);
 REVEAL      : 'reveal';
 BACKEND     : '#backend';
+FRIENDPKG   : 'friendPkg';
 // NOTE: if you append a new token, do not forget to update InformativeErrorListener.LAST_GOBRA_TOKEN

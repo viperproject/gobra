@@ -60,7 +60,8 @@ object ConfigDefaults {
   // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
   // to verify.
   val DefaultOnlyFilesWithHeader: Boolean = false
-  lazy val DefaultGobraDirectory: Path = Path.of(".gobra")
+  // In the past, the default Gobra directory used to be Path.of(".gobra")
+  lazy val DefaultGobraDirectory: Option[Path] = None
   val DefaultTaskName: String = "gobra-task"
   val DefaultAssumeInjectivityOnInhale: Boolean = true
   val DefaultParallelizeBranches: Boolean = false
@@ -79,6 +80,7 @@ object ConfigDefaults {
   val DefaultUnsafeWildcardOptimization: Boolean = false
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
   val DefaultRespectFunctionPrePermAmounts: Boolean = false
+  val DefaultEnableExperimentalFriendClauses: Boolean = false
 }
 
 // More-complete exhale modes
@@ -129,7 +131,7 @@ object MoreJoins {
 }
 
 case class Config(
-                   gobraDirectory: Path = ConfigDefaults.DefaultGobraDirectory,
+                   gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobraDirectory,
                    // Used as an identifier of a verification task, ideally it shouldn't change between verifications
                    // because it is used as a caching key. Additionally it should be unique when using the StatsCollector
                    taskName: String = ConfigDefaults.DefaultTaskName,
@@ -179,7 +181,6 @@ case class Config(
                    mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                    // `None` indicates that no mode has been specified and instructs Gobra to use the default hyper mode
                    hyperMode: Option[Hyper.Mode] = None,
-                   enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                    parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
@@ -190,6 +191,7 @@ case class Config(
                    unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
+                   enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
 ) {
 
   def merge(other: Config): Config = {
@@ -246,7 +248,6 @@ case class Config(
         case (l, r) if l == r => l
         case (Some(l), Some(r)) => Violation.violation(s"Unable to merge differing hyper modes from in-file configuration options, got $l and $r")
       },
-      enableLazyImports = enableLazyImports || other.enableLazyImports,
       noVerify = noVerify || other.noVerify,
       noStreamErrors = noStreamErrors || other.noStreamErrors,
       parseAndTypeCheckMode = parseAndTypeCheckMode,
@@ -256,6 +257,7 @@ case class Config(
       unsafeWildcardOptimization = unsafeWildcardOptimization && other.unsafeWildcardOptimization,
       moreJoins = MoreJoins.merge(moreJoins, other.moreJoins),
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || other.respectFunctionPrePermAmounts,
+      enableExperimentalFriendClauses = enableExperimentalFriendClauses || other.enableExperimentalFriendClauses,
     )
   }
 
@@ -282,7 +284,7 @@ object Config {
 }
 
 // have a look at `Config` to see an inline description of some of these parameters
-case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirectory,
+case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobraDirectory,
                       moduleName: String = ConfigDefaults.DefaultModuleName,
                       includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
                       reporter: GobraReporter = ConfigDefaults.DefaultReporter,
@@ -309,7 +311,6 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                       hyperMode: Option[Hyper.Mode] = None,
-                      enableLazyImports: Boolean = ConfigDefaults.DefaultEnableLazyImports,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
@@ -319,6 +320,7 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
+                      enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -373,7 +375,6 @@ trait RawConfig {
     disableNL = baseConfig.disableNL,
     mceMode = baseConfig.mceMode,
     hyperMode = baseConfig.hyperMode,
-    enableLazyImports = baseConfig.enableLazyImports,
     noVerify = baseConfig.noVerify,
     noStreamErrors = baseConfig.noStreamErrors,
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
@@ -383,6 +384,7 @@ trait RawConfig {
     unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
     moreJoins = baseConfig.moreJoins,
     respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
+    enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
   )
 }
 
@@ -584,7 +586,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   val gobraDirectory: ScallopOption[Path] = opt[Path](
     name = "gobraDirectory",
     descr = "Output directory for Gobra",
-    default = Some(ConfigDefaults.DefaultGobraDirectory),
+    default = ConfigDefaults.DefaultGobraDirectory,
     short = 'g'
   )(singleArgConverter(arg => Path.of(arg)))
 
@@ -897,6 +899,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = Some(ConfigDefaults.DefaultDisableSetAxiomatization),
     noshort = true,
   )
+
+  val enableExperimentalFriendClauses: ScallopOption[Boolean] = opt[Boolean](
+    name = "experimentalFriendClauses",
+    descr = s"Enables the use of 'friendPkg' clauses (experimental).",
+    default = Some(ConfigDefaults.DefaultEnableExperimentalFriendClauses),
+    noshort = true,
+  )
   /**
     * Exception handling
     */
@@ -922,6 +931,15 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   private def isSiliconBasedBackend = backend.toOption.getOrElse(ConfigDefaults.DefaultBackend) match {
     case ViperBackends.SiliconBackend | _: ViperBackends.ViperServerWithSilicon => true
     case _ => false
+  }
+
+  addValidation {
+    val lazyImportsSet = enableLazyImports.toOption.contains(true)
+    if (lazyImportsSet) {
+      Left(s"The flag ${Config.enableLazyImportOptionPrettyPrinted} was removed in Gobra's PR #797.")
+    } else {
+      Right(())
+    }
   }
 
   // `parallelizeBranches` requires a backend that supports branch parallelization (i.e., a silicon-based backend)
@@ -1058,7 +1076,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   )
 
   private def baseConfig(isolate: List[(Path, List[Int])]): BaseConfig = BaseConfig(
-    gobraDirectory = gobraDirectory(),
+    gobraDirectory = gobraDirectory.toOption,
     moduleName = module(),
     includeDirs = includeDirs,
     reporter = FileWriterReporter(
@@ -1090,7 +1108,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     disableNL = disableNL(),
     mceMode = mceMode(),
     hyperMode = hyperMode.toOption,
-    enableLazyImports = enableLazyImports(),
     noVerify = noVerify(),
     noStreamErrors = noStreamErrors(),
     parseAndTypeCheckMode = parseAndTypeCheckMode(),
@@ -1100,5 +1117,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     unsafeWildcardOptimization = unsafeWildcardOptimization(),
     moreJoins = moreJoins(),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts(),
+    enableExperimentalFriendClauses = enableExperimentalFriendClauses(),
   )
 }

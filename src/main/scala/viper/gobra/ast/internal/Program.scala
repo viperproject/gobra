@@ -335,6 +335,12 @@ case class MethodBody(
                        postprocessing: Vector[Stmt] = Vector.empty,
                      )(val info: Source.Parser.Info) extends Stmt
 
+object MethodBody {
+  def empty(info: Source.Parser.Info): MethodBody = {
+    MethodBody(Vector.empty, MethodBodySeqn(Vector.empty)(info), Vector.empty)(info)
+  }
+}
+
 /**
   * This node serves as a target of encoding extensions. See [[viper.gobra.translator.encodings.combinators.TypeEncoding.Extension]]
   * Return statements jump exactly to the end of the encoding of this statement.
@@ -945,6 +951,17 @@ case class MapValues(exp : Expr, expUnderlyingType: Type)(val info : Source.Pars
     case _ => violation(s"unexpected type ${exp.typ}")
   }
 }
+
+/**
+ * Represents the conversion of a value of type 'map[k]v' to a mathematical map with type 'dict[k]v'
+ */
+case class MapConversion(expr: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ : Type = expr.typ match {
+    case MapT(k, v, _) => MathMapT(k, v, Addressability.conversionResult)
+    case t => Violation.violation(s"expected a map but got $t")
+  }
+}
+
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr

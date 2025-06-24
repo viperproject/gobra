@@ -73,7 +73,6 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   // Find all wildcards perms in postcondition
   private def wildcardsPerm(n: PFunctionDecl): Messages = {
-    // ???: there HAS to be a better way
     val preChildren = allPNodesVExpr(n.spec.pres)
     val postChildren = allPNodesVExpr(n.spec.posts)
     // 1. We have a wildcard access in the precondition
@@ -103,7 +102,7 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   // Check that all preconditions' accesses and postconditions' accesses evaluate to the same value
-  private def checkAccessLeak(n: PFunctionDecl): Messages = {
+  /*private def checkAccessLeak(n: PFunctionDecl): Messages = {
     def accessSums(children: Seq[PNode]): Map[PExpression, Double] = {
       children.collect {
         case PAccess(expr, perm) if !perm.isInstanceOf[PWildcardPerm] =>
@@ -127,13 +126,16 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
           case _ => None
         }
     }
-  }
+  }*/
 
   private def checkOlds(n: PFunctionDecl): Messages = {
     // An expression is heap dependant if...
     def isExprHeapDependent(expr: PExpression): Boolean = expr match {
       // It's a reference
       case PDeref(_) => true
+      // Is NOT a variable
+      case PNamedOperand(_) => false
+      // case PNamedOperand(id) => exprType(id) // TODO if actual type is a pointer then return false otherwise ture
       case other =>
         println(s"Returning false in check for heap dependency of type: ${other.getClass}")
         false
@@ -156,7 +158,7 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
         unnamedReturnParameters(n) ++
         unconstrainedReturnParameters(n) ++
         wildcardsPerm(n) ++
-        checkAccessLeak(n) ++
+        // checkAccessLeak(n) ++
         checkOlds(n)
     case m: PMethodDecl =>
       wellDefVariadicArgs(m.args) ++

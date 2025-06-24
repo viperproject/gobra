@@ -25,6 +25,7 @@ object Source {
   case class AnnotatedOrigin(origin: AbstractOrigin, annotation: Annotation) extends AbstractOrigin(origin.pos, origin.tag)
 
   sealed trait Annotation
+  case object FailedLinterCheck extends Annotation
   case object OverflowCheckAnnotation extends Annotation
   case object ReceiverNotNilCheckAnnotation extends Annotation
   case object ImportPreNotEstablished extends Annotation

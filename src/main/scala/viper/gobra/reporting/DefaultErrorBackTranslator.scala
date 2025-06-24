@@ -6,7 +6,7 @@
 
 package viper.gobra.reporting
 
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, InsufficientPermissionToRangeExpressionAnnotation, InvalidImplTermMeasureAnnotation, LoopInvariantNotEstablishedAnnotation, MainPreNotEstablished, OverflowCheckAnnotation, OverwriteErrorAnnotation, ReceiverNotNilCheckAnnotation}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, FailedLinterCheck, ImportPreNotEstablished, InsufficientPermissionToRangeExpressionAnnotation, InvalidImplTermMeasureAnnotation, LoopInvariantNotEstablishedAnnotation, MainPreNotEstablished, OverflowCheckAnnotation, OverwriteErrorAnnotation, ReceiverNotNilCheckAnnotation}
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
@@ -92,6 +92,8 @@ object DefaultErrorBackTranslator {
 
     val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {
       case AssertionFalseError(info / OverflowCheckAnnotation) => OverflowErrorReason(info)
+      case AssertionFalseError(info / FailedLinterCheck) => LinterCheckReason(info)
+      case RefutationTrueError(info / FailedLinterCheck) => LinterCheckReason(info)
       case AssertionFalseError(info / ReceiverNotNilCheckAnnotation) => InterfaceReceiverIsNilReason(info)
       case x => x
     }
@@ -178,6 +180,9 @@ class DefaultErrorBackTranslator(
 
       case _ / OverflowCheckAnnotation =>
         x.reasons.foldLeft(OverflowError(x.info): VerificationError) { case (err, reason) => err dueTo reason }
+
+      case _ / FailedLinterCheck =>
+        x.reasons.foldLeft(LinterError(x.info): VerificationError) { case (err, reason) => err dueTo reason }
 
       case _ / AutoImplProofAnnotation(subT, superT) =>
         GeneratedImplementationProofError(subT, superT, x)

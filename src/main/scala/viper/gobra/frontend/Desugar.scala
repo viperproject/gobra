@@ -16,7 +16,7 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, MainPreNotEstablished}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, MainPreNotEstablished, FailedLinterCheck}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
@@ -3690,13 +3690,12 @@ object Desugar extends LazyLogging {
           case in.Parameter.In(id, typ) => in.Refute(in.ExprAssertion(in.EqCmp(in.Parameter.In(id, typ)(parserInfo), in.Parameter.In(id + "_unicity", typ)(parserInfo))(parserInfo))(parserInfo))(parserInfo)
         }
       }).distinct
-      val newBody = in.MethodBody(
+      val newParserInfo = parserInfo.createAnnotatedInfo(FailedLinterCheck)
+      in.MethodBody(
         Vector.empty,
-        in.MethodBodySeqn(newBodyInhales ++ newBodyRefutes)(parserInfo),
+        in.MethodBodySeqn(newBodyInhales ++ newBodyRefutes)(newParserInfo),
         Vector.empty
-      )(parserInfo)
-      println(newBody)
-      newBody
+      )(newParserInfo)
     }
 
     def generateInputUnicityCheckArgs(origArgs: Vector[in.Parameter.In],
@@ -3712,14 +3711,14 @@ object Desugar extends LazyLogging {
                                       origPres: Vector[in.Assertion],
                                       parserInfo: Source.Parser.Single) : in.Function =  {
       in.Function(
-        in.FunctionProxy(origName.name)(parserInfo),
+        in.FunctionProxy(origName.name + "_unicity")(parserInfo),
         generateInputUnicityCheckArgs(origArgs, parserInfo),
         Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty,
         Some(generateInputUnicityCheckBody(origPres, parserInfo))
       )(parserInfo)
     }
 
-    def generateInputUnicityCheckFuncPure(origName : in.FunctionProxy,
+    /*def generateInputUnicityCheckFuncPure(origName : in.FunctionProxy,
                                           origArgs: Vector[in.Parameter.In],
                                           origPres: Vector[in.Assertion],
                                           origIsOpaque: Boolean,
@@ -3731,17 +3730,330 @@ object Desugar extends LazyLogging {
         None,// TODO: fold on in.And (or maybe in.SepAnd) for inhales and refutes Some(generateInputUnicityCheckBody(origPres, parserInfo)),
         origIsOpaque
       )(parserInfo)
-    }
+    }*/
 
     def generateInputUnicityCheck(originalFunction: in.FunctionMember, originalDecl: PFunctionDecl): in.FunctionMember = {
+
       val parserInfo = meta(originalDecl, info)
-      originalFunction match {
+      generateInputUnicityCheckFunc(originalFunction.name, originalFunction.args,
+        originalFunction.pres, parserInfo)
+      /*originalFunction match {
         case in.Function(origName, origArgs, _, origPres, _, _, _, _)
-            => generateInputUnicityCheckFunc(origName, origArgs, origPres, parserInfo)
+          => generateInputUnicityCheckFunc(origName, origArgs, origPres, parserInfo)
         case in.PureFunction(origName, origArgs, _, origPres, _, _, _, _, origIsOpaque)
-            => generateInputUnicityCheckFuncPure(origName, origArgs, origPres, origIsOpaque, parserInfo)
+          => generateInputUnicityCheckFuncPure(origName, origArgs, origPres, origIsOpaque, parserInfo) // TODO
+      }*/
+    }
+
+    def checkAccPermValues(originalFunction: in.FunctionMember): Vector[in.Access] = {
+      def makeAccessesVector(presOrPosts: Vector[in.Assertion]) : Vector[(in.Access, in.Accessible, in.Expr)] = {
+        presOrPosts flatMap {
+          preOrPost =>
+            preOrPost deepCollect {
+              case a: in.Access => (a, a.e, a.p)
+            }
+        }
+      }
+      def makeMap(triple: Vector[(in.Access, in.Accessible, in.Expr)], default: Double): Map[in.Accessible, Double] = {
+        triple.foldLeft(Map.empty[in.Accessible, Double]) { case (acc, (_, e, p)) =>
+          val v = p match {
+            case f: in.FractionalPerm => f.left match {
+              case _: in.Var => default
+              case i: in.IntLit => i.v.toDouble
+            }
+            case _: in.FullPerm     => 1.0
+            case _: in.NoPerm       => 0.0
+            case _: in.WildcardPerm => default
+          }
+          val updatedValue = acc.getOrElse(e, 0.0) + v
+          acc.updated(e, updatedValue)
+        }
+      }
+      val preAccesses = makeAccessesVector(originalFunction.pres)
+      val preMap = makeMap(preAccesses, Double.PositiveInfinity)
+      val postAccesses = makeAccessesVector(originalFunction.posts)
+      val postMap = makeMap(postAccesses, Double.NegativeInfinity)
+
+      /*println(makeMap(preAccesses, Double.PositiveInfinity))
+      println(makeMap(postAccesses, Double.NegativeInfinity))
+      makeAccessesVector(originalFunction.pres).foreach { case (a, e, p) =>
+        println(s"${a}\n\te: ${a.getClass.getSimpleName}, e: ${e.getClass.getSimpleName}, p: ${p.getClass.getSimpleName}")
+      }*/
+
+      preAccesses flatMap {
+        case (a, e, _) =>
+          val preValue  = preMap.getOrElse(e, Double.PositiveInfinity)
+          val postValue = postMap.getOrElse(e, Double.NegativeInfinity)
+          if (postValue < preValue) Some(a) else None
       }
     }
+
+    def generatePermLeakCheckBody(toAssert: Vector[in.Access], originalBody: in.MethodBody,
+                                  parserInfo: Source.Parser.Single, originalFunction: in.FunctionMember): Option[in.MethodBody] = {
+      /*println("-----------------------")
+      toAssert.foreach { a =>
+        println(s"${a}\n\te: ${a.getClass.getSimpleName}, \n\t${a.e} ${a.e.op.info.tag}: ${a.e.getClass.getSimpleName}, \n\t${a.p}: ${a.p.getClass.getSimpleName}")
+      }
+      println("-----------------------")
+      println(toAssert)
+      println("-----------------------")
+      println(originalBody)
+      println("-----------------------")
+      val postAccessesVector: Vector[in.Access] = {
+        originalFunction.posts flatMap {
+          post =>
+            post deepCollect {
+              case a: in.Access => a
+            }
+        }
+      }*/
+
+      val newDecls = toAssert
+        .map ( acc => acc.e.op.info.tag + "_leakCheck")
+        .distinct
+        .map( id => in.LocalVar(id, in.PermissionT(Addressability.exclusiveVariable))(parserInfo))
+
+      val init = toAssert
+        .groupBy(_.e)
+        .map { case (acc, v) =>
+          in.SingleAss(
+            in.Assignee(in.LocalVar(acc.op.info.tag + "_leakCheck", in.PermissionT(Addressability.exclusiveVariable))(parserInfo)),
+            v.map(_.p).reduceLeft{ (acc, next) =>
+            in.PermAdd(acc, next)(parserInfo)
+          })(parserInfo)
+        }.toVector
+      val newParserInfo = parserInfo.createAnnotatedInfo(FailedLinterCheck)
+      val asserts = toAssert map {
+        a => in.Assert(in.ExprAssertion(in.PermGeCmp(
+          in.CurrentPerm(a.e)(newParserInfo),
+          in.LocalVar(a.e.op.info.tag + "_leakCheck", in.PermissionT(Addressability.exclusiveVariable))(newParserInfo))(newParserInfo))(newParserInfo))(newParserInfo)
+      }
+
+      val newBodySeqn = in.MethodBodySeqn(
+        init
+          ++ originalBody.seqn.stmts
+          ++ asserts
+      )(newParserInfo)
+      Some(in.MethodBody(
+        originalBody.decls ++ newDecls,
+        newBodySeqn,
+        originalBody.postprocessing,
+      )(newParserInfo))
+    }
+
+    def generatePermLeakCheckFunc(originalFunction: in.FunctionMember, originalBody: in.MethodBody,
+                                      toAssert: Vector[in.Access], parserInfo: Source.Parser.Single) = {
+      in.Function(
+        in.FunctionProxy(originalFunction.name.name + "_leakCheck")(parserInfo),
+        originalFunction.args,
+        originalFunction.results,
+        originalFunction.pres,
+        originalFunction.posts,
+        originalFunction.terminationMeasures,
+        originalFunction.backendAnnotations,
+        generatePermLeakCheckBody(toAssert, originalBody, parserInfo, originalFunction)
+      )(parserInfo)
+    }
+
+    def generatePermLeackCheck(originalFunction: in.FunctionMember, originalDecl: PFunctionDecl, toAssert: Vector[in.Access]): in.FunctionMember = {
+
+      val parserInfo = meta(originalDecl, info)
+      originalFunction match {
+        case f @ in.Function(_, _, _, _, _, _, _, Some(body))
+        => generatePermLeakCheckFunc(f, body, toAssert, parserInfo)
+        /*case pf @ in.PureFunction(_, _, _, _, _, _, _, body, _)
+          => generatePermLeakCheckFunc(pf, body, toAssert, parserInfo)*/
+
+      }
+    }
+
+    /*def generateLeakCheckBody(origPres: Vector[in.Assertion],
+                                    origPosts: Vector[in.Assertion],
+                                    parserInfo: Source.Parser.Single): in.MethodBody = {
+      def flattenPres(pres: Vector[in.Assertion]) = pres flatMap {
+        case in.SepAnd(a1, a2) => Vector(a1, a2)
+        case in.Implication(e, a) => in.Or(in.Negation(e)(parserInfo), assertionToExpr(a))(parserInfo)
+
+      }
+      def assertions =
+      def assertionToExpr(assertion: in.Assertion) : in.Expr = {
+        assertion match {
+          case in.ExprAssertion(e) => e
+          case in.SepAnd(a1, a2) => in.And(assertionToExpr(a1), assertionToExpr(a2))(parserInfo)
+          case in.Implication(e, a) => in.Or(in.Negation(e)(parserInfo), assertionToExpr(a))(parserInfo)
+          // TODO: Rest??
+        }
+      }
+      def generateImplications(exprs: Vector[in.Expr]) : Vector[in.Assert] =
+        exprs.indices.map {
+          i =>
+            val premiseExprs = exprs.patch(i, Nil, 1)
+            val lhs = premiseExprs.reduceLeft[in.Expr]((a, b) => in.And(a, b)(parserInfo))
+            val rhs = in.Negation(exprs(i))(parserInfo)
+            // not (a -> b) is a and (not b)
+            val implication = in.And(lhs, rhs)(parserInfo)
+            in.Assert(in.ExprAssertion(implication)(parserInfo))(parserInfo)
+        }.toVector
+
+      val preExprs: Vector[in.Expr] = origPres map assertionToExpr
+      val postExprs: Vector[in.Expr] = origPosts map assertionToExpr
+
+      /*origPres.foreach(a => println(a.getClass.getSimpleName))
+      origPres.foreach(a => println(a))*/
+
+      in.MethodBody(
+        Vector.empty,
+        in.MethodBodySeqn(
+          (if (preExprs.length >= 2) generateImplications(preExprs) else Vector.empty) ++
+            (if (postExprs.length >= 2) generateImplications(postExprs) else Vector.empty)
+        )(parserInfo),
+        Vector.empty
+      )(parserInfo)
+    }*/
+
+
+    def generateRedundancyCheckBody(origPresOrPosts: Vector[in.Assertion],
+                                    parserInfo: Source.Parser.Single): in.MethodBody = {
+      /*def assertionToExpr(assertion: in.Assertion) : in.Expr = {
+        assertion match {
+          case in.ExprAssertion(e) => e
+          case in.SepAnd(a1, a2) => in.And(assertionToExpr(a1), assertionToExpr(a2))(parserInfo)
+          case in.Implication(e, a) => in.Or(in.Negation(e)(parserInfo), assertionToExpr(a))(parserInfo)
+          // TODO: Rest??
+        }
+      }
+      def generateImplications(exprs: Vector[in.Expr]) : Vector[in.Assert] =
+        exprs.indices.map {
+          i =>
+            val premiseExprs = exprs.patch(i, Nil, 1)
+            val lhs = premiseExprs.reduceLeft[in.Expr]((a, b) => in.And(a, b)(parserInfo))
+            val rhs = in.Negation(exprs(i))(parserInfo)
+            // not (a -> b) is a and (not b)
+            val implication = in.And(lhs, rhs)(parserInfo)
+            in.Assert(in.ExprAssertion(implication)(parserInfo))(parserInfo)
+        }.toVector
+
+      val preExprs: Vector[in.Expr] = origPres map assertionToExpr
+      val postExprs: Vector[in.Expr] = origPosts map assertionToExpr
+
+      /*origPres.foreach(a => println(a.getClass.getSimpleName))
+      origPres.foreach(a => println(a))*/
+
+      in.MethodBody(
+        Vector.empty,
+        in.MethodBodySeqn(
+          (if (preExprs.length >= 2) generateImplications(preExprs) else Vector.empty) ++
+            (if (postExprs.length >= 2) generateImplications(postExprs) else Vector.empty)
+        )(parserInfo),
+        Vector.empty
+      )(parserInfo)*/
+      def flatten(preOrPosts: Vector[in.Assertion]): Vector[in.Assertion] = {
+        preOrPosts flatMap {
+          case in.SepAnd(left, right) => flatten(Vector(left)) ++ flatten(Vector(right))
+          case other => Vector(other)
+        }
+      }
+      parserInfo.createAnnotatedInfo(FailedLinterCheck)
+      val flattenedPresOrPosts = flatten(origPresOrPosts)
+      val newBody = flattenedPresOrPosts flatMap {
+        case a @ in.Access(e, p) => Vector(in.Inhale(a)(parserInfo))
+        case other => Vector(in.Refute(other)(parserInfo),
+          in.Inhale(other)(parserInfo))
+      }
+      in.MethodBody(
+        Vector.empty,
+        in.MethodBodySeqn(
+          newBody
+        )(parserInfo),
+        Vector.empty
+      )(parserInfo)
+    }
+
+    def generateRedundancyCheckFunc(origFunc: in.FunctionMember,
+                                    preOrPost: Vector[in.Assertion],
+                                    parserInfo: Source.Parser.Single) : in.Function =  {
+      in.Function(
+        in.FunctionProxy(origFunc.name.name + "_redundancy")(parserInfo),
+        origFunc.args,
+        origFunc.results,
+        Vector.empty, Vector.empty, Vector.empty, Vector.empty,
+        Some(generateRedundancyCheckBody(preOrPost, parserInfo))
+      )(parserInfo)
+    }
+
+    def generateRedundancyCheck(originalFunction: in.FunctionMember, originalDecl: PFunctionDecl, preOrPost: Vector[in.Assertion]): in.FunctionMember = {
+      val parserInfo = meta(originalDecl, info)
+      originalFunction match {
+        case f @ in.Function(_, _, _, _, _, _, _, _)
+          => generateRedundancyCheckFunc(f, preOrPost, parserInfo)
+        case pf @ in.PureFunction(_, _, _, _, _, _, _, _, _)
+          => generateRedundancyCheckFunc(pf, preOrPost, parserInfo)
+      }
+    }
+
+    /*def generateTrivialityCheckBody(origPres: Vector[in.Assertion],
+                                    origPosts: Vector[in.Assertion],
+                                    parserInfo: Source.Parser.Single): in.MethodBody = {
+      def assertionToExpr(assertion: in.Assertion) : in.Expr = {
+        assertion match {
+          case in.ExprAssertion(e) => e
+          case in.SepAnd(a1, a2) => in.And(assertionToExpr(a1), assertionToExpr(a2))(parserInfo)
+          case in.Implication(e, a) => in.Or(in.Negation(e)(parserInfo), assertionToExpr(a))(parserInfo)
+          // TODO: Rest??
+        }
+      }*/
+
+      /*def boundVarsInExpr(expr: in.Expr) : Vector[in.BoundVar] = {
+        expr.deepCollect {
+          case bv: in.BoundVar => bv
+        }
+      }.toVector
+
+      val preExprs: Vector[in.Expr] = origPres map assertionToExpr
+      val postExprs: Vector[in.Expr] = origPosts map assertionToExpr
+
+      def generateAssertions(exprs: Vector[in.Expr]) : Vector[in.Assert] =
+        exprs.map { e =>
+          val exists = in.Exists(
+            boundVarsInExpr(e) ++ Vector(in.BoundVar("triviality_check_var", in.IntT(Addressability.boundVariable))(parserInfo)),
+            Vector.empty,
+            in.Negation(e)(parserInfo)
+          )(parserInfo)
+          in.Assert(in.ExprAssertion(exists)(parserInfo))(parserInfo)
+        }
+
+      in.MethodBody(
+        Vector.empty,
+        in.MethodBodySeqn(
+          (if (preExprs.nonEmpty) generateAssertions(preExprs) else Vector.empty) ++
+            (if (postExprs.nonEmpty) generateAssertions(postExprs) else Vector.empty)
+        )(parserInfo),
+        Vector.empty
+      )(parserInfo)
+    }*/
+
+    /*def generateTrivialityCheck(originalFunction: in.FunctionMember, originalDecl: PFunctionDecl): in.FunctionMember = {
+      val parserInfo = meta(originalDecl, info)
+      originalFunction match {
+        case in.Function(origName, origArgs, origRes, origPres, origPosts, _, _, _)
+        => in.Function(
+              in.FunctionProxy(origName.name + "_triviality")(parserInfo),
+              origArgs,
+              origRes,
+              Vector.empty, Vector.empty, Vector.empty, Vector.empty,
+              Some(generateTrivialityCheckBody(origPres, origPosts, parserInfo))
+            )(parserInfo)
+        case in.PureFunction(origName, origArgs, origRes, origPres, origPosts, _, _, _, origIsOpaque@_)
+        => in.Function(
+              in.FunctionProxy(origName.name + "_redundancy")(parserInfo),
+              origArgs,
+              origRes,
+              Vector.empty, Vector.empty, Vector.empty, Vector.empty,
+              Some(generateTrivialityCheckBody(origPres, origPosts, parserInfo))
+            )(parserInfo)
+        // TODO: generateInputUnicityCheckFuncPure(origName, origArgs, origPres, origIsOpaque, parserInfo)
+      }
+    }*/
 
     def registerFunction(decl: PFunctionDecl): Vector[in.FunctionMember] = {
       if (decl.id.name == Constants.INIT_FUNC_NAME) {
@@ -3756,16 +4068,45 @@ object Desugar extends LazyLogging {
         val function = functionD(decl)
         val functionProxy = functionProxyD(decl, info)
         definedFunctions += functionProxy -> function
-        if (decl.args.nonEmpty) {
-          // INPUT UNICITY CHECK
-          /*val leakCheckFunc = generateInputUnicityCheck(function, decl)
-          definedFunctions += functionProxy -> leakCheckFunc
-          Vector(function, leakCheckFunc)*/
-          Vector(function)
-        } else {
-          Vector(function)
-        //
+        var ret = Vector(function)
+        if (decl.id.name == "panic") {
+          println("Skipping panic")
+          return ret
         }
+        // INPUT UNICITY CHECK
+        if (decl.args.nonEmpty) {
+          val inputUnicityFunc = generateInputUnicityCheck(function, decl)
+          definedFunctions += functionProxy -> inputUnicityFunc
+          ret = ret ++ Vector(inputUnicityFunc)
+        }
+        val accPermValues = checkAccPermValues(function)
+        if (accPermValues.nonEmpty) {
+          val accPermLeakFunc = generatePermLeackCheck(function, decl, accPermValues)
+          definedFunctions += functionProxy -> accPermLeakFunc
+          ret = ret ++ Vector(accPermLeakFunc)
+        }
+        // println(accPermValues)
+        // PRES/POSTS REDUNDANCY
+        if (decl.spec.pres.length >= 2) {
+          val noRedundancyFunc = generateRedundancyCheck(function, decl, function.pres)
+          definedFunctions += functionProxy -> noRedundancyFunc
+          ret = ret ++ Vector(noRedundancyFunc)
+        }
+        if (decl.spec.posts.length >= 2) {
+          val noRedundancyFunc = generateRedundancyCheck(function,decl, function.posts)
+          definedFunctions += functionProxy -> noRedundancyFunc
+          ret = ret ++ Vector(noRedundancyFunc)
+        }
+        /*
+        // TRIVIALITY OF PRES/POSTS
+        if (decl.spec.pres.nonEmpty || decl.spec.posts.nonEmpty) {
+          val trivialityFunc = generateTrivialityCheck(function, decl)
+          definedFunctions += functionProxy -> trivialityFunc
+          ret = ret ++ Vector(trivialityFunc)
+        }*/
+        ret
+
+
       }
     }
 

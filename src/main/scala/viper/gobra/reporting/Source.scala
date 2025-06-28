@@ -90,6 +90,8 @@ object Source {
       }
 
       def createAnnotatedInfo(annotation: Annotation): Info = copy(origin = AnnotatedOrigin(origin, annotation))
+
+      override def getSourceString: String = pnode.toString
     }
 
     val noInfo: Info = Info(

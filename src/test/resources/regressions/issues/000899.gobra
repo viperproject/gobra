@@ -1,0 +1,11 @@
+package issue000899
+
+var mapstrstr = map[string][]string{}
+
+preserves acc(mapstrstr)
+preserves let (val, ok := mapstrstr[str]) in acc(val) // parser error should NOT occur here
+func test(str string) 
+
+//:: ExpectedOutput(parser_error)
+preserves  */thismakesnosense // parser error should occur here
+func test_2()

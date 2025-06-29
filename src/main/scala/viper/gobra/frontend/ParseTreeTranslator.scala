@@ -1715,8 +1715,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitLet(ctx: LetContext): PLet = {
-    val ass = visitNode[PShortVarDecl](ctx.shortVarDecl())
-    val op = visitNode[PExpression](ctx.expression())
+    val ass = visitNode[PShortVarDecl](ctx.letExpression().shortVarDecl())
+    val op = visitNode[PExpression](ctx.letExpression().expression())
     PLet(ass, op).at(ctx)
   }
   //endregion

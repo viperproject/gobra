@@ -29,6 +29,7 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
       warning(p,
         s"Output parameter not constrained by the function postcondition.")
     }
+    noMessages
   }
 
   // Find all named parameters that do not appear in the postcondition

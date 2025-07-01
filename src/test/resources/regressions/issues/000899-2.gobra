@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// This should work
+
+package issue0008992
+
+var mapstrstr = map[string][]string{}
+
+preserves acc(mapstrstr)
+preserves let (val, ok := mapstrstr[str]) in acc(val)
+func test(str string) 
+
+preserves acc(mapstrstr)
+preserves let val, ok := mapstrstr[str] in acc(val)
+func test2(str string) 

@@ -334,10 +334,14 @@ expression:
   |<assoc=right> expression IMPLIES expression #implication
   |<assoc=right> expression QMARK expression COLON expression #ternaryExpr
   | UNFOLDING predicateAccess IN expression #unfolding
-  | LET shortVarDecl IN expression #let
+  | letExpression #let
   | (FORALL | EXISTS) boundVariables COLON COLON triggers expression #quantification
   ;
 
+letExpression
+  : LET L_PAREN shortVarDecl R_PAREN IN expression
+  | LET shortVarDecl IN expression
+  ;
 
 // Added ghost statements
 statement:

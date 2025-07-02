@@ -28,7 +28,7 @@ class AssumptionAnalysisAnnotationTransformer extends ViperTransformer {
           }, implicitAnnotation)
         a.withMeta((a.pos, newInfo, a.errT))
 
-      case dInput @ (_: vpr.Domain | _: vpr.Function | _: vpr.Method | _: vpr.Predicate) =>
+      case dInput @ (_: vpr.Domain | _: vpr.Function | _: vpr.Predicate) =>
         val d = dInput.asInstanceOf[vpr.Member]
         val newInfo = getNewInfo(d, d.pos, {
           case _: gobra.PFunctionDecl | _: gobra.PMethodDecl
@@ -37,6 +37,16 @@ class AssumptionAnalysisAnnotationTransformer extends ViperTransformer {
           case _ => disableAssumptionAnalysis
         }, disableAssumptionAnalysis)
         d.withMeta((d.pos, newInfo, d.errT))
+
+      case meth: vpr.Method =>
+        val newInfo = getNewInfo(meth, meth.pos, {
+          case _: gobra.PFunctionDecl | _: gobra.PMethodDecl
+               | _: gobra.PDomainType | _: gobra.PPredType
+          => NoInfo
+          case _ => disableAssumptionAnalysis
+        }, disableAssumptionAnalysis)
+        vpr.Method(meth.name, meth.formalArgs, meth.formalReturns, getNewExps(meth.pres), meth.posts, meth.body)(meth.pos, newInfo, meth.errT)
+
 
       case seqn: vpr.Seqn =>
         val annotationInfo = getAnalysisInfoAnnotation(seqn, seqn.pos, {
@@ -94,6 +104,15 @@ class AssumptionAnalysisAnnotationTransformer extends ViperTransformer {
   private def getNewInfo(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: (gobra.PNode => vpr.Info), default: vpr.Info): vpr.Info = {
     val newInfo = getAnalysisInfoAnnotation(node, pos, pNodeMapper, default)
     mergeInfoOptionally(node.info, newInfo)
+  }
+
+  private def getNewExps(es: Seq[vpr.Exp]): Seq[vpr.Exp] = {
+    es map (e => {
+      val newInfo = getNewInfo(e, e.pos, {
+        case _: gobra.PDeclaration | _: gobra.PNamedParameter => implicitAnnotation
+        case _ => NoInfo}, NoInfo)
+        e.withMeta((e.pos, newInfo, e.errT))
+    })
   }
 
   private def explicitAnnotation: AnnotationInfo = {

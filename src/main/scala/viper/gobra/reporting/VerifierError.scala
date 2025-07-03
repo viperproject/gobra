@@ -458,9 +458,9 @@ case class OverflowErrorReason(node: Source.Verifier.Info) extends VerificationE
   override def message: String = s"Expression ${node.origin.tag.trim} might cause integer overflow."
 }
 
-case class LinterCheckReason(node: Source.Verifier.Info) extends VerificationErrorReason {
+case class LinterCheckReason(node: Source.Verifier.Info, checkType: String) extends VerificationErrorReason {
   override def id: String = "linter_error"
-  override def message: String = s"Expression ${node.origin.tag.trim} fails a linter check."
+  override def message: String = s"Expression ${node.origin.tag.trim} fails linter check: ${checkType}"
 }
 
 case class InterfaceReceiverIsNilReason(node: Source.Verifier.Info) extends VerificationErrorReason {

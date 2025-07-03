@@ -6,24 +6,23 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{message, noMessages}
-import viper.gobra.GoVerifier
-import viper.gobra.ast.frontend.{PExplicitQualifiedImport, PImplicitQualifiedImport, PImport, PUnqualifiedImport}
-import viper.gobra.frontend.Config
+import org.bitbucket.inkytonik.kiama.util.Messaging.{error, message, noMessages}
+import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait ImportTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefImport: WellDefinedness[PImport] = createWellDef { imp =>
-    (if (config.enableLazyImports) {
-      imp.importPres.flatMap(importPre => message(importPre, s"Import preconditions are not allowed when executing ${GoVerifier.name} with ${Config.enableLazyImportOptionPrettyPrinted}"))
-    } else {
-      noMessages
-    }) ++ (imp match {
+    val qualifierMsgs = imp match {
       case _: PExplicitQualifiedImport => noMessages
       case _: PUnqualifiedImport => noMessages
       // this case should never occur as these nodes should get converted in the parse postprocessing step
       case n: PImplicitQualifiedImport => message(n, s"Explicit qualifier could not be derived")
-    })
+    }
+    val preHasOldExps = hasOldExpression(imp.importPres)
+    val importPresAllowed = error(imp, "Import preconditions are disallowed by default. " +
+      "Pass the flag --experimentalFriendClauses to allow it. This feature may change in the future.",
+      !config.enableExperimentalFriendClauses && imp.importPres.nonEmpty)
+    qualifierMsgs ++ preHasOldExps ++ importPresAllowed
   }
 }

@@ -82,7 +82,8 @@ func (y IsOddImpl) isOdd(n int) bool {
 }
 
 type Infinite interface {
-	decreases _
+	// the following measure is no longer allowed since PR 918
+	// decreases _
 	infinite(n int) int
 }
 

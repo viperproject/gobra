@@ -1,0 +1,37 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package concfib
+
+ghost
+pure
+requires 0 <= n
+decreases n
+func FibSpec(n int) int {
+	return n <= 1 ? 1 : FibSpec(n-1) + FibSpec(n-2)
+}
+
+pred lockInv() {
+	acc(&cache, _)     &&
+	acc(cache)         &&
+	0 in domain(cache) &&
+	1 in domain(cache) &&
+	forall i int :: { cache[i] }{ FibSpec(i) }{ i in domain(cache) } i in domain(cache) ==>
+		0 <= i && cache[i] == FibSpec(i)
+}
+
+pred StaticInv() {
+	acc(lock.LockP(), _) &&
+	lock.LockInv() == lockInv!<!>
+}
+
+// Given that we can always implement a ghost method like the one below to gain
+// access to the duplicable static invariants of a package, it is unecessary
+// to pass an import path or a package identifier to `openDupPkgInv`. Instead, we
+// can just define a method like this in every package and call it.
+ghost
+ensures acc(StaticInv(), _)
+decreases
+func AcquireDupPkgInv() {
+	openDupPkgInv
+}

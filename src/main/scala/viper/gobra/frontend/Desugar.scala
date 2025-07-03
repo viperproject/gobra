@@ -3775,12 +3775,12 @@ object Desugar extends LazyLogging {
           case in.Parameter.In(id, typ) => in.Refute(in.ExprAssertion(in.EqCmp(in.Parameter.In(id, typ)(parserInfo), in.Parameter.In(id + "_unicity", typ)(parserInfo))(parserInfo))(parserInfo))(parserInfo)
         }
       }).distinct
-      val newParserInfo = parserInfo.createAnnotatedInfo(FailedLinterCheck)
+
       in.MethodBody(
         Vector.empty,
-        in.MethodBodySeqn(newBodyInhales ++ newBodyRefutes)(newParserInfo),
+        in.MethodBodySeqn(newBodyInhales ++ newBodyRefutes)(parserInfo),
         Vector.empty
-      )(newParserInfo)
+      )(parserInfo)
     }
 
     def generateInputUnicityCheckArgs(origArgs: Vector[in.Parameter.In],
@@ -3795,11 +3795,12 @@ object Desugar extends LazyLogging {
                                       origArgs: Vector[in.Parameter.In],
                                       origPres: Vector[in.Assertion],
                                       parserInfo: Source.Parser.Single) : in.Function =  {
+      val newParserInfo = parserInfo.createAnnotatedInfo(FailedLinterCheck("Input Unicity"))
       in.Function(
         in.FunctionProxy(origName.name + "_unicity")(parserInfo),
         generateInputUnicityCheckArgs(origArgs, parserInfo),
         Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty,
-        Some(generateInputUnicityCheckBody(origPres, parserInfo))
+        Some(generateInputUnicityCheckBody(origPres, newParserInfo))
       )(parserInfo)
     }
 
@@ -3844,13 +3845,15 @@ object Desugar extends LazyLogging {
         triple.foldLeft(Map.empty[in.Accessible, Double]) { case (acc, (_, e, p)) =>
           val v = p match {
             case f: in.FractionalPerm => f.left match {
-              case _: in.Var => default
               case i: in.IntLit => i.v.toDouble / (f.right match {
                   case i: in.IntLit => i.v.toDouble
+                  case _ => default
                 })
+              case _ => default
             }
             case _: in.FullPerm     => 1.0
             case _: in.NoPerm       => 0.0
+            case _: in.WildcardPerm => -default
             case _ => default
           }
           val updatedValue = acc.getOrElse(e, 0.0) + v
@@ -3881,34 +3884,16 @@ object Desugar extends LazyLogging {
         case in.Accessible.Predicate(op) => op match {
           case in.FPredicateAccess(pred, _) => pred.name
           case in.MPredicateAccess(_, pred, _) => pred.name
-          case _ => ""
+          case _ => op.info.tag
         }
         case in.Accessible.ExprAccess(op) => op.info.tag
-        case in.Accessible.Address(_) => ""
+        case in.Accessible.Address(op) => op.info.tag
         case in.Accessible.PredExpr(op) => op.info.tag
       }
     }
 
     def generatePermLeakCheckBody(toAssert: Vector[in.Access], originalBody: in.MethodBody,
                                   parserInfo: Source.Parser.Single, originalFunction: in.FunctionMember): Option[in.MethodBody] = {
-      /*println("-----------------------")
-      toAssert.foreach { a =>
-        println(s"${a}\n\te: ${a.getClass.getSimpleName}, \n\t${a.e} ${a.e.op.info.tag}: ${a.e.getClass.getSimpleName}, \n\t${a.p}: ${a.p.getClass.getSimpleName}")
-      }
-      println("-----------------------")
-      println(toAssert)
-      println("-----------------------")
-      println(originalBody)
-      println("-----------------------")
-      val postAccessesVector: Vector[in.Access] = {
-        originalFunction.posts flatMap {
-          post =>
-            post deepCollect {
-              case a: in.Access => a
-            }
-        }
-      }*/
-
       val postAccesses = makeAccessesVector(originalFunction.posts) flatMap {
         case (a, e, _) if toAssert.map(_.e).contains(e) => Some(a)
         case _ => None
@@ -3919,53 +3904,44 @@ object Desugar extends LazyLogging {
         .filter(_ != "_post_leakCheck")
         .distinct
         .map( id => in.LocalVar(id, in.PermissionT(Addressability.exclusiveVariable))(parserInfo))
-      /*val init = toAssert
-        .groupBy(_.e)
-        .map { case (acc, v) =>
-          in.SingleAss(
-            in.Assignee(in.LocalVar(acc.op.info.tag + "_leakCheck", in.PermissionT(Addressability.exclusiveVariable))(parserInfo)),
-            v.map(_.p).reduceLeft{ (acc, next) =>
-            in.PermAdd(acc, next)(parserInfo)
-          })(parserInfo)
-        }.toVector*/
+
       val init = postAccesses
         .groupBy(_.e)
         .filter { case (acc, _) => accessToName(acc) != "" }
         .map { case (acc, v) =>
           in.SingleAss(
             in.Assignee(in.LocalVar(accessToName(acc) + "_post_leakCheck", in.PermissionT(Addressability.exclusiveVariable))(parserInfo)),
-            v.map(_.p).reduceLeft{ (acc, next) =>
-              in.PermAdd(acc, next)(parserInfo)
+            v.map(_.p).reduceLeft{ (a, next) =>
+              in.PermAdd(a, next)(parserInfo)
             })(parserInfo)
         }.toVector
-      val newParserInfo = parserInfo.createAnnotatedInfo(FailedLinterCheck)
+
       val exhaleAndAssert = postAccesses
         .filter { a => accessToName(a.e) != "" }
         .flatMap {
           a => Vector(
             in.Exhale(in.Access(a.e, in.LocalVar(accessToName(a.e) + "_post_leakCheck",
-              in.PermissionT(Addressability.exclusiveVariable))(parserInfo))(newParserInfo))(newParserInfo),
+              in.PermissionT(Addressability.exclusiveVariable))(parserInfo))(parserInfo))(parserInfo),
             in.Assert(in.ExprAssertion(in.PermGeCmp(
-            in.CurrentPerm(a.e)(newParserInfo),
-              in.NoPerm(newParserInfo))(newParserInfo))(newParserInfo))(newParserInfo))
-            //in.IntLit(0)(newParserInfo))(newParserInfo))(newParserInfo))(newParserInfo))
-            // in.LocalVar(a.e.op.info.tag + "_leakCheck", in.PermissionT(Addressability.exclusiveVariable))(newParserInfo))(newParserInfo))(newParserInfo))(newParserInfo)
+            in.CurrentPerm(a.e)(parserInfo),
+              in.NoPerm(parserInfo))(parserInfo))(parserInfo))(parserInfo))
         }
 
       val newBodySeqn = in.MethodBodySeqn(
         init
           ++ originalBody.seqn.stmts
           ++ exhaleAndAssert
-      )(newParserInfo)
+      )(parserInfo)
       Some(in.MethodBody(
         originalBody.decls ++ newDecls,
         newBodySeqn,
         originalBody.postprocessing,
-      )(newParserInfo))
+      )(parserInfo))
     }
 
     def generatePermLeakCheckFunc(originalFunction: in.FunctionMember, originalBody: in.MethodBody,
                                       toAssert: Vector[in.Access], parserInfo: Source.Parser.Single) = {
+      val newParserInfo = parserInfo.createAnnotatedInfo(FailedLinterCheck("Leak check"))
       in.Function(
         in.FunctionProxy(originalFunction.name.name + "_leakCheck")(parserInfo),
         originalFunction.args,
@@ -3974,7 +3950,7 @@ object Desugar extends LazyLogging {
         originalFunction.posts,
         originalFunction.terminationMeasures,
         originalFunction.backendAnnotations,
-        generatePermLeakCheckBody(toAssert, originalBody, parserInfo, originalFunction)
+        generatePermLeakCheckBody(toAssert, originalBody, newParserInfo, originalFunction)
       )(parserInfo)
     }
 
@@ -4085,7 +4061,7 @@ object Desugar extends LazyLogging {
           case other => Vector(other)
         }
       }
-      parserInfo.createAnnotatedInfo(FailedLinterCheck)
+
       val flattenedPresOrPosts = flatten(origPresOrPosts)
       val newBody = flattenedPresOrPosts flatMap {
         case a @ in.Access(_, _) => Vector(in.Inhale(a)(parserInfo))
@@ -4104,13 +4080,14 @@ object Desugar extends LazyLogging {
     def generateRedundancyCheckFunc(origFunc: in.FunctionMember,
                                     preOrPost: Vector[in.Assertion],
                                     parserInfo: Source.Parser.Single, id: String) : in.Function =  {
+      val newParserInfo = parserInfo.createAnnotatedInfo(FailedLinterCheck("Redundancy Check"))
       in.Function(
         in.FunctionProxy(origFunc.name.name + "_redundancy_" + id)(parserInfo),
         origFunc.args,
         origFunc.results,
         Vector.empty, Vector.empty, Vector.empty, Vector.empty,
-        Some(generateRedundancyCheckBody(preOrPost, parserInfo))
-      )(parserInfo)
+        Some(generateRedundancyCheckBody(preOrPost, newParserInfo))
+      )(newParserInfo)
     }
 
     def generateRedundancyCheck(originalFunction: in.FunctionMember, originalDecl: PFunctionDecl, preOrPost: Vector[in.Assertion], id: String): in.FunctionMember = {
@@ -4187,6 +4164,62 @@ object Desugar extends LazyLogging {
       }
     }*/
 
+    def generateUnnecessaryPermCheck(originalFunction: in.FunctionMember,
+                                     originalDecl: PFunctionDecl,
+                                     readOrWrite: String,
+                                     toCheck: Vector[in.Access]): in.FunctionMember = {
+      val parserInfo = meta(originalDecl, info)
+      val newParserInfo = parserInfo.createAnnotatedInfo(FailedLinterCheck("Unnecessary Permissions"))
+
+      val perm = readOrWrite match {
+        case "read"  =>  in.NoPerm(newParserInfo)
+        case "write" =>  in.WildcardPerm(newParserInfo)
+        case _       =>  in.WildcardPerm(newParserInfo)
+      }
+
+      val newPres = originalFunction.pres map {
+        _.transform {
+          case acc @ in.Access(e, _) if toCheck.contains(acc) =>
+            in.Access(e, perm)(newParserInfo)
+          case other => other
+        }
+      }
+
+      originalFunction match {
+        case f @ in.Function(_, _, _, _, _, _, _, _)
+        => in.Function(
+            in.FunctionProxy(f.name.name + "_redundancy_" + readOrWrite)(parserInfo),
+            f.args,
+            f.results,
+            newPres,
+            f.posts,
+            f.terminationMeasures,
+            f.backendAnnotations,
+            f.body
+          )(newParserInfo)
+        case pf @ in.PureFunction(_, _, _, _, _, _, _, _, _)
+        => in.PureFunction(
+              in.FunctionProxy(pf.name.name + "_redundancy_" + readOrWrite)(parserInfo),
+              pf.args,
+              pf.results,
+              newPres,
+              pf.posts,
+              pf.terminationMeasures,
+              pf.backendAnnotations,
+              pf.body,
+              pf.isOpaque
+            )(newParserInfo)
+      }
+    }
+
+    def fractionalPermToDouble(f: in.FractionalPerm) : Double = {
+      (f.left, f.right) match {
+        case (l: in.IntLit, r: in.IntLit) if r.v != 0 =>
+          l.v.toDouble / r.v.toDouble
+        case _ => -1.0
+      }
+    }
+
     def registerFunction(decl: PFunctionDecl): Vector[in.FunctionMember] = {
       if (decl.id.name == Constants.INIT_FUNC_NAME) {
         /**
@@ -4232,6 +4265,41 @@ object Desugar extends LazyLogging {
           val noRedundancyFunc = generateRedundancyCheck(function,decl, function.posts, "post")
           definedFunctions += functionProxy -> noRedundancyFunc
           ret = ret ++ Vector(noRedundancyFunc)
+        }
+        val preAccess = function.pres flatMap { assertion =>
+          assertion.deepCollect {
+            case acc: in.Access => acc
+          }
+        }
+
+        if (preAccess.nonEmpty) {
+          val preAccessWrite = preAccess.flatMap {
+            case acc @ in.Access(_, _: in.FullPerm) =>
+              Some(acc)
+            case acc @ in.Access(_, f: in.FractionalPerm) =>
+              if (fractionalPermToDouble(f) == 1.0) Some(acc) else None
+            case _ =>
+              None
+          }
+          val preAccessRead = preAccess.flatMap {
+            case acc @ in.Access(_, _: in.WildcardPerm) =>
+              Some(acc)
+            case acc @ in.Access(_, f: in.FractionalPerm) =>
+              if (fractionalPermToDouble(f) > 0.0 && fractionalPermToDouble(f) < 1.0) Some(acc) else None
+            case _ =>
+              None
+          }
+
+          if (preAccessWrite.nonEmpty) {
+            val unnecessaryPermWrite = generateUnnecessaryPermCheck(function, decl, "write", preAccessWrite)
+            definedFunctions += functionProxy -> unnecessaryPermWrite
+            ret = ret ++ Vector(unnecessaryPermWrite)
+          }
+          if (preAccessRead.nonEmpty) {
+            val unnecessaryPermRead = generateUnnecessaryPermCheck(function, decl, "read", preAccessRead)
+            definedFunctions += functionProxy -> unnecessaryPermRead
+            ret = ret ++ Vector(unnecessaryPermRead)
+          }
         }
         /*
         // TRIVIALITY OF PRES/POSTS

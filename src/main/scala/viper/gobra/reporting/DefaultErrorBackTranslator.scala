@@ -92,8 +92,8 @@ object DefaultErrorBackTranslator {
 
     val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {
       case AssertionFalseError(info / OverflowCheckAnnotation) => OverflowErrorReason(info)
-      case AssertionFalseError(info / FailedLinterCheck) => LinterCheckReason(info)
-      case RefutationTrueError(info / FailedLinterCheck) => LinterCheckReason(info)
+      case AssertionFalseError(info / FailedLinterCheck(checkType)) => LinterCheckReason(info, checkType)
+      case RefutationTrueError(info / FailedLinterCheck(checkType)) => LinterCheckReason(info, checkType)
       case AssertionFalseError(info / ReceiverNotNilCheckAnnotation) => InterfaceReceiverIsNilReason(info)
       case x => x
     }
@@ -181,7 +181,7 @@ class DefaultErrorBackTranslator(
       case _ / OverflowCheckAnnotation =>
         x.reasons.foldLeft(OverflowError(x.info): VerificationError) { case (err, reason) => err dueTo reason }
 
-      case _ / FailedLinterCheck =>
+      case _ / FailedLinterCheck(_) =>
         x.reasons.foldLeft(LinterError(x.info): VerificationError) { case (err, reason) => err dueTo reason }
 
       case _ / AutoImplProofAnnotation(subT, superT) =>
@@ -214,7 +214,7 @@ class DefaultErrorBackTranslator(
 
   private val errorTransformer = backtrack.errorT.foldRight(defaultErrorTransformer) {
     case (l, r) => l orElse r
-  }
+  } 
 
   private val reasonTransformer = backtrack.reasonT.foldRight(DefaultErrorBackTranslator.defaultReasonTransformer) {
     case (l, r) => l orElse r

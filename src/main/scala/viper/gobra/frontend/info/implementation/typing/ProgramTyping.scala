@@ -7,47 +7,39 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Entity
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message}
-import viper.gobra.GoVerifier
-import viper.gobra.ast.frontend.{PExpression, POld, PPackage, PProgram, PVarDecl}
-import viper.gobra.frontend.Config
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
+import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
-import viper.gobra.util.Violation
+import viper.gobra.util.Violation.violation
+import viper.gobra.util.{Computation, Violation}
 
 trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefProgram: WellDefinedness[PProgram] = createWellDef {
-    case PProgram(_, posts, imports, members) =>
-      if (config.enableLazyImports) {
-        posts.flatMap(post => message(post, s"Init postconditions are not allowed when executing ${GoVerifier.name} with ${Config.enableLazyImportOptionPrettyPrinted}"))
+    case PProgram(_, _, initPosts, _, _, _) if initPosts.nonEmpty =>
+      error(initPosts.head, "'initEnsures' clauses are now deprecated." +
+        " Consider using 'pkgInvariant' clauses instead.")
+    case PProgram(_, _, _, _, friends, _) if !config.enableExperimentalFriendClauses && friends.nonEmpty =>
+      error(friends.head, "Usage of experimental 'friendPkg' clauses is disallowed by default. " +
+        "Pass the flag --experimentalFriendClauses to allow it. This feature may change in the future.")
+    case prog@PProgram(_, pkgInvs, _, _, friends, _) =>
+      // Obtains global variable declarations sorted by the order in which they appear in the file
+      val sortedByPosDecls: Vector[PVarDecl] = globalVarDeclsSortedByPos(prog)
+      // HACK: without this explicit check, Gobra does not find repeated declarations
+      //       of global variables. This has to do with the changes introduced in PR #186.
+      //       We need this check nonetheless because the checks performed in the "true" branch
+      //       assume that the ids are well-defined.
+      val idsOkMsgs = sortedByPosDecls.flatMap(d => d.left).flatMap(l => wellDefID(l).out)
+      if (idsOkMsgs.isEmpty) {
+        val globalDeclsInRightOrder = globalDeclSatisfiesDepOrder(sortedByPosDecls)
+        val noOldExprs =
+          hasOldExpression(pkgInvs.map(_.inv)) ++
+            hasOldExpression(friends.map(_.assertion))
+        globalDeclsInRightOrder ++ noOldExprs
       } else {
-        // Obtains global variable declarations sorted by the order in which they appear in the file
-        val sortedByPosDecls: Vector[PVarDecl] = {
-          val unsortedDecls: Vector[PVarDecl] = members.collect{ case d: PVarDecl => d }
-          // we require a package to be able to obtain position information
-          val pkgOpt: Option[PPackage] = unsortedDecls.headOption.flatMap(tryEnclosingPackage)
-          // sort declarations by the order in which they appear in the program
-          unsortedDecls.sortBy{ decl =>
-            pkgOpt.get.positions.positions.getStart(decl) match {
-              case Some(pos) => (pos.line, pos.column)
-              case _ => Violation.violation(s"Could not find position information of $decl.")
-            }
-          }
-        }
-        // HACK: without this explicit check, Gobra does not find repeated declarations
-        //       of global variables. This has to do with the changes introduced in PR #186.
-        //       We need this check nonetheless because the checks performed in the "true" branch
-        //       assume that the ids are well-defined.
-        val idsOkMsgs = sortedByPosDecls.flatMap(d => d.left).flatMap(l => wellDefID(l).out)
-        if (idsOkMsgs.isEmpty) {
-          globalDeclSatisfiesDepOrder(sortedByPosDecls) ++
-            hasOldExpression(posts) ++
-            hasOldExpression(imports.flatMap(_.importPres))
-        } else {
-          idsOkMsgs
-        }
+        idsOkMsgs
       }
   }
 
@@ -94,10 +86,43 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  private def hasOldExpression(posts: Vector[PExpression]): Messages = {
+  private val globalVarDeclsSortedByPos: PProgram => Vector[PVarDecl] = {
+    val computation: PProgram  => Vector[PVarDecl] = { p =>
+        require(tree.root.programs.contains(p))
+        // the following may only be called once per package, otherwise wildcard identifiers may be desugared multiple
+        // times, leading to different names being generated on different occasions.
+        val unsortedDecls = p.declarations.collect { case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
+        unsortedDecls.sortBy { decl =>
+          tree.root.positions.positions.getStart(decl) match {
+            case Some(pos) => (pos.line, pos.column)
+            case None => violation(s"Could not find the position information of node $decl.")
+          }
+        }
+    }
+    Computation.cachedComputation(computation)
+  }
+
+  /**
+   * Mapping from a file (PProgram) to the global variable declarations in that file, ordered by the dependency order.
+   * The initialization of a variable A depends on the initialization of B if variable B occurs in the initializing
+   * expression of A.
+   */
+  override val globalVarDeclsSortedByDeps: PProgram => Vector[PVarDecl] = { p =>
+    // Currently, we require that all global variable declarations are provided in the dependency order.
+    // Thus, this implementation is trivial and simply returns the global variable declarations sorted by
+    // their syntactic position. However, a dependency analysis must be performed here once we lift
+    // the restriction that global variables are declared in dependency order.
+    val res = globalVarDeclsSortedByPos(p)
+    // This assertion may seem redundant, given that it is also performed elsewhere during type-checking. Nonetheless,
+    // this guarantees that once the type checking algorithm is extended, we do not forget to update this function.
+    assert(globalDeclSatisfiesDepOrder(res).isEmpty)
+    res
+  }
+
+  private[typing] def hasOldExpression(posts: Vector[PExpression]): Messages = {
     posts.flatMap{n =>
       val hasOld = allChildren(n).exists(_.isInstanceOf[POld])
-      error(n, "'old' expressions cannot occur in init-postconditions and import-preconditions", hasOld)
+      error(n, "'old' expressions cannot occur in import-preconditions, friend clause assertions, and package invariants", hasOld)
     }
   }
 }

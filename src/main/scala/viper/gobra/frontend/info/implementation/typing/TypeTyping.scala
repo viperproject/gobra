@@ -7,14 +7,14 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-
-import scala.collection.immutable.ListMap
-import viper.gobra.ast.frontend._
-import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.ast.frontend.{AstPattern => ap, _}
+import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field}
-import viper.gobra.frontend.info.base.Type.{StructT, _}
+import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.UnderlyingType
+
+import scala.collection.immutable.ListMap
 
 trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -66,7 +66,27 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case t: PInterfaceType =>
       val isRecursiveInterface = error(t, "invalid recursive interface", cyclicInterfaceDef(t))
       if (isRecursiveInterface.isEmpty) {
-        addressableMethodSet(InterfaceT(t, this)).errors(t) ++
+        val methodSet = addressableMethodSet(InterfaceT(t, this))
+        val methodsContainMayInit = methodSet.exists {
+          case (_, (m, _)) => m match {
+            case m: SymbolTable.MethodSpec =>
+              m.spec.spec.mayBeUsedInInit
+            case _ => false
+          }
+        }
+
+        // The semantics of wildcard termination measures in interface method specifications is not clear.
+        // Thus, they are rejected.
+        val sigsWithWildcardMeasuresErrors = t.methSpecs.flatMap { sig =>
+          sig.spec.terminationMeasures.flatMap {
+            case w: PWildcardMeasure =>
+              error(w, s"Wildcard termination measures are not allowed in the specifications of interface methods.")
+            case _ => noMessages
+          }
+        }
+        methodSet.errors(t) ++
+          error(t, "Interface declaration contains methods annotated with 'mayInit'.", methodsContainMayInit) ++
+          sigsWithWildcardMeasuresErrors ++
           containsRedeclarations(t) // temporary check
       } else {
         isRecursiveInterface

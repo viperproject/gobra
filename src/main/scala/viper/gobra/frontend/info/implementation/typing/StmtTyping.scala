@@ -29,13 +29,20 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PConstDecl(decls) => decls flatMap {
       case n@PConstSpec(typ, right, left) =>
+        val mayInit = isEnclosingMayInit(n)
         right.flatMap(isExpr(_).out) ++
-          declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
+          declarableTo.errors(right map exprType, typ map typeSymbType, left map idType, mayInit)(n)
     }
 
     case n@PVarDecl(typ, right, left, _) =>
-      right.flatMap(isExpr(_).out) ++
-        declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
+      if (isGlobalVarDeclaration(n)) {
+        // in this case, the checks occur in MemberTyping
+        noMessages
+      } else {
+        val mayInit = isEnclosingMayInit(n)
+        right.flatMap(isExpr(_).out) ++
+          declarableTo.errors(right map exprType, typ map typeSymbType, left map idType, mayInit)(n)
+      }
 
     case n: PTypeDecl => isType(n.right).out ++ (n.right match {
       case s: PStructType =>
@@ -49,31 +56,37 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PExpressionStmt(exp) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
 
     case n@PSendStmt(chn, msg) =>
+      val mayInit = isEnclosingMayInit(n)
       isExpr(chn).out ++ isExpr(msg).out ++
         ((exprType(chn), exprType(msg)) match {
-          case (ChannelT(elem, ChannelModus.Bi | ChannelModus.Send), t) => assignableTo.errors(t, elem)(n)
+          case (ChannelT(elem, ChannelModus.Bi | ChannelModus.Send), t) => assignableTo.errors(t, elem, mayInit)(n)
           case (chnt, _) => error(n, s"type error: got $chnt but expected send-permitting channel")
         })
 
     case n@PAssignment(rights, lefts) =>
+      val mayInit = isEnclosingMayInit(n)
       rights.flatMap(isExpr(_).out) ++ lefts.flatMap(isExpr(_).out) ++
-        lefts.flatMap(a => assignable.errors(a)(a)) ++ multiAssignableTo.errors(rights map exprType, lefts map exprType)(n)
+        lefts.flatMap(a => assignable.errors(a)(a)) ++
+        multiAssignableTo.errors(rights map exprType, lefts map exprType, mayInit)(n)
 
     case n@PAssignmentWithOp(right, op@(_: PShiftLeftOp | _: PShiftRightOp), left) =>
+      val mayInit = isEnclosingMayInit(n)
       isExpr(right).out ++ isExpr(left).out ++
         assignable.errors(left)(n) ++ compatibleWithAssOp.errors(exprType(left), op)(n) ++
-        assignableTo.errors(exprType(right), UNTYPED_INT_CONST)(n)
+        assignableTo.errors(exprType(right), UNTYPED_INT_CONST, mayInit)(n)
 
     case n@PAssignmentWithOp(right, op, left) =>
+      val mayInit = isEnclosingMayInit(n)
       isExpr(right).out ++ isExpr(left).out ++
         assignable.errors(left)(n) ++ compatibleWithAssOp.errors(exprType(left), op)(n) ++
-        assignableTo.errors(exprType(right), exprType(left))(n)
+        assignableTo.errors(exprType(right), exprType(left), mayInit)(n)
 
     case n@PShortVarDecl(rights, lefts, _) =>
+      val mayInit = isEnclosingMayInit(n)
       // TODO: check that at least one of the variables is new
       if (lefts.forall(pointsToData))
         rights.flatMap(isExpr(_).out) ++
-          multiAssignableTo.errors(rights map exprType, lefts map idType)(n)
+          multiAssignableTo.errors(rights map exprType, lefts map idType, mayInit)(n)
       else error(n, s"at least one assignee in $lefts points to a type")
 
     case _: PLabeledStmt => noMessages
@@ -112,37 +125,41 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         comparableTypes.errors(exprType(cond), BooleanT)(n) ++
         error(n, noTerminationMeasureMsg, isGhost && spec.terminationMeasure.isEmpty)
 
-    case PShortForRange(range, shorts, _, _, _) =>
+    case r@PShortForRange(range, shorts, _, _, _) =>
+      val mayInit = isEnclosingMayInit(r)
       underlyingType(exprType(range.exp)) match {
         case _ : ArrayT | _ : SliceT =>
-          multiAssignableTo.errors(Vector(miscType(range)), shorts map idType)(range) ++
-          assignableTo.errors(miscType(range), idType(range.enumerated))(range)
-        case MapT(key, _) => multiAssignableTo.errors(Vector(miscType(range)), shorts map idType)(range) ++
-          assignableTo.errors((SetT(key), idType(range.enumerated)))(range)
+          multiAssignableTo.errors(Vector(miscType(range)), shorts map idType, mayInit)(range) ++
+          assignableTo.errors(miscType(range), idType(range.enumerated), mayInit)(range)
+        case MapT(key, _) => multiAssignableTo.errors(Vector(miscType(range)), shorts map idType, mayInit)(range) ++
+          assignableTo.errors((SetT(key), idType(range.enumerated), mayInit))(range)
         case t => error(range, s"range not supported for type $t")
       }
 
-    case PAssForRange(range, ass, _, _) =>
+    case a@PAssForRange(range, ass, _, _) =>
+      val mayInit = isEnclosingMayInit(a)
       underlyingType(exprType(range.exp)) match {
         case _ : ArrayT | _ : SliceT | _ : MapT =>
-          multiAssignableTo.errors(Vector(miscType(range)), ass map exprType)(range)
+          multiAssignableTo.errors(Vector(miscType(range)), ass map exprType, mayInit)(range)
         case t => error(range, s"range not supported for type $t")
       }
 
     case n@PGoStmt(exp) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
 
     case n: PSelectStmt =>
+      val mayInit = isEnclosingMayInit(n)
       n.aRec.flatMap(rec =>
         rec.ass.flatMap(isExpr(_).out) ++
-          multiAssignableTo.errors(Vector(exprType(rec.recv)), rec.ass.map(exprType))(rec) ++
+          multiAssignableTo.errors(Vector(exprType(rec.recv)), rec.ass.map(exprType), mayInit)(rec) ++
           rec.ass.flatMap(a => assignable.errors(a)(a))
       ) ++ n.sRec.flatMap(rec =>
         if (rec.shorts.forall(pointsToData))
-          multiAssignableTo.errors(Vector(exprType(rec.recv)), rec.shorts map idType)(rec)
+          multiAssignableTo.errors(Vector(exprType(rec.recv)), rec.shorts map idType, mayInit)(rec)
         else error(n, s"at least one assignee in ${rec.shorts} points to a type")
       )
 
     case n@PReturn(exps) =>
+      val mayInit = isEnclosingMayInit(n)
       exps.flatMap(isExpr(_).out) ++ {
         if (exps.nonEmpty) {
           val closureImplProof = tryEnclosingClosureImplementationProof(n)
@@ -151,7 +168,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
             if (res.isEmpty) return error(n, s"Statement does not root in a CodeRoot")
             if (!(res.get.result.outs forall wellDefMisc.valid)) return error(n, s"return cannot be checked because the enclosing signature is incorrect")
           }
-          multiAssignableTo.errors(exps map exprType, returnParamsAndTypes(n).map(_._1))(n)
+          multiAssignableTo.errors(exps map exprType, returnParamsAndTypes(n).map(_._1), mayInit)(n)
         } else noMessages // a return without arguments is always well-defined
       }
 

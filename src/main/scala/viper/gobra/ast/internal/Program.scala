@@ -335,6 +335,12 @@ case class MethodBody(
                        postprocessing: Vector[Stmt] = Vector.empty,
                      )(val info: Source.Parser.Info) extends Stmt
 
+object MethodBody {
+  def empty(info: Source.Parser.Info): MethodBody = {
+    MethodBody(Vector.empty, MethodBodySeqn(Vector.empty)(info), Vector.empty)(info)
+  }
+}
+
 /**
   * This node serves as a target of encoding extensions. See [[viper.gobra.translator.encodings.combinators.TypeEncoding.Extension]]
   * Return statements jump exactly to the end of the encoding of this statement.
@@ -733,6 +739,7 @@ case class Capacity(exp : Expr)(val info : Source.Parser.Info) extends Expr {
 case class IndexedExp(base : Expr, index : Expr, baseUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr with Location {
   override val typ : Type = baseUnderlyingType match {
     case t: ArrayT => t.elems
+    case PointerT(t: ArrayT, _) => t.elems
     case t: SequenceT => t.t
     case t: SliceT => t.elems
     case t: MapT => t.values
@@ -936,6 +943,17 @@ case class MapValues(exp : Expr, expUnderlyingType: Type)(val info : Source.Pars
     case _ => violation(s"unexpected type ${exp.typ}")
   }
 }
+
+/**
+ * Represents the conversion of a value of type 'map[k]v' to a mathematical map with type 'dict[k]v'
+ */
+case class MapConversion(expr: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ : Type = expr.typ match {
+    case MapT(k, v, _) => MathMapT(k, v, Addressability.conversionResult)
+    case t => Violation.violation(s"expected a map but got $t")
+  }
+}
+
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
@@ -1175,6 +1193,7 @@ case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr], baseU
   override def typ : Type = baseUnderlyingType match {
     case t: ArrayT => SliceT(t.elems, Addressability.sliceElement)
     case _: SliceT | _: StringT => base.typ
+    case PointerT(t: ArrayT, _) => SliceT(t.elems, Addressability.sliceElement)
     case t => Violation.violation(s"expected an array, slice or string type, but got $t")
   }
 }

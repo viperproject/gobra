@@ -84,6 +84,8 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         PPackageClause(PPkgDef("pkg")),
         Vector(),
         Vector(),
+        Vector(),
+        Vector(),
         members
       )
       (prog, idnUse.map(_ => idnDefX))

@@ -503,6 +503,11 @@ case class TerminationConditionFalseError(info: Source.Verifier.Info) extends Ve
   override def message: String = s"Required termination condition might not hold."
 }
 
+case class ImplMeasureHigherThanInterfaceReason(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "term_measure_impl_higher_than_interface"
+  override def message: String = s"The termination measure of this method might exceed the termination measure of the corresponding interface method."
+}
+
 case class TupleConditionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "tuple_condition_false_error"
   override def message: String = s"Required tuple condition might not hold."

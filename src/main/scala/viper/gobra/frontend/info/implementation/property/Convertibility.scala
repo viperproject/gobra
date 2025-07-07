@@ -13,29 +13,34 @@ trait Convertibility extends BaseProperty { this: TypeInfoImpl =>
 
   // TODO: check where convertibility and where assignability is required.
 
-  lazy val convertibleTo: Property[(Type, Type)] = createFlatProperty[(Type, Type)] {
-    case (left, right) => s"$left is not convertible to $right"
+  lazy val convertibleTo: Property[(Type, Type, Boolean)] = createFlatPropertyWithReason[(Type, Type, Boolean)] {
+    case (left, right, _) => s"$left is not convertible to $right"
   } {
-    case (Single(lst), Single(rst)) => (lst, rst) match {
-      case (left, right) if assignableTo(left, right) => true
-      case (IntT(_), Float32T) => true
-      case (IntT(_), Float64T) => true
-      case (Float32T, IntT(_)) => true
-      case (Float64T, IntT(_)) => true
-      case (IntT(_), IntT(_)) => true
-      case (SliceT(IntT(config.typeBounds.Byte)), StringT) => true
-      case (StringT, SliceT(IntT(config.typeBounds.Byte))) => true
-      case (IntT(_), PermissionT) => true
+    case (Single(lst), Single(rst), mayInit) => (lst, rst) match {
+      case (left, right) if assignableTo(left, right, mayInit) => successProp
+      case (left, right) if mayInit && assignableTo(left, right, false) =>
+        // this branch is only for providing better error messages,
+        // as it is logically unnecessary
+        failedProp(s"Type $right may not be converted to type $left in code that may run during the initialization " +
+          s"of this current package.")
+      case (IntT(_), Float32T) => successProp
+      case (IntT(_), Float64T) => successProp
+      case (Float32T, IntT(_)) => successProp
+      case (Float64T, IntT(_)) => successProp
+      case (IntT(_), IntT(_)) => successProp
+      case (SliceT(IntT(config.typeBounds.Byte)), StringT) => successProp
+      case (StringT, SliceT(IntT(config.typeBounds.Byte))) => successProp
+      case (IntT(_), PermissionT) => successProp
       case (left, right) => (underlyingType(left), underlyingType(right)) match {
-        case (l, r) if identicalTypes(l, r) => true
-        case (IntT(_), IntT(_)) => true
+        case (l, r) if identicalTypes(l, r) => successProp
+        case (IntT(_), IntT(_)) => successProp
         case (ActualPointerT(l), ActualPointerT(r)) if identicalTypes(underlyingType(l), underlyingType(r)) &&
-          !(left.isInstanceOf[DeclaredT] && right.isInstanceOf[DeclaredT]) => true
+          !(left.isInstanceOf[DeclaredT] && right.isInstanceOf[DeclaredT]) => successProp
         case (GhostPointerT(l), GhostPointerT(r)) if identicalTypes(underlyingType(l), underlyingType(r)) &&
-          !(left.isInstanceOf[DeclaredT] && right.isInstanceOf[DeclaredT]) => true
-        case _ => false
+          !(left.isInstanceOf[DeclaredT] && right.isInstanceOf[DeclaredT]) => successProp
+        case _ => errorProp()
       }
     }
-    case _ => false
+    case _ => errorProp()
   }
 }

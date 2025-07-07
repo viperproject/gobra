@@ -33,3 +33,13 @@ func test1() {
 	// mathematical map equality
 	assert m1 != m2
 }
+
+// tests conversions from actual maps to dictionaries
+requires acc(m)
+requires 5 in domain(m)
+requires !(8 in domain(m))
+func test2(m map[int]int) {
+	ghost var y = dict(m)
+	assert 5 in domain(y)
+	assert !(8 in domain(m))
+}

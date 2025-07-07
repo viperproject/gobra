@@ -76,6 +76,8 @@ NONE        : 'none' -> mode(NLSEMI);
 PRED        : 'pred';
 TYPE_OF      : 'typeOf'-> mode(NLSEMI);
 IS_COMPARABLE: 'isComparable'-> mode(NLSEMI);
+LOW         : 'low'-> mode(NLSEMI);
+LOWC        : 'lowContext'-> mode(NLSEMI);
 SHARE       : 'share';
 ADDR_MOD    : '@'-> mode(NLSEMI);
 DOT_DOT     : '..';

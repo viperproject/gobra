@@ -6,7 +6,7 @@
 
 package viper.gobra.backend
 
-import viper.gobra.frontend.{Config, MCE}
+import viper.gobra.frontend.{Config, Hyper, MCE}
 import viper.gobra.util.GobraExecutionContext
 import viper.server.ViperConfig
 import viper.server.core.ViperCoreServer
@@ -75,6 +75,10 @@ object ViperBackends {
 
         options ++= Vector("--setAxiomatizationFile", axiomTmpPath.toString())
       }
+      if (config.hyperModeOrDefault == Hyper.EnabledExtended) {
+        // for `Hyper.Enabled`, we do not use the SIFPlugin but a Gobra-internal transformation
+        options ++= Vector("--plugin", "viper.silver.sif.SIFPlugin")
+      }
 
       new Silicon(options)
     }
@@ -89,6 +93,10 @@ object ViperBackends {
       }
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
+      }
+      if (config.hyperModeOrDefault == Hyper.EnabledExtended) {
+        // for `Hyper.Enabled`, we do not use the SIFPlugin but a Gobra-internal transformation
+        options ++= Vector("--plugin", "viper.silver.sif.SIFPlugin")
       }
       options ++= exePaths
 
@@ -172,6 +180,10 @@ object ViperBackends {
       if (config.conditionalizePermissions) {
         options ++= Vector("--conditionalizePermissions")
       }
+      if (config.hyperModeOrDefault == Hyper.EnabledExtended) {
+        // for `Hyper.Enabled`, we do not use the SIFPlugin but a Gobra-internal transformation
+        options ++= Vector("--plugin", "viper.silver.sif.SIFPlugin")
+      }
       options ++= exePaths
       ViperServerConfig.ConfigWithSilicon(options.toList)
     }
@@ -186,6 +198,10 @@ object ViperBackends {
       }
       if (config.assumeInjectivityOnInhale) {
         options ++= Vector("--assumeInjectivityOnInhale")
+      }
+      if (config.hyperModeOrDefault == Hyper.EnabledExtended) {
+        // for `Hyper.Enabled`, we do not use the SIFPlugin but a Gobra-internal transformation
+        options ++= Vector("--plugin", "viper.silver.sif.SIFPlugin")
       }
       options ++= exePaths
       ViperServerConfig.ConfigWithCarbon(options.toList)

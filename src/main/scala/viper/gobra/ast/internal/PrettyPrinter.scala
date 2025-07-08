@@ -137,9 +137,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showTerminationMeasure(measure: TerminationMeasure): Doc = {
     def showCond(cond: Option[Expr]): Doc = opt(cond)("if" <+> showExpr(_))
     measure match {
-      case WildcardMeasure(cond) => "_" <+> showCond(cond)
-      case TupleTerminationMeasure(tuple, cond) =>
-        hcat(tuple map show) <+> showCond(cond)
+      case m: WildcardMeasure => "_" <+> showCond(m.cond)
+      case m: TupleTerminationMeasure =>
+        hcat(m.tuple map show) <+> showCond(m.cond)
     }
   }
 
@@ -531,6 +531,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
     case MapKeys(exp, _) => "domain" <> parens(showExpr(exp))
     case MapValues(exp, _) => "range" <> parens(showExpr(exp))
+    case MapConversion(exp) => "dict" <> parens(showExpr(exp))
     case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
     case Receive(channel, _, _, _) => "<-" <+> showExpr(channel)
 

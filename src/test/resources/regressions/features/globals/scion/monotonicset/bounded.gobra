@@ -1,0 +1,243 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package monotonicset
+
+type BoundedMonotonicSet struct {
+	ghost valuesMap dict[uint16](gpointer[bool])
+}
+
+pred (b BoundedMonotonicSet) Inv() {
+	forall i uint16 :: 0 <= i && i < 256 ==>
+		(i in domain(b.valuesMap) && acc(b.valuesMap[i], 1/2))
+}
+
+ghost
+requires acc(b.Inv(), _)
+requires 0 <= i && i < 256
+decreases
+pure func (b BoundedMonotonicSet) FContains(i uint16) bool {
+	// extra indirection avoids a type-checking bug of Gobra.
+	return unfolding acc(b.Inv(), _) in
+		b.fcontainshelper(i)
+}
+
+ghost
+requires forall i uint16 :: 0 <= i && i < 256 ==>
+	(i in domain(b.valuesMap) && acc(b.valuesMap[i], _))
+requires 0 <= i && i < 256
+decreases
+pure func (b BoundedMonotonicSet) fcontainshelper(i uint16) bool {
+	return *b.valuesMap[i]
+}
+
+
+pred (b BoundedMonotonicSet) Contains(i uint16) {
+	0 <= i && i < 256 &&
+	i in domain(b.valuesMap) &&
+	acc(b.valuesMap[i], _)   &&
+	*b.valuesMap[i]
+}
+
+ghost
+requires b.Contains(i)
+ensures  b.Contains(i) && b.Contains(i)
+decreases
+func (b BoundedMonotonicSet) ContainsIsDup(i uint16) {
+	unfold b.Contains(i)
+	fold   b.Contains(i)
+	fold   b.Contains(i)
+}
+
+pred (b BoundedMonotonicSet) DoesNotContain(i uint16) {
+	0 <= i && i < 256 &&
+	i in domain(b.valuesMap) &&
+	acc(b.valuesMap[i], 1/2) &&
+	!(*b.valuesMap[i])
+}
+
+ghost
+preserves acc(b.Inv(), 1/4)
+preserves acc(b.DoesNotContain(i), 1/4)
+ensures   0 <= i && i < 256
+ensures   !b.FContains(i)
+decreases
+func (b BoundedMonotonicSet) DoesNotContainImpliesNotFContains(i uint16) {
+	assert unfolding acc(b.Inv(), _) in
+		unfolding acc(b.DoesNotContain(i), _) in
+		!b.fcontainshelper(i)
+}
+
+ghost
+preserves acc(b.Inv(), 1/4)
+preserves b.Contains(i)
+ensures   0 <= i && i < 256
+ensures   b.FContains(i)
+decreases
+func (b BoundedMonotonicSet) ContainsImpliesFContains(i uint16) {
+	assert unfolding acc(b.Inv(), _) in
+		unfolding acc(b.Contains(i), _) in
+		b.fcontainshelper(i)
+}
+
+ghost
+ensures res.Inv()
+ensures forall i uint16 :: 0 <= i && i < 256 ==>
+	res.DoesNotContain(i)
+// The following is technically redundant, but very useful.
+ensures forall i uint16 :: 0 <= i && i < 256 ==>
+	!res.FContains(i)
+decreases
+func Alloc() (res BoundedMonotonicSet) {
+	b := BoundedMonotonicSet{}
+	var i uint16
+	invariant 0 <= i && i <= 256
+	invariant forall j uint16 :: 0 <= j && j < i ==>
+		j in domain(b.valuesMap)
+	// injectivity requirement
+	invariant forall j1, j2 uint16 :: 0 <= j1 && j1 < j2 && j2 < i ==>
+		b.valuesMap[j1] != b.valuesMap[j2]
+	invariant forall j uint16 :: 0 <= j && j < i ==>
+		acc(b.valuesMap[j])
+	invariant forall j uint16 :: 0 <= j && j < i ==>
+		!(*b.valuesMap[j])
+	decreases 256 - i
+	for i = 0; i < 256; i +=1 {
+		b.valuesMap[i] = new(bool)
+	}
+
+	invariant 0 <= i && i <= 256
+	invariant forall j uint16 :: 0 <= j && j < i ==>
+		j in domain(b.valuesMap)
+	// injectivity requirement
+	invariant forall j1, j2 uint16 :: 0 <= j1 && j1 < j2 && j2 < i ==>
+		b.valuesMap[j1] != b.valuesMap[j2]
+	invariant forall j uint16 :: i <= j && j < 256 ==>
+		acc(b.valuesMap[j]) && !(*b.valuesMap[j])
+	invariant forall j uint16 :: 0 <= j && j < i ==>
+		acc(b.valuesMap[j], 1/2)
+	invariant forall j uint16 :: 0 <= j && j < i ==>
+		b.DoesNotContain(j)
+	invariant forall j uint16 :: 0 <= j && j < i ==>
+		!b.fcontainshelper(j)
+	decreases 256 - i
+	for i = 0; i < 256; i +=1 {
+		fold b.DoesNotContain(i)
+	}
+	fold b.Inv()
+	return b
+}
+
+ghost
+opaque // make this closed when that is supported
+requires acc(b.Inv(), _)
+decreases
+pure func (b BoundedMonotonicSet) ToSet() set[uint16] {
+	return b.toSetAux(0)
+}
+
+ghost
+requires acc(b.Inv(), _)
+requires 0 <= start && start < 256
+decreases 256 - start
+pure func (b BoundedMonotonicSet) toSetAux(start uint16) set[uint16] {
+	return unfolding acc(b.Inv(), _) in ((*b.valuesMap[start] ? set[uint16]{start} : set[uint16]{}) union (start < 255 ? b.toSetAux(start+1) : set[uint16]{}))
+}
+
+ghost
+requires 0 < p
+requires acc(b.Inv(), p)
+requires b.Contains(v)
+ensures  acc(b.Inv(), p)
+ensures  v in b.ToSet()
+decreases
+func (b BoundedMonotonicSet) ContainsImpliesAbstractContains(v uint16, p perm) {
+	found := false
+	i := uint16(0)
+	part1 := set[uint16]{}
+	part2 := reveal b.ToSet()
+
+	assert unfolding b.Contains(v) in 0 <= v && v < 256
+
+	invariant acc(b.Inv(), p/2)
+	invariant b.Contains(v)
+	invariant 0 <= i && i <= 256
+	invariant v < i ==> found
+	invariant found ==> v in b.ToSet()
+	invariant part1 union part2 == b.ToSet()
+	invariant i < 256 ==>
+		part2 == unfolding acc(b.Inv(), _) in ((*b.valuesMap[i] ? set[uint16]{i} : set[uint16]{}) union (i < 255 ? b.toSetAux(i+1) : set[uint16]{}))
+	decreases 256 - i
+	for i = 0; i < 256; i += 1 {
+		newpart1 := part1 union unfolding acc(b.Inv(), _) in (*b.valuesMap[i] ? set[uint16]{i} : set[uint16]{})
+		newpart2 := i < 255 ? b.toSetAux(i+1) : set[uint16]{}
+		if i == v {
+			unfold b.Contains(v)
+			found = true
+			assert *b.valuesMap[i]
+			assert newpart1 union newpart2 == b.ToSet()
+			assert v in (unfolding acc(b.Inv(), _) in (*b.valuesMap[i] ? set[uint16]{i} : set[uint16]{}))
+			assert v in newpart1
+			fold b.Contains(v)
+		}
+		part1 = newpart1
+		part2 = newpart2
+	}
+}
+
+ghost
+requires  0 < p
+preserves acc(b.Inv(), p)
+preserves b.DoesNotContain(v)
+ensures   !(v in b.ToSet())
+decreases
+func (b BoundedMonotonicSet) DoesNotContainsImpliesAbstractDoesNotContain(v uint16, p perm) {
+	found := false
+	i := uint16(0)
+	part1 := set[uint16]{}
+	part2 := reveal b.ToSet()
+
+	assert unfolding b.DoesNotContain(v) in 0 <= v && v < 256
+
+	invariant acc(b.Inv(), p/2)
+	invariant b.DoesNotContain(v)
+	invariant 0 <= i && i <= 256
+	invariant !found
+	invariant found == v in part1
+	invariant part1 union part2 == b.ToSet()
+	invariant i < 256 ==>
+		part2 == unfolding acc(b.Inv(), _) in ((*b.valuesMap[i] ? set[uint16]{i} : set[uint16]{}) union (i < 255 ? b.toSetAux(i+1) : set[uint16]{}))
+	invariant i == 256 ==>
+		part2 == set[uint16]{}
+	decreases 256 - i
+	for i = 0; i < 256; i += 1 {
+		newpart1 := part1 union unfolding acc(b.Inv(), _) in (*b.valuesMap[i] ? set[uint16]{i} : set[uint16]{})
+		newpart2 := i < 255 ? b.toSetAux(i+1) : set[uint16]{}
+		if i == v {
+			unfold b.DoesNotContain(v)
+			assert !(*b.valuesMap[i])
+			assert newpart1 union newpart2 == b.ToSet()
+			assert !(v in (unfolding acc(b.Inv(), _) in (*b.valuesMap[i] ? set[uint16]{i} : set[uint16]{})))
+			assert !(v in newpart1)
+			fold b.DoesNotContain(v)
+		}
+		part1 = newpart1
+		part2 = newpart2
+	}
+}
+
+ghost
+requires  b.DoesNotContain(v)
+preserves b.Inv()
+ensures   b.Contains(v)
+ensures   forall i uint16 :: 0 <= i && i < 256 && i != v ==>
+	b.FContains(i) == old(b.FContains(i))
+decreases
+func (b BoundedMonotonicSet) Add(v uint16) {
+	unfold b.Inv()
+	unfold b.DoesNotContain(v)
+	ghost var ptr gpointer[bool] = b.valuesMap[v]
+	*ptr = true
+	fold b.Inv()
+	fold b.Contains(v)
+}

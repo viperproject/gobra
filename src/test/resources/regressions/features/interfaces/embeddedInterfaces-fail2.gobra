@@ -22,10 +22,12 @@ type test int
 
 func (x test) f()
 
-//:: ExpectedOutput(generated_implementation_proof:function_termination_error)
+// Rejected: method without a termination measure tries to implement method with termination measure
+//:: ExpectedOutput(type_error)
 func (x test) g()
 
-//:: ExpectedOutput(generated_implementation_proof:pure_function_termination_error)
+// Rejected: method without a termination measure tries to implement method with termination measure
+//:: ExpectedOutput(type_error)
 pure func (x test) h() int
 
 test implements foo

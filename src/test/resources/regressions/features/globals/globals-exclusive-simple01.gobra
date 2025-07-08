@@ -3,6 +3,8 @@
 
 package test
 
+// ##(--experimentalFriendClauses)
+
 var f@ int = 1
 var g int = test()
 
@@ -12,6 +14,7 @@ func init() {
 	assert false
 }
 
+mayInit
 ensures res == 1
 decreases
 func test() (res int) {

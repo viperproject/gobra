@@ -14,66 +14,98 @@ import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
 
 trait Assignability extends BaseProperty { this: TypeInfoImpl =>
-
-  lazy val declarableTo: Property[(Vector[Type], Option[Type], Vector[Type])] =
-    createProperty[(Vector[Type], Option[Type], Vector[Type])] {
-      case (right, None, left) => multiAssignableTo.result(right, left)
-      case (right, Some(t), _) => propForall(right, assignableTo.before((l: Type) => (l, t)))
+  lazy val declarableTo: Property[(Vector[Type], Option[Type], Vector[Type], Boolean)] =
+    createProperty[(Vector[Type], Option[Type], Vector[Type], Boolean)] {
+      case (right, None, left, mayInit) => multiAssignableTo.result(right, left, mayInit)
+      case (right, Some(t), _, mayInit) =>
+        propForall(right, assignableTo.before((l: Type) => (l, t, mayInit)))
     }
 
-  lazy val multiAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
-    case (right, left) =>
+  def isImportedContextualType(t: Type): Boolean = t match {
+    case t: PointerT => isImportedContextualType(t.elem)
+    case t: ContextualType => t.context != this
+    case _ => false
+  }
+
+  def isLocallyDefinedContextualType(t: Type): Boolean = t match {
+    case t: PointerT => isLocallyDefinedContextualType(t.elem)
+    case t: ContextualType => t.context == this
+    case _ => false
+  }
+
+  // To guarantee that no dynamically dispatched methods that may depend on invariants of the package
+  // under initialization are called, we disallow assigning a value of a type defined in the current
+  // package to a variable of an interface type defined in an exported package. This allows us to call,
+  // without restriction, any interface methods with receiver types defined in imported packages during
+  // initialization of a package.
+  private lazy val assignableToIfInit: Property[(Type, Type)] = createProperty[(Type, Type)] {
+    case (targetType, srcType) =>
+      if (isLocallyDefinedContextualType(targetType) && isImportedContextualType(srcType)) {
+        failedProp("Assigning values of types defined in the current package to locations " +
+          "of an interface type that is defined in imported packages is disallowed in code that may run during package initialization.")
+      } else {
+        successProp
+      }
+  }
+
+  lazy val multiAssignableTo: Property[(Vector[Type], Vector[Type], Boolean)] = createProperty[(Vector[Type], Vector[Type], Boolean)] {
+    case (right, left, mayInit) =>
       StrictAssignMode(left.size, right.size) match {
         case AssignMode.Single =>
           right match {
             // To support Go's function chaining when a tuple with the results of a function call are passed to the
             // only variadic argument of another function
             case Vector(InternalTupleT(t)) if left.lastOption.exists(_.isInstanceOf[VariadicT]) =>
-              multiAssignableTo.result(t, left)
-            case _ => propForall(right.zip(left), assignableTo)
+              multiAssignableTo.result(t, left, mayInit)
+            case _ =>
+              propForall(
+                right.zip(left),
+                createProperty[(Type, Type)]{ case (l: Type, r: Type) => assignableTo.result(l, r, mayInit) }
+              )
           }
         case AssignMode.Multi => right.head match {
-          case Assign(InternalTupleT(ts)) => multiAssignableTo.result(ts, left)
+          case Assign(InternalTupleT(ts)) => multiAssignableTo.result(ts, left, mayInit)
           case t =>
             if (left.length == right.length + 1 && left.last.isInstanceOf[VariadicT]) {
               // this handles the case when all parameters but the last are passed in a function call and the last parameter
               // is variadic
-              multiAssignableTo.result(right, left.init)
+              multiAssignableTo.result(right, left.init, mayInit)
             } else {
               failedProp(s"got $t but expected tuple type of size ${left.size}")
             }
         }
-        case AssignMode.Variadic => variadicAssignableTo.result(right, left)
+        case AssignMode.Variadic => variadicAssignableTo.result(right, left, mayInit)
 
         case AssignMode.Error => failedProp(s"cannot assign ${right.size} to ${left.size} elements")
       }
   }
 
-  lazy val variadicAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
-    case (right, left) =>
+  lazy val variadicAssignableTo: Property[(Vector[Type], Vector[Type], Boolean)] = createProperty[(Vector[Type], Vector[Type], Boolean)] {
+    case (right, left, mayInit) =>
       StrictAssignMode(left.size, right.size) match {
         case AssignMode.Variadic => left.lastOption match {
           case Some(VariadicT(elem)) =>
             val dummyFill = UnknownType
             // left.init corresponds to the parameter list on the left except for the variadic type
-            propForall(right.zipAll(left.init, dummyFill, elem), assignableTo)
+            propForall(
+              right.zipAll(left.init, dummyFill, elem),
+              createProperty[(Type, Type)]{ case (l: Type, r: Type) => assignableTo.result(l, r, mayInit) }
+            )
           case _ => failedProp(s"expected the last element of $left to be a variadic type")
         }
         case _ => failedProp(s"cannot assign $right to $left")
       }
   }
 
-  lazy val parameterAssignableTo: Property[(Type, Type)] = createProperty[(Type, Type)] {
-    case (Argument(InternalTupleT(rs)), Argument(InternalTupleT(ls))) if rs.size == ls.size =>
-      propForall(rs zip ls, assignableTo)
-
-    case (r, l) => assignableTo.result(r, l)
-  }
-
-  lazy val assignableTo: Property[(Type, Type)] = createFlatPropertyWithReason[(Type, Type)] {
-    case (right, left) => s"$right is not assignable to $left"
+  // The notion of assignability depends on the context where the assignments are performed.
+  // In particular, in code that may execute during package initialization, some assignments
+  // to interface types are disallowed to guarantee that interface methods that assume the invariant
+  // of the package under initialization are never called.
+  lazy val assignableTo: Property[(Type, Type, Boolean)] = createFlatPropertyWithReason[(Type, Type, Boolean)] {
+    case (right, left, _) => s"$right is not assignable to $left"
   } {
-    case (Single(lst), Single(rst)) => (lst, rst) match {
+    case (Single(lst), Single(rst), mayInit) => (lst, rst) match {
+      case _ if mayInit && !assignableToIfInit(lst, rst) => assignableToIfInit.result(lst, rst)
       // for go's types according to go's specification (mostly)
       case (UNTYPED_INT_CONST, r) if underlyingType(r).isInstanceOf[IntT] => successProp
       // not part of Go spec, but necessary for the definition of comparability
@@ -87,16 +119,16 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (l, r) if underlyingType(r).isInstanceOf[InterfaceT] => implements(l, r)
       case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => successProp
       case (NilType, r) if isPointerType(r) => successProp
-      case (VariadicT(t1), VariadicT(t2)) => assignableTo.result(t1, t2)
-      case (t1, VariadicT(t2)) => assignableTo.result(t1, t2)
+      case (VariadicT(t1), VariadicT(t2)) => assignableTo.result(t1, t2, mayInit)
+      case (t1, VariadicT(t2)) => assignableTo.result(t1, t2, mayInit)
       case (VariadicT(t1), SliceT(t2)) if identicalTypes(t1, t2) => successProp
 
         // for ghost types
       case (BooleanT, AssertionT) => successProp
-      case (SequenceT(l), SequenceT(r)) => assignableTo.result(l,r) // implies that Sequences are covariant
-      case (SetT(l), SetT(r)) => assignableTo.result(l,r)
-      case (MultisetT(l), MultisetT(r)) => assignableTo.result(l,r)
-      case (OptionT(l), OptionT(r)) => assignableTo.result(l, r)
+      case (SequenceT(l), SequenceT(r)) => assignableTo.result(l, r, mayInit) // implies that Sequences are covariant
+      case (SetT(l), SetT(r)) => assignableTo.result(l, r, mayInit)
+      case (MultisetT(l), MultisetT(r)) => assignableTo.result(l, r, mayInit)
+      case (OptionT(l), OptionT(r)) => assignableTo.result(l, r, mayInit)
       case (IntT(_), PermissionT) => successProp
 
         // conservative choice
@@ -131,18 +163,18 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case _ => false
   }
 
-  lazy val compositeKeyAssignableTo: Property[(PCompositeKey, Type)] = createProperty[(PCompositeKey, Type)] {
-    case (PIdentifierKey(id), t) => assignableTo.result(idType(id), t)
-    case (k: PCompositeVal, t) => compositeValAssignableTo.result(k, t)
+  lazy val compositeKeyAssignableTo: Property[(PCompositeKey, Type, Boolean)] = createProperty[(PCompositeKey, Type, Boolean)] {
+    case (PIdentifierKey(id), t, mayInit) => assignableTo.result(idType(id), t, mayInit)
+    case (k: PCompositeVal, t, mayInit) => compositeValAssignableTo.result(k, t, mayInit)
   }
 
-  lazy val compositeValAssignableTo: Property[(PCompositeVal, Type)] = createProperty[(PCompositeVal, Type)] {
-    case (PExpCompositeVal(exp), t) => assignableTo.result(exprType(exp), t)
-    case (PLitCompositeVal(lit), t) => literalAssignableTo.result(lit, t)
+  lazy val compositeValAssignableTo: Property[(PCompositeVal, Type, Boolean)] = createProperty[(PCompositeVal, Type, Boolean)] {
+    case (PExpCompositeVal(exp), t, mayInit) => assignableTo.result(exprType(exp), t, mayInit)
+    case (PLitCompositeVal(lit), t, mayInit) => literalAssignableTo.result(lit, t, mayInit)
   }
 
-  lazy val literalAssignableTo: Property[(PLiteralValue, Type)] = createProperty[(PLiteralValue, Type)] {
-    case (PLiteralValue(elems), Single(typ)) =>
+  lazy val literalAssignableTo: Property[(PLiteralValue, Type, Boolean)] = createProperty[(PLiteralValue, Type, Boolean)] {
+    case (PLiteralValue(elems), Single(typ), mayInit) =>
       underlyingType(typ) match {
         case s: StructT =>
           if (elems.isEmpty) {
@@ -155,7 +187,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
               propForall(elems, createProperty[PKeyedElement] { e =>
                 e.key.map {
                   case PIdentifierKey(id) if tmap.contains(id.name) =>
-                    compositeValAssignableTo.result(e.exp, tmap(id.name))
+                    compositeValAssignableTo.result(e.exp, tmap(id.name), mayInit)
 
                   case v => failedProp(s"got $v but expected field name")
                 }.getOrElse(successProp)
@@ -163,7 +195,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
           } else if (elems.size == s.embedded.size + s.fields.size) {
             propForall(
               elems.map(_.exp).zip(s.fieldsAndEmbedded.values),
-              compositeValAssignableTo
+              createProperty[(PCompositeVal, Type)]{ case (l: PCompositeVal, r: Type) => compositeValAssignableTo.result(l, r, mayInit) }
             )
           } else {
             failedProp("number of arguments does not match structure")
@@ -180,7 +212,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
               propForall(elems, createProperty[PKeyedElement] { e =>
                 e.key.map {
                   case PIdentifierKey(id) if tmap.contains(id.name) =>
-                    compositeValAssignableTo.result(e.exp, tmap(id.name))
+                    compositeValAssignableTo.result(e.exp, tmap(id.name), mayInit)
 
                   case v => failedProp(s"got $v but expected field name")
                 }.getOrElse(successProp)
@@ -188,7 +220,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
           } else if (elems.size == a.fields.size) {
             propForall(
               elems.map(_.exp).zip(a.fields.map(_._2)),
-              compositeValAssignableTo
+              createProperty[(PCompositeVal, Type)]{ case (l: PCompositeVal, r: Type) => compositeValAssignableTo.result(l, r, mayInit) }
             )
           } else {
             failedProp("number of arguments does not match adt constructor")
@@ -199,49 +231,49 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
             areAllKeysDisjoint(elems) and
             areAllKeysNonNegative(elems) and
             areAllKeysWithinBounds(elems, len) and
-            areAllElementsAssignable(elems, t)
+            areAllElementsAssignable(elems, t, mayInit)
 
         case SliceT(t) =>
           areAllKeysConstant(elems) and
             areAllKeysDisjoint(elems) and
             areAllKeysNonNegative(elems) and
-            areAllElementsAssignable(elems, t)
+            areAllElementsAssignable(elems, t, mayInit)
 
         case GhostSliceT(t) =>
           areAllKeysConstant(elems) and
             areAllKeysDisjoint(elems) and
             areAllKeysNonNegative(elems) and
-            areAllElementsAssignable(elems, t)
+            areAllElementsAssignable(elems, t, mayInit)
 
         case MapT(key, t) =>
           areAllElementsKeyed(elems) and
-            areAllKeysAssignable(elems, key) and
-            areAllElementsAssignable(elems, t) and
+            areAllKeysAssignable(elems, key, mayInit) and
+            areAllElementsAssignable(elems, t, mayInit) and
             areAllConstantKeysDifferent(elems, key)
 
         case SequenceT(t) =>
           areAllKeysConstant(elems) and
             areAllKeysDisjoint(elems) and
             areAllKeysNonNegative(elems) and
-            areAllElementsAssignable(elems, t)
+            areAllElementsAssignable(elems, t, mayInit)
 
         case SetT(t) =>
           areNoElementsKeyed(elems) and
-            areAllElementsAssignable(elems, t)
+            areAllElementsAssignable(elems, t, mayInit)
 
         case MultisetT(t) =>
           areNoElementsKeyed(elems) and
-            areAllElementsAssignable(elems, t)
+            areAllElementsAssignable(elems, t, mayInit)
 
         case MathMapT(keys, values) =>
           areAllElementsKeyed(elems) and
-            areAllKeysAssignable(elems, keys) and
-            areAllElementsAssignable(elems, values) and
+            areAllKeysAssignable(elems, keys, mayInit) and
+            areAllElementsAssignable(elems, values, mayInit) and
             areAllConstantKeysDifferent(elems, keys)
 
         case t => failedProp(s"cannot assign literal to $t")
       }
-    case (l, t) => failedProp(s"cannot assign literal $l to $t")
+    case (l, t, _) => failedProp(s"cannot assign literal $l to $t")
   }
 
   def assignableWithinBounds: Property[(Type, PExpression)] = createFlatProperty[(Type, PExpression)] {
@@ -288,11 +320,11 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   private def areAllKeysWithinBounds(elems : Vector[PKeyedElement], length : BigInt) : PropertyResult =
     failedProp("found out-of-bound keys", keyElementIndices(elems).exists(length <= _))
 
-  private def areAllKeysAssignable(elems : Vector[PKeyedElement], typ : Type) =
-    propForall(elems.flatMap(_.key), compositeKeyAssignableTo.before((c: PCompositeKey) => (c, typ)))
+  private def areAllKeysAssignable(elems : Vector[PKeyedElement], typ : Type, mayInit: Boolean) =
+    propForall(elems.flatMap(_.key), compositeKeyAssignableTo.before((c: PCompositeKey) => (c, typ, mayInit)))
 
-  private def areAllElementsAssignable(elems : Vector[PKeyedElement], typ : Type) =
-    propForall(elems.map(_.exp), compositeValAssignableTo.before((c: PCompositeVal) => (c, typ)))
+  private def areAllElementsAssignable(elems : Vector[PKeyedElement], typ : Type, mayInit: Boolean) =
+    propForall(elems.map(_.exp), compositeValAssignableTo.before((c: PCompositeVal) => (c, typ, mayInit)))
 
   private def areAllConstantKeysDifferent(elems: Vector[PKeyedElement], typ: Type) = {
     def constVal[T](eval: PExpression => Option[T])(keyed: PKeyedElement) : Option[T] = keyed.key match {

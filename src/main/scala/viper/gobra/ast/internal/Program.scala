@@ -335,6 +335,12 @@ case class MethodBody(
                        postprocessing: Vector[Stmt] = Vector.empty,
                      )(val info: Source.Parser.Info) extends Stmt
 
+object MethodBody {
+  def empty(info: Source.Parser.Info): MethodBody = {
+    MethodBody(Vector.empty, MethodBodySeqn(Vector.empty)(info), Vector.empty)(info)
+  }
+}
+
 /**
   * This node serves as a target of encoding extensions. See [[viper.gobra.translator.encodings.combinators.TypeEncoding.Extension]]
   * Return statements jump exactly to the end of the encoding of this statement.
@@ -512,11 +518,27 @@ case class Access(e: Accessible, p: Expr)(val info: Source.Parser.Info) extends 
   require(p.typ.isInstanceOf[PermissionT], s"expected an expression of permission type but got $p.typ")
 }
 
-sealed trait TerminationMeasure extends Assertion
-case class WildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure
-case class TupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure {
+sealed trait TerminationMeasure extends Assertion {
+  val cond: Option[Expr]
+  val info: Source.Parser.Info
+}
+
+sealed trait ItfMethodMeasure extends TerminationMeasure
+sealed trait NonItfMethodMeasure extends TerminationMeasure
+sealed trait WildcardMeasure extends TerminationMeasure
+sealed trait TupleTerminationMeasure extends TerminationMeasure {
+  val tuple: Vector[Node]
   require(tuple.forall(x => x.isInstanceOf[Expr] || x.isInstanceOf[Access]), s"Unexpected tuple $tuple")
 }
+
+case class ItfMethodWildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info)
+  extends ItfMethodMeasure with WildcardMeasure
+case class NonItfMethodWildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info)
+  extends NonItfMethodMeasure with WildcardMeasure
+case class ItfTupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info)
+  extends ItfMethodMeasure with TupleTerminationMeasure
+case class NonItfTupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info)
+  extends NonItfMethodMeasure with TupleTerminationMeasure
 
 sealed trait Accessible extends Node {
   def op: Node
@@ -537,8 +559,6 @@ sealed trait PredicateAccess extends Node
 case class FPredicateAccess(pred: FPredicateProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends PredicateAccess
 case class MPredicateAccess(recv: Expr, pred: MPredicateProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends PredicateAccess
 case class MemoryPredicateAccess(arg: Expr)(val info: Source.Parser.Info) extends PredicateAccess
-
-
 
 sealed trait Expr extends Node with Typed with TriggerExpr
 
@@ -937,6 +957,17 @@ case class MapValues(exp : Expr, expUnderlyingType: Type)(val info : Source.Pars
     case _ => violation(s"unexpected type ${exp.typ}")
   }
 }
+
+/**
+ * Represents the conversion of a value of type 'map[k]v' to a mathematical map with type 'dict[k]v'
+ */
+case class MapConversion(expr: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ : Type = expr.typ match {
+    case MapT(k, v, _) => MathMapT(k, v, Addressability.conversionResult)
+    case t => Violation.violation(s"expected a map but got $t")
+  }
+}
+
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr

@@ -12,12 +12,15 @@ import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting.{ShiftPreconditionError, Source}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
-import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
+import viper.gobra.translator.util.DomainGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.util.TypeBounds.IntegerKind
+import viper.silver.ast.Domain
+import viper.silver.plugin.standard.termination
 import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
-import viper.silver.plugin.standard.termination
 
 class IntEncoding extends LeafTypeEncoding {
 
@@ -38,11 +41,21 @@ class IntEncoding extends LeafTypeEncoding {
     * Translates a type into a Viper type.
     */
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
-    case ctx.Int() / m =>
+    case ctx.Int(kind) / m =>
       m match {
-        case Exclusive => vpr.Int
+        case Exclusive => IntDomainGenerator(Vector.empty, kind)(ctx)
         case Shared    => vpr.Ref
       }
+  }
+  private case object IntDomainGenerator extends DomainGenerator[IntegerKind] {
+    def add(x: IntegerKind)(ctx: Context) = {
+      val dom = genDomain(x)(ctx)
+      add_internal()
+    }
+    def sub() = ???
+    private def add_internal() = ???
+    private def sub_internal() = ???
+    override def genDomain(x: IntegerKind)(ctx: Context): Domain = ???
   }
 
   /**
@@ -68,29 +81,29 @@ class IntEncoding extends LeafTypeEncoding {
     }
 
     default(super.expression(ctx)){
-      case (e: in.DfltVal) :: ctx.Int() / Exclusive => unit(withSrc(vpr.IntLit(0), e))
+      case (e: in.DfltVal) :: ctx.Int(kind) / Exclusive => unit(withSrc(vpr.IntLit(0), e))
       case lit: in.IntLit => unit(withSrc(vpr.IntLit(lit.v), lit))
 
-      case e@ in.Add(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Add(vl, vr), e)
-      case e@ in.Sub(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Sub(vl, vr), e)
-      case e@ in.Mul(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mul(vl, vr), e)
-      case e@ in.Mod(l, r) :: ctx.Int() =>
+      case e@ in.Add(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Add(vl, vr), e)
+      case e@ in.Sub(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Sub(vl, vr), e)
+      case e@ in.Mul(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mul(vl, vr), e)
+      case e@ in.Mod(l, r) :: ctx.Int(kind) =>
         // We currently implement our own modulo algorithm to mimic what Go does. The default modulo implementation in
         // Viper does not match Go's semantics. Check https://github.com/viperproject/gobra/issues/858 and
         // https://github.com/viperproject/silver/issues/297
         for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(goIntMod, Seq(vl, vr)), e)
-      case e@ in.Div(l, r) :: ctx.Int() =>
+      case e@ in.Div(l, r) :: ctx.Int(kind) =>
         // We currently implement our own division algorithm to mimic what Go does. The default division implementation in
         // Viper does not match Go's semantics. Check https://github.com/viperproject/gobra/issues/858 and
         // https://github.com/viperproject/silver/issues/297
         for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(goIntDiv, Seq(vl, vr)), e)
-      case e@ in.BitAnd(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseAnd, Seq(vl, vr)), e)
-      case e@ in.BitOr(l, r)  :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseOr,  Seq(vl, vr)), e)
-      case e@ in.BitXor(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseXor, Seq(vl, vr)), e)
-      case e@ in.BitClear(l, r)   :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitClear, Seq(vl, vr)), e)
-      case e@ in.ShiftLeft(l, r)  :: ctx.Int() => withSrc(handleShift(shiftLeft)(l, r), e)
-      case e@ in.ShiftRight(l, r) :: ctx.Int() => withSrc(handleShift(shiftRight)(l, r), e)
-      case e@ in.BitNeg(exp) :: ctx.Int()  => for {ve <- goE(exp)} yield withSrc(vpr.FuncApp(bitwiseNegation, Seq(ve)), e)
+      case e@ in.BitAnd(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseAnd, Seq(vl, vr)), e)
+      case e@ in.BitOr(l, r)  :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseOr,  Seq(vl, vr)), e)
+      case e@ in.BitXor(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseXor, Seq(vl, vr)), e)
+      case e@ in.BitClear(l, r)   :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitClear, Seq(vl, vr)), e)
+      case e@ in.ShiftLeft(l, r)  :: ctx.Int(kind) => withSrc(handleShift(shiftLeft)(l, r), e)
+      case e@ in.ShiftRight(l, r) :: ctx.Int(kind) => withSrc(handleShift(shiftRight)(l, r), e)
+      case e@ in.BitNeg(exp) :: ctx.Int(kind)  => for {ve <- goE(exp)} yield withSrc(vpr.FuncApp(bitwiseNegation, Seq(ve)), e)
     }
   }
 

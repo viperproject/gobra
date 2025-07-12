@@ -21,9 +21,9 @@ class AssumptionAnalysisAnnotationTransformer extends ViperTransformer {
       case aInput @ (_: vpr.Inhale | _: vpr.Assume) =>
         val a = aInput.asInstanceOf[vpr.Stmt]
         val newInfo = getNewInfo(a, a.pos, {
-            case _: gobra.PAssume | _: gobra.PInhale  =>
+            case _: gobra.PAssume | _: gobra.PInhale | _: gobra.PExpression  =>
               NoInfo
-            case _                                    =>
+            case _ =>
               implicitAnnotation
           }, implicitAnnotation)
         a.withMeta((a.pos, newInfo, a.errT))
@@ -50,7 +50,7 @@ class AssumptionAnalysisAnnotationTransformer extends ViperTransformer {
 
       case seqn: vpr.Seqn =>
         val annotationInfo = getAnalysisInfoAnnotation(seqn, seqn.pos, {
-          case _: gobra.PAssume | _: gobra.PInhale =>
+          case _: gobra.PAssume | _: gobra.PInhale  =>
             explicitAnnotation
           case _ => NoInfo
         }, NoInfo)

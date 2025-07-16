@@ -34,6 +34,9 @@ trait ViperBackend {
     if (config.hyperModeOrDefault == Hyper.EnabledExtended) {
       // for `Hyper.Enabled`, we do not use the SIFPlugin but a Gobra-internal transformation
       options ++= Vector("--plugin", "viper.silver.sif.SIFPlugin")
+      // since Gobra adds gotos to handle return statements, which might jump out of a loop, we cannot use the default
+      // encoding of gotos in the SIFExtendedTransformer:
+      SIFExtendedTransformer.Config.enableGotoLowEventEncoding = true
     }
 
     options

@@ -18,9 +18,13 @@ func verifyWithBranching(hash int, value int) (res bool) {
     // the following if statement succeeds because we enabled the extended
     // SIF encoding that allows branching on non-low conditions
     if hash != computeHash(value) {
-        return false
+        // we used to early return `false` in this branch. However, this is not supported by our encoding of gotos
+        // in the SIF plugin, which requires that gotos only occur in low control flow (assuming that both executions enter the method)
+        res = false
+    } else {
+        res = true
     }
-    return true
+    return
 }
 
 // the following postcondition specifies that the Go function `computeHash` behaves like the

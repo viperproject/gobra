@@ -123,7 +123,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
       case (GobraParser.DECLARE_ASSIGN, _ : TypeSpecContext) => GotAssignErrorType()
       // We expected more tokens inside a slice expression but got a closing bracket: One of the
       // limits must be missing.
-      case (GobraParser.R_BRACKET, expr : ExpressionContext) if expr.parent.isInstanceOf[CapContext] => SliceMissingIndex(3)
+      case (GobraParser.R_BRACKET, expr : ExpressionContext) if expr.parent.isInstanceOf[CapSliceArgumentContext] => SliceMissingIndex(3)
       case _ => DefaultExtraneous()
     }
   }
@@ -141,7 +141,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
       case (Token.EOF, _) => DefaultMismatch()
       // Again, we have an unexpected :=, so suggest using a =
       case (GobraParser.DECLARE_ASSIGN, _) => GotAssignErrorType()
-      case (GobraParser.R_BRACKET, e : ExpressionContext) if e.parent.isInstanceOf[CapContext] => SliceMissingIndex(3)
+      case (GobraParser.R_BRACKET, e : ExpressionContext) if e.parent.isInstanceOf[CapSliceArgumentContext] => SliceMissingIndex(3)
       case _ => DefaultMismatch()
     }
   }
@@ -169,7 +169,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
           case _ => DefaultNoViable(exception)
         }
       }
-      case e: ExpressionContext if e.parent.isInstanceOf[CapContext] => SliceMissingIndex(3)
+      case e: ExpressionContext if e.parent.isInstanceOf[CapSliceArgumentContext] => SliceMissingIndex(3)
       case _ if new_reserved.contains(context.offendingSymbol.getType) => ReservedWord()
       case _ => DefaultNoViable(exception)
     }

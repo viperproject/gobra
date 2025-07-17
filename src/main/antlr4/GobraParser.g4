@@ -87,6 +87,8 @@ ghostPrimaryExpr: range
   | typeOf
   | typeExpr
   | isComparable
+  | low
+  | lowc
   | old
   | before
   | sConversion
@@ -130,6 +132,10 @@ labelUse: IDENTIFIER;
 before: BEFORE L_PAREN expression R_PAREN;
 
 isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
+
+low: LOW L_PAREN expression R_PAREN;
+
+lowc: LOWC L_PAREN R_PAREN;
 
 typeOf: TYPE_OF L_PAREN expression R_PAREN;
 
@@ -463,13 +469,13 @@ implicitArray: L_BRACKET ELLIPSIS R_BRACKET elementType;
 // distinguish low,high cap
 slice_:
   L_BRACKET (
-    low? COLON high?
-    | low? COLON high COLON cap
+    lowSliceArgument? COLON highSliceArgument?
+    | lowSliceArgument? COLON highSliceArgument COLON capSliceArgument
   ) R_BRACKET;
 
-low : expression;
-high: expression;
-cap: expression;
+lowSliceArgument : expression;
+highSliceArgument: expression;
+capSliceArgument: expression;
 
 
 

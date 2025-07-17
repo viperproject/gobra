@@ -23,10 +23,12 @@ ensures m.LockP() && m.LockInv() == inv
 decreases
 func (m *Mutex) SetInv(ghost inv pred())
 
+requires lowContext()
 requires acc(m.LockP(), _)
 ensures m.LockP() && m.UnlockP() && m.LockInv()()
 func (m *Mutex) Lock()
 
+requires lowContext()
 requires acc(m.LockP(), _) && m.UnlockP() && m.LockInv()()
 ensures m.LockP()
 decreases

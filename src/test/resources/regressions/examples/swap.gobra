@@ -47,6 +47,3 @@ func client() {
     //:: ExpectedOutput(assert_error:assertion_error)
     assert false;
 };
-
-
-

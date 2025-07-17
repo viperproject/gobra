@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// this testcase checks that termination measures are correctly translated if hyperMode is set to 'on'
+
+// ##(--hyperMode on)
+
+package terminationSimple01
+
+ghost
+decreases n
+requires low(n)
+requires n >= 0
+ensures  low(res)
+func test(n int) (res int) {
+    if n == 0 {
+        return 42
+    }
+    test(n - 1)
+}

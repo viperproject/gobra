@@ -3875,9 +3875,10 @@ object Desugar extends LazyLogging {
         res
 
       case t: Type.AdtClauseT =>
-        val adtName = nm.adt(t.declaredType)
-        val definedName = nm.declaredType(t.declaredType)
-        val adt: in.AdtT = in.AdtT(adtName, definedName, addrMod)
+        // calling `typeD` on the surrounding ADT declaration makes sure that the ADT
+        // is correctly registered as such and, thus, ends up in the resulting internal
+        // program.
+        val adt: in.AdtT = typeD(t.context.symbType(t.adtDecl), addrMod)(src).asInstanceOf[in.AdtT]
         val fields: Vector[in.Field] = t.fields.map{ case (key: String, typ: Type) =>
           in.Field(nm.adtField(key, t.typeDecl), typeD(typ, Addressability.mathDataStructureElement)(src), true)(src)
         }
@@ -4423,6 +4424,9 @@ object Desugar extends LazyLogging {
           case Type.SortT => for { wExp <- exprAndTypeAsExpr(ctx, info)(exp) } yield in.IsComparableType(wExp)(src)
           case t => Violation.violation(s"Expected interface or sort type, but got $t")
         }
+
+        case PLow(exp) => for { wExp <- go(exp) } yield in.Low(wExp)(src)
+        case PLowContext() => unit(in.LowContext()(src))
 
         case PIn(left, right) => for {
           dleft <- go(left)

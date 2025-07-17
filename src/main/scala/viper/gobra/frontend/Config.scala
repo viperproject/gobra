@@ -69,7 +69,8 @@ object ConfigDefaults {
   val DefaultZ3APIMode: Boolean = false
   val DefaultDisableNL: Boolean = false
   val DefaultMCEMode: MCE.Mode = MCE.Enabled
-  val DefaultEnableLazyImports: Boolean = false
+  val DefaultHyperMode: Hyper.Mode = Hyper.Disabled
+  lazy val DefaultEnableLazyImports: Boolean = false
   val DefaultNoVerify: Boolean = false
   val DefaultNoStreamErrors: Boolean = false
   val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
@@ -92,24 +93,36 @@ object MCE {
   object Enabled extends Mode
 }
 
+object Hyper {
+  sealed trait Mode
+  /** uses more complete encoding that does not enforce low guards for control flow */
+  object EnabledExtended extends Mode
+  object Enabled extends Mode
+  object Disabled extends Mode
+  object NoMajor extends Mode
+}
+
 object MoreJoins {
   sealed trait Mode {
     // Option number used by Viper, as described in
     // https://github.com/viperproject/silicon/pull/823
     def viperValue: Int
   }
+
   object Disabled extends Mode {
     override val viperValue = 0
   }
+
   object Impure extends Mode {
     override val viperValue = 1
   }
+
   object All extends Mode {
     override val viperValue = 2
   }
 
   def merge(m1: Mode, m2: Mode): Mode = {
-    (m1, m2) match  {
+    (m1, m2) match {
       case (All, _) | (_, All) => All
       case (Impure, _) | (_, Impure) => Impure
       case _ => Disabled
@@ -166,6 +179,8 @@ case class Config(
                    z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
                    disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                    mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
+                   // `None` indicates that no mode has been specified and instructs Gobra to use the default hyper mode
+                   hyperMode: Option[Hyper.Mode] = None,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                    parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
@@ -227,6 +242,12 @@ case class Config(
       z3APIMode = z3APIMode || other.z3APIMode,
       disableNL = disableNL || other.disableNL,
       mceMode = mceMode,
+      hyperMode = (hyperMode, other.hyperMode) match {
+        case (l, None) => l
+        case (None, r) => r
+        case (l, r) if l == r => l
+        case (Some(l), Some(r)) => Violation.violation(s"Unable to merge differing hyper modes from in-file configuration options, got $l and $r")
+      },
       noVerify = noVerify || other.noVerify,
       noStreamErrors = noStreamErrors || other.noStreamErrors,
       parseAndTypeCheckMode = parseAndTypeCheckMode,
@@ -248,6 +269,7 @@ case class Config(
     }
 
   val backendOrDefault: ViperBackend = backend.getOrElse(ConfigDefaults.DefaultBackend)
+  val hyperModeOrDefault: Hyper.Mode = hyperMode.getOrElse(ConfigDefaults.DefaultHyperMode)
 }
 
 object Config {
@@ -288,6 +310,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
                       disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
+                      hyperMode: Option[Hyper.Mode] = None,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
@@ -351,6 +374,7 @@ trait RawConfig {
     z3APIMode = baseConfig.z3APIMode,
     disableNL = baseConfig.disableNL,
     mceMode = baseConfig.mceMode,
+    hyperMode = baseConfig.hyperMode,
     noVerify = baseConfig.noVerify,
     noStreamErrors = baseConfig.noStreamErrors,
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
@@ -808,6 +832,19 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val hyperMode: ScallopOption[Hyper.Mode] = choice(
+    name = "hyperMode",
+    choices = Seq("on", "extended", "off", "noMajor"),
+    descr = "Specifies whether hyper properties should be verified while enforcing low control flow (on), with support for non-low control flow (extended), not verified (off), or whether the major checks should be skipped (noMajor).",
+    default = None,
+    noshort = true
+  ).map {
+    case "on" => Hyper.Enabled
+    case "extended" => Hyper.EnabledExtended
+    case "off" => Hyper.Disabled
+    case "noMajor" => Hyper.NoMajor
+  }
+
   val enableLazyImports: ScallopOption[Boolean] = opt[Boolean](
     name = Config.enableLazyImportOptionName,
     descr = s"Enforces that ${GoVerifier.name} parses depending packages only when necessary. Note that this disables certain language features such as global variables.",
@@ -960,7 +997,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       Right(())
     }
   }
-  
+
   // `disableSetAxiomatization` can only be provided when using a silicon-based backend
   // since, at the time of writing, we rely on Silicon's setAxiomatizationFile for the
   // implementation
@@ -975,7 +1012,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   addValidation {
     if (!disableNL.toOption.contains(true) || isSiliconBasedBackend) {
-      Right(())      
+      Right(())
     } else {
       Left("--disableNL is not compatible with Carbon")
     }
@@ -1070,6 +1107,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     z3APIMode = z3APIMode(),
     disableNL = disableNL(),
     mceMode = mceMode(),
+    hyperMode = hyperMode.toOption,
     noVerify = noVerify(),
     noStreamErrors = noStreamErrors(),
     parseAndTypeCheckMode = parseAndTypeCheckMode(),

@@ -678,7 +678,15 @@ case class MathMapTExpr(keys: Expr, elems: Expr)(val info: Source.Parser.Info) e
 case class OptionTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class TupleTExpr(elems: Vector[Expr])(val info: Source.Parser.Info) extends TypeExpr
 
+/* ** Information Flow  */
 
+case class Low(exp: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
+
+case class LowContext()(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
 
 /* ** Higher-order predicate expressions */
 

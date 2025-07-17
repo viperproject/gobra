@@ -320,7 +320,7 @@ expression:
     | SETMINUS
   ) expression #p42Expr
   | expression p41_op = (
-    IN
+    ELEM
     | MULTI
     | SUBSET
   ) expression #p41Expr

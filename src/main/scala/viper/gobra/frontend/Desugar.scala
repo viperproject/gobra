@@ -4428,7 +4428,7 @@ object Desugar extends LazyLogging {
         case PLow(exp) => for { wExp <- go(exp) } yield in.Low(wExp)(src)
         case PLowContext() => unit(in.LowContext()(src))
 
-        case PIn(left, right) => for {
+        case PElem(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
         } yield underlyingType(dright.typ) match {

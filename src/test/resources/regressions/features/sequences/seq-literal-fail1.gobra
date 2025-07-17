@@ -7,7 +7,7 @@ func foo() {
   xs := seq[int] { }
   // ghost error
   //:: ExpectedOutput(type_error)
-  test(0 in xs)
+  test(0 elem xs)
 }
 
 func test(b bool) {

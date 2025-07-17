@@ -14,9 +14,9 @@ func FibSpec(n int) int {
 pred lockInv() {
 	acc(&cache, _)     &&
 	acc(cache)         &&
-	0 in domain(cache) &&
-	1 in domain(cache) &&
-	forall i int :: { cache[i] }{ FibSpec(i) }{ i in domain(cache) } i in domain(cache) ==>
+	0 elem domain(cache) &&
+	1 elem domain(cache) &&
+	forall i int :: { cache[i] }{ FibSpec(i) }{ i elem domain(cache) } i elem domain(cache) ==>
 		0 <= i && cache[i] == FibSpec(i)
 }
 

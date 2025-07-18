@@ -611,15 +611,15 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse simple sequence membership expressions") {
-    frontend.parseExpOrFail("x in xs") should matchPattern {
-      case PIn(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("xs"))) =>
+    frontend.parseExpOrFail("x elem xs") should matchPattern {
+      case PElem(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("xs"))) =>
     }
   }
 
   test("Parser: should have membership expressions associate to the left") {
-    frontend.parseExp("x in xs in ys") should matchPattern {
-      case Right(PIn(
-        PIn(
+    frontend.parseExp("x elem xs elem ys") should matchPattern {
+      case Right(PElem(
+        PElem(
           PNamedOperand(PIdnUse("x")),
           PNamedOperand(PIdnUse("xs"))
         ),
@@ -629,9 +629,9 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should parse a simple chain of membership expressions with parentheses left") {
-    frontend.parseExp("(x in xs) in ys") should matchPattern {
-      case Right(PIn(
-        PIn(
+    frontend.parseExp("(x elem xs) elem ys") should matchPattern {
+      case Right(PElem(
+        PElem(
           PNamedOperand(PIdnUse("x")),
           PNamedOperand(PIdnUse("xs"))
         ),
@@ -641,10 +641,10 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should parse a simple chain of membership expressions with parentheses right") {
-    frontend.parseExp("x in (xs in ys)") should matchPattern {
-      case Right(PIn(
+    frontend.parseExp("x elem (xs elem ys)") should matchPattern {
+      case Right(PElem(
         PNamedOperand(PIdnUse("x")),
-        PIn(
+        PElem(
           PNamedOperand(PIdnUse("xs")),
           PNamedOperand(PIdnUse("ys"))
         )
@@ -671,8 +671,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should parse a membership expression with a sequence range expression") {
-    frontend.parseExpOrFail("x + 12 in seq[1..100]") should matchPattern {
-      case PIn(
+    frontend.parseExpOrFail("x + 12 elem seq[1..100]") should matchPattern {
+      case PElem(
         PAdd(PNamedOperand(PIdnUse("x")), PIntLit(a, Decimal)),
         PRangeSequence(PIntLit(b, Decimal), PIntLit(c, Decimal))
       ) if a == BigInt(12) && b == BigInt(1) && c == BigInt(100) =>
@@ -1575,8 +1575,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should correctly parse multiset inclusion (1)") {
-    frontend.parseExpOrFail("true in mset[bool] { false, true }") should matchPattern {
-      case PIn(
+    frontend.parseExpOrFail("true elem mset[bool] { false, true }") should matchPattern {
+      case PElem(
         PBoolLit(true),
         PCompositeLit(
           PMultisetType(PBoolType()),
@@ -1590,8 +1590,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should correctly parse multiset inclusion (2)") {
-    frontend.parseExpOrFail("mset[int] { } in mset[bool] { }") should matchPattern {
-      case PIn(
+    frontend.parseExpOrFail("mset[int] { } elem mset[bool] { }") should matchPattern {
+      case PElem(
         PCompositeLit(PMultisetType(PIntType()), PLiteralValue(Vector())),
         PCompositeLit(PMultisetType(PBoolType()), PLiteralValue(Vector()))
       ) =>
@@ -1599,10 +1599,10 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should correctly parse a comparison of (multi)set inclusions") {
-    frontend.parseExpOrFail("x in s == y in s") should matchPattern {
+    frontend.parseExpOrFail("x elem s == y elem s") should matchPattern {
       case PEquals(
-        PIn(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("s"))),
-        PIn(PNamedOperand(PIdnUse("y")), PNamedOperand(PIdnUse("s")))
+        PElem(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("s"))),
+        PElem(PNamedOperand(PIdnUse("y")), PNamedOperand(PIdnUse("s")))
       ) =>
     }
   }
@@ -1653,8 +1653,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse a (multi)set inclusion in combination with ordinary addition (1)") {
-    frontend.parseExpOrFail("a in b + c") should matchPattern {
-      case PIn(
+    frontend.parseExpOrFail("a elem b + c") should matchPattern {
+      case PElem(
         PNamedOperand(PIdnUse("a")),
         PAdd(PNamedOperand(PIdnUse("b")), PNamedOperand(PIdnUse("c")))
       ) =>
@@ -1662,8 +1662,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse a (multi)set inclusion in combination with ordinary addition (2)") {
-    frontend.parseExpOrFail("a + b in c") should matchPattern {
-      case PIn(
+    frontend.parseExpOrFail("a + b elem c") should matchPattern {
+      case PElem(
         PAdd(PNamedOperand(PIdnUse("a")), PNamedOperand(PIdnUse("b"))),
         PNamedOperand(PIdnUse("c"))
       ) =>
@@ -1671,9 +1671,9 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse a (multi)set inclusion in combination with ordinary addition (3)") {
-    frontend.parseExpOrFail("a in b + c in d") should matchPattern {
-      case PIn(
-        PIn(
+    frontend.parseExpOrFail("a elem b + c elem d") should matchPattern {
+      case PElem(
+        PElem(
           PNamedOperand(PIdnUse("a")),
           PAdd(PNamedOperand(PIdnUse("b")), PNamedOperand(PIdnUse("c")))
         ),

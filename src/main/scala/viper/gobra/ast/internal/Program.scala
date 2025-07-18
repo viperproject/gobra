@@ -882,12 +882,12 @@ case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) exte
 }
 
 /**
-  * Represents a membership expression "`left` in `right`".
+  * Represents a membership expression "`left` elem `right`".
   * Here `right` should be a ghost collection (that is,
   * a sequence, set, or multiset) of a type that is compatible
   * with the one of `left`.
   */
-case class Contains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("in") {
+case class Contains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("elem") {
   override val typ : Type = BoolT(Addressability.rValue)
 }
 

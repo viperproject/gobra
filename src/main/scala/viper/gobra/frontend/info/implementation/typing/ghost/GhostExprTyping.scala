@@ -158,7 +158,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       sameTypeE ++ patternE ++ error(clauses, "Cases cannot be empty", clauses.isEmpty) ++ pureExpE ++ moreThanOneDfltE ++ pureClauses
 
     case expr : PGhostCollectionExp => expr match {
-      case PIn(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
+      case PElem(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
         underlyingType(exprType(right)) match {
           case t : GhostCollectionType => ghostComparableTypes.errors(exprType(left), t.elem)(expr)
           case t : MapT => ghostComparableTypes.errors(exprType(left), t.key)(expr)
@@ -306,7 +306,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case expr : PGhostCollectionExp => expr match {
       // The result of integer ghost expressions is unbounded (UntypedConst)
       case PMultiplicity(_, _) => IntT(config.typeBounds.UntypedConst)
-      case PIn(_, _) => BooleanT
+      case PElem(_, _) => BooleanT
       case PGhostCollectionUpdate(seq, _) => exprType(seq)
       case expr : PSequenceExp => expr match {
         case PRangeSequence(_, _) => SequenceT(IntT(config.typeBounds.UntypedConst))

@@ -9,9 +9,9 @@ func example1() {
 }
 
 func example2() {
-  assert 3 in set[1..10]
-  assert 2 + 3 in set[1..10]
-  assert !(42 in set[1..10])
+  assert 3 elem set[1..10]
+  assert 2 + 3 elem set[1..10]
+  assert !(42 elem set[1..10])
 }
 
 func example3() {

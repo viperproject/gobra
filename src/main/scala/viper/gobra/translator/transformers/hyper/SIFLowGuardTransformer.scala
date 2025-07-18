@@ -7,9 +7,10 @@
 package viper.gobra.translator.transformers.hyper
 
 import viper.gobra.backend.BackendVerifier
-import viper.gobra.frontend.{Config, ConfigDefaults, Hyper}
+import viper.gobra.frontend.{Config, Hyper}
 import viper.gobra.reporting.Source
 import viper.gobra.translator.transformers.ViperTransformer
+import viper.gobra.util.Violation
 import viper.silver.ast._
 import viper.silver.ast.utility.Simplifier
 import viper.silver.plugin.standard.predicateinstance.PredicateInstance
@@ -628,7 +629,7 @@ class SIFLowGuardTransformerImpl(config: Config) extends SIFLowGuardTransformer 
   }
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
-    config.hyperMode.getOrElse(ConfigDefaults.DefaultHyperMode) match {
+    config.hyperModeOrDefault match {
       case Hyper.Enabled =>
         Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program), noMinor = false), task.backtrack))
 
@@ -637,7 +638,8 @@ class SIFLowGuardTransformerImpl(config: Config) extends SIFLowGuardTransformer 
 
       case Hyper.NoMajor =>
         Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program), noMinor = true), task.backtrack))
-    }
 
+      case Hyper.EnabledExtended => Violation.violation(s"SIFLowGuardTransformer does not support hyper mode 'extended'")
+    }
   }
 }

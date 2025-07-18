@@ -35,7 +35,7 @@ object Desugar extends LazyLogging {
 
   // We currently desugar packages sequentially. We may make it parallel again in the future (if that is beneficial),
   // but care must be taken to guarantee that updates to the init specs collector are synchronized.
-  def desugar(config: Config, info: viper.gobra.frontend.info.TypeInfo)(implicit executionContext: GobraExecutionContext): in.Program = {
+  def desugar(config: Config, info: viper.gobra.frontend.info.TypeInfo)(@unused executionContext: GobraExecutionContext): in.Program = {
     val pkg = info.tree.root
     val packageInitCollector = new PackageInitSpecCollector
 
@@ -4428,7 +4428,7 @@ object Desugar extends LazyLogging {
         case PLow(exp) => for { wExp <- go(exp) } yield in.Low(wExp)(src)
         case PLowContext() => unit(in.LowContext()(src))
 
-        case PIn(left, right) => for {
+        case PElem(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
         } yield underlyingType(dright.typ) match {

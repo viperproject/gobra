@@ -1096,7 +1096,7 @@ sealed trait PGhostCollectionExp extends PGhostExpression
 
 /**
   * Represents expressions of the form "`left` elem `right`",
-  * that is, containment of the elemt `left` in a ghost collection `right`.
+  * that is, membership of the element `left` in a ghost collection `right`.
   */
 case class PElem(left : PExpression, right : PExpression) extends PGhostCollectionExp with PBinaryGhostExp
 

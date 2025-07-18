@@ -299,7 +299,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
   }
 
   case class UnmatchedInErrorType()(implicit val context: ParserErrorContext) extends ErrorType {
-    val msg: String = "Unexpected 'in' encountered. Did you mean to use 'elem' denoting ghost collection containment?"
+    val msg: String = "Unexpected 'in' encountered. Did you mean to use 'elem' denoting ghost collection membership?"
   }
 
   case class SliceMissingIndex(index: Int = 0)(implicit val context: ParserErrorContext) extends ErrorType {

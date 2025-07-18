@@ -464,7 +464,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _: POld | _: PLabeledOld | _: PBefore => true
       case f: PForall => go(f.body)
       case e: PExists =>
-        // For the time being, all existential quantifiers must be strongly pure, so we wouldn't need to recurse here.
+        // The type checker currently enforces that all existential quantifiers must be strongly pure, so we wouldn't need to recurse here.
         // Nonetheless, this implementation is safer in case that ever changes.
         go(e.body)
 

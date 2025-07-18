@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000943
+
+//:: ExpectedOutput(type_error)
+preserves forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
+decreases
+pure func test1(b []int) bool
+
+//:: ExpectedOutput(type_error)
+ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
+decreases
+pure func test2(b []int) bool

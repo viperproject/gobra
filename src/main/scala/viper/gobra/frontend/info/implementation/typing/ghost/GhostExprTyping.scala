@@ -462,8 +462,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _: PUnfolding => true
       case _: PLet => true // the well-definedness check makes sure that both sub-expressions are pure.
       case _: POld | _: PLabeledOld | _: PBefore => true
-      case _: PForall => true
-      case _: PExists => true
+      case f: PForall => go(f.body)
+      case e: PExists =>
+        // For the time being, all existential quantifiers must be strongly pure, so we wouldn't need to recurse here.
+        // Nonetheless, this implementation is safer in case that ever changes.
+        go(e.body)
 
       case PConditional(cond, thn, els) => Seq(cond, thn, els).forall(go)
 

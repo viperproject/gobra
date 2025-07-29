@@ -9,38 +9,85 @@
 [info] loading settings for project silver from build.sbt ...
 [info] set current project to Gobra (in build file:/Users/herzamos/Desktop/eth/fs25/practical-work/gobra/)
 No changes detected in the antlr4 files. Skipping parser generation.
-[info] compiling 1 Scala source to /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/target/scala-2.13/classes ...
-[warn] /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/src/main/scala/viper/gobra/frontend/Desugar.scala:4295:15: local val preAccessWrite in method registerFunction is never used
-[warn]           val preAccessWrite = preAccess.flatMap {
-[warn]               ^
-[warn] /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/src/main/scala/viper/gobra/frontend/Desugar.scala:4303:15: local val preAccessRead in method registerFunction is never used
-[warn]           val preAccessRead = preAccess.flatMap {
-[warn]               ^
-[warn] /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/src/main/scala/viper/gobra/frontend/Desugar.scala:38:82: parameter value executionContext in method desugar is never used
-[warn]   def desugar(config: Config, info: viper.gobra.frontend.info.TypeInfo)(implicit executionContext: GobraExecutionContext): in.Program = {
-[warn]                                                                                  ^
-[warn] /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/src/main/scala/viper/gobra/frontend/Desugar.scala:183:27: parameter value pom in class Desugarer is never used
-[warn]   private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo, initSpecs: PackageInitSpecCollector) {
-[warn]                           ^
-[warn] four warnings found
-[info] done compiling
 [info] running (fork) viper.gobra.GobraRunner --norespectFunctionPrePermAmounts --recursive --projectRoot ../VerifiedSCION/verification --backend SILICON --chop 1 -I ../VerifiedSCION/verification/dependencies ../VerifiedSCION --onlyFilesWithHeader -m github.com/scionproto/scion --excludePackages layers --assumeInjectivityOnInhale --checkConsistency --mceMode=od --experimentalFriendClauses --moreJoins off -g /tmp/
 [info] Gobra 1.1-SNAPSHOT (2e6c3b7e@(detached))
 [info] (c) Copyright ETH Zurich 2012 - 2024
-[info] Verifying package /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/../VerifiedSCION/verification/dependencies/io - io [21:15:08]
+[info] Verifying package /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/../VerifiedSCION/verification/dependencies/io - io [12:53:27]
+[info] registering panic
 [info] Skipping panic
 [info] Gobra found 0 errors in package /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/../VerifiedSCION/verification/dependencies/io - io.
-[info] Verifying package /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/../VerifiedSCION/verification/dependencies/net - net [21:15:27]
+[info] Verifying package /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/../VerifiedSCION/verification/dependencies/net - net [12:53:48]
+[info] registering panic
 [info] Skipping panic
+[info] registering test
+[info] 	done
+[info] registering Unreachable
+[info] 	done
+[info] registering TODO
+[info] 	done
+[info] registering Asserting
+[info] 	done
+[info] registering AssumeForIO
+[info] 	done
+[info] registering Since
+[info] 	done
+[info] registering Until
+[info] 	done
+[info] registering Now
+[info] 	done
+[info] registering Unix
+[info] 	done
+[info] registering Date
 [info] Date_531757d2_F
+[info] 	done
+[info] registering Sleep
+[info] 	done
+[info] registering FixedZone
+[info] 	done
+[info] registering LoadLocation
+[info] 	done
+[info] registering GetByte
 [info] GetByte_88c2f8cc_F
+[info] 	done
+[info] registering SplitByIndex_Bytes
 [info] SplitByIndex_Bytes_88c2f8cc_F
+[info] 	done
+[info] registering CombineAtIndex_Bytes
 [info] CombineAtIndex_Bytes_88c2f8cc_F
+[info] 	done
+[info] registering Reslice_Bytes
 [info] Reslice_Bytes_88c2f8cc_F
+[info] 	done
+[info] registering Unslice_Bytes
 [info] Unslice_Bytes_88c2f8cc_F
+[info] 	done
+[info] registering SplitRange_Bytes
 [info] SplitRange_Bytes_88c2f8cc_F
+[info] 	done
+[info] registering CombineRange_Bytes
 [info] CombineRange_Bytes_88c2f8cc_F
+[info] 	done
+[info] registering NilAcc_Bytes
+[info] 	done
+[info] registering PermsImplyIneqWithWildcard
+[info] 	done
+[info] registering PermsImplyIneq
 [info] PermsImplyIneq_88c2f8cc_F
+[info] 	done
+[info] registering AssertSliceOverlap
+[info] 	done
+[info] registering Bytes_test
+[info] 	done
+[info] registering ListenUDP
+[info] 	done
+[info] registering DialUDP
+[info] 	done
+[info] registering IPv4
+[info] 	done
+[info] registering isZeros
+[info] 	done
+[info] registering ParseIP
+[info] 	done
 [info] An unknown Exception was thrown.
 [info] class viper.silver.ast.Let cannot be cast to class viper.silver.ast.AccessPredicate (viper.silver.ast.Let and viper.silver.ast.AccessPredicate are in unnamed module of loader 'app')
 [info] java.lang.ClassCastException: class viper.silver.ast.Let cannot be cast to class viper.silver.ast.AccessPredicate (viper.silver.ast.Let and viper.silver.ast.AccessPredicate are in unnamed module of loader 'app')
@@ -248,4 +295,4 @@ No changes detected in the antlr4 files. Skipping parser generation.
 [info] 
 [error] Nonzero exit code returned from runner: 1
 [error] (Compile / run) Nonzero exit code returned from runner: 1
-[error] Total time: 107 s (01:47), completed 28 Jul 2025, 21:15:36
+[error] Total time: 54 s, completed 29 Jul 2025, 12:53:57

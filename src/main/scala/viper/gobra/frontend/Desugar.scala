@@ -4238,6 +4238,7 @@ object Desugar extends LazyLogging {
     }
 
     def registerFunction(decl: PFunctionDecl): Vector[in.FunctionMember] = {
+      println(s"registering ${decl.id.name}")
       if (decl.id.name == Constants.INIT_FUNC_NAME) {
         /**
           *  In Go, functions named init are executed during a package initialization,
@@ -4327,6 +4328,7 @@ object Desugar extends LazyLogging {
           definedFunctions += functionProxy -> trivialityFunc
           ret = ret ++ Vector(trivialityFunc)
         }*/
+        println("\tdone")
         ret
 
 

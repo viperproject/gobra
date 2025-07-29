@@ -1,0 +1,79 @@
+[info] welcome to sbt 1.4.4 (AdoptOpenJDK Java 15.0.2)
+[info] loading settings for project gobra-build from plugins.sbt ...
+[info] loading project definition from /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/project
+[info] loading settings for project gobra from build.sbt ...
+[info] loading settings for project server from build.sbt ...
+[info] loading settings for project silicon from build.sbt ...
+[info] loading settings for project carbon from build.sbt ...
+[info] loading settings for project silver from build.sbt ...
+[info] loading settings for project silver from build.sbt ...
+[info] set current project to Gobra (in build file:/Users/herzamos/Desktop/eth/fs25/practical-work/gobra/)
+No changes detected in the antlr4 files. Skipping parser generation.
+[info] running (fork) viper.gobra.GobraRunner -p ../VerifiedSCION/private/topology --norespectFunctionPrePermAmounts --backend SILICON --chop 1 -I ../VerifiedSCION ../VerifiedSCION/verification/dependencies --onlyFilesWithHeader -m github.com/scionproto/scion --assumeInjectivityOnInhale --checkConsistency --mceMode=od --experimentalFriendClauses --moreJoins off -g /tmp/
+[info] Gobra 1.1-SNAPSHOT (7d79f434@(detached))
+[info] (c) Copyright ETH Zurich 2012 - 2024
+[info] Verifying package ../VerifiedSCION/private/topology - topology [15:13:50]
+[info] Skipping panic
+[info] An unknown Exception was thrown.
+[info] viper.silicon.reporting.ProverInteractionFailed: Unexpected output of prover. Expected 'success' but found: (error "line 1273 column 38: unknown constant Seq_range (Int Int) ")
+[info] java.util.concurrent.ExecutionException: viper.silicon.reporting.ProverInteractionFailed: Unexpected output of prover. Expected 'success' but found: (error "line 1273 column 38: unknown constant Seq_range (Int Int) ")
+[info] 	at java.base/java.util.concurrent.FutureTask.report(FutureTask.java:122)
+[info] 	at java.base/java.util.concurrent.FutureTask.get(FutureTask.java:191)
+[info] 	at viper.silicon.Silicon.verify(Silicon.scala:205)
+[info] 	at viper.silicon.Silicon.verify(Silicon.scala:163)
+[info] 	at viper.silver.frontend.DefaultFrontend.verification(Frontend.scala:270)
+[info] 	at viper.silver.frontend.DefaultFrontend.verification$(Frontend.scala:268)
+[info] 	at viper.silicon.SiliconFrontend.viper$silver$frontend$SilFrontend$$super$verification(Silicon.scala:319)
+[info] 	at viper.silver.frontend.SilFrontend.verification(SilFrontend.scala:286)
+[info] 	at viper.silver.frontend.SilFrontend.verification$(SilFrontend.scala:259)
+[info] 	at viper.silicon.SiliconFrontend.verification(Silicon.scala:319)
+[info] 	at viper.silver.frontend.DefaultPhases.$anonfun$Verification$1(Frontend.scala:117)
+[info] 	at viper.silver.frontend.Frontend.$anonfun$runAllPhases$1(Frontend.scala:62)
+[info] 	at viper.silver.frontend.Frontend.$anonfun$runAllPhases$1$adapted(Frontend.scala:60)
+[info] 	at scala.collection.immutable.List.foreach(List.scala:333)
+[info] 	at viper.silver.frontend.Frontend.runAllPhases(Frontend.scala:60)
+[info] 	at viper.silver.frontend.Frontend.runAllPhases$(Frontend.scala:59)
+[info] 	at viper.silicon.SiliconFrontend.runAllPhases(Silicon.scala:319)
+[info] 	at viper.silver.frontend.ViperFrontendAPI.verify(ViperFrontendAPI.scala:46)
+[info] 	at viper.silver.frontend.ViperFrontendAPI.verify$(ViperFrontendAPI.scala:41)
+[info] 	at viper.silicon.SiliconFrontendAPI.verify(Silicon.scala:366)
+[info] 	at viper.gobra.backend.Silicon.$anonfun$verify$1(Silicon.scala:27)
+[info] 	at scala.concurrent.Future$.$anonfun$apply$1(Future.scala:678)
+[info] 	at scala.concurrent.impl.Promise$Transformation.run(Promise.scala:467)
+[info] 	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1130)
+[info] 	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:630)
+[info] 	at java.base/java.lang.Thread.run(Thread.java:832)
+[info] Caused by: viper.silicon.reporting.ProverInteractionFailed: Unexpected output of prover. Expected 'success' but found: (error "line 1273 column 38: unknown constant Seq_range (Int Int) ")
+[info] 	at viper.silicon.decider.ProverStdIO.readSuccess(ProverStdIO.scala:430)
+[info] 	at viper.silicon.decider.ProverStdIO.assume(ProverStdIO.scala:244)
+[info] 	at viper.silicon.decider.ProverStdIO.assume(ProverStdIO.scala:237)
+[info] 	at viper.silicon.verifier.DefaultMainVerifier$allProvers$.assume(DefaultMainVerifier.scala:131)
+[info] 	at viper.silicon.interfaces.decider.ProverLike.$anonfun$assumeAxioms$1(Prover.scala:33)
+[info] 	at viper.silicon.interfaces.decider.ProverLike.$anonfun$assumeAxioms$1$adapted(Prover.scala:33)
+[info] 	at scala.collection.IterableOnceOps.foreach(IterableOnce.scala:575)
+[info] 	at scala.collection.IterableOnceOps.foreach$(IterableOnce.scala:573)
+[info] 	at scala.collection.AbstractIterable.foreach(Iterable.scala:933)
+[info] 	at viper.silicon.interfaces.decider.ProverLike.assumeAxioms(Prover.scala:33)
+[info] 	at viper.silicon.interfaces.decider.ProverLike.assumeAxioms$(Prover.scala:30)
+[info] 	at viper.silicon.verifier.DefaultMainVerifier$allProvers$.assumeAxioms(DefaultMainVerifier.scala:119)
+[info] 	at viper.silicon.supporters.BuiltinDomainsContributor.emitAxiomsAfterAnalysis(BuiltinDomainsContributor.scala:156)
+[info] 	at viper.silicon.verifier.DefaultMainVerifier.$anonfun$analyzeProgramAndEmitPreambleContributions$7(DefaultMainVerifier.scala:550)
+[info] 	at viper.silicon.verifier.DefaultMainVerifier.$anonfun$analyzeProgramAndEmitPreambleContributions$7$adapted(DefaultMainVerifier.scala:549)
+[info] 	at scala.collection.immutable.List.foreach(List.scala:333)
+[info] 	at viper.silicon.verifier.DefaultMainVerifier.analyzeProgramAndEmitPreambleContributions(DefaultMainVerifier.scala:549)
+[info] 	at viper.silicon.verifier.DefaultMainVerifier.verify(DefaultMainVerifier.scala:214)
+[info] 	at viper.silicon.Silicon.viper$silicon$Silicon$$runVerifier(Silicon.scala:245)
+[info] 	at viper.silicon.Silicon$$anon$1.call(Silicon.scala:199)
+[info] 	at viper.silicon.Silicon$$anon$1.call(Silicon.scala:198)
+[info] 	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+[info] 	... 3 common frames omitted
+[info] Writing report to /tmp/stats.json
+[info] The verification of member ../VerifiedSCION/private/topology - topology.../VerifiedSCION/private/topology - topology_package_init did not terminate
+[info] The verification of member ../VerifiedSCION/private/topology - topology.LinkTypeFromString(string) did not terminate
+[info] The verification of member ../VerifiedSCION/private/topology - topology.*LinkType.UnmarshalText([]byte) did not terminate
+[info] The verification of member ../VerifiedSCION/private/topology - topology.LinkType.MarshalText() did not terminate
+[info] The verification of member ../VerifiedSCION/private/topology - topology.LinkType.String() did not terminate
+[info] 
+[error] Nonzero exit code returned from runner: 1
+[error] (Compile / run) Nonzero exit code returned from runner: 1
+[error] Total time: 80 s (01:20), completed 17 Jul 2025, 15:14:44

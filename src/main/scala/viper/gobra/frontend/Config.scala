@@ -79,6 +79,9 @@ object ConfigDefaults {
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
   val DefaultRespectFunctionPrePermAmounts: Boolean = false
   val DefaultEnableExperimentalFriendClauses: Boolean = false
+  val DefaultDisableInfeasibilityChecks: Boolean = false
+  val DefaultEnableAssumptionAnalysis: Boolean = false
+  val DefaultStartAssumptionAnalysisTool: Boolean = false
 }
 
 // More-complete exhale modes
@@ -176,6 +179,9 @@ case class Config(
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
+                   disableInfeasibilityChecks: Boolean = ConfigDefaults.DefaultDisableInfeasibilityChecks,
+                   enableAssumptionAnalysis: Boolean = ConfigDefaults.DefaultEnableAssumptionAnalysis,
+                   startAssumptionAnalysisTool: Boolean = ConfigDefaults.DefaultStartAssumptionAnalysisTool
 ) {
 
   def merge(other: Config): Config = {
@@ -236,6 +242,9 @@ case class Config(
       moreJoins = MoreJoins.merge(moreJoins, other.moreJoins),
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || other.respectFunctionPrePermAmounts,
       enableExperimentalFriendClauses = enableExperimentalFriendClauses || other.enableExperimentalFriendClauses,
+      disableInfeasibilityChecks = disableInfeasibilityChecks || other.disableInfeasibilityChecks,
+      enableAssumptionAnalysis = enableAssumptionAnalysis || other.enableAssumptionAnalysis,
+      startAssumptionAnalysisTool = startAssumptionAnalysisTool || other.startAssumptionAnalysisTool,
     )
   }
 
@@ -297,6 +306,9 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                       enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
+                      disableInfeasibilityChecks: Boolean = ConfigDefaults.DefaultDisableInfeasibilityChecks,
+                      enableAssumptionAnalysis: Boolean = ConfigDefaults.DefaultEnableAssumptionAnalysis,
+                      startAssumptionAnalysisTool: Boolean = ConfigDefaults.DefaultStartAssumptionAnalysisTool,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -360,6 +372,9 @@ trait RawConfig {
     moreJoins = baseConfig.moreJoins,
     respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
     enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
+    disableInfeasibilityChecks = baseConfig.disableInfeasibilityChecks,
+    enableAssumptionAnalysis = baseConfig.enableAssumptionAnalysis,
+    startAssumptionAnalysisTool = baseConfig.startAssumptionAnalysisTool,
   )
 }
 
@@ -868,6 +883,28 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = Some(ConfigDefaults.DefaultEnableExperimentalFriendClauses),
     noshort = true,
   )
+
+  val disableInfeasibilityChecks: ScallopOption[Boolean] = opt[Boolean](
+    name = "disableInfeasibilityChecks",
+    descr = "Disable infeasibility checks. As a consequence all paths will be explored to the end. (Potentially) huge performance overhead!",
+    default = Some(ConfigDefaults.DefaultDisableInfeasibilityChecks),
+    noshort = true
+  )
+
+  val enableAssumptionAnalysis: ScallopOption[Boolean] = opt[Boolean](
+    name = "enableAssumptionAnalysis",
+    descr = "Enable assumption analysis mode",
+    default = Some(ConfigDefaults.DefaultEnableAssumptionAnalysis),
+    noshort = true
+  )
+
+  val startAssumptionAnalysisTool: ScallopOption[Boolean] = opt[Boolean](
+    name = "startAssumptionAnalysisTool",
+    descr = "Starts the assumption analysis command line tool after verification",
+    default = Some(ConfigDefaults.DefaultStartAssumptionAnalysisTool),
+    noshort = true
+  )
+
   /**
     * Exception handling
     */
@@ -1079,5 +1116,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     moreJoins = moreJoins(),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts(),
     enableExperimentalFriendClauses = enableExperimentalFriendClauses(),
+    disableInfeasibilityChecks = disableInfeasibilityChecks(),
+    enableAssumptionAnalysis = enableAssumptionAnalysis(),
+    startAssumptionAnalysisTool = startAssumptionAnalysisTool(),
   )
 }

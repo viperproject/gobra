@@ -60,6 +60,15 @@ object ViperBackends {
       if (config.parallelizeBranches) {
         options ++= Vector("--parallelizeBranches")
       }
+      if (config.disableInfeasibilityChecks) {
+        options ++= Vector("--disableInfeasibilityChecks")
+      }
+      if (config.enableAssumptionAnalysis) {
+        options ++= Vector("--enableAssumptionAnalysis")
+      }
+      if (config.startAssumptionAnalysisTool) {
+        options ++= Vector("--startAssumptionAnalysisTool")
+      }
       options ++= exePaths
       if (config.disableSetAxiomatization) {
         // Since resources are stored within the .jar archive, we cannot

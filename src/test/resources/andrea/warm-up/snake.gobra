@@ -1,0 +1,70 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package snake
+
+
+type CoordStruct struct{
+	x int;
+	y int;
+};
+
+
+preserves acc(&self.x, 1/2) && acc(&self.y, 1/2) && acc(&other.x, 1/2) && acc(&other.y, 1/2);
+ensures res == (self.x == other.x && self.y == other.y)
+decreases;
+func (self *CoordStruct) equals(other *CoordStruct) (res bool){
+  return self.x == other.x && self.y == other.y;
+};
+
+
+
+ensures len(res) == 1;
+func getUserInput() (res string);
+
+requires acc(&coord.x) && acc(&coord.y);
+ensures acc(&coord.x) && acc(&coord.y);
+ensures old(coord.x)-1 <= coord.x && coord.x <= old(coord.x)+1;
+ensures old(coord.y)-1 <= coord.y && coord.y <= old(coord.y)+1;
+ensures move == "u" ==> coord.y == old(coord.y)+1;
+ensures move == "d" ==> coord.y == old(coord.y)-1;
+ensures move == "r" ==> coord.x == old(coord.x)+1;
+ensures move == "l" ==> coord.x == old(coord.x)-1;
+ensures coord.x == old(coord.x) || coord.y == old(coord.y)
+func next(coord *CoordStruct, move string){
+  switch move {
+  case "u":
+    coord.y = coord.y+1
+  case "r":
+    coord.x = coord.x+1
+  case "d":
+    coord.y = coord.y-1
+  case "l":
+    coord.x = coord.x-1
+  default:
+     // nop
+  }
+};
+
+
+decreases;
+pure func isMoveAllowed(x int, y int, move string) bool{
+  return (move == "l" && x > 0) || (move == "r" && x < 20) || (move == "d" && y > 0) || (move == "u" && y < 20);
+}
+
+
+func client() {
+    coord@ := CoordStruct{0,0};
+    goal@ := CoordStruct{10,5};
+
+    invariant acc(&coord.x) && acc(&coord.y)
+    invariant acc(&goal.x) && acc(&goal.y)
+    invariant 0 <= coord.x && coord.x <= 20
+    invariant 0 <= coord.y && coord.y <= 20
+    for !(&coord).equals(&goal) {
+      user_input := getUserInput();
+      if(isMoveAllowed(coord.x, coord.y, user_input)){
+        next(&coord, user_input);
+      }
+    };
+};

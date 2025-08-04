@@ -1,0 +1,116 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+ensures forall i int :: 0 <= i && i < len(a) ==> a[i] == v
+func arrayLoopTest(v int) (a [64]int) {
+  share a
+  invariant 0 <= i && i <= len(a)
+  invariant forall k int :: 0 <= k && k < len(a) ==> acc(&a[k])
+  invariant forall k int :: 0 <= k && k < i ==> a[k] == v
+	for i := 0; i < len(a); i++ {
+    a[i] = v
+	}
+}
+
+ensures res == (x * y) * (x + y)
+func g(x float64, y float64) (res float64) {
+  a := x * y
+  b := x + y
+	return a * b
+}
+
+preserves acc(x)
+requires len(x) > 0
+ensures forall i int :: 0 <= i && i < len(x) ==> max >= x[i]
+decreases
+func forLoopTest(x []uint) (max uint) {
+	max = x[0]
+	invariant acc(x)
+	invariant 0 <= i && i <= len(x)
+	invariant forall k int :: 0 <= k && k < i ==> max >= x[k]
+	decreases len(x) - i
+	for i := 0; i < len(x); i++ {
+	  j := x[i]
+		if j > max {
+			max = j
+		}
+	}
+}
+
+func breakTest() {
+	var a [15]int
+	invariant 0 <= i && i <= cap(a)
+	for i := 0; i < cap(a); i++ {
+		a[i] = i
+	}
+	var contains5 = false
+	invariant 0 <= i && i <= cap(a)
+	invariant contains5 == (exists j int :: { a[j] } 0 <= j && j < i && a[j] == 5)
+	decreases cap(a) - i
+	for i := 0; i < cap(a); i++ {
+		if a[i] == 5 {
+			contains5 = true
+			break
+		}
+	}
+	assert contains5 == (exists i int :: { a[i] } 0 <= i && i < cap(a) && a[i] == 5)
+}
+
+
+func lenTest() {
+	h1 := "hello"
+	h2 := "world"
+	assert len(h1) == 5
+	assert len(h2) == 5
+	h3 := h1 + h2
+	assert len(h3) == 10
+}
+
+func ternaryTest(i int) {
+
+  a := i >= 0 ? i : -i
+
+  assert a >= 0
+
+  assert a >= i
+
+  assume i > 0
+  assert a == i
+}
+
+ensures 0 <= x && x <= 2 ==> res == x + 1
+ensures x > 2 ==> res == 0
+func switchTest(x int) (res int) {
+	switch x {
+	case 0:
+		res = 1
+	case 1:
+		res = 2
+	case 2:
+		res = 3
+	default:
+		res = 0
+	}
+}
+
+
+func arrayTest(v int) {
+  a := [3]int{v, v, v}
+  b := a[0] + a[1] + a[2]
+
+  assert len(a) == 3
+  assert b == 3*v
+
+  c := [2][2]int{[2]int{1, 2}, [2]int{3, 4}}
+  c[0][0] = 0
+  a[0] = c[0][1]
+
+  assert a[1] == v
+  assert a[0] == 2
+
+  a[0] = v
+
+  assert forall i int :: 0 <= i && i < len(a) ==> a[i] == v
+}

@@ -23,7 +23,7 @@ function run(){
     -o -s 
     viper.gobra.AssumptionAnalysisBenchmarkTest
   "
-  echo "Executing $NAME\n$SBT_ARGS"
+  echo "Executing $2\n$SBT_ARGS"
   sbt "$SBT_ARGS"
 }
 

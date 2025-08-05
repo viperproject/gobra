@@ -125,8 +125,17 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t =>  error(n, s"expected interface or type, but got an expression of type $t")
     }
 
-    case PLow(e) => isExpr(e).out
-    case _: PLowContext => noMessages
+    case PLow(e) =>
+      val inNonHyperPureFuncOrMethDecl = tryEnclosingFunctionOrMethod(expr) match {
+        case Some(f: PFunctionDecl) => f.spec.isPure && !f.spec.isHyperFunc
+        case Some(m: PMethodDecl) => m.spec.isPure && !m.spec.isHyperFunc
+        case _ => false
+      }
+      isExpr(e).out ++
+        error(e, "low assertions are not allowed in pure function declarations", inNonHyperPureFuncOrMethDecl)
+
+    case _: PLowContext =>
+      noMessages
 
     case n: PGhostEquals =>
       val lType = typ(n.left)

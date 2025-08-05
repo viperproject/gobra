@@ -240,6 +240,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PInvoke =>
       val mayInit = isEnclosingMayInit(n)
+      val (inPureFunc, inHyperFunc) = tryEnclosingFunctionOrMethod(n) match {
+        case Some(f: PFunctionDecl) => (f.spec.isPure, f.spec.isHyperFunc)
+        case Some(m: PMethodDecl) => (m.spec.isPure, m.spec.isHyperFunc)
+        case _ => (false, false)
+      }
+      val inLowAssertion = isEnclosingLowAssertion(n)
       val (l, r) = (exprOrType(n.base), resolve(n))
       (l,r) match {
         case (Right(_), Some(p: ap.Conversion)) =>
@@ -254,12 +260,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             argWithinBounds
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
-          val (isOpaque, isMayInit, isImported, isPure) = c.callee match {
+          val (isOpaque, isMayInit, isImported, isPure, isHyper) = c.callee match {
             case base: ap.Symbolic => base.symb match {
-              case f: st.Function => (f.isOpaque, f.decl.spec.mayBeUsedInInit, f.context != this, f.isPure)
+              case f: st.Function =>
+                (f.isOpaque, f.decl.spec.mayBeUsedInInit, f.context != this, f.isPure, f.isHyper)
               case m: st.MethodImpl =>
-                (m.isOpaque, m.decl.spec.mayBeUsedInInit, m.context != this, m.isPure)
-              case _ => (false, true, false, false)
+                (m.isOpaque, m.decl.spec.mayBeUsedInInit, m.context != this, m.isPure, m.isHyper)
+              case _ => (false, true, false, false, false)
             }
           }
           // We disallow calling interface methods whose receiver type is an interface declared in the current package
@@ -289,11 +296,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n.base, s"type error: got $t but expected function type or AbstractType")
           }
+          val callingHyperFromNonHyper = error(n, "Cannot call hyper function from non-hyper function", inPureFunc && !inHyperFunc && isHyper)
+          val callingNonHyperFromHyper = error(n, "Calls to non-hyper pure functions in hyper functions can only occur in low assertions",
+            inPureFunc && inHyperFunc && !inLowAssertion && !isHyper)
           // Pure functions may always be called from 'mayInit' methods, as they are not allowed to assume the
           // package invariants.
           val mayInitSeparation = error(n, "Function called from 'mayInit' context is not 'mayInit'.",
             !isImported && isEnclosingMayInit(n) && !(isMayInit || isPure))
-          cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation
+          cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation ++ callingHyperFromNonHyper ++
+            callingNonHyperFromHyper
 
         case (Left(_), Some(_: ap.ClosureCall)) =>
           error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a closure call.", n.reveal) ++

@@ -92,6 +92,9 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val isEnclosingGhost: PNode => Boolean =
     down(false){ case _: PGhostifier[_] | _: PGhostNode => true }
 
+  lazy val isEnclosingLowAssertion: PNode => Boolean =
+    down(false) { case _: PLow => true }
+
   // Returns true iff n occurs in an init() function, or a function marked with
   // 'mayInit' or in the rhs of a global variable declaration.
   def isEnclosingMayInit(n: PNode): Boolean = {

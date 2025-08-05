@@ -17,6 +17,7 @@ import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.translator.util.VprInfo
 import viper.gobra.util.{Algorithms, Violation}
 import viper.silver.plugin.standard.termination
 import viper.silver.verifier.ErrorReason
@@ -712,6 +713,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
       x.transform { case v: vpr.LocalVar if v.name == p.results.head.id => vpr.Result(resultType)() }
     }
 
+    val annotatedInfo = VprInfo.maybeAttachHyperFunc(info, p.isHyper)
+
     for {
       vPres <- ml.sequence(p.pres map ctx.precondition)
       measures <- ml.sequence(p.terminationMeasures.map(e => ml.pure(ctx.assertion(e))(ctx)))
@@ -724,7 +727,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         pres = utils.receiverNotNil(recv)(pos, info, errT)(ctx) +: (vPres ++ measures),
         posts = (cases map { case (impl, implProxy) => clause(impl, implProxy) }) ++ posts,
         body = body
-      )(pos, info, errT)
+      )(pos, annotatedInfo, errT)
     } yield func
   }
 
@@ -741,6 +744,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     val itfSymb = ctx.lookup(p.superProxy).asInstanceOf[in.PureMethod]
     val vItfFun = ctx.defaultEncoding.pureMethod(itfSymb)(ctx).res
+    val isHyper = itfSymb.isHyper
 
     val body = p.body.getOrElse(in.PureMethodCall(p.receiver, p.subProxy, p.args, p.results.head.typ, false)(p.info))
 
@@ -755,7 +759,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       backendAnnotations = Vector.empty,
       body = Some(body),
       isOpaque = false,
-      isHyper = false
+      isHyper = isHyper
     )(p.info))(ctx)
 
     val pres = vItfFun.pres.map { pre =>
@@ -767,7 +771,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
 
     val (pos, info, errT) = p.vprMeta
-    pureMethodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, info, errT))
+    val annotatedInfo = VprInfo.maybeAttachHyperFunc(info, isHyper)
+    pureMethodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, annotatedInfo, errT))
   }
 
   /**

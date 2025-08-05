@@ -358,8 +358,8 @@ trait SIFLowGuardTransformer {
 
     reducedE.transform {
       // prolly wrong:
-      // case f: FuncApp if ctx.isHyperFunction(f.funcname) =>
-      //  runHyperFuncCall(f, ctx)
+      case f: FuncApp if ctx.isHyperFunction(f.funcname) =>
+        runHyperFuncCall(f, ctx)
       case v: LocalVar => v.copy(name = ctx.rename(v.name))(v.pos, v.info, v.errT)
       case v: LocalVarDecl => v.copy(name = ctx.rename(v.name))(v.pos, v.info, v.errT)
       case f: Field => runField(f, ctx)

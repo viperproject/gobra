@@ -10,6 +10,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.InvalidImplTermMeasureAnnotation
 import viper.gobra.reporting.Source.Parser.Single
 import viper.gobra.translator.Names
+import viper.gobra.translator.util.VprInfo
 import viper.gobra.util.Violation
 
 /**
@@ -183,11 +184,13 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   Violation.violation(m.results.length == 1, "Expected one and only one out-parameter.")
                   // only performs transformation if method has termination measures
                   val src = m.info
+                  val (posMeta, infoMeta, errTMeta) = m.vprMeta
+                  val annotatedInfoMeta = VprInfo.maybeAttachHyperFunc(infoMeta, m.isHyper)
 
                   // the fallback function is called if no comparison succeeds
                   val fallbackProxy = Names.InterfaceMethod.copy(m.name, "fallback")
                   val fallbackTermMeasures = Vector(in.NonItfMethodWildcardMeasure(None)(src))
-                  val fallbackFunction = m.copy(name = fallbackProxy, terminationMeasures = fallbackTermMeasures, body = None)(src)
+                  val fallbackFunction = m.copy(name = fallbackProxy, terminationMeasures = fallbackTermMeasures, body = None)(src).withMeta(posMeta, annotatedInfoMeta, errTMeta)
 
                   // new body to check termination
                   val terminationCheckBody = {
@@ -224,7 +227,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                     }
                     in.Conditional(in.BoolLit(b = true)(src), fallbackProxyCall, bodyFalseBranch, returnType)(src)
                   }
-                  val transformedM = m.copy(terminationMeasures = m.terminationMeasures, body = Some(terminationCheckBody))(src)
+                  val transformedM = m.copy(terminationMeasures = m.terminationMeasures, body = Some(terminationCheckBody))(src).withMeta(posMeta, annotatedInfoMeta, errTMeta)
 
                   methodsToRemove += m
                   methodsToAdd += transformedM

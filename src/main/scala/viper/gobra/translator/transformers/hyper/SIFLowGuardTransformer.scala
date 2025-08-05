@@ -21,16 +21,22 @@ import viper.silver.verifier.{AbstractError, ConsistencyError}
 import scala.annotation.{tailrec, unused}
 
 trait SIFLowGuardTransformer {
-
   def program(
                  p: Program,
                  onlyMajor: String => Boolean,
                  noMinor: Boolean,
                ): Program = {
 
+    val hyperFuncs = p.functions.collect { f =>
+      f.info match {
+        case ConsInfo(AnnotationInfo(v), _) if v.keySet.size == 1 && v.contains("hyperFunc") =>
+          f.name
+      }
+    }
+
     val relPreds = relationalPredicates(p)
     val noDups = noDuplicates(p)
-    val ctx = newContext(relPreds, noDups, onlyMajor, noMinor)
+    val ctx = newContext(relPreds, noDups, onlyMajor, noMinor, hyperFuncs.contains)
 
     val members =
       p.methods.flatMap(method(_, ctx)) ++
@@ -73,9 +79,28 @@ trait SIFLowGuardTransformer {
   }
 
   def function(f: Function, ctx: Context): Vector[Member] = {
-    if (ctx.hasNoDuplicates(f.name) || ctx.onlyMajor(f.name)) {
+    // println(s"function: ${f.name}")
+    if (ctx.onlyMajor(f.name)) {
       Vector(runFunction(f, ctx.major))
-    } else Vector(runFunction(f, ctx.major), runFunction(f, ctx.minor))
+    } else if (ctx.isHyperFunction(f.name)) {
+      // println(s"name: ${f.name}")
+      val newInfo = f.info match {
+        case ConsInfo(AnnotationInfo(v), oldInfo) if v.keySet.size == 1 && v.contains("hyperFunc") =>
+          oldInfo
+        case _ => ???
+      }
+      Vector(f.copy(
+        formalArgs = f.formalArgs.map(runLocalVarDecl(_, ctx.major)) ++ f.formalArgs.map(runLocalVarDecl(_, ctx.minor)),
+        pres = f.pres.map(assertion(_, ctx)),
+        posts = f.posts.map(assertion(_, ctx)),
+        // body = None,
+        body = f.body.map(runHyperExp(_, ctx)),
+      )(f.pos, newInfo, f.errT))
+    } else if (ctx.hasNoDuplicates(f.name)) {
+      Vector(runFunction(f, ctx.major))
+    } else {
+      Vector(runFunction(f, ctx.major), runFunction(f, ctx.minor))
+    }
   }
 
   def runFunction(f: Function, ctx: RunContext): Function = {
@@ -239,6 +264,8 @@ trait SIFLowGuardTransformer {
 
     def go(e: Exp, isPositive: Boolean): Exp = {
       e match {
+        case f: FuncApp if ctx.isHyperFunction(f.funcname) =>
+          runHyperExp(f, ctx)
         case e: Exp if !isRelational(e, ctx) =>
           if (isPositive) positiveUnary(e) else negativeUnary(e)
 
@@ -330,6 +357,9 @@ trait SIFLowGuardTransformer {
     val reducedE = removeMinorExp(e, ctx)
 
     reducedE.transform {
+      // prolly wrong:
+      // case f: FuncApp if ctx.isHyperFunction(f.funcname) =>
+      //  runHyperFuncCall(f, ctx)
       case v: LocalVar => v.copy(name = ctx.rename(v.name))(v.pos, v.info, v.errT)
       case v: LocalVarDecl => v.copy(name = ctx.rename(v.name))(v.pos, v.info, v.errT)
       case f: Field => runField(f, ctx)
@@ -339,6 +369,29 @@ trait SIFLowGuardTransformer {
       case l: SIFLowExp => TrueLit()(l.pos, l.info, l.errT)
       case l: SIFLowEventExp => TrueLit()(l.pos, l.info, l.errT)
     }
+  }
+
+  def runHyperExp(e: Exp, ctx: Context): Exp = {
+    e.transform {
+      case v: LocalVar => v
+      case v: LocalVarDecl => v
+      case f: Field => ???
+      case f: FuncApp =>
+        runHyperFuncCall(f, ctx)
+        // f.copy(funcname = ctx.rename(f.funcname), args = f.args.map(go))(f.pos, f.info, f.typ, f.errT)
+      case p: PredicateAccess => ???
+      case p: PredicateInstance => ???
+      case l: SIFLowExp => assertion(l, ctx)
+      case l: SIFLowEventExp => assertion(l, ctx)
+      case e: Exp if e.typ == Bool => assertion(e, ctx)
+    }
+  }
+
+  def runHyperFuncCall(f: FuncApp, ctx: Context): FuncApp = {
+    assert(ctx.isHyperFunction(f.funcname))
+    f.copy(
+      args = f.args.map(runExp(_, ctx.major)) ++ f.args.map(runExp(_, ctx.minor))
+    )(f.pos, f.info, f.typ, f.errT)
   }
 
   def hasMajorOnly(n: Node, ctx: Context): Boolean = n.exists {
@@ -521,6 +574,7 @@ trait SIFLowGuardTransformer {
                   _noDups: String => Boolean,
                   _onlyMajor: String => Boolean,
                   _noMinor: Boolean,
+                  _hyperFuncs: String => Boolean
                 ): Context = {
 
     trait MajorContext extends RunContext { self: Context =>
@@ -541,6 +595,7 @@ trait SIFLowGuardTransformer {
       override def isRelationalPredicate(p: String): Boolean = _relPreds(p)
       override def predicateFunctionName(n: String): String = s"${n}F"
       override def hasNoDuplicates(n: String): Boolean = _noDups(n)
+      override def isHyperFunction(n: String): Boolean = _hyperFuncs(n)
 
       override def major: RunContext = new ContextImpl with MajorContext
       override def minor: RunContext = new ContextImpl with MinorContext
@@ -563,6 +618,7 @@ trait Context {
   def isRelationalPredicate(@unused p: String): Boolean
   def predicateFunctionName(@unused n: String): String
   def hasNoDuplicates(@unused n: String): Boolean
+  def isHyperFunction(@unused n: String): Boolean
 
   def major: RunContext
   def minor: RunContext

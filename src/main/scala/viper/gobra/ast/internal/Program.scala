@@ -201,7 +201,8 @@ case class PureMethod(
                        override val terminationMeasures: Vector[TerminationMeasure],
                        override val backendAnnotations: Vector[BackendAnnotation],
                        body: Option[Expr],
-                       isOpaque: Boolean
+                       isOpaque: Boolean,
+                       isHyper: Boolean
                      )(val info: Source.Parser.Info) extends Member with MethodMember {
   require(results.size <= 1)
 }
@@ -259,7 +260,8 @@ case class PureFunction(
                          override val terminationMeasures: Vector[TerminationMeasure],
                          override val backendAnnotations: Vector[BackendAnnotation],
                          body: Option[Expr],
-                         isOpaque: Boolean
+                         isOpaque: Boolean,
+                         isHyper: Boolean
                        )(val info: Source.Parser.Info) extends Member with FunctionMember {
   require(results.size <= 1)
 }

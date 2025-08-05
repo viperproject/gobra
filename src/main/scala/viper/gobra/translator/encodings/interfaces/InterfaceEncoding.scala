@@ -754,7 +754,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
       terminationMeasures = Vector.empty,
       backendAnnotations = Vector.empty,
       body = Some(body),
-      isOpaque = false
+      isOpaque = false,
+      isHyper = false
     )(p.info))(ctx)
 
     val pres = vItfFun.pres.map { pre =>

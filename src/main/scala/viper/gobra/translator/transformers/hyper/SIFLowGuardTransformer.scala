@@ -480,7 +480,7 @@ trait SIFLowGuardTransformer {
       case p: Package =>
         Package(
           wand = runExp(p.wand, ctx).asInstanceOf[MagicWand],
-          proofScript = toSeqn(statement(p.proofScript, ctx)),
+          proofScript = toSeqn(runStatement(p.proofScript, ctx)),
         )(p.pos, p.info, p.errT)
     }
   }

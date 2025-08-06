@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000946
+
+type Struct0 struct { b []byte }
+pred (s0 Struct0) Mem() { acc(s0.b) }
+
+type Struct1 struct { b []byte }
+pred (s1 Struct1) Mem() { acc(s1.b) }
+
+requires acc(s0.Mem(), 1/2)
+ensures  acc(s1.Mem(), 1/2)
+ensures  acc(s1.Mem(), 1/2) --* acc(s0.Mem(), 1/2)
+func test(s0 Struct0) (s1 Struct1) {
+    unfold acc(s0.Mem(), 1/2)
+    s1 = Struct1{s0.b}
+    fold acc(s1.Mem(), 1/2)
+    package (acc(s1.Mem(), 1/2) --* acc(s0.Mem(), 1/2)) {
+	unfold acc(s1.Mem(), 1/2)
+	fold acc(s0.Mem(), 1/2)
+    }
+}

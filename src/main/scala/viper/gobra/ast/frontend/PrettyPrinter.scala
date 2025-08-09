@@ -557,6 +557,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PTypeExpr(typ) => "type" <> brackets(showType(typ))
       case PIsComparable(exp) => "isComparable" <> parens(showExprOrType(exp))
 
+      case PLow(exp) => "low" <> parens(showExpr(exp))
+      case _: PLowContext => "low_context"
+
       case POptionNone(t) => "none" <> brackets(showType(t))
       case POptionSome(e) => "some" <> parens(showExpr(e))
       case POptionGet(e) => "get" <> parens(showExpr(e))
@@ -565,7 +568,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         ssep(clauses map { c => showMatchExpClause(c) <+> showExpr(c.exp) }, line))
 
       case expr : PGhostCollectionExp => expr match {
-        case PIn(left, right) => showSubExpr(expr, left) <+> "in" <+> showSubExpr(expr, right)
+        case PElem(left, right) => showSubExpr(expr, left) <+> "elem" <+> showSubExpr(expr, right)
         case PMultiplicity(left, right) => showSubExpr(expr, left) <+> "#" <+> showSubExpr(expr, right)
         case PGhostCollectionUpdate(seq, clauses) => showExpr(seq) <>
           (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showGhostColUpdateClause)))

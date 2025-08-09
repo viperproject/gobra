@@ -4,8 +4,8 @@
 package mathmaps
 
 ghost
-requires key in domain(m)
-ensures  value in range(m)
+requires key elem domain(m)
+ensures  value elem range(m)
 ensures  m == resM
 func test(m dict[string]int, key string) (value int, resM dict[string]int) {
     value := m[key]

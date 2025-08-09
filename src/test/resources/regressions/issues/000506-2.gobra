@@ -12,7 +12,7 @@ type ItfcT interface {
 
 type ImplT struct{}
 
-//:: ExpectedOutput(generated_implementation_proof:pure_function_termination_error)
+//:: ExpectedOutput(type_error)
 pure
 ensures n >= 0
 func (i ImplT) f() (n int) {

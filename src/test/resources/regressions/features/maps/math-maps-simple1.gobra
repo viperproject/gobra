@@ -23,8 +23,8 @@ func test1() {
 
 	// domain and range obtain the set of keys and values, respectively
 	assert len(domain(m2)) == 3
-	assert !("Y" in domain(m2))
-	assert 5 in range(m1)
+	assert !("Y" elem domain(m2))
+	assert 5 elem range(m1)
 
 	// map update via assignment
 	m1["Y"] = 1
@@ -36,10 +36,10 @@ func test1() {
 
 // tests conversions from actual maps to dictionaries
 requires acc(m)
-requires 5 in domain(m)
-requires !(8 in domain(m))
+requires 5 elem domain(m)
+requires !(8 elem domain(m))
 func test2(m map[int]int) {
 	ghost var y = dict(m)
-	assert 5 in domain(y)
-	assert !(8 in domain(m))
+	assert 5 elem domain(y)
+	assert !(8 elem domain(m))
 }

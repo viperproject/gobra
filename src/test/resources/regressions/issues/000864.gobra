@@ -1,0 +1,25 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000864
+
+type I interface {
+	decreases 0
+	m()
+}
+
+type S struct{}
+
+//:: ExpectedOutput(function_termination_error)
+decreases 1
+func (s *S) m() {
+	var i I = new(S)
+	i.m()
+}
+
+func main() {
+	var i I = &S{}
+	i.m()
+}
+
+(*S) implements I

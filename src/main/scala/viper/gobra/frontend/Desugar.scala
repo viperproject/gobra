@@ -36,7 +36,7 @@ object Desugar extends LazyLogging {
 
   // We currently desugar packages sequentially. We may make it parallel again in the future (if that is beneficial),
   // but care must be taken to guarantee that updates to the init specs collector are synchronized.
-  def desugar(config: Config, info: viper.gobra.frontend.info.TypeInfo)(implicit executionContext: GobraExecutionContext): in.Program = {
+  def desugar(config: Config, info: viper.gobra.frontend.info.TypeInfo)(@unused executionContext: GobraExecutionContext): in.Program = {
     val pkg = info.tree.root
     val packageInitCollector = new PackageInitSpecCollector
 
@@ -650,7 +650,7 @@ object Desugar extends LazyLogging {
       // translate pre- and postconditions and termination measures
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx, info)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx, info)
-      val terminationMeasures = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx, info)).res
+      val terminationMeasures = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx, info, false)).res
 
       // p1' := p1; ... ; pn' := pn
       val argInits = argsWithSubs.flatMap{
@@ -764,7 +764,7 @@ object Desugar extends LazyLogging {
       // translate pre- and postconditions and termination measures
       val pres = decl.spec.pres map preconditionD(ctx, info)
       val posts = decl.spec.posts map postconditionD(ctx, info)
-      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
+      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info, false)).res
 
       val isOpaque = decl.spec.isOpaque
 
@@ -844,7 +844,11 @@ object Desugar extends LazyLogging {
       // translate pre- and postconditions and termination measures
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx, info)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx, info)
-      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx, info)).res
+
+      // The desugaring of termination measures assumes that this method never has an interface receiver.
+      // This should never occur, given that interface method signatures are desugared in method `registerInterface`.
+      assert(interfaceType(recv.typ).isEmpty)
+      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx, info, false)).res
 
       // s' := s
       val recvInits = (recvWithSubs match {
@@ -937,7 +941,10 @@ object Desugar extends LazyLogging {
       // translate pre- and postconditions
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(ctx, info)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(ctx, info)
-      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
+      // The desugaring of termination measures assumes that this method never has an interface receiver.
+      // This should never occur, given that interface method signatures are desugared in method `registerInterface`.
+      assert(interfaceType(recv.typ).isEmpty)
+      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info, false)).res
 
       val isOpaque = decl.spec.isOpaque
 
@@ -1118,7 +1125,7 @@ object Desugar extends LazyLogging {
         i0 = leftOfAssignmentNoInit(range.enumerated, info)(in.IntT(Addressability.exclusiveVariable))
         _ <- declare(i0)
 
-        (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
+        (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
         addedInvariantsBefore = Vector(
           in.ExprAssertion(in.And(
@@ -1257,7 +1264,7 @@ object Desugar extends LazyLogging {
         i0 = leftOfAssignmentNoInit(range.enumerated, info)(in.IntT(Addressability.exclusiveVariable))
         _ <- declare(i0)
 
-        (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
+        (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
         addedInvariantsBefore = Vector(
           in.ExprAssertion(in.And(
@@ -1410,11 +1417,13 @@ object Desugar extends LazyLogging {
 
         hasValue = shorts.length > 1 && !(shorts(1).isInstanceOf[PWildcard])
 
-        (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
+        (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
-        addedInvariants = Vector(
-          in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
-          in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
+        addedInvariants = if (range.enumerated != PWildcard()) // emit invariants about visited set only if we actually use a with clause and specify an identifier for it
+          Vector(
+            in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
+            in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
+          else Vector()
 
         dBody = blockD(ctx, info)(body)
 
@@ -1458,8 +1467,7 @@ object Desugar extends LazyLogging {
                   in.LessCmp(in.Length(visited.op)(src), in.Length(c)(src))(src),
                   dInv ++ addedInvariants, dTer, in.Block(Vector(continueLoopLabelProxy, k) ++ (if (hasValue) Vector(v) else Vector()),
                     Vector(exhalePerm, updateKeyVal, dBody, continueLoopLabel, inhalePerm, updateVisited) ++ dInvPre ++ dTerPre
-                  )(src))(src), visitedEqDomain, breakLoopLabel
-              ))(src)
+                  )(src))(src)) ++ (if (range.enumerated != PWildcard()) Vector(visitedEqDomain) else Vector()) ++ Vector(breakLoopLabel))(src) // emit assertions about visited set only if we actually use a with clause and specify an identifier for it
           )(src)))(src)
 
       } yield enc))
@@ -1491,7 +1499,7 @@ object Desugar extends LazyLogging {
 
         hasValue = ass.length > 1 && !(ass(1).isInstanceOf[PBlankIdentifier])
 
-        (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
+        (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
         addedInvariants = Vector(
           in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
@@ -1583,7 +1591,7 @@ object Desugar extends LazyLogging {
                 dPre <- maybeStmtD(ctx)(pre)(src)
                 (dCondPre, dCond) <- prelude(exprD(ctx, info)(cond))
                 (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
-                (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info)))
+                (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
 
                 continueLabelName = nm.continueLabel(n, info)
                 continueLoopLabelProxy = in.LabelProxy(continueLabelName)(src)
@@ -1862,7 +1870,7 @@ object Desugar extends LazyLogging {
             val name = s"${rootName(n, info)}$$${nm.relativeIdEnclosingFuncOrMethodDecl(n, info)}"
             val pres = (n.spec.pres ++ n.spec.preserves) map preconditionD(ctx, info)
             val posts = (n.spec.preserves ++ n.spec.posts) map postconditionD(ctx, info)
-            val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx, info)).res
+            val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx, info, false)).res
             val annotations = desugarBackendAnnotations(n.spec.backendAnnotations)
 
             if (!n.spec.isTrusted) {
@@ -3284,7 +3292,8 @@ object Desugar extends LazyLogging {
           val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
           val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx, info)
           val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx, info)
-          val terminationMeasures = sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx, info)).res
+          val terminationMeasures =
+            sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx, info, true)).res
           val annotations = desugarBackendAnnotations(m.spec.backendAnnotations)
           val isOpaque = m.spec.isOpaque
 
@@ -3573,7 +3582,7 @@ object Desugar extends LazyLogging {
         // proof obligations. Note that we generate this proof obligation when there are preconditions,
         // even if posts is empty; this allows us to check that the preconditions are well-formed.
 
-        val terminationMeasure = in.TupleTerminationMeasure(Vector.empty, None)(src)
+        val terminationMeasure = in.NonItfTupleTerminationMeasure(Vector.empty, None)(src)
         /**
           * ->
           * requires pres // resources provided by friend
@@ -3692,7 +3701,7 @@ object Desugar extends LazyLogging {
         // exhales all package invariants from the current file and all resources for friends
         posts = pkgInvariantsImportedPackages ++ pkgInvariants ++ resourcesForFriends,
         // in our verification approach, the initialization code must be proven to terminate
-        terminationMeasures = Vector(in.TupleTerminationMeasure(Vector(), None)(src)),
+        terminationMeasures = Vector(in.NonItfTupleTerminationMeasure(Vector(), None)(src)),
         backendAnnotations = Vector.empty,
         body = Some(
           in.MethodBody(
@@ -3868,9 +3877,10 @@ object Desugar extends LazyLogging {
         res
 
       case t: Type.AdtClauseT =>
-        val adtName = nm.adt(t.declaredType)
-        val definedName = nm.declaredType(t.declaredType)
-        val adt: in.AdtT = in.AdtT(adtName, definedName, addrMod)
+        // calling `typeD` on the surrounding ADT declaration makes sure that the ADT
+        // is correctly registered as such and, thus, ends up in the resulting internal
+        // program.
+        val adt: in.AdtT = typeD(t.context.symbType(t.adtDecl), addrMod)(src).asInstanceOf[in.AdtT]
         val fields: Vector[in.Field] = t.fields.map{ case (key: String, typ: Type) =>
           in.Field(nm.adtField(key, t.typeDecl), typeD(typ, Addressability.mathDataStructureElement)(src), true)(src)
         }
@@ -4417,7 +4427,10 @@ object Desugar extends LazyLogging {
           case t => Violation.violation(s"Expected interface or sort type, but got $t")
         }
 
-        case PIn(left, right) => for {
+        case PLow(exp) => for { wExp <- go(exp) } yield in.Low(wExp)(src)
+        case PLowContext() => unit(in.LowContext()(src))
+
+        case PElem(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
         } yield underlyingType(dright.typ) match {
@@ -4610,7 +4623,10 @@ object Desugar extends LazyLogging {
       specificationD(ctx, info)(ass)
     }
 
-    def terminationMeasureD(ctx: FunctionContext, info: TypeInfo)(measure: PTerminationMeasure): Writer[in.TerminationMeasure] = {
+    def terminationMeasureD(ctx: FunctionContext,
+                            info: TypeInfo,
+                            occursInItfMethodSpec: Boolean
+                           )(measure: PTerminationMeasure): Writer[in.TerminationMeasure] = {
       val src: Meta = meta(measure, info)
 
       def goE(expr: PExpression): Writer[in.Node] = expr match {
@@ -4630,12 +4646,24 @@ object Desugar extends LazyLogging {
 
       measure match {
         case PWildcardMeasure(cond) =>
-          for { c <- option(cond map exprD(ctx, info)) } yield in.WildcardMeasure(c)(src)
+          for {
+            c <- option(cond map exprD(ctx, info))
+            measure =
+              if (occursInItfMethodSpec)
+                in.ItfMethodWildcardMeasure(c)(src)
+              else
+                in.NonItfMethodWildcardMeasure(c)(src)
+          } yield measure
         case PTupleTerminationMeasure(tuple, cond) =>
           for {
             t <- sequence(tuple map goE)
             c <- option(cond map exprD(ctx, info))
-          } yield in.TupleTerminationMeasure(t, c)(src)
+            measure =
+              if (occursInItfMethodSpec)
+                in.ItfTupleTerminationMeasure(t, c)(src)
+              else
+                in.NonItfTupleTerminationMeasure(t, c)(src)
+          } yield measure
       }
     }
 

@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000850
+
+// ##(--hyperMode on)
+
+ensures low(x) == low(res)
+func test(x int) (res int) {
+	return x
+}

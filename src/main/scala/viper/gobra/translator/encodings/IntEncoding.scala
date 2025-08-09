@@ -16,8 +16,8 @@ import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.util.DomainGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
-import viper.gobra.util.TypeBounds.IntegerKind
-import viper.silver.ast.Domain
+import viper.gobra.util.TypeBounds.{BoundedIntegerKind, IntegerKind, UnboundedInteger}
+import viper.silver.ast.{Domain, NoInfo, NoPosition, NoTrafos}
 import viper.silver.plugin.standard.termination
 import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
@@ -48,6 +48,8 @@ class IntEncoding extends LeafTypeEncoding {
       }
   }
   private case object IntDomainGenerator extends DomainGenerator[IntegerKind] {
+    var membersToAdd: Set[vpr.Member] = Set.empty
+    /*
     def add(x: IntegerKind)(ctx: Context) = {
       val dom = genDomain(x)(ctx)
       add_internal()
@@ -55,7 +57,87 @@ class IntEncoding extends LeafTypeEncoding {
     def sub() = ???
     private def add_internal() = ???
     private def sub_internal() = ???
-    override def genDomain(x: IntegerKind)(ctx: Context): Domain = ???
+
+     */
+
+    def domainType(x: IntegerKind)(ctx: Context): vpr.Type = {
+      x match {
+        case UnboundedInteger => vpr.Int
+        case _ =>
+          // todo: cache result
+          val dom = genDomain(x)(ctx)
+          vpr.DomainType(dom, Map.empty)
+      }
+    }
+
+    private def intToDomainFunc(x: IntegerKind)(ctx: Context): vpr.Function = {
+      val inputVarDecl = vpr.LocalVarDecl("x", vpr.Int)()
+      val resType = domainType(x)(ctx)
+      val pre = x match {
+        case b: BoundedIntegerKind =>
+          vpr.And(
+            vpr.LeCmp(vpr.IntLit(b.lower)(), inputVarDecl.localVar)(),
+            vpr.LeCmp(inputVarDecl.localVar, vpr.IntLit(b.upper)())()
+          )()
+        case _ => vpr.TrueLit()()
+      }
+      val domainToIntFuncName = domainToIntFunc(x)(ctx).name
+      val post = vpr.EqCmp(
+        vpr.FuncApp(domainToIntFuncName, Seq(vpr.Result(resType)()))(pos = NoPosition, info = NoInfo, typ = vpr.Int, errT = NoTrafos),
+        inputVarDecl.localVar
+      )()
+      val res = vpr.Function(
+        name = s"intToDomain${x.name}",
+        formalArgs = Seq(inputVarDecl),
+        typ = resType,
+        pres = Seq(pre),
+        posts = Seq(post),
+        body = None
+      )()
+      membersToAdd = membersToAdd + res
+      res
+    }
+
+    private def domainToIntFunc(x: IntegerKind)(ctx: Context): vpr.Function = {
+      val inputVarDecl = vpr.LocalVarDecl("x", domainType(x)(ctx))()
+      val post = x match {
+        case b: BoundedIntegerKind =>
+          vpr.And(
+            vpr.LeCmp(vpr.IntLit(b.lower)(), vpr.Result(vpr.Int)())(),
+            vpr.LeCmp(vpr.Result(vpr.Int)(), vpr.IntLit(b.upper)())()
+          )()
+        case _ => vpr.TrueLit()()
+      }
+      val res = vpr.Function(
+        name = s"domainToInt${x.name}",
+        formalArgs = Seq(inputVarDecl),
+        typ = vpr.Int,
+        pres = Seq.empty,
+        posts = Seq(post),
+        body = None
+      )()
+      membersToAdd = membersToAdd + res
+      res
+    }
+
+    def callIntToDomainFunc(x: IntegerKind)(ctx: Context)(e: vpr.Exp): vpr.Exp = {
+      val funcname = intToDomainFunc(x)(ctx).name
+      vpr.FuncApp(
+        funcname = funcname,
+        args = Seq(e)
+      )(NoPosition, NoInfo, typ = domainType(x)(ctx), NoTrafos)
+    }
+
+    override def genDomain(x: IntegerKind)(ctx: Context): Domain = {
+      val kindToDomainName = s"IntDomain${x.name}"
+      val res = vpr.Domain(
+        name = kindToDomainName,
+        functions = Seq.empty,
+        axioms = Seq.empty,
+      )()
+      membersToAdd = membersToAdd + res
+      res
+    }
   }
 
   /**
@@ -81,8 +163,11 @@ class IntEncoding extends LeafTypeEncoding {
     }
 
     default(super.expression(ctx)){
-      case (e: in.DfltVal) :: ctx.Int(kind) / Exclusive => unit(withSrc(vpr.IntLit(0), e))
-      case lit: in.IntLit => unit(withSrc(vpr.IntLit(lit.v), lit))
+      case (e: in.DfltVal) :: ctx.Int(kind) / Exclusive =>
+        // unit(withSrc(vpr.IntLit(0), e))
+        unit(IntDomainGenerator.callIntToDomainFunc(kind)(ctx)(vpr.IntLit(BigInt(0))()))
+      case lit: in.IntLit =>
+        unit(IntDomainGenerator.callIntToDomainFunc(lit.kind)(ctx)(vpr.IntLit(lit.v)()))
 
       case e@ in.Add(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Add(vl, vr), e)
       case e@ in.Sub(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Sub(vl, vr), e)
@@ -117,6 +202,7 @@ class IntEncoding extends LeafTypeEncoding {
     if(isUsedBitNeg) { addMemberFn(bitwiseNegation) }
     if(isUsedGoIntMod) { addMemberFn(goIntMod) }
     if(isUsedGoIntDiv) { addMemberFn(goIntDiv) }
+    IntDomainGenerator.membersToAdd.foreach(addMemberFn)
   }
 
   /* Bitwise Operations */

@@ -29,13 +29,8 @@ class IntEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.TypePatterns._
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
-  private var isUsedBitAnd: Boolean = false
-  private var isUsedBitOr: Boolean = false
-  private var isUsedBitXor: Boolean = false
-  private var isUsedBitClear: Boolean = false
   private var isUsedLeftShift: Boolean = false
   private var isUsedRightShift: Boolean = false
-  private var isUsedBitNeg: Boolean = false
 
   /**
     * Translates a type into a Viper type.
@@ -66,6 +61,8 @@ class IntEncoding extends LeafTypeEncoding {
     private var bitClearFuncs: Map[IntegerKind, vpr.Function] = Map.empty
     private var bitNegFuncs: Map[IntegerKind, vpr.Function] = Map.empty
     // shifts
+    private var bitShiftLeftFuncs: Map[(IntegerKind, IntegerKind), vpr.Function] = Map.empty
+    private var bitShiftRightFuncs: Map[(IntegerKind, IntegerKind), vpr.Function] = Map.empty
 
 
     override def finalize(addMemberFn: vpr.Member => Unit): Unit = {

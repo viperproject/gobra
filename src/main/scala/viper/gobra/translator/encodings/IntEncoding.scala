@@ -22,6 +22,8 @@ import viper.silver.plugin.standard.termination
 import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
 
+import scala.collection.immutable.Seq
+
 class IntEncoding extends LeafTypeEncoding {
 
   import viper.gobra.translator.util.TypePatterns._
@@ -47,17 +49,26 @@ class IntEncoding extends LeafTypeEncoding {
         case Shared    => vpr.Ref
       }
   }
+
   // TODO: make pres conditional on whether the overflow flag is enabled or not
   private case object IntEncodingGenerator extends DomainGenerator[IntegerKind] {
     private var intToDomainFuncs: Map[IntegerKind, vpr.Function] = Map.empty
     private var domainToIntFuncs: Map[IntegerKind, vpr.Function] = Map.empty
     private var addFuncs: Map[IntegerKind, vpr.Function] = Map.empty
+    private var subFuncs: Map[IntegerKind, vpr.Function] = Map.empty
+    private var mulFuncs: Map[IntegerKind, vpr.Function] = Map.empty
+    private var divFuncs: Map[IntegerKind, vpr.Function] = Map.empty
+    private var modFuncs: Map[IntegerKind, vpr.Function] = Map.empty
 
     override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
       super.finalize(addMemberFn)
       intToDomainFuncs.values.foreach(addMemberFn)
       domainToIntFuncs.values.foreach(addMemberFn)
       addFuncs.values.foreach(addMemberFn)
+      subFuncs.values.foreach(addMemberFn)
+      mulFuncs.values.foreach(addMemberFn)
+      divFuncs.values.foreach(addMemberFn)
+      modFuncs.values.foreach(addMemberFn)
     }
 
     override def genDomain(x: IntegerKind)(ctx: Context): Domain = {
@@ -69,7 +80,8 @@ class IntEncoding extends LeafTypeEncoding {
       this(Vector.empty, x)(ctx)
     }
 
-    def intToDomainFuncApp(x: IntegerKind)(ctx: Context)(e: vpr.Exp)(pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+    def intToDomainFuncApp(x: IntegerKind)(ctx: Context)(e: vpr.Exp)
+                          (pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
       val funcname = intToDomainFunc(x)(ctx).name
       vpr.FuncApp(funcname = funcname, args = Seq(e))(pos, info, typ = domainType(x)(ctx), errT)
     }
@@ -93,7 +105,7 @@ class IntEncoding extends LeafTypeEncoding {
             name = s"intToDomain${x.name}",
             formalArgs = Seq(inputVarDecl),
             typ = resType,
-            pres = Seq(pre),
+            pres = Seq(pre, termination.DecreasesWildcard(None)()),
             posts = Seq(post),
             body = None
           )()
@@ -102,7 +114,8 @@ class IntEncoding extends LeafTypeEncoding {
       }
     }
 
-    def domainToIntFuncApp(x: IntegerKind)(ctx: Context)(e: vpr.Exp)(pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+    def domainToIntFuncApp(x: IntegerKind)(ctx: Context)(e: vpr.Exp)
+                          (pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
       val funcname = domainToIntFunc(x)(ctx).name
       vpr.FuncApp(funcname = funcname, args = Seq(e))(pos, info, typ = vpr.Int, errT)
     }
@@ -121,7 +134,7 @@ class IntEncoding extends LeafTypeEncoding {
         name = s"domainToInt${x.name}",
         formalArgs = Seq(inputVarDecl),
         typ = vpr.Int,
-        pres = Seq.empty,
+        pres = Seq(termination.DecreasesWildcard(None)()),
         posts = Seq(post),
         body = None
       )()
@@ -129,7 +142,9 @@ class IntEncoding extends LeafTypeEncoding {
       res
     }
 
-    def addFuncApp(x: IntegerKind)(ctx: Context)(e1: vpr.Exp, e2: vpr.Exp)(pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+    // Add body to all arith operations, instead of relying on posts
+    def addFuncApp(x: IntegerKind)(ctx: Context)(e1: vpr.Exp, e2: vpr.Exp)
+                  (pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
       val funcname = addFunc(x)(ctx).name
       vpr.FuncApp(funcname = funcname, args = Seq(e1, e2))(pos, info, typ = domainType(x)(ctx), errT)
     }
@@ -150,27 +165,220 @@ class IntEncoding extends LeafTypeEncoding {
               vpr.And(vpr.LeCmp(vpr.IntLit(b.lower)(), sumExpr)(), vpr.LeCmp(sumExpr, vpr.IntLit(b.upper)())())()
             case _ => vpr.TrueLit()()
           }
-          val post = vpr.EqCmp(
-            domainToIntFuncApp(x)(ctx)(vpr.Result(domainT)())(),
-            vpr.Add(
+          val body =
+            intToDomainFuncApp(x)(ctx)(vpr.Add(
               domainToIntFuncApp(x)(ctx)(inputVar1Decl.localVar)(),
               domainToIntFuncApp(x)(ctx)(inputVar2Decl.localVar)()
-            )()
-          )()
+            )())()
           val res = vpr.Function(
             name = s"add${x.name}",
             formalArgs = Seq(inputVar1Decl, inputVar2Decl),
             typ = domainT,
-            pres = Seq(pre),
-            posts = Seq(post),
-            body = None
+            pres = Seq(pre, termination.DecreasesWildcard(None)()),
+            posts = Seq(),
+            body = Some(body)
           )()
           addFuncs += x -> res
           res
       }
     }
+
+    def subFuncApp(x: IntegerKind)(ctx: Context)(e1: vpr.Exp, e2: vpr.Exp)
+                  (pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+      val funcname = subFunc(x)(ctx).name
+      vpr.FuncApp(funcname = funcname, args = Seq(e1, e2))(pos, info, typ = domainType(x)(ctx), errT)
+    }
+
+    private def subFunc(x: IntegerKind)(ctx: Context): vpr.Function = {
+      subFuncs.get(x) match {
+        case Some(f) => f
+        case _ =>
+          val domainT = domainType(x)(ctx)
+          val inputVar1Decl = vpr.LocalVarDecl("x", domainT)()
+          val inputVar2Decl = vpr.LocalVarDecl("y", domainT)()
+          val pre = x match {
+            case b: BoundedIntegerKind =>
+              val sumExpr = vpr.Sub(
+                domainToIntFuncApp(x)(ctx)(inputVar1Decl.localVar)(),
+                domainToIntFuncApp(x)(ctx)(inputVar2Decl.localVar)(),
+              )()
+              vpr.And(vpr.LeCmp(vpr.IntLit(b.lower)(), sumExpr)(), vpr.LeCmp(sumExpr, vpr.IntLit(b.upper)())())()
+            case _ => vpr.TrueLit()()
+          }
+          val body =
+            intToDomainFuncApp(x)(ctx)(
+              vpr.Sub(
+                domainToIntFuncApp(x)(ctx)(inputVar1Decl.localVar)(),
+                domainToIntFuncApp(x)(ctx)(inputVar2Decl.localVar)()
+              )()
+            )()
+          val res = vpr.Function(
+            name = s"sub${x.name}",
+            formalArgs = Seq(inputVar1Decl, inputVar2Decl),
+            typ = domainT,
+            pres = Seq(pre, termination.DecreasesWildcard(None)()),
+            posts = Seq(),
+            body = Some(body)
+          )()
+          subFuncs += x -> res
+          res
+      }
+    }
+
+    def mulFuncApp(x: IntegerKind)(ctx: Context)(e1: vpr.Exp, e2: vpr.Exp)
+                  (pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+      val funcname = mulFunc(x)(ctx).name
+      vpr.FuncApp(funcname = funcname, args = Seq(e1, e2))(pos, info, typ = domainType(x)(ctx), errT)
+    }
+
+    private def mulFunc(x: IntegerKind)(ctx: Context): vpr.Function = {
+      mulFuncs.get(x) match {
+        case Some(f) => f
+        case _ =>
+          val domainT = domainType(x)(ctx)
+          val inputVar1Decl = vpr.LocalVarDecl("x", domainT)()
+          val inputVar2Decl = vpr.LocalVarDecl("y", domainT)()
+          val pre = x match {
+            case b: BoundedIntegerKind =>
+              val sumExpr = vpr.Mul(
+                domainToIntFuncApp(x)(ctx)(inputVar1Decl.localVar)(),
+                domainToIntFuncApp(x)(ctx)(inputVar2Decl.localVar)(),
+              )()
+              vpr.And(vpr.LeCmp(vpr.IntLit(b.lower)(), sumExpr)(), vpr.LeCmp(sumExpr, vpr.IntLit(b.upper)())())()
+            case _ => vpr.TrueLit()()
+          }
+          val body = intToDomainFuncApp(x)(ctx)(
+            vpr.Mul(
+              domainToIntFuncApp(x)(ctx)(inputVar1Decl.localVar)(),
+              domainToIntFuncApp(x)(ctx)(inputVar2Decl.localVar)()
+            )()
+          )()
+          val res = vpr.Function(
+            name = s"mul${x.name}",
+            formalArgs = Seq(inputVar1Decl, inputVar2Decl),
+            typ = domainT,
+            pres = Seq(pre, termination.DecreasesWildcard(None)()),
+            posts = Seq(),
+            body = Some(body)
+          )()
+          mulFuncs += x -> res
+          res
+      }
+    }
+
+    def divFuncApp(x: IntegerKind)(ctx: Context)(e1: vpr.Exp, e2: vpr.Exp)(pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+      val funcname = divFunc(x)(ctx).name
+      vpr.FuncApp(funcname = funcname, args = Seq(e1, e2))(pos, info, typ = domainType(x)(ctx), errT)
+    }
+
+    // TODO: update specs
+    /**
+     * Generates the following viper function that captures the semantics of the '/' operator in Go:
+     * function goIntDiv(l: Int, r: Int): Int
+     * requires r != 0
+     * decreases _
+     * {
+     *     (0 <= l ? l \ r : -(-l \ r))
+     * }
+     */
+    private def divFunc(x: IntegerKind)(ctx: Context): vpr.Function = {
+      divFuncs.get(x) match {
+        case Some(f) => f
+        case _ =>
+          val domainT = domainType(x)(ctx)
+          val inputVar1Decl = vpr.LocalVarDecl("x", domainT)()
+          val inputVar2Decl = vpr.LocalVarDecl("y", domainT)()
+          val zero = vpr.IntLit(0)()
+          val pre = vpr.NeCmp(domainToIntFuncApp(x)(ctx)(inputVar2Decl.localVar)(), zero)()
+          val post = x match {
+            case b: BoundedIntegerKind =>
+              val result = domainToIntFuncApp(x)(ctx)(vpr.Result(domainT)())()
+              vpr.And(vpr.LeCmp(vpr.IntLit(b.lower)(), result)(), vpr.LeCmp(result, vpr.IntLit(b.upper)())())()
+            case _ => vpr.TrueLit()()
+          }
+          val body = {
+            val l = domainToIntFuncApp(x)(ctx)(inputVar1Decl.localVar)()
+            val r = domainToIntFuncApp(x)(ctx)(inputVar2Decl.localVar)()
+            // 0 <= l ? l \ r : -((-l) \ r)
+            intToDomainFuncApp(x)(ctx)(
+              vpr.CondExp(
+                cond = vpr.LeCmp(zero, l)(),
+                thn = vpr.Div(l, r)(),
+                els = vpr.Minus(vpr.Div(vpr.Minus(l)(), r)())()
+              )()
+            )()
+          }
+          val res = vpr.Function(
+            name = s"div${x.name}",
+            formalArgs = Seq(inputVar1Decl, inputVar2Decl),
+            typ = domainT,
+            pres = Seq(pre, termination.DecreasesWildcard(None)()),
+            posts = Seq(post),
+            body = Some(body)
+          )()
+          divFuncs += x -> res
+          res
+      }
+    }
+
+    def modFuncApp(x: IntegerKind)(ctx: Context)(e1: vpr.Exp, e2: vpr.Exp)(pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+      val funcname = modFunc(x)(ctx).name
+      vpr.FuncApp(funcname = funcname, args = Seq(e1, e2))(pos, info, typ = domainType(x)(ctx), errT)
+    }
+
+    // TODO: update specs
+    /**
+     * Generates the following viper function that captures the semantics of the '%' operator in Go:
+     * function goIntMod(l: Int, r: Int): Int
+     * requires r != 0
+     * decreases _
+     * {
+     *     (0 <= l || l % r == 0 ? l % r : l % r - (0 <= r ? r : -r))
+     * }
+     */
+    private def modFunc(x: IntegerKind)(ctx: Context): vpr.Function = {
+      modFuncs.get(x) match {
+        case Some(f) => f
+        case _ =>
+          val domainT = domainType(x)(ctx)
+          val inputVar1Decl = vpr.LocalVarDecl("x", domainT)()
+          val inputVar2Decl = vpr.LocalVarDecl("y", domainT)()
+          val zero = vpr.IntLit(0)()
+          val pre = vpr.NeCmp(domainToIntFuncApp(x)(ctx)(inputVar2Decl.localVar)(), zero)()
+          val post = x match {
+            case b: BoundedIntegerKind =>
+              val result = domainToIntFuncApp(x)(ctx)(vpr.Result(domainT)())()
+              vpr.And(vpr.LeCmp(vpr.IntLit(b.lower)(), result)(), vpr.LeCmp(result, vpr.IntLit(b.upper)())())()
+            case _ => vpr.TrueLit()()
+          }
+          val body = {
+            val l = domainToIntFuncApp(x)(ctx)(inputVar1Decl.localVar)()
+            val r = domainToIntFuncApp(x)(ctx)(inputVar2Decl.localVar)()
+            val absR = vpr.CondExp(cond = vpr.LeCmp(zero, r)(), thn = r, els = vpr.Minus(r)())()
+            // (0 <= l || l % r == 0) ? l % r : (l % r - abs(r))
+            intToDomainFuncApp(x)(ctx)(
+              vpr.CondExp(
+                cond = vpr.Or(left = vpr.LeCmp(zero, l)(), right = vpr.EqCmp(vpr.Mod(l, r)(), zero)())(),
+                thn = vpr.Mod(l, r)(),
+                els = vpr.Sub(vpr.Mod(l, r)(), absR)()
+              )()
+            )()
+          }
+          val res = vpr.Function(
+            name = s"mod${x.name}",
+            formalArgs = Seq(inputVar1Decl, inputVar2Decl),
+            typ = domainT,
+            pres = Seq(pre, termination.DecreasesWildcard(None)()),
+            posts = Seq(post),
+            body = Some(body)
+          )()
+          modFuncs += x -> res
+          res
+      }
+    }
   }
 
+  // TODO: explain our encoding is resilient to the type-checker imprecision
   /**
     * Encodes expressions as values that do not occupy some identifiable location in memory.
     *
@@ -210,18 +418,61 @@ class IntEncoding extends LeafTypeEncoding {
             withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
           ), r)
         } yield withSrc(IntEncodingGenerator.addFuncApp(kind)(ctx)(left, right), e)
-      case e@ in.Sub(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Sub(vl, vr), e)
-      case e@ in.Mul(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mul(vl, vr), e)
-      case e@ in.Mod(l, r) :: ctx.Int(kind) =>
+      case e@ in.Sub(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) :: ctx.Int(kind) =>
+        for {
+          vl <- goE(l)
+          vr <- goE(r)
+          // TODO: explain the use of left and right
+          left = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          ), l)
+          right = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
+          ), r)
+        } yield withSrc(IntEncodingGenerator.subFuncApp(kind)(ctx)(left, right), e)
+      case e@ in.Mul(l :: ctx.Int(kindL) , r :: ctx.Int(kindR)) :: ctx.Int(kind) =>
+        for {
+          vl <- goE(l)
+          vr <- goE(r)
+          // TODO: explain the use of left and right
+          left = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          ), l)
+          right = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
+          ), r)
+        } yield withSrc(IntEncodingGenerator.mulFuncApp(kind)(ctx)(left, right), e)
+      case e@ in.Mod(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) :: ctx.Int(kind) =>
         // We currently implement our own modulo algorithm to mimic what Go does. The default modulo implementation in
         // Viper does not match Go's semantics. Check https://github.com/viperproject/gobra/issues/858 and
         // https://github.com/viperproject/silver/issues/297
-        for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(goIntMod, Seq(vl, vr)), e)
-      case e@ in.Div(l, r) :: ctx.Int(kind) =>
+        for {
+          vl <- goE(l)
+          vr <- goE(r)
+          // TODO: explain the use of left and right
+          left = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          ), l)
+          right = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
+          ), r)
+        } yield withSrc(IntEncodingGenerator.modFuncApp(kind)(ctx)(left, right), e)
+      case e@ in.Div(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) :: ctx.Int(kind) =>
         // We currently implement our own division algorithm to mimic what Go does. The default division implementation in
         // Viper does not match Go's semantics. Check https://github.com/viperproject/gobra/issues/858 and
         // https://github.com/viperproject/silver/issues/297
-        for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(goIntDiv, Seq(vl, vr)), e)
+        for {
+          vl <- goE(l)
+          vr <- goE(r)
+          // TODO: explain the use of left and right
+          left = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          ), l)
+          right = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
+          ), r)
+        } yield withSrc(IntEncodingGenerator.divFuncApp(kind)(ctx)(left, right), e)
+
       case e@ in.BitAnd(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseAnd, Seq(vl, vr)), e)
       case e@ in.BitOr(l, r)  :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseOr,  Seq(vl, vr)), e)
       case e@ in.BitXor(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseXor, Seq(vl, vr)), e)
@@ -234,42 +485,62 @@ class IntEncoding extends LeafTypeEncoding {
           e <- goE(expr)
           intValue = withSrc(IntEncodingGenerator.domainToIntFuncApp(inKind)(ctx)(e), expr)
         } yield withSrc(IntEncodingGenerator.intToDomainFuncApp(outKind)(ctx)(intValue), expr)
-      case n@in.LessCmp(l, r) if l.typ.isInstanceOf[in.IntT] && r.typ.isInstanceOf[in.IntT] =>
-        val ltyp = l.typ.asInstanceOf[in.IntT].kind
-        val rtyp = r.typ.asInstanceOf[in.IntT].kind
+      case n@in.LessCmp(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) =>
         for {
           vl <- ctx.expression(l)
           vr <- ctx.expression(r)
-          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(ltyp)(ctx)(vl), l)
-          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(rtyp)(ctx)(vr), r)
+          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
         } yield withSrc(vpr.LtCmp(numl, numr), n)
-      case n@in.AtMostCmp(l, r) if l.typ.isInstanceOf[in.IntT] && r.typ.isInstanceOf[in.IntT] =>
-        val ltyp = l.typ.asInstanceOf[in.IntT].kind
-        val rtyp = r.typ.asInstanceOf[in.IntT].kind
+      case n@in.AtMostCmp(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) =>
         for {
           vl <- ctx.expression(l)
           vr <- ctx.expression(r)
-          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(ltyp)(ctx)(vl), l)
-          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(rtyp)(ctx)(vr), r)
+          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
         } yield withSrc(vpr.LeCmp(numl, numr), n)
-      case n@in.GreaterCmp(l, r) if l.typ.isInstanceOf[in.IntT] && r.typ.isInstanceOf[in.IntT] =>
-        val ltyp = l.typ.asInstanceOf[in.IntT].kind
-        val rtyp = r.typ.asInstanceOf[in.IntT].kind
+      case n@in.GreaterCmp(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) =>
         for {
           vl <- ctx.expression(l)
           vr <- ctx.expression(r)
-          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(ltyp)(ctx)(vl), l)
-          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(rtyp)(ctx)(vr), r)
+          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
         } yield withSrc(vpr.GtCmp(numl, numr), n)
-      case n@in.AtLeastCmp(l, r) if l.typ.isInstanceOf[in.IntT] && r.typ.isInstanceOf[in.IntT] =>
-        val ltyp = l.typ.asInstanceOf[in.IntT].kind
-        val rtyp = r.typ.asInstanceOf[in.IntT].kind
+      case n@in.AtLeastCmp(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) =>
         for {
           vl <- ctx.expression(l)
           vr <- ctx.expression(r)
-          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(ltyp)(ctx)(vl), l)
-          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(rtyp)(ctx)(vr), r)
+          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
         } yield withSrc(vpr.GeCmp(numl, numr), n)
+      case n@in.EqCmp(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) =>
+        for {
+          vl <- ctx.expression(l)
+          vr <- ctx.expression(r)
+          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
+        } yield withSrc(vpr.EqCmp(numl, numr), n)
+      case n@in.UneqCmp(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) =>
+        for {
+          vl <- ctx.expression(l)
+          vr <- ctx.expression(r)
+          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
+        } yield withSrc(vpr.NeCmp(numl, numr), n)
+      case n@in.GhostEqCmp(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) =>
+        for {
+          vl <- ctx.expression(l)
+          vr <- ctx.expression(r)
+          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
+        } yield withSrc(vpr.EqCmp(numl, numr), n)
+      case n@in.GhostUneqCmp(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) =>
+        for {
+          vl <- ctx.expression(l)
+          vr <- ctx.expression(r)
+          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
+        } yield withSrc(vpr.NeCmp(numl, numr), n)
     }
   }
 
@@ -283,8 +554,8 @@ class IntEncoding extends LeafTypeEncoding {
     if(isUsedLeftShift) { addMemberFn(shiftLeft) }
     if(isUsedRightShift) { addMemberFn(shiftRight) }
     if(isUsedBitNeg) { addMemberFn(bitwiseNegation) }
-    if(isUsedGoIntMod) { addMemberFn(goIntMod) }
-    if(isUsedGoIntDiv) { addMemberFn(goIntDiv) }
+    // if(isUsedGoIntMod) { addMemberFn(goIntMod) }
+    // if(isUsedGoIntDiv) { addMemberFn(goIntDiv) }
   }
 
   /* Bitwise Operations */
@@ -378,72 +649,4 @@ class IntEncoding extends LeafTypeEncoding {
     )()
   }
 
-  /**
-   * Generates the following viper function that captures the semantics of the '/' operator in Go:
-   *   function goIntDiv(l: Int, r: Int): Int
-   *     requires r != 0
-   *     decreases _
-   *   {
-   *     (0 <= l ? l \ r : -(-l \ r))
-   *   }
-   */
-  private lazy val goIntDiv: vpr.Function = {
-    isUsedGoIntDiv = true
-    val lDecl = vpr.LocalVarDecl("l", vpr.Int)()
-    val rDecl = vpr.LocalVarDecl("r", vpr.Int)()
-    val l = lDecl.localVar
-    val r = rDecl.localVar
-    val zero = vpr.IntLit(0)()
-    val rNotZero = vpr.NeCmp(r, zero)()
-    vpr.Function(
-      name = Names.intDiv,
-      formalArgs = Seq(lDecl, rDecl),
-      typ = vpr.Int,
-      pres = Seq(rNotZero, termination.DecreasesWildcard(None)()),
-      posts = Seq.empty,
-      body = Some(
-        // 0 <= l ? l \ r : -((-l) \ r)
-        vpr.CondExp(
-          cond = vpr.LeCmp(zero, l)(),
-          thn = vpr.Div(l, r)(),
-          els = vpr.Minus(vpr.Div(vpr.Minus(l)(), r)())()
-        )()
-      )
-    )()
-  }
-
-  /**
-   * Generates the following viper function that captures the semantics of the '%' operator in Go:
-   *   function goIntMod(l: Int, r: Int): Int
-   *     requires r != 0
-   *     decreases _
-   *   {
-   *     (0 <= l || l % r == 0 ? l % r : l % r - (0 <= r ? r : -r))
-   *   }
-   */
-  private lazy val goIntMod: vpr.Function = {
-    isUsedGoIntMod = true
-    val lDecl = vpr.LocalVarDecl("l", vpr.Int)()
-    val rDecl = vpr.LocalVarDecl("r", vpr.Int)()
-    val l = lDecl.localVar
-    val r = rDecl.localVar
-    val zero = vpr.IntLit(0)()
-    val absR = vpr.CondExp(cond = vpr.LeCmp(zero, r)(), thn = r, els = vpr.Minus(r)())()
-    val rNotZero = vpr.NeCmp(r, zero)()
-    vpr.Function(
-      name = Names.intMod,
-      formalArgs = Seq(lDecl, rDecl),
-      typ = vpr.Int,
-      pres = Seq(rNotZero, termination.DecreasesWildcard(None)()),
-      posts = Seq.empty,
-      body = Some(
-        // (0 <= l || l % r == 0) ? l % r : (l % r - abs(r))
-        vpr.CondExp(
-          cond = vpr.Or(left = vpr.LeCmp(zero, l)(), right = vpr.EqCmp(vpr.Mod(l, r)(), zero)())(),
-          thn = vpr.Mod(l, r)(),
-          els = vpr.Sub(vpr.Mod(l, r)(), absR)()
-        )()
-      )
-    )()
-  }
 }

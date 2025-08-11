@@ -17,7 +17,7 @@ import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.util.DomainGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, IntegerKind, UnboundedInteger}
-import viper.silver.ast.{Domain, NoInfo, NoPosition, NoTrafos}
+import viper.silver.ast.{Domain, ErrorTrafo, Info, NoInfo, NoPosition, NoTrafos, Position}
 import viper.silver.plugin.standard.termination
 import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
@@ -43,59 +43,68 @@ class IntEncoding extends LeafTypeEncoding {
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
     case ctx.Int(kind) / m =>
       m match {
-        case Exclusive => IntDomainGenerator(Vector.empty, kind)(ctx)
+        case Exclusive => IntEncodingGenerator(Vector.empty, kind)(ctx)
         case Shared    => vpr.Ref
       }
   }
-  private case object IntDomainGenerator extends DomainGenerator[IntegerKind] {
-    var membersToAdd: Set[vpr.Member] = Set.empty
-    /*
-    def add(x: IntegerKind)(ctx: Context) = {
-      val dom = genDomain(x)(ctx)
-      add_internal()
-    }
-    def sub() = ???
-    private def add_internal() = ???
-    private def sub_internal() = ???
+  // TODO: make pres conditional on whether the overflow flag is enabled or not
+  private case object IntEncodingGenerator extends DomainGenerator[IntegerKind] {
+    private var intToDomainFuncs: Map[IntegerKind, vpr.Function] = Map.empty
+    private var domainToIntFuncs: Map[IntegerKind, vpr.Function] = Map.empty
+    private var addFuncs: Map[IntegerKind, vpr.Function] = Map.empty
 
-     */
+    override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+      super.finalize(addMemberFn)
+      intToDomainFuncs.values.foreach(addMemberFn)
+      domainToIntFuncs.values.foreach(addMemberFn)
+      addFuncs.values.foreach(addMemberFn)
+    }
+
+    override def genDomain(x: IntegerKind)(ctx: Context): Domain = {
+      val kindToDomainName = s"IntDomain${x.name}"
+      vpr.Domain(name = kindToDomainName, functions = Seq.empty, axioms = Seq.empty)()
+    }
 
     def domainType(x: IntegerKind)(ctx: Context): vpr.Type = {
-      x match {
-        case UnboundedInteger => vpr.Int
-        case _ =>
-          // todo: cache result
-          val dom = genDomain(x)(ctx)
-          vpr.DomainType(dom, Map.empty)
-      }
+      this(Vector.empty, x)(ctx)
+    }
+
+    def intToDomainFuncApp(x: IntegerKind)(ctx: Context)(e: vpr.Exp)(pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+      val funcname = intToDomainFunc(x)(ctx).name
+      vpr.FuncApp(funcname = funcname, args = Seq(e))(pos, info, typ = domainType(x)(ctx), errT)
     }
 
     private def intToDomainFunc(x: IntegerKind)(ctx: Context): vpr.Function = {
-      val inputVarDecl = vpr.LocalVarDecl("x", vpr.Int)()
-      val resType = domainType(x)(ctx)
-      val pre = x match {
-        case b: BoundedIntegerKind =>
-          vpr.And(
-            vpr.LeCmp(vpr.IntLit(b.lower)(), inputVarDecl.localVar)(),
-            vpr.LeCmp(inputVarDecl.localVar, vpr.IntLit(b.upper)())()
+      intToDomainFuncs.get(x) match {
+        case Some(f) => f
+        case _ =>
+          val inputVarDecl = vpr.LocalVarDecl("x", vpr.Int)()
+          val resType = domainType(x)(ctx)
+          val pre = x match {
+            case b: BoundedIntegerKind =>
+              vpr.And(
+                vpr.LeCmp(vpr.IntLit(b.lower)(), inputVarDecl.localVar)(),
+                vpr.LeCmp(inputVarDecl.localVar, vpr.IntLit(b.upper)())()
+              )()
+            case _ => vpr.TrueLit()()
+          }
+          val post = vpr.EqCmp(domainToIntFuncApp(x)(ctx)(vpr.Result(resType)())(), inputVarDecl.localVar)()
+          val res = vpr.Function(
+            name = s"intToDomain${x.name}",
+            formalArgs = Seq(inputVarDecl),
+            typ = resType,
+            pres = Seq(pre),
+            posts = Seq(post),
+            body = None
           )()
-        case _ => vpr.TrueLit()()
+          intToDomainFuncs += x -> res
+          res
       }
-      val domainToIntFuncName = domainToIntFunc(x)(ctx).name
-      val post = vpr.EqCmp(
-        vpr.FuncApp(domainToIntFuncName, Seq(vpr.Result(resType)()))(pos = NoPosition, info = NoInfo, typ = vpr.Int, errT = NoTrafos),
-        inputVarDecl.localVar
-      )()
-      val res = vpr.Function(
-        name = s"intToDomain${x.name}",
-        formalArgs = Seq(inputVarDecl),
-        typ = resType,
-        pres = Seq(pre),
-        posts = Seq(post),
-        body = None
-      )()
-      membersToAdd = membersToAdd + res
-      res
+    }
+
+    def domainToIntFuncApp(x: IntegerKind)(ctx: Context)(e: vpr.Exp)(pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+      val funcname = domainToIntFunc(x)(ctx).name
+      vpr.FuncApp(funcname = funcname, args = Seq(e))(pos, info, typ = vpr.Int, errT)
     }
 
     private def domainToIntFunc(x: IntegerKind)(ctx: Context): vpr.Function = {
@@ -116,27 +125,49 @@ class IntEncoding extends LeafTypeEncoding {
         posts = Seq(post),
         body = None
       )()
-      membersToAdd = membersToAdd + res
+      domainToIntFuncs += x -> res
       res
     }
 
-    def callIntToDomainFunc(x: IntegerKind)(ctx: Context)(e: vpr.Exp): vpr.Exp = {
-      val funcname = intToDomainFunc(x)(ctx).name
-      vpr.FuncApp(
-        funcname = funcname,
-        args = Seq(e)
-      )(NoPosition, NoInfo, typ = domainType(x)(ctx), NoTrafos)
+    def addFuncApp(x: IntegerKind)(ctx: Context)(e1: vpr.Exp, e2: vpr.Exp)(pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+      val funcname = addFunc(x)(ctx).name
+      vpr.FuncApp(funcname = funcname, args = Seq(e1, e2))(pos, info, typ = domainType(x)(ctx), errT)
     }
 
-    override def genDomain(x: IntegerKind)(ctx: Context): Domain = {
-      val kindToDomainName = s"IntDomain${x.name}"
-      val res = vpr.Domain(
-        name = kindToDomainName,
-        functions = Seq.empty,
-        axioms = Seq.empty,
-      )()
-      membersToAdd = membersToAdd + res
-      res
+    private def addFunc(x: IntegerKind)(ctx: Context): vpr.Function = {
+      addFuncs.get(x) match {
+        case Some(f) => f
+        case _ =>
+          val domainT = domainType(x)(ctx)
+          val inputVar1Decl = vpr.LocalVarDecl("x", domainT)()
+          val inputVar2Decl = vpr.LocalVarDecl("y", domainT)()
+          val pre = x match {
+            case b: BoundedIntegerKind =>
+              val sumExpr = vpr.Add(
+                domainToIntFuncApp(x)(ctx)(inputVar1Decl.localVar)(),
+                domainToIntFuncApp(x)(ctx)(inputVar2Decl.localVar)(),
+              )()
+              vpr.And(vpr.LeCmp(vpr.IntLit(b.lower)(), sumExpr)(), vpr.LeCmp(sumExpr, vpr.IntLit(b.upper)())())()
+            case _ => vpr.TrueLit()()
+          }
+          val post = vpr.EqCmp(
+            domainToIntFuncApp(x)(ctx)(vpr.Result(domainT)())(),
+            vpr.Add(
+              domainToIntFuncApp(x)(ctx)(inputVar1Decl.localVar)(),
+              domainToIntFuncApp(x)(ctx)(inputVar2Decl.localVar)()
+            )()
+          )()
+          val res = vpr.Function(
+            name = s"add${x.name}",
+            formalArgs = Seq(inputVar1Decl, inputVar2Decl),
+            typ = domainT,
+            pres = Seq(pre),
+            posts = Seq(post),
+            body = None
+          )()
+          addFuncs += x -> res
+          res
+      }
     }
   }
 
@@ -164,12 +195,21 @@ class IntEncoding extends LeafTypeEncoding {
 
     default(super.expression(ctx)){
       case (e: in.DfltVal) :: ctx.Int(kind) / Exclusive =>
-        // unit(withSrc(vpr.IntLit(0), e))
-        unit(IntDomainGenerator.callIntToDomainFunc(kind)(ctx)(vpr.IntLit(BigInt(0))()))
+        unit(withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(vpr.IntLit(BigInt(0))()), e))
       case lit: in.IntLit =>
-        unit(IntDomainGenerator.callIntToDomainFunc(lit.kind)(ctx)(vpr.IntLit(lit.v)()))
-
-      case e@ in.Add(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Add(vl, vr), e)
+        unit(withSrc(IntEncodingGenerator.intToDomainFuncApp(lit.kind)(ctx)(vpr.IntLit(lit.v)()), lit))
+      case e@ in.Add(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) :: ctx.Int(kind) =>
+        for {
+          vl <- goE(l)
+          vr <- goE(r)
+          // TODO: explain the use of left and right
+          left = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          ), l)
+          right = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
+          ), r)
+        } yield withSrc(IntEncodingGenerator.addFuncApp(kind)(ctx)(left, right), e)
       case e@ in.Sub(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Sub(vl, vr), e)
       case e@ in.Mul(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mul(vl, vr), e)
       case e@ in.Mod(l, r) :: ctx.Int(kind) =>
@@ -189,10 +229,53 @@ class IntEncoding extends LeafTypeEncoding {
       case e@ in.ShiftLeft(l, r)  :: ctx.Int(kind) => withSrc(handleShift(shiftLeft)(l, r), e)
       case e@ in.ShiftRight(l, r) :: ctx.Int(kind) => withSrc(handleShift(shiftRight)(l, r), e)
       case e@ in.BitNeg(exp) :: ctx.Int(kind)  => for {ve <- goE(exp)} yield withSrc(vpr.FuncApp(bitwiseNegation, Seq(ve)), e)
+      case in.Conversion(in.IntT(_, outKind), expr :: in.IntT(_, inKind)) =>
+        for {
+          e <- goE(expr)
+          intValue = withSrc(IntEncodingGenerator.domainToIntFuncApp(inKind)(ctx)(e), expr)
+        } yield withSrc(IntEncodingGenerator.intToDomainFuncApp(outKind)(ctx)(intValue), expr)
+      case n@in.LessCmp(l, r) if l.typ.isInstanceOf[in.IntT] && r.typ.isInstanceOf[in.IntT] =>
+        val ltyp = l.typ.asInstanceOf[in.IntT].kind
+        val rtyp = r.typ.asInstanceOf[in.IntT].kind
+        for {
+          vl <- ctx.expression(l)
+          vr <- ctx.expression(r)
+          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(ltyp)(ctx)(vl), l)
+          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(rtyp)(ctx)(vr), r)
+        } yield withSrc(vpr.LtCmp(numl, numr), n)
+      case n@in.AtMostCmp(l, r) if l.typ.isInstanceOf[in.IntT] && r.typ.isInstanceOf[in.IntT] =>
+        val ltyp = l.typ.asInstanceOf[in.IntT].kind
+        val rtyp = r.typ.asInstanceOf[in.IntT].kind
+        for {
+          vl <- ctx.expression(l)
+          vr <- ctx.expression(r)
+          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(ltyp)(ctx)(vl), l)
+          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(rtyp)(ctx)(vr), r)
+        } yield withSrc(vpr.LeCmp(numl, numr), n)
+      case n@in.GreaterCmp(l, r) if l.typ.isInstanceOf[in.IntT] && r.typ.isInstanceOf[in.IntT] =>
+        val ltyp = l.typ.asInstanceOf[in.IntT].kind
+        val rtyp = r.typ.asInstanceOf[in.IntT].kind
+        for {
+          vl <- ctx.expression(l)
+          vr <- ctx.expression(r)
+          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(ltyp)(ctx)(vl), l)
+          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(rtyp)(ctx)(vr), r)
+        } yield withSrc(vpr.GtCmp(numl, numr), n)
+      case n@in.AtLeastCmp(l, r) if l.typ.isInstanceOf[in.IntT] && r.typ.isInstanceOf[in.IntT] =>
+        val ltyp = l.typ.asInstanceOf[in.IntT].kind
+        val rtyp = r.typ.asInstanceOf[in.IntT].kind
+        for {
+          vl <- ctx.expression(l)
+          vr <- ctx.expression(r)
+          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(ltyp)(ctx)(vl), l)
+          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(rtyp)(ctx)(vr), r)
+        } yield withSrc(vpr.GeCmp(numl, numr), n)
     }
   }
 
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    IntEncodingGenerator.finalize(addMemberFn)
+    // TODO: rework the following
     if(isUsedBitAnd) { addMemberFn(bitwiseAnd) }
     if(isUsedBitOr) { addMemberFn(bitwiseOr) }
     if(isUsedBitXor) { addMemberFn(bitwiseXor) }
@@ -202,7 +285,6 @@ class IntEncoding extends LeafTypeEncoding {
     if(isUsedBitNeg) { addMemberFn(bitwiseNegation) }
     if(isUsedGoIntMod) { addMemberFn(goIntMod) }
     if(isUsedGoIntDiv) { addMemberFn(goIntDiv) }
-    IntDomainGenerator.membersToAdd.foreach(addMemberFn)
   }
 
   /* Bitwise Operations */

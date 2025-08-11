@@ -36,8 +36,6 @@ class IntEncoding extends LeafTypeEncoding {
   private var isUsedLeftShift: Boolean = false
   private var isUsedRightShift: Boolean = false
   private var isUsedBitNeg: Boolean = false
-  private var isUsedGoIntDiv: Boolean = false
-  private var isUsedGoIntMod: Boolean = false
 
   /**
     * Translates a type into a Viper type.
@@ -52,13 +50,23 @@ class IntEncoding extends LeafTypeEncoding {
 
   // TODO: make pres conditional on whether the overflow flag is enabled or not
   private case object IntEncodingGenerator extends DomainGenerator[IntegerKind] {
+    // view operations
     private var intToDomainFuncs: Map[IntegerKind, vpr.Function] = Map.empty
     private var domainToIntFuncs: Map[IntegerKind, vpr.Function] = Map.empty
+    // arith operations
     private var addFuncs: Map[IntegerKind, vpr.Function] = Map.empty
     private var subFuncs: Map[IntegerKind, vpr.Function] = Map.empty
     private var mulFuncs: Map[IntegerKind, vpr.Function] = Map.empty
     private var divFuncs: Map[IntegerKind, vpr.Function] = Map.empty
     private var modFuncs: Map[IntegerKind, vpr.Function] = Map.empty
+    // bitwise operations
+    private var bitAndFuncs: Map[IntegerKind, vpr.Function] = Map.empty
+    private var bitOrFuncs: Map[IntegerKind, vpr.Function] = Map.empty
+    private var bitXorFuncs: Map[IntegerKind, vpr.Function] = Map.empty
+    private var bitClearFuncs: Map[IntegerKind, vpr.Function] = Map.empty
+    private var bitNegFuncs: Map[IntegerKind, vpr.Function] = Map.empty
+    // shifts
+
 
     override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
       super.finalize(addMemberFn)
@@ -69,6 +77,11 @@ class IntEncoding extends LeafTypeEncoding {
       mulFuncs.values.foreach(addMemberFn)
       divFuncs.values.foreach(addMemberFn)
       modFuncs.values.foreach(addMemberFn)
+      bitAndFuncs.values.foreach(addMemberFn)
+      bitOrFuncs.values.foreach(addMemberFn)
+      bitXorFuncs.values.foreach(addMemberFn)
+      bitClearFuncs.values.foreach(addMemberFn)
+      bitNegFuncs.values.foreach(addMemberFn)
     }
 
     override def genDomain(x: IntegerKind)(ctx: Context): Domain = {
@@ -142,7 +155,6 @@ class IntEncoding extends LeafTypeEncoding {
       res
     }
 
-    // Add body to all arith operations, instead of relying on posts
     def addFuncApp(x: IntegerKind)(ctx: Context)(e1: vpr.Exp, e2: vpr.Exp)
                   (pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
       val funcname = addFunc(x)(ctx).name
@@ -376,6 +388,167 @@ class IntEncoding extends LeafTypeEncoding {
           res
       }
     }
+
+    /***** Bitwise operations *****/
+    def bitAndFuncApp(x: IntegerKind)(ctx: Context)(e1: vpr.Exp, e2: vpr.Exp)
+                  (pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+      val funcname = bitAndFunc(x)(ctx).name
+      vpr.FuncApp(funcname = funcname, args = Seq(e1, e2))(pos, info, typ = domainType(x)(ctx), errT)
+    }
+
+    private def bitAndFunc(x: IntegerKind)(ctx: Context): vpr.Function = {
+      bitAndFuncs.get(x) match {
+        case Some(f) => f
+        case _ =>
+          val domainT = domainType(x)(ctx)
+          val inputVar1Decl = vpr.LocalVarDecl("x", domainT)()
+          val inputVar2Decl = vpr.LocalVarDecl("y", domainT)()
+          val post = x match {
+            case b: BoundedIntegerKind =>
+              val resultVal = domainToIntFuncApp(x)(ctx)(vpr.Result(domainT)())()
+              vpr.And(vpr.LeCmp(vpr.IntLit(b.lower)(), resultVal)(), vpr.LeCmp(resultVal, vpr.IntLit(b.upper)())())()
+            case _ => vpr.TrueLit()()
+          }
+          val res = vpr.Function(
+            name = s"bitAnd${x.name}",
+            formalArgs = Seq(inputVar1Decl, inputVar2Decl),
+            typ = domainT,
+            pres = Seq(termination.DecreasesWildcard(None)()),
+            posts = Seq(post),
+            body = None
+          )()
+          bitAndFuncs += x -> res
+          res
+      }
+    }
+
+    def bitOrFuncApp(x: IntegerKind)(ctx: Context)(e1: vpr.Exp, e2: vpr.Exp)
+                     (pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+      val funcname = bitOrFunc(x)(ctx).name
+      vpr.FuncApp(funcname = funcname, args = Seq(e1, e2))(pos, info, typ = domainType(x)(ctx), errT)
+    }
+
+    private def bitOrFunc(x: IntegerKind)(ctx: Context): vpr.Function = {
+      bitOrFuncs.get(x) match {
+        case Some(f) => f
+        case _ =>
+          val domainT = domainType(x)(ctx)
+          val inputVar1Decl = vpr.LocalVarDecl("x", domainT)()
+          val inputVar2Decl = vpr.LocalVarDecl("y", domainT)()
+          val post = x match {
+            case b: BoundedIntegerKind =>
+              val resultVal = domainToIntFuncApp(x)(ctx)(vpr.Result(domainT)())()
+              vpr.And(vpr.LeCmp(vpr.IntLit(b.lower)(), resultVal)(), vpr.LeCmp(resultVal, vpr.IntLit(b.upper)())())()
+            case _ => vpr.TrueLit()()
+          }
+          val res = vpr.Function(
+            name = s"bitOr${x.name}",
+            formalArgs = Seq(inputVar1Decl, inputVar2Decl),
+            typ = domainT,
+            pres = Seq(termination.DecreasesWildcard(None)()),
+            posts = Seq(post),
+            body = None
+          )()
+          bitOrFuncs += x -> res
+          res
+      }
+    }
+
+    def bitXorFuncApp(x: IntegerKind)(ctx: Context)(e1: vpr.Exp, e2: vpr.Exp)
+                    (pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+      val funcname = bitXorFunc(x)(ctx).name
+      vpr.FuncApp(funcname = funcname, args = Seq(e1, e2))(pos, info, typ = domainType(x)(ctx), errT)
+    }
+
+    private def bitXorFunc(x: IntegerKind)(ctx: Context): vpr.Function = {
+      bitXorFuncs.get(x) match {
+        case Some(f) => f
+        case _ =>
+          val domainT = domainType(x)(ctx)
+          val inputVar1Decl = vpr.LocalVarDecl("x", domainT)()
+          val inputVar2Decl = vpr.LocalVarDecl("y", domainT)()
+          val post = x match {
+            case b: BoundedIntegerKind =>
+              val resultVal = domainToIntFuncApp(x)(ctx)(vpr.Result(domainT)())()
+              vpr.And(vpr.LeCmp(vpr.IntLit(b.lower)(), resultVal)(), vpr.LeCmp(resultVal, vpr.IntLit(b.upper)())())()
+            case _ => vpr.TrueLit()()
+          }
+          val res = vpr.Function(
+            name = s"bitXor${x.name}",
+            formalArgs = Seq(inputVar1Decl, inputVar2Decl),
+            typ = domainT,
+            pres = Seq(termination.DecreasesWildcard(None)()),
+            posts = Seq(post),
+            body = None
+          )()
+          bitXorFuncs += x -> res
+          res
+      }
+    }
+
+    def bitClearFuncApp(x: IntegerKind)(ctx: Context)(e1: vpr.Exp, e2: vpr.Exp)
+                     (pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+      val funcname = bitClearFunc(x)(ctx).name
+      vpr.FuncApp(funcname = funcname, args = Seq(e1, e2))(pos, info, typ = domainType(x)(ctx), errT)
+    }
+
+    private def bitClearFunc(x: IntegerKind)(ctx: Context): vpr.Function = {
+      bitClearFuncs.get(x) match {
+        case Some(f) => f
+        case _ =>
+          val domainT = domainType(x)(ctx)
+          val inputVar1Decl = vpr.LocalVarDecl("x", domainT)()
+          val inputVar2Decl = vpr.LocalVarDecl("y", domainT)()
+          val post = x match {
+            case b: BoundedIntegerKind =>
+              val resultVal = domainToIntFuncApp(x)(ctx)(vpr.Result(domainT)())()
+              vpr.And(vpr.LeCmp(vpr.IntLit(b.lower)(), resultVal)(), vpr.LeCmp(resultVal, vpr.IntLit(b.upper)())())()
+            case _ => vpr.TrueLit()()
+          }
+          val res = vpr.Function(
+            name = s"bitClear${x.name}",
+            formalArgs = Seq(inputVar1Decl, inputVar2Decl),
+            typ = domainT,
+            pres = Seq(termination.DecreasesWildcard(None)()),
+            posts = Seq(post),
+            body = None
+          )()
+          bitClearFuncs += x -> res
+          res
+      }
+    }
+
+    def bitNegFuncApp(x: IntegerKind)(ctx: Context)(e: vpr.Exp)
+                       (pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+      val funcname = bitNegFunc(x)(ctx).name
+      vpr.FuncApp(funcname = funcname, args = Seq(e))(pos, info, typ = domainType(x)(ctx), errT)
+    }
+
+    private def bitNegFunc(x: IntegerKind)(ctx: Context): vpr.Function = {
+      bitNegFuncs.get(x) match {
+        case Some(f) => f
+        case _ =>
+          val domainT = domainType(x)(ctx)
+          val inputVarDecl = vpr.LocalVarDecl("x", domainT)()
+          val post = x match {
+            case b: BoundedIntegerKind =>
+              val resultVal = domainToIntFuncApp(x)(ctx)(vpr.Result(domainT)())()
+              vpr.And(vpr.LeCmp(vpr.IntLit(b.lower)(), resultVal)(), vpr.LeCmp(resultVal, vpr.IntLit(b.upper)())())()
+            case _ => vpr.TrueLit()()
+          }
+          val res = vpr.Function(
+            name = s"bitNeg${x.name}",
+            formalArgs = Seq(inputVarDecl),
+            typ = domainT,
+            pres = Seq(termination.DecreasesWildcard(None)()),
+            posts = Seq(post),
+            body = None
+          )()
+          bitNegFuncs += x -> res
+          res
+      }
+    }
+
   }
 
   // TODO: explain our encoding is resilient to the type-checker imprecision
@@ -472,14 +645,58 @@ class IntEncoding extends LeafTypeEncoding {
             withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
           ), r)
         } yield withSrc(IntEncodingGenerator.divFuncApp(kind)(ctx)(left, right), e)
-
-      case e@ in.BitAnd(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseAnd, Seq(vl, vr)), e)
-      case e@ in.BitOr(l, r)  :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseOr,  Seq(vl, vr)), e)
-      case e@ in.BitXor(l, r) :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseXor, Seq(vl, vr)), e)
-      case e@ in.BitClear(l, r)   :: ctx.Int(kind) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitClear, Seq(vl, vr)), e)
+      case e@ in.BitAnd(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) :: ctx.Int(kind) =>
+        for {
+          vl <- goE(l)
+          vr <- goE(r)
+          // TODO: explain the use of left and right
+          left = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          ), l)
+          right = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
+          ), r)
+        } yield withSrc(IntEncodingGenerator.bitAndFuncApp(kind)(ctx)(left, right), e)
+      case e@ in.BitOr(l :: ctx.Int(kindL), r :: ctx.Int(kindR))  :: ctx.Int(kind) =>
+        for {
+          vl <- goE(l)
+          vr <- goE(r)
+          // TODO: explain the use of left and right
+          left = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          ), l)
+          right = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
+          ), r)
+        } yield withSrc(IntEncodingGenerator.bitOrFuncApp(kind)(ctx)(left, right), e)
+      case e@ in.BitXor(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) :: ctx.Int(kind) =>
+        for {
+          vl <- goE(l)
+          vr <- goE(r)
+          // TODO: explain the use of left and right
+          left = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          ), l)
+          right = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
+          ), r)
+        } yield withSrc(IntEncodingGenerator.bitXorFuncApp(kind)(ctx)(left, right), e)
+      case e@ in.BitClear(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) :: ctx.Int(kind) =>
+        for {
+          vl <- goE(l)
+          vr <- goE(r)
+          // TODO: explain the use of left and right
+          left = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(ctx)(vl), l)
+          ), l)
+          right = withSrc(IntEncodingGenerator.intToDomainFuncApp(kind)(ctx)(
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
+          ), r)
+        } yield withSrc(IntEncodingGenerator.bitClearFuncApp(kind)(ctx)(left, right), e)
+      case e@ in.BitNeg(exp :: ctx.Int(kind)) =>
+        for { expD <- goE(exp) } yield withSrc(IntEncodingGenerator.bitNegFuncApp(kind)(ctx)(expD), e)
       case e@ in.ShiftLeft(l, r)  :: ctx.Int(kind) => withSrc(handleShift(shiftLeft)(l, r), e)
       case e@ in.ShiftRight(l, r) :: ctx.Int(kind) => withSrc(handleShift(shiftRight)(l, r), e)
-      case e@ in.BitNeg(exp) :: ctx.Int(kind)  => for {ve <- goE(exp)} yield withSrc(vpr.FuncApp(bitwiseNegation, Seq(ve)), e)
       case in.Conversion(in.IntT(_, outKind), expr :: in.IntT(_, inKind)) =>
         for {
           e <- goE(expr)
@@ -547,65 +764,11 @@ class IntEncoding extends LeafTypeEncoding {
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     IntEncodingGenerator.finalize(addMemberFn)
     // TODO: rework the following
-    if(isUsedBitAnd) { addMemberFn(bitwiseAnd) }
-    if(isUsedBitOr) { addMemberFn(bitwiseOr) }
-    if(isUsedBitXor) { addMemberFn(bitwiseXor) }
-    if(isUsedBitClear) { addMemberFn(bitClear) }
     if(isUsedLeftShift) { addMemberFn(shiftLeft) }
     if(isUsedRightShift) { addMemberFn(shiftRight) }
-    if(isUsedBitNeg) { addMemberFn(bitwiseNegation) }
-    // if(isUsedGoIntMod) { addMemberFn(goIntMod) }
-    // if(isUsedGoIntDiv) { addMemberFn(goIntDiv) }
   }
 
   /* Bitwise Operations */
-  private lazy val bitwiseAnd: vpr.Function = {
-    isUsedBitAnd = true
-    vpr.Function(
-      name = Names.bitwiseAnd,
-      formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
-      typ = vpr.Int,
-      pres = Seq(termination.DecreasesWildcard(None)()),
-      posts = Seq.empty,
-      body = None
-    )()
-  }
-
-  private lazy val bitwiseOr: vpr.Function = {
-    isUsedBitOr = true
-    vpr.Function(
-      name = Names.bitwiseOr,
-      formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
-      typ = vpr.Int,
-      pres = Seq(termination.DecreasesWildcard(None)()),
-      posts = Seq.empty,
-      body = None
-    )()
-  }
-
-  private lazy val bitwiseXor: vpr.Function = {
-    isUsedBitXor = true
-    vpr.Function(
-      name = Names.bitwiseXor,
-      formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
-      typ = vpr.Int,
-      pres = Seq(termination.DecreasesWildcard(None)()),
-      posts = Seq.empty,
-      body = None
-    )()
-  }
-
-  private lazy val bitClear: vpr.Function = {
-    isUsedBitClear = true
-    vpr.Function(
-      name = Names.bitClear,
-      formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
-      typ = vpr.Int,
-      pres = Seq(termination.DecreasesWildcard(None)()),
-      posts = Seq.empty,
-      body = None
-    )()
-  }
 
   private lazy val shiftLeft: vpr.Function = {
     isUsedLeftShift = true
@@ -636,17 +799,4 @@ class IntEncoding extends LeafTypeEncoding {
       body = None
     )()
   }
-
-  private lazy val bitwiseNegation: vpr.Function = {
-    isUsedBitNeg = true
-    vpr.Function(
-      name = Names.bitwiseNeg,
-      formalArgs = Seq(vpr.LocalVarDecl("exp", vpr.Int)()),
-      typ = vpr.Int,
-      pres = Seq(termination.DecreasesWildcard(None)()),
-      posts = Seq.empty,
-      body = None
-    )()
-  }
-
 }

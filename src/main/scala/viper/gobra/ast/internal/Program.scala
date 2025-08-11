@@ -1109,7 +1109,9 @@ case class ShiftLeft(left: Expr, right: Expr)(val info: Source.Parser.Info) exte
 case class ShiftRight(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr(">>") {
   override val typ: Type = left.typ
 }
-case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation
+case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation {
+  override val typ: Type = op.typ
+}
 
 /*
  * Convert 'expr' to non-interface type 'newType'. If 'newType' is

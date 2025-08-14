@@ -1,0 +1,102 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// some high-level ideas are inspired by Nagini's iap_bst.py example
+
+package main
+
+// import "fmt"
+
+type Tree struct {
+    root *node
+}
+
+type node struct {
+  value int
+  left *node
+  right *node
+}
+
+pred (t *Tree) tree() {
+    acc(&t.root) &&
+    (t.root != nil ==> t.root.tree() && t.root.sorted(none[int], none[int]))
+}
+
+pred (n *node) tree() {
+    acc(&n.value) && acc(&n.left) && acc(&n.right) &&
+    (n.left != nil ==> n.left.tree()) &&
+    (n.right != nil ==> n.right.tree())
+}
+
+ghost
+requires acc(n.tree(), _)
+pure func (n *node) sorted(lowerBound, upperBound option[int]) bool {
+    return unfolding acc(n.tree(), _) in (lowerBound != none[int] ==> get(lowerBound) < n.value) &&
+        (upperBound != none[int] ==> n.value < get(upperBound)) &&
+        (n.left != nil ==> n.left.sorted(lowerBound, some(n.value))) &&
+        (n.right != nil ==> n.right.sorted(some(n.value), upperBound))
+}
+
+ghost
+requires acc(t.tree(), _)
+pure func (t *Tree) sortedValues() (res seq[int]) {
+    return unfolding acc(t.tree(), _) in (t.root == nil) ? seq[int] { } : t.root.sortedValues(none[int], none[int])
+}
+
+ghost
+requires acc(n.tree(), _) && n.sorted(lowerBound, upperBound)
+pure func (n *node) sortedValues(lowerBound, upperBound option[int]) (res seq[int]) {
+    return unfolding acc(n.tree(), _) in (n.left == nil ? seq[int]{ } : n.left.sortedValues(lowerBound, some(n.value))) ++ seq[int]{ n.value } ++ (n.right == nil ? seq[int]{ } : n.right.sortedValues(some(n.value), upperBound))
+}
+
+ghost
+requires dividend > 0 && acc(t.tree(), 1/dividend)
+pure func (t *Tree) pureContains(value, dividend int) bool {
+  return unfolding acc(t.tree(), 1/dividend) in t.root != nil && value in t.root.sortedValues(none[int], none[int])
+}
+
+requires t.tree()
+ensures t.tree()
+ensures value in t.sortedValues()
+func (t *Tree) Insert(value int) {
+    unfold t.tree()
+    if (t.root == nil) {
+        t.root = &node{value: value}
+        fold t.root.tree()
+    } else {
+        t.root.insert(value, none[int], none[int])
+    }
+    fold t.tree()
+}
+
+requires lowerBound != none[int] ==> get(lowerBound) < value
+requires upperBound != none[int] ==> get(upperBound) > value
+requires n.tree() && n.sorted(lowerBound, upperBound)
+ensures n.tree() && n.sorted(lowerBound, upperBound)
+ensures value in n.sortedValues(lowerBound, upperBound)
+func (n *node) insert(value int, ghost lowerBound, upperBound option[int]) {
+    unfold n.tree()
+    if (value < n.value) {
+        if (n.left == nil) {
+            n.left = &node{value: value}
+            fold n.left.tree()
+        } else {
+            n.left.insert(value, lowerBound, some(n.value))
+        }
+    } else if (value > n.value) {
+        if (n.right == nil) {
+            n.right = &node{value: value}
+            fold n.right.tree()
+        } else {
+            n.right.insert(value, some(n.value), upperBound)
+        }
+    }
+    fold n.tree()
+}
+
+requires t.tree()
+func client2(t *Tree, value int) {
+    // insert a new value
+    t.Insert(value)
+    assert t.pureContains(value, 2)
+}

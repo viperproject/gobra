@@ -1,0 +1,103 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// some high-level ideas are inspired by Nagini's iap_bst.py example
+
+package main
+
+// import "fmt"
+
+type Tree struct {
+    root *node
+}
+
+type node struct {
+  value int
+  left *node
+  right *node
+}
+
+pred (t *Tree) tree() {
+    acc(&t.root) &&
+    (t.root != nil ==> t.root.tree() && t.root.sorted(none[int], none[int]))
+}
+
+pred (n *node) tree() {
+    acc(&n.value) && acc(&n.left) && acc(&n.right) &&
+    (n.left != nil ==> n.left.tree()) &&
+    (n.right != nil ==> n.right.tree())
+}
+
+
+ghost
+requires acc(n.tree(), _)
+pure func (n *node) sorted(lowerBound, upperBound option[int]) bool
+/*
+{
+    return unfolding acc(n.tree(), _) in (lowerBound != none[int] ==> get(lowerBound) < n.value) &&
+        (upperBound != none[int] ==> n.value < get(upperBound)) &&
+        (n.left != nil ==> n.left.sorted(lowerBound, some(n.value))) &&
+        (n.right != nil ==> n.right.sorted(some(n.value), upperBound))
+}
+*/
+
+ghost
+func (n *node) convert(oldLowerBound, oldUpperBound, newLowerBound, newUpperBound option[int])
+
+ghost
+requires acc(t.tree(), _)
+pure func (t *Tree) sortedValues() (res seq[int])
+
+ghost
+requires acc(n.tree(), _) && n.sorted(lowerBound, upperBound)
+pure func (n *node) sortedValues(lowerBound, upperBound option[int]) (res seq[int])
+
+func NewTree() (t *Tree)
+
+requires t.tree()
+pure func (t *Tree) IsEmpty() (res bool)
+
+requires dividend > 0
+requires acc(t.tree(), 1/dividend)
+ensures acc(t.tree(), 1/dividend)
+func (t *Tree) Contains(value, dividend int) (res bool) {
+    /*unfold acc(t.tree(), 1/dividend)
+    if (t.root == nil) {
+
+    } else {
+        res = t.root.contains(value, dividend, none[int], none[int])
+    }
+    fold acc(t.tree(), 1/dividend)*/
+    return res
+}
+
+/*
+ghost
+pure func (t *Tree) pureContains(value, dividend int) bool
+
+requires dividend > 0
+requires acc(n.tree(), 1/dividend) && n.sorted(lowerBound, upperBound)
+ensures acc(n.tree(), 1/dividend) && n.sorted(lowerBound, upperBound)
+func (n *node) contains(value int, ghost dividend int, ghost lowerBound, upperBound option[int]) (res bool) {
+    unfold acc(n.tree(), 1/dividend)
+    if (n.value == value) {
+
+    } else if (value < n.value && n.left != nil) {
+        res = n.left.contains(value, dividend, lowerBound, some(n.value))
+    } else if (value > n.value && n.right != nil){
+        res = n.right.contains(value, dividend, some(n.value), upperBound)
+    } else {
+
+    }
+    fold acc(n.tree(), 1/dividend)
+    return res
+}
+*/
+
+requires t.tree()
+func client1(t *Tree, value int) {
+    var oldValues = t.sortedValues()
+    t.Contains(value, 2) // passing a fractional permission of t.tree() enables proof that the tree values remain unchanged
+    var newValues = t.sortedValues()
+    assert oldValues == newValues
+}

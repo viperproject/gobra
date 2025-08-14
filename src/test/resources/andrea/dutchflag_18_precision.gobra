@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n])
+ensures forall n int :: 0 <= n && n < len(s) ==> acc(&s[n])
+func dutchflag (s []int, mid int) (ghost a int, ghost b int) {
+  j := 0
+  k := len(s)
+
+  invariant forall n int :: 0 <= n && n < len(s) ==> acc(&s[n])
+  for (j < k) {
+  }
+}

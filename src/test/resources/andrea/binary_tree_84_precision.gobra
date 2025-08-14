@@ -1,0 +1,45 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package trivial
+
+type Tree struct {
+  Left  *Tree
+  Value int
+  Right *Tree
+}
+
+pred tree(self *Tree) {
+  acc(&self.Left) && acc(&self.Value) && acc(&self.Right) &&
+  (self.Left != nil ==> tree(self.Left)) &&
+  (self.Right != nil ==> tree(self.Right))
+}
+
+
+requires self != nil ==> tree(self)
+pure func (self *Tree) Contains(v int) bool {
+  return self != nil && (unfolding tree(self) in self.Value == v || (self.Left.Contains(v) || self.Right.Contains(v)))
+}
+
+requires tree(self) && !self.Contains(v)
+//ensures (res != nil ==> tree(res))
+//ensures !res.Contains(v)
+ensures v != leftMost // test assertion
+func (self *Tree) deleteLeftMost(ghost v int, a int) (res *Tree, leftMost int) {
+    unfold tree(self)
+    if (self.Left != nil) {
+        // follow into left subtree as the minimum is the left most node
+        self.Left, leftMost = self.Left.deleteLeftMost(v, a)
+        //fold tree(self)
+        //res = self
+    } else if (a > 0) {
+        // self.Value is the minimum but it has a right subtree
+        // thus, replace n by its right subtree
+        res, leftMost = self.Right, self.Value
+    } else {
+        // self.Value is the left-most node in the tree and it does not have any subtrees
+        // simply delete it by returning nil
+        res, leftMost = nil, self.Value
+    }
+    return res, leftMost
+}

@@ -300,7 +300,7 @@ trait SIFLowGuardTransformer {
 
         case u: Unfolding =>
           Unfolding(runExp(u.acc, ctx.major).asInstanceOf[PredicateAccessPredicate],
-            Unfolding(runExp(u.acc, ctx.major).asInstanceOf[PredicateAccessPredicate], go(u.body, isPositive))(u.pos, u.info, u.errT)
+            Unfolding(runExp(u.acc, ctx.minor).asInstanceOf[PredicateAccessPredicate], go(u.body, isPositive))(u.pos, u.info, u.errT)
           )(u.pos, u.info, u.errT)
 
         case e => throw new IllegalArgumentException(

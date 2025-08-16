@@ -694,6 +694,15 @@ class IntEncoding extends LeafTypeEncoding {
         for { expD <- goE(exp) } yield withSrc(IntEncodingGenerator.bitNegFuncApp(kind)(ctx)(expD), e)
       case e@ in.ShiftLeft(l, r)  :: ctx.Int(kind) => withSrc(handleShift(shiftLeft)(l, r), e)
       case e@ in.ShiftRight(l, r) :: ctx.Int(kind) => withSrc(handleShift(shiftRight)(l, r), e)
+      case in.Conversion(t: in.IntT, expr) if expr.typ.isInstanceOf[in.DefinedT] =>
+        val underlyingKind = ctx.underlyingType(expr.typ) match {
+          case intT: in.IntT => intT.kind
+          case _ => ???
+        }
+        for {
+          e <- goE(expr)
+          intValue = withSrc(IntEncodingGenerator.domainToIntFuncApp(underlyingKind)(ctx)(e), expr)
+        } yield withSrc(IntEncodingGenerator.intToDomainFuncApp(t.kind)(ctx)(intValue), expr)
       case in.Conversion(in.IntT(_, outKind), expr :: in.IntT(_, inKind)) =>
         for {
           e <- goE(expr)

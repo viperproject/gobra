@@ -216,7 +216,7 @@ class BuiltInEncoding extends Encoding {
         val pres: Vector[in.Assertion] = Vector(
           in.Access(isChannelInst, in.WildcardPerm(src))(src),
         )
-        in.PureMethod(recvParam, x.name, Vector.empty, Vector(kParam), pres, Vector.empty, Vector.empty, Vector.empty, None, false)(src)
+        in.PureMethod(recvParam, x.name, Vector.empty, Vector(kParam), pres, Vector.empty, Vector.empty, Vector.empty, None, false, false)(src)
 
       case (tag: ChannelInvariantMethodTag, recv: in.ChannelT) =>
         /**
@@ -242,7 +242,7 @@ class BuiltInEncoding extends Encoding {
         val pres: Vector[in.Assertion] = Vector(
           in.Access(chanPredicate, in.WildcardPerm(src))(src)
         )
-        in.PureMethod(recvParam, x.name, Vector.empty, Vector(resParam), pres, Vector.empty, Vector.empty, Vector.empty, None, false)(src)
+        in.PureMethod(recvParam, x.name, Vector.empty, Vector(resParam), pres, Vector.empty, Vector.empty, Vector.empty, None, false, false)(src)
 
       case (InitChannelMethodTag, recv: in.ChannelT) =>
         /**

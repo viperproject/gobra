@@ -209,7 +209,7 @@ protected class ClosureSpecsEncoder {
     val satisfiesSpec = in.ExprAssertion(in.ClosureImplements(result, in.ClosureSpec(func, Map.empty)(info))(info))(info)
     val (args, captAssertions) = capturedArgsAndAssertions(ctx)(result, captured(ctx)(func), info)
     val notNil = in.ExprAssertion(in.UneqCmp(result, in.NilLit(genericFuncType)(info))(info))(info)
-    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions :+ notNil, Vector.empty, Vector.empty, None, false)(memberOrLit(ctx)(func).info)
+    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions :+ notNil, Vector.empty, Vector.empty, None, false, false)(memberOrLit(ctx)(func).info)
     ctx.defaultEncoding.pureFunction(getter)(ctx)
   }
 
@@ -302,12 +302,13 @@ protected class ClosureSpecsEncoder {
         ctx.defaultEncoding.function(func)(ctx)
       case f: in.PureFunction =>
         val posts = func.posts ++ assertionFromPureFunctionBody(f.body, f.results.head)
-        val m = in.PureFunction(proxy, args, f.results, pres, posts, f.terminationMeasures, annotations, None, f.isOpaque)(spec.info)
+        val m = in.PureFunction(proxy, args, f.results, pres, posts, f.terminationMeasures, annotations, None, f.isOpaque, f.isHyper)(spec.info)
         ctx.defaultEncoding.pureFunction(m)(ctx)
       case lit: in.PureFunctionLit =>
         val body = if (spec.params.isEmpty) lit.body else None
         val posts = lit.posts ++ (if (spec.params.isEmpty) Vector.empty else assertionFromPureFunctionBody(lit.body, lit.results.head).toVector)
-        val func = in.PureFunction(proxy, args, lit.results, pres, posts, lit.terminationMeasures, annotations, body, false)(lit.info)
+        // TODO: add a check in the type-checker guarantees that function literals do not have hyperMode annotations
+        val func = in.PureFunction(proxy, args, lit.results, pres, posts, lit.terminationMeasures, annotations, body, false, false)(lit.info)
         ctx.defaultEncoding.pureFunction(func)(ctx)
     }
   }

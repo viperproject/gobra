@@ -150,8 +150,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, backendAnnotations, body, isOpaque) =>
-      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <> "pure func"
+    case PureFunction(name, args, results, pres, posts, measures, backendAnnotations, body, isOpaque, isHyper) =>
+      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <>
+        (if (isHyper) text("hyper ") else emptyDoc) <>
+        "pure func"
       funcPrefix <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <> showBackendAnnotations(backendAnnotations)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
@@ -163,8 +165,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, backendAnnotations, body, isOpaque) =>
-      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <> "pure func"
+    case PureMethod(receiver, name, args, results, pres, posts, measures, backendAnnotations, body, isOpaque, isHyper) =>
+      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <>
+        (if (isHyper) text("hyper ") else emptyDoc) <>
+        "pure func"
       funcPrefix <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <> showBackendAnnotations(backendAnnotations)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
@@ -701,11 +705,15 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   }
 
   override def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, backendAnnotations, _, isOpaque) =>
-    val funcPrefix = if (isOpaque) "pure opaque func" else "pure func"
-      funcPrefix <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <>
-        showBackendAnnotations(backendAnnotations))
+    case PureFunction(name, args, results, pres, posts, measures, backendAnnotations, _, isOpaque, isHyper) =>
+    val funcPrefix = {
+      val opaque: Doc = if (isOpaque) "opaque" else emptyDoc
+      val hyper: Doc = if (isHyper) "hyper" else emptyDoc
+      opaque <+> hyper <+> "pure func"
+    }
+    funcPrefix <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+      spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <>
+      showBackendAnnotations(backendAnnotations))
   }
 
   override def showMethod(m: Method): Doc = m match {
@@ -716,8 +724,12 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   }
 
   override def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, backendAnnotations, _, isOpaque) =>
-      val funcPrefix = if (isOpaque) "pure opaque func" else "pure func"
+    case PureMethod(receiver, name, args, results, pres, posts, measures, backendAnnotations, _, isOpaque, isHyper) =>
+      val funcPrefix = {
+        val opaque: Doc = if (isOpaque) "opaque" else emptyDoc
+        val hyper: Doc = if (isHyper) "hyper" else emptyDoc
+        opaque <+> hyper <+> "pure func"
+      }
       funcPrefix <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <>
           showBackendAnnotations(backendAnnotations))

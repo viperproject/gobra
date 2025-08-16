@@ -77,6 +77,13 @@ trait Implements { this: TypeInfoImpl =>
                     }
                   }) {
                     Vector(s"For member $name, the 'pure' annotation for implementation and interface does not match")
+                  } else if ( {
+                    (implMember, itfMember) match {
+                      case (implMember: Method, itfMember: Method) => implMember.isHyper != itfMember.isHyper
+                      case _ => false
+                    }
+                  }) {
+                    Vector(s"For member $name, the 'hyper' annotation for implementation and interface does not match")
                   } else {
                     Vector.empty
                   }

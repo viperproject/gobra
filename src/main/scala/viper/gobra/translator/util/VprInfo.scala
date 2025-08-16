@@ -17,6 +17,14 @@ object VprInfo {
     }
   }
 
+  def maybeAttachHyperFunc(info: vpr.Info, isHyper: Boolean): vpr.Info = {
+    if (isHyper) {
+      attachBackendAnnotation(info, "hyperFunc")
+    } else {
+      info
+    }
+  }
+
   def maybeAttachReveal(info: vpr.Info, reveal: Boolean): vpr.Info = {
     if (reveal) {
       attachBackendAnnotation(info, "reveal")

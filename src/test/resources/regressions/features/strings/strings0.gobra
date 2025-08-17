@@ -63,3 +63,18 @@ func comp(s1, s2 string) int {
 		return 1
 	}
 }
+
+requires 0 < len(s)
+decreases
+func convStringBytesIndexing(s string) {
+	sl := []byte(s)
+	assert sl[0] == s[0]
+}
+
+requires 0 < len(s)
+requires acc(s)
+decreases
+func convBytesStringIndexing(s []byte) {
+	str := string(s)
+	assert str[0] == s[0]
+}

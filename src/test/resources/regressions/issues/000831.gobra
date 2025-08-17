@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000883
+
+// ##(--hyperMode on)
+
+// Converting a literal string to a []byte yields a slice with low length and low contents.
+ensures acc(res)
+ensures low(len(res))
+ensures forall i int :: { res[i] } 0 <= i && i < len(res) && low(i) ==> low(res[i])
+func test1() (res []byte) {
+	res := []byte("test")
+}
+
+// Converting a low string to a []byte yields a slice with low length and low contents.
+requires low(s)
+ensures  acc(res)
+ensures  low(len(res))
+ensures  forall i int :: { res[i] } 0 <= i && i < len(res) && low(i) ==> low(res[i])
+func test2(s string) (res []byte) {
+	res := []byte(s)
+}

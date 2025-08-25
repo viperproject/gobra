@@ -6,11 +6,12 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
+import org.bitbucket.inkytonik.kiama.util.Message
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
-import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminator, GlobalVariable, SingleConstant}
-import viper.gobra.frontend.info.base.Type.{PointerT, _}
+import viper.gobra.frontend.info.base.Type._
+import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
 import viper.gobra.util.{Constants, TypeBounds, Violation}
@@ -20,7 +21,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   import viper.gobra.util.Violation._
 
   val INT_TYPE: Type = IntT(config.typeBounds.Int)
-  val UINT_TYPE: Type = IntT(config.typeBounds.UInt)
   val UNTYPED_INT_CONST: Type = IntT(config.typeBounds.UntypedConst)
   // default type of unbounded integer constant expressions when they must have a type
   val DEFAULT_INTEGER_TYPE: Type = INT_TYPE
@@ -240,6 +240,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PInvoke =>
       val mayInit = isEnclosingMayInit(n)
+      val (inPureFunc, inHyperFunc) = tryEnclosingFunctionOrMethod(n) match {
+        case Some(f: PFunctionDecl) => (f.spec.isPure, f.spec.isHyperFunc)
+        case Some(m: PMethodDecl) => (m.spec.isPure, m.spec.isHyperFunc)
+        case _ => (false, false)
+      }
+      val inLowAssertion = isEnclosingLowAssertion(n)
       val (l, r) = (exprOrType(n.base), resolve(n))
       (l,r) match {
         case (Right(_), Some(p: ap.Conversion)) =>
@@ -254,12 +260,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             argWithinBounds
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
-          val (isOpaque, isMayInit, isImported, isPure) = c.callee match {
+          val (isOpaque, isMayInit, isImported, isPure, isHyper) = c.callee match {
             case base: ap.Symbolic => base.symb match {
-              case f: st.Function => (f.isOpaque, f.decl.spec.mayBeUsedInInit, f.context != this, f.isPure)
+              case f: st.Function =>
+                (f.isOpaque, f.decl.spec.mayBeUsedInInit, f.context != this, f.isPure, f.isHyper)
               case m: st.MethodImpl =>
-                (m.isOpaque, m.decl.spec.mayBeUsedInInit, m.context != this, m.isPure)
-              case _ => (false, true, false, false)
+                (m.isOpaque, m.decl.spec.mayBeUsedInInit, m.context != this, m.isPure, m.isHyper)
+              case _ => (false, true, false, false, false)
             }
           }
           // We disallow calling interface methods whose receiver type is an interface declared in the current package
@@ -289,11 +296,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case t: AbstractType => t.messages(n, n.args map exprType)
             case t => error(n.base, s"type error: got $t but expected function type or AbstractType")
           }
+          val callingHyperFromNonHyper = error(n, "Cannot call hyper function from non-hyper function", inPureFunc && !inHyperFunc && isHyper)
+          val callingNonHyperFromHyper = error(n, "Calls to non-hyper pure functions in hyper functions can only occur in low assertions",
+            inPureFunc && inHyperFunc && !inLowAssertion && !isHyper)
           // Pure functions may always be called from 'mayInit' methods, as they are not allowed to assume the
           // package invariants.
           val mayInitSeparation = error(n, "Function called from 'mayInit' context is not 'mayInit'.",
             !isImported && isEnclosingMayInit(n) && !(isMayInit || isPure))
-          cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation
+          cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation ++ callingHyperFromNonHyper ++
+            callingNonHyperFromHyper
 
         case (Left(_), Some(_: ap.ClosureCall)) =>
           error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a closure call.", n.reveal) ++
@@ -362,7 +373,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               noMessages
 
             case (StringT, IntT(_)) =>
-              error(n, "Indexing a string is currently not supported")
+              for {
+                cBase <- stringConstantEvaluation(n.base)
+                cIdx <- intConstantEvaluation(n.index)
+                if cIdx < 0 || cBase.length <= cIdx
+              } yield Message(n, s"$cIdx is not a valid index of string $cBase.")
 
             case (MapT(key, _), underlyingIdxType) =>
               // Assignability in Go is a property between a value and and a type. In Gobra, we model this as a relation
@@ -742,6 +757,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (SliceT(elem), IntT(_)) => elem
           case (GhostSliceT(elem), IntT(_)) => elem
           case (VariadicT(elem), IntT(_)) => elem
+          case (StringT, IntT(_)) => IntT(TypeBounds.Byte)
           case (MapT(key, elem), underlyingIdxType) if assignableTo(idxType, key, mayInit) || assignableTo(underlyingIdxType, key, mayInit) =>
             InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
           case (MathMapT(key, elem), underlyingIdxType) if assignableTo(idxType, key, mayInit) || assignableTo(underlyingIdxType, key, mayInit) =>

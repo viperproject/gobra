@@ -201,7 +201,8 @@ case class PureMethod(
                        override val terminationMeasures: Vector[TerminationMeasure],
                        override val backendAnnotations: Vector[BackendAnnotation],
                        body: Option[Expr],
-                       isOpaque: Boolean
+                       isOpaque: Boolean,
+                       isHyper: Boolean
                      )(val info: Source.Parser.Info) extends Member with MethodMember {
   require(results.size <= 1)
 }
@@ -259,7 +260,8 @@ case class PureFunction(
                          override val terminationMeasures: Vector[TerminationMeasure],
                          override val backendAnnotations: Vector[BackendAnnotation],
                          body: Option[Expr],
-                         isOpaque: Boolean
+                         isOpaque: Boolean,
+                         isHyper: Boolean
                        )(val info: Source.Parser.Info) extends Member with FunctionMember {
   require(results.size <= 1)
 }
@@ -766,6 +768,7 @@ case class IndexedExp(base : Expr, index : Expr, baseUnderlyingType: Type)(val i
     case t: SliceT => t.elems
     case t: MapT => t.values
     case t: MathMapT => t.values
+    case _: StringT => IntT(Addressability.Exclusive, TypeBounds.Byte)
     case t => Violation.violation(s"expected an array, map or sequence type, but got $t")
   }
 }

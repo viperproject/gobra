@@ -6,11 +6,12 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
+import org.bitbucket.inkytonik.kiama.util.Message
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
-import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminator, GlobalVariable, SingleConstant}
-import viper.gobra.frontend.info.base.Type.{PointerT, _}
+import viper.gobra.frontend.info.base.Type._
+import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
 import viper.gobra.util.{Constants, TypeBounds, Violation}
@@ -20,7 +21,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   import viper.gobra.util.Violation._
 
   val INT_TYPE: Type = IntT(config.typeBounds.Int)
-  val UINT_TYPE: Type = IntT(config.typeBounds.UInt)
   val UNTYPED_INT_CONST: Type = IntT(config.typeBounds.UntypedConst)
   // default type of unbounded integer constant expressions when they must have a type
   val DEFAULT_INTEGER_TYPE: Type = INT_TYPE
@@ -373,7 +373,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               noMessages
 
             case (StringT, IntT(_)) =>
-              error(n, "Indexing a string is currently not supported")
+              for {
+                cBase <- stringConstantEvaluation(n.base)
+                cIdx <- intConstantEvaluation(n.index)
+                if cIdx < 0 || cBase.length <= cIdx
+              } yield Message(n, s"$cIdx is not a valid index of string $cBase.")
 
             case (MapT(key, _), underlyingIdxType) =>
               // Assignability in Go is a property between a value and and a type. In Gobra, we model this as a relation
@@ -753,6 +757,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (SliceT(elem), IntT(_)) => elem
           case (GhostSliceT(elem), IntT(_)) => elem
           case (VariadicT(elem), IntT(_)) => elem
+          case (StringT, IntT(_)) => IntT(TypeBounds.Byte)
           case (MapT(key, elem), underlyingIdxType) if assignableTo(idxType, key, mayInit) || assignableTo(underlyingIdxType, key, mayInit) =>
             InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
           case (MathMapT(key, elem), underlyingIdxType) if assignableTo(idxType, key, mayInit) || assignableTo(underlyingIdxType, key, mayInit) =>

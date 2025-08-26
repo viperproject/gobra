@@ -383,7 +383,7 @@ class StringEncoding extends LeafTypeEncoding {
    * Generates the function
    *    requires 0 <= i && i < len(s)
    *    decreases _
-   *    pure func stringIndexFunc(s []byte, i int) (res byte)
+   *    pure func stringIndexFunc(s string, i int) (res byte)
    */
   private val stringIndexFuncName: String = "stringIndexFunc"
   private val stringIndexFuncGenerator: FunctionGenerator[Unit] = new FunctionGenerator[Unit] {

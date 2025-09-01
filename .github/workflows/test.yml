@@ -33,7 +33,7 @@ jobs:
       FAILURE_LEVEL: "error"
     steps:
       - name: Checkout Gobra
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: 'recursive'
       - name: Check that Silicon, Carbon, and SIF Plugin reference same silver commit

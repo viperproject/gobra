@@ -1,0 +1,51 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// VerifyThis'15 -- Challenge 1 (soundness only)
+
+package pkg
+
+
+
+ensures !res ==> pivot != -1  // test assertion
+func is_relaxed_prefix (pat []int, s []int, b1 bool, b2 bool, b3 bool, b4 bool, b5 bool) (res bool, ghost pivot int) {
+  shift := 0
+  i := 0
+  res = true
+
+  invariant 0 <= i && i <= len(pat) && i <= len(s)
+  invariant shift == 0 || shift == 1
+  invariant !res ==> shift == 1 && 1 < i
+  invariant shift == 1 ==> 0 <= pivot && pivot < i
+  for (i < len(s) && i < len(pat) && res) {
+    if (b1) {
+      if (shift == 0) {
+        shift = 1
+        pivot = i
+      } else {
+        res = false
+      }
+    }
+
+    i = i + 1
+  }
+
+  if (b3) {
+    if (b2) {
+      if (shift == 0) {
+
+      } else {
+        res = false
+      }
+    }
+  }
+  return
+}
+
+// Proof Utility: dump a slice into a sequence.
+// parallel_search_and_replace has a complete version.
+ghost
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+ensures len(s) == len(xs)
+ensures forall i int :: 0 <= i && i < len(s) ==> s[i] == xs[i]
+pure func toseq (s []int) (xs seq[int])

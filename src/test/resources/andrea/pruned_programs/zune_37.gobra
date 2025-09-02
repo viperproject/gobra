@@ -1,0 +1,24 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package zune
+
+
+ensures totalDays <= days + (year - originYear) * 366
+func convertDaysFixedWithSomeInvariants(totalDays int, b1 bool, b2 bool) (days, year int) {
+
+  days = totalDays
+  year = originYear
+
+  invariant totalDays <= days + (year - originYear) * 366
+  for (b2) {
+
+    if b1 {
+      days -= 366
+    } else {
+      days -= 365
+    }
+    year += 1
+  }
+  return
+}

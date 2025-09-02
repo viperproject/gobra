@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package zune
+
+
+ensures days <= 366
+func convertDaysFixedWithSomeInvariants(totalDays int, b1 bool, b2 bool) (days, year int) {
+
+  for (isLeapYear(year) && 366 < days) || (!isLeapYear(year) && 365 < days) {
+
+    if (b1) {
+    } else {
+    }
+
+  }
+  return
+}

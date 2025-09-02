@@ -1,0 +1,56 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// VerifyThis'15 -- Challenge 1 (soundness only)
+
+package pkg
+
+
+
+ensures pivot == -1 || (0 <= pivot && pivot <= len(s) && pivot < len(pat)) // test assertion
+func is_relaxed_prefix (pat []int, s []int, b1 bool, b2 bool, b3 bool, b4 bool, b5 bool) (res bool, ghost pivot int) {
+  shift := 0
+  i := 0
+  pivot = -1
+  // res = true
+
+  invariant 0 <= i && i <= len(pat) && i <= len(s)
+  invariant shift == 0 || shift == 1
+  // invariant i == 0 ==> shift == 0
+  // invariant shift == 1 ==> 0 < i
+  //invariant forall i int :: 0 <= i && i < len(pat) ==> acc(&pat[i])
+  //invariant forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+  // invariant !res ==> shift == 1 && 1 < i
+  // invariant shift == 0 ==> forall k int :: 0 <= k && k < i ==> pat[k] == s[k]
+  invariant shift == 0 ==> pivot == -1
+  invariant shift == 1 ==> 0 <= pivot && pivot < i
+  for (i < len(s) && i < len(pat) && res) {
+    if (b1) {
+      if (b2) {
+        shift = 1
+        pivot = i
+      } else {
+        // res = false
+      }
+    }
+
+    // i = i + 1
+  }
+
+  if (b3) {
+    if (i < len(pat)) {
+      if (b4) {
+        pivot = i
+      }
+    }
+  }
+  return
+}
+
+// Proof Utility: dump a slice into a sequence.
+// parallel_search_and_replace has a complete version.
+ghost
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+ensures len(s) == len(xs)
+ensures forall i int :: 0 <= i && i < len(s) ==> s[i] == xs[i]
+pure func toseq (s []int) (xs seq[int])

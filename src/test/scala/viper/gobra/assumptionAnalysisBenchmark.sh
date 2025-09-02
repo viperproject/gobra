@@ -1,10 +1,13 @@
 #!/bin/bash
 
+# execute `sh .\src\test\scala\viper\gobra\assumptionAnalysisBenchmark.sh`
+# make sure no other sbt server is running
+
 TARGET=src/test/resources/andrea/performance_benchmark 
 WARMUP=src/test/resources/andrea/warm-up
 REPS=12
 CSV_BASE=src/test/resources/andrea/performance_benchmark/data
-TIMEOUT=360
+TIMEOUT=600
 
 BASE_FLAGS="--disablePureFunctsTerminationRequirement"
 ANALYSIS_FLAGS="--disablePureFunctsTerminationRequirement,--enableAssumptionAnalysis,--disableInfeasibilityChecks"

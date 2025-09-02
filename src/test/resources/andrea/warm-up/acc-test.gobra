@@ -1,0 +1,53 @@
+package acc-test
+
+preserves acc(x)
+requires len(x) > 0
+decreases
+func foo2(x []uint) (max uint) {
+	max = x[0]
+	exhale acc(x, 1/2)
+	inhale acc(x, 1/2)
+}
+
+
+requires acc(x)
+requires len(x) > 0
+decreases
+func foo3(x []uint) (max uint) {
+	max = x[0]
+	exhale acc(x)
+}
+
+preserves acc(x)
+requires len(x) > 0
+decreases
+func rangeLoopInvTest(x []uint) (max uint) {
+  count := 0
+	max = x[0]
+	invariant count >= 0
+	invariant acc(x)
+	invariant 0 <= i && i <= len(x)
+	decreases len(x) - i0
+	for i, j := range x with i0 {
+	  max = x[i]
+	  count = count + 1
+	}
+}
+
+preserves acc(x)
+requires len(x) > 0
+decreases
+func loopInvTest(x []uint) (max uint) {
+  count := 0
+	max = x[0]
+
+	invariant count >= 0
+	invariant acc(x)
+	invariant 0 <= i && i <= len(x)
+	decreases len(x) - i
+	for i := 0; i < len(x); i++ {
+	    j := x[i]
+	    max = x[i]
+	    count = count + 1
+	}
+}

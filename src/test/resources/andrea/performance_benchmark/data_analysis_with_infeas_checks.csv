@@ -1,8 +1,7 @@
 File,Outputs,Mean [ms],StdDev [ms],RelStdDev [%],Best [ms],Median [ms],Worst [ms]
-binary_search_tree.gobra,0,42326,0,0,42326,42326,42326
-binary_tree.gobra,0,17701,0,0,17701,17701,17701
-dutchflag.gobra,0,6421,0,0,6421,6421,6421
-example-2-1.gobra,0,4365,0,0,4365,4365,4365
-example-2-2.gobra,0,2861,0,0,2861,2861,2861
-relaxed_prefix.gobra,0,10621,0,0,10621,10621,10621
-zune.gobra,0,2646,0,0,2646,2646,2646
+binary_search_tree.gobra,0,16064,4036,25,12606,15532,26994
+binary_tree.gobra,0,13701,527,3,13357,13480,15206
+dutchflag.gobra,0,3168,324,10,2930,3097,4061
+example-2-1.gobra,0,2482,85,3,2363,2492,2644
+relaxed_prefix.gobra,0,7678,539,7,6783,7727,8750
+zune.gobra,0,1230,167,13,1112,1152,1654

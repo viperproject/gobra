@@ -7,7 +7,7 @@ TARGET=src/test/resources/andrea/performance_benchmark
 WARMUP=src/test/resources/andrea/warm-up
 REPS=12
 CSV_BASE=src/test/resources/andrea/performance_benchmark/data
-TIMEOUT=600
+TIMEOUT=900
 
 BASE_FLAGS="--disablePureFunctsTerminationRequirement"
 ANALYSIS_FLAGS="--disablePureFunctsTerminationRequirement,--enableAssumptionAnalysis,--disableInfeasibilityChecks"

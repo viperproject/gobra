@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+requires forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
+ensures  forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
+func incr (s []int, n int, b0 bool) {
+
+  invariant forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
+  for (b0) {
+
+  }
+}
+
+func client () {
+}

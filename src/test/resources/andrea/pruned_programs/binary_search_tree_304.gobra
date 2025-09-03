@@ -1,0 +1,162 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// some high-level ideas are inspired by Nagini's iap_bst.py example
+
+package main
+
+// import "fmt"
+
+type Tree struct {
+    root *node
+}
+
+type node struct {
+  value int
+  left *node
+  right *node
+}
+
+pred (t *Tree) tree() {
+    acc(&t.root) &&
+    (t.root != nil ==> t.root.tree() && t.root.sorted(none[int], none[int]))
+}
+
+pred (n *node) tree() {
+    acc(&n.value) && acc(&n.left) && acc(&n.right) &&
+    (n.left != nil ==> n.left.tree()) &&
+    (n.right != nil ==> n.right.tree())
+}
+
+ghost
+requires acc(n.tree(), _)
+pure func (n *node) sorted(lowerBound, upperBound option[int]) bool {
+    return unfolding acc(n.tree(), _) in (lowerBound != none[int] ==> get(lowerBound) < n.value) &&
+        (upperBound != none[int] ==> n.value < get(upperBound)) &&
+        (n.left != nil ==> n.left.sorted(lowerBound, some(n.value))) &&
+        (n.right != nil ==> n.right.sorted(some(n.value), upperBound))
+}
+
+ghost
+func (n *node) convert(oldLowerBound, oldUpperBound, newLowerBound, newUpperBound option[int]) {
+
+}
+
+ghost
+requires acc(t.tree(), _)
+ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // ordered
+pure func (t *Tree) sortedValues() (res seq[int]) {
+    return unfolding acc(t.tree(), _) in (t.root == nil) ? seq[int] { } : t.root.sortedValues(none[int], none[int])
+}
+
+ghost
+requires acc(n.tree(), _) && n.sorted(lowerBound, upperBound)
+ensures n.sorted(lowerBound, upperBound)
+ensures forall i int :: (0 <= i && i < len(res) ==> ((lowerBound != none[int] ==> res[i] > get(lowerBound)) && (upperBound != none[int] ==> res[i] < get(upperBound))))
+ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // ordered
+pure func (n *node) sortedValues(lowerBound, upperBound option[int]) (res seq[int]) {
+    return unfolding acc(n.tree(), _) in (n.left == nil ? seq[int]{ } : n.left.sortedValues(lowerBound, some(n.value))) ++ seq[int]{ n.value } ++ (n.right == nil ? seq[int]{ } : n.right.sortedValues(some(n.value), upperBound))
+}
+
+ensures t.tree() && t.IsEmpty()
+func NewTree() (t *Tree) {
+    t = new(Tree)
+    fold t.tree()
+    return t
+}
+
+requires t.tree()
+pure func (t *Tree) IsEmpty() (res bool) {
+    return unfolding t.tree() in t.root == nil
+}
+
+
+func (t *Tree) Contains(value, dividend int) (res bool) {
+}
+
+ghost
+pure func (t *Tree) pureContains(value, dividend int) bool
+
+
+func (n *node) contains(value int, ghost dividend int, ghost lowerBound, upperBound option[int]) (res bool) {
+
+}
+
+requires t.tree()
+ensures t.tree()
+ensures value in t.sortedValues()
+ensures len(t.sortedValues()) == old(len(t.sortedValues())) + (value in old(t.sortedValues()) ? 0 : 1)
+func (t *Tree) Insert(value int) {
+    unfold t.tree()
+    if (t.root == nil) {
+        t.root = &node{value: value}
+        fold t.root.tree()
+    } else {
+        t.root.insert(value, none[int], none[int])
+    }
+    fold t.tree()
+}
+
+requires lowerBound != none[int] ==> get(lowerBound) < value
+requires upperBound != none[int] ==> get(upperBound) > value
+requires n.tree() && n.sorted(lowerBound, upperBound)
+ensures n.tree() && n.sorted(lowerBound, upperBound)
+ensures value in n.sortedValues(lowerBound, upperBound)
+ensures len(n.sortedValues(lowerBound, upperBound)) == old(len(n.sortedValues(lowerBound, upperBound))) + (value in old(n.sortedValues(lowerBound, upperBound)) ? 0 : 1)
+ensures value in old(n.sortedValues(lowerBound, upperBound)) ==> old(n.sortedValues(lowerBound, upperBound)) == n.sortedValues(lowerBound, upperBound)
+func (n *node) insert(value int, ghost lowerBound, upperBound option[int]) {
+    unfold n.tree()
+    if (value < n.value) {
+        if (n.left == nil) {
+            n.left = &node{value: value}
+            fold n.left.tree()
+        } else {
+            n.left.insert(value, lowerBound, some(n.value))
+        }
+    } else if (value > n.value) {
+        if (n.right == nil) {
+            n.right = &node{value: value}
+            fold n.right.tree()
+        } else {
+            n.right.insert(value, some(n.value), upperBound)
+        }
+    }
+    fold n.tree()
+}
+
+
+func (t *Tree) Delete(value int) {
+
+}
+
+
+func (n *node) delete(value int, ghost lowerBound, upperBound option[int]) (res *node) {
+
+}
+
+func (n *node) deleteMinimum(ghost lowerBound, upperBound option[int]) (res *node, minimum int) {
+
+}
+
+func (n *node) getMinimum(ghost lowerBound, upperBound option[int]) (res int) {
+
+}
+
+
+func main() {
+
+}
+
+func client0(value int) (t *Tree) {
+    t = NewTree()
+    t.Insert(value)
+    assert t.sortedValues() == seq[int]{ value }  // test assertion <<<<<<<-------------
+}
+
+func client1(t *Tree, value int) {
+}
+
+func client2(t *Tree, value int) {
+
+}
+

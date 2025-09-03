@@ -1,0 +1,46 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// some high-level ideas are inspired by Nagini's iap_bst.py example
+
+package main
+
+// import "fmt"
+
+type Tree struct {
+    root *node
+}
+
+type node struct {
+  value int
+  left *node
+  right *node
+}
+
+pred (t *Tree) tree() {
+    acc(&t.root) &&
+    (t.root != nil ==> t.root.tree())
+}
+
+pred (n *node) tree() {
+    acc(&n.value) && acc(&n.left) && acc(&n.right) &&
+    (n.left != nil ==> n.left.tree()) &&
+    (n.right != nil ==> n.right.tree())
+}
+
+
+requires n.tree()
+func (n *node) insert(value int, ghost lowerBound, upperBound option[int], b0 bool, b1 bool, b2 bool) {
+    unfold n.tree()
+    if (b0) {
+
+    } else if (b1) { // imprecise
+        if (b2) { // imprecise
+            n.right = &node{value: value}
+            fold n.right.tree()  // test assertion <<<<<<----------------
+        } else {
+
+        }
+    }
+
+}

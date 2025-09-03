@@ -1,0 +1,126 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// some high-level ideas are inspired by Nagini's iap_bst.py example
+
+package main
+
+// import "fmt"
+
+type Tree struct {
+    root *node
+}
+
+type node struct {
+  value int
+  left *node
+  right *node
+}
+
+pred (t *Tree) tree() {
+    acc(&t.root) &&
+    (t.root != nil ==> t.root.tree() && t.root.sorted(none[int], none[int]))
+}
+
+pred (n *node) tree() {
+    acc(&n.value) && acc(&n.left) && acc(&n.right) &&
+    (n.left != nil ==> n.left.tree()) &&
+    (n.right != nil ==> n.right.tree())
+}
+
+ghost
+pure func (n *node) sorted(lowerBound, upperBound option[int]) bool
+
+
+ghost
+func (n *node) convert(oldLowerBound, oldUpperBound, newLowerBound, newUpperBound option[int]) {
+}
+
+ghost
+pure func (t *Tree) sortedValues() (res seq[int])
+
+
+ghost
+pure func (n *node) sortedValues(lowerBound, upperBound option[int]) (res seq[int])
+
+
+ensures t.tree() && t.IsEmpty()
+func NewTree() (t *Tree) {
+    t = new(Tree)
+    fold t.tree()
+    return t
+}
+
+requires t.tree()
+pure func (t *Tree) IsEmpty() (res bool) {
+    return unfolding t.tree() in t.root == nil
+}
+
+
+func (t *Tree) Contains(value, dividend int) (res bool) {
+
+}
+
+ghost
+requires dividend > 0 && acc(t.tree(), 1/dividend)
+pure func (t *Tree) pureContains(value, dividend int) bool {
+  return unfolding acc(t.tree(), 1/dividend) in t.root != nil && value in t.root.sortedValues(none[int], none[int])
+}
+
+
+func (n *node) contains(value int, ghost dividend int, ghost lowerBound, upperBound option[int]) (res bool) {
+
+}
+
+
+func (t *Tree) Insert(value int) {
+
+}
+
+
+func (n *node) insert(value int, ghost lowerBound, upperBound option[int]) {
+
+}
+
+
+func (t *Tree) Delete(value int) {
+
+}
+
+
+func (n *node) delete(value int, ghost lowerBound, upperBound option[int]) (res *node) {
+
+}
+
+
+func (n *node) deleteMinimum(ghost lowerBound, upperBound option[int]) (res *node, minimum int) {
+
+}
+
+
+func (n *node) getMinimum(ghost lowerBound, upperBound option[int]) (res int) {
+
+}
+
+
+func main() {
+
+}
+
+
+func client0(value int) (t *Tree) {
+    t = NewTree()
+    assert !t.pureContains(value, 2) // test assertion <<<<<<<-------------
+}
+
+
+func client1(t *Tree, value int) {
+
+}
+
+
+func client2(t *Tree, value int) {
+
+}
+
+

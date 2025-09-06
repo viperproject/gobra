@@ -1,0 +1,59 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package zune
+
+pure func isLeapYear(year int) bool {
+  return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+}
+
+const originYear = 1980
+
+ensures days <= 366
+func convertDaysFixed(totalDays int, b0 bool, b1 bool, b2 bool) (days, year int) {
+
+  days = totalDays
+
+  for (b1 && 366 < days) || (!b1 && 365 < days) {
+
+    ghost variant := days
+    assert variant >= 0
+
+    if b0 {
+      days -= 366
+    } else {
+      days -= 365
+    }
+
+    assert days < variant
+  }
+  return
+}
+
+
+ensures days + (year - originYear) * 365 <= totalDays
+ensures totalDays <= days + (year - originYear) * 366
+ensures days <= 366
+func convertDaysFixedWithSomeInvariants(totalDays int, b0 bool, b1 bool, b2 bool) (days, year int) {
+
+  days = totalDays
+  year = originYear
+
+  invariant days + (year - originYear) * 365 <= totalDays
+  invariant totalDays <= days + (year - originYear) * 366
+  for (b0 && 366 < days) || (!b0 && 365 < days) {
+
+    ghost variant := days
+    assert variant >= 0
+
+    if b1 {
+      days -= 366
+    } else {
+      days -= 365
+    }
+    year += 1
+
+    assert days < variant
+  }
+  return
+}

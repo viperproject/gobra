@@ -1,0 +1,4 @@
+test name,runtimes [s]
+baseline,58,58,55
+analysis_sound,1862,1441,1452
+analysis_with_infeas_checks,1236,1216,1241

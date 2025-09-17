@@ -2214,7 +2214,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
-    * Visist the production
+    * Visit the production
     * fold_stmt=(FOLD | UNFOLD) predicateAccess
     *     */
   override def visitFoldStatement(ctx: FoldStatementContext): PGhostStatement = super.visitFoldStatement(ctx) match {
@@ -2245,6 +2245,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       case "inhale" => PInhale(expr)
       case "exhale" => PExhale(expr)
     }
+  }
+
+  /**
+    * Visits the production
+    * DERIVE expression BY block #deriveStatement
+    */
+  override def visitDeriveStatement(ctx: DeriveStatementContext): PGhostStatement = super.visitDeriveStatement(ctx) match {
+    case Vector("derive", expr: PExpression, "by", block: PBlock) => PDeriveStmt(expr, block)
   }
 
   override def visitStatementWithSpec(ctx: StatementWithSpecContext): PStatement = super.visitStatementWithSpec(ctx) match {

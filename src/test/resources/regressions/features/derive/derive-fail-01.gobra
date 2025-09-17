@@ -1,0 +1,13 @@
+package derivefail01
+
+func foo(x, y int) {
+    //:: ExpectedOutput(assert_error:assertion_error)
+    derive false by {
+        mylemma(x, y)
+    }
+}
+
+ghost
+ensures x <= y
+decreases
+func mylemma(x, y int)

@@ -25,6 +25,8 @@ REFUTE      : 'refute';
 ASSUME      : 'assume';
 INHALE      : 'inhale';
 EXHALE      : 'exhale';
+DERIVE      : 'derive';
+BY          : 'by';
 PRE         : 'requires';
 PRESERVES   : 'preserves';
 POST        : 'ensures';

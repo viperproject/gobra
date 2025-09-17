@@ -1,0 +1,17 @@
+package derivesimple01
+
+func foo(x, y int) {
+    derive x <= y by {
+        mylemma(x, y)
+    }
+
+    assert x <= y
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}
+
+ghost
+ensures x <= y
+decreases
+func mylemma(x, y int)

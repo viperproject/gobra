@@ -181,6 +181,11 @@ case class AssertError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "Assert might fail"
 }
 
+case class DeriveError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "derive_error"
+  override def localMessage: String = "Derive statement failed. The body might not derive a contradiction after assuming the negated expression"
+}
+
 case class RefuteError(info: Source.Verifier.Info) extends VerificationError {
 
   override def localId: String = "refute_error"

@@ -1,0 +1,8 @@
+package issue969
+
+func foo(x *int) {
+    //:: ExpectedOutput(type_error)
+    ghost if acc(x) {
+
+    }
+}

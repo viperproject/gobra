@@ -64,6 +64,7 @@ ghostStatement:
   GHOST statement  #explicitGhostStatement
   | fold_stmt=(FOLD | UNFOLD) predicateAccess #foldStatement
   | kind=(ASSUME | ASSERT | REFUTE | INHALE | EXHALE) expression #proofStatement
+  | DERIVE expression BY block #deriveStatement
   | matchStmt #matchStmt_
   | OPEN_DUP_SINV #pkgInvStatement
   ;

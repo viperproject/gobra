@@ -1,0 +1,6 @@
+package derivefail02
+
+func foo(x *int) {
+    //:: ExpectedOutput(type_error)
+    derive acc(x) by {}
+}

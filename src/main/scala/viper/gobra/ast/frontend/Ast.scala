@@ -971,6 +971,8 @@ case class PExplicitGhostStatement(actual: PStatement) extends PGhostStatement w
 
 case class PAssert(exp: PExpression) extends PGhostStatement
 
+case class PDeriveStmt(exp: PExpression, block: PBlock) extends PGhostStatement
+
 case class PRefute(exp: PExpression) extends PGhostStatement
 
 case class PAssume(exp: PExpression) extends PGhostStatement

@@ -694,6 +694,24 @@ class IntEncoding extends LeafTypeEncoding {
         for { expD <- goE(exp) } yield withSrc(IntEncodingGenerator.bitNegFuncApp(kind)(ctx)(expD), e)
       case e@ in.ShiftLeft(l, r)  :: ctx.Int(kind) => withSrc(handleShift(shiftLeft)(l, r), e)
       case e@ in.ShiftRight(l, r) :: ctx.Int(kind) => withSrc(handleShift(shiftRight)(l, r), e)
+      case in.Conversion(t, expr) if isNumericType(t)(ctx) && isNumericType(expr.typ)(ctx) =>
+        val dstType = ctx.underlyingType(t)
+        val dstKind = dstType match {
+          case in.IntT(_, kind) => kind
+          case _ => ???
+        }
+        val srcType = ctx.underlyingType(expr.typ)
+        val srcKind = srcType match {
+          case in.IntT(_, kind) => kind
+          case _ => ???
+        }
+        for {
+          e <- goE(expr)
+          intValue = withSrc(IntEncodingGenerator.domainToIntFuncApp(srcKind)(ctx)(e), expr)
+          newDomainValue = withSrc(IntEncodingGenerator.intToDomainFuncApp(dstKind)(ctx)(intValue), expr)
+        } yield newDomainValue
+        /*
+        // todo: drop
       case in.Conversion(t: in.IntT, expr) if expr.typ.isInstanceOf[in.DefinedT] =>
         val underlyingKind = ctx.underlyingType(expr.typ) match {
           case intT: in.IntT => intT.kind
@@ -708,6 +726,8 @@ class IntEncoding extends LeafTypeEncoding {
           e <- goE(expr)
           intValue = withSrc(IntEncodingGenerator.domainToIntFuncApp(inKind)(ctx)(e), expr)
         } yield withSrc(IntEncodingGenerator.intToDomainFuncApp(outKind)(ctx)(intValue), expr)
+
+         */
       case n@in.LessCmp(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) =>
         for {
           vl <- ctx.expression(l)
@@ -765,6 +785,11 @@ class IntEncoding extends LeafTypeEncoding {
           numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(ctx)(vr), r)
         } yield withSrc(vpr.NeCmp(numl, numr), n)
     }
+  }
+
+  private def isNumericType(t: in.Type)(ctx: Context): Boolean = {
+    val ut = ctx.underlyingType(t)
+    ut.isInstanceOf[in.IntT]
   }
 
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = {

@@ -54,8 +54,6 @@ case class PPackage(
 case class PProgram(
                      packageClause: PPackageClause,
                      pkgInvariants: Vector[PPkgInvariant],
-                     @deprecated("Init postconditions were deprecated in PR #797 and will soon be completely removed.")
-                     initPosts: Vector[PExpression],
                      imports: Vector[PImport],
                      friends: Vector[PFriendPkgDecl],
                      declarations: Vector[PMember]
@@ -65,8 +63,6 @@ case class PProgram(
 case class PPreamble(
                       packageClause: PPackageClause,
                       pkgInvariants: Vector[PPkgInvariant],
-                      @deprecated("Init postconditions were deprecated in PR #797 and will soon be completely removed.")
-                      initPosts: Vector[PExpression],
                       imports: Vector[PImport],
                       friends: Vector[PFriendPkgDecl],
                       positions: PositionManager,

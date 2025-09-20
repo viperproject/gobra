@@ -35,15 +35,13 @@ friendPkgDecl: FRIENDPKG importPath assertion;
 
 // Ghost members
 sourceFile:
-  (pkgInvariant eos)* (initPost eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)* (
+  (pkgInvariant eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)* (
     member eos
   )* EOF;
 
 // `preamble` is a second entry point allowing us to parse only the top of a source.
 // That's also why we don not enforce EOF at the end.
-preamble: (pkgInvariant eos)* (initPost eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)*;
-
-initPost: INIT_POST expression;
+preamble: (pkgInvariant eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)*;
 
 importPre: IMPORT_PRE expression;
 

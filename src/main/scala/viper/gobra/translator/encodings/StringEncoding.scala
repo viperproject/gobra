@@ -65,7 +65,7 @@ class StringEncoding extends LeafTypeEncoding {
         unit(withSrc(vpr.DomainFuncApp(func = makeFunc(""), Seq(), Map.empty), e)) // "" is the default string value
       case (lit: in.StringLit) :: _ / Exclusive =>
         unit(withSrc(vpr.DomainFuncApp(func = makeFunc(lit.s), Seq(), Map.empty), lit))
-      case len @ in.Length(exp :: ctx.String()) =>
+      case len @ in.Length(exp :: ctx.String(), _) =>
         for { e <- goE(exp) } yield withSrc(vpr.DomainFuncApp(func = lenFunc, Seq(e), Map.empty), len)
       case concat @ in.Add(l :: ctx.String(), r :: ctx.String()) =>
         for {
@@ -114,14 +114,14 @@ class StringEncoding extends LeafTypeEncoding {
           vars = Vector(qtfVar),
           triggers = Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(slice, qtfVar, sliceT)(conv.info))(conv.info)))(conv.info)),
           body = in.Implication(
-            in.And(in.AtMostCmp(in.IntLit(BigInt(0))(conv.info), qtfVar)(conv.info), in.LessCmp(qtfVar, in.Length(slice)(conv.info))(conv.info))(conv.info),
+            in.And(in.AtMostCmp(in.IntLit(BigInt(0))(conv.info), qtfVar)(conv.info), in.LessCmp(qtfVar, in.Length(slice, sliceT)(conv.info))(conv.info))(conv.info),
             in.Access(in.Accessible.Address(in.IndexedExp(slice, qtfVar, sliceT)(conv.info)), in.FullPerm(conv.info))(conv.info)
           )(conv.info)
         )(conv.info)
         val post2 = in.ExprAssertion(
           in.EqCmp(
-            in.Length(slice)(conv.info),
-            in.Length(e)(conv.info),
+            in.Length(slice, sliceT)(conv.info),
+            in.Length(e, underlyingType(e.typ)(ctx))(conv.info),
           )(conv.info)
         )(conv.info)
 
@@ -295,21 +295,22 @@ class StringEncoding extends LeafTypeEncoding {
       val info = Source.Parser.Internal
       val paramT = in.SliceT(in.IntT(Addressability.sliceElement, TypeBounds.Byte), Addressability.outParameter)
       val param = in.Parameter.In("s", paramT)(info)
-      val res = in.Parameter.Out("res", in.StringT(Addressability.outParameter))(info)
+      val resT = in.StringT(Addressability.outParameter)
+      val res = in.Parameter.Out("res", resT)(info)
       val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(info)
       val trigger = in.Trigger(Vector(in.Ref(in.IndexedExp(param, qtfVar, paramT)(info))(info)))(info)
       val pre = in.SepForall(
         vars = Vector(qtfVar),
         triggers = Vector(trigger),
         body = in.Implication(
-          in.And(in.AtMostCmp(in.IntLit(BigInt(0))(info), qtfVar)(info), in.LessCmp(qtfVar, in.Length(param)(info))(info))(info),
+          in.And(in.AtMostCmp(in.IntLit(BigInt(0))(info), qtfVar)(info), in.LessCmp(qtfVar, in.Length(param, paramT)(info))(info))(info),
           in.Access(in.Accessible.Address(in.IndexedExp(param, qtfVar, paramT)(info)), in.WildcardPerm(info))(info)
         )(info)
       )(info)
       val post = in.ExprAssertion(
         in.EqCmp(
-          in.Length(param)(info),
-          in.Length(res)(info),
+          in.Length(param, paramT)(info),
+          in.Length(res, resT)(info),
         )(info)
       )(info)
 

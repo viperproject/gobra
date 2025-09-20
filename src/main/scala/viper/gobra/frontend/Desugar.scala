@@ -20,7 +20,7 @@ import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstabl
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
-import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
+import viper.gobra.util.TypeBounds.UnboundedInteger
 import viper.gobra.util.Violation.violation
 import viper.gobra.util.{BackendAnnotation, Computation, Constants, DesugarWriter, GobraExecutionContext, Violation}
 
@@ -1130,15 +1130,15 @@ object Desugar extends LazyLogging {
         addedInvariantsBefore = Vector(
           in.ExprAssertion(in.And(
             in.AtMostCmp(in.IntLit(0)(src), i0)(src),
-            in.AtMostCmp(i0, in.Length(c)(src))(src))(src))(src),
+            in.AtMostCmp(i0, in.Length(c, typ)(src))(src))(src))(src),
           in.Implication(
-            in.LessCmp(i0, in.Length(c)(src))(src),
+            in.LessCmp(i0, in.Length(c, typ)(src))(src),
             in.ExprAssertion(in.EqCmp(i0, i)(src))(src))(src)
         )
         indexValueSrc = meta(range.exp, info).createAnnotatedInfo(Source.NoPermissionToRangeExpressionAnnotation())
         addedInvariantsAfter = (if (hasValue) Vector(
           in.Implication(
-            in.LessCmp(i0, in.Length(c)(src))(src),
+            in.LessCmp(i0, in.Length(c, typ)(src))(src),
             in.ExprAssertion(in.GhostEqCmp(j, in.IndexedExp(c, i0, typ)(indexValueSrc))(indexValueSrc))(indexValueSrc))(indexValueSrc))
         else
           Vector())
@@ -1159,7 +1159,7 @@ object Desugar extends LazyLogging {
           // c := x
           singleAss(in.Assignee.Var(c), exp)(rangeExpSrc),
           // length := len(c) to save for later since it can change
-          singleAss(in.Assignee.Var(length), in.Length(c)(src))(src),
+          singleAss(in.Assignee.Var(length), in.Length(c, typ)(src))(src),
           in.If(
             in.EqCmp(length, in.IntLit(0)(src))(src),
             in.Seqn(Vector(
@@ -1269,20 +1269,20 @@ object Desugar extends LazyLogging {
         addedInvariantsBefore = Vector(
           in.ExprAssertion(in.And(
             in.AtMostCmp(in.IntLit(0)(src), i0)(src),
-            in.AtMostCmp(i0, in.Length(c)(src))(src))(src))(src)
+            in.AtMostCmp(i0, in.Length(c, typ)(src))(src))(src))(src)
         )
         indexValueSrc = meta(range.exp, info).createAnnotatedInfo(Source.NoPermissionToRangeExpressionAnnotation())
         addedInvariantsAfter = (if (hasValue) Vector(
           in.Implication(
-            in.LessCmp(i0, in.Length(c)(src))(src),
+            in.LessCmp(i0, in.Length(c, typ)(src))(src),
             in.ExprAssertion(in.EqCmp(i0, i.op)(src))(src))(src),
           in.Implication(
-            in.LessCmp(i0, in.Length(c)(src))(src),
+            in.LessCmp(i0, in.Length(c, typ)(src))(src),
             in.ExprAssertion(in.GhostEqCmp(j.op, in.IndexedExp(c, i0, typ)(indexValueSrc))(indexValueSrc))(indexValueSrc))(indexValueSrc))
         else
           Vector(
             in.Implication(
-              in.LessCmp(i0, in.Length(c)(src))(src),
+              in.LessCmp(i0, in.Length(c, typ)(src))(src),
               in.ExprAssertion(in.EqCmp(i0, i.op)(src))(src))(src)))
 
         dBody = blockD(ctx, info)(body)
@@ -1301,7 +1301,7 @@ object Desugar extends LazyLogging {
           // c := x
           singleAss(in.Assignee.Var(c), exp)(rangeExpSrc),
           // length := len(c) to save for later since it can change
-          singleAss(in.Assignee.Var(length), in.Length(c)(src))(src),
+          singleAss(in.Assignee.Var(length), in.Length(c, typ)(src))(src),
           in.If(
             in.EqCmp(length, in.IntLit(0)(src))(src),
             in.Seqn(
@@ -1395,8 +1395,11 @@ object Desugar extends LazyLogging {
 
         c <- freshDeclaredExclusiveVar(exp.typ.withAddressability(Addressability.exclusiveVariable), n, info)(src)
 
-        (keyType, valType) = underlyingType(exp.typ) match {
-          case in.MapT(k, v, _) => (k.withAddressability(Addressability.exclusiveVariable), v.withAddressability(Addressability.exclusiveVariable))
+        (keyType, valType, typ) = underlyingType(exp.typ) match {
+          case t@in.MapT(k, v, _) =>
+            (k.withAddressability(Addressability.exclusiveVariable),
+             v.withAddressability(Addressability.exclusiveVariable),
+             t)
           case _ => violation("unexpected type of range expression")
         }
 
@@ -1421,7 +1424,7 @@ object Desugar extends LazyLogging {
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
         addedInvariants = if (range.enumerated != PWildcard()) // emit invariants about visited set only if we actually use a with clause and specify an identifier for it
           Vector(
-            in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
+            in.ExprAssertion(in.AtMostCmp(in.Length(visited.op, visitedT)(src), in.Length(c, typ)(src))(src))(src),
             in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
           else Vector()
 
@@ -1456,7 +1459,7 @@ object Desugar extends LazyLogging {
         enc = in.Seqn(Vector(
           singleAss(in.Assignee.Var(c), exp)(src),
           in.If(
-            in.EqCmp(in.Length(c)(src), in.IntLit(0)(src))(src),
+            in.EqCmp(in.Length(c, typ)(src), in.IntLit(0)(src))(src),
             in.Seqn(
               // assert <invariant ...>
               (spec.invariants zip dInv).map[in.Stmt]((x: (PExpression, in.Assertion)) => in.Assert(x._2)(meta(x._1, info).createAnnotatedInfo(Source.LoopInvariantNotEstablishedAnnotation))))(src),
@@ -1464,7 +1467,7 @@ object Desugar extends LazyLogging {
               dInvPre ++ dTerPre ++ Vector(
                 initPerm,
                 in.While(
-                  in.LessCmp(in.Length(visited.op)(src), in.Length(c)(src))(src),
+                  in.LessCmp(in.Length(visited.op, visitedT)(src), in.Length(c, typ)(src))(src),
                   dInv ++ addedInvariants, dTer, in.Block(Vector(continueLoopLabelProxy, k) ++ (if (hasValue) Vector(v) else Vector()),
                     Vector(exhalePerm, updateKeyVal, dBody, continueLoopLabel, inhalePerm, updateVisited) ++ dInvPre ++ dTerPre
                   )(src))(src)) ++ (if (range.enumerated != PWildcard()) Vector(visitedEqDomain) else Vector()) ++ Vector(breakLoopLabel))(src) // emit assertions about visited set only if we actually use a with clause and specify an identifier for it
@@ -1475,8 +1478,9 @@ object Desugar extends LazyLogging {
       def desugarMapAssRange(n: PAssForRange, range: PRange, ass: Vector[PAssignee], spec: PLoopSpec, body: PBlock)(src: Source.Parser.Info): Writer[in.Stmt] = unit(block(for {
         exp <- goE(range.exp)
 
-        keyType = underlyingType(exp.typ) match {
-          case in.MapT(k, _, _) => k.withAddressability(Addressability.exclusiveVariable)
+        (keyType, typ) = underlyingType(exp.typ) match {
+          case t@in.MapT(k, _, _) =>
+            (k.withAddressability(Addressability.exclusiveVariable), t)
           case _ => violation("unexpected type of range expression")
         }
 
@@ -1502,7 +1506,7 @@ object Desugar extends LazyLogging {
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
         addedInvariants = Vector(
-          in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
+          in.ExprAssertion(in.AtMostCmp(in.Length(visited.op, visitedT)(src), in.Length(c, typ)(src))(src))(src),
           in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
 
         dBody = blockD(ctx, info)(body)
@@ -1538,7 +1542,7 @@ object Desugar extends LazyLogging {
         enc = in.Seqn(Vector(
           singleAss(in.Assignee.Var(c), exp)(src),
           in.If(
-            in.EqCmp(in.Length(c)(src), in.IntLit(0)(src))(src),
+            in.EqCmp(in.Length(c, typ)(src), in.IntLit(0)(src))(src),
             in.Seqn(
               // assert <invariant ...>
               (spec.invariants zip dInv).map[in.Stmt]((x: (PExpression, in.Assertion)) => in.Assert(x._2)(meta(x._1, info).createAnnotatedInfo(Source.LoopInvariantNotEstablishedAnnotation))))(src),
@@ -1546,7 +1550,7 @@ object Desugar extends LazyLogging {
               dInvPre ++ dTerPre ++ Vector(
                 initPerm,
                 in.While(
-                  in.LessCmp(in.Length(visited.op)(src), in.Length(c)(src))(src),
+                  in.LessCmp(in.Length(visited.op, visitedT)(src), in.Length(c, typ)(src))(src),
                   dInv ++ addedInvariants, dTer, in.Block(Vector(continueLoopLabelProxy, tempk),
                     Vector(exhalePerm, updateKeyVal, dBody, continueLoopLabel, inhalePerm, updateVisited) ++ dInvPre ++ dTerPre
                   )(src))(src), visitedEqDomain, breakLoopLabel
@@ -2755,25 +2759,31 @@ object Desugar extends LazyLogging {
             }
             case baseT @ (_: in.ArrayT | _: in.SliceT | in.PointerT(_: in.ArrayT, _)) =>
               (dlow, dhigh) match {
-                case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), dcap, baseT)(src)
-                case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), dcap, baseT)(src)
+                case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase, baseT)(src), dcap, baseT)(src)
+                case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase, baseT)(src), dcap, baseT)(src)
                 case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap, baseT)(src)
                 case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap, baseT)(src)
               }
             case baseT: in.StringT =>
               Violation.violation(dcap.isEmpty, s"expected dcap to be None when slicing strings, but got $dcap instead")
               (dlow, dhigh) match {
-                case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), None, baseT)(src)
-                case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), None, baseT)(src)
+                case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase, baseT)(src), None, baseT)(src)
+                case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase, baseT)(src), None, baseT)(src)
                 case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, None, baseT)(src)
                 case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, None, baseT)(src)
               }
             case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }
 
-          case PLength(op) => go(op).map(in.Length(_)(src))
+          case PLength(op) =>
+            val typ = underlyingType(info.typ(op))
+            val typD = typeD(typ, Addressability.Exclusive)(src)
+            go(op).map(in.Length(_, typD)(src))
 
-          case PCapacity(op) => go(op).map(in.Capacity(_)(src))
+          case PCapacity(op) =>
+            val typ = underlyingType(info.typ(op))
+            val typD = typeD(typ, Addressability.Exclusive)(src)
+            go(op).map(in.Capacity(_, typD)(src))
 
           case g: PGhostExpression => ghostExprD(ctx, info)(g)
 

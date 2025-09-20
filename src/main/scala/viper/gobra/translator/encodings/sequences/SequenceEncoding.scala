@@ -115,7 +115,7 @@ class SequenceEncoding extends LeafTypeEncoding {
         }
       }
 
-      case n@ in.Length(e :: ctx.Seq(_)) =>
+      case n@ in.Length(e :: ctx.Seq(_), _) =>
         val (pos, info, errT) = n.vprMeta
         goE(e).map(vpr.SeqLength(_)(pos, info, errT))
 

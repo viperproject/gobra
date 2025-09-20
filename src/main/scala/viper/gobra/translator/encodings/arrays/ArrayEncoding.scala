@@ -199,28 +199,28 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       vLit <- ctx.expression(in.SequenceLit(len, t, lit.elems)(lit.info))
     } yield ex.fromSeq(vLit, cptParam(len, t)(ctx))(lit)(ctx)
 
-    case n@ in.Length(e :: ctx.Array(len, t) / m) =>
+    case n@ in.Length(e :: ctx.Array(len, t) / m, _) =>
       m match {
         case Exclusive => ctx.expression(e).map(ex.length(_, cptParam(len, t)(ctx))(n)(ctx))
         case Shared => ctx.reference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
       }
 
-    case in.Length(exp :: ctx.*(t: in.ArrayT)) =>
+    case in.Length(exp :: ctx.*(t: in.ArrayT), _) =>
       val expInfo = exp.info
       val derefExp = in.Deref(exp, in.PointerT(t, t.addressability))(expInfo)
-      val newLenExpr = in.Length(derefExp)(expInfo)
+      val newLenExpr = in.Length(derefExp, underlyingType(derefExp.typ)(ctx))(expInfo)
       expression(ctx)(newLenExpr)
 
-    case n@in.Capacity(e :: ctx.Array(len, t) / m) =>
+    case n@in.Capacity(e :: ctx.Array(len, t) / m, _) =>
       m match {
         case Exclusive => ctx.expression(e).map(ex.length(_, cptParam(len, t)(ctx))(n)(ctx))
         case Shared => ctx.reference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
       }
 
-    case in.Capacity(exp :: ctx.*(t: in.ArrayT)) =>
+    case in.Capacity(exp :: ctx.*(t: in.ArrayT), _) =>
       val expInfo = exp.info
       val derefExp = in.Deref(exp, in.PointerT(t, t.addressability))(expInfo)
-      val newLenExpr = in.Capacity(derefExp)(expInfo)
+      val newLenExpr = in.Capacity(derefExp, underlyingType(derefExp.typ)(ctx))(expInfo)
       expression(ctx)(newLenExpr)
 
     case n@ in.SequenceConversion(e :: ctx.Array(len, t) / Exclusive) =>
@@ -382,7 +382,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val idx = in.BoundVar("idx", in.IntT(Exclusive))(src.info)
       val vIdx = ctx.variable(idx)
       val resAccess = in.IndexedExp(resDummy, idx, resType)(src.info)
-      val lenEq = pure(ctx.equal(in.Length(resDummy)(src.info), in.IntLit(resType.length)(src.info))(src))(ctx).res
+      val lenEq = pure(ctx.equal(in.Length(resDummy, resType)(src.info), in.IntLit(resType.length)(src.info))(src))(ctx).res
         .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
       val idxEq = pure(ctx.equal(resAccess, in.DfltVal(resType.elems)(src.info))(src))(ctx).res
         .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }

@@ -230,7 +230,8 @@ trait TypeEncoding extends Generator {
         args = Seq.empty
       )(pos, info, typ, errT)
       unit(vprExpr)
-    case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) => ctx.expression(expr)
+    case in.Conversion(t2, expr :: t) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(t2) &&
+      !t.isInstanceOf[in.IntT] && !t2.isInstanceOf[in.IntT] => ctx.expression(expr)
   }
 
   /**

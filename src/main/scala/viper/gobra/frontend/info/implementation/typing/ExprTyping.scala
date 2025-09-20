@@ -984,6 +984,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 case PredT(fArgs) => fArgs.lift(index)
                 case t => violation(s"predicate expression instance has base $base with unsupported type $t")
               }
+            case Some(ap.Conversion(t, e)) =>
+              assert(expr == e)
+              Some(typeSymbType(t))
 
             case _ => None
           }

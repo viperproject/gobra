@@ -380,7 +380,7 @@ class BuiltInEncoding extends Encoding {
     def accessSlice(sliceExpr: in.Expr, perm: in.Expr): in.Assertion =
       quantify(
         trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(sliceExpr, i, sliceExpr.typ)(src))(src)))(src)) },
-        range = { i => inRange(i, in.IntLit(0)(src), in.Length(sliceExpr)(src)) },
+        range = { i => inRange(i, in.IntLit(0)(src), in.Length(sliceExpr, ctx.underlyingType(sliceExpr.typ))(src)) },
         body = { i => in.Access(in.Accessible.Address(in.IndexedExp(sliceExpr, i, sliceExpr.typ)(src)), perm)(src) }
       )
 
@@ -470,15 +470,15 @@ class BuiltInEncoding extends Encoding {
         // postconditions
         val postLen = in.ExprAssertion(
           in.EqCmp(
-            in.Length(resultParam)(src),
-            in.Add(in.Length(sliceParam)(src), in.Length(variadicParam)(src))(src)
+            in.Length(resultParam, sliceType)(src),
+            in.Add(in.Length(sliceParam, sliceType)(src), in.Length(variadicParam, sliceType)(src))(src)
           )(src)
         )(src)
         val postRes = accessSlice(resultParam, in.FullPerm(src))
         val postVariadic = accessSlice(variadicParam, pParam)
         val postCmpSlice = quantify(
           trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(resultParam, i, sliceType)(src))(src)))(src)) },
-          range = { inRange(_, in.IntLit(0)(src), in.Length(sliceParam)(src)) },
+          range = { inRange(_, in.IntLit(0)(src), in.Length(sliceParam, sliceType)(src)) },
           body = {
             i => in.ExprAssertion(
               in.GhostEqCmp(
@@ -490,12 +490,12 @@ class BuiltInEncoding extends Encoding {
         )
         val postCmpVariadic = quantify(
           trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(resultParam, i, sliceType)(src))(src)))(src)) },
-          range = { inRange(_,  in.Length(sliceParam)(src), in.Length(resultParam)(src)) },
+          range = { inRange(_,  in.Length(sliceParam, sliceType)(src), in.Length(resultParam, sliceType)(src)) },
           body = { i =>
             in.ExprAssertion(
               in.GhostEqCmp(
                 in.IndexedExp(resultParam, i, sliceType)(src),
-                in.IndexedExp(variadicParam, in.Sub(i, in.Length(sliceParam)(src))(src), sliceType)(src),
+                in.IndexedExp(variadicParam, in.Sub(i, in.Length(sliceParam, sliceType)(src))(src), sliceType)(src),
               )(src)
             )(src)
           }
@@ -547,14 +547,14 @@ class BuiltInEncoding extends Encoding {
           trigger = { i =>
             Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(dstParam, i, dstUnderlyingType)(src))(src)))(src))
           },
-          range = { i => inRange(i, in.IntLit(0)(src), in.Length(dstParam)(src)) },
+          range = { i => inRange(i, in.IntLit(0)(src), in.Length(dstParam, dstUnderlyingType)(src)) },
           body = { i =>
             in.Access(in.Accessible.Address(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)), in.FullPerm(src))(src)
           }
         )
         val preSrc = quantify(
           trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(srcParam, i, srcUnderlyingType)(src))(src)))(src)) },
-          range = { i => inRange(i, in.IntLit(0)(src), in.Length(srcParam)(src)) },
+          range = { i => inRange(i, in.IntLit(0)(src), in.Length(srcParam, srcUnderlyingType)(src)) },
           body = { i => in.Access(in.Accessible.Address(in.IndexedExp(srcParam, i, srcUnderlyingType)(src)), pParam)(src) }
         )
 
@@ -562,13 +562,13 @@ class BuiltInEncoding extends Encoding {
 
         // postconditions
         val postRes1 = in.Implication(
-          in.AtMostCmp(in.Length(dstParam)(src), in.Length(srcParam)(src))(src),
-          in.ExprAssertion(in.EqCmp(in.Length(dstParam)(src), resParam)(src))(src)
+          in.AtMostCmp(in.Length(dstParam, dstUnderlyingType)(src), in.Length(srcParam, srcUnderlyingType)(src))(src),
+          in.ExprAssertion(in.EqCmp(in.Length(dstParam, dstUnderlyingType)(src), resParam)(src))(src)
         )(src)
 
         val postRes2 = in.Implication(
-          in.LessCmp(in.Length(srcParam)(src), in.Length(dstParam)(src))(src),
-          in.ExprAssertion(in.EqCmp(in.Length(srcParam)(src), resParam)(src))(src)
+          in.LessCmp(in.Length(srcParam, srcUnderlyingType)(src), in.Length(dstParam, dstUnderlyingType)(src))(src),
+          in.ExprAssertion(in.EqCmp(in.Length(srcParam, srcUnderlyingType)(src), resParam)(src))(src)
         )(src)
 
         // the assertions in the pre-conditions can be reused here
@@ -578,8 +578,8 @@ class BuiltInEncoding extends Encoding {
           trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(dstParam, i, dstUnderlyingType)(src))(src)))(src)) },
           range = { i =>
             in.And(
-              inRange(i, in.IntLit(0)(src), in.Length(srcParam)(src)),
-              inRange(i, in.IntLit(0)(src), in.Length(dstParam)(src)),
+              inRange(i, in.IntLit(0)(src), in.Length(srcParam, srcUnderlyingType)(src)),
+              inRange(i, in.IntLit(0)(src), in.Length(dstParam, dstUnderlyingType)(src)),
             )(src)
           },
           body = { i =>
@@ -593,7 +593,7 @@ class BuiltInEncoding extends Encoding {
         )
         val postSame = quantify(
           trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(dstParam, i, dstUnderlyingType)(src))(src)))(src)) },
-          range = { i => inRange(i, in.Length(srcParam)(src), in.Length(dstParam)(src)) },
+          range = { i => inRange(i, in.Length(srcParam, srcUnderlyingType)(src), in.Length(dstParam, dstUnderlyingType)(src)) },
           body = { i =>
             in.ExprAssertion(
               in.GhostEqCmp(

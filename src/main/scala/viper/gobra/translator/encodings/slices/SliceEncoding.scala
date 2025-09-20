@@ -159,8 +159,16 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             _ <- local(vprSlice)
 
             capArg = optCapArg.getOrElse(lenArg)
-            vprLength <- ctx.expression(lenArg)
-            vprCapacity <- ctx.expression(capArg)
+            lenArgKind = lenArg.typ match {
+              case t: in.IntT => t.kind
+              case _ => ???
+            }
+            capArgKind = capArg.typ match {
+              case t: in.IntT => t.kind
+              case _ => ???
+            }
+            vprLength <- ctx.expression(lenArg).map(IntEncodingGenerator.domainToIntFuncApp(lenArgKind)(_)())
+            vprCapacity <- ctx.expression(capArg).map(IntEncodingGenerator.domainToIntFuncApp(capArgKind)(_)())
 
             // Perform additional runtime checks of conditions that must be true when make is invoked, otherwise the program panics (according to the go spec)
             // asserts 0 <= [len] && 0 <= [cap] && [len] <= [cap]
@@ -180,15 +188,17 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             footprintAssertion <- getCellPerms(ctx)(slice, in.FullPerm(slice.info), SliceBound.Cap)
             _ <- write(vpr.Inhale(footprintAssertion)(pos, info, errT))
 
-            lenExpr = in.Length(slice, sliceT)(makeStmt.info)
             capExpr = in.Capacity(slice, sliceT)(makeStmt.info)
 
             // inhale cap(a) == [cap]
-            eqCap <- ctx.equal(capExpr, capArg)(makeStmt)
+            vprCapExprInt <- ctx.expression(capExpr).map(IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(_)())
+            eqCap = vpr.EqCmp(vprCapExprInt, vprCapacity)(pos, info, errT)
             _ <- write(vpr.Inhale(eqCap)(pos, info, errT))
 
             // inhale len(a) == [len]
-            eqLen <- ctx.equal(lenExpr, lenArg)(makeStmt)
+            lenExpr = in.Length(slice, sliceT)(makeStmt.info)
+            vprLenExprInt <- ctx.expression(lenExpr).map(IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(_)())
+            eqLen = vpr.EqCmp(vprLenExprInt, vprLength)(pos, info, errT)
             _ <- write(vpr.Inhale(eqLen)(pos, info, errT))
 
             // inhale forall i: int :: {loc(a, i)} 0 <= i && i < [len] ==> [ a[i] == dfltVal(T) ]

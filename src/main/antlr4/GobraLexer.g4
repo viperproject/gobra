@@ -92,7 +92,6 @@ OUTLINE     : 'outline';
 DUPLICABLE  : 'dup';
 PKG_INV     : 'pkgInvariant';
 OPEN_DUP_SINV : 'openDupPkgInv' -> mode(NLSEMI);
-INIT_POST   : 'initEnsures';
 IMPORT_PRE  : 'importRequires';
 PROOF       : 'proof';
 GHOST_EQUALS     : '===';

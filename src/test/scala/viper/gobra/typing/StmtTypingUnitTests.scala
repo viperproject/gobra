@@ -63,7 +63,6 @@ class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         Vector(),
         Vector(),
         Vector(),
-        Vector(),
         Vector(PFunctionDecl(
           PIdnDef("foo"),
           inArgs.map(_._1),

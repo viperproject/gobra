@@ -18,13 +18,10 @@ import viper.gobra.util.{Computation, Violation}
 trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefProgram: WellDefinedness[PProgram] = createWellDef {
-    case PProgram(_, _, initPosts, _, _, _) if initPosts.nonEmpty =>
-      error(initPosts.head, "'initEnsures' clauses are now deprecated." +
-        " Consider using 'pkgInvariant' clauses instead.")
-    case PProgram(_, _, _, _, friends, _) if !config.enableExperimentalFriendClauses && friends.nonEmpty =>
+    case PProgram(_, _, _, friends, _) if !config.enableExperimentalFriendClauses && friends.nonEmpty =>
       error(friends.head, "Usage of experimental 'friendPkg' clauses is disallowed by default. " +
         "Pass the flag --experimentalFriendClauses to allow it. This feature may change in the future.")
-    case prog@PProgram(_, pkgInvs, _, _, friends, _) =>
+    case prog@PProgram(_, pkgInvs,  _, friends, _) =>
       // Obtains global variable declarations sorted by the order in which they appear in the file
       val sortedByPosDecls: Vector[PVarDecl] = globalVarDeclsSortedByPos(prog)
       // HACK: without this explicit check, Gobra does not find repeated declarations

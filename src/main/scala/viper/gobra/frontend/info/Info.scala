@@ -234,9 +234,7 @@ object Info extends LazyLogging {
       .sorted
       .mkString("")
     val isMainContextKey = if (isMainContext) "1" else "0"
-    val configKey = config.typeBounds.hashCode().toString ++
-      (if (config.int32bit) "1" else "0")
-
+    val configKey = config.typeBounds.hashCode().toString
     val key = pkgKey ++
       dependentTypeInfoKey ++
       isMainContextKey ++

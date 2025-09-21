@@ -59,6 +59,7 @@ class IntEncoding extends LeafTypeEncoding {
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
+    /*
     def handleShift(shiftFunc: vpr.Function)(left: in.Expr, right: in.Expr): (vpr.Position, vpr.Info, vpr.ErrorTrafo) => CodeWriter[vpr.Exp]  = {
       case (pos, info, errT) =>
         for {
@@ -71,6 +72,8 @@ class IntEncoding extends LeafTypeEncoding {
           }
         } yield app
     }
+
+     */
 
     default(super.expression(ctx)){
       case (e: in.DfltVal) :: ctx.Int(kind) / Exclusive =>
@@ -193,8 +196,18 @@ class IntEncoding extends LeafTypeEncoding {
         } yield withSrc(IntEncodingGenerator.bitClearFuncApp(kind)(left, right), e)
       case e@ in.BitNeg(exp :: ctx.Int(kind)) =>
         for { expD <- goE(exp) } yield withSrc(IntEncodingGenerator.bitNegFuncApp(kind)(expD), e)
-      case e@ in.ShiftLeft(l, r)  :: ctx.Int(kind) => withSrc(handleShift(shiftLeft)(l, r), e)
-      case e@ in.ShiftRight(l, r) :: ctx.Int(kind) => withSrc(handleShift(shiftRight)(l, r), e)
+      case e@ in.ShiftLeft(l :: ctx.Int(kind1), r :: ctx.Int(kind2)) =>
+        for {
+          vl <- goE(l)
+          vr <- goE(r)
+        } yield withSrc(IntEncodingGenerator.bitShiftLeftFuncApp(kind1, kind2)(vl, vr), e)
+        // withSrc(handleShift(shiftLeft)(l, r), e)
+      // case e@ in.ShiftRight(l, r) :: ctx.Int(kind) => withSrc(handleShift(shiftRight)(l, r), e)
+      case e@ in.ShiftRight(l :: ctx.Int(kind1), r :: ctx.Int(kind2)) =>
+        for {
+          vl <- goE(l)
+          vr <- goE(r)
+        } yield withSrc(IntEncodingGenerator.bitShiftRightFuncApp(kind1, kind2)(vl, vr), e)
       case in.Conversion(t, expr) if isNumericType(t)(ctx) && isNumericType(expr.typ)(ctx) =>
         val dstType = ctx.underlyingType(t)
         val dstKind = dstType match {
@@ -239,11 +252,6 @@ class IntEncoding extends LeafTypeEncoding {
           numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(vl), l)
           numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(vr), r)
         } yield withSrc(vpr.GeCmp(numl, numr), n)
-      case n@in.EqCmp(l :: ctx.Int(_), r :: ctx.Int(_)) =>
-        for {
-          vl <- ctx.expression(l)
-          vr <- ctx.expression(r)
-        } yield withSrc(vpr.EqCmp(vl, vr), n)
       case n@in.UneqCmp(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) =>
         for {
           vl <- ctx.expression(l)
@@ -338,10 +346,13 @@ case object IntEncodingGenerator extends DomainGeneratorWithoutContext[IntegerKi
   // shifts
   private var bitShiftLeftFuncs: Map[(IntegerKind, IntegerKind), vpr.Function] = Map.empty
   private var bitShiftRightFuncs: Map[(IntegerKind, IntegerKind), vpr.Function] = Map.empty
+  //
+  private var deferedIntToDomainFuncs: Set[IntegerKind] = Set.empty
 
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     super.finalize(addMemberFn)
     intToDomainFuncs.values.foreach(addMemberFn)
+    deferedIntToDomainFuncs.foreach { x => addMemberFn(intToDomainFunc(x)) }
     domainToIntFuncs.values.foreach(addMemberFn)
     addFuncs.values.foreach(addMemberFn)
     subFuncs.values.foreach(addMemberFn)
@@ -353,6 +364,9 @@ case object IntEncodingGenerator extends DomainGeneratorWithoutContext[IntegerKi
     bitXorFuncs.values.foreach(addMemberFn)
     bitClearFuncs.values.foreach(addMemberFn)
     bitNegFuncs.values.foreach(addMemberFn)
+    bitShiftLeftFuncs.values.foreach(addMemberFn)
+    bitShiftRightFuncs.values.foreach(addMemberFn)
+
   }
 
   override def genDomain(x: IntegerKind): Domain = {
@@ -414,6 +428,7 @@ case object IntEncodingGenerator extends DomainGeneratorWithoutContext[IntegerKi
         )()
       case _ => vpr.TrueLit()()
     }
+    deferedIntToDomainFuncs += x
     // explicit FuncApp construction here instead of call to intToDomainFuncApp to avoid creating a cycle between
     // that function and domainToIntFuncApp
     val intToDomainApp =
@@ -821,6 +836,68 @@ case object IntEncodingGenerator extends DomainGeneratorWithoutContext[IntegerKi
           body = None
         )()
         bitNegFuncs += x -> res
+        res
+    }
+  }
+
+  def bitShiftLeftFuncApp(x: IntegerKind, y: IntegerKind)(e1: vpr.Exp, e2: vpr.Exp)
+                   (pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+    val funcname = bitShiftLeftFunc(x, y).name
+    vpr.FuncApp(funcname = funcname, args = Seq(e1, e2))(pos, info, typ = domainType(x), errT)
+  }
+
+  private def bitShiftLeftFunc(x: IntegerKind, y: IntegerKind): vpr.Function = {
+    bitShiftLeftFuncs.get((x, y)) match {
+      case Some(f) => f
+      case _ =>
+        val domainTX = domainType(x)
+        val domainTY = domainType(y)
+        val inputVar1Decl = vpr.LocalVarDecl("x", domainTX)()
+        val inputVar2Decl = vpr.LocalVarDecl("y", domainTY)()
+        val pre = vpr.GeCmp(
+          IntEncodingGenerator.domainToIntFuncApp(y)(inputVar2Decl.localVar)(),
+          vpr.IntLit(BigInt(0))()
+        )()
+        val res = vpr.Function(
+          name = s"bitShiftLeft${x.name}${y.name}",
+          formalArgs = Seq(inputVar1Decl, inputVar2Decl),
+          typ = domainTX,
+          pres = Seq(pre, termination.DecreasesWildcard(None)()),
+          posts = Seq(),
+          body = None
+        )()
+        bitShiftLeftFuncs += (x, y) -> res
+        res
+    }
+  }
+
+  def bitShiftRightFuncApp(x: IntegerKind, y: IntegerKind)(e1: vpr.Exp, e2: vpr.Exp)
+                         (pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.Exp = {
+    val funcname = bitShiftRightFunc(x, y).name
+    vpr.FuncApp(funcname = funcname, args = Seq(e1, e2))(pos, info, typ = domainType(x), errT)
+  }
+
+  private def bitShiftRightFunc(x: IntegerKind, y: IntegerKind): vpr.Function = {
+    bitShiftRightFuncs.get((x, y)) match {
+      case Some(f) => f
+      case _ =>
+        val domainTX = domainType(x)
+        val domainTY = domainType(y)
+        val inputVar1Decl = vpr.LocalVarDecl("x", domainTX)()
+        val inputVar2Decl = vpr.LocalVarDecl("y", domainTY)()
+        val pre = vpr.GeCmp(
+          IntEncodingGenerator.domainToIntFuncApp(y)(inputVar2Decl.localVar)(),
+          vpr.IntLit(BigInt(0))()
+        )()
+        val res = vpr.Function(
+          name = s"bitShiftRight${x.name}${y.name}",
+          formalArgs = Seq(inputVar1Decl, inputVar2Decl),
+          typ = domainTX,
+          pres = Seq(pre, termination.DecreasesWildcard(None)()),
+          posts = Seq(),
+          body = None
+        )()
+        bitShiftRightFuncs += (x, y) -> res
         res
     }
   }

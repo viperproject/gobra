@@ -173,10 +173,15 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       finalConfig <- EitherT.fromEither(Future.successful(getAndMergeInFileConfig(config, pkgInfo)))
       _ = setLogLevel(finalConfig)
       parseResults <- performParsing(finalConfig, pkgInfo)
+      _ = println("parsing finished")
       typeInfo <- performTypeChecking(finalConfig, pkgInfo, parseResults)
+      _ = println("type-checking finished")
       program <- performDesugaring(finalConfig, typeInfo)
+      _ = println("desugaring finished")
       program <- performInternalTransformations(finalConfig, pkgInfo, program)
+      _ = println("transforms finished")
       viperTask <- performViperEncoding(finalConfig, pkgInfo, program)
+      _ = println("encoding finished")
     } yield (viperTask, finalConfig)
 
     task.foldM({

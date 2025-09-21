@@ -686,6 +686,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       val typCtx = getNonInterfaceTypeFromCtxt(exp)
       typCtx.map(underlyingType) match {
         case Some(intTypeCtx: IntT) => assignableWithinBounds.errors(intTypeCtx, exp)(exp)
+        case Some(GhostIntegerT) => assignableWithinBounds.errors(GhostIntegerT, exp)(exp)
+        case Some(Float32T) => noMessages
+        case Some(Float64T) => noMessages
         case Some(t) => error(exp, s"$exp is not assignable to type $t")
         case None => noMessages // no type inferred from context
       }

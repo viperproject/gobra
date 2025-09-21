@@ -292,6 +292,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         case typ: BoundedIntegerKind => typ.lower <= value && value <= typ.upper
         case _ => true
       }
+      case GhostIntegerT => true
 
       case _ => violation(s"Expected an integer type but instead received $typ.")
     }

@@ -9,6 +9,7 @@ object IntConversionInferenceTransform extends InternalTransform {
   override def name(): String = "int_conversion_inference"
 
   private val intType = in.IntT(Addressability.Exclusive, TypeBounds.DefaultInt)
+  private val integerType = in.IntT(Addressability.Exclusive)
 
   /**
    * Program-to-program transformation
@@ -49,6 +50,10 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newAcc = transformAccessible(originalProg)(acc)
         val newP = transformExpr(originalProg)(p)
         in.Access(newAcc, newP)(a.info)
+      case d@in.Let(l, r, i) =>
+        val newR = transformExprToIntendedType(originalProg)(r, l.typ)
+        val newIn = transformAssert(originalProg)(i)
+        in.Let(l, newR, newIn)(d.info)
     }
   }
 
@@ -75,11 +80,16 @@ object IntConversionInferenceTransform extends InternalTransform {
   }
 
   private def transformLocation(originalProg: in.Program)(l: in.Location): in.Location = l match {
-    case i@IndexedExp(base, index, baseUnderlyingType) =>
+    case i@in.IndexedExp(base, index, baseUnderlyingType) =>
       val newBase = transformExpr(originalProg)(base)
-      val newIdx = transformExprToIntendedType(originalProg)(index, intType)
+      val idxTyp = baseUnderlyingType match {
+        case _: in.SequenceT => integerType
+        case _ => intType
+      }
+      val newIdx = transformExprToIntendedType(originalProg)(index, idxTyp)
       in.IndexedExp(newBase, newIdx, baseUnderlyingType)(i.info)
-    case d: Deref => transformLocation(originalProg)(d)
+    case d: Deref =>
+      transformDeref(originalProg)(d)
     case r@Ref(ref, typ) =>
       val newRef = transformAddressable(originalProg)(ref)
       in.Ref(newRef, typ)(r.info)
@@ -126,6 +136,12 @@ object IntConversionInferenceTransform extends InternalTransform {
   private def transformExpr(originalProg: in.Program)(e: in.Expr): in.Expr = transformExprToIntendedType(originalProg)(e, e.typ)
   private def transformExprToIntendedType(originalProg: in.Program)(e: in.Expr, intededType: in.Type): in.Expr = {
     val newE: in.Expr = e match {
+      case c@in.Conditional(cond, thn, els, typ) =>
+        val newCond = transformExpr(originalProg)(cond)
+        val typ = mergeTypes(originalProg)(thn.typ, els.typ)
+        val newThn = transformExprToIntendedType(originalProg)(thn, typ)
+        val newEls = transformExprToIntendedType(originalProg)(els, typ)
+        in.Conditional(newCond, newThn, newEls, typ)(c.info)
       case a@in.And(l, r) =>
         val newL = transformExpr(originalProg)(l)
         val newR = transformExpr(originalProg)(r)
@@ -219,6 +235,16 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newL = transformExprToIntendedType(originalProg)(l, typ)
         val newR = transformExprToIntendedType(originalProg)(r, typ)
         in.BitClear(newL, newR)(c.info)
+      case c@in.ShiftLeft(l, r) =>
+        val typ = c.typ
+        val newL = transformExprToIntendedType(originalProg)(l, typ)
+        val newR = transformExpr(originalProg)(r)
+        in.ShiftLeft(newL, newR)(c.info)
+      case c@in.ShiftRight(l, r) =>
+        val typ = c.typ
+        val newL = transformExprToIntendedType(originalProg)(l, typ)
+        val newR = transformExpr(originalProg)(r)
+        in.ShiftRight(newL, newR)(c.info)
       case c@in.BitNeg(op) =>
         val newOp = transformExprToIntendedType(originalProg)(op, c.typ)
         in.BitNeg(newOp)(c.info)
@@ -248,6 +274,25 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newL = transformExpr(originalProg)(l) // maybe cast this to Perm type instead
         val newR = transformExpr(originalProg)(r) // maybe cast this to Perm type instead
         in.FractionalPerm(newL, newR)(p.info)
+      case p@in.PermAdd(l, r) =>
+        val newL = transformExpr(originalProg)(l)
+        val newR = transformExpr(originalProg)(r)
+        in.PermAdd(newL, newR)(p.info)
+      case p@in.PermSub(l, r) =>
+        val newL = transformExpr(originalProg)(l)
+        val newR = transformExpr(originalProg)(r)
+        in.PermSub(newL, newR)(p.info)
+      case p@in.PermMul(l, r) =>
+        val newL = transformExpr(originalProg)(l)
+        val newR = transformExpr(originalProg)(r)
+        in.PermMul(newL, newR)(p.info)
+      case p@in.PermDiv(l, r) =>
+        val newL = transformExpr(originalProg)(l)
+        val newR = transformExpr(originalProg)(r)
+        in.PermDiv(newL, newR)(p.info)
+      case p@in.PermMinus(e) =>
+        val newE = transformExpr(originalProg)(e)
+        in.PermMinus(newE)(p.info)
       case c@in.Conversion(t, e) =>
         val newE = transformExpr(originalProg)(e)
         in.Conversion(t, newE)(c.info)
@@ -297,6 +342,7 @@ object IntConversionInferenceTransform extends InternalTransform {
         in.Slice(newBase, low, high, max, baseUnderlyingType)(s.info)
          */
 
+      case d: in.DfltVal => d
       case o: in.Old =>
         // TODO: check
         o
@@ -305,8 +351,30 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newExpr = transformExprToIntendedType(originalProg)(u.in, u.typ)
         in.Unfolding(newAcc, newExpr)(u.info)
 
+      case s@in.Contains(l, r) =>
+        val newL = transformExpr(originalProg)(l)
+        val newR = transformExpr(originalProg)(r)
+        in.Contains(newL, newR)(s.info)
+      case u@in.Union(l, r, typ) =>
+        val newL = transformExpr(originalProg)(l)
+        val newR = transformExpr(originalProg)(r)
+        in.Union(newL, newR, typ)(u.info)
+
+      case k@in.MapKeys(exp, typ) =>
+        val newExp = transformExpr(originalProg)(exp)
+        in.MapKeys(newExp, typ)(k.info)
+
+      case p@in.PureLet(l, r, i) =>
+        val newR = transformExprToIntendedType(originalProg)(r, l.typ)
+        val newI = transformExpr(originalProg)(i)
+        in.PureLet(l, newR, newI)(p.info)
+
+      case t@in.Tuple(args) =>
+        val newArgs = args map transformExpr(originalProg)
+        in.Tuple(newArgs)(t.info)
+
       case i =>
-        println(s"Trying $i")
+        println(s"Trying $i, class ${i.getClass}")
         ???
     }
     if (newE.typ == intededType) newE else in.Conversion(intededType, newE)(newE.info)
@@ -390,7 +458,9 @@ object IntConversionInferenceTransform extends InternalTransform {
       // TODO: there's already some alternative means of preventing this error in the slice encoding.
       //       Chose a single solution
       m
-
+    case n@in.New(target, expr) =>
+      val newExpr = transformExprToIntendedType(originalProg)(expr, target.typ)
+      in.New(target, newExpr)(n.info)
     case i@in.If(cond, thn, els) =>
       val newCond = transformExpr(originalProg)(cond)
       val newThn = transformStmt(originalProg)(thn)
@@ -575,6 +645,8 @@ object IntConversionInferenceTransform extends InternalTransform {
   private def mergeTypes(originalProg: in.Program)(t1: in.Type, t2: in.Type): in.Type = {
     if (t1 == t2) {
       t1
+    } else if (t1.equalsWithoutMod(t2)) {
+      t1.withAddressability(t2.addressability) // TODO: what about this here?
     } else if (isNumericalType(originalProg)(t1) && isNumericalType(originalProg)(t2)) {
       (t1, t2) match {
         case (in.IntT(_, TypeBounds.UnboundedInteger), _) => t2
@@ -586,6 +658,7 @@ object IntConversionInferenceTransform extends InternalTransform {
 
     } else {
       // cannot unify
+      println(s"t1: $t1, t2: $t2")
       ???
     }
 
@@ -598,7 +671,7 @@ object IntConversionInferenceTransform extends InternalTransform {
 
   private def isNumericalType(originalProg: in.Program)(t: in.Type): Boolean = {
     underlyingType(originalProg)(t) match {
-      case i: in.IntT => true
+      case _: in.IntT => true
       case _ => false
     }
   }

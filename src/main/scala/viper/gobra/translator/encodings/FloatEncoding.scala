@@ -75,9 +75,23 @@ class FloatEncoding extends LeafTypeEncoding {
       case div @ in.Div(l :: ctx.Float64(), r :: ctx.Float64()) =>
         for { lE <- goE(l); rE <- goE(r) } yield withSrc(vpr.FuncApp(divFloat64, Seq(lE, rE)), div)
       case conv@in.Conversion(in.Float32T(_), expr :: ctx.Int(_)) =>
-        for { e <- goE(expr) } yield withSrc(vpr.FuncApp(fromIntTo32, Seq(e)), conv)
+        for {
+          e <- goE(expr)
+          eKind = expr.typ match {
+            case in.IntT(_, kind) => kind
+            case _ => ???
+          }
+          arg = IntEncodingGenerator.domainToIntFuncApp(eKind)(e)(e.pos, e.info, e.errT)
+        } yield withSrc(vpr.FuncApp(fromIntTo32, Seq(arg)), conv)
       case conv@in.Conversion(in.Float64T(_), expr :: ctx.Int(_)) =>
-        for { e <- goE(expr) } yield withSrc(vpr.FuncApp(fromIntTo64, Seq(e)), conv)
+        for {
+          e <- goE(expr)
+          eKind = expr.typ match {
+            case in.IntT(_, kind) => kind
+            case _ => ???
+          }
+          arg = IntEncodingGenerator.domainToIntFuncApp(eKind)(e)(e.pos, e.info, e.errT)
+        } yield withSrc(vpr.FuncApp(fromIntTo64, Seq(arg)), conv)
       case conv@in.Conversion(in.IntT(_, _), expr :: ctx.Float32()) =>
         for { e <- goE(expr) } yield withSrc(vpr.FuncApp(from32ToInt, Seq(e)), conv)
       case conv@in.Conversion(in.IntT(_, _), expr :: ctx.Float64()) =>

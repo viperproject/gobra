@@ -17,9 +17,7 @@ class MemoryEncoding extends Encoding {
 
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     case r: in.Ref => ctx.reference(r.ref.op)
-    case x@ in.EqCmp(l, r) if !ctx.underlyingType(l.typ).isInstanceOf[in.IntT] &&
-      !ctx.underlyingType(r.typ).isInstanceOf[in.IntT] =>
-      ctx.goEqual(l, r)(x)
+    case x@ in.EqCmp(l, r) => ctx.goEqual(l, r)(x)
     case x@ in.UneqCmp(l, r) if !ctx.underlyingType(l.typ).isInstanceOf[in.IntT] &&
       !ctx.underlyingType(r.typ).isInstanceOf[in.IntT] =>
       ctx.goEqual(l, r)(x).map(v => withSrc(vpr.Not(v), x))

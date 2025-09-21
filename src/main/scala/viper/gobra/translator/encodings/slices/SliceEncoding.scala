@@ -117,13 +117,13 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         val newSliceExpr = in.Slice(derefBase, low, high, max, t)(nInfo)
         expression(ctx)(newSliceExpr)
 
-      case exp @ in.Slice((base : in.Expr) :: ctx.Slice(_), low, high, max, _) => for {
+      case exp @ in.Slice((base : in.Expr) :: ctx.Slice(_), low :: in.IntT(_, kind1), high :: in.IntT(_, kind2), max, _) => for {
         baseT <- goE(base)
         lowTDom <- goE(low)
         highTDom <- goE(high)
         // low and high are IntDomains, we need to convert to ints
-        lowT = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(lowTDom)()
-        highT = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(highTDom)()
+        lowT = IntEncodingGenerator.domainToIntFuncApp(kind1)(lowTDom)()
+        highT = IntEncodingGenerator.domainToIntFuncApp(kind2)(highTDom)()
         maxOptT <- option(max map goE)
       } yield maxOptT match {
         case None => withSrc(sliceFromSlice(baseT, lowT, highT)(ctx), exp)

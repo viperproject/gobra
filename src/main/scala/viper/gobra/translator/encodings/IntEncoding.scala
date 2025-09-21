@@ -239,13 +239,11 @@ class IntEncoding extends LeafTypeEncoding {
           numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(vl), l)
           numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(vr), r)
         } yield withSrc(vpr.GeCmp(numl, numr), n)
-      case n@in.EqCmp(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) =>
+      case n@in.EqCmp(l :: ctx.Int(_), r :: ctx.Int(_)) =>
         for {
           vl <- ctx.expression(l)
           vr <- ctx.expression(r)
-          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(vl), l)
-          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(vr), r)
-        } yield withSrc(vpr.EqCmp(numl, numr), n)
+        } yield withSrc(vpr.EqCmp(vl, vr), n)
       case n@in.UneqCmp(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) =>
         for {
           vl <- ctx.expression(l)
@@ -341,7 +339,6 @@ case object IntEncodingGenerator extends DomainGeneratorWithoutContext[IntegerKi
   private var bitShiftLeftFuncs: Map[(IntegerKind, IntegerKind), vpr.Function] = Map.empty
   private var bitShiftRightFuncs: Map[(IntegerKind, IntegerKind), vpr.Function] = Map.empty
 
-
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     super.finalize(addMemberFn)
     intToDomainFuncs.values.foreach(addMemberFn)
@@ -409,7 +406,7 @@ case object IntEncodingGenerator extends DomainGeneratorWithoutContext[IntegerKi
 
   private def domainToIntFunc(x: IntegerKind): vpr.Function = {
     val inputVarDecl = vpr.LocalVarDecl("x", domainType(x))()
-    val post = x match {
+    val post1 = x match {
       case b: BoundedIntegerKind =>
         vpr.And(
           vpr.LeCmp(vpr.IntLit(b.lower)(), vpr.Result(vpr.Int)())(),
@@ -417,12 +414,17 @@ case object IntEncodingGenerator extends DomainGeneratorWithoutContext[IntegerKi
         )()
       case _ => vpr.TrueLit()()
     }
+    // explicit FuncApp construction here instead of call to intToDomainFuncApp to avoid creating a cycle between
+    // that function and domainToIntFuncApp
+    val intToDomainApp =
+      vpr.FuncApp(funcname = s"intToDomain${x.name}", args = Seq(vpr.Result(vpr.Int)()))(NoPosition, NoInfo, typ = vpr.Int, NoTrafos)
+    val post2 = vpr.EqCmp(intToDomainApp, inputVarDecl.localVar)()
     val res = vpr.Function(
       name = s"domainToInt${x.name}",
       formalArgs = Seq(inputVarDecl),
       typ = vpr.Int,
       pres = Seq(termination.DecreasesWildcard(None)()),
-      posts = Seq(post),
+      posts = Seq(post1, post2),
       body = None
     )()
     domainToIntFuncs += x -> res

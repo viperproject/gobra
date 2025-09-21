@@ -355,6 +355,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case (SequenceT(_), IntT(_)) =>
               noMessages
 
+            case (SequenceT(_), GhostIntegerT) =>
+              noMessages
+
             case (_: SliceT | _: GhostSliceT, IntT(_)) =>
               noMessages
 
@@ -739,6 +742,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (ArrayT(_, elem), IntT(_)) => elem
           case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
           case (SequenceT(elem), IntT(_)) => elem
+          case (SequenceT(elem), GhostIntegerT) => elem
           case (SliceT(elem), IntT(_)) => elem
           case (GhostSliceT(elem), IntT(_)) => elem
           case (VariadicT(elem), IntT(_)) => elem
@@ -1133,7 +1137,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     underlyingType(exprType(expr.exp)) match {
       case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT => INT_TYPE
       case ActualPointerT(_: ArrayT) => INT_TYPE
-      case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT | _: AdtT => UNTYPED_INT_CONST
+      case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT | _: AdtT => GhostIntegerT
       case t => violation(s"unexpected argument ${expr.exp} of type $t passed to len")
     }
 

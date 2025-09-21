@@ -15,7 +15,7 @@ import com.typesafe.scalalogging.StrictLogging
 import org.slf4j.LoggerFactory
 import scalaz.Scalaz.futureInstance
 import viper.gobra.ast.internal.Program
-import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, InternalTransform, OverflowChecksTransform}
+import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, IntConversionInferenceTransform, InternalTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
 import viper.gobra.frontend.Parser.ParseResult
@@ -303,7 +303,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     // by overflow checks (if enabled) because all overflows in constant declarations 
     // can be found by the well-formedness checks.
     val startMs = System.currentTimeMillis()
-    var transformations: Vector[InternalTransform] = Vector(CGEdgesTerminationTransform, ConstantPropagation)
+    var transformations: Vector[InternalTransform] = Vector(CGEdgesTerminationTransform, ConstantPropagation, IntConversionInferenceTransform)
     if (config.checkOverflows) {
       transformations :+= OverflowChecksTransform
     }

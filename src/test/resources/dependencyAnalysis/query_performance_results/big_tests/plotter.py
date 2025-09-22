@@ -7,7 +7,14 @@ colors = ["#4e6ea7", "#6aa84f", "#cc4125", "#c27ba0"]
 
 
 def get_pretty_name(name: str):
-  return name.replace(".csv", "").replace("scion_addr", "VerifiedSCION addr package")
+  names = {"binary_search_tree.gobra": "Binary Search Tree",
+           "binary_tree.gobra": "Binary Tree",
+           "dutchflag.gobra": "Dutchflag",
+           "example-2-1.gobra": "Example 2.1",
+           "zune.gobra": "Zune",
+           "relaxed_prefix.gobra": "Relaxed Prefix",
+           "scion_addr.gobra": "VerifiedSCION addr package"}
+  return names[name.replace(".csv", ".gobra")]
 
 def import_result(file: str):
   with open(file, mode="r") as f:
@@ -58,7 +65,7 @@ def plot_absolute(result_files: list[str], x_key: str):
 
   # finish plot
   ax.set_ylabel("Query Runtime [ms]")
-  ax.set_xlabel("#dependencies")
+  ax.set_xlabel("#Dependencies")
   # ax.set_title("Runtimes of Dependency Set Queries")
   ax.legend()
 

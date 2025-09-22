@@ -1,0 +1,99 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package trivial
+
+type Tree struct {
+  Left  *Tree
+  Value int
+  Right *Tree
+}
+
+pred tree(self *Tree) {
+  acc(&self.Left) && acc(&self.Value) && acc(&self.Right) &&
+  (self.Left != nil ==> tree(self.Left)) &&
+  (self.Right != nil ==> tree(self.Right))
+}
+
+requires self != nil ==> tree(self)
+pure func (self *Tree) Contains(v int) bool {
+  return self != nil && (unfolding tree(self) in self.Value == v || (self.Left.Contains(v) || self.Right.Contains(v)))
+}
+
+requires self != nil ==> tree(self)
+ensures tree(res) && res.Contains(v)
+func (self *Tree) Insert(v int) (res *Tree) {
+    if self == nil {
+        res = &Tree{Value: v}
+    } else {
+        unfold tree(self)
+        // approximation for balancing the tree by choosing left or right depending on the evenness of
+        // the sum of v and self.value:
+        if (self.Value + v) % 2 == 0 {
+            self.Left = self.Left.Insert(v)
+        } else {
+            self.Right = self.Right.Insert(v)
+        }
+        res = self
+    }
+    fold tree(res)
+    return
+}
+
+requires self != nil ==> tree(self)
+ensures (res != nil ==> tree(res)) && !res.Contains(v)
+func (self *Tree) DeleteAll(v int) (res *Tree) {
+    if self == nil {
+        res = nil
+    } else {
+        unfold tree(self)
+        newLeft := self.Left.DeleteAll(v)
+        newRight := self.Right.DeleteAll(v)
+        if self.Value == v {
+            // delete this node
+            if newLeft == nil {
+                // at most one subtree, thus use other one:
+                res = newRight
+            } else if newRight == nil {
+                // at most one subtree, thus use other one:
+                res = newLeft
+            } else {
+                // both subtrees are present
+                var leftMost int
+                self.Right, leftMost = newRight.deleteLeftMost(v)
+                // overwrite value that should be deleted:
+                self.Value = leftMost
+                self.Left = newLeft
+                fold tree(self)
+                res = self
+            }
+        } else {
+            self.Left = newLeft
+            self.Right = newRight
+            fold tree(self)
+            res = self
+        }
+    }
+    return res
+}
+
+requires tree(self) && !self.Contains(v)
+ensures (res != nil ==> tree(res)) && !res.Contains(v) && v != leftMost
+func (self *Tree) deleteLeftMost(ghost v int) (res *Tree, leftMost int) {
+    unfold tree(self)
+    if (self.Left != nil) {
+        // follow into left subtree as the minimum is the left most node
+        self.Left, leftMost = self.Left.deleteLeftMost(v)
+        fold tree(self)
+        res = self
+    } else if (self.Right != nil) {
+        // self.Value is the minimum but it has a right subtree
+        // thus, replace n by its right subtree
+        res, leftMost = self.Right, self.Value
+    } else {
+        // self.Value is the left-most node in the tree and it does not have any subtrees
+        // simply delete it by returning nil
+        res, leftMost = nil, self.Value
+    }
+    return res, leftMost
+}

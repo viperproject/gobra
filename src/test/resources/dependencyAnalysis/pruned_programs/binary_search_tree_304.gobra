@@ -103,7 +103,7 @@ requires n.tree() && n.sorted(lowerBound, upperBound)
 ensures n.tree() && n.sorted(lowerBound, upperBound)
 ensures value in n.sortedValues(lowerBound, upperBound)
 ensures len(n.sortedValues(lowerBound, upperBound)) == old(len(n.sortedValues(lowerBound, upperBound))) + (value in old(n.sortedValues(lowerBound, upperBound)) ? 0 : 1)
-ensures value in old(n.sortedValues(lowerBound, upperBound)) ==> old(n.sortedValues(lowerBound, upperBound)) == n.sortedValues(lowerBound, upperBound)
+//ensures value in old(n.sortedValues(lowerBound, upperBound)) ==> old(n.sortedValues(lowerBound, upperBound)) == n.sortedValues(lowerBound, upperBound)
 func (n *node) insert(value int, ghost lowerBound, upperBound option[int]) {
     unfold n.tree()
     if (value < n.value) {

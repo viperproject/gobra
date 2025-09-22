@@ -73,7 +73,7 @@ pure func (n *node) sortedValues(lowerBound, upperBound option[int]) (res seq[in
     return unfolding acc(n.tree(), _) in (n.left == nil ? seq[int]{ } : n.left.sortedValues(lowerBound, some(n.value))) ++ seq[int]{ n.value } ++ (n.right == nil ? seq[int]{ } : n.right.sortedValues(some(n.value), upperBound))
 }
 
-ensures t.tree() && t.IsEmpty()
+ensures t.tree() //&& t.IsEmpty()
 func NewTree() (t *Tree) {
     t = new(Tree)
     fold t.tree()

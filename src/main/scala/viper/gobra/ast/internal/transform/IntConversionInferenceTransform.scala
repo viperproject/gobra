@@ -1,5 +1,5 @@
 package viper.gobra.ast.internal.transform
-import viper.gobra.ast.internal.{AdtDestructor, AdtDiscriminator, ApplyWand, ArrayUpdate, Assert, Assignment, Assume, BinaryExpr, Block, BoolOperation, Break, Capacity, ClosureCall, ClosureImplements, ClosureObject, Conditional, Continue, Conversion, Defer, Deferrable, Deref, DfltVal, DomainFunctionCall, EffectfulConversion, Exhale, Exists, FieldRef, Fold, FunctionCall, FunctionObject, GhostCollectionUpdate, GoClosureCall, GoFunctionCall, GoMethodCall, If, IndexedExp, Inhale, Initialization, IntOperation, IsBehaviouralSubtype, IsComparableInterface, IsComparableType, Label, LabeledOld, Length, Lit, Location, Low, LowContext, MakeStmt, MapConversion, MapKeys, MapValues, MethodBody, MethodBodySeqn, MethodCall, MethodObject, MultisetConversion, New, NewMapLit, NewSliceLit, Old, OptionGet, OptionNone, OptionSome, Outline, PackageWand, PatternMatchExp, PatternMatchStmt, Permission, PredExprFold, PredExprUnfold, PredicateConstructor, PureClosureCall, PureForall, PureFunction, PureFunctionCall, PureLet, PureMethod, PureMethodCall, RangeSequence, Receive, Ref, Refute, Return, SafeMapLookup, SafeReceive, SafeTypeAssertion, Send, Seqn, SequenceConversion, SequenceDrop, SequenceTake, SetConversion, Slice, SpecImplementationProof, StructUpdate, ToInterface, Tuple, TypeAssertion, TypeExpr, TypeOf, Unfold, Unfolding, Var, While}
+import viper.gobra.ast.internal._
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability
 import viper.gobra.util.TypeBounds
@@ -14,12 +14,33 @@ object IntConversionInferenceTransform extends InternalTransform {
   /**
    * Program-to-program transformation
    */
-  override def transform(p: in.Program): in.Program =
+  override def transform(p: in.Program): in.Program = {
     in.Program(
-      types = p.types,
-      members = p.members.map(transformMember(p)),
-      table = p.table
-    )(p.info)
+        types = p.types,
+        members = p.members.map(transformMember(p)),
+        table = p.table
+      )(p.info)
+  }
+
+
+  /*
+  private def transformTable(originalProg: in.Program): in.LookupTable = {
+    new in.LookupTable(
+      definedTypes = originalProg.table.definedTypes,
+      definedMethods = originalProg.table.definedMethods map { case (proxy, meth) =>
+        proxy -> transformMember(originalProg)(meth).asInstanceOf[in.MethodLikeMember]
+      },
+      definedFunctions = originalProg.table.definedFunctions,
+      definedMPredicates = originalProg.table.definedMPredicates,
+      definedFPredicates = originalProg.table.definedFPredicates,
+      definedFuncLiterals = originalProg.table.definedFuncLiterals,
+      directMemberProxies = originalProg.table.directMemberProxies,
+      directInterfaceImplementations = originalProg.table.directInterfaceImplementations,
+      implementationProofPredicateAliases = originalProg.table.implementationProofPredicateAliases
+    )
+  }
+   */
+
 
   private def transformAssert(originalProg: in.Program)(a: in.Assertion): in.Assertion = {
     println(s"Assertion: $a")
@@ -31,17 +52,13 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newR = transformAssert(originalProg)(r)
         in.Implication(newL, newR)(i.info)
       case q@in.SepForall(vars, triggers, body) =>
-        val newTriggers = triggers map { t =>
-          val newExprs = t.exprs map {
-            case e: in.Expr => transformExpr(originalProg)(e)
-            case o =>
-              // TODO: adapt these
-              o
-          }
-          in.Trigger(newExprs)(t.info)
-        }
+        val newTriggers = triggers map transformTrigger(originalProg)
         val newBody = transformAssert(originalProg)(body)
         in.SepForall(vars, newTriggers, newBody)(q.info)
+      case w@in.MagicWand(l, r) =>
+        val newL = transformAssert(originalProg)(l)
+        val newR = transformAssert(originalProg)(r)
+        in.MagicWand(newL, newR)(w.info)
       case a@in.SepAnd(l, r) =>
         val newL = transformAssert(originalProg)(l)
         val newR = transformAssert(originalProg)(r)
@@ -80,14 +97,8 @@ object IntConversionInferenceTransform extends InternalTransform {
   }
 
   private def transformLocation(originalProg: in.Program)(l: in.Location): in.Location = l match {
-    case i@in.IndexedExp(base, index, baseUnderlyingType) =>
-      val newBase = transformExpr(originalProg)(base)
-      val idxTyp = baseUnderlyingType match {
-        case _: in.SequenceT => integerType
-        case _ => intType
-      }
-      val newIdx = transformExprToIntendedType(originalProg)(index, idxTyp)
-      in.IndexedExp(newBase, newIdx, baseUnderlyingType)(i.info)
+    case i: in.IndexedExp =>
+      transformIndexedExpression(originalProg)(i)
     case d: Deref =>
       transformDeref(originalProg)(d)
     case r@Ref(ref, typ) =>
@@ -138,7 +149,6 @@ object IntConversionInferenceTransform extends InternalTransform {
     val newE: in.Expr = e match {
       case c@in.Conditional(cond, thn, els, typ) =>
         val newCond = transformExpr(originalProg)(cond)
-        val typ = mergeTypes(originalProg)(thn.typ, els.typ)
         val newThn = transformExprToIntendedType(originalProg)(thn, typ)
         val newEls = transformExprToIntendedType(originalProg)(els, typ)
         in.Conditional(newCond, newThn, newEls, typ)(c.info)
@@ -270,10 +280,16 @@ object IntConversionInferenceTransform extends InternalTransform {
       case f: in.FullPerm => f
       case n: in.NoPerm => n
       case w: in.WildcardPerm => w
+      /*
       case p@in.FractionalPerm(l, r) =>
         val newL = transformExpr(originalProg)(l) // maybe cast this to Perm type instead
         val newR = transformExpr(originalProg)(r) // maybe cast this to Perm type instead
         in.FractionalPerm(newL, newR)(p.info)
+
+       */
+      case p@in.FractionalPerm(l, r) =>
+        // skipping transformation for now, otherwise we run into issues with Viper's ambiguous syntax for fractional perms
+        in.FractionalPerm(l, r)(p.info)
       case p@in.PermAdd(l, r) =>
         val newL = transformExpr(originalProg)(l)
         val newR = transformExpr(originalProg)(r)
@@ -309,14 +325,16 @@ object IntConversionInferenceTransform extends InternalTransform {
         }
         in.PureFunctionCall(func, newArgs, typ, reveal)(p.info)
       case p@in.PureMethodCall(recv, func, args, typ, reveal) =>
-        val newRecv = transformExpr(originalProg)(recv)
         val m = originalProg.table.lookup(func)
-        val argTypes = m match {
-          case pf: PureMethod => pf.args map (_.typ)
-          case _ =>
+        val (recvT, argTypes) = m match {
+          case pf: PureMethod => (pf.receiver.typ ,pf.args map (_.typ))
+          case bm: in.BuiltInMethod => (bm.receiverT, bm.argsT)
+          case f =>
             // unreachable case
+            println(s"missing this case: $f, ${f.getClass}")
             ???
         }
+        val newRecv = transformExprToIntendedType(originalProg)(recv, recvT)
         val newArgs = args zip argTypes map { case (arg, typ) =>
           transformExprToIntendedType(originalProg)(arg, typ)
         }
@@ -331,7 +349,8 @@ object IntConversionInferenceTransform extends InternalTransform {
       }
       case l: in.Length => l
       case c: in.Capacity => c
-      case s@in.Slice(base, low, high, max, baseUnderlyingType) =>
+      //case s@in.Slice(base, low, high, max, baseUnderlyingType) =>
+      case s: in.Slice =>
         s
         /*
         val newBase = transformExpr(originalProg)(base)
@@ -344,8 +363,8 @@ object IntConversionInferenceTransform extends InternalTransform {
 
       case d: in.DfltVal => d
       case o: in.Old =>
-        // TODO: check
-        o
+        val newOp = transformExpr(originalProg)(o.operand)
+        in.Old(newOp)(o.info)
       case u: in.Unfolding =>
         val newAcc = transformAccess(originalProg)(u.acc)
         val newExpr = transformExprToIntendedType(originalProg)(u.in, u.typ)
@@ -360,6 +379,11 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newR = transformExpr(originalProg)(r)
         in.Union(newL, newR, typ)(u.info)
 
+      case s@in.SequenceDrop(left, right) =>
+        val newL = transformExpr(originalProg)(left)
+        val newR = transformExpr(originalProg)(right)
+        in.SequenceDrop(newL, newR)(s.info)
+
       case k@in.MapKeys(exp, typ) =>
         val newExp = transformExpr(originalProg)(exp)
         in.MapKeys(newExp, typ)(k.info)
@@ -369,81 +393,78 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newI = transformExpr(originalProg)(i)
         in.PureLet(l, newR, newI)(p.info)
 
+        /*
       case t@in.Tuple(args) =>
         val newArgs = args map transformExpr(originalProg)
         in.Tuple(newArgs)(t.info)
 
+         */
+
+      case t@in.ToInterface(exp, typ) =>
+        val newExp = transformExpr(originalProg)(exp)
+        in.ToInterface(newExp, typ)(t.info)
+      case c@in.IsComparableInterface(exp) =>
+        val newExp = transformExpr(originalProg)(exp)
+        in.IsComparableInterface(newExp)(c.info)
+      case c@in.IsComparableType(exp) =>
+        val newExp = transformExpr(originalProg)(exp)
+        in.IsComparableType(newExp)(c.info)
+      case p@in.PredicateConstructor(proxy, proxyT, args) =>
+        val argT = proxyT.args
+        /*
+        val newArgs = args zip argT map { case (arg, typ) =>
+          transformExprToIntendedType(originalProg)(arg, typ)
+        }
+        */
+        // TODO: for now, skip this. add necessary transformation later
+        p
+      case t@in.TypeOf(exp) =>
+        val newExp = transformExpr(originalProg)(exp)
+        in.TypeOf(newExp)(t.info)
+      case t: in.TypeExpr => t
+      case a@in.TypeAssertion(exp, arg) =>
+        val newExp = transformExpr(originalProg)(exp)
+        in.TypeAssertion(newExp, arg)(a.info)
+      case p@in.PureForall(vars, triggers, body) =>
+        val newTriggers = triggers map transformTrigger(originalProg)
+        val newBody = transformExpr(originalProg)(body)
+        in.PureForall(vars, newTriggers, newBody)(p.info)
       case i =>
         println(s"Trying $i, class ${i.getClass}")
         ???
     }
-    if (newE.typ == intededType) newE else in.Conversion(intededType, newE)(newE.info)
-  }
-
-  // TODO: drop
-  private def allExprs(e: in.Expr): Unit = {
-    e match {
-      case PatternMatchExp(exp, typ, cases, default) => ???
-      case PureLet(left, right, in) => ???
-      case LabeledOld(label, operand) => ???
-      case Conditional(cond, thn, els, typ) => ???
-      case PureForall(vars, triggers, body) => ???
-      case Exists(vars, triggers, body) => ???
-      case permission: Permission => ???
-      case TypeAssertion(exp, arg) => ???
-      case TypeOf(exp) => ???
-      case IsComparableType(exp) => ???
-      case IsComparableInterface(exp) => ???
-      case IsBehaviouralSubtype(subtype, supertype) => ???
-      case ToInterface(exp, typ) => ???
-      case expr: TypeExpr => ???
-      case Low(exp) => ???
-      case LowContext() => ???
-      case PredicateConstructor(proxy, proxyT, args) => ???
-      case OptionNone(elem) => ???
-      case OptionSome(exp) => ???
-      case OptionGet(exp) => ???
-      case ArrayUpdate(base, left, right) => ???
-      case RangeSequence(low, high) => ???
-      case GhostCollectionUpdate(base, left, right, baseUnderlyingType) => ???
-      case SequenceDrop(left, right) => ???
-      case SequenceTake(left, right) => ???
-      case SequenceConversion(expr) => ???
-      case SetConversion(expr) => ???
-      case MultisetConversion(expr) => ???
-      case MapKeys(exp, expUnderlyingType) => ???
-      case MapValues(exp, expUnderlyingType) => ???
-      case MapConversion(expr) => ???
-      case PureFunctionCall(func, args, typ, reveal) => ???
-      case PureMethodCall(recv, meth, args, typ, reveal) => ???
-      case PureClosureCall(closure, args, spec, typ) => ???
-      case DomainFunctionCall(func, args, typ) => ???
-      case StructUpdate(base, field, newVal) => ???
-      case AdtDestructor(base, field) => ???
-      case AdtDiscriminator(base, clause) => ???
-      case operation: BoolOperation => ???
-      case operation: IntOperation => ???
-      case expr: BinaryExpr => ???
-      case Conversion(newType, expr) => ???
-      case Receive(channel, recvChannel, recvGivenPerm, recvGotPerm) => ???
-      case lit: Lit => ???
-      case DfltVal(typ) => ???
-      case ClosureImplements(closure, spec) => ???
-      case ClosureObject(func, typ) => ???
-      case FunctionObject(func, typ) => ???
-      case MethodObject(recv, meth, typ) => ???
-      case Slice(base, low, high, max, baseUnderlyingType) => ???
-      case Tuple(args) => ???
-      case value: Var => ???
+    // TODO: check if I am trying to convert to an interface type
+    if (newE.typ == intededType)
+      newE
+    else if (underlyingType(originalProg)(intededType).isInstanceOf[in.InterfaceT]) {
+      in.ToInterface(newE, intededType)(newE.info)
+    } else {
+      in.Conversion(intededType, newE)(newE.info)
     }
   }
 
+  private def transformTrigger(originalProg: in.Program)(t: in.Trigger): in.Trigger = {
+    val newExprs = t.exprs map {
+      case e: in.Expr => transformExpr(originalProg)(e)
+      case o =>
+        // TODO: adapt these
+        o
+    }
+    in.Trigger(newExprs)(t.info)
+  }
+
+  private def transformBlock(originalProg: in.Program)(b: in.Block): in.Block = {
+    in.Block(b.decls, b.stmts map transformStmt(originalProg))(b.info)
+  }
+
   private def transformStmt(originalProg: in.Program)(s: in.Stmt): in.Stmt = s match {
-    case b@in.Block(decls, stmts) => in.Block(decls, stmts map transformStmt(originalProg))(b.info)
+    case b: in.Block => transformBlock(originalProg)(b)
     case s@in.Seqn(stmts) => in.Seqn(stmts map transformStmt(originalProg))(s.info)
     case i: in.Initialization => i
     case a@in.Assert(ass) => in.Assert(transformAssert(originalProg)(ass))(a.info)
     case a@in.Assume(ass) => in.Assume(transformAssert(originalProg)(ass))(a.info)
+    case a@in.Inhale(ass) => in.Inhale(transformAssert(originalProg)(ass))(a.info)
+    case a@in.Exhale(ass) => in.Exhale(transformAssert(originalProg)(ass))(a.info)
     case a@in.SingleAss(l, r) =>
       val newL = transformAssignee(originalProg)(l)
       val newR = transformExprToIntendedType(originalProg)(r, l.op.typ)
@@ -461,6 +482,18 @@ object IntConversionInferenceTransform extends InternalTransform {
     case n@in.New(target, expr) =>
       val newExpr = transformExprToIntendedType(originalProg)(expr, target.typ)
       in.New(target, newExpr)(n.info)
+    case n@in.NewSliceLit(target, memberType, elems) =>
+      val newElems = elems map { case (k, v) =>
+        k -> transformExprToIntendedType(originalProg)(v, memberType)
+      }
+      in.NewSliceLit(target, memberType, newElems)(n.info)
+    case n@in.NewMapLit(target, keys, values, entries) =>
+      val newEntries = entries map { case (k, v) =>
+        val newK = transformExprToIntendedType(originalProg)(k, keys)
+        val newV = transformExprToIntendedType(originalProg)(v, values)
+        newK -> newV
+      }
+      in.NewMapLit(target, keys, values, newEntries)(n.info)
     case i@in.If(cond, thn, els) =>
       val newCond = transformExpr(originalProg)(cond)
       val newThn = transformStmt(originalProg)(thn)
@@ -475,8 +508,14 @@ object IntConversionInferenceTransform extends InternalTransform {
     case l: in.Label => l
     case c: in.Continue => c
     case b: in.Break => b
-    case r: Return => r
-
+    case r: in.Return => r
+    case d: in.Defer =>
+      val newDef = transformStmt(originalProg)(d.stmt)
+      in.Defer(newDef.asInstanceOf[in.Deferrable])(d.info)
+    case p: in.PackageWand =>
+      val newWand = transformAssert(originalProg)(p.wand).asInstanceOf[in.MagicWand]
+      val newBlock = p.block map transformStmt(originalProg)
+      in.PackageWand(newWand, newBlock)(p.info)
     case c@FunctionCall(targets, func, args) =>
       val f = originalProg.table.lookup(func)
       val argTypes = f match {
@@ -491,15 +530,15 @@ object IntConversionInferenceTransform extends InternalTransform {
       }
       in.FunctionCall(targets, func, newArgs)(c.info)
     case c@MethodCall(targets, recv, meth, args) =>
-      val newRecv = transformExpr(originalProg)(recv)
       val m = originalProg.table.lookup(meth)
-      val argTypes = m match {
-        case f: in.Method => f.args map (_.typ)
-        case b: in.BuiltInMethod => b.argsT
+      val (recvT, argTypes) = m match {
+        case f: in.Method => (f.receiver.typ, f.args map (_.typ))
+        case b: in.BuiltInMethod => (b.receiverT, b.argsT)
         case _ =>
           // unreachable case
           ???
       }
+      val newRecv = transformExprToIntendedType(originalProg)(recv, recvT)
       val newArgs = args zip argTypes map { case (arg, typ) =>
         transformExprToIntendedType(originalProg)(arg, typ)
       }
@@ -534,12 +573,32 @@ object IntConversionInferenceTransform extends InternalTransform {
     case EffectfulConversion(target, newType, expr) => ???
     case SpecImplementationProof(closure, spec, body, pres, posts) => ???
     case NewSliceLit(target, memberType, elems) => ???
-    case NewMapLit(target, keys, values, entries) => ???
   }
 
-  private def transformAssignee(originalProg: in.Program)(a: in.Assignee): in.Assignee = {
-    // TODO
-    a
+  private def transformIndexedExpression(originalProg: in.Program)(e: in.IndexedExp): in.IndexedExp = e match {
+    case i@in.IndexedExp(base, index, baseUnderlyingType) =>
+      val newBase = transformExpr(originalProg)(base)
+      val idxTyp = baseUnderlyingType match {
+        case _: in.SequenceT => integerType
+        case m: in.MapT => m.keys
+        case m: in.MathMapT => m.keys
+        case _ => intType
+      }
+      val newIdx = transformExprToIntendedType(originalProg)(index, idxTyp)
+      in.IndexedExp(newBase, newIdx, baseUnderlyingType)(i.info)
+  }
+
+  private def transformAssignee(originalProg: in.Program)(a: in.Assignee): in.Assignee = a match {
+    case Assignee.Var(op) => Assignee.Var(op)
+    case Assignee.Pointer(op) =>
+      val newOp = transformDeref(originalProg)(op)
+      Assignee.Pointer(newOp)
+    case Assignee.Field(op) =>
+      val newOp = transformFieldRef(originalProg)(op)
+      Assignee.Field(newOp)
+    case Assignee.Index(op) =>
+      val newOp = transformIndexedExpression(originalProg)(op)
+      Assignee.Index(newOp)
   }
 
   private def transformAddressable(originalProg: in.Program)(a: in.Addressable): in.Addressable = a match {
@@ -552,9 +611,7 @@ object IntConversionInferenceTransform extends InternalTransform {
       val newOp = transformFieldRef(originalProg)(op)
       in.Addressable.Field(newOp)
     case in.Addressable.Index(op) =>
-      val newBase = transformExpr(originalProg)(op.base)
-      val newIdx = transformExprToIntendedType(originalProg)(op.index, intType)
-      val newOp = in.IndexedExp(newBase, newIdx, op.baseUnderlyingType)(op.info)
+      val newOp = transformIndexedExpression(originalProg)(op)
       in.Addressable.Index(newOp)
   }
 
@@ -596,7 +653,10 @@ object IntConversionInferenceTransform extends InternalTransform {
   }
   private def transformMember(originalProg: in.Program)(m: in.Member): in.Member =
     m match {
-      case in.GlobalVarDecl(left, declStmts) => ???
+      case g@in.GlobalVarDecl(left, declStmts) =>
+        val newDeclStmts = declStmts map transformStmt(originalProg)
+        in.GlobalVarDecl(left, newDeclStmts)(g.info)
+
       case g@in.GlobalConstDecl(left, right) =>
         ???
       case m@in.Method(receiver, name, args, results, pres, posts, terminationMeasures, backendAnnotations, body) =>
@@ -612,9 +672,11 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newBody = body map transformExpr(originalProg)
         in.PureMethod(receiver, name, args, results, newPres, newPosts, newTermMeasures, backendAnnotations, newBody, isOpaque)(m.info)
       case p@in.MethodSubtypeProof(subProxy, superT, superProxy, receiver, args, results, body) =>
-        ???
+        val newBody = body map(transformBlock(originalProg)(_))
+        in.MethodSubtypeProof(subProxy, superT, superProxy, receiver, args, results, newBody)(p.info)
       case p@in.PureMethodSubtypeProof(subProxy, superT, superProxy, receiver, args, results, body) =>
-        ???
+        val newBody = body map(transformExpr(originalProg)(_))
+        in.PureMethodSubtypeProof(subProxy, superT, superProxy, receiver, args, results, newBody)(p.info)
       case f@in.Function(name, args, results, pres, posts, terminationMeasures, backendAnnotations, body) =>
         val newPres = pres map transformAssert(originalProg)
         val newPosts = posts map transformAssert(originalProg)
@@ -642,6 +704,7 @@ object IntConversionInferenceTransform extends InternalTransform {
       case a: in.AdtDefinition => a
     }
 
+  // TODO: maybe adapt to return an option[in.Type]
   private def mergeTypes(originalProg: in.Program)(t1: in.Type, t2: in.Type): in.Type = {
     if (t1 == t2) {
       t1
@@ -656,6 +719,27 @@ object IntConversionInferenceTransform extends InternalTransform {
           ???
       }
 
+    } else if (t1.isInstanceOf[in.DefinedT] && t2.isInstanceOf[in.DefinedT]) {
+      if (originalProg.table.lookup(t1.asInstanceOf[in.DefinedT]) == t2) {
+        t1
+      } else if (originalProg.table.lookup(t2.asInstanceOf[in.DefinedT]) == t1) {
+        t2
+      } else {
+        val lookup1 = originalProg.table.lookup(t1.asInstanceOf[in.DefinedT])
+        val lookup2 = originalProg.table.lookup(t2.asInstanceOf[in.DefinedT])
+        val mergedT = mergeTypes(originalProg)(lookup1, lookup2)
+        if (mergedT == lookup1) {
+          t1
+        } else { t2 }
+      }
+    } else if (t1.isInstanceOf[in.DefinedT]) {
+      t1
+    } else if (t2.isInstanceOf[in.DefinedT]) {
+      t2
+    } else if (t1.isInstanceOf[in.InterfaceT] && !t2.isInstanceOf[in.InterfaceT]) {
+      t1
+    } else if (t2.isInstanceOf[in.InterfaceT] && !t1.isInstanceOf[in.InterfaceT]) {
+      t2
     } else {
       // cannot unify
       println(s"t1: $t1, t2: $t2")

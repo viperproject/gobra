@@ -76,7 +76,15 @@ class PermissionEncoding extends LeafTypeEncoding {
       case pa@ in.PermAdd(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermAdd(vl, vr), pa)
       case ps@ in.PermSub(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermSub(vl, vr), ps)
       case pm@ in.PermMul(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermMul(vl, vr), pm)
-      case pd@ in.PermDiv(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermDiv(vl, vr), pd)
+      case pd@ in.PermDiv(l, r) => for {
+        vl <- goE(l)
+        vrDom <- goE(r)
+        vr = r.typ match {
+          case t: in.IntT =>
+            withSrc(IntEncodingGenerator.domainToIntFuncApp(t.kind)(vrDom), pd)
+          case _ => vrDom
+        }
+      } yield withSrc(vpr.PermDiv(vl, vr), pd)
 
       // Perm comparisons
       case lt@in.PermLtCmp(l, r) => for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.PermLtCmp(vl, vr), lt)

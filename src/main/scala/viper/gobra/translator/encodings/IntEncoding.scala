@@ -352,7 +352,11 @@ case object IntEncodingGenerator extends DomainGeneratorWithoutContext[IntegerKi
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     super.finalize(addMemberFn)
     intToDomainFuncs.values.foreach(addMemberFn)
-    deferedIntToDomainFuncs.foreach { x => addMemberFn(intToDomainFunc(x)) }
+    deferedIntToDomainFuncs.foreach { x =>
+      if (!intToDomainFuncs.contains(x)) {
+        addMemberFn(intToDomainFunc(x))
+      }
+    }
     domainToIntFuncs.values.foreach(addMemberFn)
     addFuncs.values.foreach(addMemberFn)
     subFuncs.values.foreach(addMemberFn)

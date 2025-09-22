@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.frontend.info.base.Type.{ActualPointerT, DeclaredT, Float32T, Float64T, GhostPointerT, IntT, PermissionT, Single, SliceT, StringT, Type}
+import viper.gobra.frontend.info.base.Type.{ActualPointerT, DeclaredT, Float32T, Float64T, GhostIntegerT, GhostPointerT, IntT, PermissionT, Single, SliceT, StringT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait Convertibility extends BaseProperty { this: TypeInfoImpl =>
@@ -28,12 +28,14 @@ trait Convertibility extends BaseProperty { this: TypeInfoImpl =>
       case (Float32T, IntT(_)) => successProp
       case (Float64T, IntT(_)) => successProp
       case (IntT(_), IntT(_)) => successProp
+      case (IntT(_), GhostIntegerT) => successProp
       case (SliceT(IntT(config.typeBounds.Byte)), StringT) => successProp
       case (StringT, SliceT(IntT(config.typeBounds.Byte))) => successProp
       case (IntT(_), PermissionT) => successProp
       case (left, right) => (underlyingType(left), underlyingType(right)) match {
         case (l, r) if identicalTypes(l, r) => successProp
         case (IntT(_), IntT(_)) => successProp
+        case (IntT(_), GhostIntegerT) => successProp
         case (ActualPointerT(l), ActualPointerT(r)) if identicalTypes(underlyingType(l), underlyingType(r)) &&
           !(left.isInstanceOf[DeclaredT] && right.isInstanceOf[DeclaredT]) => successProp
         case (GhostPointerT(l), GhostPointerT(r)) if identicalTypes(underlyingType(l), underlyingType(r)) &&

@@ -63,8 +63,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // program
 
   def showProgram(p: PProgram): Doc = p match {
-    // initPosts not shown, they are deprecated and will soon be removed
-    case PProgram(packageClause, pkgInvs, _, imports, friends, declarations) =>
+    case PProgram(packageClause, pkgInvs, imports, friends, declarations) =>
       showPreamble(packageClause, pkgInvs, imports, friends) <>
         ssep(declarations map showMember, line <> line) <> line
   }
@@ -72,8 +71,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // preamble
 
   def showPreamble(p: PPreamble): Doc = p match {
-    // initPosts not shown, they are deprecated and will soon be removed
-    case PPreamble(packageClause, pkgInvs, _, imports, friends, _) =>
+    case PPreamble(packageClause, pkgInvs, imports, friends, _) =>
       showPreamble(packageClause, pkgInvs, imports, friends)
   }
 

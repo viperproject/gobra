@@ -3367,7 +3367,6 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       Vector(),
       Vector(),
       Vector(),
-      Vector(),
       Vector(PMethodDecl(
         PIdnDef("foo"),
         PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("self")))),

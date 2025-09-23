@@ -18,6 +18,7 @@ import viper.gobra.translator.encodings.IntEncodingGenerator
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeLevel.pure
+import viper.gobra.util.TypeBounds
 import viper.silver.plugin.standard.termination
 
 class SharedArrayComponentImpl extends SharedArrayComponent {
@@ -78,9 +79,9 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
   override def typ(t: ComponentParameter)(ctx: Context): vpr.Type = emb.typ(t)(ctx)
 
   /** Getter of shared-array domain. */
-  override def get(base: vpr.Exp, idx: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
+  override def get(base: vpr.Exp, idx: vpr.Exp, idxKind: TypeBounds.IntegerKind, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
-    val newIdx = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.integerKind)(idx)(idx.pos, idx.info, idx.errT)
+    val newIdx = IntEncodingGenerator.domainToIntFuncApp(idxKind)(idx)(idx.pos, idx.info, idx.errT)
     ctx.array.loc(emb.unbox(base, t)(pos, info, errT)(ctx), newIdx)(pos, info, errT) // unbox(base)[idx]
   }
 

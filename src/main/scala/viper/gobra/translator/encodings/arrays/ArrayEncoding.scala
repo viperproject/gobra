@@ -279,13 +279,25 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       for {
         vBase <- ctx.reference(base.asInstanceOf[in.Location])
         vIdx <- ctx.expression(idx)
-      } yield sh.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
+        idxKind = ctx.underlyingType(idx.typ) match {
+          case in.IntT(_, k) => k
+          case _ => ???
+        }
+        /*
+        vIdxNew = IntEncodingGenerator.domainToIntFuncApp(idxKind)(vIdx)()
+        */
+        // _ = if (idxKind == IntEncodingGenerator.integerKind) { } else { println(s"Failed with $loc"); ???}
+      } yield sh.get(vBase, vIdx, idxKind, cptParam(len, t)(ctx))(loc)(ctx)
     case loc@in.IndexedExp(base :: ctx.*(in.ArrayT(len, t, _)), idx, ptrT) =>
       val derefBase = in.Deref(base, ptrT)(base.info)
       for {
         vBase <- ctx.reference(derefBase.asInstanceOf[in.Location])
         vIdx <- ctx.expression(idx)
-      } yield sh.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
+        idxKind = ctx.underlyingType(idx.typ) match {
+          case in.IntT(_, k) => k
+          case _ => ???
+        }
+      } yield sh.get(vBase, vIdx, idxKind, cptParam(len, t)(ctx))(loc)(ctx)
   }
 
   /**
@@ -304,7 +316,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val typ = underlyingType(loc.typ)(ctx)
       val trigger = (idx: vpr.LocalVar) => {
         // val newIdx = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.integerKind)(idx)()
-        Seq(vpr.Trigger(Seq(sh.get(ctx.reference(loc).res, idx, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
+        Seq(vpr.Trigger(Seq(sh.get(ctx.reference(loc).res, idx, IntEncodingGenerator.integerKind, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
       }
       val body = (idx: in.BoundVar) => ctx.footprint(in.IndexedExp(loc, idx, typ)(loc.info), perm)
       boundedQuant(len, trigger, body)(loc)(ctx).map(forall =>
@@ -482,7 +494,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
           // TODO: here; adapt trigger
           trigger = (vIdx: vpr.LocalVar) =>  {
             // val vIdx = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.integerKind)(vIdxDom)()
-            Seq(vpr.Trigger(Seq(sh.get(vX.localVar, vIdx, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
+            Seq(vpr.Trigger(Seq(sh.get(vX.localVar, vIdx, IntEncodingGenerator.integerKind, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
           }
         } yield (x, trigger)
 

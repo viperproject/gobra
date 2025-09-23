@@ -154,8 +154,21 @@ class SequenceEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = n.vprMeta
         for {
           lowT <- goE(low)
+          idxKindLow = ctx.underlyingType(low.typ) match {
+            case in.IntT(_, k) => k
+            case _ => ???
+          }
+          // TODO: add more precise location info
+          lowTInt = IntEncodingGenerator.domainToIntFuncApp(idxKindLow)(lowT)(pos, info, errT)
           highT <- goE(high)
-        } yield vpr.RangeSeq(lowT, highT)(pos, info, errT)
+          idxKindHigh = ctx.underlyingType(high.typ) match {
+            case in.IntT(_, k) => k
+            case _ => ???
+          }
+          // TODO: add more precise location info
+          highTInt = IntEncodingGenerator.domainToIntFuncApp(idxKindHigh)(highT)(pos, info, errT)
+
+        } yield vpr.RangeSeq(lowTInt, highTInt)(pos, info, errT)
 
       case n: in.SequenceAppend =>
         val (pos, info, errT) = n.vprMeta

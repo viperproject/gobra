@@ -582,30 +582,33 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     def genFunction(typ : vpr.Type)(ctx : Context): vpr.Function = {
       // declarations
       val aDecl = vpr.LocalVarDecl("a", ctx.array.typ(typ))()
-      val iDecl = vpr.LocalVarDecl("i", vpr.Int)()
-      val jDecl = vpr.LocalVarDecl("j", vpr.Int)()
+      val iDecl = vpr.LocalVarDecl("i", IntEncodingGenerator.intType)()
+      val jDecl = vpr.LocalVarDecl("j", IntEncodingGenerator.intType)()
+
+      val iDeclInt = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(iDecl.localVar)()
+      val jDeclInt = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(jDecl.localVar)()
 
       // preconditions
-      val pre1 = synthesized(vpr.LeCmp(vpr.IntLit(0)(), iDecl.localVar))("The low bound of the slice might be negative")
-      val pre2 = synthesized(vpr.LeCmp(iDecl.localVar, jDecl.localVar))("The low bound of the slice might exceed the high bound")
+      val pre1 = synthesized(vpr.LeCmp(vpr.IntLit(0)(), iDeclInt))("The low bound of the slice might be negative")
+      val pre2 = synthesized(vpr.LeCmp(iDeclInt, jDeclInt))("The low bound of the slice might exceed the high bound")
       val pre3 = synthesized(
-        vpr.LeCmp(jDecl.localVar,
+        vpr.LeCmp(jDeclInt,
           IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(ctx.array.len(aDecl.localVar)())()
         ))("The high bound of the slice might exceed the array capacity")
       val pre4 = synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
 
       // postconditions
       val result = vpr.Result(ctx.slice.typ(typ))()
-      val post1 = vpr.EqCmp(ctx.slice.offset(result)(), iDecl.localVar)()
+      val post1 = vpr.EqCmp(ctx.slice.offset(result)(), iDeclInt)()
       val post2 = vpr.EqCmp(
         IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(ctx.slice.len(result)())(),
-        vpr.Sub(jDecl.localVar, iDecl.localVar)()
+        vpr.Sub(jDeclInt, iDeclInt)()
       )()
       val post3 = vpr.EqCmp(
         IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(ctx.slice.cap(result)())(),
         vpr.Sub(
           IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(ctx.array.len(aDecl.localVar)())(),
-          iDecl.localVar
+          iDeclInt
         )()
       )()
       val post4 = vpr.EqCmp(ctx.slice.array(result)(), aDecl.localVar)()

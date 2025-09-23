@@ -22,26 +22,6 @@ object IntConversionInferenceTransform extends InternalTransform {
       )(p.info)
   }
 
-
-  /*
-  private def transformTable(originalProg: in.Program): in.LookupTable = {
-    new in.LookupTable(
-      definedTypes = originalProg.table.definedTypes,
-      definedMethods = originalProg.table.definedMethods map { case (proxy, meth) =>
-        proxy -> transformMember(originalProg)(meth).asInstanceOf[in.MethodLikeMember]
-      },
-      definedFunctions = originalProg.table.definedFunctions,
-      definedMPredicates = originalProg.table.definedMPredicates,
-      definedFPredicates = originalProg.table.definedFPredicates,
-      definedFuncLiterals = originalProg.table.definedFuncLiterals,
-      directMemberProxies = originalProg.table.directMemberProxies,
-      directInterfaceImplementations = originalProg.table.directInterfaceImplementations,
-      implementationProofPredicateAliases = originalProg.table.implementationProofPredicateAliases
-    )
-  }
-   */
-
-
   private def transformAssert(originalProg: in.Program)(a: in.Assertion): in.Assertion = {
     println(s"Assertion: $a")
     a match {
@@ -399,9 +379,21 @@ object IntConversionInferenceTransform extends InternalTransform {
         transformLocation(originalProg)(l)
       case l: in.Lit => l match {
         case i: in.IntLit => i
+        case s: in.StructLit =>
+          println(s"type of a lit: ${s.typ}")
+          val fieldsT = underlyingType(originalProg)(s.typ) match {
+            case st: in.StructT =>
+              st.fields.map(_.typ)
+            case _ =>
+              // error case
+              ???
+          }
+          val newFields = fieldsT zip s.args map { case (t, arg) => transformExprToIntendedType(originalProg)(arg, t) }
+          // val structT = originalProg.table.lookup()
+          in.StructLit(s.typ, newFields)(s.info)
         case o =>
           // TODO
-        o
+          o
       }
       case l: in.Length => l
       case c: in.Capacity => c
@@ -605,32 +597,6 @@ object IntConversionInferenceTransform extends InternalTransform {
     case GoClosureCall(closure, args, spec) => ???
   }
 
-  private def allStmts(s: in.Stmt) = s match {
-    case MethodBody(decls, seqn, postprocessing) => ???
-    case MethodBodySeqn(stmts) => ???
-    case stmt: MakeStmt => ???
-    case New(target, expr) => ???
-    case SafeTypeAssertion(resTarget, successTarget, expr, typ) => ???
-
-    case deferrable: Deferrable => ???
-    case Defer(stmt) => ???
-    case Refute(ass) => ???
-    case Inhale(ass) => ???
-    case Exhale(ass) => ???
-    case PackageWand(wand, block) => ???
-    case ApplyWand(wand) => ???
-    case Outline(name, pres, posts, terminationMeasures, backendAnnotations, body, trusted) => ???
-    case Send(channel, expr, sendChannel, sendGivenPerm, sendGotPerm) => ???
-    case SafeReceive(resTarget, successTarget, channel, recvChannel, recvGivenPerm, recvGotPerm, closed) => ???
-    case SafeMapLookup(resTarget, successTarget, mapLookup) => ???
-    case PatternMatchStmt(exp, cases, strict) => ???
-    case PredExprFold(base, args, p) => ???
-    case PredExprUnfold(base, args, p) => ???
-    case EffectfulConversion(target, newType, expr) => ???
-    case SpecImplementationProof(closure, spec, body, pres, posts) => ???
-    case NewSliceLit(target, memberType, elems) => ???
-  }
-
   private def transformIndexedExpression(originalProg: in.Program)(e: in.IndexedExp): in.IndexedExp = e match {
     case i@in.IndexedExp(base, index, baseUnderlyingType) =>
       val newBase = transformExpr(originalProg)(base)
@@ -775,6 +741,9 @@ object IntConversionInferenceTransform extends InternalTransform {
       (t1, t2) match {
         case (in.IntT(_, TypeBounds.UnboundedInteger), _) => Some(t2)
         case (_, in.IntT(_, TypeBounds.UnboundedInteger)) => Some(t1)
+        case (a, b) =>
+          println(s"weird case: a: $a and b: $b")
+          ???
         case _ =>
           // cannot unify
           ???

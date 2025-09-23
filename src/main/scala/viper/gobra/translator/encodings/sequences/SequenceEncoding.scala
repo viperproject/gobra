@@ -154,21 +154,8 @@ class SequenceEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = n.vprMeta
         for {
           lowT <- goE(low)
-          idxKindLow = ctx.underlyingType(low.typ) match {
-            case in.IntT(_, k) => k
-            case _ => ???
-          }
-          // TODO: add more precise location info
-          lowTInt = IntEncodingGenerator.domainToIntFuncApp(idxKindLow)(lowT)(pos, info, errT)
           highT <- goE(high)
-          idxKindHigh = ctx.underlyingType(high.typ) match {
-            case in.IntT(_, k) => k
-            case _ => ???
-          }
-          // TODO: add more precise location info
-          highTInt = IntEncodingGenerator.domainToIntFuncApp(idxKindHigh)(highT)(pos, info, errT)
-
-        } yield vpr.RangeSeq(lowTInt, highTInt)(pos, info, errT)
+        } yield vpr.RangeSeq(lowT, highT)(pos, info, errT)
 
       case n: in.SequenceAppend =>
         val (pos, info, errT) = n.vprMeta
@@ -182,14 +169,26 @@ class SequenceEncoding extends LeafTypeEncoding {
         for {
           leftT <- goE(n.left)
           rightT <- goE(n.right)
-        } yield vpr.SeqDrop(leftT, rightT)(pos, info, errT)
+          rightKind = ctx.underlyingType(n.right.typ) match {
+            case in.IntT(_, k) => k
+            case _ => ???
+          }
+          // TODO: add more precise location info
+          rightTInt = IntEncodingGenerator.domainToIntFuncApp(rightKind)(rightT)(pos, info, errT)
+        } yield vpr.SeqDrop(leftT, rightTInt)(pos, info, errT)
 
       case n: in.SequenceTake =>
         val (pos, info, errT) = n.vprMeta
         for {
           leftT <- goE(n.left)
           rightT <- goE(n.right)
-        } yield vpr.SeqTake(leftT, rightT)(pos, info, errT)
+          rightKind = ctx.underlyingType(n.right.typ) match {
+            case in.IntT(_, k) => k
+            case _ => ???
+          }
+          // TODO: add more precise location info
+          rightTInt = IntEncodingGenerator.domainToIntFuncApp(rightKind)(rightT)(pos, info, errT)
+        } yield vpr.SeqTake(leftT, rightTInt)(pos, info, errT)
     }
   }
 

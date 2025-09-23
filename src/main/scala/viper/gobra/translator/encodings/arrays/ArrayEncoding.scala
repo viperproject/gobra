@@ -20,7 +20,7 @@ import viper.gobra.translator.library.embeddings.EmbeddingParameter
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeWriter
-import viper.gobra.util.Violation
+import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.plugin.standard.termination
 import viper.silver.{ast => vpr}
 
@@ -125,7 +125,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         typLhs = underlyingType(lhs.typ)(ctx)
         typRhs = underlyingType(rhs.typ)(ctx)
         body = (idx: in.BoundVar) => ctx.equal(in.IndexedExp(x, idx, typLhs)(src.info), in.IndexedExp(y, idx, typRhs)(src.info))(src)
-        res <- boundedQuant(len, idx => xTrigger(idx) ++ yTrigger(idx), body)(src)(ctx)
+        res <- boundedQuant(len, IntEncodingGenerator.intKind, idx => xTrigger(idx) ++ yTrigger(idx), body)(src)(ctx)
       } yield res
 
     case (lhs :: ctx.*(ctx.Array(len, _)) / Exclusive, rhs :: ctx.*(ctx.Array(len2, _)), src) if len == len2 =>
@@ -316,10 +316,10 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val typ = underlyingType(loc.typ)(ctx)
       val trigger = (idx: vpr.LocalVar) => {
         // val newIdx = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.integerKind)(idx)()
-        Seq(vpr.Trigger(Seq(sh.get(ctx.reference(loc).res, idx, IntEncodingGenerator.integerKind, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
+        Seq(vpr.Trigger(Seq(sh.get(ctx.reference(loc).res, idx, IntEncodingGenerator.intKind, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
       }
       val body = (idx: in.BoundVar) => ctx.footprint(in.IndexedExp(loc, idx, typ)(loc.info), perm)
-      boundedQuant(len, trigger, body)(loc)(ctx).map(forall =>
+      boundedQuant(len, IntEncodingGenerator.intKind, trigger, body)(loc)(ctx).map(forall =>
         // to eliminate nested quantified permissions, which are not supported by the silver ast.
         VU.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
       )
@@ -335,7 +335,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       super.isComparable(ctx)(exp).map{ _ =>
         val (pos, info, errT) = exp.vprMeta
         // if this is executed, then type parameter must have dynamic comparability
-        val idx = in.BoundVar("idx", in.IntT(Exclusive))(exp.info)
+        val idx = in.BoundVar("idx", in.IntT(Exclusive, TypeBounds.DefaultInt))(exp.info)
         val vIdxDecl = ctx.variable(idx)
         val baseTyp = underlyingType(exp.typ)(ctx)
         for {
@@ -344,7 +344,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
           res = vpr.Forall(
             variables = Seq(vIdxDecl),
             triggers = Seq(vpr.Trigger(Seq(rhs))(pos, info, errT)),
-            exp = vpr.Implies(boundaryCondition(vIdxDecl.localVar, len)(exp), rhs)(pos, info, errT)
+            exp = vpr.Implies(boundaryCondition(vIdxDecl.localVar, IntEncodingGenerator.intKind, len)(exp), rhs)(pos, info, errT)
           )(pos, info, errT)
         } yield res: vpr.Exp
       }
@@ -399,7 +399,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       // variable name does not matter because it is turned into a vpr.Result
       val resDummy = in.LocalVar("res", resType)(src.info)
       // variable name does not matter because it is the only variable occurring in the current scope
-      val idx = in.BoundVar("idx", in.IntT(Exclusive))(src.info)
+      val idx = in.BoundVar("idx", in.IntT(Exclusive, TypeBounds.DefaultInt))(src.info)
       val vIdx = ctx.variable(idx)
       val resAccess = in.IndexedExp(resDummy, idx, resType)(src.info)
       // val lenEq = pure(ctx.equal(in.Length(resDummy, resType)(src.info), in.IntLit(resType.length)(src.info))(src))(ctx).res
@@ -411,11 +411,11 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       }
       val idxEq = pure(ctx.equal(resAccess, in.DfltVal(resType.elems)(src.info))(src))(ctx).res
         .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
-      val trigger = ex.get(vpr.Result(vResType)(), IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.integerKind)(vIdx.localVar)(), t)(src)(ctx)
+      val trigger = ex.get(vpr.Result(vResType)(), IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(vIdx.localVar)(), t)(src)(ctx)
       val arrayEq = vpr.Forall(
         Seq(vIdx),
         Seq(vpr.Trigger(Seq(trigger))()),
-        vpr.Implies(boundaryCondition(vIdx.localVar, t.len)(src), idxEq)()
+        vpr.Implies(boundaryCondition(vIdx.localVar, IntEncodingGenerator.intKind, t.len)(src), idxEq)()
       )()
       val terminationMeasure =
         synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
@@ -432,9 +432,9 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
   }
 
   /** Returns: 0 <= 'base' && 'base' < 'length'. */
-  private def boundaryCondition(base: vpr.Exp, length: BigInt)(src : in.Node) : vpr.Exp = {
+  private def boundaryCondition(base: vpr.Exp, baseKind: TypeBounds.IntegerKind, length: BigInt)(src : in.Node) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
-    val baseInt = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.integerKind)(base)()
+    val baseInt = IntEncodingGenerator.domainToIntFuncApp(baseKind)(base)()
 
     vpr.And(
       vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), baseInt)(pos, info, errT),
@@ -442,14 +442,14 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     )(pos, info, errT)
   }
 
-  /** Returns: Forall idx :: {'trigger'(idx)} 0 <= idx && idx < 'length' => ['body'(idx)] */
-  private def boundedQuant(length: BigInt, trigger: vpr.LocalVar => Seq[vpr.Trigger], body: in.BoundVar => CodeWriter[vpr.Exp])
+  /** Returns: Forall idx int :: {'trigger'(idx)} 0 <= idx && idx < 'length' => ['body'(idx)] */
+  private def boundedQuant(length: BigInt, traversalVarKind: TypeBounds.IntegerKind, trigger: vpr.LocalVar => Seq[vpr.Trigger], body: in.BoundVar => CodeWriter[vpr.Exp])
                                   (src: in.Node)(ctx: Context)
                                   : CodeWriter[vpr.Forall] = {
 
     val (pos, info, errT) = src.vprMeta
 
-    val idx = in.BoundVar(ctx.freshNames.next(), in.IntT(Exclusive))(src.info)
+    val idx = in.BoundVar(ctx.freshNames.next(), in.IntT(Exclusive, traversalVarKind))(src.info)
     val vIdx = ctx.variable(idx)
 
     for {
@@ -457,7 +457,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       forall = vpr.Forall(
         variables = Vector(vIdx),
         triggers = trigger(vIdx.localVar),
-        exp = vpr.Implies(boundaryCondition(vIdx.localVar, length)(src), vBody)(pos, info, errT)
+        exp = vpr.Implies(boundaryCondition(vIdx.localVar, traversalVarKind, length)(src), vBody)(pos, info, errT)
       )(pos, info, errT)
     } yield forall
   }
@@ -478,7 +478,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
           _ <- bind(vX.localVar, vS)
           // TODO: here; adapt trigger
           trigger = (vIdxDom: vpr.LocalVar) => {
-            val vIdx = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.integerKind)(vIdxDom)()
+            val vIdx = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(vIdxDom)()
             Seq(vpr.Trigger(Seq(ex.get(vX.localVar, vIdx, cptParam(len, t)(ctx))(e)(ctx)))(pos, info, errT))
           }
         } yield (x, trigger)
@@ -494,7 +494,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
           // TODO: here; adapt trigger
           trigger = (vIdx: vpr.LocalVar) =>  {
             // val vIdx = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.integerKind)(vIdxDom)()
-            Seq(vpr.Trigger(Seq(sh.get(vX.localVar, vIdx, IntEncodingGenerator.integerKind, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
+            Seq(vpr.Trigger(Seq(sh.get(vX.localVar, vIdx, IntEncodingGenerator.intKind, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
           }
         } yield (x, trigger)
 

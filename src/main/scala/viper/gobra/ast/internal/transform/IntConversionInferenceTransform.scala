@@ -51,7 +51,17 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newR = transformExprToIntendedType(originalProg)(r, l.typ)
         val newIn = transformAssert(originalProg)(i)
         in.Let(l, newR, newIn)(d.info)
+      case m@in.PatternMatchAss(exp, cases, default) =>
+        val newExp = transformExpr(originalProg)(exp)
+        val newCases = cases map transformPatternMatchCaseAss(originalProg)
+        val newDefault = default map transformAssert(originalProg)
+        in.PatternMatchAss(newExp, newCases, newDefault)(m.info)
     }
+  }
+
+  private def transformPatternMatchCaseAss(originalProg: in.Program)(c: in.PatternMatchCaseAss): in.PatternMatchCaseAss = {
+    val newAss = transformAssert(originalProg)(c.ass)
+    in.PatternMatchCaseAss(c.mExp, newAss)(c.info)
   }
 
   private def transformAccess(originalProg: in.Program)(acc: in.Access): in.Access = {
@@ -426,11 +436,24 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newL = transformExpr(originalProg)(l)
         val newR = transformExpr(originalProg)(r)
         in.Union(newL, newR, typ)(u.info)
-
+      case i@in.Intersection(l, r, typ) =>
+        val newL = transformExpr(originalProg)(l)
+        val newR = transformExpr(originalProg)(r)
+        in.Intersection(newL, newR, typ)(i.info)
+      case m@in.SetMinus(l, r, typ) =>
+        val newL = transformExpr(originalProg)(l)
+        val newR = transformExpr(originalProg)(r)
+        in.SetMinus(newL, newR, typ)(m.info)
       case s@in.SequenceDrop(left, right) =>
         val newL = transformExpr(originalProg)(left)
         val newR = transformExpr(originalProg)(right)
         in.SequenceDrop(newL, newR)(s.info)
+      case u@in.GhostCollectionUpdate(base, left, right, baseUnderlyingType) =>
+        val newBase = transformExpr(originalProg)(base)
+        val newLeft = transformExpr(originalProg)(left)
+        val newRight = transformExpr(originalProg)(right)
+        in.GhostCollectionUpdate(newBase, newLeft, newRight, baseUnderlyingType)(u.info)
+
 
       case k@in.MapKeys(exp, typ) =>
         val newExp = transformExpr(originalProg)(exp)
@@ -477,6 +500,35 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newTriggers = triggers map transformTrigger(originalProg)
         val newBody = transformExpr(originalProg)(body)
         in.PureForall(vars, newTriggers, newBody)(p.info)
+      case s@in.OptionSome(exp) =>
+        val newExpr = transformExpr(originalProg)(exp)
+        in.OptionSome(newExpr)(s.info)
+      case s@in.OptionNone(typ) =>
+        in.OptionNone(typ)(s.info)
+      case s@in.OptionGet(exp) =>
+        val newExpr = transformExpr(originalProg)(exp)
+        in.OptionGet(newExpr)(s.info)
+      case a@in.SequenceAppend(left, right, typ) =>
+        val newLeft = transformExpr(originalProg)(left)
+        val newRight = transformExpr(originalProg)(right)
+        in.SequenceAppend(newLeft, newRight, typ)(a.info)
+      case a@in.AdtDiscriminator(base, clause) =>
+        val newBase = transformExpr(originalProg)(base)
+        in.AdtDiscriminator(newBase, clause)(a.info)
+      case a@in.AdtDestructor(base, field) =>
+        val newBase = transformExpr(originalProg)(base)
+        in.AdtDestructor(newBase, field)(a.info)
+      case m@in.PatternMatchExp(exp, typ, cases, default) =>
+        val newExp = transformExpr(originalProg)(exp)
+        val newCases = cases map(transformPatternMatchCaseExp(originalProg)(_, typ))
+        val newDefault = default map transformExpr(originalProg)
+        in.PatternMatchExp(newExp, typ, newCases, newDefault)(m.info)
+
+      case i@in.ClosureImplements(closure, spec) =>
+        val newClosure = transformExpr(originalProg)(closure)
+        val newSpec = transformClosureSpec(originalProg)(spec)
+        in.ClosureImplements(newClosure, newSpec)(i.info)
+
       case i =>
         println(s"Trying $i, class ${i.getClass}")
         ???
@@ -489,6 +541,16 @@ object IntConversionInferenceTransform extends InternalTransform {
     } else {
       in.Conversion(intededType.withAddressability(newE.typ.addressability), newE)(newE.info)
     }
+  }
+
+  private def transformClosureSpec(originalProg: Program)(c: in.ClosureSpec): in.ClosureSpec = {
+    // TODO??? Does it need changes?
+    c
+  }
+
+  private def transformPatternMatchCaseExp(originalProg: Program)(e: PatternMatchCaseExp, intendedType: in.Type): PatternMatchCaseExp = {
+    val newExp = transformExprToIntendedType(originalProg)(e.exp, intendedType)
+    in.PatternMatchCaseExp(e.mExp, newExp)(e.info)
   }
 
   private def transformTrigger(originalProg: in.Program)(t: in.Trigger): in.Trigger = {
@@ -598,7 +660,9 @@ object IntConversionInferenceTransform extends InternalTransform {
       val newExpr = transformExpr(originalProg)(expr)
       in.SafeTypeAssertion(resTarget, successTarget, newExpr, typ)(s.info)
 
-    case ClosureCall(targets, closure, args, spec) => ???
+    case c@in.ClosureCall(targets, closure, args, spec) =>
+      // TODO: improve, transformations missing
+      c
     case GoFunctionCall(func, args) => ???
     case GoMethodCall(recv, meth, args) => ???
     case GoClosureCall(closure, args, spec) => ???

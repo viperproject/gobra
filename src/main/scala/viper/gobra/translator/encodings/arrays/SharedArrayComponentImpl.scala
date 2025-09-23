@@ -80,7 +80,8 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
   /** Getter of shared-array domain. */
   override def get(base: vpr.Exp, idx: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
-    ctx.array.loc(emb.unbox(base, t)(pos, info, errT)(ctx), idx)(pos, info, errT) // unbox(base)[idx]
+    val newIdx = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.integerKind)(idx)(idx.pos, idx.info, idx.errT)
+    ctx.array.loc(emb.unbox(base, t)(pos, info, errT)(ctx), newIdx)(pos, info, errT) // unbox(base)[idx]
   }
 
   /** Nil of shared-struct domain */

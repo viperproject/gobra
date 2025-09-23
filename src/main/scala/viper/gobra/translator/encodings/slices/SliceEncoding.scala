@@ -20,7 +20,7 @@ import viper.gobra.translator.encodings.IntEncodingGenerator
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeWriter
-import viper.gobra.util.Violation
+import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
 import viper.silver.plugin.standard.termination
@@ -230,7 +230,12 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
           _ <- write(inhale)
           ass <- ctx.assignment(
             in.Assignee.Var(lit.target),
-            in.Slice(tmp, in.IntLit(0)(lit.info), in.IntLit(litA.length)(lit.info), None, underlyingTyp)(lit.info)
+            in.Slice(tmp,
+              in.IntLit(0, TypeBounds.DefaultInt)(lit.info),
+              in.IntLit(litA.length, TypeBounds.DefaultInt)(lit.info),
+              None,
+              underlyingTyp
+            )(lit.info)
           )(lit)
         } yield ass
       }
@@ -583,14 +588,26 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       // preconditions
       val pre1 = synthesized(vpr.LeCmp(vpr.IntLit(0)(), iDecl.localVar))("The low bound of the slice might be negative")
       val pre2 = synthesized(vpr.LeCmp(iDecl.localVar, jDecl.localVar))("The low bound of the slice might exceed the high bound")
-      val pre3 = synthesized(vpr.LeCmp(jDecl.localVar, ctx.array.len(aDecl.localVar)()))("The high bound of the slice might exceed the array capacity")
+      val pre3 = synthesized(
+        vpr.LeCmp(jDecl.localVar,
+          IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(ctx.array.len(aDecl.localVar)())()
+        ))("The high bound of the slice might exceed the array capacity")
       val pre4 = synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
 
       // postconditions
       val result = vpr.Result(ctx.slice.typ(typ))()
       val post1 = vpr.EqCmp(ctx.slice.offset(result)(), iDecl.localVar)()
-      val post2 = vpr.EqCmp(ctx.slice.len(result)(), vpr.Sub(jDecl.localVar, iDecl.localVar)())()
-      val post3 = vpr.EqCmp(ctx.slice.cap(result)(), vpr.Sub(ctx.array.len(aDecl.localVar)(), iDecl.localVar)())()
+      val post2 = vpr.EqCmp(
+        IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(ctx.slice.len(result)())(),
+        vpr.Sub(jDecl.localVar, iDecl.localVar)()
+      )()
+      val post3 = vpr.EqCmp(
+        IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(ctx.slice.cap(result)())(),
+        vpr.Sub(
+          IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(ctx.array.len(aDecl.localVar)())(),
+          iDecl.localVar
+        )()
+      )()
       val post4 = vpr.EqCmp(ctx.slice.array(result)(), aDecl.localVar)()
 
       // function body

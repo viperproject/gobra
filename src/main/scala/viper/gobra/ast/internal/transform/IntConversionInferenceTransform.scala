@@ -161,44 +161,100 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newR = transformExpr(originalProg)(r)
         in.Or(newL, newR)(o.info)
       case e@in.EqCmp(l, r) =>
-        val typ = mergeTypes(originalProg)(l.typ, r.typ)
-        val newL = transformExprToIntendedType(originalProg)(l, typ)
-        val newR = transformExprToIntendedType(originalProg)(r, typ)
+        val (newL, newR) = mergeNumericalTypes(originalProg)(l.typ, r.typ) match {
+          case Some(typ) =>
+            val ll = transformExprToIntendedType(originalProg)(l, typ)
+            val rr = transformExprToIntendedType(originalProg)(r, typ)
+            (ll, rr)
+          case None =>
+            val ll = transformExpr(originalProg)(l)
+            val rr = transformExpr(originalProg)(r)
+            (ll, rr)
+        }
         in.EqCmp(newL, newR)(e.info)
       case e@in.GhostEqCmp(l, r) =>
-        val typ = mergeTypes(originalProg)(l.typ, r.typ)
-        val newL = transformExprToIntendedType(originalProg)(l, typ)
-        val newR = transformExprToIntendedType(originalProg)(r, typ)
+        val (newL, newR) = mergeNumericalTypes(originalProg)(l.typ, r.typ) match {
+          case Some(typ) =>
+            val ll = transformExprToIntendedType(originalProg)(l, typ)
+            val rr = transformExprToIntendedType(originalProg)(r, typ)
+            (ll, rr)
+          case None =>
+            val ll = transformExpr(originalProg)(l)
+            val rr = transformExpr(originalProg)(r)
+            (ll, rr)
+        }
         in.GhostEqCmp(newL, newR)(e.info)
       case e@in.GhostUneqCmp(l, r) =>
-        val typ = mergeTypes(originalProg)(l.typ, r.typ)
-        val newL = transformExprToIntendedType(originalProg)(l, typ)
-        val newR = transformExprToIntendedType(originalProg)(r, typ)
+        val (newL, newR) = mergeNumericalTypes(originalProg)(l.typ, r.typ) match {
+          case Some(typ) =>
+            val ll = transformExprToIntendedType(originalProg)(l, typ)
+            val rr = transformExprToIntendedType(originalProg)(r, typ)
+            (ll, rr)
+          case None =>
+            val ll = transformExpr(originalProg)(l)
+            val rr = transformExpr(originalProg)(r)
+            (ll, rr)
+        }
         in.GhostUneqCmp(newL, newR)(e.info)
       case u@in.UneqCmp(l, r) =>
-        val typ = mergeTypes(originalProg)(l.typ, r.typ)
-        val newL = transformExprToIntendedType(originalProg)(l, typ)
-        val newR = transformExprToIntendedType(originalProg)(r, typ)
+        val (newL, newR) = mergeNumericalTypes(originalProg)(l.typ, r.typ) match {
+          case Some(typ) =>
+            val ll = transformExprToIntendedType(originalProg)(l, typ)
+            val rr = transformExprToIntendedType(originalProg)(r, typ)
+            (ll, rr)
+          case None =>
+            val ll = transformExpr(originalProg)(l)
+            val rr = transformExpr(originalProg)(r)
+            (ll, rr)
+        }
         in.UneqCmp(newL, newR)(u.info)
       case c@in.LessCmp(l, r) =>
-        val typ = mergeTypes(originalProg)(l.typ, r.typ)
-        val newL = transformExprToIntendedType(originalProg)(l, typ)
-        val newR = transformExprToIntendedType(originalProg)(r, typ)
+        val (newL, newR) = mergeNumericalTypes(originalProg)(l.typ, r.typ) match {
+          case Some(typ) =>
+            val ll = transformExprToIntendedType(originalProg)(l, typ)
+            val rr = transformExprToIntendedType(originalProg)(r, typ)
+            (ll, rr)
+          case None =>
+            val ll = transformExpr(originalProg)(l)
+            val rr = transformExpr(originalProg)(r)
+            (ll, rr)
+        }
         in.LessCmp(newL, newR)(c.info)
       case c@in.GreaterCmp(l, r) =>
-        val typ = mergeTypes(originalProg)(l.typ, r.typ)
-        val newL = transformExprToIntendedType(originalProg)(l, typ)
-        val newR = transformExprToIntendedType(originalProg)(r, typ)
+        val (newL, newR) = mergeNumericalTypes(originalProg)(l.typ, r.typ) match {
+          case Some(typ) =>
+            val ll = transformExprToIntendedType(originalProg)(l, typ)
+            val rr = transformExprToIntendedType(originalProg)(r, typ)
+            (ll, rr)
+          case None =>
+            val ll = transformExpr(originalProg)(l)
+            val rr = transformExpr(originalProg)(r)
+            (ll, rr)
+        }
         in.GreaterCmp(newL, newR)(c.info)
       case c@in.AtLeastCmp(l, r) =>
-        val typ = mergeTypes(originalProg)(l.typ, r.typ)
-        val newL = transformExprToIntendedType(originalProg)(l, typ)
-        val newR = transformExprToIntendedType(originalProg)(r, typ)
+        val (newL, newR) = mergeNumericalTypes(originalProg)(l.typ, r.typ) match {
+          case Some(typ) =>
+            val ll = transformExprToIntendedType(originalProg)(l, typ)
+            val rr = transformExprToIntendedType(originalProg)(r, typ)
+            (ll, rr)
+          case None =>
+            val ll = transformExpr(originalProg)(l)
+            val rr = transformExpr(originalProg)(r)
+            (ll, rr)
+        }
         in.AtLeastCmp(newL, newR)(c.info)
       case c@in.AtMostCmp(l, r) =>
-        val typ = mergeTypes(originalProg)(l.typ, r.typ)
-        val newL = transformExprToIntendedType(originalProg)(l, typ)
-        val newR = transformExprToIntendedType(originalProg)(r, typ)
+        val (newL, newR) = mergeNumericalTypes(originalProg)(l.typ, r.typ) match {
+          case Some(typ) =>
+            val ll = transformExprToIntendedType(originalProg)(l, typ)
+            val rr = transformExprToIntendedType(originalProg)(r, typ)
+            (ll, rr)
+          case None =>
+            val ll = transformExpr(originalProg)(l)
+            val rr = transformExpr(originalProg)(r)
+            (ll, rr)
+        }
         in.AtMostCmp(newL, newR)(c.info)
       case c@in.Add(l, r) =>
         val typ = c.typ
@@ -434,12 +490,12 @@ object IntConversionInferenceTransform extends InternalTransform {
         ???
     }
     // TODO: check if I am trying to convert to an interface type
-    if (newE.typ == intededType)
+    if (newE.typ.equalsWithoutMod(intededType))
       newE
     else if (underlyingType(originalProg)(intededType).isInstanceOf[in.InterfaceT]) {
-      in.ToInterface(newE, intededType)(newE.info)
+      in.ToInterface(newE, intededType.withAddressability(newE.typ.addressability))(newE.info)
     } else {
-      in.Conversion(intededType, newE)(newE.info)
+      in.Conversion(intededType.withAddressability(newE.typ.addressability), newE)(newE.info)
     }
   }
 
@@ -705,47 +761,27 @@ object IntConversionInferenceTransform extends InternalTransform {
     }
 
   // TODO: maybe adapt to return an option[in.Type]
-  private def mergeTypes(originalProg: in.Program)(t1: in.Type, t2: in.Type): in.Type = {
-    if (t1 == t2) {
-      t1
+  private def mergeNumericalTypes(originalProg: in.Program)(t1: in.Type, t2: in.Type): Option[in.Type] = {
+    val isNumerical1 = isNumericalType(originalProg)(t1)
+    val isNumerical2 = isNumericalType(originalProg)(t2)
+    if (!isNumerical1 || !isNumerical2) {
+      None
+    } else if (t1 == t2) {
+      Some(t1)
     } else if (t1.equalsWithoutMod(t2)) {
-      t1.withAddressability(t2.addressability) // TODO: what about this here?
+      println(s"AAA: weird case reached: t1: $t1, t2: $t2")
+      Some(t1.withAddressability(t2.addressability)) // TODO: what about this here?
     } else if (isNumericalType(originalProg)(t1) && isNumericalType(originalProg)(t2)) {
       (t1, t2) match {
-        case (in.IntT(_, TypeBounds.UnboundedInteger), _) => t2
-        case (_, in.IntT(_, TypeBounds.UnboundedInteger)) => t1
+        case (in.IntT(_, TypeBounds.UnboundedInteger), _) => Some(t2)
+        case (_, in.IntT(_, TypeBounds.UnboundedInteger)) => Some(t1)
         case _ =>
           // cannot unify
           ???
       }
-
-    } else if (t1.isInstanceOf[in.DefinedT] && t2.isInstanceOf[in.DefinedT]) {
-      if (originalProg.table.lookup(t1.asInstanceOf[in.DefinedT]) == t2) {
-        t1
-      } else if (originalProg.table.lookup(t2.asInstanceOf[in.DefinedT]) == t1) {
-        t2
-      } else {
-        val lookup1 = originalProg.table.lookup(t1.asInstanceOf[in.DefinedT])
-        val lookup2 = originalProg.table.lookup(t2.asInstanceOf[in.DefinedT])
-        val mergedT = mergeTypes(originalProg)(lookup1, lookup2)
-        if (mergedT == lookup1) {
-          t1
-        } else { t2 }
-      }
-    } else if (t1.isInstanceOf[in.DefinedT]) {
-      t1
-    } else if (t2.isInstanceOf[in.DefinedT]) {
-      t2
-    } else if (t1.isInstanceOf[in.InterfaceT] && !t2.isInstanceOf[in.InterfaceT]) {
-      t1
-    } else if (t2.isInstanceOf[in.InterfaceT] && !t1.isInstanceOf[in.InterfaceT]) {
-      t2
     } else {
-      // cannot unify
-      println(s"t1: $t1, t2: $t2")
-      ???
+      None
     }
-
   }
 
   private def underlyingType(originalProg: in.Program)(t: in.Type): in.Type = t match {

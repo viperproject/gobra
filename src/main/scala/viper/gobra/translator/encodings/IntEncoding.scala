@@ -259,13 +259,6 @@ class IntEncoding extends LeafTypeEncoding {
           numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(vl), l)
           numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(vr), r)
         } yield withSrc(vpr.NeCmp(numl, numr), n)
-      case n@in.GhostEqCmp(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) =>
-        for {
-          vl <- ctx.expression(l)
-          vr <- ctx.expression(r)
-          numl = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindL)(vl), l)
-          numr = withSrc(IntEncodingGenerator.domainToIntFuncApp(kindR)(vr), r)
-        } yield withSrc(vpr.EqCmp(numl, numr), n)
       case n@in.GhostUneqCmp(l :: ctx.Int(kindL), r :: ctx.Int(kindR)) =>
         for {
           vl <- ctx.expression(l)

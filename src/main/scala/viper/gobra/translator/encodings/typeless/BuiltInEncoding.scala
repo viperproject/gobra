@@ -17,7 +17,7 @@ import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.MemberWriter
 import viper.gobra.translator.util.PrimitiveGenerator
-import viper.gobra.util.Computation
+import viper.gobra.util.{Computation, TypeBounds}
 import viper.gobra.util.Violation.violation
 import viper.silver.{ast => vpr}
 
@@ -360,9 +360,9 @@ class BuiltInEncoding extends Encoding {
     val src = x.info
 
     var varCount = 0
-    def freshBoundVar(): in.BoundVar = {
+    def freshBoundVar(kind: TypeBounds.IntegerKind): in.BoundVar = {
       varCount += 1
-      in.BoundVar(s"i$varCount", in.IntT(Addressability.boundVariable))(src)
+      in.BoundVar(s"i$varCount", in.IntT(Addressability.boundVariable, kind))(src)
     }
 
     def inRange(exp: in.Expr, lower: in.Expr, upper: in.Expr): in.Expr = {
@@ -372,13 +372,14 @@ class BuiltInEncoding extends Encoding {
       )(src)
     }
 
-    def quantify(trigger: in.BoundVar => Vector[in.Trigger], range: in.BoundVar => in.Expr, body: in.BoundVar => in.Assertion): in.Assertion = {
-      val i = freshBoundVar()
+    def quantify(qtfiedVarKind: TypeBounds.IntegerKind, trigger: in.BoundVar => Vector[in.Trigger], range: in.BoundVar => in.Expr, body: in.BoundVar => in.Assertion): in.Assertion = {
+      val i = freshBoundVar(qtfiedVarKind)
       in.SepForall(Vector(i), trigger(i), in.Implication(range(i), body(i))(src))(src)
     }
 
     def accessSlice(sliceExpr: in.Expr, perm: in.Expr): in.Assertion =
       quantify(
+        TypeBounds.DefaultInt,
         trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(sliceExpr, i, sliceExpr.typ)(src))(src)))(src)) },
         range = { i => inRange(i, in.IntLit(0)(src), in.Length(sliceExpr, ctx.underlyingType(sliceExpr.typ))(src)) },
         body = { i => in.Access(in.Accessible.Address(in.IndexedExp(sliceExpr, i, sliceExpr.typ)(src)), perm)(src) }
@@ -438,6 +439,7 @@ class BuiltInEncoding extends Encoding {
           * requires p > 0
           * requires forall i int :: { &dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i])
           * requires forall i int :: { &src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
+          * requires integer(len(dst)) + integer(len(src)) <= MAX_INT
           * ensures len(res) == len(dst) + len(src)
           * ensures forall i int :: { &res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
           * ensures forall i int :: { &src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
@@ -465,7 +467,16 @@ class BuiltInEncoding extends Encoding {
         val preSlice = accessSlice(sliceParam, in.FullPerm(src))
         val preVariadic = accessSlice(variadicParam, pParam)
         val pPre = in.ExprAssertion(in.LessCmp(in.NoPerm(src), pParam)(src))(src)
-        val pres: Vector[in.Assertion] = Vector(pPre, preSlice, preVariadic)
+        val pSumLengths = in.ExprAssertion(
+          in.AtMostCmp(
+            in.Add(
+              in.Conversion(in.IntT(Addressability.Exclusive), in.Length(sliceParam, sliceType)(src))(src),
+              in.Conversion(in.IntT(Addressability.Exclusive), in.Length(variadicParam, sliceType)(src))(src)
+            )(src),
+            in.IntLit(TypeBounds.DefaultInt.upper)(src)
+          )(src)
+        )(src)
+        val pres: Vector[in.Assertion] = Vector(pPre, preSlice, preVariadic, pSumLengths)
 
         // postconditions
         val postLen = in.ExprAssertion(
@@ -477,6 +488,7 @@ class BuiltInEncoding extends Encoding {
         val postRes = accessSlice(resultParam, in.FullPerm(src))
         val postVariadic = accessSlice(variadicParam, pParam)
         val postCmpSlice = quantify(
+          TypeBounds.DefaultInt,
           trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(resultParam, i, sliceType)(src))(src)))(src)) },
           range = { inRange(_, in.IntLit(0)(src), in.Length(sliceParam, sliceType)(src)) },
           body = {
@@ -489,6 +501,7 @@ class BuiltInEncoding extends Encoding {
           }
         )
         val postCmpVariadic = quantify(
+          TypeBounds.DefaultInt,
           trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(resultParam, i, sliceType)(src))(src)))(src)) },
           range = { inRange(_,  in.Length(sliceParam, sliceType)(src), in.Length(resultParam, sliceType)(src)) },
           body = { i =>
@@ -544,6 +557,7 @@ class BuiltInEncoding extends Encoding {
         // preconditions
         val pPre = in.ExprAssertion(in.LessCmp(in.NoPerm(src), pParam)(src))(src)
         val preDst = quantify(
+          TypeBounds.DefaultInt,
           trigger = { i =>
             Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(dstParam, i, dstUnderlyingType)(src))(src)))(src))
           },
@@ -553,6 +567,7 @@ class BuiltInEncoding extends Encoding {
           }
         )
         val preSrc = quantify(
+          TypeBounds.DefaultInt,
           trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(srcParam, i, srcUnderlyingType)(src))(src)))(src)) },
           range = { i => inRange(i, in.IntLit(0)(src), in.Length(srcParam, srcUnderlyingType)(src)) },
           body = { i => in.Access(in.Accessible.Address(in.IndexedExp(srcParam, i, srcUnderlyingType)(src)), pParam)(src) }
@@ -575,6 +590,7 @@ class BuiltInEncoding extends Encoding {
         val postDst = preDst
         val postSrc = preSrc
         val postUpdate = quantify(
+          TypeBounds.DefaultInt,
           trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(dstParam, i, dstUnderlyingType)(src))(src)))(src)) },
           range = { i =>
             in.And(
@@ -592,6 +608,7 @@ class BuiltInEncoding extends Encoding {
           }
         )
         val postSame = quantify(
+          TypeBounds.DefaultInt,
           trigger = { i => Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(dstParam, i, dstUnderlyingType)(src))(src)))(src)) },
           range = { i => inRange(i, in.Length(srcParam, srcUnderlyingType)(src), in.Length(dstParam, dstUnderlyingType)(src)) },
           body = { i =>

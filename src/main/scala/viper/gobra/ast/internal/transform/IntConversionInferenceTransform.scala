@@ -292,7 +292,7 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newR = transformExpr(originalProg)(r)
         in.ShiftRight(newL, newR)(c.info)
       case c@in.BitNeg(op) =>
-        val newOp = transformExprToIntendedType(originalProg)(op, c.typ)
+        val newOp = transformExprToIntendedType(originalProg)(op, intededType)
         in.BitNeg(newOp)(c.info)
       case n@in.Negation(op) =>
         val newOp = transformExpr(originalProg)(op)
@@ -591,6 +591,13 @@ object IntConversionInferenceTransform extends InternalTransform {
         transformExprToIntendedType(originalProg)(arg, typ)
       }
       in.MethodCall(targets, newRecv, meth, newArgs)(c.info)
+    case e@in.EffectfulConversion(target, newType, expr) =>
+      val newExpr = transformExpr(originalProg)(expr)
+      in.EffectfulConversion(target, newType, newExpr)(e.info)
+    case s@in.SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
+      val newExpr = transformExpr(originalProg)(expr)
+      in.SafeTypeAssertion(resTarget, successTarget, newExpr, typ)(s.info)
+
     case ClosureCall(targets, closure, args, spec) => ???
     case GoFunctionCall(func, args) => ???
     case GoMethodCall(recv, meth, args) => ???
@@ -679,8 +686,7 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newDeclStmts = declStmts map transformStmt(originalProg)
         in.GlobalVarDecl(left, newDeclStmts)(g.info)
 
-      case g@in.GlobalConstDecl(left, right) =>
-        ???
+      case g: in.GlobalConstDecl => g
       case m@in.Method(receiver, name, args, results, pres, posts, terminationMeasures, backendAnnotations, body) =>
         val newPres = pres map transformAssert(originalProg)
         val newPosts = posts map transformAssert(originalProg)
@@ -709,7 +715,7 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newPres = pres map transformAssert(originalProg)
         val newPosts = posts map transformAssert(originalProg)
         val newTermMeasures = terminationMeasures map transformTermMeasure(originalProg)
-        val newBody = body map transformExpr(originalProg)
+        val newBody = body map(transformExprToIntendedType(originalProg)(_, results(0).typ))
         in.PureFunction(name, args, results, newPres, newPosts, newTermMeasures, backendAnnotations, newBody, isOpaque)(f.info)
       case t: in.BuiltInMember => t
       case f@in.FPredicate(name, args, body) =>

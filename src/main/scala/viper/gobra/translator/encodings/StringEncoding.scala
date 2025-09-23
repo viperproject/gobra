@@ -119,7 +119,7 @@ class StringEncoding extends LeafTypeEncoding {
         val sliceT = in.SliceT(in.IntT(Addressability.sliceElement, TypeBounds.Byte), Addressability.outParameter)
         val slice = in.LocalVar(ctx.freshNames.next(), sliceT)(conv.info)
         val vprSlice = ctx.variable(slice)
-        val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(conv.info)
+        val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable, TypeBounds.DefaultInt))(conv.info)
         val post1 = in.SepForall(
           vars = Vector(qtfVar),
           triggers = Vector(in.Trigger(Vector(in.Ref(in.IndexedExp(slice, qtfVar, sliceT)(conv.info))(conv.info)))(conv.info)),
@@ -328,7 +328,7 @@ class StringEncoding extends LeafTypeEncoding {
       val param = in.Parameter.In("s", paramT)(info)
       val resT = in.StringT(Addressability.outParameter)
       val res = in.Parameter.Out("res", resT)(info)
-      val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(info)
+      val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable, TypeBounds.DefaultInt))(info)
       val trigger = in.Trigger(Vector(in.Ref(in.IndexedExp(param, qtfVar, paramT)(info))(info)))(info)
       val pre = in.SepForall(
         vars = Vector(qtfVar),

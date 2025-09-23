@@ -21,8 +21,7 @@ class MemoryEncoding extends Encoding {
     case x@ in.UneqCmp(l, r) if !ctx.underlyingType(l.typ).isInstanceOf[in.IntT] &&
       !ctx.underlyingType(r.typ).isInstanceOf[in.IntT] =>
       ctx.goEqual(l, r)(x).map(v => withSrc(vpr.Not(v), x))
-    case x@ in.GhostEqCmp(l, r) if !ctx.underlyingType(l.typ).isInstanceOf[in.IntT] &&
-      !ctx.underlyingType(r.typ).isInstanceOf[in.IntT] =>
+    case x@ in.GhostEqCmp(l, r) =>
       ctx.equal(l, r)(x)
     case x@ in.GhostUneqCmp(l, r) if !ctx.underlyingType(l.typ).isInstanceOf[in.IntT] &&
       !ctx.underlyingType(r.typ).isInstanceOf[in.IntT] =>

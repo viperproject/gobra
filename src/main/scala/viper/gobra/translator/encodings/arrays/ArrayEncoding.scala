@@ -407,7 +407,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val lenEq = {
         val l = ctx.expression(in.Length(resDummy, resType)(src.info)).res
           .transform { case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
-        vpr.EqCmp(l, vpr.IntLit(resType.length)())()
+        vpr.EqCmp(l, IntEncodingGenerator.intToDomainFuncApp(IntEncodingGenerator.intKind)(vpr.IntLit(resType.length)())())()
       }
       val idxEq = pure(ctx.equal(resAccess, in.DfltVal(resType.elems)(src.info))(src))(ctx).res
         .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }

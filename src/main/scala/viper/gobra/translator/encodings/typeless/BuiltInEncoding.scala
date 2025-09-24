@@ -551,7 +551,7 @@ class BuiltInEncoding extends Encoding {
         val args = Vector(dstParam, srcParam, pParam)
 
         // results
-        val resParam = in.Parameter.Out("res", in.IntT(Addressability.outParameter))(src)
+        val resParam = in.Parameter.Out("res", in.IntT(Addressability.outParameter, TypeBounds.DefaultInt))(src)
         val results = Vector(resParam)
 
         // preconditions

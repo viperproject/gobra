@@ -10,6 +10,7 @@ import viper.gobra.ast.{internal => in}
 import viper.silver.{ast => vpr}
 import ArrayEncoding.ComponentParameter
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.encodings.IntEncodingGenerator
 import viper.gobra.translator.library.embeddings.EmbeddingComponent
 
 class ExclusiveArrayComponentImpl extends ExclusiveArrayComponent {
@@ -61,7 +62,9 @@ class ExclusiveArrayComponentImpl extends ExclusiveArrayComponent {
   /** Length of exclusive-array domain. */
   override def length(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
-    vpr.SeqLength(emb.unbox(arg, t)(pos, info, errT)(ctx))(pos, info, errT) // len(unbox(arg))
+    IntEncodingGenerator.intToDomainFuncApp(IntEncodingGenerator.intKind)(
+      vpr.SeqLength(emb.unbox(arg, t)(pos, info, errT)(ctx))(pos, info, errT) // len(unbox(arg))
+    )(pos, info, errT)
   }
 
   /** Returns an exclusive array from a sequence. */

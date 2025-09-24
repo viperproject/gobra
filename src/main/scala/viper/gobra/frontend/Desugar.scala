@@ -22,7 +22,7 @@ import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.TypeBounds.UnboundedInteger
 import viper.gobra.util.Violation.violation
-import viper.gobra.util.{BackendAnnotation, Computation, Constants, DesugarWriter, GobraExecutionContext, Violation}
+import viper.gobra.util.{BackendAnnotation, Computation, Constants, DesugarWriter, GobraExecutionContext, TypeBounds, Violation}
 
 import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicLong
@@ -2759,7 +2759,13 @@ object Desugar extends LazyLogging {
             }
             case baseT @ (_: in.ArrayT | _: in.SliceT | in.PointerT(_: in.ArrayT, _)) =>
               (dlow, dhigh) match {
-                case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase, baseT)(src), dcap, baseT)(src)
+                case (None, None) => in.Slice(
+                  dbase,
+                  in.Conversion(in.IntT(Addressability.Exclusive, TypeBounds.DefaultInt), in.IntLit(0)(src))(src),
+                  in.Length(dbase, baseT)(src),
+                  dcap,
+                  baseT
+                )(src)
                 case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase, baseT)(src), dcap, baseT)(src)
                 case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap, baseT)(src)
                 case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap, baseT)(src)

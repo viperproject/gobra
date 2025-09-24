@@ -408,16 +408,23 @@ object IntConversionInferenceTransform extends InternalTransform {
       case l: in.Length => l
       case c: in.Capacity => c
       //case s@in.Slice(base, low, high, max, baseUnderlyingType) =>
-      case s: in.Slice =>
-        s
-        /*
+      case s@in.Slice(base, low, high, max, baseUnderlyingType) =>
+        val idxType = baseUnderlyingType match {
+          case _: in.SequenceT => integerType
+          case _: in.SliceT => intType
+          case _: in.ArrayT => intType
+          case _: in.StringT => intType
+          case _ => intType
+        }
         val newBase = transformExpr(originalProg)(base)
-        // val newLow = transformExprToIntendedType(originalProg)(low, intType)
-        // val newHigh = transformExprToIntendedType(originalProg)(high, intType)
-        // val newMax = max map { m => transformExprToIntendedType(originalProg)(m, intType) }
-        // in.Slice(newBase, newLow, newHigh, newMax, baseUnderlyingType)(s.info)
-        in.Slice(newBase, low, high, max, baseUnderlyingType)(s.info)
-         */
+        val newLow = transformExprToIntendedType(originalProg)(low, idxType)
+        val newHigh = transformExprToIntendedType(originalProg)(high, idxType)
+        val newMax = max map { m => transformExprToIntendedType(originalProg)(m, idxType) }
+        // in.Slice(newBase, low, high, max, baseUnderlyingType)(s.info)
+        val newS = in.Slice(newBase, newLow, newHigh, newMax, baseUnderlyingType)(s.info)
+        println(s"oldSlice: $s")
+        println(s"newSlice: $newS")
+        newS
 
       case d: in.DfltVal => d
       case o: in.Old =>
@@ -590,7 +597,7 @@ object IntConversionInferenceTransform extends InternalTransform {
       //       Chose a single solution
       m
     case n@in.New(target, expr) =>
-      val newExpr = transformExprToIntendedType(originalProg)(expr, target.typ)
+      val newExpr = transformExpr(originalProg)(expr)
       in.New(target, newExpr)(n.info)
     case n@in.NewSliceLit(target, memberType, elems) =>
       val newElems = elems map { case (k, v) =>
@@ -659,6 +666,14 @@ object IntConversionInferenceTransform extends InternalTransform {
     case s@in.SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       val newExpr = transformExpr(originalProg)(expr)
       in.SafeTypeAssertion(resTarget, successTarget, newExpr, typ)(s.info)
+
+    case p@in.SpecImplementationProof(closure, spec, body, pres, posts) =>
+      val newClosure = transformExpr(originalProg)(closure)
+      val newSpec = transformClosureSpec(originalProg)(spec)
+      val newBody = transformBlock(originalProg)(body)
+      val newPres = pres map transformAssert(originalProg)
+      val newPosts = posts map transformAssert(originalProg)
+      in.SpecImplementationProof(newClosure, newSpec, newBody, newPres, newPosts)(p.info)
 
     case c@in.ClosureCall(targets, closure, args, spec) =>
       // TODO: improve, transformations missing

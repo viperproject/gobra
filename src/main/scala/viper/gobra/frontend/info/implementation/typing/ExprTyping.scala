@@ -412,8 +412,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             error(base, s"array $base is not addressable", !addressable(base))
 
         case (SequenceT(_), lowT, highT, capT) => {
-          lowT.fold(noMessages)(t => error(low, s"expected an integer but found $t", !t.isInstanceOf[IntT])) ++
-            highT.fold(noMessages)(t => error(high, s"expected an integer but found $t", !t.isInstanceOf[IntT])) ++
+          // println(s"PEW PEW PEW: $n")
+          lowT.fold(noMessages)(t => error(low, s"expected an integer but found $t", t != GhostIntegerT && !t.isInstanceOf[IntT])) ++
+            highT.fold(noMessages)(t => error(high, s"expected an integer but found $t", t != GhostIntegerT && !t.isInstanceOf[IntT])) ++
             error(cap, "sequence slice expressions do not allow specifying a capacity", capT.isDefined)
         }
 
@@ -763,7 +764,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       (underlyingType(baseType), low map exprType, high map exprType, cap map exprType) match {
         case (ArrayT(_, elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) if addressable(base) => SliceT(elem)
         case (ActualPointerT(ArrayT(_, elem)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
-        case (SequenceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None) => baseType
+        case (SequenceT(_), None | Some(IntT(_) | GhostIntegerT), None | Some(IntT(_) | GhostIntegerT), None) => baseType
+        // case (SequenceT(_), None | Some(GhostIntegerT), None | Some(IntT(_)), None) => baseType
         case (SliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => baseType
         case (GhostSliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => baseType
         case (StringT, None | Some(IntT(_)), None | Some(IntT(_)), None) => baseType

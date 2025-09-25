@@ -451,6 +451,10 @@ object IntConversionInferenceTransform extends InternalTransform {
         val newL = transformExpr(originalProg)(l)
         val newR = transformExpr(originalProg)(r)
         in.SetMinus(newL, newR, typ)(m.info)
+      case s@in.SequenceTake(left, right) =>
+        val newL = transformExpr(originalProg)(left)
+        val newR = transformExpr(originalProg)(right)
+        in.SequenceTake(newL, newR)(s.info)
       case s@in.SequenceDrop(left, right) =>
         val newL = transformExpr(originalProg)(left)
         val newR = transformExpr(originalProg)(right)
@@ -828,7 +832,7 @@ object IntConversionInferenceTransform extends InternalTransform {
         case (_, in.IntT(_, TypeBounds.UnboundedInteger)) => Some(t1)
         case (a, b) =>
           println(s"weird case: a: $a and b: $b")
-          ???
+          None
         case _ =>
           // cannot unify
           ???
